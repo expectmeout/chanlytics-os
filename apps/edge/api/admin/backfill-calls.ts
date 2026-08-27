@@ -105,7 +105,7 @@ export async function GET(request: Request): Promise<Response> {
           row.noted = !!msgId;
         }
 
-        if (withRecordings && nn.recordingUrl && res.is_new) {
+        if (withRecordings && nn.recordingUrl && res.recording_state !== "stored") {
           const got = await fetchRecording(nn.recordingUrl);
           if (got) {
             const ext = REC_EXT[got.mime || ""] || "wav";

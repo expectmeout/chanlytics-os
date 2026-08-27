@@ -81,7 +81,7 @@ export async function POST(request: Request): Promise<Response> {
         // Retell serves recordings from an UNSIGNED public CDN URL — copy the
         // audio into the private bucket so a customer's call isn't one guessed
         // link away, and so it survives provider retention.
-        if (n.recordingUrl && (event === "call_analyzed" || n.status === "ended")) {
+        if (n.recordingUrl && res.recording_state !== "stored" && (event === "call_analyzed" || n.status === "ended")) {
           try {
             const got = await fetchRecording(n.recordingUrl);
             if (got) {

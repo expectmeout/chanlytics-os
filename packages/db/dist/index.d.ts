@@ -1524,6 +1524,8 @@ interface NormalizedCallInput {
 interface IngestCallResult {
     call_id: string;
     is_new: boolean;
+    /** 'stored' means audio is already in private storage — skip re-copying. */
+    recording_state: string | null;
     contact_id: string | null;
     conversation_id: string | null;
 }
