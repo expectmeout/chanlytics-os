@@ -1,0 +1,72 @@
+/* Minimal shell styles for Slice 0 (login + foundation page).
+   The legacy design system arrives with the Slice 0B bridge (legacy.css). */
+:root {
+  --bg: #0e1512;
+  --surface: #16201c;
+  --ink: #e5ece9;
+  --muted: #93a5a0;
+  --line: #24322e;
+  --teal: #3cb79e;
+  --danger: #d9776f;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.auth-card {
+  max-width: 380px;
+  margin: 18vh auto 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 28px;
+}
+.auth-card h1 { font-size: 1.3rem; margin: 0 0 4px; }
+.auth-card p { color: var(--muted); font-size: 0.9rem; margin: 0 0 18px; }
+.auth-card label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
+.auth-card input {
+  width: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  margin-bottom: 14px;
+}
+.auth-card input:focus { outline: 2px solid var(--teal); outline-offset: 1px; }
+.auth-card button {
+  width: 100%;
+  background: var(--teal);
+  color: #06120e;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.auth-card button:disabled { opacity: 0.6; cursor: default; }
+.auth-card .error { color: var(--danger); font-size: 0.85rem; margin-top: 10px; }
+.auth-card .hint { color: var(--muted); font-size: 0.8rem; margin-top: 12px; }
+.os-shell { max-width: 760px; margin: 8vh auto; padding: 0 24px; }
+.os-shell h1 { font-size: 1.5rem; }
+.os-shell .card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin: 16px 0;
+}
+.os-shell .muted { color: var(--muted); }
+.os-shell code { background: #0a100e; border-radius: 4px; padding: 1px 6px; font-size: 0.85em; }
+.os-shell form { display: inline; }
+.os-shell button {
+  background: none; border: 1px solid var(--line); color: var(--muted);
+  border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 0.85rem;
+}
