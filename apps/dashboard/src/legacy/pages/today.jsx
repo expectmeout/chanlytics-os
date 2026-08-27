@@ -56,9 +56,17 @@ const TodayPage = () => {
         <div className="td-standing">
           <p className="td-eyebrow">Today</p>
           <h1 className="td-headline">Can&rsquo;t reach your workspace right now.</h1>
+          {/* The runner retries once at boot and again when the tab regains
+              focus — by the time anyone reads this, the automatic retry has
+              already happened and failed. Saying "retrying automatically"
+              would be the same small lie this page exists to avoid. */}
           <p className="td-detail">
-            This isn&rsquo;t a quiet morning, it&rsquo;s a connection problem. Retrying automatically.
+            This isn&rsquo;t a quiet morning, it&rsquo;s a connection problem. Reload the page to try
+            again — your messages are still being received and answered either way.
           </p>
+          <button type="button" className="td-link" onClick={() => window.location.reload()}>
+            Reload
+          </button>
         </div>
       </div>
     );
