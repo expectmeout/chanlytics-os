@@ -59,14 +59,17 @@ const conv = (over = {}) => ({
   ...over,
 });
 
-test("a quiet morning is proven, not rendered as zeroes", () => {
+test("a quiet morning is proven, not left implied", () => {
   const vm = toTodayVM(metrics(), [], [], [], NOW);
   assert.ok(vm.quiet, "quiet card should be present");
-  assert.equal(vm.recap, null, "no recap region on a day with no traffic");
   assert.equal(vm.needsYou, null);
   assert.equal(vm.calls, null);
+  assert.equal(vm.pulse, null, "an arc of 0/0 is a gauge with no needle");
   assert.match(vm.quiet.sub, /connected/);
   assert.match(vm.quiet.sub, /No messages have arrived yet/);
+  // the hero strip still renders — a zero is a real measurement
+  assert.equal(vm.recap.facts.length, 4);
+  assert.equal(vm.recap.facts[0].value, "0");
 });
 
 test("a disconnected channel never reads as a calm morning", () => {
@@ -246,11 +249,32 @@ test("a backfilled reply is never quoted as sent today", () => {
   assert.equal(vm.recap.receipts.length, 0);
 });
 
-test("no inbound traffic means no row of zeroes", () => {
-  // one human reply is traffic enough to show the recap sentence, but the
-  // fact strip would read 0 / "0 of 0" / — / 0 across the board.
+test("zero-traffic facts are honest zeros, never fabrications", () => {
   const m = metrics({ period: { messages_out_you: 1 } });
   const vm = toTodayVM(m, [], [], [], NOW);
-  assert.equal(vm.recap.facts.length, 0);
   assert.deepEqual(vm.recap.sentences, ["You sent 1 reply yourself."]);
+  assert.deepEqual(
+    vm.recap.facts.map((f) => f.value),
+    ["0", "0 of 0", "—", "0"],
+  );
+  assert.equal(vm.pulse, null);
+});
+
+test("the pulse arc is the answered-by-AI ratio, only when messages came in", () => {
+  const m = metrics({ period: { messages_in: 5, answered_by_ai: 3, conversations_active: 2 } });
+  const vm = toTodayVM(m, [conv({ state: "open" })], [], [], NOW);
+  assert.deepEqual(vm.pulse, { num: 3, den: 5 });
+});
+
+test("needs-you rows carry the escalation id for the snooze courier", () => {
+  const m = metrics({
+    now: { escalations_open: 1, oldest_open_escalation_at: "2026-08-27T14:05:00Z" },
+    period: { messages_in: 1, conversations_active: 1 },
+  });
+  const esc = [{
+    id: "e-77", conversation_id: "c1", reason: "human_token", details: null,
+    state: "open", created_at: "2026-08-27T14:05:00Z",
+  }];
+  const vm = toTodayVM(m, [conv()], esc, [], NOW);
+  assert.equal(vm.needsYou.rows[0].escalationId, "e-77");
 });

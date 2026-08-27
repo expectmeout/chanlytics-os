@@ -12,7 +12,112 @@ const AC_BUCKETS = [
   { id: "soon", label: "Soon", hint: "Next 4 hrs" },
 ];
 
+// Slice 4: with window.TODAY_DATA present the queue is the REAL escalation
+// queue — same chrome, same rows, real verbs (open/snooze via the courier;
+// there are no drafts in the real product, so no Approve/Decline). Seeded
+// mockup otherwise, untouched.
 const AgentCommand = () => {
+  const [, force] = React.useState(0);
+  React.useEffect(() => {
+    const bump = () => force((n) => n + 1);
+    window.addEventListener("surface:today", bump);
+    return () => window.removeEventListener("surface:today", bump);
+  }, []);
+  return window.TODAY_DATA ? <AgentCommandReal vm={window.TODAY_DATA} /> : <AgentCommandSeed />;
+};
+
+const AgentCommandReal = ({ vm }) => {
+  const rows = vm.needsYou ? vm.needsYou.rows : [];
+  const [toastNode, ppFlash] = window.usePPToast();
+  const nav = (to) => window.appNavigate && window.appNavigate(to);
+
+  const snooze = async (r) => {
+    if (!(window.canDo && window.canDo("approve"))) return;
+    const res = await window.__inboxVerb(
+      { conversationId: r.conversationId, escalationId: r.escalationId, who: r.who },
+      "snooze", {},
+    );
+    ppFlash(res.ok
+      ? { msg: <><b>{r.who}</b> snoozed — hidden until they wake or reply</> }
+      : { msg: <>Couldn&rsquo;t snooze — {res.message}</> });
+  };
+
+  const insight = rows.length === 0
+    ? (vm.needsYou && vm.needsYou.empty) || "Queue clear — the receptionist is answering on its own."
+    : `${rows.length} waiting on you. The receptionist paused and is holding until you answer — the oldest has waited ${rows[0].waited}.`;
+
+  return (
+    <section className="ac">
+      <div className="ac-bar">
+        <span className="ac-bar-title">Agent Command</span>
+        <div className="ac-seg" role="tablist" aria-label="Queue bucket">
+          <button role="tab" aria-selected="true" className={`ac-seg-btn active ${rows.length > 0 ? "urgent" : ""}`}>
+            Now
+            <span className="ac-seg-count tabular">{rows.length}</span>
+          </button>
+        </div>
+        <div className="ac-bar-r">
+          <button className="btn btn-ghost btn-sm ac-bar-inbox" onClick={() => nav("inbox")}>
+            Open Inbox <Icon name="arrow-right" size={11} />
+          </button>
+        </div>
+      </div>
+
+      <div className="ac-insight">
+        <Icon name="sparkle" size={12} style={{ color: "var(--accent)", flexShrink: 0, marginTop: 3 }} />
+        <p className="ac-insight-text">{insight}</p>
+      </div>
+
+      <div className="ac-list">
+        {rows.length === 0 && (
+          <div className="ac-empty">
+            <div className="ac-empty-line"><Icon name="check" size={16} style={{ color: "var(--ok)" }} /> All caught up — nothing needs you here.</div>
+          </div>
+        )}
+        {rows.map((r) => (
+          <article key={r.id} className="dr is-now">
+            <div className="dr-top">
+              <div className="dr-l1">
+                <span className="dr-kind">WhatsApp</span>
+                <span className="dr-who">{r.who}</span>
+                <Icon name="chat" size={11} className="dr-chan" />
+                <span className="dr-grow" />
+                <span className="dr-time mono" style={r.warn ? { color: "var(--warn)" } : undefined}>waited {r.waited}</span>
+              </div>
+              <div className="dr-detail">
+                {r.reason}
+                {r.quote ? <> · &ldquo;{r.quote}&rdquo;</> : null}
+                <span className="dr-meta"> · {r.meta}{r.windowNote ? ` · ${r.windowNote}` : ""}</span>
+              </div>
+            </div>
+            <div className="dr-foot">
+              <span className="dr-agent">
+                <span className="agent-avatar active">W</span>
+                <strong>WhatsApp Receptionist</strong>
+                <span className="dr-agent-state">paused — waiting on you</span>
+              </span>
+              <div className="dr-acts">
+                <button className="btn btn-sm btn-primary" onClick={() => nav(r.to)}>Open and reply</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => snooze(r)} {...window.gate("approve")}>Snooze</button>
+              </div>
+            </div>
+          </article>
+        ))}
+        {rows.length > 0 && (
+          <div className="ac-list-foot">
+            <span className="ac-list-foot-meta">{rows.length} needing your call</span>
+            <button className="btn btn-ghost btn-sm" onClick={() => nav("inbox")}>
+              View all in Inbox <Icon name="arrow-right" size={11} />
+            </button>
+          </div>
+        )}
+      </div>
+      {toastNode}
+    </section>
+  );
+};
+
+const AgentCommandSeed = () => {
   const { AGENT_TASKS, AGENT_FLEET } = window.CHANLY_DATA;
   const [bucket, setBucket] = React.useState("now");
   const [agentFilter, setAgentFilter] = React.useState(null);

@@ -4,7 +4,129 @@
 //   eyebrow timestamp · big sentence · three anchor stats (revenue/appts/response) · forecast line
 // The progress arc visualizes pace toward EOD revenue target.
 
+// Slice 4: when the seam has written window.TODAY_DATA (the real morning
+// brief), the SAME hero renders real numbers; otherwise the seeded mockup
+// stands, exactly like every other unflipped surface. Design is shared —
+// only the data source branches.
 const HeroBrief = () => {
+  const [, force] = React.useState(0);
+  React.useEffect(() => {
+    const bump = () => force((n) => n + 1);
+    window.addEventListener("surface:today", bump);
+    return () => window.removeEventListener("surface:today", bump);
+  }, []);
+  return window.TODAY_DATA ? <HeroBriefReal vm={window.TODAY_DATA} /> : <HeroBriefSeed />;
+};
+
+const HeroBriefReal = ({ vm }) => {
+  const { standing, needsYou, windowClosing, recap, pulse, launchpad, quiet } = vm;
+  const [toastNode, ppFlash] = window.usePPToast();
+  const nav = (to) => window.appNavigate && window.appNavigate(to);
+  const up = standing.chips.filter((c) => c.ok).length;
+  const total = standing.chips.length;
+  const waiting = needsYou ? needsYou.count : 0;
+
+  const snooze = async (r) => {
+    if (!(window.canDo && window.canDo("approve"))) return;
+    const res = await window.__inboxVerb(
+      { conversationId: r.conversationId, escalationId: r.escalationId, who: r.who },
+      "snooze", {},
+    );
+    ppFlash(res.ok
+      ? { msg: <><b>{r.who}</b> snoozed — hidden until they wake or reply</> }
+      : { msg: <>Couldn&rsquo;t snooze — {res.message}</> });
+  };
+
+  return (
+    <header className="brief">
+      <div className="brief-meta">
+        <span className="brief-eyebrow">{standing.eyebrow}</span>
+        <span className="brief-eyebrow-sep">·</span>
+        <span className="brief-eyebrow">
+          <span className="live-dot" style={up < total ? { background: "var(--danger)" } : undefined} /> {up} of {total} agents live
+        </span>
+        <div className="brief-meta-spacer" />
+      </div>
+
+      <div className="brief-body">
+        <div className="brief-narrative">
+          <h1 className="brief-headline">
+            <span className="brief-greeting">{standing.greeting}</span>{" "}
+            <span className="brief-sub" style={standing.alert ? { color: "var(--danger)" } : undefined}>
+              {standing.alert || standing.headline}
+            </span>
+          </h1>
+          <div className="brief-beats">
+            {standing.detail && !standing.alert && (
+              <div className="brief-beat">
+                <span className="brief-beat-dot" />
+                <span className="brief-beat-text">{standing.detail}</span>
+              </div>
+            )}
+            {quiet && (
+              <div className="brief-beat">
+                <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
+                <span className="brief-beat-text">{quiet.sub}</span>
+              </div>
+            )}
+            {(needsYou ? needsYou.rows.slice(0, 2) : []).map((r) => (
+              <div key={r.id} className="brief-beat">
+                <span className="brief-beat-dot" />
+                <span className="brief-beat-text">
+                  <b>{r.who}</b> — {r.reason} · waited <b style={r.warn ? { color: "var(--warn)" } : undefined}>{r.waited}</b>
+                  {r.quote ? <> · &ldquo;{r.quote}&rdquo;</> : null}
+                </span>
+                <span className="brief-beat-acts">
+                  <button className="brief-chip primary" onClick={() => nav(r.to)}>Open and reply</button>
+                  <button className="brief-chip" onClick={() => snooze(r)} {...window.gate("approve")}>Snooze</button>
+                </span>
+              </div>
+            ))}
+            {(windowClosing ? windowClosing.rows : []).map((r) => (
+              <div key={r.id} className="brief-beat">
+                <span className="brief-beat-dot" style={{ background: "var(--warn)" }} />
+                <span className="brief-beat-text">{r.text}</span>
+                <button className="brief-chip" onClick={() => nav(r.to)}>Open thread <Icon name="arrow-right" size={10} /></button>
+              </div>
+            ))}
+            {(recap ? recap.receipts.slice(0, 1) : []).map((r, i) => (
+              <div key={i} className="brief-beat">
+                <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
+                <span className="brief-beat-text">{r.at} — {r.text}</span>
+                <button className="brief-chip" onClick={() => nav(r.to)}>Open <Icon name="arrow-right" size={10} /></button>
+              </div>
+            ))}
+            <button className="brief-forecast brief-inbox-link" onClick={() => nav("inbox")}>
+              <Icon name="inbox" size={13} style={{ color: waiting > 0 ? "var(--accent)" : "var(--ok)" }} />
+              <span>{waiting > 0 ? `${waiting} waiting on you` : "Queue clear — nothing waiting on you"}</span>
+              <Icon name="arrow-right" size={11} style={{ color: "var(--ink-faint)" }} />
+            </button>
+          </div>
+        </div>
+
+        {pulse && (
+          <div className="brief-pulse">
+            <PulseArc
+              pct={Math.min(100, Math.round((pulse.num / pulse.den) * 100))}
+              value={String(pulse.num)}
+              target={`${pulse.den} message${pulse.den === 1 ? "" : "s"}`}
+              suffix="answered"
+            />
+          </div>
+        )}
+      </div>
+
+      <StatStrip>
+        {(recap ? recap.facts : []).map((f, i) => (
+          <StatCell key={i} label={f.label} value={f.value} valueSize={22} meta={f.hint} />
+        ))}
+      </StatStrip>
+      {toastNode}
+    </header>
+  );
+};
+
+const HeroBriefSeed = () => {
   const { MORNING_BRIEF, TODAY_KPIS, AGENT_FLEET } = window.CHANLY_DATA;
   const { headline, body, forecast, pulse } = MORNING_BRIEF;
   const pct = Math.min(100, Math.round((pulse.revenue / pulse.target) * 100));
@@ -75,8 +197,9 @@ const HeroBrief = () => {
   );
 };
 
-// Half-arc showing pace toward today's target
-const PulseArc = ({ pct, value, target }) => {
+// Half-arc gauge. Seeded: pace toward the revenue target. Real: the share of
+// today's messages the receptionist answered on its own.
+const PulseArc = ({ pct, value, target, suffix = "pace" }) => {
   const r = 64, c = 2 * Math.PI * r;
   const dash = (pct / 100) * (c * 0.5); // half-circle
   // Dot rides the arc itself (polar coords around center 80,80)
@@ -96,7 +219,7 @@ const PulseArc = ({ pct, value, target }) => {
       </svg>
       <div className="pulse-arc-readout">
         <div className="pulse-arc-value tabular">{value}</div>
-        <div className="pulse-arc-of">of {target} pace</div>
+        <div className="pulse-arc-of">of {target} {suffix}</div>
       </div>
     </div>
   );

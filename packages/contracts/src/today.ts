@@ -60,6 +60,7 @@ export interface MetricsSummaryDto {
 export interface TodayNeedsRowVM {
   id: string;
   conversationId: string;
+  escalationId: string;
   who: string;
   reason: string;
   waited: string;
@@ -103,6 +104,9 @@ export interface TodayVM {
     facts: TodayFactVM[];
     receipts: Array<{ at: string; text: string; to: string }>;
   } | null;
+  /** Answered-by-AI ratio for the hero arc — null when nothing came in
+   *  (an arc of 0/0 is a gauge with no needle). */
+  pulse: { num: number; den: number } | null;
   calls: { line: string; rows: TodayCallRowVM[] } | null;
   launchpad: Array<{ label: string; to: string }>;
   updatedAt: string;
@@ -176,8 +180,9 @@ export function toTodayVM(
   const valid = !Number.isNaN(localNow.getTime());
   const hour = valid ? localNow.getHours() : now.getHours();
   const clock = valid ? localNow.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
+  // The mockup's eyebrow rhythm: "Saturday · April 26 · 12:04"
   const datePart = valid
-    ? localNow.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
+    ? `${localNow.toLocaleDateString("en-US", { weekday: "long" })} · ${localNow.toLocaleDateString("en-US", { month: "long", day: "numeric" })}`
     : "";
   const greeting = hour < 12 ? "Good morning." : hour < 17 ? "Good afternoon." : "Good evening.";
 
@@ -213,6 +218,7 @@ export function toTodayVM(
     return {
       id: `th-${e.conversation_id}`,
       conversationId: e.conversation_id,
+      escalationId: e.id,
       who: vm?.who ?? "Unknown",
       reason: ESCALATION_REASON_LABELS[e.reason] ?? e.reason,
       waited: formatWaited(waitedMs),
@@ -261,6 +267,21 @@ export function toTodayVM(
   const traffic = p.messages_in + p.calls + p.messages_out_you;
   const isQuiet = traffic === 0 && live.escalations_open === 0 && !alert;
 
+  // The hero's stat strip is part of the design and always renders — a zero
+  // is a real measurement, and "—" is a real "not enough data yet". What
+  // never appears is a delta, a percentage, or a sparkline: a jump from 1
+  // message to 3 is not "+200%", and the mockup's own delta logic painted a
+  // FASTER reply time red.
+  const facts: TodayFactVM[] = [
+    { label: "Messages in", value: String(p.messages_in) },
+    { label: "Answered by the receptionist", value: `${p.answered_by_ai} of ${p.messages_in}` },
+    p.median_reply_seconds_ai === null
+      ? { label: "Typical reply time", value: "—", hint: "Not enough replies yet" }
+      : { label: "Typical reply time", value: secondsPhrase(p.median_reply_seconds_ai) },
+    { label: "Calls", value: p.calls ? `${p.calls}${callMinutes ? ` · ${callMinutes} min` : ""}` : "0" },
+  ];
+  const pulse = p.messages_in > 0 ? { num: p.answered_by_ai, den: p.messages_in } : null;
+
   /* ---- the quiet day: prove we are listening, don't show a row of zeroes ---- */
   if (isQuiet) {
     const lastIn = tzDayAndTime(live.last_inbound_at, tz, now);
@@ -292,7 +313,8 @@ export function toTodayVM(
       },
       needsYou: null,
       windowClosing: null,
-      recap: null,
+      recap: { label: "Today so far", sentences: [], facts, receipts: [] },
+      pulse: null,
       calls: null,
       launchpad: [{ label: "Conversations", to: "conversations" }],
       updatedAt: clock,
@@ -387,22 +409,6 @@ export function toTodayVM(
     );
   }
 
-  // The fact strip measures inbound traffic. With none, all four tiles read
-  // "0", "0 of 0" and "—" — the row of zeroes this whole surface exists to
-  // avoid. The sentences above already say what did happen, so drop the strip
-  // rather than pad the page with nothing.
-  const facts: TodayFactVM[] =
-    p.messages_in > 0 || p.calls > 0
-      ? [
-          { label: "Messages in", value: String(p.messages_in) },
-          { label: "Answered by the receptionist", value: `${p.answered_by_ai} of ${p.messages_in}` },
-          p.median_reply_seconds_ai === null
-            ? { label: "Typical reply time", value: "—", hint: "Not enough replies yet" }
-            : { label: "Typical reply time", value: secondsPhrase(p.median_reply_seconds_ai) },
-          { label: "Calls", value: p.calls ? `${p.calls}${callMinutes ? ` · ${callMinutes} min` : ""}` : "0" },
-        ]
-      : [];
-
   // Receipts quote the message that actually went out. She is spot-checking
   // tone, not reading a report — a summary of the reply defeats the purpose.
   //
@@ -485,7 +491,8 @@ export function toTodayVM(
           rows: closingRows,
         }
       : null,
-    recap: traffic ? { label: "Today so far", sentences, facts, receipts } : null,
+    recap: { label: "Today so far", sentences, facts, receipts },
+    pulse,
     calls: p.calls
       ? {
           line: `${p.calls} call${p.calls === 1 ? "" : "s"} today${

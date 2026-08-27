@@ -428,7 +428,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   const valid = !Number.isNaN(localNow.getTime());
   const hour = valid ? localNow.getHours() : now.getHours();
   const clock = valid ? localNow.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
-  const datePart = valid ? localNow.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) : "";
+  const datePart = valid ? `${localNow.toLocaleDateString("en-US", { weekday: "long" })} \xB7 ${localNow.toLocaleDateString("en-US", { month: "long", day: "numeric" })}` : "";
   const greeting = hour < 12 ? "Good morning." : hour < 17 ? "Good afternoon." : "Good evening.";
   const chips = m.channels.map((c) => ({
     text: `${CHANNEL_LABEL[c.kind] ?? c.kind} ${c.status === "active" ? "connected" : "disconnected"}`,
@@ -448,6 +448,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     return {
       id: `th-${e.conversation_id}`,
       conversationId: e.conversation_id,
+      escalationId: e.id,
       who: vm?.who ?? "Unknown",
       reason: ESCALATION_REASON_LABELS[e.reason] ?? e.reason,
       waited: formatWaited(waitedMs),
@@ -483,6 +484,13 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   const callMinutes = Math.round(p.call_seconds / 60);
   const traffic = p.messages_in + p.calls + p.messages_out_you;
   const isQuiet = traffic === 0 && live.escalations_open === 0 && !alert;
+  const facts = [
+    { label: "Messages in", value: String(p.messages_in) },
+    { label: "Answered by the receptionist", value: `${p.answered_by_ai} of ${p.messages_in}` },
+    p.median_reply_seconds_ai === null ? { label: "Typical reply time", value: "\u2014", hint: "Not enough replies yet" } : { label: "Typical reply time", value: secondsPhrase(p.median_reply_seconds_ai) },
+    { label: "Calls", value: p.calls ? `${p.calls}${callMinutes ? ` \xB7 ${callMinutes} min` : ""}` : "0" }
+  ];
+  const pulse = p.messages_in > 0 ? { num: p.answered_by_ai, den: p.messages_in } : null;
   if (isQuiet) {
     const lastIn = tzDayAndTime(live.last_inbound_at, tz, now);
     const gap = live.last_outbound_at && live.last_inbound_at && new Date(live.last_outbound_at) > new Date(live.last_inbound_at) ? Math.round(
@@ -503,7 +511,8 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       },
       needsYou: null,
       windowClosing: null,
-      recap: null,
+      recap: { label: "Today so far", sentences: [], facts, receipts: [] },
+      pulse: null,
       calls: null,
       launchpad: [{ label: "Conversations", to: "conversations" }],
       updatedAt: clock,
@@ -574,12 +583,6 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       `${p.send_failures} repl${p.send_failures === 1 ? "y" : "ies"} failed to deliver.`
     );
   }
-  const facts = p.messages_in > 0 || p.calls > 0 ? [
-    { label: "Messages in", value: String(p.messages_in) },
-    { label: "Answered by the receptionist", value: `${p.answered_by_ai} of ${p.messages_in}` },
-    p.median_reply_seconds_ai === null ? { label: "Typical reply time", value: "\u2014", hint: "Not enough replies yet" } : { label: "Typical reply time", value: secondsPhrase(p.median_reply_seconds_ai) },
-    { label: "Calls", value: p.calls ? `${p.calls}${callMinutes ? ` \xB7 ${callMinutes} min` : ""}` : "0" }
-  ] : [];
   const receipts = conversations.flatMap(
     (c) => c.messages.filter(
       (x) => x.direction === "outbound" && SENT.includes(String(x.status)) && x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs
@@ -624,7 +627,8 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       hint: "WhatsApp only lets you write freely for 24 hours after someone messages you. After that it's an approved template.",
       rows: closingRows
     } : null,
-    recap: traffic ? { label: "Today so far", sentences, facts, receipts } : null,
+    recap: { label: "Today so far", sentences, facts, receipts },
+    pulse,
     calls: p.calls ? {
       line: `${p.calls} call${p.calls === 1 ? "" : "s"} today${callMinutes ? ` \xB7 ${callMinutes} minute${callMinutes === 1 ? "" : "s"}` : ""}.`,
       rows: callRows

@@ -34,11 +34,7 @@ import "@/legacy/pages/dashboard-a-command.jsx";
 import "@/legacy/pages/dashboard-a-live.jsx";
 import "@/legacy/pages/dashboard-a-fleet.jsx";
 import "@/legacy/pages/dashboard-a-ask.jsx";
-// dashboard-a.jsx (HeroBrief+AgentCommand+NowPlayingRail+TrustReview+SegmentPulse
-// +AgentFleet) is NOT imported: Slice 4 replaced that composition with the real
-// Today. Its sibling files stay imported — dashboard-a-ask.jsx also exports the
-// Ask overlay the shell owns, and the others are inert once unmounted.
-import "@/legacy/pages/today.jsx";
+import "@/legacy/pages/dashboard-a.jsx";
 import "@/legacy/pages/inbox-list.jsx";
 import "@/legacy/pages/inbox-thread.jsx";
 import "@/legacy/pages/inbox-rail.jsx";

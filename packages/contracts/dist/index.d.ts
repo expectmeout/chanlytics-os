@@ -365,6 +365,7 @@ interface MetricsSummaryDto {
 interface TodayNeedsRowVM {
     id: string;
     conversationId: string;
+    escalationId: string;
     who: string;
     reason: string;
     waited: string;
@@ -424,6 +425,12 @@ interface TodayVM {
             text: string;
             to: string;
         }>;
+    } | null;
+    /** Answered-by-AI ratio for the hero arc — null when nothing came in
+     *  (an arc of 0/0 is a gauge with no needle). */
+    pulse: {
+        num: number;
+        den: number;
     } | null;
     calls: {
         line: string;
