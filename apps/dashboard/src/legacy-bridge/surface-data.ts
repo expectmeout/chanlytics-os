@@ -53,3 +53,29 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
     (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES = j.data.workspaces;
   },
 };
+
+/**
+ * Slice 1: the Conversations surface flips to real data. Fetch → map through
+ * the contracts viewmodel → swap the SAME global the surface reads → dispatch
+ * its refresh event. Siblings keep their seeds. Realtime message inserts
+ * re-run this apply (debounced in the bridge).
+ */
+import { toConversationVM, type ConversationDto } from "@chanlytics/contracts";
+
+export const conversationsOverride: SurfaceOverride = {
+  key: "conversations",
+  events: ["surface:conversations"],
+  apply: async () => {
+    const res = await fetch("/api/v1/conversations");
+    const j = (await res.json()) as { ok: boolean; data?: { conversations: ConversationDto[] } };
+    if (!j.ok || !j.data) throw new Error("conversations fetch failed");
+    const w = window as unknown as {
+      CONVERSATIONS_DATA?: { CONVERSATIONS: unknown[]; CV_CHANNELS: unknown[] };
+    };
+    const channels = w.CONVERSATIONS_DATA?.CV_CHANNELS ?? [];
+    w.CONVERSATIONS_DATA = {
+      CONVERSATIONS: j.data.conversations.map((c) => toConversationVM(c)),
+      CV_CHANNELS: channels,
+    };
+  },
+};

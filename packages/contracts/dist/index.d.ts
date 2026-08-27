@@ -70,4 +70,62 @@ type EventKind = (typeof EVENT_KINDS)[number];
 /** Customer texts that mean opt-out (webhook consent handling, §4). */
 declare const OPT_OUT_PATTERN: RegExp;
 
-export { AppError, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type ChannelKind, type ConsentState, type ConversationState, ERROR_CODES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EventKind, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageSender, type MessageStatus, type MessageType, OPT_OUT_PATTERN, type Ok, TENANT_STATUSES, type TenantStatus, err, normalizePhone, ok };
+/**
+ * ThreadCard/ConversationVM viewmodels (Blueprint §7): pure mapping from API
+ * DTOs into the exact shapes the mockup surfaces render. Fed fields only —
+ * nothing invented: summaries are factual lines, never fabricated analysis.
+ */
+interface MessageDto {
+    id: string;
+    direction: "inbound" | "outbound";
+    sender: "customer" | "ai" | "human" | "system";
+    type: string;
+    body: string | null;
+    media: {
+        mime_type?: string | null;
+        fetch_state?: string;
+    } | null;
+    meta: Record<string, unknown> | null;
+    created_at: string;
+}
+interface ConversationDto {
+    id: string;
+    state: "open" | "needs_human" | "snoozed" | "archived";
+    paused_until: string | null;
+    last_message_at: string | null;
+    contact: {
+        id: string;
+        display_name: string | null;
+        wa_profile_name: string | null;
+        phone_e164: string | null;
+    };
+    messages: MessageDto[];
+}
+interface ConversationMessageVM {
+    from: "client" | "agent";
+    at: string;
+    text: string;
+}
+interface ConversationVM {
+    id: string;
+    who: string;
+    initials: string;
+    clientId: null;
+    channel: "whatsapp";
+    agent: {
+        glyph: string;
+        name: string;
+    };
+    at: string;
+    outcome: "escalated" | "handled" | "open";
+    snippet: string;
+    summary: {
+        headline: string;
+        bullets: string[];
+    };
+    messages: ConversationMessageVM[];
+    live?: boolean;
+}
+declare function toConversationVM(dto: ConversationDto, now?: Date): ConversationVM;
+
+export { AppError, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type ChannelKind, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, ERROR_CODES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EventKind, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, OPT_OUT_PATTERN, type Ok, TENANT_STATUSES, type TenantStatus, err, normalizePhone, ok, toConversationVM };

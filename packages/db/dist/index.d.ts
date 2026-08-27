@@ -1098,4 +1098,16 @@ interface RoutedChannel {
 }
 declare function resolveChannel(db: SupabaseClient<Database>, kind: string, externalId: string): Promise<RoutedChannel | null>;
 
-export { type Database, type IngestInboundParams, type IngestResult, type Json, type RoutedChannel, type ServiceClientConfig, createServiceClient, emitEvent, ingestInbound, markProcessed, pauseConversation, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel };
+/**
+ * The single Realtime subscription wrapper (Blueprint §5): every surface
+ * subscribes through here, so the documented scale path (postgres_changes →
+ * broadcast-from-database) never touches a surface. RLS authorizes events —
+ * callers pass an AUTHED client.
+ */
+
+declare function subscribeMessagesInserts(client: SupabaseClient<Database>, onInsert: (row: {
+    conversation_id: string;
+    tenant_id: string;
+}) => void): () => void;
+
+export { type Database, type IngestInboundParams, type IngestResult, type Json, type RoutedChannel, type ServiceClientConfig, createServiceClient, emitEvent, ingestInbound, markProcessed, pauseConversation, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, subscribeMessagesInserts };

@@ -5,8 +5,8 @@
 
 const { useState: useCvState, useMemo: useCvMemo, useEffect: useCvEffect } = React;
 
-const CV_ICON = { phone: "phone", sms: "chat", instagram: "instagram", mail: "mail" };
-const CV_LABEL = { phone: "Phone", sms: "SMS", instagram: "Instagram", mail: "Email" };
+const CV_ICON = { phone: "phone", sms: "chat", whatsapp: "chat", instagram: "instagram", mail: "mail" };
+const CV_LABEL = { phone: "Phone", sms: "SMS", whatsapp: "WhatsApp", instagram: "Instagram", mail: "Email" };
 
 const OutcomePill = ({ outcome, decidedAction }) => {
   if (decidedAction) return <span className="pill pill-ok"><Icon name="check" size={9} />Handled · you chose {decidedAction}</span>;
@@ -290,13 +290,14 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
     const bump = () => setTick(n => n + 1);
     window.addEventListener("inbox:decisions", bump);
     window.addEventListener("live:ended", bump);
-    return () => { window.removeEventListener("inbox:decisions", bump); window.removeEventListener("live:ended", bump); };
+    window.addEventListener("surface:conversations", bump); // SurfaceData seam: real-data swap + realtime refresh
+    return () => { window.removeEventListener("inbox:decisions", bump); window.removeEventListener("live:ended", bump); window.removeEventListener("surface:conversations", bump); };
   }, []);
 
   const matchesChannel = (c) =>
     channel === "all" ? true :
     channel === "phone" ? c.channel === "phone" :
-    channel === "chats" ? (c.channel === "instagram" || c.channel === "sms") :
+    channel === "chats" ? (c.channel === "instagram" || c.channel === "sms" || c.channel === "whatsapp") :
     c.channel === "mail";
 
   const visible = useCvMemo(() => {
@@ -321,7 +322,7 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
   const counts = useCvMemo(() => ({
     all: CONVERSATIONS.length,
     phone: CONVERSATIONS.filter(c => c.channel === "phone").length,
-    chats: CONVERSATIONS.filter(c => c.channel === "instagram" || c.channel === "sms").length,
+    chats: CONVERSATIONS.filter(c => c.channel === "instagram" || c.channel === "sms" || c.channel === "whatsapp").length,
     mail: CONVERSATIONS.filter(c => c.channel === "mail").length,
   }), []);
 

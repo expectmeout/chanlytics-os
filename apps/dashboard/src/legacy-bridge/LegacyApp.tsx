@@ -11,7 +11,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import "./seed-globals"; // must evaluate before the manifest
 import "./manifest";
 import "./legacy.css";
-import { activateOverride, workspaceOverride, type Workspace } from "./surface-data";
+import { activateOverride, workspaceOverride, conversationsOverride, type Workspace } from "./surface-data";
+import { createClient } from "@/lib/supabase/client";
+import { subscribeMessagesInserts } from "@chanlytics/db";
 
 // The mockup's own data-before-mount contract (boot gate).
 const REQUIRED = ["CHANLY", "INBOX_DATA", "CLIENTS", "FLEET_DATA", "CHANLY_DATA", "POLICY", "ChanlyticsApp"] as const;
@@ -74,6 +76,27 @@ export default function LegacyApp() {
     });
   }, []);
 
+  // Slice 1: Conversations on real data + live refresh on message inserts.
+  const [convLive, setConvLive] = useState(false);
+  useEffect(() => {
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let unsubscribe: (() => void) | null = null;
+    void activateOverride(conversationsOverride).then((ok) => {
+      setConvLive(ok);
+      if (!ok) return;
+      const supabase = createClient();
+      unsubscribe = subscribeMessagesInserts(supabase, () => {
+        // debounce bursts; re-apply refetches + swaps + dispatches the event
+        if (refreshTimer) clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(() => void activateOverride(conversationsOverride), 400);
+      });
+    });
+    return () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
   if (missing.length) {
     return (
       <div style={{ height: "100vh", display: "grid", placeItems: "center", fontFamily: "Geist, sans-serif", color: "#666" }}>
@@ -99,7 +122,7 @@ export default function LegacyApp() {
         <span className={workspace ? "dot live" : "dot"} />
         {workspace ? (
           <span>
-            <b>{workspace.name}</b> · live workspace · seeded preview data
+            <b>{workspace.name}</b>{convLive ? " · Conversations live" : ""} · other surfaces seeded
           </span>
         ) : (
           <span>Seeded preview — no live data yet</span>

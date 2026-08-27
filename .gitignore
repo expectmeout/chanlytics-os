@@ -27,3 +27,6 @@ apps/dashboard/src/legacy/uploads/
 # misc
 *.log
 .DS_Store
+
+# local backfill backups
+tooling/backups/

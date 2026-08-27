@@ -112,6 +112,18 @@ async function resolveChannel(db, kind, externalId) {
   cache.set(key, routed);
   return routed;
 }
+
+// src/realtime.ts
+function subscribeMessagesInserts(client, onInsert) {
+  const channel = client.channel("db-messages-inserts").on(
+    "postgres_changes",
+    { event: "INSERT", schema: "public", table: "messages" },
+    (payload) => onInsert(payload.new)
+  ).subscribe();
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
 export {
   createServiceClient,
   emitEvent,
@@ -121,6 +133,7 @@ export {
   recordEchoAndPause,
   recordOutbound,
   recordStatusByExternalId,
-  resolveChannel
+  resolveChannel,
+  subscribeMessagesInserts
 };
 //# sourceMappingURL=index.js.map
