@@ -146,21 +146,30 @@ async function resolveChannel(db, kind, externalId) {
 // src/realtime.ts
 function subscribeMessagesInserts(client, onInsert, opts = {}) {
   const topic = `db-messages-inserts:${opts.topic ?? "bridge"}`;
-  const channel = client.channel(topic).on(
-    "postgres_changes",
-    {
-      event: "INSERT",
-      schema: "public",
-      table: "messages",
-      ...opts.tenantId ? { filter: `tenant_id=eq.${opts.tenantId}` } : {}
-    },
-    (payload) => onInsert(payload.new)
-  ).subscribe((status) => {
-    if (opts.onStatus) opts.onStatus(status);
-    else if (status !== "SUBSCRIBED") console.warn("realtime_status", topic, status);
-  });
+  let removed = false;
+  let channel = null;
+  void (async () => {
+    const { data } = await client.auth.getSession();
+    const token = data.session?.access_token;
+    if (token) client.realtime.setAuth(token);
+    if (removed) return;
+    channel = client.channel(topic).on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "messages",
+        ...opts.tenantId ? { filter: `tenant_id=eq.${opts.tenantId}` } : {}
+      },
+      (payload) => onInsert(payload.new)
+    ).subscribe((status) => {
+      if (opts.onStatus) opts.onStatus(status);
+      else if (status !== "SUBSCRIBED") console.warn("realtime_status", topic, status);
+    });
+  })();
   return () => {
-    void client.removeChannel(channel);
+    removed = true;
+    if (channel) void client.removeChannel(channel);
   };
 }
 export {
