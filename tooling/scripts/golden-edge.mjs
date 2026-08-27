@@ -144,5 +144,63 @@ await check("GET /api/diag wrong key is 403", async () => {
   assert(r.status === 403, `status ${r.status}`);
 });
 
+// --- Slice 1 ingest probes (INGEST=1): routed to the smoke-test tenant, ---
+// --- asserted directly in Postgres. Needs SUPABASE_URL + service key.    ---
+if (process.env.INGEST === "1" && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  const { createClient } = await import("@supabase/supabase-js");
+  const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const tag = process.env.RUN_TAG || String(Date.now());
+  const wamid = `wamid.golden.ingest.${tag}`;
+  const fromDigits = "15550001111";
+  const msgPayload = (id) => JSON.stringify({
+    object: "whatsapp_business_account",
+    entry: [{ id: "0", changes: [{ field: "messages", value: {
+      metadata: { phone_number_id: "TEST-PHONE-ID" },
+      contacts: [{ wa_id: fromDigits, profile: { name: "Golden Probe" } }],
+      messages: [{ from: fromDigits, id, type: "text", timestamp: String(Math.floor(Date.now() / 1000)), text: { body: "golden ingest probe — ignore" } }],
+    } }] }],
+  });
+
+  await check("INGEST: signed message routed to smoke tenant is 200", async () => {
+    const body = msgPayload(wamid);
+    const r = await post("/api/whatsapp", body, { "x-hub-signature-256": sign(body) });
+    assert(r.status === 200, `status ${r.status}`);
+  });
+  await check("INGEST: message row persisted, processed, allowlist-skipped", async () => {
+    const { data: msg } = await db.from("messages").select("id, tenant_id, body, meta, conversation_id, contact_id").eq("external_id", wamid).maybeSingle();
+    assert(msg, "message row missing");
+    assert(msg.body === "golden ingest probe — ignore", "body mismatch");
+    assert(msg.meta && msg.meta.processed_at, "processed_at not stamped");
+    const { data: evt } = await db.from("events").select("id").eq("kind", "ingest.allowlist_skip").eq("subject_id", msg.id).maybeSingle();
+    assert(evt, "allowlist_skip event missing");
+    const { data: contact } = await db.from("contacts").select("wa_profile_name, phone_e164").eq("id", msg.contact_id).single();
+    assert(contact.wa_profile_name === "Golden Probe", "profile name not captured");
+    assert(contact.phone_e164 === "+15550001111", `phone ${contact.phone_e164}`);
+    const { data: conv } = await db.from("conversations").select("last_wa_inbound_at").eq("id", msg.conversation_id).single();
+    assert(conv.last_wa_inbound_at, "last_wa_inbound_at not set");
+  });
+  await check("INGEST: replayed payload dedupes to one row", async () => {
+    const body = msgPayload(wamid);
+    const r = await post("/api/whatsapp", body, { "x-hub-signature-256": sign(body) });
+    assert(r.status === 200, `status ${r.status}`);
+    const { count } = await db.from("messages").select("id", { count: "exact", head: true }).eq("external_id", wamid);
+    assert(count === 1, `expected 1 row, got ${count}`);
+  });
+  await check("INGEST: delivery status updates by wamid (monotone)", async () => {
+    const body = JSON.stringify({
+      object: "whatsapp_business_account",
+      entry: [{ id: "0", changes: [{ field: "messages", value: {
+        metadata: { phone_number_id: "TEST-PHONE-ID" },
+        statuses: [{ id: wamid, status: "delivered", recipient_id: fromDigits }],
+      } }] }],
+    });
+    const r = await post("/api/whatsapp", body, { "x-hub-signature-256": sign(body) });
+    assert(r.status === 200, `status ${r.status}`);
+    const { data: msg } = await db.from("messages").select("status, status_updated_at").eq("external_id", wamid).single();
+    assert(msg.status === "delivered", `status ${msg.status}`);
+    assert(msg.status_updated_at, "status_updated_at not stamped");
+  });
+}
+
 console.log(`\n${pass} passed, ${fail} failed${fail ? ":\n  " + failures.join("\n  ") : ""}`);
 process.exit(fail ? 1 : 0);
