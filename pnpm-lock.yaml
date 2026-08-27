@@ -90,6 +90,12 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
 
+  tooling/scripts:
+    dependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.49.0
+        version: 2.112.4
+
 packages:
 
   '@anthropic-ai/sdk@0.121.0':
