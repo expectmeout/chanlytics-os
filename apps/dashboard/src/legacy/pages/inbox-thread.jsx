@@ -166,9 +166,11 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
         <button className="btn btn-ghost btn-sm" onClick={() => onSnooze(thread.id)} disabled={snoozed} {...window.gate("approve")}>
           <Icon name={snoozed ? "check" : "clock"} size={12} /> {snoozed ? `Wakes ${thread.wake || "tomorrow"}` : "Snooze"}
         </button>
-        <button className="btn btn-ghost btn-sm" onClick={() => onOpenClient(thread.clientId)} disabled={!thread.clientId} title={thread.clientId ? "Open client profile" : "No client record yet"}>
-          <Icon name="users" size={12} /> Open client
-        </button>
+        {thread.clientId && (
+          <button className="btn btn-ghost btn-sm" onClick={() => onOpenClient(thread.clientId)} title="Open client profile">
+            <Icon name="users" size={12} /> Open client
+          </button>
+        )}
         <MoreMenu btnClass="btn btn-icon btn-sm" items={[
           { header: "Conversation" },
           { label: "Open client", icon: "users", onClick: () => onOpenClient(thread.clientId) },
@@ -210,7 +212,7 @@ const NarrativeSummary = ({ thread }) => {
   if (!thread.summary) return null;
   return (
     <div className="ix-summary">
-      <span className="ix-summary-eyebrow">The story so far</span>
+      <span className="ix-summary-eyebrow">{thread.real ? "Where this stands" : "The story so far"}</span>
       <span className="ix-summary-text">{thread.summary}</span>
     </div>
   );
