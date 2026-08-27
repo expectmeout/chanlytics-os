@@ -30,7 +30,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # workspace packages build to dist first; apps typecheck against the built types
       - run: pnpm --filter "./packages/*" build
+      # dist-drift guard: the edge executes committed dist — stale dist = stale prod
+      - run: git diff --exit-code -- packages/*/dist
       - run: pnpm -r typecheck
+      - run: node --test tooling/scripts/tests/*.test.mjs
       # generated-types freshness: regen must produce no diff (CI has no Supabase
       # access token, so this runs only when the schema changed in the commit).
       # The gen runs locally with every migration per the blueprint's Â§8 rule.

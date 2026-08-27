@@ -1,11 +1,14 @@
 import { AppError } from "@chanlytics/contracts";
+import type { ConversationDto, MessageDto } from "@chanlytics/contracts";
 import { withRoute } from "@/server/with-route";
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** GET /api/v1/conversations/:id — one thread's transcript, paginated by ?before. */
-export const GET = withRoute(async (req, { supabase }) => {
-  const url = new URL(req.url);
-  const id = url.pathname.split("/").pop()!;
-  const before = url.searchParams.get("before");
+export const GET = withRoute(async (req, { supabase, params }) => {
+  const id = String(params.id ?? "");
+  if (!UUID.test(id)) throw new AppError("not_found", "Conversation not found.");
+  const before = new URL(req.url).searchParams.get("before");
 
   const { data: conv, error } = await supabase
     .from("conversations")
@@ -25,5 +28,27 @@ export const GET = withRoute(async (req, { supabase }) => {
   const { data: msgs, error: merr } = await q;
   if (merr) throw new Error(merr.message);
 
-  return { conversation: conv, messages: (msgs ?? []).reverse() };
+  const conversation: Omit<ConversationDto, "messages"> = {
+    id: conv.id,
+    state: conv.state as ConversationDto["state"],
+    paused_until: conv.paused_until,
+    last_message_at: conv.last_message_at,
+    contact: {
+      id: conv.contacts?.id ?? "",
+      display_name: conv.contacts?.display_name ?? null,
+      wa_profile_name: conv.contacts?.wa_profile_name ?? null,
+      phone_e164: conv.contacts?.phone_e164 ?? null,
+    },
+  };
+  const messages: MessageDto[] = (msgs ?? []).reverse().map((m) => ({
+    id: m.id,
+    direction: m.direction as MessageDto["direction"],
+    sender: m.sender as MessageDto["sender"],
+    type: m.type,
+    body: m.body,
+    media: m.media as MessageDto["media"],
+    meta: m.meta as MessageDto["meta"],
+    created_at: m.created_at,
+  }));
+  return { conversation, messages };
 });

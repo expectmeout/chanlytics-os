@@ -59,7 +59,10 @@ export interface NormalizedInbound {
 }
 
 export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): NormalizedInbound {
-  const contact = (value.contacts || []).find((c) => c.wa_id === m.from) || (value.contacts || [])[0];
+  // Never guess identity: contacts[0] can belong to a DIFFERENT sender in a
+  // batched webhook, and contact_identities.external_id is a permanent mapping.
+  const list = value.contacts || [];
+  const contact = list.find((c) => c.wa_id === m.from) ?? (list.length === 1 ? list[0] : undefined);
   const mediaSrc = m.image || m.audio || m.video || m.document || m.sticker || null;
   const isText = m.type === "text" && !!m.text?.body;
   const body = isText ? m.text!.body! : null;

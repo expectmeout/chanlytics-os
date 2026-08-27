@@ -26,9 +26,10 @@ async function ingestInbound(db, p) {
   return data;
 }
 async function markProcessed(db, tenantId, messageId) {
-  const { data } = await db.from("messages").select("meta").eq("id", messageId).single();
-  const meta = { ...data?.meta ?? {}, processed_at: (/* @__PURE__ */ new Date()).toISOString() };
-  const { error } = await db.from("messages").update({ meta }).eq("id", messageId).eq("tenant_id", tenantId);
+  const { error } = await db.rpc("mark_processed", {
+    p_tenant_id: tenantId,
+    p_message_id: messageId
+  });
   if (error) throw new Error(`mark_processed: ${error.message}`);
 }
 async function recordOutbound(db, p) {
@@ -49,25 +50,44 @@ async function recordOutbound(db, p) {
     if (error.code === "23505") return null;
     throw new Error(`record_outbound: ${error.message}`);
   }
-  await db.from("conversations").update({ last_message_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", p.conversationId);
-  await emitEvent(db, p.tenantId, "message.sent", "message", "message", data.id, { sender: p.sender });
+  await Promise.all([
+    db.from("conversations").update({ last_message_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", p.conversationId),
+    emitEvent(db, p.tenantId, "message.sent", "message", "message", data.id, { sender: p.sender })
+  ]);
   return data.id;
 }
 async function recordStatusByExternalId(db, tenantId, externalId, status, errorDetail) {
   const patch = { status };
   if (errorDetail) patch.error = errorDetail;
   const { error } = await db.from("messages").update(patch).eq("tenant_id", tenantId).eq("external_id", externalId);
-  if (error && !/monotone/.test(error.message)) {
+  if (error && !/monotone|terminal/.test(error.message)) {
     console.error("record_status_failed", externalId, error.message);
   }
 }
 async function recordEchoAndPause(db, p) {
   const phone = `+${p.customerPhoneDigits.replace(/^\+/, "")}`;
-  const { data: contact } = await db.from("contacts").select("id").eq("tenant_id", p.tenantId).eq("phone_e164", phone).maybeSingle();
-  if (!contact) return;
-  const { data: conv } = await db.from("conversations").select("id").eq("tenant_id", p.tenantId).eq("contact_id", contact.id).maybeSingle();
-  if (!conv) return;
-  await db.from("conversations").update({ state: "needs_human", paused_until: p.pausedUntilIso, last_message_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", conv.id);
+  const { data: contact, error: cerr } = await db.from("contacts").upsert(
+    { tenant_id: p.tenantId, phone_e164: phone, last_seen_at: (/* @__PURE__ */ new Date()).toISOString() },
+    { onConflict: "tenant_id,phone_e164" }
+  ).select("id").single();
+  if (cerr || !contact) {
+    console.error("record_echo_contact_failed", cerr?.message);
+    return;
+  }
+  const { data: conv, error: verr } = await db.from("conversations").upsert(
+    {
+      tenant_id: p.tenantId,
+      contact_id: contact.id,
+      state: "needs_human",
+      paused_until: p.pausedUntilIso,
+      last_message_at: (/* @__PURE__ */ new Date()).toISOString()
+    },
+    { onConflict: "tenant_id,contact_id" }
+  ).select("id").single();
+  if (verr || !conv) {
+    console.error("record_echo_conv_failed", verr?.message);
+    return;
+  }
   const { error } = await db.from("messages").insert({
     tenant_id: p.tenantId,
     conversation_id: conv.id,
@@ -99,27 +119,46 @@ async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, d
 }
 
 // src/repositories/routing.ts
+var POS_TTL_MS = 5 * 60 * 1e3;
+var NEG_TTL_MS = 60 * 1e3;
 var cache = /* @__PURE__ */ new Map();
 async function resolveChannel(db, kind, externalId) {
   const key = `${kind}:${externalId}`;
-  if (cache.has(key)) return cache.get(key) ?? null;
-  const { data, error } = await db.from("tenant_channels").select("id, tenant_id, kind, status").eq("kind", kind).eq("external_id", externalId).maybeSingle();
+  const hit = cache.get(key);
+  if (hit && hit.exp > Date.now()) return hit.v;
+  const { data, error } = await db.from("tenant_channels").select("id, tenant_id, kind, status, number_e164, credentials_ref, config").eq("kind", kind).eq("external_id", externalId).maybeSingle();
   if (error) {
     console.error("resolve_channel_failed", error.message);
-    return null;
+    return hit?.v ?? null;
   }
-  const routed = data && data.status === "active" ? { channelId: data.id, tenantId: data.tenant_id, kind: data.kind } : null;
-  cache.set(key, routed);
+  const routed = data && data.status === "active" ? {
+    channelId: data.id,
+    tenantId: data.tenant_id,
+    kind: data.kind,
+    numberE164: data.number_e164,
+    credentialsRef: data.credentials_ref,
+    config: data.config
+  } : null;
+  cache.set(key, { v: routed, exp: Date.now() + (routed ? POS_TTL_MS : NEG_TTL_MS) });
   return routed;
 }
 
 // src/realtime.ts
-function subscribeMessagesInserts(client, onInsert) {
-  const channel = client.channel("db-messages-inserts").on(
+function subscribeMessagesInserts(client, onInsert, opts = {}) {
+  const topic = `db-messages-inserts:${opts.topic ?? "bridge"}`;
+  const channel = client.channel(topic).on(
     "postgres_changes",
-    { event: "INSERT", schema: "public", table: "messages" },
+    {
+      event: "INSERT",
+      schema: "public",
+      table: "messages",
+      ...opts.tenantId ? { filter: `tenant_id=eq.${opts.tenantId}` } : {}
+    },
     (payload) => onInsert(payload.new)
-  ).subscribe();
+  ).subscribe((status) => {
+    if (opts.onStatus) opts.onStatus(status);
+    else if (status !== "SUBSCRIBED") console.warn("realtime_status", topic, status);
+  });
   return () => {
     void client.removeChannel(channel);
   };

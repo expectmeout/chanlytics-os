@@ -17,24 +17,37 @@ export interface SurfaceOverride {
   apply: () => Promise<void>;
   /** Mockup events to dispatch after apply so mounted components re-render. */
   events?: string[];
+  /** Re-apply when a realtime message INSERT arrives (the runner owns the one shared subscription). */
+  refreshOnMessageInserts?: boolean;
+  /** Debounce for realtime-triggered re-applies (default 400ms). */
+  debounceMs?: number;
 }
 
-const live = new Set<string>();
+/** Session-expiry-aware fetch: 401 becomes a typed signal the runner redirects on. */
+export class UnauthorizedError extends Error {
+  constructor() { super("unauthorized"); this.name = "UnauthorizedError"; }
+}
+
+export async function fetchEnvelope<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  if (res.status === 401) throw new UnauthorizedError();
+  const j = (await res.json().catch(() => null)) as { ok: boolean; data?: T } | null;
+  if (!j || !j.ok || j.data === undefined) throw new Error(`${url} -> ${res.status}`);
+  return j.data;
+}
 
 export async function activateOverride(o: SurfaceOverride): Promise<boolean> {
   try {
     await o.apply();
     for (const e of o.events ?? []) window.dispatchEvent(new CustomEvent(e));
-    live.add(o.key);
     return true;
   } catch (err) {
+    if (err instanceof UnauthorizedError) throw err;
     // A failed override NEVER breaks the surface — it just stays seeded.
     console.error("surface_override_failed", o.key, err instanceof Error ? err.message : err);
     return false;
   }
 }
-
-export const isLive = (key: string) => live.has(key);
 
 /**
  * First consumer: the real workspace (RLS-scoped tenants via /api/v1/workspaces).
@@ -47,10 +60,8 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
   key: "workspace",
   current: () => (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES?.[0] ?? null,
   apply: async () => {
-    const res = await fetch("/api/v1/workspaces");
-    const j = (await res.json()) as { ok: boolean; data?: { workspaces: Workspace[] } };
-    if (!j.ok || !j.data) throw new Error("workspaces fetch failed");
-    (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES = j.data.workspaces;
+    const data = await fetchEnvelope<{ workspaces: Workspace[] }>("/api/v1/workspaces");
+    (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES = data.workspaces;
   },
 };
 
@@ -65,16 +76,15 @@ import { toConversationVM, type ConversationDto } from "@chanlytics/contracts";
 export const conversationsOverride: SurfaceOverride = {
   key: "conversations",
   events: ["surface:conversations"],
+  refreshOnMessageInserts: true,
   apply: async () => {
-    const res = await fetch("/api/v1/conversations");
-    const j = (await res.json()) as { ok: boolean; data?: { conversations: ConversationDto[] } };
-    if (!j.ok || !j.data) throw new Error("conversations fetch failed");
+    const data = await fetchEnvelope<{ conversations: ConversationDto[] }>("/api/v1/conversations");
     const w = window as unknown as {
       CONVERSATIONS_DATA?: { CONVERSATIONS: unknown[]; CV_CHANNELS: unknown[] };
     };
     const channels = w.CONVERSATIONS_DATA?.CV_CHANNELS ?? [];
     w.CONVERSATIONS_DATA = {
-      CONVERSATIONS: j.data.conversations.map((c) => toConversationVM(c)),
+      CONVERSATIONS: data.conversations.map((c) => toConversationVM(c)),
       CV_CHANNELS: channels,
     };
   },

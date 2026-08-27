@@ -52,11 +52,13 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
   return data as unknown as IngestResult;
 }
 
-/** Stamp a message handled (replied / deliberately skipped) — retry no-ops after this. */
+/** Stamp a message handled (replied / deliberately skipped) — retry no-ops after this.
+ *  One server-side jsonb merge (no read-modify-write, no lost-update race). */
 export async function markProcessed(db: Db, tenantId: string, messageId: string): Promise<void> {
-  const { data } = await db.from("messages").select("meta").eq("id", messageId).single();
-  const meta = { ...((data?.meta as Record<string, unknown>) ?? {}), processed_at: new Date().toISOString() };
-  const { error } = await db.from("messages").update({ meta }).eq("id", messageId).eq("tenant_id", tenantId);
+  const { error } = await db.rpc("mark_processed", {
+    p_tenant_id: tenantId,
+    p_message_id: messageId,
+  } as never);
   if (error) throw new Error(`mark_processed: ${error.message}`);
 }
 
@@ -96,11 +98,12 @@ export async function recordOutbound(
     if (error.code === "23505") return null;
     throw new Error(`record_outbound: ${error.message}`);
   }
-  await db
-    .from("conversations")
-    .update({ last_message_at: new Date().toISOString() })
-    .eq("id", p.conversationId);
-  await emitEvent(db, p.tenantId, "message.sent", "message", "message", data.id, { sender: p.sender });
+  await Promise.all([
+    db.from("conversations")
+      .update({ last_message_at: new Date().toISOString() })
+      .eq("id", p.conversationId),
+    emitEvent(db, p.tenantId, "message.sent", "message", "message", data.id, { sender: p.sender }),
+  ]);
   return data.id;
 }
 
@@ -119,35 +122,45 @@ export async function recordStatusByExternalId(
     .update(patch)
     .eq("tenant_id", tenantId)
     .eq("external_id", externalId);
-  // Unknown wamid (pre-dual-write history) or monotone rejection: log-and-continue.
-  if (error && !/monotone/.test(error.message)) {
+  // Unknown wamid (pre-dual-write history) or monotone/terminal rejection: log-and-continue.
+  if (error && !/monotone|terminal/.test(error.message)) {
     console.error("record_status_failed", externalId, error.message);
   }
 }
 
-/** Owner replied from the WhatsApp Business app: persist the echo + pause the bot. */
+/** Owner replied from the WhatsApp Business app: persist the echo + pause the bot.
+ *  Upserts the contact/conversation — an owner-INITIATED thread (customer never
+ *  messaged yet) must still record the message and the pause, or PG diverges
+ *  from the Blob pause forever. */
 export async function recordEchoAndPause(
   db: Db,
   p: { tenantId: string; customerPhoneDigits: string; body: string | null; externalId: string | null; pausedUntilIso: string },
 ): Promise<void> {
   const phone = `+${p.customerPhoneDigits.replace(/^\+/, "")}`;
-  const { data: contact } = await db
+  const { data: contact, error: cerr } = await db
     .from("contacts")
+    .upsert(
+      { tenant_id: p.tenantId, phone_e164: phone, last_seen_at: new Date().toISOString() },
+      { onConflict: "tenant_id,phone_e164" },
+    )
     .select("id")
-    .eq("tenant_id", p.tenantId)
-    .eq("phone_e164", phone)
-    .maybeSingle();
-  if (!contact) return; // echo for a thread that predates dual-write — nothing to attach to
-  const { data: conv } = await db
+    .single();
+  if (cerr || !contact) { console.error("record_echo_contact_failed", cerr?.message); return; }
+  const { data: conv, error: verr } = await db
     .from("conversations")
+    .upsert(
+      {
+        tenant_id: p.tenantId,
+        contact_id: contact.id,
+        state: "needs_human",
+        paused_until: p.pausedUntilIso,
+        last_message_at: new Date().toISOString(),
+      },
+      { onConflict: "tenant_id,contact_id" },
+    )
     .select("id")
-    .eq("tenant_id", p.tenantId)
-    .eq("contact_id", contact.id)
-    .maybeSingle();
-  if (!conv) return;
-  await db.from("conversations")
-    .update({ state: "needs_human", paused_until: p.pausedUntilIso, last_message_at: new Date().toISOString() })
-    .eq("id", conv.id);
+    .single();
+  if (verr || !conv) { console.error("record_echo_conv_failed", verr?.message); return; }
   const { error } = await db.from("messages").insert({
     tenant_id: p.tenantId,
     conversation_id: conv.id,

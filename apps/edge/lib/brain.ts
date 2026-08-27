@@ -94,10 +94,14 @@ export async function generateReply(history: ThreadTurn[], userText: string): Pr
     .join("\n")
     .trim();
 
-  const escalate = text.includes("[[HUMAN]]");
+  let escalate = text.includes("[[HUMAN]]");
+  // Truncation can eat the trailing [[HUMAN]] token — treat a capped reply as
+  // a handoff rather than silently dropping the escalation.
+  if (response.stop_reason === "max_tokens") escalate = true;
   text = text.replace(/\s*\[\[HUMAN\]\]\s*/g, "").trim();
   if (!text) {
     text = "Thanks for your message! A member of our team will reply here soon.";
+    escalate = true;
   }
   return { text, escalate, usage };
 }

@@ -54,7 +54,10 @@ export interface ConversationVM {
   live?: boolean;
 }
 
+import { formatPhoneDisplay } from "./phone";
+
 const AGENT = { glyph: "W", name: "WhatsApp Receptionist" };
+const CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the salon line\.\s*)?(Summary:\s*)?/;
 
 function shortTime(iso: string | null, now: Date): string {
   if (!iso) return "";
@@ -64,14 +67,28 @@ function shortTime(iso: string | null, now: Date): string {
   return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
+/** Transcript bubbles keep day context across multi-day threads. */
+function bubbleTime(iso: string, now: Date): string {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (d.toDateString() === now.toDateString()) return time;
+  return `${d.toLocaleDateString([], { month: "short", day: "numeric" })} · ${time}`;
+}
+
 function initialsOf(name: string): string {
-  const parts = name.replace(/[^\p{L}\p{N} +]/gu, "").trim().split(/\s+/);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  const digits = name.replace(/[^\d]/g, "");
+  // phone-like display: last two digits distinguish contacts (never a "+1" avatar)
+  if (digits.length >= 7 && /^[+\d\s()\-]+$/.test(name)) return digits.slice(-2);
+  const parts = name.replace(/[^\p{L}\p{N} ]/gu, "").trim().split(/\s+/);
+  if (parts.length >= 2 && parts[0] && parts[1]) return (parts[0][0] + parts[1][0]).toUpperCase();
   const p = parts[0] || "?";
   return p.slice(0, 2).toUpperCase();
 }
 
 function messageText(m: MessageDto): string {
+  if (m.type === "call_summary" && m.body) {
+    return `Phone call — ${m.body.replace(CALL_NOTE_PREFIX, "").trim()}`;
+  }
   if (m.body) return m.body;
   if (m.type === "media") {
     const kind = (m.meta && (m.meta.raw_type as string)) || "media";
@@ -84,17 +101,24 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
   const who =
     dto.contact.display_name ||
     dto.contact.wa_profile_name ||
-    dto.contact.phone_e164 ||
+    formatPhoneDisplay(dto.contact.phone_e164) ||
     "Unknown";
   const msgs = dto.messages.map((m): ConversationMessageVM => ({
     from: m.sender === "customer" ? "client" : "agent",
-    at: shortTime(m.created_at, now),
+    at: bubbleTime(m.created_at, now),
     text: messageText(m),
   }));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   const last = dto.messages[dto.messages.length - 1];
   const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
   const needsHuman = dto.state === "needs_human" || paused;
+  // Honest pills: escalated when a human has it; open while the last word is
+  // the customer's; handled only when the thread is actually answered/closed.
+  const outcome: ConversationVM["outcome"] = needsHuman
+    ? "escalated"
+    : last?.direction === "inbound" || dto.state === "snoozed"
+      ? "open"
+      : "handled";
   return {
     id: dto.id,
     who,
@@ -103,7 +127,7 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
     channel: "whatsapp",
     agent: AGENT,
     at: shortTime(dto.last_message_at, now),
-    outcome: needsHuman ? "escalated" : dto.state === "snoozed" ? "open" : "handled",
+    outcome,
     snippet: last ? messageText(last).slice(0, 110) : "",
     summary: {
       headline: lastInbound ? messageText(lastInbound).slice(0, 110) : "No customer messages yet.",

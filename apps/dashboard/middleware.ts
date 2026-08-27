@@ -30,9 +30,17 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isPublic = path === "/login" || path.startsWith("/auth");
+  const isPublic = path === "/login" || path.startsWith("/auth") || path === "/api/version";
 
   if (!user && !isPublic) {
+    // API callers get a machine-readable 401 — redirecting a fetch() to the
+    // login HTML makes every client parse failure look like a data bug.
+    if (path.startsWith("/api/")) {
+      return NextResponse.json(
+        { ok: false, error: { code: "unauthorized", message: "Sign in required." } },
+        { status: 401 },
+      );
+    }
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);

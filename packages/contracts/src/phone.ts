@@ -15,3 +15,14 @@ export function normalizePhone(raw: string | null | undefined): string | null {
   if (digits.length >= 8 && digits.length <= 15) return `+${digits}`;
   return null;
 }
+
+/** Human-readable phone for display: NANP gets +1 (XXX) XXX-XXXX; others get spaced groups. */
+export function formatPhoneDisplay(e164: string | null | undefined): string | null {
+  if (!e164) return null;
+  const digits = String(e164).replace(/[^\d]/g, "");
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+  if (digits.length < 7) return `+${digits}`;
+  return `+${digits.replace(/(\d{1,3})(?=(\d{3})+$)/g, "$1 ").trim()}`;
+}

@@ -61,6 +61,7 @@ export const EVENT_KINDS = [
   "usage.wa_conversation",
   "ingest.allowlist_skip",
   "ingest.pg_failed",
+  "message.send_failed",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 

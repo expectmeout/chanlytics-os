@@ -14,15 +14,23 @@ export interface RouteContext {
  * The one wrapper every /api/v1 handler goes through (Blueprint §4/§8):
  * verified session (getUser, never the cookie JWT alone) -> handler runs on the
  * SESSION-scoPED client so RLS is the enforcement -> envelope + structured log.
- * Service-role never appears here.
+ * Service-role never appears here. Next 15 route params (a Promise) are
+ * awaited and passed through as ctx.params.
  */
 export function withRoute<T>(
-  handler: (req: Request, ctx: RouteContext) => Promise<T>,
+  handler: (req: Request, ctx: RouteContext & { params: Record<string, string | string[] | undefined> }) => Promise<T>,
 ) {
-  return async (req: Request): Promise<NextResponse> => {
+  return async (
+    req: Request,
+    // Next 15 always passes { params: Promise<SegmentParams> }; the wide
+    // non-optional signature satisfies the generated ParamCheck for both
+    // static and dynamic routes (runtime still guards defensively).
+    routeCtx: { params: Promise<Record<string, string | string[] | undefined>> },
+  ): Promise<NextResponse> => {
     const started = Date.now();
     const route = new URL(req.url).pathname;
     try {
+      const params = routeCtx?.params ? await routeCtx.params : {};
       const supabase = await createClient();
       const {
         data: { user },
@@ -30,7 +38,7 @@ export function withRoute<T>(
       if (!user) {
         return NextResponse.json(err("unauthorized", "Sign in required."), { status: 401 });
       }
-      const data = await handler(req, { supabase, userId: user.id, email: user.email });
+      const data = await handler(req, { supabase, userId: user.id, email: user.email, params });
       console.log(JSON.stringify({ level: "info", route, user: user.id, ms: Date.now() - started }));
       return NextResponse.json(ok(data));
     } catch (e) {

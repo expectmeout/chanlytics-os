@@ -4,19 +4,23 @@
  * The Phase-A bridge (Blueprint §7): replaces Chanlytics.html's inline boot
  * script. Seeds globals, evaluates the ordered manifest, enforces the boot
  * gate, and renders ChanlyticsApp inside OUR React tree with the exact props
- * the original App wrapper passed. Prefs (theme/density/rail) move from the
- * tweaks-panel postMessage protocol to localStorage — view preferences only.
+ * the original App wrapper passed. Prefs (theme/density/rail) live in
+ * localStorage — view preferences only. Surface flips run through the
+ * SurfaceData runner; the pill reports live/degraded per surface, carries
+ * sign-out, and flags stale deployments (version heartbeat).
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./seed-globals"; // must evaluate before the manifest
 import "./manifest";
 import "./legacy.css";
-import { activateOverride, workspaceOverride, conversationsOverride, type Workspace } from "./surface-data";
-import { createClient } from "@/lib/supabase/client";
-import { subscribeMessagesInserts } from "@chanlytics/db";
+import { workspaceOverride, conversationsOverride, type Workspace } from "./surface-data";
+import { getSurfaceStatuses, onSurfaceStatusChange, startSurfaces } from "./surface-runner";
 
 // The mockup's own data-before-mount contract (boot gate).
 const REQUIRED = ["CHANLY", "INBOX_DATA", "CLIENTS", "FLEET_DATA", "CHANLY_DATA", "POLICY", "ChanlyticsApp"] as const;
+
+const SURFACES = [workspaceOverride, conversationsOverride];
+const SURFACE_LABELS: Record<string, string> = { conversations: "Conversations" };
 
 interface Prefs {
   theme: "light" | "dark";
@@ -44,6 +48,8 @@ type ChanlyticsAppComponent = React.ComponentType<{
 export default function LegacyApp() {
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [, setStatusTick] = useState(0);
+  const [staleBuild, setStaleBuild] = useState(false);
 
   const missing = useMemo(
     () => REQUIRED.filter((k) => !(window as unknown as Record<string, unknown>)[k]),
@@ -69,31 +75,39 @@ export default function LegacyApp() {
     return () => document.documentElement.classList.remove("legacy-on");
   }, []);
 
-  // SurfaceData first consumer: the real workspace, RLS-scoped.
+  // Surface flips: one runner owns retries, realtime, debounce, and status.
   useEffect(() => {
-    void activateOverride(workspaceOverride).then((ok) => {
-      if (ok) setWorkspace(workspaceOverride.current());
-    });
-  }, []);
-
-  // Slice 1: Conversations on real data + live refresh on message inserts.
-  const [convLive, setConvLive] = useState(false);
-  useEffect(() => {
-    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
-    let unsubscribe: (() => void) | null = null;
-    void activateOverride(conversationsOverride).then((ok) => {
-      setConvLive(ok);
-      if (!ok) return;
-      const supabase = createClient();
-      unsubscribe = subscribeMessagesInserts(supabase, () => {
-        // debounce bursts; re-apply refetches + swaps + dispatches the event
-        if (refreshTimer) clearTimeout(refreshTimer);
-        refreshTimer = setTimeout(() => void activateOverride(conversationsOverride), 400);
-      });
+    const stop = startSurfaces(SURFACES);
+    const off = onSurfaceStatusChange(() => {
+      setStatusTick((n) => n + 1);
+      setWorkspace(workspaceOverride.current());
     });
     return () => {
-      if (refreshTimer) clearTimeout(refreshTimer);
-      if (unsubscribe) unsubscribe();
+      stop();
+      off();
+    };
+  }, []);
+
+  // Version heartbeat: a hash-routed tab lives for days; flag stale deploys
+  // instead of letting a dead chunk reference white-screen the operator.
+  useEffect(() => {
+    let initial: string | null = null;
+    const check = async () => {
+      try {
+        const r = await fetch("/api/version", { cache: "no-store" });
+        const j = (await r.json()) as { sha?: string };
+        if (!j.sha) return;
+        if (initial === null) initial = j.sha;
+        else if (j.sha !== initial) setStaleBuild(true);
+      } catch { /* offline — ignore */ }
+    };
+    void check();
+    const onVisible = () => document.visibilityState === "visible" && void check();
+    document.addEventListener("visibilitychange", onVisible);
+    const t = setInterval(() => void check(), 15 * 60 * 1000);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      clearInterval(t);
     };
   }, []);
 
@@ -109,6 +123,13 @@ export default function LegacyApp() {
   }
 
   const ChanlyticsApp = (window as unknown as { ChanlyticsApp: ChanlyticsAppComponent }).ChanlyticsApp;
+  const statuses = getSurfaceStatuses();
+  const liveLabels = Object.entries(SURFACE_LABELS)
+    .filter(([key]) => statuses.get(key) === "live")
+    .map(([, label]) => label);
+  const degradedLabels = Object.entries(SURFACE_LABELS)
+    .filter(([key]) => statuses.get(key) === "degraded")
+    .map(([, label]) => label);
 
   return (
     <div id="root">
@@ -120,13 +141,23 @@ export default function LegacyApp() {
       />
       <div className="bridge-pill" role="status">
         <span className={workspace ? "dot live" : "dot"} />
-        {workspace ? (
+        {staleBuild ? (
+          <button className="pill-action" onClick={() => window.location.reload()}>
+            New version available — refresh
+          </button>
+        ) : workspace ? (
           <span>
-            <b>{workspace.name}</b>{convLive ? " · Conversations live" : ""} · other surfaces seeded
+            <b>{workspace.name}</b>
+            {liveLabels.length ? ` · ${liveLabels.join(", ")} live` : ""}
+            {degradedLabels.length ? ` · ${degradedLabels.join(", ")} stale` : ""}
+            {" · other surfaces seeded"}
           </span>
         ) : (
           <span>Seeded preview — no live data yet</span>
         )}
+        <form action="/auth/signout" method="post" className="pill-signout">
+          <button type="submit" title="Sign out">Sign out</button>
+        </form>
       </div>
     </div>
   );

@@ -17,16 +17,19 @@ export const GET = withRoute(async (_req, { supabase }) => {
   const ids = (convs ?? []).map((c) => c.id);
   const byConv = new Map<string, MessageDto[]>();
   if (ids.length) {
+    // Newest-first fetch: when the global cap bites, it drops the OLDEST
+    // history, never a thread's most recent messages.
     const { data: msgs, error: merr } = await supabase
       .from("messages")
       .select("id, conversation_id, direction, sender, type, body, media, meta, created_at")
       .in("conversation_id", ids)
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: false })
       .limit(4000);
     if (merr) throw new Error(merr.message);
     for (const m of msgs ?? []) {
       const list = byConv.get(m.conversation_id) ?? [];
-      list.push({
+      // rows arrive newest-first; unshift restores ascending per conversation
+      list.unshift({
         id: m.id,
         direction: m.direction as MessageDto["direction"],
         sender: m.sender as MessageDto["sender"],

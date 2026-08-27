@@ -1008,6 +1008,10 @@ export type Database = {
         }
         Returns: Json
       }
+      mark_processed: {
+        Args: { p_message_id: string; p_tenant_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
