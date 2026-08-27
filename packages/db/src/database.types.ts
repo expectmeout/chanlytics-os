@@ -39,6 +39,144 @@ export type Database = {
   }
   public: {
     Tables: {
+      calls: {
+        Row: {
+          agent_id: string | null
+          call_successful: boolean | null
+          call_type: string | null
+          channel_id: string | null
+          contact_id: string | null
+          conversation_id: string | null
+          cost: Json | null
+          created_at: string
+          direction: string
+          disconnection_reason: string | null
+          duration_ms: number | null
+          ended_at: string | null
+          from_e164: string | null
+          from_raw: string | null
+          id: string
+          in_voicemail: boolean | null
+          latency: Json | null
+          message_id: string | null
+          public_log_url: string | null
+          raw: Json
+          recording: Json | null
+          retell_call_id: string
+          sentiment: string | null
+          started_at: string | null
+          status: string
+          summary: string | null
+          tenant_id: string
+          to_e164: string | null
+          transcript: string | null
+          transcript_object: Json | null
+          updated_at: string
+        }
+        Insert: {
+          agent_id?: string | null
+          call_successful?: boolean | null
+          call_type?: string | null
+          channel_id?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          cost?: Json | null
+          created_at?: string
+          direction?: string
+          disconnection_reason?: string | null
+          duration_ms?: number | null
+          ended_at?: string | null
+          from_e164?: string | null
+          from_raw?: string | null
+          id?: string
+          in_voicemail?: boolean | null
+          latency?: Json | null
+          message_id?: string | null
+          public_log_url?: string | null
+          raw?: Json
+          recording?: Json | null
+          retell_call_id: string
+          sentiment?: string | null
+          started_at?: string | null
+          status?: string
+          summary?: string | null
+          tenant_id: string
+          to_e164?: string | null
+          transcript?: string | null
+          transcript_object?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string | null
+          call_successful?: boolean | null
+          call_type?: string | null
+          channel_id?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          cost?: Json | null
+          created_at?: string
+          direction?: string
+          disconnection_reason?: string | null
+          duration_ms?: number | null
+          ended_at?: string | null
+          from_e164?: string | null
+          from_raw?: string | null
+          id?: string
+          in_voicemail?: boolean | null
+          latency?: Json | null
+          message_id?: string | null
+          public_log_url?: string | null
+          raw?: Json
+          recording?: Json | null
+          retell_call_id?: string
+          sentiment?: string | null
+          started_at?: string | null
+          status?: string
+          summary?: string | null
+          tenant_id?: string
+          to_e164?: string | null
+          transcript?: string | null
+          transcript_object?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calls_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calls_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calls_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calls_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calls_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_identities: {
         Row: {
           channel: string
@@ -1189,6 +1327,35 @@ export type Database = {
       fail_job: {
         Args: { p_error: string; p_job_id: string }
         Returns: undefined
+      }
+      ingest_call: {
+        Args: {
+          p_agent_id: string
+          p_call_type: string
+          p_cost: Json
+          p_direction: string
+          p_disconnection: string
+          p_duration_ms: number
+          p_ended_at: string
+          p_from_e164: string
+          p_from_raw: string
+          p_in_voicemail: boolean
+          p_latency: Json
+          p_public_log_url: string
+          p_raw: Json
+          p_recording: Json
+          p_retell_call_id: string
+          p_sentiment: string
+          p_started_at: string
+          p_status: string
+          p_successful: boolean
+          p_summary: string
+          p_tenant_id: string
+          p_to_e164: string
+          p_transcript: string
+          p_transcript_obj: Json
+        }
+        Returns: Json
       }
       ingest_inbound: {
         Args: {

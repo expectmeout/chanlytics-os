@@ -34,6 +34,144 @@ type Database = {
     };
     public: {
         Tables: {
+            calls: {
+                Row: {
+                    agent_id: string | null;
+                    call_successful: boolean | null;
+                    call_type: string | null;
+                    channel_id: string | null;
+                    contact_id: string | null;
+                    conversation_id: string | null;
+                    cost: Json | null;
+                    created_at: string;
+                    direction: string;
+                    disconnection_reason: string | null;
+                    duration_ms: number | null;
+                    ended_at: string | null;
+                    from_e164: string | null;
+                    from_raw: string | null;
+                    id: string;
+                    in_voicemail: boolean | null;
+                    latency: Json | null;
+                    message_id: string | null;
+                    public_log_url: string | null;
+                    raw: Json;
+                    recording: Json | null;
+                    retell_call_id: string;
+                    sentiment: string | null;
+                    started_at: string | null;
+                    status: string;
+                    summary: string | null;
+                    tenant_id: string;
+                    to_e164: string | null;
+                    transcript: string | null;
+                    transcript_object: Json | null;
+                    updated_at: string;
+                };
+                Insert: {
+                    agent_id?: string | null;
+                    call_successful?: boolean | null;
+                    call_type?: string | null;
+                    channel_id?: string | null;
+                    contact_id?: string | null;
+                    conversation_id?: string | null;
+                    cost?: Json | null;
+                    created_at?: string;
+                    direction?: string;
+                    disconnection_reason?: string | null;
+                    duration_ms?: number | null;
+                    ended_at?: string | null;
+                    from_e164?: string | null;
+                    from_raw?: string | null;
+                    id?: string;
+                    in_voicemail?: boolean | null;
+                    latency?: Json | null;
+                    message_id?: string | null;
+                    public_log_url?: string | null;
+                    raw?: Json;
+                    recording?: Json | null;
+                    retell_call_id: string;
+                    sentiment?: string | null;
+                    started_at?: string | null;
+                    status?: string;
+                    summary?: string | null;
+                    tenant_id: string;
+                    to_e164?: string | null;
+                    transcript?: string | null;
+                    transcript_object?: Json | null;
+                    updated_at?: string;
+                };
+                Update: {
+                    agent_id?: string | null;
+                    call_successful?: boolean | null;
+                    call_type?: string | null;
+                    channel_id?: string | null;
+                    contact_id?: string | null;
+                    conversation_id?: string | null;
+                    cost?: Json | null;
+                    created_at?: string;
+                    direction?: string;
+                    disconnection_reason?: string | null;
+                    duration_ms?: number | null;
+                    ended_at?: string | null;
+                    from_e164?: string | null;
+                    from_raw?: string | null;
+                    id?: string;
+                    in_voicemail?: boolean | null;
+                    latency?: Json | null;
+                    message_id?: string | null;
+                    public_log_url?: string | null;
+                    raw?: Json;
+                    recording?: Json | null;
+                    retell_call_id?: string;
+                    sentiment?: string | null;
+                    started_at?: string | null;
+                    status?: string;
+                    summary?: string | null;
+                    tenant_id?: string;
+                    to_e164?: string | null;
+                    transcript?: string | null;
+                    transcript_object?: Json | null;
+                    updated_at?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "calls_channel_id_fkey";
+                        columns: ["channel_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenant_channels";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "calls_contact_id_fkey";
+                        columns: ["contact_id"];
+                        isOneToOne: false;
+                        referencedRelation: "contacts";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "calls_conversation_id_fkey";
+                        columns: ["conversation_id"];
+                        isOneToOne: false;
+                        referencedRelation: "conversations";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "calls_message_id_fkey";
+                        columns: ["message_id"];
+                        isOneToOne: false;
+                        referencedRelation: "messages";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "calls_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             contact_identities: {
                 Row: {
                     channel: string;
@@ -1201,6 +1339,35 @@ type Database = {
                 };
                 Returns: undefined;
             };
+            ingest_call: {
+                Args: {
+                    p_agent_id: string;
+                    p_call_type: string;
+                    p_cost: Json;
+                    p_direction: string;
+                    p_disconnection: string;
+                    p_duration_ms: number;
+                    p_ended_at: string;
+                    p_from_e164: string;
+                    p_from_raw: string;
+                    p_in_voicemail: boolean;
+                    p_latency: Json;
+                    p_public_log_url: string;
+                    p_raw: Json;
+                    p_recording: Json;
+                    p_retell_call_id: string;
+                    p_sentiment: string;
+                    p_started_at: string;
+                    p_status: string;
+                    p_successful: boolean;
+                    p_summary: string;
+                    p_tenant_id: string;
+                    p_to_e164: string;
+                    p_transcript: string;
+                    p_transcript_obj: Json;
+                };
+                Returns: Json;
+            };
             ingest_inbound: {
                 Args: {
                     p_body: string;
@@ -1254,7 +1421,7 @@ declare function createServiceClient(cfg: ServiceClientConfig): SupabaseClient<D
  * plain row work. All writes are ADDITIVE to the Blob path during dual-write.
  */
 
-type Db = SupabaseClient<Database>;
+type Db$1 = SupabaseClient<Database>;
 interface IngestInboundParams {
     tenantId: string;
     channel: "whatsapp";
@@ -1278,11 +1445,11 @@ interface IngestResult {
     state: string;
     paused_until: string | null;
 }
-declare function ingestInbound(db: Db, p: IngestInboundParams): Promise<IngestResult>;
+declare function ingestInbound(db: Db$1, p: IngestInboundParams): Promise<IngestResult>;
 /** Stamp a message handled (replied / deliberately skipped) — retry no-ops after this.
  *  One server-side jsonb merge (no read-modify-write, no lost-update race). */
-declare function markProcessed(db: Db, tenantId: string, messageId: string): Promise<void>;
-declare function recordOutbound(db: Db, p: {
+declare function markProcessed(db: Db$1, tenantId: string, messageId: string): Promise<void>;
+declare function recordOutbound(db: Db$1, p: {
     tenantId: string;
     conversationId: string;
     contactId: string | null;
@@ -1294,12 +1461,12 @@ declare function recordOutbound(db: Db, p: {
     status?: "sent" | "failed";
 }): Promise<string | null>;
 /** Delivery receipts: update by wamid; monotone rank enforced by trigger. */
-declare function recordStatusByExternalId(db: Db, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
+declare function recordStatusByExternalId(db: Db$1, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
 /** Owner replied from the WhatsApp Business app: persist the echo + pause the bot.
  *  Upserts the contact/conversation — an owner-INITIATED thread (customer never
  *  messaged yet) must still record the message and the pause, or PG diverges
  *  from the Blob pause forever. */
-declare function recordEchoAndPause(db: Db, p: {
+declare function recordEchoAndPause(db: Db$1, p: {
     tenantId: string;
     customerPhoneDigits: string;
     body: string | null;
@@ -1307,8 +1474,8 @@ declare function recordEchoAndPause(db: Db, p: {
     pausedUntilIso: string;
 }): Promise<void>;
 /** Mirror of the Blob pausedUntil semantics for AI-side pauses (non-text / escalation). */
-declare function pauseConversation(db: Db, tenantId: string, conversationId: string, pausedUntilIso: string): Promise<void>;
-declare function emitEvent(db: Db, tenantId: string, kind: string, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
+declare function pauseConversation(db: Db$1, tenantId: string, conversationId: string, pausedUntilIso: string): Promise<void>;
+declare function emitEvent(db: Db$1, tenantId: string, kind: string, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
 
 /** Webhook → tenant routing over tenant_channels(kind, external_id). */
 
@@ -1321,6 +1488,59 @@ interface RoutedChannel {
     config: Json;
 }
 declare function resolveChannel(db: SupabaseClient<Database>, kind: string, externalId: string): Promise<RoutedChannel | null>;
+
+/**
+ * Calls repository (Slice 3). ingest_call is the atomic gate: identity
+ * resolution + upsert + metering in one round trip, idempotent on
+ * (tenant_id, retell_call_id) so webhook stages and the history backfill
+ * converge on one row.
+ */
+
+type Db = SupabaseClient<Database>;
+interface NormalizedCallInput {
+    retellCallId: string;
+    agentId: string | null;
+    direction: "inbound" | "outbound";
+    callType: string | null;
+    fromE164: string | null;
+    fromRaw: string | null;
+    toE164: string | null;
+    status: "registered" | "ongoing" | "ended" | "error";
+    startedAtIso: string | null;
+    endedAtIso: string | null;
+    durationMs: number | null;
+    disconnectionReason: string | null;
+    sentiment: string | null;
+    callSuccessful: boolean | null;
+    inVoicemail: boolean | null;
+    summary: string | null;
+    transcript: string | null;
+    transcriptObject: unknown;
+    recordingUrl: string | null;
+    publicLogUrl: string | null;
+    cost: unknown;
+    latency: unknown;
+}
+interface IngestCallResult {
+    call_id: string;
+    is_new: boolean;
+    contact_id: string | null;
+    conversation_id: string | null;
+}
+declare function ingestCall(db: Db, tenantId: string, n: NormalizedCallInput, raw?: unknown): Promise<IngestCallResult>;
+/** Attach the thread note (call_summary message) back to its call row. */
+declare function linkCallMessage(db: Db, tenantId: string, callId: string, messageId: string): Promise<void>;
+/** Post-storage-copy state for the recording (private bucket path). */
+declare function setCallRecording(db: Db, tenantId: string, callId: string, recording: Record<string, unknown>): Promise<void>;
+/** The customer's thread gets the call as a message, so history stays in one place. */
+declare function recordCallNote(db: Db, p: {
+    tenantId: string;
+    conversationId: string;
+    contactId: string | null;
+    body: string;
+    externalId: string;
+    channelTsIso: string | null;
+}): Promise<string | null>;
 
 /**
  * The single Realtime subscription wrapper (Blueprint §5): every surface
@@ -1346,4 +1566,4 @@ declare function subscribeMessagesInserts(client: SupabaseClient<Database>, onIn
     tenant_id: string;
 }) => void, opts?: SubscribeOptions): () => void;
 
-export { type Database, type IngestInboundParams, type IngestResult, type Json, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, createServiceClient, emitEvent, ingestInbound, markProcessed, pauseConversation, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, subscribeMessagesInserts };
+export { type Database, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type NormalizedCallInput, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, createServiceClient, emitEvent, ingestCall, ingestInbound, linkCallMessage, markProcessed, pauseConversation, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, setCallRecording, subscribeMessagesInserts };
