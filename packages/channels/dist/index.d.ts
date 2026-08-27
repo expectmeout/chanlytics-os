@@ -179,19 +179,29 @@ interface ListCallsPage {
     calls: RetellCall[];
     /** Pass back as paginationKey to continue; null when exhausted. */
     nextKey: string | null;
+    total: number | null;
 }
 /**
- * Backfill/history read. ALWAYS filter by agent id: one Retell account can host
- * many agents (the live account holds 432 calls across 8 agents, only 4 of them
- * this tenant's) — an unfiltered import would cross tenants.
+ * History read via **v3** — /v2/list-calls is deprecated and Retell flags
+ * accounts still calling it. ALWAYS filter by agent: one account hosts many
+ * agents (the live account holds 432 calls across 8, only 4 this tenant's), so
+ * an unfiltered import would cross tenants.
+ *
+ * Verified live: v3 returns {items, has_more, pagination_key, total} and OMITS
+ * transcript/transcript_object (hydrate via getCall) while still including
+ * recording_url, call_analysis, duration_ms and the phone numbers.
  */
 declare function listCalls(cfg: RetellConfig, opts: {
     agentId: string;
     limit?: number;
     paginationKey?: string;
-    afterStartMs?: number;
+    ascending?: boolean;
+    includeTotal?: boolean;
 }): Promise<ListCallsPage>;
+/** Full call detail — the only source of transcript/transcript_object. */
 declare function getCall(cfg: RetellConfig, callId: string): Promise<RetellCall | null>;
+/** True when a v3 list row still needs a getCall to be complete. */
+declare function needsHydration(c: RetellCall): boolean;
 /**
  * Recording bytes. Retell serves these from an UNSIGNED public CDN URL
  * (verified: HEAD 200 with no auth) — so we copy customer audio into private
@@ -204,4 +214,4 @@ declare function fetchRecording(url: string): Promise<{
 /** Retell webhook signature: `v={ts},d={hmac}` over rawBody+ts, keyed by the API key. */
 declare function verifyRetellSignature(rawBody: string, header: string | null | undefined, apiKey: string | undefined): boolean;
 
-export { type ListCallsPage, type NormalizedCall, type NormalizedInbound, type RetellCall, type RetellConfig, type RetellTranscriptTurn, type SendResult, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, callSummaryLine, fetchMediaBytes, fetchRecording, getCall, listCalls, normalizeCall, normalizeInbound, sendTemplate, sendText, verifyRetellSignature };
+export { type ListCallsPage, type NormalizedCall, type NormalizedInbound, type RetellCall, type RetellConfig, type RetellTranscriptTurn, type SendResult, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, callSummaryLine, fetchMediaBytes, fetchRecording, getCall, listCalls, needsHydration, normalizeCall, normalizeInbound, sendTemplate, sendText, verifyRetellSignature };

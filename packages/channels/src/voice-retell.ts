@@ -139,46 +139,69 @@ export interface ListCallsPage {
   calls: RetellCall[];
   /** Pass back as paginationKey to continue; null when exhausted. */
   nextKey: string | null;
+  total: number | null;
 }
 
 /**
- * Backfill/history read. ALWAYS filter by agent id: one Retell account can host
- * many agents (the live account holds 432 calls across 8 agents, only 4 of them
- * this tenant's) — an unfiltered import would cross tenants.
+ * History read via **v3** — /v2/list-calls is deprecated and Retell flags
+ * accounts still calling it. ALWAYS filter by agent: one account hosts many
+ * agents (the live account holds 432 calls across 8, only 4 this tenant's), so
+ * an unfiltered import would cross tenants.
+ *
+ * Verified live: v3 returns {items, has_more, pagination_key, total} and OMITS
+ * transcript/transcript_object (hydrate via getCall) while still including
+ * recording_url, call_analysis, duration_ms and the phone numbers.
  */
 export async function listCalls(
   cfg: RetellConfig,
-  opts: { agentId: string; limit?: number; paginationKey?: string; afterStartMs?: number },
+  opts: {
+    agentId: string;
+    limit?: number;
+    paginationKey?: string;
+    ascending?: boolean;
+    includeTotal?: boolean;
+  },
 ): Promise<ListCallsPage> {
   const limit = Math.min(opts.limit ?? 100, 1000);
-  const filter: Record<string, unknown> = { agent_id: [opts.agentId] };
-  if (opts.afterStartMs) filter.start_timestamp = { lower_threshold: opts.afterStartMs };
   const body: Record<string, unknown> = {
     limit,
-    sort_order: "descending",
-    filter_criteria: filter,
+    sort_order: opts.ascending ? "ascending" : "descending",
+    filter_criteria: { agent: [{ agent_id: opts.agentId }] }, // documented nested shape
     ...(opts.paginationKey ? { pagination_key: opts.paginationKey } : {}),
+    ...(opts.includeTotal ? { include_total: true } : {}),
   };
-  const r = await fetch(`${API}/v2/list-calls`, {
+  const r = await fetch(`${API}/v3/list-calls`, {
     method: "POST",
     headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!r.ok) throw new Error(`list-calls ${r.status}: ${(await r.text()).slice(0, 200)}`);
-  const out = (await r.json()) as RetellCall[] | { calls?: RetellCall[] };
-  const calls = Array.isArray(out) ? out : (out.calls ?? []);
+  const out = (await r.json()) as {
+    items?: RetellCall[];
+    has_more?: boolean;
+    pagination_key?: string;
+    total?: number;
+  };
+  const calls = out.items ?? [];
   return {
     calls,
-    nextKey: calls.length === limit ? (calls[calls.length - 1]?.call_id ?? null) : null,
+    nextKey: out.has_more ? (out.pagination_key ?? null) : null,
+    total: typeof out.total === "number" ? out.total : null,
   };
 }
 
+/** Full call detail — the only source of transcript/transcript_object. */
 export async function getCall(cfg: RetellConfig, callId: string): Promise<RetellCall | null> {
   const r = await fetch(`${API}/v2/get-call/${callId}`, {
     headers: { Authorization: `Bearer ${cfg.apiKey}` },
   });
   if (!r.ok) return null;
   return (await r.json()) as RetellCall;
+}
+
+/** True when a v3 list row still needs a getCall to be complete. */
+export function needsHydration(c: RetellCall): boolean {
+  return !c.transcript && !c.transcript_object;
 }
 
 /**

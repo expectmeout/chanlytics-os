@@ -135,25 +135,26 @@ function callSummaryLine(n) {
 }
 async function listCalls(cfg, opts) {
   const limit = Math.min(opts.limit ?? 100, 1e3);
-  const filter = { agent_id: [opts.agentId] };
-  if (opts.afterStartMs) filter.start_timestamp = { lower_threshold: opts.afterStartMs };
   const body = {
     limit,
-    sort_order: "descending",
-    filter_criteria: filter,
-    ...opts.paginationKey ? { pagination_key: opts.paginationKey } : {}
+    sort_order: opts.ascending ? "ascending" : "descending",
+    filter_criteria: { agent: [{ agent_id: opts.agentId }] },
+    // documented nested shape
+    ...opts.paginationKey ? { pagination_key: opts.paginationKey } : {},
+    ...opts.includeTotal ? { include_total: true } : {}
   };
-  const r = await fetch(`${API}/v2/list-calls`, {
+  const r = await fetch(`${API}/v3/list-calls`, {
     method: "POST",
     headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify(body)
   });
   if (!r.ok) throw new Error(`list-calls ${r.status}: ${(await r.text()).slice(0, 200)}`);
   const out = await r.json();
-  const calls = Array.isArray(out) ? out : out.calls ?? [];
+  const calls = out.items ?? [];
   return {
     calls,
-    nextKey: calls.length === limit ? calls[calls.length - 1]?.call_id ?? null : null
+    nextKey: out.has_more ? out.pagination_key ?? null : null,
+    total: typeof out.total === "number" ? out.total : null
   };
 }
 async function getCall(cfg, callId) {
@@ -162,6 +163,9 @@ async function getCall(cfg, callId) {
   });
   if (!r.ok) return null;
   return await r.json();
+}
+function needsHydration(c) {
+  return !c.transcript && !c.transcript_object;
 }
 async function fetchRecording(url) {
   const r = await fetch(url);
@@ -185,6 +189,7 @@ export {
   fetchRecording,
   getCall,
   listCalls,
+  needsHydration,
   normalizeCall,
   normalizeInbound,
   sendTemplate,

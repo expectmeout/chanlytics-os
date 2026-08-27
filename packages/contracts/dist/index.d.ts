@@ -208,6 +208,80 @@ interface InboxThreadVM {
 }
 declare function toInboxThreadVM(dto: ConversationDto, escalation: EscalationDto | null, now?: Date): InboxThreadVM;
 declare function toConversationVM(dto: ConversationDto, now?: Date): ConversationVM;
+interface CallDto {
+    id: string;
+    retell_call_id: string;
+    direction: "inbound" | "outbound";
+    call_type: string | null;
+    status: string;
+    from_e164: string | null;
+    from_raw: string | null;
+    to_e164: string | null;
+    started_at: string | null;
+    ended_at: string | null;
+    duration_ms: number | null;
+    disconnection_reason: string | null;
+    sentiment: string | null;
+    call_successful: boolean | null;
+    in_voicemail: boolean | null;
+    summary: string | null;
+    transcript_object: Array<{
+        role?: string;
+        content?: string;
+        words?: Array<{
+            start?: number;
+        }>;
+    }> | null;
+    /** storage_path and provider_url are stripped server-side — audio is only
+     *  reachable through the signed-URL route. */
+    recording: {
+        fetch_state?: string;
+        mime?: string | null;
+        bytes?: number;
+    } | null;
+    conversation_id: string | null;
+    contact_id: string | null;
+    message_id: string | null;
+    contact: {
+        display_name: string | null;
+        wa_profile_name: string | null;
+        phone_e164: string | null;
+    } | null;
+}
+/** Why the call ended, in words a salon owner uses. */
+declare const DISCONNECTION_LABELS: Record<string, string>;
+interface CallVM {
+    id: string;
+    real: true;
+    callId: string;
+    who: string;
+    whoShort: string;
+    initials: string;
+    clientId: null;
+    channel: "phone";
+    agent: {
+        glyph: string;
+        name: string;
+    };
+    at: string;
+    duration?: string;
+    outcome: "live" | "handled";
+    live?: boolean;
+    snippet: string;
+    summary: {
+        headline: string;
+        bullets: string[];
+    };
+    transcript: Array<{
+        t: string;
+        speaker: "agent" | "client";
+        text: string;
+    }>;
+    recordingState: "ready" | "pending" | "none";
+    recordingUrl?: string;
+    threadId?: string;
+}
+declare function toCallVM(dto: CallDto, now?: Date): CallVM;
 
 /**
  * Layer-2 policy enforcement (Blueprint §6): deterministic post-generation
@@ -225,4 +299,4 @@ interface WaWindow {
 }
 declare function waWindow(lastWaInboundAtIso: string | null | undefined, now?: Date): WaWindow;
 
-export { ACTOR_TYPES, type ActorType, AppError, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type ChannelKind, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, OPT_OUT_PATTERN, type Ok, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantStatus, WA_WINDOW_MS, type WaWindow, err, formatPhoneDisplay, normalizePhone, ok, toConversationVM, toInboxThreadVM, violatesNoPrices, waWindow };
+export { ACTOR_TYPES, type ActorType, AppError, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, OPT_OUT_PATTERN, type Ok, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantStatus, WA_WINDOW_MS, type WaWindow, err, formatPhoneDisplay, normalizePhone, ok, toCallVM, toConversationVM, toInboxThreadVM, violatesNoPrices, waWindow };

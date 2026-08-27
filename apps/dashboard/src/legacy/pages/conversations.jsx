@@ -8,12 +8,12 @@ const { useState: useCvState, useMemo: useCvMemo, useEffect: useCvEffect } = Rea
 const CV_ICON = { phone: "phone", sms: "chat", whatsapp: "chat", instagram: "instagram", mail: "mail" };
 const CV_LABEL = { phone: "Phone", sms: "SMS", whatsapp: "WhatsApp", instagram: "Instagram", mail: "Email" };
 
-const OutcomePill = ({ outcome, decidedAction }) => {
+const OutcomePill = ({ outcome, decidedAction, channel }) => {
   if (decidedAction) return <span className="pill pill-ok"><Icon name="check" size={9} />Handled · you chose {decidedAction}</span>;
   if (outcome === "live") return <span className="pill pill-accent"><span className="live-dot" style={{ width: 5, height: 5 }} />Live</span>;
   if (outcome === "booked") return <span className="pill pill-ok">Booked</span>;
   if (outcome === "escalated") return <span className="pill pill-warn">Waiting on you</span>;
-  if (outcome === "handled") return <span className="pill">Receptionist replied</span>;
+  if (outcome === "handled") return <span className="pill">{channel === "phone" ? "Receptionist handled it" : "Receptionist replied"}</span>;
   return <span className="pill">Customer's turn</span>;
 };
 
@@ -61,13 +61,88 @@ const CvRow = ({ c, active, onSelect }) => {
           {c.agent.name}
         </span>
         {c.duration && <span className="cv-row-dur mono tabular">{c.duration}</span>}
-        <OutcomePill outcome={endedLive ? "handled" : c.outcome} decidedAction={dec ? dec.action : null} />
+        <OutcomePill outcome={endedLive ? "handled" : c.outcome} decidedAction={dec ? dec.action : null} channel={c.channel} />
       </span>
     </span>
   </button>
   );
 };
 
+// ---------- Playback ----------
+// Real calls stream the stored recording through a short-lived signed URL
+// (the provider's permanent CDN link never reaches the browser). Seeded demo
+// calls keep the original simulated scrubber.
+const CvRealPlayback = ({ c }) => {
+  const audioRef = React.useRef(null);
+  const [playing, setPlaying] = useCvState(false);
+  const [pos, setPos] = useCvState(0);
+  const [dur, setDur] = useCvState(0);
+  const [loading, setLoading] = useCvState(false);
+  const [failed, setFailed] = useCvState(false);
+
+  const fmt = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
+
+  const toggle = async () => {
+    const el = audioRef.current;
+    if (!el) return;
+    if (playing) { el.pause(); return; }
+    if (!el.src) {
+      setLoading(true);
+      try {
+        const r = await fetch(c.recordingUrl);
+        const j = await r.json();
+        if (!j.ok || !j.data?.url) throw new Error("no url");
+        el.src = j.data.url;
+      } catch {
+        setFailed(true); setLoading(false); return;
+      }
+      setLoading(false);
+    }
+    el.play().catch(() => setFailed(true));
+  };
+
+  const pct = dur ? (pos / dur) * 100 : 0;
+  return (
+    <div className="cv-playback">
+      <audio
+        ref={audioRef}
+        preload="none"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)}
+        onTimeUpdate={(e) => setPos(e.target.currentTime)}
+        onLoadedMetadata={(e) => setDur(e.target.duration || 0)}
+        onError={() => { setFailed(true); setPlaying(false); }}
+      />
+      <button
+        className="cv-play"
+        title={playing ? "Pause" : "Play recording"}
+        onClick={toggle}
+        disabled={loading || failed}
+      >
+        <Icon name={playing ? "pause" : "play"} size={13} />
+      </button>
+      <div className="cv-play-track"><div className="cv-play-fill" style={{ width: `${pct}%` }} /></div>
+      <span className="mono tabular cv-play-time">
+        {failed ? "Recording unavailable" : loading ? "Loading…" : `${fmt(pos)} / ${c.duration || fmt(dur)}`}
+      </span>
+    </div>
+  );
+};
+
+const CvNoPlayback = ({ state }) => (
+  <div className="cv-playback">
+    <button className="cv-play" disabled title={state === "pending" ? "Still processing" : "No recording"}>
+      <Icon name="play" size={13} />
+    </button>
+    <div className="cv-play-track"><div className="cv-play-fill" style={{ width: "0%" }} /></div>
+    <span className="mono tabular cv-play-time">
+      {state === "pending" ? "Recording still processing — check back in a minute" : "No recording for this call"}
+    </span>
+  </div>
+);
+
+// ---------- Simulated playback (seeded demo calls only) ----------
 // ---------- Simulated playback (recorded calls) ----------
 const CvPlayback = ({ c }) => {
   const [playing, setPlaying] = useCvState(false);
@@ -133,6 +208,7 @@ const CvViewer = ({ c }) => {
 
   if (!c) return null;
   const isCall = c.channel === "phone";
+  const realCall = !!c.real && isCall;
   const liveDur = `${Math.floor(liveSec / 60)}:${String(liveSec % 60).padStart(2, "0")}`;
   const transcript = c.transcript
     ? [...c.transcript, ...(isLive ? CV_LIVE_TAIL.slice(0, tailN) : [])]
@@ -146,7 +222,7 @@ const CvViewer = ({ c }) => {
         <div className="cv-head-titles">
           <div className="cv-head-name">
             {c.who}
-            <OutcomePill outcome={endedLive ? "handled" : c.outcome} decidedAction={dec ? dec.action : null} />
+            <OutcomePill outcome={endedLive ? "handled" : c.outcome} decidedAction={dec ? dec.action : null} channel={c.channel} />
           </div>
           <div className="cv-head-meta">
             <Icon name={CV_ICON[c.channel]} size={11} />
@@ -159,6 +235,11 @@ const CvViewer = ({ c }) => {
           </div>
         </div>
         <div className="cv-head-actions">
+          {c.threadId && (
+            <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav(`inbox/${c.threadId}`)}>
+              <Icon name="inbox" size={12} /> View thread in Inbox
+            </button>
+          )}
           {c.clientId && (
             <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav(window.CHANLY.R.client(c.clientId))}>
               <Icon name="users" size={12} /> Open client
@@ -189,8 +270,8 @@ const CvViewer = ({ c }) => {
         {/* Summary */}
         <div className="cv-summary">
           <div className="cv-summary-eyebrow">
-            <Icon name="chat" size={11} />
-            Latest from {String(c.who || "").split(" ")[0]}
+            <Icon name={c.channel === "phone" ? "phone" : "chat"} size={11} />
+            {c.channel === "phone" ? "What happened on this call" : `Latest from ${c.whoShort || String(c.who || "").split(" ")[0]}`}
             {c.policyClass && <PolicyChip cls={c.policyClass} className="cv-pol" />}
           </div>
           <div className="cv-summary-headline">{c.summary.headline}</div>
@@ -207,7 +288,11 @@ const CvViewer = ({ c }) => {
         </div>
 
         {/* Playback (recorded calls) / live bar */}
-        {isCall && !isLive && <CvPlayback c={c} />}
+        {isCall && !isLive && (realCall
+          ? (c.recordingState === "ready"
+              ? <CvRealPlayback c={c} />
+              : <CvNoPlayback state={c.recordingState} />)
+          : <CvPlayback c={c} />)}
         {isLive && (
           <div className="cv-playback live">
             <span className="live-dot" />

@@ -92,7 +92,9 @@ function initialsOf(name: string): string {
 
 function messageText(m: MessageDto): string {
   if (m.type === "call_summary" && m.body) {
-    return `Phone call — ${m.body.replace(CALL_NOTE_PREFIX, "").trim()}`;
+    // the body already names itself ("Inbound call · 3 min — …"); the legacy
+    // Blob-era prefix is stripped for rows written before Slice 3
+    return m.body.replace(CALL_NOTE_PREFIX, "").trim();
   }
   if (m.body) return m.body;
   if (m.type === "media") {
@@ -299,5 +301,153 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
       ],
     },
     messages: msgs,
+  };
+}
+
+
+/* ---- Calls (Slice 3): a call row answers "is my AI saying the right things
+   on the phone", while the thread answers "am I on the hook to reply". A call
+   row therefore carries NO decision affordance — only a link back to the
+   thread, so exactly one queue owns "needs you". ---- */
+
+export interface CallDto {
+  id: string;
+  retell_call_id: string;
+  direction: "inbound" | "outbound";
+  call_type: string | null;
+  status: string;
+  from_e164: string | null;
+  from_raw: string | null;
+  to_e164: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  duration_ms: number | null;
+  disconnection_reason: string | null;
+  sentiment: string | null;
+  call_successful: boolean | null;
+  in_voicemail: boolean | null;
+  summary: string | null;
+  transcript_object: Array<{ role?: string; content?: string; words?: Array<{ start?: number }> }> | null;
+  /** storage_path and provider_url are stripped server-side — audio is only
+   *  reachable through the signed-URL route. */
+  recording: { fetch_state?: string; mime?: string | null; bytes?: number } | null;
+  conversation_id: string | null;
+  contact_id: string | null;
+  message_id: string | null;
+  contact: { display_name: string | null; wa_profile_name: string | null; phone_e164: string | null } | null;
+}
+
+/** Why the call ended, in words a salon owner uses. */
+export const DISCONNECTION_LABELS: Record<string, string> = {
+  user_hangup: "Customer hung up",
+  agent_hangup: "Receptionist ended the call",
+  call_transfer: "Transferred to a person",
+  voicemail_reached: "Reached voicemail",
+  dial_no_answer: "No answer",
+  dial_busy: "Line was busy",
+  dial_failed: "Call couldn't connect",
+  inactivity: "Ended after silence",
+  max_duration_reached: "Hit the call length limit",
+  concurrency_limit_reached: "Line was busy — all agents in use",
+  user_declined: "Customer declined the call",
+  marked_as_spam: "Flagged as spam by the carrier",
+};
+
+export interface CallVM {
+  id: string;
+  real: true;
+  callId: string;
+  who: string;
+  whoShort: string;
+  initials: string;
+  clientId: null;
+  channel: "phone";
+  agent: { glyph: string; name: string };
+  at: string;
+  duration?: string;
+  outcome: "live" | "handled";
+  live?: boolean;
+  snippet: string;
+  summary: { headline: string; bullets: string[] };
+  transcript: Array<{ t: string; speaker: "agent" | "client"; text: string }>;
+  recordingState: "ready" | "pending" | "none";
+  recordingUrl?: string;
+  threadId?: string;
+}
+
+function mmss(ms: number | null | undefined): string | undefined {
+  if (!ms || ms < 0) return undefined;
+  const total = Math.round(ms / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
+function spokenDuration(ms: number | null): string {
+  if (!ms) return "Duration not recorded";
+  const total = Math.round(ms / 1000);
+  const m = Math.floor(total / 60);
+  const sec = total % 60;
+  return m ? `${m} min ${sec} sec` : `${sec} sec`;
+}
+
+export function toCallVM(dto: CallDto, now = new Date()): CallVM {
+  const withheld = !dto.from_e164 && !dto.from_raw;
+  const phone = formatPhoneDisplay(dto.from_e164);
+  const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
+  const who = withheld ? "Caller ID withheld" : name || phone || dto.from_raw || "Unknown caller";
+  const whoShort = name ? name.split(" ")[0] : "Caller";
+  const dur = mmss(dto.duration_ms);
+  const live = dto.status === "ongoing";
+  const headSummary = (dto.summary || "").trim();
+  const firstSentence = headSummary ? (headSummary.split(/(?<=[.!?])\s/)[0] ?? headSummary) : "";
+
+  const bullets: string[] = [
+    `${dto.direction === "inbound" ? "Inbound" : "Outbound"} · ${spokenDuration(dto.duration_ms)}`,
+  ];
+  if (dto.disconnection_reason) {
+    bullets.push(`Ended: ${DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " ")}`);
+  }
+  if (dto.sentiment) {
+    bullets.push(`Caller sentiment: ${dto.sentiment} — the voice provider's own read`);
+  }
+  const recState: CallVM["recordingState"] =
+    dto.recording?.fetch_state === "stored" ? "ready" : dto.recording ? "pending" : "none";
+  bullets.push(
+    recState === "ready" ? "Recording saved" :
+    recState === "pending" ? "Recording still processing" : "No recording for this call",
+  );
+  if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s WhatsApp thread`);
+
+  const transcript = (dto.transcript_object ?? []).map((turn) => {
+    const start = turn.words?.[0]?.start;
+    return {
+      t: typeof start === "number" ? `${Math.floor(start / 60)}:${String(Math.floor(start % 60)).padStart(2, "0")}` : "—",
+      speaker: (turn.role === "agent" ? "agent" : "client") as "agent" | "client",
+      text: turn.content ?? "",
+    };
+  });
+
+  const snippetBody = firstSentence || (dto.in_voicemail ? "Reached voicemail." : "No summary from this call.");
+  return {
+    id: `cv-${dto.id}`,
+    real: true,
+    callId: dto.id,
+    who,
+    whoShort,
+    initials: withheld ? "–" : initialsOf(who),
+    clientId: null,
+    channel: "phone",
+    agent: { glyph: "P", name: "Phone Receptionist" },
+    at: shortTime(dto.started_at, now),
+    ...(dur ? { duration: dur } : {}),
+    outcome: live ? "live" : "handled",
+    ...(live ? { live: true } : {}),
+    snippet: withheld
+      ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""} — caller ID withheld, so this call isn't linked to a customer.`
+      : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""} — ${snippetBody}`,
+    summary: { headline: firstSentence || snippetBody, bullets },
+    transcript,
+    recordingState: recState,
+    ...(recState === "ready" ? { recordingUrl: `/api/v1/calls/${dto.id}/recording` } : {}),
+    ...(dto.conversation_id ? { threadId: `th-${dto.conversation_id}` } : {}),
   };
 }

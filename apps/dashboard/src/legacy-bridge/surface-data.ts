@@ -74,8 +74,10 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
 import {
   toConversationVM,
   toInboxThreadVM,
+  toCallVM,
   type ConversationDto,
   type EscalationDto,
+  type CallDto,
 } from "@chanlytics/contracts";
 
 /**
@@ -152,10 +154,29 @@ export const conversationsOverride: SurfaceOverride = {
     const w = window as unknown as {
       CONVERSATIONS_DATA?: { CONVERSATIONS: unknown[]; CV_CHANNELS: unknown[] };
     };
+    // Calls get their OWN rows: a thread answers "am I on the hook to reply",
+    // a call answers "is my AI saying the right things on the phone" — the
+    // second is a transcript plus audio that cannot live in a chat bubble.
+    // The call row carries no decision affordance; the Inbox owns "needs you".
+    let callRows: unknown[] = [];
+    try {
+      const callData = await fetchEnvelope<{ calls: CallDto[] }>("/api/v1/calls");
+      callRows = callData.calls.map((c) => toCallVM(c));
+    } catch (e) {
+      console.error("calls_fetch_failed", e instanceof Error ? e.message : e);
+    }
+    const threads = data.conversations.map((c) => toConversationVM(c));
+    const merged = [...threads, ...callRows].sort((a, b) => {
+      const at = (x: unknown) => String((x as { at?: string }).at ?? "");
+      return at(b).localeCompare(at(a));
+    });
     w.CONVERSATIONS_DATA = {
-      CONVERSATIONS: data.conversations.map((c) => toConversationVM(c)),
-      // one channel in the pilot — dead "Calls 0 / Email 0" chips are noise
-      CV_CHANNELS: [{ id: "all", label: "All conversations" }],
+      CONVERSATIONS: merged,
+      CV_CHANNELS: [
+        { id: "all", label: "All" },
+        ...(callRows.length ? [{ id: "phone", label: "Calls" }] : []),
+        ...(threads.length ? [{ id: "chats", label: "WhatsApp" }] : []),
+      ],
     };
   },
 };

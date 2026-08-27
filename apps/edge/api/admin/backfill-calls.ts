@@ -12,6 +12,8 @@ import { json } from "../../lib/http.js";
 import { pg } from "../../lib/pg.js";
 import {
   listCalls,
+  getCall,
+  needsHydration,
   normalizeCall,
   callSummaryLine,
   fetchRecording,
@@ -57,7 +59,7 @@ export async function GET(request: Request): Promise<Response> {
   for (const agentId of agentIds) {
     let key: string | undefined;
     for (let page = 0; page < 20 && collected.length < maxCalls; page++) {
-      const res = await listCalls({ apiKey }, { agentId, limit: 100, paginationKey: key });
+      const res = await listCalls({ apiKey }, { agentId, limit: 100, paginationKey: key, includeTotal: page === 0 });
       collected.push(...res.calls);
       if (!res.nextKey) break;
       key = res.nextKey;
@@ -78,7 +80,15 @@ export async function GET(request: Request): Promise<Response> {
     };
     if (apply) {
       try {
-        const res = await ingestCall(db, tenant.id, n, raw);
+        // v3 list omits transcripts — hydrate before writing so the thread note
+        // and the transcript view are complete on the first pass.
+        let full: RetellCall = raw;
+        let nn = n;
+        if (needsHydration(raw)) {
+          const detail = await getCall({ apiKey }, n.retellCallId);
+          if (detail) { full = detail; nn = normalizeCall(detail); row.hydrated = true; }
+        }
+        const res = await ingestCall(db, tenant.id, nn, full);
         row.imported = res.is_new ? "new" : "existing";
         row.conversation = !!res.conversation_id;
 
@@ -87,16 +97,16 @@ export async function GET(request: Request): Promise<Response> {
             tenantId: tenant.id,
             conversationId: res.conversation_id,
             contactId: res.contact_id,
-            body: callSummaryLine(n),
-            externalId: `call:${n.retellCallId}`,
-            channelTsIso: n.startedAtIso,
+            body: callSummaryLine(nn),
+            externalId: `call:${nn.retellCallId}`,
+            channelTsIso: nn.startedAtIso,
           });
           if (msgId) await linkCallMessage(db, tenant.id, res.call_id, msgId);
           row.noted = !!msgId;
         }
 
-        if (withRecordings && n.recordingUrl && res.is_new) {
-          const got = await fetchRecording(n.recordingUrl);
+        if (withRecordings && nn.recordingUrl && res.is_new) {
+          const got = await fetchRecording(nn.recordingUrl);
           if (got) {
             const ext = REC_EXT[got.mime || ""] || "wav";
             const path = `${tenant.id}/calls/${res.call_id}.${ext}`;
@@ -106,7 +116,7 @@ export async function GET(request: Request): Promise<Response> {
             });
             if (!error) {
               await setCallRecording(db, tenant.id, res.call_id, {
-                provider_url: n.recordingUrl, storage_path: path,
+                provider_url: nn.recordingUrl, storage_path: path,
                 fetch_state: "stored", mime: got.mime, bytes: got.bytes.byteLength,
               });
               row.recording = "stored";

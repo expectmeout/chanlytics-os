@@ -158,7 +158,7 @@ function initialsOf(name) {
 }
 function messageText(m) {
   if (m.type === "call_summary" && m.body) {
-    return `Phone call \u2014 ${m.body.replace(CALL_NOTE_PREFIX, "").trim()}`;
+    return m.body.replace(CALL_NOTE_PREFIX, "").trim();
   }
   if (m.body) return m.body;
   if (m.type === "media") {
@@ -276,6 +276,87 @@ function toConversationVM(dto, now = /* @__PURE__ */ new Date()) {
     messages: msgs
   };
 }
+var DISCONNECTION_LABELS = {
+  user_hangup: "Customer hung up",
+  agent_hangup: "Receptionist ended the call",
+  call_transfer: "Transferred to a person",
+  voicemail_reached: "Reached voicemail",
+  dial_no_answer: "No answer",
+  dial_busy: "Line was busy",
+  dial_failed: "Call couldn't connect",
+  inactivity: "Ended after silence",
+  max_duration_reached: "Hit the call length limit",
+  concurrency_limit_reached: "Line was busy \u2014 all agents in use",
+  user_declined: "Customer declined the call",
+  marked_as_spam: "Flagged as spam by the carrier"
+};
+function mmss(ms) {
+  if (!ms || ms < 0) return void 0;
+  const total = Math.round(ms / 1e3);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+function spokenDuration(ms) {
+  if (!ms) return "Duration not recorded";
+  const total = Math.round(ms / 1e3);
+  const m = Math.floor(total / 60);
+  const sec = total % 60;
+  return m ? `${m} min ${sec} sec` : `${sec} sec`;
+}
+function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
+  const withheld = !dto.from_e164 && !dto.from_raw;
+  const phone = formatPhoneDisplay(dto.from_e164);
+  const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
+  const who = withheld ? "Caller ID withheld" : name || phone || dto.from_raw || "Unknown caller";
+  const whoShort = name ? name.split(" ")[0] : "Caller";
+  const dur = mmss(dto.duration_ms);
+  const live = dto.status === "ongoing";
+  const headSummary = (dto.summary || "").trim();
+  const firstSentence = headSummary ? headSummary.split(/(?<=[.!?])\s/)[0] ?? headSummary : "";
+  const bullets = [
+    `${dto.direction === "inbound" ? "Inbound" : "Outbound"} \xB7 ${spokenDuration(dto.duration_ms)}`
+  ];
+  if (dto.disconnection_reason) {
+    bullets.push(`Ended: ${DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " ")}`);
+  }
+  if (dto.sentiment) {
+    bullets.push(`Caller sentiment: ${dto.sentiment} \u2014 the voice provider's own read`);
+  }
+  const recState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording ? "pending" : "none";
+  bullets.push(
+    recState === "ready" ? "Recording saved" : recState === "pending" ? "Recording still processing" : "No recording for this call"
+  );
+  if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s WhatsApp thread`);
+  const transcript = (dto.transcript_object ?? []).map((turn) => {
+    const start = turn.words?.[0]?.start;
+    return {
+      t: typeof start === "number" ? `${Math.floor(start / 60)}:${String(Math.floor(start % 60)).padStart(2, "0")}` : "\u2014",
+      speaker: turn.role === "agent" ? "agent" : "client",
+      text: turn.content ?? ""
+    };
+  });
+  const snippetBody = firstSentence || (dto.in_voicemail ? "Reached voicemail." : "No summary from this call.");
+  return {
+    id: `cv-${dto.id}`,
+    real: true,
+    callId: dto.id,
+    who,
+    whoShort,
+    initials: withheld ? "\u2013" : initialsOf(who),
+    clientId: null,
+    channel: "phone",
+    agent: { glyph: "P", name: "Phone Receptionist" },
+    at: shortTime(dto.started_at, now),
+    ...dur ? { duration: dur } : {},
+    outcome: live ? "live" : "handled",
+    ...live ? { live: true } : {},
+    snippet: withheld ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 caller ID withheld, so this call isn't linked to a customer.` : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 ${snippetBody}`,
+    summary: { headline: firstSentence || snippetBody, bullets },
+    transcript,
+    recordingState: recState,
+    ...recState === "ready" ? { recordingUrl: `/api/v1/calls/${dto.id}/recording` } : {},
+    ...dto.conversation_id ? { threadId: `th-${dto.conversation_id}` } : {}
+  };
+}
 
 // src/policy.ts
 var PRICE_PATTERNS = [
@@ -300,6 +381,7 @@ export {
   CONVERSATION_STATES,
   DECISION_SUBJECTS,
   DECISION_VERBS,
+  DISCONNECTION_LABELS,
   ERROR_CODES,
   ESCALATION_REASONS,
   ESCALATION_REASON_LABELS,
@@ -321,6 +403,7 @@ export {
   formatPhoneDisplay,
   normalizePhone,
   ok,
+  toCallVM,
   toConversationVM,
   toInboxThreadVM,
   violatesNoPrices,
