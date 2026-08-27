@@ -73,6 +73,16 @@ before(async () => {
       body: "Caller asked about gel refills.", status: "received", created_at: at(5) },
     { seq: 6, channel: "whatsapp", direction: "outbound", sender: "human", type: "text",
       body: "Melany here — happy to help.", status: "sent", created_at: at(6) },
+    // Blob-era duplicate of the call above, imported by the backfill. The
+    // native call_summary row is canonical; this must not double the call.
+    { seq: 7, channel: "whatsapp", direction: "outbound", sender: "ai", type: "text",
+      body: "[voice call note 2026-08-26T20:59] Caller phoned the salon line. Summary: gel refills.",
+      status: "sent", created_at: at(7), meta: { backfill: true } },
+    // An imported reply: its created_at is when the IMPORT ran, so it must not
+    // spend today's rate cap.
+    { seq: 8, channel: "whatsapp", direction: "outbound", sender: "ai", type: "text",
+      body: "Imported reply from the old thread.", status: "sent",
+      created_at: at(8), meta: { backfill: true } },
   ];
   const { error: mErr } = await db.from("messages").insert(
     rows.map((r) => ({
@@ -86,6 +96,9 @@ before(async () => {
       body: r.body,
       status: r.status,
       created_at: r.created_at,
+      // meta is NOT NULL, and a batch insert builds ONE column list — a row
+      // that omits the key gets an explicit null rather than the default.
+      meta: r.meta ?? {},
       external_id: `fixture:${conversationId}:${r.seq}`,
     })),
   );
@@ -106,6 +119,7 @@ test("history is chronological and maps senders to model roles", { skip }, async
     { role: "assistant", content: "We're open till 7 today." },
     { role: "assistant", content: "Caller asked about gel refills." },
     { role: "assistant", content: "Melany here — happy to help." },
+    { role: "assistant", content: "Imported reply from the old thread." },
   ]);
 });
 
@@ -124,9 +138,21 @@ test("media rows with no text are skipped rather than sent as empty turns", { sk
 
 test("the rate cap counts only delivered AI sends in the last 24h", { skip }, async () => {
   const s = await readThreadState(db, tenantId, conversationId, null);
-  // one ai/delivered row in-window; the human sends and the canceled draft
-  // must not count toward the bot's own cap
+  // one ai/delivered row in-window. The human sends, the canceled draft, and
+  // the two BACKFILLED rows (whose created_at is the import, not a send) must
+  // not spend the cap.
   assert.equal(s.replies.length, 1);
+});
+
+test("a Blob-era call note is dropped so the call is not counted twice", { skip }, async () => {
+  const s = await readThreadState(db, tenantId, conversationId, null);
+  const notes = s.history.filter((h) => h.content.includes("voice call note"));
+  assert.equal(notes.length, 0, "imported note duplicated the native call_summary row");
+  assert.equal(
+    s.history.filter((h) => h.content.includes("gel refills")).length,
+    1,
+    "the call should appear exactly once",
+  );
 });
 
 test("pausedUntil comes straight from the conversation row", { skip }, async () => {
@@ -153,5 +179,5 @@ test("history is capped so a long thread can't blow the model's context", { skip
   const s = await readThreadState(db, tenantId, conversationId, null, 2);
   assert.equal(s.history.length, 2);
   // the cap keeps the MOST RECENT turns, not the oldest
-  assert.equal(s.history[1].content, "Melany here — happy to help.");
+  assert.equal(s.history[1].content, "Imported reply from the old thread.");
 });

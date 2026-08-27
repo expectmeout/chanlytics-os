@@ -207,28 +207,40 @@ async function recordCallNote(db, p) {
 // src/repositories/thread.ts
 var DELIVERED = ["sent", "delivered", "read"];
 var DAY_MS = 24 * 3600 * 1e3;
+var BLOB_CALL_NOTE = /^\[voice call note /;
+var isBackfill = (m) => !!m.meta && typeof m.meta === "object" && m.meta.backfill === true;
+var effectiveAt = (m) => new Date(m.channel_ts ?? m.created_at).getTime();
 async function readThreadState(db, tenantId, conversationId, pausedUntilIso, historyLimit = 16) {
   const since = new Date(Date.now() - DAY_MS).toISOString();
   const [recent, replies] = await Promise.all([
-    db.from("messages").select("body, sender, direction, type, status, created_at").eq("tenant_id", tenantId).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(historyLimit * 2),
-    // headroom: some rows drop out below
-    db.from("messages").select("created_at").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("sender", "ai").eq("direction", "outbound").in("status", DELIVERED).gte("created_at", since)
+    db.from("messages").select("body, sender, direction, type, status, created_at, channel_ts, meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(historyLimit * 3),
+    // headroom: duplicates and blanks drop out below
+    db.from("messages").select("created_at, meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("sender", "ai").eq("direction", "outbound").in("status", DELIVERED).gte("created_at", since)
   ]);
   if (recent.error) throw new Error(`readThreadState/history: ${recent.error.message}`);
   if (replies.error) throw new Error(`readThreadState/replies: ${replies.error.message}`);
-  const history = [];
-  for (const m of (recent.data ?? []).slice().reverse()) {
+  const kept = (recent.data ?? []).filter((m) => {
     const body = (m.body ?? "").trim();
-    if (!body) continue;
-    if (m.direction === "outbound" && !DELIVERED.includes(String(m.status))) continue;
-    const role = m.sender === "customer" ? "user" : "assistant";
-    history.push({ role, content: body });
-  }
+    if (!body) return false;
+    if (m.direction === "outbound" && !DELIVERED.includes(String(m.status))) return false;
+    if (isBackfill(m) && BLOB_CALL_NOTE.test(body)) return false;
+    return true;
+  });
+  kept.sort((a, b) => effectiveAt(a) - effectiveAt(b));
+  const history = kept.map((m) => ({
+    // A call note is the customer's own history on another channel — the
+    // receptionist should know the call happened, same as it did on Blob.
+    role: m.sender === "customer" ? "user" : "assistant",
+    content: (m.body ?? "").trim()
+  }));
   return {
     history: history.slice(-historyLimit),
     seen: [],
     pausedUntil: pausedUntilIso ? new Date(pausedUntilIso).getTime() : 0,
-    replies: (replies.data ?? []).map((r) => new Date(r.created_at).getTime())
+    // Imported rows carry the timestamp of the IMPORT, not of a send. Counting
+    // them would let a backfill silence the bot for a day against a cap it
+    // never actually spent.
+    replies: (replies.data ?? []).filter((r) => !isBackfill(r)).map((r) => new Date(r.created_at).getTime())
   };
 }
 

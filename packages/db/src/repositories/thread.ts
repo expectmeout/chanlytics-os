@@ -41,6 +41,24 @@ const DELIVERED = ["sent", "delivered", "read"];
 
 const DAY_MS = 24 * 3600 * 1000;
 
+/**
+ * Blob-era voice notes, imported by the backfill as ordinary assistant turns.
+ * Every one of them is now ALSO a native call_summary row written by the Retell
+ * webhook, so leaving both in would show the model each call twice — in two
+ * different formats — and it would reasonably conclude the customer phoned
+ * twice as often as they did. The native row is canonical; this is the copy.
+ */
+const BLOB_CALL_NOTE = /^\[voice call note /;
+
+const isBackfill = (m: { meta?: unknown }): boolean =>
+  !!m.meta && typeof m.meta === "object" &&
+  (m.meta as Record<string, unknown>).backfill === true;
+
+/** True event time. A backfilled row has no channel_ts and its created_at is
+ *  when the IMPORT ran, so it can only ever be placed approximately. */
+const effectiveAt = (m: { channel_ts: string | null; created_at: string }): number =>
+  new Date(m.channel_ts ?? m.created_at).getTime();
+
 export async function readThreadState(
   db: Db,
   tenantId: string,
@@ -53,14 +71,14 @@ export async function readThreadState(
   const [recent, replies] = await Promise.all([
     db
       .from("messages")
-      .select("body, sender, direction, type, status, created_at")
+      .select("body, sender, direction, type, status, created_at, channel_ts, meta")
       .eq("tenant_id", tenantId)
       .eq("conversation_id", conversationId)
       .order("created_at", { ascending: false })
-      .limit(historyLimit * 2), // headroom: some rows drop out below
+      .limit(historyLimit * 3), // headroom: duplicates and blanks drop out below
     db
       .from("messages")
-      .select("created_at")
+      .select("created_at, meta")
       .eq("tenant_id", tenantId)
       .eq("conversation_id", conversationId)
       .eq("sender", "ai")
@@ -72,22 +90,34 @@ export async function readThreadState(
   if (recent.error) throw new Error(`readThreadState/history: ${recent.error.message}`);
   if (replies.error) throw new Error(`readThreadState/replies: ${replies.error.message}`);
 
-  const history: ThreadTurn[] = [];
-  // newest-first from the query; walk back to chronological
-  for (const m of (recent.data ?? []).slice().reverse()) {
+  const kept = (recent.data ?? []).filter((m) => {
     const body = (m.body ?? "").trim();
-    if (!body) continue; // media placeholders carry no text to reason over
-    if (m.direction === "outbound" && !DELIVERED.includes(String(m.status))) continue;
-    // A voice-call note is the customer's own history on another channel —
-    // the receptionist should know the call happened, same as it did on Blob.
-    const role: ThreadTurn["role"] = m.sender === "customer" ? "user" : "assistant";
-    history.push({ role, content: body });
-  }
+    if (!body) return false; // media placeholders carry no text to reason over
+    if (m.direction === "outbound" && !DELIVERED.includes(String(m.status))) return false;
+    if (isBackfill(m) && BLOB_CALL_NOTE.test(body)) return false; // native row wins
+    return true;
+  });
+
+  // Order by when things actually happened, so a call the customer made
+  // yesterday sits before a message we sent this morning.
+  kept.sort((a, b) => effectiveAt(a) - effectiveAt(b));
+
+  const history: ThreadTurn[] = kept.map((m) => ({
+    // A call note is the customer's own history on another channel — the
+    // receptionist should know the call happened, same as it did on Blob.
+    role: m.sender === "customer" ? "user" : "assistant",
+    content: (m.body ?? "").trim(),
+  }));
 
   return {
     history: history.slice(-historyLimit),
     seen: [],
     pausedUntil: pausedUntilIso ? new Date(pausedUntilIso).getTime() : 0,
-    replies: (replies.data ?? []).map((r) => new Date(r.created_at).getTime()),
+    // Imported rows carry the timestamp of the IMPORT, not of a send. Counting
+    // them would let a backfill silence the bot for a day against a cap it
+    // never actually spent.
+    replies: (replies.data ?? [])
+      .filter((r) => !isBackfill(r))
+      .map((r) => new Date(r.created_at).getTime()),
   };
 }
