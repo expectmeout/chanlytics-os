@@ -1,0 +1,57 @@
+/* The 17 legacy stylesheets in the EXACT Chanlytics.html cascade order —
+   Next.js does not guarantee cross-import CSS order, so one entry file does. */
+@import "../legacy/styles/tokens.css";
+@import "../legacy/styles/components.css";
+@import "../legacy/styles/dashboard.css";
+@import "../legacy/styles/dashboard-a-v2.css";
+@import "../legacy/styles/inbox.css";
+@import "../legacy/styles/clients.css";
+@import "../legacy/styles/people.css";
+@import "../legacy/styles/store.css";
+@import "../legacy/styles/fleet.css";
+@import "../legacy/styles/pipeline.css";
+@import "../legacy/styles/conversations.css";
+@import "../legacy/styles/live.css";
+@import "../legacy/styles/calendar.css";
+@import "../legacy/styles/reports.css";
+@import "../legacy/styles/settings.css";
+@import "../legacy/styles/mobile.css";
+
+/* Chanlytics.html's inline viewport rules, scoped so they only apply while
+   the legacy shell is mounted (login and other pages keep normal scrolling). */
+html.legacy-on,
+html.legacy-on body {
+  height: 100%;
+  overflow: hidden;
+}
+html.legacy-on #root {
+  height: 100vh;
+}
+
+/* Bridge status pill — fixed overlay, zero layout impact on the 100vh shell. */
+.bridge-pill {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel, #16201c);
+  color: var(--ink-muted, #93a5a0);
+  border: 1px solid var(--line, #24322e);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-family: Geist, ui-sans-serif, sans-serif;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+.bridge-pill b { color: var(--ink, #e5ece9); font-weight: 500; }
+.bridge-pill .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #d19a45;
+}
+.bridge-pill .dot.live { background: #3cb79e; }

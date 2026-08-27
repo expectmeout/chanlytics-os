@@ -50,7 +50,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   // Arm on open, fire once, clear if you navigate away first — never a silent
   // overwrite; the thread pane shows a Refresh banner.
   React.useEffect(() => {
-    const cfg = window.IX_CONCURRENT && window.IX_CONCURRENT[activeThreadId];
+    const cfg = window.__DEMO_MODE && window.IX_CONCURRENT && window.IX_CONCURRENT[activeThreadId];
     if (!cfg || firedRef.current[activeThreadId]) return;
     const timer = setTimeout(() => {
       firedRef.current[activeThreadId] = true;

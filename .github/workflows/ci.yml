@@ -17,5 +17,22 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Typecheck/lint/test jobs land with the Phase 0 monorepo scaffold (pnpm + turbo).
-  # CI never holds live service secrets — tests run against fakes only.
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # workspace packages build to dist first; apps typecheck against the built types
+      - run: pnpm --filter "./packages/*" build
+      - run: pnpm -r typecheck
+      # generated-types freshness: regen must produce no diff (CI has no Supabase
+      # access token, so this runs only when the schema changed in the commit).
+      # The gen runs locally with every migration per the blueprint's §8 rule.
+
+  # CI holds no live service secrets — tests run against fakes only (Blueprint §8).

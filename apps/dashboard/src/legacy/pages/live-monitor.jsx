@@ -85,11 +85,15 @@ const LivePanel = ({ call, ended, onEnd, onTakeOver }) => {
     setInject("");
     setJustSent(true);
     const t1 = window.setTimeout(() => setJustSent(false), 1800);
-    // The promise on the button: the agent visibly works the context in
-    const t2 = window.setTimeout(() => {
-      pushLine({ kind: "applied", text: `Actually — one more thing before we wrap. ${text.length > 72 ? text.slice(0, 72) + "…" : text}` });
-    }, 1200);
-    timersRef.current.push(t1, t2);
+    timersRef.current.push(t1);
+    // The promise on the button: the agent visibly works the context in (demo only —
+    // fabricating agent speech over a real call is exactly what production must never do)
+    if (window.__DEMO_MODE) {
+      const t2 = window.setTimeout(() => {
+        pushLine({ kind: "applied", text: `Actually — one more thing before we wrap. ${text.length > 72 ? text.slice(0, 72) + "…" : text}` });
+      }, 1200);
+      timersRef.current.push(t2);
+    }
   };
 
   const saySend = () => {
@@ -309,7 +313,7 @@ const LiveMonitorPage = () => {
   };
 
   useLmEffect(() => {
-    if (!anyLive) return;
+    if (!anyLive || !window.__DEMO_MODE) return;
     const t = setInterval(() => setLiveSec(s => s + 1), 1000);
     return () => clearInterval(t);
   }, [anyLive]);

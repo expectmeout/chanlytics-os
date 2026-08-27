@@ -510,6 +510,7 @@ const LD_ARRIVAL = {
 const LD_STORE = {
   arrived: false,
   arrive() {
+    if (!window.__DEMO_MODE) return; // scripted lead is demo theater
     if (this.arrived) return;
     this.arrived = true;
     LEADS.unshift(LD_ARRIVAL);

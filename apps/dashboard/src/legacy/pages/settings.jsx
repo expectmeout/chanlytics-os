@@ -709,3 +709,4 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
 
 window.SettingsPage = SettingsPage;
 window.SET_TABS = SET_TABS;
+window.SetToggle = SetToggle; // consumed by calendar.jsx + reports.jsx (module-scope port fix)

@@ -124,7 +124,7 @@ const CvViewer = ({ c }) => {
   const [liveSec, setLiveSec] = useCvState(42);
   const [tailN, setTailN] = useCvState(0);
   useCvEffect(() => {
-    if (!isLive) return undefined;
+    if (!isLive || !window.__DEMO_MODE) return undefined;
     const tick = window.setInterval(() => setLiveSec(s => s + 1), 1000);
     const t1 = window.setTimeout(() => setTailN(1), 4000);
     const t2 = window.setTimeout(() => setTailN(2), 9500);

@@ -372,7 +372,7 @@ const AS_STORE = {
     window.dispatchEvent(new CustomEvent("store:installed", { detail: { agentId: entry.id } }));
     // Studio-connected agents (they carry a handoff map) demonstrate the map
     // live: one scripted handoff fires ~14s after they join the fleet.
-    if (entry.connection && entry.connection.handoffs) {
+    if (window.__DEMO_MODE && entry.connection && entry.connection.handoffs) {
       setTimeout(() => {
         if (!window.FLEET_DATA.FLEET_ROSTER.some(a => a.id === entry.id)) return; // disconnected meanwhile
         this.emitHandoff({

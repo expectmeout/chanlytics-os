@@ -567,8 +567,8 @@ const VW_UTIL = {
     const VW = this.store();
     (threads || []).forEach((t) => {
       if (t.veto && !VW.state[t.id] && !(window.IX_STORE && window.IX_STORE.get(t.id))) {
-        VW.state[t.id] = (window.PR_STORE && window.PR_STORE.away)
-          ? { frozen: (t.veto.window || 30) * 1000 }
+        VW.state[t.id] = (!window.__DEMO_MODE || (window.PR_STORE && window.PR_STORE.away))
+          ? { frozen: (t.veto.window || 30) * 1000 } // outside demo: countdowns render frozen, never auto-send
           : { endsAt: Date.now() + (t.veto.window || 30) * 1000 };
       }
     });

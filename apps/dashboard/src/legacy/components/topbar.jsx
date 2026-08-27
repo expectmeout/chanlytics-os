@@ -236,10 +236,10 @@ const Topbar = ({
     window.addEventListener("outbound:approved", onObApproved);
     window.addEventListener("leads:arrived", onLeadArr);
     window.addEventListener("fleet:handoff", onHandoff);
-    // The one scripted inbound moment — fires once per session, from any page
-    const arrT = setTimeout(() => { if (window.LD_STORE) window.LD_STORE.arrive(); }, 18000);
+    // The one scripted inbound moment — DEMO_MODE only (never over real data)
+    const arrT = window.__DEMO_MODE ? setTimeout(() => { if (window.LD_STORE) window.LD_STORE.arrive(); }, 18000) : null;
     return () => {
-      clearTimeout(arrT);
+      if (arrT) clearTimeout(arrT);
       window.removeEventListener("inbox:decisions", bump);
       window.removeEventListener("integrations:changed", bump);
       window.removeEventListener("live:ended", onEnded);

@@ -358,6 +358,7 @@ const askTopicFor = (q, prev = null) => {
 // Global entry point for agent actions anywhere in the app:
 // askAbout({ prompt, title?, answer?, links?, mode: "thread" | "compose" })
 window.askAbout = (detail) => {
+  if (!window.__DEMO_MODE) return; // Ask is stubbed until the real LLM Ask ships (v1.x)
   if (window.appAsk) window.appAsk();
   window.dispatchEvent(new CustomEvent("ask:seed", { detail: detail || {} }));
 };
