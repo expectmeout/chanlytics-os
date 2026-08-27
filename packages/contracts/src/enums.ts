@@ -67,3 +67,29 @@ export type EventKind = (typeof EVENT_KINDS)[number];
 
 /** Customer texts that mean opt-out (webhook consent handling, §4). */
 export const OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
+
+/* ---- Slice 2: Inbox ---- */
+
+export const ESCALATION_REASONS = [
+  "human_token", "non_text", "refusal", "rate_cap", "policy_block",
+  "send_failed", "deadman", "brain_error", "manual",
+] as const;
+export type EscalationReason = (typeof ESCALATION_REASONS)[number];
+
+export const ESCALATION_STATES = ["open", "resolved"] as const;
+export type EscalationState = (typeof ESCALATION_STATES)[number];
+
+export const DECISION_VERBS = [
+  "approve", "edit", "decline", "snooze", "take_over", "hand_back",
+  "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent",
+] as const;
+export type DecisionVerb = (typeof DECISION_VERBS)[number];
+
+export const DECISION_SUBJECTS = ["conversation", "escalation", "draft", "lead", "message", "agent"] as const;
+export type DecisionSubject = (typeof DECISION_SUBJECTS)[number];
+
+export const ACTOR_TYPES = ["user", "ai", "system", "owner_phone"] as const;
+export type ActorType = (typeof ACTOR_TYPES)[number];
+
+export const TEMPLATE_STATUSES = ["approved", "pending", "rejected"] as const;
+export type TemplateStatus = (typeof TEMPLATE_STATUSES)[number];

@@ -205,6 +205,114 @@ type Database = {
                     }
                 ];
             };
+            decisions: {
+                Row: {
+                    actor_type: string;
+                    actor_user_id: string | null;
+                    created_at: string;
+                    id: string;
+                    payload: Json;
+                    subject_id: string;
+                    subject_type: string;
+                    tenant_id: string;
+                    undo_of: string | null;
+                    verb: string;
+                };
+                Insert: {
+                    actor_type: string;
+                    actor_user_id?: string | null;
+                    created_at?: string;
+                    id?: string;
+                    payload?: Json;
+                    subject_id: string;
+                    subject_type: string;
+                    tenant_id: string;
+                    undo_of?: string | null;
+                    verb: string;
+                };
+                Update: {
+                    actor_type?: string;
+                    actor_user_id?: string | null;
+                    created_at?: string;
+                    id?: string;
+                    payload?: Json;
+                    subject_id?: string;
+                    subject_type?: string;
+                    tenant_id?: string;
+                    undo_of?: string | null;
+                    verb?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "decisions_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "decisions_undo_of_fkey";
+                        columns: ["undo_of"];
+                        isOneToOne: false;
+                        referencedRelation: "decisions";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            escalations: {
+                Row: {
+                    conversation_id: string;
+                    created_at: string;
+                    decision_id: string | null;
+                    details: string | null;
+                    id: string;
+                    reason: string;
+                    resolved_by_user_id: string | null;
+                    state: string;
+                    tenant_id: string;
+                    updated_at: string;
+                };
+                Insert: {
+                    conversation_id: string;
+                    created_at?: string;
+                    decision_id?: string | null;
+                    details?: string | null;
+                    id?: string;
+                    reason: string;
+                    resolved_by_user_id?: string | null;
+                    state?: string;
+                    tenant_id: string;
+                    updated_at?: string;
+                };
+                Update: {
+                    conversation_id?: string;
+                    created_at?: string;
+                    decision_id?: string | null;
+                    details?: string | null;
+                    id?: string;
+                    reason?: string;
+                    resolved_by_user_id?: string | null;
+                    state?: string;
+                    tenant_id?: string;
+                    updated_at?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "escalations_conversation_id_fkey";
+                        columns: ["conversation_id"];
+                        isOneToOne: false;
+                        referencedRelation: "conversations";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "escalations_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             events: {
                 Row: {
                     category: string;
@@ -700,6 +808,44 @@ type Database = {
                 };
                 Relationships: [];
             };
+            idempotency_keys: {
+                Row: {
+                    created_at: string;
+                    id: string;
+                    key: string;
+                    request_hash: string | null;
+                    response: Json | null;
+                    route: string;
+                    tenant_id: string;
+                };
+                Insert: {
+                    created_at?: string;
+                    id?: string;
+                    key: string;
+                    request_hash?: string | null;
+                    response?: Json | null;
+                    route: string;
+                    tenant_id: string;
+                };
+                Update: {
+                    created_at?: string;
+                    id?: string;
+                    key?: string;
+                    request_hash?: string | null;
+                    response?: Json | null;
+                    route?: string;
+                    tenant_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "idempotency_keys_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             jobs: {
                 Row: {
                     attempts: number;
@@ -897,6 +1043,53 @@ type Database = {
                 };
                 Relationships: [];
             };
+            templates: {
+                Row: {
+                    body_preview: string | null;
+                    channel: string;
+                    created_at: string;
+                    id: string;
+                    language: string;
+                    meta_status: string;
+                    name: string;
+                    tenant_id: string;
+                    updated_at: string;
+                    variables: Json;
+                };
+                Insert: {
+                    body_preview?: string | null;
+                    channel: string;
+                    created_at?: string;
+                    id?: string;
+                    language: string;
+                    meta_status?: string;
+                    name: string;
+                    tenant_id: string;
+                    updated_at?: string;
+                    variables?: Json;
+                };
+                Update: {
+                    body_preview?: string | null;
+                    channel?: string;
+                    created_at?: string;
+                    id?: string;
+                    language?: string;
+                    meta_status?: string;
+                    name?: string;
+                    tenant_id?: string;
+                    updated_at?: string;
+                    variables?: Json;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "templates_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             tenant_channels: {
                 Row: {
                     config: Json;
@@ -985,9 +1178,22 @@ type Database = {
             [_ in never]: never;
         };
         Functions: {
+            claim_job: {
+                Args: {
+                    p_job_id: string;
+                };
+                Returns: Json;
+            };
             ensure_events_partition: {
                 Args: {
                     p_month: string;
+                };
+                Returns: undefined;
+            };
+            fail_job: {
+                Args: {
+                    p_error: string;
+                    p_job_id: string;
                 };
                 Returns: undefined;
             };

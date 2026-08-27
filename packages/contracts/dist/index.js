@@ -100,6 +100,35 @@ var EVENT_KINDS = [
   "message.send_failed"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
+var ESCALATION_REASONS = [
+  "human_token",
+  "non_text",
+  "refusal",
+  "rate_cap",
+  "policy_block",
+  "send_failed",
+  "deadman",
+  "brain_error",
+  "manual"
+];
+var ESCALATION_STATES = ["open", "resolved"];
+var DECISION_VERBS = [
+  "approve",
+  "edit",
+  "decline",
+  "snooze",
+  "take_over",
+  "hand_back",
+  "resolve",
+  "archive",
+  "reply",
+  "cancel_send",
+  "pause_agent",
+  "resume_agent"
+];
+var DECISION_SUBJECTS = ["conversation", "escalation", "draft", "lead", "message", "agent"];
+var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
+var TEMPLATE_STATUSES = ["approved", "pending", "rejected"];
 
 // src/viewmodels.ts
 var AGENT = { glyph: "W", name: "WhatsApp Receptionist" };
@@ -168,12 +197,33 @@ function toConversationVM(dto, now = /* @__PURE__ */ new Date()) {
     messages: msgs
   };
 }
+
+// src/policy.ts
+var PRICE_PATTERNS = [
+  /\$\s?\d/,
+  /\b\d+(?:[.,]\d{2})?\s?(?:dollars?|usd|bucks?)\b/i,
+  /\b\d+(?:[.,]\d{2})?\s?(?:d[oó]lares?|pesos?)\b/i
+];
+function violatesNoPrices(text) {
+  return PRICE_PATTERNS.some((p) => p.test(text));
+}
+var WA_WINDOW_MS = 24 * 3600 * 1e3;
+function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
+  if (!lastWaInboundAtIso) return { open: false, closesAtIso: null };
+  const closes = new Date(lastWaInboundAtIso).getTime() + WA_WINDOW_MS;
+  return { open: closes > now.getTime(), closesAtIso: new Date(closes).toISOString() };
+}
 export {
+  ACTOR_TYPES,
   AppError,
   CHANNEL_KINDS,
   CONSENT_STATES,
   CONVERSATION_STATES,
+  DECISION_SUBJECTS,
+  DECISION_VERBS,
   ERROR_CODES,
+  ESCALATION_REASONS,
+  ESCALATION_STATES,
   EVENT_KINDS,
   JOB_KINDS,
   JOB_STATES,
@@ -184,10 +234,14 @@ export {
   MESSAGE_STATUSES,
   MESSAGE_TYPES,
   OPT_OUT_PATTERN,
+  TEMPLATE_STATUSES,
   TENANT_STATUSES,
+  WA_WINDOW_MS,
   err,
   formatPhoneDisplay,
   normalizePhone,
   ok,
-  toConversationVM
+  toConversationVM,
+  violatesNoPrices,
+  waWindow
 };

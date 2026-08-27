@@ -115,6 +115,37 @@ export async function sendText(cfg: WaConfig, to: string, body: string): Promise
   };
 }
 
+/** Approved-template send — the only legal path outside the 24h window. */
+export async function sendTemplate(
+  cfg: WaConfig,
+  to: string,
+  template: { name: string; language: string; params: string[] },
+): Promise<SendResult> {
+  const r = await fetch(`${GRAPH}/${cfg.phoneId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to,
+      type: "template",
+      template: {
+        name: template.name,
+        language: { code: template.language },
+        components: template.params.length
+          ? [{ type: "body", parameters: template.params.map((t) => ({ type: "text", text: t })) }]
+          : [],
+      },
+    }),
+  });
+  const out = (await r.json().catch(() => ({}))) as { messages?: Array<{ id?: string }> };
+  return {
+    ok: r.ok,
+    wamid: out.messages?.[0]?.id ?? null,
+    status: r.status,
+    errorBody: r.ok ? undefined : JSON.stringify(out).slice(0, 200),
+  };
+}
+
 /* -------------------------------- media -------------------------------- */
 
 /**

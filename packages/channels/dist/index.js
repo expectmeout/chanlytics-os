@@ -1,5 +1,6 @@
 // ../contracts/dist/index.js
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
+var WA_WINDOW_MS = 24 * 3600 * 1e3;
 
 // src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";
@@ -45,6 +46,29 @@ async function sendText(cfg, to, body) {
     errorBody: r.ok ? void 0 : JSON.stringify(out).slice(0, 200)
   };
 }
+async function sendTemplate(cfg, to, template) {
+  const r = await fetch(`${GRAPH}/${cfg.phoneId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to,
+      type: "template",
+      template: {
+        name: template.name,
+        language: { code: template.language },
+        components: template.params.length ? [{ type: "body", parameters: template.params.map((t) => ({ type: "text", text: t })) }] : []
+      }
+    })
+  });
+  const out = await r.json().catch(() => ({}));
+  return {
+    ok: r.ok,
+    wamid: out.messages?.[0]?.id ?? null,
+    status: r.status,
+    errorBody: r.ok ? void 0 : JSON.stringify(out).slice(0, 200)
+  };
+}
 async function fetchMediaBytes(cfg, providerMediaId) {
   const metaRes = await fetch(`${GRAPH}/${providerMediaId}`, {
     headers: { Authorization: `Bearer ${cfg.accessToken}` }
@@ -59,5 +83,6 @@ async function fetchMediaBytes(cfg, providerMediaId) {
 export {
   fetchMediaBytes,
   normalizeInbound,
+  sendTemplate,
   sendText
 };

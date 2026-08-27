@@ -71,6 +71,18 @@ declare const EVENT_KINDS: readonly ["message.received", "message.sent", "messag
 type EventKind = (typeof EVENT_KINDS)[number];
 /** Customer texts that mean opt-out (webhook consent handling, §4). */
 declare const OPT_OUT_PATTERN: RegExp;
+declare const ESCALATION_REASONS: readonly ["human_token", "non_text", "refusal", "rate_cap", "policy_block", "send_failed", "deadman", "brain_error", "manual"];
+type EscalationReason = (typeof ESCALATION_REASONS)[number];
+declare const ESCALATION_STATES: readonly ["open", "resolved"];
+type EscalationState = (typeof ESCALATION_STATES)[number];
+declare const DECISION_VERBS: readonly ["approve", "edit", "decline", "snooze", "take_over", "hand_back", "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent"];
+type DecisionVerb = (typeof DECISION_VERBS)[number];
+declare const DECISION_SUBJECTS: readonly ["conversation", "escalation", "draft", "lead", "message", "agent"];
+type DecisionSubject = (typeof DECISION_SUBJECTS)[number];
+declare const ACTOR_TYPES: readonly ["user", "ai", "system", "owner_phone"];
+type ActorType = (typeof ACTOR_TYPES)[number];
+declare const TEMPLATE_STATUSES: readonly ["approved", "pending", "rejected"];
+type TemplateStatus = (typeof TEMPLATE_STATUSES)[number];
 
 /**
  * ThreadCard/ConversationVM viewmodels (Blueprint §7): pure mapping from API
@@ -130,4 +142,20 @@ interface ConversationVM {
 }
 declare function toConversationVM(dto: ConversationDto, now?: Date): ConversationVM;
 
-export { AppError, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type ChannelKind, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, ERROR_CODES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EventKind, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, OPT_OUT_PATTERN, type Ok, TENANT_STATUSES, type TenantStatus, err, formatPhoneDisplay, normalizePhone, ok, toConversationVM };
+/**
+ * Layer-2 policy enforcement (Blueprint §6): deterministic post-generation
+ * checks — prompt text is never the only defense. v1 ships the one hard rule
+ * of tenant #1: NO dollar prices, ever.
+ */
+declare function violatesNoPrices(text: string): boolean;
+/** The WhatsApp 24h customer-service window (Blueprint §4/§6). Pure — imported
+ *  by BOTH the reply endpoint (enforcement) and the composer (honest display). */
+declare const WA_WINDOW_MS: number;
+interface WaWindow {
+    open: boolean;
+    /** When the window closes (null when it never opened). */
+    closesAtIso: string | null;
+}
+declare function waWindow(lastWaInboundAtIso: string | null | undefined, now?: Date): WaWindow;
+
+export { ACTOR_TYPES, type ActorType, AppError, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type ChannelKind, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationReason, type EscalationState, type EventKind, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, OPT_OUT_PATTERN, type Ok, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantStatus, WA_WINDOW_MS, type WaWindow, err, formatPhoneDisplay, normalizePhone, ok, toConversationVM, violatesNoPrices, waWindow };

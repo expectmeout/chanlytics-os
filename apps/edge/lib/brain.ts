@@ -61,6 +61,7 @@ const client = new Anthropic();
 export interface BrainReply {
   text: string;
   escalate: boolean;
+  reason?: "human_token" | "refusal";
   usage?: { input_tokens: number; output_tokens: number };
 }
 
@@ -84,6 +85,7 @@ export async function generateReply(history: ThreadTurn[], userText: string): Pr
     return {
       text: "Thanks for your message! A member of our team will reply here soon — for anything urgent, call us at (646) 932-5775.",
       escalate: true,
+      reason: "refusal",
       usage,
     };
   }
@@ -103,5 +105,5 @@ export async function generateReply(history: ThreadTurn[], userText: string): Pr
     text = "Thanks for your message! A member of our team will reply here soon.";
     escalate = true;
   }
-  return { text, escalate, usage };
+  return { text, escalate, reason: escalate ? "human_token" : undefined, usage };
 }
