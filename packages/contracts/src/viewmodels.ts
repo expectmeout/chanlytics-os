@@ -21,6 +21,8 @@ export interface ConversationDto {
   id: string;
   state: "open" | "needs_human" | "snoozed" | "archived";
   paused_until: string | null;
+  snooze_until?: string | null;
+  last_wa_inbound_at?: string | null;
   last_message_at: string | null;
   contact: {
     id: string;
@@ -95,6 +97,144 @@ function messageText(m: MessageDto): string {
     return `[${kind} attachment]`;
   }
   return `[${m.type}]`;
+}
+
+/* ---- Inbox ThreadVM (Blueprint §7): escalations + conversations mapped into
+   the mockup's thread shape. Fed fields only — approvals/confidence/$ are
+   v1.1 and never fabricated. ---- */
+
+export interface EscalationDto {
+  id: string;
+  reason: string;
+  details: string | null;
+  state: "open" | "resolved";
+  created_at: string;
+}
+
+export const ESCALATION_REASON_LABELS: Record<string, string> = {
+  human_token: "Customer asked for a person",
+  refusal: "Assistant declined to answer",
+  brain_error: "Assistant error — canned fallback sent",
+  non_text: "Sent a voice note / photo",
+  send_failed: "Reply failed to deliver",
+  policy_block: "Pricing question — held by policy",
+  rate_cap: "Reply rate limit reached",
+  deadman: "No-activity check",
+  manual: "Flagged manually",
+};
+
+export interface InboxThreadVM {
+  id: string;
+  real: true;
+  conversationId: string;
+  escalationId: string | null;
+  windowOpen: boolean;
+  who: string;
+  whoMeta: string;
+  avatar: string;
+  state: "escalated" | "snoozed" | "done";
+  takenOver: boolean;
+  channels: string[];
+  primaryChannel: "whatsapp";
+  agent: { name: string; glyph: string; autonomy: string; tone: string };
+  subject: string;
+  preview: string;
+  summary: string;
+  contextStrip: Array<{ label: string; value: string }>;
+  lastAt: string;
+  lastAtFull: string;
+  unread: boolean;
+  pinned: false;
+  value: 0;
+  tags: string[];
+  confidence: 0;
+  priority: "P2";
+  waitingMin?: number;
+  wake?: string;
+  resolution?: { action: string; at: string };
+  timeline: Array<
+    | { type: "msg"; from: "client" | "agent"; channel: string; at: string; body: string; byYou?: boolean }
+    | { type: "event"; kind: string; at: string; body: string }
+  >;
+}
+
+export function toInboxThreadVM(
+  dto: ConversationDto,
+  escalation: EscalationDto | null,
+  now = new Date(),
+): InboxThreadVM {
+  const who =
+    dto.contact.display_name || dto.contact.wa_profile_name ||
+    formatPhoneDisplay(dto.contact.phone_e164) || "Unknown";
+  const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
+  const needsHuman = dto.state === "needs_human" || paused;
+  const state: InboxThreadVM["state"] =
+    escalation || needsHuman ? "escalated" : dto.state === "snoozed" ? "snoozed" : "done";
+  const takenOver = state === "escalated" && !escalation && needsHuman;
+  const reasonLabel = escalation ? (ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason) : null;
+  const last = dto.messages[dto.messages.length - 1];
+  const win = new Date(new Date(dto.last_wa_inbound_at ?? 0).getTime() + 24 * 3600 * 1000) > now;
+
+  const timeline: InboxThreadVM["timeline"] = dto.messages.map((m) => ({
+    type: "msg" as const,
+    from: m.sender === "customer" ? ("client" as const) : ("agent" as const),
+    channel: "whatsapp",
+    at: shortTime(m.created_at, now),
+    body: messageText(m),
+    ...(m.sender === "human" ? { byYou: true } : {}),
+  }));
+  if (escalation) {
+    timeline.push({
+      type: "event",
+      kind: "flag",
+      at: shortTime(escalation.created_at, now),
+      body: `Agent flagged for a human — ${reasonLabel}${escalation.details ? ` · “${escalation.details.slice(0, 120)}”` : ""}`,
+    });
+  }
+
+  const waitingMin = escalation
+    ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / 60000))
+    : undefined;
+
+  return {
+    id: `th-${dto.id}`,
+    real: true,
+    conversationId: dto.id,
+    escalationId: escalation?.id ?? null,
+    windowOpen: win,
+    who,
+    whoMeta: `WhatsApp · ${formatPhoneDisplay(dto.contact.phone_e164) ?? "no phone"}`,
+    avatar: initialsOf(who),
+    state,
+    takenOver,
+    channels: ["whatsapp"],
+    primaryChannel: "whatsapp",
+    agent: { name: "WhatsApp Receptionist", glyph: "W", autonomy: "Pauses on handoff", tone: "Warm · bilingual (EN/ES)" },
+    subject: reasonLabel ?? (takenOver ? "You have this thread" : "Conversation"),
+    preview: last ? messageText(last).slice(0, 110) : "",
+    summary: escalation
+      ? `The receptionist paused itself and asked for a human: ${reasonLabel}.`
+      : takenOver
+        ? "A human took this thread — the receptionist stays quiet until it's handed back."
+        : "Handled by the receptionist.",
+    contextStrip: [
+      { label: "Channel", value: "WhatsApp" },
+      ...(reasonLabel ? [{ label: "Reason", value: reasonLabel }] : []),
+      { label: "Window", value: win ? "Open — free-form replies" : "Closed — template only" },
+    ],
+    lastAt: shortTime(dto.last_message_at, now),
+    lastAtFull: shortTime(dto.last_message_at, now),
+    unread: state === "escalated" && !takenOver,
+    pinned: false,
+    value: 0,
+    tags: [],
+    confidence: 0,
+    priority: "P2",
+    ...(waitingMin !== undefined ? { waitingMin } : {}),
+    ...(state === "snoozed" && dto.snooze_until ? { wake: shortTime(dto.snooze_until, now) } : {}),
+    ...(state === "done" ? { resolution: { action: "Resolved", at: shortTime(dto.last_message_at, now) } } : {}),
+    timeline,
+  };
 }
 
 export function toConversationVM(dto: ConversationDto, now = new Date()): ConversationVM {

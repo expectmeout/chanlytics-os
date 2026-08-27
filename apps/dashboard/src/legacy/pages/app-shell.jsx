@@ -176,7 +176,7 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
   const [inboxNeeds, setInboxNeeds] = useShellState(() => {
     const T = (window.INBOX_DATA || {}).THREADS || [];
     const D = (window.IX_STORE || {}).decisions || {};
-    const n = T.filter((t) => t.state === "needs" && !D[t.id]).length;
+    const n = T.filter((t) => (t.state === "needs" || (t.state === "escalated" && !t.takenOver)) && !D[t.id]).length; // real escalations count too
     return T.length ? n : 3;
   });
 

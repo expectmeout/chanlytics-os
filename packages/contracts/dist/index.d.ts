@@ -106,6 +106,8 @@ interface ConversationDto {
     id: string;
     state: "open" | "needs_human" | "snoozed" | "archived";
     paused_until: string | null;
+    snooze_until?: string | null;
+    last_wa_inbound_at?: string | null;
     last_message_at: string | null;
     contact: {
         id: string;
@@ -140,6 +142,69 @@ interface ConversationVM {
     messages: ConversationMessageVM[];
     live?: boolean;
 }
+interface EscalationDto {
+    id: string;
+    reason: string;
+    details: string | null;
+    state: "open" | "resolved";
+    created_at: string;
+}
+declare const ESCALATION_REASON_LABELS: Record<string, string>;
+interface InboxThreadVM {
+    id: string;
+    real: true;
+    conversationId: string;
+    escalationId: string | null;
+    windowOpen: boolean;
+    who: string;
+    whoMeta: string;
+    avatar: string;
+    state: "escalated" | "snoozed" | "done";
+    takenOver: boolean;
+    channels: string[];
+    primaryChannel: "whatsapp";
+    agent: {
+        name: string;
+        glyph: string;
+        autonomy: string;
+        tone: string;
+    };
+    subject: string;
+    preview: string;
+    summary: string;
+    contextStrip: Array<{
+        label: string;
+        value: string;
+    }>;
+    lastAt: string;
+    lastAtFull: string;
+    unread: boolean;
+    pinned: false;
+    value: 0;
+    tags: string[];
+    confidence: 0;
+    priority: "P2";
+    waitingMin?: number;
+    wake?: string;
+    resolution?: {
+        action: string;
+        at: string;
+    };
+    timeline: Array<{
+        type: "msg";
+        from: "client" | "agent";
+        channel: string;
+        at: string;
+        body: string;
+        byYou?: boolean;
+    } | {
+        type: "event";
+        kind: string;
+        at: string;
+        body: string;
+    }>;
+}
+declare function toInboxThreadVM(dto: ConversationDto, escalation: EscalationDto | null, now?: Date): InboxThreadVM;
 declare function toConversationVM(dto: ConversationDto, now?: Date): ConversationVM;
 
 /**
@@ -158,4 +223,4 @@ interface WaWindow {
 }
 declare function waWindow(lastWaInboundAtIso: string | null | undefined, now?: Date): WaWindow;
 
-export { ACTOR_TYPES, type ActorType, AppError, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type ChannelKind, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationReason, type EscalationState, type EventKind, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, OPT_OUT_PATTERN, type Ok, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantStatus, WA_WINDOW_MS, type WaWindow, err, formatPhoneDisplay, normalizePhone, ok, toConversationVM, violatesNoPrices, waWindow };
+export { ACTOR_TYPES, type ActorType, AppError, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type ChannelKind, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, OPT_OUT_PATTERN, type Ok, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantStatus, WA_WINDOW_MS, type WaWindow, err, formatPhoneDisplay, normalizePhone, ok, toConversationVM, toInboxThreadVM, violatesNoPrices, waWindow };

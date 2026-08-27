@@ -57,7 +57,7 @@ const sbOverlay = (a) => {
 const sbNeedsCount = () => {
   const threads = ((window.INBOX_DATA || {}).THREADS) || [];
   return threads.filter(t => {
-    if (t.state !== "needs") return false;
+    if (t.state !== "needs" && !(t.state === "escalated" && !t.takenOver)) return false; // real escalations count too
     const rec = window.IX_STORE && window.IX_STORE.get(t.id);
     return !(rec && (rec.kind === "decided" || rec.kind === "snoozed"));
   }).length;

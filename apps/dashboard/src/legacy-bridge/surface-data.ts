@@ -71,7 +71,47 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
  * its refresh event. Siblings keep their seeds. Realtime message inserts
  * re-run this apply (debounced in the bridge).
  */
-import { toConversationVM, type ConversationDto } from "@chanlytics/contracts";
+import {
+  toConversationVM,
+  toInboxThreadVM,
+  type ConversationDto,
+  type EscalationDto,
+} from "@chanlytics/contracts";
+
+/**
+ * Slice 2: the Inbox flips to the real escalations queue. Open escalations +
+ * needs_human conversations land in the "escalated" bucket (the mockup's
+ * built-in take-over/hand-back UX), snoozed in "snoozed", the rest in "done".
+ * Approval cards/confidence/$ stay hidden — v1.1 material, never fabricated.
+ */
+interface EscalationRow extends EscalationDto {
+  conversation_id: string;
+}
+
+export const inboxOverride: SurfaceOverride = {
+  key: "inbox",
+  events: ["surface:inbox", "inbox:counts"],
+  refreshOnMessageInserts: true,
+  apply: async () => {
+    const [convData, escData] = await Promise.all([
+      fetchEnvelope<{ conversations: ConversationDto[] }>("/api/v1/conversations"),
+      fetchEnvelope<{ escalations: EscalationRow[] }>("/api/v1/escalations?state=open"),
+    ]);
+    const byConv = new Map<string, EscalationRow>();
+    for (const e of escData.escalations) byConv.set(e.conversation_id, e);
+    const threads = convData.conversations.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null));
+    const w = window as unknown as {
+      INBOX_DATA?: Record<string, unknown> & { CHANNEL_LABELS?: Record<string, string>; INBOX_BASELINE?: Record<string, unknown> };
+    };
+    const prev = w.INBOX_DATA ?? {};
+    w.INBOX_DATA = {
+      ...prev,
+      THREADS: threads,
+      CHANNEL_LABELS: { ...(prev.CHANNEL_LABELS ?? {}), whatsapp: "WhatsApp" },
+      INBOX_BASELINE: { ...(prev.INBOX_BASELINE ?? {}), doneThisWeek: 0 },
+    };
+  },
+};
 
 export const conversationsOverride: SurfaceOverride = {
   key: "conversations",

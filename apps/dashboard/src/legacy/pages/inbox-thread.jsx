@@ -58,6 +58,11 @@ const InboxThread = ({ thread, channelLabels, veto = null, vetoPaused = false, o
               <div className="ix-take-sub">{thread.agent.name} stopped drafting. HR-sensitive threads never get suggested replies.</div>
             </div>
             <button className="btn btn-primary btn-sm" onClick={() => onTakeOver(thread.id)} {...window.gate("approve")}>I'll take this one</button>
+            {thread.real && thread.escalationId && (
+              <button className="btn btn-ghost btn-sm" onClick={() => onDecide(thread.id, "__RESOLVE__")} {...window.gate("approve")}>
+                Resolve — no change needed
+              </button>
+            )}
           </div>
         )}
         {thread.takenOver && (
@@ -532,6 +537,28 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
     window.addEventListener("inbox:focus-composer", onFocus);
     return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("inbox:focus-composer", onFocus); };
   }, [text]);
+
+  if (thread.real && thread.windowOpen === false) {
+    return (
+      <div className="ix-composer">
+        <div className="ix-composer-banner">
+          <Icon name="clock" size={11} />
+          <span>The 24-hour WhatsApp window is closed — free-form replies can't be delivered. Approved templates only.</span>
+        </div>
+        <div className="ix-composer-foot">
+          <div className="ix-composer-channel">
+            <Icon name="chat" size={12} />
+            <span>WHATSAPP · to {thread.who}</span>
+          </div>
+          <div className="ix-composer-actions">
+            <button className="btn btn-primary btn-sm" onClick={() => onSend(thread.id, { template: true })} {...window.gate("approve")}>
+              Send booking-link template
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="ix-composer">
