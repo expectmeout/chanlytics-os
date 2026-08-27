@@ -22,11 +22,14 @@ const BOOKING_TEMPLATE = {
   params: ["Melany's Beauty Salon", "booksy.com/en-us/1817434_melany-s-beauty-salon_hair-salon_29902_brooklyn"],
 };
 
-async function call(url: string, body?: unknown): Promise<VerbResult> {
+async function call(url: string, body?: unknown, idempotencyKey?: string): Promise<VerbResult> {
   try {
     const res = await fetch(url, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
+      },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
     if (res.status === 401) {
@@ -52,12 +55,32 @@ export type InboxVerb =
   | "take-over" | "hand-back" | "snooze" | "archive" | "resolve"
   | "reply" | "reply-template";
 
+// One verb per thread at a time: no double-click double-send, no two claims.
+const inFlight = new Set<string>();
+
 export async function inboxVerb(
   thread: RealThread,
   verb: InboxVerb,
   payload?: { text?: string; until?: string },
 ): Promise<VerbResult> {
+  const lock = `${thread.conversationId}:${verb}`;
+  if (inFlight.has(lock)) return { ok: false, message: "Still working on that one…" };
+  inFlight.add(lock);
+  try {
+    return await runVerb(thread, verb, payload);
+  } finally {
+    inFlight.delete(lock);
+  }
+}
+
+async function runVerb(
+  thread: RealThread,
+  verb: InboxVerb,
+  payload?: { text?: string; until?: string },
+): Promise<VerbResult> {
   const convBase = `/api/v1/conversations/${thread.conversationId}`;
+  // a replayed send must return the ORIGINAL result, never a second message
+  const sendKey = `${thread.conversationId}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
   let result: VerbResult;
   switch (verb) {
     case "take-over":
@@ -80,10 +103,10 @@ export async function inboxVerb(
         : { ok: false, message: "No open escalation on this thread." };
       break;
     case "reply":
-      result = await call(`${convBase}/reply`, { text: payload?.text ?? "" });
+      result = await call(`${convBase}/reply`, { text: payload?.text ?? "" }, sendKey);
       break;
     case "reply-template":
-      result = await call(`${convBase}/reply`, { template: BOOKING_TEMPLATE });
+      result = await call(`${convBase}/reply`, { template: BOOKING_TEMPLATE }, sendKey);
       break;
     default:
       result = { ok: false, message: `Unknown verb ${verb as string}.` };
@@ -99,12 +122,21 @@ function tomorrowAt(hour: number): string {
   return d.toISOString();
 }
 
+/** The honest undo: cancel a queued send inside its grace window. */
+export async function cancelSend(messageId: string): Promise<VerbResult> {
+  const r = await call(`/api/v1/messages/${messageId}/cancel-send`);
+  if (r.ok) await refresh();
+  return r;
+}
+
 declare global {
   interface Window {
     __inboxVerb: typeof inboxVerb;
+    __cancelSend: typeof cancelSend;
   }
 }
 
 export function installInboxVerbs(): void {
   window.__inboxVerb = inboxVerb;
+  window.__cancelSend = cancelSend;
 }

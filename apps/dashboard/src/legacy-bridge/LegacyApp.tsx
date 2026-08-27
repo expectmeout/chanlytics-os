@@ -30,7 +30,7 @@ interface Prefs {
   inboxDensity: "compact" | "medium" | "rich";
   showInboxAgentRail: boolean;
 }
-const PREF_DEFAULTS: Prefs = { theme: "dark", inboxDensity: "compact", showInboxAgentRail: false };
+const PREF_DEFAULTS: Prefs = { theme: "dark", inboxDensity: "medium", showInboxAgentRail: false };
 const PREFS_KEY = "chanlytics-os-prefs";
 
 function loadPrefs(): Prefs {

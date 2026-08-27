@@ -14,6 +14,7 @@ export interface MessageDto {
   body: string | null;
   media: { mime_type?: string | null; fetch_state?: string } | null;
   meta: Record<string, unknown> | null;
+  status?: string;
   created_at: string;
 }
 
@@ -23,6 +24,7 @@ export interface ConversationDto {
   paused_until: string | null;
   snooze_until?: string | null;
   assignee_user_id?: string | null;
+  assignee_is_me?: boolean;
   last_wa_inbound_at?: string | null;
   last_message_at: string | null;
   contact: {
@@ -141,20 +143,19 @@ export interface InboxThreadVM {
   subject: string;
   preview: string;
   summary: string;
-  contextStrip: Array<{ label: string; value: string }>;
+  contextStrip: Array<{ label: string; value: string; warn?: boolean }>;
   lastAt: string;
   lastAtFull: string;
   unread: boolean;
   pinned: false;
-  value: 0;
+  value?: number;      // omitted: no revenue model on real threads (v1.1)
   tags: string[];
-  confidence: 0;
+  confidence?: number; // omitted: the mockup renders a verdict word from this
   priority: "P2";
   waitingMin?: number;
   wake?: string;
-  resolution?: { action: string; at: string };
   timeline: Array<
-    | { type: "msg"; from: "client" | "agent"; channel: string; at: string; body: string; byYou?: boolean }
+    | { type: "msg"; from: "client" | "agent"; channel: string; at: string; body: string; byYou?: boolean; status?: string; messageId?: string }
     | { type: "event"; kind: string; at: string; body: string }
   >;
 }
@@ -173,26 +174,35 @@ export function toInboxThreadVM(
     escalation || needsHuman ? "escalated" : dto.state === "snoozed" ? "snoozed" : "done";
   // takenOver = a human claimed it (assignee set by take-over/reply) — the pane
   // then shows the owned-thread strip + hand-back instead of the take banner.
-  const takenOver = state === "escalated" && (!!dto.assignee_user_id || (!escalation && needsHuman));
+  // "You own this" must mean YOU — a teammate's claim reads differently.
+  const claimedByOther = !!dto.assignee_user_id && dto.assignee_is_me === false;
+  const takenOver =
+    state === "escalated" && !claimedByOther && (!!dto.assignee_user_id || (!escalation && needsHuman));
   const reasonLabel = escalation ? (ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason) : null;
   const last = dto.messages[dto.messages.length - 1];
+  const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   const win = new Date(new Date(dto.last_wa_inbound_at ?? 0).getTime() + 24 * 3600 * 1000) > now;
 
   const timeline: InboxThreadVM["timeline"] = dto.messages.map((m) => ({
     type: "msg" as const,
     from: m.sender === "customer" ? ("client" as const) : ("agent" as const),
-    channel: "whatsapp",
-    at: shortTime(m.created_at, now),
+    channel: m.type === "call_summary" ? "phone" : "whatsapp",
+    at: bubbleTime(m.created_at, now),
     body: messageText(m),
     ...(m.sender === "human" ? { byYou: true } : {}),
+    ...(m.sender !== "customer" && m.status ? { status: m.status, messageId: m.id } : {}),
   }));
   if (escalation) {
-    timeline.push({
-      type: "event",
+    // insert chronologically — appending would read "reply, then flagged"
+    const idx = dto.messages.findIndex((m) => m.created_at > escalation.created_at);
+    const entry = {
+      type: "event" as const,
       kind: "flag",
       at: shortTime(escalation.created_at, now),
-      body: `Agent flagged for a human — ${reasonLabel}${escalation.details ? ` · “${escalation.details.slice(0, 120)}”` : ""}`,
-    });
+      body: `Flagged for a human — ${reasonLabel}${escalation.details ? ` · “${escalation.details.slice(0, 120)}”` : ""}`,
+    };
+    if (idx === -1) timeline.push(entry);
+    else timeline.splice(idx, 0, entry);
   }
 
   const waitingMin = escalation
@@ -206,36 +216,43 @@ export function toInboxThreadVM(
     escalationId: escalation?.id ?? null,
     windowOpen: win,
     who,
-    whoMeta: `WhatsApp · ${formatPhoneDisplay(dto.contact.phone_e164) ?? "no phone"}`,
+    whoMeta: who === formatPhoneDisplay(dto.contact.phone_e164)
+      ? "WhatsApp · no name saved"
+      : `WhatsApp · ${formatPhoneDisplay(dto.contact.phone_e164) ?? "no phone"}`,
     avatar: initialsOf(who),
     state,
     takenOver,
     channels: ["whatsapp"],
     primaryChannel: "whatsapp",
     agent: { name: "WhatsApp Receptionist", glyph: "W", autonomy: "Pauses on handoff", tone: "Warm · bilingual (EN/ES)" },
-    subject: reasonLabel ?? (takenOver ? "You have this thread" : "Conversation"),
+    subject:
+      (claimedByOther ? "A teammate is answering this" : null) ??
+      reasonLabel ??
+      (takenOver
+        ? "You're answering this one"
+        : lastInbound
+          ? messageText(lastInbound).slice(0, 80)
+          : "No messages yet"),
     preview: last ? messageText(last).slice(0, 110) : "",
     summary: escalation
-      ? `The receptionist paused itself and asked for a human: ${reasonLabel}.`
+      ? `${reasonLabel}. The customer already got a holding reply — they're expecting a real answer from the salon.`
       : takenOver
-        ? "A human took this thread — the receptionist stays quiet until it's handed back."
-        : "Handled by the receptionist.",
+        ? "You're answering this one. The receptionist stays quiet until you hand it back."
+        : "The receptionist answered this on its own. Nothing is owed.",
     contextStrip: [
-      { label: "Channel", value: "WhatsApp" },
-      ...(reasonLabel ? [{ label: "Reason", value: reasonLabel }] : []),
-      { label: "Window", value: win ? "Open — free-form replies" : "Closed — template only" },
+      ...(reasonLabel ? [{ label: "Why you", value: reasonLabel }] : []),
+      { label: "Waiting", value: waitingMin ? `${waitingMin} min` : "—", ...(waitingMin && waitingMin > 30 ? { warn: true } : {}) },
+      { label: "Receptionist", value: needsHuman ? "Paused — you have it" : "Answering" },
+      { label: "Reply window", value: win ? "Open — you can write freely" : "Closed — template only" },
     ],
     lastAt: shortTime(dto.last_message_at, now),
     lastAtFull: shortTime(dto.last_message_at, now),
     unread: state === "escalated" && !takenOver,
     pinned: false,
-    value: 0,
     tags: [],
-    confidence: 0,
     priority: "P2",
     ...(waitingMin !== undefined ? { waitingMin } : {}),
     ...(state === "snoozed" && dto.snooze_until ? { wake: shortTime(dto.snooze_until, now) } : {}),
-    ...(state === "done" ? { resolution: { action: "Resolved", at: shortTime(dto.last_message_at, now) } } : {}),
     timeline,
   };
 }
@@ -275,8 +292,10 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
     summary: {
       headline: lastInbound ? messageText(lastInbound).slice(0, 110) : "No customer messages yet.",
       bullets: [
-        `${dto.messages.length} message${dto.messages.length === 1 ? "" : "s"} · WhatsApp`,
-        needsHuman ? "Bot paused — a human is handling this thread" : "AI receptionist active",
+        `${dto.messages.length} message${dto.messages.length === 1 ? "" : "s"}${
+          dto.messages[0] ? ` · started ${shortTime(dto.messages[0].created_at, now)}` : ""
+        }`,
+        needsHuman ? "Receptionist paused — a human has this thread" : "Answered by the receptionist",
       ],
     },
     messages: msgs,

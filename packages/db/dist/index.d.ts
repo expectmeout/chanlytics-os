@@ -1190,6 +1190,10 @@ type Database = {
                 };
                 Returns: undefined;
             };
+            expire_stale_pauses: {
+                Args: never;
+                Returns: number;
+            };
             fail_job: {
                 Args: {
                     p_error: string;

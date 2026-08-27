@@ -43,11 +43,32 @@ export async function getThread(threadId: string): Promise<ThreadState> {
   return mem.get(threadId) || blank();
 }
 
-export async function saveThread(threadId: string, state: ThreadState): Promise<void> {
+export interface SaveOptions {
+  /** This writer owns pausedUntil exactly (the admin pause mirror). Everyone
+   *  else merges, so a pause set during a long bot turn is never lost. */
+  authoritativePause?: boolean;
+}
+
+export async function saveThread(
+  threadId: string,
+  state: ThreadState,
+  opts: SaveOptions = {},
+): Promise<void> {
   // keep things bounded
   state.history = state.history.slice(-16);
   state.seen = state.seen.slice(-40);
   state.replies = state.replies.filter((t) => Date.now() - t < 24 * 3600 * 1000);
+  if (BLOB_ON && !opts.authoritativePause) {
+    // Re-read immediately before writing: the webhook holds a copy from before
+    // the (slow) brain call, and an operator take-over may have landed since.
+    try {
+      const current = await getThread(threadId);
+      if (current.pausedUntil > state.pausedUntil) state.pausedUntil = current.pausedUntil;
+      if (current.seen.length) {
+        state.seen = [...new Set([...current.seen, ...state.seen])].slice(-40);
+      }
+    } catch { /* fall through to a plain write */ }
+  }
   if (BLOB_ON) {
     try {
       await put(path(threadId), JSON.stringify(state), {

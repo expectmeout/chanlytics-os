@@ -12,9 +12,9 @@ const OutcomePill = ({ outcome, decidedAction }) => {
   if (decidedAction) return <span className="pill pill-ok"><Icon name="check" size={9} />Handled · you chose {decidedAction}</span>;
   if (outcome === "live") return <span className="pill pill-accent"><span className="live-dot" style={{ width: 5, height: 5 }} />Live</span>;
   if (outcome === "booked") return <span className="pill pill-ok">Booked</span>;
-  if (outcome === "escalated") return <span className="pill pill-warn">Needs you</span>;
-  if (outcome === "handled") return <span className="pill">Handled</span>;
-  return <span className="pill">Open</span>;
+  if (outcome === "escalated") return <span className="pill pill-warn">Waiting on you</span>;
+  if (outcome === "handled") return <span className="pill">Receptionist replied</span>;
+  return <span className="pill">Customer's turn</span>;
 };
 
 // Session-decision overlay — approval convos reflect IX_STORE state
@@ -189,8 +189,8 @@ const CvViewer = ({ c }) => {
         {/* Summary */}
         <div className="cv-summary">
           <div className="cv-summary-eyebrow">
-            <Icon name="sparkle" size={11} />
-            Summary · by {c.agent.name}
+            <Icon name="chat" size={11} />
+            Latest from {String(c.who || "").split(" ")[0]}
             {c.policyClass && <PolicyChip cls={c.policyClass} className="cv-pol" />}
           </div>
           <div className="cv-summary-headline">{c.summary.headline}</div>

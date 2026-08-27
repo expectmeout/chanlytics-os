@@ -25,11 +25,19 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     if (d.kind === "snoozed") return { ...t, state: "snoozed", wake: d.wake, unread: false };
     return { ...t, state: "done", unread: false, resolution: d };
   }));
+  const firstBucketWithThreads = (list) => {
+    for (const s of ["escalated", "needs", "snoozed", "done"]) {
+      if (list.some((x) => x.state === s)) return s;
+    }
+    return "escalated";
+  };
   const [activeBucket, setActiveBucket] = React.useState(() => {
     const t = initialThreadId && THREADS.find((x) => x.id === initialThreadId);
-    return t ? t.state : "needs";
+    return t ? t.state : firstBucketWithThreads(THREADS);
   });
-  const [activeThreadId, setActiveThreadId] = React.useState(initialThreadId || "th-aisha-refund");
+  const [activeThreadId, setActiveThreadId] = React.useState(
+    initialThreadId || (THREADS.find((x) => x.state === "needs") || THREADS[0] || {}).id || null,
+  );
   const [selected, setSelected] = React.useState([]);
   const [activeView, setActiveView] = React.useState(null);
   const [stale, setStale] = React.useState(null); // { threadId, update } — concurrent change waiting to merge
@@ -44,7 +52,9 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     if (t) { setActiveThreadId(initialThreadId); setActiveBucket(t.state); }
   }, [initialThreadId]);
 
-  const needsCount = threads.filter((t) => t.state === "needs").length;
+  const needsCount = threads.filter(
+    (t) => t.state === "needs" || (t.state === "escalated" && !t.takenOver),
+  ).length;
 
   // SurfaceData seam: a real-data swap replaces window.INBOX_DATA.THREADS —
   // reseed local state (real threads never live in IX_STORE).
@@ -55,17 +65,31 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
       if (d.kind === "snoozed") return { ...t, state: "snoozed", wake: d.wake, unread: false };
       return { ...t, state: "done", unread: false, resolution: d };
     }));
-    window.addEventListener("surface:inbox", reseed);
-    return () => window.removeEventListener("surface:inbox", reseed);
+    const onSwap = () => {
+      const list = (window.INBOX_DATA || {}).THREADS || [];
+      reseed();
+      if (!list.length) return;
+      setActiveBucket((b) => (list.some((x) => x.state === b) ? b : firstBucketWithThreads(list)));
+      setActiveThreadId((id) => (list.some((x) => x.id === id) ? id : null));
+    };
+    window.addEventListener("surface:inbox", onSwap);
+    return () => window.removeEventListener("surface:inbox", onSwap);
   }, []);
 
   // Real-thread verbs commit through the API; the override re-applies and the
   // reseed repaints. No local mutation, no IX_STORE — the server owns state.
-  const realVerb = (t, verb, payload, okMsg) => {
-    if (!window.__inboxVerb) return;
-    window.__inboxVerb(t, verb, payload).then((r) => {
-      if (r.ok) ppFlash({ msg: <><b>{t.who}</b> — {okMsg}</> });
-      else ppFlash({ msg: <>{r.message}</> });
+  const realVerb = (t, verb, payload, okMsg, undoable) => {
+    if (!window.__inboxVerb) return Promise.resolve(false);
+    return window.__inboxVerb(t, verb, payload).then((r) => {
+      if (!r.ok) { ppFlash({ msg: <>{r.message}</> }); return false; }
+      const mid = undoable && r.data && r.data.message_id;
+      ppFlash({
+        msg: <><b>{t.who}</b> — {okMsg}</>,
+        undo: mid ? () => window.__cancelSend(mid).then((c) => ppFlash({
+          msg: c.ok ? <>Send canceled — nothing was delivered</> : <>{c.message}</>,
+        })) : null,
+      });
+      return true;
     });
   };
 
@@ -211,7 +235,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   const decide = (id, action, meta = {}) => {
     const tReal = threads.find((x) => x.id === id);
     if (tReal && tReal.real) {
-      if (action === "__RESOLVE__") realVerb(tReal, "resolve", undefined, "resolved — no change needed");
+      if (action === "__HANDBACK__") realVerb(tReal, "hand-back", undefined, "cleared — the receptionist is answering again");
       return;
     }
     if (!window.canDo("approve")) return;
@@ -287,12 +311,9 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     const t = threads.find((x) => x.id === id);
     if (!t) return;
     if (t.real) {
-      if (text && typeof text === "object" && text.template) {
-        realVerb(t, "reply-template", undefined, "booking-link template queued — sends in ~15s");
-      } else {
-        realVerb(t, "reply", { text: String(text || "") }, "reply queued — sends in ~15s");
-      }
-      return;
+      return text && typeof text === "object" && text.template
+        ? realVerb(t, "reply-template", undefined, "booking link sends in 15 seconds", true)
+        : realVerb(t, "reply", { text: String(text || "") }, "reply sends in 15 seconds", true);
     }
     if (window.IX_STORE && (viaApproval || t.state === "drafts")) {
       window.IX_STORE.set(id, { action: viaApproval ? "Approved & sent" : "Sent", at: IX_NOW, kind: "decided" });

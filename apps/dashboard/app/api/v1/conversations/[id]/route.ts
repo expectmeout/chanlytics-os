@@ -5,7 +5,7 @@ import { withRoute } from "@/server/with-route";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** GET /api/v1/conversations/:id — one thread's transcript, paginated by ?before. */
-export const GET = withRoute(async (req, { supabase, params }) => {
+export const GET = withRoute(async (req, { supabase, params, userId }) => {
   const id = String(params.id ?? "");
   if (!UUID.test(id)) throw new AppError("not_found", "Conversation not found.");
   const before = new URL(req.url).searchParams.get("before");
@@ -34,6 +34,7 @@ export const GET = withRoute(async (req, { supabase, params }) => {
     paused_until: conv.paused_until,
     snooze_until: conv.snooze_until,
     assignee_user_id: conv.assignee_user_id,
+    assignee_is_me: conv.assignee_user_id ? conv.assignee_user_id === userId : undefined,
     last_wa_inbound_at: conv.last_wa_inbound_at,
     last_message_at: conv.last_message_at,
     contact: {
@@ -51,6 +52,7 @@ export const GET = withRoute(async (req, { supabase, params }) => {
     body: m.body,
     media: m.media as MessageDto["media"],
     meta: m.meta as MessageDto["meta"],
+    status: m.status,
     created_at: m.created_at,
   }));
   return { conversation, messages };

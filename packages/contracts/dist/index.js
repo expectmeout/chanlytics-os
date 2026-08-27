@@ -97,7 +97,9 @@ var EVENT_KINDS = [
   "usage.wa_conversation",
   "ingest.allowlist_skip",
   "ingest.pg_failed",
-  "message.send_failed"
+  "message.send_failed",
+  "conversation.reopened",
+  "conversation.pause_expired"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var ESCALATION_REASONS = [
@@ -181,25 +183,31 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
   const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
   const needsHuman = dto.state === "needs_human" || paused;
   const state = escalation || needsHuman ? "escalated" : dto.state === "snoozed" ? "snoozed" : "done";
-  const takenOver = state === "escalated" && (!!dto.assignee_user_id || !escalation && needsHuman);
+  const claimedByOther = !!dto.assignee_user_id && dto.assignee_is_me === false;
+  const takenOver = state === "escalated" && !claimedByOther && (!!dto.assignee_user_id || !escalation && needsHuman);
   const reasonLabel = escalation ? ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason : null;
   const last = dto.messages[dto.messages.length - 1];
+  const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   const win = new Date(new Date(dto.last_wa_inbound_at ?? 0).getTime() + 24 * 3600 * 1e3) > now;
   const timeline = dto.messages.map((m) => ({
     type: "msg",
     from: m.sender === "customer" ? "client" : "agent",
-    channel: "whatsapp",
-    at: shortTime(m.created_at, now),
+    channel: m.type === "call_summary" ? "phone" : "whatsapp",
+    at: bubbleTime(m.created_at, now),
     body: messageText(m),
-    ...m.sender === "human" ? { byYou: true } : {}
+    ...m.sender === "human" ? { byYou: true } : {},
+    ...m.sender !== "customer" && m.status ? { status: m.status, messageId: m.id } : {}
   }));
   if (escalation) {
-    timeline.push({
+    const idx = dto.messages.findIndex((m) => m.created_at > escalation.created_at);
+    const entry = {
       type: "event",
       kind: "flag",
       at: shortTime(escalation.created_at, now),
-      body: `Agent flagged for a human \u2014 ${reasonLabel}${escalation.details ? ` \xB7 \u201C${escalation.details.slice(0, 120)}\u201D` : ""}`
-    });
+      body: `Flagged for a human \u2014 ${reasonLabel}${escalation.details ? ` \xB7 \u201C${escalation.details.slice(0, 120)}\u201D` : ""}`
+    };
+    if (idx === -1) timeline.push(entry);
+    else timeline.splice(idx, 0, entry);
   }
   const waitingMin = escalation ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / 6e4)) : void 0;
   return {
@@ -209,32 +217,30 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
     escalationId: escalation?.id ?? null,
     windowOpen: win,
     who,
-    whoMeta: `WhatsApp \xB7 ${formatPhoneDisplay(dto.contact.phone_e164) ?? "no phone"}`,
+    whoMeta: who === formatPhoneDisplay(dto.contact.phone_e164) ? "WhatsApp \xB7 no name saved" : `WhatsApp \xB7 ${formatPhoneDisplay(dto.contact.phone_e164) ?? "no phone"}`,
     avatar: initialsOf(who),
     state,
     takenOver,
     channels: ["whatsapp"],
     primaryChannel: "whatsapp",
     agent: { name: "WhatsApp Receptionist", glyph: "W", autonomy: "Pauses on handoff", tone: "Warm \xB7 bilingual (EN/ES)" },
-    subject: reasonLabel ?? (takenOver ? "You have this thread" : "Conversation"),
+    subject: (claimedByOther ? "A teammate is answering this" : null) ?? reasonLabel ?? (takenOver ? "You're answering this one" : lastInbound ? messageText(lastInbound).slice(0, 80) : "No messages yet"),
     preview: last ? messageText(last).slice(0, 110) : "",
-    summary: escalation ? `The receptionist paused itself and asked for a human: ${reasonLabel}.` : takenOver ? "A human took this thread \u2014 the receptionist stays quiet until it's handed back." : "Handled by the receptionist.",
+    summary: escalation ? `${reasonLabel}. The customer already got a holding reply \u2014 they're expecting a real answer from the salon.` : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : "The receptionist answered this on its own. Nothing is owed.",
     contextStrip: [
-      { label: "Channel", value: "WhatsApp" },
-      ...reasonLabel ? [{ label: "Reason", value: reasonLabel }] : [],
-      { label: "Window", value: win ? "Open \u2014 free-form replies" : "Closed \u2014 template only" }
+      ...reasonLabel ? [{ label: "Why you", value: reasonLabel }] : [],
+      { label: "Waiting", value: waitingMin ? `${waitingMin} min` : "\u2014", ...waitingMin && waitingMin > 30 ? { warn: true } : {} },
+      { label: "Receptionist", value: needsHuman ? "Paused \u2014 you have it" : "Answering" },
+      { label: "Reply window", value: win ? "Open \u2014 you can write freely" : "Closed \u2014 template only" }
     ],
     lastAt: shortTime(dto.last_message_at, now),
     lastAtFull: shortTime(dto.last_message_at, now),
     unread: state === "escalated" && !takenOver,
     pinned: false,
-    value: 0,
     tags: [],
-    confidence: 0,
     priority: "P2",
     ...waitingMin !== void 0 ? { waitingMin } : {},
     ...state === "snoozed" && dto.snooze_until ? { wake: shortTime(dto.snooze_until, now) } : {},
-    ...state === "done" ? { resolution: { action: "Resolved", at: shortTime(dto.last_message_at, now) } } : {},
     timeline
   };
 }
@@ -263,8 +269,8 @@ function toConversationVM(dto, now = /* @__PURE__ */ new Date()) {
     summary: {
       headline: lastInbound ? messageText(lastInbound).slice(0, 110) : "No customer messages yet.",
       bullets: [
-        `${dto.messages.length} message${dto.messages.length === 1 ? "" : "s"} \xB7 WhatsApp`,
-        needsHuman ? "Bot paused \u2014 a human is handling this thread" : "AI receptionist active"
+        `${dto.messages.length} message${dto.messages.length === 1 ? "" : "s"}${dto.messages[0] ? ` \xB7 started ${shortTime(dto.messages[0].created_at, now)}` : ""}`,
+        needsHuman ? "Receptionist paused \u2014 a human has this thread" : "Answered by the receptionist"
       ]
     },
     messages: msgs

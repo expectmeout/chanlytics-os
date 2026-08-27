@@ -20,7 +20,8 @@ export async function POST(request: Request): Promise<Response> {
   }
   const t = await getThread(phone);
   t.pausedUntil = body.paused_until_ms;
-  await saveThread(phone, t);
+  // authoritative: this endpoint is the one writer allowed to LOWER the pause
+  await saveThread(phone, t, { authoritativePause: true });
   console.log("admin_pause", JSON.stringify({ phone, until: body.paused_until_ms }));
   return json(200, { ok: true });
 }

@@ -6,7 +6,7 @@ import type { ConversationDto, MessageDto } from "@chanlytics/contracts";
  * RLS-scoped (session client; membership decides which tenants' rows exist).
  * Pilot scale: one list query + one IN query; pagination arrives with volume.
  */
-export const GET = withRoute(async (_req, { supabase }) => {
+export const GET = withRoute(async (_req, { supabase, userId }) => {
   const { data: convs, error } = await supabase
     .from("conversations")
     .select("id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164)")
@@ -21,7 +21,7 @@ export const GET = withRoute(async (_req, { supabase }) => {
     // history, never a thread's most recent messages.
     const { data: msgs, error: merr } = await supabase
       .from("messages")
-      .select("id, conversation_id, direction, sender, type, body, media, meta, created_at")
+      .select("id, conversation_id, direction, sender, type, body, media, meta, status, created_at")
       .in("conversation_id", ids)
       .order("created_at", { ascending: false })
       .limit(4000);
@@ -37,6 +37,7 @@ export const GET = withRoute(async (_req, { supabase }) => {
         body: m.body,
         media: m.media as MessageDto["media"],
         meta: m.meta as MessageDto["meta"],
+        status: m.status,
         created_at: m.created_at,
       });
       byConv.set(m.conversation_id, list);
@@ -49,6 +50,7 @@ export const GET = withRoute(async (_req, { supabase }) => {
     paused_until: c.paused_until,
     snooze_until: c.snooze_until,
     assignee_user_id: c.assignee_user_id,
+    assignee_is_me: c.assignee_user_id ? c.assignee_user_id === userId : undefined,
     last_wa_inbound_at: c.last_wa_inbound_at,
     last_message_at: c.last_message_at,
     contact: {

@@ -67,7 +67,7 @@ type JobKind = (typeof JOB_KINDS)[number];
 declare const JOB_STATES: readonly ["scheduled", "fired", "canceled", "failed"];
 type JobState = (typeof JOB_STATES)[number];
 /** Dot-namespaced event kinds emitted so far (grows per slice). */
-declare const EVENT_KINDS: readonly ["message.received", "message.sent", "message.status", "escalation.opened", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.pg_failed", "message.send_failed"];
+declare const EVENT_KINDS: readonly ["message.received", "message.sent", "message.status", "escalation.opened", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.pg_failed", "message.send_failed", "conversation.reopened", "conversation.pause_expired"];
 type EventKind = (typeof EVENT_KINDS)[number];
 /** Customer texts that mean opt-out (webhook consent handling, §4). */
 declare const OPT_OUT_PATTERN: RegExp;
@@ -100,6 +100,7 @@ interface MessageDto {
         fetch_state?: string;
     } | null;
     meta: Record<string, unknown> | null;
+    status?: string;
     created_at: string;
 }
 interface ConversationDto {
@@ -108,6 +109,7 @@ interface ConversationDto {
     paused_until: string | null;
     snooze_until?: string | null;
     assignee_user_id?: string | null;
+    assignee_is_me?: boolean;
     last_wa_inbound_at?: string | null;
     last_message_at: string | null;
     contact: {
@@ -176,21 +178,18 @@ interface InboxThreadVM {
     contextStrip: Array<{
         label: string;
         value: string;
+        warn?: boolean;
     }>;
     lastAt: string;
     lastAtFull: string;
     unread: boolean;
     pinned: false;
-    value: 0;
+    value?: number;
     tags: string[];
-    confidence: 0;
+    confidence?: number;
     priority: "P2";
     waitingMin?: number;
     wake?: string;
-    resolution?: {
-        action: string;
-        at: string;
-    };
     timeline: Array<{
         type: "msg";
         from: "client" | "agent";
@@ -198,6 +197,8 @@ interface InboxThreadVM {
         at: string;
         body: string;
         byYou?: boolean;
+        status?: string;
+        messageId?: string;
     } | {
         type: "event";
         kind: string;

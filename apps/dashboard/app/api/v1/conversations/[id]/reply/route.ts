@@ -69,6 +69,24 @@ export const POST = withRoute(async (req, ctx) => {
     jobTemplate = { name: tpl.name, language: tpl.language, params };
   }
 
+  // ORDER MATTERS: pause the receptionist and claim the thread BEFORE any row
+  // exists that a job could send. A mirror failure here means nothing was
+  // queued, so the operator's "it failed" is the truth (previously the text
+  // still went out 15s later while the API reported failure).
+  const pauseUntil = Date.now() + PAUSE_MS;
+  await mirrorBlobPause(conv.phone_e164, pauseUntil);
+  await ctx.supabase
+    .from("conversations")
+    .update({
+      state: "needs_human",
+      paused_until: new Date(pauseUntil).toISOString(),
+      snooze_until: null,
+      assignee_user_id: ctx.userId,
+      last_message_at: new Date().toISOString(),
+    })
+    .eq("id", conv.id);
+  await schedule(conv.tenant_id, "pause_expire", new Date(pauseUntil), { conversation_id: conv.id });
+
   const contentHash = crypto.createHash("sha256").update(messageBody ?? "").digest("hex").slice(0, 32);
   const { data: msg, error } = await ctx.supabase
     .from("messages")
@@ -92,27 +110,18 @@ export const POST = withRoute(async (req, ctx) => {
   if (error) throw new Error(`reply insert: ${error.message}`);
 
   const dueAt = new Date(Date.now() + SEND_GRACE_MS);
-  await schedule(conv.tenant_id, "outbound_send", dueAt, {
-    message_id: msg.id,
-    conversation_id: conv.id,
-    to_phone: conv.phone_e164,
-    ...(jobTemplate ? { template: jobTemplate } : { body: messageBody }),
-  } as unknown as Json);
-
-  // D10: a human reply means a human has the thread — the AI must not stack
-  // its own answer on the customer's next message.
-  const pauseUntil = Date.now() + PAUSE_MS;
-  await mirrorBlobPause(conv.phone_e164, pauseUntil);
-  await ctx.supabase
-    .from("conversations")
-    .update({
-      state: "needs_human",
-      paused_until: new Date(pauseUntil).toISOString(),
-      assignee_user_id: ctx.userId,
-      last_message_at: new Date().toISOString(),
-    })
-    .eq("id", conv.id);
-  await schedule(conv.tenant_id, "pause_expire", new Date(pauseUntil), { conversation_id: conv.id });
+  try {
+    await schedule(conv.tenant_id, "outbound_send", dueAt, {
+      message_id: msg.id,
+      conversation_id: conv.id,
+      to_phone: conv.phone_e164,
+      ...(jobTemplate ? { template: jobTemplate } : { body: messageBody }),
+    } as unknown as Json);
+  } catch (e) {
+    // never leave an orphan queued row that silently never sends
+    await ctx.supabase.from("messages").update({ status: "canceled" }).eq("id", msg.id);
+    throw e;
+  }
 
   const decisionId = await recordDecision(ctx, conv.tenant_id, "conversation", conv.id, "reply", {
     message_id: msg.id,

@@ -88,9 +88,18 @@ interface EscalationRow extends EscalationDto {
   conversation_id: string;
 }
 
+/** The only buckets real threads can reach (Blueprint honesty rule). */
+const REAL_BUCKETS = [
+  { id: "escalated", label: "Needs you", hint: "The receptionist stopped and asked for a human", icon: "flag", accent: true },
+  { id: "done", label: "Handled", hint: "Answered by the receptionist — nothing owed", icon: "check" },
+  { id: "snoozed", label: "Snoozed", hint: "Hidden until they wake", icon: "clock" },
+];
+
 export const inboxOverride: SurfaceOverride = {
   key: "inbox",
-  events: ["surface:inbox", "inbox:counts"],
+  // inbox:counts is NOT dispatched here — a detail-less event zeroes the
+  // sidebar badge; the reseeded Inbox emits the real count itself.
+  events: ["surface:inbox"],
   refreshOnMessageInserts: true,
   apply: async () => {
     const [convData, escData] = await Promise.all([
@@ -99,7 +108,26 @@ export const inboxOverride: SurfaceOverride = {
     ]);
     const byConv = new Map<string, EscalationRow>();
     for (const e of escData.escalations) byConv.set(e.conversation_id, e);
-    const threads = convData.conversations.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null));
+
+    // A thread that escalated but has since gone quiet can fall outside the
+    // newest-100 conversations page — fetch those individually rather than
+    // letting a waiting customer be invisible.
+    const listed = new Set(convData.conversations.map((c) => c.id));
+    const missing = [...byConv.keys()].filter((id) => !listed.has(id));
+    const extra = (
+      await Promise.all(
+        missing.slice(0, 20).map((id) =>
+          fetchEnvelope<{ conversation: ConversationDto; messages: ConversationDto["messages"] }>(
+            `/api/v1/conversations/${id}`,
+          )
+            .then((d) => ({ ...d.conversation, messages: d.messages }))
+            .catch(() => null),
+        ),
+      )
+    ).filter((c): c is ConversationDto => !!c);
+
+    const all = [...extra, ...convData.conversations];
+    const threads = all.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null));
     const w = window as unknown as {
       INBOX_DATA?: Record<string, unknown> & { CHANNEL_LABELS?: Record<string, string>; INBOX_BASELINE?: Record<string, unknown> };
     };
@@ -107,6 +135,8 @@ export const inboxOverride: SurfaceOverride = {
     w.INBOX_DATA = {
       ...prev,
       THREADS: threads,
+      INBOX_BUCKETS: REAL_BUCKETS,
+      INBOX_VIEWS: [], // saved views are all structurally zero on real data
       CHANNEL_LABELS: { ...(prev.CHANNEL_LABELS ?? {}), whatsapp: "WhatsApp" },
       INBOX_BASELINE: { ...(prev.INBOX_BASELINE ?? {}), doneThisWeek: 0 },
     };
@@ -122,10 +152,10 @@ export const conversationsOverride: SurfaceOverride = {
     const w = window as unknown as {
       CONVERSATIONS_DATA?: { CONVERSATIONS: unknown[]; CV_CHANNELS: unknown[] };
     };
-    const channels = w.CONVERSATIONS_DATA?.CV_CHANNELS ?? [];
     w.CONVERSATIONS_DATA = {
       CONVERSATIONS: data.conversations.map((c) => toConversationVM(c)),
-      CV_CHANNELS: channels,
+      // one channel in the pilot — dead "Calls 0 / Email 0" chips are noise
+      CV_CHANNELS: [{ id: "all", label: "All conversations" }],
     };
   },
 };

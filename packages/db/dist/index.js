@@ -144,8 +144,15 @@ async function resolveChannel(db, kind, externalId) {
 }
 
 // src/realtime.ts
+var WATCHED = [
+  { table: "messages", event: "INSERT" },
+  { table: "conversations", event: "*" },
+  // pause_expire, snooze_wake, other tabs
+  { table: "escalations", event: "*" }
+  // opened by the edge, resolved elsewhere
+];
 function subscribeMessagesInserts(client, onInsert, opts = {}) {
-  const topic = `db-messages-inserts:${opts.topic ?? "bridge"}`;
+  const topic = `db-changes:${opts.topic ?? "bridge"}`;
   let removed = false;
   let channel = null;
   void (async () => {
@@ -153,16 +160,20 @@ function subscribeMessagesInserts(client, onInsert, opts = {}) {
     const token = data.session?.access_token;
     if (token) client.realtime.setAuth(token);
     if (removed) return;
-    channel = client.channel(topic).on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "messages",
-        ...opts.tenantId ? { filter: `tenant_id=eq.${opts.tenantId}` } : {}
-      },
-      (payload) => onInsert(payload.new)
-    ).subscribe((status) => {
+    channel = client.channel(topic);
+    for (const w of WATCHED) {
+      channel = channel.on(
+        "postgres_changes",
+        {
+          event: w.event,
+          schema: "public",
+          table: w.table,
+          ...opts.tenantId ? { filter: `tenant_id=eq.${opts.tenantId}` } : {}
+        },
+        (payload) => onInsert(payload.new ?? payload.old ?? {})
+      );
+    }
+    channel = channel.subscribe((status) => {
       if (opts.onStatus) opts.onStatus(status);
       else if (status !== "SUBSCRIBED") console.warn("realtime_status", topic, status);
     });

@@ -88,6 +88,7 @@ const InboxList = ({
             </button>
           )}
         </div>
+        {views.some((v) => v.count > 0) && (
         <button
           className={`ix-views-toggle ${showViews ? "open" : ""}`}
           onClick={() => setShowViews(!showViews)}
@@ -95,6 +96,7 @@ const InboxList = ({
         >
           <Icon name="filter" size={12} />
         </button>
+        )}
       </div>
 
       {showViews && (
@@ -129,7 +131,9 @@ const InboxList = ({
           <div className="ix-bulk">
             <span className="ix-bulk-count tabular">{selected.length} selected</span>
             <div className="ix-bulk-actions">
-              <button className="btn btn-sm btn-primary" onClick={onBulkApprove} title="Approves selected approvals with ≥80% confidence" {...window.gate("approve")}>Approve all safe</button>
+              {threads.some((t) => t.approval) && (
+                <button className="btn btn-sm btn-primary" onClick={onBulkApprove} title="Approves selected approvals with ≥80% confidence" {...window.gate("approve")}>Approve all safe</button>
+              )}
               <button className="btn btn-sm btn-ghost" onClick={onBulkSnooze} {...window.gate("approve")}>Snooze</button>
               <button className="btn btn-sm btn-ghost" onClick={onBulkArchive} {...window.gate("approve")}>Archive</button>
               <button className="btn btn-sm btn-ghost" onClick={onClearSelection}>Clear</button>
@@ -162,12 +166,18 @@ const InboxList = ({
       <div className="ix-threads">
         {visible.length === 0 && (() => {
           const meta = {
-            done:      { icon: "check", title: "48 resolved this week", body: "Handled threads archive after 7 days — every transcript stays in Conversations.", cta: { label: "Open Conversations", to: "conversations" } },
-            snoozed:   { icon: "clock", title: "7 snoozed, all sleeping", body: "They come back when they wake. Next: Elena's win-back, tomorrow 10:00." },
-            needs:     { icon: "check", title: "Nothing needs you", body: "Approvals your agents pause will land here first." },
+            done:      threads.some((t) => t.real)
+              ? { icon: "check", title: "No conversations yet", body: "Messages to the salon's WhatsApp number show up here once they arrive.", cta: { label: "Open Conversations", to: "conversations" } }
+              : { icon: "check", title: "48 resolved this week", body: "Handled threads archive after 7 days — every transcript stays in Conversations.", cta: { label: "Open Conversations", to: "conversations" } },
+            snoozed:   threads.some((t) => t.real)
+              ? { icon: "clock", title: "Nothing snoozed", body: "Snooze hides a thread from your queue. The receptionist keeps answering it." }
+              : { icon: "clock", title: "7 snoozed, all sleeping", body: "They come back when they wake. Next: Elena's win-back, tomorrow 10:00." },
+            needs:     { icon: "check", title: "Nothing needs you", body: "Threads the receptionist pauses for a human land here first." },
             watching:  { icon: "eye", title: "Nothing in flight", body: "Threads your agents are actively working show here." },
             drafts:    { icon: "edit", title: "No drafts waiting", body: "Agent-written replies queue here for your review." },
-            escalated: { icon: "flag", title: "No escalations", body: "Sensitive threads that need a human land here." },
+            escalated: threads.some((t) => t.real)
+              ? { icon: "check", title: "Nobody's waiting on you", body: "The receptionist is answering on its own. Anything it can't handle lands here." }
+              : { icon: "flag", title: "No escalations", body: "Sensitive threads that need a human land here." },
           }[activeView ? "view" : activeBucket] || { icon: "filter", title: "Nothing in this view", body: "No threads match this saved view right now." };
           return (
             <div className="ix-empty-mini">
@@ -240,11 +250,13 @@ const InboxList = ({
                   <span className="ix-thread-preview">{t.preview}</span>
                 </div>
                 <div className="ix-thread-foot">
+                  {new Set(threads.map((x) => x.agent && x.agent.name)).size > 1 && (
                   <span className="ix-thread-agent">
                     <span className="agent-avatar" style={{ width: 14, height: 14, fontSize: 8 }}>{t.agent.glyph}</span>
                     <span>{t.agent.name}</span>
                   </span>
-                  {t.confidence !== undefined && (
+                  )}
+                  {t.confidence > 0 && (
                     <span className="ix-thread-conf">
                       <ConfidenceDots level={t.confidence} />
                     </span>

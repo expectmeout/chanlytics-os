@@ -20,12 +20,19 @@ export interface SubscribeOptions {
   onStatus?: (status: string) => void;
 }
 
+/** Tables whose changes must repaint the live surfaces (Blueprint §5). */
+const WATCHED: Array<{ table: string; event: "INSERT" | "*" }> = [
+  { table: "messages", event: "INSERT" },
+  { table: "conversations", event: "*" },   // pause_expire, snooze_wake, other tabs
+  { table: "escalations", event: "*" },     // opened by the edge, resolved elsewhere
+];
+
 export function subscribeMessagesInserts(
   client: SupabaseClient<Database>,
   onInsert: (row: { conversation_id: string; tenant_id: string }) => void,
   opts: SubscribeOptions = {},
 ): () => void {
-  const topic = `db-messages-inserts:${opts.topic ?? "bridge"}`;
+  const topic = `db-changes:${opts.topic ?? "bridge"}`;
   let removed = false;
   let channel: RealtimeChannel | null = null;
 
@@ -36,18 +43,20 @@ export function subscribeMessagesInserts(
     const token = data.session?.access_token;
     if (token) client.realtime.setAuth(token);
     if (removed) return;
-    channel = client
-      .channel(topic)
-      .on(
+    channel = client.channel(topic);
+    for (const w of WATCHED) {
+      channel = channel.on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: w.event,
           schema: "public",
-          table: "messages",
+          table: w.table,
           ...(opts.tenantId ? { filter: `tenant_id=eq.${opts.tenantId}` } : {}),
         },
-        (payload) => onInsert(payload.new as { conversation_id: string; tenant_id: string }),
-      )
+        (payload) => onInsert((payload.new ?? payload.old ?? {}) as { conversation_id: string; tenant_id: string }),
+      );
+    }
+    channel = channel
       .subscribe((status) => {
         if (opts.onStatus) opts.onStatus(status);
         else if (status !== "SUBSCRIBED") console.warn("realtime_status", topic, status);

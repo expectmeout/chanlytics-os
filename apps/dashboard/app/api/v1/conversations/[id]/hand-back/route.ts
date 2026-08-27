@@ -11,11 +11,12 @@ export const POST = withRoute(async (_req, ctx) => {
 
   const { error } = await ctx.supabase
     .from("conversations")
-    .update({ state: "open", paused_until: null, assignee_user_id: null })
+    .update({ state: "open", paused_until: null, snooze_until: null, assignee_user_id: null })
     .eq("id", conv.id);
   if (error) throw new Error(error.message);
 
   await cancelKindFor(conv.tenant_id, "pause_expire", "conversation_id", conv.id);
+  await cancelKindFor(conv.tenant_id, "snooze_wake", "conversation_id", conv.id);
   const decisionId = await recordDecision(ctx, conv.tenant_id, "conversation", conv.id, "hand_back");
   await resolveOpenEscalation(ctx, conv.id, decisionId);
   return { state: "open", decision_id: decisionId };

@@ -8,6 +8,8 @@
 //   5. Timeline (softer agent bubbles)
 //   6. Composer (right-anchored, Approve & Send combo)
 
+const { useState: useCvtState } = React;
+
 const InboxThread = ({ thread, channelLabels, veto = null, vetoPaused = false, onVetoAct = () => {}, onVerdict = () => {}, stale = null, onReconcile = () => {}, onDismissStale = () => {}, onOpenClient = () => {}, onDecide = () => {}, onSnooze = () => {}, onSend = () => {}, onTakeOver = () => {}, onWake = () => {}, onHandBack = () => {}, onMarkUnread = () => {}, planParam = 0, onPlanParam = () => {} }) => {
   if (!thread) return <InboxEmpty />;
 
@@ -33,7 +35,7 @@ const InboxThread = ({ thread, channelLabels, veto = null, vetoPaused = false, o
         {decided && (
           <div className={`ix-resolved ${thread.resolution.declined ? "declined" : ""}`}>
             <Icon name={thread.resolution.declined ? "x" : "check"} size={13} />
-            <span>You chose <b>“{thread.resolution.action}”</b> at {thread.resolution.at} — {thread.resolution.declined ? <>{thread.agent.name} is handling the fallback{thread.approval && thread.approval.fallback ? `: ${thread.approval.fallback}` : ""}.</> : <>{thread.agent.name} is executing the next steps.</>}</span>
+            <span>You chose <b>“{thread.resolution.action}”</b> at {thread.resolution.at} — {thread.real ? <>{thread.agent.name} is back on this thread.</> : thread.resolution.declined ? <>{thread.agent.name} is handling the fallback{thread.approval && thread.approval.fallback ? `: ${thread.approval.fallback}` : ""}.</> : <>{thread.agent.name} is executing the next steps.</>}</span>
             <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("conversations")}>
               Transcript <Icon name="arrow-right" size={10} />
             </button>
@@ -54,15 +56,27 @@ const InboxThread = ({ thread, channelLabels, veto = null, vetoPaused = false, o
           <div className="ix-take">
             <Icon name="flag" size={13} />
             <div className="ix-take-body">
-              <div className="ix-take-title">Escalated — needs a human voice</div>
-              <div className="ix-take-sub">{thread.agent.name} stopped drafting. HR-sensitive threads never get suggested replies.</div>
+              <div className="ix-take-title">
+                {thread.real ? <>Waiting on you{thread.waitingMin ? ` · ${thread.waitingMin}m` : ""}</> : "Escalated — needs a human voice"}
+              </div>
+              <div className="ix-take-sub">{thread.real
+                ? <>The receptionist already sent a holding reply and stopped answering this thread. It stays quiet until you reply or hand it back.</>
+                : <>{thread.agent.name} stopped drafting. HR-sensitive threads never get suggested replies.</>}</div>
             </div>
-            <button className="btn btn-primary btn-sm" onClick={() => onTakeOver(thread.id)} {...window.gate("approve")}>I'll take this one</button>
+            <button className="btn btn-primary btn-sm" onClick={() => onTakeOver(thread.id)} {...window.gate("approve")}>
+              {thread.real ? "I'll answer this" : "I'll take this one"}
+            </button>
             {thread.real && thread.escalationId && (
-              <button className="btn btn-ghost btn-sm" onClick={() => onDecide(thread.id, "__RESOLVE__")} {...window.gate("approve")}>
-                Resolve — no change needed
+              <button className="btn btn-ghost btn-sm" onClick={() => onDecide(thread.id, "__HANDBACK__")} {...window.gate("approve")}>
+                Nothing needed — let the AI resume
               </button>
             )}
+          </div>
+        )}
+        {thread.real && thread.state === "done" && !thread.resolution && (
+          <div className="ix-resolved">
+            <Icon name="check" size={13} />
+            <span>Answered by the receptionist — no one asked for you.</span>
           </div>
         )}
         {thread.takenOver && (
@@ -445,7 +459,15 @@ const TimelineEntry = ({ entry, thread, channelLabels }) => {
         {!isClient && (
           <div className="tl-msg-by">
             {entry.byYou ? (
-              <span>by you · just now</span>
+              <span>
+                by you · {entry.at}
+                {entry.status === "queued" ? " · Sending…"
+                  : entry.status === "failed" ? " · Didn't send"
+                  : entry.status === "canceled" ? " · Canceled before sending"
+                  : entry.status === "read" ? " · Read"
+                  : entry.status === "delivered" ? " · Delivered"
+                  : ""}
+              </span>
             ) : (
               <>
                 <span className="agent-avatar" style={{ width: 12, height: 12, fontSize: 7 }}>{thread.agent.glyph}</span>
@@ -521,10 +543,19 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
   const taRef = React.useRef(null);
   const isApproveAndSend = hasApproval && text === reply;
 
+  const [sending, setSending] = useCvtState(false);
   const doSend = () => {
-    if (!text.trim() || !window.canDo("approve")) return;
-    onSend(thread.id, text.trim(), isApproveAndSend);
-    setText("");
+    if (sending || !text.trim() || !window.canDo("approve")) return;
+    const payload = text.trim();
+    const r = onSend(thread.id, payload, isApproveAndSend);
+    // Real threads answer with a promise: keep the words until the server
+    // accepts them (a closed 24h window rejects, and retyping is unacceptable).
+    if (r && typeof r.then === "function") {
+      setSending(true);
+      r.then((ok) => { if (ok !== false) setText(""); }).finally(() => setSending(false));
+    } else {
+      setText("");
+    }
   };
 
   // ⌘↵ sends · E (from card shortcuts) focuses
@@ -551,9 +582,7 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
             <span>WHATSAPP · to {thread.who}</span>
           </div>
           <div className="ix-composer-actions">
-            <button className="btn btn-primary btn-sm" onClick={() => onSend(thread.id, { template: true })} {...window.gate("approve")}>
-              Send booking-link template
-            </button>
+            <TemplateSendButton onSend={onSend} threadId={thread.id} />
           </div>
         </div>
       </div>
@@ -576,13 +605,13 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
         className="ix-composer-text"
         value={text}
         onChange={(e) => { setText(e.target.value); if (onType) onType(); }}
-        placeholder={`Reply via ${thread.primaryChannel?.toUpperCase() || "SMS"}…`}
+        placeholder={thread.real ? "Reply as the salon…" : `Reply via ${thread.primaryChannel?.toUpperCase() || "SMS"}…`}
         rows={3}
       />
       <div className="ix-composer-foot">
         <div className="ix-composer-channel">
           <Icon name={thread.primaryChannel === "phone" ? "phone" : thread.primaryChannel === "mail" ? "mail" : "chat"} size={12} />
-          <span>{thread.primaryChannel?.toUpperCase() || "SMS"} · to {thread.who}</span>
+          <span>{thread.real ? "WhatsApp" : (thread.primaryChannel?.toUpperCase() || "SMS")} · to {thread.who}</span>
         </div>
         <div className="ix-composer-actions">
           <button className="btn btn-ghost btn-sm" onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 1600); }} disabled={saved}>
@@ -590,11 +619,11 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
           </button>
           <button
             className="btn btn-primary btn-sm"
-            disabled={!text.trim()}
+            disabled={!text.trim() || sending}
             onClick={doSend}
             {...window.gate("approve")}
           >
-            {isApproveAndSend ? "Approve & send" : "Send"} <span className="kbd kbd-on-dark">⌘↵</span>
+            {sending ? "Sending…" : isApproveAndSend ? "Approve & send" : "Send"} <span className="kbd kbd-on-dark">⌘↵</span>
           </button>
         </div>
       </div>

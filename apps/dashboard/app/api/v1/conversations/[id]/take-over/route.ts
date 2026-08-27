@@ -1,6 +1,6 @@
 import { withRoute } from "@/server/with-route";
 import { loadConversation, recordDecision, PAUSE_MS } from "@/server/verbs";
-import { schedule, mirrorBlobPause } from "@/server/service";
+import { schedule, cancelKindFor, mirrorBlobPause } from "@/server/service";
 import { AppError } from "@chanlytics/contracts";
 
 /** Take over: pause the AI, claim the thread. The open escalation stays open (§4). */
@@ -14,10 +14,12 @@ export const POST = withRoute(async (_req, ctx) => {
 
   const { error } = await ctx.supabase
     .from("conversations")
-    .update({ state: "needs_human", paused_until: new Date(until).toISOString(), assignee_user_id: ctx.userId })
+    .update({ state: "needs_human", paused_until: new Date(until).toISOString(), snooze_until: null, assignee_user_id: ctx.userId })
     .eq("id", conv.id);
   if (error) throw new Error(error.message);
 
+  await cancelKindFor(conv.tenant_id, "snooze_wake", "conversation_id", conv.id);
+  await cancelKindFor(conv.tenant_id, "pause_expire", "conversation_id", conv.id); // supersede, don't accumulate
   await schedule(conv.tenant_id, "pause_expire", new Date(until), { conversation_id: conv.id });
   const decisionId = await recordDecision(ctx, conv.tenant_id, "conversation", conv.id, "take_over", {
     paused_until: new Date(until).toISOString(),

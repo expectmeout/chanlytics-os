@@ -1185,6 +1185,7 @@ export type Database = {
     Functions: {
       claim_job: { Args: { p_job_id: string }; Returns: Json }
       ensure_events_partition: { Args: { p_month: string }; Returns: undefined }
+      expire_stale_pauses: { Args: never; Returns: number }
       fail_job: {
         Args: { p_error: string; p_job_id: string }
         Returns: undefined
