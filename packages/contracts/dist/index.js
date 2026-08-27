@@ -574,15 +574,15 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       `${p.send_failures} repl${p.send_failures === 1 ? "y" : "ies"} failed to deliver.`
     );
   }
-  const facts = [
+  const facts = p.messages_in > 0 || p.calls > 0 ? [
     { label: "Messages in", value: String(p.messages_in) },
     { label: "Answered by the receptionist", value: `${p.answered_by_ai} of ${p.messages_in}` },
     p.median_reply_seconds_ai === null ? { label: "Typical reply time", value: "\u2014", hint: "Not enough replies yet" } : { label: "Typical reply time", value: secondsPhrase(p.median_reply_seconds_ai) },
     { label: "Calls", value: p.calls ? `${p.calls}${callMinutes ? ` \xB7 ${callMinutes} min` : ""}` : "0" }
-  ];
+  ] : [];
   const receipts = conversations.flatMap(
     (c) => c.messages.filter(
-      (x) => x.direction === "outbound" && SENT.includes(String(x.status)) && new Date(x.created_at).getTime() >= sinceMs
+      (x) => x.direction === "outbound" && SENT.includes(String(x.status)) && x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs
     ).map((x) => ({ conv: c, msg: x }))
   ).sort((a, b) => b.msg.created_at.localeCompare(a.msg.created_at)).slice(0, 3).map(({ conv, msg }) => ({
     at: tzTime(msg.created_at, tz) ?? "",

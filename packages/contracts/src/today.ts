@@ -387,17 +387,29 @@ export function toTodayVM(
     );
   }
 
-  const facts: TodayFactVM[] = [
-    { label: "Messages in", value: String(p.messages_in) },
-    { label: "Answered by the receptionist", value: `${p.answered_by_ai} of ${p.messages_in}` },
-    p.median_reply_seconds_ai === null
-      ? { label: "Typical reply time", value: "—", hint: "Not enough replies yet" }
-      : { label: "Typical reply time", value: secondsPhrase(p.median_reply_seconds_ai) },
-    { label: "Calls", value: p.calls ? `${p.calls}${callMinutes ? ` · ${callMinutes} min` : ""}` : "0" },
-  ];
+  // The fact strip measures inbound traffic. With none, all four tiles read
+  // "0", "0 of 0" and "—" — the row of zeroes this whole surface exists to
+  // avoid. The sentences above already say what did happen, so drop the strip
+  // rather than pad the page with nothing.
+  const facts: TodayFactVM[] =
+    p.messages_in > 0 || p.calls > 0
+      ? [
+          { label: "Messages in", value: String(p.messages_in) },
+          { label: "Answered by the receptionist", value: `${p.answered_by_ai} of ${p.messages_in}` },
+          p.median_reply_seconds_ai === null
+            ? { label: "Typical reply time", value: "—", hint: "Not enough replies yet" }
+            : { label: "Typical reply time", value: secondsPhrase(p.median_reply_seconds_ai) },
+          { label: "Calls", value: p.calls ? `${p.calls}${callMinutes ? ` · ${callMinutes} min` : ""}` : "0" },
+        ]
+      : [];
 
   // Receipts quote the message that actually went out. She is spot-checking
   // tone, not reading a report — a summary of the reply defeats the purpose.
+  //
+  // Backfilled rows are excluded for the same reason the SQL excludes them:
+  // their created_at is the moment the IMPORT ran, so the first live load
+  // rendered weeks-old replies as "sent at 1:59 AM today". A receipt whose
+  // timestamp is wrong is worse than no receipt.
   const receipts = conversations
     .flatMap((c) =>
       c.messages
@@ -405,6 +417,7 @@ export function toTodayVM(
           (x) =>
             x.direction === "outbound" &&
             SENT.includes(String(x.status)) &&
+            x.meta?.backfill !== true &&
             new Date(x.created_at).getTime() >= sinceMs,
         )
         .map((x) => ({ conv: c, msg: x })),

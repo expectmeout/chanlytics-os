@@ -184,6 +184,16 @@ export const todayOverride: SurfaceOverride = {
       escData.escalations,
       calls,
     );
+
+    // The sidebar badge is seeded until the Inbox itself mounts, so a fresh
+    // load put a fabricated "6" one inch from Today's honest "0 need you".
+    // Today already holds the real number — publish it. Detail is REQUIRED:
+    // a detail-less inbox:counts zeroes the badge instead of correcting it.
+    window.dispatchEvent(
+      new CustomEvent("inbox:counts", {
+        detail: { needs: metricsRes.metrics.now.escalations_open },
+      }),
+    );
   },
 };
 

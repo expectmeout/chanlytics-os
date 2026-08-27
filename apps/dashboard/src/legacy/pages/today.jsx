@@ -167,15 +167,17 @@ const TodayPage = () => {
               {s}
             </p>
           ))}
-          <dl className="td-facts">
-            {recap.facts.map((f) => (
-              <div key={f.label} className="td-fact">
-                <dt>{f.label}</dt>
-                <dd>{f.value}</dd>
-                {f.hint ? <p className="td-fact-hint">{f.hint}</p> : null}
-              </div>
-            ))}
-          </dl>
+          {recap.facts.length ? (
+            <dl className="td-facts">
+              {recap.facts.map((f) => (
+                <div key={f.label} className="td-fact">
+                  <dt>{f.label}</dt>
+                  <dd>{f.value}</dd>
+                  {f.hint ? <p className="td-fact-hint">{f.hint}</p> : null}
+                </div>
+              ))}
+            </dl>
+          ) : null}
           {recap.receipts.length ? (
             <ul className="td-receipts">
               {recap.receipts.map((r) => (
