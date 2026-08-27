@@ -16,7 +16,13 @@ export async function GET(request: Request): Promise<Response> {
 
   const out: Record<string, unknown> = {
     store: storeBackend(),
+    // Which store the bot's MEMORY comes from. The single most important
+    // operational fact about this service after Gate 1b — and the flag to flip
+    // back first if the receptionist starts behaving oddly.
+    memory: process.env.PG_READS === "on" ? "postgres" : "blob",
     env: {
+      pgReads: process.env.PG_READS === "on",
+      pgWrites: process.env.PG_WRITES === "on",
       blobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
       anthropic: !!process.env.ANTHROPIC_API_KEY,
       waToken: !!process.env.WHATSAPP_ACCESS_TOKEN,

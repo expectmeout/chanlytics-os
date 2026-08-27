@@ -204,6 +204,34 @@ async function recordCallNote(db, p) {
   return data.id;
 }
 
+// src/repositories/thread.ts
+var DELIVERED = ["sent", "delivered", "read"];
+var DAY_MS = 24 * 3600 * 1e3;
+async function readThreadState(db, tenantId, conversationId, pausedUntilIso, historyLimit = 16) {
+  const since = new Date(Date.now() - DAY_MS).toISOString();
+  const [recent, replies] = await Promise.all([
+    db.from("messages").select("body, sender, direction, type, status, created_at").eq("tenant_id", tenantId).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(historyLimit * 2),
+    // headroom: some rows drop out below
+    db.from("messages").select("created_at").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("sender", "ai").eq("direction", "outbound").in("status", DELIVERED).gte("created_at", since)
+  ]);
+  if (recent.error) throw new Error(`readThreadState/history: ${recent.error.message}`);
+  if (replies.error) throw new Error(`readThreadState/replies: ${replies.error.message}`);
+  const history = [];
+  for (const m of (recent.data ?? []).slice().reverse()) {
+    const body = (m.body ?? "").trim();
+    if (!body) continue;
+    if (m.direction === "outbound" && !DELIVERED.includes(String(m.status))) continue;
+    const role = m.sender === "customer" ? "user" : "assistant";
+    history.push({ role, content: body });
+  }
+  return {
+    history: history.slice(-historyLimit),
+    seen: [],
+    pausedUntil: pausedUntilIso ? new Date(pausedUntilIso).getTime() : 0,
+    replies: (replies.data ?? []).map((r) => new Date(r.created_at).getTime())
+  };
+}
+
 // src/realtime.ts
 var WATCHED = [
   { table: "messages", event: "INSERT" },
@@ -252,6 +280,7 @@ export {
   linkCallMessage,
   markProcessed,
   pauseConversation,
+  readThreadState,
   recordCallNote,
   recordEchoAndPause,
   recordOutbound,

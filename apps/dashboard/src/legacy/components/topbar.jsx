@@ -276,7 +276,10 @@ const Topbar = ({
     return () => window.removeEventListener("presence:changed", onPr);
   }, []);
 
-  const shown = notifs.map(tbOverlay);
+  // The seeded notification feed is demo theater — "Aisha's refund", a trust
+  // milestone, a Gmail outage — none of it happened. Outside demo we show no
+  // count rather than a badge promising five things to read that don't exist.
+  const shown = window.__DEMO_MODE ? notifs.map(tbOverlay) : [];
   const unread = shown.filter(n => n.unread).length;
 
   React.useEffect(() => {
@@ -348,10 +351,19 @@ const Topbar = ({
 
       <div className="topbar-spacer" />
 
-      <button className="tb-ask" onClick={onAsk} title="Ask Chanlytics (⌘K)">
+      {/* ⌘K is already stubbed outside demo, but this button still opened the
+          overlay — which answers "$1,840 booked against a $4,200 pace" from
+          seed data, on every surface including the live ones. Until Ask has a
+          real engine, it says so instead of inventing an answer. */}
+      <button
+        className="tb-ask"
+        onClick={window.__DEMO_MODE ? onAsk : undefined}
+        disabled={!window.__DEMO_MODE}
+        title={window.__DEMO_MODE ? "Ask Chanlytics (⌘K)" : "Ask isn't connected to your data yet"}
+      >
         <Icon name="sparkle" size={13} />
         <span className="tb-ask-label">Ask Chanlytics</span>
-        <span className="kbd">⌘K</span>
+        {window.__DEMO_MODE ? <span className="kbd">⌘K</span> : <span className="kbd">Soon</span>}
       </button>
 
       {right}

@@ -63,13 +63,19 @@ export async function activateOverride(o: SurfaceOverride): Promise<boolean> {
  */
 export interface Workspace { id: string; slug: string; name: string; status: string; timezone: string }
 
+export interface Me { id: string; email: string | null }
+
 export const workspaceOverride: SurfaceOverride & { current: () => Workspace | null } = {
   key: "workspace",
-  globals: ["__WORKSPACES"],
+  globals: ["__WORKSPACES", "__ME"],
   current: () => (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES?.[0] ?? null,
   apply: async () => {
-    const data = await fetchEnvelope<{ workspaces: Workspace[] }>("/api/v1/workspaces");
-    (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES = data.workspaces;
+    const data = await fetchEnvelope<{ workspaces: Workspace[]; user?: Me }>("/api/v1/workspaces");
+    const w = window as unknown as { __WORKSPACES?: Workspace[]; __ME?: Me };
+    w.__WORKSPACES = data.workspaces;
+    // The sidebar renders whoever this says — replacing the mockup's
+    // hardcoded operator, who was a fabricated person shown as "you".
+    if (data.user) w.__ME = data.user;
   },
 };
 

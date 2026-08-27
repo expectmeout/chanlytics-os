@@ -1428,7 +1428,7 @@ declare function createServiceClient(cfg: ServiceClientConfig): SupabaseClient<D
  * plain row work. All writes are ADDITIVE to the Blob path during dual-write.
  */
 
-type Db$1 = SupabaseClient<Database>;
+type Db$2 = SupabaseClient<Database>;
 interface IngestInboundParams {
     tenantId: string;
     channel: "whatsapp";
@@ -1452,11 +1452,11 @@ interface IngestResult {
     state: string;
     paused_until: string | null;
 }
-declare function ingestInbound(db: Db$1, p: IngestInboundParams): Promise<IngestResult>;
+declare function ingestInbound(db: Db$2, p: IngestInboundParams): Promise<IngestResult>;
 /** Stamp a message handled (replied / deliberately skipped) — retry no-ops after this.
  *  One server-side jsonb merge (no read-modify-write, no lost-update race). */
-declare function markProcessed(db: Db$1, tenantId: string, messageId: string): Promise<void>;
-declare function recordOutbound(db: Db$1, p: {
+declare function markProcessed(db: Db$2, tenantId: string, messageId: string): Promise<void>;
+declare function recordOutbound(db: Db$2, p: {
     tenantId: string;
     conversationId: string;
     contactId: string | null;
@@ -1468,12 +1468,12 @@ declare function recordOutbound(db: Db$1, p: {
     status?: "sent" | "failed";
 }): Promise<string | null>;
 /** Delivery receipts: update by wamid; monotone rank enforced by trigger. */
-declare function recordStatusByExternalId(db: Db$1, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
+declare function recordStatusByExternalId(db: Db$2, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
 /** Owner replied from the WhatsApp Business app: persist the echo + pause the bot.
  *  Upserts the contact/conversation — an owner-INITIATED thread (customer never
  *  messaged yet) must still record the message and the pause, or PG diverges
  *  from the Blob pause forever. */
-declare function recordEchoAndPause(db: Db$1, p: {
+declare function recordEchoAndPause(db: Db$2, p: {
     tenantId: string;
     customerPhoneDigits: string;
     body: string | null;
@@ -1481,8 +1481,8 @@ declare function recordEchoAndPause(db: Db$1, p: {
     pausedUntilIso: string;
 }): Promise<void>;
 /** Mirror of the Blob pausedUntil semantics for AI-side pauses (non-text / escalation). */
-declare function pauseConversation(db: Db$1, tenantId: string, conversationId: string, pausedUntilIso: string): Promise<void>;
-declare function emitEvent(db: Db$1, tenantId: string, kind: string, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
+declare function pauseConversation(db: Db$2, tenantId: string, conversationId: string, pausedUntilIso: string): Promise<void>;
+declare function emitEvent(db: Db$2, tenantId: string, kind: string, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
 
 /** Webhook → tenant routing over tenant_channels(kind, external_id). */
 
@@ -1503,7 +1503,7 @@ declare function resolveChannel(db: SupabaseClient<Database>, kind: string, exte
  * converge on one row.
  */
 
-type Db = SupabaseClient<Database>;
+type Db$1 = SupabaseClient<Database>;
 interface NormalizedCallInput {
     retellCallId: string;
     agentId: string | null;
@@ -1536,13 +1536,13 @@ interface IngestCallResult {
     contact_id: string | null;
     conversation_id: string | null;
 }
-declare function ingestCall(db: Db, tenantId: string, n: NormalizedCallInput, raw?: unknown): Promise<IngestCallResult>;
+declare function ingestCall(db: Db$1, tenantId: string, n: NormalizedCallInput, raw?: unknown): Promise<IngestCallResult>;
 /** Attach the thread note (call_summary message) back to its call row. */
-declare function linkCallMessage(db: Db, tenantId: string, callId: string, messageId: string): Promise<void>;
+declare function linkCallMessage(db: Db$1, tenantId: string, callId: string, messageId: string): Promise<void>;
 /** Post-storage-copy state for the recording (private bucket path). */
-declare function setCallRecording(db: Db, tenantId: string, callId: string, recording: Record<string, unknown>): Promise<void>;
+declare function setCallRecording(db: Db$1, tenantId: string, callId: string, recording: Record<string, unknown>): Promise<void>;
 /** The customer's thread gets the call as a message, so history stays in one place. */
-declare function recordCallNote(db: Db, p: {
+declare function recordCallNote(db: Db$1, p: {
     tenantId: string;
     conversationId: string;
     contactId: string | null;
@@ -1550,6 +1550,39 @@ declare function recordCallNote(db: Db, p: {
     externalId: string;
     channelTsIso: string | null;
 }): Promise<string | null>;
+
+/**
+ * Gate 1b: the bot's working memory, read from Postgres.
+ *
+ * Until now the receptionist's memory lived in Vercel Blob and Postgres was a
+ * write-only shadow — which meant every surface we built read a MIRROR of the
+ * truth, and the two had to be kept in step by hand. Three of our worst bugs
+ * came from that gap (an operator take-over clobbered by a webhook writing a
+ * stale whole-object, archived threads swallowing new messages, a reply
+ * scheduled before its mirror write).
+ *
+ * This returns the same four things the Blob blob did, so the caller's logic is
+ * untouched — only the source moves:
+ *   history      last turns fed to the model
+ *   pausedUntil  a human is handling this thread
+ *   replies      bot sends in the last 24h (rate cap)
+ *   seen         retry dedupe — NOT needed here: ingest_inbound's is_new is an
+ *                atomic gate on a unique index, which is strictly stronger than
+ *                a 40-entry array that two concurrent lambdas could both miss.
+ */
+
+type Db = SupabaseClient<Database>;
+interface ThreadTurn {
+    role: "user" | "assistant";
+    content: string;
+}
+interface PgThreadState {
+    history: ThreadTurn[];
+    seen: string[];
+    pausedUntil: number;
+    replies: number[];
+}
+declare function readThreadState(db: Db, tenantId: string, conversationId: string, pausedUntilIso: string | null, historyLimit?: number): Promise<PgThreadState>;
 
 /**
  * The single Realtime subscription wrapper (Blueprint §5): every surface
@@ -1575,4 +1608,4 @@ declare function subscribeMessagesInserts(client: SupabaseClient<Database>, onIn
     tenant_id: string;
 }) => void, opts?: SubscribeOptions): () => void;
 
-export { type Database, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type NormalizedCallInput, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, createServiceClient, emitEvent, ingestCall, ingestInbound, linkCallMessage, markProcessed, pauseConversation, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, setCallRecording, subscribeMessagesInserts };
+export { type Database, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type NormalizedCallInput, type PgThreadState, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type ThreadTurn, createServiceClient, emitEvent, ingestCall, ingestInbound, linkCallMessage, markProcessed, pauseConversation, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, setCallRecording, subscribeMessagesInserts };

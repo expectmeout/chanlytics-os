@@ -107,6 +107,23 @@ const SidebarRow = ({ item, active, parentActive, onNavigate, depth = 0, expande
   );
 };
 
+// Identity comes from window.__ME (written by the seam's workspace override).
+// Falls back to the seeded persona only in demo mode; signed in with no
+// identity yet we say so rather than borrow someone else's name.
+const sbMe = () => window.__ME || null;
+const sbAccountEmail = () => (sbMe() ? sbMe().email : window.__DEMO_MODE ? "sales@chanlytics.com" : "Signed in");
+const sbAccountName = () => {
+  const me = sbMe();
+  if (!me) return window.__DEMO_MODE ? "Sarah Chen" : "Your account";
+  const local = (me.email || "").split("@")[0] || "Your account";
+  return local.charAt(0).toUpperCase() + local.slice(1);
+};
+const sbInitials = () => {
+  const me = sbMe();
+  if (!me) return window.__DEMO_MODE ? "SC" : "—";
+  return (me.email || "?").slice(0, 2).toUpperCase();
+};
+
 const Sidebar = ({ active = "home", onNavigate = () => {}, onNewChat = () => {}, onClose = null, agents = ACTIVE_AGENTS_DEFAULT, badges = {} }) => {
   const [, setTick] = React.useState(0);
   const [needs, setNeeds] = React.useState(sbNeedsCount);
@@ -216,8 +233,12 @@ const Sidebar = ({ active = "home", onNavigate = () => {}, onNewChat = () => {},
         {renderGroup(NAV_FOOT)}
       </div>
 
-      {/* Active Agents — fixed-height, scrollable, sorted by status */}
-      <div className="sb-agents">
+      {/* Active Agents — demo only. The seeded roster claims eight agents doing
+          live work ("Phone Rep · On call · Selena Cho · 0:42"); the real
+          product runs two, and the Fleet surface that would show them honestly
+          is a later slice. An invented roster next to real conversation data
+          costs more credibility than the shortcut is worth. */}
+      {window.__DEMO_MODE && <div className="sb-agents">
         <div className="sb-agents-head">
           <span className="sidebar-label" style={{ padding: 0 }}>Agents</span>
           <span className="sb-agents-count">
@@ -251,17 +272,20 @@ const Sidebar = ({ active = "home", onNavigate = () => {}, onNewChat = () => {},
             {(((window.STORE_DATA || {}).STORE_TEMPLATES) || []).filter(t => !t.installed).length || 6} new
           </span>
         </button>
-      </div>
+      </div>}
 
-      {/* User chip */}
+      {/* User chip — the REAL signed-in account when the bridge has it.
+          "Sarah Chen · sales@chanlytics.com" was a fabricated person rendered
+          as you, on every page. Credits are demo-only: there is no billing
+          meter behind that number. */}
       <div className="sidebar-foot">
         <div className="user-chip" onClick={() => onNavigate("admin")}>
-          <div className="avatar">SC</div>
+          <div className="avatar">{sbInitials()}</div>
           <div className="who">
-            <div className="name">Sarah Chen</div>
-            <div className="email">sales@chanlytics.com</div>
+            <div className="name">{sbAccountName()}</div>
+            <div className="email">{sbAccountEmail()}</div>
           </div>
-          <div className="user-credits mono tabular">{sbCredits()}</div>
+          {window.__DEMO_MODE && <div className="user-credits mono tabular">{sbCredits()}</div>}
         </div>
       </div>
     </aside>

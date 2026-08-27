@@ -7,20 +7,27 @@
  * staleness guard, and escalation alerts via Resend.
  *
  * Contract (frozen during Meta App Review): process-then-200 in-invocation
- * under maxDuration 60; Meta retries + dedupe make replays safe. The Blob
- * store remains the read source until Gate 1b (READ_SOURCE flip).
+ * under maxDuration 60; Meta retries + dedupe make replays safe. The HTTP
+ * surface is unchanged by Gate 1b — only where memory is read from moves.
  *
  * Postgres dual-write (PG_WRITES=on): additive, fail-safe, batched — the
  * PgSink no-ops when unconfigured so the frozen Blob/send order never depends
  * on PG. wa_replied logs carry ingest_ms/post_ms (blueprint latency budget).
- * PG_DEDUPE=on (default off until after Meta review) also uses the RPC's
- * atomic is_new claim to collapse concurrent redeliveries.
+ *
+ * GATE 1b (PG_READS=on): Postgres becomes the SOURCE of the bot's memory —
+ * history, pause, and rate cap all come from the same rows the dashboard reads
+ * and writes, which retires the Blob mirror and the class of drift bugs that
+ * came with it. Reversible by an env flip (no redeploy); Blob keeps being
+ * written underneath, which is what makes the rollback safe. A Postgres read
+ * failure falls back to Blob rather than giving the bot amnesia. PG_READS
+ * implies PG dedupe: PG-sourced memory has no `seen` list, and ingest_inbound's
+ * atomic is_new claim is a stronger gate than that array ever was.
  *
  * Env: WHATSAPP_VERIFY_TOKEN, META_APP_SECRET, WHATSAPP_ACCESS_TOKEN,
  *      WHATSAPP_PHONE_ID, WHATSAPP_TEST_ALLOWLIST (optional, comma list),
  *      ANTHROPIC_API_KEY, RESEND_API_KEY + LEAD_TO/LEAD_FROM,
  *      BLOB_READ_WRITE_TOKEN, PG_WRITES + SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY,
- *      PG_DEDUPE (optional).
+ *      PG_READS (Gate 1b), PG_DEDUPE (optional, implied by PG_READS).
  */
 import crypto from "node:crypto";
 import { getThread, saveThread, storeBackend, type ThreadState } from "../lib/store.js";
@@ -43,6 +50,7 @@ import {
   recordEchoAndPause,
   pauseConversation,
   emitEvent,
+  readThreadState,
   type IngestResult,
 } from "../lib/workspace/db.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -55,6 +63,30 @@ export const config = { maxDuration: 60 };
 const PAUSE_MS = 24 * 3600 * 1000;   // human echo pauses the bot for 24h
 const MAX_REPLIES_PER_DAY = 20;      // per thread
 const STALE_MS = 10 * 60 * 1000;     // ignore messages older than 10 min (webhook replays)
+
+/** Gate 1b: read the bot's memory from Postgres instead of Blob. */
+const PG_READS = process.env.PG_READS === "on";
+
+/** Sentinel for "Postgres couldn't answer" — distinct from "empty thread", so
+ *  a database blip falls back to Blob instead of giving the bot amnesia and
+ *  re-greeting a customer mid-conversation. */
+const PG_MISS: ThreadState = { history: [], seen: [], pausedUntil: -1, replies: [] };
+
+/** Postgres-sourced thread state, or PG_MISS if it can't be produced. */
+async function pgThread(
+  db: ReturnType<typeof pg>,
+  tenantId: string | null,
+  ing: IngestResult | null,
+): Promise<ThreadState> {
+  if (!db || !tenantId || !ing) return PG_MISS;
+  try {
+    const s = await readThreadState(db, tenantId, ing.conversation_id, ing.paused_until);
+    return { history: s.history, seen: s.seen, pausedUntil: s.pausedUntil, replies: s.replies };
+  } catch (e) {
+    console.error("pg_thread_read_failed", e instanceof Error ? e.message : e);
+    return PG_MISS;
+  }
+}
 
 function waCfg() {
   return { phoneId: process.env.WHATSAPP_PHONE_ID || "", accessToken: process.env.WHATSAPP_ACCESS_TOKEN || "" };
@@ -211,16 +243,34 @@ async function handleInbound(m: WaRawMessage, value: WaChangeValue, tenantId: st
   }
 
   // Persist first (P3/§4): the customer's message is never lost to a later
-  // failure. The Blob read is side-effect-free, so it runs in parallel.
-  const [ing, thread] = (await Promise.all([pgIngest(tenantId, n), getThread(from)])) as
-    [IngestResult | null, ThreadState];
+  // failure.
+  //
+  // Gate 1b (PG_READS=on): Postgres becomes the SOURCE of the bot's memory
+  // instead of a write-only shadow of Blob. Flag-gated and reversible by an env
+  // flip so the live salon line can be rolled back without a redeploy; Blob is
+  // still written underneath, which is what makes that rollback safe.
+  let ing: IngestResult | null;
+  let thread: ThreadState;
+  let memory: "pg" | "blob" = "blob";
+  if (PG_READS) {
+    ing = await pgIngest(tenantId, n);
+    thread = await pgThread(db, tenantId, ing);
+    memory = thread === PG_MISS ? "blob" : "pg";
+    if (memory === "blob") thread = await getThread(from);
+  } else {
+    // The Blob read is side-effect-free, so it runs alongside the write.
+    [ing, thread] = (await Promise.all([pgIngest(tenantId, n), getThread(from)])) as
+      [IngestResult | null, ThreadState];
+  }
   const ingestMs = Date.now() - t0;
   const sink = pgSink(db, tenantId, ing);
 
-  // Atomic concurrent-redelivery gate (env-flagged: changes frozen reply
-  // behavior, so it stays off until after Meta App Review). A missed auto-reply
-  // beats a double text, so processed-state is deliberately not consulted.
-  if (process.env.PG_DEDUPE === "on" && ing && !ing.is_new) {
+  // Atomic concurrent-redelivery gate. PG_READS implies it: Postgres-sourced
+  // memory carries no `seen` list, so is_new IS the dedupe — and it is stronger
+  // than the array was (a unique index two concurrent lambdas cannot both miss).
+  // A missed auto-reply beats a double text, so processed-state is deliberately
+  // not consulted.
+  if ((process.env.PG_DEDUPE === "on" || memory === "pg") && ing && !ing.is_new) {
     console.log("wa_skip_pg_dupe", m.id);
     return;
   }
@@ -320,7 +370,7 @@ async function handleInbound(m: WaRawMessage, value: WaChangeValue, tenantId: st
     ]);
   }
   console.log("wa_replied", JSON.stringify({
-    to: from, escalate, sent: sent.ok, store: storeBackend(),
+    to: from, escalate, sent: sent.ok, store: storeBackend(), memory,
     ingest_ms: ingestMs, post_ms: Date.now() - tSent,
   }));
 }
