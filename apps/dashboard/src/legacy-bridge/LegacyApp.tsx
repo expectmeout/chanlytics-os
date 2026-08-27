@@ -14,16 +14,41 @@ import "./seed-globals"; // must evaluate before the manifest
 import "./manifest";
 import "./legacy.css";
 import { workspaceOverride, conversationsOverride, inboxOverride, todayOverride, type Workspace } from "./surface-data";
-import { getSurfaceStatuses, onSurfaceStatusChange, startSurfaces } from "./surface-runner";
+import {
+  getSurfaceStatuses,
+  isSurfaceReady,
+  markHydrated,
+  onSurfaceStatusChange,
+  startSurfaces,
+} from "./surface-runner";
+import { clearSurfaceCache, hydrateSurfaceCache } from "./surface-cache";
 import { installInboxVerbs } from "./inbox-verbs";
 
 installInboxVerbs();
+
+// Runs at module scope — AFTER the manifest has installed its seeds, and
+// BEFORE React renders anything. That ordering is the whole point: a refresh
+// paints real data from the previous visit instead of a frame of mockup
+// numbers that get corrected a moment later.
+markHydrated(hydrateSurfaceCache());
 
 // The mockup's own data-before-mount contract (boot gate).
 const REQUIRED = ["CHANLY", "INBOX_DATA", "CLIENTS", "FLEET_DATA", "CHANLY_DATA", "POLICY", "ChanlyticsApp"] as const;
 
 const SURFACES = [workspaceOverride, conversationsOverride, inboxOverride, todayOverride];
 const SURFACE_LABELS: Record<string, string> = { conversations: "Conversations", inbox: "Inbox", today: "Today" };
+
+/**
+ * Which flipped surface backs each route. The shell asks this before painting:
+ * a route whose data isn't ready yet shows the app's own skeleton rather than
+ * the mockup's seeds. Routes absent from this map are seeded by design (their
+ * slice hasn't happened) and are always ready — they must never wait.
+ */
+const ROUTE_SURFACE: Record<string, string> = {
+  today: "today",
+  inbox: "inbox",
+  conversations: "conversations",
+};
 
 interface Prefs {
   theme: "light" | "dark";
@@ -76,6 +101,24 @@ export default function LegacyApp() {
   useEffect(() => {
     document.documentElement.classList.add("legacy-on");
     return () => document.documentElement.classList.remove("legacy-on");
+  }, []);
+
+  // The shell's route gate. Exposed on window because app-shell.jsx is a
+  // legacy mockup file with no import of ours — same pattern as appNavigate.
+  useEffect(() => {
+    const w = window as unknown as {
+      __surfaceGate?: (page: string) => boolean;
+      __onSurfaceReady?: (fn: () => void) => () => void;
+    };
+    w.__surfaceGate = (page) => {
+      const key = ROUTE_SURFACE[page];
+      return key ? isSurfaceReady(key) : true;
+    };
+    w.__onSurfaceReady = onSurfaceStatusChange;
+    return () => {
+      delete w.__surfaceGate;
+      delete w.__onSurfaceReady;
+    };
   }, []);
 
   // Surface flips: one runner owns retries, realtime, debounce, and status.
@@ -158,7 +201,7 @@ export default function LegacyApp() {
         ) : (
           <span>Seeded preview — no live data yet</span>
         )}
-        <form action="/auth/signout" method="post" className="pill-signout">
+        <form action="/auth/signout" method="post" className="pill-signout" onSubmit={clearSurfaceCache}>
           <button type="submit" title="Sign out">Sign out</button>
         </form>
       </div>

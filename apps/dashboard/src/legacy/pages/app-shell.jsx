@@ -12,6 +12,10 @@
 
 const { useState: useShellState, useEffect: useShellEffect, useCallback: useShellCallback } = React;
 
+// Is this route's data actually available? The bridge installs __surfaceGate
+// for flipped surfaces; unflipped ones are seeded and always ready.
+const routeReady = (page) => !window.__surfaceGate || window.__surfaceGate(page);
+
 // ---- Route helpers ----------------------------------------------------
 const parseHash = () => {
   const raw = (window.location.hash || "#/today").replace(/^#\/?/, "");
@@ -187,7 +191,9 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
     return () => window.removeEventListener("inbox:counts", onCounts);
   }, []);
   const [navOpen, setNavOpen] = useShellState(false);
-  const [routeLoading, setRouteLoading] = useShellState(true);
+  // Lazy init: if the very first route already has its data (cache hydrated
+  // before mount), the skeleton never renders at all — not even for a frame.
+  const [routeLoading, setRouteLoading] = useShellState(() => !routeReady(parseHash().page));
 
   const navigate = useShellCallback((to) => { window.location.hash = "/" + to; }, []);
   const openAsk = useShellCallback(() => setAskOpen(true), []);
@@ -416,9 +422,20 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
   const routeKey = `${page}/${param || ""}`;
   useShellEffect(() => {
     setNavOpen(false);
+    // A skeleton is for waiting on data we don't have — not a timer. When the
+    // bridge says this route's data is ready (cached from the last visit, or
+    // already fetched) we paint immediately; navigating between loaded
+    // surfaces costs nothing. Without the bridge (pure mockup) everything is
+    // "ready", so the seeded demo also stops paying 320ms per navigation.
+    if (routeReady(page)) { setRouteLoading(false); return; }
     setRouteLoading(true);
-    const t = setTimeout(() => setRouteLoading(false), 320);
-    return () => clearTimeout(t);
+    const off = window.__onSurfaceReady
+      ? window.__onSurfaceReady(() => { if (routeReady(page)) setRouteLoading(false); })
+      : null;
+    // Never let a wedged fetch strand the operator on a skeleton: fall through
+    // to whatever we have and let the bridge pill report the degraded state.
+    const t = setTimeout(() => setRouteLoading(false), 8000);
+    return () => { if (off) off(); clearTimeout(t); };
   }, [routeKey]);
 
   // Shared read-only viewer — chrome-less, rendered AFTER all hooks so the

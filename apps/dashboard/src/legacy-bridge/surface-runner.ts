@@ -12,16 +12,38 @@
 import { createClient } from "@/lib/supabase/client";
 import { subscribeMessagesInserts } from "@chanlytics/db";
 import { activateOverride, UnauthorizedError, type SurfaceOverride } from "./surface-data";
+import { cachedTenant, clearSurfaceCache, snapshotSurface } from "./surface-cache";
 
 export type SurfaceStatus = "seeded" | "live" | "degraded";
 
 const statuses = new Map<string, SurfaceStatus>();
 const listeners = new Set<() => void>();
 
+/**
+ * Surfaces that hold real data RIGHT NOW — either restored from cache before
+ * first paint, or settled by a boot attempt. Distinct from `statuses`: a
+ * cache-hydrated surface is showing real data long before its revalidation
+ * finishes, and must not be made to wait behind a loading state.
+ */
+const ready = new Set<string>();
+
 function setStatus(key: string, s: SurfaceStatus) {
-  if (statuses.get(key) === s) return;
+  ready.add(key); // boot settled: whatever it shows now is what it will show
+  if (statuses.get(key) === s) {
+    listeners.forEach((l) => l());
+    return;
+  }
   statuses.set(key, s);
   listeners.forEach((l) => l());
+}
+
+/** Seed the ready set with what the cache restored before React mounted. */
+export function markHydrated(keys: Iterable<string>): void {
+  for (const k of keys) ready.add(k);
+}
+
+export function isSurfaceReady(key: string): boolean {
+  return ready.has(key);
 }
 
 export function getSurfaceStatuses(): ReadonlyMap<string, SurfaceStatus> {
@@ -41,15 +63,26 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
   const topic = `bridge-${++runnerSeq}`; // unique per runner: StrictMode double-mounts never collide
 
   const onUnauthorized = () => {
+    // Cached customer data must never outlive the session allowed to see it.
+    clearSurfaceCache();
     if (!cancelled) window.location.assign("/login");
+  };
+
+  const tenantId = () =>
+    (window as unknown as { __WORKSPACES?: Array<{ id: string }> }).__WORKSPACES?.[0]?.id ?? null;
+
+  const persist = (o: SurfaceOverride) => {
+    if (o.globals?.length) snapshotSurface(o.key, o.globals, tenantId());
   };
 
   const refresh = async (o: SurfaceOverride, phase: "boot" | "refresh") => {
     try {
       const ok = await activateOverride(o);
       if (cancelled) return;
-      if (ok) setStatus(o.key, "live");
-      else if (phase === "boot") setStatus(o.key, "seeded");
+      if (ok) {
+        persist(o);
+        setStatus(o.key, "live");
+      } else if (phase === "boot") setStatus(o.key, "seeded");
       else setStatus(o.key, "degraded");
     } catch (e) {
       if (e instanceof UnauthorizedError) onUnauthorized();
@@ -65,6 +98,7 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
         ok = await activateOverride(o);
       }
       if (cancelled) return;
+      if (ok) persist(o);
       setStatus(o.key, ok ? "live" : "seeded");
     } catch (e) {
       if (e instanceof UnauthorizedError) onUnauthorized();
@@ -85,8 +119,24 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
   let unsubscribe: (() => void) | null = null;
   let everSubscribed = false;
 
+  // Restored cache belongs to whoever was signed in when it was written. If a
+  // different workspace comes back, that data was never theirs to see: drop it
+  // and reload rather than leave another tenant's rows on screen.
+  const guardTenant = () => {
+    const cached = cachedTenant();
+    const actual = tenantId();
+    if (cached && actual && cached !== actual) {
+      clearSurfaceCache();
+      window.location.reload();
+      return true;
+    }
+    return false;
+  };
+
   void Promise.all(overrides.map(boot)).then(() => {
-    if (cancelled || !realtimeOverrides.length) return;
+    if (cancelled) return;
+    if (guardTenant()) return;
+    if (!realtimeOverrides.length) return;
     const supabase = createClient();
     unsubscribe = subscribeMessagesInserts(
       supabase,

@@ -13,6 +13,13 @@
 export interface SurfaceOverride {
   /** Surface key, matching the slice that owns it (e.g. "conversations"). */
   key: string;
+  /**
+   * The window globals this override owns. The runner snapshots them after a
+   * successful apply so the next boot can paint real data before first render
+   * instead of flashing the mockup's seeds. Declaring them here (rather than
+   * hardcoding a list in the cache) keeps flipping a surface a one-file change.
+   */
+  globals?: string[];
   /** Fetch real data and write it into the surface's window globals. */
   apply: () => Promise<void>;
   /** Mockup events to dispatch after apply so mounted components re-render. */
@@ -58,6 +65,7 @@ export interface Workspace { id: string; slug: string; name: string; status: str
 
 export const workspaceOverride: SurfaceOverride & { current: () => Workspace | null } = {
   key: "workspace",
+  globals: ["__WORKSPACES"],
   current: () => (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES?.[0] ?? null,
   apply: async () => {
     const data = await fetchEnvelope<{ workspaces: Workspace[] }>("/api/v1/workspaces");
@@ -102,6 +110,7 @@ const REAL_BUCKETS = [
 
 export const inboxOverride: SurfaceOverride = {
   key: "inbox",
+  globals: ["INBOX_DATA"],
   // inbox:counts is NOT dispatched here — a detail-less event zeroes the
   // sidebar badge; the reseeded Inbox emits the real count itself.
   events: ["surface:inbox"],
@@ -161,6 +170,7 @@ export const inboxOverride: SurfaceOverride = {
  */
 export const todayOverride: SurfaceOverride = {
   key: "today",
+  globals: ["TODAY_DATA"],
   events: ["surface:today"],
   refreshOnMessageInserts: true,
   debounceMs: 800, // the recap is aggregate, not per-thread — no need to be twitchy
@@ -199,6 +209,7 @@ export const todayOverride: SurfaceOverride = {
 
 export const conversationsOverride: SurfaceOverride = {
   key: "conversations",
+  globals: ["CONVERSATIONS_DATA"],
   events: ["surface:conversations"],
   refreshOnMessageInserts: true,
   apply: async () => {
