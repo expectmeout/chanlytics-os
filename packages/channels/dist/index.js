@@ -4,7 +4,8 @@ var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 // src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";
 function normalizeInbound(m, value) {
-  const contact = (value.contacts || []).find((c) => c.wa_id === m.from) || (value.contacts || [])[0];
+  const list = value.contacts || [];
+  const contact = list.find((c) => c.wa_id === m.from) ?? (list.length === 1 ? list[0] : void 0);
   const mediaSrc = m.image || m.audio || m.video || m.document || m.sticker || null;
   const isText = m.type === "text" && !!m.text?.body;
   const body = isText ? m.text.body : null;

@@ -1008,6 +1008,13 @@ type Database = {
                 };
                 Returns: Json;
             };
+            mark_processed: {
+                Args: {
+                    p_message_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: undefined;
+            };
         };
         Enums: {
             [_ in never]: never;
@@ -1062,7 +1069,8 @@ interface IngestResult {
     paused_until: string | null;
 }
 declare function ingestInbound(db: Db, p: IngestInboundParams): Promise<IngestResult>;
-/** Stamp a message handled (replied / deliberately skipped) — retry no-ops after this. */
+/** Stamp a message handled (replied / deliberately skipped) — retry no-ops after this.
+ *  One server-side jsonb merge (no read-modify-write, no lost-update race). */
 declare function markProcessed(db: Db, tenantId: string, messageId: string): Promise<void>;
 declare function recordOutbound(db: Db, p: {
     tenantId: string;
@@ -1077,7 +1085,10 @@ declare function recordOutbound(db: Db, p: {
 }): Promise<string | null>;
 /** Delivery receipts: update by wamid; monotone rank enforced by trigger. */
 declare function recordStatusByExternalId(db: Db, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
-/** Owner replied from the WhatsApp Business app: persist the echo + pause the bot. */
+/** Owner replied from the WhatsApp Business app: persist the echo + pause the bot.
+ *  Upserts the contact/conversation — an owner-INITIATED thread (customer never
+ *  messaged yet) must still record the message and the pause, or PG diverges
+ *  from the Blob pause forever. */
 declare function recordEchoAndPause(db: Db, p: {
     tenantId: string;
     customerPhoneDigits: string;
@@ -1095,6 +1106,9 @@ interface RoutedChannel {
     channelId: string;
     tenantId: string;
     kind: string;
+    numberE164: string | null;
+    credentialsRef: string | null;
+    config: Json;
 }
 declare function resolveChannel(db: SupabaseClient<Database>, kind: string, externalId: string): Promise<RoutedChannel | null>;
 
@@ -1102,12 +1116,22 @@ declare function resolveChannel(db: SupabaseClient<Database>, kind: string, exte
  * The single Realtime subscription wrapper (Blueprint §5): every surface
  * subscribes through here, so the documented scale path (postgres_changes →
  * broadcast-from-database) never touches a surface. RLS authorizes events —
- * callers pass an AUTHED client.
+ * callers pass an AUTHED client. Topic names are caller-scoped: two
+ * subscriptions on one client MUST NOT share a topic (realtime-js throws on
+ * .on() after subscribe for an existing topic).
  */
 
+interface SubscribeOptions {
+    /** Unique topic suffix per subscriber (default "bridge"). */
+    topic?: string;
+    /** Server-side row filter, e.g. a tenant id — RLS still applies regardless. */
+    tenantId?: string;
+    /** Observability: called with SUBSCRIBED / CHANNEL_ERROR / TIMED_OUT / CLOSED. */
+    onStatus?: (status: string) => void;
+}
 declare function subscribeMessagesInserts(client: SupabaseClient<Database>, onInsert: (row: {
     conversation_id: string;
     tenant_id: string;
-}) => void): () => void;
+}) => void, opts?: SubscribeOptions): () => void;
 
-export { type Database, type IngestInboundParams, type IngestResult, type Json, type RoutedChannel, type ServiceClientConfig, createServiceClient, emitEvent, ingestInbound, markProcessed, pauseConversation, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, subscribeMessagesInserts };
+export { type Database, type IngestInboundParams, type IngestResult, type Json, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, createServiceClient, emitEvent, ingestInbound, markProcessed, pauseConversation, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, subscribeMessagesInserts };

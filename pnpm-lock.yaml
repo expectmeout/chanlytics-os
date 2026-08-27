@@ -118,6 +118,12 @@ importers:
 
   tooling/scripts:
     dependencies:
+      '@chanlytics/channels':
+        specifier: workspace:*
+        version: link:../../packages/channels
+      '@chanlytics/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@supabase/supabase-js':
         specifier: ^2.49.0
         version: 2.112.4

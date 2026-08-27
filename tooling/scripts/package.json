@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@supabase/supabase-js": "^2.49.0"
+    "@supabase/supabase-js": "^2.49.0",
+    "@chanlytics/contracts": "workspace:*",
+    "@chanlytics/channels": "workspace:*"
   }
 }

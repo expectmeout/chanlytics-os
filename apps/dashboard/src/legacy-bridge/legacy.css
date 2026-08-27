@@ -45,9 +45,18 @@ html.legacy-on #root {
   font-size: 12px;
   font-family: Geist, ui-sans-serif, sans-serif;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-  pointer-events: none;
 }
 .bridge-pill b { color: var(--ink, #e5ece9); font-weight: 500; }
+.bridge-pill .pill-action {
+  background: none; border: none; color: #d19a45; font: inherit;
+  cursor: pointer; padding: 0; font-weight: 600;
+}
+.bridge-pill .pill-signout { display: inline; margin-left: 4px; }
+.bridge-pill .pill-signout button {
+  background: none; border: none; color: var(--ink-muted, #93a5a0);
+  font: inherit; font-size: 11px; cursor: pointer; padding: 0;
+  text-decoration: underline; text-underline-offset: 2px;
+}
 .bridge-pill .dot {
   width: 7px;
   height: 7px;

@@ -35,6 +35,8 @@ declare const err: (code: ErrorCode, message: string, details?: unknown) => Err;
  * this normalizer is for the display/dial identity only.
  */
 declare function normalizePhone(raw: string | null | undefined): string | null;
+/** Human-readable phone for display: NANP gets +1 (XXX) XXX-XXXX; others get spaced groups. */
+declare function formatPhoneDisplay(e164: string | null | undefined): string | null;
 
 /**
  * Closed sets shared with the database CHECK constraints.
@@ -65,7 +67,7 @@ type JobKind = (typeof JOB_KINDS)[number];
 declare const JOB_STATES: readonly ["scheduled", "fired", "canceled", "failed"];
 type JobState = (typeof JOB_STATES)[number];
 /** Dot-namespaced event kinds emitted so far (grows per slice). */
-declare const EVENT_KINDS: readonly ["message.received", "message.sent", "message.status", "escalation.opened", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.pg_failed"];
+declare const EVENT_KINDS: readonly ["message.received", "message.sent", "message.status", "escalation.opened", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.pg_failed", "message.send_failed"];
 type EventKind = (typeof EVENT_KINDS)[number];
 /** Customer texts that mean opt-out (webhook consent handling, §4). */
 declare const OPT_OUT_PATTERN: RegExp;
@@ -128,4 +130,4 @@ interface ConversationVM {
 }
 declare function toConversationVM(dto: ConversationDto, now?: Date): ConversationVM;
 
-export { AppError, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type ChannelKind, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, ERROR_CODES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EventKind, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, OPT_OUT_PATTERN, type Ok, TENANT_STATUSES, type TenantStatus, err, normalizePhone, ok, toConversationVM };
+export { AppError, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type ChannelKind, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, ERROR_CODES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EventKind, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, OPT_OUT_PATTERN, type Ok, TENANT_STATUSES, type TenantStatus, err, formatPhoneDisplay, normalizePhone, ok, toConversationVM };

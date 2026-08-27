@@ -282,7 +282,7 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
   const { CONVERSATIONS, CV_CHANNELS } = window.CONVERSATIONS_DATA;
   const [query, setQuery] = useCvState("");
   const [selectedId, setSelectedId] = useCvState(initialId);
-  const [, setTick] = useCvState(0);
+  const [tick, setTick] = useCvState(0);
 
   // Deep-link follows later navigations; decisions flip pills live
   useCvEffect(() => { if (initialId) setSelectedId(initialId); }, [initialId]);
@@ -313,7 +313,7 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
       );
     }
     return list;
-  }, [channel, query]);
+  }, [channel, query, tick]); // tick: the SurfaceData swap replaces the array identity
 
   // Keep selection valid within the filtered list
   const selected = visible.find(c => c.id === selectedId) || visible[0];
@@ -324,7 +324,7 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
     phone: CONVERSATIONS.filter(c => c.channel === "phone").length,
     chats: CONVERSATIONS.filter(c => c.channel === "instagram" || c.channel === "sms" || c.channel === "whatsapp").length,
     mail: CONVERSATIONS.filter(c => c.channel === "mail").length,
-  }), []);
+  }), [tick]); // tick: counts read the swapped global too
 
   return (
     <div className="conversations">

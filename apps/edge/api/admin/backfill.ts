@@ -18,6 +18,9 @@ import { pg } from "../../lib/pg.js";
 
 export const config = { maxDuration: 60 };
 
+// Dormant-thread anchor: a pause set at time T began ~24h earlier.
+const PAUSE_APPROX_MS = 24 * 3600 * 1000;
+
 interface BlobThread {
   history: Array<{ role: "user" | "assistant"; content: string }>;
   seen: string[];
@@ -50,14 +53,18 @@ export async function GET(request: Request): Promise<Response> {
   const { data: tenant } = await db.from("tenants").select("id").eq("slug", tenantSlug).single();
   if (!tenant) return json(404, { ok: false, error: "tenant not found" });
 
-  const { blobs } = await list({ prefix: "threads/" });
   const snapshot: Array<{ phone: string; thread: BlobThread }> = [];
-  for (const b of blobs) {
-    const phone = b.pathname.replace(/^threads\//, "").replace(/\.json$/, "");
-    if (!/^\d{8,15}$/.test(phone)) continue; // skips diag-probe and anything non-phone
-    const t = await readBlobThread(b.pathname);
-    if (t) snapshot.push({ phone, thread: t });
-  }
+  let cursor: string | undefined;
+  do {
+    const page = await list({ prefix: "threads/", cursor });
+    for (const b of page.blobs) {
+      const phone = b.pathname.replace(/^threads\//, "").replace(/\.json$/, "");
+      if (!/^\d{8,15}$/.test(phone)) continue; // skips diag-probe and anything non-phone
+      const t = await readBlobThread(b.pathname);
+      if (t) snapshot.push({ phone, thread: t });
+    }
+    cursor = page.hasMore ? page.cursor : undefined;
+  } while (cursor);
 
   const report: Array<Record<string, unknown>> = [];
   for (const { phone, thread } of snapshot) {
@@ -82,11 +89,19 @@ export async function GET(request: Request): Promise<Response> {
     if (conversationId) {
       const { data } = await db
         .from("messages")
-        .select("body, sender, created_at, external_id")
+        .select("body, sender, created_at, external_id, type, meta")
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: true })
         .limit(200);
-      liveRows = (data ?? []).filter((m) => !(m.external_id || "").startsWith("backfill:"));
+      // Compare only rows that ever entered Blob history: media messages and
+      // owner echoes are PG-only, and one of them inside the window would
+      // break every suffix match -> full duplicate import.
+      liveRows = (data ?? []).filter(
+        (m) =>
+          !(m.external_id || "").startsWith("backfill:") &&
+          m.type !== "media" &&
+          !(m.meta as Record<string, unknown> | null)?.echo,
+      );
     }
 
     // longest suffix of blob entries matching the earliest live rows
@@ -109,20 +124,27 @@ export async function GET(request: Request): Promise<Response> {
 
     if (apply && toImport.length + (thread.pausedUntil > Date.now() ? 1 : 0) > 0) {
       if (!contactId) {
-        const { data: c } = await db
+        const { data: c, error: cerr } = await db
           .from("contacts")
-          .insert({ tenant_id: tenant.id, phone_e164: e164 })
+          .upsert({ tenant_id: tenant.id, phone_e164: e164 }, { onConflict: "tenant_id,phone_e164" })
           .select("id").single();
-        contactId = c!.id;
+        if (cerr || !c) { r.err_contact = cerr?.message; report.push(r); continue; }
+        contactId = c.id;
       }
       if (!conversationId) {
-        const { data: cv } = await db
+        const { data: cv, error: verr } = await db
           .from("conversations")
-          .insert({ tenant_id: tenant.id, contact_id: contactId })
+          .upsert({ tenant_id: tenant.id, contact_id: contactId }, { onConflict: "tenant_id,contact_id" })
           .select("id").single();
-        conversationId = cv!.id;
+        if (verr || !cv) { r.err_conversation = verr?.message; report.push(r); continue; }
+        conversationId = cv.id;
       }
-      const earliestLive = liveRows[0]?.created_at ? new Date(liveRows[0].created_at).getTime() : Date.now();
+      // Anchor: before the earliest live row; for dormant threads with no live
+      // rows, before the thread's own last activity (never "just now").
+      const lastActivity = Math.max(0, ...thread.replies, thread.pausedUntil ? thread.pausedUntil - PAUSE_APPROX_MS : 0);
+      const earliestLive = liveRows[0]?.created_at
+        ? new Date(liveRows[0].created_at).getTime()
+        : lastActivity > 0 ? lastActivity : Date.now();
       const anchor = earliestLive - (toImport.length + 60) * 1000;
       let imported = 0;
       for (let i = 0; i < toImport.length; i++) {
@@ -151,7 +173,10 @@ export async function GET(request: Request): Promise<Response> {
       const { data: convRow } = await db
         .from("conversations").select("last_message_at, paused_until").eq("id", conversationId).single();
       const patch: { last_message_at?: string; paused_until?: string; state?: string } = {};
-      if (!convRow?.last_message_at || convRow.last_message_at < lastTs) patch.last_message_at = lastTs;
+      // epoch comparison — PostgREST and toISOString() render timestamps differently
+      if (!convRow?.last_message_at || new Date(convRow.last_message_at).getTime() < new Date(lastTs).getTime()) {
+        patch.last_message_at = lastTs;
+      }
       if (thread.pausedUntil > Date.now()) {
         patch.paused_until = new Date(thread.pausedUntil).toISOString();
         patch.state = "needs_human";

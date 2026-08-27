@@ -7,21 +7,23 @@
  * staleness guard, and escalation alerts via Resend.
  *
  * Contract (frozen during Meta App Review): process-then-200 in-invocation
- * under maxDuration 60; Meta retries + dedupe make replays safe.
+ * under maxDuration 60; Meta retries + dedupe make replays safe. The Blob
+ * store remains the read source until Gate 1b (READ_SOURCE flip).
  *
- * Slice 1 dual-write (PG_WRITES=on): every event ALSO persists to Postgres —
- * contacts/identities/conversations/messages/events via ingest_inbound (the
- * atomic gate), delivery statuses by wamid, owner echoes, media fetched to
- * Storage at ingest (Meta URLs die in minutes). Blob remains the read source
- * (READ_SOURCE flips at Gate 1b); PG failures log and never break handling.
+ * Postgres dual-write (PG_WRITES=on): additive, fail-safe, batched — the
+ * PgSink no-ops when unconfigured so the frozen Blob/send order never depends
+ * on PG. wa_replied logs carry ingest_ms/post_ms (blueprint latency budget).
+ * PG_DEDUPE=on (default off until after Meta review) also uses the RPC's
+ * atomic is_new claim to collapse concurrent redeliveries.
  *
  * Env: WHATSAPP_VERIFY_TOKEN, META_APP_SECRET, WHATSAPP_ACCESS_TOKEN,
  *      WHATSAPP_PHONE_ID, WHATSAPP_TEST_ALLOWLIST (optional, comma list),
  *      ANTHROPIC_API_KEY, RESEND_API_KEY + LEAD_TO/LEAD_FROM,
- *      BLOB_READ_WRITE_TOKEN, PG_WRITES + SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
+ *      BLOB_READ_WRITE_TOKEN, PG_WRITES + SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY,
+ *      PG_DEDUPE (optional).
  */
 import crypto from "node:crypto";
-import { getThread, saveThread, storeBackend } from "../lib/store.js";
+import { getThread, saveThread, storeBackend, type ThreadState } from "../lib/store.js";
 import { json, text } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import {
@@ -43,6 +45,8 @@ import {
   emitEvent,
   type IngestResult,
 } from "../lib/workspace/db.js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database, Json } from "../lib/workspace/db.js";
 
 export const config = { maxDuration: 60 };
 
@@ -54,11 +58,11 @@ function waCfg() {
   return { phoneId: process.env.WHATSAPP_PHONE_ID || "", accessToken: process.env.WHATSAPP_ACCESS_TOKEN || "" };
 }
 
-async function sendText(to: string, body: string): Promise<{ ok: boolean; wamid: string | null }> {
+async function sendText(to: string, body: string): Promise<{ ok: boolean; wamid: string | null; status: number }> {
   const r = await waSendText(waCfg(), to, body);
   if (!r.ok) console.error("wa_send_failed", r.status, r.errorBody);
   else console.log("wa_sent", JSON.stringify({ to, wamid: r.wamid }));
-  return { ok: r.ok, wamid: r.wamid };
+  return { ok: r.ok, wamid: r.wamid, status: r.status };
 }
 
 async function alertStaff(threadId: string, userText: string, botText: string, reason: string): Promise<void> {
@@ -100,8 +104,8 @@ async function pgIngest(tenantId: string | null, n: NormalizedInbound): Promise<
       type: n.type,
       body: n.body,
       channelTs: n.channelTsIso,
-      media: n.media ? (n.media as unknown as import("../lib/workspace/db.js").Json) : null,
-      meta: { raw_type: n.rawType } as import("../lib/workspace/db.js").Json,
+      media: n.media ? (n.media as unknown as Json) : null,
+      meta: { raw_type: n.rawType } as Json,
       optOut: n.optOut,
     });
   } catch (e) {
@@ -123,74 +127,116 @@ const MIME_EXT: Record<string, string> = {
   "audio/ogg": "ogg", "audio/mpeg": "mp3", "video/mp4": "mp4", "application/pdf": "pdf",
 };
 
-/** Fetch expiring Meta media into Storage; update the message's media state. */
-async function pgFetchMedia(tenantId: string, ing: IngestResult, n: NormalizedInbound): Promise<void> {
-  const db = pg();
-  if (!db || !n.media) return;
-  try {
-    const got = await fetchMediaBytes(waCfg(), n.media.provider_media_id);
-    const mediaOut = { ...n.media } as Record<string, unknown>;
-    if (got) {
-      const ext = MIME_EXT[got.mime || ""] || "bin";
-      const path = `${tenantId}/${ing.conversation_id}/${ing.message_id}.${ext}`;
-      const { error } = await db.storage.from("media").upload(path, got.bytes, {
-        contentType: got.mime || "application/octet-stream",
-        upsert: true,
-      });
-      if (error) throw new Error(error.message);
-      mediaOut.fetch_state = "stored";
-      mediaOut.storage_path = path;
-      mediaOut.mime_type = got.mime;
-    } else {
-      mediaOut.fetch_state = "failed";
-    }
-    await db.from("messages").update({ media: mediaOut as import("../lib/workspace/db.js").Json }).eq("id", ing.message_id).eq("tenant_id", tenantId);
-  } catch (e) {
-    console.error("pg_media_fetch_failed", e instanceof Error ? e.message : e);
-  }
+/** All PG bookkeeping for one inbound message; every method no-ops when unconfigured. */
+function pgSink(db: SupabaseClient<Database> | null, tenantId: string | null, ing: IngestResult | null) {
+  const on = !!(db && tenantId && ing);
+  return {
+    on,
+    processed: () =>
+      on ? pgSafe("processed", () => markProcessed(db!, tenantId!, ing!.message_id)) : Promise.resolve(),
+    allowlistSkip: () =>
+      on
+        ? pgSafe("allowlist_evt", () =>
+            emitEvent(db!, tenantId!, "ingest.allowlist_skip", "ingest", "message", ing!.message_id))
+        : Promise.resolve(),
+    pause: (iso: string) =>
+      on ? pgSafe("pause", () => pauseConversation(db!, tenantId!, ing!.conversation_id, iso)) : Promise.resolve(),
+    outbound: (body: string, wamid: string | null) =>
+      on
+        ? pgSafe("outbound", () =>
+            recordOutbound(db!, {
+              tenantId: tenantId!, conversationId: ing!.conversation_id, contactId: ing!.contact_id,
+              sender: "ai", body, externalId: wamid,
+            }))
+        : Promise.resolve(),
+    usage: (u: { input_tokens: number; output_tokens: number }) =>
+      on
+        ? pgSafe("usage", () =>
+            emitEvent(db!, tenantId!, "usage.llm_tokens", "usage", "conversation", ing!.conversation_id,
+              u as unknown as Json))
+        : Promise.resolve(),
+    sendFailed: (httpStatus: number) =>
+      on
+        ? pgSafe("send_failed_evt", () =>
+            emitEvent(db!, tenantId!, "message.send_failed", "message", "message", ing!.message_id,
+              { http_status: httpStatus } as Json))
+        : Promise.resolve(),
+    media: (n: NormalizedInbound) =>
+      on && n.media
+        ? pgSafe("media_fetch", async () => {
+            const got = await fetchMediaBytes(waCfg(), n.media!.provider_media_id);
+            const mediaOut = { ...n.media } as Record<string, unknown>;
+            if (got) {
+              const ext = MIME_EXT[got.mime || ""] || "bin";
+              const path = `${tenantId}/${ing!.conversation_id}/${ing!.message_id}.${ext}`;
+              const { error } = await db!.storage.from("media").upload(path, got.bytes, {
+                contentType: got.mime || "application/octet-stream",
+                upsert: true,
+              });
+              if (error) throw new Error(error.message);
+              mediaOut.fetch_state = "stored";
+              mediaOut.storage_path = path;
+              mediaOut.mime_type = got.mime;
+            } else {
+              mediaOut.fetch_state = "failed";
+            }
+            await db!.from("messages").update({ media: mediaOut as Json })
+              .eq("id", ing!.message_id).eq("tenant_id", tenantId!);
+          })
+        : Promise.resolve(),
+  };
 }
 
 async function handleInbound(m: WaRawMessage, value: WaChangeValue, tenantId: string | null): Promise<void> {
   const from = m.from;
   const n = normalizeInbound(m, value);
-  // Persist first (P3/§4): the customer's message is never lost to a later failure.
-  const ing = await pgIngest(tenantId, n);
   const db = pg();
+  const t0 = Date.now();
 
   const allow = (process.env.WHATSAPP_TEST_ALLOWLIST || "").split(",").map((s) => s.trim()).filter(Boolean);
   if (allow.length && !allow.includes(from)) {
     // §4 delta (deliberate): allowlist gates the REPLY, not the persist.
-    if (db && tenantId && ing) {
-      await pgSafe("allowlist_evt", () =>
-        emitEvent(db, tenantId, "ingest.allowlist_skip", "ingest", "message", ing.message_id));
-      await pgSafe("processed", () => markProcessed(db, tenantId, ing.message_id));
-    }
+    const ing = await pgIngest(tenantId, n);
+    const sink = pgSink(db, tenantId, ing);
+    await sink.allowlistSkip();
+    await sink.processed();
     return;
   }
+
+  // Persist first (P3/§4): the customer's message is never lost to a later
+  // failure. The Blob read is side-effect-free, so it runs in parallel.
+  const [ing, thread] = (await Promise.all([pgIngest(tenantId, n), getThread(from)])) as
+    [IngestResult | null, ThreadState];
+  const ingestMs = Date.now() - t0;
+  const sink = pgSink(db, tenantId, ing);
+
+  // Atomic concurrent-redelivery gate (env-flagged: changes frozen reply
+  // behavior, so it stays off until after Meta App Review). A missed auto-reply
+  // beats a double text, so processed-state is deliberately not consulted.
+  if (process.env.PG_DEDUPE === "on" && ing && !ing.is_new) {
+    console.log("wa_skip_pg_dupe", m.id);
+    return;
+  }
+
   if (m.type !== "text" || !m.text || !m.text.body) {
     // non-text (voice note, image, sticker): hand to a human rather than guess
-    if (db && tenantId && ing) await pgFetchMedia(tenantId, ing, n);
-    const t = await getThread(from);
-    if (Date.now() > t.pausedUntil) {
+    await sink.media(n);
+    if (Date.now() > thread.pausedUntil) {
       await sendText(from, "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at (646) 932-5775.");
-      t.pausedUntil = Date.now() + PAUSE_MS;
-      await saveThread(from, t);
-      if (db && tenantId && ing) {
-        await pgSafe("pause", () =>
-          pauseConversation(db, tenantId, ing.conversation_id, new Date(Date.now() + PAUSE_MS).toISOString()));
-      }
+      thread.pausedUntil = Date.now() + PAUSE_MS;
+      await saveThread(from, thread);
+      await sink.pause(new Date(Date.now() + PAUSE_MS).toISOString());
       await alertStaff(from, `[${m.type} message]`, "(auto-acknowledged, bot paused)", "non-text message");
     }
-    if (db && tenantId && ing) await pgSafe("processed", () => markProcessed(db, tenantId, ing.message_id));
+    await sink.processed();
     return;
   }
   if (m.timestamp && Date.now() - Number(m.timestamp) * 1000 > STALE_MS) {
     console.log("wa_skip_stale", m.id);
-    if (db && tenantId && ing) await pgSafe("processed", () => markProcessed(db, tenantId, ing.message_id));
+    await sink.processed();
     return;
   }
 
-  const thread = await getThread(from);
   if (thread.seen.includes(m.id)) { console.log("wa_skip_dupe", m.id); return; }
   thread.seen.push(m.id);
 
@@ -198,13 +244,13 @@ async function handleInbound(m: WaRawMessage, value: WaChangeValue, tenantId: st
     thread.history.push({ role: "user", content: m.text.body });
     await saveThread(from, thread);
     console.log("wa_skip_paused", from);
-    if (db && tenantId && ing) await pgSafe("processed", () => markProcessed(db, tenantId, ing.message_id));
+    await sink.processed();
     return;
   }
   if (thread.replies.length >= MAX_REPLIES_PER_DAY) {
     await saveThread(from, thread);
     console.log("wa_skip_ratecap", from);
-    if (db && tenantId && ing) await pgSafe("processed", () => markProcessed(db, tenantId, ing.message_id));
+    await sink.processed();
     return;
   }
 
@@ -226,33 +272,34 @@ async function handleInbound(m: WaRawMessage, value: WaChangeValue, tenantId: st
   }
 
   const sent = await sendText(from, replyText);
+  const tSent = Date.now();
   if (sent.ok) {
     thread.history.push({ role: "user", content: m.text.body });
     thread.history.push({ role: "assistant", content: replyText });
     thread.replies.push(Date.now());
-    if (db && tenantId && ing) {
-      await pgSafe("outbound", () =>
-        recordOutbound(db, {
-          tenantId, conversationId: ing.conversation_id, contactId: ing.contact_id,
-          sender: "ai", body: replyText, externalId: sent.wamid,
-        }));
-      if (usage) {
-        await pgSafe("usage", () =>
-          emitEvent(db, tenantId, "usage.llm_tokens", "usage", "conversation", ing.conversation_id, usage as unknown as import("../lib/workspace/db.js").Json));
-      }
-    }
+    const post: Promise<unknown>[] = [sink.outbound(replyText, sent.wamid)];
+    if (usage) post.push(sink.usage(usage));
     if (escalate) {
       thread.pausedUntil = Date.now() + PAUSE_MS;
-      if (db && tenantId && ing) {
-        await pgSafe("pause", () =>
-          pauseConversation(db, tenantId, ing.conversation_id, new Date(Date.now() + PAUSE_MS).toISOString()));
-      }
-      await alertStaff(from, m.text.body, replyText, "assistant flagged handoff");
+      post.push(sink.pause(new Date(Date.now() + PAUSE_MS).toISOString()));
+      post.push(alertStaff(from, m.text.body, replyText, "assistant flagged handoff"));
     }
+    await Promise.all(post);
+    await saveThread(from, thread);
+    await sink.processed();
+  } else {
+    // The customer got NO reply and Meta already has its 200 — this must be
+    // loud, and the message must stay visibly unprocessed for reconciliation.
+    await saveThread(from, thread);
+    await Promise.all([
+      alertStaff(from, m.text.body, "(send failed — the customer received no reply)", "wa_send_failed"),
+      sink.sendFailed(sent.status),
+    ]);
   }
-  await saveThread(from, thread);
-  if (db && tenantId && ing) await pgSafe("processed", () => markProcessed(db, tenantId, ing.message_id));
-  console.log("wa_replied", JSON.stringify({ to: from, escalate, store: storeBackend() }));
+  console.log("wa_replied", JSON.stringify({
+    to: from, escalate, sent: sent.ok, store: storeBackend(),
+    ingest_ms: ingestMs, post_ms: Date.now() - tSent,
+  }));
 }
 
 export async function GET(request: Request): Promise<Response> {
@@ -306,14 +353,14 @@ export async function POST(request: Request): Promise<Response> {
             await handleInbound(m, v, tenantId);
           }
         } else if (field === "messages" && v.statuses) {
-          for (const s of v.statuses) {
+          await Promise.all((v.statuses ?? []).map(async (s) => {
             console.log("wa_status", JSON.stringify({ id: s.id, status: s.status, to: s.recipient_id, errors: s.errors }));
             if (db && tenantId && s.id && s.status && ["sent", "delivered", "read", "failed"].includes(s.status)) {
               await pgSafe("status", () =>
                 recordStatusByExternalId(db, tenantId!, s.id!, s.status as "sent" | "delivered" | "read" | "failed",
-                  s.errors ? ({ errors: s.errors } as unknown as import("../lib/workspace/db.js").Json) : undefined));
+                  s.errors ? ({ errors: s.errors } as unknown as Json) : undefined));
             }
-          }
+          }));
         } else if (field === "smb_message_echoes") {
           // Melany (or staff) replied from the WhatsApp Business app -> pause the bot on that thread
           try {
