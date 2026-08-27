@@ -1,0 +1,283 @@
+/* ====================================================================
+   Chanlytics — Live Monitoring
+   Table (left) + live call console (right). Reuses tbl, tl-msg bubbles,
+   pill, stat-strip, cv-cursor primitives.
+   ==================================================================== */
+
+.live-monitor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.lm-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 400px minmax(0, 1fr);
+  overflow: hidden;
+}
+
+/* ---------- Table ---------- */
+.lm-list {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--line);
+  background: var(--bg);
+  min-width: 0;
+  overflow-y: auto;
+}
+.lm-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 8px;
+}
+.lm-list-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.lm-list-count { font-size: 11px; color: var(--ink-dim); }
+
+.lm-tbl tbody tr { cursor: pointer; }
+.lm-tbl tbody tr.active {
+  background: var(--bg-raised);
+  box-shadow: inset 2px 0 0 var(--ink);
+}
+.lm-from {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.lm-list-foot {
+  margin-top: auto;
+  padding: 12px 14px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--ink-dim);
+  line-height: 1.5;
+}
+.lm-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--ink-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  font-size: 11px;
+}
+.lm-link:hover { color: var(--ink); }
+
+/* ---------- Panel ---------- */
+.lm-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  animation: route-in 240ms var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) { .lm-panel { animation: none; } }
+
+.lm-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.lm-head-titles { flex: 1; min-width: 0; }
+.lm-head-name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.lm-head-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--ink-dim);
+  margin-top: 3px;
+}
+.lm-callid { font-size: 10.5px; color: var(--ink-faint); }
+.lm-head-actions { flex-shrink: 0; }
+
+/* Transcription */
+.lm-transcript-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 24px 0;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  flex-shrink: 0;
+}
+.lm-paused-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--warn);
+  font-weight: 500;
+}
+.lm-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 12px 24px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.lm-thread { padding: 0; }
+
+.lm-tone {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--accent);
+}
+
+.lm-injected {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 999px;
+  padding: 4px 12px;
+  width: fit-content;
+  margin: 2px auto;
+  animation: route-in 200ms var(--ease-out);
+}
+.lm-takeover-line { justify-content: center; }
+.lm-listening-line { display: flex; justify-content: flex-end; padding-right: 8px; }
+
+/* Take-over banner */
+.lm-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 24px 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+/* Inject context */
+.lm-inject {
+  display: flex;
+  gap: 8px;
+  margin: 0 24px 10px;
+  flex-shrink: 0;
+}
+.lm-inject-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  padding: 7px 11px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 120ms, background 120ms;
+}
+.lm-inject-input:focus { border-color: var(--ink-faint); background: var(--bg); }
+.lm-inject-input::placeholder { color: var(--ink-faint); }
+
+/* Control bar */
+.lm-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-sunken);
+  flex-shrink: 0;
+}
+.lm-controls-who {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lm-controls-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.lm-listening {
+  color: var(--accent);
+  border-color: oklch(from var(--accent) l c h / 0.4);
+  background: var(--accent-soft);
+}
+.lm-end { color: var(--danger); }
+.lm-end:hover { background: var(--danger-soft); border-color: var(--danger); }
+.lm-ended-chip { font-size: 11.5px; color: var(--ink-dim); }
+
+/* Ended call note */
+.lm-ended-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 20px 24px;
+  padding: 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-md);
+  color: var(--ink-dim);
+}
+.lm-ended-title {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+/* Live Listen EQ — three bars, honest signal that audio is flowing */
+.lm-eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 10px; margin-left: 6px; }
+.lm-eq span {
+  width: 2.5px;
+  border-radius: 1px;
+  background: var(--accent);
+  height: 4px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lm-eq span { animation: lm-eq-bounce 900ms ease-in-out infinite; }
+  .lm-eq span:nth-child(2) { animation-delay: 150ms; }
+  .lm-eq span:nth-child(3) { animation-delay: 320ms; }
+  @keyframes lm-eq-bounce {
+    0%, 100% { height: 3px; }
+    45% { height: 10px; }
+    70% { height: 6px; }
+  }
+}
+
+/* Your lines while taken over */
+.lm-you-bubble { border-color: var(--accent); }
+.lm-you-bubble .tl-msg-meta span:first-child { color: var(--accent); font-weight: 600; }

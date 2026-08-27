@@ -1,0 +1,274 @@
+/* ====================================================================
+   Chanlytics — Mobile & narrow-viewport pass (loads last, wins cascade)
+   Desktop is untouched; everything below adapts ≤900px / ≤720px.
+   ==================================================================== */
+
+/* Off-canvas sidebar plumbing (inert on desktop) */
+.side-wrap { display: contents; }
+.nav-backdrop { display: none; }
+.tb-menu { display: none; }
+.sb-mobile-head { display: none; }
+
+@media (max-width: 900px) {
+  /* ---------- Shell ---------- */
+  .app-root { grid-template-columns: 1fr; }
+
+  .side-wrap {
+    display: block;
+    position: fixed;
+    top: 0; bottom: 0; left: 0;
+    z-index: 220;
+    transform: translateX(-102%);
+    transition: transform 240ms var(--ease-out);
+  }
+  .side-wrap.open { transform: none; }
+  .side-wrap .sidebar {
+    height: 100%;
+    width: min(300px, 84vw);
+    box-shadow: var(--shadow-lg);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Drawer header — explicit, thumb-reachable close */
+  .sb-mobile-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .sb-mobile-head .btn { margin-left: auto; }
+  .sb-mobile-title { font-size: 13.5px; font-weight: 500; color: var(--ink); }
+
+  /* 44px-class tap targets inside the drawer */
+  .side-wrap .nav-item { padding-top: 11px; padding-bottom: 11px; }
+  .side-wrap .nav-item.nav-sub { padding-top: 10px; padding-bottom: 10px; }
+  .side-wrap .sb-team { padding: 16px 14px 12px; }
+  .side-wrap .sb-agent { padding-top: 9px; padding-bottom: 9px; }
+  .side-wrap .sb-agents-foot { padding: 11px 10px; }
+  .side-wrap .sb-newchat .btn { height: 40px; }
+  .side-wrap .user-chip { padding: 11px 10px; }
+
+  /* Overlays always clear the drawer */
+  .ask-overlay { z-index: 320; }
+  .nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 210;
+    background: oklch(from var(--ink) l c h / 0.35);
+    animation: route-in 160ms var(--ease-out);
+  }
+  .tb-menu { display: inline-flex; }
+
+  /* ---------- Topbar ---------- */
+  .topbar { padding: 10px 14px; gap: 8px; }
+  .tb-ask { width: auto; max-width: none; padding: 0 9px; }
+  .tb-ask .tb-ask-label, .tb-ask .kbd { display: none; }
+  .crumbs { font-size: 12px; overflow: hidden; }
+
+  /* ---------- Shared page chrome ---------- */
+  .cl-head { flex-direction: column; align-items: stretch; gap: 12px; padding: 16px 16px 14px; }
+  .cl-head-stats { margin-left: 0; }
+  .stat-strip { grid-auto-flow: row; grid-template-columns: 1fr 1fr; }
+  .stat-strip .stat-cell { border-right: none; border-top: 1px solid var(--line); }
+  .stat-strip .stat-cell:nth-child(odd) { border-right: 1px solid var(--line); }
+  .stat-strip .stat-cell:nth-child(-n+2) { border-top: none; }
+  .cl-controls { flex-wrap: wrap; gap: 8px; padding: 10px 16px; }
+  .cl-controls-right { margin-left: 0; flex-wrap: wrap; row-gap: 8px; }
+  .fleet-filter { overflow-x: auto; max-width: 100%; scrollbar-width: none; }
+  .fleet-filter::-webkit-scrollbar { display: none; }
+  .rp-body, .st-body { padding-left: 16px; padding-right: 16px; }
+  .cal-scroll { padding: 0 16px 24px; }
+  .cal-sync { padding: 8px 16px; flex-wrap: wrap; row-gap: 6px; }
+
+  /* ---------- Today ---------- */
+  .dash-a-v2 { padding: 16px 16px 96px; }
+  .dash-a-v2-core { grid-template-columns: 1fr; }
+  .rail { position: static; }
+  .brief-body { grid-template-columns: 1fr; }
+  .brief-pulse { display: none; }
+  .ac-rail { flex-direction: column; }
+  .ac-buckets { border-right: none; border-bottom: 1px solid var(--line); overflow-x: auto; }
+  .dec-outcomes { grid-template-columns: 1fr; }
+  .fleet-grid { grid-template-columns: 1fr 1fr; }
+
+  /* ---------- Inbox ---------- */
+  .inbox, .inbox.with-rail { grid-template-columns: 1fr; grid-template-rows: minmax(0, 42vh) minmax(0, 1fr); }
+  .ix-agent-rail { display: none; }
+  .ix-list { border-right: none; border-bottom: 1px solid var(--line); }
+  .ix-th-head { padding: 12px 16px; grid-template-columns: 1fr auto; }
+  .ix-th-channels-meta { display: none; }
+  .ix-context-strip { padding: 0 16px; }
+  .ix-approval { margin: 12px 16px 0; }
+  .ix-outcomes { grid-template-columns: 1fr; }
+  .ix-timeline { padding: 12px 16px; }
+  .ix-composer { padding: 10px 16px 12px; }
+
+  /* ---------- Clients ---------- */
+  .clients { grid-template-columns: 1fr; }
+  .cl-rail { display: none; }
+  .cl-triage-tabs { grid-template-columns: 1fr 1fr; }
+  .cl-triage-tab { border-bottom: 1px solid var(--line); }
+  .cl-decision-grid { grid-template-columns: 1fr; }
+  .cl-table-wrap { margin: 0 16px; overflow-x: auto; }
+  .cl-table { min-width: 760px; }
+  .cl-buckets, .cl-section { padding-left: 16px; padding-right: 16px; }
+
+  /* ---------- Profile ---------- */
+  .cl-profile { grid-template-columns: 1fr; overflow-y: auto; }
+  .cl-prof-main { border-right: none; overflow: visible; }
+  .cl-prof-rail { border-top: 1px solid var(--line); }
+  .cl-prof-hero, .cl-prof-section { padding-left: 16px; padding-right: 16px; }
+  .cl-prof-money.stat-strip { grid-template-columns: 1fr 1fr; }
+  .cl-prof-id { flex-wrap: wrap; }
+
+  /* ---------- Fleet ---------- */
+  .fleet-page { grid-template-columns: 1fr; grid-template-rows: minmax(0, 34vh) minmax(0, 1fr); }
+  .fl-roster { border-right: none; border-bottom: 1px solid var(--line); }
+  .fl-head { flex-wrap: wrap; padding: 14px 16px 12px; }
+  .fl-scroll { padding: 14px 16px 32px; }
+  .fl-cols { grid-template-columns: 1fr; }
+  .fl-perm { flex-direction: column; align-items: flex-start; gap: 8px; }
+
+  /* ---------- Conversations ---------- */
+  .conversations { grid-template-columns: 1fr; grid-template-rows: minmax(0, 42vh) minmax(0, 1fr); }
+  .cv-list { border-right: none; border-bottom: 1px solid var(--line); }
+  .cv-head { padding: 12px 16px; flex-wrap: wrap; }
+  .cv-scroll { padding: 12px 16px 24px; }
+
+  /* ---------- Live monitor ---------- */
+  .lm-body { grid-template-columns: 1fr; grid-template-rows: minmax(0, 36vh) minmax(0, 1fr); }
+  .lm-list { border-right: none; border-bottom: 1px solid var(--line); }
+  .lm-head { padding: 12px 16px; flex-wrap: wrap; }
+  .lm-scroll, .lm-inject, .lm-banner { margin-left: 0; margin-right: 0; padding-left: 16px; padding-right: 16px; }
+  .lm-controls { padding: 10px 16px; flex-wrap: wrap; }
+  .lm-controls-who { flex-basis: 100%; }
+
+  /* ---------- Store ---------- */
+  .st-grid { grid-template-columns: 1fr 1fr; }
+  .st-reco { flex-wrap: wrap; }
+  .st-reco-proof { display: none; }
+
+  /* ---------- Reports ---------- */
+  .rp-row { grid-template-columns: 1fr; }
+  .rp-agents { overflow-x: auto; }
+  .rp-agents .tbl { min-width: 680px; }
+
+  /* ---------- Settings ---------- */
+  .settings { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .set-nav { flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--line); padding: 6px 8px; }
+  .set-nav .fl-roster-head { display: none; }
+  .set-nav-row { grid-template-columns: auto auto; white-space: nowrap; }
+  .set-pane { padding: 16px 16px 32px; }
+  .set-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+
+  /* ---------- Tasks ---------- */
+  .rp-agents .tbl td, .rp-agents .tbl th { padding-left: 12px; padding-right: 12px; }
+
+  /* ---------- Session-era additions ---------- */
+  /* Segments detail header: actions stack under titles instead of forcing
+     horizontal scroll (bell + assign + broadcast + ⋯ ≈ 340px) */
+  .sg-detail-head { flex-direction: column; gap: 10px; }
+  .sg-detail-actions { flex-wrap: wrap; }
+
+  /* Pipeline list view scrolls sideways instead of crushing 6 columns */
+  .pp-list-wrap { overflow-x: auto; }
+  .pp-list-wrap .tbl { min-width: 720px; }
+
+  /* Keyboard chrome is dead weight on touch widths */
+  .ix-approval-shortcuts { display: none; }
+  .cl-search-wrap .kbd { display: none; }
+
+  /* Entity crumbs (“Inbox / Aisha Khan”) never push the bell off-screen */
+  .crumbs { white-space: nowrap; }
+  .crumbs .crumb-active {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 42vw;
+    display: inline-block;
+    vertical-align: bottom;
+  }
+
+  /* Toasts: wrap contents + respect the home-bar safe area */
+  .pp-toast {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+  .pp-toast .pp-toast-msg { flex: 1 1 100%; }
+
+  /* Clients bulk bar: two-row wrap, full-width, above the safe area */
+  .cl-bulkbar {
+    flex-wrap: wrap;
+    row-gap: 8px;
+    width: auto;
+    max-width: none;
+    margin-left: 12px;
+    margin-right: 12px;
+    border-radius: var(--radius-lg);
+    padding: 10px 12px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+
+  /* ---------- Modals ---------- */
+  .ask-overlay { padding: 12px; padding-top: 10vh; align-items: flex-start; }
+  .ask-modal { max-width: 100%; width: 100%; }
+
+  /* ---------- Dock ---------- */
+  .dock { left: 12px; right: 12px; transform: none; max-width: none; }
+  @keyframes dock-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+@media (max-width: 720px) {
+  .st-grid, .fleet-grid { grid-template-columns: 1fr; }
+  .cl-triage-tab-row { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .pp-board { grid-template-columns: repeat(5, 82vw); min-width: 0; }
+  .rp-dec-stats { grid-template-columns: repeat(3, 1fr); }
+  .cal-av-row { grid-template-columns: 38px 34px 1fr; gap: 8px; }
+
+  /* Profile queue rows: actions wrap to their own right-aligned row */
+  .cl-prof-queue-item { flex-wrap: wrap; }
+  .cl-prof-queue-actions { flex-basis: 100%; display: flex; justify-content: flex-end; gap: 6px; }
+
+  /* Tap-target floor for decision-critical controls (≈40px) */
+  .ix-approval-decide .btn,
+  .cl-decision-cta,
+  .ld-queue-skip,
+  .cl-bulkbar .btn,
+  .ix-bulk-actions .btn,
+  .sg-draft-banner .btn,
+  .pp-toast-cta {
+    min-height: 40px;
+    padding-top: 9px;
+    padding-bottom: 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .side-wrap { transition: none; }
+}
+
+/* ---------- New decision surfaces (veto bar, verdict, policy matrix, strips) ---------- */
+@media (max-width: 900px) {
+  .ix-veto { flex-wrap: wrap; row-gap: 6px; }
+  .ix-veto-trust { display: none; }
+  .ix-sending-strip { left: 10px; right: 10px; transform: none; justify-content: center; flex-wrap: wrap; row-gap: 6px; }
+  .ix-verdict-opts { grid-template-columns: 1fr; }
+  .ix-param { flex-wrap: wrap; }
+  .fl-card.set-card { overflow-x: auto; }
+  .pol-table { min-width: 520px; }
+  .tb-presence { padding-left: 8px; padding-right: 8px; }
+  .bc-comp { white-space: normal; }
+  .fl-escalate-route { white-space: normal; }
+}
+
+@media (max-width: 900px) {
+  /* Wide data surfaces scroll sideways instead of clipping */
+  table.tbl { display: block; overflow-x: auto; }
+  .bc-hist { overflow-x: auto; }
+  .bc-hist-row { min-width: 560px; }
+}

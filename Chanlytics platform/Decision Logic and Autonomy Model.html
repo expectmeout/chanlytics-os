@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chanlytics — Decision Logic &amp; Autonomy Model</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/tokens.css">
+<style>
+  body { background: var(--bg); }
+  a { color: var(--info); text-decoration: none; }
+  a:hover { color: var(--ink); text-decoration: underline; }
+  .doc { max-width: 940px; margin: 0 auto; padding: var(--space-16) var(--space-8) var(--space-20); }
+  .doc-kicker { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); margin-bottom: var(--space-3); }
+  h1 { font-size: var(--text-4xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); margin: 0 0 var(--space-3); }
+  .doc-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); font-size: var(--text-sm); color: var(--ink-dim); padding-bottom: var(--space-8); border-bottom: 1px solid var(--line); margin-bottom: var(--space-10); }
+  h2 { font-size: var(--text-2xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); margin: var(--space-16) 0 var(--space-2); }
+  h2 .sec-num { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--ink-faint); margin-right: var(--space-3); font-weight: var(--weight-regular); }
+  h3 { font-size: var(--text-md); font-weight: var(--weight-semibold); margin: var(--space-6) 0 var(--space-2); }
+  .sec-lede { font-size: var(--text-md); color: var(--ink-dim); margin: 0 0 var(--space-6); }
+  p { font-size: var(--text-md); line-height: var(--leading-relaxed); color: var(--ink-muted); margin: 0 0 var(--space-4); text-wrap: pretty; }
+  p.lede { font-size: var(--text-lg); color: var(--ink); }
+  ul { margin: 0 0 var(--space-4); padding-left: var(--space-5); }
+  li { font-size: var(--text-md); line-height: var(--leading-relaxed); color: var(--ink-muted); margin-bottom: var(--space-2); }
+  li strong, p strong { color: var(--ink); font-weight: var(--weight-medium); }
+  code { font-family: var(--font-mono); font-size: 0.86em; background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-xs); padding: 1px 5px; color: var(--ink-muted); white-space: nowrap; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-xs); font-weight: var(--weight-medium); letter-spacing: 0.02em; border-radius: var(--radius-full); padding: 2px 9px; white-space: nowrap; }
+  .pill-ai { background: color-mix(in oklab, var(--accent) 12%, transparent); color: var(--accent); }
+  .pill-you { background: color-mix(in oklab, var(--info) 12%, transparent); color: var(--info); }
+  .pill-ok { background: color-mix(in oklab, var(--ok) 12%, transparent); color: var(--ok); }
+  .pill-warn { background: color-mix(in oklab, var(--warn) 14%, transparent); color: var(--warn); }
+  .pill-no { background: var(--bg-sunken); color: var(--ink-dim); border: 1px solid var(--line); }
+  table { width: 100%; border-collapse: collapse; margin: var(--space-4) 0 var(--space-6); font-size: var(--text-sm); }
+  th { text-align: left; font-family: var(--font-mono); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-dim); font-weight: var(--weight-medium); padding: 8px 10px; border-bottom: 1px solid var(--line-strong, var(--line)); }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--line); color: var(--ink-muted); vertical-align: top; line-height: 1.5; }
+  td:first-child { color: var(--ink); font-weight: var(--weight-medium); }
+  .verdict { border-left: 3px solid var(--accent); background: var(--bg-raised); border-radius: var(--radius-md); padding: var(--space-4) var(--space-5); margin: var(--space-6) 0; }
+  .verdict p { margin-bottom: var(--space-2); } .verdict p:last-child { margin-bottom: 0; }
+  .flow { display: flex; flex-direction: column; gap: 0; margin: var(--space-6) 0; }
+  .fnode { border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); padding: var(--space-3) var(--space-4); display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+  .fnode.gate { border-color: color-mix(in oklab, var(--accent) 45%, var(--line)); box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 8%, transparent); }
+  .fnode-title { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink); }
+  .fnode-sub { font-size: var(--text-xs); color: var(--ink-dim); }
+  .fedge { width: 2px; height: 18px; background: var(--line-strong, var(--line)); margin-left: var(--space-6); }
+  .fsplit { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); margin-top: var(--space-3); }
+  .fsplit .fnode { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .rec { border: 1px solid color-mix(in oklab, var(--ok) 40%, var(--line)); background: color-mix(in oklab, var(--ok) 5%, var(--bg-raised)); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); font-size: var(--text-sm); color: var(--ink-muted); margin: 0 0 var(--space-4); }
+  .rec b { color: var(--ok); font-weight: var(--weight-semibold); font-family: var(--font-mono); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .04em; margin-right: 6px; }
+</style>
+</head>
+<body>
+<div class="doc">
+<div class="doc-kicker">Chanlytics · Product logic review</div>
+<h1>Decision Logic &amp; Autonomy Model</h1>
+<div class="doc-meta"><span><strong>Scope:</strong> lead → meeting → verdict lifecycle · auto-send windows · phone-channel rules</span><span><strong>Date:</strong> Jul 29, 2026</span></div>
+
+<p class="lede">Your instinct draws one clean line: <strong>AI owns speed before the meeting; you own judgment after it.</strong> Everything below is that line worked out — where it holds, where it needs one more rule, and the nuances that decide whether the product feels unbreakable or spooky.</p>
+
+<h2><span class="sec-num">01</span>The lifecycle and the verdict gate</h2>
+<p class="sec-lede">The meeting is the ownership handoff. Before it, agents optimize response speed. After it, exactly one human decision exists — and it's a closed set, same as the inbox verbs.</p>
+<div class="flow">
+  <div class="fnode"><span class="pill pill-ai">AI owns</span><span class="fnode-title">Lead arrives → qualify → nurture → book</span><span class="fnode-sub">respond &lt; 1 min, any channel · goal is always the appointment</span></div>
+  <div class="fedge"></div>
+  <div class="fnode"><span class="pill pill-ai">AI owns</span><span class="fnode-title">Appointment held: reminders, reschedules, no-show recovery</span><span class="fnode-sub">no-show ≠ verdict — agent rebooks per playbook (cap 2 attempts), never asks you</span></div>
+  <div class="fedge"></div>
+  <div class="fnode gate"><span class="pill pill-you">You decide</span><span class="fnode-title">Meeting happened → verdict</span><span class="fnode-sub">one tap, three outcomes — surfaces in Inbox the moment the calendar slot ends</span></div>
+  <div class="fsplit">
+    <div class="fnode"><span class="pill pill-ok">Deal</span><span class="fnode-sub">→ Pipeline. AI role: admin only (scheduling, docs) — never selling.</span></div>
+    <div class="fnode"><span class="pill pill-ok">Client</span><span class="fnode-sub">→ Clients. AI resumes service comms (bookings, reminders) under normal autonomy.</span></div>
+    <div class="fnode"><span class="pill pill-no">No deal → Interested</span><span class="fnode-sub">AI stands down. Watch-only: inbound from them reopens with full context + bell.</span></div>
+  </div>
+</div>
+<ul>
+  <li><strong>Never let a meeting end into silence.</strong> Un-verdicted meetings are how CRMs rot. The calendar slot ending fires a verdict request into Inbox (state <code>needs</code>). Unanswered after 48h → auto-files as Interested + one nudge task. Auto-file to the <em>safe</em> outcome, never to Deal.</li>
+  <li><strong>Verdict is one tap, not a form.</strong> Three buttons, pre-filled context (transcript sentiment, booking history). AI may <em>suggest</em> ("sounded positive — mark as deal?") but the tap is always yours. That keeps your "no AI after the meeting" principle while AI still runs the interface.</li>
+  <li><strong>Interested is a contract, not a graveyard.</strong> Two explicit rules: (1) any inbound from them re-activates qualifying mode instantly, (2) optional owner-set re-permission — "AI may send one check-in after 60/90 days" — off by default. Without rule 2 the bucket silently dies; without "off by default" you break your own boundary.</li>
+</ul>
+<div class="rec"><b>Recommendation</b>This slots into the existing enums cleanly: verdict verbs <code>deal | client | interested | archived</code> alongside the decision verbs; lead stage <code>nurture</code> covers Interested with a <code>verdict: "no-deal"</code> reason on the record.</div>
+
+<h2><span class="sec-num">02</span>Three autonomy modes, not two</h2>
+<p class="sec-lede">Your 30-second idea is a genuinely good third mode between ask-first and full auto. Name it and make it a per-agent, per-risk setting instead of a global behavior.</p>
+<table>
+  <tr><th>Mode</th><th>Behavior</th><th>When</th></tr>
+  <tr><td>Ask-first</td><td>Draft holds until you act. Customer gets the holding message ("checking with the owner — hear back within the hour").</td><td>Knowledge gaps, escalations, anything money-adjacent — agents never negotiate refunds or discounts; the drafted plan is usually "book them a call with you" (money converts to a meeting). Also the default for new agents earning trust.</td></tr>
+  <tr><td>Veto window</td><td>Draft auto-sends after the window (30s SMS/chat, 15–30 min email) unless you Edit or Hold. Countdown visible in Inbox + bell.</td><td>Safe replies: confidence ≥ 0.8 <em>and</em> zero committing content. The default for routine conversation.</td></tr>
+  <tr><td>Auto</td><td>Sends immediately, logged. Shows up in Done, not in your queue.</td><td>Pure mechanics: confirmations, reminders, FAQ answers — earned via clean-approval milestones.</td></tr>
+</table>
+<ul>
+  <li><strong>Eligibility is risk-classed, never global.</strong> The timer must not be able to auto-send a refund. Rule: inside the agent's authority envelope (Fleet permissions: $ cap, discount cap, booking scope) → veto-window eligible; outside → ask-first, no matter what. This reuses the existing <code>SAFE ≥ 0.8</code> threshold and Fleet permission model as-is.</li>
+  <li><strong>Be honest about what the window is.</strong> With a 30s timer you will miss most windows (asleep, driving, with a client). That's fine — but then it's an <em>opportunity to intervene</em>, not a gate. Design it that way: the message sends on schedule regardless of your presence; the countdown is a courtesy. If you want a real gate, that's ask-first.</li>
+  <li><strong>Any keystroke cancels the timer.</strong> Typing in the composer = intent to edit = hold. No explicit "stop" click needed. Escape hatch: a "Hold all" control when 5 countdowns run at once (the burst case — sort the approvals bucket by time-left).</li>
+  <li><strong>The window is the undo.</strong> SMS can't be unsent, so the toast pattern inverts: today it's act → toast → Undo; here it's draft → countdown → act. Same single-slot mechanics, mirrored. After send, the record reads "auto-sent after veto window · 28s, no action" — auditable, not mysterious.</li>
+  <li><strong>Per-channel windows.</strong> 30s matches SMS/chat social norms. Email's norm is hours — a 15–30 min email window costs nothing and catches far more of your attention windows.</li>
+  <li><strong>The trust dial.</strong> Weekly digest: "agents auto-sent 143 replies · you edited 6 (4%)". When the edit rate is low, you widen autonomy with confidence; when it spikes, you tighten. That one number is how the 30s experiment proves itself.</li>
+</ul>
+
+<h2><span class="sec-num">03</span>Phone inverts the model</h2>
+<p class="sec-lede">Correct instinct: you can't hold a live caller for an approval, and you won't be watching the monitor. So phone gets one rule instead of a timer.</p>
+<div class="verdict">
+  <p><strong>The async downgrade rule:</strong> a phone agent never decides above its envelope live. It says the holding line ("let me check with the owner — you'll hear back within the hour"), ends gracefully, and the decision becomes a normal text-channel approval in your Inbox. Every over-envelope phone moment deterministically converts into the flow you already have.</p>
+</div>
+<ul>
+  <li><strong>Warm transfer only when you're reachable.</strong> A "Take transfers" toggle (on/off, plus quiet hours) that phone agents check before attempting a hand-to-human; off → holding line. Without presence-awareness, transfers ring into voicemail and burn the lead's goodwill.</li>
+  <li><strong>Hold-and-ask is rightly a future feature.</strong> Putting a caller on hold while the agent pings you (30–60s hold, whisper the answer back) is real-time plumbing with ugly failure modes (you don't answer → caller held for nothing → worse than the holding line). Ship the async downgrade first; add hold-and-ask later only for high-value moments, capped at one attempt.</li>
+  <li><strong>Live Monitor is the exception, not the flow.</strong> Take Over / End Call / whisper-context stay for the rare watched call — demo-critical, but the product must never <em>depend</em> on you watching.</li>
+</ul>
+
+<h2><span class="sec-num">04</span>More nuances worth deciding</h2>
+<table>
+  <tr><th>Nuance</th><th>Why it matters</th><th>Recommended rule</th></tr>
+  <tr><td>Presence model</td><td>Veto windows, transfers, and escalation SLAs all secretly depend on "is the owner reachable" — it's the most load-bearing primitive in this design.</td><td>Keep it dumb: app-open heartbeat + manual Away toggle + quiet hours. Never infer more than that.</td></tr>
+  <tr><td>One conversation, one voice</td><td>You reply manually, agent's queued draft fires 20s later — two voices in one thread is the trust-killer.</td><td>Human takeover cancels all pending drafts/timers on that thread; AI resumes only on explicit hand-back. (Takeover verb already does the stand-down.)</td></tr>
+  <tr><td>Graduated autonomy</td><td>Starting every agent at veto-window is how one bad week happens.</td><td>New agents start ask-first; promotion to veto-window is a milestone (e.g. 10 clean approvals, &lt;5% edit rate) — the Fleet milestone seed already models this.</td></tr>
+  <tr><td>Quiet hours ≠ silence</td><td>2am inbound lead still expects the &lt;1 min reply; you don't want 2am bells.</td><td>Safe replies auto-send 24/7; anything ask-first gets the holding message and queues for morning. Bells respect quiet hours, the SLA doesn't.</td></tr>
+  <tr><td>Meeting no-show branch</td><td>No-show is not a verdict moment — asking you wastes the gate.</td><td>Agent rebooks per playbook, max 2 attempts, then auto-files Interested with a note. You only hear about it in Done.</td></tr>
+  <tr><td>Disclosure</td><td>Regulatory direction (and trust) favors not pretending the AI is you.</td><td>Consistent assistant persona per workspace ("Riley from Serenity — the studio's assistant"); never claims to be the owner; hand-offs say so.</td></tr>
+  <tr><td>Verdict-adjacent money</td><td>"Deal created" usually has an amount, close date, package.</td><td>Verdict tap stays one tap; amount is an optional inline field defaulting from the discussed package. Details can be edited in Pipeline later — never block the tap.</td></tr>
+  <tr><td>Draft expiry</td><td>An ask-first draft approved 6 hours late may reference a slot that's gone.</td><td>Drafts carry a validity (e.g. slot still open?); on approve, agent re-verifies and re-drafts if stale — the stale-reconciliation pattern the Inbox already demos.</td></tr>
+</table>
+
+<h2><span class="sec-num">05</span>What I'd wire into the mockup next</h2>
+<p class="sec-lede">Each of these lands on existing rails — pick any subset.</p>
+<ul>
+  <li><strong>Verdict gate:</strong> a completed appointment spawns a verdict thread in Inbox (Deal / Client / Interested as the plan's three outcomes rendered as ONE plan + your tap) + <code>leads:verdict</code> event → Pipeline/Clients/Leads write-through.</li>
+  <li><strong>Veto-window countdown:</strong> one Inbox thread in <code>drafts</code> with a live "sending in 24s — Edit · Hold" chip, keystroke-cancels, lands in Done as "auto-sent · no action". Autonomy pane gains the third mode per agent.</li>
+  <li><strong>Take-transfers toggle:</strong> topbar presence control; Live Monitor and Fleet cards read it (transfer button disabled with reason when off).</li>
+  <li><strong>Trust digest:</strong> one Reports stat row — auto-sent count, edit rate, window-hit rate.</li>
+</ul>
+<p>All four reuse the closed verb set, IX_STORE, the event bus, and the gate/toast patterns — no new architecture.</p>
+</div>
+</body>
+</html>

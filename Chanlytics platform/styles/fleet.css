@@ -1,0 +1,292 @@
+/* ====================================================================
+   Chanlytics — Agent Fleet (per-agent control center)
+   Roster (left) · detail (right). Reuses st-tile, st-chip, cl-tabs,
+   stat-strip, sb-agents-foot primitives.
+   ==================================================================== */
+
+.fleet-page {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ---------- Roster ---------- */
+.fl-roster {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--line);
+  background: var(--bg-sunken);
+  min-width: 0;
+  padding: 8px;
+}
+.fl-roster-head {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px 6px;
+}
+.fl-roster-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.fl-roster-count {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.fl-roster-sep { color: var(--ink-faint); }
+
+.fl-roster-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.fl-agent {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background 100ms;
+  min-width: 0;
+}
+.fl-agent:hover { background: var(--bg-hover); }
+.fl-agent.active {
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-sm);
+}
+.fl-agent-body { min-width: 0; line-height: 1.25; }
+.fl-agent-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fl-agent-task {
+  font-size: 10.5px;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+.fl-agent-pending {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+
+/* ---------- Detail ---------- */
+.fl-detail {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  animation: route-in 240ms var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) { .fl-detail { animation: none; } }
+
+.fl-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px 28px 16px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.fl-head-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.fl-head-name {
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.fl-head-role {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  line-height: 1.45;
+}
+.fl-head-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--ink-dim);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.fl-head-dot { width: 2px; height: 2px; border-radius: 50%; background: var(--ink-faint); }
+.fl-head-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+.fl-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 18px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.fl-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.fl-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+/* Cards */
+.fl-card {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  min-width: 0;
+}
+.fl-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.fl-card-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+}
+.fl-card-sub { font-size: 11px; color: var(--ink-dim); }
+
+/* Permissions */
+.fl-perm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.fl-perm-info { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.fl-perm-label { font-size: 12.5px; font-weight: 500; color: var(--ink); }
+.fl-perm-hint { font-size: 10.5px; color: var(--ink-dim); font-style: italic; }
+.fl-perm-seg { flex-shrink: 0; }
+.fl-perm-seg .cl-tab { white-space: nowrap; }
+
+.fl-escalates {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.fl-escalates-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.fl-escalates-label .icon { color: var(--ink-faint); }
+.fl-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+
+/* Right now */
+.fl-now {
+  font-size: 12.5px;
+  color: var(--ink);
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.fl-now-verb { font-weight: 500; }
+.fl-now-target { color: var(--ink-muted); }
+.fl-now-elapsed { margin-left: auto; font-size: 11px; color: var(--accent); }
+
+.fl-recent { display: flex; flex-direction: column; gap: 7px; }
+.fl-recent-row {
+  display: grid;
+  grid-template-columns: 52px 8px 1fr;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 11.5px;
+}
+.fl-recent-at { font-size: 10px; color: var(--ink-faint); text-align: right; }
+.fl-recent-dot {
+  width: 5px; height: 5px;
+  border-radius: 999px;
+  background: var(--ink-faint);
+  align-self: center;
+}
+.fl-recent-dot.approval { background: var(--accent); }
+.fl-recent-dot.scheduled { background: var(--info); }
+.fl-recent-dot.done { background: var(--ok); }
+.fl-recent-text { color: var(--ink-muted); line-height: 1.45; }
+.fl-inbox-link { margin-top: 10px; }
+
+/* Voice */
+.fl-voice {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
+
+/* Workspace policy wiring */
+.fl-perm-policy{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.04em;color:var(--ink-dim);background:var(--bg-sunken);border:1px solid var(--line);border-radius:var(--radius-full);padding:1px 7px;cursor:pointer;width:fit-content}
+.fl-perm-policy:hover{border-color:var(--accent);color:var(--accent)}
+.fl-perm-policy.never{color:var(--warn);border-color:color-mix(in oklab,var(--warn) 45%,var(--line))}
+.fl-perm-locked{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-dim);background:var(--bg-sunken);border:1px dashed var(--line);border-radius:var(--radius-md);padding:6px 10px}
+.fl-matrix-link{display:inline-flex;align-items:center;gap:4px;margin-left:auto;font-size:11px;color:var(--info);background:none;border:none;cursor:pointer;padding:0}
+.fl-matrix-link:hover{color:var(--ink)}
+
+/* Trust card */
+.fl-trust-next{display:flex;align-items:center;gap:10px;padding:10px 14px 12px}
+.fl-trust-bar{flex:1;height:4px;border-radius:2px;background:var(--bg-sunken);overflow:hidden}
+.fl-trust-bar span{display:block;height:100%;background:var(--accent);border-radius:2px}
+.fl-trust-note{font-size:11px;color:var(--ink-dim);white-space:nowrap}
+
+.fl-escalate-route{display:block;font-size:11px;color:var(--ink-dim);margin-top:6px}
+
+/* "Hands to you" — live escalation chips */
+.fl-esc-chip { cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: border-color 110ms, color 110ms; }
+.fl-esc-chip:hover { border-color: var(--accent); color: var(--ink); }
+.fl-esc-chip.waiting { border-color: oklch(from var(--accent) l c h / 0.5); color: var(--ink); }
+.fl-esc-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: live-pulse 2s ease-in-out infinite; }

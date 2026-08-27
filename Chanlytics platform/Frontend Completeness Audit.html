@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chanlytics — Frontend Completeness Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/tokens.css">
+<style>
+  body { background: var(--bg); }
+  a { color: var(--info); text-decoration: none; }
+  a:hover { color: var(--ink); text-decoration: underline; }
+  .doc { max-width: 940px; margin: 0 auto; padding: var(--space-16) var(--space-8) var(--space-20); }
+  .doc-kicker { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); margin-bottom: var(--space-3); }
+  h1 { font-size: var(--text-4xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); margin: 0 0 var(--space-3); }
+  .doc-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); font-size: var(--text-sm); color: var(--ink-dim); padding-bottom: var(--space-8); border-bottom: 1px solid var(--line); margin-bottom: var(--space-10); }
+  .doc-meta strong { color: var(--ink-muted); font-weight: var(--weight-medium); }
+  h2 { font-size: var(--text-2xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); margin: var(--space-16) 0 var(--space-2); }
+  h2 .sec-num { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--ink-faint); margin-right: var(--space-3); font-weight: var(--weight-regular); }
+  .sec-lede { font-size: var(--text-md); color: var(--ink-dim); margin: 0 0 var(--space-6); }
+  p { font-size: var(--text-md); line-height: var(--leading-relaxed); color: var(--ink-muted); margin: 0 0 var(--space-4); text-wrap: pretty; }
+  p.lede { font-size: var(--text-lg); color: var(--ink); }
+  ul { margin: 0 0 var(--space-4); padding-left: var(--space-5); }
+  li { font-size: var(--text-md); line-height: var(--leading-relaxed); color: var(--ink-muted); margin-bottom: var(--space-2); }
+  li strong, p strong { color: var(--ink); font-weight: var(--weight-medium); }
+  code { font-family: var(--font-mono); font-size: 0.86em; background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-xs); padding: 1px 5px; color: var(--ink-muted); white-space: nowrap; }
+
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-xs); font-weight: var(--weight-medium); letter-spacing: 0.02em; border-radius: var(--radius-full); padding: 2px 9px; white-space: nowrap; }
+  .pill-built { background: color-mix(in oklab, var(--ok) 12%, transparent); color: var(--ok); }
+  .pill-partial { background: color-mix(in oklab, var(--warn) 14%, transparent); color: var(--warn); }
+  .pill-missing { background: color-mix(in oklab, var(--danger) 11%, transparent); color: var(--danger); }
+  .pill-p1 { background: var(--danger); color: #fff; }
+  .pill-p2 { background: var(--warn); color: #fff; }
+  .pill-p3 { background: var(--bg-sunken); color: var(--ink-dim); border: 1px solid var(--line); }
+
+  .prop { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-3); box-shadow: var(--shadow-sm); }
+  .prop-head { display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-2); flex-wrap: wrap; }
+  .prop-id { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-faint); }
+  .prop-title { font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); flex: 1; min-width: 180px; }
+  .prop p { font-size: var(--text-sm); margin-bottom: 0; }
+  .prop .where { font-size: var(--text-xs); color: var(--ink-dim); margin-top: var(--space-2); }
+  .prop .where b { color: var(--ink-muted); font-weight: var(--weight-medium); }
+
+  table { width: 100%; border-collapse: collapse; margin: var(--space-4) 0 var(--space-6); font-size: var(--text-sm); }
+  th { text-align: left; font-family: var(--font-mono); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-dim); font-weight: var(--weight-medium); padding: 8px 10px; border-bottom: 1px solid var(--line-strong, var(--line)); }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--line); color: var(--ink-muted); vertical-align: top; line-height: 1.5; }
+  td:first-child { color: var(--ink); font-weight: var(--weight-medium); white-space: nowrap; }
+  .m-state { white-space: nowrap; }
+
+  .verdict { border-left: 3px solid var(--accent); background: var(--bg-raised); border-radius: var(--radius-md); padding: var(--space-4) var(--space-5); margin: var(--space-6) 0; }
+  .verdict p { margin-bottom: var(--space-2); } .verdict p:last-child { margin-bottom: 0; }
+  .seq { counter-reset: step; margin: var(--space-4) 0; padding: 0; list-style: none; }
+  .seq li { counter-increment: step; padding-left: var(--space-8); position: relative; margin-bottom: var(--space-3); }
+  .seq li::before { content: counter(step); position: absolute; left: 0; top: -2px; width: 24px; height: 24px; border-radius: var(--radius-full); background: var(--accent); color: #fff; font-family: var(--font-mono); font-size: var(--text-xs); display: grid; place-items: center; font-weight: var(--weight-medium); }
+</style>
+</head>
+<body>
+<div class="doc">
+  <div class="doc-kicker">Chanlytics · Completeness audit</div>
+  <h1>What's left to finish the frontend</h1>
+  <div class="doc-meta">
+    <span><strong>Scope:</strong> the whole live app — surfaces, scenarios, and fine-grain nuance</span>
+    <span><strong>Method:</strong> traced against the code, not the screenshots</span>
+    <span><strong>Reads as:</strong> Built · Partial · Missing, prioritized P1–P3</span>
+  </div>
+
+  <p class="lede">The core is done and the agent-platform loop is unusually deep. What remains splits three ways: <strong>five surfaces</strong> that legacy had and users will miss, <strong>a band of scenarios</strong> the happy paths don't yet cover (partial failures, empty results, "something changed while you were looking"), and <strong>a layer of nuance</strong> — focus handling, pluralization, mobile density — that separates "demos well" from "ships." None of it is architectural; the stores and patterns to hang it on already exist.</p>
+
+  <h2><span class="sec-num">00</span>Already solid — don't re-open these</h2>
+  <p class="sec-lede">An honest audit starts by crediting what's load-bearing and finished, so effort goes to real gaps.</p>
+  <ul>
+    <li><span class="pill pill-built">Built</span> <strong>Resilience frame</strong> — <code>ShellErrorBoundary</code> catches a broken pane without taking down the OS; unknown routes land on a real "No surface at …" page; a missing client id shows "Client not found." Navigation has a 320ms route skeleton so it never flashes blank.</li>
+    <li><span class="pill pill-built">Built</span> <strong>One decision store, one toast, one menu</strong> — single-owner stores (IX / FL / AS / LM / INT / ST / SG), <code>usePPToast</code> (<code>role="status"</code>, portaled, ref-stable timer, Undo), and a <code>MoreMenu</code> with <code>aria-haspopup/expanded</code> + <code>role="menu"</code>. No duplicated state anywhere.</li>
+    <li><span class="pill pill-built">Built</span> <strong>Baseline interaction hygiene</strong> — bell popover is <code>role="dialog"</code> + Esc-to-close; <code>/</code> focuses page search (suppressed while typing); A/D/E, J/K, ⌘↵, ⌘K are wired; search inputs actually filter their lists; reduced-motion is honored on route/detail transitions.</li>
+  </ul>
+
+  <h2><span class="sec-num">01</span>Missing surfaces — parity &amp; funnel gaps</h2>
+  <p class="sec-lede">Five surfaces users had before or expect now. Each has a home in the current IA and a shared pattern to reuse — none needs new architecture.</p>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">U1</span><span class="prop-title">Forms — top-of-funnel capture</span><span class="pill pill-missing">Missing</span><span class="pill pill-p1">P1</span></div>
+    <p>Lead-capture forms are the one on-ramp that <em>creates</em> leads; right now leads only arrive via the scripted inbound. Scope it thin: a field list, a live preview, and a submissions inbox that drops straight into <code>leads/src:form</code>.</p>
+    <p class="where"><b>Fold-in:</b> Campaigns → Forms · <b>Reuse:</b> the Leads source-strip + drawer; a submission is just a lead with <code>src: "form"</code>. <b>Wires to:</b> <code>leads:arrived</code>, source-strip tick — the plumbing you already built for Riley.</p></div>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">U2</span><span class="prop-title">Knowledge base — what agents ground on</span><span class="pill pill-missing">Missing</span><span class="pill pill-p1">P1</span></div>
+    <p>Distinct from AI memory (learned rules): the documents, policies, and price lists agents cite. Studio's Compose already claims "inherits 5 workspace memories" — that link currently points at a memory pane, not a knowledge home.</p>
+    <p class="where"><b>Fold-in:</b> Settings → AI memory gains a "Knowledge" section, or a sibling tab. <b>Reuse:</b> the memory provenance card (source, uses, impact) verbatim — a doc is a memory with a file attached.</p></div>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">U3</span><span class="prop-title">Team — invites, roles, seats</span><span class="pill pill-built">Built</span><span class="pill pill-p1">P1</span></div>
+    <p>Settings → Workspace now has a real Team section on session state (<code>ST_STORE</code>): roster with Owner/Operator/Viewer roles, invite-by-email with seat accounting (4 of 5 seats), role changes and removal (both toast+undo, sole-owner guarded), a role-capability legend, and an owner-only <em>View as</em> switch that previews a lower role and gates this section's own controls. The <code>ST_STORE.can(action)</code> contract (approve / autonomy / disconnect / billing / team) is the foundation the app-wide gate below plugs into.</p>
+    <p class="where"><b>Shipped:</b> role matrix + <code>team:changed</code> event. <b>Next:</b> apply <code>can()</code> to Approve / disconnect / top-up across surfaces (the §02 scenario).</p></div>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">U4</span><span class="prop-title">Reviews &amp; Referrals surface</span><span class="pill pill-partial">Partial</span><span class="pill pill-p2">P2</span></div>
+    <p>Review Bot and Referral Engine exist as agents, and an "ob-referral" campaign is drafted — but there's no place to see review volume, star trend, or who-referred-whom. The pieces are scattered across Fleet, Outbound, and Store with no reader.</p>
+    <p class="where"><b>Fold-in:</b> Campaigns → Reviews, run as an agent playbook (not a standalone tool). <b>Reuse:</b> Outbound campaign cards + Segments "advocates" list.</p></div>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">U5</span><span class="prop-title">First-run / empty-workspace story</span><span class="pill pill-missing">Missing</span><span class="pill pill-p2">P2</span></div>
+    <p>A brand-new workspace with zero agents, zero leads, zero history has no designed state — every surface assumes seeded data. For an "agent OS," the cold-start ("connect a channel → hire your first agent → watch it work") <em>is</em> the pitch and needs a path, not a tour overlay.</p>
+    <p class="where"><b>Fold-in:</b> Today's brief becomes the guide when counts are zero. <b>Reuse:</b> the "No surface" / "queue clear" empty patterns already in the shell.</p></div>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">U6</span><span class="prop-title">Ambient integration-health signal</span><span class="pill pill-partial">Partial</span><span class="pill pill-p3">P3</span></div>
+    <p>Integration health lives only inside Settings → Integrations and the Gmail-reauth Task. Legacy surfaced it ambiently; a topbar dot that turns amber when a channel degrades would make the existing <code>INT_STORE</code> visible everywhere.</p>
+    <p class="where"><b>Fold-in:</b> topbar, beside the bell. <b>Reuse:</b> <code>INT_STORE</code> + <code>integrations:changed</code> — already firing, just not surfaced.</p></div>
+
+  <h2><span class="sec-num">02</span>Scenario coverage — the "what happens when…" matrix</h2>
+  <p class="sec-lede">The agent platform models failure richly (404 card · 401 scope · bad signature · quota cap · rejected listing). The <em>core ops</em> flows are still mostly happy-path. These are the states a real operator hits in week one.</p>
+
+  <table>
+    <thead><tr><th>Scenario</th><th class="m-state">State today</th><th>What's needed</th></tr></thead>
+    <tbody>
+      <tr><td>Empty &amp; filtered-empty lists</td><td class="m-state"><span class="pill pill-partial">Partial</span></td><td>A few have them (memory cleared, no listings, "queue clear"). Many don't: Inbox at zero needs, a search that matches nothing (Leads / Clients / Pipeline / Conversations), a calendar day with no bookings, a Reports filter returning nothing. Audit every list for both <em>zero</em> and <em>zero-after-filter</em> — they read differently.</td></tr>
+      <tr><td>Partial-failure sends</td><td class="m-state"><span class="pill pill-missing">Missing</span></td><td>A broadcast/outbound batch always fully succeeds. Real sends bounce, throttle, or hit a dead number. Add a "6 of 8 sent · 2 bounced" state with a retry affordance — the Tasks failed-row pattern already exists to hold it.</td></tr>
+      <tr><td>Booking conflicts</td><td class="m-state"><span class="pill pill-built">Closed</span></td><td>Two agents can now collide on one slot: Tara's online-form booking lands on Lena 1:00 (already Jordan's), shows as a red double-booked block + a board banner, and routes to the Inbox as an approval — SMS Agent pauses rather than double-book. Deciding it there resolves the block on the calendar (interrupt spine). Confidence 0.72 keeps it out of "Approve all safe" — you shouldn't bulk-resolve a conflict.</td></tr>
+      <tr><td>Workspace credit exhaustion</td><td class="m-state"><span class="pill pill-partial">Partial</span></td><td>Billing warns "ahead of pace" but nothing models hitting <em>zero</em> mid-cycle. Decide the rule (which agents pause? does ask-first still queue?) and show it — mirror the per-agent quota-cap behavior you already built in Studio, at workspace scope.</td></tr>
+      <tr><td>Integration down mid-session</td><td class="m-state"><span class="pill pill-partial">Partial</span></td><td>Gmail reauth is handled as a Task, but an agent that depends on a dead channel doesn't visibly degrade on its Fleet card. Add a "waiting on Gmail" agent state feeding the ambient dot (U6).</td></tr>
+      <tr><td>Stale / concurrent change</td><td class="m-state"><span class="pill pill-built">Closed</span></td><td>Reconciliation added to the Inbox thread: while you read Noah's nurture thread, a reply lands (~11s) and a Refresh banner appears — "replied while you were reading · your view is 1 message behind · nothing was changed for you." Refresh merges it; the view never silently overwrites. Pattern (<code>IX_CONCURRENT</code> + arm-on-open timer) is reusable for the lead/client drawers next.</td></tr>
+      <tr><td>Role-gated actions</td><td class="m-state"><span class="pill pill-partial">Partial</span></td><td>The contract now exists (<code>ST_STORE.can(action)</code> + owner “View as”, gating the Team section itself). Still to do: apply it app-wide — a Viewer sees Approve / disconnect / top-up disabled <em>with a reason</em> via one shared <code>&lt;GatedButton&gt;</code>, not hidden.</td></tr>
+      <tr><td>Undo after expiry / collision</td><td class="m-state"><span class="pill pill-partial">Partial</span></td><td>Toast is a single slot on a 6s timer; a rapid burst of decisions replaces earlier toasts, so their Undo is lost before it's seen. Consider a short undo stack or a "recently decided" strip in the bulk bar for high-volume approving.</td></tr>
+      <tr><td>Destructive confirmations</td><td class="m-state"><span class="pill pill-partial">Partial</span></td><td>Disconnect and archive route through Ask/confirm, but there's no consistent "type to confirm" or consequence-preview for the truly irreversible (delete a segment feeding a live playbook, remove the last agent on a channel). Standardize one danger-confirm.</td></tr>
+    </tbody>
+  </table>
+
+  <h2><span class="sec-num">03</span>Minor nuances — the ship-readiness layer</h2>
+  <p class="sec-lede">Individually small, collectively the difference between a prototype and a product. Grouped so they can be swept in batches.</p>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">N1</span><span class="prop-title">Focus management in overlays</span><span class="pill pill-partial">Partial</span></div>
+    <p>Modals (Install, Ask, connect flow) autofocus their first field and close on Esc/backdrop — but Tab isn't trapped inside them and focus isn't returned to the trigger on close. One shared <code>useFocusTrap</code> + return-focus ref covers every overlay and is the biggest single a11y win.</p></div>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">N2</span><span class="prop-title">Live-region announcements</span><span class="pill pill-partial">Partial</span></div>
+    <p>Toasts announce via <code>role="status"</code>, but count changes that matter — the Inbox "needs" badge, the bell unread count, a bulk "12 approved" — mutate silently. Add one polite <code>aria-live</code> region in the shell that the count events already firing can write into.</p></div>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">N3</span><span class="prop-title">Copy correctness — plurals, time, money</span><span class="pill pill-partial">Partial</span></div>
+    <p>We already fixed one "1 installs" bug; sweep for the rest. Pluralize every counted noun, make relative times ("12m", "1h") derive from the seed clock consistently, keep currency/decimal formatting uniform (<code>toLocaleString</code> is used unevenly), and localize the booking timezone.</p></div>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">N4</span><span class="prop-title">Mobile density on complex surfaces</span><span class="pill pill-partial">Partial</span></div>
+    <p>Off-canvas nav and swipe-to-close exist. Verify the dense surfaces below tablet: Studio's two-column connect flow and event trace, bulk action bars, wide tables (Reports, Pipeline board, Fleet roster) collapsing to cards, and the calendar week grid. Each needs a checked narrow layout, not just a reflow.</p></div>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">N5</span><span class="prop-title">Deep-link &amp; notification landing fidelity</span><span class="pill pill-partial">Partial</span></div>
+    <p>Entity routes resolve (verified in the regression sweep). Scenario-check the <em>stale</em> deep link: a bell item pointing at an already-decided thread, or a listing link after it's unlisted, should land gracefully (with context) rather than on a bare "decided" row. Reduced-motion coverage is also spotty — extend it past route/fleet transitions to the entrance animations.</p></div>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">N6</span><span class="prop-title">Persistence boundary — say it out loud</span><span class="pill pill-partial">Partial</span></div>
+    <p>Session stores live in memory; a refresh resets decisions, installs, and the one-shot moments. That's correct for a demo, but "frontend complete" means the boundary is <em>intentional</em>: decide what would persist server-side (decisions, installs, prefs) vs what's session-only (scripted arrivals), and keep notification prefs / theme in <code>localStorage</code> as they already are.</p></div>
+
+  <h2><span class="sec-num">04</span>Recommended sequence</h2>
+  <div class="verdict">
+    <p><strong>Unlock the widest surface first.</strong> U3 (Team/roles) is the keystone — it turns an entire scenario column (role-gated actions) from impossible to trivial, and it's a small store plus a settings section.</p>
+    <p><strong>Then close the funnel.</strong> U1 (Forms) is the only thing that <em>creates</em> leads and reuses the Riley plumbing wholesale — high payoff, low cost.</p>
+  </div>
+  <ol class="seq">
+    <li><strong>U3 Team/roles + N1 focus-trap</strong> — the keystone surface and the keystone a11y util; everything downstream leans on both.</li>
+    <li><strong>Scenario sweep §02 empties + partial-failure sends</strong> — the two states an operator hits fastest; both reuse existing patterns (empty cards, Tasks failed row).</li>
+    <li><strong>U1 Forms → U2 Knowledge</strong> — finish the funnel's top, then give agents their grounding home.</li>
+    <li><strong>N2/N3 copy + live-region sweep</strong> — a single mechanical pass across all pages (plurals, time, money, announcements).</li>
+    <li><strong>U4 Reviews · U5 first-run · U6 ambient health · N4 mobile</strong> — the differentiators and polish, once the parity floor is in.</li>
+  </ol>
+  <p>Everything here hangs on stores and components that already exist. The frontend isn't waiting on new architecture — it's waiting on breadth of scenario and a nuance pass. Say which tier to start and I'll build it.</p>
+</div>
+</body>
+</html>

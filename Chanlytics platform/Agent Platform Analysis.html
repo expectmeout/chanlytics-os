@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chanlytics — Agent Platform Analysis (Store &amp; Studio)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/tokens.css">
+<style>
+  body { background: var(--bg); }
+  a { color: var(--info); text-decoration: none; }
+  a:hover { color: var(--ink); text-decoration: underline; }
+  .doc { max-width: 880px; margin: 0 auto; padding: var(--space-16) var(--space-8) var(--space-20); }
+  .doc-kicker { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); margin-bottom: var(--space-3); }
+  h1 { font-size: var(--text-4xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); margin: 0 0 var(--space-3); }
+  .doc-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); font-size: var(--text-sm); color: var(--ink-dim); padding-bottom: var(--space-8); border-bottom: 1px solid var(--line); margin-bottom: var(--space-10); }
+  .doc-meta strong { color: var(--ink-muted); font-weight: var(--weight-medium); }
+  h2 { font-size: var(--text-2xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); margin: var(--space-16) 0 var(--space-4); }
+  h2 .sec-num { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--ink-faint); margin-right: var(--space-3); font-weight: var(--weight-regular); }
+  h3 { font-size: var(--text-lg); font-weight: var(--weight-semibold); margin: var(--space-8) 0 var(--space-2); }
+  p { font-size: var(--text-md); line-height: var(--leading-relaxed); color: var(--ink-muted); margin: 0 0 var(--space-4); text-wrap: pretty; }
+  p.lede { font-size: var(--text-lg); color: var(--ink); }
+  ul { margin: 0 0 var(--space-4); padding-left: var(--space-5); }
+  li { font-size: var(--text-md); line-height: var(--leading-relaxed); color: var(--ink-muted); margin-bottom: var(--space-2); }
+  li strong, p strong { color: var(--ink); font-weight: var(--weight-medium); }
+  code { font-family: var(--font-mono); font-size: 0.86em; background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-xs); padding: 1px 5px; color: var(--ink-muted); white-space: nowrap; }
+
+  .map { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-4); margin: var(--space-6) 0; }
+  .map-card { background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-5) var(--space-6); box-shadow: var(--shadow-sm); }
+  .map-card h4 { margin: 0 0 var(--space-1); font-size: var(--text-base); font-weight: var(--weight-semibold); }
+  .map-tag { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-dim); display: block; margin-bottom: var(--space-3); }
+  .map-card p { font-size: var(--text-sm); margin-bottom: var(--space-2); }
+  .map-card .where { font-size: var(--text-xs); color: var(--ink-dim); border-top: 1px solid var(--line); padding-top: var(--space-2); margin-bottom: 0; }
+
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-xs); font-weight: var(--weight-medium); letter-spacing: 0.02em; border-radius: var(--radius-full); padding: 2px 9px; white-space: nowrap; }
+  .pill-build { background: color-mix(in oklab, var(--ok) 12%, transparent); color: var(--ok); }
+  .pill-med { background: color-mix(in oklab, var(--warn) 14%, transparent); color: var(--warn-ink, var(--warn)); }
+  .pill-skip { background: var(--bg-sunken); color: var(--ink-dim); border: 1px solid var(--line); }
+
+  .prop { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-3); box-shadow: var(--shadow-sm); }
+  .prop-head { display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-1); }
+  .prop-id { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-faint); }
+  .prop-title { font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); flex: 1; }
+  .prop p { font-size: var(--text-sm); margin-bottom: 0; }
+  .verdict { border-left: 3px solid var(--accent); background: var(--bg-raised); border-radius: var(--radius-md); padding: var(--space-4) var(--space-5); margin: var(--space-6) 0; }
+  .verdict p { margin-bottom: var(--space-2); }
+  .verdict p:last-child { margin-bottom: 0; }
+</style>
+</head>
+<body>
+<div class="doc">
+  <div class="doc-kicker">Chanlytics · Platform audit</div>
+  <h1>Agent Store &amp; Studio on A2A + AG&#8209;UI</h1>
+  <div class="doc-meta">
+    <span><strong>Surfaces:</strong> agent-store.jsx · agent-studio.jsx</span>
+    <span><strong>Concept:</strong> operators connect external agents (A2A); the portal fronts them to users (AG&#8209;UI); the Store makes them installable by others</span>
+    <span><strong>Refs:</strong> AG&#8209;UI docs · A2A purchasing-concierge codelab</span>
+  </div>
+
+  <p class="lede">The good news: Chanlytics already behaves like an AG&#8209;UI client without knowing it. The gap is entirely on the supply side — both surfaces assume every agent is first&#8209;party, so there is no way to connect an external agent, no publisher, no trust model, and no handshake. That's what Store and Studio need to gain.</p>
+
+  <h2><span class="sec-num">01</span>Protocol → surface map</h2>
+  <div class="map">
+    <div class="map-card">
+      <h4>A2A</h4>
+      <span class="map-tag">agent ↔ agent · how an external agent joins</span>
+      <p>An agent is discovered by its <strong>Agent Card</strong> (name, skills, capabilities like streaming, auth scheme); the portal delegates tasks to it and receives streamed results.</p>
+      <p class="where">User-visible in exactly two places: Studio's connect flow and a Store listing's provenance line.</p>
+    </div>
+    <div class="map-card">
+      <h4>AG&#8209;UI</h4>
+      <span class="map-tag">agent ↔ user · how the UI talks to any agent</span>
+      <p>16 event types. Chanlytics already renders them: Inbox approvals = <code>interrupts</code>, Live transcript = <code>TEXT_MESSAGE_*</code>, Tasks ledger = <code>TOOL_CALL_*</code>, session stores = <code>STATE_DELTA</code>.</p>
+      <p class="where">Raw face visible in exactly one place: Studio's test bench. Everywhere else it stays plumbing.</p>
+    </div>
+    <div class="map-card">
+      <h4>MCP</h4>
+      <span class="map-tag">agent ↔ tools · what an agent can touch</span>
+      <p>Tools and integrations an agent uses (Square, Gmail, calendar). Already surfaced as the <strong>"Connects:"</strong> requires-line and Admin → Integrations.</p>
+      <p class="where">No new UI. Keep it as the requires-line; never a config surface here.</p>
+    </div>
+  </div>
+
+  <h2><span class="sec-num">02</span>Verdict: is AG&#8209;UI needed?</h2>
+  <div class="verdict">
+    <p><strong>Yes — keep it, but as plumbing, not a feature.</strong> AG&#8209;UI is the contract that matches what the product already does: ask-first approvals are literally protocol interrupts, live calls are message streams, the confidence dots ride on run metadata. Adopting it costs no new consumer UI — which is the strongest evidence the architecture fits.</p>
+    <p><strong>Never print protocol names on consumer surfaces.</strong> A studio owner buys outcomes. Store cards say <em>"Streams live · Asks before acting · Syncs state"</em> — capability badges derived from the Agent Card — not "AG&#8209;UI compatible." Protocol vocabulary (endpoints, cards, event traces) is allowed only inside Studio, which is the workspace's one developer-facing room.</p>
+    <p><strong>A2A is the marketplace enabler and earns limited visibility.</strong> The Agent Card is a real artifact operators will paste and inspect, so "External · via A2A · by &lt;publisher&gt;" on listings is honest provenance, not jargon.</p>
+  </div>
+
+  <h2><span class="sec-num">03</span>Store — from catalog to two-sided marketplace</h2>
+  <p>Today the Store is a one-sided list of first-party templates (glyph, ability chips, proof line, credits, install modal). Nothing identifies who made an agent, what it's allowed to touch, or how it connects. Five gaps:</p>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">S1</span><span class="prop-title">Provenance layer</span><span class="pill pill-build">Build</span></div>
+    <p>Every listing gets a publisher: <strong>Chanlytics</strong> (first-party) or a community publisher with a verified badge and an <em>External · via A2A</em> tag. Filter chip row gains "First-party / Community". Cards without provenance are the reason the current store feels like a settings page, not a market.</p></div>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">S2</span><span class="prop-title">Capability badges from the Agent Card</span><span class="pill pill-build">Build</span></div>
+    <p>Derive plain-English badges from card capabilities: <em>Streams live</em> (streaming), <em>Asks before acting</em> (interrupts/HITL), <em>Syncs state</em> (shared state), <em>Hands off to your fleet</em> (A2A delegation). Extends the existing ability chips; never shows protocol names.</p></div>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">S3</span><span class="prop-title">Install = handshake, not toggle</span><span class="pill pill-build">Build</span></div>
+    <p>For external listings the install modal gains a <strong>Connection</strong> section — endpoint host, auth scheme, what data leaves the workspace — and install runs a visible 3-step handshake (fetch card → check capabilities → apply autonomy default) before the agent lands in Fleet tagged with its source.</p></div>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">S4</span><span class="prop-title">"Your listings" — the publisher side</span><span class="pill pill-med">Build (thin)</span></div>
+    <p>A tab for agents <em>you</em> connected and published: installs count, listed/unlisted state, "manage in Studio" link. This is the half that makes the marketplace two-sided; thin is fine (no payouts UI yet).</p></div>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">S5</span><span class="prop-title">Trust floor on external listings</span><span class="pill pill-med">Build (copy-level)</span></div>
+    <p>One quiet line the modal always shows for community agents: workspace guardrails and quiet hours apply regardless of publisher; kill switch lives in Fleet. Honesty rule: an installed external agent must actually appear in Fleet (session write-through, same pattern as segments → clients).</p></div>
+
+  <h2><span class="sec-num">04</span>Studio — gain the connect path</h2>
+  <p>Today Studio only composes native agents from parts. The concept requires it to also be the door external agents walk through. Four gaps:</p>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">D1</span><span class="prop-title">Two modes: Compose · Connect external</span><span class="pill pill-build">Build</span></div>
+    <p><strong>Connect</strong> flow: paste endpoint URL → fetched Agent Card preview (name, skills, capability badges, auth scheme) → permission mapping (channels it may use, guardrail set, autonomy contract — reusing the existing chips) → test bench → <em>Add to Fleet</em> and optional <em>Publish to Store</em>. Compose keeps its current builder untouched.</p></div>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">D2</span><span class="prop-title">Test bench with event trace</span><span class="pill pill-build">Build</span></div>
+    <p>Run one scripted sample task against the connected agent and show the run as an inspectable trace — <code>RUN_STARTED → TEXT_MESSAGE_CONTENT → TOOL_CALL_* → STATE_DELTA → RUN_FINISHED</code> — with the reply rendered beside it. The single place raw protocol is visible; doubles as the "did the handshake actually work" proof before Fleet.</p></div>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">D3</span><span class="prop-title">Publish flow → Store</span><span class="pill pill-med">Build (thin)</span></div>
+    <p>Listing draft (name, role line, price in credits) with a review state (submitted → listed) that writes into S4's "Your listings". Proof lines stay <em>earned</em> — new listings show "No track record yet," never invented stats.</p></div>
+
+  <div class="prop"><div class="prop-head"><span class="prop-id">D4</span><span class="prop-title">Honest wiring for both paths</span><span class="pill pill-build">Build</span></div>
+    <p>Publishing (compose) and connecting (external) both push a session agent into Fleet via a store + window event (<code>store:installed</code> pattern), so "Custom agents: 2" and the Fleet roster stay truthful — same contract discipline as the rest of the app.</p></div>
+
+  <h2><span class="sec-num">05</span>Deliberately not building</h2>
+  <ul>
+    <li><span class="pill pill-skip">Skip</span> MCP tool-config UI — tools remain the requires-line + Admin → Integrations.</li>
+    <li><span class="pill pill-skip">Skip</span> Protocol names in nav, store cards, or marketing copy anywhere outside Studio.</li>
+    <li><span class="pill pill-skip">Skip</span> A separate developer portal — Studio is it.</li>
+    <li><span class="pill pill-skip">Skip</span> Payouts/monetization for community publishers — out of scope for this pass.</li>
+    <li><span class="pill pill-skip">Skip</span> Raw event consoles on Fleet/Live/Inbox — those pages already render the events as product UI.</li>
+  </ul>
+
+  <p>Recommended order: <strong>D1 + D2</strong> (the connect path is the concept's spine), then <strong>S1–S3</strong> (marketplace face), then <strong>S4 + D3</strong> (two-sided loop), with <strong>D4/S5</strong> woven through each.</p>
+</div>
+</body>
+</html>

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chanlytics — Investor Walkthrough (12 min)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/tokens.css">
+<style>
+  body { background: var(--bg); }
+  a { color: var(--info); text-decoration: none; }
+  a:hover { color: var(--ink); text-decoration: underline; }
+  .doc { max-width: 920px; margin: 0 auto; padding: var(--space-16) var(--space-8) var(--space-20); }
+  .doc-kicker { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); margin-bottom: var(--space-3); }
+  h1 { font-size: var(--text-4xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); margin: 0 0 var(--space-3); }
+  .doc-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); font-size: var(--text-sm); color: var(--ink-dim); padding-bottom: var(--space-8); border-bottom: 1px solid var(--line); margin-bottom: var(--space-10); }
+  .doc-meta strong { color: var(--ink-muted); font-weight: var(--weight-medium); }
+  h2 { font-size: var(--text-2xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); margin: var(--space-14) 0 var(--space-2); }
+  h2 .sec-num { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--ink-faint); margin-right: var(--space-3); font-weight: var(--weight-regular); }
+  .act-time { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-dim); margin-bottom: var(--space-4); }
+  p { font-size: var(--text-md); line-height: var(--leading-relaxed); color: var(--ink-muted); margin: 0 0 var(--space-4); text-wrap: pretty; }
+  p.lede { font-size: var(--text-lg); color: var(--ink); }
+  ul { margin: 0 0 var(--space-4); padding-left: var(--space-5); }
+  li { font-size: var(--text-md); line-height: var(--leading-relaxed); color: var(--ink-muted); margin-bottom: var(--space-2); }
+  li strong, p strong { color: var(--ink); font-weight: var(--weight-medium); }
+  code { font-family: var(--font-mono); font-size: 0.86em; background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-xs); padding: 1px 5px; color: var(--ink-muted); white-space: nowrap; }
+  .beat { display: grid; grid-template-columns: 54px 1fr; gap: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-3); box-shadow: var(--shadow-sm); }
+  .beat-t { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-faint); padding-top: 2px; }
+  .beat-b { display: grid; gap: 6px; min-width: 0; }
+  .beat-do { font-size: var(--text-sm); color: var(--ink); font-weight: var(--weight-medium); }
+  .beat-do .chip { font-family: var(--font-mono); font-size: 10px; background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-full); padding: 1px 7px; color: var(--ink-dim); font-weight: var(--weight-regular); margin-right: 6px; white-space: nowrap; }
+  .beat-see { font-size: var(--text-sm); color: var(--ink-muted); line-height: 1.55; }
+  .beat-see b { color: var(--ink); font-weight: var(--weight-medium); }
+  .beat-say { font-size: var(--text-sm); color: var(--ink-muted); line-height: 1.55; border-left: 2px solid var(--accent); padding-left: 10px; font-style: italic; }
+  .note { display: flex; gap: 8px; font-size: var(--text-xs); color: var(--ink-dim); background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 8px 12px; margin: var(--space-2) 0 var(--space-4); line-height: 1.5; }
+  .pill { display: inline-flex; align-items: center; font-size: var(--text-xs); font-weight: var(--weight-medium); border-radius: var(--radius-full); padding: 2px 9px; white-space: nowrap; }
+  .pill-ok { background: color-mix(in oklab, var(--ok) 12%, transparent); color: var(--ok); }
+</style>
+</head>
+<body>
+<div class="doc">
+  <div class="doc-kicker">Chanlytics · Demo script</div>
+  <h1>Investor walkthrough — the full loop in 12 minutes</h1>
+  <div class="doc-meta">
+    <span><strong>Arc:</strong> ops autonomy → growth loop → the marketplace moat → business model</span>
+    <span><strong>Rule:</strong> nothing in this demo is a video — every moment is the live app's own wiring</span>
+  </div>
+
+  <p class="lede">The demo is built around scripted live moments that fire on real timers and real stores. Two are time-armed from page load — <strong>Riley (new lead) at ~0:18</strong> and, later, <strong>the handoff at ~14s after connecting an agent</strong> — so the script choreographs your talking against them. Reload once before you start; each moment fires once per session.</p>
+
+  <h2><span class="sec-num">00</span>Pre-flight <span class="act-time">— 60s before they sit down</span></h2>
+  <ul>
+    <li><strong>Hard reload</strong> the app (session stores reset; Riley re-arms). Land on <code>today</code>.</li>
+    <li>Bell has unread seeds — leave them; you'll use the bell live twice.</li>
+    <li>Have this script on a second screen. Two docs to flash at the end: <code>Platform Workflow Map.html</code> and, if asked how it's built, <code>Agent Platform Analysis.html</code>.</li>
+    <li>Fallbacks are marked ⟲ — if a one-shot moment already fired, the fallback shows the same wiring.</li>
+  </ul>
+
+  <h2><span class="sec-num">01</span>Cold open — the business runs itself <span class="act-time">0:00 – 1:30</span></h2>
+  <div class="beat"><span class="beat-t">0:00</span><div class="beat-b">
+    <span class="beat-do"><span class="chip">today</span>Let the brief sit. Point at "Awaiting you" and the agent strip.</span>
+    <span class="beat-see">Eight agents on the fleet — two live on work right now, the rest scheduled or idle — today's revenue attributed per agent, a small pile of decisions waiting.</span>
+    <span class="beat-say">"This is a massage studio's front office. Eight AI agents answer every channel. The owner's whole job has collapsed into this: a short list of decisions only a human should make."</span>
+  </div></div>
+  <div class="beat"><span class="beat-t">0:18</span><div class="beat-b">
+    <span class="beat-do"><span class="chip">bell</span><b>The bell pings mid-sentence</b> — planned. Open it, click "Open lead."</span>
+    <span class="beat-see">"New lead — Riley Nguyen · Missed call → texted back. SMS Agent answered in 9s." Leads opens with the drawer: transcript, learned facts, Qualifier in-flight. The Phone &amp; walk-in source just ticked 3→4.</span>
+    <span class="beat-say">"That wasn't staged for you — a missed call just became a lead, got answered in nine seconds, and is being scored while we talk. Leads don't wait for demos. Watch this row — it'll change on its own in a few seconds."</span>
+  </div></div>
+  <div class="note">⟲ Riley fires once per session. If you missed the ping, the lead is already in Leads with the same drawer — narrate it retroactively.</div>
+
+  <h2><span class="sec-num">02</span>The interrupt spine — autonomy you can sell <span class="act-time">1:30 – 3:30</span></h2>
+  <div class="beat"><span class="beat-t">1:30</span><div class="beat-b">
+    <span class="beat-do"><span class="chip">inbox/th-aisha-refund</span>Open Aisha's refund. Hover the draft, then press <code>E</code>, tweak one word, <code>⌘↵</code>.</span>
+    <span class="beat-see">Phone Rep paused a $120 refund because it crossed the $100 rule; a counter-offer was already drafted. Your edit sends; toast with Undo.</span>
+    <span class="beat-say">"Agents act alone below the line you set, and pause above it. The unit of trust isn't the agent — it's the decision type. That's what makes small-business owners comfortable handing over the keys."</span>
+  </div></div>
+  <div class="beat"><span class="beat-t">2:30</span><div class="beat-b">
+    <span class="beat-do"><span class="chip">tasks</span><span class="chip">fleet/phone-rep</span>Flip to Tasks, then Phone Rep's card.</span>
+    <span class="beat-see">The refund row reads <b>decided</b>; Fleet's "Awaiting you" dropped; the bell item flipped to "decided." One decision, five surfaces.</span>
+    <span class="beat-say">"One decision store, five consumers, zero duplication. Everything you'll see today works like this — that discipline is why the product feels calm."</span>
+  </div></div>
+
+  <h2><span class="sec-num">03</span>Live ops <span class="act-time">3:30 – 4:30</span></h2>
+  <div class="beat"><span class="beat-t">3:30</span><div class="beat-b">
+    <span class="beat-do"><span class="chip">live</span>Show Selena's call streaming, then press <b>End call</b>.</span>
+    <span class="beat-see">Transcript freezes with the booking; bell pushes "Call ended — booked Swedish 60 ($180)"; Phone Rep's "Right now" flips to wrapped-call with a transcript link.</span>
+    <span class="beat-say">"Calls are the scariest channel to delegate. Owners can watch any call live — and everything an agent hears becomes structured memory."</span>
+  </div></div>
+
+  <h2><span class="sec-num">04</span>The growth loop <span class="act-time">4:30 – 6:00</span></h2>
+  <div class="beat"><span class="beat-t">4:30</span><div class="beat-b">
+    <span class="beat-do"><span class="chip">leads</span>Riley's row now reads <b>Qualifying · 78</b> (it updated itself). Then open Gabby (top of queue) and hit <b>Confirm booking &amp; create client</b>.</span>
+    <span class="beat-see">Toast: "converted — client record created · entered New this month"; bell push with the client deep-link; header stat ticks.</span>
+    <span class="beat-say">"Captured to client with one human click — and only because her decision cleared the confidence bar at 0.94. Below that, agents don't even ask; they nurture."</span>
+  </div></div>
+  <div class="beat"><span class="beat-t">5:15</span><div class="beat-b">
+    <span class="beat-do"><span class="chip">outbound</span>Approve the birthday batch.</span>
+    <span class="beat-see">Card flips to Scheduled · 8 sends at 5:00 PM; bell push "Batch approved"; Tasks gains the scheduled row.</span>
+    <span class="beat-say">"Outbound is segment-driven: enter a list, a playbook starts, drafts queue for one approval. Revenue runs on rules, not hustle."</span>
+  </div></div>
+
+  <h2><span class="sec-num">05</span>The moat — an agent marketplace with a spine <span class="act-time">6:00 – 10:30</span></h2>
+  <div class="beat"><span class="beat-t">6:00</span><div class="beat-b">
+    <span class="beat-do"><span class="chip">store</span>Browse. Click "by Ledgerly Labs" on Tax Ledger Scout.</span>
+    <span class="beat-see">Two-sided store: first-party + community publishers, capability badges in plain English, ratings from verified workspaces, a publisher profile with SLA history and an 80/20 revenue share disclosed.</span>
+    <span class="beat-say">"Here's the business: other companies' agents, running on their servers, sold through our store. Provenance, verification, ratings gated on 30 days of real use — trust is the product."</span>
+  </div></div>
+  <div class="beat"><span class="beat-t">7:00</span><div class="beat-b">
+    <span class="beat-do"><span class="chip">studio</span>Connect tab. Paste <code>https://agents.ledgerly.dev/inventory-scout</code> → Fetch. Then <b>Authorize</b> — it fails. Read the error, then <b>Grant scope &amp; retry</b>.</span>
+    <span class="beat-see">Agent card fetched from <code>/.well-known/agent.json</code>; first token refused — <code>401 invalid_scope</code> — then granted read-only. Health checks start; one times out and recovers.</span>
+    <span class="beat-say">"This is A2A under the hood — and the only room in the house where protocol shows its face. Notice the failures are the demo: everything that can break has a visible recovery."</span>
+  </div></div>
+  <div class="beat"><span class="beat-t">8:00</span><div class="beat-b">
+    <span class="beat-do">Run the sandbox bench. Then set budget to <b>250</b>, read the warning, set it back to <b>500</b>. Then <b>Add to Fleet</b> — and keep talking.</span>
+    <span class="beat-see">A raw event trace streams (<code>RUN_STARTED → TOOL_CALL → STATE_DELTA</code>) and the client-facing reply renders beside it. The 250 cap warns "pauses around day 28" off the agent's declared pace. Add to Fleet is gated on the bench passing.</span>
+    <span class="beat-say">"Scopes, redaction, budgets, handoff routing, a disconnect plan — the connection is a contract. And it can't reach my clients until it proves itself on this bench."</span>
+  </div></div>
+  <div class="beat"><span class="beat-t">~8:45</span><div class="beat-b">
+    <span class="beat-do"><span class="chip">bell</span><b>The bell pings again</b> (~14s after Add to Fleet): the handoff. Click "In Tasks."</span>
+    <span class="beat-see">"Handoff — Reorder approval · routed to your Inbox per your handoff map." Tasks has the pending row; the agent's Fleet card reads "Waiting on you · 1."</span>
+    <span class="beat-say">"That's the contract firing, not a slideshow — the agent found real work and routed it exactly where the map says. Unmapped work always lands with the human."</span>
+  </div></div>
+  <div class="beat"><span class="beat-t">9:15</span><div class="beat-b">
+    <span class="beat-do">Back in Studio: <b>Draft a listing</b>, rename it "<b>Guaranteed</b> Inventory Scout", submit. Watch review reject it. Click <b>Edit &amp; resubmit</b> (the word is pre-stripped), submit, watch it list.</span>
+    <span class="beat-see">Five review checks run live; the copy check fails red — "Overclaim… 'guaranteed' needs evidence." Bell + Tasks pick up the rejection; resubmit re-runs all five; listed. The rejection notification flips to "Listed ✓."</span>
+    <span class="beat-say">"We even reject our own sellers' hype — proof lines in this store are earned, never written. Then look: my listing, other workspaces installing it, per-workspace stats, and my 80% share accruing toward the May 1 payout. We're the rails on both sides."</span>
+  </div></div>
+  <div class="note">⟲ One-shots in this act: the handoff (once per agent) and session restore (leaving Studio mid-flow is safe — it rebuilds). If review passes because you forgot the trigger word, unlist and publish again with "guaranteed" in the name.</div>
+
+  <h2><span class="sec-num">06</span>Close <span class="act-time">10:30 – 12:00</span></h2>
+  <div class="beat"><span class="beat-t">10:30</span><div class="beat-b">
+    <span class="beat-do"><span class="chip">store · Your listings</span><span class="chip">reports</span>Flash the earnings strip and Reports.</span>
+    <span class="beat-see">Consumer side pays in credits; publisher side earns 80% of gross; the platform sits in the middle of both flows plus first-party subscriptions.</span>
+    <span class="beat-say">"Three revenue lines: our agents by subscription, a take on every marketplace install, and the credit meter under all of it. The CRM is the wedge; the store is the compounding asset."</span>
+  </div></div>
+  <div class="beat"><span class="beat-t">11:30</span><div class="beat-b">
+    <span class="beat-do">If technical diligence is in the room: open <code>Platform Workflow Map.html</code>.</span>
+    <span class="beat-see">Four traced flows, a shared-infra matrix, findings all green — including the ones this demo just exercised.</span>
+    <span class="beat-say">"Every moment you watched is on that map — one store per fact, one event per moment. We audit our own architecture the way we audit our sellers."</span>
+  </div></div>
+
+  <h2><span class="sec-num">07</span>One-shot moments — timing card</h2>
+  <ul>
+    <li><span class="pill pill-ok">auto</span> <strong>~0:18 after load</strong> — Riley arrives (bell + source tick); scores herself 9s later.</li>
+    <li><span class="pill pill-ok">on action</span> <strong>End call</strong> → wrap + bell · <strong>Convert</strong> → client + bell · <strong>Approve batch / send broadcast</strong> → bell + Tasks.</li>
+    <li><span class="pill pill-ok">on action</span> <strong>~14s after Add to Fleet</strong> — the handoff ping.</li>
+    <li><span class="pill pill-ok">scripted fail</span> Auth 401 → grant &amp; retry · push sig mismatch → re-sync · health timeout → recovery · "guaranteed" → rejection → resubmit.</li>
+  </ul>
+</div>
+</body>
+</html>

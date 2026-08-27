@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chanlytics — Today Dashboard Deep Dive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/tokens.css">
+<style>
+body{background:var(--bg)}a{color:var(--info);text-decoration:none}a:hover{color:var(--ink)}
+.doc{max-width:940px;margin:0 auto;padding:var(--space-16) var(--space-8) var(--space-20)}
+.doc-kicker{font-family:var(--font-mono);font-size:var(--text-xs);letter-spacing:var(--tracking-wide);text-transform:uppercase;color:var(--ink-dim);margin-bottom:var(--space-3)}
+h1{font-size:var(--text-4xl);font-weight:var(--weight-semibold);letter-spacing:var(--tracking-tight);margin:0 0 var(--space-3)}
+.doc-meta{display:flex;gap:var(--space-5);font-size:var(--text-sm);color:var(--ink-dim);padding-bottom:var(--space-8);border-bottom:1px solid var(--line);margin-bottom:var(--space-10);flex-wrap:wrap}
+h2{font-size:var(--text-2xl);font-weight:var(--weight-semibold);letter-spacing:var(--tracking-tight);margin:var(--space-16) 0 var(--space-2)}
+h2 .sec-num{font-family:var(--font-mono);font-size:var(--text-sm);color:var(--ink-faint);margin-right:var(--space-3);font-weight:var(--weight-regular)}
+.sec-lede{font-size:var(--text-md);color:var(--ink-dim);margin:0 0 var(--space-6)}
+p{font-size:var(--text-md);line-height:var(--leading-relaxed);color:var(--ink-muted);margin:0 0 var(--space-4);text-wrap:pretty}
+p.lede{font-size:var(--text-lg);color:var(--ink)}
+ul{margin:0 0 var(--space-4);padding-left:var(--space-5)}
+li{font-size:var(--text-md);line-height:var(--leading-relaxed);color:var(--ink-muted);margin-bottom:var(--space-2)}
+li strong,p strong{color:var(--ink);font-weight:var(--weight-medium)}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);border:1px solid var(--line);border-radius:var(--radius-xs);padding:1px 5px;color:var(--ink-muted);white-space:nowrap}
+table{width:100%;border-collapse:collapse;margin:var(--space-4) 0 var(--space-6);font-size:var(--text-sm)}
+th{text-align:left;font-family:var(--font-mono);font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.04em;color:var(--ink-dim);font-weight:var(--weight-medium);padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--line);color:var(--ink-muted);vertical-align:top;line-height:1.5}
+td:first-child{color:var(--ink);font-weight:var(--weight-medium);white-space:nowrap}
+.pill{display:inline-flex;gap:5px;font-size:var(--text-xs);font-weight:var(--weight-medium);border-radius:var(--radius-full);padding:2px 9px;white-space:nowrap}
+.pill-ok{background:color-mix(in oklab,var(--ok) 12%,transparent);color:var(--ok)}
+.pill-warn{background:color-mix(in oklab,var(--warn) 14%,transparent);color:var(--warn)}
+.pill-danger{background:color-mix(in oklab,var(--danger) 12%,transparent);color:var(--danger)}
+.verdict{border-left:3px solid var(--accent);background:var(--bg-raised);border-radius:var(--radius-md);padding:var(--space-4) var(--space-5);margin:var(--space-6) 0}
+.verdict p{margin-bottom:var(--space-2)}.verdict p:last-child{margin-bottom:0}
+</style>
+</head>
+<body>
+<div class="doc">
+<div class="doc-kicker">Chanlytics · Surface deep dive</div>
+<h1>Today — the operator's brief</h1>
+<div class="doc-meta"><span>Composition: HeroBrief → AgentCommand + NowPlayingRail → SegmentPulse → AgentFleet → AmbientDock</span><span>Files: dashboard-a*.jsx · dashboard-data.jsx</span></div>
+
+<p class="lede">Today is the surface that makes the promise of the product visible in ten seconds: what the agents did, what's about to happen, and the short list that needs a human. It's also the surface most likely to drift from the rails, because it <em>re-presents</em> state that lives elsewhere — and re-presentation is where second truths breed.</p>
+
+<h2><span class="sec-num">01</span>What it gets right</h2>
+<p class="sec-lede">The bones are correct — most of the system contracts already hold here.</p>
+<ul>
+<li><strong>One queue, two lenses.</strong> Command rows read/write <code>IX_STORE</code> by <code>threadId</code>; a decision here resolves in Inbox, on the schedule rail's risk chips, and in Tasks — and vice versa. The title row says so explicitly.</li>
+<li><strong>Engine + gate double-guard.</strong> <code>decide()</code> checks <code>canDo("approve")</code>, buttons spread <code>window.gate("approve")</code>, ⇧A respects both.</li>
+<li><strong>Live overlays everywhere.</strong> Fleet pauses (<code>FL_STORE</code>) reflect in the hero count, filter chips, and fleet cards; schedule risk chips flip to "Approved — confirmed" from IX records; the dock reacts to <code>live:ended</code>.</li>
+<li><strong>PolicyChips on rows</strong> (<code>task.policyClass</code>), deep links on every entity, computed section meta — no hardcoded counts in headers.</li>
+</ul>
+
+<h2><span class="sec-num">02</span>Gaps found</h2>
+<p class="sec-lede">Seven, ranked. The first two are contract violations; the rest are dead ends and blind spots.</p>
+<table>
+<thead><tr><th>#</th><th>Gap</th><th>Severity</th><th>What's wrong</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Two truths for "waiting on you"</td><td><span class="pill pill-danger">Contract</span></td><td>HeroBrief counts <code>AGENT_TASKS.now</code> (3 rows) but the sidebar badge counts <code>THREADS</code> in <code>needs</code> minus decisions (more — the verdict card, booking conflict, etc. live only as threads). The homepage says "3 waiting" while the badge beside it says 5. Fix: one source — compute from <code>THREADS</code> exactly like <code>IX_STORE._broadcast</code> does, and show "+N more in Inbox" when Command's seed rows cover fewer than the true count.</td></tr>
+<tr><td>2</td><td>Fleet cards speak a dead autonomy language</td><td><span class="pill pill-danger">Contract</span></td><td>The 4-tick "Assist / Review / Auto / Full" meter reads a seed field (<code>a.autonomy</code>) connected to nothing. The system's real vocabulary is the policy matrix (<code>auto | veto | ask | never</code>) and the trust digest. Replace the meter with the agent's live edit rate + clean streak from <code>window.TRUST.agent()</code> — the same numbers Fleet's Trust card and the veto bar already show — so Today's cards update when the matrix or trust data changes.</td></tr>
+<tr><td>3</td><td>Sending-soon is invisible</td><td><span class="pill pill-warn">Blind spot</span></td><td>Veto drafts auto-send on a countdown — the most time-critical state in the product — and Today doesn't show them. Inbox has the sending-soon strip; the operator's brief should carry a compact version (respecting the Away freeze via <code>VW_STORE</code>), with Hold all.</td></tr>
+<tr><td>4</td><td>Dead-end inline edit</td><td><span class="pill pill-warn">Dead end</span></td><td>DecisionRow's "Edit" toggles a textarea with no save or send path — typed text goes nowhere, and Approve would send the original draft. The footer's "Edit reply" (→ thread composer) is the real path. Remove the textarea affordance; one editing surface, one voice.</td></tr>
+<tr><td>5</td><td>Ungated Pause on fleet cards</td><td><span class="pill pill-warn">Role gate</span></td><td>Fleet page gates pause/resume behind <code>autonomy</code>; Today's fleet cards don't — a Viewer can pause an agent from the dashboard but not from Fleet. Add the gate spread (Give task / Disable are Ask-mediated and stay open).</td></tr>
+<tr><td>6</td><td>Bulk approve confirms silently</td><td><span class="pill pill-warn">Pattern</span></td><td>⇧A / "Approve all safe" flips rows with no toast — Inbox's bulk bar flashes a confirmation with undo. Add one <code>ppFlash</code> ("2 safe drafts approved — Undo") that reverts the batch. Per-row decisions keep their inline decided-chip + Undo (the documented in-place variant).</td></tr>
+<tr><td>7</td><td>Insight bar goes stale</td><td><span class="pill pill-ok">Copy</span></td><td>"3 paused. The refund has the only downside risk…" is static seed copy — after you approve everything it still says 3. Compute the count clause and the refund/Jordan mentions from live undecided rows; keep the narrative tone.</td></tr>
+</tbody>
+</table>
+
+<h2><span class="sec-num">03</span>Deliberately fine as-is</h2>
+<ul>
+<li><strong>KPI anchors by index</strong> (<code>TODAY_KPIS[0,1,3]</code>) — seed-coupled but honest; a backend sends a curated list.</li>
+<li><strong>AmbientDock's Selena coupling</strong> — scripted demo moment, already tied to <code>LM_STORE</code> correctly.</li>
+<li><strong>SegmentPulse</strong> — nav-only rows on the shared card grammar; nothing commits, nothing to gate.</li>
+<li><strong>Command's seed rows staying three</strong> — the point is triage theater with real rails, not a full Inbox mirror; #1's "+N more" chip closes the honesty gap without duplicating Inbox.</li>
+</ul>
+
+<div class="verdict">
+<p><strong>Verdict.</strong> Today's spine is sound — same queue, same stores, same gates. The two real violations are <em>representation drift</em>: a waiting count computed from the wrong source, and an autonomy meter speaking a vocabulary the rest of the system retired. Both fixes are deletions of second truths, not new machinery.</p>
+<p>All seven are local to the three dashboard files + one seed field; zero rail changes. Say which to build.</p>
+</div>
+</div>
+</body>
+</html>

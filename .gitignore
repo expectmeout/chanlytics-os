@@ -1,0 +1,26 @@
+# deps / build
+node_modules/
+dist/
+.next/
+.turbo/
+coverage/
+
+# env & secrets — never commit; see .env.example
+.env
+.env.*
+!.env.example
+
+# vercel local link
+.vercel/
+
+# large binaries & local-only material (archived outside git)
+*.zip
+*.mp4
+review-videos/
+_gen/
+Chanlytics platform/screenshots/
+Chanlytics platform/uploads/
+
+# misc
+*.log
+.DS_Store

@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chanlytics — Redesign Gap Analysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/tokens.css">
+<style>
+  body { background: var(--bg); }
+  a { color: var(--info); text-decoration: none; }
+  a:hover { color: var(--ink); text-decoration: underline; }
+  .doc {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: var(--space-16) var(--space-8) var(--space-20);
+  }
+  .doc-kicker {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    margin-bottom: var(--space-3);
+  }
+  h1 {
+    font-size: var(--text-4xl);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--leading-tight);
+    margin: 0 0 var(--space-3);
+  }
+  .doc-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-5);
+    font-size: var(--text-sm);
+    color: var(--ink-dim);
+    padding-bottom: var(--space-8);
+    border-bottom: 1px solid var(--line);
+    margin-bottom: var(--space-10);
+  }
+  .doc-meta strong { color: var(--ink-muted); font-weight: var(--weight-medium); }
+  h2 {
+    font-size: var(--text-2xl);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-tight);
+    margin: var(--space-16) 0 var(--space-4);
+  }
+  h2 .sec-num {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--ink-faint);
+    margin-right: var(--space-3);
+    font-weight: var(--weight-regular);
+  }
+  h3 {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
+    margin: var(--space-8) 0 var(--space-2);
+  }
+  p { font-size: var(--text-md); line-height: var(--leading-relaxed); color: var(--ink-muted); margin: 0 0 var(--space-4); text-wrap: pretty; }
+  p.lede { font-size: var(--text-lg); color: var(--ink); }
+  ul { margin: 0 0 var(--space-4); padding-left: var(--space-5); }
+  li { font-size: var(--text-md); line-height: var(--leading-relaxed); color: var(--ink-muted); margin-bottom: var(--space-2); }
+  li strong, p strong { color: var(--ink); font-weight: var(--weight-medium); }
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    background: var(--bg-sunken);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-xs);
+    padding: 1px 5px;
+    color: var(--ink-muted);
+    white-space: nowrap;
+  }
+
+  /* Snapshot cards */
+  .snap {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+    margin: var(--space-6) 0;
+  }
+  .snap-card {
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5) var(--space-6);
+    box-shadow: var(--shadow-sm);
+  }
+  .snap-card h4 {
+    margin: 0 0 var(--space-1);
+    font-size: var(--text-base);
+    font-weight: var(--weight-semibold);
+  }
+  .snap-tag {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--ink-dim);
+    display: block;
+    margin-bottom: var(--space-3);
+  }
+  .snap-card ul { padding-left: var(--space-4); margin-bottom: 0; }
+  .snap-card li { font-size: var(--text-sm); margin-bottom: var(--space-1); }
+
+  /* Status pills */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    letter-spacing: 0.02em;
+    border-radius: var(--radius-full);
+    padding: 2px 9px;
+    white-space: nowrap;
+  }
+  .pill::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .pill.ok      { color: var(--ok);     background: var(--ok-soft); }
+  .pill.warn    { color: var(--warn);   background: var(--warn-soft); }
+  .pill.danger  { color: var(--danger); background: var(--danger-soft); }
+  .pill.info    { color: var(--info);   background: var(--info-soft); }
+  .pill.dim     { color: var(--ink-dim); background: var(--bg-active); }
+
+  /* Coverage table */
+  table { width: 100%; border-collapse: collapse; margin: var(--space-5) 0 var(--space-2); }
+  th {
+    text-align: left;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    padding: 0 var(--space-3) var(--space-2);
+    border-bottom: 1px solid var(--line-strong);
+  }
+  td {
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--line);
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    vertical-align: top;
+    line-height: var(--leading-snug);
+  }
+  td:first-child { color: var(--ink); font-weight: var(--weight-medium); white-space: nowrap; }
+  tr.group-row td {
+    padding: var(--space-6) var(--space-3) var(--space-1);
+    border-bottom: 1px solid var(--line-strong);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+
+  /* Priority blocks */
+  .prio {
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5) var(--space-6);
+    margin: var(--space-4) 0;
+    box-shadow: var(--shadow-sm);
+  }
+  .prio-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+  .prio-head .pill { transform: translateY(-1px); }
+  .prio-head h4 { margin: 0; font-size: var(--text-md); font-weight: var(--weight-semibold); }
+  .prio ul { margin-bottom: 0; }
+  .prio li { margin-bottom: var(--space-3); }
+  .prio li:last-child { margin-bottom: 0; }
+  .fold {
+    display: block;
+    font-size: var(--text-sm);
+    color: var(--ink-dim);
+    margin-top: 2px;
+  }
+  .fold::before { content: "→ "; color: var(--ink-faint); }
+
+  .callout {
+    border-left: 2px solid var(--line-strong);
+    padding: var(--space-1) 0 var(--space-1) var(--space-5);
+    margin: var(--space-6) 0;
+  }
+  .callout p { margin-bottom: 0; }
+
+  @media (max-width: 720px) {
+    .snap { grid-template-columns: 1fr; }
+    .doc { padding: var(--space-10) var(--space-5) var(--space-16); }
+    td:first-child { white-space: normal; }
+  }
+  @media print {
+    .doc { padding: 0; max-width: none; }
+    h2 { break-after: avoid; }
+    .prio, .snap-card, tr { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <div class="doc-kicker">Chanlytics · Internal</div>
+  <h1>Redesign Gap Analysis</h1>
+  <div class="doc-meta">
+    <span><strong>Legacy:</strong> Chanlytics/chanlytics @ main (Next.js 15, ~90 routes)</span>
+    <span><strong>Next-gen:</strong> this project (Chanlytics.html)</span>
+    <span><strong>July 13, 2026</strong></span>
+  </div>
+
+  <p class="lede">The legacy app is feature-rich but structurally exhausted: ~90 dashboard routes, a 158&thinsp;KB settings monolith, three competing table engines, duplicated sidebars and data-tables, and 40+ status docs riding along in the repo. The redesign is the opposite — a coherent agent-first OS with a smaller, sharper surface set. This doc maps every legacy surface to its place (or absence) in the new design, so "more complete" gets defined deliberately rather than by re-accreting everything.</p>
+
+  <h2><span class="sec-num">01</span>Two products, one direction</h2>
+  <div class="snap">
+    <div class="snap-card">
+      <h4>Legacy — feature accretion</h4>
+      <span class="snap-tag">nav: Dashboard · CRM · Conversations · Marketing · Agent Store · Agent Studio</span>
+      <ul>
+        <li>Analytics dashboard as home; agents live in sub-pages</li>
+        <li>Airtable-class CRM tables (grid/board/calendar/gallery/form views, formula/lookup/rollup fields, sharing, undo)</li>
+        <li>Assistant + persistent chat threads in sidebar</li>
+        <li>Forms builder, Knowledge base, Reviews &amp; Referrals, AI video creation, Social</li>
+        <li>Billing/credits, affiliate payouts, full internal admin console</li>
+        <li>User-customizable nav (rename, hide, reorder, custom groups)</li>
+      </ul>
+    </div>
+    <div class="snap-card">
+      <h4>Next-gen — agent-first OS</h4>
+      <span class="snap-tag">nav: Today · Inbox · Workspace · Intelligence · Settings</span>
+      <ul>
+        <li>Today = operator's brief: approvals, needs-you queue, live agent state</li>
+        <li>Unified Conversations (Live, Calls, Chats, Email) + Live monitor</li>
+        <li>Agent Fleet as first-class management console; Store + Studio kept</li>
+        <li>Campaigns (Outbound, Content, Broadcasts), Pipeline with agent attribution</li>
+        <li>Ask everywhere (⌘K), active-agents rail, credits chip</li>
+        <li>Tasks, Reports with shared read-only links, focused 6-tab Settings</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2><span class="sec-num">02</span>Coverage map</h2>
+  <p>Every user-facing legacy surface, and where it lands in the redesign.</p>
+  <table>
+    <thead><tr><th style="width:200px;">Legacy surface</th><th style="width:120px;">Status</th><th>In the redesign</th></tr></thead>
+    <tbody>
+      <tr class="group-row"><td colspan="3">Core</td></tr>
+      <tr><td>Dashboard</td><td><span class="pill ok">Upgraded</span></td><td>Today brief — from passive analytics cards to an actionable operator queue.</td></tr>
+      <tr><td>Inbox / Calls / Chats</td><td><span class="pill ok">Upgraded</span></td><td>Unified Inbox + Conversations by channel; adds Email and a Live supervision monitor legacy never had.</td></tr>
+      <tr><td>Assistant + chat threads</td><td><span class="pill warn">Partial</span></td><td>Ask bar (⌘K) + "New Chat" exist, but conversations are ephemeral. Legacy keeps thread history (<code>NavChats</code>, <code>assistant/[id]</code>) — no history surface yet.</td></tr>
+      <tr><td>Notifications center</td><td><span class="pill warn">Partial</span></td><td>Bell routes to Inbox; settings tab exists. No dedicated center or push story.</td></tr>
+
+      <tr class="group-row"><td colspan="3">CRM</td></tr>
+      <tr><td>Clients + profile dialog</td><td><span class="pill ok">Upgraded</span></td><td>Clients portfolio + full-page profile (legacy's 71&thinsp;KB dialog becomes a real surface).</td></tr>
+      <tr><td>Deals / kanban</td><td><span class="pill ok">Upgraded</span></td><td>Pipeline with agent attribution.</td></tr>
+      <tr><td>Custom CRM tables <code>crm/[slug]</code></td><td><span class="pill danger">Missing</span></td><td>Legacy's biggest investment (~150&thinsp;KB view engine: 5 view types, custom fields, filters/sort/group, sharing). Redesign has only a "Segments" nav stub.</td></tr>
+      <tr><td>Contacts / origin-table</td><td><span class="pill danger">Missing</span></td><td>Leads stub in nav; no leads/contacts surface built.</td></tr>
+      <tr><td>Calendar (booking)</td><td><span class="pill ok">Covered</span></td><td>Calendar with prep status + no-show risk.</td></tr>
+      <tr><td>Forms builder + submissions</td><td><span class="pill danger">Missing</span></td><td>Lead-capture forms feed the CRM; absent from new IA entirely.</td></tr>
+
+      <tr class="group-row"><td colspan="3">Marketing</td></tr>
+      <tr><td>Content calendar / Social</td><td><span class="pill ok">Covered</span></td><td>Campaigns → Content. Social publishing folds in.</td></tr>
+      <tr><td>Create AI Videos</td><td><span class="pill danger">Missing</span></td><td>55&thinsp;KB generation surface + video pipeline. No creative-generation home in new IA.</td></tr>
+      <tr><td>Reviews &amp; Referrals</td><td><span class="pill danger">Missing</span></td><td>Review Bot exists in the Fleet roster, but the review-request/referral surface is gone.</td></tr>
+      <tr><td>—</td><td><span class="pill info">New</span></td><td>Outbound + Broadcasts: campaign surfaces legacy never had.</td></tr>
+
+      <tr class="group-row"><td colspan="3">Agents</td></tr>
+      <tr><td>Agent Store (+ submit)</td><td><span class="pill ok">Covered</span></td><td>Store kept; "Hire from store" woven into sidebar + Fleet.</td></tr>
+      <tr><td>Agent Studio</td><td><span class="pill ok">Covered</span></td><td>Studio kept — compose from skills, tone, guardrails.</td></tr>
+      <tr><td>My Agents / performance</td><td><span class="pill ok">Upgraded</span></td><td>Fleet console: autonomy, playbooks, performance per agent.</td></tr>
+      <tr><td>AI memory + MCP monitoring</td><td><span class="pill warn">Partial</span></td><td>AI memory → Settings tab. Deep observability (memory health scoring, MCP tool monitoring) not yet in Fleet detail.</td></tr>
+      <tr><td>Agent Tasks (38&thinsp;KB)</td><td><span class="pill ok">Upgraded</span></td><td>Tasks unifies human + agent work; approval flows live in Today.</td></tr>
+
+      <tr class="group-row"><td colspan="3">Platform &amp; ops</td></tr>
+      <tr><td>Knowledge base</td><td><span class="pill danger">Missing</span></td><td>Distinct from AI memory: the docs/files agents ground on. No home.</td></tr>
+      <tr><td>Organization / members</td><td><span class="pill warn">Partial</span></td><td>Settings → Workspace covers basics; roles/invites/team management thin.</td></tr>
+      <tr><td>Settings (158&thinsp;KB monolith)</td><td><span class="pill ok">Upgraded</span></td><td>Six focused tabs incl. Autonomy — a genuinely new control legacy lacks.</td></tr>
+      <tr><td>Billing / credits</td><td><span class="pill ok">Covered</span></td><td>Settings → Billing + credits chip in the user rail.</td></tr>
+      <tr><td>Affiliate (Stripe Connect)</td><td><span class="pill danger">Missing</span></td><td>Referral earnings + payout onboarding. Decide: carry or kill.</td></tr>
+      <tr><td>Admin console (8 pages)</td><td><span class="pill dim">Out of scope</span></td><td>Credits, disputes, payouts, pricing, monitoring — internal ops; should be a separate internal app, not the product shell.</td></tr>
+      <tr><td>Integration health</td><td><span class="pill warn">Partial</span></td><td>Legacy surfaces live health in sidebar footer; redesign has an Integrations settings tab but no ambient signal.</td></tr>
+      <tr><td>Nav customization</td><td><span class="pill dim">Dropped</span></td><td>Legacy's rename/hide/reorder/group editor. Deliberate loss — the new IA is opinionated. Revisit only if installed agents need nav slots.</td></tr>
+      <tr><td>Property valuation</td><td><span class="pill dim">Dropped</span></td><td>Vertical one-off. Belongs in the Store as an installable agent, not core IA.</td></tr>
+      <tr><td>Onboarding tour</td><td><span class="pill danger">Missing</span></td><td>Legacy has <code>data-tour</code> scaffolding. New OS is a bigger paradigm shift — needs a first-run story more, not less.</td></tr>
+    </tbody>
+  </table>
+
+  <h2><span class="sec-num">03</span>Gap backlog, prioritized</h2>
+
+  <div class="prio">
+    <div class="prio-head"><span class="pill danger">P1</span><h4>Parity blockers — users can't migrate without these</h4></div>
+    <ul>
+      <li><strong>Assistant thread history.</strong> Chat is the product's spine; losing threads on close is a regression.
+        <span class="fold">Fold in: recent-chats list under the New Chat button (as legacy's NavChats), or a history drawer inside the Ask bar.</span></li>
+      <li><strong>Leads + Segments.</strong> Both are nav stubs; legacy covers them via contacts + custom tables.
+        <span class="fold">Fold in: build People → Leads (qualify/approve queue) and Segments (agent-built smart lists) — this also absorbs 80% of what custom tables were used for.</span></li>
+      <li><strong>Forms.</strong> Top-of-funnel capture that feeds Leads.
+        <span class="fold">Fold in: Campaigns → Forms, scoped down: field list + preview + submissions inbox. Skip legacy's full builder chrome at first.</span></li>
+      <li><strong>Knowledge base.</strong> What agents ground on; adjacent to but distinct from AI memory.
+        <span class="fold">Fold in: Intelligence → Knowledge, sharing the memory provenance pattern from Settings → AI memory.</span></li>
+      <li><strong>Team management.</strong> Invites, roles, seat management.
+        <span class="fold">Fold in: Settings → Workspace, second section. No new nav needed.</span></li>
+    </ul>
+  </div>
+
+  <div class="prio">
+    <div class="prio-head"><span class="pill warn">P2</span><h4>Differentiators worth carrying forward</h4></div>
+    <ul>
+      <li><strong>Reviews &amp; Referrals.</strong> Revenue-adjacent and loved; Review Bot already exists in the Fleet.
+        <span class="fold">Fold in: Campaigns → Reviews, run as an agent playbook rather than a standalone tool.</span></li>
+      <li><strong>Creative generation (AI videos).</strong> Keep the capability, lose the standalone page.
+        <span class="fold">Fold in: "Generate" action inside Campaigns → Content; the composer becomes an agent task with review in Inbox.</span></li>
+      <li><strong>Notifications center.</strong> One place for everything that pinged you, with push.
+        <span class="fold">Fold in: bell → popover feed; full history lives as an Inbox filter, not a new page.</span></li>
+      <li><strong>Agent observability.</strong> Memory health, MCP tool status, error streaks.
+        <span class="fold">Fold in: Fleet → agent detail → Health tab; ambient integration-health dot moves to the topbar.</span></li>
+      <li><strong>Custom table views (scoped).</strong> If Segments proves insufficient, add saved views: grid + board only, filter/sort/group.
+        <span class="fold">Explicitly not: formula/lookup/rollup fields, gallery/form views, view sharing — that's how legacy got overworked.</span></li>
+    </ul>
+  </div>
+
+  <div class="prio">
+    <div class="prio-head"><span class="pill dim">P3</span><h4>Ops &amp; deliberate exclusions</h4></div>
+    <ul>
+      <li><strong>Admin console</strong> (credits, disputes, payouts, pricing, phone-number requests) — rebuild as a separate internal tool; keeps the product shell clean.</li>
+      <li><strong>Affiliate program</strong> — carry only if the growth channel is active; lives in Settings → Billing if so.</li>
+      <li><strong>Onboarding tour</strong> — design once the P1 surfaces land; Today's brief is the natural guide.</li>
+      <li><strong>Drop for good:</strong> property valuation (→ Store agent), nav editor, <code>base/</code> + <code>origin-table</code> experiments, duplicate data-tables (<code>call-data-table</code> + <code>-v2</code>, <code>client-management-table</code> + <code>-v2</code>), sidebar copies, <code>page2.tsx</code>.</li>
+    </ul>
+  </div>
+
+  <h2><span class="sec-num">04</span>What the legacy app teaches us not to repeat</h2>
+  <ul>
+    <li><strong>One engine per pattern.</strong> Legacy has three grid/table engines (<code>crm/[slug]</code>, <code>views/all-tasks</code>, <code>origin-table</code>) and two kanbans. The redesign should have exactly one list, one board, one profile pattern — reused everywhere.</li>
+    <li><strong>No monoliths.</strong> A 158&thinsp;KB <code>SettingsClient</code> and 55&thinsp;KB create page are why "overworked" reads as slow. Keep the redesign's page-per-file discipline.</li>
+    <li><strong>Configurability is not IA.</strong> Legacy let users rename/reorder nav because the default IA wasn't trusted. Ship the opinionated nav; measure before re-adding knobs.</li>
+    <li><strong>Agents are the product.</strong> Legacy bolts agents onto a CRM; the redesign's Today/Fleet/Autonomy framing is the actual thesis. Every carried-over feature should be re-expressed as something an agent does with your approval — not another manual tool.</li>
+  </ul>
+
+  <div class="callout">
+    <p><strong>Bottom line:</strong> the redesign already covers or upgrades ~70% of legacy's user-facing surface with a third of the IA. Five P1 gaps (chat history, leads/segments, forms, knowledge, team management) stand between this design and true migration-readiness; everything else is either a scoped fold-in or a deliberate kill.</p>
+  </div>
+
+</div>
+</body>
+</html>

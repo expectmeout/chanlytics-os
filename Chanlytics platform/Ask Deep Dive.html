@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chanlytics — Ask (⌘K) Deep Dive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/tokens.css">
+<style>
+body{background:var(--bg)}a{color:var(--info);text-decoration:none}a:hover{color:var(--ink)}
+.doc{max-width:940px;margin:0 auto;padding:var(--space-16) var(--space-8) var(--space-20)}
+.doc-kicker{font-family:var(--font-mono);font-size:var(--text-xs);letter-spacing:var(--tracking-wide);text-transform:uppercase;color:var(--ink-dim);margin-bottom:var(--space-3)}
+h1{font-size:var(--text-4xl);font-weight:var(--weight-semibold);letter-spacing:var(--tracking-tight);margin:0 0 var(--space-3)}
+.doc-meta{display:flex;gap:var(--space-5);font-size:var(--text-sm);color:var(--ink-dim);padding-bottom:var(--space-8);border-bottom:1px solid var(--line);margin-bottom:var(--space-10);flex-wrap:wrap}
+h2{font-size:var(--text-2xl);font-weight:var(--weight-semibold);letter-spacing:var(--tracking-tight);margin:var(--space-16) 0 var(--space-2)}
+h2 .sec-num{font-family:var(--font-mono);font-size:var(--text-sm);color:var(--ink-faint);margin-right:var(--space-3);font-weight:var(--weight-regular)}
+.sec-lede{font-size:var(--text-md);color:var(--ink-dim);margin:0 0 var(--space-6)}
+p{font-size:var(--text-md);line-height:var(--leading-relaxed);color:var(--ink-muted);margin:0 0 var(--space-4);text-wrap:pretty}
+p.lede{font-size:var(--text-lg);color:var(--ink)}
+ul{margin:0 0 var(--space-4);padding-left:var(--space-5)}
+li{font-size:var(--text-md);line-height:var(--leading-relaxed);color:var(--ink-muted);margin-bottom:var(--space-2)}
+li strong,p strong{color:var(--ink);font-weight:var(--weight-medium)}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);border:1px solid var(--line);border-radius:var(--radius-xs);padding:1px 5px;color:var(--ink-muted);white-space:nowrap}
+table{width:100%;border-collapse:collapse;margin:var(--space-4) 0 var(--space-6);font-size:var(--text-sm)}
+th{text-align:left;font-family:var(--font-mono);font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.04em;color:var(--ink-dim);font-weight:var(--weight-medium);padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--line);color:var(--ink-muted);vertical-align:top;line-height:1.5}
+td:first-child{color:var(--ink);font-weight:var(--weight-medium);white-space:nowrap}
+.pill{display:inline-flex;gap:5px;font-size:var(--text-xs);font-weight:var(--weight-medium);border-radius:var(--radius-full);padding:2px 9px;white-space:nowrap}
+.pill-ok{background:color-mix(in oklab,var(--ok) 12%,transparent);color:var(--ok)}
+.pill-warn{background:color-mix(in oklab,var(--warn) 14%,transparent);color:var(--warn)}
+.verdict{border-left:3px solid var(--accent);background:var(--bg-raised);border-radius:var(--radius-md);padding:var(--space-4) var(--space-5);margin:var(--space-6) 0}
+.verdict p{margin-bottom:var(--space-2)}.verdict p:last-child{margin-bottom:0}
+</style>
+</head>
+<body>
+<div class="doc">
+<div class="doc-kicker">Chanlytics · Component deep dive</div>
+<h1>Ask Chanlytics (⌘K)</h1>
+<div class="doc-meta"><span><strong>Scope:</strong> UX/UI of the palette + the integration contract behind it</span><span><strong>Date:</strong> Jul 29, 2026</span></div>
+
+<p class="lede">Ask is not a chatbot bolted onto the app — it is a third input device (after buttons and hotkeys) over the exact same rails. That framing decides everything below: what it should look like, and what it must never be allowed to do.</p>
+
+<h2><span class="sec-num">01</span>What it is today</h2>
+<ul>
+  <li><strong>Shell-owned overlay</strong> — ⌘K anywhere; <code>window.askAbout({prompt, answer?, links?, mode})</code> lets any surface open it pre-seeded (thread cards, Fleet, Billing all use it). Threads persist and resume.</li>
+  <li><strong>Deterministic intent engine</strong> — ~15 regex intents (waiting-on-me, revenue pacing, segments, invoice, pause/resume agent, book Jordan, refund explainer, teach/give-task, and the four live-store intents: policy, trust, presence, compliance). Utterance → intent → answer composed at answer-time from the live stores, never canned.</li>
+  <li><strong>Actions are store calls</strong> — "Book Jordan's intro call" runs <code>IX_STORE.set(...)</code>; "Set me away" runs <code>PR_STORE.setAway()</code>; pause runs <code>FL_STORE.setStatus()</code>. Same events fire, so Inbox, Today, Tasks, Pipeline, bell all reconcile — Ask has zero private state.</li>
+  <li><strong>Answers deep-link</strong> — every reply carries entity links (<code>CHANLY.R.*</code>), and action buttons flip to a "done" state with follow-up links.</li>
+</ul>
+
+<h2><span class="sec-num">02</span>UX/UI assessment of the palette</h2>
+<table>
+  <tr><th>Element</th><th></th><th>Read</th></tr>
+  <tr><td>One input, four verbs</td><td class="pill pill-ok">Strong</td><td>"search, command, draft, decide…" placeholder states the contract; ↵ ask / esc close hints are right.</td></tr>
+  <tr><td>Try-asking suggestions</td><td class="pill pill-ok">Strong</td><td>They teach the intent vocabulary — each one maps to a real intent, so the empty state is documentation.</td></tr>
+  <tr><td>Suggestion grouping</td><td class="pill pill-warn">Gap</td><td>Eight flat rows mix questions ("What's waiting?"), actions ("Pause SMS Agent"), and drafts. Group as <strong>Ask · Act · Draft</strong> with a tiny verb tag per row — sets expectations about what ↵ will do (answer vs. commit).</td></tr>
+  <tr><td>Thread rail hygiene</td><td class="pill pill-warn">Gap</td><td>Duplicate "Give Phone Rep a task" / "Teach the agents…" titles (visible in the screenshot). Title threads by their <em>result</em> ("Phone Rep task — call Selena's no-shows"), dedupe repeats, and cap the rail at ~10 with "earlier" collapse.</td></tr>
+  <tr><td>Context visibility</td><td class="pill pill-warn">Gap</td><td>When opened via <code>askAbout</code> from a thread/card, nothing shows what context Ask is carrying. Add a dismissible scope chip under the input: "About: Aisha Khan — refund thread". This is also the seam for "approve <em>this</em>" pronoun commands.</td></tr>
+  <tr><td>Committing answers</td><td class="pill pill-warn">Gap</td><td>Action buttons should carry the same governance chrome as the rest of the app: <code>PolicyChip</code> next to a committing action, <code>{...gate("approve")}</code> on the button (a Viewer should see it disabled with the reason), and an <strong>Undo</strong> in the done-state (same snapshot pattern as toasts).</td></tr>
+  <tr><td>Answer anatomy</td><td class="pill pill-ok">Good</td><td>Answer → links → optional action is the right order. Keep answers to 2–3 sentences composed from live numbers; entity pills over prose where possible.</td></tr>
+</table>
+
+<h2><span class="sec-num">03</span>The integration contract</h2>
+<div class="verdict">
+  <p><strong>Rule 1 — thin client, always.</strong> Ask may only commit through the same store methods buttons use, so every Ask action inherits gates, events, undo, and audit for free. If an intent needs a new capability, the store gets the method first; Ask calls it second.</p>
+  <p><strong>Rule 2 — closed intents, like closed verbs.</strong> The payload is always <code>{intent, params}</code> from a finite set. The ONLY machine-learning seam in the whole product is utterance → intent; execution stays deterministic. Backend swap: replace the regex router with an NLU endpoint, nothing else moves.</p>
+  <p><strong>Rule 3 — answers read the single sources.</strong> Policy from <code>window.POLICY</code>, trust from <code>RP_TRUST</code>, presence from <code>PR_STORE</code>, compliance from <code>COMPLIANCE</code> — never restated copy. An answer is a projection, not content.</p>
+</div>
+<p>Today's code already obeys all three rules — the stress rounds proved Ask's "What can agents do?" reflected a live matrix flip, and its approve action resolved on every surface. The gaps are presentation (grouping, scope chip, governance chrome on actions), not architecture.</p>
+
+<h2><span class="sec-num">04</span>Build list, in order</h2>
+<ul>
+  <li><strong>1. Scope chip</strong> — <code>askAbout</code> already carries context; render it + pass it to the intent router so "approve", "snooze this", "why is this paused" resolve against the seeded thread.</li>
+  <li><strong>2. Ask · Act · Draft grouping</strong> on the try-asking list + a verb tag on each history thread.</li>
+  <li><strong>3. Governance chrome on actions</strong> — PolicyChip + gate() + Undo on committing answers.</li>
+  <li><strong>4. Result-titled threads + dedupe.</strong></li>
+  <li><strong>5. ↑ recall</strong> of previous prompts in the composer (matches every terminal user's muscle memory).</li>
+</ul>
+<p>All five are palette-local; none touch the rails. Say which to build.</p>
+</div>
+</body>
+</html>

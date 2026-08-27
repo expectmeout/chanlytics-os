@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chanlytics — Architecture Readiness Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/tokens.css">
+<style>
+  body { background: var(--bg); }
+  a { color: var(--info); text-decoration: none; }
+  a:hover { color: var(--ink); text-decoration: underline; }
+  .doc { max-width: 940px; margin: 0 auto; padding: var(--space-16) var(--space-8) var(--space-20); }
+  .doc-kicker { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); margin-bottom: var(--space-3); }
+  h1 { font-size: var(--text-4xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); margin: 0 0 var(--space-3); }
+  .doc-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); font-size: var(--text-sm); color: var(--ink-dim); padding-bottom: var(--space-8); border-bottom: 1px solid var(--line); margin-bottom: var(--space-10); }
+  .doc-meta strong { color: var(--ink-muted); font-weight: var(--weight-medium); }
+  h2 { font-size: var(--text-2xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); margin: var(--space-16) 0 var(--space-2); }
+  h2 .sec-num { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--ink-faint); margin-right: var(--space-3); font-weight: var(--weight-regular); }
+  .sec-lede { font-size: var(--text-md); color: var(--ink-dim); margin: 0 0 var(--space-6); }
+  p { font-size: var(--text-md); line-height: var(--leading-relaxed); color: var(--ink-muted); margin: 0 0 var(--space-4); text-wrap: pretty; }
+  p.lede { font-size: var(--text-lg); color: var(--ink); }
+  ul { margin: 0 0 var(--space-4); padding-left: var(--space-5); }
+  li { font-size: var(--text-md); line-height: var(--leading-relaxed); color: var(--ink-muted); margin-bottom: var(--space-2); }
+  li strong, p strong { color: var(--ink); font-weight: var(--weight-medium); }
+  code { font-family: var(--font-mono); font-size: 0.86em; background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-xs); padding: 1px 5px; color: var(--ink-muted); white-space: nowrap; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-xs); font-weight: var(--weight-medium); letter-spacing: 0.02em; border-radius: var(--radius-full); padding: 2px 9px; white-space: nowrap; }
+  .pill-built { background: color-mix(in oklab, var(--ok) 12%, transparent); color: var(--ok); }
+  .pill-partial { background: color-mix(in oklab, var(--warn) 14%, transparent); color: var(--warn); }
+  .pill-missing { background: color-mix(in oklab, var(--danger) 11%, transparent); color: var(--danger); }
+  .pill-fixed { background: color-mix(in oklab, var(--info) 12%, transparent); color: var(--info); }
+  table { width: 100%; border-collapse: collapse; margin: var(--space-4) 0 var(--space-6); font-size: var(--text-sm); }
+  th { text-align: left; font-family: var(--font-mono); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-dim); font-weight: var(--weight-medium); padding: 8px 10px; border-bottom: 1px solid var(--line-strong, var(--line)); }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--line); color: var(--ink-muted); vertical-align: top; line-height: 1.5; }
+  td:first-child { color: var(--ink); font-weight: var(--weight-medium); white-space: nowrap; }
+  .m-state { white-space: nowrap; }
+  .verdict { border-left: 3px solid var(--accent); background: var(--bg-raised); border-radius: var(--radius-md); padding: var(--space-4) var(--space-5); margin: var(--space-6) 0; }
+  .verdict p { margin-bottom: var(--space-2); } .verdict p:last-child { margin-bottom: 0; }
+  .seq { counter-reset: step; margin: var(--space-4) 0; padding: 0; list-style: none; }
+  .seq li { counter-increment: step; padding-left: var(--space-8); position: relative; margin-bottom: var(--space-3); }
+  .seq li::before { content: counter(step); position: absolute; left: 0; top: -2px; width: 24px; height: 24px; border-radius: var(--radius-full); background: var(--accent); color: #fff; font-family: var(--font-mono); font-size: var(--text-xs); display: grid; place-items: center; font-weight: var(--weight-medium); }
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-3); margin: var(--space-6) 0; }
+  .stat { border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); padding: var(--space-3) var(--space-4); }
+  .stat b { display: block; font-size: var(--text-2xl); font-weight: var(--weight-semibold); color: var(--ink); font-family: var(--font-mono); letter-spacing: var(--tracking-tight); }
+  .stat span { font-size: var(--text-xs); color: var(--ink-dim); }
+  .stat.ok b { color: var(--ok); }
+</style>
+</head>
+<body>
+<div class="doc">
+<div class="doc-kicker">Chanlytics · Internal engineering review</div>
+<h1>Architecture Readiness Audit</h1>
+<div class="doc-meta"><span><strong>Scope:</strong> full codebase — 13 data files, 28 pages, 4 shared components</span><span><strong>Method:</strong> static scan of every button, store, event, route, and entity reference</span><span><strong>Date:</strong> Jul 29, 2026</span></div>
+
+<p class="lede">Question under review: is the mockup's architecture a clean seam for real data, and does every button close a loop — action → state → event → every listening surface → toast with undo? Answer: yes, with two mechanical defects found and fixed this pass, and three watch items for the backend milestone.</p>
+
+<div class="stat-row">
+  <div class="stat ok"><b>0</b><span>dead buttons (every button navigates, mutates a store, or is intentionally disabled with a reason)</span></div>
+  <div class="stat ok"><b>0</b><span>broken entity references across 234 declared ids (clients, leads, threads, convos, appts, tasks, segments, agents)</span></div>
+  <div class="stat ok"><b>0</b><span>event-listener leaks — every <code>addEventListener</code> has a cleanup</span></div>
+  <div class="stat ok"><b>23/23</b><span>custom events have at least one live subscriber</span></div>
+  <div class="stat"><b>31/39</b><span>toasts carry undo; the other 8 are informational (validation, resend, export) with no state to restore</span></div>
+</div>
+
+<h2><span class="sec-num">01</span>The loop, verified</h2>
+<p class="sec-lede">One decision anywhere must show up everywhere. This is the contract the whole app hangs on — here is the measured wiring.</p>
+<ol class="seq">
+  <li><strong>Button fires a store method</strong> — never a local mutation. 9 session stores (<code>IX_STORE</code>, <code>FL_STORE</code>, <code>AS_STORE</code>, <code>LM_STORE</code>, <code>LD_STORE</code>, <code>INT_STORE</code>, <code>ST_STORE</code>, <code>SG_STORE</code>, <code>BC_HISTORY_SEED</code>) own all cross-surface writes.</li>
+  <li><strong>Store dispatches a CustomEvent</strong> — 23 event types, all declared in CLAUDE.md, all dispatched from the store layer or the owning page.</li>
+  <li><strong>Surfaces re-render</strong> — <code>inbox:decisions</code> alone has 13 subscribers (dashboard, calendar, client profile, conversations, pipeline, reports, tasks, sidebar, topbar…). Fleet status changes reach 5 surfaces; store installs reach 3.</li>
+  <li><strong>Toast confirms with undo</strong> — one shared <code>usePPToast</code>; undo is a snapshot-restore that re-dispatches, so listeners roll back too.</li>
+</ol>
+<p>Deliberate exceptions, all documented: <code>broadcasts.jsx</code> unshifts into <code>BC_HISTORY_SEED</code> and <code>segments.jsx</code> pushes into <code>CLIENT_SEGMENTS</code> — the two sanctioned cross-file writebacks in CLAUDE.md, each paired with an event (<code>broadcasts:sent</code>, <code>segments:new</code>).</p>
+
+<h2><span class="sec-num">02</span>Plug-and-play seams</h2>
+<p class="sec-lede">The mockup is structured so real data replaces seeds without touching page code. Three seams, in order of how they'd be wired.</p>
+<table>
+  <tr><th>Seam</th><th>Today (mock)</th><th>Backend swap</th></tr>
+  <tr><td>Read path</td><td>Seed objects on <code>window.*</code>, loaded by script order before any page parses. Pages read via <code>(window.X || [])</code>.</td><td>Replace each <code>data/*.jsx</code> with a fetch that populates the <em>same globals with the same shapes</em>, then mount. Page code unchanged.</td></tr>
+  <tr><td>Write path</td><td>9 store objects; each method mutates memory + dispatches an event.</td><td>Each store method body becomes an API call (<code>IX_STORE.set</code> → <code>POST /decisions</code>, <code>FL_STORE.setPerm</code> → <code>PATCH /agents/:id/perms</code>, <code>AS_STORE.install</code> → <code>POST /fleet</code>…). Method signatures and events stay; optimistic update is already the behavior.</td></tr>
+  <tr><td>Push path</td><td><code>CustomEvent</code> on <code>window</code>; scripted arrivals (<code>LD_STORE.arrive</code>, handoffs) simulate server push.</td><td>A websocket/SSE client re-dispatches the same 23 events. Every surface already subscribes — live updates come free.</td></tr>
+</table>
+<p><strong>The one structural requirement:</strong> ~30 pages destructure seeds at module scope (<code>const { THREADS } = window.INBOX_DATA</code> at top of file). Safe today because script order guarantees data-before-pages; with async fetch, the boot sequence must keep that guarantee — load data, <em>then</em> mount React (a single gate in <code>Chanlytics.html</code>). Moving all reads to render time is the alternative but touches every page for no user-visible gain. Recommendation: keep the boot-gate contract, document it in CLAUDE.md at swap time.</p>
+<p>Session stores are intentionally non-persistent (reset on reload) — in production that persistence moves server-side through the same methods, so nothing is lost by design.</p>
+
+<h2><span class="sec-num">03</span>Defects found &amp; fixed this pass</h2>
+<table>
+  <tr><th>Finding</th><th class="m-state">State</th><th>Detail</th></tr>
+  <tr><td>/tasks crash — TDZ ordering</td><td class="m-state"><span class="pill pill-fixed">Fixed</span></td><td><code>tasks.jsx</code> built <code>allTasks</code> by spreading <code>handoffTasks</code> two declarations before it existed — the whole Tasks page hit the error boundary. Caught by runtime verification (static scan missed it: valid syntax, invalid order). Declaration moved above the spread.</td></tr>
+  <tr><td>Dead props on mobile topbar</td><td class="m-state"><span class="pill pill-fixed">Fixed</span></td><td><code>app-shell.jsx</code> passed <code>bellCount={3}</code> (a hardcoded stat) and <code>onBell</code> to a Topbar that accepts neither — leftovers from an earlier bell API. Topbar computes real unread internally. Both props removed.</td></tr>
+  <tr><td>18 raw route strings</td><td class="m-state"><span class="pill pill-fixed">Fixed</span></td><td>18 <code>CHANLY.nav(`fleet/${id}`)</code>-style calls across 10 pages bypassed the <code>CHANLY.R.*</code> builders (the route contract lives in one place so a URL-scheme change is a one-line edit). All swept onto builders: <code>R.agent</code>, <code>R.segment</code>, <code>R.client</code>, <code>R.conversation</code>, <code>R.thread</code>, <code>R.admin</code>.</td></tr>
+</table>
+<p>Scan hits that turned out clean, for the record: <code>th-bench</code> in Studio is a string literal inside the AG-UI trace demo, not an entity ref; the disabled invite button in Settings is intentional seat-cap UX with an explanatory tooltip; the chevron in Command rows is decorative (<code>tabIndex={-1}</code>) — its parent header owns the click.</p>
+
+<h2><span class="sec-num">04</span>Watch items for the backend milestone</h2>
+<table>
+  <tr><th>Item</th><th class="m-state">State</th><th>Detail</th></tr>
+  <tr><td>Role gates app-wide</td><td class="m-state"><span class="pill pill-partial">Open</span></td><td><code>ST_STORE.can(action)</code> exists and gates the Team pane, but Approve / disconnect / top-up buttons across surfaces don't consult it yet (§02 of the Completeness Audit). Should land as a shared <code>GatedButton</code> before real users get roles.</td></tr>
+  <tr><td>Toast collision</td><td class="m-state"><span class="pill pill-fixed">Closed</span></td><td><code>usePPToast</code> is now a queue: up to 3 stacked toasts, each with its own dismiss timer and undo — rapid decision bursts no longer eat earlier undos.</td></tr>
+  <tr><td>Boot gate</td><td class="m-state"><span class="pill pill-fixed">Closed</span></td><td>Explicit in <code>Chanlytics.html</code>: required globals are verified before <code>createRoot().render()</code>; a missing seed renders a friendly retry message instead of a crash. The backend swap reuses the same gate after its fetch.</td></tr>
+</table>
+
+<h2><span class="sec-num">05</span>Event wiring map</h2>
+<p class="sec-lede">Every event and who listens — the re-render fabric a push channel plugs into.</p>
+<table>
+  <tr><th>Event</th><th>Subscribers</th></tr>
+  <tr><td>inbox:decisions</td><td>13 surfaces — dashboard (brief, command, live), agent-fleet, calendar, client-profile, content-cal, conversations, pipeline, reports, tasks, sidebar, topbar</td></tr>
+  <tr><td>fleet:status</td><td>agent-fleet, dashboard brief / command / fleet, sidebar</td></tr>
+  <tr><td>live:ended</td><td>agent-fleet, conversations, ask, sidebar, topbar</td></tr>
+  <tr><td>store:listing</td><td>agent-store, agent-studio, tasks, topbar</td></tr>
+  <tr><td>store:installed</td><td>agent-fleet, agent-store, agent-studio</td></tr>
+  <tr><td>fleet:handoff · integrations:changed</td><td>tasks, topbar</td></tr>
+  <tr><td>leads:arrived</td><td>leads, topbar</td></tr>
+  <tr><td>inbox:counts</td><td>app-shell, sidebar</td></tr>
+  <tr><td>fleet:perms · fleet:playbooks · guardrails:changed</td><td>agent-fleet</td></tr>
+  <tr><td>leads:converted · broadcasts:sent · outbound:approved</td><td>topbar (bell pushes)</td></tr>
+  <tr><td>billing:changed</td><td>sidebar</td></tr>
+  <tr><td>segments:new · team:changed · ask:seed · ask:new · inbox:focus-composer</td><td>segments, settings, ask, inbox-thread (owner surfaces)</td></tr>
+</table>
+</div>
+</body>
+</html>

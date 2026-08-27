@@ -1,0 +1,9 @@
+{
+  "name": "chanlytics-messaging",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.121.0",
+    "@vercel/blob": "^2"
+  }
+}

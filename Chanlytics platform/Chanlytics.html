@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chanlytics</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="styles/tokens.css?v=1" />
+  <link rel="stylesheet" href="styles/components.css?v=35" />
+  <link rel="stylesheet" href="styles/dashboard.css?v=4" />
+  <link rel="stylesheet" href="styles/dashboard-a-v2.css?v=20" />
+  <link rel="stylesheet" href="styles/inbox.css?v=15" />
+  <link rel="stylesheet" href="styles/clients.css?v=5" />
+  <link rel="stylesheet" href="styles/people.css?v=12" />
+  <link rel="stylesheet" href="styles/store.css?v=16" />
+  <link rel="stylesheet" href="styles/fleet.css?v=6" />
+  <link rel="stylesheet" href="styles/pipeline.css?v=3" />
+  <link rel="stylesheet" href="styles/conversations.css?v=3" />
+  <link rel="stylesheet" href="styles/live.css?v=2" />
+  <link rel="stylesheet" href="styles/calendar.css?v=9" />
+  <link rel="stylesheet" href="styles/reports.css?v=3" />
+  <link rel="stylesheet" href="styles/settings.css?v=5" />
+  <link rel="stylesheet" href="styles/mobile.css?v=5" />
+
+  <style>
+    html, body { height: 100%; overflow: hidden; }
+    #root { height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <!-- Foundations -->
+  <script type="text/babel" src="components/icons.jsx?v=3"></script>
+  <script type="text/babel" src="components/surface-tabs.jsx?v=1"></script>
+  <script type="text/babel" src="components/sidebar.jsx?v=20"></script>
+  <script type="text/babel" src="components/topbar.jsx?v=22"></script>
+  <script type="text/babel" src="components/data-bits.jsx?v=18"></script>
+
+  <!-- Data -->
+  <script type="text/babel" src="data/constants.jsx?v=4"></script>
+  <script type="text/babel" src="data/dashboard-data.jsx?v=21"></script>
+  <script type="text/babel" src="data/inbox-data.jsx?v=19"></script>
+  <script type="text/babel" src="data/clients-data.jsx?v=11"></script>
+  <script type="text/babel" src="data/store-data.jsx?v=11"></script>
+  <script type="text/babel" src="data/fleet-data.jsx?v=9"></script>
+  <script type="text/babel" src="data/pipeline-data.jsx?v=5"></script>
+  <script type="text/babel" src="data/conversations-data.jsx?v=4"></script>
+  <script type="text/babel" src="data/live-data.jsx?v=3"></script>
+  <script type="text/babel" src="data/calendar-data.jsx?v=6"></script>
+  <script type="text/babel" src="data/reports-data.jsx?v=5"></script>
+  <script type="text/babel" src="data/tasks-data.jsx?v=7"></script>
+  <script type="text/babel" src="data/people-data.jsx?v=13"></script>
+
+  <!-- Today (Operator's brief — Agent Command primary) -->
+  <script type="text/babel" src="pages/dashboard-a-brief.jsx?v=13"></script>
+  <script type="text/babel" src="pages/dashboard-a-command.jsx?v=25"></script>
+  <script type="text/babel" src="pages/dashboard-a-live.jsx?v=11"></script>
+  <script type="text/babel" src="pages/dashboard-a-fleet.jsx?v=17"></script>
+  <script type="text/babel" src="pages/dashboard-a-ask.jsx?v=28"></script>
+  <script type="text/babel" src="pages/dashboard-a.jsx?v=8"></script>
+
+  <!-- Inbox -->
+  <script type="text/babel" src="pages/inbox-list.jsx?v=12"></script>
+  <script type="text/babel" src="pages/inbox-thread.jsx?v=23"></script>
+  <script type="text/babel" src="pages/inbox-rail.jsx?v=10"></script>
+  <script type="text/babel" src="pages/inbox.jsx?v=21"></script>
+
+  <!-- Clients (Triage-first portfolio) -->
+  <script type="text/babel" src="pages/clients-bits.jsx?v=1"></script>
+  <script type="text/babel" src="pages/clients-a.jsx?v=16"></script>
+  <script type="text/babel" src="pages/client-profile.jsx?v=19"></script>
+  <script type="text/babel" src="pages/leads.jsx?v=17"></script>
+  <script type="text/babel" src="pages/segments.jsx?v=16"></script>
+
+  <!-- Agent Store -->
+  <script type="text/babel" src="pages/agent-store.jsx?v=19"></script>
+  <script type="text/babel" src="pages/agent-fleet.jsx?v=22"></script>
+  <script type="text/babel" src="pages/agent-studio.jsx?v=18"></script>
+  <script type="text/babel" src="pages/outbound.jsx?v=16"></script>
+  <script type="text/babel" src="pages/content-cal.jsx?v=8"></script>
+  <script type="text/babel" src="pages/broadcasts.jsx?v=20"></script>
+  <script type="text/babel" src="pages/pipeline.jsx?v=7"></script>
+  <script type="text/babel" src="pages/conversations.jsx?v=9"></script>
+  <script type="text/babel" src="pages/live-monitor.jsx?v=9"></script>
+  <script type="text/babel" src="pages/calendar.jsx?v=17"></script>
+  <script type="text/babel" src="pages/reports.jsx?v=15"></script>
+  <script type="text/babel" src="pages/tasks.jsx?v=19"></script>
+  <script type="text/babel" src="pages/settings.jsx?v=21"></script>
+
+  <!-- Shell -->
+  <script type="text/babel" src="pages/app-shell.jsx?v=38"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+
+  <script type="text/babel" data-presets="env,react">
+    const { useEffect, useCallback } = React;
+
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "theme": "dark",
+      "inboxDensity": "compact",
+      "showInboxAgentRail": false
+    }/*EDITMODE-END*/;
+
+    function App() {
+      const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+      const theme = tweaks.theme;
+      const setTheme = useCallback((v) => setTweak("theme", v), [setTweak]);
+
+      useEffect(() => {
+        document.documentElement.setAttribute("data-theme", theme);
+      }, [theme]);
+
+      return (
+        <>
+          <ChanlyticsApp
+            theme={theme}
+            onTheme={setTheme}
+            inboxDensity={tweaks.inboxDensity}
+            showInboxAgentRail={tweaks.showInboxAgentRail}
+          />
+
+          <TweaksPanel title="Tweaks">
+            <TweakSection title="Appearance">
+              <TweakRadio
+                label="Theme"
+                value={theme}
+                options={[{ value: "light", label: "Light" }, { value: "dark", label: "Dark" }]}
+                onChange={setTheme}
+              />
+            </TweakSection>
+
+            <TweakSection title="Inbox">
+              <TweakRadio
+                label="Density"
+                value={tweaks.inboxDensity}
+                options={[
+                  { value: "compact", label: "Compact" },
+                  { value: "medium", label: "Medium" },
+                  { value: "rich", label: "Rich" }
+                ]}
+                onChange={(v) => setTweak("inboxDensity", v)}
+              />
+              <TweakToggle
+                label="Show agent context rail"
+                value={tweaks.showInboxAgentRail}
+                onChange={(v) => setTweak("showInboxAgentRail", v)}
+              />
+            </TweakSection>
+
+            <TweakSection title="About">
+              <div style={{ fontSize: 12, color: "var(--ink-muted)", lineHeight: 1.5 }}>
+                Live app shell — sidebar, bell, and every row navigate for real (⌘K opens Ask anywhere).
+                Unbuilt surfaces land on an in-design page instead of dead-ending.
+              </div>
+            </TweakSection>
+          </TweaksPanel>
+        </>
+      );
+    }
+
+    // Boot gate — the data-before-mount contract made explicit (Architecture audit §04).
+    // Backend swap: fetch real data, populate these globals, THEN render. Same gate.
+    const REQUIRED = ["CHANLY", "INBOX_DATA", "CLIENTS", "FLEET_DATA", "CHANLY_DATA", "POLICY", "ChanlyticsApp"];
+    const missing = REQUIRED.filter((k) => !window[k]);
+    if (missing.length) {
+      document.getElementById("root").innerHTML = '<div style="height:100vh;display:grid;place-items:center;font-family:Geist,sans-serif;color:#666"><div style="text-align:center"><div style="font-size:15px;font-weight:600;color:#333">Chanlytics didn\'t finish loading</div><div style="font-size:13px;margin-top:6px">Missing: ' + missing.join(", ") + ' — refresh to retry.</div></div></div>';
+    } else {
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    }
+  </script>
+</body>
+</html>

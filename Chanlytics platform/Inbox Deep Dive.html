@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chanlytics — Inbox Deep Dive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/tokens.css">
+<style>
+body{background:var(--bg)}a{color:var(--info);text-decoration:none}a:hover{color:var(--ink)}
+.doc{max-width:940px;margin:0 auto;padding:var(--space-16) var(--space-8) var(--space-20)}
+.doc-kicker{font-family:var(--font-mono);font-size:var(--text-xs);letter-spacing:var(--tracking-wide);text-transform:uppercase;color:var(--ink-dim);margin-bottom:var(--space-3)}
+h1{font-size:var(--text-4xl);font-weight:var(--weight-semibold);letter-spacing:var(--tracking-tight);margin:0 0 var(--space-3)}
+.doc-meta{display:flex;gap:var(--space-5);font-size:var(--text-sm);color:var(--ink-dim);padding-bottom:var(--space-8);border-bottom:1px solid var(--line);margin-bottom:var(--space-10);flex-wrap:wrap}
+h2{font-size:var(--text-2xl);font-weight:var(--weight-semibold);letter-spacing:var(--tracking-tight);margin:var(--space-16) 0 var(--space-2)}
+h2 .sec-num{font-family:var(--font-mono);font-size:var(--text-sm);color:var(--ink-faint);margin-right:var(--space-3);font-weight:var(--weight-regular)}
+.sec-lede{font-size:var(--text-md);color:var(--ink-dim);margin:0 0 var(--space-6)}
+p{font-size:var(--text-md);line-height:var(--leading-relaxed);color:var(--ink-muted);margin:0 0 var(--space-4);text-wrap:pretty}
+p.lede{font-size:var(--text-lg);color:var(--ink)}
+ul{margin:0 0 var(--space-4);padding-left:var(--space-5)}
+li{font-size:var(--text-md);line-height:var(--leading-relaxed);color:var(--ink-muted);margin-bottom:var(--space-2)}
+li strong,p strong{color:var(--ink);font-weight:var(--weight-medium)}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);border:1px solid var(--line);border-radius:var(--radius-xs);padding:1px 5px;color:var(--ink-muted);white-space:nowrap}
+table{width:100%;border-collapse:collapse;margin:var(--space-4) 0 var(--space-6);font-size:var(--text-sm)}
+th{text-align:left;font-family:var(--font-mono);font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.04em;color:var(--ink-dim);font-weight:var(--weight-medium);padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--line);color:var(--ink-muted);vertical-align:top;line-height:1.5}
+td:first-child{color:var(--ink);font-weight:var(--weight-medium);white-space:nowrap}
+.pill{display:inline-flex;gap:5px;font-size:var(--text-xs);font-weight:var(--weight-medium);border-radius:var(--radius-full);padding:2px 9px;white-space:nowrap}
+.pill-ok{background:color-mix(in oklab,var(--ok) 12%,transparent);color:var(--ok)}
+.pill-warn{background:color-mix(in oklab,var(--warn) 14%,transparent);color:var(--warn)}
+.pill-danger{background:color-mix(in oklab,var(--danger) 12%,transparent);color:var(--danger)}
+.verdict{border-left:3px solid var(--accent);background:var(--bg-raised);border-radius:var(--radius-md);padding:var(--space-4) var(--space-5);margin:var(--space-6) 0}
+.verdict p{margin-bottom:var(--space-2)}.verdict p:last-child{margin-bottom:0}
+</style>
+</head>
+<body>
+<div class="doc">
+<div class="doc-kicker">Chanlytics · Surface deep dive</div>
+<h1>Inbox — the decision engine</h1>
+<div class="doc-meta"><span>Composition: list rail · thread pane · agent rail + decide engine</span><span>Files: inbox.jsx · inbox-list.jsx · inbox-thread.jsx · inbox-rail.jsx</span></div>
+
+<p class="lede">Inbox is the system's beating heart — every committing verb (approve, decline, snooze, verdict, veto, take-over) lives or writes here. The engine is genuinely strong: snapshot-undo on everything, IX_STORE write-through, closed verbs, auto-advance, concurrent-change banners. The gaps are at the edges: two side surfaces that predate the policy machinery, and a handful of paths where the contracts don't quite reach.</p>
+
+<h2><span class="sec-num">01</span>What it gets right</h2>
+<ul>
+<li><strong>Every decision is a snapshot</strong> — decide/verdict/snooze/wake/archive/auto-send all capture prev state and offer working Undo through the shared toast queue.</li>
+<li><strong>Closed verbs honored</strong> — approve/edit/decline/snooze/take over, verdicts as their own gate, plan params as parameters (never new verbs), fallback stated on the card.</li>
+<li><strong>The hard scenarios exist</strong> — concurrent-change Refresh banner, veto countdowns with presence freeze, one-voice takeover, escalation without drafts, honest empty states per bucket.</li>
+<li><strong>Search spans buckets, saved views are real predicates, bulk bar follows the count·actions·flash·clear grammar.</strong></li>
+</ul>
+
+<h2><span class="sec-num">02</span>Gaps found</h2>
+<p class="sec-lede">Seven, ranked. #1 and #2 are contract violations — #2 can break the agent charter.</p>
+<table>
+<thead><tr><th>#</th><th>Gap</th><th>Severity</th><th>What's wrong</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Train-the-agent bypasses the policy matrix</td><td><span class="pill pill-danger">Charter</span></td><td>The rail's "For decisions like this" segment speaks a retired vocabulary (<code>auto | ask | stop</code>), guesses the permission by regexing the approval kind, writes "stop" as <em>ask</em> (a mislabeled write), defaults to "ask" regardless of the live policy, and isn't role-gated. Worst: on Aisha's <em>refund</em> it happily saves <strong>Auto-approve for money decisions</strong> — the one thing the charter forbids. Rebuild on the rails: class from <code>approval.policyClass</code>, live mode from <code>window.POLICY</code>, money class renders the charter lock, writes go through <code>POLICY.set</code> (fires <code>policy:changed</code>), gate <code>autonomy</code>.</td></tr>
+<tr><td>2</td><td>Hotkey A drops the plan parameter</td><td><span class="pill pill-danger">Contract</span></td><td>"Approve records the pick" — the Approve <em>button</em> passes the chosen slot ("Thu 2:00") into the decision record and timeline, but the keyboard path calls <code>decide()</code> without it: same verb, different receipt. The param pick lives as local state in the thread pane where the engine can't see it. Lift it to the engine so A and the button write identical records.</td></tr>
+<tr><td>3</td><td>j/k walks a stale list after switching views</td><td><span class="pill pill-warn">Bug</span></td><td>The keyboard effect closes over <code>visible</code> before it's computed (survives only via Babel's var hoisting) and never re-registers when a saved view changes — toggle "High confidence" and j/k still walks the previous bucket until something else re-renders the effect. Move the computation above the effect and fix the deps.</td></tr>
+<tr><td>4</td><td>Half the engine skips role guards</td><td><span class="pill pill-warn">Role gate</span></td><td><code>decide</code>/<code>sendReply</code>/<code>verdictDecide</code>/bulk-approve check <code>canDo("approve")</code>; <code>snooze</code>, <code>wake</code>, <code>archive</code>, <code>takeOver</code>, <code>handBack</code>, <code>vetoAct</code>, bulk snooze/archive don't — and the header Snooze, escalation "I'll take this one", and VetoBar Hold/Take over carry no gate spread. A Viewer can hold a countdown, take over a thread, or snooze half the queue.</td></tr>
+<tr><td>5</td><td>Generic links where deep links exist</td><td><span class="pill pill-warn">Contract</span></td><td>"Also in Leads · <em>Ready</em>" hardcodes the stage and navs to generic <code>leads</code> despite holding <code>thread.leadId</code> (read the live stage, deep-link <code>leads/ld-*</code>); the rail's "Open agent" / "Why this call?" nav to generic <code>fleet</code> instead of <code>R.agent(agentId)</code>.</td></tr>
+<tr><td>6</td><td>"Mark as unread" is a lie · unread never clears</td><td><span class="pill pill-warn">Honesty</span></td><td>The ⋯ menu item claims "Done — back to the top of your Inbox" but changes nothing. Meanwhile opening a thread never clears its unread dot, so the dot means "seeded unread," not "unread." Wire both: selecting a thread clears unread; Mark as unread sets it back (toast, no Ask detour).</td></tr>
+<tr><td>7</td><td>Decline receipt claims the plan is executing</td><td><span class="pill pill-ok">Copy</span></td><td>Timeline + resolved banner say "— {agent} is executing" for every verb, including Decline, whose real consequence is the stated <em>fallback</em>. One conditional: declined → "executing the fallback: {fallback}".</td></tr>
+</tbody>
+</table>
+
+<h2><span class="sec-num">03</span>Deliberately fine as-is</h2>
+<ul>
+<li><strong>Save draft / Regenerate</strong> — session mocks with honest microcopy; no persistence pretense worth building.</li>
+<li><strong>Done baseline (+48 this week)</strong> — seeded archive depth, labeled in the empty state.</li>
+<li><strong>Auto-advance choosing by priority, not view order</strong> — deciding from a saved view advances to the highest-priority needs thread; defensible triage behavior.</li>
+<li><strong>Rail's canned "Ask the agent" answers</strong> — deterministic, cite real evidence, stay inside the thin-client rule.</li>
+</ul>
+
+<div class="verdict">
+<p><strong>Verdict.</strong> The engine is the best-built thing in the app; the drift is in the satellites. The rail's train-the-agent control is the one genuinely dangerous find — it predates the policy matrix and can write <em>auto</em> on a money class the charter locks. Everything else is edge-tightening: one lifted state, one effect fix, gate sweeps, deep links, two honest receipts.</p>
+<p>All seven are local to the four inbox files (plus one POLICY read). Say which to build.</p>
+</div>
+</div>
+</body>
+</html>

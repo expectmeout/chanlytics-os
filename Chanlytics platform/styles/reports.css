@@ -1,0 +1,177 @@
+/* ====================================================================
+   Chanlytics — Reports
+   ==================================================================== */
+
+.reports {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.rp-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+/* Cards must never be shrunk to fit the viewport — the pane scrolls instead */
+.rp-body > * { flex-shrink: 0; }
+
+/* Tasks ↔ decide-engine */
+.tk-decided {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--ink-muted);
+  padding: 7px 10px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-md);
+}
+.tk-decided > .icon { color: var(--ok); }
+.tk-decided .cl-bucket-link { margin-left: auto; white-space: nowrap; }
+
+.rp-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+/* Chart card */
+.rp-chart-card { display: flex; flex-direction: column; gap: 10px; }
+.rp-chart-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.rp-chart-big {
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1;
+}
+.rp-chart-sub { font-size: 11.5px; color: var(--ink-dim); }
+.rp-chart-hint {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.rp-chart-hint .icon { color: var(--ok); }
+.rp-chart { display: block; width: 100%; flex: 1; min-height: 120px; }
+
+/* Decisions */
+.rp-dec-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.rp-dec-cell {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.rp-dec-num {
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1;
+}
+.rp-dec-num.ok { color: var(--ok); }
+.rp-dec-lbl {
+  font-size: 9.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  font-weight: 500;
+  text-align: center;
+}
+.rp-dec-notes {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rp-dec-notes li {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
+
+/* Agent table */
+.rp-agents .tbl th, .rp-agents .tbl td { padding-left: 16px; padding-right: 16px; }
+.rp-agents { padding: 0; overflow: hidden; }
+.rp-agents .fl-card-head { padding: 14px 16px 10px; margin-bottom: 0; }
+
+.rp-revbar-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 160px;
+}
+.rp-revbar {
+  display: inline-block;
+  height: 6px;
+  min-width: 2px;
+  border-radius: 3px;
+  background: var(--ink-muted);
+  opacity: 0.55;
+}
+.rp-revbar-num { font-size: 12px; color: var(--ink); font-weight: 500; }
+
+/* Channel mix */
+.rp-mix { display: flex; flex-direction: column; gap: 10px; }
+.rp-mix-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 44px;
+  gap: 12px;
+  align-items: center;
+}
+.rp-mix-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.rp-mix-label .icon { color: var(--ink-faint); }
+.rp-mix-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.rp-mix-fill {
+  display: block;
+  height: 100%;
+  background: var(--ink-muted);
+  opacity: 0.55;
+  border-radius: 3px;
+}
+.rp-mix-pct { font-size: 11.5px; color: var(--ink); font-weight: 500; text-align: right; }

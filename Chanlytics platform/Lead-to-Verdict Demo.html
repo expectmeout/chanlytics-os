@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chanlytics — Lead-to-Verdict Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/tokens.css">
+<style>
+  body { background: var(--bg); }
+  a { color: var(--info); text-decoration: none; }
+  a:hover { color: var(--ink); text-decoration: underline; }
+  .doc { max-width: 880px; margin: 0 auto; padding: var(--space-16) var(--space-8) var(--space-20); }
+  .doc-kicker { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); margin-bottom: var(--space-3); }
+  h1 { font-size: var(--text-4xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); margin: 0 0 var(--space-3); }
+  .doc-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); font-size: var(--text-sm); color: var(--ink-dim); padding-bottom: var(--space-8); border-bottom: 1px solid var(--line); margin-bottom: var(--space-10); }
+  p { font-size: var(--text-md); line-height: var(--leading-relaxed); color: var(--ink-muted); margin: 0 0 var(--space-4); text-wrap: pretty; }
+  p.lede { font-size: var(--text-lg); color: var(--ink); }
+  code { font-family: var(--font-mono); font-size: 0.86em; background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-xs); padding: 1px 5px; color: var(--ink-muted); white-space: nowrap; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-xs); font-weight: var(--weight-medium); border-radius: var(--radius-full); padding: 2px 9px; white-space: nowrap; }
+  .pill-ai { background: color-mix(in oklab, var(--accent) 12%, transparent); color: var(--accent); }
+  .pill-you { background: color-mix(in oklab, var(--info) 12%, transparent); color: var(--info); }
+  .pill-auto { background: color-mix(in oklab, var(--ok) 12%, transparent); color: var(--ok); }
+  .beat { display: grid; grid-template-columns: 44px 1fr; gap: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-3); box-shadow: var(--shadow-sm); }
+  .beat-n { width: 32px; height: 32px; border-radius: var(--radius-full); background: var(--accent); color: #fff; font-family: var(--font-mono); font-size: var(--text-sm); display: grid; place-items: center; font-weight: var(--weight-medium); }
+  .beat-head { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; margin-bottom: 4px; }
+  .beat-title { font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); }
+  .beat-go { margin-left: auto; font-size: var(--text-xs); }
+  .beat p { font-size: var(--text-sm); margin-bottom: var(--space-2); }
+  .beat p:last-child { margin-bottom: 0; }
+  .beat .see { color: var(--ink-muted); }
+  .beat .see b { color: var(--ink); }
+  .beat .proves { font-size: var(--text-xs); color: var(--ink-dim); border-top: 1px dashed var(--line); padding-top: var(--space-2); }
+  .note { border-left: 3px solid var(--accent); background: var(--bg-raised); border-radius: var(--radius-md); padding: var(--space-3) var(--space-5); margin: var(--space-8) 0 var(--space-6); font-size: var(--text-sm); color: var(--ink-muted); }
+</style>
+</head>
+<body>
+<div class="doc">
+<div class="doc-kicker">Chanlytics · Guided demo · ~4 minutes</div>
+<h1>The lead-to-verdict loop</h1>
+<div class="doc-meta"><span><strong>The story:</strong> AI owns speed before the meeting — you own one decision after it</span><span><strong>Every step is clickable</strong> — links open the live app at the exact spot</span></div>
+
+<p class="lede">Six stations, one conveyor. Each station shows a lead mid-flight at that stage — start a fresh session (reload the app) and run top to bottom.</p>
+
+<div class="beat">
+  <div class="beat-n">1</div>
+  <div>
+    <div class="beat-head"><span class="beat-title">A lead arrives — answered in 9 seconds</span><span class="pill pill-auto">auto · ~18s after load</span><a class="beat-go" href="Chanlytics.html#/leads">Open Leads →</a></div>
+    <p class="see">Sit on Leads for ~18 seconds. <b>Riley Nguyen</b> appears live — missed call, texted back by SMS Agent in 9s; the bell pushes it; ~9s later the same row updates in place as Qualifier scores her 78.</p>
+    <p class="proves">Proves: the &lt;1-minute response SLA and live write-through — no refresh, the row you're looking at changes.</p>
+  </div>
+</div>
+
+<div class="beat">
+  <div class="beat-n">2</div>
+  <div>
+    <div class="beat-head"><span class="beat-title">A safe reply rides the veto window</span><span class="pill pill-you">your 45 seconds</span><a class="beat-go" href="Chanlytics.html#/inbox/th-veto-kayla">Open Kayla's draft →</a></div>
+    <p class="see"><b>Kayla Brooks</b> asked for pricing — info-only, confidence 0.92, so the draft is on a live countdown: <b>"auto-sends in Ns — Edit · Hold."</b> Let it hit zero: it sends itself, logs "no action taken," toast offers Undo. Or type one character in the composer — the timer dies instantly.</p>
+    <p class="proves">Proves: the third autonomy mode — default-approve with a veto, and typing = intent to edit.</p>
+  </div>
+</div>
+
+<div class="beat">
+  <div class="beat-n">3</div>
+  <div>
+    <div class="beat-head"><span class="beat-title">A committing ask waits for you</span><span class="pill pill-you">you decide</span><a class="beat-go" href="Chanlytics.html#/inbox/th-aisha-refund">Open Aisha's refund →</a></div>
+    <p class="see">Aisha wants a $120 refund — money is <b>human territory</b>: no timer, no negotiation. The agent already sent the calm hold (<i>"you'll hear back within the hour"</i>) and drafted ONE plan: <b>book her a resolution call with you, today 4:30</b>. Approve books it; Decline sends the acknowledgment only.</p>
+    <p class="proves">Proves: agents never decide money — a money moment always converts to a booked call with a human; phone downgrades to async.</p>
+  </div>
+</div>
+
+<div class="beat">
+  <div class="beat-n">4</div>
+  <div>
+    <div class="beat-head"><span class="beat-title">The goal state: booked</span><span class="pill pill-ai">agents collide, you arbitrate</span><a class="beat-go" href="Chanlytics.html#/inbox/th-booking-conflict">Open the conflict →</a></div>
+    <p class="see">Two agents booked Lena's 1:00. The plan: <b>Tara → Jay, same hour</b> — approve it, then check <a href="Chanlytics.html#/calendar">Calendar</a>: both appointments stand, nobody waited.</p>
+    <p class="proves">Proves: operational decisions use the same Approve/Decline contract as messages.</p>
+  </div>
+</div>
+
+<div class="beat">
+  <div class="beat-n">5</div>
+  <div>
+    <div class="beat-head"><span class="beat-title">Meeting ends — agents stand down, you get one tap</span><span class="pill pill-you">the verdict</span><a class="beat-go" href="Chanlytics.html#/inbox/th-verdict-gabby">Open Gabby's verdict →</a></div>
+    <p class="see"><b>Gabby Moreno</b>'s consult ended at 11:45. The timeline shows agents standing down at meeting start. Tap <b>Deal created</b> / <b>Became a client</b> / <b>No deal — keep interested</b>. Client fires the bell; every choice stamps the timeline, toasts with Undo, and deep-links onward.</p>
+    <p class="proves">Proves: post-meeting is human-only, and an ignored verdict files as Interested in 48h — never as a deal.</p>
+  </div>
+</div>
+
+<div class="beat">
+  <div class="beat-n">6</div>
+  <div>
+    <div class="beat-head"><span class="beat-title">The verdict lands everywhere</span><span class="pill pill-auto">write-through</span><a class="beat-go" href="Chanlytics.html#/leads">Back to Leads →</a></div>
+    <p class="see">Gabby's stage moved (Converted or Nurturing) — check the tabs. Then open <a href="Chanlytics.html#/reports">Reports</a>: the <b>Auto-sent</b> stat shows the trust dial — 590 auto-sends, 5% edited. That number is what earns agents wider autonomy.</p>
+    <p class="proves">Proves: one decision, visible on every surface — and the loop closes with evidence, not vibes.</p>
+  </div>
+</div>
+
+<div class="note"><strong>Side quests while you're in there:</strong> flip <b>Transfers</b> off in the topbar, then try Take Over in <a href="Chanlytics.html#/live">Live</a> (disabled, with the holding-line reason) · Settings → <a href="Chanlytics.html#/admin/workspace">Workspace</a> → View as Viewer, then revisit any Approve button (locked, with the role reason) · Settings → <a href="Chanlytics.html#/admin/autonomy">Autonomy</a> holds the new "Safe text replies" veto-window default.</div>
+</div>
+</body>
+</html>

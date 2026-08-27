@@ -1,0 +1,481 @@
+/* global React, InboxList, InboxThread, InboxAgentRail */
+// Inbox — composition layer + decide engine.
+// Three columns: list rail (320px) | thread pane (flex) | agent context rail (300px).
+// Decisions are REAL here: approve/decline/snooze move threads, append timeline
+// events, update counts (sidebar badge syncs via "inbox:counts"), offer undo,
+// and auto-advance to the next decision. Keyboard: A approve · D decline · E edit.
+
+const IX_NOW = window.CHANLY.IX_NOW;
+
+// Saved views are real predicates, not search hacks.
+const IX_VIEW_FILTERS = {
+  vip: (t) => /vip/i.test(t.whoMeta) || t.tags.some((x) => /vip/i.test(x)),
+  "at-risk": (t) => t.value >= 1000 && t.state !== "done",
+  "high-conf": (t) => !!t.approval && t.confidence >= window.CHANLY.CONF.SAFE,
+  "new-leads": (t) => /lead/i.test(t.whoMeta),
+};
+
+const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => {}, initialThreadId = null }) => {
+  const { INBOX_BUCKETS, INBOX_VIEWS, THREADS, CHANNEL_LABELS, INBOX_BASELINE } = window.INBOX_DATA;
+
+  const [threads, setThreads] = React.useState(() => THREADS.map((t) => {
+    // Overlay session decisions (made here or from Tasks) so state survives navigation
+    const d = window.IX_STORE ? window.IX_STORE.get(t.id) : null;
+    if (!d) return { ...t };
+    if (d.kind === "snoozed") return { ...t, state: "snoozed", wake: d.wake, unread: false };
+    return { ...t, state: "done", unread: false, resolution: d };
+  }));
+  const [activeBucket, setActiveBucket] = React.useState(() => {
+    const t = initialThreadId && THREADS.find((x) => x.id === initialThreadId);
+    return t ? t.state : "needs";
+  });
+  const [activeThreadId, setActiveThreadId] = React.useState(initialThreadId || "th-aisha-refund");
+  const [selected, setSelected] = React.useState([]);
+  const [activeView, setActiveView] = React.useState(null);
+  const [stale, setStale] = React.useState(null); // { threadId, update } — concurrent change waiting to merge
+  const firedRef = React.useRef({});
+  const [toastNode, ppFlash] = window.usePPToast();
+  const [planParams, setPlanParams] = React.useState({}); // per-thread plan-param pick — lifted so hotkey A and the button write the same record
+
+  // Deep-link follows later navigations too
+  React.useEffect(() => {
+    if (!initialThreadId) return;
+    const t = threads.find((x) => x.id === initialThreadId);
+    if (t) { setActiveThreadId(initialThreadId); setActiveBucket(t.state); }
+  }, [initialThreadId]);
+
+  const needsCount = threads.filter((t) => t.state === "needs").length;
+
+  // Concurrent change: while you READ a scripted thread, something lands on it.
+  // Arm on open, fire once, clear if you navigate away first — never a silent
+  // overwrite; the thread pane shows a Refresh banner.
+  React.useEffect(() => {
+    const cfg = window.IX_CONCURRENT && window.IX_CONCURRENT[activeThreadId];
+    if (!cfg || firedRef.current[activeThreadId]) return;
+    const timer = setTimeout(() => {
+      firedRef.current[activeThreadId] = true;
+      setStale({ threadId: activeThreadId, update: cfg });
+    }, cfg.afterMs || 11000);
+    return () => clearTimeout(timer);
+  }, [activeThreadId]);
+
+  const reconcile = () => {
+    if (!stale) return;
+    const { threadId, update } = stale;
+    mutate(threadId, (x) => ({ ...x, unread: true, timeline: [...x.timeline, ...update.append] }));
+    setStale(null);
+    ppFlash({ msg: <><b>{update.by}</b>'s reply is now in view — you were {update.append.filter(e => e.type === "msg").length} message behind</> });
+  };
+
+  // Sidebar badge sync
+  React.useEffect(() => {
+    window.dispatchEvent(new CustomEvent("inbox:counts", { detail: { needs: needsCount } }));
+  }, [needsCount]);
+
+  const flash = (msg, prev = null) => ppFlash({
+    msg,
+    undo: prev ? () => {
+      if (window.IX_STORE) window.IX_STORE.clear(prev.id);
+      mutate(prev.id, (x) => ({ ...x, state: prev.state, timeline: prev.timeline, resolution: prev.resolution, unread: prev.unread, wake: undefined }));
+      setActiveThreadId(prev.id);
+    } : null,
+  });
+
+  const nextNeedsAfter = (id) => {
+    const rank = { P1: 0, P2: 1, P3: 2 };
+    const rest = threads
+      .filter((t) => t.state === "needs" && t.id !== id)
+      .sort((a, b) => (rank[a.priority] ?? 9) - (rank[b.priority] ?? 9));
+    return rest[0]?.id || null;
+  };
+
+  const mutate = (id, fn) => setThreads((ts) => ts.map((t) => (t.id === id ? fn(t) : t)));
+
+  // Opening a thread clears its unread dot; Mark as unread sets it back (one honest meaning of "unread").
+  const selectThread = (id) => { setActiveThreadId(id); mutate(id, (x) => (x.unread ? { ...x, unread: false } : x)); };
+  const markUnread = (id) => { mutate(id, (x) => ({ ...x, unread: true })); ppFlash({ msg: <><b>Marked unread</b> — bumped to the top of your list</> }); };
+
+  // ---- Verdict gate: the ONE post-meeting human decision (closed set) ----
+  const verdictDecide = (id, opt) => {
+    if (!window.canDo("approve")) return;
+    const t = threads.find((x) => x.id === id);
+    if (!t || !t.verdict) return;
+    const prev = { id, state: t.state, timeline: t.timeline, resolution: t.resolution, unread: t.unread };
+    const lead = (window.LEADS || []).find((l) => l.id === t.verdict.leadId);
+    const prevStage = lead && lead.stage;
+    if (lead) lead.stage = opt.verb === "interested" ? "nurture" : "converted";
+    if (window.IX_STORE) window.IX_STORE.set(id, { action: opt.label, at: IX_NOW, kind: "decided" });
+    mutate(id, (x) => ({
+      ...x, state: "done", unread: false,
+      resolution: { action: opt.label, at: IX_NOW },
+      timeline: [...x.timeline, { type: "event", kind: "decision", at: IX_NOW, body: `Verdict: ${opt.label} — ${opt.verb === "interested" ? "AI stands down; any inbound reopens with context" : opt.verb === "deal" ? `tracked in Pipeline · $${(t.verdict.est || 0).toLocaleString()} est. — AI handles admin only` : "client record live; service comms resume"}` }],
+    }));
+    let dealAdded = false;
+    if (opt.verb === "deal" && window.PIPELINE_DATA && window.PIPELINE_DATA.PIPELINE_DEALS && !window.PIPELINE_DATA.PIPELINE_DEALS.some((x) => x.id === "d-gabby")) {
+      window.PIPELINE_DATA.PIPELINE_DEALS.unshift({
+        id: "d-gabby", stage: "qualified", who: t.who, initials: "GM", clientId: null,
+        label: "Consult follow-on", value: t.verdict.est || 0, inStage: "now",
+        agent: { glyph: "Q", name: "Qualifier" }, next: "Yours — agents do admin only",
+        threadId: t.id, source: "IG reel · verdict",
+      });
+      dealAdded = true;
+    }
+    window.dispatchEvent(new CustomEvent("leads:verdict", { detail: { leadId: t.verdict.leadId, verdict: opt.verb } }));
+    if (opt.verb === "client") window.dispatchEvent(new CustomEvent("leads:converted", { detail: { leadId: t.verdict.leadId, name: t.who, clientId: null } }));
+    ppFlash({
+      msg: <><b>{opt.label}</b> — {t.who}</>,
+      links: [{ label: opt.verb === "deal" ? "Pipeline" : opt.verb === "client" ? "Clients" : "Leads", to: opt.verb === "deal" ? "pipeline" : opt.verb === "client" ? "clients" : "leads" }],
+      undo: () => {
+        if (window.IX_STORE) window.IX_STORE.clear(id);
+        if (lead) lead.stage = prevStage;
+        if (dealAdded) { const P = window.PIPELINE_DATA.PIPELINE_DEALS; const i = P.findIndex((x) => x.id === "d-gabby"); if (i >= 0) P.splice(i, 1); }
+        mutate(id, (x) => ({ ...x, state: prev.state, timeline: prev.timeline, resolution: prev.resolution, unread: prev.unread }));
+      },
+    });
+    // Same advance behavior as decide(): the queue moves on after a verdict
+    if (prev.state === "needs") {
+      const nxt = nextNeedsAfter(id);
+      if (nxt && activeBucket === "needs") setActiveThreadId(nxt);
+    }
+  };
+
+  // ---- Veto window: third autonomy mode — safe drafts auto-send unless held ----
+  const VW = window.VW_STORE = window.VW_STORE || { state: {} };
+  const [vetoTick, setVetoTick] = React.useState(0);
+  React.useEffect(() => {
+    window.VW_UTIL.seed(threads);
+    const iv = window.setInterval(() => setVetoTick((n) => n + 1), 1000);
+    // Freeze/resume state conversion lives in VW_UTIL (data layer, presence listener); just re-render.
+    const onPres = () => setVetoTick((n) => n + 1);
+    window.addEventListener("presence:changed", onPres);
+    return () => { window.clearInterval(iv); window.removeEventListener("presence:changed", onPres); };
+  }, []);
+  const vetoRemaining = (id) => window.VW_UTIL.remaining(id);
+  const vetoAct = (id, act) => {
+    if (!window.canDo("approve")) return;
+    const s = VW.state[id] || (VW.state[id] = {});
+    if (s.sent) return;
+    s.held = true;
+    if (act === "edit") window.setTimeout(() => window.dispatchEvent(new CustomEvent("inbox:focus-composer")), 60);
+    if (act === "hold") ppFlash({ msg: <>Held — the draft won't send until you act</> });
+    setVetoTick((n) => n + 1);
+  };
+  React.useEffect(() => {
+    threads.forEach((t) => {
+      if (!t.veto) return;
+      const s = VW.state[t.id];
+      if (!s || s.held || s.sent || !s.endsAt || Date.now() < s.endsAt) return;
+      s.sent = true;
+      const prev = { id: t.id, state: t.state, timeline: t.timeline, resolution: t.resolution, unread: t.unread };
+      if (window.IX_STORE) window.IX_STORE.set(t.id, { action: "Auto-sent", at: IX_NOW, kind: "decided" });
+      mutate(t.id, (x) => ({
+        ...x, state: "done", unread: false,
+        resolution: { action: "Auto-sent", at: IX_NOW },
+        timeline: [...x.timeline,
+          { type: "msg", from: "agent", channel: x.primaryChannel, at: IX_NOW, body: t.veto.draft },
+          { type: "event", kind: "decision", at: IX_NOW, body: `Auto-sent after the ${t.veto.window || 30}s veto window — no action taken · logged` }],
+      }));
+      ppFlash({
+        msg: <>Auto-sent to <b>{t.who}</b> — veto window passed</>,
+        undo: () => {
+          if (window.IX_STORE) window.IX_STORE.clear(t.id);
+          mutate(t.id, (x) => ({ ...x, state: prev.state, timeline: prev.timeline, resolution: prev.resolution, unread: prev.unread }));
+        },
+      });
+    });
+  }, [vetoTick]);
+
+  const decide = (id, action, meta = {}) => {
+    if (!window.canDo("approve")) return;
+    const t = threads.find((x) => x.id === id);
+    if (!t) return;
+    const prev = { id, state: t.state, timeline: t.timeline, resolution: t.resolution, unread: t.unread };
+    const declined = /decline/i.test(action);
+    if (window.IX_STORE) window.IX_STORE.set(id, { action, at: IX_NOW, declined, kind: "decided", param: meta.param || null });
+    mutate(id, (x) => ({
+      ...x,
+      state: "done",
+      unread: false,
+      resolution: { action, at: IX_NOW, declined, param: meta.param || null },
+      timeline: [...x.timeline, { type: "event", kind: "decision", at: IX_NOW, body: `You chose \u201c${action}\u201d${meta.param ? ` \u00b7 ${meta.param}` : ""} \u2014 ${declined ? `${x.agent.name} is handling the fallback${(x.approval && x.approval.fallback) ? `: ${x.approval.fallback}` : ""}` : `${x.agent.name} is executing`}` }],
+    }));
+    flash(`${action}${meta.param ? ` \u00b7 ${meta.param}` : ""} \u2014 ${t.who}`, prev);
+    if (t.state === "needs") {
+      const nxt = nextNeedsAfter(id);
+      if (nxt && activeBucket === "needs") setActiveThreadId(nxt);
+    }
+  };
+
+  const snooze = (id, wake = "tomorrow 10:00", opts = {}) => {
+    if (!window.canDo("approve")) return null;
+    const t = threads.find((x) => x.id === id);
+    if (!t || t.state === "snoozed") return null;
+    const prev = { id, state: t.state, timeline: t.timeline, resolution: t.resolution, unread: t.unread };
+    if (window.IX_STORE) window.IX_STORE.set(id, { action: "Snoozed", at: IX_NOW, kind: "snoozed", wake });
+    mutate(id, (x) => ({ ...x, state: "snoozed", wake, unread: false }));
+    if (!opts.silent) flash(`Snoozed until ${wake} \u2014 ${t.who}`, prev);
+    if (!opts.silent && activeBucket === "needs") {
+      const nxt = nextNeedsAfter(id);
+      if (nxt) setActiveThreadId(nxt);
+    }
+    return prev;
+  };
+
+  const wake = (id) => {
+    if (!window.canDo("approve")) return;
+    const t = threads.find((x) => x.id === id);
+    if (!t || t.state !== "snoozed") return;
+    const wakeAt = t.wake;
+    if (window.IX_STORE) window.IX_STORE.clear(id);
+    mutate(id, (x) => ({ ...x, state: "needs", wake: undefined, unread: true }));
+    setActiveBucket("needs");
+    setActiveThreadId(id);
+    ppFlash({
+      msg: <>Woke <b>{t.who}</b> — back in Needs you</>,
+      undo: () => {
+        if (window.IX_STORE) window.IX_STORE.set(id, { action: "Snoozed", at: IX_NOW, kind: "snoozed", wake: wakeAt });
+        mutate(id, (x) => ({ ...x, state: "snoozed", wake: wakeAt, unread: false }));
+      },
+    });
+  };
+
+  const archiveThread = (id, opts = {}) => {
+    if (!window.canDo("approve")) return null;
+    const t = threads.find((x) => x.id === id);
+    if (!t) return null;
+    const prev = { id, state: t.state, timeline: t.timeline, resolution: t.resolution, unread: t.unread };
+    if (window.IX_STORE) window.IX_STORE.set(id, { action: "Archived", at: IX_NOW, kind: "decided" });
+    mutate(id, (x) => ({ ...x, state: "done", unread: false, resolution: { action: "Archived", at: IX_NOW } }));
+    if (!opts.silent) flash(`Archived \u2014 ${t.who}`, prev);
+    return prev;
+  };
+
+  const sendReply = (id, text, viaApproval) => {
+    if (!window.canDo("approve")) return;
+    if (VW.state[id] && !VW.state[id].sent) VW.state[id].held = true; // your reply replaces the queued draft
+    const t = threads.find((x) => x.id === id);
+    if (!t) return;
+    if (window.IX_STORE && (viaApproval || t.state === "drafts")) {
+      window.IX_STORE.set(id, { action: viaApproval ? "Approved & sent" : "Sent", at: IX_NOW, kind: "decided" });
+    }
+    mutate(id, (x) => ({
+      ...x,
+      unread: false,
+      state: viaApproval || x.state === "drafts" ? "done" : x.state,
+      resolution: viaApproval || x.state === "drafts" ? { action: viaApproval ? "Approved & sent" : "Sent", at: IX_NOW } : x.resolution,
+      timeline: [
+        ...x.timeline,
+        { type: "msg", from: "agent", channel: x.primaryChannel, at: IX_NOW, body: text, byYou: true },
+      ],
+    }));
+    // Honest claim: cite the channel; link the conversation only when one exists
+    const convo = t.clientId && (((window.CONVERSATIONS_DATA || {}).CONVERSATIONS) || []).find(v => v.clientId === t.clientId);
+    ppFlash({
+      msg: <>Sent to <b>{t.who}</b> via {((window.INBOX_DATA || {}).CHANNEL_LABELS || {})[t.primaryChannel] || t.primaryChannel}</>,
+      links: convo ? [{ label: "View conversation", to: `conversations/${convo.id}` }] : [],
+    });
+  };
+
+  const takeOver = (id) => {
+    if (!window.canDo("approve")) return;
+    if (VW.state[id] && !VW.state[id].sent) VW.state[id].held = true; // one voice — agent timer dies
+    mutate(id, (x) => ({
+      ...x,
+      takenOver: true,
+      timeline: [...x.timeline, { type: "event", kind: "takeover", at: IX_NOW, body: "You took this thread \u2014 agents stand down" }],
+    }));
+    window.setTimeout(() => window.dispatchEvent(new CustomEvent("inbox:focus-composer")), 60);
+  };
+
+  const handBack = (id) => {
+    if (!window.canDo("approve")) return;
+    const t = threads.find((x) => x.id === id);
+    if (!t || !t.takenOver) return;
+    mutate(id, (x) => ({
+      ...x,
+      takenOver: false,
+      timeline: [...x.timeline, { type: "event", kind: "takeover", at: IX_NOW, body: `Handed back \u2014 ${x.agent.name} resumes with your replies as context` }],
+    }));
+    ppFlash({
+      msg: <>Handed back to <b>{t.agent.name}</b> — it resumes with your replies as context</>,
+      undo: () => mutate(id, (x) => ({ ...x, takenOver: true, timeline: x.timeline.slice(0, -1) })),
+    });
+  };
+
+
+  // Bulk actions
+  const bulkApproveSafe = () => {
+    const picks = selected.map((id) => threads.find((t) => t.id === id)).filter(Boolean);
+    if (!window.canDo("approve")) return;
+    const safe = picks.filter((t) => t.approval && t.confidence >= window.CHANLY.CONF.SAFE && t.state !== "done");
+    safe.forEach((t) => {
+      if (window.IX_STORE) window.IX_STORE.set(t.id, { action: t.approval.recommended, at: IX_NOW, kind: "decided" });
+      mutate(t.id, (x) => ({
+        ...x, state: "done", unread: false,
+        resolution: { action: x.approval.recommended, at: IX_NOW },
+        timeline: [...x.timeline, { type: "event", kind: "decision", at: IX_NOW, body: `You approved \u201c${(x.approval.plan || {}).label || x.approval.recommended}\u201d (bulk) \u2014 ${x.agent.name} is executing` }],
+      }));
+    });
+    flash(safe.length === 0
+      ? "None are safe to bulk-approve \u2014 all below 80% confidence"
+      : `${safe.length} approved \u00b7 ${picks.length - safe.length} need${picks.length - safe.length === 1 ? "s" : ""} individual review`);
+    setSelected([]);
+  };
+  const bulkSnooze = () => {
+    const prevs = selected.map((id) => snooze(id, "tomorrow 10:00", { silent: true })).filter(Boolean);
+    if (prevs.length) ppFlash({
+      msg: <><b>{prevs.length}</b> snoozed · wake tomorrow 10:00</>,
+      undo: () => prevs.forEach((p) => {
+        if (window.IX_STORE) window.IX_STORE.clear(p.id);
+        mutate(p.id, (x) => ({ ...x, state: p.state, timeline: p.timeline, resolution: p.resolution, unread: p.unread, wake: undefined }));
+      }),
+    });
+    setSelected([]);
+  };
+  const bulkArchive = () => {
+    const prevs = selected.map((id) => archiveThread(id, { silent: true })).filter(Boolean);
+    if (prevs.length) ppFlash({
+      msg: <><b>{prevs.length}</b> archived</>,
+      undo: () => prevs.forEach((p) => {
+        if (window.IX_STORE) window.IX_STORE.clear(p.id);
+        mutate(p.id, (x) => ({ ...x, state: p.state, timeline: p.timeline, resolution: p.resolution, unread: p.unread }));
+      }),
+    });
+    setSelected([]);
+  };
+
+  const viewFilter = activeView ? IX_VIEW_FILTERS[activeView] : null;
+  const visible = viewFilter
+    ? threads.filter(viewFilter)
+    : threads.filter((t) => activeBucket === "all" || t.state === activeBucket);
+  const activeThread = threads.find((t) => t.id === activeThreadId) || visible[0];
+
+  // Keyboard: A approve recommended · D decline · E focus composer
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const tag = (e.target.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || e.target.isContentEditable) return;
+      const k = e.key.toLowerCase();
+      if (k === "j" || k === "k" || e.key === "ArrowDown" || e.key === "ArrowUp") {
+        if (!visible.length) return;
+        e.preventDefault();
+        const dir = (k === "j" || e.key === "ArrowDown") ? 1 : -1;
+        const idx = visible.findIndex((t) => t.id === activeThreadId);
+        const next = visible[Math.min(visible.length - 1, Math.max(0, (idx < 0 ? 0 : idx) + dir))];
+        if (next) selectThread(next.id);
+        return;
+      }
+      const t = threads.find((x) => x.id === activeThreadId);
+      if (!t || !t.approval || t.state === "done") return;
+      if (k === "a") { e.preventDefault(); const p = t.approval.plan && t.approval.plan.param; const idx = planParams[t.id] || 0; decide(t.id, t.approval.recommended, p ? { param: (p.options[idx] || {}).label } : {}); }
+      else if (k === "d") { e.preventDefault(); decide(t.id, "Decline"); }
+      else if (k === "e") { e.preventDefault(); window.dispatchEvent(new CustomEvent("inbox:focus-composer")); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [threads, activeThreadId, visible, planParams]);
+
+  const handleBucket = (id) => {
+    setActiveBucket(id);
+    setActiveView(null);
+    setSelected([]);
+    const stillVisible = activeThread && activeThread.state === id;
+    if (!stillVisible) {
+      const next = threads.find((t) => t.state === id);
+      if (next) setActiveThreadId(next.id);
+    }
+  };
+
+  const toggleSelect = (id) => {
+    setSelected((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id]);
+  };
+
+  // Live bucket counts (done keeps its archive baseline of 48 resolved this week)
+  const bucketsWithCounts = INBOX_BUCKETS.map((b) => ({
+    ...b,
+    count: threads.filter((t) => t.state === b.id).length + (b.id === "done" ? ((INBOX_BASELINE || {}).doneThisWeek ?? 48) : 0),
+  }));
+  const viewsWithCounts = INBOX_VIEWS.map((v) => ({
+    ...v,
+    count: IX_VIEW_FILTERS[v.id] ? threads.filter(IX_VIEW_FILTERS[v.id]).length : v.count,
+  }));
+
+  // Needs-bucket stake summary
+  const needsThreads = threads.filter((t) => t.state === "needs");
+  const stake = {
+    count: needsThreads.length,
+    dollars: needsThreads.reduce((a, t) => a + (t.value || 0), 0),
+    oldest: needsThreads.reduce((a, t) => Math.max(a, t.waitingMin || 0), 0),
+  };
+
+  return (
+    <div className={`inbox ${showAgentRail ? "with-rail" : ""}`}>
+      <InboxList
+        threads={visible}
+        allThreads={threads}
+        buckets={bucketsWithCounts}
+        views={viewsWithCounts}
+        activeView={activeView}
+        onViewChange={(id) => { setActiveView((v) => (v === id ? null : id)); setSelected([]); }}
+        activeBucket={activeBucket}
+        onBucketChange={handleBucket}
+        activeThreadId={activeThread?.id}
+        onSelectThread={selectThread}
+        selected={selected}
+        onToggleSelect={toggleSelect}
+        onClearSelection={() => setSelected([])}
+        onBulkApprove={bulkApproveSafe}
+        onBulkSnooze={bulkSnooze}
+        onBulkArchive={bulkArchive}
+        stake={stake}
+        density={density}
+      />
+      <InboxThread
+        key={activeThread?.id}
+        thread={activeThread}
+        channelLabels={CHANNEL_LABELS}
+        stale={stale && activeThread && stale.threadId === activeThread.id ? stale : null}
+        onReconcile={reconcile}
+        onDismissStale={() => setStale(null)}
+        onOpenClient={onOpenClient}
+        onDecide={decide}
+        onVerdict={verdictDecide}
+        veto={activeThread ? vetoRemaining(activeThread.id) : null}
+        vetoPaused={!!(window.PR_STORE && window.PR_STORE.away)}
+        onVetoAct={vetoAct}
+        onSnooze={snooze}
+        onSend={sendReply}
+        onTakeOver={takeOver}
+        onWake={wake}
+        onHandBack={handBack}
+        onMarkUnread={markUnread}
+        planParam={planParams[activeThread?.id] || 0}
+        onPlanParam={(i) => activeThread && setPlanParams((m) => ({ ...m, [activeThread.id]: i }))}
+      />
+      {showAgentRail && <InboxAgentRail thread={activeThread} />}
+
+      {(() => {
+        const vetoLive = threads.filter((t) => t.veto && vetoRemaining(t.id) != null);
+        if (vetoLive.length < 2) return null;
+        const soonest = [...vetoLive].sort((a, b) => vetoRemaining(a.id) - vetoRemaining(b.id))[0];
+        return (
+          <div className="ix-sending-strip">
+            <span className="ix-veto-dot"></span>
+            {window.PR_STORE && window.PR_STORE.away ? <span><b>{vetoLive.length} drafts</b> paused — you're away</span> : <span><b>{vetoLive.length} drafts</b> sending — soonest {vetoRemaining(soonest.id)}s</span>}
+            <button className="btn btn-ghost btn-sm" onClick={() => selectThread(soonest.id)}>Review</button>
+            <button className="btn btn-sm" onClick={() => {
+              vetoLive.forEach((t) => { VW.state[t.id] = { held: true }; });
+              setVetoTick((n) => n + 1);
+              ppFlash({ msg: <><b>{vetoLive.length} drafts</b> held — manual send</> });
+            }}>Hold all</button>
+          </div>
+        );
+      })()}
+
+      {toastNode}
+    </div>
+  );
+};
+
+window.Inbox = Inbox;

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chanlytics — Workflow Map &amp; Shared-Infra Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/tokens.css">
+<style>
+  body { background: var(--bg); }
+  a { color: var(--info); text-decoration: none; }
+  a:hover { color: var(--ink); text-decoration: underline; }
+  .doc { max-width: 960px; margin: 0 auto; padding: var(--space-16) var(--space-8) var(--space-20); }
+  .doc-kicker { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); margin-bottom: var(--space-3); }
+  h1 { font-size: var(--text-4xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); margin: 0 0 var(--space-3); }
+  .doc-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); font-size: var(--text-sm); color: var(--ink-dim); padding-bottom: var(--space-8); border-bottom: 1px solid var(--line); margin-bottom: var(--space-10); }
+  .doc-meta strong { color: var(--ink-muted); font-weight: var(--weight-medium); }
+  h2 { font-size: var(--text-2xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); margin: var(--space-16) 0 var(--space-2); }
+  h2 .sec-num { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--ink-faint); margin-right: var(--space-3); font-weight: var(--weight-regular); }
+  p { font-size: var(--text-md); line-height: var(--leading-relaxed); color: var(--ink-muted); margin: 0 0 var(--space-4); text-wrap: pretty; }
+  p.lede { font-size: var(--text-lg); color: var(--ink); }
+  ul { margin: 0 0 var(--space-4); padding-left: var(--space-5); }
+  li { font-size: var(--text-md); line-height: var(--leading-relaxed); color: var(--ink-muted); margin-bottom: var(--space-2); }
+  li strong, p strong { color: var(--ink); font-weight: var(--weight-medium); }
+  code { font-family: var(--font-mono); font-size: 0.86em; background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-xs); padding: 1px 5px; color: var(--ink-muted); white-space: nowrap; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-xs); font-weight: var(--weight-medium); border-radius: var(--radius-full); padding: 2px 9px; white-space: nowrap; }
+  .pill-ok { background: color-mix(in oklab, var(--ok) 12%, transparent); color: var(--ok); }
+  .pill-warn { background: color-mix(in oklab, var(--warn) 14%, transparent); color: var(--warn); }
+
+  /* ---- Flow chart ---- */
+  .flow-head { display: flex; align-items: baseline; gap: var(--space-3); margin: var(--space-4) 0 var(--space-1); flex-wrap: wrap; }
+  .flow-sub { font-size: var(--text-sm); color: var(--ink-dim); margin-bottom: var(--space-5); }
+  .flow { display: grid; justify-items: stretch; margin: 0 0 var(--space-6); }
+  .node {
+    background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg);
+    padding: 10px 14px; box-shadow: var(--shadow-sm); display: grid; gap: 4px; min-width: 0;
+  }
+  .node-actor { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); }
+  .node-actor.you { color: var(--accent); }
+  .node-actor.agent { color: var(--info); }
+  .node-actor.portal { color: var(--ink-dim); }
+  .node-title { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); line-height: 1.4; }
+  .node-title small { font-weight: var(--weight-regular); color: var(--ink-dim); }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip { font-family: var(--font-mono); font-size: 10px; border-radius: var(--radius-full); padding: 1px 7px; white-space: nowrap; border: 1px solid transparent; }
+  .chip.store { background: color-mix(in oklab, var(--accent) 9%, transparent); color: var(--accent); }
+  .chip.event { background: color-mix(in oklab, var(--info) 10%, transparent); color: var(--info); }
+  .chip.route { background: var(--bg-sunken); color: var(--ink-dim); border-color: var(--line); }
+  .chip.fail { background: color-mix(in oklab, var(--danger) 9%, transparent); color: var(--danger); }
+  .edge { justify-self: center; width: 1px; height: 22px; background: var(--line-strong, var(--line)); position: relative; }
+  .edge::after { content: ""; position: absolute; bottom: -1px; left: -3.5px; border: 4px solid transparent; border-top-color: var(--line-strong, var(--line)); }
+  .edge-label { justify-self: center; font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint); padding: 2px 0; }
+  .branch { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-3); align-items: start; }
+  .branch .lane { display: grid; }
+  .lane-tag { justify-self: center; font-family: var(--font-mono); font-size: 10px; color: var(--ink-dim); background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-full); padding: 1px 8px; margin-bottom: 6px; }
+  .fanout { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-2); }
+  .fanout .node { padding: 8px 12px; }
+
+  /* ---- Infra matrix ---- */
+  table { width: 100%; border-collapse: collapse; margin: var(--space-4) 0 var(--space-6); font-size: var(--text-sm); }
+  th { text-align: left; font-family: var(--font-mono); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-dim); font-weight: var(--weight-medium); padding: 8px 10px; border-bottom: 1px solid var(--line-strong, var(--line)); }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--line); color: var(--ink-muted); vertical-align: top; line-height: 1.5; }
+  td:first-child { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink); white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="doc">
+  <div class="doc-kicker">Chanlytics · Platform audit</div>
+  <h1>Workflow map — is every path clean?</h1>
+  <div class="doc-meta">
+    <span><strong>Question:</strong> from any user action or lead interaction, is there a full frontend path on shared infra?</span>
+    <span><strong>Method:</strong> traced against the code — every chip below is a real store, event, or route</span>
+  </div>
+
+  <p class="lede">Four flows cover everything the product does: an inbound lead, an inbound decision (the interrupt spine), agent-initiated outbound, and the agent-platform loop. All four complete end-to-end on shared infra with no duplicated state. Three places are thinner than the rest — flagged in §06 with recommendations, none blocking.</p>
+
+  <h2><span class="sec-num">01</span>Inbound lead — first contact → client record</h2>
+  <div class="flow-head"><span class="pill pill-ok">Clean path</span></div>
+  <div class="flow-sub">A prospect calls, texts, or DMs. Agents answer; nothing consequential happens without you.</div>
+  <div class="flow">
+    <div class="node"><span class="node-actor">prospect</span><span class="node-title">Calls / texts / DMs — any channel</span><div class="chips"><span class="chip route">live · conversations/cv-*</span><span class="chip store">LM_STORE</span><span class="chip event">live:ended</span></div></div>
+    <div class="edge"></div>
+    <div class="node"><span class="node-actor agent">qualifier</span><span class="node-title">Scores intent <small>— read-only autonomy, never contacts anyone</small></span><div class="chips"><span class="chip route">tasks · t-qualify</span></div></div>
+    <div class="edge"></div>
+    <div class="node"><span class="node-actor portal">portal</span><span class="node-title">Lead record lands with source + first-touch SLA</span><div class="chips"><span class="chip route">leads/src:*</span><span class="chip store">LEADS · LEAD_SOURCES Σ = AGGREGATES</span></div></div>
+    <div class="edge"></div>
+    <div class="branch">
+      <div class="lane"><span class="lane-tag">hot · 84/100</span><div class="node"><span class="node-actor agent">phone rep</span><span class="node-title">Routed to booking <small>— asks past $100</small></span><div class="chips"><span class="chip route">inbox/th-*</span><span class="chip store">IX_STORE</span></div></div></div>
+      <div class="lane"><span class="lane-tag">warm</span><div class="node"><span class="node-actor agent">email agent</span><span class="node-title">Day-N nurture <small>— lead-list chips drive it</small></span><div class="chips"><span class="chip route">segments/‹lead-list›</span><span class="chip event">segments:new</span></div></div></div>
+      <div class="lane"><span class="lane-tag">dupe</span><div class="node"><span class="node-actor portal">portal</span><span class="node-title">Dupe banner ↔ client cross-link <small>(Tom Reilly)</small></span><div class="chips"><span class="chip route">leads/ld-tom ↔ clients/c-tom</span></div></div></div>
+    </div>
+    <div class="edge-label">convert</div>
+    <div class="edge"></div>
+    <div class="node"><span class="node-actor you">you</span><span class="node-title">Convert → client record created, enters "New this month" <small>— toast + undo</small></span><div class="chips"><span class="chip route">clients/c-*</span><span class="chip store">CLIENT_SEGMENTS writeback</span><span class="chip event">segments:new</span></div></div>
+  </div>
+
+  <h2><span class="sec-num">02</span>Inbound decision — the interrupt spine</h2>
+  <div class="flow-head"><span class="pill pill-ok">Cleanest path</span></div>
+  <div class="flow-sub">One decision store, five consumers, zero duplication. This is the AG-UI interrupt rendered as product.</div>
+  <div class="flow">
+    <div class="node"><span class="node-actor agent">phone rep</span><span class="node-title">Hits a guardrail mid-call <small>— $120 refund &gt; $100 cap → pauses, drafts a counter</small></span><div class="chips"><span class="chip route">live</span></div></div>
+    <div class="edge-label">interrupt</div>
+    <div class="edge"></div>
+    <div class="node"><span class="node-actor you">you</span><span class="node-title">Decide in Inbox <small>— A/D/E keys, edit the draft, ⌘↵ send</small></span><div class="chips"><span class="chip route">inbox/th-aisha-refund</span><span class="chip store">IX_STORE.set</span><span class="chip event">inbox:decisions · inbox:counts</span></div></div>
+    <div class="edge"></div>
+    <div class="fanout">
+      <div class="node"><span class="node-title"><small>Tasks —</small> t-refund flips decided</span></div>
+      <div class="node"><span class="node-title"><small>Fleet —</small> pending count drops</span></div>
+      <div class="node"><span class="node-title"><small>Bell —</small> item overlays "decided"</span></div>
+      <div class="node"><span class="node-title"><small>Client —</small> timeline entry</span></div>
+      <div class="node"><span class="node-title"><small>Today —</small> brief updates</span></div>
+    </div>
+    <div class="edge-label">undo = snapshot restore, same store</div>
+  </div>
+
+  <h2><span class="sec-num">03</span>Outbound — segment-triggered agent work</h2>
+  <div class="flow-head"><span class="pill pill-ok">Clean path</span></div>
+  <div class="flow-sub">Lists drive the work: enter a segment, a playbook starts. Approval is batched where confidence allows.</div>
+  <div class="flow">
+    <div class="node"><span class="node-actor portal">portal</span><span class="node-title">Client enters a segment <small>— lapsed-60, drifting VIPs…</small></span><div class="chips"><span class="chip route">segments/‹id›</span><span class="chip store">SEG movement</span><span class="chip event">guardrails:changed</span></div></div>
+    <div class="edge"></div>
+    <div class="node"><span class="node-actor agent">recovery agent</span><span class="node-title">Playbook drafts the touch <small>— ask-first; quiet hours bind</small></span><div class="chips"><span class="chip route">fleet/‹agent›</span><span class="chip store">FLEET_PLAYBOOKS · FL_STORE.pbPaused</span><span class="chip event">fleet:playbooks</span></div></div>
+    <div class="edge"></div>
+    <div class="node"><span class="node-actor you">you</span><span class="node-title">Approve — singles in Inbox, batches in Outbound/Broadcasts <small>— "Approve all safe" = conf ≥ 0.8</small></span><div class="chips"><span class="chip route">outbound · broadcasts</span><span class="chip store">BC_HISTORY_SEED writeback</span></div></div>
+    <div class="edge"></div>
+    <div class="node"><span class="node-actor agent">sms agent</span><span class="node-title">Scheduled → sent <small>— ledger row, batch of 8 at 5:00 PM</small></span><div class="chips"><span class="chip route">tasks · t-birthday</span></div></div>
+    <div class="edge"></div>
+    <div class="node"><span class="node-actor portal">portal</span><span class="node-title">Replies → Conversations · outcomes → Reports · sends → Segments detail</span><div class="chips"><span class="chip route">conversations · reports · segments/‹id›</span></div></div>
+  </div>
+
+  <h2><span class="sec-num">04</span>Agent platform — both sides of the market</h2>
+  <div class="flow-head"><span class="pill pill-ok">Clean path — incl. every failure recovery</span></div>
+  <div class="flow-sub">Consumer path left, publisher path right. Every red chip is a reachable failure with a built recovery.</div>
+  <div class="flow">
+    <div class="branch">
+      <div class="lane"><span class="lane-tag">consumer — hire</span>
+        <div class="node"><span class="node-actor you">you</span><span class="node-title">Browse → publisher profile → ratings <small>— provenance, caps, trust floor</small></span><div class="chips"><span class="chip route">store</span></div></div>
+        <div class="edge"></div>
+        <div class="node"><span class="node-actor portal">portal</span><span class="node-title">Install = visible handshake <small>— card → caps → autonomy</small></span><div class="chips"><span class="chip store">AS_STORE.install</span><span class="chip event">store:installed</span></div></div>
+        <div class="edge"></div>
+        <div class="node"><span class="node-actor portal">portal</span><span class="node-title">Fleet write-through — Connection panel carries the whole contract</span><div class="chips"><span class="chip route">fleet/‹id›</span><span class="chip store">FLEET_ROSTER push</span></div></div>
+        <div class="edge"></div>
+        <div class="node"><span class="node-actor you">you</span><span class="node-title">Your numbers replace the pitch <small>— card + modal read FLEET_DATA live</small></span><div class="chips"><span class="chip route">store (installed)</span></div></div>
+      </div>
+      <div class="lane"><span class="lane-tag">publisher — connect &amp; sell</span>
+        <div class="node"><span class="node-actor you">you</span><span class="node-title">Studio Connect: card → auth → push → quotas → scopes → redaction → handoffs → bench</span><div class="chips"><span class="chip route">studio</span><span class="chip fail">404 card</span><span class="chip fail">401 scope</span><span class="chip fail">sig invalid</span></div></div>
+        <div class="edge"></div>
+        <div class="node"><span class="node-actor portal">portal</span><span class="node-title">Add to Fleet (bench-gated) → publish → 5-check review</span><div class="chips"><span class="chip store">AS_STORE.addListing</span><span class="chip event">store:listing</span><span class="chip fail">rejected: overclaim</span></div></div>
+        <div class="edge"></div>
+        <div class="node"><span class="node-actor portal">portal</span><span class="node-title">Rejection fans out — bell · Tasks failed row · Store inline fix · Studio session restore</span><div class="chips"><span class="chip route">tasks · store · studio</span><span class="chip store">resubmitListing (same id)</span></div></div>
+        <div class="edge"></div>
+        <div class="node"><span class="node-actor you">you</span><span class="node-title">Listed → multi-workspace stats → payouts <small>— all math from one seed</small></span><div class="chips"><span class="chip store">STORE_PAYOUT · workspaces[]</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="sec-num">05</span>Shared-infra matrix</h2>
+  <p>Each store has one owner file and one event; pages never duplicate a store. Toasts (<code>usePPToast</code>) and route builders (<code>CHANLY.R.*</code>) are the two universal utilities.</p>
+  <table>
+    <thead><tr><th>Store</th><th>Owns</th><th>Written by</th><th>Read by</th><th>Event</th></tr></thead>
+    <tbody>
+      <tr><td>IX_STORE</td><td>Session decisions</td><td>Inbox, Tasks decide</td><td>Inbox · Tasks · Fleet · Bell · Today</td><td><code>inbox:decisions</code></td></tr>
+      <tr><td>FL_STORE</td><td>Agent perms/status/pb-pauses</td><td>Fleet</td><td>Fleet · Sidebar · Outbound</td><td><code>fleet:*</code></td></tr>
+      <tr><td>AS_STORE</td><td>Installs · listings · fleet write-through</td><td>Store · Studio · Fleet disconnect</td><td>Store · Studio · Fleet · Tasks · Bell</td><td><code>store:installed · store:listing</code></td></tr>
+      <tr><td>LM_STORE</td><td>Live-call endings</td><td>Live</td><td>Live · Fleet · Bell · Conversations</td><td><code>live:ended</code></td></tr>
+      <tr><td>INT_STORE</td><td>Integration health</td><td>Admin</td><td>Tasks · Bell · Admin</td><td><code>integrations:changed</code></td></tr>
+      <tr><td>SG_STORE / ST_STORE</td><td>Segment drafts · autonomy defaults</td><td>Segments · Admin</td><td>Segments · Clients · Fleet</td><td><code>segments:new</code></td></tr>
+      <tr><td>BC_HISTORY_SEED</td><td>Session sends (writeback)</td><td>Broadcasts</td><td>Segments detail · Reports</td><td>—</td></tr>
+      <tr><td>STORE_PAYOUT</td><td>Rev-share rate + payout terms</td><td>— (seed)</td><td>Store earnings · listing rows · ws stats</td><td>—</td></tr>
+    </tbody>
+  </table>
+
+  <h2><span class="sec-num">06</span>Findings</h2>
+  <ul>
+    <li><span class="pill pill-ok">Clean</span> All four flows complete with no dead ends; every platform failure state (404 card, 401 scope, push sig, quota cap, rejection) has a recovery affordance reachable from wherever it surfaces.</li>
+    <li><span class="pill pill-ok">Clean</span> Single-owner stores throughout — the rejected-listing state, for example, lives only on the listing object; bell, Tasks, Store, and Studio all derive from it.</li>
+    <li><span class="pill pill-ok">Closed</span> <strong>Live inbound-lead moment.</strong> ~18s into a session Riley Nguyen texts back after a missed call: bell push (accent, deep-links the lead), phone-source strip ticks +1, the row lands in Leads, and 9s later Qualifier's score updates the same row in place — <code>LD_STORE.arrive()</code> · <code>leads:arrived {`{phase}`}</code>, sums contract held mid-session.</li>
+    <li><span class="pill pill-ok">Closed</span> <strong>Bell pushes now cover all four flows.</strong> Added: <code>leads:converted</code> (flow 1 — client-record push with deep links), <code>broadcasts:sent</code> and <code>outbound:approved</code> (flow 3 — send/batch pushes); flow 2 already overlays decisions in place, flow 4 pushes review outcomes.</li>
+    <li><span class="pill pill-ok">Closed</span> <strong>Handoff &amp; quota-cap now demonstrate themselves.</strong> ~14s after a studio-connected agent joins the fleet it emits its mapped handoff — <code>fleet:handoff</code> → bell push, pending Tasks row, and roster write-through (pending count, "Waiting on you" activity, recent line). The quota card now derives a consequence from the agent's declared pace (~270 cr/mo): picking a cap under pace warns inline + toasts "pauses around day N", and the projection rides into Fleet's Connection budget row.</li>
+    <li><span class="pill pill-ok">By design</span> Conversations (ledger) and Inbox (decisions) stay separate seeds linked by reference — the transcript is history, the thread is a decision; merging them would tangle the interrupt spine.</li>
+  </ul>
+</div>
+</body>
+</html>
