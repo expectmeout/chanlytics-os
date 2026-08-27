@@ -13,6 +13,8 @@ import {
   TENANT_STATUSES, MEMBERSHIP_ROLES, CHANNEL_KINDS, CONVERSATION_STATES,
   MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_TYPES,
   MESSAGE_STATUSES, CONSENT_STATES, JOB_KINDS, JOB_STATES,
+  ESCALATION_REASONS, ESCALATION_STATES, DECISION_VERBS, DECISION_SUBJECTS,
+  ACTOR_TYPES, TEMPLATE_STATUSES,
 } from "@chanlytics/contracts";
 
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "supabase", "migrations");
@@ -42,11 +44,35 @@ test("job kinds match jobs.kind", () => {
   assert.deepEqual(channels, [...CHANNEL_KINDS].sort());
 });
 
+/** All CHECK sets for a column name, content-addressed (columns are shared
+ *  across tables — e.g. `channel` on messages vs templates). */
+function sqlSets(column) {
+  const re = new RegExp(`check \\(${column} in \\(([^)]+)\\)\\)`, "g");
+  return [...sql.matchAll(re)].map((m) =>
+    m[1].split(",").map((x) => x.trim().replace(/^'|'$/g, "")).sort(),
+  );
+}
+const bySignature = (sets, mustHave, mustNotHave = []) =>
+  sets.find((s) => mustHave.every((v) => s.includes(v)) && mustNotHave.every((v) => !s.includes(v)));
+
 test("message enums match messages table CHECKs", () => {
   assert.deepEqual(sqlSet("direction"), [...MESSAGE_DIRECTIONS].sort());
   assert.deepEqual(sqlSet("sender"), [...MESSAGE_SENDERS].sort());
-  assert.deepEqual(sqlSet("type"), [...MESSAGE_TYPES].sort());
-  assert.deepEqual(sqlSet("channel"), [...MESSAGE_CHANNELS].sort());
+  const typeSets = sqlSets("type");
+  assert.deepEqual(bySignature(typeSets, ["call_summary"]), [...MESSAGE_TYPES].sort());
+  const channelSets = sqlSets("channel");
+  assert.deepEqual(bySignature(channelSets, ["system"]), [...MESSAGE_CHANNELS].sort(), "messages.channel");
+  assert.deepEqual(bySignature(channelSets, ["voice"], ["system"]), [...CHANNEL_KINDS].sort(), "templates/channels.channel");
+});
+
+test("slice-2 enums match inbox table CHECKs", () => {
+  assert.deepEqual(sqlSet("reason"), [...ESCALATION_REASONS].sort());
+  assert.deepEqual(sqlSet("verb"), [...DECISION_VERBS].sort());
+  assert.deepEqual(sqlSet("subject_type"), [...DECISION_SUBJECTS].sort());
+  assert.deepEqual(sqlSet("actor_type"), [...ACTOR_TYPES].sort());
+  assert.deepEqual(sqlSet("meta_status"), [...TEMPLATE_STATUSES].sort());
+  const stateSets = sqlSets("state");
+  assert.deepEqual(bySignature(stateSets, ["resolved"]), [...ESCALATION_STATES].sort());
 });
 
 test("status sets match (messages + jobs + tenants + conversations + consent)", () => {

@@ -90,6 +90,12 @@ interface SendResult {
     errorBody?: string;
 }
 declare function sendText(cfg: WaConfig, to: string, body: string): Promise<SendResult>;
+/** Approved-template send — the only legal path outside the 24h window. */
+declare function sendTemplate(cfg: WaConfig, to: string, template: {
+    name: string;
+    language: string;
+    params: string[];
+}): Promise<SendResult>;
 /**
  * Meta media URLs expire in minutes — fetch at ingest. Returns the bytes and
  * mime so the caller can store them (Supabase Storage via the service client).
@@ -99,4 +105,4 @@ declare function fetchMediaBytes(cfg: WaConfig, providerMediaId: string): Promis
     mime: string | null;
 } | null>;
 
-export { type NormalizedInbound, type SendResult, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, fetchMediaBytes, normalizeInbound, sendText };
+export { type NormalizedInbound, type SendResult, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, fetchMediaBytes, normalizeInbound, sendTemplate, sendText };

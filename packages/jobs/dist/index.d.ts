@@ -1,0 +1,43 @@
+import { SupabaseClient } from '@supabase/supabase-js';
+import { Json, Database } from '@chanlytics/db';
+import { JobKind } from '@chanlytics/contracts';
+import { WaConfig } from '@chanlytics/channels';
+
+declare const FIRE_URL = "https://chanlytics-messaging.vercel.app/api/jobs/fire";
+interface ScheduleParams {
+    tenantId: string;
+    kind: JobKind;
+    dueAt: Date;
+    payload: Json;
+    qstashToken: string;
+}
+declare function scheduleJob(db: SupabaseClient<Database>, p: ScheduleParams): Promise<{
+    jobId: string;
+    cancelToken: string;
+}>;
+/** Cancel while still scheduled; the fire gate makes post-claim cancels no-op. */
+declare function cancelJob(db: SupabaseClient<Database>, jobId: string, qstashToken?: string): Promise<boolean>;
+/** Cancel every scheduled job of a kind for one subject (e.g. pause_expire on hand-back). */
+declare function cancelJobsFor(db: SupabaseClient<Database>, tenantId: string, kind: JobKind, payloadKey: string, payloadValue: string, qstashToken?: string): Promise<number>;
+
+/**
+ * Job handlers — dispatched by the edge's /api/jobs/fire AFTER the claim_job
+ * gate (exactly-once scheduled->fired). Handlers are idempotent against
+ * re-dispatch and receive their environment injected (no env reads here).
+ */
+
+interface JobContext {
+    db: SupabaseClient<Database>;
+    waCfg: WaConfig;
+    alert: (subject: string, body: string) => Promise<void>;
+}
+interface ClaimedJob {
+    id: string;
+    tenant_id: string;
+    kind: string;
+    payload: Record<string, unknown>;
+}
+declare function upsertEscalation(db: SupabaseClient<Database>, tenantId: string, conversationId: string, reason: string, details: string): Promise<void>;
+declare function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind">;
+
+export { type ClaimedJob, FIRE_URL, type JobContext, type ScheduleParams, cancelJob, cancelJobsFor, dispatchJob, scheduleJob, upsertEscalation };

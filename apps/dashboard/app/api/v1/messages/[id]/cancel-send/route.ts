@@ -1,0 +1,30 @@
+import { AppError } from "@chanlytics/contracts";
+import { withRoute } from "@/server/with-route";
+import { recordDecision } from "@/server/verbs";
+import { cancelKindFor } from "@/server/service";
+
+/** The honest undo (§6): inside the grace window a queued send cancels cleanly;
+ *  after fire it is out, and this says so. */
+export const POST = withRoute(async (_req, ctx) => {
+  const id = String(ctx.params.id ?? "");
+  const { data: msg, error } = await ctx.supabase
+    .from("messages")
+    .select("id, tenant_id, conversation_id, status")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!msg) throw new AppError("not_found", "Message not found.");
+  if (msg.status !== "queued") {
+    throw new AppError("conflict", "Too late — this message has already been sent.");
+  }
+
+  const { error: uerr } = await ctx.supabase
+    .from("messages")
+    .update({ status: "canceled" })
+    .eq("id", msg.id);
+  if (uerr) throw new Error(uerr.message);
+
+  await cancelKindFor(msg.tenant_id, "outbound_send", "message_id", msg.id);
+  const decisionId = await recordDecision(ctx, msg.tenant_id, "message", msg.id, "cancel_send");
+  return { status: "canceled", decision_id: decisionId };
+});

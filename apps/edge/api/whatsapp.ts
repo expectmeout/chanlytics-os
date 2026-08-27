@@ -47,6 +47,8 @@ import {
 } from "../lib/workspace/db.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../lib/workspace/db.js";
+import { upsertEscalation } from "../lib/workspace/jobs.js";
+import { violatesNoPrices } from "../lib/workspace/contracts.js";
 
 export const config = { maxDuration: 60 };
 
@@ -161,6 +163,11 @@ function pgSink(db: SupabaseClient<Database> | null, tenantId: string | null, in
             emitEvent(db!, tenantId!, "message.send_failed", "message", "message", ing!.message_id,
               { http_status: httpStatus } as Json))
         : Promise.resolve(),
+    escalate: (reason: string, details: string) =>
+      on
+        ? pgSafe("escalation", () =>
+            upsertEscalation(db!, tenantId!, ing!.conversation_id, reason, details.slice(0, 400)))
+        : Promise.resolve(),
     media: (n: NormalizedInbound) =>
       on && n.media
         ? pgSafe("media_fetch", async () => {
@@ -225,8 +232,11 @@ async function handleInbound(m: WaRawMessage, value: WaChangeValue, tenantId: st
       await sendText(from, "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at (646) 932-5775.");
       thread.pausedUntil = Date.now() + PAUSE_MS;
       await saveThread(from, thread);
-      await sink.pause(new Date(Date.now() + PAUSE_MS).toISOString());
-      await alertStaff(from, `[${m.type} message]`, "(auto-acknowledged, bot paused)", "non-text message");
+      await Promise.all([
+        sink.pause(new Date(Date.now() + PAUSE_MS).toISOString()),
+        sink.escalate("non_text", `Customer sent a ${m.type} message — auto-acknowledged, bot paused.`),
+        alertStaff(from, `[${m.type} message]`, "(auto-acknowledged, bot paused)", "non-text message"),
+      ]);
     }
     await sink.processed();
     return;
@@ -256,16 +266,27 @@ async function handleInbound(m: WaRawMessage, value: WaChangeValue, tenantId: st
 
   let replyText: string;
   let escalate = false;
+  let escalationReason = "human_token";
   let usage: { input_tokens: number; output_tokens: number } | undefined;
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const { generateReply } = await import("../lib/brain.js");
       const r = await generateReply(thread.history, m.text.body);
       replyText = r.text; escalate = r.escalate; usage = r.usage;
+      if (r.reason) escalationReason = r.reason;
+      // Layer-2 policy enforcement (Blueprint §6): prompt text is never the
+      // only defense. A price in the draft blocks the send outright.
+      if (violatesNoPrices(replyText)) {
+        console.warn("policy_block_price", JSON.stringify({ to: from }));
+        replyText = "Great question! Pricing is quoted at your consult based on length and texture — a member of our team will follow up here shortly. For anything urgent, call (646) 932-5775.";
+        escalate = true;
+        escalationReason = "policy_block";
+      }
     } catch (e) {
       console.error("brain_failed", e instanceof Error ? e.message : e);
       replyText = "Thanks for reaching out to Melany's Beauty Salon! Book anytime: https://booksy.com/en-us/1817434_melany-s-beauty-salon_hair-salon_29902_brooklyn — or a member of our team will reply here soon.";
       escalate = true;
+      escalationReason = "brain_error";
     }
   } else {
     replyText = "Hi! Thanks for reaching out to Melany's Beauty Salon 💛 We're newly renovated and booking now.\n\nBook anytime: https://booksy.com/en-us/1817434_melany-s-beauty-salon_hair-salon_29902_brooklyn\n\nOr reply here with any question — for a person, just ask for Melany.";
@@ -282,6 +303,7 @@ async function handleInbound(m: WaRawMessage, value: WaChangeValue, tenantId: st
     if (escalate) {
       thread.pausedUntil = Date.now() + PAUSE_MS;
       post.push(sink.pause(new Date(Date.now() + PAUSE_MS).toISOString()));
+      post.push(sink.escalate(escalationReason, m.text.body));
       post.push(alertStaff(from, m.text.body, replyText, "assistant flagged handoff"));
     }
     await Promise.all(post);
@@ -294,6 +316,7 @@ async function handleInbound(m: WaRawMessage, value: WaChangeValue, tenantId: st
     await Promise.all([
       alertStaff(from, m.text.body, "(send failed — the customer received no reply)", "wa_send_failed"),
       sink.sendFailed(sent.status),
+      sink.escalate("send_failed", `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`),
     ]);
   }
   console.log("wa_replied", JSON.stringify({
