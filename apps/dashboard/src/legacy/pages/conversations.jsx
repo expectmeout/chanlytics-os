@@ -310,7 +310,7 @@ const CvViewer = ({ c }) => {
             {transcript.map((line, i) => (
               <div key={i} className={`cv-line ${line.speaker}`}>
                 <span className="cv-line-t mono tabular">{line.t}</span>
-                <span className="cv-line-speaker">{line.speaker === "agent" ? c.agent.name : c.who.split(" ")[0]}</span>
+                <span className="cv-line-speaker">{line.speaker === "agent" ? c.agent.name : (c.whoShort || c.who.split(" ")[0])}</span>
                 <span className="cv-line-text">
                   {line.text}
                   {isLive && i === transcript.length - 1 && <span className="cv-cursor" />}
