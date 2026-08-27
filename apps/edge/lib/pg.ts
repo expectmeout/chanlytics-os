@@ -3,8 +3,8 @@
  * env enables ADDITIVE writes alongside the Blob path; anything else is a
  * silent no-op. Rollback is flipping the env var — never a deploy.
  */
-import { createServiceClient } from "@chanlytics/db";
-import type { Database } from "@chanlytics/db";
+import { createServiceClient } from "./workspace/db.js";
+import type { Database } from "./workspace/db.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 let client: SupabaseClient<Database> | null = null;

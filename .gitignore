@@ -1,6 +1,9 @@
 # deps / build
 node_modules/
 dist/
+# workspace package dist IS committed: injected copies must carry built output
+# at Vercel install time (see .npmrc). Rebuild via `pnpm --filter "./packages/*" build`.
+!packages/*/dist/
 .next/
 .turbo/
 coverage/

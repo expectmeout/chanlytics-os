@@ -31,7 +31,7 @@ import {
   type WaChangeValue,
   type WaRawMessage,
   type NormalizedInbound,
-} from "@chanlytics/channels";
+} from "../lib/workspace/channels.js";
 import {
   resolveChannel,
   ingestInbound,
@@ -42,7 +42,7 @@ import {
   pauseConversation,
   emitEvent,
   type IngestResult,
-} from "@chanlytics/db";
+} from "../lib/workspace/db.js";
 
 export const config = { maxDuration: 60 };
 
@@ -100,8 +100,8 @@ async function pgIngest(tenantId: string | null, n: NormalizedInbound): Promise<
       type: n.type,
       body: n.body,
       channelTs: n.channelTsIso,
-      media: n.media ? (n.media as unknown as import("@chanlytics/db").Json) : null,
-      meta: { raw_type: n.rawType } as import("@chanlytics/db").Json,
+      media: n.media ? (n.media as unknown as import("../lib/workspace/db.js").Json) : null,
+      meta: { raw_type: n.rawType } as import("../lib/workspace/db.js").Json,
       optOut: n.optOut,
     });
   } catch (e) {
@@ -144,7 +144,7 @@ async function pgFetchMedia(tenantId: string, ing: IngestResult, n: NormalizedIn
     } else {
       mediaOut.fetch_state = "failed";
     }
-    await db.from("messages").update({ media: mediaOut as import("@chanlytics/db").Json }).eq("id", ing.message_id).eq("tenant_id", tenantId);
+    await db.from("messages").update({ media: mediaOut as import("../lib/workspace/db.js").Json }).eq("id", ing.message_id).eq("tenant_id", tenantId);
   } catch (e) {
     console.error("pg_media_fetch_failed", e instanceof Error ? e.message : e);
   }
@@ -238,7 +238,7 @@ async function handleInbound(m: WaRawMessage, value: WaChangeValue, tenantId: st
         }));
       if (usage) {
         await pgSafe("usage", () =>
-          emitEvent(db, tenantId, "usage.llm_tokens", "usage", "conversation", ing.conversation_id, usage as unknown as import("@chanlytics/db").Json));
+          emitEvent(db, tenantId, "usage.llm_tokens", "usage", "conversation", ing.conversation_id, usage as unknown as import("../lib/workspace/db.js").Json));
       }
     }
     if (escalate) {
@@ -311,7 +311,7 @@ export async function POST(request: Request): Promise<Response> {
             if (db && tenantId && s.id && s.status && ["sent", "delivered", "read", "failed"].includes(s.status)) {
               await pgSafe("status", () =>
                 recordStatusByExternalId(db, tenantId!, s.id!, s.status as "sent" | "delivered" | "read" | "failed",
-                  s.errors ? ({ errors: s.errors } as unknown as import("@chanlytics/db").Json) : undefined));
+                  s.errors ? ({ errors: s.errors } as unknown as import("../lib/workspace/db.js").Json) : undefined));
             }
           }
         } else if (field === "smb_message_echoes") {
