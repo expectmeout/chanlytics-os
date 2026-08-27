@@ -112,16 +112,20 @@ const SidebarRow = ({ item, active, parentActive, onNavigate, depth = 0, expande
 // identity yet we say so rather than borrow someone else's name.
 const sbMe = () => window.__ME || null;
 const sbAccountEmail = () => (sbMe() ? sbMe().email : window.__DEMO_MODE ? "sales@chanlytics.com" : "Signed in");
+// Title line is the WORKSPACE, not a name invented from the email's local part
+// ("hi@chanlytics.agency" -> "Hi" is technically honest and reads like a bug).
+// There is no profile name in the schema yet; when Settings adds one, it wins.
 const sbAccountName = () => {
-  const me = sbMe();
-  if (!me) return window.__DEMO_MODE ? "Sarah Chen" : "Your account";
-  const local = (me.email || "").split("@")[0] || "Your account";
-  return local.charAt(0).toUpperCase() + local.slice(1);
+  if (!sbMe()) return window.__DEMO_MODE ? "Sarah Chen" : "Your account";
+  const ws = (window.__WORKSPACES || [])[0];
+  return (ws && ws.name) || "Your account";
 };
 const sbInitials = () => {
-  const me = sbMe();
-  if (!me) return window.__DEMO_MODE ? "SC" : "—";
-  return (me.email || "?").slice(0, 2).toUpperCase();
+  if (!sbMe()) return window.__DEMO_MODE ? "SC" : "—";
+  const ws = (window.__WORKSPACES || [])[0];
+  const src = (ws && ws.name) || sbMe().email || "?";
+  const words = src.split(/[\s@._-]+/).filter(Boolean);
+  return ((words[0]?.[0] ?? "") + (words[1]?.[0] ?? "")).toUpperCase() || "—";
 };
 
 const Sidebar = ({ active = "home", onNavigate = () => {}, onNewChat = () => {}, onClose = null, agents = ACTIVE_AGENTS_DEFAULT, badges = {} }) => {
