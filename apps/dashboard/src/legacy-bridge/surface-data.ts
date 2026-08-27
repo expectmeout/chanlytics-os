@@ -75,9 +75,12 @@ import {
   toConversationVM,
   toInboxThreadVM,
   toCallVM,
+  toTodayVM,
   type ConversationDto,
   type EscalationDto,
   type CallDto,
+  type MetricsSummaryDto,
+  type TodayVM,
 } from "@chanlytics/contracts";
 
 /**
@@ -142,6 +145,45 @@ export const inboxOverride: SurfaceOverride = {
       CHANNEL_LABELS: { ...(prev.CHANNEL_LABELS ?? {}), whatsapp: "WhatsApp" },
       INBOX_BASELINE: { ...(prev.INBOX_BASELINE ?? {}), doneThisWeek: 0 },
     };
+  },
+};
+
+/**
+ * Slice 4: Today. Unlike every other surface, this one has NO seed to fall back
+ * to — TODAY_DATA does not exist until a fetch succeeds. That is deliberate:
+ * the seeded Today rendered "$1,840 revenue · 12 appointments · on pace to
+ * clear $4,200", so a failed fetch falling back to seeds would show fabricated
+ * revenue at the exact moment the app knows nothing. Undefined makes the page
+ * say "can't reach your workspace" instead.
+ *
+ * A DEGRADED refresh (was live, refresh failed) keeps the last real payload,
+ * which is correct — the data is true but stale, and the bridge pill says so.
+ */
+export const todayOverride: SurfaceOverride = {
+  key: "today",
+  events: ["surface:today"],
+  refreshOnMessageInserts: true,
+  debounceMs: 800, // the recap is aggregate, not per-thread — no need to be twitchy
+  apply: async () => {
+    const [metricsRes, convData, escData] = await Promise.all([
+      fetchEnvelope<{ metrics: MetricsSummaryDto }>("/api/v1/metrics?days=1"),
+      fetchEnvelope<{ conversations: ConversationDto[] }>("/api/v1/conversations"),
+      fetchEnvelope<{ escalations: EscalationRow[] }>("/api/v1/escalations?state=open"),
+    ]);
+    // Calls are additive context, not a precondition — a voice outage must not
+    // blank the whole brief.
+    let calls: CallDto[] = [];
+    try {
+      calls = (await fetchEnvelope<{ calls: CallDto[] }>("/api/v1/calls")).calls;
+    } catch (e) {
+      console.error("today_calls_fetch_failed", e instanceof Error ? e.message : e);
+    }
+    (window as unknown as { TODAY_DATA?: TodayVM }).TODAY_DATA = toTodayVM(
+      metricsRes.metrics,
+      convData.conversations,
+      escData.escalations,
+      calls,
+    );
   },
 };
 

@@ -1378,6 +1378,10 @@ export type Database = {
         Args: { p_message_id: string; p_tenant_id: string }
         Returns: undefined
       }
+      metrics_summary: {
+        Args: { p_days?: number; p_tenant_id: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

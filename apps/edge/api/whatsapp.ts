@@ -368,7 +368,17 @@ export async function POST(request: Request): Promise<Response> {
         if (db && phoneNumberId) {
           const routed = await resolveChannel(db, "whatsapp", phoneNumberId);
           if (routed) tenantId = routed.tenantId;
-          else console.error("wa_unroutable", phoneNumberId);
+          else {
+            // A log line disappears; a metric built on messages_in would
+            // undercount this traffic invisibly and forever. Persist it the
+            // same way the voice path does, so a misconfigured or newly-added
+            // phone_number_id is visible instead of silently dropped.
+            console.error("wa_unroutable", phoneNumberId);
+            await emitEvent(
+              db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", "ingest", null, null,
+              { channel: "whatsapp", phone_number_id: phoneNumberId } as Json,
+            ).catch(() => {});
+          }
         }
         if (field === "messages" && v.messages) {
           for (const m of v.messages) {

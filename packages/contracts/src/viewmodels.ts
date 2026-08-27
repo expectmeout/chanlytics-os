@@ -90,7 +90,7 @@ function initialsOf(name: string): string {
   return p.slice(0, 2).toUpperCase();
 }
 
-function messageText(m: MessageDto): string {
+export function messageText(m: MessageDto): string {
   if (m.type === "call_summary" && m.body) {
     // the body already names itself ("Inbound call · 3 min — …"); the legacy
     // Blob-era prefix is stripped for rows written before Slice 3
@@ -116,17 +116,30 @@ export interface EscalationDto {
   created_at: string;
 }
 
+// These labels headline a row on Today, where there is no thread open beside
+// them to supply context — so each one says what happened AND what it means,
+// in the operator's words rather than the system's.
 export const ESCALATION_REASON_LABELS: Record<string, string> = {
   human_token: "Customer asked for a person",
   refusal: "Assistant declined to answer",
-  brain_error: "Assistant error — canned fallback sent",
+  brain_error: "The receptionist hit an error — a holding message went out",
   non_text: "Sent a voice note / photo",
   send_failed: "Reply failed to deliver",
   policy_block: "Pricing question — held by policy",
-  rate_cap: "Reply rate limit reached",
-  deadman: "No-activity check",
+  rate_cap: "Too many replies too fast — the receptionist paused itself",
+  deadman: "Nobody picked this up — flagged after silence",
   manual: "Flagged manually",
 };
+
+/** "8m" / "3h" / "2d". An overnight wait is the NORMAL case for a morning
+ *  brief, and "561 min" is not a number anyone reads as half a day. */
+export function formatWaited(ms: number): string {
+  const min = Math.max(1, Math.round(ms / 60000));
+  if (min < 60) return `${min}m`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr}h`;
+  return `${Math.round(hr / 24)}d`;
+}
 
 export interface InboxThreadVM {
   id: string;
@@ -243,7 +256,7 @@ export function toInboxThreadVM(
         : "The receptionist answered this on its own. Nothing is owed.",
     contextStrip: [
       ...(reasonLabel ? [{ label: "Why you", value: reasonLabel }] : []),
-      { label: "Waiting", value: waitingMin ? `${waitingMin} min` : "—", ...(waitingMin && waitingMin > 30 ? { warn: true } : {}) },
+      { label: "Waiting", value: waitingMin ? formatWaited(waitingMin * 60000) : "—", ...(waitingMin && waitingMin > 30 ? { warn: true } : {}) },
       { label: "Receptionist", value: needsHuman ? "Paused — you have it" : "Answering" },
       { label: "Reply window", value: win ? "Open — you can write freely" : "Closed — template only" },
     ],

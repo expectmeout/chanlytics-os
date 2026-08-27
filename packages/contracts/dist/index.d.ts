@@ -145,6 +145,7 @@ interface ConversationVM {
     messages: ConversationMessageVM[];
     live?: boolean;
 }
+declare function messageText(m: MessageDto): string;
 interface EscalationDto {
     id: string;
     reason: string;
@@ -153,6 +154,9 @@ interface EscalationDto {
     created_at: string;
 }
 declare const ESCALATION_REASON_LABELS: Record<string, string>;
+/** "8m" / "3h" / "2d". An overnight wait is the NORMAL case for a morning
+ *  brief, and "561 min" is not a number anyone reads as half a day. */
+declare function formatWaited(ms: number): string;
 interface InboxThreadVM {
     id: string;
     real: true;
@@ -299,4 +303,152 @@ interface WaWindow {
 }
 declare function waWindow(lastWaInboundAtIso: string | null | undefined, now?: Date): WaWindow;
 
-export { ACTOR_TYPES, type ActorType, AppError, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, OPT_OUT_PATTERN, type Ok, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantStatus, WA_WINDOW_MS, type WaWindow, err, formatPhoneDisplay, normalizePhone, ok, toCallVM, toConversationVM, toInboxThreadVM, violatesNoPrices, waWindow };
+/**
+ * Today (Slice 4): the morning brief.
+ *
+ * The rule that shapes every line below: a number that cannot be traced to a
+ * row does not appear, and a region with nothing true to say is not rendered
+ * at all rather than rendered empty. Zero traffic stated positively — with a
+ * timestamp and a channel status — is reassurance; the same morning rendered
+ * as four zeroes and a flat sparkline reads as a product that died overnight.
+ *
+ * Every clock value comes from the SERVER's tenant-local time, never the
+ * browser's: the owner of a New York salon checking from Madrid must still be
+ * told what time it is at the salon.
+ */
+
+interface MetricsSummaryDto {
+    workspace: {
+        name: string;
+        timezone: string;
+        status: string;
+    };
+    channels: Array<{
+        kind: string;
+        status: string;
+        number: string | null;
+    }>;
+    window: {
+        days: number;
+        since: string;
+        since_local: string;
+        now_local: string;
+    };
+    now: {
+        escalations_open: number;
+        oldest_open_escalation_at: string | null;
+        threads_needing_human: number;
+        threads_snoozed: number;
+        threads_awaiting_reply: number;
+        last_inbound_at: string | null;
+        last_outbound_at: string | null;
+    };
+    period: {
+        messages_in: number;
+        messages_out_ai: number;
+        messages_out_you: number;
+        conversations_active: number;
+        answered_by_ai: number;
+        answered_by_you: number;
+        unanswered_in_window: number;
+        median_reply_seconds_ai: number | null;
+        send_failures: number;
+        escalations_new: number;
+        escalation_reasons: Record<string, number>;
+        calls: number;
+        call_seconds: number;
+        call_sentiments: Record<string, number>;
+        calls_voicemail: number;
+        new_contacts: number;
+    };
+}
+interface TodayNeedsRowVM {
+    id: string;
+    conversationId: string;
+    who: string;
+    reason: string;
+    waited: string;
+    warn: boolean;
+    quote: string;
+    meta: string;
+    windowNote: string | null;
+    to: string;
+}
+interface TodayCallRowVM {
+    id: string;
+    who: string;
+    at: string;
+    duration: string;
+    note: string;
+    to: string;
+}
+interface TodayFactVM {
+    label: string;
+    value: string;
+    hint?: string;
+}
+interface TodayVM {
+    standing: {
+        eyebrow: string;
+        chips: Array<{
+            text: string;
+            ok: boolean;
+        }>;
+        alert: string | null;
+        greeting: string;
+        headline: string;
+        detail: string | null;
+        tone: "needs" | "calm" | "alert";
+    };
+    needsYou: {
+        count: number;
+        hint: string;
+        rows: TodayNeedsRowVM[];
+        empty: string | null;
+    } | null;
+    windowClosing: {
+        label: string;
+        hint: string;
+        rows: Array<{
+            id: string;
+            text: string;
+            to: string;
+        }>;
+    } | null;
+    recap: {
+        label: string;
+        sentences: string[];
+        facts: TodayFactVM[];
+        receipts: Array<{
+            at: string;
+            text: string;
+            to: string;
+        }>;
+    } | null;
+    calls: {
+        line: string;
+        rows: TodayCallRowVM[];
+    } | null;
+    launchpad: Array<{
+        label: string;
+        to: string;
+    }>;
+    updatedAt: string;
+    quiet: {
+        headline: string;
+        sub: string;
+        proof: Array<{
+            label: string;
+            value: string;
+        }>;
+        launchpad: {
+            label: string;
+            to: string;
+        } | null;
+    } | null;
+}
+declare function toTodayVM(m: MetricsSummaryDto, conversations: ConversationDto[], escalations: Array<EscalationDto & {
+    conversation_id: string;
+}>, calls: CallDto[], now?: Date): TodayVM;
+
+export { ACTOR_TYPES, type ActorType, AppError, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, OPT_OUT_PATTERN, type Ok, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodayVM, WA_WINDOW_MS, type WaWindow, err, formatPhoneDisplay, formatWaited, messageText, normalizePhone, ok, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };

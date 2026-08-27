@@ -1392,6 +1392,13 @@ type Database = {
                 };
                 Returns: undefined;
             };
+            metrics_summary: {
+                Args: {
+                    p_days?: number;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
         };
         Enums: {
             [_ in never]: never;

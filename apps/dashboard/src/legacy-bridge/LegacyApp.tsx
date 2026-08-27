@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import "./seed-globals"; // must evaluate before the manifest
 import "./manifest";
 import "./legacy.css";
-import { workspaceOverride, conversationsOverride, inboxOverride, type Workspace } from "./surface-data";
+import { workspaceOverride, conversationsOverride, inboxOverride, todayOverride, type Workspace } from "./surface-data";
 import { getSurfaceStatuses, onSurfaceStatusChange, startSurfaces } from "./surface-runner";
 import { installInboxVerbs } from "./inbox-verbs";
 
@@ -22,8 +22,8 @@ installInboxVerbs();
 // The mockup's own data-before-mount contract (boot gate).
 const REQUIRED = ["CHANLY", "INBOX_DATA", "CLIENTS", "FLEET_DATA", "CHANLY_DATA", "POLICY", "ChanlyticsApp"] as const;
 
-const SURFACES = [workspaceOverride, conversationsOverride, inboxOverride];
-const SURFACE_LABELS: Record<string, string> = { conversations: "Conversations", inbox: "Inbox" };
+const SURFACES = [workspaceOverride, conversationsOverride, inboxOverride, todayOverride];
+const SURFACE_LABELS: Record<string, string> = { conversations: "Conversations", inbox: "Inbox", today: "Today" };
 
 interface Prefs {
   theme: "light" | "dark";

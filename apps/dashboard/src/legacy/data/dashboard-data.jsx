@@ -1,14 +1,12 @@
 /* global React */
+// Slice 4 removed TODAY_KPIS, TODAY_SCHEDULE and NEXT_FOUR_HOURS: revenue,
+// appointments, conversion and a booking forecast have no backing table in
+// this product, and Today now renders from real metrics. Their only readers
+// (HeroBrief, NowPlayingRail) are no longer mounted.
 // Chanlytics — refined dashboard data.
 // Adds AI-native fields: confidence, suggested replies, predicted outcomes,
 // live agent activity, autonomy levels, risk signals.
 
-const TODAY_KPIS = [
-  { label: "Revenue today",     value: "$1,840", delta: 22,  spark: [320,410,380,520,460,580,640,590,710,680,840], unit: "vs. $1,510 yest." },
-  { label: "Appointments",      value: "12",     delta: 12,  spark: [1,2,2,3,4,5,6,7,8,10,12], unit: "of 14 capacity" },
-  { label: "Conversion",        value: "63.6%",  delta: 8,   spark: [55,57,56,58,60,61,62,63,63,64,64], unit: "7 of 11 leads" },
-  { label: "Avg response",      value: "1m 12s", delta: -18, spark: [180,150,130,120,90,80,72], unit: "↓ from 1m 28s" },
-];
 
 // Top-line narrative for the hero
 const MORNING_BRIEF = {
@@ -117,14 +115,6 @@ const AGENT_TASKS = {
 };
 
 // ====== TODAY'S SCHEDULE — with risk signals ======
-const TODAY_SCHEDULE = [
-  { time: "9:00",  who: "Maya Rodriguez", what: "Deep tissue · 60",  status: "done",      agent: "P", apptId: "a-maya2", risk: null,                      ltv: 1240, visits: 12 },
-  { time: "10:15", who: "Aisha Khan",     what: "Facial · 45",       status: "done",      agent: "I", apptId: "a-aisha2", risk: null,                      ltv: 1040, visits: 7  },
-  { time: "11:30", who: "Selena Cho",     what: "Swedish · 60",      status: "live",      agent: "P", apptId: "a-selena", risk: null,                      ltv:   80, visits: 1  },
-  { time: "13:00", who: "Jordan Patel",   what: "Intro · 60",        status: "pending",   agent: "P", apptId: "a-jordan", threadId: "th-jordan-discount", risk: "Pricing question — in Inbox", ltv:    0, visits: 0  },
-  { time: "14:45", who: "Priya Shah",      what: "Hot stone · 75",    status: "confirmed", agent: "P", apptId: "a-priya", risk: "Rescheduled 2x · likely no-show", ltv: 720, visits: 4 },
-  { time: "16:30", who: "Marcus Lee",     what: "Swedish · 60",      status: "tentative", agent: "I", apptId: "a-marcus", risk: "Tentative · awaiting confirm", ltv: 0, visits: 0 },
-];
 
 // ====== LIVE AGENT FLEET — with autonomy + current activity ======
 const AGENT_FLEET = [
@@ -225,21 +215,10 @@ const ASK_SUGGESTIONS = [
 ];
 
 // Forecast for the Now-playing rail
-const NEXT_FOUR_HOURS = {
-  appointments: 3,
-  followUps: 2,
-  expectedRevenue: 640,
-  events: [
-    { time: "1:00pm", what: "Intro 60 · Jordan Patel", flag: "pricing question", to: "inbox/th-jordan-discount" },
-    { time: "2:00pm", what: "Marcus follow-up auto-send", flag: null },
-    { time: "2:45pm", what: "Hot stone · Priya Shah", flag: "no-show risk", to: "calendar/a-priya" },
-    { time: "5:00pm", what: "Birthday SMS to 8 clients", flag: null, to: "tasks" },
-  ],
-};
 
 window.CHANLY_DATA = {
-  TODAY_KPIS, MORNING_BRIEF, AGENT_TASKS, TODAY_SCHEDULE, AGENT_FLEET,
-  LIVE_TICKER, RECENT_TRANSCRIPTS, REVENUE_BY_DAY, ASK_SUGGESTIONS, NEXT_FOUR_HOURS,
+  MORNING_BRIEF, AGENT_TASKS, AGENT_FLEET,
+  LIVE_TICKER, RECENT_TRANSCRIPTS, REVENUE_BY_DAY, ASK_SUGGESTIONS,
   // Backwards-compat alias for any older dashboard-b that reads AGENT_BREAKDOWN
   AGENT_BREAKDOWN: AGENT_FLEET.map(a => ({
     name: a.name, glyph: a.glyph, calls: a.today.convos, bookings: a.today.bookings,

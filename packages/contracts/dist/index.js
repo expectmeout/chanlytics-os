@@ -170,14 +170,21 @@ function messageText(m) {
 var ESCALATION_REASON_LABELS = {
   human_token: "Customer asked for a person",
   refusal: "Assistant declined to answer",
-  brain_error: "Assistant error \u2014 canned fallback sent",
+  brain_error: "The receptionist hit an error \u2014 a holding message went out",
   non_text: "Sent a voice note / photo",
   send_failed: "Reply failed to deliver",
   policy_block: "Pricing question \u2014 held by policy",
-  rate_cap: "Reply rate limit reached",
-  deadman: "No-activity check",
+  rate_cap: "Too many replies too fast \u2014 the receptionist paused itself",
+  deadman: "Nobody picked this up \u2014 flagged after silence",
   manual: "Flagged manually"
 };
+function formatWaited(ms) {
+  const min = Math.max(1, Math.round(ms / 6e4));
+  if (min < 60) return `${min}m`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr}h`;
+  return `${Math.round(hr / 24)}d`;
+}
 function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
   const who = dto.contact.display_name || dto.contact.wa_profile_name || formatPhoneDisplay(dto.contact.phone_e164) || "Unknown";
   const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
@@ -229,7 +236,7 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
     summary: escalation ? `${reasonLabel}. The customer already got a holding reply \u2014 they're expecting a real answer from the salon.` : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : "The receptionist answered this on its own. Nothing is owed.",
     contextStrip: [
       ...reasonLabel ? [{ label: "Why you", value: reasonLabel }] : [],
-      { label: "Waiting", value: waitingMin ? `${waitingMin} min` : "\u2014", ...waitingMin && waitingMin > 30 ? { warn: true } : {} },
+      { label: "Waiting", value: waitingMin ? formatWaited(waitingMin * 6e4) : "\u2014", ...waitingMin && waitingMin > 30 ? { warn: true } : {} },
       { label: "Receptionist", value: needsHuman ? "Paused \u2014 you have it" : "Answering" },
       { label: "Reply window", value: win ? "Open \u2014 you can write freely" : "Closed \u2014 template only" }
     ],
@@ -373,6 +380,264 @@ function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
   const closes = new Date(lastWaInboundAtIso).getTime() + WA_WINDOW_MS;
   return { open: closes > now.getTime(), closesAtIso: new Date(closes).toISOString() };
 }
+
+// src/today.ts
+var CHANNEL_LABEL = { whatsapp: "WhatsApp", voice: "Phone line" };
+function tzTime(iso, tz) {
+  if (!iso) return null;
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: tz
+    }).format(new Date(iso));
+  } catch {
+    return null;
+  }
+}
+function tzDayAndTime(iso, tz, now) {
+  if (!iso) return null;
+  const t = tzTime(iso, tz);
+  if (!t) return null;
+  const days = Math.floor((now.getTime() - new Date(iso).getTime()) / 864e5);
+  if (days < 1) return t;
+  try {
+    const d = new Date(iso);
+    if (days < 7) {
+      const day = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: tz }).format(d);
+      return `${day} at ${t}`;
+    }
+    const md = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", timeZone: tz }).format(d);
+    return `${md} at ${t}`;
+  } catch {
+    return t;
+  }
+}
+function secondsPhrase(s) {
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return r ? `${m}m ${r}s` : `${m}m`;
+}
+var SENT = ["sent", "delivered", "read"];
+function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ new Date()) {
+  const tz = m.workspace.timezone;
+  const p = m.period;
+  const live = m.now;
+  const localNow = new Date(m.window.now_local);
+  const valid = !Number.isNaN(localNow.getTime());
+  const hour = valid ? localNow.getHours() : now.getHours();
+  const clock = valid ? localNow.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
+  const datePart = valid ? localNow.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) : "";
+  const greeting = hour < 12 ? "Good morning." : hour < 17 ? "Good afternoon." : "Good evening.";
+  const chips = m.channels.map((c) => ({
+    text: `${CHANNEL_LABEL[c.kind] ?? c.kind} ${c.status === "active" ? "connected" : "disconnected"}`,
+    ok: c.status === "active"
+  }));
+  const down = m.channels.filter((c) => c.status !== "active");
+  const alert = m.workspace.status === "paused" ? "This workspace is paused \u2014 the receptionist is not answering anything." : down.length ? `${down.map((c) => CHANNEL_LABEL[c.kind] ?? c.kind).join(" and ")} ${down.length > 1 ? "are" : "is"} disconnected \u2014 messages coming in are not being answered.` : null;
+  const byConv = new Map(conversations.map((c) => [c.id, c]));
+  const openEsc = escalations.filter((e) => e.state === "open").sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const needsRows = openEsc.map((e) => {
+    const conv = byConv.get(e.conversation_id);
+    const vm = conv ? toInboxThreadVM(conv, e, now) : null;
+    const lastCustomer = conv ? [...conv.messages].reverse().find((x) => x.sender === "customer") : void 0;
+    const waitedMs = now.getTime() - new Date(e.created_at).getTime();
+    const win = conv ? waWindow(conv.last_wa_inbound_at, now) : null;
+    const closes = win?.open ? tzTime(win.closesAtIso, tz) : null;
+    return {
+      id: `th-${e.conversation_id}`,
+      conversationId: e.conversation_id,
+      who: vm?.who ?? "Unknown",
+      reason: ESCALATION_REASON_LABELS[e.reason] ?? e.reason,
+      waited: formatWaited(waitedMs),
+      warn: waitedMs > 30 * 6e4,
+      // her own words, never a generated characterization of them
+      quote: lastCustomer ? messageText(lastCustomer).slice(0, 110) : "",
+      meta: vm?.whoMeta ?? "WhatsApp",
+      windowNote: closes ? `Reply window closes ${closes}` : null,
+      to: `inbox/th-${e.conversation_id}`
+    };
+  });
+  const escSet = new Set(openEsc.map((e) => e.conversation_id));
+  const closingRows = conversations.filter((c) => {
+    if (escSet.has(c.id)) return false;
+    const last = c.messages[c.messages.length - 1];
+    if (!last || last.sender !== "customer") return false;
+    const w = waWindow(c.last_wa_inbound_at, now);
+    return w.open && w.closesAtIso ? new Date(w.closesAtIso).getTime() - now.getTime() < 6 * 3600 * 1e3 : false;
+  }).map((c) => {
+    const w = waWindow(c.last_wa_inbound_at, now);
+    const vm = toInboxThreadVM(c, null, now);
+    const mins = w.closesAtIso ? Math.max(1, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / 6e4)) : 0;
+    return {
+      id: `wc-${c.id}`,
+      text: `${vm.who} \u2014 window closes ${tzTime(w.closesAtIso, tz) ?? "soon"} (in ${formatWaited(mins * 6e4)})`,
+      to: `inbox/th-${c.id}`
+    };
+  });
+  const sinceMs = new Date(m.window.since).getTime();
+  const callsInWindow = calls.filter(
+    (c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs
+  );
+  const callMinutes = Math.round(p.call_seconds / 60);
+  const traffic = p.messages_in + p.calls + p.messages_out_you;
+  const isQuiet = traffic === 0 && live.escalations_open === 0 && !alert;
+  if (isQuiet) {
+    const lastIn = tzDayAndTime(live.last_inbound_at, tz, now);
+    const gap = live.last_outbound_at && live.last_inbound_at && new Date(live.last_outbound_at) > new Date(live.last_inbound_at) ? Math.round(
+      (new Date(live.last_outbound_at).getTime() - new Date(live.last_inbound_at).getTime()) / 1e3
+    ) : null;
+    const names = m.channels.map((c) => CHANNEL_LABEL[c.kind] ?? c.kind).join(" and ");
+    const plural = m.channels.length > 1 ? "are" : "is";
+    const sub = lastIn ? `${names} ${plural} connected. The last message arrived ${lastIn}${gap !== null && gap > 0 && gap < 3600 ? `, and the receptionist answered ${secondsPhrase(gap)} later.` : "."}` : `${names} ${plural} connected. No messages have arrived yet.`;
+    return {
+      standing: {
+        eyebrow: `${datePart} \xB7 ${clock} \xB7 ${m.workspace.name}`,
+        chips,
+        alert: null,
+        greeting,
+        headline: "Nothing has come in yet today.",
+        detail: null,
+        tone: "calm"
+      },
+      needsYou: null,
+      windowClosing: null,
+      recap: null,
+      calls: null,
+      launchpad: [{ label: "Conversations", to: "conversations" }],
+      updatedAt: clock,
+      quiet: {
+        headline: "Nothing has come in yet today.",
+        sub,
+        proof: [
+          ...m.channels.map((c) => ({
+            label: CHANNEL_LABEL[c.kind] ?? c.kind,
+            value: `${c.number ?? "connected"} \xB7 ${c.status}`
+          })),
+          { label: "Checked", value: "just now" }
+        ],
+        launchpad: conversations.length ? {
+          label: `Nothing waiting. ${conversations.length} earlier conversation${conversations.length === 1 ? "" : "s"} \u2192`,
+          to: "conversations"
+        } : null
+      }
+    };
+  }
+  const oldest = tzTime(live.oldest_open_escalation_at, tz);
+  let headline;
+  let detail = null;
+  let tone = "calm";
+  if (alert) {
+    headline = "Check your connection before anything else.";
+    tone = "alert";
+  } else if (live.escalations_open > 1) {
+    headline = `${live.escalations_open} conversations need you.`;
+    if (oldest) detail = `The oldest has been waiting since ${oldest}.`;
+    tone = "needs";
+  } else if (live.escalations_open === 1) {
+    headline = "One conversation needs you";
+    const who = needsRows[0]?.who;
+    if (who && oldest) detail = `${who} has been waiting since ${oldest}.`;
+    tone = "needs";
+  } else {
+    const bits = [];
+    if (p.messages_in) {
+      bits.push(
+        `${p.messages_in} message${p.messages_in === 1 ? "" : "s"}${p.conversations_active ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}` : ""}`
+      );
+    }
+    if (p.calls) bits.push(`${p.calls} call${p.calls === 1 ? "" : "s"}`);
+    headline = bits.length ? `The receptionist handled everything \u2014 ${bits.join(" and ")} today. Nothing needs you.` : "Nothing needs you.";
+    if (p.median_reply_seconds_ai !== null && p.messages_in > 0) {
+      detail = `It answered ${p.answered_by_ai} of the ${p.messages_in} on its own, typically in about ${secondsPhrase(
+        p.median_reply_seconds_ai
+      )}.`;
+    }
+  }
+  const sentences = [];
+  if (p.answered_by_ai) {
+    sentences.push(
+      `The WhatsApp receptionist answered ${p.answered_by_ai} message${p.answered_by_ai === 1 ? "" : "s"}${p.conversations_active ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}` : ""}.`
+    );
+  }
+  if (p.calls) {
+    sentences.push(
+      `${p.calls} caller${p.calls === 1 ? "" : "s"} reached the phone line${callMinutes ? ` \u2014 ${callMinutes} minute${callMinutes === 1 ? "" : "s"} total` : ""}.`
+    );
+  }
+  if (p.messages_out_you) {
+    sentences.push(`You sent ${p.messages_out_you} repl${p.messages_out_you === 1 ? "y" : "ies"} yourself.`);
+  }
+  if (p.send_failures) {
+    sentences.push(
+      `${p.send_failures} repl${p.send_failures === 1 ? "y" : "ies"} failed to deliver.`
+    );
+  }
+  const facts = [
+    { label: "Messages in", value: String(p.messages_in) },
+    { label: "Answered by the receptionist", value: `${p.answered_by_ai} of ${p.messages_in}` },
+    p.median_reply_seconds_ai === null ? { label: "Typical reply time", value: "\u2014", hint: "Not enough replies yet" } : { label: "Typical reply time", value: secondsPhrase(p.median_reply_seconds_ai) },
+    { label: "Calls", value: p.calls ? `${p.calls}${callMinutes ? ` \xB7 ${callMinutes} min` : ""}` : "0" }
+  ];
+  const receipts = conversations.flatMap(
+    (c) => c.messages.filter(
+      (x) => x.direction === "outbound" && SENT.includes(String(x.status)) && new Date(x.created_at).getTime() >= sinceMs
+    ).map((x) => ({ conv: c, msg: x }))
+  ).sort((a, b) => b.msg.created_at.localeCompare(a.msg.created_at)).slice(0, 3).map(({ conv, msg }) => ({
+    at: tzTime(msg.created_at, tz) ?? "",
+    text: `replied to ${toInboxThreadVM(conv, null, now).who}: \u201C${messageText(msg).slice(0, 90)}\u201D`,
+    to: `inbox/th-${conv.id}`
+  }));
+  const NEEDS_EAR = ["dial_no_answer", "inactivity", "concurrency_limit_reached", "marked_as_spam"];
+  const callRows = callsInWindow.filter(
+    (c) => c.in_voicemail || c.sentiment === "Negative" || !c.summary || (c.disconnection_reason ? NEEDS_EAR.includes(c.disconnection_reason) : false)
+  ).map((c) => {
+    const vm = toCallVM(c, now);
+    return {
+      id: c.id,
+      who: vm.who,
+      at: tzTime(c.started_at, tz) ?? "",
+      duration: vm.duration ?? "",
+      note: c.in_voicemail ? "Reached voicemail" : c.sentiment === "Negative" ? "Caller sentiment: Negative \u2014 the voice provider's own read" : !c.summary ? "No summary from the voice provider" : DISCONNECTION_LABELS[c.disconnection_reason ?? ""] ?? "Ended early",
+      to: `conversations/cv-${c.id}`
+    };
+  });
+  return {
+    standing: {
+      eyebrow: `${datePart} \xB7 ${clock} \xB7 ${m.workspace.name}`,
+      chips,
+      alert,
+      greeting,
+      headline,
+      detail,
+      tone
+    },
+    needsYou: {
+      count: live.escalations_open,
+      hint: "The receptionist stopped and asked for a human.",
+      rows: needsRows,
+      empty: needsRows.length ? null : "Nothing is waiting on you. The receptionist answered every message that came in, and nobody asked for a person."
+    },
+    windowClosing: closingRows.length ? {
+      label: "Reply window closing",
+      hint: "WhatsApp only lets you write freely for 24 hours after someone messages you. After that it's an approved template.",
+      rows: closingRows
+    } : null,
+    recap: traffic ? { label: "Today so far", sentences, facts, receipts } : null,
+    calls: p.calls ? {
+      line: `${p.calls} call${p.calls === 1 ? "" : "s"} today${callMinutes ? ` \xB7 ${callMinutes} minute${callMinutes === 1 ? "" : "s"}` : ""}.`,
+      rows: callRows
+    } : null,
+    launchpad: [
+      { label: `Inbox \u2014 ${live.escalations_open} need you`, to: "inbox" },
+      { label: "Conversations", to: "conversations" },
+      ...p.calls ? [{ label: `Calls \u2014 ${p.calls} today`, to: "conversations/phone" }] : []
+    ],
+    updatedAt: clock,
+    quiet: null
+  };
+}
 export {
   ACTOR_TYPES,
   AppError,
@@ -401,11 +666,14 @@ export {
   WA_WINDOW_MS,
   err,
   formatPhoneDisplay,
+  formatWaited,
+  messageText,
   normalizePhone,
   ok,
   toCallVM,
   toConversationVM,
   toInboxThreadVM,
+  toTodayVM,
   violatesNoPrices,
   waWindow
 };
