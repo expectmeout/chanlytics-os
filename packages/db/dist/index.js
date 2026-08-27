@@ -184,4 +184,3 @@ export {
   resolveChannel,
   subscribeMessagesInserts
 };
-//# sourceMappingURL=index.js.map

@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts --sourcemap --no-splitting",
+    "build": "tsup src/index.ts --format esm --dts --no-splitting",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
