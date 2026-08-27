@@ -3,22 +3,30 @@
  * On call_analyzed: email a summary via Resend (same lead pipeline as WhatsApp)
  * and note the call on the caller's Blob thread (cross-channel memory).
  */
-import { verifyRetellSignature, readRaw } from "../lib/retell.js";
+import { verifyRetellSignature } from "../lib/retell.js";
 import { getThread, saveThread } from "../lib/store.js";
+import { json } from "../lib/http.js";
 
-export const config = { api: { bodyParser: false } };
+interface RetellCall {
+  call_id?: string;
+  from_number?: string;
+  to_number?: string;
+  duration_ms?: number;
+  transcript?: string;
+  disconnection_reason?: string;
+  call_analysis?: { call_summary?: string; user_sentiment?: string };
+}
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ ok: false });
-  const raw = await readRaw(req);
-  const sigOk = verifyRetellSignature(raw, req.headers["x-retell-signature"], process.env.RETELL_API_KEY);
-  const keyOk = (req.query || {}).key === process.env.RETELL_FN_SECRET;
+export async function POST(request: Request): Promise<Response> {
+  const raw = await request.text();
+  const sigOk = verifyRetellSignature(raw, request.headers.get("x-retell-signature"), process.env.RETELL_API_KEY);
+  const keyOk = new URL(request.url).searchParams.get("key") === process.env.RETELL_FN_SECRET;
   if (!sigOk && !keyOk) {
-    return res.status(401).json({ ok: false, error: "unauthorized" });
+    return json(401, { ok: false, error: "unauthorized" });
   }
 
-  let body = {};
-  try { body = JSON.parse(raw); } catch { return res.status(200).json({ ok: true }); }
+  let body: { event?: string; call?: RetellCall } = {};
+  try { body = JSON.parse(raw); } catch { return json(200, { ok: true }); }
   const { event, call } = body;
   console.log("retell_event", event, call && call.call_id);
 
@@ -38,7 +46,7 @@ export default async function handler(req, res) {
           content: `[voice call note ${new Date().toISOString().slice(0, 16)}] Caller phoned the salon line. Summary: ${String(summary).slice(0, 400)}`,
         });
         await saveThread(from, t);
-      } catch (e) { console.error("call_note_failed", e && e.message); }
+      } catch (e) { console.error("call_note_failed", e instanceof Error ? e.message : e); }
     }
 
     // same lead pipeline as WhatsApp escalations
@@ -59,8 +67,8 @@ export default async function handler(req, res) {
               `Transcript:\n${String(call.transcript || "(none)").slice(0, 3000)}`,
           }),
         });
-      } catch (e) { console.error("call_email_failed", e && e.message); }
+      } catch (e) { console.error("call_email_failed", e instanceof Error ? e.message : e); }
     }
   }
-  return res.status(200).json({ ok: true });
+  return json(200, { ok: true });
 }

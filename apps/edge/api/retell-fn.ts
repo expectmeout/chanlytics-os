@@ -4,23 +4,20 @@
  * on WhatsApp via the APPROVED booking_link_v1 utility template (no session window needed).
  * Returns a short string the voice agent speaks from.
  */
-import { readRaw } from "../lib/retell.js";
-
-export const config = { api: { bodyParser: false } };
+import { json } from "../lib/http.js";
 
 const BOOKSY = "booksy.com/en-us/1817434_melany-s-beauty-salon_hair-salon_29902_brooklyn";
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ ok: false });
-  const raw = await readRaw(req);
+export async function POST(request: Request): Promise<Response> {
+  const raw = await request.text();
   // Retell custom-function calls are authenticated via the shared-secret header
   // configured on the tool (Retell does not HMAC-sign these like webhooks).
-  if (req.headers["x-fn-secret"] !== process.env.RETELL_FN_SECRET) {
-    return res.status(401).json({ ok: false, error: "bad_secret" });
+  if (request.headers.get("x-fn-secret") !== process.env.RETELL_FN_SECRET) {
+    return json(401, { ok: false, error: "bad_secret" });
   }
 
-  let body = {};
-  try { body = JSON.parse(raw); } catch {}
+  let body: { call?: { call_id?: string; from_number?: string }; args?: { phone_number?: string } } = {};
+  try { body = JSON.parse(raw); } catch { /* fall through with empty body */ }
   const call = body.call || {};
   const args = body.args || {};
   // caller's number, unless the agent collected a different one
@@ -28,7 +25,7 @@ export default async function handler(req, res) {
   console.log("retell_fn_send_booking_link", JSON.stringify({ target, call_id: call.call_id }));
 
   if (!target || target.length < 10) {
-    return res.status(200).json({ result: "Could not determine a valid phone number. Ask the caller to text the salon on WhatsApp at 646-932-5775 instead." });
+    return json(200, { result: "Could not determine a valid phone number. Ask the caller to text the salon on WhatsApp at 646-932-5775 instead." });
   }
 
   const r = await fetch(`https://graph.facebook.com/v25.0/${process.env.WHATSAPP_PHONE_ID}/messages`, {
@@ -54,7 +51,7 @@ export default async function handler(req, res) {
   const out = await r.json().catch(() => ({}));
   if (!r.ok) {
     console.error("booking_link_send_failed", r.status, JSON.stringify(out).slice(0, 200));
-    return res.status(200).json({ result: "The WhatsApp message could not be sent (the number may not have WhatsApp). Tell the caller they can book at booksy dot com, or text the salon's WhatsApp at 646-932-5775." });
+    return json(200, { result: "The WhatsApp message could not be sent (the number may not have WhatsApp). Tell the caller they can book at booksy dot com, or text the salon's WhatsApp at 646-932-5775." });
   }
-  return res.status(200).json({ result: "Booking link sent to the caller's WhatsApp successfully. Confirm they should see it momentarily." });
+  return json(200, { result: "Booking link sent to the caller's WhatsApp successfully. Confirm they should see it momentarily." });
 }

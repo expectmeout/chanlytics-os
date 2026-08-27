@@ -6,6 +6,9 @@
  * with per-thread dedupe, history, human-pause (coexistence echoes), rate caps,
  * staleness guard, and escalation alerts via Resend.
  *
+ * Contract (frozen during Meta App Review): process-then-200 in-invocation
+ * under maxDuration 60; Meta retries + dedupe make replays safe.
+ *
  * Env: WHATSAPP_VERIFY_TOKEN, META_APP_SECRET, WHATSAPP_ACCESS_TOKEN,
  *      WHATSAPP_PHONE_ID, WHATSAPP_TEST_ALLOWLIST (optional, comma list),
  *      ANTHROPIC_API_KEY (brain; fixed fallback reply without it),
@@ -14,34 +17,35 @@
  */
 import crypto from "node:crypto";
 import { getThread, saveThread, storeBackend } from "../lib/store.js";
+import { json, text } from "../lib/http.js";
 
-export const config = { api: { bodyParser: false } };
+export const config = { maxDuration: 60 };
 
 const PAUSE_MS = 24 * 3600 * 1000;   // human echo pauses the bot for 24h
 const MAX_REPLIES_PER_DAY = 20;      // per thread
 const STALE_MS = 10 * 60 * 1000;     // ignore messages older than 10 min (webhook replays)
 
-function readRaw(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    req.on("data", (c) => chunks.push(c));
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-    req.on("error", reject);
-  });
+interface WaMessage {
+  from: string;
+  id: string;
+  type: string;
+  timestamp?: string;
+  text?: { body?: string };
 }
 
-async function sendText(to, body) {
+async function sendText(to: string, body: string): Promise<boolean> {
   const r = await fetch(`https://graph.facebook.com/v25.0/${process.env.WHATSAPP_PHONE_ID}/messages`, {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" },
     body: JSON.stringify({ messaging_product: "whatsapp", to, type: "text", text: { body } }),
   });
-  const out = await r.json().catch(() => ({}));
+  const out = (await r.json().catch(() => ({}))) as { messages?: Array<{ id?: string }> };
   if (!r.ok) console.error("wa_send_failed", r.status, JSON.stringify(out).slice(0, 200));
+  else console.log("wa_sent", JSON.stringify({ to, wamid: out.messages?.[0]?.id || null }));
   return r.ok;
 }
 
-async function alertStaff(threadId, userText, botText, reason) {
+async function alertStaff(threadId: string, userText: string, botText: string, reason: string): Promise<void> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return;
   try {
@@ -61,11 +65,11 @@ async function alertStaff(threadId, userText, botText, reason) {
       }),
     });
   } catch (e) {
-    console.error("alert_failed", e && e.message);
+    console.error("alert_failed", e instanceof Error ? e.message : e);
   }
 }
 
-async function handleInbound(m) {
+async function handleInbound(m: WaMessage): Promise<void> {
   const from = m.from;
   const allow = (process.env.WHATSAPP_TEST_ALLOWLIST || "").split(",").map((s) => s.trim()).filter(Boolean);
   if (allow.length && !allow.includes(from)) return;
@@ -101,63 +105,74 @@ async function handleInbound(m) {
     return;
   }
 
-  let text, escalate = false;
+  let replyText: string;
+  let escalate = false;
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const { generateReply } = await import("../lib/brain.js");
-      ({ text, escalate } = await generateReply(thread.history, m.text.body));
+      ({ text: replyText, escalate } = await generateReply(thread.history, m.text.body));
     } catch (e) {
-      console.error("brain_failed", e && e.message);
-      text = "Thanks for reaching out to Melany's Beauty Salon! Book anytime: https://booksy.com/en-us/1817434_melany-s-beauty-salon_hair-salon_29902_brooklyn — or a member of our team will reply here soon.";
+      console.error("brain_failed", e instanceof Error ? e.message : e);
+      replyText = "Thanks for reaching out to Melany's Beauty Salon! Book anytime: https://booksy.com/en-us/1817434_melany-s-beauty-salon_hair-salon_29902_brooklyn — or a member of our team will reply here soon.";
       escalate = true;
     }
   } else {
-    text = "Hi! Thanks for reaching out to Melany's Beauty Salon 💛 We're newly renovated and booking now.\n\nBook anytime: https://booksy.com/en-us/1817434_melany-s-beauty-salon_hair-salon_29902_brooklyn\n\nOr reply here with any question — for a person, just ask for Melany.";
+    replyText = "Hi! Thanks for reaching out to Melany's Beauty Salon 💛 We're newly renovated and booking now.\n\nBook anytime: https://booksy.com/en-us/1817434_melany-s-beauty-salon_hair-salon_29902_brooklyn\n\nOr reply here with any question — for a person, just ask for Melany.";
   }
 
-  const ok = await sendText(from, text);
+  const ok = await sendText(from, replyText);
   if (ok) {
     thread.history.push({ role: "user", content: m.text.body });
-    thread.history.push({ role: "assistant", content: text });
+    thread.history.push({ role: "assistant", content: replyText });
     thread.replies.push(Date.now());
     if (escalate) {
       thread.pausedUntil = Date.now() + PAUSE_MS;
-      await alertStaff(from, m.text.body, text, "assistant flagged handoff");
+      await alertStaff(from, m.text.body, replyText, "assistant flagged handoff");
     }
   }
   await saveThread(from, thread);
   console.log("wa_replied", JSON.stringify({ to: from, escalate, store: storeBackend() }));
 }
 
-export default async function handler(req, res) {
-  if (req.method === "GET") {
-    const q = req.query || {};
-    if (q["hub.mode"] === "subscribe" && q["hub.verify_token"] === process.env.WHATSAPP_VERIFY_TOKEN) {
-      return res.status(200).send(q["hub.challenge"]);
-    }
-    return res.status(403).send("verification failed");
+export async function GET(request: Request): Promise<Response> {
+  const q = new URL(request.url).searchParams;
+  if (q.get("hub.mode") === "subscribe" && q.get("hub.verify_token") === process.env.WHATSAPP_VERIFY_TOKEN) {
+    return text(200, q.get("hub.challenge") || "");
   }
+  return text(403, "verification failed");
+}
 
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ ok: false });
-  }
+export async function POST(request: Request): Promise<Response> {
+  const raw = await request.text();
 
-  const raw = await readRaw(req);
-
+  // fail-closed: a missing secret is a config error, never a verification skip
   const secret = process.env.META_APP_SECRET;
-  if (secret) {
-    const sig = String(req.headers["x-hub-signature-256"] || "");
-    const expected = "sha256=" + crypto.createHmac("sha256", secret).update(raw).digest("hex");
-    const a = Buffer.from(sig);
-    const b = Buffer.from(expected);
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-      return res.status(401).json({ ok: false, error: "bad_signature" });
-    }
+  if (!secret) {
+    console.error("wa_missing_app_secret");
+    return json(401, { ok: false, error: "bad_signature" });
+  }
+  const sig = String(request.headers.get("x-hub-signature-256") || "");
+  const expected = "sha256=" + crypto.createHmac("sha256", secret).update(raw).digest("hex");
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return json(401, { ok: false, error: "bad_signature" });
   }
 
-  let body = {};
-  try { body = JSON.parse(raw.toString("utf-8")); } catch { /* ack anyway */ }
+  interface WebhookBody {
+    entry?: Array<{
+      changes?: Array<{
+        field?: string;
+        value?: {
+          messages?: WaMessage[];
+          statuses?: Array<{ id?: string; status?: string; recipient_id?: string; errors?: unknown }>;
+          message_echoes?: Array<{ to?: string }>;
+        };
+      }>;
+    }>;
+  }
+  let body: WebhookBody = {};
+  try { body = JSON.parse(raw) as WebhookBody; } catch { /* ack anyway */ }
 
   try {
     for (const entry of body.entry || []) {
@@ -185,7 +200,7 @@ export default async function handler(req, res) {
                 console.log("wa_paused_by_echo", to);
               }
             }
-          } catch (e) { console.error("echo_handling_error", e && e.message); }
+          } catch (e) { console.error("echo_handling_error", e instanceof Error ? e.message : e); }
         } else if (field === "history") {
           console.log("wa_history_sync_batch");
         } else {
@@ -194,7 +209,7 @@ export default async function handler(req, res) {
       }
     }
   } catch (e) {
-    console.error("wa_webhook_error", e && e.message);
+    console.error("wa_webhook_error", e instanceof Error ? e.message : e);
   }
-  return res.status(200).json({ ok: true });
+  return json(200, { ok: true });
 }

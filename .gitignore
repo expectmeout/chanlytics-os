@@ -5,7 +5,7 @@ dist/
 .turbo/
 coverage/
 
-# env & secrets — never commit; see .env.example
+# env & secrets — never commit; see apps/edge/.env.example
 .env
 .env.*
 !.env.example
@@ -18,8 +18,8 @@ coverage/
 *.mp4
 review-videos/
 _gen/
-Chanlytics platform/screenshots/
-Chanlytics platform/uploads/
+apps/dashboard/src/legacy/screenshots/
+apps/dashboard/src/legacy/uploads/
 
 # misc
 *.log

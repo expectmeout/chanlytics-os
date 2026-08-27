@@ -5,24 +5,36 @@
  */
 import { put, get } from "@vercel/blob";
 
-const mem = new Map();
+export interface ThreadTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ThreadState {
+  history: ThreadTurn[]; // conversation turns
+  seen: string[];        // recent message ids (webhook retries dedupe)
+  pausedUntil: number;   // epoch ms — human is handling this thread
+  replies: number[];     // epoch ms of bot replies (rate cap)
+}
+
+const mem = new Map<string, ThreadState>();
 const BLOB_ON = !!process.env.BLOB_READ_WRITE_TOKEN;
 
-const blank = () => ({
-  history: [],          // [{role:"user"|"assistant", content}]
-  seen: [],             // recent message ids (webhook retries dedupe)
-  pausedUntil: 0,       // epoch ms — human is handling this thread
-  replies: [],          // epoch ms of bot replies (rate cap)
+const blank = (): ThreadState => ({
+  history: [],
+  seen: [],
+  pausedUntil: 0,
+  replies: [],
 });
 
-const path = (threadId) => `threads/${threadId}.json`;
+const path = (threadId: string) => `threads/${threadId}.json`;
 
-export async function getThread(threadId) {
+export async function getThread(threadId: string): Promise<ThreadState> {
   if (BLOB_ON) {
     try {
       const res = await get(path(threadId), { access: "private", useCache: false });
       if (res && res.statusCode === 200 && res.stream) {
-        const txt = await new Response(res.stream).text();
+        const txt = await new Response(res.stream as ReadableStream).text();
         return { ...blank(), ...JSON.parse(txt) };
       }
     } catch { /* not found -> blank */ }
@@ -31,7 +43,7 @@ export async function getThread(threadId) {
   return mem.get(threadId) || blank();
 }
 
-export async function saveThread(threadId, state) {
+export async function saveThread(threadId: string, state: ThreadState): Promise<void> {
   // keep things bounded
   state.history = state.history.slice(-16);
   state.seen = state.seen.slice(-40);
@@ -46,12 +58,12 @@ export async function saveThread(threadId, state) {
       });
       return;
     } catch (e) {
-      console.error("blob_save_failed", e && e.message);
+      console.error("blob_save_failed", e instanceof Error ? e.message : e);
     }
   }
   mem.set(threadId, state);
 }
 
-export function storeBackend() {
+export function storeBackend(): "blob" | "memory" {
   return BLOB_ON ? "blob" : "memory";
 }

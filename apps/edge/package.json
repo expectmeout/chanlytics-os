@@ -1,0 +1,16 @@
+{
+  "name": "@chanlytics/edge",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.121.0",
+    "@vercel/blob": "^2"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "^5.7.0"
+  }
+}

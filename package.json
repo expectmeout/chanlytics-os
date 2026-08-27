@@ -1,9 +1,8 @@
 {
-  "name": "chanlytics-messaging",
+  "name": "chanlytics",
   "private": true,
-  "type": "module",
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.121.0",
-    "@vercel/blob": "^2"
+  "packageManager": "pnpm@10.4.1",
+  "scripts": {
+    "typecheck": "pnpm -r --if-present typecheck"
   }
 }

@@ -3,6 +3,7 @@
  * Returns { text, escalate } — escalate=true when the model signals human handoff.
  */
 import Anthropic from "@anthropic-ai/sdk";
+import type { ThreadTurn } from "./store.js";
 
 const BOOKSY = "https://booksy.com/en-us/1817434_melany-s-beauty-salon_hair-salon_29902_brooklyn";
 
@@ -57,15 +58,23 @@ In the visible text, tell them warmly that a member of the team (or Melany) will
 
 const client = new Anthropic();
 
-export async function generateReply(history, userText) {
-  const messages = [...history, { role: "user", content: userText }];
-  const response = await client.messages.create({
+export interface BrainReply {
+  text: string;
+  escalate: boolean;
+}
+
+interface TextBlock { type: string; text?: string }
+
+export async function generateReply(history: ThreadTurn[], userText: string): Promise<BrainReply> {
+  const messages = [...history, { role: "user" as const, content: userText }];
+  // output_config/effort predates this SDK pin's types; the API accepts it (proven in prod).
+  const response = (await (client.messages.create as (p: unknown) => Promise<unknown>)({
     model: "claude-opus-5",
     max_tokens: 600,
     output_config: { effort: "low" },
     system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages,
-  });
+  })) as { stop_reason: string; content: TextBlock[] };
 
   if (response.stop_reason === "refusal") {
     return {
@@ -76,7 +85,7 @@ export async function generateReply(history, userText) {
 
   let text = response.content
     .filter((b) => b.type === "text")
-    .map((b) => b.text)
+    .map((b) => b.text || "")
     .join("\n")
     .trim();
 
