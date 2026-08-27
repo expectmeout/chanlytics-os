@@ -22,6 +22,7 @@ export interface ConversationDto {
   state: "open" | "needs_human" | "snoozed" | "archived";
   paused_until: string | null;
   snooze_until?: string | null;
+  assignee_user_id?: string | null;
   last_wa_inbound_at?: string | null;
   last_message_at: string | null;
   contact: {
@@ -170,7 +171,9 @@ export function toInboxThreadVM(
   const needsHuman = dto.state === "needs_human" || paused;
   const state: InboxThreadVM["state"] =
     escalation || needsHuman ? "escalated" : dto.state === "snoozed" ? "snoozed" : "done";
-  const takenOver = state === "escalated" && !escalation && needsHuman;
+  // takenOver = a human claimed it (assignee set by take-over/reply) — the pane
+  // then shows the owned-thread strip + hand-back instead of the take banner.
+  const takenOver = state === "escalated" && (!!dto.assignee_user_id || (!escalation && needsHuman));
   const reasonLabel = escalation ? (ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason) : null;
   const last = dto.messages[dto.messages.length - 1];
   const win = new Date(new Date(dto.last_wa_inbound_at ?? 0).getTime() + 24 * 3600 * 1000) > now;

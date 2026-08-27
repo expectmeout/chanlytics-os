@@ -9,7 +9,7 @@ import type { ConversationDto, MessageDto } from "@chanlytics/contracts";
 export const GET = withRoute(async (_req, { supabase }) => {
   const { data: convs, error } = await supabase
     .from("conversations")
-    .select("id, state, paused_until, snooze_until, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164)")
+    .select("id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164)")
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(100);
   if (error) throw new Error(error.message);
@@ -48,6 +48,7 @@ export const GET = withRoute(async (_req, { supabase }) => {
     state: c.state as ConversationDto["state"],
     paused_until: c.paused_until,
     snooze_until: c.snooze_until,
+    assignee_user_id: c.assignee_user_id,
     last_wa_inbound_at: c.last_wa_inbound_at,
     last_message_at: c.last_message_at,
     contact: {

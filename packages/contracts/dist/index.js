@@ -181,7 +181,7 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
   const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
   const needsHuman = dto.state === "needs_human" || paused;
   const state = escalation || needsHuman ? "escalated" : dto.state === "snoozed" ? "snoozed" : "done";
-  const takenOver = state === "escalated" && !escalation && needsHuman;
+  const takenOver = state === "escalated" && (!!dto.assignee_user_id || !escalation && needsHuman);
   const reasonLabel = escalation ? ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason : null;
   const last = dto.messages[dto.messages.length - 1];
   const win = new Date(new Date(dto.last_wa_inbound_at ?? 0).getTime() + 24 * 3600 * 1e3) > now;

@@ -12,7 +12,7 @@ export const GET = withRoute(async (req, { supabase, params }) => {
 
   const { data: conv, error } = await supabase
     .from("conversations")
-    .select("id, state, paused_until, snooze_until, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164)")
+    .select("id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164)")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -33,6 +33,7 @@ export const GET = withRoute(async (req, { supabase, params }) => {
     state: conv.state as ConversationDto["state"],
     paused_until: conv.paused_until,
     snooze_until: conv.snooze_until,
+    assignee_user_id: conv.assignee_user_id,
     last_wa_inbound_at: conv.last_wa_inbound_at,
     last_message_at: conv.last_message_at,
     contact: {

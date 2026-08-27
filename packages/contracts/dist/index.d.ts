@@ -107,6 +107,7 @@ interface ConversationDto {
     state: "open" | "needs_human" | "snoozed" | "archived";
     paused_until: string | null;
     snooze_until?: string | null;
+    assignee_user_id?: string | null;
     last_wa_inbound_at?: string | null;
     last_message_at: string | null;
     contact: {
