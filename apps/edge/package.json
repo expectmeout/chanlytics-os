@@ -7,6 +7,10 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.121.0",
+    "@chanlytics/channels": "workspace:*",
+    "@chanlytics/contracts": "workspace:*",
+    "@chanlytics/db": "workspace:*",
+    "@supabase/supabase-js": "^2.49.0",
     "@vercel/blob": "^2"
   },
   "devDependencies": {

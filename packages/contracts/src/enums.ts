@@ -7,3 +7,62 @@ export type TenantStatus = (typeof TENANT_STATUSES)[number];
 
 export const MEMBERSHIP_ROLES = ["owner", "staff"] as const;
 export type MembershipRole = (typeof MEMBERSHIP_ROLES)[number];
+
+/* ---- Slice 1: Conversations ---- */
+
+export const CHANNEL_KINDS = ["whatsapp", "voice", "sms", "email", "instagram"] as const;
+export type ChannelKind = (typeof CHANNEL_KINDS)[number];
+
+export const CONVERSATION_STATES = ["open", "needs_human", "snoozed", "archived"] as const;
+export type ConversationState = (typeof CONVERSATION_STATES)[number];
+
+export const MESSAGE_CHANNELS = ["whatsapp", "voice", "sms", "email", "system"] as const;
+export type MessageChannel = (typeof MESSAGE_CHANNELS)[number];
+
+export const MESSAGE_DIRECTIONS = ["inbound", "outbound"] as const;
+export type MessageDirection = (typeof MESSAGE_DIRECTIONS)[number];
+
+export const MESSAGE_SENDERS = ["customer", "ai", "human", "system"] as const;
+export type MessageSender = (typeof MESSAGE_SENDERS)[number];
+
+export const MESSAGE_TYPES = ["text", "template", "media", "call_summary", "note"] as const;
+export type MessageType = (typeof MESSAGE_TYPES)[number];
+
+export const MESSAGE_STATUSES = ["received", "queued", "sent", "delivered", "read", "failed", "canceled"] as const;
+export type MessageStatus = (typeof MESSAGE_STATUSES)[number];
+
+export const CONSENT_STATES = ["unknown", "opted_in", "opted_out"] as const;
+export type ConsentState = (typeof CONSENT_STATES)[number];
+
+export const JOB_KINDS = [
+  "outbound_send",
+  "veto_fire",
+  "snooze_wake",
+  "pause_expire",
+  "media_fetch",
+  "rollup_daily",
+  "deadman",
+  "report_weekly",
+  "broadcast_send",
+] as const;
+export type JobKind = (typeof JOB_KINDS)[number];
+
+export const JOB_STATES = ["scheduled", "fired", "canceled", "failed"] as const;
+export type JobState = (typeof JOB_STATES)[number];
+
+/** Dot-namespaced event kinds emitted so far (grows per slice). */
+export const EVENT_KINDS = [
+  "message.received",
+  "message.sent",
+  "message.status",
+  "escalation.opened",
+  "contact.consent_changed",
+  "usage.llm_tokens",
+  "usage.wa_conversation",
+  "ingest.allowlist_skip",
+  "ingest.pg_failed",
+] as const;
+export type EventKind = (typeof EVENT_KINDS)[number];
+
+/** Customer texts that mean opt-out (webhook consent handling, §4). */
+export const OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;

@@ -61,6 +61,7 @@ const client = new Anthropic();
 export interface BrainReply {
   text: string;
   escalate: boolean;
+  usage?: { input_tokens: number; output_tokens: number };
 }
 
 interface TextBlock { type: string; text?: string }
@@ -74,12 +75,16 @@ export async function generateReply(history: ThreadTurn[], userText: string): Pr
     output_config: { effort: "low" },
     system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages,
-  })) as { stop_reason: string; content: TextBlock[] };
+  })) as { stop_reason: string; content: TextBlock[]; usage?: { input_tokens: number; output_tokens: number } };
+  const usage = response.usage
+    ? { input_tokens: response.usage.input_tokens, output_tokens: response.usage.output_tokens }
+    : undefined;
 
   if (response.stop_reason === "refusal") {
     return {
       text: "Thanks for your message! A member of our team will reply here soon — for anything urgent, call us at (646) 932-5775.",
       escalate: true,
+      usage,
     };
   }
 
@@ -94,5 +99,5 @@ export async function generateReply(history: ThreadTurn[], userText: string): Pr
   if (!text) {
     text = "Thanks for your message! A member of our team will reply here soon.";
   }
-  return { text, escalate };
+  return { text, escalate, usage };
 }
