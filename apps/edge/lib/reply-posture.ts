@@ -28,6 +28,15 @@ export interface RoutingFacts {
   isEnvDefault: boolean;
   /** A database was configured, so routing could actually be consulted. */
   routingConsulted: boolean;
+  /**
+   * The routing lookup could not be completed (database error, nothing cached).
+   * Distinct from `channelResolved: false`, which means the database ANSWERED
+   * and said this channel is not active. Without this third state a Postgres
+   * blip on a cold lambda is indistinguishable from someone deliberately
+   * flipping the off switch — and silencing the live line during an infra
+   * hiccup is exactly what the DR profile exists to prevent.
+   */
+  routingFailed?: boolean;
   /** The control plane resolved an ACTIVE channel for this number. */
   channelResolved: boolean;
   /** The tenant runtime was read AND the read succeeded. */
@@ -44,8 +53,13 @@ export interface ReplyPosture {
 }
 
 export function replyPosture(f: RoutingFacts): ReplyPosture {
+  // Did we get an ANSWER about this channel? Not "is there a channel" — an
+  // answer. No database and a failed lookup are both "we do not know", and only
+  // a completed lookup that returned no active channel is a decision.
+  const answered = f.routingConsulted && !f.routingFailed;
+
   const drFallback =
-    f.isEnvDefault && (!f.routingConsulted || (f.channelResolved && !f.runtimeUsable));
+    f.isEnvDefault && (!answered || (f.channelResolved && !f.runtimeUsable));
 
   // A routed tenant's own policy wins. Otherwise only the DR path may be
   // automatic — keying this to isEnvDefault instead is how an unroutable

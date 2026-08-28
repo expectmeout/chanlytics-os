@@ -86,6 +86,38 @@ test("a DISABLED channel silences the receptionist, even on the env-default numb
   );
 });
 
+test("a routing LOOKUP FAILURE falls back — it is not a decision", () => {
+  // The database did not answer. Treating that the same as "the database said
+  // this channel is off" turned a Postgres blip on a cold lambda into silence
+  // on the live line — strictly worse than the behaviour it replaced, which is
+  // the kind of regression a hardening change is most likely to introduce.
+  assert.deepEqual(
+    replyPosture({
+      isEnvDefault: true, routingConsulted: true, routingFailed: true,
+      channelResolved: false, runtimeUsable: false,
+    }),
+    { drFallback: true, replyMode: "auto" },
+    "a database error silenced the receptionist instead of falling back",
+  );
+  // Still only for the tenant that HAS a baked profile.
+  assert.deepEqual(
+    replyPosture({
+      isEnvDefault: false, routingConsulted: true, routingFailed: true,
+      channelResolved: false, runtimeUsable: false,
+    }),
+    { drFallback: false, replyMode: "ask" },
+  );
+});
+
+test("a lookup failure and a disabled channel are NOT the same state", () => {
+  const shared = { isEnvDefault: true, routingConsulted: true, channelResolved: false, runtimeUsable: false };
+  const failed = replyPosture({ ...shared, routingFailed: true });
+  const disabled = replyPosture({ ...shared, routingFailed: false });
+  assert.notDeepEqual(failed, disabled, "the two must diverge — conflating them is the bug");
+  assert.equal(failed.drFallback, true, "infra blip -> ride it out");
+  assert.equal(disabled.drFallback, false, "deliberate off switch -> stay silent");
+});
+
 test("an unknown phone number id is never answered", () => {
   // Traffic for a number that is not ours at all.
   assert.deepEqual(
@@ -99,18 +131,23 @@ test("DR is never granted without an active channel when routing WAS consulted",
   // than trusting the six cases above to be complete.
   for (const isEnvDefault of [true, false]) {
     for (const routingConsulted of [true, false]) {
-      for (const channelResolved of [true, false]) {
-        for (const runtimeUsable of [true, false]) {
-          const p = replyPosture({ isEnvDefault, routingConsulted, channelResolved, runtimeUsable, policyMode: "auto" });
-          if (p.drFallback) {
-            assert.ok(isEnvDefault, "DR granted to a tenant with no baked profile");
-            assert.ok(
-              !routingConsulted || channelResolved,
-              "DR granted while the database said the channel is not active",
-            );
-          }
-          if (p.replyMode === "auto" && !runtimeUsable) {
-            assert.ok(p.drFallback, "'auto' without a usable runtime must mean DR");
+      for (const routingFailed of [true, false]) {
+        for (const channelResolved of [true, false]) {
+          for (const runtimeUsable of [true, false]) {
+            const p = replyPosture({
+              isEnvDefault, routingConsulted, routingFailed, channelResolved, runtimeUsable,
+              policyMode: "auto",
+            });
+            if (p.drFallback) {
+              assert.ok(isEnvDefault, "DR granted to a tenant with no baked profile");
+              assert.ok(
+                !routingConsulted || routingFailed || channelResolved,
+                "DR granted while the database ANSWERED that the channel is not active",
+              );
+            }
+            if (p.replyMode === "auto" && !runtimeUsable) {
+              assert.ok(p.drFallback, "'auto' without a usable runtime must mean DR");
+            }
           }
         }
       }

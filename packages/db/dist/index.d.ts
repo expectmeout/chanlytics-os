@@ -1686,6 +1686,21 @@ interface RoutedChannel {
     credentialsRef: string | null;
     config: Json;
 }
+interface ChannelLookup {
+    channel: RoutedChannel | null;
+    /**
+     * The lookup could not be COMPLETED (database error, no cached answer). This
+     * is NOT the same as "no active channel", and callers must not conflate them:
+     * "the database says this channel is off" is a deliberate configuration state
+     * that should silence the receptionist, while "the database did not answer"
+     * is an infrastructure blip that a designated tenant may ride out on its
+     * baked profile. Returning a bare null for both made a Postgres hiccup
+     * indistinguishable from someone flipping the off switch.
+     */
+    lookupFailed: boolean;
+}
+declare function resolveChannelDetailed(db: SupabaseClient<Database>, kind: string, externalId: string): Promise<ChannelLookup>;
+/** The common case: callers that cannot act on the distinction. */
 declare function resolveChannel(db: SupabaseClient<Database>, kind: string, externalId: string): Promise<RoutedChannel | null>;
 
 /**
@@ -1834,4 +1849,4 @@ declare function subscribeMessagesInserts(client: SupabaseClient<Database>, onIn
     tenant_id: string;
 }) => void, opts?: SubscribeOptions): () => void;
 
-export { type Database, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type NormalizedCallInput, type OutboundTarget, type PgThreadState, type PolicyRecord, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, createServiceClient, emitEvent, getTenantConfig, ingestCall, ingestInbound, linkCallMessage, listPolicies, markProcessed, pauseConversation, putTenantConfig, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, resolveOutboundTarget, setCallRecording, setPolicyMode, subscribeMessagesInserts };
+export { type ChannelLookup, type Database, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type NormalizedCallInput, type OutboundTarget, type PgThreadState, type PolicyRecord, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, createServiceClient, emitEvent, getTenantConfig, ingestCall, ingestInbound, linkCallMessage, listPolicies, markProcessed, pauseConversation, putTenantConfig, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, setCallRecording, setPolicyMode, subscribeMessagesInserts };

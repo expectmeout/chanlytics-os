@@ -11,10 +11,17 @@ import { schedule, mirrorBlobPause } from "@/server/service";
  * sits status='queued' through a cancel window (the honest undo), then the
  * outbound_send job fires it. A dashboard reply implicitly pauses the AI (D10).
  */
-/** How long a stored reply receipt is replayed instead of sending again.
- *  Long enough to cover a retry after a timeout, short enough that sending the
- *  same words again later is honoured as a new message. */
-const IDEMPOTENCY_WINDOW_MS = 2 * 60 * 1000;
+/**
+ * How long a stored reply receipt is replayed instead of sending again.
+ *
+ * The key identifies the message, not the attempt, so this window is the ONLY
+ * thing separating "a retry of the send that just timed out" from "the operator
+ * meant to say that again". A retry arrives in seconds; deliberately repeating
+ * the same words inside 30s is implausible, and the cost of getting it wrong is
+ * asymmetric — a swallowed send reports success to the operator while the
+ * customer receives nothing.
+ */
+const IDEMPOTENCY_WINDOW_MS = 30 * 1000;
 
 export const POST = withRoute(async (req, ctx) => {
   const conv = await loadConversation(ctx, String(ctx.params.id ?? ""));

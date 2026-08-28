@@ -155,14 +155,15 @@ async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, d
 var POS_TTL_MS = 5 * 60 * 1e3;
 var NEG_TTL_MS = 60 * 1e3;
 var cache = /* @__PURE__ */ new Map();
-async function resolveChannel(db, kind, externalId) {
+async function resolveChannelDetailed(db, kind, externalId) {
   const key = `${kind}:${externalId}`;
   const hit = cache.get(key);
-  if (hit && hit.exp > Date.now()) return hit.v;
+  if (hit && hit.exp > Date.now()) return { channel: hit.v, lookupFailed: false };
   const { data, error } = await db.from("tenant_channels").select("id, tenant_id, kind, status, number_e164, credentials_ref, config").eq("kind", kind).eq("external_id", externalId).maybeSingle();
   if (error) {
     console.error("resolve_channel_failed", error.message);
-    return hit?.v ?? null;
+    if (hit?.v) return { channel: hit.v, lookupFailed: false };
+    return { channel: null, lookupFailed: true };
   }
   const routed = data && data.status === "active" ? {
     channelId: data.id,
@@ -173,7 +174,10 @@ async function resolveChannel(db, kind, externalId) {
     config: data.config
   } : null;
   cache.set(key, { v: routed, exp: Date.now() + (routed ? POS_TTL_MS : NEG_TTL_MS) });
-  return routed;
+  return { channel: routed, lookupFailed: false };
+}
+async function resolveChannel(db, kind, externalId) {
+  return (await resolveChannelDetailed(db, kind, externalId)).channel;
 }
 
 // src/repositories/calls.ts
@@ -356,6 +360,7 @@ export {
   recordOutbound,
   recordStatusByExternalId,
   resolveChannel,
+  resolveChannelDetailed,
   resolveOutboundTarget,
   setCallRecording,
   setPolicyMode,

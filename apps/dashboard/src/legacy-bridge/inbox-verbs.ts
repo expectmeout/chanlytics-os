@@ -100,9 +100,17 @@ async function runVerb(
   // the customer a second text. An idempotency key has to identify the INTENT,
   // so it is derived from what is being sent, not from when.
   //
-  // The server only honours a stored response for a short window (see the reply
+  // The server only honours a stored receipt for a SHORT window (see the reply
   // route), so deliberately sending the same words again later still works.
-  const sendKey = `${thread.conversationId}:${intentHash(payload?.text ?? "template")}`;
+  //
+  // The first version hashed `payload?.text ?? "template"`, and a template send
+  // carries no text — so every template in a conversation produced the SAME
+  // key and the second one within the window was swallowed while the UI
+  // reported success. The template's own identity goes into the key.
+  const intent = payload?.text?.trim()
+    ? `text:${payload.text.trim()}`
+    : `template:${BOOKING_TEMPLATE.name}:${BOOKING_TEMPLATE.language}`;
+  const sendKey = `${thread.conversationId}:${intentHash(intent)}`;
   let result: VerbResult;
   switch (verb) {
     case "take-over":

@@ -5,6 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendText, sendTemplate, type WaConfig } from "@chanlytics/channels";
+import { isOptedOutContact } from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db";
 
 export interface JobContext {
@@ -56,7 +57,7 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     .eq("tenant_id", job.tenant_id)
     .maybeSingle();
   const contact = convRow?.contacts;
-  if (contact && (contact.consent === "opted_out" || contact.dnc)) {
+  if (contact && isOptedOutContact(contact)) {
     await ctx.db.from("messages")
       .update({ status: "canceled", error: { reason: "opted_out" } })
       .eq("id", p.message_id);

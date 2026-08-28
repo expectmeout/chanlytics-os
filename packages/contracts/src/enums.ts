@@ -63,6 +63,7 @@ export const EVENT_KINDS = [
   "ingest.pg_failed",
   "message.send_failed",
   "message.send_blocked",
+  "message.send_raced_cancel",
   "conversation.reopened",
   "conversation.pause_expired",
 ] as const;

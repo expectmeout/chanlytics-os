@@ -69,7 +69,7 @@ type JobKind = (typeof JOB_KINDS)[number];
 declare const JOB_STATES: readonly ["scheduled", "fired", "canceled", "failed"];
 type JobState = (typeof JOB_STATES)[number];
 /** Dot-namespaced event kinds emitted so far (grows per slice). */
-declare const EVENT_KINDS: readonly ["message.received", "message.sent", "message.status", "escalation.opened", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.pg_failed", "message.send_failed", "message.send_blocked", "conversation.reopened", "conversation.pause_expired"];
+declare const EVENT_KINDS: readonly ["message.received", "message.sent", "message.status", "escalation.opened", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.pg_failed", "message.send_failed", "message.send_blocked", "message.send_raced_cancel", "conversation.reopened", "conversation.pause_expired"];
 type EventKind = (typeof EVENT_KINDS)[number];
 /** Customer texts that mean opt-out (webhook consent handling, §4). */
 declare const OPT_OUT_PATTERN: RegExp;
@@ -96,6 +96,34 @@ declare const ACTOR_TYPES: readonly ["user", "ai", "system", "owner_phone"];
 type ActorType = (typeof ACTOR_TYPES)[number];
 declare const TEMPLATE_STATUSES: readonly ["approved", "pending", "rejected"];
 type TemplateStatus = (typeof TEMPLATE_STATUSES)[number];
+
+/**
+ * May we contact this person?
+ *
+ * One predicate, because this rule was hand-inlined in five places — the
+ * webhook's consent gate, the reply route, the send job, the voice booking-link
+ * function and the view model — and a rule about not contacting people who
+ * asked to be left alone is the last one that should drift. Five copies is five
+ * chances for the next send path to check only `consent` and miss `dnc`.
+ *
+ * Both columns matter and either alone is decisive:
+ *   consent  the state machine the customer drives — 'unknown' | 'opted_in'
+ *            | 'opted_out', written by ingest when they text STOP or START.
+ *   dnc      the operator-settable override, for a request made by phone, in
+ *            person, or by a regulator.
+ *
+ * Absence is NOT an opt-out. Both fields are optional here because a caller may
+ * be holding a row selected before these columns were projected, and reading a
+ * missing value as a block would silence every contact the moment somebody
+ * forgot a column in a SELECT.
+ */
+interface ConsentBearing {
+    consent?: string | null;
+    dnc?: boolean | null;
+}
+declare function isOptedOutContact(c: ConsentBearing): boolean;
+/** The customer-facing reason, used wherever a refusal is explained. */
+declare const OPT_OUT_REFUSAL = "This customer asked to stop receiving messages. They can text START to opt back in.";
 
 /**
  * ThreadCard/ConversationVM viewmodels (Blueprint §7): pure mapping from API
@@ -138,9 +166,8 @@ interface ConversationDto {
     };
     messages: MessageDto[];
 }
-/** The customer asked not to be contacted. Both columns are checked: consent
- *  is the state machine, dnc is the operator-settable override, and either one
- *  alone must be enough to stop a send. */
+/** The customer asked not to be contacted. Delegates to the one predicate in
+ *  ./consent so the view model and every send path cannot disagree. */
 declare function isOptedOut(dto: Pick<ConversationDto, "contact">): boolean;
 interface ConversationMessageVM {
     from: "client" | "agent";
@@ -700,4 +727,4 @@ type TenantConfig = z.infer<typeof TenantConfigSchema>;
  *  half-applied persona. */
 declare function parseTenantConfig(raw: unknown): TenantConfig | null;
 
-export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, ROLES, ROLE_PERMS, type Role, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, contactMeta, contactName, err, formatPhoneDisplay, formatWaited, isOptedOut, messageText, normalizePhone, ok, parseTenantConfig, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };
+export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, ROLES, ROLE_PERMS, type Role, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, contactMeta, contactName, err, formatPhoneDisplay, formatWaited, isOptedOut, isOptedOutContact, messageText, normalizePhone, ok, parseTenantConfig, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };

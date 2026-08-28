@@ -28,6 +28,7 @@ import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { loadTenantRuntime, waCfgFor } from "../lib/tenant-runtime.js";
 import { resolveChannel, resolveOutboundTarget, recordOutbound } from "../lib/workspace/db.js";
+import { isOptedOutContact } from "../lib/workspace/contracts.js";
 import { sendTemplate } from "../lib/workspace/channels.js";
 
 const BOOKING_TEMPLATE = { name: "booking_link_v1", language: "en_US" };
@@ -109,7 +110,7 @@ export async function POST(request: Request): Promise<Response> {
       });
     }
 
-    if (contact.consent === "opted_out" || contact.dnc) {
+    if (isOptedOutContact(contact)) {
       log("retell_fn_refused_opted_out", { tenant: routed.tenantId });
       return json(200, {
         result: "That number has asked us to stop sending messages, so I cannot text them. Offer to book them on the call instead.",

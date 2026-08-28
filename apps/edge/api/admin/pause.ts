@@ -21,7 +21,16 @@ export async function POST(request: Request): Promise<Response> {
   const t = await getThread(phone);
   t.pausedUntil = body.paused_until_ms;
   // authoritative: this endpoint is the one writer allowed to LOWER the pause
-  await saveThread(phone, t, { authoritativePause: true });
+  const saved = await saveThread(phone, t, { authoritativePause: true });
+  if (!saved) {
+    // The dashboard tells the operator "the receptionist is paused" on the
+    // strength of this call, and its own mirror is written to fail LOUD. A 200
+    // here would make it report a pause that does not exist, and the bot would
+    // keep replying under a human's feet — the exact incident this endpoint
+    // was built for.
+    console.error("admin_pause_not_persisted", JSON.stringify({ phone, until: body.paused_until_ms }));
+    return json(503, { ok: false, error: "pause_not_persisted" });
+  }
   console.log("admin_pause", JSON.stringify({ phone, until: body.paused_until_ms }));
   return json(200, { ok: true });
 }

@@ -4,7 +4,7 @@
  * so RLS is the enforcement (Blueprint §6). Jobs/Blob-mirror side effects go
  * through the server-only service module at the call sites.
  */
-import { AppError, type DecisionVerb, type DecisionSubject } from "@chanlytics/contracts";
+import { AppError, isOptedOutContact, OPT_OUT_REFUSAL, type DecisionVerb, type DecisionSubject } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { memberContext, requireRole, type RouteContext } from "./with-route";
 
@@ -61,15 +61,10 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
   };
 }
 
-/** The customer asked not to be contacted. Consent is the state machine, dnc
- *  the operator-settable override; either alone stops a send. */
+/** The customer asked not to be contacted. The rule itself lives in
+ *  contracts/consent so this route and every other send path cannot drift. */
 export function assertCanSend(conv: VerbConversation): void {
-  if (conv.consent === "opted_out" || conv.dnc) {
-    throw new AppError(
-      "conflict",
-      "This customer asked to stop receiving messages. They can text START to opt back in.",
-    );
-  }
+  if (isOptedOutContact(conv)) throw new AppError("conflict", OPT_OUT_REFUSAL);
 }
 
 export async function recordDecision(

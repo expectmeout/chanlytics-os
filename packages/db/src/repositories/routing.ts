@@ -17,14 +17,28 @@ const POS_TTL_MS = 5 * 60 * 1000;
 const NEG_TTL_MS = 60 * 1000;
 const cache = new Map<string, { v: RoutedChannel | null; exp: number }>();
 
-export async function resolveChannel(
+export interface ChannelLookup {
+  channel: RoutedChannel | null;
+  /**
+   * The lookup could not be COMPLETED (database error, no cached answer). This
+   * is NOT the same as "no active channel", and callers must not conflate them:
+   * "the database says this channel is off" is a deliberate configuration state
+   * that should silence the receptionist, while "the database did not answer"
+   * is an infrastructure blip that a designated tenant may ride out on its
+   * baked profile. Returning a bare null for both made a Postgres hiccup
+   * indistinguishable from someone flipping the off switch.
+   */
+  lookupFailed: boolean;
+}
+
+export async function resolveChannelDetailed(
   db: SupabaseClient<Database>,
   kind: string,
   externalId: string,
-): Promise<RoutedChannel | null> {
+): Promise<ChannelLookup> {
   const key = `${kind}:${externalId}`;
   const hit = cache.get(key);
-  if (hit && hit.exp > Date.now()) return hit.v;
+  if (hit && hit.exp > Date.now()) return { channel: hit.v, lookupFailed: false };
   const { data, error } = await db
     .from("tenant_channels")
     .select("id, tenant_id, kind, status, number_e164, credentials_ref, config")
@@ -33,7 +47,10 @@ export async function resolveChannel(
     .maybeSingle();
   if (error) {
     console.error("resolve_channel_failed", error.message);
-    return hit?.v ?? null; // never cache errors; serve last-known on transient failure
+    // Never cache errors. A stale positive is still a real answer, so serve it;
+    // otherwise report that we could not find out.
+    if (hit?.v) return { channel: hit.v, lookupFailed: false };
+    return { channel: null, lookupFailed: true };
   }
   const routed: RoutedChannel | null =
     data && data.status === "active"
@@ -47,5 +64,14 @@ export async function resolveChannel(
         }
       : null;
   cache.set(key, { v: routed, exp: Date.now() + (routed ? POS_TTL_MS : NEG_TTL_MS) });
-  return routed;
+  return { channel: routed, lookupFailed: false };
+}
+
+/** The common case: callers that cannot act on the distinction. */
+export async function resolveChannel(
+  db: SupabaseClient<Database>,
+  kind: string,
+  externalId: string,
+): Promise<RoutedChannel | null> {
+  return (await resolveChannelDetailed(db, kind, externalId)).channel;
 }

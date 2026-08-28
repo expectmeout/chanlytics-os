@@ -41,11 +41,10 @@ export interface ConversationDto {
   messages: MessageDto[];
 }
 
-/** The customer asked not to be contacted. Both columns are checked: consent
- *  is the state machine, dnc is the operator-settable override, and either one
- *  alone must be enough to stop a send. */
+/** The customer asked not to be contacted. Delegates to the one predicate in
+ *  ./consent so the view model and every send path cannot disagree. */
 export function isOptedOut(dto: Pick<ConversationDto, "contact">): boolean {
-  return dto.contact.consent === "opted_out" || dto.contact.dnc === true;
+  return isOptedOutContact(dto.contact);
 }
 
 /* ---- the mockup's conversation shape ---- */
@@ -79,6 +78,7 @@ export interface ConversationVM {
 }
 
 import { formatPhoneDisplay } from "./phone";
+import { isOptedOutContact } from "./consent";
 
 const AGENT = { glyph: "W", name: "WhatsApp Receptionist" };
 const CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the salon line\.\s*)?(Summary:\s*)?/;

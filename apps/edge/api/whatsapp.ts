@@ -30,7 +30,7 @@
  *      PG_READS (Gate 1b), PG_DEDUPE (optional, implied by PG_READS).
  */
 import crypto from "node:crypto";
-import { getThread, saveThread, storeBackend, THREAD_UNKNOWN, type ThreadState } from "../lib/store.js";
+import { getThread, isThreadUnknown, saveThread, storeBackend, type ThreadState } from "../lib/store.js";
 import { json, text } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import {
@@ -42,7 +42,7 @@ import {
   type NormalizedInbound,
 } from "../lib/workspace/channels.js";
 import {
-  resolveChannel,
+  resolveChannelDetailed,
   ingestInbound,
   markProcessed,
   recordOutbound,
@@ -61,7 +61,7 @@ import { replyPosture } from "../lib/reply-posture.js";
 import { FALLBACK_BRAIN, FALLBACK_NOTIFICATIONS } from "../lib/tenant-fallback.js";
 import type { BrainConfig, NotificationsConfig } from "../lib/workspace/contracts.js";
 import type { RoutedChannel } from "../lib/workspace/db.js";
-import { violatesNoPrices } from "../lib/workspace/contracts.js";
+import { violatesNoPrices, isOptedOutContact } from "../lib/workspace/contracts.js";
 
 export const config = { maxDuration: 60 };
 
@@ -277,6 +277,7 @@ async function handleInbound(
   tenantId: string | null,
   routed: RoutedChannel | null,
   isEnvDefault: boolean,
+  routingFailed = false,
 ): Promise<void> {
   const from = m.from;
   const n = normalizeInbound(m, value);
@@ -295,6 +296,7 @@ async function handleInbound(
   const { drFallback, replyMode } = replyPosture({
     isEnvDefault,
     routingConsulted: !!db,
+    routingFailed,
     channelResolved: !!routed,
     runtimeUsable: !!rt && !rt.loadFailed,
     policyMode: rt?.policy["reply"]?.mode,
@@ -353,7 +355,7 @@ async function handleInbound(
   // said, or how many replies have gone out today — so every gate below would
   // be answering from an invented empty history. Hand to a human instead of
   // guessing; the customer's message is already persisted above.
-  if (thread === THREAD_UNKNOWN) {
+  if (isThreadUnknown(thread)) {
     console.error("wa_state_unavailable", JSON.stringify({ to: from, memory }));
     await Promise.all([
       sink.escalate(
@@ -384,7 +386,7 @@ async function handleInbound(
   // Nothing is sent back — not even a confirmation. A tenant-authored opt-out
   // acknowledgement is a config item, and inventing copy in the salon's voice
   // is exactly what the brain profile exists to prevent.
-  const optedOut = n.optOut || ing?.dnc === true || ing?.consent === "opted_out";
+  const optedOut = n.optOut || (!!ing && isOptedOutContact(ing));
   if (optedOut) {
     const post: Promise<unknown>[] = [sink.processed()];
     if (n.optOut) {
@@ -574,13 +576,20 @@ export async function POST(request: Request): Promise<Response> {
         let tenantId: string | null = null;
         let routedChannel: RoutedChannel | null = null;
         let unroutable = false;
+        let routingFailed = false;
         const db = pg();
         const phoneNumberId = v.metadata?.phone_number_id;
         const isEnvDefault = !!phoneNumberId && phoneNumberId === (process.env.WHATSAPP_PHONE_ID || "");
         if (db && phoneNumberId) {
-          const routed = await resolveChannel(db, "whatsapp", phoneNumberId);
+          const { channel: routed, lookupFailed } = await resolveChannelDetailed(db, "whatsapp", phoneNumberId);
           if (routed) { tenantId = routed.tenantId; routedChannel = routed; }
-          else {
+          else if (lookupFailed) {
+            // The database did not answer. That is an infra blip, not a
+            // decision — the designated tenant rides it out on its baked
+            // profile rather than going silent mid-conversation.
+            routingFailed = true;
+            console.error("wa_routing_lookup_failed", phoneNumberId);
+          } else {
             // The database ANSWERED and this channel is not active — disabled,
             // deleted, or never ours. That is a deliberate state, so we neither
             // reply nor persist. A log line disappears; a metric built on
@@ -611,7 +620,7 @@ export async function POST(request: Request): Promise<Response> {
             // never handled at all. The message itself is already persisted by
             // then, so it stays visible for reconciliation.
             try {
-              await handleInbound(m, v, tenantId, routedChannel, isEnvDefault);
+              await handleInbound(m, v, tenantId, routedChannel, isEnvDefault, routingFailed);
             } catch (e) {
               console.error("wa_inbound_failed", m.id, e instanceof Error ? e.message : e);
             }
@@ -633,7 +642,11 @@ export async function POST(request: Request): Promise<Response> {
               if (to) {
                 const t = await getThread(to);
                 t.pausedUntil = Date.now() + PAUSE_MS;
-                await saveThread(to, t);
+                // A refused save means the Blob pause did NOT land, so the bot
+                // could answer over the human who just replied. Postgres below
+                // still records it, which under PG_READS=on is the source of
+                // truth — but this must not pass silently.
+                if (!(await saveThread(to, t))) console.error("echo_pause_not_persisted", to);
                 if (db && tenantId) {
                   await pgSafe("echo", () =>
                     recordEchoAndPause(db, {

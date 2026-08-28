@@ -99,6 +99,7 @@ var EVENT_KINDS = [
   "ingest.pg_failed",
   "message.send_failed",
   "message.send_blocked",
+  "message.send_raced_cancel",
   "conversation.reopened",
   "conversation.pause_expired"
 ];
@@ -136,9 +137,15 @@ var DECISION_SUBJECTS = ["conversation", "escalation", "draft", "lead", "message
 var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
 var TEMPLATE_STATUSES = ["approved", "pending", "rejected"];
 
+// src/consent.ts
+function isOptedOutContact(c) {
+  return c.consent === "opted_out" || c.dnc === true;
+}
+var OPT_OUT_REFUSAL = "This customer asked to stop receiving messages. They can text START to opt back in.";
+
 // src/viewmodels.ts
 function isOptedOut(dto) {
-  return dto.contact.consent === "opted_out" || dto.contact.dnc === true;
+  return isOptedOutContact(dto.contact);
 }
 var AGENT = { glyph: "W", name: "WhatsApp Receptionist" };
 var CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the salon line\.\s*)?(Summary:\s*)?/;
@@ -745,6 +752,7 @@ export {
   NotificationsConfigSchema,
   OPT_IN_PATTERN,
   OPT_OUT_PATTERN,
+  OPT_OUT_REFUSAL,
   POLICY_CLASSES,
   POLICY_MODES,
   PolicyLimitsSchema,
@@ -760,6 +768,7 @@ export {
   formatPhoneDisplay,
   formatWaited,
   isOptedOut,
+  isOptedOutContact,
   messageText,
   normalizePhone,
   ok,
