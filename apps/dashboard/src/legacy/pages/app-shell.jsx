@@ -333,11 +333,24 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
     );
     content = <SegmentsPage initialId={param} />;
   } else if (page === "admin") {
-    const tabMeta = (window.SET_TABS || []).find(t => t.id === param);
     activeNav = "admin";
-    crumbs = tabMeta ? [{ label: "Settings", to: "admin" }, tabMeta.label] : ["Settings"];
-    pane = true;
-    content = <SettingsPage tab={param || "workspace"} onTab={(t) => navigate(`admin/${t}`)} />;
+    // Settings is the ONE surface whose controls would lie. Its six API routes
+    // are built, tested and role-guarded but have no callers yet, so the page
+    // renders session-only mock state: an invented staff roster on another
+    // company's domain, an "Invite sent" toast for an email nobody received,
+    // and a policy matrix captioned as the ruleset the backend enforces. A
+    // control that renders and lies is worse than one that is honestly absent
+    // — so outside a demo it shows the same coming-soon pane every other
+    // unbuilt surface uses. It flips back the moment the panes read the routes.
+    if (window.__DEMO_MODE) {
+      const tabMeta = (window.SET_TABS || []).find(t => t.id === param);
+      crumbs = tabMeta ? [{ label: "Settings", to: "admin" }, tabMeta.label] : ["Settings"];
+      pane = true;
+      content = <SettingsPage tab={param || "workspace"} onTab={(t) => navigate(`admin/${t}`)} />;
+    } else {
+      crumbs = ["Settings"];
+      content = <ComingSoon surface="admin" onNavigate={navigate} />;
+    }
   } else if (page === "tasks") {
     activeNav = "tasks";
     crumbs = ["Agents", "Tasks"];

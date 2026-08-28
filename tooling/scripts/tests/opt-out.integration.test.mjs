@@ -149,6 +149,29 @@ test("resolveOutboundTarget CREATES a first-time caller's contact", { skip }, as
   await db.from("contacts").delete().eq("id", t.contactId);
 });
 
+test("resolveOutboundTarget finds a contact from a NATIONAL-format number", { skip }, async () => {
+  // The voice agent fills `phone_number` from whatever the caller says aloud,
+  // so it arrives as bare national digits ("six four six, …") while contacts
+  // are keyed on full international digits. Comparing raw digits missed the
+  // row and refused a real client their booking link.
+  const national = phone.replace(/^\+1/, "");
+  assert.notEqual(national, phone, "fixture must be a +1 number for this to mean anything");
+
+  const t = await resolveOutboundTarget(db, { tenantId, phoneE164: national, create: false });
+  assert.ok(t, "a national-format number must resolve to the SAME contact");
+  assert.equal(t.contactId, contactId);
+
+  // ...and formatting noise must not matter either.
+  const messy = ` ${phone.slice(2, 5)}-${phone.slice(5, 8)}.${phone.slice(8)} `;
+  const t2 = await resolveOutboundTarget(db, { tenantId, phoneE164: messy, create: false });
+  assert.equal(t2?.contactId, contactId, "punctuation changed the identity");
+});
+
+test("resolveOutboundTarget refuses a number that cannot be a phone number", { skip }, async () => {
+  assert.equal(await resolveOutboundTarget(db, { tenantId, phoneE164: "123", create: true }), null);
+  assert.equal(await resolveOutboundTarget(db, { tenantId, phoneE164: "", create: true }), null);
+});
+
 test("resolveOutboundTarget reports an opt-out rather than hiding it", { skip }, async () => {
   await db.from("contacts")
     .update({ consent: "opted_out", dnc: true })

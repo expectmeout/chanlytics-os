@@ -28,7 +28,7 @@ import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { loadTenantRuntime, waCfgFor } from "../lib/tenant-runtime.js";
 import { resolveChannel, resolveOutboundTarget, recordOutbound } from "../lib/workspace/db.js";
-import { isOptedOutContact } from "../lib/workspace/contracts.js";
+import { isOptedOutContact, normalizePhone } from "../lib/workspace/contracts.js";
 import { sendTemplate } from "../lib/workspace/channels.js";
 
 const BOOKING_TEMPLATE = { name: "booking_link_v1", language: "en_US" };
@@ -53,19 +53,28 @@ export async function POST(request: Request): Promise<Response> {
   const call = body.call || {};
   const args = body.args || {};
 
-  const digits = (s: string | undefined) => String(s || "").replace(/[^\d]/g, "");
-  const caller = digits(call.from_number);
-  const asked = digits(args.phone_number);
+  // normalizePhone, not a hand-rolled digit strip. `args.phone_number` is a
+  // free-text field the voice model fills from whatever the caller SAYS out
+  // loud, so it routinely arrives as a bare 10-digit national number — while
+  // contacts.phone_e164 is keyed on full international digits. Comparing raw
+  // digits therefore failed to recognise a client's own number, refused them
+  // their booking link, and would have handed Meta a number with no country
+  // code. The repo has owned this normalizer since Slice 1 and, until now, no
+  // code anywhere called it.
+  const caller = normalizePhone(call.from_number);
+  const asked = normalizePhone(args.phone_number);
   // The agent may collect a different number, but a caller must not be able to
   // talk it into texting an arbitrary third party: a number we were GIVEN only
   // qualifies if that person is already a contact of this business.
-  const target = asked || caller;
+  const target = asked ?? caller;
   const isCaller = !!target && target === caller;
 
   const log = (event: string, extra: Record<string, unknown> = {}) =>
     console.log(event, JSON.stringify({ call_id: call.call_id, agent_id: call.agent_id, ...extra }));
 
-  if (!target || target.length < 10) {
+  if (!target) {
+    // normalizePhone already rejects anything that cannot be a phone number,
+    // which is a better test than a hand-written length check.
     log("retell_fn_no_number");
     return json(200, { result: "I could not determine a valid mobile number. Ask the caller to read it back, or offer to book them on the call." });
   }
@@ -94,10 +103,9 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const targetE164 = `+${target}`;
     const contact = await resolveOutboundTarget(db, {
       tenantId: routed.tenantId,
-      phoneE164: targetE164,
+      phoneE164: target,
       // A first-time CALLER legitimately has no contact row yet and gets one.
       // A number merely spoken to the agent must already belong to this business.
       create: isCaller,
@@ -118,7 +126,8 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const params = [brain.business_name, brain.booking_link.replace(/^https?:[/][/]/, "")];
-    const sent = await sendTemplate(waCfgFor(rt), target, {
+    // Graph wants bare digits; normalizePhone guarantees the leading "+".
+    const sent = await sendTemplate(waCfgFor(rt), target.slice(1), {
       name: BOOKING_TEMPLATE.name,
       language: BOOKING_TEMPLATE.language,
       params,

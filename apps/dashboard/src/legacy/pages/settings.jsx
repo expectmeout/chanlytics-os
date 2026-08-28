@@ -9,7 +9,10 @@
 const { useState: useSetState, useEffect: useSetEffect } = React;
 
 // Roles: what each can do (audit U3). owner ⊃ operator ⊃ viewer.
-const ST_PERMS = {
+// The bridge publishes the table the SERVER enforces (contracts ROLE_PERMS);
+// this literal is the standalone-mockup fallback only. Two hand-kept copies is
+// one edit away from the client offering a control the server refuses.
+const ST_PERMS = window.ROLE_PERMS || {
   owner:    { approve: true,  autonomy: true,  disconnect: true,  billing: true,  team: true },
   operator: { approve: true,  autonomy: true,  disconnect: false, billing: false, team: false },
   viewer:   { approve: false, autonomy: false, disconnect: false, billing: false, team: false },

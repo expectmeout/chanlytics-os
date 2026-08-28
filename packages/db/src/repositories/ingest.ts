@@ -4,6 +4,7 @@
  * plain row work. All writes are ADDITIVE to the Blob path during dual-write.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizePhone } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -177,7 +178,12 @@ export async function resolveOutboundTarget(
   db: Db,
   p: { tenantId: string; phoneE164: string; create?: boolean },
 ): Promise<OutboundTarget | null> {
-  const phone = `+${p.phoneE164.replace(/^\+/, "")}`;
+  // normalizePhone, not a hand-rolled "+" prefix: contacts are keyed on FULL
+  // international digits, and a caller that hands us a national-format number
+  // would otherwise miss the existing row and (on the create path) open a
+  // duplicate contact carrying none of the original's consent history.
+  const phone = normalizePhone(p.phoneE164);
+  if (!phone) return null;
   const { data: existing, error: selErr } = await db
     .from("contacts")
     .select("id, consent, dnc")
