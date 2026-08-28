@@ -43,8 +43,11 @@ window.ST_STORE = window.ST_STORE || {
     // the app starts telling the truth through this one line. View-as still
     // previews a LOWER role on top of the real one (owner-only, client-side,
     // harmless: the server re-checks with requireRole anyway).
-    const real = window.__ME && window.__ME.role;
-    return this.viewAsRole || real || (this.me() ? this.me().role : "owner");
+    // Fail CLOSED. __ME is absent during boot and whenever the workspace
+    // fetch fails (the seam swallows that), and defaulting to owner rendered
+    // every gated control as available to a viewer.
+    if (window.__ME) return this.viewAsRole || window.__ME.role || "viewer";
+    return this.viewAsRole || (window.__DEMO_MODE && this.me() ? this.me().role : "viewer");
   },
   seatsUsed() { return this.team.filter(m => m.status !== "revoked").length; },
   ownerCount() { return this.team.filter(m => m.role === "owner" && m.status === "active").length; },

@@ -60,6 +60,22 @@ export function isSurfaceFailed(key: string): boolean {
   return failed.has(key) && !ready.has(key);
 }
 
+/**
+ * The running runner's refresh, published so callers outside it use the SAME
+ * path. The verb courier used to call activateOverride directly, which skips
+ * persist, skips setStatus and swallows the 401 — so after a snooze or a
+ * take-over (the verbs with no message row to trigger realtime) the cache kept
+ * the PRE-verb snapshot and the next reload painted the thread back into
+ * "Needs you", under a pill still claiming "live".
+ */
+let activeRefresh: ((o: SurfaceOverride) => Promise<void>) | null = null;
+
+export async function refreshSurfaces(overrides: SurfaceOverride[]): Promise<void> {
+  const fn = activeRefresh;
+  if (!fn) return; // no runner mounted (standalone mockup) — nothing to sync
+  await Promise.all(overrides.map((o) => fn(o)));
+}
+
 export function getSurfaceStatuses(): ReadonlyMap<string, SurfaceStatus> {
   return statuses;
 }
@@ -72,6 +88,12 @@ export function onSurfaceStatusChange(fn: () => void): () => void {
 let runnerSeq = 0;
 
 export function startSurfaces(overrides: SurfaceOverride[]): () => void {
+  // Read the cached identity BEFORE any boot can overwrite it. Every
+  // successful boot persists with the CURRENT tenant, and snapshotSurface
+  // assigns blob.tenant on every write — so the old guard, which read the
+  // cache after Promise.all, always compared a value against itself and could
+  // never fire.
+  const cachedAtBoot = cachedTenant();
   let cancelled = false;
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   const topic = `bridge-${++runnerSeq}`; // unique per runner: StrictMode double-mounts never collide
@@ -124,6 +146,8 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
     }
   };
 
+  activeRefresh = (o: SurfaceOverride) => refresh(o, "refresh");
+
   const scheduleRefresh = (o: SurfaceOverride) => {
     const prev = timers.get(o.key);
     if (prev) clearTimeout(prev);
@@ -141,7 +165,7 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
   // different workspace comes back, that data was never theirs to see: drop it
   // and reload rather than leave another tenant's rows on screen.
   const guardTenant = () => {
-    const cached = cachedTenant();
+    const cached = cachedAtBoot;
     const actual = tenantId();
     if (cached && actual && cached !== actual) {
       clearSurfaceCache();
@@ -185,6 +209,7 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
 
   return () => {
     cancelled = true;
+    activeRefresh = null;
     document.removeEventListener("visibilitychange", onVisible);
     timers.forEach((t) => clearTimeout(t));
     if (unsubscribe) unsubscribe();

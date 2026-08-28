@@ -4,7 +4,8 @@
  * the overrides re-apply (fresh globals + surface events), and the caller's
  * toast reports honestly. Business logic stays server-side — this is a courier.
  */
-import { activateOverride, conversationsOverride, inboxOverride, todayOverride, type SurfaceOverride } from "./surface-data";
+import { conversationsOverride, inboxOverride, todayOverride, type SurfaceOverride } from "./surface-data";
+import { refreshSurfaces } from "./surface-runner";
 
 interface RealThread {
   conversationId: string;
@@ -47,7 +48,9 @@ async function refresh(): Promise<void> {
   // Today carries the "needs you" count — leaving it out means snoozing from
   // the Inbox leaves a stale number on the brief.
   const surfaces: SurfaceOverride[] = [inboxOverride, conversationsOverride, todayOverride];
-  await Promise.all(surfaces.map((s) => activateOverride(s).catch(() => false)));
+  // Through the runner, so the result is PERSISTED to the cache and the pill
+  // tells the truth — calling activateOverride directly skipped both.
+  await refreshSurfaces(surfaces);
 }
 
 export type InboxVerb =

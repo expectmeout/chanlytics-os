@@ -40,7 +40,12 @@ export function withRoute<T>(
       }
       const data = await handler(req, { supabase, userId: user.id, email: user.email, params });
       console.log(JSON.stringify({ level: "info", route, user: user.id, ms: Date.now() - started }));
-      return NextResponse.json(ok(data));
+      // These payloads are customer transcripts and phone numbers. The
+      // default was "public, max-age=0, must-revalidate" — public, on a
+      // shared-cache-eligible response.
+      return NextResponse.json(ok(data), {
+        headers: { "cache-control": "private, no-store" },
+      });
     } catch (e) {
       if (e instanceof AppError) {
         console.log(JSON.stringify({ level: "warn", route, code: e.code, ms: Date.now() - started }));
@@ -75,6 +80,17 @@ export async function memberContext(
     .eq("user_id", ctx.userId)
     .order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
+  // Three call sites used to pick a default workspace by three different
+  // orderings (oldest membership here, name-sorted tenant in /workspaces,
+  // oldest tenant in /metrics), so for a member of two workspaces the role
+  // shown and the workspace written could be different tenants — silently.
+  // Until there is a switcher, an ambiguous request fails loudly instead.
+  if (!wanted && (data?.length ?? 0) > 1) {
+    throw new AppError(
+      "validation",
+      "This account belongs to more than one workspace — the request must name which one.",
+    );
+  }
   const m = wanted ? data?.find((r) => r.tenant_id === wanted) : data?.[0];
   if (!m) throw new AppError("not_found", "No workspace found for this account.", 404);
   return { tenantId: m.tenant_id, role: m.role as MemberContext["role"] };

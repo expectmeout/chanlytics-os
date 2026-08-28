@@ -47,7 +47,14 @@ function read(): CacheBlob | null {
 function write(blob: CacheBlob): void {
   try {
     const raw = JSON.stringify(blob);
-    if (raw.length > MAX_BYTES) return;
+    if (raw.length > MAX_BYTES) {
+      // Dropping the write silently would leave the OLDER snapshot behind to
+      // be painted as current on the next boot. Stale-forever is worse than
+      // cold, so remove it.
+      console.warn("surface_cache_oversize", raw.length);
+      sessionStorage.removeItem(CACHE_NAME);
+      return;
+    }
     sessionStorage.setItem(CACHE_NAME, raw);
   } catch {
     /* quota or private mode — caching is an optimisation, never a requirement */

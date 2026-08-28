@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { clearSurfaceCache } from "@/legacy-bridge/surface-cache";
 
 const RESEND_COOLDOWN_S = 60;
 
@@ -82,6 +83,10 @@ export default function LoginPage() {
     setBusy(false);
     if (error) setError(friendlyError(error.message));
     else {
+      // Whoever signs in next must not inherit the previous account's cached
+      // conversations. Sign-out already clears this; sign-in is the other half
+      // (a session can also expire without anyone pressing anything).
+      clearSurfaceCache();
       // Deep links survive sign-in: the middleware redirect keeps the #/route
       // fragment (browsers carry the hash through redirects), but
       // router.replace("/") threw it away — anyone following a link to a
