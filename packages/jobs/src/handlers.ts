@@ -41,6 +41,33 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     .single();
   if (!msg || msg.status !== "queued") return; // canceled or already handled — no-op
 
+  // The LAST gate before the wire. The reply route already refuses an
+  // opted-out contact, but this runs up to SEND_GRACE_MS later and is the only
+  // check that covers the gap: a customer can text STOP during the cancel
+  // window, and every future queueing path (campaigns, reminders, a retry of
+  // an older row) arrives here too. Cheap, and the one place a miss is
+  // unrecoverable — the message is on its way to a real person.
+  // Resolved through the conversation rather than messages.contact_id, which
+  // is nullable — the conversation always has the contact.
+  const { data: convRow } = await ctx.db
+    .from("conversations")
+    .select("contacts (consent, dnc)")
+    .eq("id", p.conversation_id)
+    .eq("tenant_id", job.tenant_id)
+    .maybeSingle();
+  const contact = convRow?.contacts;
+  if (contact && (contact.consent === "opted_out" || contact.dnc)) {
+    await ctx.db.from("messages")
+      .update({ status: "canceled", error: { reason: "opted_out" } })
+      .eq("id", p.message_id);
+    await ctx.db.from("events").insert({
+      tenant_id: job.tenant_id, kind: "message.send_blocked", category: "message",
+      subject_type: "message", subject_id: p.message_id,
+      data: { reason: "opted_out", consent: contact.consent, dnc: contact.dnc },
+    });
+    return;
+  }
+
   const to = p.to_phone.replace(/^\+/, "");
   const sent = p.template
     ? await sendTemplate(ctx.waCfg, to, p.template)

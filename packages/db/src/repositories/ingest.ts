@@ -21,6 +21,7 @@ export interface IngestInboundParams {
   media?: Json | null;
   meta?: Json;
   optOut?: boolean;
+  optIn?: boolean;
 }
 
 export interface IngestResult {
@@ -31,6 +32,12 @@ export interface IngestResult {
   processed: boolean;
   state: string;
   paused_until: string | null;
+  /** The contact's consent AFTER this message was applied, so a STOP earlier in
+   *  the same webhook batch is already reflected. Optional because a database
+   *  still on a pre-00013 schema omits both — readers must treat absence as
+   *  "nothing on record", never as a block. */
+  consent?: string | null;
+  dnc?: boolean | null;
 }
 
 export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<IngestResult> {
@@ -47,6 +54,7 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
     p_media: p.media ?? null,
     p_meta: p.meta ?? {},
     p_opt_out: p.optOut ?? false,
+    p_opt_in: p.optIn ?? false,
   } as never);
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
   return data as unknown as IngestResult;

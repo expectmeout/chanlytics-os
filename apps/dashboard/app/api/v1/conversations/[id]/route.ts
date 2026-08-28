@@ -12,7 +12,7 @@ export const GET = withRoute(async (req, { supabase, params, userId }) => {
 
   const { data: conv, error } = await supabase
     .from("conversations")
-    .select("id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164)")
+    .select("id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164, consent, dnc)")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -42,6 +42,8 @@ export const GET = withRoute(async (req, { supabase, params, userId }) => {
       display_name: conv.contacts?.display_name ?? null,
       wa_profile_name: conv.contacts?.wa_profile_name ?? null,
       phone_e164: conv.contacts?.phone_e164 ?? null,
+      consent: conv.contacts?.consent ?? null,
+      dnc: conv.contacts?.dnc ?? false,
     },
   };
   const messages: MessageDto[] = (msgs ?? []).reverse().map((m) => ({

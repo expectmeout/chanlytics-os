@@ -62,6 +62,7 @@ export const EVENT_KINDS = [
   "ingest.allowlist_skip",
   "ingest.pg_failed",
   "message.send_failed",
+  "message.send_blocked",
   "conversation.reopened",
   "conversation.pause_expired",
 ] as const;
@@ -70,11 +71,23 @@ export type EventKind = (typeof EVENT_KINDS)[number];
 /** Customer texts that mean opt-out (webhook consent handling, §4). */
 export const OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 
+/**
+ * Customer texts that mean opt back IN — the way out of an opt-out.
+ *
+ * Without this, enforcing opt-out silences someone permanently: they text STOP
+ * once and nothing they ever send again gets a reply, including "start". Only
+ * these exact words count. A looser test (any message means they're back)
+ * would lift the block the moment they said anything, which is the same as not
+ * having one — and "sí"/"yes" is deliberately excluded because it is how
+ * people answer an ordinary question, not how they rejoin a list.
+ */
+export const OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta)\s*[.!]?\s*$/i;
+
 /* ---- Slice 2: Inbox ---- */
 
 export const ESCALATION_REASONS = [
   "human_token", "non_text", "refusal", "rate_cap", "policy_block",
-  "send_failed", "deadman", "brain_error", "manual",
+  "send_failed", "deadman", "brain_error", "manual", "opt_out",
 ] as const;
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
 

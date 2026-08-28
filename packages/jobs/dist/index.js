@@ -4143,6 +4143,20 @@ async function outboundSend(ctx, job) {
   const p = job.payload;
   const { data: msg } = await ctx.db.from("messages").select("id, status, body, template_name").eq("id", p.message_id).eq("tenant_id", job.tenant_id).single();
   if (!msg || msg.status !== "queued") return;
+  const { data: convRow } = await ctx.db.from("conversations").select("contacts (consent, dnc)").eq("id", p.conversation_id).eq("tenant_id", job.tenant_id).maybeSingle();
+  const contact = convRow?.contacts;
+  if (contact && (contact.consent === "opted_out" || contact.dnc)) {
+    await ctx.db.from("messages").update({ status: "canceled", error: { reason: "opted_out" } }).eq("id", p.message_id);
+    await ctx.db.from("events").insert({
+      tenant_id: job.tenant_id,
+      kind: "message.send_blocked",
+      category: "message",
+      subject_type: "message",
+      subject_id: p.message_id,
+      data: { reason: "opted_out", consent: contact.consent, dnc: contact.dnc }
+    });
+    return;
+  }
   const to = p.to_phone.replace(/^\+/, "");
   const sent = p.template ? await sendTemplate(ctx.waCfg, to, p.template) : await sendText(ctx.waCfg, to, p.body ?? msg.body ?? "");
   if (sent.ok) {

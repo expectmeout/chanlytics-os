@@ -81,6 +81,8 @@ interface NormalizedInbound {
     channelTsIso: string | null;
     media: WaMediaRef | null;
     optOut: boolean;
+    /** An explicit START/ALTA — the only thing that lifts an opt-out. */
+    optIn: boolean;
 }
 declare function normalizeInbound(m: WaRawMessage, value: WaChangeValue): NormalizedInbound;
 interface SendResult {

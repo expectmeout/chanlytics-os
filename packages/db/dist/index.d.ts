@@ -1497,6 +1497,7 @@ type Database = {
                     p_media?: Json;
                     p_message_external_id: string;
                     p_meta?: Json;
+                    p_opt_in?: boolean;
                     p_opt_out?: boolean;
                     p_phone_e164: string;
                     p_tenant_id: string;
@@ -1562,6 +1563,7 @@ interface IngestInboundParams {
     media?: Json | null;
     meta?: Json;
     optOut?: boolean;
+    optIn?: boolean;
 }
 interface IngestResult {
     message_id: string;
@@ -1571,6 +1573,12 @@ interface IngestResult {
     processed: boolean;
     state: string;
     paused_until: string | null;
+    /** The contact's consent AFTER this message was applied, so a STOP earlier in
+     *  the same webhook batch is already reflected. Optional because a database
+     *  still on a pre-00013 schema omits both — readers must treat absence as
+     *  "nothing on record", never as a block. */
+    consent?: string | null;
+    dnc?: boolean | null;
 }
 declare function ingestInbound(db: Db$3, p: IngestInboundParams): Promise<IngestResult>;
 /** Stamp a message handled (replied / deliberately skipped) — retry no-ops after this.

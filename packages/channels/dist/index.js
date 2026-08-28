@@ -4047,6 +4047,7 @@ var NEVER = INVALID;
 
 // ../contracts/dist/index.js
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
+var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta)\s*[.!]?\s*$/i;
 var TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WA_WINDOW_MS = 24 * 3600 * 1e3;
@@ -4106,7 +4107,8 @@ function normalizeInbound(m, value) {
         fetch_state: "pending"
       };
     })() : null,
-    optOut: isText ? OPT_OUT_PATTERN.test(body || "") : false
+    optOut: isText ? OPT_OUT_PATTERN.test(body || "") : false,
+    optIn: isText ? OPT_IN_PATTERN.test(body || "") : false
   };
 }
 var SEND_TIMEOUT_MS = 15e3;

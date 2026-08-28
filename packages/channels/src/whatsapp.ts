@@ -3,7 +3,7 @@
  * canonical events and performs sends. No persistence, no decisions — the edge
  * wires this to the repositories. Config is passed in; env is never read here.
  */
-import { OPT_OUT_PATTERN } from "@chanlytics/contracts";
+import { OPT_IN_PATTERN, OPT_OUT_PATTERN } from "@chanlytics/contracts";
 
 const GRAPH = "https://graph.facebook.com/v25.0";
 
@@ -56,6 +56,8 @@ export interface NormalizedInbound {
   channelTsIso: string | null;
   media: WaMediaRef | null;
   optOut: boolean;
+  /** An explicit START/ALTA — the only thing that lifts an opt-out. */
+  optIn: boolean;
 }
 
 export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): NormalizedInbound {
@@ -88,6 +90,7 @@ export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): Normali
         })()
       : null,
     optOut: isText ? OPT_OUT_PATTERN.test(body || "") : false,
+    optIn: isText ? OPT_IN_PATTERN.test(body || "") : false,
   };
 }
 

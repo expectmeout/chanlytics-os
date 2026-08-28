@@ -607,6 +607,21 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
     return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("inbox:focus-composer", onFocus); };
   }, [text]);
 
+  // Checked BEFORE the window branch: an opt-out is stronger than a closed
+  // 24h window, where an approved template still gets through. Here nothing
+  // does, so the composer offers no send at all rather than a button whose
+  // only outcome is a rejection from the API.
+  if (thread.real && thread.optedOut) {
+    return (
+      <div className="ix-composer">
+        <div className="ix-composer-banner">
+          <Icon name="shield" size={11} />
+          <span>{thread.who} asked to stop receiving messages. Nothing can be sent — they can text START to opt back in.</span>
+        </div>
+      </div>
+    );
+  }
+
   if (thread.real && thread.windowOpen === false) {
     return (
       <div className="ix-composer">

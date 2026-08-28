@@ -1481,6 +1481,7 @@ export type Database = {
           p_media?: Json
           p_message_external_id: string
           p_meta?: Json
+          p_opt_in?: boolean
           p_opt_out?: boolean
           p_phone_e164: string
           p_tenant_id: string

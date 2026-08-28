@@ -32,8 +32,20 @@ export interface ConversationDto {
     display_name: string | null;
     wa_profile_name: string | null;
     phone_e164: string | null;
+    /** 'unknown' | 'opted_in' | 'opted_out'. Absent on payloads written before
+     *  opt-out was enforced, which is why every reader treats it as optional
+     *  and only 'opted_out'/dnc blocks — never the absence of a value. */
+    consent?: string | null;
+    dnc?: boolean | null;
   };
   messages: MessageDto[];
+}
+
+/** The customer asked not to be contacted. Both columns are checked: consent
+ *  is the state machine, dnc is the operator-settable override, and either one
+ *  alone must be enough to stop a send. */
+export function isOptedOut(dto: Pick<ConversationDto, "contact">): boolean {
+  return dto.contact.consent === "opted_out" || dto.contact.dnc === true;
 }
 
 /* ---- the mockup's conversation shape ---- */
@@ -173,6 +185,7 @@ export const ESCALATION_REASON_LABELS: Record<string, string> = {
   rate_cap: "Too many replies too fast — the receptionist paused itself",
   deadman: "Nobody picked this up — flagged after silence",
   manual: "Flagged manually",
+  opt_out: "Asked to stop receiving messages",
 };
 
 /** "8m" / "3h" / "2d". An overnight wait is the NORMAL case for a morning
@@ -191,6 +204,9 @@ export interface InboxThreadVM {
   conversationId: string;
   escalationId: string | null;
   windowOpen: boolean;
+  /** The customer asked to stop receiving messages. Stronger than a closed
+   *  24h window: an approved template can't reach them either. */
+  optedOut: boolean;
   who: string;
   whoMeta: string;
   avatar: string;
@@ -274,6 +290,7 @@ export function toInboxThreadVM(
     conversationId: dto.id,
     escalationId: escalation?.id ?? null,
     windowOpen: win,
+    optedOut: isOptedOut(dto),
     who,
     whoMeta: who === formatPhoneDisplay(dto.contact.phone_e164)
       ? "WhatsApp · no name saved"

@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { AppError, waWindow } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { withRoute } from "@/server/with-route";
-import { loadConversation, recordDecision, resolveOpenEscalation, PAUSE_MS, SEND_GRACE_MS } from "@/server/verbs";
+import { assertCanSend, loadConversation, recordDecision, resolveOpenEscalation, PAUSE_MS, SEND_GRACE_MS } from "@/server/verbs";
 import { schedule, mirrorBlobPause } from "@/server/service";
 
 /**
@@ -14,6 +14,10 @@ import { schedule, mirrorBlobPause } from "@/server/service";
 export const POST = withRoute(async (req, ctx) => {
   const conv = await loadConversation(ctx, String(ctx.params.id ?? ""));
   if (!conv.phone_e164) throw new AppError("conflict", "Conversation has no phone identity.");
+  // An opt-out binds the humans too — refuse BEFORE anything is queued, so the
+  // operator is told rather than watching a message sit in "queued" and then
+  // silently cancel itself when the job re-checks.
+  assertCanSend(conv);
 
   const body = (await req.json().catch(() => ({}))) as {
     text?: string;

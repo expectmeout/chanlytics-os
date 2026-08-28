@@ -20,7 +20,8 @@ async function ingestInbound(db, p) {
     p_channel_ts: p.channelTs,
     p_media: p.media ?? null,
     p_meta: p.meta ?? {},
-    p_opt_out: p.optOut ?? false
+    p_opt_out: p.optOut ?? false,
+    p_opt_in: p.optIn ?? false
   });
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
   return data;

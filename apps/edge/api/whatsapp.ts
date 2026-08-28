@@ -148,6 +148,7 @@ async function pgIngest(tenantId: string | null, n: NormalizedInbound): Promise<
       media: n.media ? (n.media as unknown as Json) : null,
       meta: { raw_type: n.rawType } as Json,
       optOut: n.optOut,
+      optIn: n.optIn,
     });
   } catch (e) {
     console.error("ingest_pg_failed", e instanceof Error ? e.message : e);
@@ -300,6 +301,42 @@ async function handleInbound(
   // not consulted.
   if ((process.env.PG_DEDUPE === "on" || memory === "pg") && ing && !ing.is_new) {
     console.log("wa_skip_pg_dupe", m.id);
+    return;
+  }
+
+  // CONSENT GATE — before every branch below that can send, because all of
+  // them could: the non-text acknowledgement, the brain's reply, even the
+  // greeting fallback. Until now `consent` was written by ingest and read by
+  // nothing, so texting STOP recorded the opt-out and then got an AI reply in
+  // the same request.
+  //
+  // Two independent sources, and either is enough:
+  //   n.optOut  — THIS message is the opt-out. Local knowledge, no database
+  //               needed, so it holds even when Postgres is unreachable.
+  //   ing.dnc   — they opted out earlier. Only Postgres knows this; when it is
+  //               unconfigured or down, `ing` is null and history is invisible.
+  //               Documented rather than papered over: blocking every reply
+  //               whenever the database blips would be an outage, so this gate
+  //               is only as good as PG availability for the historical case.
+  //
+  // Nothing is sent back — not even a confirmation. A tenant-authored opt-out
+  // acknowledgement is a config item, and inventing copy in the salon's voice
+  // is exactly what the brain profile exists to prevent.
+  const optedOut = n.optOut || ing?.dnc === true || ing?.consent === "opted_out";
+  if (optedOut) {
+    const post: Promise<unknown>[] = [sink.processed()];
+    if (n.optOut) {
+      // Only on the opt-out message itself. upsertEscalation keeps ONE open
+      // escalation per conversation, so a repeated STOP updates rather than
+      // piles up — but a customer leaving is a business event the owner should
+      // see once, not a log line.
+      post.push(
+        sink.escalate("opt_out", "Customer asked to stop receiving messages. Automatic replies are off for this contact until they text START."),
+        alertStaff(from, m.text?.body ?? `[${m.type}]`, "(no reply sent — the customer opted out)", "opt-out", notif),
+      );
+    }
+    await Promise.all(post);
+    console.log("wa_skip_opt_out", JSON.stringify({ to: from, this_message: n.optOut, on_record: ing?.consent ?? null }));
     return;
   }
 

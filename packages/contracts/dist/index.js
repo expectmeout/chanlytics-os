@@ -98,10 +98,12 @@ var EVENT_KINDS = [
   "ingest.allowlist_skip",
   "ingest.pg_failed",
   "message.send_failed",
+  "message.send_blocked",
   "conversation.reopened",
   "conversation.pause_expired"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
+var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta)\s*[.!]?\s*$/i;
 var ESCALATION_REASONS = [
   "human_token",
   "non_text",
@@ -111,7 +113,8 @@ var ESCALATION_REASONS = [
   "send_failed",
   "deadman",
   "brain_error",
-  "manual"
+  "manual",
+  "opt_out"
 ];
 var ESCALATION_STATES = ["open", "resolved"];
 var DECISION_VERBS = [
@@ -133,6 +136,9 @@ var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
 var TEMPLATE_STATUSES = ["approved", "pending", "rejected"];
 
 // src/viewmodels.ts
+function isOptedOut(dto) {
+  return dto.contact.consent === "opted_out" || dto.contact.dnc === true;
+}
 var AGENT = { glyph: "W", name: "WhatsApp Receptionist" };
 var CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the salon line\.\s*)?(Summary:\s*)?/;
 var TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
@@ -192,7 +198,8 @@ var ESCALATION_REASON_LABELS = {
   policy_block: "Pricing question \u2014 held by policy",
   rate_cap: "Too many replies too fast \u2014 the receptionist paused itself",
   deadman: "Nobody picked this up \u2014 flagged after silence",
-  manual: "Flagged manually"
+  manual: "Flagged manually",
+  opt_out: "Asked to stop receiving messages"
 };
 function formatWaited(ms) {
   const min = Math.max(1, Math.round(ms / 6e4));
@@ -239,6 +246,7 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
     conversationId: dto.id,
     escalationId: escalation?.id ?? null,
     windowOpen: win,
+    optedOut: isOptedOut(dto),
     who,
     whoMeta: who === formatPhoneDisplay(dto.contact.phone_e164) ? "WhatsApp \xB7 no name saved" : `WhatsApp \xB7 ${formatPhoneDisplay(dto.contact.phone_e164) ?? "no phone"}`,
     avatar: initialsOf(who),
@@ -733,6 +741,7 @@ export {
   MESSAGE_STATUSES,
   MESSAGE_TYPES,
   NotificationsConfigSchema,
+  OPT_IN_PATTERN,
   OPT_OUT_PATTERN,
   POLICY_CLASSES,
   POLICY_MODES,
@@ -748,6 +757,7 @@ export {
   err,
   formatPhoneDisplay,
   formatWaited,
+  isOptedOut,
   messageText,
   normalizePhone,
   ok,

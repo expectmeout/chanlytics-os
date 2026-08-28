@@ -37,7 +37,11 @@ jobs:
       # react-hooks/exhaustive-deps — stale dep arrays are the defect family
       # behind most of what we have called "glitchy".
       - run: pnpm --filter @chanlytics/dashboard lint
-      - run: node --test tooling/scripts/tests/*.test.mjs
+      # `pnpm test`, not a second copy of the command: the suite needs Node's
+      # type-stripping flags to import the dashboard's .ts modules, and a
+      # duplicated invocation here silently ran without them — passing only
+      # because this runner's Node happens to strip types by default.
+      - run: pnpm test
       # generated-types freshness: regen must produce no diff (CI has no Supabase
       # access token, so this runs only when the schema changed in the commit).
       # The gen runs locally with every migration per the blueprint's §8 rule.

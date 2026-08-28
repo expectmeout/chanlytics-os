@@ -16,12 +16,16 @@ export interface VerbConversation {
   last_wa_inbound_at: string | null;
   contact_id: string;
   phone_e164: string | null;
+  /** Consent travels with every verb load so no send path has to remember to
+   *  ask for it separately. */
+  consent: string | null;
+  dnc: boolean;
 }
 
 export async function loadConversation(ctx: RouteContext, id: string): Promise<VerbConversation> {
   const { data, error } = await ctx.supabase
     .from("conversations")
-    .select("id, tenant_id, state, paused_until, last_wa_inbound_at, contact_id, contacts (phone_e164)")
+    .select("id, tenant_id, state, paused_until, last_wa_inbound_at, contact_id, contacts (phone_e164, consent, dnc)")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -34,7 +38,20 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
     last_wa_inbound_at: data.last_wa_inbound_at,
     contact_id: data.contact_id,
     phone_e164: data.contacts?.phone_e164 ?? null,
+    consent: data.contacts?.consent ?? null,
+    dnc: data.contacts?.dnc ?? false,
   };
+}
+
+/** The customer asked not to be contacted. Consent is the state machine, dnc
+ *  the operator-settable override; either alone stops a send. */
+export function assertCanSend(conv: VerbConversation): void {
+  if (conv.consent === "opted_out" || conv.dnc) {
+    throw new AppError(
+      "conflict",
+      "This customer asked to stop receiving messages. They can text START to opt back in.",
+    );
+  }
 }
 
 export async function recordDecision(
