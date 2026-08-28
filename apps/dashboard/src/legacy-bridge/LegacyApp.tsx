@@ -12,7 +12,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./seed-globals"; // must evaluate before the manifest
 import "./manifest";
-import "./legacy.css";
+// legacy.css is NOT imported here: it lives in app/(os)/layout.tsx so the
+// 254KB design system ships as document <link>s and downloads in parallel
+// with this chunk, rather than serially behind it.
 import { workspaceOverride, conversationsOverride, inboxOverride, todayOverride, type Workspace } from "./surface-data";
 import {
   getSurfaceStatuses,
@@ -111,7 +113,7 @@ type ChanlyticsAppComponent = React.ComponentType<{
 
 export default function LegacyApp() {
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [workspace, setWorkspace] = useState<Workspace | null>(() => workspaceOverride.current());
   const [, setStatusTick] = useState(0);
   const [staleBuild, setStaleBuild] = useState(false);
 
@@ -217,7 +219,7 @@ export default function LegacyApp() {
             {" · other surfaces seeded"}
           </span>
         ) : (
-          <span>Seeded preview — no live data yet</span>
+          <span>Connecting to your workspace…</span>
         )}
         <form action="/auth/signout" method="post" className="pill-signout" onSubmit={clearSurfaceCache}>
           <button type="submit" title="Sign out">Sign out</button>

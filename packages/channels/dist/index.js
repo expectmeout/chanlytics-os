@@ -4047,6 +4047,8 @@ var NEVER = INVALID;
 
 // ../contracts/dist/index.js
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
+var TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WA_WINDOW_MS = 24 * 3600 * 1e3;
 var PolicyLimitsSchema = external_exports.object({
   max_replies_day: external_exports.number().int().min(1).max(200).optional(),

@@ -35,12 +35,40 @@ export class UnauthorizedError extends Error {
   constructor() { super("unauthorized"); this.name = "UnauthorizedError"; }
 }
 
+/**
+ * In-flight de-duplication. Three overrides independently ask for the same
+ * endpoints, so one boot issued nine requests across five URLs — four of them
+ * byte-identical duplicates — and every realtime message and every tab focus
+ * repeated the pattern. Each one also costs two server-side getUser() round
+ * trips (middleware + route), so the waste is real DB load, not just bytes.
+ *
+ * Callers stay naive: they each ask for what they need, and concurrent asks
+ * for the same URL share one response. The window is deliberately short —
+ * this collapses a burst, it is not a cache.
+ */
+const inFlight = new Map<string, { p: Promise<unknown>; at: number }>();
+const INFLIGHT_MS = 2000;
+
 export async function fetchEnvelope<T>(url: string): Promise<T> {
-  const res = await fetch(url);
-  if (res.status === 401) throw new UnauthorizedError();
-  const j = (await res.json().catch(() => null)) as { ok: boolean; data?: T } | null;
-  if (!j || !j.ok || j.data === undefined) throw new Error(`${url} -> ${res.status}`);
-  return j.data;
+  const hit = inFlight.get(url);
+  if (hit && Date.now() - hit.at < INFLIGHT_MS) return hit.p as Promise<T>;
+
+  const p = (async () => {
+    const res = await fetch(url);
+    if (res.status === 401) throw new UnauthorizedError();
+    const j = (await res.json().catch(() => null)) as { ok: boolean; data?: T } | null;
+    if (!j || !j.ok || j.data === undefined) throw new Error(`${url} -> ${res.status}`);
+    return j.data;
+  })();
+
+  // A rejection must not be shared beyond its burst, or one blip fails every
+  // later caller too. Drop the entry as soon as it settles.
+  inFlight.set(url, { p, at: Date.now() });
+  p.finally(() => {
+    if (inFlight.get(url)?.p === p) inFlight.delete(url);
+  }).catch(() => {});
+
+  return p;
 }
 
 export async function activateOverride(o: SurfaceOverride): Promise<boolean> {
@@ -181,16 +209,19 @@ export const todayOverride: SurfaceOverride = {
   refreshOnMessageInserts: true,
   debounceMs: 800, // the recap is aggregate, not per-thread — no need to be twitchy
   apply: async () => {
-    const [metricsRes, convData, escData] = await Promise.all([
+    // Calls are additive context, not a precondition — a voice outage must not
+    // blank the brief — but they are fetched WITH the others rather than
+    // waterfalled behind them, so the slowest request sets the wall clock.
+    const [metricsRes, convData, escData, callsRes] = await Promise.all([
       fetchEnvelope<{ metrics: MetricsSummaryDto }>("/api/v1/metrics?days=1"),
       fetchEnvelope<{ conversations: ConversationDto[] }>("/api/v1/conversations"),
       fetchEnvelope<{ escalations: EscalationRow[] }>("/api/v1/escalations?state=open"),
+      fetchEnvelope<{ calls: CallDto[] }>("/api/v1/calls").catch((e: unknown) => e as Error),
     ]);
-    // Calls are additive context, not a precondition — a voice outage must not
-    // blank the whole brief.
     let calls: CallDto[] = [];
     try {
-      calls = (await fetchEnvelope<{ calls: CallDto[] }>("/api/v1/calls")).calls;
+      if (callsRes instanceof Error) throw callsRes;
+      calls = callsRes.calls;
     } catch (e) {
       console.error("today_calls_fetch_failed", e instanceof Error ? e.message : e);
     }
@@ -219,7 +250,10 @@ export const conversationsOverride: SurfaceOverride = {
   events: ["surface:conversations"],
   refreshOnMessageInserts: true,
   apply: async () => {
-    const data = await fetchEnvelope<{ conversations: ConversationDto[] }>("/api/v1/conversations");
+    const [data, callsRes] = await Promise.all([
+      fetchEnvelope<{ conversations: ConversationDto[] }>("/api/v1/conversations"),
+      fetchEnvelope<{ calls: CallDto[] }>("/api/v1/calls").catch((e: unknown) => e as Error),
+    ]);
     const w = window as unknown as {
       CONVERSATIONS_DATA?: { CONVERSATIONS: unknown[]; CV_CHANNELS: unknown[] };
     };
@@ -229,8 +263,8 @@ export const conversationsOverride: SurfaceOverride = {
     // The call row carries no decision affordance; the Inbox owns "needs you".
     let callRows: unknown[] = [];
     try {
-      const callData = await fetchEnvelope<{ calls: CallDto[] }>("/api/v1/calls");
-      callRows = callData.calls.map((c) => toCallVM(c));
+      if (callsRes instanceof Error) throw callsRes;
+      callRows = callsRes.calls.map((c) => toCallVM(c));
     } catch (e) {
       console.error("calls_fetch_failed", e instanceof Error ? e.message : e);
     }

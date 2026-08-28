@@ -14,6 +14,8 @@
 import {
   toInboxThreadVM,
   toCallVM,
+  contactName,
+  contactMeta,
   messageText,
   ESCALATION_REASON_LABELS,
   DISCONNECTION_LABELS,
@@ -217,7 +219,7 @@ export function toTodayVM(
 
   const needsRows: TodayNeedsRowVM[] = openEsc.map((e) => {
     const conv = byConv.get(e.conversation_id);
-    const vm = conv ? toInboxThreadVM(conv, e, now) : null;
+
     const lastCustomer = conv ? [...conv.messages].reverse().find((x) => x.sender === "customer") : undefined;
     const waitedMs = now.getTime() - new Date(e.created_at).getTime();
     const win = conv ? waWindow(conv.last_wa_inbound_at, now) : null;
@@ -226,13 +228,13 @@ export function toTodayVM(
       id: `th-${e.conversation_id}`,
       conversationId: e.conversation_id,
       escalationId: e.id,
-      who: vm?.who ?? "Unknown",
+      who: conv ? contactName(conv) : "Unknown",
       reason: ESCALATION_REASON_LABELS[e.reason] ?? e.reason,
       waited: formatWaited(waitedMs),
       warn: waitedMs > 30 * 60000,
       // her own words, never a generated characterization of them
       quote: lastCustomer ? messageText(lastCustomer).slice(0, 110) : "",
-      meta: vm?.whoMeta ?? "WhatsApp",
+      meta: conv ? contactMeta(conv) : "WhatsApp",
       windowNote: closes ? `Reply window closes ${closes}` : null,
       to: `inbox/th-${e.conversation_id}`,
     };
@@ -254,13 +256,12 @@ export function toTodayVM(
     })
     .map((c) => {
       const w = waWindow(c.last_wa_inbound_at, now);
-      const vm = toInboxThreadVM(c, null, now);
       const mins = w.closesAtIso
         ? Math.max(1, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / 60000))
         : 0;
       return {
         id: `wc-${c.id}`,
-        text: `${vm.who} — window closes ${tzTime(w.closesAtIso, tz) ?? "soon"} (in ${formatWaited(mins * 60000)})`,
+        text: `${contactName(c)} — window closes ${tzTime(w.closesAtIso, tz) ?? "soon"} (in ${formatWaited(mins * 60000)})`,
         to: `inbox/th-${c.id}`,
       };
     });
@@ -451,7 +452,7 @@ export function toTodayVM(
     .slice(0, 3)
     .map(({ conv, msg }) => ({
       at: tzTime(msg.created_at, tz) ?? "",
-      text: `replied to ${toInboxThreadVM(conv, null, now).who}: “${messageText(msg).slice(0, 90)}”`,
+      text: `replied to ${contactName(conv)}: “${messageText(msg).slice(0, 90)}”`,
       to: `inbox/th-${conv.id}`,
     }));
 

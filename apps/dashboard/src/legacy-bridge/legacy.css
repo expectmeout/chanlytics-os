@@ -37,23 +37,23 @@ html.legacy-on #root {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--panel, #16201c);
-  color: var(--ink-muted, #93a5a0);
-  border: 1px solid var(--line, #24322e);
+  background: var(--bg-raised);
+  color: var(--ink-muted);
+  border: 1px solid var(--line);
   border-radius: 999px;
   padding: 6px 14px;
   font-size: 12px;
-  font-family: Geist, ui-sans-serif, sans-serif;
+  font-family: var(--font-sans);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
-.bridge-pill b { color: var(--ink, #e5ece9); font-weight: 500; }
+.bridge-pill b { color: var(--ink); font-weight: 500; }
 .bridge-pill .pill-action {
-  background: none; border: none; color: #d19a45; font: inherit;
+  background: none; border: none; color: var(--warn); font: inherit;
   cursor: pointer; padding: 0; font-weight: 600;
 }
 .bridge-pill .pill-signout { display: inline; margin-left: 4px; }
 .bridge-pill .pill-signout button {
-  background: none; border: none; color: var(--ink-muted, #93a5a0);
+  background: none; border: none; color: var(--ink-muted);
   font: inherit; font-size: 11px; cursor: pointer; padding: 0;
   text-decoration: underline; text-underline-offset: 2px;
 }
@@ -61,9 +61,9 @@ html.legacy-on #root {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #d19a45;
+  background: var(--warn);
 }
-.bridge-pill .dot.live { background: #3cb79e; }
+.bridge-pill .dot.live { background: var(--ok); }
 
 /* Touch ergonomics (P3 from the surface review): 48 interactive targets sat
    under 44px on a phone, many at 26px — and Today is explicitly the check-it-

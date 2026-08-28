@@ -5,8 +5,8 @@
 
 :root {
   /* ---------- Type ---------- */
-  --font-sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: var(--font-geist), "Geist", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: var(--font-geist-mono), "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
 
   /* Type scale — airy, density 20 */
   --text-xs:    11px;

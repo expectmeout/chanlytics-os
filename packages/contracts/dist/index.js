@@ -135,18 +135,34 @@ var TEMPLATE_STATUSES = ["approved", "pending", "rejected"];
 // src/viewmodels.ts
 var AGENT = { glyph: "W", name: "WhatsApp Receptionist" };
 var CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the salon line\.\s*)?(Summary:\s*)?/;
+var TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var sameDayKey = null;
+var sameDayValue = "";
+function dayKey(now) {
+  if (sameDayKey !== now) {
+    sameDayKey = now;
+    sameDayValue = now.toDateString();
+  }
+  return sameDayValue;
+}
 function shortTime(iso, now) {
   if (!iso) return "";
   const d = new Date(iso);
-  const sameDay = d.toDateString() === now.toDateString();
-  if (sameDay) return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  return d.toDateString() === dayKey(now) ? TIME_FMT.format(d) : DATE_FMT.format(d);
 }
 function bubbleTime(iso, now) {
   const d = new Date(iso);
-  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  if (d.toDateString() === now.toDateString()) return time;
-  return `${d.toLocaleDateString([], { month: "short", day: "numeric" })} \xB7 ${time}`;
+  const time = TIME_FMT.format(d);
+  if (d.toDateString() === dayKey(now)) return time;
+  return `${DATE_FMT.format(d)} \xB7 ${time}`;
+}
+function contactName(dto) {
+  return dto.contact.display_name || dto.contact.wa_profile_name || formatPhoneDisplay(dto.contact.phone_e164) || "Unknown";
+}
+function contactMeta(dto) {
+  const phone = formatPhoneDisplay(dto.contact.phone_e164);
+  return contactName(dto) === phone ? "WhatsApp \xB7 no name saved" : `WhatsApp \xB7 ${phone ?? "no phone"}`;
 }
 function initialsOf(name) {
   const digits = name.replace(/[^\d]/g, "");
@@ -448,7 +464,6 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   const openEsc = escalations.filter((e) => e.state === "open").sort((a, b) => a.created_at.localeCompare(b.created_at));
   const needsRows = openEsc.map((e) => {
     const conv = byConv.get(e.conversation_id);
-    const vm = conv ? toInboxThreadVM(conv, e, now) : null;
     const lastCustomer = conv ? [...conv.messages].reverse().find((x) => x.sender === "customer") : void 0;
     const waitedMs = now.getTime() - new Date(e.created_at).getTime();
     const win = conv ? waWindow(conv.last_wa_inbound_at, now) : null;
@@ -457,13 +472,13 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       id: `th-${e.conversation_id}`,
       conversationId: e.conversation_id,
       escalationId: e.id,
-      who: vm?.who ?? "Unknown",
+      who: conv ? contactName(conv) : "Unknown",
       reason: ESCALATION_REASON_LABELS[e.reason] ?? e.reason,
       waited: formatWaited(waitedMs),
       warn: waitedMs > 30 * 6e4,
       // her own words, never a generated characterization of them
       quote: lastCustomer ? messageText(lastCustomer).slice(0, 110) : "",
-      meta: vm?.whoMeta ?? "WhatsApp",
+      meta: conv ? contactMeta(conv) : "WhatsApp",
       windowNote: closes ? `Reply window closes ${closes}` : null,
       to: `inbox/th-${e.conversation_id}`
     };
@@ -477,11 +492,10 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     return w.open && w.closesAtIso ? new Date(w.closesAtIso).getTime() - now.getTime() < 6 * 3600 * 1e3 : false;
   }).map((c) => {
     const w = waWindow(c.last_wa_inbound_at, now);
-    const vm = toInboxThreadVM(c, null, now);
     const mins = w.closesAtIso ? Math.max(1, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / 6e4)) : 0;
     return {
       id: `wc-${c.id}`,
-      text: `${vm.who} \u2014 window closes ${tzTime(w.closesAtIso, tz) ?? "soon"} (in ${formatWaited(mins * 6e4)})`,
+      text: `${contactName(c)} \u2014 window closes ${tzTime(w.closesAtIso, tz) ?? "soon"} (in ${formatWaited(mins * 6e4)})`,
       to: `inbox/th-${c.id}`
     };
   });
@@ -599,7 +613,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     ).map((x) => ({ conv: c, msg: x }))
   ).sort((a, b) => b.msg.created_at.localeCompare(a.msg.created_at)).slice(0, 3).map(({ conv, msg }) => ({
     at: tzTime(msg.created_at, tz) ?? "",
-    text: `replied to ${toInboxThreadVM(conv, null, now).who}: \u201C${messageText(msg).slice(0, 90)}\u201D`,
+    text: `replied to ${contactName(conv)}: \u201C${messageText(msg).slice(0, 90)}\u201D`,
     to: `inbox/th-${conv.id}`
   }));
   const NEEDS_EAR = ["dial_no_answer", "inactivity", "concurrency_limit_reached", "marked_as_spam"];
@@ -729,6 +743,8 @@ export {
   TENANT_STATUSES,
   TenantConfigSchema,
   WA_WINDOW_MS,
+  contactMeta,
+  contactName,
   err,
   formatPhoneDisplay,
   formatWaited,

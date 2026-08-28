@@ -189,14 +189,23 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   // ---- Veto window: third autonomy mode — safe drafts auto-send unless held ----
   const VW = window.VW_STORE = window.VW_STORE || { state: {} };
   const [vetoTick, setVetoTick] = React.useState(0);
+  // Only animate while there is actually a countdown. This tree has no
+  // memoisation, so an unconditional 1Hz timer re-rendered the entire Inbox
+  // once a second, forever, to move a number that isn't there. Real threads
+  // carry no veto drafts, so on real data the timer never starts — gated on
+  // the DATA rather than on __DEMO_MODE, because the presence listener below
+  // is the Away->Available unfreeze path and must keep working either way.
+  const hasLiveVeto = threads.some((t) => t.veto);
   React.useEffect(() => {
     window.VW_UTIL.seed(threads);
-    const iv = window.setInterval(() => setVetoTick((n) => n + 1), 1000);
-    // Freeze/resume state conversion lives in VW_UTIL (data layer, presence listener); just re-render.
     const onPres = () => setVetoTick((n) => n + 1);
     window.addEventListener("presence:changed", onPres);
-    return () => { window.clearInterval(iv); window.removeEventListener("presence:changed", onPres); };
-  }, []);
+    const iv = hasLiveVeto ? window.setInterval(() => setVetoTick((n) => n + 1), 1000) : null;
+    return () => {
+      if (iv) window.clearInterval(iv);
+      window.removeEventListener("presence:changed", onPres);
+    };
+  }, [hasLiveVeto]);
   const vetoRemaining = (id) => window.VW_UTIL.remaining(id);
   const vetoAct = (id, act) => {
     if (!window.canDo("approve")) return;

@@ -71,20 +71,57 @@ import { formatPhoneDisplay } from "./phone";
 const AGENT = { glyph: "W", name: "WhatsApp Receptionist" };
 const CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the salon line\.\s*)?(Summary:\s*)?/;
 
+/**
+ * Hoisted formatters. `toLocaleTimeString`/`toLocaleDateString` construct a
+ * fresh Intl.DateTimeFormat on EVERY call — measured at ~355ms per 4000
+ * messages, 16× slower than reusing one. These mappers run twice per refresh
+ * over every message in every conversation, on the main thread, so that cost
+ * showed up as a visible freeze whenever a message arrived.
+ */
+const TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
+const DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+
+/** `now.toDateString()` is itself not free, and it is constant for a whole
+ *  mapping pass — memoise it per Date instance. */
+let sameDayKey: Date | null = null;
+let sameDayValue = "";
+function dayKey(now: Date): string {
+  if (sameDayKey !== now) {
+    sameDayKey = now;
+    sameDayValue = now.toDateString();
+  }
+  return sameDayValue;
+}
+
 function shortTime(iso: string | null, now: Date): string {
   if (!iso) return "";
   const d = new Date(iso);
-  const sameDay = d.toDateString() === now.toDateString();
-  if (sameDay) return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  return d.toDateString() === dayKey(now) ? TIME_FMT.format(d) : DATE_FMT.format(d);
 }
 
 /** Transcript bubbles keep day context across multi-day threads. */
 function bubbleTime(iso: string, now: Date): string {
   const d = new Date(iso);
-  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  if (d.toDateString() === now.toDateString()) return time;
-  return `${d.toLocaleDateString([], { month: "short", day: "numeric" })} · ${time}`;
+  const time = TIME_FMT.format(d);
+  if (d.toDateString() === dayKey(now)) return time;
+  return `${DATE_FMT.format(d)} · ${time}`;
+}
+
+/** The display name for a contact, without building a whole thread viewmodel
+ *  to read one field (Today was doing exactly that per open escalation). */
+export function contactName(dto: ConversationDto): string {
+  return (
+    dto.contact.display_name ||
+    dto.contact.wa_profile_name ||
+    formatPhoneDisplay(dto.contact.phone_e164) ||
+    "Unknown"
+  );
+}
+
+/** The "WhatsApp · +1 …" subtitle line, same source as the thread viewmodel. */
+export function contactMeta(dto: ConversationDto): string {
+  const phone = formatPhoneDisplay(dto.contact.phone_e164);
+  return contactName(dto) === phone ? "WhatsApp · no name saved" : `WhatsApp · ${phone ?? "no phone"}`;
 }
 
 function initialsOf(name: string): string {
