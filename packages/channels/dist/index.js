@@ -4146,16 +4146,38 @@ async function sendTemplate(cfg, to, template) {
     }
   });
 }
+var MEDIA_META_TIMEOUT_MS = 8e3;
+var MEDIA_BYTES_TIMEOUT_MS = 15e3;
+var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 async function fetchMediaBytes(cfg, providerMediaId) {
-  const metaRes = await fetch(`${GRAPH}/${providerMediaId}`, {
-    headers: { Authorization: `Bearer ${cfg.accessToken}` }
-  });
-  if (!metaRes.ok) return null;
-  const meta = await metaRes.json().catch(() => ({}));
-  if (!meta.url) return null;
-  const binRes = await fetch(meta.url, { headers: { Authorization: `Bearer ${cfg.accessToken}` } });
-  if (!binRes.ok) return null;
-  return { bytes: await binRes.arrayBuffer(), mime: meta.mime_type ?? binRes.headers.get("content-type") };
+  try {
+    const metaRes = await fetch(`${GRAPH}/${providerMediaId}`, {
+      headers: { Authorization: `Bearer ${cfg.accessToken}` },
+      signal: AbortSignal.timeout(MEDIA_META_TIMEOUT_MS)
+    });
+    if (!metaRes.ok) return null;
+    const meta = await metaRes.json().catch(() => ({}));
+    if (!meta.url) return null;
+    const binRes = await fetch(meta.url, {
+      headers: { Authorization: `Bearer ${cfg.accessToken}` },
+      signal: AbortSignal.timeout(MEDIA_BYTES_TIMEOUT_MS)
+    });
+    if (!binRes.ok) return null;
+    const declared = Number(binRes.headers.get("content-length") ?? "0");
+    if (declared > MEDIA_MAX_BYTES) {
+      console.error("media_too_large", providerMediaId, declared);
+      return null;
+    }
+    const bytes = await binRes.arrayBuffer();
+    if (bytes.byteLength > MEDIA_MAX_BYTES) {
+      console.error("media_too_large_after_read", providerMediaId, bytes.byteLength);
+      return null;
+    }
+    return { bytes, mime: meta.mime_type ?? binRes.headers.get("content-type") };
+  } catch (e) {
+    console.error("media_fetch_failed", providerMediaId, e instanceof Error ? `${e.name}: ${e.message}` : e);
+    return null;
+  }
 }
 
 // src/voice-retell.ts

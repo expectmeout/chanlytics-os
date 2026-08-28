@@ -4143,6 +4143,7 @@ async function sendTemplate(cfg, to, template) {
     }
   });
 }
+var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 
 // ../contracts/node_modules/zod/v3/external.js
 var external_exports2 = {};

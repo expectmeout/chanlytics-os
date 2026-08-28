@@ -167,18 +167,55 @@ export async function sendTemplate(
 /**
  * Meta media URLs expire in minutes — fetch at ingest. Returns the bytes and
  * mime so the caller can store them (Supabase Storage via the service client).
+ *
+ * BOUNDED, because this is awaited BEFORE the customer's acknowledgement goes
+ * out and before the rest of the webhook batch is handled. Both calls used to
+ * be bare `fetch` with no signal and no size limit, so one large video or one
+ * hung connection could consume the entire 60s invocation: the sender gets no
+ * reply, and every other message in that batch is dropped with it. Meta's
+ * retry then finds them already ingested and suppresses redelivery.
+ *
+ * The size cap is checked from Content-Length BEFORE reading the body, so an
+ * oversized file costs one round trip rather than the memory.
  */
+const MEDIA_META_TIMEOUT_MS = 8_000;
+const MEDIA_BYTES_TIMEOUT_MS = 15_000;
+const MEDIA_MAX_BYTES = 25 * 1024 * 1024; // Meta's own document ceiling
+
 export async function fetchMediaBytes(
   cfg: WaConfig,
   providerMediaId: string,
 ): Promise<{ bytes: ArrayBuffer; mime: string | null } | null> {
-  const metaRes = await fetch(`${GRAPH}/${providerMediaId}`, {
-    headers: { Authorization: `Bearer ${cfg.accessToken}` },
-  });
-  if (!metaRes.ok) return null;
-  const meta = (await metaRes.json().catch(() => ({}))) as { url?: string; mime_type?: string };
-  if (!meta.url) return null;
-  const binRes = await fetch(meta.url, { headers: { Authorization: `Bearer ${cfg.accessToken}` } });
-  if (!binRes.ok) return null;
-  return { bytes: await binRes.arrayBuffer(), mime: meta.mime_type ?? binRes.headers.get("content-type") };
+  try {
+    const metaRes = await fetch(`${GRAPH}/${providerMediaId}`, {
+      headers: { Authorization: `Bearer ${cfg.accessToken}` },
+      signal: AbortSignal.timeout(MEDIA_META_TIMEOUT_MS),
+    });
+    if (!metaRes.ok) return null;
+    const meta = (await metaRes.json().catch(() => ({}))) as { url?: string; mime_type?: string };
+    if (!meta.url) return null;
+
+    const binRes = await fetch(meta.url, {
+      headers: { Authorization: `Bearer ${cfg.accessToken}` },
+      signal: AbortSignal.timeout(MEDIA_BYTES_TIMEOUT_MS),
+    });
+    if (!binRes.ok) return null;
+
+    const declared = Number(binRes.headers.get("content-length") ?? "0");
+    if (declared > MEDIA_MAX_BYTES) {
+      console.error("media_too_large", providerMediaId, declared);
+      return null;
+    }
+    const bytes = await binRes.arrayBuffer();
+    if (bytes.byteLength > MEDIA_MAX_BYTES) {
+      console.error("media_too_large_after_read", providerMediaId, bytes.byteLength);
+      return null;
+    }
+    return { bytes, mime: meta.mime_type ?? binRes.headers.get("content-type") };
+  } catch (e) {
+    // A timeout or network fault must return, not throw: the caller stores a
+    // 'failed' fetch_state and the conversation still reaches a human.
+    console.error("media_fetch_failed", providerMediaId, e instanceof Error ? `${e.name}: ${e.message}` : e);
+    return null;
+  }
 }

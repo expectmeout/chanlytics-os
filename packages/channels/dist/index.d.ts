@@ -98,10 +98,6 @@ declare function sendTemplate(cfg: WaConfig, to: string, template: {
     language: string;
     params: string[];
 }): Promise<SendResult>;
-/**
- * Meta media URLs expire in minutes — fetch at ingest. Returns the bytes and
- * mime so the caller can store them (Supabase Storage via the service client).
- */
 declare function fetchMediaBytes(cfg: WaConfig, providerMediaId: string): Promise<{
     bytes: ArrayBuffer;
     mime: string | null;
