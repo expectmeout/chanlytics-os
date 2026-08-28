@@ -5,60 +5,25 @@
  * surface = write its override in surface-data.ts and add it to the array in
  * LegacyApp — nothing else.
  *
- * Status semantics: "seeded" (boot apply failed or never ran — surface shows
- * seed data), "live" (real data), "degraded" (was live; a refresh failed —
- * data is real but stale).
+ * The ready/failed/status bookkeeping this file drives lives in
+ * ./surface-status, which is pure and unit-tested; everything here is the
+ * side-effecting half.
  */
 import { createClient } from "@/lib/supabase/client";
 import { subscribeMessagesInserts } from "@chanlytics/db";
 import { activateOverride, UnauthorizedError, type SurfaceOverride } from "./surface-data";
 import { cachedTenant, clearSurfaceCache, snapshotSurface } from "./surface-cache";
+import { isSurfaceReady, setStatus } from "./surface-status";
 
-export type SurfaceStatus = "seeded" | "live" | "degraded";
-
-const statuses = new Map<string, SurfaceStatus>();
-const listeners = new Set<() => void>();
-
-/**
- * Surfaces that hold REAL DATA right now — restored from cache before first
- * paint, or fetched successfully. The route gate opens on this.
- *
- * "Ready" is NOT "settled". The original version added to this set inside
- * setStatus, so a boot that FAILED still opened the gate — and the surface
- * painted the mockup's seeds as though they were the customer's data: Today
- * claiming "$1,840 booked across 12 appointments", the Inbox listing eleven
- * invented people with working Snooze buttons. Permanently, because the
- * focus-refetch below used to skip seeded surfaces. A failed fetch must never
- * be able to present fabricated data as real.
- */
-const ready = new Set<string>();
-/** Surfaces whose boot genuinely failed — the shell shows an honest pane. */
-const failed = new Set<string>();
-
-function setStatus(key: string, s: SurfaceStatus) {
-  if (s === "seeded") failed.add(key);
-  else {
-    failed.delete(key);
-    ready.add(key); // only a real payload opens the gate
-  }
-  if (statuses.get(key) !== s) statuses.set(key, s);
-  listeners.forEach((l) => l());
-}
-
-/** Seed the ready set with what the cache restored before React mounted. */
-export function markHydrated(keys: Iterable<string>): void {
-  for (const k of keys) ready.add(k);
-}
-
-export function isSurfaceReady(key: string): boolean {
-  return ready.has(key);
-}
-
-/** True when this surface tried and could not get real data. The shell paints
- *  "can't reach your workspace" instead of the mockup's seeds. */
-export function isSurfaceFailed(key: string): boolean {
-  return failed.has(key) && !ready.has(key);
-}
+// Re-exported so consumers keep importing the seam from one place.
+export {
+  getSurfaceStatuses,
+  isSurfaceFailed,
+  isSurfaceReady,
+  markHydrated,
+  onSurfaceStatusChange,
+  type SurfaceStatus,
+} from "./surface-status";
 
 /**
  * The running runner's refresh, published so callers outside it use the SAME
@@ -74,15 +39,6 @@ export async function refreshSurfaces(overrides: SurfaceOverride[]): Promise<voi
   const fn = activeRefresh;
   if (!fn) return; // no runner mounted (standalone mockup) — nothing to sync
   await Promise.all(overrides.map((o) => fn(o)));
-}
-
-export function getSurfaceStatuses(): ReadonlyMap<string, SurfaceStatus> {
-  return statuses;
-}
-
-export function onSurfaceStatusChange(fn: () => void): () => void {
-  listeners.add(fn);
-  return () => listeners.delete(fn);
 }
 
 let runnerSeq = 0;
@@ -118,7 +74,7 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
       if (ok) {
         persist(o);
         setStatus(o.key, "live");
-      } else if (phase === "boot" || !ready.has(o.key)) {
+      } else if (phase === "boot" || !isSurfaceReady(o.key)) {
         // "degraded" means "real but stale" — it may only describe a surface
         // that HAS real data. A failed refresh of a never-loaded surface is
         // still just failed, and saying otherwise upgrades the lie.

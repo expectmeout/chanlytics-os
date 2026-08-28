@@ -4,7 +4,7 @@
   "packageManager": "pnpm@10.4.1",
   "scripts": {
     "typecheck": "pnpm -r --if-present typecheck",
-    "test": "node --test tooling/scripts/tests/*.test.mjs",
+    "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test tooling/scripts/tests/*.test.mjs",
     "check:dist": "node tooling/scripts/check-dist.mjs"
   },
   "engines": {
