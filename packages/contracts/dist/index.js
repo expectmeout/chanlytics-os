@@ -259,7 +259,9 @@ function toConversationVM(dto, now = /* @__PURE__ */ new Date()) {
     text: messageText(m)
   }));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
-  const last = dto.messages[dto.messages.length - 1];
+  const chat = dto.messages.filter((m) => m.type !== "call_summary");
+  const callNotes = dto.messages.length - chat.length;
+  const last = chat[chat.length - 1];
   const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
   const needsHuman = dto.state === "needs_human" || paused;
   const outcome = needsHuman ? "escalated" : last?.direction === "inbound" || dto.state === "snoozed" ? "open" : "handled";
@@ -270,13 +272,17 @@ function toConversationVM(dto, now = /* @__PURE__ */ new Date()) {
     clientId: null,
     channel: "whatsapp",
     agent: AGENT,
-    at: shortTime(dto.last_message_at, now),
+    // The row's time and its preview must come from the SAME message —
+    // last_message_at ignored call notes, so a row read "3:22 AM" beside a
+    // preview imported at 2:15 PM.
+    at: shortTime(last ? last.created_at : dto.last_message_at, now),
     outcome,
     snippet: last ? messageText(last).slice(0, 110) : "",
+    hasChat: chat.length > 0,
     summary: {
       headline: lastInbound ? messageText(lastInbound).slice(0, 110) : "No customer messages yet.",
       bullets: [
-        `${dto.messages.length} message${dto.messages.length === 1 ? "" : "s"}${dto.messages[0] ? ` \xB7 started ${shortTime(dto.messages[0].created_at, now)}` : ""}`,
+        `${chat.length} message${chat.length === 1 ? "" : "s"}${callNotes ? ` \xB7 ${callNotes} call${callNotes === 1 ? "" : "s"}` : ""}${dto.messages[0] ? ` \xB7 started ${shortTime(dto.messages[0].created_at, now)}` : ""}`,
         needsHuman ? "Receptionist paused \u2014 a human has this thread" : "Answered by the receptionist"
       ]
     },

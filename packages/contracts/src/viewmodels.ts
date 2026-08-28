@@ -57,6 +57,9 @@ export interface ConversationVM {
   summary: { headline: string; bullets: string[] };
   messages: ConversationMessageVM[];
   live?: boolean;
+  /** False when the customer has only ever phoned. Their calls already have
+   *  their own rows, so a chat row with nothing to preview is pure duplication. */
+  hasChat: boolean;
 }
 
 import { formatPhoneDisplay } from "./phone";
@@ -284,7 +287,15 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
     text: messageText(m),
   }));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
-  const last = dto.messages[dto.messages.length - 1];
+  // A call has its OWN row on this surface, so the chat row must summarise the
+  // MESSAGING thread only. Including call notes made one call appear twice —
+  // once as its own row, once as the preview of the thread sitting above it —
+  // and, because a call note is direction:"inbound", it also flipped the pill
+  // to "open" ("they spoke last, you owe a reply") for a customer who had
+  // merely phoned and been handled.
+  const chat = dto.messages.filter((m) => m.type !== "call_summary");
+  const callNotes = dto.messages.length - chat.length;
+  const last = chat[chat.length - 1];
   const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
   const needsHuman = dto.state === "needs_human" || paused;
   // Honest pills: escalated when a human has it; open while the last word is
@@ -301,15 +312,19 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
     clientId: null,
     channel: "whatsapp",
     agent: AGENT,
-    at: shortTime(dto.last_message_at, now),
+    // The row's time and its preview must come from the SAME message —
+    // last_message_at ignored call notes, so a row read "3:22 AM" beside a
+    // preview imported at 2:15 PM.
+    at: shortTime(last ? last.created_at : dto.last_message_at, now),
     outcome,
     snippet: last ? messageText(last).slice(0, 110) : "",
+    hasChat: chat.length > 0,
     summary: {
       headline: lastInbound ? messageText(lastInbound).slice(0, 110) : "No customer messages yet.",
       bullets: [
-        `${dto.messages.length} message${dto.messages.length === 1 ? "" : "s"}${
-          dto.messages[0] ? ` · started ${shortTime(dto.messages[0].created_at, now)}` : ""
-        }`,
+        `${chat.length} message${chat.length === 1 ? "" : "s"}${
+          callNotes ? ` · ${callNotes} call${callNotes === 1 ? "" : "s"}` : ""
+        }${dto.messages[0] ? ` · started ${shortTime(dto.messages[0].created_at, now)}` : ""}`,
         needsHuman ? "Receptionist paused — a human has this thread" : "Answered by the receptionist",
       ],
     },

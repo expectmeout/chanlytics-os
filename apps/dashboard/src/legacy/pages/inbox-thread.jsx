@@ -113,7 +113,14 @@ const InboxThread = ({ thread, channelLabels, veto = null, vetoPaused = false, o
       {thread.approval?.suggestedReply && !decided && (
         <Composer key={planParam} thread={thread} reply={(thread.approval.plan && thread.approval.plan.param) ? (((thread.approval.plan.param.options || [])[planParam] || {}).reply || thread.approval.suggestedReply) : thread.approval.suggestedReply} hasApproval onSend={onSend} />
       )}
-      {(!thread.approval || decided) && thread.state !== "done" && (
+      {/* P0: the mockup hid the composer on "done" because done meant
+          "decided, nothing left to do". On real threads "handled" is the
+          NORMAL resting state — the receptionist answered and nothing
+          escalated — so hiding the composer left the operator with no way to
+          follow up with their own customer. Real threads always get a reply
+          path; the closed-window branch inside Composer downgrades it to
+          approved templates when the 24h window has lapsed. */}
+      {(!thread.approval || decided) && (thread.real || thread.state !== "done") && (
         <Composer thread={thread} reply={thread.veto ? thread.veto.draft : ""} onType={thread.veto ? () => onVetoAct(thread.id, "type") : null} onSend={onSend} />
       )}
     </div>

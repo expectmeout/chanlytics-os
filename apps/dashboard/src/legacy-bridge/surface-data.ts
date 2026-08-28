@@ -234,7 +234,9 @@ export const conversationsOverride: SurfaceOverride = {
     } catch (e) {
       console.error("calls_fetch_failed", e instanceof Error ? e.message : e);
     }
-    const threads = data.conversations.map((c) => toConversationVM(c));
+    // A customer who has only ever phoned is fully represented by their call
+    // rows; a chat row for them would preview a call that is already on screen.
+    const threads = data.conversations.map((c) => toConversationVM(c)).filter((t) => t.hasChat);
     const merged = [...threads, ...callRows].sort((a, b) => {
       const at = (x: unknown) => String((x as { at?: string }).at ?? "");
       return at(b).localeCompare(at(a));

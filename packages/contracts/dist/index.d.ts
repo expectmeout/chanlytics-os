@@ -144,6 +144,9 @@ interface ConversationVM {
     };
     messages: ConversationMessageVM[];
     live?: boolean;
+    /** False when the customer has only ever phoned. Their calls already have
+     *  their own rows, so a chat row with nothing to preview is pure duplication. */
+    hasChat: boolean;
 }
 declare function messageText(m: MessageDto): string;
 interface EscalationDto {
