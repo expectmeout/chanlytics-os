@@ -46,7 +46,7 @@ declare function formatPhoneDisplay(e164: string | null | undefined): string | n
  */
 declare const TENANT_STATUSES: readonly ["active", "paused", "test"];
 type TenantStatus = (typeof TENANT_STATUSES)[number];
-declare const MEMBERSHIP_ROLES: readonly ["owner", "staff"];
+declare const MEMBERSHIP_ROLES: readonly ["owner", "operator", "viewer"];
 type MembershipRole = (typeof MEMBERSHIP_ROLES)[number];
 declare const CHANNEL_KINDS: readonly ["whatsapp", "voice", "sms", "email", "instagram"];
 type ChannelKind = (typeof CHANNEL_KINDS)[number];

@@ -14,7 +14,7 @@ import {
   MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_TYPES,
   MESSAGE_STATUSES, CONSENT_STATES, JOB_KINDS, JOB_STATES,
   ESCALATION_REASONS, ESCALATION_STATES, DECISION_VERBS, DECISION_SUBJECTS,
-  ACTOR_TYPES, TEMPLATE_STATUSES,
+  ACTOR_TYPES, TEMPLATE_STATUSES, POLICY_CLASSES, POLICY_MODES,
 } from "@chanlytics/contracts";
 
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "supabase", "migrations");
@@ -68,7 +68,10 @@ test("message enums match messages table CHECKs", () => {
 test("slice-2 enums match inbox table CHECKs", () => {
   assert.deepEqual(sqlSet("reason"), [...ESCALATION_REASONS].sort());
   assert.deepEqual(sqlSet("verb"), [...DECISION_VERBS].sort());
-  assert.deepEqual(sqlSet("subject_type"), [...DECISION_SUBJECTS].sort());
+  // subject_type exists on decisions AND policies (0012) — content-addressed
+  const subjSets = sqlSets("subject_type");
+  assert.deepEqual(bySignature(subjSets, ["segment"]), ["contact", "segment"], "policies.subject_type");
+  assert.deepEqual(subjSets.find((s) => !s.includes("segment")), [...DECISION_SUBJECTS].sort(), "decisions.subject_type");
   assert.deepEqual(sqlSet("actor_type"), [...ACTOR_TYPES].sort());
   assert.deepEqual(sqlSet("meta_status"), [...TEMPLATE_STATUSES].sort());
   const stateSets = sqlSets("state");
@@ -89,5 +92,15 @@ test("status sets match (messages + jobs + tenants + conversations + consent)", 
   assert.deepEqual(stateSets.find((s) => s.includes("needs_human")), [...CONVERSATION_STATES].sort());
   assert.deepEqual(stateSets.find((s) => s.includes("scheduled")), [...JOB_STATES].sort());
   assert.deepEqual(sqlSet("consent"), [...CONSENT_STATES].sort());
-  assert.deepEqual(sqlSet("role"), [...MEMBERSHIP_ROLES].sort());
+  // role exists on memberships AND invitations (0012) — content-addressed
+  const roleSets = sqlSets("role");
+  // 0001 wrote owner|staff (historical, superseded by 0012) — address the
+  // CURRENT set by content, not position.
+  assert.deepEqual(bySignature(roleSets, ["owner", "operator"]), [...MEMBERSHIP_ROLES].sort(), "memberships.role");
+  assert.deepEqual(bySignature(roleSets, ["operator"], ["owner"]), ["operator", "viewer"], "invitations.role");
+});
+
+test("control-plane enums match policies CHECKs (0012)", () => {
+  assert.deepEqual(sqlSet("class"), [...POLICY_CLASSES].sort());
+  assert.deepEqual(sqlSet("mode"), [...POLICY_MODES].sort());
 });

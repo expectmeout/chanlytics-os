@@ -5,10 +5,11 @@
  * by construction (anti-junk rule R1).
  */
 import { z } from "zod";
+import { MEMBERSHIP_ROLES } from "./enums";
 
 /* ---------------------------------------------------------------- E1 roles */
 
-export const ROLES = ["owner", "operator", "viewer"] as const;
+export const ROLES = MEMBERSHIP_ROLES;
 export type Role = (typeof ROLES)[number];
 
 /** What each role may do. Mirrors the mockup's ST_PERMS exactly — the client

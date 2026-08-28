@@ -66,7 +66,7 @@ function formatPhoneDisplay(e164) {
 
 // src/enums.ts
 var TENANT_STATUSES = ["active", "paused", "test"];
-var MEMBERSHIP_ROLES = ["owner", "staff"];
+var MEMBERSHIP_ROLES = ["owner", "operator", "viewer"];
 var CHANNEL_KINDS = ["whatsapp", "voice", "sms", "email", "instagram"];
 var CONVERSATION_STATES = ["open", "needs_human", "snoozed", "archived"];
 var MESSAGE_CHANNELS = ["whatsapp", "voice", "sms", "email", "system"];
@@ -655,7 +655,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
 
 // src/config.ts
 import { z } from "zod";
-var ROLES = ["owner", "operator", "viewer"];
+var ROLES = MEMBERSHIP_ROLES;
 var ROLE_PERMS = {
   owner: { approve: true, autonomy: true, disconnect: true, billing: true, team: true },
   operator: { approve: true, autonomy: true, disconnect: false, billing: false, team: false },
