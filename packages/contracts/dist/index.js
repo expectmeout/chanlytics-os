@@ -231,7 +231,7 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
     channels: ["whatsapp"],
     primaryChannel: "whatsapp",
     agent: { name: "WhatsApp Receptionist", glyph: "W", autonomy: "Pauses on handoff", tone: "Warm \xB7 bilingual (EN/ES)" },
-    subject: (claimedByOther ? "A teammate is answering this" : null) ?? reasonLabel ?? (takenOver ? "You're answering this one" : lastInbound ? messageText(lastInbound).slice(0, 80) : "No messages yet"),
+    subject: (claimedByOther ? "A teammate is answering this" : null) ?? reasonLabel ?? (takenOver ? "You're answering this one" : lastInbound ? messageText(lastInbound).slice(0, 80) : last ? messageText(last).slice(0, 80) : "No messages yet"),
     preview: last ? messageText(last).slice(0, 110) : "",
     summary: escalation ? `${reasonLabel}. The customer already got a holding reply \u2014 they're expecting a real answer from the salon.` : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : "The receptionist answered this on its own. Nothing is owed.",
     contextStrip: [
@@ -279,6 +279,7 @@ function toConversationVM(dto, now = /* @__PURE__ */ new Date()) {
     outcome,
     snippet: last ? messageText(last).slice(0, 110) : "",
     hasChat: chat.length > 0,
+    ts: last ? new Date(last.created_at).getTime() : dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
     summary: {
       headline: lastInbound ? messageText(lastInbound).slice(0, 110) : "No customer messages yet.",
       bullets: [
@@ -359,6 +360,7 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
     channel: "phone",
     agent: { glyph: "P", name: "Phone Receptionist" },
     at: shortTime(dto.started_at, now),
+    ts: dto.started_at ? new Date(dto.started_at).getTime() : 0,
     ...dur ? { duration: dur } : {},
     outcome: live ? "live" : "handled",
     ...live ? { live: true } : {},
@@ -571,23 +573,25 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     }
   }
   const sentences = [];
-  if (p.answered_by_ai) {
-    sentences.push(
-      `The WhatsApp receptionist answered ${p.answered_by_ai} message${p.answered_by_ai === 1 ? "" : "s"}${p.conversations_active ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}` : ""}.`
-    );
+  const headlineCoversTraffic = tone === "calm" && !alert;
+  if (p.answered_by_ai && !headlineCoversTraffic) {
+    sentences.push({
+      text: `The WhatsApp receptionist answered ${p.answered_by_ai} message${p.answered_by_ai === 1 ? "" : "s"}${p.conversations_active ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}` : ""}.`
+    });
   }
-  if (p.calls) {
-    sentences.push(
-      `${p.calls} caller${p.calls === 1 ? "" : "s"} reached the phone line${callMinutes ? ` \u2014 ${callMinutes} minute${callMinutes === 1 ? "" : "s"} total` : ""}.`
-    );
+  if (p.calls && !headlineCoversTraffic) {
+    sentences.push({
+      text: `${p.calls} caller${p.calls === 1 ? "" : "s"} reached the phone line${callMinutes ? ` \u2014 ${callMinutes} minute${callMinutes === 1 ? "" : "s"} total` : ""}.`
+    });
   }
   if (p.messages_out_you) {
-    sentences.push(`You sent ${p.messages_out_you} repl${p.messages_out_you === 1 ? "y" : "ies"} yourself.`);
+    sentences.push({ text: `You sent ${p.messages_out_you} repl${p.messages_out_you === 1 ? "y" : "ies"} yourself.` });
   }
   if (p.send_failures) {
-    sentences.push(
-      `${p.send_failures} repl${p.send_failures === 1 ? "y" : "ies"} failed to deliver.`
-    );
+    sentences.push({
+      text: `${p.send_failures} repl${p.send_failures === 1 ? "y" : "ies"} failed to deliver \u2014 the customer got no answer.`,
+      warn: true
+    });
   }
   const receipts = conversations.flatMap(
     (c) => c.messages.filter(

@@ -86,6 +86,13 @@ export interface TodayFactVM {
   hint?: string;
 }
 
+export interface TodaySentenceVM {
+  text: string;
+  /** True for the one line that must never read as calm: a reply that
+   *  failed to deliver. */
+  warn?: boolean;
+}
+
 export interface TodayVM {
   standing: {
     eyebrow: string;
@@ -100,7 +107,7 @@ export interface TodayVM {
   windowClosing: { label: string; hint: string; rows: Array<{ id: string; text: string; to: string }> } | null;
   recap: {
     label: string;
-    sentences: string[];
+    sentences: TodaySentenceVM[];
     facts: TodayFactVM[];
     receipts: Array<{ at: string; text: string; to: string }>;
   } | null;
@@ -382,31 +389,43 @@ export function toTodayVM(
 
   /* ---- recap: four facts, no deltas, no sparklines ----
      A jump from 1 message yesterday to 3 today is not "+200%", and the
-     mockup's own delta logic painted a FASTER reply time red. */
-  const sentences: string[] = [];
-  if (p.answered_by_ai) {
-    sentences.push(
-      `The WhatsApp receptionist answered ${p.answered_by_ai} message${p.answered_by_ai === 1 ? "" : "s"}${
+     mockup's own delta logic painted a FASTER reply time red.
+
+     Sentences carry only what the HEADLINE does not already say. When nothing
+     needs you, the headline is "The receptionist handled everything — N
+     messages and M calls", so repeating those counts here would be the brief
+     reading its own first line back. When something DOES need you, the
+     headline is spent on that, and the narrative belongs here instead. */
+  const sentences: TodaySentenceVM[] = [];
+  const headlineCoversTraffic = tone === "calm" && !alert;
+  if (p.answered_by_ai && !headlineCoversTraffic) {
+    sentences.push({
+      text: `The WhatsApp receptionist answered ${p.answered_by_ai} message${p.answered_by_ai === 1 ? "" : "s"}${
         p.conversations_active
           ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}`
           : ""
       }.`,
-    );
+    });
   }
-  if (p.calls) {
-    sentences.push(
-      `${p.calls} caller${p.calls === 1 ? "" : "s"} reached the phone line${
+  if (p.calls && !headlineCoversTraffic) {
+    sentences.push({
+      text: `${p.calls} caller${p.calls === 1 ? "" : "s"} reached the phone line${
         callMinutes ? ` — ${callMinutes} minute${callMinutes === 1 ? "" : "s"} total` : ""
       }.`,
-    );
+    });
   }
   if (p.messages_out_you) {
-    sentences.push(`You sent ${p.messages_out_you} repl${p.messages_out_you === 1 ? "y" : "ies"} yourself.`);
+    sentences.push({ text: `You sent ${p.messages_out_you} repl${p.messages_out_you === 1 ? "y" : "ies"} yourself.` });
   }
+  // A reply that never reached the customer is the one recap line that must
+  // never be quiet — the send already escalated, but the brief saying
+  // "handled everything" while a message died in transit would be a lie of
+  // omission.
   if (p.send_failures) {
-    sentences.push(
-      `${p.send_failures} repl${p.send_failures === 1 ? "y" : "ies"} failed to deliver.`,
-    );
+    sentences.push({
+      text: `${p.send_failures} repl${p.send_failures === 1 ? "y" : "ies"} failed to deliver — the customer got no answer.`,
+      warn: true,
+    });
   }
 
   // Receipts quote the message that actually went out. She is spot-checking

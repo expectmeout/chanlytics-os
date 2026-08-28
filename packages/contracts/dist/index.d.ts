@@ -143,6 +143,10 @@ interface ConversationVM {
         bullets: string[];
     };
     messages: ConversationMessageVM[];
+    /** Epoch ms of the previewed message — the SORT key. Rows were being
+     *  ordered by localeCompare on display strings ("Aug 26" vs "3:22 AM"),
+     *  which is not an ordering at all. */
+    ts: number;
     live?: boolean;
     /** False when the customer has only ever phoned. Their calls already have
      *  their own rows, so a chat row with nothing to preview is pure duplication. */
@@ -272,6 +276,7 @@ interface CallVM {
     };
     at: string;
     duration?: string;
+    ts: number;
     outcome: "live" | "handled";
     live?: boolean;
     snippet: string;
@@ -391,6 +396,12 @@ interface TodayFactVM {
     value: string;
     hint?: string;
 }
+interface TodaySentenceVM {
+    text: string;
+    /** True for the one line that must never read as calm: a reply that
+     *  failed to deliver. */
+    warn?: boolean;
+}
 interface TodayVM {
     standing: {
         eyebrow: string;
@@ -421,7 +432,7 @@ interface TodayVM {
     } | null;
     recap: {
         label: string;
-        sentences: string[];
+        sentences: TodaySentenceVM[];
         facts: TodayFactVM[];
         receipts: Array<{
             at: string;
@@ -461,4 +472,4 @@ declare function toTodayVM(m: MetricsSummaryDto, conversations: ConversationDto[
     conversation_id: string;
 }>, calls: CallDto[], now?: Date): TodayVM;
 
-export { ACTOR_TYPES, type ActorType, AppError, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, OPT_OUT_PATTERN, type Ok, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodayVM, WA_WINDOW_MS, type WaWindow, err, formatPhoneDisplay, formatWaited, messageText, normalizePhone, ok, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };
+export { ACTOR_TYPES, type ActorType, AppError, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, OPT_OUT_PATTERN, type Ok, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, err, formatPhoneDisplay, formatWaited, messageText, normalizePhone, ok, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };

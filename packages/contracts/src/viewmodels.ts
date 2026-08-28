@@ -56,6 +56,10 @@ export interface ConversationVM {
   snippet: string;
   summary: { headline: string; bullets: string[] };
   messages: ConversationMessageVM[];
+  /** Epoch ms of the previewed message — the SORT key. Rows were being
+   *  ordered by localeCompare on display strings ("Aug 26" vs "3:22 AM"),
+   *  which is not an ordering at all. */
+  ts: number;
   live?: boolean;
   /** False when the customer has only ever phoned. Their calls already have
    *  their own rows, so a chat row with nothing to preview is pure duplication. */
@@ -250,7 +254,12 @@ export function toInboxThreadVM(
         ? "You're answering this one"
         : lastInbound
           ? messageText(lastInbound).slice(0, 80)
-          : "No messages yet"),
+          : last
+            // A contact who has only ever PHONED has no customer messages, but
+            // "No messages yet" reads as "nothing has happened" — their call
+            // note is the honest subject.
+            ? messageText(last).slice(0, 80)
+            : "No messages yet"),
     preview: last ? messageText(last).slice(0, 110) : "",
     summary: escalation
       ? `${reasonLabel}. The customer already got a holding reply — they're expecting a real answer from the salon.`
@@ -319,6 +328,7 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
     outcome,
     snippet: last ? messageText(last).slice(0, 110) : "",
     hasChat: chat.length > 0,
+    ts: last ? new Date(last.created_at).getTime() : dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
     summary: {
       headline: lastInbound ? messageText(lastInbound).slice(0, 110) : "No customer messages yet.",
       bullets: [
@@ -393,6 +403,7 @@ export interface CallVM {
   agent: { glyph: string; name: string };
   at: string;
   duration?: string;
+  ts: number;
   outcome: "live" | "handled";
   live?: boolean;
   snippet: string;
@@ -466,6 +477,7 @@ export function toCallVM(dto: CallDto, now = new Date()): CallVM {
     channel: "phone",
     agent: { glyph: "P", name: "Phone Receptionist" },
     at: shortTime(dto.started_at, now),
+    ts: dto.started_at ? new Date(dto.started_at).getTime() : 0,
     ...(dur ? { duration: dur } : {}),
     outcome: live ? "live" : "handled",
     ...(live ? { live: true } : {}),

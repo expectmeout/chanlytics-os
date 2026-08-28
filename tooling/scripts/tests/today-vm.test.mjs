@@ -252,7 +252,7 @@ test("a backfilled reply is never quoted as sent today", () => {
 test("zero-traffic facts are honest zeros, never fabrications", () => {
   const m = metrics({ period: { messages_out_you: 1 } });
   const vm = toTodayVM(m, [], [], [], NOW);
-  assert.deepEqual(vm.recap.sentences, ["You sent 1 reply yourself."]);
+  assert.deepEqual(vm.recap.sentences, [{ text: "You sent 1 reply yourself." }]);
   assert.deepEqual(
     vm.recap.facts.map((f) => f.value),
     ["0", "0 of 0", "—", "0"],
@@ -277,4 +277,32 @@ test("needs-you rows carry the escalation id for the snooze courier", () => {
   }];
   const vm = toTodayVM(m, [conv()], esc, [], NOW);
   assert.equal(vm.needsYou.rows[0].escalationId, "e-77");
+});
+
+test("a failed delivery is a warn sentence — never silent", () => {
+  const m = metrics({ period: { messages_in: 2, answered_by_ai: 1, conversations_active: 1, send_failures: 1 } });
+  const vm = toTodayVM(m, [conv({ state: "open" })], [], [], NOW);
+  const warn = vm.recap.sentences.find((x) => x.warn);
+  assert.ok(warn, "the send-failure line must carry warn");
+  assert.match(warn.text, /failed to deliver — the customer got no answer/);
+});
+
+test("calm-day sentences do not read the headline back", () => {
+  // headline already says "handled everything — 3 messages…"; repeating the
+  // counts as sentences would be the brief quoting its own first line.
+  const m = metrics({ period: { messages_in: 3, answered_by_ai: 3, conversations_active: 2, calls: 1, call_seconds: 60 } });
+  const vm = toTodayVM(m, [conv({ state: "open" })], [], [], NOW);
+  assert.match(vm.standing.headline, /handled everything/);
+  assert.equal(vm.recap.sentences.length, 0);
+});
+
+test("when something needs you, the traffic narrative moves to sentences", () => {
+  const m = metrics({
+    now: { escalations_open: 1, oldest_open_escalation_at: "2026-08-27T14:05:00Z" },
+    period: { messages_in: 3, answered_by_ai: 2, conversations_active: 2 },
+  });
+  const esc = [{ id: "e1", conversation_id: "c1", reason: "human_token", details: null, state: "open", created_at: "2026-08-27T14:05:00Z" }];
+  const vm = toTodayVM(m, [conv()], esc, [], NOW);
+  assert.match(vm.standing.headline, /needs you/);
+  assert.ok(vm.recap.sentences.some((x) => /answered 2 messages/.test(x.text)));
 });

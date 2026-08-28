@@ -237,10 +237,12 @@ export const conversationsOverride: SurfaceOverride = {
     // A customer who has only ever phoned is fully represented by their call
     // rows; a chat row for them would preview a call that is already on screen.
     const threads = data.conversations.map((c) => toConversationVM(c)).filter((t) => t.hasChat);
-    const merged = [...threads, ...callRows].sort((a, b) => {
-      const at = (x: unknown) => String((x as { at?: string }).at ?? "");
-      return at(b).localeCompare(at(a));
-    });
+    // Newest first by REAL timestamp. The previous sort localeCompare'd the
+    // display strings ("Aug 26" vs "3:22 AM"), which is not an ordering at
+    // all — a message sent this morning listed below yesterday's calls.
+    const merged = [...threads, ...callRows].sort(
+      (a, b) => ((b as { ts?: number }).ts ?? 0) - ((a as { ts?: number }).ts ?? 0),
+    );
     w.CONVERSATIONS_DATA = {
       CONVERSATIONS: merged,
       CV_CHANNELS: [

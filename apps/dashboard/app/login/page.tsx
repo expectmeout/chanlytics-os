@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 const RESEND_COOLDOWN_S = 60;
@@ -26,7 +25,6 @@ function friendlyError(message: string): string {
  * Step 1: email -> Supabase sends a 6-digit code. Step 2: verify the code.
  */
 export default function LoginPage() {
-  const router = useRouter();
   const supabase = createClient();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -35,8 +33,15 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
   const cooldownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fieldRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => () => { if (cooldownTimer.current) clearInterval(cooldownTimer.current); }, []);
+
+  // autoFocus is a no-op under SSR: the input already exists in the server
+  // HTML, so React hydrates the node and never calls .focus(). Focus
+  // explicitly on mount and again when the email step hands off to the code
+  // step — otherwise every sign-in starts with a dead click into the page.
+  useEffect(() => { fieldRef.current?.focus(); }, [stage]);
 
   function startCooldown() {
     setCooldown(RESEND_COOLDOWN_S);
@@ -77,8 +82,13 @@ export default function LoginPage() {
     setBusy(false);
     if (error) setError(friendlyError(error.message));
     else {
-      router.replace("/");
-      router.refresh();
+      // Deep links survive sign-in: the middleware redirect keeps the #/route
+      // fragment (browsers carry the hash through redirects), but
+      // router.replace("/") threw it away — anyone following a link to a
+      // specific thread landed on Today instead. A full navigation also
+      // re-runs the middleware naturally, which router.refresh() was
+      // compensating for.
+      window.location.assign("/" + window.location.hash);
     }
   }
 
@@ -94,7 +104,7 @@ export default function LoginPage() {
             type="email"
             autoComplete="email"
             required
-            autoFocus
+            ref={fieldRef}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@business.com"
@@ -110,7 +120,7 @@ export default function LoginPage() {
             autoComplete="one-time-code"
             maxLength={6}
             required
-            autoFocus
+            ref={fieldRef}
             value={code}
             onChange={(e) => setCode(e.target.value)}
             placeholder="123456"
@@ -139,7 +149,12 @@ export default function LoginPage() {
           </div>
         </form>
       )}
-      {error && <div className="error">{error}</div>}
+      {/* role=alert: a wrong code must be ANNOUNCED, not just painted — a
+          screen-reader user otherwise hears nothing and resubmits into
+          silence. aria-live region stays mounted so repeat errors re-fire. */}
+      <div role="alert" aria-live="assertive">
+        {error && <div className="error">{error}</div>}
+      </div>
       <div className="hint">Access is invite-only. Ask your Chanlytics contact to add you.</div>
     </main>
   );

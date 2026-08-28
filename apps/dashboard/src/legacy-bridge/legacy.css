@@ -64,3 +64,29 @@ html.legacy-on #root {
   background: #d19a45;
 }
 .bridge-pill .dot.live { background: #3cb79e; }
+
+/* Touch ergonomics (P3 from the surface review): 48 interactive targets sat
+   under 44px on a phone, many at 26px — and Today is explicitly the check-it-
+   at-9am surface, which is a phone surface. Scoped to coarse pointers so the
+   desktop's density (a deliberate part of the design) is untouched; a mouse
+   does not need 44px. Padding-box sizing keeps existing borders honest. */
+@media (pointer: coarse) {
+  html.legacy-on button,
+  html.legacy-on .btn,
+  html.legacy-on input,
+  html.legacy-on select,
+  html.legacy-on textarea,
+  html.legacy-on [role="tab"],
+  html.legacy-on [role="button"] {
+    min-height: 44px;
+  }
+  /* Inline text-buttons (chips, links-as-buttons) grow by padding instead of
+     box height so they don't blow up line layout. */
+  html.legacy-on .brief-chip,
+  html.legacy-on .td-link,
+  html.legacy-on .pill {
+    min-height: 36px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+}

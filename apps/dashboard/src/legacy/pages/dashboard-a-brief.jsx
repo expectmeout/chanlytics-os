@@ -69,6 +69,20 @@ const HeroBriefReal = ({ vm }) => {
                 <span className="brief-beat-text">{quiet.sub}</span>
               </div>
             )}
+            {/* Narrative the headline doesn't carry — crucially the one line
+                that must never be silent: a reply that failed to deliver. It
+                was computed by the VM from day one and never rendered, so a
+                dead send was invisible on the very surface built to say
+                "everything is fine". */}
+            {(recap ? recap.sentences : []).map((sn, i) => (
+              <div key={`sn-${i}`} className="brief-beat">
+                <span className="brief-beat-dot" style={sn.warn ? { background: "var(--danger)" } : undefined} />
+                <span className="brief-beat-text" style={sn.warn ? { color: "var(--danger)" } : undefined}>{sn.text}</span>
+                {sn.warn && (
+                  <button className="brief-chip" onClick={() => nav("inbox")}>See the thread <Icon name="arrow-right" size={10} /></button>
+                )}
+              </div>
+            ))}
             {(needsYou ? needsYou.rows.slice(0, 2) : []).map((r) => (
               <div key={r.id} className="brief-beat">
                 <span className="brief-beat-dot" />
