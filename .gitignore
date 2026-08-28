@@ -30,3 +30,4 @@ apps/dashboard/src/legacy/uploads/
 
 # local backfill backups
 tooling/backups/
+tooling/scripts/optout-probe.log.jsonl
