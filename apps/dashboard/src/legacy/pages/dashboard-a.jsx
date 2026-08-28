@@ -9,16 +9,20 @@ const DashboardA = ({ onAsk = () => {} }) => (
 
     <div className="dash-a-v2-core">
       <AgentCommand />
-      <NowPlayingRail />
+      {/* Everything below is 100% seeded: a fake live call, invented
+          appointments, an 8-agent fleet, a pinned dock. Sitting inches under a
+          hero that truthfully says "0 messages today", it read as real. Demo
+          only until each engine's slice lands. */}
+      {window.__DEMO_MODE && <NowPlayingRail />}
     </div>
 
-    <TrustReview />
+    {window.__DEMO_MODE && <TrustReview />}
 
-    <SegmentPulse />
+    {window.__DEMO_MODE && <SegmentPulse />}
 
-    <AgentFleet />
+    {window.__DEMO_MODE && <AgentFleet />}
 
-    <AmbientDock onAsk={onAsk} />
+    {window.__DEMO_MODE && <AmbientDock onAsk={onAsk} />}
   </div>
 );
 

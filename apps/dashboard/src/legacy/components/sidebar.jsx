@@ -111,6 +111,17 @@ const SidebarRow = ({ item, active, parentActive, onNavigate, depth = 0, expande
 // Falls back to the seeded persona only in demo mode; signed in with no
 // identity yet we say so rather than borrow someone else's name.
 const sbMe = () => window.__ME || null;
+const sbWorkspace = () => (window.__WORKSPACES || [])[0] || null;
+const sbWorkspaceName = () => {
+  const ws = sbWorkspace();
+  if (ws && ws.name) return ws.name;
+  return window.__DEMO_MODE ? "Chanlytics Sales" : "Workspace";
+};
+const sbWorkspaceMark = () => {
+  const n = sbWorkspaceName();
+  const w = n.split(/[\s@._-]+/).filter(Boolean);
+  return ((w[0]?.[0] ?? "") + (w[1]?.[0] ?? "")).toUpperCase() || "—";
+};
 const sbAccountEmail = () => (sbMe() ? sbMe().email : window.__DEMO_MODE ? "sales@chanlytics.com" : "Signed in");
 // Title line is the WORKSPACE, not a name invented from the email's local part
 // ("hi@chanlytics.agency" -> "Hi" is technically honest and reads like a bug).
@@ -156,7 +167,9 @@ const Sidebar = ({ active = "home", onNavigate = () => {}, onNewChat = () => {},
   // Computed badges — seed-honest counts; caller-supplied badges win
   const computedBadges = {
     inbox: needs > 0 ? String(needs) : null,
-    people: String(((window.LEADS || []).filter(l => l.stage === "ready").length) || "") || null,
+    // LEADS is mockup seed data — a real workspace has no leads engine yet, so
+    // a "4" here is an invented number sitting in the real chrome.
+    people: window.__DEMO_MODE ? (String(((window.LEADS || []).filter(l => l.stage === "ready").length) || "") || null) : null,
     ...badges,
   };
 
@@ -213,10 +226,10 @@ const Sidebar = ({ active = "home", onNavigate = () => {}, onNewChat = () => {},
 
       {/* Team switcher */}
       <div className="sb-team" onClick={() => onNavigate("admin")}>
-        <div className="sb-team-mark">CT</div>
+        <div className="sb-team-mark">{sbWorkspaceMark()}</div>
         <div className="sb-team-body">
-          <div className="sb-team-name">Chanlytics Sales</div>
-          <div className="sb-team-plan">Professional</div>
+          <div className="sb-team-name">{sbWorkspaceName()}</div>
+          {window.__DEMO_MODE && <div className="sb-team-plan">Professional</div>}
         </div>
         <Icon name="chevron-down" size={14} style={{ color: "var(--ink-dim)" }} />
       </div>

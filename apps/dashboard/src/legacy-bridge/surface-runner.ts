@@ -20,20 +20,28 @@ const statuses = new Map<string, SurfaceStatus>();
 const listeners = new Set<() => void>();
 
 /**
- * Surfaces that hold real data RIGHT NOW — either restored from cache before
- * first paint, or settled by a boot attempt. Distinct from `statuses`: a
- * cache-hydrated surface is showing real data long before its revalidation
- * finishes, and must not be made to wait behind a loading state.
+ * Surfaces that hold REAL DATA right now — restored from cache before first
+ * paint, or fetched successfully. The route gate opens on this.
+ *
+ * "Ready" is NOT "settled". The original version added to this set inside
+ * setStatus, so a boot that FAILED still opened the gate — and the surface
+ * painted the mockup's seeds as though they were the customer's data: Today
+ * claiming "$1,840 booked across 12 appointments", the Inbox listing eleven
+ * invented people with working Snooze buttons. Permanently, because the
+ * focus-refetch below used to skip seeded surfaces. A failed fetch must never
+ * be able to present fabricated data as real.
  */
 const ready = new Set<string>();
+/** Surfaces whose boot genuinely failed — the shell shows an honest pane. */
+const failed = new Set<string>();
 
 function setStatus(key: string, s: SurfaceStatus) {
-  ready.add(key); // boot settled: whatever it shows now is what it will show
-  if (statuses.get(key) === s) {
-    listeners.forEach((l) => l());
-    return;
+  if (s === "seeded") failed.add(key);
+  else {
+    failed.delete(key);
+    ready.add(key); // only a real payload opens the gate
   }
-  statuses.set(key, s);
+  if (statuses.get(key) !== s) statuses.set(key, s);
   listeners.forEach((l) => l());
 }
 
@@ -44,6 +52,12 @@ export function markHydrated(keys: Iterable<string>): void {
 
 export function isSurfaceReady(key: string): boolean {
   return ready.has(key);
+}
+
+/** True when this surface tried and could not get real data. The shell paints
+ *  "can't reach your workspace" instead of the mockup's seeds. */
+export function isSurfaceFailed(key: string): boolean {
+  return failed.has(key) && !ready.has(key);
 }
 
 export function getSurfaceStatuses(): ReadonlyMap<string, SurfaceStatus> {
@@ -82,8 +96,12 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
       if (ok) {
         persist(o);
         setStatus(o.key, "live");
-      } else if (phase === "boot") setStatus(o.key, "seeded");
-      else setStatus(o.key, "degraded");
+      } else if (phase === "boot" || !ready.has(o.key)) {
+        // "degraded" means "real but stale" — it may only describe a surface
+        // that HAS real data. A failed refresh of a never-loaded surface is
+        // still just failed, and saying otherwise upgrades the lie.
+        setStatus(o.key, "seeded");
+      } else setStatus(o.key, "degraded");
     } catch (e) {
       if (e instanceof UnauthorizedError) onUnauthorized();
     }
@@ -158,9 +176,10 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
   });
 
   const onVisible = () => {
-    if (document.visibilityState === "visible") {
-      overrides.filter((o) => statuses.get(o.key) !== "seeded").forEach(scheduleRefresh);
-    }
+    if (document.visibilityState !== "visible") return;
+    // A failed surface is the one that MOST needs retrying — it used to be the
+    // one excluded, which is how a boot blip became permanent for the session.
+    overrides.forEach(scheduleRefresh);
   };
   document.addEventListener("visibilitychange", onVisible);
 

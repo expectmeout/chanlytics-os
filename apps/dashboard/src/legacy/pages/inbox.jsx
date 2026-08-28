@@ -411,7 +411,10 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   const visible = viewFilter
     ? threads.filter(viewFilter)
     : threads.filter((t) => activeBucket === "all" || t.state === activeBucket);
-  const activeThread = threads.find((t) => t.id === activeThreadId) || visible[0];
+  // Scoped to the VISIBLE list: an id left over from another bucket used to
+  // keep a customer (with a live Snooze button) on screen beside a list that
+  // said "0 threads".
+  const activeThread = visible.find((t) => t.id === activeThreadId) || visible[0];
 
   // Keyboard: A approve recommended · D decline · E focus composer
   React.useEffect(() => {
@@ -446,7 +449,9 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     const stillVisible = activeThread && activeThread.state === id;
     if (!stillVisible) {
       const next = threads.find((t) => t.state === id);
-      if (next) setActiveThreadId(next.id);
+      // An empty bucket clears the pane. Leaving the id stranded a customer —
+      // with a live Snooze button — beside a list reading "0 threads".
+      setActiveThreadId(next ? next.id : null);
     }
   };
 

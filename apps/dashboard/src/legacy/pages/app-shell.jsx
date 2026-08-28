@@ -15,6 +15,28 @@ const { useState: useShellState, useEffect: useShellEffect, useCallback: useShel
 // Is this route's data actually available? The bridge installs __surfaceGate
 // for flipped surfaces; unflipped ones are seeded and always ready.
 const routeReady = (page) => !window.__surfaceGate || window.__surfaceGate(page);
+// A flipped surface whose fetch failed. Painting the mockup here would show
+// invented customers as real, so the shell says so instead.
+const routeFailed = (page) => !!window.__surfaceFailed && window.__surfaceFailed(page);
+
+const SurfaceUnavailable = ({ onNavigate }) => (
+  <div className="soon">
+    <div className="soon-glyph"><Icon name="alert" size={22} /></div>
+    <div className="soon-title">Can't reach your workspace</div>
+    <div className="soon-blurb">
+      This isn't a quiet day — the connection failed. Nothing here would be your real data,
+      so we're not showing anything. Your messages are still being received and answered.
+    </div>
+    <div className="soon-actions">
+      <button className="btn btn-primary btn-sm" onClick={() => window.location.reload()}>
+        <Icon name="refresh" size={12} /> Retry
+      </button>
+      <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("today")}>
+        <Icon name="home" size={12} /> Back to Today
+      </button>
+    </div>
+  </div>
+);
 
 // ---- Route helpers ----------------------------------------------------
 const parseHash = () => {
@@ -181,7 +203,8 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
     const T = (window.INBOX_DATA || {}).THREADS || [];
     const D = (window.IX_STORE || {}).decisions || {};
     const n = T.filter((t) => (t.state === "needs" || (t.state === "escalated" && !t.takenOver)) && !D[t.id]).length; // real escalations count too
-    return T.length ? n : 3;
+    // Never invent a count. An empty real workspace has 0 waiting, not 3.
+    return n;
   });
 
   // Live Inbox badge — decisions made in the Inbox update the sidebar count
@@ -191,9 +214,12 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
     return () => window.removeEventListener("inbox:counts", onCounts);
   }, []);
   const [navOpen, setNavOpen] = useShellState(false);
-  // Lazy init: if the very first route already has its data (cache hydrated
-  // before mount), the skeleton never renders at all — not even for a frame.
-  const [routeLoading, setRouteLoading] = useShellState(() => !routeReady(parseHash().page));
+  // Only the escape hatch is state. Readiness itself is DERIVED during render
+  // (below) — storing it meant a navigation committed the new page with the
+  // PREVIOUS route's value, painting one full frame of mockup threads before
+  // the effect could correct it.
+  const [routeTimedOut, setRouteTimedOut] = useShellState(false);
+  const [readyTick, setReadyTick] = useShellState(0);
 
   const navigate = useShellCallback((to) => { window.location.hash = "/" + to; }, []);
   const openAsk = useShellCallback(() => setAskOpen(true), []);
@@ -422,21 +448,22 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
   const routeKey = `${page}/${param || ""}`;
   useShellEffect(() => {
     setNavOpen(false);
-    // A skeleton is for waiting on data we don't have — not a timer. When the
-    // bridge says this route's data is ready (cached from the last visit, or
-    // already fetched) we paint immediately; navigating between loaded
-    // surfaces costs nothing. Without the bridge (pure mockup) everything is
-    // "ready", so the seeded demo also stops paying 320ms per navigation.
-    if (routeReady(page)) { setRouteLoading(false); return; }
-    setRouteLoading(true);
-    const off = window.__onSurfaceReady
-      ? window.__onSurfaceReady(() => { if (routeReady(page)) setRouteLoading(false); })
-      : null;
-    // Never let a wedged fetch strand the operator on a skeleton: fall through
-    // to whatever we have and let the bridge pill report the degraded state.
-    const t = setTimeout(() => setRouteLoading(false), 8000);
+    setRouteTimedOut(false);
+    if (routeReady(page)) return;
+    // Re-render when readiness changes; the render below reads the truth.
+    const off = window.__onSurfaceReady ? window.__onSurfaceReady(() => setReadyTick((n) => n + 1)) : null;
+    // Never strand the operator on a skeleton forever — but time out INTO the
+    // unavailable pane, never into the mockup's seeds.
+    const t = setTimeout(() => setRouteTimedOut(true), 8000);
     return () => { if (off) off(); clearTimeout(t); };
   }, [routeKey]);
+
+  // Derived every render, so a navigation can never commit the previous
+  // route's answer. readyTick is read so the subscription re-evaluates it.
+  void readyTick;
+  const surfaceReady = routeReady(page);
+  const surfaceUnavailable = !surfaceReady && (routeFailed(page) || routeTimedOut);
+  const routeLoading = !surfaceReady && !surfaceUnavailable;
 
   // Shared read-only viewer — chrome-less, rendered AFTER all hooks so the
   // hook order stays identical on every route (no early return between hooks).
@@ -484,7 +511,13 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
         />
         <SurfaceTabs page={page} param={param} onNavigate={navigate} />
         <div key={routeKey} className={`main-scroll route-view ${pane ? "pane" : ""}`}>
-          <ShellErrorBoundary>{routeLoading ? <RouteSkeleton pane={pane} /> : content}</ShellErrorBoundary>
+          <ShellErrorBoundary>
+            {routeLoading
+              ? <RouteSkeleton pane={pane} />
+              : surfaceUnavailable
+                ? <SurfaceUnavailable onNavigate={navigate} />
+                : content}
+          </ShellErrorBoundary>
         </div>
       </div>
 

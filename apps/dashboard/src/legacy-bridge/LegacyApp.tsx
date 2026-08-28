@@ -16,6 +16,7 @@ import "./legacy.css";
 import { workspaceOverride, conversationsOverride, inboxOverride, todayOverride, type Workspace } from "./surface-data";
 import {
   getSurfaceStatuses,
+  isSurfaceFailed,
   isSurfaceReady,
   markHydrated,
   onSurfaceStatusChange,
@@ -70,11 +71,16 @@ const ROUTE_SURFACE: Record<string, string> = {
 function installRouteGate(): void {
   const w = window as unknown as {
     __surfaceGate?: (page: string) => boolean;
+    __surfaceFailed?: (page: string) => boolean;
     __onSurfaceReady?: (fn: () => void) => () => void;
   };
   w.__surfaceGate = (page) => {
     const key = ROUTE_SURFACE[page];
     return key ? isSurfaceReady(key) : true;
+  };
+  w.__surfaceFailed = (page) => {
+    const key = ROUTE_SURFACE[page];
+    return key ? isSurfaceFailed(key) : false;
   };
   w.__onSurfaceReady = onSurfaceStatusChange;
 }
