@@ -139,7 +139,7 @@ export function contactMeta(dto: ConversationDto): string {
 function initialsOf(name: string): string {
   const digits = name.replace(/[^\d]/g, "");
   // phone-like display: last two digits distinguish contacts (never a "+1" avatar)
-  if (digits.length >= 7 && /^[+\d\s()\-]+$/.test(name)) return digits.slice(-2);
+  if (digits.length >= 7 && /^[+\d\s()-]+$/.test(name)) return digits.slice(-2);
   const parts = name.replace(/[^\p{L}\p{N} ]/gu, "").trim().split(/\s+/);
   if (parts.length >= 2 && parts[0] && parts[1]) return (parts[0][0] + parts[1][0]).toUpperCase();
   const p = parts[0] || "?";

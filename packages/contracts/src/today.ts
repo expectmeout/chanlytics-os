@@ -12,7 +12,6 @@
  * told what time it is at the salon.
  */
 import {
-  toInboxThreadVM,
   toCallVM,
   contactName,
   contactMeta,

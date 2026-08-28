@@ -33,10 +33,10 @@ jobs:
       # dist-drift guard: the edge executes committed dist � stale dist = stale prod
       - run: git diff --exit-code -- packages/*/dist
       - run: pnpm -r typecheck
-      # Static analysis on the UI, which had none. The rule that earns this is
-      # react-hooks/exhaustive-deps — stale dep arrays are the defect family
-      # behind most of what we have called "glitchy".
-      - run: pnpm --filter @chanlytics/dashboard lint
+      # Static analysis across the WHOLE workspace. It covered only the
+      # dashboard until apps/edge — the 1,600 lines a real customer message
+      # travels through — turned out to be the one unlinted thing in the repo.
+      - run: pnpm lint
       # `pnpm test`, not a second copy of the command: the suite needs Node's
       # type-stripping flags to import the dashboard's .ts modules, and a
       # duplicated invocation here silently ran without them — passing only

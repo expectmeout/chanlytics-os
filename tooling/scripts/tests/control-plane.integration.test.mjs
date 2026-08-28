@@ -41,7 +41,10 @@ function fallbackBrainFromSource() {
   const m = src.match(/export const FALLBACK_BRAIN: BrainConfig = (\{[\s\S]*?\n\};)/);
   assert.ok(m, "FALLBACK_BRAIN literal not found");
   const body = m[1].replace(/^\};$/m, "}").replace(/\/\/ PROMPT-(START|END)\r?\n/g, "");
-  // eslint-disable-next-line no-new-func
+  // `new Function` is deliberate: evaluating the literal is what makes this a
+  // faithful comparison. A raw byte diff would fail spuriously — the TS file is
+  // CRLF and the database row is LF, and ECMAScript normalises line endings
+  // inside template literals at parse time, so only the parsed values match.
   return new Function(`return (${body});`)();
 }
 

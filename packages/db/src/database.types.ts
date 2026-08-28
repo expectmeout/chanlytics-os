@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   graphql_public: {
     Tables: {
@@ -457,6 +457,39 @@ export type Database = {
         ]
       }
       events: {
+        Row: {
+          category: string
+          created_at: string
+          data: Json
+          id: string
+          kind: string
+          subject_id: string | null
+          subject_type: string | null
+          tenant_id: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          data?: Json
+          id?: string
+          kind: string
+          subject_id?: string | null
+          subject_type?: string | null
+          tenant_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          data?: Json
+          id?: string
+          kind?: string
+          subject_id?: string | null
+          subject_type?: string | null
+          tenant_id?: string
+        }
+        Relationships: []
+      }
+      events_default: {
         Row: {
           category: string
           created_at: string
@@ -1490,6 +1523,7 @@ export type Database = {
         }
         Returns: Json
       }
+      is_acting_member: { Args: { p_tenant: string }; Returns: boolean }
       mark_processed: {
         Args: { p_message_id: string; p_tenant_id: string }
         Returns: undefined
