@@ -25,17 +25,30 @@ export async function getTenantConfig(db: Db, tenantId: string): Promise<TenantC
   return data;
 }
 
+export type PutTenantConfigResult =
+  | { ok: true; row: TenantConfigRow }
+  /** Someone else saved between the read and the write. A real conflict. */
+  | { ok: false; reason: "stale" }
+  /** There is no config row at all — this workspace was never provisioned.
+   *  NOT a conflict, and telling the owner to "reload and reapply" sends them
+   *  round a loop that cannot terminate. */
+  | { ok: false; reason: "missing" };
+
 /**
  * Optimistic-concurrency write: the caller sends back the version it read.
- * A stale write updates zero rows and returns null — the route turns that
- * into a 409 so two owners editing at once never silently clobber each other.
+ *
+ * Returns WHY it failed, because zero rows updated has two very different
+ * causes and the route used to report both as "someone else saved settings
+ * after you loaded them". For a tenant with no config row that sentence is
+ * false in every particular — nobody saved anything, no colleague exists, and
+ * reloading changes nothing.
  */
 export async function putTenantConfig(
   db: Db,
   tenantId: string,
   config: unknown,
   expectedVersion: number,
-): Promise<TenantConfigRow | null> {
+): Promise<PutTenantConfigResult> {
   const { data, error } = await db
     .from("tenant_config")
     .update({ config: config as Json, version: expectedVersion + 1 })
@@ -44,7 +57,12 @@ export async function putTenantConfig(
     .select("tenant_id, config, version, updated_at")
     .maybeSingle();
   if (error) throw new Error(`putTenantConfig: ${error.message}`);
-  return data;
+  if (data) return { ok: true, row: data };
+
+  // Zero rows. Distinguish an absent row from a losing race — one query, only
+  // on the failure path.
+  const existing = await getTenantConfig(db, tenantId);
+  return { ok: false, reason: existing ? "stale" : "missing" };
 }
 
 export interface PolicyRecord {

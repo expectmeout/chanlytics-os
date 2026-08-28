@@ -1559,6 +1559,12 @@ type Database = {
                 };
                 Returns: Json;
             };
+            provision_tenant: {
+                Args: {
+                    p_tenant_id: string;
+                };
+                Returns: undefined;
+            };
         };
         Enums: {
             [_ in never]: never;
@@ -1805,12 +1811,32 @@ interface TenantConfigRow {
     updated_at: string;
 }
 declare function getTenantConfig(db: Db, tenantId: string): Promise<TenantConfigRow | null>;
+type PutTenantConfigResult = {
+    ok: true;
+    row: TenantConfigRow;
+}
+/** Someone else saved between the read and the write. A real conflict. */
+ | {
+    ok: false;
+    reason: "stale";
+}
+/** There is no config row at all — this workspace was never provisioned.
+ *  NOT a conflict, and telling the owner to "reload and reapply" sends them
+ *  round a loop that cannot terminate. */
+ | {
+    ok: false;
+    reason: "missing";
+};
 /**
  * Optimistic-concurrency write: the caller sends back the version it read.
- * A stale write updates zero rows and returns null — the route turns that
- * into a 409 so two owners editing at once never silently clobber each other.
+ *
+ * Returns WHY it failed, because zero rows updated has two very different
+ * causes and the route used to report both as "someone else saved settings
+ * after you loaded them". For a tenant with no config row that sentence is
+ * false in every particular — nobody saved anything, no colleague exists, and
+ * reloading changes nothing.
  */
-declare function putTenantConfig(db: Db, tenantId: string, config: unknown, expectedVersion: number): Promise<TenantConfigRow | null>;
+declare function putTenantConfig(db: Db, tenantId: string, config: unknown, expectedVersion: number): Promise<PutTenantConfigResult>;
 interface PolicyRecord {
     id: string;
     class: string;
@@ -1849,4 +1875,4 @@ declare function subscribeMessagesInserts(client: SupabaseClient<Database>, onIn
     tenant_id: string;
 }) => void, opts?: SubscribeOptions): () => void;
 
-export { type ChannelLookup, type Database, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type NormalizedCallInput, type OutboundTarget, type PgThreadState, type PolicyRecord, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, createServiceClient, emitEvent, getTenantConfig, ingestCall, ingestInbound, linkCallMessage, listPolicies, markProcessed, pauseConversation, putTenantConfig, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, setCallRecording, setPolicyMode, subscribeMessagesInserts };
+export { type ChannelLookup, type Database, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type NormalizedCallInput, type OutboundTarget, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, createServiceClient, emitEvent, getTenantConfig, ingestCall, ingestInbound, linkCallMessage, listPolicies, markProcessed, pauseConversation, putTenantConfig, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, setCallRecording, setPolicyMode, subscribeMessagesInserts };

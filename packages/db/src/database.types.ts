@@ -1532,6 +1532,7 @@ export type Database = {
         Args: { p_days?: number; p_tenant_id: string }
         Returns: Json
       }
+      provision_tenant: { Args: { p_tenant_id: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

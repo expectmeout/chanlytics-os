@@ -29,9 +29,21 @@ export const PUT = withRoute(async (req, ctx) => {
   if (!parsed.success) {
     throw new AppError("validation", `Config rejected: ${parsed.error.issues[0]?.message ?? "invalid"}.`);
   }
-  const row = await putTenantConfig(ctx.supabase, member.tenantId, parsed.data as Json, body.version);
-  if (!row) {
+  const result = await putTenantConfig(ctx.supabase, member.tenantId, parsed.data as Json, body.version);
+  if (!result.ok) {
+    // These are different failures and used to share one message. Telling an
+    // owner "someone else saved settings" when the row simply does not exist
+    // blames an imaginary colleague and prescribes a reload that can never
+    // help. Provisioning (migration 00017) makes the second case unreachable
+    // for tenants created from now on; this stays honest about the rest.
+    if (result.reason === "missing") {
+      throw new AppError(
+        "conflict",
+        "This workspace has no settings record yet, so there was nothing to update. It needs provisioning before settings can be saved.",
+        409,
+      );
+    }
     throw new AppError("conflict", "Someone else saved settings after you loaded them — reload and reapply.", 409);
   }
-  return { config: parseTenantConfig(row.config) ?? {}, version: row.version };
+  return { config: parseTenantConfig(result.row.config) ?? {}, version: result.row.version };
 });

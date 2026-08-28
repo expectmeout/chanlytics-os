@@ -4379,7 +4379,9 @@ async function getTenantConfig(db, tenantId) {
 async function putTenantConfig(db, tenantId, config, expectedVersion) {
   const { data, error } = await db.from("tenant_config").update({ config, version: expectedVersion + 1 }).eq("tenant_id", tenantId).eq("version", expectedVersion).select("tenant_id, config, version, updated_at").maybeSingle();
   if (error) throw new Error(`putTenantConfig: ${error.message}`);
-  return data;
+  if (data) return { ok: true, row: data };
+  const existing = await getTenantConfig(db, tenantId);
+  return { ok: false, reason: existing ? "stale" : "missing" };
 }
 async function listPolicies(db, tenantId) {
   const { data, error } = await db.from("policies").select("id, class, mode, subject_type, subject_id, limits, updated_at").eq("tenant_id", tenantId).is("subject_type", null).order("class");
