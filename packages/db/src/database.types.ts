@@ -1550,6 +1550,25 @@ export type Database = {
         Returns: Json
       }
       provision_tenant: { Args: { p_tenant_id: string }; Returns: undefined }
+      sweep_recent_responses: {
+        Args: { p_limit?: number }
+        Returns: {
+          body: string
+          created_at: string
+          request_id: number
+          status_code: number
+        }[]
+      }
+      sweep_schedules: {
+        Args: never
+        Returns: {
+          active: boolean
+          jobname: string
+          last_run: string
+          last_status: string
+          schedule: string
+        }[]
+      }
       trigger_deadman_sweep: { Args: never; Returns: number }
     }
     Enums: {
