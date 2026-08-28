@@ -401,6 +401,7 @@ type Database = {
                 Row: {
                     conversation_id: string;
                     created_at: string;
+                    deadman_alerted_at: string | null;
                     decision_id: string | null;
                     details: string | null;
                     id: string;
@@ -413,6 +414,7 @@ type Database = {
                 Insert: {
                     conversation_id: string;
                     created_at?: string;
+                    deadman_alerted_at?: string | null;
                     decision_id?: string | null;
                     details?: string | null;
                     id?: string;
@@ -425,6 +427,7 @@ type Database = {
                 Update: {
                     conversation_id?: string;
                     created_at?: string;
+                    deadman_alerted_at?: string | null;
                     decision_id?: string | null;
                     details?: string | null;
                     id?: string;
@@ -1469,6 +1472,26 @@ type Database = {
                 };
                 Returns: Json;
             };
+            deadman_candidates: {
+                Args: {
+                    p_older_than?: string;
+                };
+                Returns: {
+                    conversation_id: string;
+                    details: string;
+                    escalation_id: string;
+                    opened_at: string;
+                    phone_e164: string;
+                    reason: string;
+                    tenant_id: string;
+                }[];
+            };
+            deadman_mark_alerted: {
+                Args: {
+                    p_ids: string[];
+                };
+                Returns: number;
+            };
             ensure_events_partition: {
                 Args: {
                     p_month: string;
@@ -1491,6 +1514,10 @@ type Database = {
                     p_channel_id: string;
                 };
                 Returns: Json;
+            };
+            get_cron_sweep_key: {
+                Args: never;
+                Returns: string;
             };
             ingest_call: {
                 Args: {
@@ -1564,6 +1591,10 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: undefined;
+            };
+            trigger_deadman_sweep: {
+                Args: never;
+                Returns: number;
             };
         };
         Enums: {

@@ -406,6 +406,7 @@ export type Database = {
         Row: {
           conversation_id: string
           created_at: string
+          deadman_alerted_at: string | null
           decision_id: string | null
           details: string | null
           id: string
@@ -418,6 +419,7 @@ export type Database = {
         Insert: {
           conversation_id: string
           created_at?: string
+          deadman_alerted_at?: string | null
           decision_id?: string | null
           details?: string | null
           id?: string
@@ -430,6 +432,7 @@ export type Database = {
         Update: {
           conversation_id?: string
           created_at?: string
+          deadman_alerted_at?: string | null
           decision_id?: string | null
           details?: string | null
           id?: string
@@ -1469,6 +1472,19 @@ export type Database = {
     }
     Functions: {
       claim_job: { Args: { p_job_id: string }; Returns: Json }
+      deadman_candidates: {
+        Args: { p_older_than?: string }
+        Returns: {
+          conversation_id: string
+          details: string
+          escalation_id: string
+          opened_at: string
+          phone_e164: string
+          reason: string
+          tenant_id: string
+        }[]
+      }
+      deadman_mark_alerted: { Args: { p_ids: string[] }; Returns: number }
       ensure_events_partition: { Args: { p_month: string }; Returns: undefined }
       expire_stale_pauses: { Args: never; Returns: number }
       fail_job: {
@@ -1476,6 +1492,7 @@ export type Database = {
         Returns: undefined
       }
       get_channel_credentials: { Args: { p_channel_id: string }; Returns: Json }
+      get_cron_sweep_key: { Args: never; Returns: string }
       ingest_call: {
         Args: {
           p_agent_id: string
@@ -1533,6 +1550,7 @@ export type Database = {
         Returns: Json
       }
       provision_tenant: { Args: { p_tenant_id: string }; Returns: undefined }
+      trigger_deadman_sweep: { Args: never; Returns: number }
     }
     Enums: {
       [_ in never]: never
