@@ -545,6 +545,35 @@ const VetoBar = ({ thread, remaining, paused = false, onAct = () => {}, onTakeOv
 );
 
 // =============== COMPOSER ===============
+// Outside the 24-hour window WhatsApp will deliver exactly one thing: a
+// pre-approved template. This was referenced by the closed-window composer but
+// never actually written — so any escalated thread older than 24h crashed the
+// whole Inbox pane rather than offering the one send that would work.
+// Named after what it SENDS, not after the mechanism: the operator should know
+// what lands on their customer's phone before they click.
+const TemplateSendButton = ({ onSend = () => {}, threadId }) => {
+  const [sending, setSending] = useCvtState(false);
+  const fire = () => {
+    if (sending || !window.canDo("approve")) return;
+    const r = onSend(threadId, { template: true });
+    if (r && typeof r.then === "function") {
+      setSending(true);
+      r.finally(() => setSending(false));
+    }
+  };
+  return (
+    <button
+      className="btn btn-sm btn-primary"
+      onClick={fire}
+      disabled={sending}
+      title="Sends your approved booking-link template — the only message WhatsApp delivers outside the 24-hour window"
+      {...window.gate("approve")}
+    >
+      <Icon name="send" size={12} /> {sending ? "Sending…" : "Send booking link"}
+    </button>
+  );
+};
+
 const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {} }) => {
   const [text, setText] = React.useState(reply);
   const [alt, setAlt] = React.useState(false);
