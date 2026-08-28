@@ -38,7 +38,7 @@ export async function middleware(request: NextRequest) {
     if (path.startsWith("/api/")) {
       return NextResponse.json(
         { ok: false, error: { code: "unauthorized", message: "Sign in required." } },
-        { status: 401 },
+        { status: 401, headers: { "cache-control": "private, no-store" } },
       );
     }
     const url = request.nextUrl.clone();
