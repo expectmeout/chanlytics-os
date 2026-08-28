@@ -56,7 +56,8 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../lib/workspace/db.js";
 import { upsertEscalation } from "../lib/workspace/jobs.js";
-import { loadTenantRuntime, type TenantRuntime } from "../lib/tenant-runtime.js";
+import { loadTenantRuntime, waCfgFor, type TenantRuntime } from "../lib/tenant-runtime.js";
+import { replyPosture } from "../lib/reply-posture.js";
 import { FALLBACK_BRAIN, FALLBACK_NOTIFICATIONS } from "../lib/tenant-fallback.js";
 import type { BrainConfig, NotificationsConfig } from "../lib/workspace/contracts.js";
 import type { RoutedChannel } from "../lib/workspace/db.js";
@@ -92,12 +93,9 @@ async function pgThread(
   }
 }
 
-function waCfg(rt?: TenantRuntime | null) {
-  // E2: per-tenant Vault credentials when the channel carries a ref; the env
-  // pair remains the fallback for the default tenant (rollback = delete ref).
-  if (rt?.waCreds) return { phoneId: rt.waCreds.phoneId, accessToken: rt.waCreds.accessToken };
-  return { phoneId: process.env.WHATSAPP_PHONE_ID || "", accessToken: process.env.WHATSAPP_ACCESS_TOKEN || "" };
-}
+// Credential resolution moved to tenant-runtime (waCfgFor) once a second send
+// path needed it; this alias keeps the call sites below unchanged.
+const waCfg = waCfgFor;
 
 async function sendText(to: string, body: string, rt?: TenantRuntime | null): Promise<{ ok: boolean; wamid: string | null; status: number }> {
   const r = await waSendText(waCfg(rt), to, body);
@@ -127,6 +125,45 @@ async function alertStaff(threadId: string, userText: string, botText: string, r
     });
   } catch (e) {
     console.error("alert_failed", e instanceof Error ? e.message : e);
+  }
+}
+
+/**
+ * Traffic arrived for a channel the control plane will not route. Customers are
+ * texting a live number and nobody is answering, so this must reach a human —
+ * but one email per inbound message would be its own outage, so it is throttled
+ * per phone number id. The window is per lambda instance, which is imprecise in
+ * the right direction: a burst across instances sends a few notes, not none.
+ */
+const UNROUTABLE_ALERT_MS = 15 * 60 * 1000;
+const unroutableAlerted = new Map<string, number>();
+
+async function alertUnroutable(phoneNumberId: string | undefined, count: number): Promise<void> {
+  const key = phoneNumberId || "unknown";
+  const last = unroutableAlerted.get(key) ?? 0;
+  if (Date.now() - last < UNROUTABLE_ALERT_MS) return;
+  unroutableAlerted.set(key, Date.now());
+  const key_ = process.env.RESEND_API_KEY;
+  if (!key_) return;
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key_}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: process.env.LEAD_FROM || FALLBACK_NOTIFICATIONS.from,
+        to: [process.env.LEAD_TO || FALLBACK_NOTIFICATIONS.escalation_emails[0]],
+        subject: "WhatsApp messages are arriving for a channel that is switched off",
+        text:
+          `${count} message(s) just arrived for phone_number_id ${key}, which the control plane will not route ` +
+          `(the channel row is missing or its status is not 'active').\n\n` +
+          `Nobody is answering these customers and nothing is being recorded. ` +
+          `Re-enable the channel in tenant_channels, or confirm this number is not ours.\n\n` +
+          `Further notices for this number are suppressed for 15 minutes.`,
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch (e) {
+    console.error("unroutable_alert_failed", e instanceof Error ? e.message : e);
   }
 }
 
@@ -252,14 +289,21 @@ async function handleInbound(
   // (same semantics as the creds env fallback: absence configures, errors fall
   // back).
   const rt = db && routed ? await loadTenantRuntime(db, routed) : null;
-  const drFallback = (!rt || rt.loadFailed) && isEnvDefault;
+  // The posture rules live in ./reply-posture.ts, dependency-free and tested as
+  // a truth table — they were four inline booleans, and one of them made
+  // `status='disabled'` fail to silence the receptionist.
+  const { drFallback, replyMode } = replyPosture({
+    isEnvDefault,
+    routingConsulted: !!db,
+    channelResolved: !!routed,
+    runtimeUsable: !!rt && !rt.loadFailed,
+    policyMode: rt?.policy["reply"]?.mode,
+  });
   const brainCfg: BrainConfig | null = rt?.brain ?? (drFallback ? FALLBACK_BRAIN : null);
   const notif: NotificationsConfig | null = rt?.notifications ?? (drFallback ? FALLBACK_NOTIFICATIONS : null);
   const replyLimits = rt?.policy["reply"]?.limits ?? {};
   const maxRepliesDay = replyLimits.max_replies_day ?? MAX_REPLIES_PER_DAY;
   const pauseMs = (replyLimits.pause_hours ? replyLimits.pause_hours * 3600 * 1000 : PAUSE_MS);
-  // E3: unexpected or missing mode fails SAFE into 'ask' for routed tenants.
-  const replyMode = rt && !rt.loadFailed ? (rt.policy["reply"]?.mode ?? "ask") : (isEnvDefault ? "auto" : "ask");
 
   const allow = (process.env.WHATSAPP_TEST_ALLOWLIST || "").split(",").map((s) => s.trim()).filter(Boolean);
   if (allow.length && !allow.includes(from)) {
@@ -511,6 +555,7 @@ export async function POST(request: Request): Promise<Response> {
         // Multi-tenant routing key (Blueprint §3): phone_number_id -> tenant.
         let tenantId: string | null = null;
         let routedChannel: RoutedChannel | null = null;
+        let unroutable = false;
         const db = pg();
         const phoneNumberId = v.metadata?.phone_number_id;
         const isEnvDefault = !!phoneNumberId && phoneNumberId === (process.env.WHATSAPP_PHONE_ID || "");
@@ -518,10 +563,11 @@ export async function POST(request: Request): Promise<Response> {
           const routed = await resolveChannel(db, "whatsapp", phoneNumberId);
           if (routed) { tenantId = routed.tenantId; routedChannel = routed; }
           else {
-            // A log line disappears; a metric built on messages_in would
-            // undercount this traffic invisibly and forever. Persist it the
-            // same way the voice path does, so a misconfigured or newly-added
-            // phone_number_id is visible instead of silently dropped.
+            // The database ANSWERED and this channel is not active — disabled,
+            // deleted, or never ours. That is a deliberate state, so we neither
+            // reply nor persist. A log line disappears; a metric built on
+            // messages_in would undercount this traffic invisibly and forever.
+            unroutable = true;
             console.error("wa_unroutable", phoneNumberId);
             await emitEvent(
               db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", "ingest", null, null,
@@ -529,7 +575,16 @@ export async function POST(request: Request): Promise<Response> {
             ).catch(() => {});
           }
         }
-        if (field === "messages" && v.messages) {
+        if (field === "messages" && v.messages && unroutable) {
+          // Customers are texting a line whose channel is switched off. Nobody
+          // is answering them and nothing is being recorded, so this has to
+          // reach a human — throttled, because the alternative is one email per
+          // inbound message for as long as the channel stays off.
+          console.error("wa_skip_unroutable", JSON.stringify({
+            phone_number_id: phoneNumberId, messages: v.messages.length,
+          }));
+          await alertUnroutable(phoneNumberId, v.messages.length);
+        } else if (field === "messages" && v.messages) {
           for (const m of v.messages) {
             console.log("wa_inbound", JSON.stringify({ from: m.from, type: m.type, id: m.id, text: m.text && m.text.body }));
             // Per MESSAGE, not per batch. Any throw used to unwind to the one

@@ -57,6 +57,36 @@ async function recordOutbound(db, p) {
   ]);
   return data.id;
 }
+async function resolveOutboundTarget(db, p) {
+  const phone = `+${p.phoneE164.replace(/^\+/, "")}`;
+  const { data: existing, error: selErr } = await db.from("contacts").select("id, consent, dnc").eq("tenant_id", p.tenantId).eq("phone_e164", phone).maybeSingle();
+  if (selErr) throw new Error(`resolve_outbound_target: ${selErr.message}`);
+  let contact = existing;
+  if (!contact) {
+    if (!p.create) return null;
+    const { data: made, error } = await db.from("contacts").upsert(
+      { tenant_id: p.tenantId, phone_e164: phone, last_seen_at: (/* @__PURE__ */ new Date()).toISOString() },
+      { onConflict: "tenant_id,phone_e164" }
+    ).select("id, consent, dnc").single();
+    if (error || !made) throw new Error(`resolve_outbound_target contact: ${error?.message}`);
+    contact = made;
+  }
+  const { data: conv, error: cErr } = await db.from("conversations").upsert(
+    {
+      tenant_id: p.tenantId,
+      contact_id: contact.id,
+      last_message_at: (/* @__PURE__ */ new Date()).toISOString()
+    },
+    { onConflict: "tenant_id,contact_id" }
+  ).select("id").single();
+  if (cErr || !conv) throw new Error(`resolve_outbound_target conversation: ${cErr?.message}`);
+  return {
+    contactId: contact.id,
+    conversationId: conv.id,
+    consent: contact.consent ?? null,
+    dnc: contact.dnc ?? false
+  };
+}
 async function recordStatusByExternalId(db, tenantId, externalId, status, errorDetail) {
   const patch = { status };
   if (errorDetail) patch.error = errorDetail;
@@ -324,6 +354,7 @@ export {
   recordOutbound,
   recordStatusByExternalId,
   resolveChannel,
+  resolveOutboundTarget,
   setCallRecording,
   setPolicyMode,
   subscribeMessagesInserts

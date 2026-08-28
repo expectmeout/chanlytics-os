@@ -91,3 +91,21 @@ export async function loadTenantRuntime(
     };
   }
 }
+
+/**
+ * The WhatsApp credentials to send this tenant's messages with.
+ *
+ * Per-tenant Vault credentials when the channel carries a ref; the env pair is
+ * the fallback for the tenant that predates the control plane (rollback =
+ * delete the ref). This lived inside the WhatsApp webhook as a private helper
+ * while a second send path — the voice agent's booking-link function — reached
+ * straight for `process.env`, which is how that path came to send every
+ * tenant's message from tenant #1's number.
+ */
+export function waCfgFor(rt?: TenantRuntime | null): { phoneId: string; accessToken: string } {
+  if (rt?.waCreds) return { phoneId: rt.waCreds.phoneId, accessToken: rt.waCreds.accessToken };
+  return {
+    phoneId: process.env.WHATSAPP_PHONE_ID || "",
+    accessToken: process.env.WHATSAPP_ACCESS_TOKEN || "",
+  };
+}

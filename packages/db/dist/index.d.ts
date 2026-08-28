@@ -1595,6 +1595,31 @@ declare function recordOutbound(db: Db$3, p: {
     meta?: Json;
     status?: "sent" | "failed";
 }): Promise<string | null>;
+interface OutboundTarget {
+    contactId: string;
+    conversationId: string;
+    /** 'unknown' | 'opted_in' | 'opted_out' — carried so no caller can send
+     *  without having been handed the consent state. */
+    consent: string | null;
+    dnc: boolean;
+}
+/**
+ * The contact + conversation an outbound message belongs to, with consent.
+ *
+ * Every send path needs the same four facts, and until now each one found them
+ * its own way (or, in the voice function's case, not at all — it texted a raw
+ * phone number with no row behind it). Consent is returned rather than checked
+ * here on purpose: the repository's job is to report state, and each caller
+ * has its own honest refusal to give.
+ *
+ * `create: false` means "only an existing contact will do" — the guard for a
+ * number somebody supplied rather than one that called us.
+ */
+declare function resolveOutboundTarget(db: Db$3, p: {
+    tenantId: string;
+    phoneE164: string;
+    create?: boolean;
+}): Promise<OutboundTarget | null>;
 /** Delivery receipts: update by wamid; monotone rank enforced by trigger. */
 declare function recordStatusByExternalId(db: Db$3, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
 /** Owner replied from the WhatsApp Business app: persist the echo + pause the bot.
@@ -1770,4 +1795,4 @@ declare function subscribeMessagesInserts(client: SupabaseClient<Database>, onIn
     tenant_id: string;
 }) => void, opts?: SubscribeOptions): () => void;
 
-export { type Database, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type NormalizedCallInput, type PgThreadState, type PolicyRecord, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, createServiceClient, emitEvent, getTenantConfig, ingestCall, ingestInbound, linkCallMessage, listPolicies, markProcessed, pauseConversation, putTenantConfig, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, setCallRecording, setPolicyMode, subscribeMessagesInserts };
+export { type Database, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type NormalizedCallInput, type OutboundTarget, type PgThreadState, type PolicyRecord, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, createServiceClient, emitEvent, getTenantConfig, ingestCall, ingestInbound, linkCallMessage, listPolicies, markProcessed, pauseConversation, putTenantConfig, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, resolveOutboundTarget, setCallRecording, setPolicyMode, subscribeMessagesInserts };

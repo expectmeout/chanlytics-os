@@ -115,6 +115,77 @@ export async function recordOutbound(
   return data.id;
 }
 
+export interface OutboundTarget {
+  contactId: string;
+  conversationId: string;
+  /** 'unknown' | 'opted_in' | 'opted_out' — carried so no caller can send
+   *  without having been handed the consent state. */
+  consent: string | null;
+  dnc: boolean;
+}
+
+/**
+ * The contact + conversation an outbound message belongs to, with consent.
+ *
+ * Every send path needs the same four facts, and until now each one found them
+ * its own way (or, in the voice function's case, not at all — it texted a raw
+ * phone number with no row behind it). Consent is returned rather than checked
+ * here on purpose: the repository's job is to report state, and each caller
+ * has its own honest refusal to give.
+ *
+ * `create: false` means "only an existing contact will do" — the guard for a
+ * number somebody supplied rather than one that called us.
+ */
+export async function resolveOutboundTarget(
+  db: Db,
+  p: { tenantId: string; phoneE164: string; create?: boolean },
+): Promise<OutboundTarget | null> {
+  const phone = `+${p.phoneE164.replace(/^\+/, "")}`;
+  const { data: existing, error: selErr } = await db
+    .from("contacts")
+    .select("id, consent, dnc")
+    .eq("tenant_id", p.tenantId)
+    .eq("phone_e164", phone)
+    .maybeSingle();
+  if (selErr) throw new Error(`resolve_outbound_target: ${selErr.message}`);
+
+  let contact = existing;
+  if (!contact) {
+    if (!p.create) return null;
+    const { data: made, error } = await db
+      .from("contacts")
+      .upsert(
+        { tenant_id: p.tenantId, phone_e164: phone, last_seen_at: new Date().toISOString() },
+        { onConflict: "tenant_id,phone_e164" },
+      )
+      .select("id, consent, dnc")
+      .single();
+    if (error || !made) throw new Error(`resolve_outbound_target contact: ${error?.message}`);
+    contact = made;
+  }
+
+  const { data: conv, error: cErr } = await db
+    .from("conversations")
+    .upsert(
+      {
+        tenant_id: p.tenantId,
+        contact_id: contact.id,
+        last_message_at: new Date().toISOString(),
+      },
+      { onConflict: "tenant_id,contact_id" },
+    )
+    .select("id")
+    .single();
+  if (cErr || !conv) throw new Error(`resolve_outbound_target conversation: ${cErr?.message}`);
+
+  return {
+    contactId: contact.id,
+    conversationId: conv.id,
+    consent: contact.consent ?? null,
+    dnc: contact.dnc ?? false,
+  };
+}
+
 /** Delivery receipts: update by wamid; monotone rank enforced by trigger. */
 export async function recordStatusByExternalId(
   db: Db,

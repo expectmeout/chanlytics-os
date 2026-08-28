@@ -12,6 +12,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { resolveOutboundTarget } from "@chanlytics/db";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -97,6 +98,45 @@ test("consent events record transitions, not every message", { skip }, async () 
     ["opted_out", "opted_in"],
     "five messages produced these events — only the two transitions should appear",
   );
+});
+
+/* ------------------- the primitive every send path now uses ------------------ */
+
+test("resolveOutboundTarget hands back consent with the target", { skip }, async () => {
+  // The voice booking-link function used to text a raw phone number with no row
+  // behind it and no consent read at all. It now resolves through this, so the
+  // consent state must travel WITH the target — a caller that has to ask for it
+  // separately is a caller that can forget to.
+  const t = await resolveOutboundTarget(db, { tenantId, phoneE164: phone, create: false });
+  assert.ok(t, "an existing contact must resolve");
+  assert.equal(t.contactId, contactId);
+  assert.equal(t.conversationId, conversationId);
+  assert.equal(t.consent, "opted_in", "consent must come back, not be left for the caller to fetch");
+  assert.equal(t.dnc, false);
+});
+
+test("resolveOutboundTarget refuses to invent a contact when create is false", { skip }, async () => {
+  // This is the anti-abuse guard: a caller can ask the voice agent to text a
+  // number that is not theirs. A number we were GIVEN only qualifies if that
+  // person already belongs to this business.
+  const stranger = `+1999555${String(Date.now()).slice(-4)}0`.slice(0, 15);
+  const t = await resolveOutboundTarget(db, { tenantId, phoneE164: stranger, create: false });
+  assert.equal(t, null, "a stranger's number must not resolve to a sendable target");
+
+  const { data: leaked } = await db
+    .from("contacts").select("id").eq("tenant_id", tenantId).eq("phone_e164", stranger);
+  assert.equal(leaked.length, 0, "a refused lookup must not create a contact row");
+});
+
+test("resolveOutboundTarget reports an opt-out rather than hiding it", { skip }, async () => {
+  await db.from("contacts")
+    .update({ consent: "opted_out", dnc: true })
+    .eq("id", contactId);
+  const t = await resolveOutboundTarget(db, { tenantId, phoneE164: phone, create: true });
+  assert.equal(t.consent, "opted_out");
+  assert.equal(t.dnc, true);
+  // Restored so the escalation test below sees the state it expects.
+  await db.from("contacts").update({ consent: "opted_in", dnc: false }).eq("id", contactId);
 });
 
 test("'opt_out' is an accepted escalation reason", { skip }, async () => {
