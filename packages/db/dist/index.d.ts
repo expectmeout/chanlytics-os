@@ -984,6 +984,50 @@ type Database = {
                     }
                 ];
             };
+            invitations: {
+                Row: {
+                    accepted_at: string | null;
+                    created_at: string;
+                    email: string;
+                    expires_at: string;
+                    id: string;
+                    invited_by: string;
+                    revoked_at: string | null;
+                    role: string;
+                    tenant_id: string;
+                };
+                Insert: {
+                    accepted_at?: string | null;
+                    created_at?: string;
+                    email: string;
+                    expires_at?: string;
+                    id?: string;
+                    invited_by: string;
+                    revoked_at?: string | null;
+                    role: string;
+                    tenant_id: string;
+                };
+                Update: {
+                    accepted_at?: string | null;
+                    created_at?: string;
+                    email?: string;
+                    expires_at?: string;
+                    id?: string;
+                    invited_by?: string;
+                    revoked_at?: string | null;
+                    role?: string;
+                    tenant_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "invitations_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             jobs: {
                 Row: {
                     attempts: number;
@@ -1181,6 +1225,47 @@ type Database = {
                 };
                 Relationships: [];
             };
+            policies: {
+                Row: {
+                    class: string;
+                    id: string;
+                    limits: Json;
+                    mode: string;
+                    subject_id: string | null;
+                    subject_type: string | null;
+                    tenant_id: string;
+                    updated_at: string;
+                };
+                Insert: {
+                    class: string;
+                    id?: string;
+                    limits?: Json;
+                    mode: string;
+                    subject_id?: string | null;
+                    subject_type?: string | null;
+                    tenant_id: string;
+                    updated_at?: string;
+                };
+                Update: {
+                    class?: string;
+                    id?: string;
+                    limits?: Json;
+                    mode?: string;
+                    subject_id?: string | null;
+                    subject_type?: string | null;
+                    tenant_id?: string;
+                    updated_at?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "policies_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             templates: {
                 Row: {
                     body_preview: string | null;
@@ -1278,6 +1363,35 @@ type Database = {
                     }
                 ];
             };
+            tenant_config: {
+                Row: {
+                    config: Json;
+                    tenant_id: string;
+                    updated_at: string;
+                    version: number;
+                };
+                Insert: {
+                    config?: Json;
+                    tenant_id: string;
+                    updated_at?: string;
+                    version?: number;
+                };
+                Update: {
+                    config?: Json;
+                    tenant_id?: string;
+                    updated_at?: string;
+                    version?: number;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "tenant_config_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: true;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             tenants: {
                 Row: {
                     created_at: string;
@@ -1338,6 +1452,12 @@ type Database = {
                     p_job_id: string;
                 };
                 Returns: undefined;
+            };
+            get_channel_credentials: {
+                Args: {
+                    p_channel_id: string;
+                };
+                Returns: Json;
             };
             ingest_call: {
                 Args: {
@@ -1428,7 +1548,7 @@ declare function createServiceClient(cfg: ServiceClientConfig): SupabaseClient<D
  * plain row work. All writes are ADDITIVE to the Blob path during dual-write.
  */
 
-type Db$2 = SupabaseClient<Database>;
+type Db$3 = SupabaseClient<Database>;
 interface IngestInboundParams {
     tenantId: string;
     channel: "whatsapp";
@@ -1452,11 +1572,11 @@ interface IngestResult {
     state: string;
     paused_until: string | null;
 }
-declare function ingestInbound(db: Db$2, p: IngestInboundParams): Promise<IngestResult>;
+declare function ingestInbound(db: Db$3, p: IngestInboundParams): Promise<IngestResult>;
 /** Stamp a message handled (replied / deliberately skipped) — retry no-ops after this.
  *  One server-side jsonb merge (no read-modify-write, no lost-update race). */
-declare function markProcessed(db: Db$2, tenantId: string, messageId: string): Promise<void>;
-declare function recordOutbound(db: Db$2, p: {
+declare function markProcessed(db: Db$3, tenantId: string, messageId: string): Promise<void>;
+declare function recordOutbound(db: Db$3, p: {
     tenantId: string;
     conversationId: string;
     contactId: string | null;
@@ -1468,12 +1588,12 @@ declare function recordOutbound(db: Db$2, p: {
     status?: "sent" | "failed";
 }): Promise<string | null>;
 /** Delivery receipts: update by wamid; monotone rank enforced by trigger. */
-declare function recordStatusByExternalId(db: Db$2, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
+declare function recordStatusByExternalId(db: Db$3, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
 /** Owner replied from the WhatsApp Business app: persist the echo + pause the bot.
  *  Upserts the contact/conversation — an owner-INITIATED thread (customer never
  *  messaged yet) must still record the message and the pause, or PG diverges
  *  from the Blob pause forever. */
-declare function recordEchoAndPause(db: Db$2, p: {
+declare function recordEchoAndPause(db: Db$3, p: {
     tenantId: string;
     customerPhoneDigits: string;
     body: string | null;
@@ -1481,8 +1601,8 @@ declare function recordEchoAndPause(db: Db$2, p: {
     pausedUntilIso: string;
 }): Promise<void>;
 /** Mirror of the Blob pausedUntil semantics for AI-side pauses (non-text / escalation). */
-declare function pauseConversation(db: Db$2, tenantId: string, conversationId: string, pausedUntilIso: string): Promise<void>;
-declare function emitEvent(db: Db$2, tenantId: string, kind: string, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
+declare function pauseConversation(db: Db$3, tenantId: string, conversationId: string, pausedUntilIso: string): Promise<void>;
+declare function emitEvent(db: Db$3, tenantId: string, kind: string, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
 
 /** Webhook → tenant routing over tenant_channels(kind, external_id). */
 
@@ -1503,7 +1623,7 @@ declare function resolveChannel(db: SupabaseClient<Database>, kind: string, exte
  * converge on one row.
  */
 
-type Db$1 = SupabaseClient<Database>;
+type Db$2 = SupabaseClient<Database>;
 interface NormalizedCallInput {
     retellCallId: string;
     agentId: string | null;
@@ -1536,13 +1656,13 @@ interface IngestCallResult {
     contact_id: string | null;
     conversation_id: string | null;
 }
-declare function ingestCall(db: Db$1, tenantId: string, n: NormalizedCallInput, raw?: unknown): Promise<IngestCallResult>;
+declare function ingestCall(db: Db$2, tenantId: string, n: NormalizedCallInput, raw?: unknown): Promise<IngestCallResult>;
 /** Attach the thread note (call_summary message) back to its call row. */
-declare function linkCallMessage(db: Db$1, tenantId: string, callId: string, messageId: string): Promise<void>;
+declare function linkCallMessage(db: Db$2, tenantId: string, callId: string, messageId: string): Promise<void>;
 /** Post-storage-copy state for the recording (private bucket path). */
-declare function setCallRecording(db: Db$1, tenantId: string, callId: string, recording: Record<string, unknown>): Promise<void>;
+declare function setCallRecording(db: Db$2, tenantId: string, callId: string, recording: Record<string, unknown>): Promise<void>;
 /** The customer's thread gets the call as a message, so history stays in one place. */
-declare function recordCallNote(db: Db$1, p: {
+declare function recordCallNote(db: Db$2, p: {
     tenantId: string;
     conversationId: string;
     contactId: string | null;
@@ -1571,7 +1691,7 @@ declare function recordCallNote(db: Db$1, p: {
  *                a 40-entry array that two concurrent lambdas could both miss.
  */
 
-type Db = SupabaseClient<Database>;
+type Db$1 = SupabaseClient<Database>;
 interface ThreadTurn {
     role: "user" | "assistant";
     content: string;
@@ -1582,7 +1702,41 @@ interface PgThreadState {
     pausedUntil: number;
     replies: number[];
 }
-declare function readThreadState(db: Db, tenantId: string, conversationId: string, pausedUntilIso: string | null, historyLimit?: number): Promise<PgThreadState>;
+declare function readThreadState(db: Db$1, tenantId: string, conversationId: string, pausedUntilIso: string | null, historyLimit?: number): Promise<PgThreadState>;
+
+/**
+ * Control-plane repository (Session A): config, policies, team.
+ * Same shape as ingest/calls/thread — thin, typed, no business rules here;
+ * enforcement lives in RLS + the DB triggers + requireRole at the routes.
+ */
+
+type Db = SupabaseClient<Database>;
+interface TenantConfigRow {
+    tenant_id: string;
+    config: unknown;
+    version: number;
+    updated_at: string;
+}
+declare function getTenantConfig(db: Db, tenantId: string): Promise<TenantConfigRow | null>;
+/**
+ * Optimistic-concurrency write: the caller sends back the version it read.
+ * A stale write updates zero rows and returns null — the route turns that
+ * into a 409 so two owners editing at once never silently clobber each other.
+ */
+declare function putTenantConfig(db: Db, tenantId: string, config: unknown, expectedVersion: number): Promise<TenantConfigRow | null>;
+interface PolicyRecord {
+    id: string;
+    class: string;
+    mode: string;
+    subject_type: string | null;
+    subject_id: string | null;
+    limits: unknown;
+    updated_at: string;
+}
+/** Workspace-level rows only (subject IS NULL) — guardrail rows arrive with
+ *  the People slice and get their own accessor then. */
+declare function listPolicies(db: Db, tenantId: string): Promise<PolicyRecord[]>;
+declare function setPolicyMode(db: Db, tenantId: string, policyClass: string, mode: string): Promise<PolicyRecord | null>;
 
 /**
  * The single Realtime subscription wrapper (Blueprint §5): every surface
@@ -1608,4 +1762,4 @@ declare function subscribeMessagesInserts(client: SupabaseClient<Database>, onIn
     tenant_id: string;
 }) => void, opts?: SubscribeOptions): () => void;
 
-export { type Database, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type NormalizedCallInput, type PgThreadState, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type ThreadTurn, createServiceClient, emitEvent, ingestCall, ingestInbound, linkCallMessage, markProcessed, pauseConversation, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, setCallRecording, subscribeMessagesInserts };
+export { type Database, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type NormalizedCallInput, type PgThreadState, type PolicyRecord, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, createServiceClient, emitEvent, getTenantConfig, ingestCall, ingestInbound, linkCallMessage, listPolicies, markProcessed, pauseConversation, putTenantConfig, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, setCallRecording, setPolicyMode, subscribeMessagesInserts };

@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 /** Closed error-code enum for the /api/v1 envelope (Blueprint §4). */
 declare const ERROR_CODES: readonly ["unauthorized", "forbidden", "not_found", "validation", "conflict", "rate_limited", "window_closed", "upstream_meta", "upstream_retell", "upstream_anthropic", "internal"];
 type ErrorCode = (typeof ERROR_CODES)[number];
@@ -472,4 +474,202 @@ declare function toTodayVM(m: MetricsSummaryDto, conversations: ConversationDto[
     conversation_id: string;
 }>, calls: CallDto[], now?: Date): TodayVM;
 
-export { ACTOR_TYPES, type ActorType, AppError, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, OPT_OUT_PATTERN, type Ok, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, err, formatPhoneDisplay, formatWaited, messageText, normalizePhone, ok, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };
+/**
+ * Control plane types (PRD E1/E3/E4) — the single source every boundary
+ * imports: the Settings form, the /v1 routes, and the edge runtime all parse
+ * the same schemas, so an option that exists in the UI exists in the runtime
+ * by construction (anti-junk rule R1).
+ */
+
+declare const ROLES: readonly ["owner", "operator", "viewer"];
+type Role = (typeof ROLES)[number];
+/** What each role may do. Mirrors the mockup's ST_PERMS exactly — the client
+ *  gate() chips read this shape; the server re-checks via requireRole. */
+declare const ROLE_PERMS: Record<Role, {
+    approve: boolean;
+    autonomy: boolean;
+    disconnect: boolean;
+    billing: boolean;
+    team: boolean;
+}>;
+declare const POLICY_CLASSES: readonly ["reply", "booking", "faq", "reengage", "campaign", "money"];
+type PolicyClass = (typeof POLICY_CLASSES)[number];
+/** 'veto' exists in the enum (and the DB CHECK) but is NOT offered by any UI
+ *  until the drafts/countdown engine exists — R1: no option without an
+ *  enforcer. The runtime treats an unexpected mode as 'ask' (fail safe). */
+declare const POLICY_MODES: readonly ["auto", "veto", "ask", "never"];
+type PolicyMode = (typeof POLICY_MODES)[number];
+declare const PolicyLimitsSchema: z.ZodObject<{
+    max_replies_day: z.ZodOptional<z.ZodNumber>;
+    pause_hours: z.ZodOptional<z.ZodNumber>;
+}, "strict", z.ZodTypeAny, {
+    max_replies_day?: number | undefined;
+    pause_hours?: number | undefined;
+}, {
+    max_replies_day?: number | undefined;
+    pause_hours?: number | undefined;
+}>;
+type PolicyLimits = z.infer<typeof PolicyLimitsSchema>;
+interface PolicyRow {
+    id: string;
+    class: PolicyClass;
+    mode: PolicyMode;
+    subject_type: "segment" | "contact" | null;
+    subject_id: string | null;
+    limits: PolicyLimits;
+    updated_at: string;
+}
+declare const BrainConfigSchema: z.ZodObject<{
+    business_name: z.ZodString;
+    phone_display: z.ZodString;
+    booking_link: z.ZodString;
+    /** The complete system prompt the model receives — the "AI memory" pane's
+     *  one hard promise is that what it shows is EXACTLY this, nothing more. */
+    system_prompt: z.ZodString;
+    fallbacks: z.ZodObject<{
+        /** Sent when no model key is configured. */
+        greeting: z.ZodString;
+        /** Sent when the model call failed. */
+        error: z.ZodString;
+        /** Sent for voice notes / photos before escalating. */
+        non_text: z.ZodString;
+    }, "strict", z.ZodTypeAny, {
+        non_text: string;
+        greeting: string;
+        error: string;
+    }, {
+        non_text: string;
+        greeting: string;
+        error: string;
+    }>;
+}, "strict", z.ZodTypeAny, {
+    business_name: string;
+    phone_display: string;
+    booking_link: string;
+    system_prompt: string;
+    fallbacks: {
+        non_text: string;
+        greeting: string;
+        error: string;
+    };
+}, {
+    business_name: string;
+    phone_display: string;
+    booking_link: string;
+    system_prompt: string;
+    fallbacks: {
+        non_text: string;
+        greeting: string;
+        error: string;
+    };
+}>;
+type BrainConfig = z.infer<typeof BrainConfigSchema>;
+declare const NotificationsConfigSchema: z.ZodObject<{
+    escalation_emails: z.ZodArray<z.ZodString, "many">;
+    from: z.ZodOptional<z.ZodString>;
+}, "strict", z.ZodTypeAny, {
+    escalation_emails: string[];
+    from?: string | undefined;
+}, {
+    escalation_emails: string[];
+    from?: string | undefined;
+}>;
+type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
+/** The whole tenant_config.config column. Sections are optional — a tenant
+ *  with no brain section is a tenant whose receptionist does not speak
+ *  (persist + escalate only). Safe-by-default beats a leaked persona. */
+declare const TenantConfigSchema: z.ZodObject<{
+    brain: z.ZodOptional<z.ZodObject<{
+        business_name: z.ZodString;
+        phone_display: z.ZodString;
+        booking_link: z.ZodString;
+        /** The complete system prompt the model receives — the "AI memory" pane's
+         *  one hard promise is that what it shows is EXACTLY this, nothing more. */
+        system_prompt: z.ZodString;
+        fallbacks: z.ZodObject<{
+            /** Sent when no model key is configured. */
+            greeting: z.ZodString;
+            /** Sent when the model call failed. */
+            error: z.ZodString;
+            /** Sent for voice notes / photos before escalating. */
+            non_text: z.ZodString;
+        }, "strict", z.ZodTypeAny, {
+            non_text: string;
+            greeting: string;
+            error: string;
+        }, {
+            non_text: string;
+            greeting: string;
+            error: string;
+        }>;
+    }, "strict", z.ZodTypeAny, {
+        business_name: string;
+        phone_display: string;
+        booking_link: string;
+        system_prompt: string;
+        fallbacks: {
+            non_text: string;
+            greeting: string;
+            error: string;
+        };
+    }, {
+        business_name: string;
+        phone_display: string;
+        booking_link: string;
+        system_prompt: string;
+        fallbacks: {
+            non_text: string;
+            greeting: string;
+            error: string;
+        };
+    }>>;
+    notifications: z.ZodOptional<z.ZodObject<{
+        escalation_emails: z.ZodArray<z.ZodString, "many">;
+        from: z.ZodOptional<z.ZodString>;
+    }, "strict", z.ZodTypeAny, {
+        escalation_emails: string[];
+        from?: string | undefined;
+    }, {
+        escalation_emails: string[];
+        from?: string | undefined;
+    }>>;
+}, "strict", z.ZodTypeAny, {
+    brain?: {
+        business_name: string;
+        phone_display: string;
+        booking_link: string;
+        system_prompt: string;
+        fallbacks: {
+            non_text: string;
+            greeting: string;
+            error: string;
+        };
+    } | undefined;
+    notifications?: {
+        escalation_emails: string[];
+        from?: string | undefined;
+    } | undefined;
+}, {
+    brain?: {
+        business_name: string;
+        phone_display: string;
+        booking_link: string;
+        system_prompt: string;
+        fallbacks: {
+            non_text: string;
+            greeting: string;
+            error: string;
+        };
+    } | undefined;
+    notifications?: {
+        escalation_emails: string[];
+        from?: string | undefined;
+    } | undefined;
+}>;
+type TenantConfig = z.infer<typeof TenantConfigSchema>;
+/** Parse unknown JSONB into TenantConfig, or null if malformed. The runtime
+ *  treats a malformed config exactly like an absent one — silence over a
+ *  half-applied persona. */
+declare function parseTenantConfig(raw: unknown): TenantConfig | null;
+
+export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_OUT_PATTERN, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, ROLES, ROLE_PERMS, type Role, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, err, formatPhoneDisplay, formatWaited, messageText, normalizePhone, ok, parseTenantConfig, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };

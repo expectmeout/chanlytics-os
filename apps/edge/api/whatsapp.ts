@@ -56,6 +56,10 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../lib/workspace/db.js";
 import { upsertEscalation } from "../lib/workspace/jobs.js";
+import { loadTenantRuntime, type TenantRuntime } from "../lib/tenant-runtime.js";
+import { FALLBACK_BRAIN, FALLBACK_NOTIFICATIONS } from "../lib/tenant-fallback.js";
+import type { BrainConfig, NotificationsConfig } from "../lib/workspace/contracts.js";
+import type { RoutedChannel } from "../lib/workspace/db.js";
 import { violatesNoPrices } from "../lib/workspace/contracts.js";
 
 export const config = { maxDuration: 60 };
@@ -88,18 +92,21 @@ async function pgThread(
   }
 }
 
-function waCfg() {
+function waCfg(rt?: TenantRuntime | null) {
+  // E2: per-tenant Vault credentials when the channel carries a ref; the env
+  // pair remains the fallback for the default tenant (rollback = delete ref).
+  if (rt?.waCreds) return { phoneId: rt.waCreds.phoneId, accessToken: rt.waCreds.accessToken };
   return { phoneId: process.env.WHATSAPP_PHONE_ID || "", accessToken: process.env.WHATSAPP_ACCESS_TOKEN || "" };
 }
 
-async function sendText(to: string, body: string): Promise<{ ok: boolean; wamid: string | null; status: number }> {
-  const r = await waSendText(waCfg(), to, body);
+async function sendText(to: string, body: string, rt?: TenantRuntime | null): Promise<{ ok: boolean; wamid: string | null; status: number }> {
+  const r = await waSendText(waCfg(rt), to, body);
   if (!r.ok) console.error("wa_send_failed", r.status, r.errorBody);
   else console.log("wa_sent", JSON.stringify({ to, wamid: r.wamid }));
   return { ok: r.ok, wamid: r.wamid, status: r.status };
 }
 
-async function alertStaff(threadId: string, userText: string, botText: string, reason: string): Promise<void> {
+async function alertStaff(threadId: string, userText: string, botText: string, reason: string, notif?: NotificationsConfig | null): Promise<void> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return;
   try {
@@ -107,8 +114,8 @@ async function alertStaff(threadId: string, userText: string, botText: string, r
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: process.env.LEAD_FROM || "Melany's Website <onboarding@resend.dev>",
-        to: [process.env.LEAD_TO || "ruben@rjcapital.io"],
+        from: notif?.from || process.env.LEAD_FROM || FALLBACK_NOTIFICATIONS.from,
+        to: notif?.escalation_emails ?? [process.env.LEAD_TO || FALLBACK_NOTIFICATIONS.escalation_emails[0]],
         subject: `WhatsApp handoff needed: +${threadId}`,
         text:
           `The WhatsApp assistant flagged a conversation for a human (${reason}).\n\n` +
@@ -226,11 +233,32 @@ function pgSink(db: SupabaseClient<Database> | null, tenantId: string | null, in
   };
 }
 
-async function handleInbound(m: WaRawMessage, value: WaChangeValue, tenantId: string | null): Promise<void> {
+async function handleInbound(
+  m: WaRawMessage,
+  value: WaChangeValue,
+  tenantId: string | null,
+  routed: RoutedChannel | null,
+  isEnvDefault: boolean,
+): Promise<void> {
   const from = m.from;
   const n = normalizeInbound(m, value);
   const db = pg();
   const t0 = Date.now();
+
+  // The control plane, through its one door (PRD §03). A tenant with no brain
+  // profile never auto-replies — silence over someone else's voice — while the
+  // env-default tenant keeps its baked DR fallback when the plane is UNREADABLE
+  // (same semantics as the creds env fallback: absence configures, errors fall
+  // back).
+  const rt = db && routed ? await loadTenantRuntime(db, routed) : null;
+  const drFallback = (!rt || rt.loadFailed) && isEnvDefault;
+  const brainCfg: BrainConfig | null = rt?.brain ?? (drFallback ? FALLBACK_BRAIN : null);
+  const notif: NotificationsConfig | null = rt?.notifications ?? (drFallback ? FALLBACK_NOTIFICATIONS : null);
+  const replyLimits = rt?.policy["reply"]?.limits ?? {};
+  const maxRepliesDay = replyLimits.max_replies_day ?? MAX_REPLIES_PER_DAY;
+  const pauseMs = (replyLimits.pause_hours ? replyLimits.pause_hours * 3600 * 1000 : PAUSE_MS);
+  // E3: unexpected or missing mode fails SAFE into 'ask' for routed tenants.
+  const replyMode = rt && !rt.loadFailed ? (rt.policy["reply"]?.mode ?? "ask") : (isEnvDefault ? "auto" : "ask");
 
   const allow = (process.env.WHATSAPP_TEST_ALLOWLIST || "").split(",").map((s) => s.trim()).filter(Boolean);
   if (allow.length && !allow.includes(from)) {
@@ -279,13 +307,17 @@ async function handleInbound(m: WaRawMessage, value: WaChangeValue, tenantId: st
     // non-text (voice note, image, sticker): hand to a human rather than guess
     await sink.media(n);
     if (Date.now() > thread.pausedUntil) {
-      await sendText(from, "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at (646) 932-5775.");
-      thread.pausedUntil = Date.now() + PAUSE_MS;
-      await saveThread(from, thread);
+      // No persona configured -> no ack goes out (and nothing to pause); the
+      // message still escalates so a human sees it.
+      if (brainCfg) {
+        await sendText(from, brainCfg.fallbacks.non_text, rt);
+        thread.pausedUntil = Date.now() + pauseMs;
+        await saveThread(from, thread);
+      }
       await Promise.all([
-        sink.pause(new Date(Date.now() + PAUSE_MS).toISOString()),
-        sink.escalate("non_text", `Customer sent a ${m.type} message — auto-acknowledged, bot paused.`),
-        alertStaff(from, `[${m.type} message]`, "(auto-acknowledged, bot paused)", "non-text message"),
+        ...(brainCfg ? [sink.pause(new Date(Date.now() + pauseMs).toISOString())] : []),
+        sink.escalate("non_text", `Customer sent a ${m.type} message — ${brainCfg ? "auto-acknowledged, bot paused" : "no auto-reply configured"}.`),
+        alertStaff(from, `[${m.type} message]`, brainCfg ? "(auto-acknowledged, bot paused)" : "(no auto-reply configured)", "non-text message", notif),
       ]);
     }
     await sink.processed();
@@ -307,10 +339,29 @@ async function handleInbound(m: WaRawMessage, value: WaChangeValue, tenantId: st
     await sink.processed();
     return;
   }
-  if (thread.replies.length >= MAX_REPLIES_PER_DAY) {
+  if (thread.replies.length >= maxRepliesDay) {
     await saveThread(from, thread);
     console.log("wa_skip_ratecap", from);
     await sink.processed();
+    return;
+  }
+
+  // E3: the reply policy is consulted BEFORE generation. 'ask' is the timid
+  // mode — everything escalates, a human answers; a tenant with no persona
+  // behaves identically. The customer's message is already persisted above.
+  if (!brainCfg || replyMode !== "auto") {
+    await saveThread(from, thread);
+    await Promise.all([
+      sink.escalate(
+        "policy_block",
+        brainCfg
+          ? `Reply mode is '${replyMode}' — the receptionist holds everything for a human.`
+          : "No brain profile configured — the receptionist stays silent until Settings fills one in.",
+      ),
+      alertStaff(from, m.text.body, "(held — no auto-reply for this workspace)", brainCfg ? `reply mode ${replyMode}` : "no persona configured", notif),
+      sink.processed(),
+    ]);
+    console.log("wa_held_by_policy", JSON.stringify({ to: from, mode: replyMode, persona: !!brainCfg }));
     return;
   }
 
@@ -321,28 +372,28 @@ async function handleInbound(m: WaRawMessage, value: WaChangeValue, tenantId: st
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const { generateReply } = await import("../lib/brain.js");
-      const r = await generateReply(thread.history, m.text.body);
+      const r = await generateReply(thread.history, m.text.body, brainCfg.system_prompt, brainCfg.fallbacks.error);
       replyText = r.text; escalate = r.escalate; usage = r.usage;
       if (r.reason) escalationReason = r.reason;
       // Layer-2 policy enforcement (Blueprint §6): prompt text is never the
       // only defense. A price in the draft blocks the send outright.
       if (violatesNoPrices(replyText)) {
         console.warn("policy_block_price", JSON.stringify({ to: from }));
-        replyText = "Great question! Pricing is quoted at your consult based on length and texture — a member of our team will follow up here shortly. For anything urgent, call (646) 932-5775.";
+        replyText = `Great question! Pricing is quoted at your consult — a member of our team will follow up here shortly. For anything urgent, call ${brainCfg.phone_display}.`;
         escalate = true;
         escalationReason = "policy_block";
       }
     } catch (e) {
       console.error("brain_failed", e instanceof Error ? e.message : e);
-      replyText = "Thanks for reaching out to Melany's Beauty Salon! Book anytime: https://booksy.com/en-us/1817434_melany-s-beauty-salon_hair-salon_29902_brooklyn — or a member of our team will reply here soon.";
+      replyText = brainCfg.fallbacks.error;
       escalate = true;
       escalationReason = "brain_error";
     }
   } else {
-    replyText = "Hi! Thanks for reaching out to Melany's Beauty Salon 💛 We're newly renovated and booking now.\n\nBook anytime: https://booksy.com/en-us/1817434_melany-s-beauty-salon_hair-salon_29902_brooklyn\n\nOr reply here with any question — for a person, just ask for Melany.";
+    replyText = brainCfg.fallbacks.greeting;
   }
 
-  const sent = await sendText(from, replyText);
+  const sent = await sendText(from, replyText, rt);
   const tSent = Date.now();
   if (sent.ok) {
     thread.history.push({ role: "user", content: m.text.body });
@@ -351,10 +402,10 @@ async function handleInbound(m: WaRawMessage, value: WaChangeValue, tenantId: st
     const post: Promise<unknown>[] = [sink.outbound(replyText, sent.wamid)];
     if (usage) post.push(sink.usage(usage));
     if (escalate) {
-      thread.pausedUntil = Date.now() + PAUSE_MS;
-      post.push(sink.pause(new Date(Date.now() + PAUSE_MS).toISOString()));
+      thread.pausedUntil = Date.now() + pauseMs;
+      post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
       post.push(sink.escalate(escalationReason, m.text.body));
-      post.push(alertStaff(from, m.text.body, replyText, "assistant flagged handoff"));
+      post.push(alertStaff(from, m.text.body, replyText, "assistant flagged handoff", notif));
     }
     await Promise.all(post);
     await saveThread(from, thread);
@@ -364,7 +415,7 @@ async function handleInbound(m: WaRawMessage, value: WaChangeValue, tenantId: st
     // loud, and the message must stay visibly unprocessed for reconciliation.
     await saveThread(from, thread);
     await Promise.all([
-      alertStaff(from, m.text.body, "(send failed — the customer received no reply)", "wa_send_failed"),
+      alertStaff(from, m.text.body, "(send failed — the customer received no reply)", "wa_send_failed", notif),
       sink.sendFailed(sent.status),
       sink.escalate("send_failed", `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`),
     ]);
@@ -413,11 +464,13 @@ export async function POST(request: Request): Promise<Response> {
         const field = change.field;
         // Multi-tenant routing key (Blueprint §3): phone_number_id -> tenant.
         let tenantId: string | null = null;
+        let routedChannel: RoutedChannel | null = null;
         const db = pg();
         const phoneNumberId = v.metadata?.phone_number_id;
+        const isEnvDefault = !!phoneNumberId && phoneNumberId === (process.env.WHATSAPP_PHONE_ID || "");
         if (db && phoneNumberId) {
           const routed = await resolveChannel(db, "whatsapp", phoneNumberId);
-          if (routed) tenantId = routed.tenantId;
+          if (routed) { tenantId = routed.tenantId; routedChannel = routed; }
           else {
             // A log line disappears; a metric built on messages_in would
             // undercount this traffic invisibly and forever. Persist it the
@@ -433,7 +486,7 @@ export async function POST(request: Request): Promise<Response> {
         if (field === "messages" && v.messages) {
           for (const m of v.messages) {
             console.log("wa_inbound", JSON.stringify({ from: m.from, type: m.type, id: m.id, text: m.text && m.text.body }));
-            await handleInbound(m, v, tenantId);
+            await handleInbound(m, v, tenantId, routedChannel, isEnvDefault);
           }
         } else if (field === "messages" && v.statuses) {
           await Promise.all((v.statuses ?? []).map(async (s) => {
@@ -445,7 +498,7 @@ export async function POST(request: Request): Promise<Response> {
             }
           }));
         } else if (field === "smb_message_echoes") {
-          // Melany (or staff) replied from the WhatsApp Business app -> pause the bot on that thread
+          // The owner (or staff) replied from the WhatsApp Business app -> pause the bot on that thread
           try {
             for (const echo of v.message_echoes || []) {
               const to = echo.to;

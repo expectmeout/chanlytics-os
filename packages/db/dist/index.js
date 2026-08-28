@@ -244,6 +244,28 @@ async function readThreadState(db, tenantId, conversationId, pausedUntilIso, his
   };
 }
 
+// src/repositories/control-plane.ts
+async function getTenantConfig(db, tenantId) {
+  const { data, error } = await db.from("tenant_config").select("tenant_id, config, version, updated_at").eq("tenant_id", tenantId).maybeSingle();
+  if (error) throw new Error(`getTenantConfig: ${error.message}`);
+  return data;
+}
+async function putTenantConfig(db, tenantId, config, expectedVersion) {
+  const { data, error } = await db.from("tenant_config").update({ config, version: expectedVersion + 1 }).eq("tenant_id", tenantId).eq("version", expectedVersion).select("tenant_id, config, version, updated_at").maybeSingle();
+  if (error) throw new Error(`putTenantConfig: ${error.message}`);
+  return data;
+}
+async function listPolicies(db, tenantId) {
+  const { data, error } = await db.from("policies").select("id, class, mode, subject_type, subject_id, limits, updated_at").eq("tenant_id", tenantId).is("subject_type", null).order("class");
+  if (error) throw new Error(`listPolicies: ${error.message}`);
+  return data ?? [];
+}
+async function setPolicyMode(db, tenantId, policyClass, mode) {
+  const { data, error } = await db.from("policies").update({ mode }).eq("tenant_id", tenantId).eq("class", policyClass).is("subject_type", null).select("id, class, mode, subject_type, subject_id, limits, updated_at").maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 // src/realtime.ts
 var WATCHED = [
   { table: "messages", event: "INSERT" },
@@ -287,11 +309,14 @@ function subscribeMessagesInserts(client, onInsert, opts = {}) {
 export {
   createServiceClient,
   emitEvent,
+  getTenantConfig,
   ingestCall,
   ingestInbound,
   linkCallMessage,
+  listPolicies,
   markProcessed,
   pauseConversation,
+  putTenantConfig,
   readThreadState,
   recordCallNote,
   recordEchoAndPause,
@@ -299,5 +324,6 @@ export {
   recordStatusByExternalId,
   resolveChannel,
   setCallRecording,
+  setPolicyMode,
   subscribeMessagesInserts
 };

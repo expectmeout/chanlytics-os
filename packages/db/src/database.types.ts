@@ -989,6 +989,50 @@ export type Database = {
           },
         ]
       }
+      invitations: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string
+          revoked_at: string | null
+          role: string
+          tenant_id: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          invited_by: string
+          revoked_at?: string | null
+          role: string
+          tenant_id: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string
+          revoked_at?: string | null
+          role?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invitations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jobs: {
         Row: {
           attempts: number
@@ -1186,6 +1230,47 @@ export type Database = {
         }
         Relationships: []
       }
+      policies: {
+        Row: {
+          class: string
+          id: string
+          limits: Json
+          mode: string
+          subject_id: string | null
+          subject_type: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          class: string
+          id?: string
+          limits?: Json
+          mode: string
+          subject_id?: string | null
+          subject_type?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          class?: string
+          id?: string
+          limits?: Json
+          mode?: string
+          subject_id?: string | null
+          subject_type?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "policies_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       templates: {
         Row: {
           body_preview: string | null
@@ -1283,6 +1368,35 @@ export type Database = {
           },
         ]
       }
+      tenant_config: {
+        Row: {
+          config: Json
+          tenant_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          config?: Json
+          tenant_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          config?: Json
+          tenant_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_config_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
           created_at: string
@@ -1328,6 +1442,7 @@ export type Database = {
         Args: { p_error: string; p_job_id: string }
         Returns: undefined
       }
+      get_channel_credentials: { Args: { p_channel_id: string }; Returns: Json }
       ingest_call: {
         Args: {
           p_agent_id: string

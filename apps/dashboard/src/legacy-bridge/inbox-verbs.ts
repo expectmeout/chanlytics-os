@@ -14,13 +14,10 @@ interface RealThread {
 
 type VerbResult = { ok: true; data?: unknown } | { ok: false; message: string };
 
-// Tenant #1 facts for the outside-window template send — moves to
-// tenant_profiles config in Slice 6.
-const BOOKING_TEMPLATE = {
-  name: "booking_link_v1",
-  language: "en_US",
-  params: ["Melany's Beauty Salon", "booksy.com/en-us/1817434_melany-s-beauty-salon_hair-salon_29902_brooklyn"],
-};
+// The template SEND is an intent; its params are tenant facts and are
+// resolved server-side from the control plane (PRD E4) — the browser no
+// longer knows or ships any workspace's booking link.
+const BOOKING_TEMPLATE = { name: "booking_link_v1", language: "en_US" };
 
 async function call(url: string, body?: unknown, idempotencyKey?: string): Promise<VerbResult> {
   try {

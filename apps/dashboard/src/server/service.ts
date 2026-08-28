@@ -71,3 +71,183 @@ export async function mirrorBlobPause(phoneE164: string, pausedUntilMs: number):
   });
   if (!r.ok) throw new Error(`blob pause mirror failed (${r.status})`);
 }
+
+/* ---- E1 team operations (Session A) --------------------------------------
+   The ONLY file that touches auth.admin. Every function takes a tenantId the
+   route has already proven the caller belongs to (memberContext), then scopes
+   every query to it by hand — the service role bypasses RLS, so the scoping
+   discipline lives here instead. */
+
+export interface TeamMember {
+  membershipId: string;
+  userId: string;
+  email: string | null;
+  role: string;
+  isMe?: boolean;
+}
+export interface OpenInvite {
+  id: string;
+  email: string;
+  role: string;
+  created_at: string;
+  expires_at: string;
+}
+
+export async function teamRoster(tenantId: string, callerRole: string) {
+  const db = serviceDb();
+  const [members, invites] = await Promise.all([
+    db.from("memberships").select("id, user_id, role, created_at").eq("tenant_id", tenantId).order("created_at"),
+    db
+      .from("invitations")
+      .select("id, email, role, created_at, expires_at")
+      .eq("tenant_id", tenantId)
+      .is("accepted_at", null)
+      .is("revoked_at", null)
+      .order("created_at"),
+  ]);
+  if (members.error) throw new Error(members.error.message);
+  if (invites.error) throw new Error(invites.error.message);
+
+  const roster: TeamMember[] = [];
+  for (const m of members.data ?? []) {
+    const { data: u } = await db.auth.admin.getUserById(m.user_id);
+    roster.push({ membershipId: m.id, userId: m.user_id, email: u?.user?.email ?? null, role: m.role });
+  }
+  return { members: roster, invites: (invites.data ?? []) as OpenInvite[], callerRole };
+}
+
+export async function inviteMember(
+  tenantId: string,
+  invitedBy: string,
+  email: string,
+  role: "operator" | "viewer",
+) {
+  const db = serviceDb();
+  // A person who already belongs shouldn't get a confusing signup email.
+  const { data: users } = await db.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const existing = users?.users.find((u) => (u.email ?? "").toLowerCase() === email);
+  if (existing) {
+    const { data: mem } = await db
+      .from("memberships")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("user_id", existing.id)
+      .maybeSingle();
+    if (mem) return { alreadyMember: true as const };
+    // Known account, new workspace: membership now, no email ceremony needed.
+    const { error } = await db.from("memberships").insert({ tenant_id: tenantId, user_id: existing.id, role });
+    if (error) throw new Error(error.message);
+    return { added: true as const };
+  }
+
+  const { error: invErr } = await db
+    .from("invitations")
+    .insert({ tenant_id: tenantId, email, role, invited_by: invitedBy });
+  if (invErr) {
+    if (invErr.code === "23505") return { alreadyInvited: true as const };
+    throw new Error(invErr.message);
+  }
+  const { error: mailErr } = await db.auth.admin.inviteUserByEmail(email);
+  if (mailErr) {
+    // The intent row without the email is a lie in the invites list — undo it.
+    await db.from("invitations").delete().eq("tenant_id", tenantId).eq("email", email).is("accepted_at", null);
+    throw new Error(`Invite email failed: ${mailErr.message}`);
+  }
+  return { invited: true as const };
+}
+
+export async function setMemberRole(tenantId: string, membershipId: string, role: string) {
+  const db = serviceDb();
+  if (role !== "owner") {
+    // Demoting the LAST owner strands the workspace — nobody could ever
+    // manage the team or billing again.
+    const { data: target } = await db
+      .from("memberships")
+      .select("id, role")
+      .eq("tenant_id", tenantId)
+      .eq("id", membershipId)
+      .maybeSingle();
+    if (target?.role === "owner") {
+      const { count } = await db
+        .from("memberships")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .eq("role", "owner");
+      if ((count ?? 0) <= 1) throw new Error("last_owner");
+    }
+  }
+  const { data, error } = await db
+    .from("memberships")
+    .update({ role })
+    .eq("tenant_id", tenantId)
+    .eq("id", membershipId)
+    .select("id, role")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("not_found");
+  return { membershipId: data.id, role: data.role };
+}
+
+export async function removeMember(tenantId: string, id: string, callerUserId: string) {
+  const db = serviceDb();
+  // id may be a membership or an open invite — try the invite first (cheaper).
+  const { data: inv } = await db
+    .from("invitations")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("id", id)
+    .is("accepted_at", null)
+    .maybeSingle();
+  if (inv) {
+    const { error } = await db.from("invitations").update({ revoked_at: new Date().toISOString() }).eq("id", inv.id);
+    if (error) throw new Error(error.message);
+    return { revokedInvite: true as const };
+  }
+  const { data: target } = await db
+    .from("memberships")
+    .select("id, user_id, role")
+    .eq("tenant_id", tenantId)
+    .eq("id", id)
+    .maybeSingle();
+  if (!target) throw new Error("not_found");
+  if (target.user_id === callerUserId) throw new Error("self_remove");
+  if (target.role === "owner") {
+    const { count } = await db
+      .from("memberships")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("role", "owner");
+    if ((count ?? 0) <= 1) throw new Error("last_owner");
+  }
+  const { error } = await db.from("memberships").delete().eq("id", target.id);
+  if (error) throw new Error(error.message);
+  return { removed: true as const };
+}
+
+/** First sign-in completes any open invites for this email: membership rows
+ *  appear at the invited role and the invite is stamped accepted. Called from
+ *  the workspaces route when a session has no memberships yet — self-healing,
+ *  no separate accept endpoint to get wrong. */
+export async function acceptOpenInvites(userId: string, email: string | null): Promise<number> {
+  if (!email) return 0;
+  const db = serviceDb();
+  const { data: open, error } = await db
+    .from("invitations")
+    .select("id, tenant_id, role")
+    .eq("email", email.toLowerCase())
+    .is("accepted_at", null)
+    .is("revoked_at", null)
+    .gt("expires_at", new Date().toISOString());
+  if (error || !open?.length) return 0;
+  let n = 0;
+  for (const inv of open) {
+    const { error: mErr } = await db
+      .from("memberships")
+      .insert({ tenant_id: inv.tenant_id, user_id: userId, role: inv.role });
+    if (!mErr || mErr.code === "23505") {
+      await db.from("invitations").update({ accepted_at: new Date().toISOString() }).eq("id", inv.id);
+      n++;
+    }
+  }
+  return n;
+}

@@ -652,9 +652,53 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     quiet: null
   };
 }
+
+// src/config.ts
+import { z } from "zod";
+var ROLES = ["owner", "operator", "viewer"];
+var ROLE_PERMS = {
+  owner: { approve: true, autonomy: true, disconnect: true, billing: true, team: true },
+  operator: { approve: true, autonomy: true, disconnect: false, billing: false, team: false },
+  viewer: { approve: false, autonomy: false, disconnect: false, billing: false, team: false }
+};
+var POLICY_CLASSES = ["reply", "booking", "faq", "reengage", "campaign", "money"];
+var POLICY_MODES = ["auto", "veto", "ask", "never"];
+var PolicyLimitsSchema = z.object({
+  max_replies_day: z.number().int().min(1).max(200).optional(),
+  pause_hours: z.number().int().min(1).max(168).optional()
+}).strict();
+var BrainConfigSchema = z.object({
+  business_name: z.string().min(1).max(120),
+  phone_display: z.string().min(3).max(40),
+  booking_link: z.string().url().max(500),
+  /** The complete system prompt the model receives — the "AI memory" pane's
+   *  one hard promise is that what it shows is EXACTLY this, nothing more. */
+  system_prompt: z.string().min(40).max(2e4),
+  fallbacks: z.object({
+    /** Sent when no model key is configured. */
+    greeting: z.string().min(1).max(2e3),
+    /** Sent when the model call failed. */
+    error: z.string().min(1).max(2e3),
+    /** Sent for voice notes / photos before escalating. */
+    non_text: z.string().min(1).max(2e3)
+  }).strict()
+}).strict();
+var NotificationsConfigSchema = z.object({
+  escalation_emails: z.array(z.string().email()).min(1).max(10),
+  from: z.string().max(200).optional()
+}).strict();
+var TenantConfigSchema = z.object({
+  brain: BrainConfigSchema.optional(),
+  notifications: NotificationsConfigSchema.optional()
+}).strict();
+function parseTenantConfig(raw) {
+  const r = TenantConfigSchema.safeParse(raw ?? {});
+  return r.success ? r.data : null;
+}
 export {
   ACTOR_TYPES,
   AppError,
+  BrainConfigSchema,
   CHANNEL_KINDS,
   CONSENT_STATES,
   CONVERSATION_STATES,
@@ -674,9 +718,16 @@ export {
   MESSAGE_SENDERS,
   MESSAGE_STATUSES,
   MESSAGE_TYPES,
+  NotificationsConfigSchema,
   OPT_OUT_PATTERN,
+  POLICY_CLASSES,
+  POLICY_MODES,
+  PolicyLimitsSchema,
+  ROLES,
+  ROLE_PERMS,
   TEMPLATE_STATUSES,
   TENANT_STATUSES,
+  TenantConfigSchema,
   WA_WINDOW_MS,
   err,
   formatPhoneDisplay,
@@ -684,6 +735,7 @@ export {
   messageText,
   normalizePhone,
   ok,
+  parseTenantConfig,
   toCallVM,
   toConversationVM,
   toInboxThreadVM,

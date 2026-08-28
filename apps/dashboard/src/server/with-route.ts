@@ -51,3 +51,51 @@ export function withRoute<T>(
     }
   };
 }
+
+/* ---- Control plane (Session A): who is acting, on which tenant, as what ---- */
+
+export interface MemberContext {
+  tenantId: string;
+  role: "owner" | "operator" | "viewer";
+}
+
+/**
+ * Resolve the caller's membership for the workspace this request acts on.
+ * RLS (memberships_self_select) means this query can only ever see the
+ * caller's own rows — a forged workspace id they don't belong to resolves to
+ * nothing and 404s, never to someone else's tenant.
+ */
+export async function memberContext(
+  ctx: RouteContext,
+  wanted?: string | null,
+): Promise<MemberContext> {
+  const { data, error } = await ctx.supabase
+    .from("memberships")
+    .select("tenant_id, role")
+    .eq("user_id", ctx.userId)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  const m = wanted ? data?.find((r) => r.tenant_id === wanted) : data?.[0];
+  if (!m) throw new AppError("not_found", "No workspace found for this account.", 404);
+  return { tenantId: m.tenant_id, role: m.role as MemberContext["role"] };
+}
+
+const ROLE_RANK: Record<MemberContext["role"], number> = { viewer: 0, operator: 1, owner: 2 };
+
+/**
+ * The server-side door (PRD E1). RLS is the floor — it stops cross-tenant
+ * reads no matter what — but "which member may flip this switch" is a role
+ * decision, and it is made HERE, never in the browser. The client's gate()
+ * chips are a courtesy rendering of the same truth.
+ */
+export function requireRole(member: MemberContext, atLeast: MemberContext["role"]): void {
+  if (ROLE_RANK[member.role] < ROLE_RANK[atLeast]) {
+    throw new AppError(
+      "forbidden",
+      atLeast === "owner"
+        ? "Only an owner can do this."
+        : "Viewers can see everything and change nothing.",
+      403,
+    );
+  }
+}

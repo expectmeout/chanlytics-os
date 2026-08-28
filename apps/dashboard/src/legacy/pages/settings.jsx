@@ -38,7 +38,14 @@ window.ST_STORE = window.ST_STORE || {
   ],
   getTeam() { return this.team; },
   me() { return this.team.find(m => m.id === this.meId); },
-  myRole() { return this.viewAsRole || (this.me() ? this.me().role : "owner"); },
+  myRole() {
+    // Real membership role when the bridge has it (E1) — every gate() chip in
+    // the app starts telling the truth through this one line. View-as still
+    // previews a LOWER role on top of the real one (owner-only, client-side,
+    // harmless: the server re-checks with requireRole anyway).
+    const real = window.__ME && window.__ME.role;
+    return this.viewAsRole || real || (this.me() ? this.me().role : "owner");
+  },
   seatsUsed() { return this.team.filter(m => m.status !== "revoked").length; },
   ownerCount() { return this.team.filter(m => m.role === "owner" && m.status === "active").length; },
   can(action) { return !!(ST_PERMS[this.myRole()] || {})[action]; },

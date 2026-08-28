@@ -59,7 +59,23 @@ export const POST = withRoute(async (req, ctx) => {
     if (!tpl || tpl.meta_status !== "approved") {
       throw new AppError("validation", "Template not found or not approved.");
     }
-    const params = body.template.params ?? [];
+    // Params are TENANT FACTS (E4): resolved here from the control plane, so
+    // the browser neither knows nor ships any workspace's booking link. A
+    // client-supplied params array is accepted only if config has nothing —
+    // and once every tenant has a brain profile, that path dies too.
+    let params = body.template.params ?? [];
+    if (!params.length) {
+      const { data: cfgRow } = await ctx.supabase
+        .from("tenant_config")
+        .select("config")
+        .eq("tenant_id", conv.tenant_id)
+        .maybeSingle();
+      const brain = (cfgRow?.config as { brain?: { business_name?: string; booking_link?: string } } | null)?.brain;
+      if (brain?.business_name && brain.booking_link) {
+        params = [brain.business_name, brain.booking_link.replace(/^https?:[/][/]/, "")];
+      }
+    }
+    if (!params.length) throw new AppError("validation", "This workspace has no template facts configured yet.");
     templateName = tpl.name;
     templateVars = { language: tpl.language, params } as Json;
     messageBody = params.reduce(
