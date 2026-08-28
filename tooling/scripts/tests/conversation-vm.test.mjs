@@ -51,7 +51,13 @@ test("the row's time comes from the message it is previewing", () => {
     msg({ id: "m2", sender: "system", type: "call_summary", body: "Inbound call", created_at: "2026-08-27T14:15:00Z" }),
   ]), NOW);
   assert.match(vm.snippet, /Booking link sent\./);
-  assert.equal(vm.at, "8:00 AM"); // 12:00Z, not the 14:15Z import
+  // Locale-independent: the row time must equal what the SAME thread renders
+  // without the imported call note. A literal clock string would only pass in
+  // the timezone the test was written in (CI runs UTC).
+  const chatOnly = toConversationVM(conv([
+    msg({ id: "m1", direction: "outbound", sender: "ai", body: "Booking link sent.", status: "sent", created_at: "2026-08-27T12:00:00Z" }),
+  ]), NOW);
+  assert.equal(vm.at, chatOnly.at);
 });
 
 test("a caller who never messaged is not given an empty chat row", () => {
