@@ -11,6 +11,14 @@ export interface RouteContext {
 }
 
 /**
+ * Every /v1 response carries customer transcripts, phone numbers, or an error
+ * message shaped by the request. Next defaults these to
+ * "public, max-age=0, must-revalidate" — public, on a shared-cache-eligible
+ * response. Applied on ALL exits so no path can be forgotten.
+ */
+const PRIVATE = { "cache-control": "private, no-store" } as const;
+
+/**
  * The one wrapper every /api/v1 handler goes through (Blueprint §4/§8):
  * verified session (getUser, never the cookie JWT alone) -> handler runs on the
  * SESSION-scoPED client so RLS is the enforcement -> envelope + structured log.
@@ -36,23 +44,18 @@ export function withRoute<T>(
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        return NextResponse.json(err("unauthorized", "Sign in required."), { status: 401 });
+        return NextResponse.json(err("unauthorized", "Sign in required."), { status: 401, headers: PRIVATE });
       }
       const data = await handler(req, { supabase, userId: user.id, email: user.email, params });
       console.log(JSON.stringify({ level: "info", route, user: user.id, ms: Date.now() - started }));
-      // These payloads are customer transcripts and phone numbers. The
-      // default was "public, max-age=0, must-revalidate" — public, on a
-      // shared-cache-eligible response.
-      return NextResponse.json(ok(data), {
-        headers: { "cache-control": "private, no-store" },
-      });
+      return NextResponse.json(ok(data), { headers: PRIVATE });
     } catch (e) {
       if (e instanceof AppError) {
         console.log(JSON.stringify({ level: "warn", route, code: e.code, ms: Date.now() - started }));
-        return NextResponse.json(err(e.code, e.message, e.details), { status: e.status });
+        return NextResponse.json(err(e.code, e.message, e.details), { status: e.status, headers: PRIVATE });
       }
       console.error(JSON.stringify({ level: "error", route, error: e instanceof Error ? e.message : String(e) }));
-      return NextResponse.json(err("internal", "Something went wrong."), { status: 500 });
+      return NextResponse.json(err("internal", "Something went wrong."), { status: 500, headers: PRIVATE });
     }
   };
 }
