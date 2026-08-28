@@ -43,12 +43,42 @@ const SURFACE_LABELS: Record<string, string> = { conversations: "Conversations",
  * a route whose data isn't ready yet shows the app's own skeleton rather than
  * the mockup's seeds. Routes absent from this map are seeded by design (their
  * slice hasn't happened) and are always ready — they must never wait.
+ *
+ * ORDERING IS LOAD-BEARING (see installRouteGate below).
  */
 const ROUTE_SURFACE: Record<string, string> = {
   today: "today",
   inbox: "inbox",
   conversations: "conversations",
 };
+
+/**
+ * The shell's route gate, installed at MODULE SCOPE — not in an effect.
+ *
+ * app-shell.jsx computes `routeLoading`'s INITIAL state during its first
+ * render, and it is a child of this component: children render before parent
+ * effects run. Installing the gate in a useEffect therefore left it undefined
+ * at the only moment it mattered, `routeReady()` fell back to `true`, and a
+ * cold boot painted the seeded mockup hero ($1,840 revenue, a fabricated
+ * operator) for one frame — then a skeleton, then the truth. Strictly worse
+ * than no gate at all.
+ *
+ * Module scope runs before React renders anything, so the very first frame is
+ * already gated. It also survives StrictMode's mount/unmount/mount, which the
+ * effect's cleanup used to tear down mid-sequence.
+ */
+function installRouteGate(): void {
+  const w = window as unknown as {
+    __surfaceGate?: (page: string) => boolean;
+    __onSurfaceReady?: (fn: () => void) => () => void;
+  };
+  w.__surfaceGate = (page) => {
+    const key = ROUTE_SURFACE[page];
+    return key ? isSurfaceReady(key) : true;
+  };
+  w.__onSurfaceReady = onSurfaceStatusChange;
+}
+installRouteGate();
 
 interface Prefs {
   theme: "light" | "dark";
@@ -101,24 +131,6 @@ export default function LegacyApp() {
   useEffect(() => {
     document.documentElement.classList.add("legacy-on");
     return () => document.documentElement.classList.remove("legacy-on");
-  }, []);
-
-  // The shell's route gate. Exposed on window because app-shell.jsx is a
-  // legacy mockup file with no import of ours — same pattern as appNavigate.
-  useEffect(() => {
-    const w = window as unknown as {
-      __surfaceGate?: (page: string) => boolean;
-      __onSurfaceReady?: (fn: () => void) => () => void;
-    };
-    w.__surfaceGate = (page) => {
-      const key = ROUTE_SURFACE[page];
-      return key ? isSurfaceReady(key) : true;
-    };
-    w.__onSurfaceReady = onSurfaceStatusChange;
-    return () => {
-      delete w.__surfaceGate;
-      delete w.__onSurfaceReady;
-    };
   }, []);
 
   // Surface flips: one runner owns retries, realtime, debounce, and status.
