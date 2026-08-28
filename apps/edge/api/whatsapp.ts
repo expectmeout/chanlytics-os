@@ -342,7 +342,16 @@ async function handleInbound(
   if (thread.replies.length >= maxRepliesDay) {
     await saveThread(from, thread);
     console.log("wa_skip_ratecap", from);
-    await sink.processed();
+    // A customer who hits the cap was being abandoned to a console line: no
+    // escalation, no alert, nothing on Today. `rate_cap` has been a declared,
+    // CHECK-allowed, LABELLED escalation reason this whole time with no
+    // emitter anywhere in the repo. At the shipped default of 20/day this
+    // fires on a busy thread, not only when someone lowers the limit.
+    await Promise.all([
+      sink.escalate("rate_cap", `Thread hit ${maxRepliesDay} automatic replies today — the receptionist stopped and is waiting for a human.`),
+      alertStaff(from, m.text.body, "(no reply sent — daily automatic-reply limit reached)", "rate cap", notif),
+      sink.processed(),
+    ]);
     return;
   }
 
@@ -486,7 +495,16 @@ export async function POST(request: Request): Promise<Response> {
         if (field === "messages" && v.messages) {
           for (const m of v.messages) {
             console.log("wa_inbound", JSON.stringify({ from: m.from, type: m.type, id: m.id, text: m.text && m.text.body }));
-            await handleInbound(m, v, tenantId, routedChannel, isEnvDefault);
+            // Per MESSAGE, not per batch. Any throw used to unwind to the one
+            // outer catch below, which returns 200 — so a single failure meant
+            // Meta never retried AND every remaining message in the batch was
+            // never handled at all. The message itself is already persisted by
+            // then, so it stays visible for reconciliation.
+            try {
+              await handleInbound(m, v, tenantId, routedChannel, isEnvDefault);
+            } catch (e) {
+              console.error("wa_inbound_failed", m.id, e instanceof Error ? e.message : e);
+            }
           }
         } else if (field === "messages" && v.statuses) {
           await Promise.all((v.statuses ?? []).map(async (s) => {

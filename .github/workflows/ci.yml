@@ -30,9 +30,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # workspace packages build to dist first; apps typecheck against the built types
       - run: pnpm --filter "./packages/*" build
-      # dist-drift guard: the edge executes committed dist — stale dist = stale prod
+      # dist-drift guard: the edge executes committed dist ï¿½ stale dist = stale prod
       - run: git diff --exit-code -- packages/*/dist
       - run: pnpm -r typecheck
+      # Static analysis on the UI, which had none. The rule that earns this is
+      # react-hooks/exhaustive-deps â€” stale dep arrays are the defect family
+      # behind most of what we have called "glitchy".
+      - run: pnpm --filter @chanlytics/dashboard lint
       - run: node --test tooling/scripts/tests/*.test.mjs
       # generated-types freshness: regen must produce no diff (CI has no Supabase
       # access token, so this runs only when the schema changed in the commit).

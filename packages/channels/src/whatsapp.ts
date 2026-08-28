@@ -100,19 +100,43 @@ export interface SendResult {
   errorBody?: string;
 }
 
+/**
+ * Every Graph send goes through here. Two reasons:
+ *
+ * 1. A bare `fetch` REJECTS on a network fault (DNS, reset, TLS). That
+ *    rejection escaped the webhook's per-message loop into a single outer
+ *    catch that returns 200 — so Meta never retried, the loud send-failure
+ *    branch never ran, and the remaining messages in the batch were dropped
+ *    silently. A send adapter must RETURN a result, never throw.
+ * 2. It was unbounded. One hung connection to Graph could consume the whole
+ *    60s invocation and take the rest of the batch with it.
+ *
+ * status 0 means "never reached Meta", which is distinct from any HTTP status.
+ */
+const SEND_TIMEOUT_MS = 15_000;
+
+async function postGraph(cfg: WaConfig, payload: unknown): Promise<SendResult> {
+  try {
+    const r = await fetch(`${GRAPH}/${cfg.phoneId}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+    });
+    const out = (await r.json().catch(() => ({}))) as { messages?: Array<{ id?: string }> };
+    return {
+      ok: r.ok,
+      wamid: out.messages?.[0]?.id ?? null,
+      status: r.status,
+      errorBody: r.ok ? undefined : JSON.stringify(out).slice(0, 200),
+    };
+  } catch (e) {
+    return { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 export async function sendText(cfg: WaConfig, to: string, body: string): Promise<SendResult> {
-  const r = await fetch(`${GRAPH}/${cfg.phoneId}/messages`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ messaging_product: "whatsapp", to, type: "text", text: { body } }),
-  });
-  const out = (await r.json().catch(() => ({}))) as { messages?: Array<{ id?: string }> };
-  return {
-    ok: r.ok,
-    wamid: out.messages?.[0]?.id ?? null,
-    status: r.status,
-    errorBody: r.ok ? undefined : JSON.stringify(out).slice(0, 200),
-  };
+  return postGraph(cfg, { messaging_product: "whatsapp", to, type: "text", text: { body } });
 }
 
 /** Approved-template send — the only legal path outside the 24h window. */
@@ -121,29 +145,18 @@ export async function sendTemplate(
   to: string,
   template: { name: string; language: string; params: string[] },
 ): Promise<SendResult> {
-  const r = await fetch(`${GRAPH}/${cfg.phoneId}/messages`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to,
-      type: "template",
-      template: {
-        name: template.name,
-        language: { code: template.language },
-        components: template.params.length
-          ? [{ type: "body", parameters: template.params.map((t) => ({ type: "text", text: t })) }]
-          : [],
-      },
-    }),
+  return postGraph(cfg, {
+    messaging_product: "whatsapp",
+    to,
+    type: "template",
+    template: {
+      name: template.name,
+      language: { code: template.language },
+      components: template.params.length
+        ? [{ type: "body", parameters: template.params.map((t) => ({ type: "text", text: t })) }]
+        : [],
+    },
   });
-  const out = (await r.json().catch(() => ({}))) as { messages?: Array<{ id?: string }> };
-  return {
-    ok: r.ok,
-    wamid: out.messages?.[0]?.id ?? null,
-    status: r.status,
-    errorBody: r.ok ? undefined : JSON.stringify(out).slice(0, 200),
-  };
 }
 
 /* -------------------------------- media -------------------------------- */

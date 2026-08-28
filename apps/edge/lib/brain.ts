@@ -8,7 +8,14 @@ import type { ThreadTurn } from "./store.js";
 // The system prompt is TENANT CONFIG (PRD E4): it arrives as a parameter from
 // tenant-runtime, so this file knows how to talk, never who it speaks for.
 
-const client = new Anthropic();
+/**
+ * A budget, because this call sits inside a 60s webhook invocation that also
+ * has to persist, send and escalate. The SDK defaults to a 10-minute timeout
+ * with retries, so a slow response could consume the whole invocation and
+ * destroy the customer's message rather than falling back to the holding
+ * reply. 20s x 2 attempts leaves room for the send that follows.
+ */
+const client = new Anthropic({ timeout: 20_000, maxRetries: 1 });
 
 export interface BrainReply {
   text: string;

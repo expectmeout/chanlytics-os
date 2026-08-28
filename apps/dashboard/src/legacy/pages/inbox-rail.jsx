@@ -15,7 +15,10 @@ const POL_MODE_HINT = {
 };
 
 const InboxAgentRail = ({ thread }) => {
-  if (!thread) return null;
+  // Hooks first, unconditionally. The early return used to sit above these
+  // four, so React saw a different hook count whenever `thread` went from a
+  // selection to none — the classic way state ends up attached to the wrong
+  // component. None of them reads `thread`, so the guard simply moves below.
   const [askText, setAskText] = React.useState("");
   const [askLog, setAskLog] = React.useState([]);
   const [toastNode, ppFlash] = window.usePPToast();
@@ -24,6 +27,7 @@ const InboxAgentRail = ({ thread }) => {
     window.addEventListener("policy:changed", polTick);
     return () => window.removeEventListener("policy:changed", polTick);
   }, []);
+  if (!thread) return null;
 
   const agentId = window.CHANLY.agentIdFor(thread.agent.name);
 

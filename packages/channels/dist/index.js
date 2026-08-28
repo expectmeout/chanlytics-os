@@ -4109,42 +4109,40 @@ function normalizeInbound(m, value) {
     optOut: isText ? OPT_OUT_PATTERN.test(body || "") : false
   };
 }
+var SEND_TIMEOUT_MS = 15e3;
+async function postGraph(cfg, payload) {
+  try {
+    const r = await fetch(`${GRAPH}/${cfg.phoneId}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(SEND_TIMEOUT_MS)
+    });
+    const out = await r.json().catch(() => ({}));
+    return {
+      ok: r.ok,
+      wamid: out.messages?.[0]?.id ?? null,
+      status: r.status,
+      errorBody: r.ok ? void 0 : JSON.stringify(out).slice(0, 200)
+    };
+  } catch (e) {
+    return { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) };
+  }
+}
 async function sendText(cfg, to, body) {
-  const r = await fetch(`${GRAPH}/${cfg.phoneId}/messages`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ messaging_product: "whatsapp", to, type: "text", text: { body } })
-  });
-  const out = await r.json().catch(() => ({}));
-  return {
-    ok: r.ok,
-    wamid: out.messages?.[0]?.id ?? null,
-    status: r.status,
-    errorBody: r.ok ? void 0 : JSON.stringify(out).slice(0, 200)
-  };
+  return postGraph(cfg, { messaging_product: "whatsapp", to, type: "text", text: { body } });
 }
 async function sendTemplate(cfg, to, template) {
-  const r = await fetch(`${GRAPH}/${cfg.phoneId}/messages`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to,
-      type: "template",
-      template: {
-        name: template.name,
-        language: { code: template.language },
-        components: template.params.length ? [{ type: "body", parameters: template.params.map((t) => ({ type: "text", text: t })) }] : []
-      }
-    })
+  return postGraph(cfg, {
+    messaging_product: "whatsapp",
+    to,
+    type: "template",
+    template: {
+      name: template.name,
+      language: { code: template.language },
+      components: template.params.length ? [{ type: "body", parameters: template.params.map((t) => ({ type: "text", text: t })) }] : []
+    }
   });
-  const out = await r.json().catch(() => ({}));
-  return {
-    ok: r.ok,
-    wamid: out.messages?.[0]?.id ?? null,
-    status: r.status,
-    errorBody: r.ok ? void 0 : JSON.stringify(out).slice(0, 200)
-  };
 }
 async function fetchMediaBytes(cfg, providerMediaId) {
   const metaRes = await fetch(`${GRAPH}/${providerMediaId}`, {
