@@ -1,6 +1,6 @@
 import { AppError } from "@chanlytics/contracts";
 import { withRoute } from "@/server/with-route";
-import { recordDecision } from "@/server/verbs";
+import { requireOperator, recordDecision } from "@/server/verbs";
 
 /** Explicit resolve — "no change was needed" is also an answer (§4). */
 export const POST = withRoute(async (_req, ctx) => {
@@ -12,6 +12,7 @@ export const POST = withRoute(async (_req, ctx) => {
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!esc) throw new AppError("not_found", "Escalation not found.");
+  await requireOperator(ctx, esc.tenant_id);
   if (esc.state === "resolved") return { state: "resolved", already: true };
 
   const decisionId = await recordDecision(ctx, esc.tenant_id, "escalation", esc.id, "resolve");

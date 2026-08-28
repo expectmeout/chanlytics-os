@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { AppError, waWindow } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { withRoute } from "@/server/with-route";
-import { assertCanSend, loadConversation, recordDecision, resolveOpenEscalation, PAUSE_MS, SEND_GRACE_MS } from "@/server/verbs";
+import { assertCanSend, loadConversation, recordDecision, requireOperator, resolveOpenEscalation, PAUSE_MS, SEND_GRACE_MS } from "@/server/verbs";
 import { schedule, mirrorBlobPause } from "@/server/service";
 
 /**
@@ -13,6 +13,9 @@ import { schedule, mirrorBlobPause } from "@/server/service";
  */
 export const POST = withRoute(async (req, ctx) => {
   const conv = await loadConversation(ctx, String(ctx.params.id ?? ""));
+  // Role first: a viewer must not learn a customer's consent state from the
+  // shape of the refusal, and this is the route that actually reaches a person.
+  await requireOperator(ctx, conv.tenant_id);
   if (!conv.phone_e164) throw new AppError("conflict", "Conversation has no phone identity.");
   // An opt-out binds the humans too — refuse BEFORE anything is queued, so the
   // operator is told rather than watching a message sit in "queued" and then

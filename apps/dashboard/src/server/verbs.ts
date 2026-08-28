@@ -6,7 +6,25 @@
  */
 import { AppError, type DecisionVerb, type DecisionSubject } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
-import type { RouteContext } from "./with-route";
+import { memberContext, requireRole, type RouteContext } from "./with-route";
+
+/**
+ * Every committing verb goes through here first.
+ *
+ * RLS is the floor and it stops cross-TENANT access, but the app-plane write
+ * policies check membership only, not role — so until now a viewer could call
+ * the reply route and text a real customer. Not in theory: the job that
+ * performs the send is scheduled with the SERVICE ROLE, so RLS was never in
+ * the path at all. The control-plane routes (settings, policies, team) have
+ * had this check since Session A; the seven verb routes never did.
+ *
+ * The tenant is taken from the SUBJECT being acted on, not from a default
+ * workspace — for a member of two workspaces, the role that matters is the one
+ * they hold where the conversation actually lives.
+ */
+export async function requireOperator(ctx: RouteContext, tenantId: string): Promise<void> {
+  requireRole(await memberContext(ctx, tenantId), "operator");
+}
 
 export interface VerbConversation {
   id: string;

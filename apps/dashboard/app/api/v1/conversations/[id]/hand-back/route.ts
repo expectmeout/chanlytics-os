@@ -1,11 +1,12 @@
 import { withRoute } from "@/server/with-route";
-import { loadConversation, recordDecision, resolveOpenEscalation } from "@/server/verbs";
+import { requireOperator, loadConversation, recordDecision, resolveOpenEscalation } from "@/server/verbs";
 import { cancelKindFor, mirrorBlobPause } from "@/server/service";
 import { AppError } from "@chanlytics/contracts";
 
 /** Hand back: the AI resumes; the open escalation resolves (§4). */
 export const POST = withRoute(async (_req, ctx) => {
   const conv = await loadConversation(ctx, String(ctx.params.id ?? ""));
+  await requireOperator(ctx, conv.tenant_id);
   if (!conv.phone_e164) throw new AppError("conflict", "Conversation has no phone identity.");
   await mirrorBlobPause(conv.phone_e164, 0);
 

@@ -1,11 +1,12 @@
 import { withRoute } from "@/server/with-route";
-import { loadConversation, recordDecision, PAUSE_MS } from "@/server/verbs";
+import { requireOperator, loadConversation, recordDecision, PAUSE_MS } from "@/server/verbs";
 import { schedule, cancelKindFor, mirrorBlobPause } from "@/server/service";
 import { AppError } from "@chanlytics/contracts";
 
 /** Take over: pause the AI, claim the thread. The open escalation stays open (§4). */
 export const POST = withRoute(async (_req, ctx) => {
   const conv = await loadConversation(ctx, String(ctx.params.id ?? ""));
+  await requireOperator(ctx, conv.tenant_id);
   const until = Date.now() + PAUSE_MS;
 
   // the live bot reads Blob until Gate 1b — mirror FIRST, fail loud (D10)

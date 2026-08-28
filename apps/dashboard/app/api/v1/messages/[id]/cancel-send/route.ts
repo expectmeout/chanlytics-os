@@ -1,6 +1,6 @@
 import { AppError } from "@chanlytics/contracts";
 import { withRoute } from "@/server/with-route";
-import { recordDecision } from "@/server/verbs";
+import { requireOperator, recordDecision } from "@/server/verbs";
 import { cancelKindFor } from "@/server/service";
 
 /** The honest undo (§6): inside the grace window a queued send cancels cleanly;
@@ -14,6 +14,7 @@ export const POST = withRoute(async (_req, ctx) => {
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!msg) throw new AppError("not_found", "Message not found.");
+  await requireOperator(ctx, msg.tenant_id);
   if (msg.status !== "queued") {
     throw new AppError("conflict", "Too late — this message has already been sent.");
   }
