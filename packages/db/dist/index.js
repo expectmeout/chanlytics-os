@@ -4092,7 +4092,7 @@ var NotificationsConfigSchema = external_exports.object({
 var TenantConfigSchema = external_exports.object({
   brain: BrainConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional()
-}).strict();
+});
 
 // src/repositories/ingest.ts
 async function ingestInbound(db, p) {

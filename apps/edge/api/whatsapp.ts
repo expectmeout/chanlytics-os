@@ -465,9 +465,20 @@ async function handleInbound(
         "policy_block",
         brainCfg
           ? `Reply mode is '${replyMode}' — the receptionist holds everything for a human.`
-          : "No brain profile configured — the receptionist stays silent until Settings fills one in.",
+          : rt?.configBroken
+            // A saved-but-unparseable config is a MISTAKE, not an absence, and
+            // sending the operator to "fill one in" when a good persona is
+            // already there behind one bad field sends them to the wrong place.
+            ? "This workspace's settings could not be read, so the receptionist stayed silent. The saved configuration has an invalid field."
+            : "No brain profile configured — the receptionist stays silent until Settings fills one in.",
       ),
-      alertStaff(from, m.text.body, "(held — no auto-reply for this workspace)", brainCfg ? `reply mode ${replyMode}` : "no persona configured", notifyTarget),
+      alertStaff(
+        from,
+        m.text.body,
+        "(held — no auto-reply for this workspace)",
+        brainCfg ? `reply mode ${replyMode}` : rt?.configBroken ? "settings could not be read" : "no persona configured",
+        notifyTarget,
+      ),
       sink.processed(),
     ]);
     console.log("wa_held_by_policy", JSON.stringify({ to: from, mode: replyMode, persona: !!brainCfg }));

@@ -81,21 +81,57 @@ export const NotificationsConfigSchema = z
   .strict();
 export type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
 
-/** The whole tenant_config.config column. Sections are optional — a tenant
- *  with no brain section is a tenant whose receptionist does not speak
- *  (persist + escalate only). Safe-by-default beats a leaked persona. */
-export const TenantConfigSchema = z
-  .object({
-    brain: BrainConfigSchema.optional(),
-    notifications: NotificationsConfigSchema.optional(),
-  })
-  .strict();
+/**
+ * The whole tenant_config.config column. Sections are optional — a tenant with
+ * no brain section is a tenant whose receptionist does not speak (persist +
+ * escalate only). Safe-by-default beats a leaked persona.
+ *
+ * DELIBERATELY NOT `.strict()` AT THE TOP LEVEL, while each SECTION still is.
+ *
+ * The edge and the dashboard are separate Vercel projects that deploy
+ * independently. With a strict top level, the first dashboard deploy to write a
+ * new section — `guardrails`, a per-tenant allowlist, anything — would be
+ * rejected in its entirety by the older edge still running beside it. The
+ * receptionist would go completely silent on a live line, and it would be
+ * logged identically to "no brain profile configured": a total mute that reads
+ * as a configuration absence.
+ *
+ * Unknown top-level keys are therefore STRIPPED rather than fatal, so an older
+ * edge ignores a section it has never heard of and keeps answering with the
+ * persona it does understand. Strictness stays where it catches real mistakes:
+ * inside a section, where a typo means a field the runtime silently would not
+ * apply.
+ */
+export const TenantConfigSchema = z.object({
+  brain: BrainConfigSchema.optional(),
+  notifications: NotificationsConfigSchema.optional(),
+});
 export type TenantConfig = z.infer<typeof TenantConfigSchema>;
 
-/** Parse unknown JSONB into TenantConfig, or null if malformed. The runtime
- *  treats a malformed config exactly like an absent one — silence over a
- *  half-applied persona. */
-export function parseTenantConfig(raw: unknown): TenantConfig | null {
+export type TenantConfigParse =
+  | { ok: true; config: TenantConfig }
+  | { ok: false; issues: string[] };
+
+/**
+ * Parse unknown JSONB into TenantConfig.
+ *
+ * Returns the ISSUES rather than a bare null, because the runtime needs to tell
+ * "this tenant has not been configured" from "this tenant's configuration is
+ * broken". Both end in silence, but only one of them is somebody's mistake, and
+ * collapsing them meant an operator reading "no brain profile configured" while
+ * a perfectly good persona sat in the database behind one bad field.
+ */
+export function parseTenantConfigResult(raw: unknown): TenantConfigParse {
   const r = TenantConfigSchema.safeParse(raw ?? {});
-  return r.success ? r.data : null;
+  if (r.success) return { ok: true, config: r.data };
+  return {
+    ok: false,
+    issues: r.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`),
+  };
+}
+
+/** Convenience for callers that genuinely cannot act on the difference. */
+export function parseTenantConfig(raw: unknown): TenantConfig | null {
+  const r = parseTenantConfigResult(raw);
+  return r.ok ? r.config : null;
 }

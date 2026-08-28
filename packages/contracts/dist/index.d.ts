@@ -630,9 +630,27 @@ declare const NotificationsConfigSchema: z.ZodObject<{
     from?: string | undefined;
 }>;
 type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
-/** The whole tenant_config.config column. Sections are optional — a tenant
- *  with no brain section is a tenant whose receptionist does not speak
- *  (persist + escalate only). Safe-by-default beats a leaked persona. */
+/**
+ * The whole tenant_config.config column. Sections are optional — a tenant with
+ * no brain section is a tenant whose receptionist does not speak (persist +
+ * escalate only). Safe-by-default beats a leaked persona.
+ *
+ * DELIBERATELY NOT `.strict()` AT THE TOP LEVEL, while each SECTION still is.
+ *
+ * The edge and the dashboard are separate Vercel projects that deploy
+ * independently. With a strict top level, the first dashboard deploy to write a
+ * new section — `guardrails`, a per-tenant allowlist, anything — would be
+ * rejected in its entirety by the older edge still running beside it. The
+ * receptionist would go completely silent on a live line, and it would be
+ * logged identically to "no brain profile configured": a total mute that reads
+ * as a configuration absence.
+ *
+ * Unknown top-level keys are therefore STRIPPED rather than fatal, so an older
+ * edge ignores a section it has never heard of and keeps answering with the
+ * persona it does understand. Strictness stays where it catches real mistakes:
+ * inside a section, where a typo means a field the runtime silently would not
+ * apply.
+ */
 declare const TenantConfigSchema: z.ZodObject<{
     brain: z.ZodOptional<z.ZodObject<{
         business_name: z.ZodString;
@@ -688,7 +706,7 @@ declare const TenantConfigSchema: z.ZodObject<{
         escalation_emails: string[];
         from?: string | undefined;
     }>>;
-}, "strict", z.ZodTypeAny, {
+}, "strip", z.ZodTypeAny, {
     brain?: {
         business_name: string;
         phone_display: string;
@@ -722,9 +740,24 @@ declare const TenantConfigSchema: z.ZodObject<{
     } | undefined;
 }>;
 type TenantConfig = z.infer<typeof TenantConfigSchema>;
-/** Parse unknown JSONB into TenantConfig, or null if malformed. The runtime
- *  treats a malformed config exactly like an absent one — silence over a
- *  half-applied persona. */
+type TenantConfigParse = {
+    ok: true;
+    config: TenantConfig;
+} | {
+    ok: false;
+    issues: string[];
+};
+/**
+ * Parse unknown JSONB into TenantConfig.
+ *
+ * Returns the ISSUES rather than a bare null, because the runtime needs to tell
+ * "this tenant has not been configured" from "this tenant's configuration is
+ * broken". Both end in silence, but only one of them is somebody's mistake, and
+ * collapsing them meant an operator reading "no brain profile configured" while
+ * a perfectly good persona sat in the database behind one bad field.
+ */
+declare function parseTenantConfigResult(raw: unknown): TenantConfigParse;
+/** Convenience for callers that genuinely cannot act on the difference. */
 declare function parseTenantConfig(raw: unknown): TenantConfig | null;
 
-export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, ROLES, ROLE_PERMS, type Role, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, contactMeta, contactName, err, formatPhoneDisplay, formatWaited, isOptedOut, isOptedOutContact, messageText, normalizePhone, ok, parseTenantConfig, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };
+export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, ROLES, ROLE_PERMS, type Role, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, contactMeta, contactName, err, formatPhoneDisplay, formatWaited, isOptedOut, isOptedOutContact, messageText, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };

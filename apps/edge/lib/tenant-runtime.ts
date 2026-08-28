@@ -9,7 +9,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./workspace/db.js";
 import {
-  parseTenantConfig,
+  parseTenantConfigResult,
   type BrainConfig,
   type NotificationsConfig,
   type PolicyLimits,
@@ -29,6 +29,10 @@ export interface TenantRuntime {
   /** True when the control plane could not be read (infra blip, not config
    *  absence) — the caller may apply its designated DR fallback. */
   loadFailed: boolean;
+  /** The config row EXISTS but does not parse. Distinct from an absent
+   *  profile: the receptionist is silent either way, but this one is a
+   *  mistake somebody can fix, and the escalation should say so. */
+  configBroken?: boolean;
 }
 
 const TTL_MS = 60 * 1000;
@@ -57,7 +61,17 @@ export async function loadTenantRuntime(
     if (polQ.error) throw new Error(polQ.error.message);
     if (credsQ.error) throw new Error(credsQ.error.message);
 
-    const parsed = parseTenantConfig(cfgQ.data?.config);
+    // A BROKEN config is not an ABSENT one. Both end in silence, but only one
+    // is somebody's mistake, and reporting "no brain profile configured" while
+    // a good persona sits behind one bad field sends the operator to the wrong
+    // place. The offending path is named in the log.
+    const parseResult = parseTenantConfigResult(cfgQ.data?.config);
+    if (!parseResult.ok) {
+      console.error("tenant_config_parse_failed", JSON.stringify({
+        tenant: routed.tenantId, issues: parseResult.issues.slice(0, 5),
+      }));
+    }
+    const parsed = parseResult.ok ? parseResult.config : null;
     const policy: TenantRuntime["policy"] = {};
     for (const p of polQ.data ?? []) {
       policy[p.class] = { mode: p.mode, limits: (p.limits ?? {}) as PolicyLimits };
@@ -72,6 +86,7 @@ export async function loadTenantRuntime(
         rawCreds?.access_token && rawCreds?.phone_id
           ? { accessToken: rawCreds.access_token, phoneId: rawCreds.phone_id }
           : null,
+      configBroken: !parseResult.ok,
       loadFailed: false,
     };
     cache.set(routed.tenantId, { v: rt, exp: Date.now() + TTL_MS });
@@ -137,10 +152,10 @@ export async function loadTenantNotifications(
         .maybeSingle(),
     ]);
     if (cfgQ.error) throw new Error(cfgQ.error.message);
-    const parsed = parseTenantConfig(cfgQ.data?.config);
+    const parsed = parseTenantConfigResult(cfgQ.data?.config);
     const envPhoneId = process.env.WHATSAPP_PHONE_ID || "";
     return {
-      notifications: parsed?.notifications ?? null,
+      notifications: parsed.ok ? (parsed.config.notifications ?? null) : null,
       isEnvDefault: !!envPhoneId && chQ.data?.external_id === envPhoneId,
     };
   } catch (e) {

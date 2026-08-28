@@ -4106,7 +4106,7 @@ var NotificationsConfigSchema = external_exports.object({
 var TenantConfigSchema = external_exports.object({
   brain: BrainConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional()
-}).strict();
+});
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -8219,7 +8219,7 @@ var NotificationsConfigSchema2 = external_exports2.object({
 var TenantConfigSchema2 = external_exports2.object({
   brain: BrainConfigSchema2.optional(),
   notifications: NotificationsConfigSchema2.optional()
-}).strict();
+});
 
 // src/handlers.ts
 async function outboundSend(ctx, job) {

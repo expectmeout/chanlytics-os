@@ -721,10 +721,18 @@ var NotificationsConfigSchema = z.object({
 var TenantConfigSchema = z.object({
   brain: BrainConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional()
-}).strict();
-function parseTenantConfig(raw) {
+});
+function parseTenantConfigResult(raw) {
   const r = TenantConfigSchema.safeParse(raw ?? {});
-  return r.success ? r.data : null;
+  if (r.success) return { ok: true, config: r.data };
+  return {
+    ok: false,
+    issues: r.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+  };
+}
+function parseTenantConfig(raw) {
+  const r = parseTenantConfigResult(raw);
+  return r.ok ? r.config : null;
 }
 export {
   ACTOR_TYPES,
@@ -773,6 +781,7 @@ export {
   normalizePhone,
   ok,
   parseTenantConfig,
+  parseTenantConfigResult,
   toCallVM,
   toConversationVM,
   toInboxThreadVM,

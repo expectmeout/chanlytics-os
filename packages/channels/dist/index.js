@@ -4078,7 +4078,7 @@ var NotificationsConfigSchema = external_exports.object({
 var TenantConfigSchema = external_exports.object({
   brain: BrainConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional()
-}).strict();
+});
 
 // src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";
