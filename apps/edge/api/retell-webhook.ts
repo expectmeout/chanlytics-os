@@ -12,6 +12,8 @@
  * dead-lettered, never guessed into a tenant.
  */
 import { getThread, saveThread } from "../lib/store.js";
+import { notify } from "../lib/notify.js";
+import { loadTenantNotifications } from "../lib/tenant-runtime.js";
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import {
@@ -132,26 +134,29 @@ export async function POST(request: Request): Promise<Response> {
       } catch (e) { console.error("call_note_failed", e instanceof Error ? e.message : e); }
     }
 
-    // same lead pipeline as WhatsApp escalations
-    if (process.env.RESEND_API_KEY) {
-      try {
-        await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            from: process.env.LEAD_FROM || "Melany's Website <onboarding@resend.dev>",
-            to: [process.env.LEAD_TO || "ruben@rjcapital.io"],
-            subject: `Voice call: ${call.from_number || "unknown"} (${durationS}s, ${sentiment})`,
-            text:
-              `AI phone agent handled a call on ${call.to_number || "the salon ads line"}.\n\n` +
-              `From: ${call.from_number || "unknown"}\nDuration: ${durationS}s\nSentiment: ${sentiment}\n` +
-              `Disconnection: ${n.disconnectionReason || "n/a"}\n\n` +
-              `Summary:\n${summary}\n\n` +
-              `Transcript:\n${String(n.transcript || "(none)").slice(0, 3000)}`,
-          }),
-        });
-      } catch (e) { console.error("call_email_failed", e instanceof Error ? e.message : e); }
-    }
+    // Same pipeline as WhatsApp escalations — and addressed the same way. This
+    // email carries a caller's number and a full TRANSCRIPT of what they said,
+    // and it used to fall back to a hardcoded personal address: with a second
+    // tenant, one business's call recording summary delivered to another
+    // business's owner. It now goes only to a mailbox we know is this tenant's.
+    const db2 = pg();
+    const routedForAlert = db2 && n.agentId ? await resolveChannel(db2, "voice", n.agentId) : null;
+    const addressing = db2 && routedForAlert
+      ? await loadTenantNotifications(db2, routedForAlert.tenantId)
+      : { notifications: null, isEnvDefault: false };
+    await notify(
+      { tenantId: routedForAlert?.tenantId ?? null, ...addressing },
+      {
+        subject: `Voice call: ${call.from_number || "unknown"} (${durationS}s, ${sentiment})`,
+        body:
+          `AI phone agent handled a call on ${call.to_number || "the business line"}.\n\n` +
+          `From: ${call.from_number || "unknown"}\nDuration: ${durationS}s\nSentiment: ${sentiment}\n` +
+          `Disconnection: ${n.disconnectionReason || "n/a"}\n\n` +
+          `Summary:\n${summary}\n\n` +
+          `Transcript:\n${String(n.transcript || "(none)").slice(0, 3000)}`,
+        redactedBody: `A voice call was handled for a workspace (${durationS}s). The summary and transcript were withheld.`,
+      },
+    );
   }
   return json(200, { ok: true });
 }

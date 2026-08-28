@@ -58,6 +58,7 @@ import type { Database, Json } from "../lib/workspace/db.js";
 import { upsertEscalation } from "../lib/workspace/jobs.js";
 import { loadTenantRuntime, waCfgFor, type TenantRuntime } from "../lib/tenant-runtime.js";
 import { replyPosture } from "../lib/reply-posture.js";
+import { notify, type NotifyTarget } from "../lib/notify.js";
 import { FALLBACK_BRAIN, FALLBACK_NOTIFICATIONS } from "../lib/tenant-fallback.js";
 import type { BrainConfig, NotificationsConfig } from "../lib/workspace/contracts.js";
 import type { RoutedChannel } from "../lib/workspace/db.js";
@@ -104,28 +105,28 @@ async function sendText(to: string, body: string, rt?: TenantRuntime | null): Pr
   return { ok: r.ok, wamid: r.wamid, status: r.status };
 }
 
-async function alertStaff(threadId: string, userText: string, botText: string, reason: string, notif?: NotificationsConfig | null): Promise<void> {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) return;
-  try {
-    await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        from: notif?.from || process.env.LEAD_FROM || FALLBACK_NOTIFICATIONS.from,
-        to: notif?.escalation_emails ?? [process.env.LEAD_TO || FALLBACK_NOTIFICATIONS.escalation_emails[0]],
-        subject: `WhatsApp handoff needed: +${threadId}`,
-        text:
-          `The WhatsApp assistant flagged a conversation for a human (${reason}).\n\n` +
-          `Customer: +${threadId}\n` +
-          `Their message: ${userText}\n` +
-          `Bot's reply: ${botText}\n\n` +
-          `Reply from the WhatsApp Business app — the bot is paused on this thread for 24h.`,
-      }),
-    });
-  } catch (e) {
-    console.error("alert_failed", e instanceof Error ? e.message : e);
-  }
+/**
+ * The customer's own words travel in this email, so it goes only to an address
+ * we know belongs to THIS tenant. `notify` decides that; a workspace we cannot
+ * address gets a redacted platform notice rather than someone else's mailbox.
+ */
+async function alertStaff(
+  threadId: string,
+  userText: string,
+  botText: string,
+  reason: string,
+  target: NotifyTarget,
+): Promise<void> {
+  await notify(target, {
+    subject: `WhatsApp handoff needed: +${threadId}`,
+    body:
+      `The WhatsApp assistant flagged a conversation for a human (${reason}).\n\n` +
+      `Customer: +${threadId}\n` +
+      `Their message: ${userText}\n` +
+      `Bot's reply: ${botText}\n\n` +
+      `Reply from the WhatsApp Business app — the bot is paused on this thread for 24h.`,
+    redactedBody: `A WhatsApp conversation needed a human (${reason}), and nobody could be told.`,
+  });
 }
 
 /**
@@ -142,29 +143,25 @@ async function alertUnroutable(phoneNumberId: string | undefined, count: number)
   const key = phoneNumberId || "unknown";
   const last = unroutableAlerted.get(key) ?? 0;
   if (Date.now() - last < UNROUTABLE_ALERT_MS) return;
-  unroutableAlerted.set(key, Date.now());
-  const key_ = process.env.RESEND_API_KEY;
-  if (!key_) return;
-  try {
-    await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key_}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        from: process.env.LEAD_FROM || FALLBACK_NOTIFICATIONS.from,
-        to: [process.env.LEAD_TO || FALLBACK_NOTIFICATIONS.escalation_emails[0]],
-        subject: "WhatsApp messages are arriving for a channel that is switched off",
-        text:
-          `${count} message(s) just arrived for phone_number_id ${key}, which the control plane will not route ` +
-          `(the channel row is missing or its status is not 'active').\n\n` +
-          `Nobody is answering these customers and nothing is being recorded. ` +
-          `Re-enable the channel in tenant_channels, or confirm this number is not ours.\n\n` +
-          `Further notices for this number are suppressed for 15 minutes.`,
-      }),
-      signal: AbortSignal.timeout(10_000),
-    });
-  } catch (e) {
-    console.error("unroutable_alert_failed", e instanceof Error ? e.message : e);
-  }
+  // Genuinely platform-level: by definition there is no tenant to address, so
+  // this is the PLATFORM's own mailbox and carries no customer content — only
+  // the phone number id and a count.
+  const delivered = await notify(
+    { tenantId: null, notifications: null, isEnvDefault: true },
+    {
+      subject: "WhatsApp messages are arriving for a channel that is switched off",
+      body:
+        `${count} message(s) just arrived for phone_number_id ${key}, which the control plane will not route ` +
+        `(the channel row is missing or its status is not 'active').\n\n` +
+        `Nobody is answering these customers and nothing is being recorded. ` +
+        `Re-enable the channel in tenant_channels, or confirm this number is not ours.\n\n` +
+        `Further notices for this number are suppressed for 15 minutes.`,
+    },
+  );
+  // The suppression window was claimed BEFORE the send, so a failed alert used
+  // to buy 15 minutes of silence on the only warning that customers are being
+  // dropped. Only a delivered notice earns the quiet.
+  if (!delivered) unroutableAlerted.delete(key);
 }
 
 /** Additive PG ingest — never throws into the handling path. */
@@ -303,6 +300,8 @@ async function handleInbound(
   });
   const brainCfg: BrainConfig | null = rt?.brain ?? (drFallback ? FALLBACK_BRAIN : null);
   const notif: NotificationsConfig | null = rt?.notifications ?? (drFallback ? FALLBACK_NOTIFICATIONS : null);
+  // One addressing decision per message, reused by every alert below.
+  const notifyTarget: NotifyTarget = { tenantId, notifications: notif, isEnvDefault };
   const replyLimits = rt?.policy["reply"]?.limits ?? {};
   const maxRepliesDay = replyLimits.max_replies_day ?? MAX_REPLIES_PER_DAY;
   const pauseMs = (replyLimits.pause_hours ? replyLimits.pause_hours * 3600 * 1000 : PAUSE_MS);
@@ -362,7 +361,7 @@ async function handleInbound(
         "state_unavailable",
         "The receptionist could not read this thread's history, so it did not reply. Please answer this one.",
       ),
-      alertStaff(from, m.text?.body ?? `[${m.type}]`, "(no reply sent — the receptionist could not read the thread state)", "state unavailable", notif),
+      alertStaff(from, m.text?.body ?? `[${m.type}]`, "(no reply sent — the receptionist could not read the thread state)", "state unavailable", notifyTarget),
       sink.processed(),
     ]);
     return;
@@ -396,7 +395,7 @@ async function handleInbound(
       // see once, not a log line.
       post.push(
         sink.escalate("opt_out", "Customer asked to stop receiving messages. Automatic replies are off for this contact until they text START."),
-        alertStaff(from, m.text?.body ?? `[${m.type}]`, "(no reply sent — the customer opted out)", "opt-out", notif),
+        alertStaff(from, m.text?.body ?? `[${m.type}]`, "(no reply sent — the customer opted out)", "opt-out", notifyTarget),
       );
     }
     await Promise.all(post);
@@ -418,7 +417,7 @@ async function handleInbound(
       await Promise.all([
         ...(brainCfg ? [sink.pause(new Date(Date.now() + pauseMs).toISOString())] : []),
         sink.escalate("non_text", `Customer sent a ${m.type} message — ${brainCfg ? "auto-acknowledged, bot paused" : "no auto-reply configured"}.`),
-        alertStaff(from, `[${m.type} message]`, brainCfg ? "(auto-acknowledged, bot paused)" : "(no auto-reply configured)", "non-text message", notif),
+        alertStaff(from, `[${m.type} message]`, brainCfg ? "(auto-acknowledged, bot paused)" : "(no auto-reply configured)", "non-text message", notifyTarget),
       ]);
     }
     await sink.processed();
@@ -450,7 +449,7 @@ async function handleInbound(
     // fires on a busy thread, not only when someone lowers the limit.
     await Promise.all([
       sink.escalate("rate_cap", `Thread hit ${maxRepliesDay} automatic replies today — the receptionist stopped and is waiting for a human.`),
-      alertStaff(from, m.text.body, "(no reply sent — daily automatic-reply limit reached)", "rate cap", notif),
+      alertStaff(from, m.text.body, "(no reply sent — daily automatic-reply limit reached)", "rate cap", notifyTarget),
       sink.processed(),
     ]);
     return;
@@ -468,7 +467,7 @@ async function handleInbound(
           ? `Reply mode is '${replyMode}' — the receptionist holds everything for a human.`
           : "No brain profile configured — the receptionist stays silent until Settings fills one in.",
       ),
-      alertStaff(from, m.text.body, "(held — no auto-reply for this workspace)", brainCfg ? `reply mode ${replyMode}` : "no persona configured", notif),
+      alertStaff(from, m.text.body, "(held — no auto-reply for this workspace)", brainCfg ? `reply mode ${replyMode}` : "no persona configured", notifyTarget),
       sink.processed(),
     ]);
     console.log("wa_held_by_policy", JSON.stringify({ to: from, mode: replyMode, persona: !!brainCfg }));
@@ -515,7 +514,7 @@ async function handleInbound(
       thread.pausedUntil = Date.now() + pauseMs;
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
       post.push(sink.escalate(escalationReason, m.text.body));
-      post.push(alertStaff(from, m.text.body, replyText, "assistant flagged handoff", notif));
+      post.push(alertStaff(from, m.text.body, replyText, "assistant flagged handoff", notifyTarget));
     }
     await Promise.all(post);
     await saveThread(from, thread);
@@ -525,7 +524,7 @@ async function handleInbound(
     // loud, and the message must stay visibly unprocessed for reconciliation.
     await saveThread(from, thread);
     await Promise.all([
-      alertStaff(from, m.text.body, "(send failed — the customer received no reply)", "wa_send_failed", notif),
+      alertStaff(from, m.text.body, "(send failed — the customer received no reply)", "wa_send_failed", notifyTarget),
       sink.sendFailed(sent.status),
       sink.escalate("send_failed", `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`),
     ]);

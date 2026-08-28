@@ -7,26 +7,28 @@ import { Receiver } from "@upstash/qstash";
 import { json } from "../../lib/http.js";
 import { pg } from "../../lib/pg.js";
 import { dispatchJob, FIRE_URL, type ClaimedJob } from "../../lib/workspace/jobs.js";
+import { notify } from "../../lib/notify.js";
+import { loadTenantNotifications } from "../../lib/tenant-runtime.js";
 
 export const config = { maxDuration: 60 };
 
-async function alert(subject: string, body: string): Promise<void> {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) return;
-  try {
-    await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        from: process.env.LEAD_FROM || "Melany's Website <onboarding@resend.dev>",
-        to: [process.env.LEAD_TO || "ruben@rjcapital.io"],
-        subject,
-        text: body,
-      }),
-    });
-  } catch (e) {
-    console.error("job_alert_failed", e instanceof Error ? e.message : e);
-  }
+/**
+ * A job failing concerns the tenant whose job it is, so the alert is addressed
+ * from that tenant's runtime rather than from a hardcoded personal mailbox —
+ * this file used to fall back to a literal name and address, which with a
+ * second tenant would deliver one business's delivery failure, naming its
+ * customer's number, to a different business's owner.
+ */
+function alertFor(db: ReturnType<typeof pg>, job: ClaimedJob) {
+  return async (subject: string, body: string): Promise<void> => {
+    const addressing = db
+      ? await loadTenantNotifications(db, job.tenant_id)
+      : { notifications: null, isEnvDefault: false };
+    await notify(
+      { tenantId: job.tenant_id, ...addressing },
+      { subject, body, redactedBody: `A background job failed for a workspace (kind: ${job.kind}).` },
+    );
+  };
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -67,13 +69,19 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
+    const job: ClaimedJob = {
+      id: c.id,
+      tenant_id: c.tenant_id,
+      kind: c.kind,
+      payload: (c.payload ?? {}) as Record<string, unknown>,
+    };
     const outcome = await dispatchJob(
       {
         db,
         waCfg: { phoneId: process.env.WHATSAPP_PHONE_ID || "", accessToken: process.env.WHATSAPP_ACCESS_TOKEN || "" },
-        alert,
+        alert: alertFor(db, job),
       },
-      { id: c.id, tenant_id: c.tenant_id, kind: c.kind, payload: (c.payload ?? {}) as Record<string, unknown> },
+      job,
     );
     console.log("job_fired", JSON.stringify({ id: c.id, kind: c.kind, outcome }));
     if (outcome === "unknown_kind") {

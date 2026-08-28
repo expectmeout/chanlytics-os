@@ -109,3 +109,44 @@ export function waCfgFor(rt?: TenantRuntime | null): { phoneId: string; accessTo
     accessToken: process.env.WHATSAPP_ACCESS_TOKEN || "",
   };
 }
+
+/**
+ * Notification recipients for a tenant known by ID rather than by channel.
+ *
+ * The job runner has a tenant_id and no routed channel, and it used to fall
+ * back to a hardcoded personal address — which with a second tenant delivers
+ * one business's failure notice, naming its customer's number, to a different
+ * business's owner. This reads the same tenant_config the one door reads, so
+ * there is still only one place that knows how a tenant is addressed.
+ *
+ * `isEnvDefault` is answered by the tenant's own WhatsApp channel matching the
+ * env phone id — the same test the webhook makes, asked from the other end.
+ */
+export async function loadTenantNotifications(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+): Promise<{ notifications: NotificationsConfig | null; isEnvDefault: boolean }> {
+  try {
+    const [cfgQ, chQ] = await Promise.all([
+      db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+      db
+        .from("tenant_channels")
+        .select("external_id")
+        .eq("tenant_id", tenantId)
+        .eq("kind", "whatsapp")
+        .maybeSingle(),
+    ]);
+    if (cfgQ.error) throw new Error(cfgQ.error.message);
+    const parsed = parseTenantConfig(cfgQ.data?.config);
+    const envPhoneId = process.env.WHATSAPP_PHONE_ID || "";
+    return {
+      notifications: parsed?.notifications ?? null,
+      isEnvDefault: !!envPhoneId && chQ.data?.external_id === envPhoneId,
+    };
+  } catch (e) {
+    console.error("tenant_notifications_load_failed", tenantId, e instanceof Error ? e.message : e);
+    // Unknown recipients: notify() will withhold customer content rather than
+    // guess a mailbox.
+    return { notifications: null, isEnvDefault: false };
+  }
+}
