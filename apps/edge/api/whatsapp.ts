@@ -58,6 +58,7 @@ import type { Database, Json } from "../lib/workspace/db.js";
 import { upsertEscalation } from "../lib/workspace/jobs.js";
 import { loadTenantRuntime, waCfgFor, type TenantRuntime } from "../lib/tenant-runtime.js";
 import { replyPosture } from "../lib/reply-posture.js";
+import { logger, errField } from "../lib/log.js";
 import { notify, type NotifyTarget } from "../lib/notify.js";
 import { FALLBACK_BRAIN, FALLBACK_NOTIFICATIONS } from "../lib/tenant-fallback.js";
 import type { BrainConfig, NotificationsConfig } from "../lib/workspace/contracts.js";
@@ -185,7 +186,7 @@ async function pgIngest(tenantId: string | null, n: NormalizedInbound): Promise<
       optIn: n.optIn,
     });
   } catch (e) {
-    console.error("ingest_pg_failed", e instanceof Error ? e.message : e);
+    console.error(JSON.stringify({ level: "error", event: "ingest_pg_failed", tenant_id: tenantId, error: errField(e) }));
     return null;
   }
 }
@@ -280,6 +281,9 @@ async function handleInbound(
   const n = normalizeInbound(m, value);
   const db = pg();
   const t0 = Date.now();
+  // Bound once, here, where the tenant becomes known. Every line below carries
+  // it, which is the only way that stays true as this function changes.
+  const L = logger({ tenant_id: tenantId, wamid: m.id, from, type: m.type });
 
   // The control plane, through its one door (PRD §03). A tenant with no brain
   // profile never auto-replies — silence over someone else's voice — while the
@@ -345,7 +349,7 @@ async function handleInbound(
   // A missed auto-reply beats a double text, so processed-state is deliberately
   // not consulted.
   if ((process.env.PG_DEDUPE === "on" || memory === "pg") && ing && !ing.is_new) {
-    console.log("wa_skip_pg_dupe", m.id);
+    L.info("wa_skip_pg_dupe");
     return;
   }
 
@@ -355,7 +359,7 @@ async function handleInbound(
   // be answering from an invented empty history. Hand to a human instead of
   // guessing; the customer's message is already persisted above.
   if (isThreadUnknown(thread)) {
-    console.error("wa_state_unavailable", JSON.stringify({ to: from, memory }));
+    L.error("wa_state_unavailable", { memory });
     await Promise.all([
       sink.escalate(
         "state_unavailable",
@@ -399,7 +403,7 @@ async function handleInbound(
       );
     }
     await Promise.all(post);
-    console.log("wa_skip_opt_out", JSON.stringify({ to: from, this_message: n.optOut, on_record: ing?.consent ?? null }));
+    L.info("wa_skip_opt_out", { this_message: n.optOut, on_record: ing?.consent ?? null });
     return;
   }
 
@@ -424,24 +428,24 @@ async function handleInbound(
     return;
   }
   if (m.timestamp && Date.now() - Number(m.timestamp) * 1000 > STALE_MS) {
-    console.log("wa_skip_stale", m.id);
+    L.info("wa_skip_stale");
     await sink.processed();
     return;
   }
 
-  if (thread.seen.includes(m.id)) { console.log("wa_skip_dupe", m.id); return; }
+  if (thread.seen.includes(m.id)) { L.info("wa_skip_dupe"); return; }
   thread.seen.push(m.id);
 
   if (Date.now() < thread.pausedUntil) {
     thread.history.push({ role: "user", content: m.text.body });
     await saveThread(from, thread);
-    console.log("wa_skip_paused", from);
+    L.info("wa_skip_paused", { paused_until: thread.pausedUntil });
     await sink.processed();
     return;
   }
   if (thread.replies.length >= maxRepliesDay) {
     await saveThread(from, thread);
-    console.log("wa_skip_ratecap", from);
+    L.info("wa_skip_ratecap", { cap: maxRepliesDay, used: thread.replies.length });
     // A customer who hits the cap was being abandoned to a console line: no
     // escalation, no alert, nothing on Today. `rate_cap` has been a declared,
     // CHECK-allowed, LABELLED escalation reason this whole time with no
@@ -481,7 +485,7 @@ async function handleInbound(
       ),
       sink.processed(),
     ]);
-    console.log("wa_held_by_policy", JSON.stringify({ to: from, mode: replyMode, persona: !!brainCfg }));
+    L.info("wa_held_by_policy", { mode: replyMode, persona: !!brainCfg, config_broken: !!rt?.configBroken });
     return;
   }
 
@@ -498,13 +502,13 @@ async function handleInbound(
       // Layer-2 policy enforcement (Blueprint §6): prompt text is never the
       // only defense. A price in the draft blocks the send outright.
       if (violatesNoPrices(replyText)) {
-        console.warn("policy_block_price", JSON.stringify({ to: from }));
+        L.warn("policy_block_price");
         replyText = `Great question! Pricing is quoted at your consult — a member of our team will follow up here shortly. For anything urgent, call ${brainCfg.phone_display}.`;
         escalate = true;
         escalationReason = "policy_block";
       }
     } catch (e) {
-      console.error("brain_failed", e instanceof Error ? e.message : e);
+      L.error("brain_failed", { error: errField(e) });
       replyText = brainCfg.fallbacks.error;
       escalate = true;
       escalationReason = "brain_error";
@@ -540,10 +544,10 @@ async function handleInbound(
       sink.escalate("send_failed", `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`),
     ]);
   }
-  console.log("wa_replied", JSON.stringify({
-    to: from, escalate, sent: sent.ok, store: storeBackend(), memory,
+  L.info("wa_replied", {
+    escalate, sent: sent.ok, store: storeBackend(), memory,
     ingest_ms: ingestMs, post_ms: Date.now() - tSent,
-  }));
+  });
 }
 
 export async function GET(request: Request): Promise<Response> {
