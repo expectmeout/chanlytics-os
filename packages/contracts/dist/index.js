@@ -114,7 +114,8 @@ var ESCALATION_REASONS = [
   "deadman",
   "brain_error",
   "manual",
-  "opt_out"
+  "opt_out",
+  "state_unavailable"
 ];
 var ESCALATION_STATES = ["open", "resolved"];
 var DECISION_VERBS = [
@@ -199,7 +200,8 @@ var ESCALATION_REASON_LABELS = {
   rate_cap: "Too many replies too fast \u2014 the receptionist paused itself",
   deadman: "Nobody picked this up \u2014 flagged after silence",
   manual: "Flagged manually",
-  opt_out: "Asked to stop receiving messages"
+  opt_out: "Asked to stop receiving messages",
+  state_unavailable: "The receptionist could not read this thread \u2014 needs a human"
 };
 function formatWaited(ms) {
   const min = Math.max(1, Math.round(ms / 6e4));

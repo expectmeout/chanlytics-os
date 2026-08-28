@@ -74,10 +74,23 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     : await sendText(ctx.waCfg, to, p.body ?? msg.body ?? "");
 
   if (sent.ok) {
-    await ctx.db
+    // Still `.eq("status","queued")`: the operator can cancel between the send
+    // and this write. The text is already gone, so the row must say `sent` —
+    // but if the cancel won the row first, this update matching zero rows is
+    // the signal, not something to overwrite silently.
+    const { data: marked } = await ctx.db
       .from("messages")
       .update({ status: "sent", ...(sent.wamid ? { external_id: sent.wamid } : {}) })
-      .eq("id", p.message_id);
+      .eq("id", p.message_id)
+      .eq("status", "queued")
+      .select("id");
+    if (!marked || marked.length === 0) {
+      console.error("outbound_sent_but_row_not_queued", p.message_id, sent.wamid);
+      await ctx.db.from("events").insert({
+        tenant_id: job.tenant_id, kind: "message.send_raced_cancel", category: "message",
+        subject_type: "message", subject_id: p.message_id, data: { wamid: sent.wamid },
+      });
+    }
     await ctx.db
       .from("conversations")
       .update({ last_message_at: new Date().toISOString() })

@@ -75,14 +75,34 @@ export async function inboxVerb(
   }
 }
 
+/** FNV-1a over the message body. Not a security hash — it only has to be
+ *  stable across retries of the same text and different for different text. */
+function intentHash(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(36);
+}
+
 async function runVerb(
   thread: RealThread,
   verb: InboxVerb,
   payload?: { text?: string; until?: string },
 ): Promise<VerbResult> {
   const convBase = `/api/v1/conversations/${thread.conversationId}`;
-  // a replayed send must return the ORIGINAL result, never a second message
-  const sendKey = `${thread.conversationId}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
+  // A replayed send must return the ORIGINAL result, never a second message.
+  //
+  // This key used to carry Date.now() and Math.random(), which meant every
+  // attempt produced a DIFFERENT key and the server's idempotency check could
+  // never match — the feature was dead code, and a retry after a timeout sent
+  // the customer a second text. An idempotency key has to identify the INTENT,
+  // so it is derived from what is being sent, not from when.
+  //
+  // The server only honours a stored response for a short window (see the reply
+  // route), so deliberately sending the same words again later still works.
+  const sendKey = `${thread.conversationId}:${intentHash(payload?.text ?? "template")}`;
   let result: VerbResult;
   switch (verb) {
     case "take-over":

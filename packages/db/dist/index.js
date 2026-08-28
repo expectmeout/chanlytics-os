@@ -57,6 +57,14 @@ async function recordOutbound(db, p) {
   ]);
   return data.id;
 }
+async function getOrCreateContact(db, tenantId, phoneE164) {
+  const { data, error } = await db.from("contacts").insert({ tenant_id: tenantId, phone_e164: phoneE164, last_seen_at: (/* @__PURE__ */ new Date()).toISOString() }).select("id, consent, dnc").single();
+  if (!error && data) return data;
+  if (error && error.code !== "23505") throw new Error(`get_or_create_contact: ${error.message}`);
+  const { data: raced, error: reErr } = await db.from("contacts").select("id, consent, dnc").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).single();
+  if (reErr || !raced) throw new Error(`get_or_create_contact reselect: ${reErr?.message}`);
+  return raced;
+}
 async function resolveOutboundTarget(db, p) {
   const phone = `+${p.phoneE164.replace(/^\+/, "")}`;
   const { data: existing, error: selErr } = await db.from("contacts").select("id, consent, dnc").eq("tenant_id", p.tenantId).eq("phone_e164", phone).maybeSingle();
@@ -64,12 +72,7 @@ async function resolveOutboundTarget(db, p) {
   let contact = existing;
   if (!contact) {
     if (!p.create) return null;
-    const { data: made, error } = await db.from("contacts").upsert(
-      { tenant_id: p.tenantId, phone_e164: phone, last_seen_at: (/* @__PURE__ */ new Date()).toISOString() },
-      { onConflict: "tenant_id,phone_e164" }
-    ).select("id, consent, dnc").single();
-    if (error || !made) throw new Error(`resolve_outbound_target contact: ${error?.message}`);
-    contact = made;
+    contact = await getOrCreateContact(db, p.tenantId, phone);
   }
   const { data: conv, error: cErr } = await db.from("conversations").upsert(
     {
@@ -97,12 +100,11 @@ async function recordStatusByExternalId(db, tenantId, externalId, status, errorD
 }
 async function recordEchoAndPause(db, p) {
   const phone = `+${p.customerPhoneDigits.replace(/^\+/, "")}`;
-  const { data: contact, error: cerr } = await db.from("contacts").upsert(
-    { tenant_id: p.tenantId, phone_e164: phone, last_seen_at: (/* @__PURE__ */ new Date()).toISOString() },
-    { onConflict: "tenant_id,phone_e164" }
-  ).select("id").single();
-  if (cerr || !contact) {
-    console.error("record_echo_contact_failed", cerr?.message);
+  let contact;
+  try {
+    contact = await getOrCreateContact(db, p.tenantId, phone);
+  } catch (e) {
+    console.error("record_echo_contact_failed", e instanceof Error ? e.message : e);
     return;
   }
   const { data: conv, error: verr } = await db.from("conversations").upsert(

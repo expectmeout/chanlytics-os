@@ -128,6 +128,27 @@ test("resolveOutboundTarget refuses to invent a contact when create is false", {
   assert.equal(leaked.length, 0, "a refused lookup must not create a contact row");
 });
 
+test("resolveOutboundTarget CREATES a first-time caller's contact", { skip }, async () => {
+  // The path that had never been exercised. The first version used
+  // `.upsert(..., { onConflict: "tenant_id,phone_e164" })`, but that index is
+  // PARTIAL (`where phone_e164 is not null`) and PostgREST cannot target a
+  // partial index — so this threw for every genuinely new contact, and the
+  // earlier tests all passed because their contact already existed.
+  const fresh = `+1999557${String(Date.now()).slice(-4)}`;
+  const t = await resolveOutboundTarget(db, { tenantId, phoneE164: fresh, create: true });
+  assert.ok(t, "a first-time caller must get a contact and a conversation");
+  assert.equal(t.consent, "unknown", "a new contact is not opted out");
+  assert.equal(t.dnc, false);
+
+  // Idempotent: calling again returns the SAME rows, never a duplicate contact.
+  const again = await resolveOutboundTarget(db, { tenantId, phoneE164: fresh, create: true });
+  assert.equal(again.contactId, t.contactId);
+  assert.equal(again.conversationId, t.conversationId);
+
+  await db.from("conversations").delete().eq("id", t.conversationId);
+  await db.from("contacts").delete().eq("id", t.contactId);
+});
+
 test("resolveOutboundTarget reports an opt-out rather than hiding it", { skip }, async () => {
   await db.from("contacts")
     .update({ consent: "opted_out", dnc: true })

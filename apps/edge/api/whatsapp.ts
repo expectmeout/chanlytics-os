@@ -30,7 +30,7 @@
  *      PG_READS (Gate 1b), PG_DEDUPE (optional, implied by PG_READS).
  */
 import crypto from "node:crypto";
-import { getThread, saveThread, storeBackend, type ThreadState } from "../lib/store.js";
+import { getThread, saveThread, storeBackend, THREAD_UNKNOWN, type ThreadState } from "../lib/store.js";
 import { json, text } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import {
@@ -345,6 +345,24 @@ async function handleInbound(
   // not consulted.
   if ((process.env.PG_DEDUPE === "on" || memory === "pg") && ing && !ing.is_new) {
     console.log("wa_skip_pg_dupe", m.id);
+    return;
+  }
+
+  // Both memory sources failed: Postgres missed AND the Blob read errored. We
+  // do not know whether a human has taken this thread over, what was already
+  // said, or how many replies have gone out today — so every gate below would
+  // be answering from an invented empty history. Hand to a human instead of
+  // guessing; the customer's message is already persisted above.
+  if (thread === THREAD_UNKNOWN) {
+    console.error("wa_state_unavailable", JSON.stringify({ to: from, memory }));
+    await Promise.all([
+      sink.escalate(
+        "state_unavailable",
+        "The receptionist could not read this thread's history, so it did not reply. Please answer this one.",
+      ),
+      alertStaff(from, m.text?.body ?? `[${m.type}]`, "(no reply sent — the receptionist could not read the thread state)", "state unavailable", notif),
+      sink.processed(),
+    ]);
     return;
   }
 

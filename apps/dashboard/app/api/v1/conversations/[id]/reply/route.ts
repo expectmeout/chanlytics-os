@@ -11,6 +11,11 @@ import { schedule, mirrorBlobPause } from "@/server/service";
  * sits status='queued' through a cancel window (the honest undo), then the
  * outbound_send job fires it. A dashboard reply implicitly pauses the AI (D10).
  */
+/** How long a stored reply receipt is replayed instead of sending again.
+ *  Long enough to cover a retry after a timeout, short enough that sending the
+ *  same words again later is honoured as a new message. */
+const IDEMPOTENCY_WINDOW_MS = 2 * 60 * 1000;
+
 export const POST = withRoute(async (req, ctx) => {
   const conv = await loadConversation(ctx, String(ctx.params.id ?? ""));
   // Role first: a viewer must not learn a customer's consent state from the
@@ -28,16 +33,25 @@ export const POST = withRoute(async (req, ctx) => {
   };
   const window = waWindow(conv.last_wa_inbound_at);
 
-  // idempotency: a replayed POST returns the original envelope, never a double text
+  // Idempotency: a replayed POST returns the original envelope, never a double
+  // text. The key identifies the INTENT (conversation + message body), so a
+  // retry after a timeout carries the same one.
+  //
+  // A stored response is only honoured briefly. Retries happen in seconds; an
+  // operator deliberately sending the same words an hour later means it, and
+  // must not be answered with an hour-old receipt.
   const idemKey = req.headers.get("idempotency-key");
   if (idemKey) {
-    const { data: prior } = await ctx.supabase
+    const { data: prior, error: priorErr } = await ctx.supabase
       .from("idempotency_keys")
-      .select("response")
+      .select("response, created_at")
       .eq("tenant_id", conv.tenant_id)
       .eq("key", idemKey)
       .maybeSingle();
-    if (prior?.response) return prior.response as Json;
+    if (priorErr) throw new Error(`idempotency lookup: ${priorErr.message}`);
+    if (prior?.response && Date.now() - new Date(prior.created_at).getTime() < IDEMPOTENCY_WINDOW_MS) {
+      return prior.response as Json;
+    }
   }
 
   let messageBody: string | null;
@@ -160,13 +174,23 @@ export const POST = withRoute(async (req, ctx) => {
     window_open: window.open,
   };
   if (idemKey) {
-    await ctx.supabase.from("idempotency_keys").insert({
-      tenant_id: conv.tenant_id,
-      key: idemKey,
-      route: "reply",
-      request_hash: contentHash,
-      response: response as unknown as Json,
-    });
+    // Upsert, not insert: an expired key for the same intent already exists and
+    // a plain insert would fail the unique constraint. created_at is refreshed
+    // so the window runs from THIS send.
+    const { error: idemErr } = await ctx.supabase.from("idempotency_keys").upsert(
+      {
+        tenant_id: conv.tenant_id,
+        key: idemKey,
+        route: "reply",
+        request_hash: contentHash,
+        response: response as unknown as Json,
+        created_at: new Date().toISOString(),
+      },
+      { onConflict: "tenant_id,key" },
+    );
+    // Discarding this error is how a replay protection silently stops
+    // protecting: the send already happened, so we log rather than fail it.
+    if (idemErr) console.error("idempotency_record_failed", conv.id, idemErr.message);
   }
   return response;
 });

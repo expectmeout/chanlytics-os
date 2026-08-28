@@ -19,11 +19,20 @@ export const POST = withRoute(async (_req, ctx) => {
     throw new AppError("conflict", "Too late — this message has already been sent.");
   }
 
-  const { error: uerr } = await ctx.supabase
+  // `.eq("status","queued")` closes the race the JS check above cannot: the
+  // send job can fire between reading the row and updating it, and without this
+  // both would succeed — the customer receives the text AND the operator is
+  // told it was canceled. Zero rows means the job won.
+  const { data: canceled, error: uerr } = await ctx.supabase
     .from("messages")
     .update({ status: "canceled" })
-    .eq("id", msg.id);
+    .eq("id", msg.id)
+    .eq("status", "queued")
+    .select("id");
   if (uerr) throw new Error(uerr.message);
+  if (!canceled || canceled.length === 0) {
+    throw new AppError("conflict", "Too late — this message went out while you were canceling it.");
+  }
 
   await cancelKindFor(msg.tenant_id, "outbound_send", "message_id", msg.id);
   const decisionId = await recordDecision(ctx, msg.tenant_id, "message", msg.id, "cancel_send");

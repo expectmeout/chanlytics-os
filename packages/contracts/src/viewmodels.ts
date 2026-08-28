@@ -186,6 +186,7 @@ export const ESCALATION_REASON_LABELS: Record<string, string> = {
   deadman: "Nobody picked this up — flagged after silence",
   manual: "Flagged manually",
   opt_out: "Asked to stop receiving messages",
+  state_unavailable: "The receptionist could not read this thread — needs a human",
 };
 
 /** "8m" / "3h" / "2d". An overnight wait is the NORMAL case for a morning

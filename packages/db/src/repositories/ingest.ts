@@ -115,6 +115,43 @@ export async function recordOutbound(
   return data.id;
 }
 
+/**
+ * Get-or-create a contact by phone.
+ *
+ * NOT an upsert: `contacts_tenant_phone_uq` is a PARTIAL unique index
+ * (`... where phone_e164 is not null`), and PostgREST's `on_conflict=` cannot
+ * target a partial index — it fails with "no unique or exclusion constraint
+ * matching the ON CONFLICT specification". Every `.upsert(..., { onConflict:
+ * "tenant_id,phone_e164" })` in this file was therefore a silent no-op for any
+ * contact that did not already exist. Raw SQL can target it (by repeating the
+ * WHERE clause) which is why ingest_inbound and ingest_call are unaffected.
+ *
+ * Insert-then-reselect handles the concurrent case: 23505 means someone else
+ * won the race, and their row is the one we want.
+ */
+async function getOrCreateContact(
+  db: Db,
+  tenantId: string,
+  phoneE164: string,
+): Promise<{ id: string; consent: string; dnc: boolean }> {
+  const { data, error } = await db
+    .from("contacts")
+    .insert({ tenant_id: tenantId, phone_e164: phoneE164, last_seen_at: new Date().toISOString() })
+    .select("id, consent, dnc")
+    .single();
+  if (!error && data) return data;
+  if (error && error.code !== "23505") throw new Error(`get_or_create_contact: ${error.message}`);
+
+  const { data: raced, error: reErr } = await db
+    .from("contacts")
+    .select("id, consent, dnc")
+    .eq("tenant_id", tenantId)
+    .eq("phone_e164", phoneE164)
+    .single();
+  if (reErr || !raced) throw new Error(`get_or_create_contact reselect: ${reErr?.message}`);
+  return raced;
+}
+
 export interface OutboundTarget {
   contactId: string;
   conversationId: string;
@@ -152,16 +189,7 @@ export async function resolveOutboundTarget(
   let contact = existing;
   if (!contact) {
     if (!p.create) return null;
-    const { data: made, error } = await db
-      .from("contacts")
-      .upsert(
-        { tenant_id: p.tenantId, phone_e164: phone, last_seen_at: new Date().toISOString() },
-        { onConflict: "tenant_id,phone_e164" },
-      )
-      .select("id, consent, dnc")
-      .single();
-    if (error || !made) throw new Error(`resolve_outbound_target contact: ${error?.message}`);
-    contact = made;
+    contact = await getOrCreateContact(db, p.tenantId, phone);
   }
 
   const { data: conv, error: cErr } = await db
@@ -216,15 +244,18 @@ export async function recordEchoAndPause(
   p: { tenantId: string; customerPhoneDigits: string; body: string | null; externalId: string | null; pausedUntilIso: string },
 ): Promise<void> {
   const phone = `+${p.customerPhoneDigits.replace(/^\+/, "")}`;
-  const { data: contact, error: cerr } = await db
-    .from("contacts")
-    .upsert(
-      { tenant_id: p.tenantId, phone_e164: phone, last_seen_at: new Date().toISOString() },
-      { onConflict: "tenant_id,phone_e164" },
-    )
-    .select("id")
-    .single();
-  if (cerr || !contact) { console.error("record_echo_contact_failed", cerr?.message); return; }
+  // Was an .upsert on the PARTIAL unique index, which PostgREST cannot target —
+  // so for any customer without an existing contact row this failed, logged,
+  // and returned. The owner's reply from the WhatsApp Business app was never
+  // recorded and the AI pause never reached Postgres, which is precisely the
+  // divergence this function exists to prevent.
+  let contact: { id: string };
+  try {
+    contact = await getOrCreateContact(db, p.tenantId, phone);
+  } catch (e) {
+    console.error("record_echo_contact_failed", e instanceof Error ? e.message : e);
+    return;
+  }
   const { data: conv, error: verr } = await db
     .from("conversations")
     .upsert(

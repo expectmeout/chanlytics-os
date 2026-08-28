@@ -103,12 +103,18 @@ export async function resolveOpenEscalation(
   conversationId: string,
   decisionId: string | null,
 ): Promise<void> {
-  const { error } = await ctx.supabase
+  // `.select()` matters: an UPDATE that RLS forbids does not raise — it matches
+  // zero rows and returns success. Without counting rows, a permission failure
+  // here would look identical to "there was nothing open to resolve", and the
+  // thread would sit in Needs You with the operator believing they cleared it.
+  const { data, error } = await ctx.supabase
     .from("escalations")
     .update({ state: "resolved", resolved_by_user_id: ctx.userId, decision_id: decisionId })
     .eq("conversation_id", conversationId)
-    .eq("state", "open");
-  if (error) console.error("resolve_escalation_failed", error.message);
+    .eq("state", "open")
+    .select("id");
+  if (error) console.error("resolve_escalation_failed", conversationId, error.message);
+  else if (!data || data.length === 0) console.log("resolve_escalation_noop", conversationId);
 }
 
 export const PAUSE_MS = 24 * 3600 * 1000;
