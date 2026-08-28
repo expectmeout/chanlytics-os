@@ -8227,8 +8227,18 @@ async function outboundSend(ctx, job) {
   const p = job.payload;
   const { data: msg } = await ctx.db.from("messages").select("id, status, body, template_name").eq("id", p.message_id).eq("tenant_id", job.tenant_id).single();
   if (!msg || msg.status !== "queued") return;
-  const { data: convRow } = await ctx.db.from("conversations").select("contacts (consent, dnc)").eq("id", p.conversation_id).eq("tenant_id", job.tenant_id).maybeSingle();
-  const contact = convRow?.contacts;
+  const { data: convRow, error: consentErr } = await ctx.db.from("conversations").select("contacts (consent, dnc)").eq("id", p.conversation_id).eq("tenant_id", job.tenant_id).maybeSingle();
+  if (consentErr || !convRow) {
+    console.error(JSON.stringify({
+      level: "error",
+      event: "outbound_consent_unreadable",
+      tenant_id: job.tenant_id,
+      message_id: p.message_id,
+      error: consentErr?.message ?? "conversation not found"
+    }));
+    return;
+  }
+  const contact = convRow.contacts;
   if (contact && isOptedOutContact(contact)) {
     await ctx.db.from("messages").update({ status: "canceled", error: { reason: "opted_out" } }).eq("id", p.message_id);
     await ctx.db.from("events").insert({

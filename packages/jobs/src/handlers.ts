@@ -50,13 +50,31 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   // unrecoverable — the message is on its way to a real person.
   // Resolved through the conversation rather than messages.contact_id, which
   // is nullable — the conversation always has the contact.
-  const { data: convRow } = await ctx.db
+  //
+  // FAIL CLOSED. This discarded the error and guarded on `if (contact && ...)`,
+  // so a transient read failure produced contact === undefined and the message
+  // went out — to someone who may have asked to be left alone. This is the LAST
+  // gate before the wire, the one place a miss is unrecoverable, and "we could
+  // not check" is not "they consented". A send deferred to the next attempt
+  // costs a delay; a send that should not have happened cannot be taken back.
+  const { data: convRow, error: consentErr } = await ctx.db
     .from("conversations")
     .select("contacts (consent, dnc)")
     .eq("id", p.conversation_id)
     .eq("tenant_id", job.tenant_id)
     .maybeSingle();
-  const contact = convRow?.contacts;
+  if (consentErr || !convRow) {
+    console.error(JSON.stringify({
+      level: "error", event: "outbound_consent_unreadable",
+      tenant_id: job.tenant_id, message_id: p.message_id,
+      error: consentErr?.message ?? "conversation not found",
+    }));
+    // Leave the row queued: claim_job is exactly-once per job, but the message
+    // stays visible and unsent rather than being marked failed on our own
+    // inability to check.
+    return;
+  }
+  const contact = convRow.contacts;
   if (contact && isOptedOutContact(contact)) {
     await ctx.db.from("messages")
       .update({ status: "canceled", error: { reason: "opted_out" } })
