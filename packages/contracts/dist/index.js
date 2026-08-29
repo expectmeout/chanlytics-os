@@ -933,12 +933,14 @@ ${profile.escalate_when.map((e) => `- ${e}`).join("\n")}`);
   if (profile.extra_instructions?.trim()) {
     const stated = !!(profile.address || hrs.length || profile.services?.length);
     const text = profile.extra_instructions.trim();
-    s.push(
-      stated ? `
-Further instructions from the business. Where these disagree with the address, hours or services above, the details above are current and correct:
+    const header = [
+      stated ? "Further instructions from the business. Where these disagree with the address, hours or services above, the details above are current and correct." : "",
+      channel === "voice" ? "Some of it was written for text conversations; you are on a phone call." : ""
+    ].filter(Boolean).join(" ");
+    s.push(header ? `
+${header}
 ${text}` : `
-${text}`
-    );
+${text}`);
   }
   s.push(
     channel === "voice" ? "\nYou are speaking aloud. Keep answers to one or two sentences, never read a URL out character by character, and offer to text the booking link instead." : "\nKeep replies short enough to read on a phone. Send the booking link rather than describing how to book."

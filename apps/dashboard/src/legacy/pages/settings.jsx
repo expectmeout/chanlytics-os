@@ -343,9 +343,12 @@ const hoursSummary = (hours) => {
 /**
  * Editing the business's facts.
  *
- * These are the same fields the receptionist is given on WhatsApp and, once
- * the push lands, on the phone. Writing them here is what stops the two
- * channels holding separate copies of the opening hours.
+ * These are the same fields the receptionist is given on WhatsApp, and the
+ * same ones the inbound-call webhook hands the voice agent as the
+ * `business_facts` variable. Writing them here is what stops the two channels
+ * holding separate copies of the opening hours — but only for a voice agent
+ * whose prompt actually reads that variable, which is a one-time change in
+ * Retell that this app cannot make on the owner's behalf.
  *
  * Whole-config write with optimistic concurrency: the ENTIRE config we loaded
  * goes back with the profile merged in, because sending only this section
@@ -689,8 +692,9 @@ const PaneWorkspace = ({ flash }) => {
           <div className="set-empty-title">Tell the receptionist about your business</div>
           <div className="set-empty-body">
             Your hours, services and address are still written inside the assistant's
-            instructions, where only the WhatsApp agent can read them. Fill them in
-            here and both the chat and the phone agent answer from the same facts.
+            instructions, as prose. Fill them in as fields and the WhatsApp receptionist
+            answers from them straight away — and the phone agent reads the same ones,
+            once it has been pointed at them.
           </div>
           <button className="btn btn-primary btn-sm" onClick={() => setEditing(true)} {...window.gate("autonomy")}>
             <Icon name="plus" size={12} /> Add your business details

@@ -24,53 +24,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { readCode, readRaw } from "./_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, "../../..");
 const DASH = path.join(ROOT, "apps/dashboard");
 
-/**
- * Strip comments, keeping string literals intact.
- *
- * Every assertion below is of the form "this pattern must NOT appear" — and the
- * comment explaining WHY it must not appear necessarily contains it. Without
- * this, each guard is tripped by its own rationale, and the only way to make the
- * suite pass is to delete the explanation. Code is what is asserted on.
- */
-function stripComments(src) {
-  let out = "";
-  let i = 0;
-  while (i < src.length) {
-    const c = src[i];
-    const next = src[i + 1];
-    if (c === '"' || c === "'" || c === "`") {
-      // Copy the whole literal verbatim, honouring backslash escapes.
-      out += c;
-      i++;
-      while (i < src.length && src[i] !== c) {
-        if (src[i] === "\\") { out += src[i]; i++; }
-        if (i < src.length) { out += src[i]; i++; }
-      }
-      out += src[i] ?? "";
-      i++;
-    } else if (c === "/" && next === "/") {
-      while (i < src.length && src[i] !== "\n") i++;
-    } else if (c === "/" && next === "*") {
-      i += 2;
-      while (i < src.length && !(src[i] === "*" && src[i + 1] === "/")) i++;
-      i += 2;
-    } else {
-      out += c;
-      i++;
-    }
-  }
-  return out;
-}
-
-/** Read normalised to LF — these files are CRLF and patterns must not care. */
-const readRaw = (p) => fs.readFileSync(path.join(ROOT, p), "utf8").split("\r\n").join("\n");
-/** Read as executable code: comments removed, string literals preserved. */
-const read = (p) => stripComments(readRaw(p));
+// Comment-stripping and LF-normalised reads are shared: see _source.mjs for
+// why every code-scanning assertion needs both.
+const read = (p) => readCode(p);
 
 const middleware = read("apps/dashboard/middleware.ts");
 const signout = read("apps/dashboard/app/auth/signout/route.ts");

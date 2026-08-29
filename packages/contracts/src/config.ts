@@ -335,11 +335,22 @@ export function composeSystemPrompt(
     // can see and correct in one click, so those are the ones that win.
     const stated = !!(profile.address || hrs.length || profile.services?.length);
     const text = profile.extra_instructions.trim();
-    s.push(
+    // This block is often a prompt that was written for ONE channel before the
+    // business had fields — Melany's opens "You are the WhatsApp assistant".
+    // Read down a phone line that is a false identity statement, and the fix
+    // is not to strip it (whose sentence would we delete?) but to say where it
+    // came from. The channel line below and the rules after it still win.
+    const header = [
       stated
-        ? `\nFurther instructions from the business. Where these disagree with the address, hours or services above, the details above are current and correct:\n${text}`
-        : `\n${text}`,
-    );
+        ? "Further instructions from the business. Where these disagree with the address, hours or services above, the details above are current and correct."
+        : "",
+      channel === "voice"
+        ? "Some of it was written for text conversations; you are on a phone call."
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    s.push(header ? `\n${header}\n${text}` : `\n${text}`);
   }
 
   // Medium, not facts. A phone caller cannot re-read a paragraph.
