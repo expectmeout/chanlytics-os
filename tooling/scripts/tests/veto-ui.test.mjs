@@ -127,3 +127,12 @@ test("the draft bubble is visually distinct from a sent one", () => {
   assert.match(thread, /const held = !!entry\.pending;/);
   assert.match(thread, /tl-held-tag/);
 });
+
+test("REGRESSION: the VetoBar shows on a HANDLED real thread", () => {
+  // Found by looking at it, not by reasoning about it. In the mockup "done"
+  // means decided; on a real thread "handled" is the normal resting state —
+  // the receptionist answered and nothing escalated — which is exactly the
+  // state a held draft sits in. The old gate hid the controls in the common
+  // case and left the draft unstoppable from the UI.
+  assert.match(thread, /thread\.veto && !decided && \(thread\.real \|\| thread\.state !== "done"\)/);
+});

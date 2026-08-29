@@ -93,7 +93,13 @@ const InboxThread = ({ thread, channelLabels, veto = null, vetoPaused = false, o
           <VerdictCard thread={thread} onVerdict={onVerdict} />
         )}
 
-        {thread.veto && !decided && thread.state !== "done" && (
+        {/* The same trap the composer already documents: in the mockup "done"
+            means decided, nothing left to do. On a REAL thread "handled" is the
+            normal resting state — the receptionist answered and nothing
+            escalated — which is exactly the state a held draft sits in. Gating
+            the VetoBar on state !== "done" hid the controls in the common case
+            and left the draft unstoppable from the UI. */}
+        {thread.veto && !decided && (thread.real || thread.state !== "done") && (
           <VetoBar thread={thread} remaining={veto} paused={vetoPaused} onAct={onVetoAct} onTakeOver={onTakeOver} />
         )}
 
