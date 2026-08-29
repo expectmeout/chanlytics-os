@@ -160,6 +160,9 @@ function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
 }
 
 // src/viewmodels.ts
+function messageAt(m) {
+  return m.channel_ts ?? m.created_at;
+}
 function isOptedOut(dto) {
   return isOptedOutContact(dto.contact);
 }
@@ -264,15 +267,23 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
   const last = dto.messages[dto.messages.length - 1];
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   const win = waWindow(dto.last_wa_inbound_at, now).open;
-  const timeline = dto.messages.map((m) => ({
-    type: "msg",
-    from: m.sender === "customer" ? "client" : "agent",
-    channel: m.type === "call_summary" ? "phone" : "whatsapp",
-    at: bubbleTime(m.created_at, now),
-    body: messageText(m),
-    ...m.sender === "human" ? { byYou: true } : {},
-    ...m.sender !== "customer" && m.status ? { status: m.status, messageId: m.id } : {}
-  }));
+  const timeline = dto.messages.map((m) => {
+    const onPhone = m.type === "call_summary";
+    return {
+      type: "msg",
+      from: m.sender === "customer" ? "client" : "agent",
+      channel: onPhone ? "phone" : "whatsapp",
+      at: bubbleTime(messageAt(m), now),
+      body: messageText(m),
+      // Who said it, per BUBBLE. The thread carries one agent identity, and the
+      // pane rendered that under every agent row — so a phone call summary was
+      // signed "by WhatsApp Receptionist", crediting the wrong assistant with
+      // work it did not do. The bubble already knows its own channel.
+      ...m.sender !== "customer" ? { agentName: onPhone ? "Phone Receptionist" : AGENT.name, agentGlyph: onPhone ? "P" : AGENT.glyph } : {},
+      ...m.sender === "human" ? { byYou: true } : {},
+      ...m.sender !== "customer" && m.status ? { status: m.status, messageId: m.id } : {}
+    };
+  });
   if (escalation) {
     const idx = dto.messages.findIndex((m) => m.created_at > escalation.created_at);
     const entry = {
@@ -325,7 +336,7 @@ function toConversationVM(dto, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const msgs = dto.messages.map((m) => ({
     from: m.sender === "customer" ? "client" : "agent",
-    at: bubbleTime(m.created_at, now),
+    at: bubbleTime(messageAt(m), now),
     text: messageText(m)
   }));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
@@ -345,15 +356,15 @@ function toConversationVM(dto, now = /* @__PURE__ */ new Date()) {
     // The row's time and its preview must come from the SAME message —
     // last_message_at ignored call notes, so a row read "3:22 AM" beside a
     // preview imported at 2:15 PM.
-    at: shortTime(last ? last.created_at : dto.last_message_at, now),
+    at: shortTime(last ? messageAt(last) : dto.last_message_at, now),
     outcome,
     snippet: last ? messageText(last).slice(0, 110) : "",
     hasChat: chat.length > 0,
-    ts: last ? new Date(last.created_at).getTime() : dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
+    ts: last ? new Date(messageAt(last)).getTime() : dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
     summary: {
       headline: lastInbound ? messageText(lastInbound).slice(0, 110) : "No customer messages yet.",
       bullets: [
-        `${chat.length} message${chat.length === 1 ? "" : "s"}${callNotes ? ` \xB7 ${callNotes} call${callNotes === 1 ? "" : "s"}` : ""}${dto.messages[0] ? ` \xB7 started ${shortTime(dto.messages[0].created_at, now)}` : ""}`,
+        `${chat.length} message${chat.length === 1 ? "" : "s"}${callNotes ? ` \xB7 ${callNotes} call${callNotes === 1 ? "" : "s"}` : ""}${dto.messages[0] ? ` \xB7 started ${shortTime(messageAt(dto.messages[0]), now)}` : ""}`,
         needsHuman ? "Receptionist paused \u2014 a human has this thread" : "Answered by the receptionist"
       ]
     },
@@ -798,6 +809,7 @@ export {
   formatWaited,
   isOptedOut,
   isOptedOutContact,
+  messageAt,
   messageText,
   normalizePhone,
   ok,

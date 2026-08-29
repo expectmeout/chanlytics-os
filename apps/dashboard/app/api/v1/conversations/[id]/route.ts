@@ -20,7 +20,7 @@ export const GET = withRoute(async (req, { supabase, params, userId }) => {
 
   let q = supabase
     .from("messages")
-    .select("id, direction, sender, type, body, media, meta, created_at, status")
+    .select("id, direction, sender, type, body, media, meta, created_at, status, channel_ts")
     .eq("conversation_id", id)
     .order("created_at", { ascending: false })
     .limit(100);
@@ -56,6 +56,7 @@ export const GET = withRoute(async (req, { supabase, params, userId }) => {
     meta: m.meta as MessageDto["meta"],
     status: m.status,
     created_at: m.created_at,
+        channel_ts: m.channel_ts,
   }));
   return { conversation, messages };
 });

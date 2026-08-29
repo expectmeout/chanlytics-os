@@ -27,11 +27,16 @@
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { loadTenantRuntime, waCfgFor } from "../lib/tenant-runtime.js";
-import { resolveChannel, resolveOutboundTarget, recordOutbound } from "../lib/workspace/db.js";
+import { resolveChannel, resolveOutboundTarget, recordOutbound, countSentToday } from "../lib/workspace/db.js";
 import { isOptedOutContact, normalizePhone } from "../lib/workspace/contracts.js";
 import { sendTemplate } from "../lib/workspace/channels.js";
+import { outboundGate, refusalScript } from "../lib/outbound-gate.js";
 
 const BOOKING_TEMPLATE = { name: "booking_link_v1", language: "en_US" };
+/** meta.source stamped on voice-initiated sends — also the key the daily cap counts. */
+const VOICE_SEND_SOURCE = "voice_booking_link";
+/** Per THREAD per day. A caller asking twice in one call is normal; thirty is not. */
+const VOICE_SENDS_PER_DAY = 3;
 
 /** Spoken when we cannot send. Never names a fallback number we cannot verify. */
 const CANNOT_SEND =
@@ -118,11 +123,31 @@ export async function POST(request: Request): Promise<Response> {
       });
     }
 
-    if (isOptedOutContact(contact)) {
-      log("retell_fn_refused_opted_out", { tenant: routed.tenantId });
-      return json(200, {
-        result: "That number has asked us to stop sending messages, so I cannot text them. Offer to book them on the call instead.",
-      });
+    // Every gate the conversational receptionist obeys, in one decision.
+    //
+    // This path used to check consent and stop. So a booking link would land in
+    // a thread a human had already taken over — the exact interruption pause
+    // exists to prevent — and it kept sending after a workspace had switched
+    // its receptionist to 'ask'. Both are the same class of bug: a second
+    // sender assembled by hand instead of going through the same door.
+    const gate = outboundGate({
+      optedOut: isOptedOutContact(contact),
+      pausedUntilMs: contact.pausedUntil ? new Date(contact.pausedUntil).getTime() : null,
+      replyMode: rt.policy?.reply?.mode ?? "ask",
+      sentToday: await countSentToday(db, {
+        tenantId: routed.tenantId,
+        conversationId: contact.conversationId,
+        source: VOICE_SEND_SOURCE,
+      }).catch(() => 0),
+      dailyCap: VOICE_SENDS_PER_DAY,
+      nowMs: Date.now(),
+    });
+
+    if (!gate.allowed) {
+      log("retell_fn_refused", { tenant: routed.tenantId, reason: gate.refusal });
+      // The caller is on the line, so the agent is told what to SAY — never
+      // that a colleague is mid-thread with them, or what our policy is.
+      return json(200, { result: refusalScript(gate.refusal!, brain.phone_display) });
     }
 
     const params = [brain.business_name, brain.booking_link.replace(/^https?:[/][/]/, "")];
@@ -146,7 +171,7 @@ export async function POST(request: Request): Promise<Response> {
         body: `[booking link] ${params.join(" — ")}`,
         externalId: null,
         status: "failed",
-        meta: { source: "voice_booking_link", call_id: call.call_id ?? null, http_status: sent.status },
+        meta: { source: VOICE_SEND_SOURCE, call_id: call.call_id ?? null, http_status: sent.status },
       }).catch((e) => console.error("retell_fn_record_failed", e instanceof Error ? e.message : e));
       return json(200, {
         result: `The text could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach the salon on ${brain.phone_display}.`,
@@ -162,7 +187,7 @@ export async function POST(request: Request): Promise<Response> {
       body: `[booking link] ${params.join(" — ")}`,
       externalId: sent.wamid,
       status: "sent",
-      meta: { source: "voice_booking_link", call_id: call.call_id ?? null },
+      meta: { source: VOICE_SEND_SOURCE, call_id: call.call_id ?? null },
     }).catch((e) => console.error("retell_fn_record_failed", e instanceof Error ? e.message : e));
 
     log("retell_fn_sent", { tenant: routed.tenantId, wamid: sent.wamid });

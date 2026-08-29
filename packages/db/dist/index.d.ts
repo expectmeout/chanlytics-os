@@ -1699,6 +1699,9 @@ interface OutboundTarget {
      *  without having been handed the consent state. */
     consent: string | null;
     dnc: boolean;
+    /** A human has this thread until then. Carried for the same reason consent
+     *  is: a sender that is not handed the fact cannot honour it. */
+    pausedUntil: string | null;
 }
 /**
  * The contact + conversation an outbound message belongs to, with consent.
@@ -1717,6 +1720,19 @@ declare function resolveOutboundTarget(db: Db$3, p: {
     phoneE164: string;
     create?: boolean;
 }): Promise<OutboundTarget | null>;
+/**
+ * Automated sends already made to this thread today, by source.
+ *
+ * The conversational path caps bot replies per thread per day from the thread
+ * state it already holds. A voice-initiated send has no thread state, and so had
+ * no cap at all — a caller who phoned repeatedly, or an agent that called its
+ * own tool twice, produced one billable template per attempt.
+ */
+declare function countSentToday(db: Db$3, p: {
+    tenantId: string;
+    conversationId: string;
+    source: string;
+}): Promise<number>;
 /** Delivery receipts: update by wamid; monotone rank enforced by trigger. */
 declare function recordStatusByExternalId(db: Db$3, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
 /** Owner replied from the WhatsApp Business app: persist the echo + pause the bot.
@@ -1927,4 +1943,4 @@ declare function subscribeMessagesInserts(client: SupabaseClient<Database>, onIn
     tenant_id: string;
 }) => void, opts?: SubscribeOptions): () => void;
 
-export { type ChannelLookup, type Database, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type NormalizedCallInput, type OutboundTarget, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, createServiceClient, emitEvent, getTenantConfig, ingestCall, ingestInbound, linkCallMessage, listPolicies, markProcessed, pauseConversation, putTenantConfig, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, setCallRecording, setPolicyMode, subscribeMessagesInserts };
+export { type ChannelLookup, type Database, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type NormalizedCallInput, type OutboundTarget, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, countSentToday, createServiceClient, emitEvent, getTenantConfig, ingestCall, ingestInbound, linkCallMessage, listPolicies, markProcessed, pauseConversation, putTenantConfig, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, setCallRecording, setPolicyMode, subscribeMessagesInserts };

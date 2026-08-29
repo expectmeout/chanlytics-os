@@ -160,6 +160,9 @@ export interface OutboundTarget {
    *  without having been handed the consent state. */
   consent: string | null;
   dnc: boolean;
+  /** A human has this thread until then. Carried for the same reason consent
+   *  is: a sender that is not handed the fact cannot honour it. */
+  pausedUntil: string | null;
 }
 
 /**
@@ -208,16 +211,46 @@ export async function resolveOutboundTarget(
       },
       { onConflict: "tenant_id,contact_id" },
     )
-    .select("id")
+    // paused_until rides along because every caller has to answer "may I send"
+    // and the answer is not consent alone: a human who took this thread over is
+    // mid-conversation, and an automated message landing underneath them is
+    // indistinguishable, to the customer, from the person they are talking to.
+    .select("id, paused_until")
     .single();
   if (cErr || !conv) throw new Error(`resolve_outbound_target conversation: ${cErr?.message}`);
 
   return {
     contactId: contact.id,
     conversationId: conv.id,
+    pausedUntil: conv.paused_until ?? null,
     consent: contact.consent ?? null,
     dnc: contact.dnc ?? false,
   };
+}
+
+/**
+ * Automated sends already made to this thread today, by source.
+ *
+ * The conversational path caps bot replies per thread per day from the thread
+ * state it already holds. A voice-initiated send has no thread state, and so had
+ * no cap at all — a caller who phoned repeatedly, or an agent that called its
+ * own tool twice, produced one billable template per attempt.
+ */
+export async function countSentToday(
+  db: Db,
+  p: { tenantId: string; conversationId: string; source: string },
+): Promise<number> {
+  const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const { count, error } = await db
+    .from("messages")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", p.tenantId)
+    .eq("conversation_id", p.conversationId)
+    .eq("direction", "outbound")
+    .gte("created_at", since)
+    .contains("meta", { source: p.source });
+  if (error) throw new Error(`count_sent_today: ${error.message}`);
+  return count ?? 0;
 }
 
 /** Delivery receipts: update by wamid; monotone rank enforced by trigger. */
