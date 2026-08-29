@@ -10,6 +10,8 @@
  * never inside legacy page files (the modularity rule).
  */
 
+import { clearSurfaceCache } from "./surface-cache";
+
 export interface SurfaceOverride {
   /** Surface key, matching the slice that owns it (e.g. "conversations"). */
   key: string;
@@ -49,7 +51,55 @@ export class UnauthorizedError extends Error {
 const inFlight = new Map<string, { p: Promise<unknown>; at: number }>();
 const INFLIGHT_MS = 2000;
 
-export async function fetchEnvelope<T>(url: string): Promise<T> {
+/* --------------------------- the active workspace ------------------------- */
+
+const WS_KEY = "chanlytics.workspace";
+
+/**
+ * Which workspace every request on this page is about.
+ *
+ * Nothing used to send this, so the API answered from whatever default each
+ * route happened to pick — three different rules — and the read endpoints,
+ * scoped only by RLS, returned every workspace the caller belonged to merged
+ * into one list. One id, chosen once, appended at this chokepoint so no call
+ * site can forget it.
+ *
+ * localStorage, not session: which business you are looking at is a preference
+ * that should survive a reload, unlike the cached rows themselves. It is only
+ * ever a REQUEST — the server validates membership and ignores an id the caller
+ * has no claim to, so a tampered value grants nothing.
+ */
+let activeWorkspace: string | null = null;
+
+export function getActiveWorkspace(): string | null {
+  if (activeWorkspace) return activeWorkspace;
+  try {
+    activeWorkspace = localStorage.getItem(WS_KEY);
+  } catch {
+    // private mode / storage disabled — the server default applies
+  }
+  return activeWorkspace;
+}
+
+export function setActiveWorkspace(id: string | null): void {
+  activeWorkspace = id;
+  try {
+    if (id) localStorage.setItem(WS_KEY, id);
+    else localStorage.removeItem(WS_KEY);
+  } catch {
+    /* the in-memory value still holds for this page */
+  }
+}
+
+/** Append ?workspace= unless the caller named one explicitly. */
+function scoped(url: string): string {
+  const ws = getActiveWorkspace();
+  if (!ws || url.includes("workspace=")) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}workspace=${encodeURIComponent(ws)}`;
+}
+
+export async function fetchEnvelope<T>(rawUrl: string): Promise<T> {
+  const url = scoped(rawUrl);
   const hit = inFlight.get(url);
   if (hit && Date.now() - hit.at < INFLIGHT_MS) return hit.p as Promise<T>;
 
@@ -95,17 +145,54 @@ export interface Me { id: string; email: string | null; role?: "owner" | "operat
 
 export const workspaceOverride: SurfaceOverride & { current: () => Workspace | null } = {
   key: "workspace",
-  globals: ["__WORKSPACES", "__ME"],
-  current: () => (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES?.[0] ?? null,
+  globals: ["__WORKSPACES", "__ME", "__ACTIVE_WORKSPACE"],
+  // The workspace actually being VIEWED, as resolved by the server — not
+  // `[0]`, which was whichever tenant happened to sort first and could differ
+  // from the one the data below it came from.
+  current: () => {
+    const w = window as unknown as { __WORKSPACES?: Workspace[]; __ACTIVE_WORKSPACE?: string };
+    return w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE) ?? w.__WORKSPACES?.[0] ?? null;
+  },
   apply: async () => {
-    const data = await fetchEnvelope<{ workspaces: Workspace[]; user?: Me }>("/api/v1/workspaces");
-    const w = window as unknown as { __WORKSPACES?: Workspace[]; __ME?: Me };
+    const data = await fetchEnvelope<{
+      workspaces: Workspace[];
+      activeWorkspaceId?: string;
+      user?: Me;
+    }>("/api/v1/workspaces");
+    const w = window as unknown as {
+      __WORKSPACES?: Workspace[];
+      __ME?: Me;
+      __ACTIVE_WORKSPACE?: string;
+    };
     w.__WORKSPACES = data.workspaces;
+    // The server had the last word on which workspace this is — it validated
+    // membership and may have overridden a stale stored preference. Record what
+    // it decided, so every later request agrees with the data already rendered.
+    if (data.activeWorkspaceId) {
+      w.__ACTIVE_WORKSPACE = data.activeWorkspaceId;
+      setActiveWorkspace(data.activeWorkspaceId);
+    }
     // The sidebar renders whoever this says — replacing the mockup's
     // hardcoded operator, who was a fabricated person shown as "you".
     if (data.user) w.__ME = data.user;
   },
 };
+
+/**
+ * Switch workspace: forget the previous one's rows, then reload.
+ *
+ * A full reload rather than a refetch, deliberately. The mockup seeds React
+ * state from globals at mount, so the surfaces would need bespoke re-seeding to
+ * swap tenant underneath them — and getting that wrong shows one business's
+ * threads under another's name, which is the single worst thing this app can
+ * do. Clearing the cache first is what makes the reload cold.
+ */
+export function switchWorkspace(id: string): void {
+  if (id === getActiveWorkspace()) return;
+  clearSurfaceCache();
+  setActiveWorkspace(id);
+  window.location.assign("/");
+}
 
 /**
  * Slice 1: the Conversations surface flips to real data. Fetch → map through
@@ -117,6 +204,7 @@ import {
   toConversationVM,
   toInboxThreadVM,
   toCallVM,
+  threadStanding,
   toTodayVM,
   type ConversationDto,
   type EscalationDto,
@@ -234,13 +322,20 @@ export const todayOverride: SurfaceOverride = {
 
     // The sidebar badge is seeded until the Inbox itself mounts, so a fresh
     // load put a fabricated "6" one inch from Today's honest "0 need you".
-    // Today already holds the real number — publish it. Detail is REQUIRED:
-    // a detail-less inbox:counts zeroes the badge instead of correcting it.
-    window.dispatchEvent(
-      new CustomEvent("inbox:counts", {
-        detail: { needs: metricsRes.metrics.now.escalations_open },
-      }),
-    );
+    // Today already holds the real rows — publish the count. Detail is
+    // REQUIRED: a detail-less inbox:counts zeroes the badge instead of
+    // correcting it.
+    //
+    // Counted with threadStanding, the same rule the Inbox itself uses. This
+    // used to publish metrics.now.escalations_open, which is a DIFFERENT
+    // number — it counts open escalations including ones a teammate has already
+    // claimed, so it read high exactly when someone was doing the work, and
+    // then overwrote the Inbox's correct count on every Today refresh.
+    const openByConv = new Map(escData.escalations.map((e) => [e.conversation_id, e]));
+    const needs = convData.conversations.filter(
+      (c) => threadStanding(c, openByConv.get(c.id) ?? null).needsYou,
+    ).length;
+    window.dispatchEvent(new CustomEvent("inbox:counts", { detail: { needs } }));
   },
 };
 

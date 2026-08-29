@@ -65,13 +65,26 @@ export function withRoute<T>(
 export interface MemberContext {
   tenantId: string;
   role: "owner" | "operator" | "viewer";
+  /**
+   * The caller belongs to more than one workspace and this request did not say
+   * which. Reads proceed on the default; WRITES must not — see requireRole.
+   */
+  ambiguous: boolean;
 }
 
 /**
- * Resolve the caller's membership for the workspace this request acts on.
- * RLS (memberships_self_select) means this query can only ever see the
- * caller's own rows — a forged workspace id they don't belong to resolves to
- * nothing and 404s, never to someone else's tenant.
+ * THE workspace this request acts on. One resolver, one ordering rule, every
+ * route — which is the whole point of it existing.
+ *
+ * Before this there were three rules and they disagreed: /metrics took
+ * tenants[0], /workspaces reported the role of the name-sorted first tenant,
+ * and this function took the oldest membership. For anyone in two workspaces
+ * the role chip could describe a different tenant than the data underneath it.
+ *
+ * `wanted` accepts an id or a slug, because /metrics already accepted slugs and
+ * nothing else did. RLS (memberships_self_select) means this query can only
+ * ever see the caller's own rows, so a workspace they don't belong to resolves
+ * to nothing and 404s — never to someone else's tenant.
  */
 export async function memberContext(
   ctx: RouteContext,
@@ -79,24 +92,25 @@ export async function memberContext(
 ): Promise<MemberContext> {
   const { data, error } = await ctx.supabase
     .from("memberships")
-    .select("tenant_id, role")
+    .select("tenant_id, role, tenants (slug)")
     .eq("user_id", ctx.userId)
     .order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
-  // Three call sites used to pick a default workspace by three different
-  // orderings (oldest membership here, name-sorted tenant in /workspaces,
-  // oldest tenant in /metrics), so for a member of two workspaces the role
-  // shown and the workspace written could be different tenants — silently.
-  // Until there is a switcher, an ambiguous request fails loudly instead.
-  if (!wanted && (data?.length ?? 0) > 1) {
-    throw new AppError(
-      "validation",
-      "This account belongs to more than one workspace — the request must name which one.",
-    );
-  }
-  const m = wanted ? data?.find((r) => r.tenant_id === wanted) : data?.[0];
+
+  const rows = data ?? [];
+  // Oldest membership. Stable, documented, and now the ONLY default in the
+  // codebase — a user's home workspace does not move because a tenant was
+  // renamed, which name-sorting allowed.
+  const m = wanted
+    ? rows.find((r) => r.tenant_id === wanted || r.tenants?.slug === wanted)
+    : rows[0];
   if (!m) throw new AppError("not_found", "No workspace found for this account.", 404);
-  return { tenantId: m.tenant_id, role: m.role as MemberContext["role"] };
+
+  return {
+    tenantId: m.tenant_id,
+    role: m.role as MemberContext["role"],
+    ambiguous: !wanted && rows.length > 1,
+  };
 }
 
 const ROLE_RANK: Record<MemberContext["role"], number> = { viewer: 0, operator: 1, owner: 2 };
@@ -108,6 +122,17 @@ const ROLE_RANK: Record<MemberContext["role"], number> = { viewer: 0, operator: 
  * chips are a courtesy rendering of the same truth.
  */
 export function requireRole(member: MemberContext, atLeast: MemberContext["role"]): void {
+  // A write must never land in a workspace nobody named. Reads fall back to the
+  // caller's default workspace, which is harmless and keeps the app usable; a
+  // COMMIT under the same fallback would silently change the wrong business's
+  // settings, team or policy. Every mutating path already calls requireRole, so
+  // the guard lives here rather than being re-remembered per route.
+  if (member.ambiguous) {
+    throw new AppError(
+      "validation",
+      "This account belongs to more than one workspace — say which one before changing anything.",
+    );
+  }
   if (ROLE_RANK[member.role] < ROLE_RANK[atLeast]) {
     throw new AppError(
       "forbidden",

@@ -60,8 +60,14 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
     if (!cancelled) window.location.assign("/login");
   };
 
+  // The cache is keyed on this, so it must be the workspace actually being
+  // viewed. Keyed on `__WORKSPACES[0]` it was constant for a member of two
+  // workspaces, and the guard that exists to stop one tenant's rows being
+  // restored under another's name would never have fired.
   const tenantId = () =>
-    (window as unknown as { __WORKSPACES?: Array<{ id: string }> }).__WORKSPACES?.[0]?.id ?? null;
+    (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ??
+    (window as unknown as { __WORKSPACES?: Array<{ id: string }> }).__WORKSPACES?.[0]?.id ??
+    null;
 
   const persist = (o: SurfaceOverride) => {
     if (o.globals?.length) snapshotSurface(o.key, o.globals, tenantId());

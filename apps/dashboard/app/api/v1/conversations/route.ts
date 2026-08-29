@@ -1,15 +1,25 @@
-import { withRoute } from "@/server/with-route";
+import { withRoute, memberContext } from "@/server/with-route";
 import type { ConversationDto, MessageDto } from "@chanlytics/contracts";
 
 /**
- * GET /api/v1/conversations — the session's threads with their transcripts,
- * RLS-scoped (session client; membership decides which tenants' rows exist).
+ * GET /api/v1/conversations — ONE workspace's threads with their transcripts.
+ *
+ * Scoped explicitly to the active workspace, not merely RLS-scoped. RLS answers
+ * "may this caller see this row", and for someone who belongs to two workspaces
+ * the answer is yes to both — so this endpoint used to return two businesses'
+ * customers interleaved in one inbox, with nothing in the payload saying which
+ * was which. RLS stays the floor; the tenant filter is what makes the list mean
+ * something.
+ *
  * Pilot scale: one list query + one IN query; pagination arrives with volume.
  */
-export const GET = withRoute(async (_req, { supabase, userId }) => {
+export const GET = withRoute(async (req, ctx) => {
+  const { supabase, userId } = ctx;
+  const { tenantId } = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   const { data: convs, error } = await supabase
     .from("conversations")
     .select("id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164, consent, dnc)")
+    .eq("tenant_id", tenantId)
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(100);
   if (error) throw new Error(error.message);
