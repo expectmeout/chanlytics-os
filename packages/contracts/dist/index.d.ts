@@ -232,6 +232,16 @@ interface InboxThreadVM {
     avatar: string;
     state: "escalated" | "snoozed" | "done";
     takenOver: boolean;
+    /**
+     * This thread is waiting on a human, and no human has it yet.
+     *
+     * THE definition of "needs you", emitted once. It was previously re-derived
+     * in the Inbox JSX and separately approximated by /metrics' escalations_open,
+     * which Today then dispatched over the top of the Inbox's number to "correct"
+     * it — two rules that disagree whenever an escalation is open on a thread
+     * someone has already claimed, racing to write the same badge.
+     */
+    needsYou: boolean;
     channels: string[];
     primaryChannel: "whatsapp";
     agent: {
@@ -274,6 +284,19 @@ interface InboxThreadVM {
         body: string;
     }>;
 }
+/**
+ * Where a thread sits and who owes it work — the single implementation.
+ *
+ * Exported so the sidebar badge and Today's brief can agree without either one
+ * re-deriving it. /metrics' `escalations_open` is NOT this number: it counts
+ * open escalations, including ones a teammate has already claimed, so it reads
+ * high exactly when someone is doing the work.
+ */
+declare function threadStanding(dto: ConversationDto, escalation: EscalationDto | null, now?: Date): {
+    state: InboxThreadVM["state"];
+    takenOver: boolean;
+    needsYou: boolean;
+};
 declare function toInboxThreadVM(dto: ConversationDto, escalation: EscalationDto | null, now?: Date): InboxThreadVM;
 declare function toConversationVM(dto: ConversationDto, now?: Date): ConversationVM;
 interface CallDto {
@@ -760,4 +783,4 @@ declare function parseTenantConfigResult(raw: unknown): TenantConfigParse;
 /** Convenience for callers that genuinely cannot act on the difference. */
 declare function parseTenantConfig(raw: unknown): TenantConfig | null;
 
-export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, ROLES, ROLE_PERMS, type Role, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, contactMeta, contactName, err, formatPhoneDisplay, formatWaited, isOptedOut, isOptedOutContact, messageText, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };
+export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, ROLES, ROLE_PERMS, type Role, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, contactMeta, contactName, err, formatPhoneDisplay, formatWaited, isOptedOut, isOptedOutContact, messageText, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, threadStanding, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };

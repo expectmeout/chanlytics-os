@@ -15,7 +15,7 @@ import "./manifest";
 // legacy.css is NOT imported here: it lives in app/(os)/layout.tsx so the
 // 254KB design system ships as document <link>s and downloads in parallel
 // with this chunk, rather than serially behind it.
-import { workspaceOverride, conversationsOverride, inboxOverride, todayOverride, type Workspace } from "./surface-data";
+import { workspaceOverride, conversationsOverride, inboxOverride, todayOverride, switchWorkspace, type Workspace } from "./surface-data";
 import {
   getSurfaceStatuses,
   isSurfaceFailed,
@@ -109,6 +109,9 @@ type ChanlyticsAppComponent = React.ComponentType<{
 export default function LegacyApp() {
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
   const [workspace, setWorkspace] = useState<Workspace | null>(() => workspaceOverride.current());
+  const [allWorkspaces, setAllWorkspaces] = useState<Workspace[]>(
+    () => (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES ?? [],
+  );
   const [, setStatusTick] = useState(0);
   const [staleBuild, setStaleBuild] = useState(false);
 
@@ -142,6 +145,7 @@ export default function LegacyApp() {
     const off = onSurfaceStatusChange(() => {
       setStatusTick((n) => n + 1);
       setWorkspace(workspaceOverride.current());
+      setAllWorkspaces((window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES ?? []);
     });
     return () => {
       stop();
@@ -208,7 +212,24 @@ export default function LegacyApp() {
           </button>
         ) : workspace ? (
           <span>
-            <b>{workspace.name}</b>
+            {/* A member of two workspaces had no way to say which one they
+                meant, and every surface silently answered for a default they
+                never chose. Rendered only when there is a real choice — a
+                one-workspace account keeps the plain name it has always had. */}
+            {allWorkspaces.length > 1 ? (
+              <select
+                className="pill-workspace"
+                value={workspace.id}
+                aria-label="Active workspace"
+                onChange={(e) => switchWorkspace(e.target.value)}
+              >
+                {allWorkspaces.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            ) : (
+              <b>{workspace.name}</b>
+            )}
             {liveLabels.length ? ` · ${liveLabels.join(", ")} live` : ""}
             {degradedLabels.length ? ` · ${degradedLabels.join(", ")} stale` : ""}
             {" · other surfaces seeded"}

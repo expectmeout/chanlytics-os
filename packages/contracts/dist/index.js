@@ -246,13 +246,20 @@ function formatWaited(ms) {
   if (hr < 24) return `${hr}h`;
   return `${Math.round(hr / 24)}d`;
 }
-function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
-  const who = dto.contact.display_name || dto.contact.wa_profile_name || formatPhoneDisplay(dto.contact.phone_e164) || "Unknown";
+function threadStanding(dto, escalation, now = /* @__PURE__ */ new Date()) {
   const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
   const needsHuman = dto.state === "needs_human" || paused;
   const state = escalation || needsHuman ? "escalated" : dto.state === "snoozed" ? "snoozed" : "done";
   const claimedByOther = !!dto.assignee_user_id && dto.assignee_is_me === false;
   const takenOver = state === "escalated" && !claimedByOther && (!!dto.assignee_user_id || !escalation && needsHuman);
+  return { state, takenOver, needsYou: state === "escalated" && !takenOver };
+}
+function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
+  const who = contactName(dto);
+  const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
+  const needsHuman = dto.state === "needs_human" || paused;
+  const { state, takenOver, needsYou } = threadStanding(dto, escalation, now);
+  const claimedByOther = !!dto.assignee_user_id && dto.assignee_is_me === false;
   const reasonLabel = escalation ? ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason : null;
   const last = dto.messages[dto.messages.length - 1];
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
@@ -290,6 +297,7 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
     avatar: initialsOf(who),
     state,
     takenOver,
+    needsYou,
     channels: ["whatsapp"],
     primaryChannel: "whatsapp",
     agent: { name: "WhatsApp Receptionist", glyph: "W", autonomy: "Pauses on handoff", tone: "Warm \xB7 bilingual (EN/ES)" },
@@ -795,6 +803,7 @@ export {
   ok,
   parseTenantConfig,
   parseTenantConfigResult,
+  threadStanding,
   toCallVM,
   toConversationVM,
   toInboxThreadVM,

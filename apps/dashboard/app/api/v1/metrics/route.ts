@@ -1,4 +1,4 @@
-import { withRoute } from "@/server/with-route";
+import { withRoute, memberContext } from "@/server/with-route";
 import { AppError } from "@chanlytics/contracts";
 
 /**
@@ -15,25 +15,20 @@ import { AppError } from "@chanlytics/contracts";
  * quiet morning. Hence the explicit membership resolution below — an
  * unresolvable workspace is a 404, never a silent zero.
  */
-export const GET = withRoute(async (req, { supabase }) => {
+export const GET = withRoute(async (req, ctx) => {
+  const { supabase } = ctx;
   const url = new URL(req.url);
   const days = Math.min(90, Math.max(1, Number(url.searchParams.get("days") ?? 1) || 1));
-  const wanted = url.searchParams.get("workspace");
 
-  // RLS returns only workspaces this user belongs to.
-  const { data: tenants, error: tErr } = await supabase
-    .from("tenants")
-    .select("id, slug")
-    .order("created_at", { ascending: true });
-  if (tErr) throw new Error(tErr.message);
-
-  const tenant = wanted
-    ? tenants?.find((t) => t.id === wanted || t.slug === wanted)
-    : tenants?.[0];
-  if (!tenant) throw new AppError("not_found", "No workspace found for this account.", 404);
+  // This route used to resolve the workspace itself — tenants ordered by
+  // created_at, take the first — which is a THIRD rule, disagreeing with both
+  // the membership default and /workspaces' name-sorted one. The numbers on
+  // Today could therefore describe a different business than the inbox beside
+  // them. memberContext is now the only place that answers this question.
+  const { tenantId } = await memberContext(ctx, url.searchParams.get("workspace"));
 
   const { data, error } = await supabase.rpc("metrics_summary", {
-    p_tenant_id: tenant.id,
+    p_tenant_id: tenantId,
     p_days: days,
   });
   if (error) throw new Error(error.message);
@@ -41,5 +36,5 @@ export const GET = withRoute(async (req, { supabase }) => {
     throw new AppError("not_found", "Workspace metrics unavailable.", 404);
   }
 
-  return { metrics: data, workspaceId: tenant.id };
+  return { metrics: data, workspaceId: tenantId };
 });

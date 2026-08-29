@@ -52,8 +52,12 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     if (t) { setActiveThreadId(initialThreadId); setActiveBucket(t.state); }
   }, [initialThreadId]);
 
+  // Real threads carry the answer (viewmodel `needsYou`) rather than having it
+  // re-derived here — this count drives the sidebar badge, and Today used to
+  // dispatch a DIFFERENT number over the top of it. Seeded mockup threads keep
+  // the demo rule, since "needs" is a state real threads can never hold.
   const needsCount = threads.filter(
-    (t) => t.state === "needs" || (t.state === "escalated" && !t.takenOver),
+    (t) => (t.real ? t.needsYou : t.state === "needs" || (t.state === "escalated" && !t.takenOver)),
   ).length;
 
   // SurfaceData seam: a real-data swap replaces window.INBOX_DATA.THREADS —
