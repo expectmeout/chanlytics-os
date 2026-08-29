@@ -222,8 +222,21 @@ export function installInboxVerbs(): void {
  * Refreshes on success so the pane and the version both come from the server
  * rather than from what we hoped we saved.
  */
-export async function saveSettings(config: unknown, version: number): Promise<VerbResult> {
+export async function saveSettings(
+  config: unknown,
+  version: number,
+  /**
+   * Fired the moment the SERVER accepts, before the surfaces are re-read.
+   *
+   * The refresh that follows re-fetches every surface, which takes seconds.
+   * A caller that waited for the whole promise showed nothing at all in the
+   * meantime, and pressing Save looked like it had done nothing.
+   */
+  onAccepted?: () => void,
+): Promise<VerbResult> {
   const r = await call("/api/v1/settings", { config, version }, undefined, "PUT");
-  if (r.ok) await refresh();
+  if (!r.ok) return r;
+  onAccepted?.();
+  await refresh();
   return r;
 }

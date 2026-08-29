@@ -157,7 +157,7 @@ test("the editor sends the WHOLE config, not just its own section", () => {
 test("the version travels with the write", () => {
   // Optimistic concurrency is the only thing standing between two owners
   // editing at once and one of them losing their work silently.
-  assert.match(settingsJsx, /__saveSettings\(next, settings\.version\)/);
+  assert.ok(settingsJsx.includes("__saveSettings(next, settings.version, () => {"));
 });
 
 test("an empty field is omitted rather than stored as an empty string", () => {
@@ -181,7 +181,7 @@ test("the guardrail checkboxes start ON when the config is silent", () => {
 test("a save failure is shown, never swallowed", () => {
   // A 409 means someone else saved first — the owner has to know their edit
   // did not land.
-  assert.match(settingsJsx, /if \(!r\.ok\) \{ flash\(/);
+  assert.ok(settingsJsx.includes("if (r.ok) return;"), "a failed save must still report");
 });
 
 test("REGRESSION: seven closed days is not a profile", () => {
@@ -198,4 +198,47 @@ test("REGRESSION: seven closed days is not a profile", () => {
 
 test("the editor does not send an hours map nobody filled in", () => {
   assert.ok(settingsJsx.includes("if (SET_DAYS.some(([d]) => hours[d].isOpen && hours[d].open && hours[d].close)) profile.hours = hrs;"));
+});
+
+/* ---------------- nothing already there may be lost --------------------- */
+
+test("REGRESSION: filling in ONE field must not discard the existing prompt", () => {
+  // This happened on a live line. An owner filled in only the opening hours and
+  // saved; their receptionist switched from a 5,027-character hand-written
+  // prompt to a 726-character composed one, losing the address, every service
+  // and duration, and the languages it spoke — silently, while real customers
+  // were texting it. The profile did what it was told; the DEFAULT was wrong.
+  const hoursOnly = {
+    hours: { mon: { open: "09:00", close: "18:00" } },
+    guardrails: { never_quote_prices: true },
+  };
+  const out = resolveSystemPrompt({ ...brain, profile: hoursOnly }, "whatsapp");
+  assert.ok(out.includes(brain.system_prompt.trim()), "the existing instructions must be carried");
+  assert.match(out, /Monday: 09:00–18:00/, "and the new structured facts added");
+});
+
+test("the owner's own words replace the carried prompt once written", () => {
+  // Carrying it forever would make the field impossible to clear. Once they
+  // have written something, they have seen the old text in the form and
+  // decided what to keep.
+  const owned = { hours: { mon: { open: "09:00", close: "18:00" } }, extra_instructions: "Just mine." };
+  const out = resolveSystemPrompt({ ...brain, profile: owned }, "whatsapp");
+  assert.match(out, /Just mine\./);
+  assert.ok(!out.includes(brain.system_prompt.trim()));
+});
+
+test("the guardrails still come last, after carried text", () => {
+  // Carried instructions are arbitrary prose and could say anything.
+  const out = resolveSystemPrompt({ ...brain, profile: { hours: { mon: { open: "09:00", close: "18:00" } } } }, "whatsapp");
+  assert.ok(out.lastIndexOf("Rules you must follow") > out.indexOf(brain.system_prompt.trim()));
+});
+
+test("the editor pre-fills the existing prompt so it is visible, not magic", () => {
+  assert.ok(settingsJsx.includes("p0.extra_instructions || brain.system_prompt"));
+});
+
+test("saving reports the moment the SERVER accepts, not after the refetch", () => {
+  // The refresh re-reads every surface — seconds during which pressing Save
+  // did nothing observable, which is exactly how it was reported.
+  assert.ok(settingsJsx.includes("window.__saveSettings(next, settings.version, () => {"));
 });

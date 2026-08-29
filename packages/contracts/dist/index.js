@@ -954,7 +954,10 @@ ${rules.map((r) => `- ${r}`).join("\n")}`);
   return s.join("\n");
 }
 function resolveSystemPrompt(brain, channel = "whatsapp") {
-  return hasProfile(brain.profile) ? composeSystemPrompt(brain, brain.profile, channel) : brain.system_prompt;
+  if (!hasProfile(brain.profile)) return brain.system_prompt;
+  const profile = brain.profile;
+  const carried = profile.extra_instructions?.trim() ? profile : { ...profile, extra_instructions: brain.system_prompt };
+  return composeSystemPrompt(brain, carried, channel);
 }
 export {
   ACTOR_TYPES,
