@@ -275,6 +275,21 @@ function pgSink(db: SupabaseClient<Database> | null, tenantId: string | null, in
         ? pgSafe("allowlist_evt", () =>
             emitEvent(db!, tenantId!, "ingest.allowlist_skip", "ingest", "message", ing!.message_id))
         : Promise.resolve(),
+    /**
+     * A veto window this workspace CONFIGURED did not happen, and the customer
+     * has the receptionist's words already. The reply itself is fine — the
+     * promise the setting made is what broke, and a setting that quietly stops
+     * applying is the failure mode this project keeps finding.
+     */
+    vetoFallback: (delayMs: number, hasQstash: boolean) =>
+      on
+        ? pgSafe("veto_fallback_evt", () =>
+            emitEvent(db!, tenantId!, "policy.veto_window_skipped", "policy", "conversation", ing!.conversation_id, {
+              delay_ms: delayMs,
+              // The usual cause, named: the edge cannot schedule without it.
+              reason: hasQstash ? "scheduling_failed" : "scheduler_not_configured",
+            } as Json))
+        : Promise.resolve(),
     pause: (iso: string) =>
       on ? pgSafe("pause", () => pauseConversation(db!, tenantId!, ing!.conversation_id, iso)) : Promise.resolve(),
     outbound: (body: string, wamid: string | null) =>
@@ -644,6 +659,18 @@ async function handleInbound(
   // reply is a worse outcome than an un-vetoed one, and silence is the worst.
   const delayMs = replyDelayMs(replyMode, rt?.policy?.reply?.limits);
   const queued = delayMs > 0 ? await queueReply(db, tenantId, ing, from, replyText, delayMs, L) : false;
+
+  // A veto window that was CONFIGURED and did not happen must not pass in
+  // silence. The fallback below is deliberate — an un-vetoed reply beats no
+  // reply — but the workspace asked to see its receptionist's words before
+  // the customer did, and instead the customer got them first. A log line
+  // nobody reads is how a setting quietly becomes a lie.
+  //
+  // Recorded per tenant on the event stream, so 'my veto window is not
+  // working' has an answer that does not require reading lambda logs.
+  if (delayMs > 0 && !queued) {
+    await sink.vetoFallback(delayMs, !!process.env.QSTASH_TOKEN);
+  }
   if (queued) {
     thread.history.push({ role: "user", content: bodyText });
     thread.history.push({ role: "assistant", content: replyText });

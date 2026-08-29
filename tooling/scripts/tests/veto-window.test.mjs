@@ -116,3 +116,22 @@ test("a delayed bot reply is not recorded as a human's", () => {
   const handlers = read("packages/jobs/src/handlers.ts");
   assert.match(handlers, /sender: msg\.sender \?\? "human"/);
 });
+
+test("a configured veto window that did not happen is RECORDED, not just logged", () => {
+  // The fallback is deliberate — an un-vetoed reply beats no reply — but the
+  // workspace asked to see its receptionist's words before the customer did,
+  // and instead the customer got them first. A log line nobody reads is how a
+  // setting quietly becomes a lie.
+  assert.match(edge, /if \(delayMs > 0 && !queued\) \{[\s\S]{0,120}?sink\.vetoFallback\(/);
+  assert.match(edge, /policy\.veto_window_skipped/);
+});
+
+test("the event names the usual cause rather than making someone guess", () => {
+  assert.match(edge, /scheduler_not_configured/);
+  assert.match(edge, /scheduling_failed/);
+});
+
+test("diag reports whether the edge can hold a reply at all", () => {
+  const diag = read("apps/edge/api/diag.ts");
+  assert.match(diag, /qstashToken: !!process\.env\.QSTASH_TOKEN/);
+});
