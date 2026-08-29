@@ -93,10 +93,30 @@ export async function setPolicyMode(
   tenantId: string,
   policyClass: string,
   mode: string,
+  /**
+   * Merged into the existing limits, never replacing them.
+   *
+   * `limits` holds several unrelated settings for one class — a reply row
+   * carries both max_replies_day and reply_delay_ms — so a PUT that sent the
+   * whole object would silently drop whichever one the caller did not know
+   * about. Callers set what they mean and leave the rest alone.
+   */
+  limits?: Record<string, unknown>,
 ): Promise<PolicyRecord | null> {
+  let merged: Record<string, unknown> | undefined;
+  if (limits && Object.keys(limits).length) {
+    const { data: current } = await db
+      .from("policies")
+      .select("limits")
+      .eq("tenant_id", tenantId)
+      .eq("class", policyClass)
+      .is("subject_type", null)
+      .maybeSingle();
+    merged = { ...((current?.limits as Record<string, unknown>) ?? {}), ...limits };
+  }
   const { data, error } = await db
     .from("policies")
-    .update({ mode })
+    .update(merged ? { mode, limits: merged as never } : { mode })
     .eq("tenant_id", tenantId)
     .eq("class", policyClass)
     .is("subject_type", null)

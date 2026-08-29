@@ -4405,8 +4405,13 @@ async function listPolicies(db, tenantId) {
   if (error) throw new Error(`listPolicies: ${error.message}`);
   return data ?? [];
 }
-async function setPolicyMode(db, tenantId, policyClass, mode) {
-  const { data, error } = await db.from("policies").update({ mode }).eq("tenant_id", tenantId).eq("class", policyClass).is("subject_type", null).select("id, class, mode, subject_type, subject_id, limits, updated_at").maybeSingle();
+async function setPolicyMode(db, tenantId, policyClass, mode, limits) {
+  let merged;
+  if (limits && Object.keys(limits).length) {
+    const { data: current } = await db.from("policies").select("limits").eq("tenant_id", tenantId).eq("class", policyClass).is("subject_type", null).maybeSingle();
+    merged = { ...current?.limits ?? {}, ...limits };
+  }
+  const { data, error } = await db.from("policies").update(merged ? { mode, limits: merged } : { mode }).eq("tenant_id", tenantId).eq("class", policyClass).is("subject_type", null).select("id, class, mode, subject_type, subject_id, limits, updated_at").maybeSingle();
   if (error) throw new Error(error.message);
   return data;
 }
