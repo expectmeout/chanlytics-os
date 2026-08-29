@@ -67,7 +67,7 @@ import { notify, type NotifyTarget } from "../lib/notify.js";
 import { FALLBACK_BRAIN, FALLBACK_NOTIFICATIONS } from "../lib/tenant-fallback.js";
 import type { BrainConfig, NotificationsConfig } from "../lib/workspace/contracts.js";
 import type { RoutedChannel } from "../lib/workspace/db.js";
-import { violatesNoPrices, isOptedOutContact, replyDelayMs } from "../lib/workspace/contracts.js";
+import { violatesNoPrices, isOptedOutContact, replyDelayMs, resolveSystemPrompt } from "../lib/workspace/contracts.js";
 
 export const config = { maxDuration: 60 };
 
@@ -642,7 +642,12 @@ async function handleInbound(
       const r = await generateReply(
         thread.history,
         bodyText,
-        brainCfg.system_prompt,
+        // Composed from the workspace's structured facts when it has them,
+        // and its hand-written prompt when it does not. The facts are the
+        // same ones the voice agent will be given, which is the point: two
+        // copies of the hours is how two channels start disagreeing about
+        // when the business opens.
+        resolveSystemPrompt(brainCfg, "whatsapp"),
         brainCfg.fallbacks.error,
         leadNote,
       );

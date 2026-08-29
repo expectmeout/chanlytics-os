@@ -722,6 +722,159 @@ interface PolicyRow {
     limits: PolicyLimits;
     updated_at: string;
 }
+declare const HoursSchema: z.ZodObject<{
+    /** "09:00". Absent or null = closed that day, which is a real answer. */
+    open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+}, "strict", z.ZodTypeAny, {
+    open?: string | null | undefined;
+    close?: string | null | undefined;
+}, {
+    open?: string | null | undefined;
+    close?: string | null | undefined;
+}>;
+declare const DAYS: readonly ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+declare const ServiceSchema: z.ZodObject<{
+    name: z.ZodString;
+    /** Minutes. The receptionist is asked "how long does it take" constantly. */
+    duration_min: z.ZodOptional<z.ZodNumber>;
+    /**
+     * Free text, not a number, and deliberately so: "from $45", "quoted at
+     * consult", "varies by length". A price the business cannot state flatly
+     * must not be forced into a field that looks like it can.
+     */
+    price_note: z.ZodOptional<z.ZodString>;
+}, "strict", z.ZodTypeAny, {
+    name: string;
+    duration_min?: number | undefined;
+    price_note?: string | undefined;
+}, {
+    name: string;
+    duration_min?: number | undefined;
+    price_note?: string | undefined;
+}>;
+/**
+ * The rules that must survive editing.
+ *
+ * Flags, never prose. A free-text prompt box hands an owner the ability to
+ * delete the price policy, the never-confirm-a-booking rule and the AI
+ * disclosure without knowing they have — and nothing downstream could tell.
+ * Composed in every time, and default ON: the safe reading of an absent value.
+ */
+declare const GuardrailsSchema: z.ZodObject<{
+    never_quote_prices: z.ZodOptional<z.ZodBoolean>;
+    never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
+    disclose_ai: z.ZodOptional<z.ZodBoolean>;
+}, "strict", z.ZodTypeAny, {
+    never_quote_prices?: boolean | undefined;
+    never_confirm_booking?: boolean | undefined;
+    disclose_ai?: boolean | undefined;
+}, {
+    never_quote_prices?: boolean | undefined;
+    never_confirm_booking?: boolean | undefined;
+    disclose_ai?: boolean | undefined;
+}>;
+declare const BusinessProfileSchema: z.ZodObject<{
+    address: z.ZodOptional<z.ZodString>;
+    hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<["mon", "tue", "wed", "thu", "fri", "sat", "sun"]>, z.ZodObject<{
+        /** "09:00". Absent or null = closed that day, which is a real answer. */
+        open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    }, "strict", z.ZodTypeAny, {
+        open?: string | null | undefined;
+        close?: string | null | undefined;
+    }, {
+        open?: string | null | undefined;
+        close?: string | null | undefined;
+    }>>>;
+    services: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        /** Minutes. The receptionist is asked "how long does it take" constantly. */
+        duration_min: z.ZodOptional<z.ZodNumber>;
+        /**
+         * Free text, not a number, and deliberately so: "from $45", "quoted at
+         * consult", "varies by length". A price the business cannot state flatly
+         * must not be forced into a field that looks like it can.
+         */
+        price_note: z.ZodOptional<z.ZodString>;
+    }, "strict", z.ZodTypeAny, {
+        name: string;
+        duration_min?: number | undefined;
+        price_note?: string | undefined;
+    }, {
+        name: string;
+        duration_min?: number | undefined;
+        price_note?: string | undefined;
+    }>, "many">>;
+    languages: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    guardrails: z.ZodOptional<z.ZodObject<{
+        never_quote_prices: z.ZodOptional<z.ZodBoolean>;
+        never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
+        disclose_ai: z.ZodOptional<z.ZodBoolean>;
+    }, "strict", z.ZodTypeAny, {
+        never_quote_prices?: boolean | undefined;
+        never_confirm_booking?: boolean | undefined;
+        disclose_ai?: boolean | undefined;
+    }, {
+        never_quote_prices?: boolean | undefined;
+        never_confirm_booking?: boolean | undefined;
+        disclose_ai?: boolean | undefined;
+    }>>;
+    /** What must reach a person. One short line each. */
+    escalate_when: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    tone: z.ZodOptional<z.ZodString>;
+    /**
+     * Anything the owner wants said that no field covers.
+     *
+     * The escape hatch that keeps this model honest — without it, structuring
+     * the facts would mean losing whatever did not fit, and the first migration
+     * would be a downgrade.
+     */
+    extra_instructions: z.ZodOptional<z.ZodString>;
+}, "strict", z.ZodTypeAny, {
+    address?: string | undefined;
+    hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+        open?: string | null | undefined;
+        close?: string | null | undefined;
+    }>> | undefined;
+    services?: {
+        name: string;
+        duration_min?: number | undefined;
+        price_note?: string | undefined;
+    }[] | undefined;
+    languages?: string[] | undefined;
+    guardrails?: {
+        never_quote_prices?: boolean | undefined;
+        never_confirm_booking?: boolean | undefined;
+        disclose_ai?: boolean | undefined;
+    } | undefined;
+    escalate_when?: string[] | undefined;
+    tone?: string | undefined;
+    extra_instructions?: string | undefined;
+}, {
+    address?: string | undefined;
+    hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+        open?: string | null | undefined;
+        close?: string | null | undefined;
+    }>> | undefined;
+    services?: {
+        name: string;
+        duration_min?: number | undefined;
+        price_note?: string | undefined;
+    }[] | undefined;
+    languages?: string[] | undefined;
+    guardrails?: {
+        never_quote_prices?: boolean | undefined;
+        never_confirm_booking?: boolean | undefined;
+        disclose_ai?: boolean | undefined;
+    } | undefined;
+    escalate_when?: string[] | undefined;
+    tone?: string | undefined;
+    extra_instructions?: string | undefined;
+}>;
+type BusinessProfile = z.infer<typeof BusinessProfileSchema>;
+type Hours = z.infer<typeof HoursSchema>;
+type Service = z.infer<typeof ServiceSchema>;
 declare const BrainConfigSchema: z.ZodObject<{
     business_name: z.ZodString;
     phone_display: z.ZodString;
@@ -729,6 +882,111 @@ declare const BrainConfigSchema: z.ZodObject<{
     /** The complete system prompt the model receives — the "AI memory" pane's
      *  one hard promise is that what it shows is EXACTLY this, nothing more. */
     system_prompt: z.ZodString;
+    /**
+     * The business's facts, as fields.
+     *
+     * Optional: every config written before this existed stays valid, and
+     * nothing composes until a workspace actually fills it in. When present
+     * it REPLACES system_prompt as the source the prompt is built from.
+     */
+    profile: z.ZodOptional<z.ZodObject<{
+        address: z.ZodOptional<z.ZodString>;
+        hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<["mon", "tue", "wed", "thu", "fri", "sat", "sun"]>, z.ZodObject<{
+            /** "09:00". Absent or null = closed that day, which is a real answer. */
+            open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+            close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        }, "strict", z.ZodTypeAny, {
+            open?: string | null | undefined;
+            close?: string | null | undefined;
+        }, {
+            open?: string | null | undefined;
+            close?: string | null | undefined;
+        }>>>;
+        services: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            name: z.ZodString;
+            /** Minutes. The receptionist is asked "how long does it take" constantly. */
+            duration_min: z.ZodOptional<z.ZodNumber>;
+            /**
+             * Free text, not a number, and deliberately so: "from $45", "quoted at
+             * consult", "varies by length". A price the business cannot state flatly
+             * must not be forced into a field that looks like it can.
+             */
+            price_note: z.ZodOptional<z.ZodString>;
+        }, "strict", z.ZodTypeAny, {
+            name: string;
+            duration_min?: number | undefined;
+            price_note?: string | undefined;
+        }, {
+            name: string;
+            duration_min?: number | undefined;
+            price_note?: string | undefined;
+        }>, "many">>;
+        languages: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        guardrails: z.ZodOptional<z.ZodObject<{
+            never_quote_prices: z.ZodOptional<z.ZodBoolean>;
+            never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
+            disclose_ai: z.ZodOptional<z.ZodBoolean>;
+        }, "strict", z.ZodTypeAny, {
+            never_quote_prices?: boolean | undefined;
+            never_confirm_booking?: boolean | undefined;
+            disclose_ai?: boolean | undefined;
+        }, {
+            never_quote_prices?: boolean | undefined;
+            never_confirm_booking?: boolean | undefined;
+            disclose_ai?: boolean | undefined;
+        }>>;
+        /** What must reach a person. One short line each. */
+        escalate_when: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        tone: z.ZodOptional<z.ZodString>;
+        /**
+         * Anything the owner wants said that no field covers.
+         *
+         * The escape hatch that keeps this model honest — without it, structuring
+         * the facts would mean losing whatever did not fit, and the first migration
+         * would be a downgrade.
+         */
+        extra_instructions: z.ZodOptional<z.ZodString>;
+    }, "strict", z.ZodTypeAny, {
+        address?: string | undefined;
+        hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+            open?: string | null | undefined;
+            close?: string | null | undefined;
+        }>> | undefined;
+        services?: {
+            name: string;
+            duration_min?: number | undefined;
+            price_note?: string | undefined;
+        }[] | undefined;
+        languages?: string[] | undefined;
+        guardrails?: {
+            never_quote_prices?: boolean | undefined;
+            never_confirm_booking?: boolean | undefined;
+            disclose_ai?: boolean | undefined;
+        } | undefined;
+        escalate_when?: string[] | undefined;
+        tone?: string | undefined;
+        extra_instructions?: string | undefined;
+    }, {
+        address?: string | undefined;
+        hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+            open?: string | null | undefined;
+            close?: string | null | undefined;
+        }>> | undefined;
+        services?: {
+            name: string;
+            duration_min?: number | undefined;
+            price_note?: string | undefined;
+        }[] | undefined;
+        languages?: string[] | undefined;
+        guardrails?: {
+            never_quote_prices?: boolean | undefined;
+            never_confirm_booking?: boolean | undefined;
+            disclose_ai?: boolean | undefined;
+        } | undefined;
+        escalate_when?: string[] | undefined;
+        tone?: string | undefined;
+        extra_instructions?: string | undefined;
+    }>>;
     fallbacks: z.ZodObject<{
         /** Sent when no model key is configured. */
         greeting: z.ZodString;
@@ -755,6 +1013,27 @@ declare const BrainConfigSchema: z.ZodObject<{
         greeting: string;
         error: string;
     };
+    profile?: {
+        address?: string | undefined;
+        hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+            open?: string | null | undefined;
+            close?: string | null | undefined;
+        }>> | undefined;
+        services?: {
+            name: string;
+            duration_min?: number | undefined;
+            price_note?: string | undefined;
+        }[] | undefined;
+        languages?: string[] | undefined;
+        guardrails?: {
+            never_quote_prices?: boolean | undefined;
+            never_confirm_booking?: boolean | undefined;
+            disclose_ai?: boolean | undefined;
+        } | undefined;
+        escalate_when?: string[] | undefined;
+        tone?: string | undefined;
+        extra_instructions?: string | undefined;
+    } | undefined;
 }, {
     business_name: string;
     phone_display: string;
@@ -765,6 +1044,27 @@ declare const BrainConfigSchema: z.ZodObject<{
         greeting: string;
         error: string;
     };
+    profile?: {
+        address?: string | undefined;
+        hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+            open?: string | null | undefined;
+            close?: string | null | undefined;
+        }>> | undefined;
+        services?: {
+            name: string;
+            duration_min?: number | undefined;
+            price_note?: string | undefined;
+        }[] | undefined;
+        languages?: string[] | undefined;
+        guardrails?: {
+            never_quote_prices?: boolean | undefined;
+            never_confirm_booking?: boolean | undefined;
+            disclose_ai?: boolean | undefined;
+        } | undefined;
+        escalate_when?: string[] | undefined;
+        tone?: string | undefined;
+        extra_instructions?: string | undefined;
+    } | undefined;
 }>;
 type BrainConfig = z.infer<typeof BrainConfigSchema>;
 declare const NotificationsConfigSchema: z.ZodObject<{
@@ -807,6 +1107,111 @@ declare const TenantConfigSchema: z.ZodObject<{
         /** The complete system prompt the model receives — the "AI memory" pane's
          *  one hard promise is that what it shows is EXACTLY this, nothing more. */
         system_prompt: z.ZodString;
+        /**
+         * The business's facts, as fields.
+         *
+         * Optional: every config written before this existed stays valid, and
+         * nothing composes until a workspace actually fills it in. When present
+         * it REPLACES system_prompt as the source the prompt is built from.
+         */
+        profile: z.ZodOptional<z.ZodObject<{
+            address: z.ZodOptional<z.ZodString>;
+            hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<["mon", "tue", "wed", "thu", "fri", "sat", "sun"]>, z.ZodObject<{
+                /** "09:00". Absent or null = closed that day, which is a real answer. */
+                open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+            }, "strict", z.ZodTypeAny, {
+                open?: string | null | undefined;
+                close?: string | null | undefined;
+            }, {
+                open?: string | null | undefined;
+                close?: string | null | undefined;
+            }>>>;
+            services: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                /** Minutes. The receptionist is asked "how long does it take" constantly. */
+                duration_min: z.ZodOptional<z.ZodNumber>;
+                /**
+                 * Free text, not a number, and deliberately so: "from $45", "quoted at
+                 * consult", "varies by length". A price the business cannot state flatly
+                 * must not be forced into a field that looks like it can.
+                 */
+                price_note: z.ZodOptional<z.ZodString>;
+            }, "strict", z.ZodTypeAny, {
+                name: string;
+                duration_min?: number | undefined;
+                price_note?: string | undefined;
+            }, {
+                name: string;
+                duration_min?: number | undefined;
+                price_note?: string | undefined;
+            }>, "many">>;
+            languages: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+            guardrails: z.ZodOptional<z.ZodObject<{
+                never_quote_prices: z.ZodOptional<z.ZodBoolean>;
+                never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
+                disclose_ai: z.ZodOptional<z.ZodBoolean>;
+            }, "strict", z.ZodTypeAny, {
+                never_quote_prices?: boolean | undefined;
+                never_confirm_booking?: boolean | undefined;
+                disclose_ai?: boolean | undefined;
+            }, {
+                never_quote_prices?: boolean | undefined;
+                never_confirm_booking?: boolean | undefined;
+                disclose_ai?: boolean | undefined;
+            }>>;
+            /** What must reach a person. One short line each. */
+            escalate_when: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+            tone: z.ZodOptional<z.ZodString>;
+            /**
+             * Anything the owner wants said that no field covers.
+             *
+             * The escape hatch that keeps this model honest — without it, structuring
+             * the facts would mean losing whatever did not fit, and the first migration
+             * would be a downgrade.
+             */
+            extra_instructions: z.ZodOptional<z.ZodString>;
+        }, "strict", z.ZodTypeAny, {
+            address?: string | undefined;
+            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+                open?: string | null | undefined;
+                close?: string | null | undefined;
+            }>> | undefined;
+            services?: {
+                name: string;
+                duration_min?: number | undefined;
+                price_note?: string | undefined;
+            }[] | undefined;
+            languages?: string[] | undefined;
+            guardrails?: {
+                never_quote_prices?: boolean | undefined;
+                never_confirm_booking?: boolean | undefined;
+                disclose_ai?: boolean | undefined;
+            } | undefined;
+            escalate_when?: string[] | undefined;
+            tone?: string | undefined;
+            extra_instructions?: string | undefined;
+        }, {
+            address?: string | undefined;
+            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+                open?: string | null | undefined;
+                close?: string | null | undefined;
+            }>> | undefined;
+            services?: {
+                name: string;
+                duration_min?: number | undefined;
+                price_note?: string | undefined;
+            }[] | undefined;
+            languages?: string[] | undefined;
+            guardrails?: {
+                never_quote_prices?: boolean | undefined;
+                never_confirm_booking?: boolean | undefined;
+                disclose_ai?: boolean | undefined;
+            } | undefined;
+            escalate_when?: string[] | undefined;
+            tone?: string | undefined;
+            extra_instructions?: string | undefined;
+        }>>;
         fallbacks: z.ZodObject<{
             /** Sent when no model key is configured. */
             greeting: z.ZodString;
@@ -833,6 +1238,27 @@ declare const TenantConfigSchema: z.ZodObject<{
             greeting: string;
             error: string;
         };
+        profile?: {
+            address?: string | undefined;
+            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+                open?: string | null | undefined;
+                close?: string | null | undefined;
+            }>> | undefined;
+            services?: {
+                name: string;
+                duration_min?: number | undefined;
+                price_note?: string | undefined;
+            }[] | undefined;
+            languages?: string[] | undefined;
+            guardrails?: {
+                never_quote_prices?: boolean | undefined;
+                never_confirm_booking?: boolean | undefined;
+                disclose_ai?: boolean | undefined;
+            } | undefined;
+            escalate_when?: string[] | undefined;
+            tone?: string | undefined;
+            extra_instructions?: string | undefined;
+        } | undefined;
     }, {
         business_name: string;
         phone_display: string;
@@ -843,6 +1269,27 @@ declare const TenantConfigSchema: z.ZodObject<{
             greeting: string;
             error: string;
         };
+        profile?: {
+            address?: string | undefined;
+            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+                open?: string | null | undefined;
+                close?: string | null | undefined;
+            }>> | undefined;
+            services?: {
+                name: string;
+                duration_min?: number | undefined;
+                price_note?: string | undefined;
+            }[] | undefined;
+            languages?: string[] | undefined;
+            guardrails?: {
+                never_quote_prices?: boolean | undefined;
+                never_confirm_booking?: boolean | undefined;
+                disclose_ai?: boolean | undefined;
+            } | undefined;
+            escalate_when?: string[] | undefined;
+            tone?: string | undefined;
+            extra_instructions?: string | undefined;
+        } | undefined;
     }>>;
     notifications: z.ZodOptional<z.ZodObject<{
         escalation_emails: z.ZodArray<z.ZodString, "many">;
@@ -865,6 +1312,27 @@ declare const TenantConfigSchema: z.ZodObject<{
             greeting: string;
             error: string;
         };
+        profile?: {
+            address?: string | undefined;
+            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+                open?: string | null | undefined;
+                close?: string | null | undefined;
+            }>> | undefined;
+            services?: {
+                name: string;
+                duration_min?: number | undefined;
+                price_note?: string | undefined;
+            }[] | undefined;
+            languages?: string[] | undefined;
+            guardrails?: {
+                never_quote_prices?: boolean | undefined;
+                never_confirm_booking?: boolean | undefined;
+                disclose_ai?: boolean | undefined;
+            } | undefined;
+            escalate_when?: string[] | undefined;
+            tone?: string | undefined;
+            extra_instructions?: string | undefined;
+        } | undefined;
     } | undefined;
     notifications?: {
         escalation_emails: string[];
@@ -881,6 +1349,27 @@ declare const TenantConfigSchema: z.ZodObject<{
             greeting: string;
             error: string;
         };
+        profile?: {
+            address?: string | undefined;
+            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+                open?: string | null | undefined;
+                close?: string | null | undefined;
+            }>> | undefined;
+            services?: {
+                name: string;
+                duration_min?: number | undefined;
+                price_note?: string | undefined;
+            }[] | undefined;
+            languages?: string[] | undefined;
+            guardrails?: {
+                never_quote_prices?: boolean | undefined;
+                never_confirm_booking?: boolean | undefined;
+                disclose_ai?: boolean | undefined;
+            } | undefined;
+            escalate_when?: string[] | undefined;
+            tone?: string | undefined;
+            extra_instructions?: string | undefined;
+        } | undefined;
     } | undefined;
     notifications?: {
         escalation_emails: string[];
@@ -907,5 +1396,37 @@ type TenantConfigParse = {
 declare function parseTenantConfigResult(raw: unknown): TenantConfigParse;
 /** Convenience for callers that genuinely cannot act on the difference. */
 declare function parseTenantConfig(raw: unknown): TenantConfig | null;
+/** True when a profile carries anything worth composing from. */
+declare function hasProfile(p: BusinessProfile | undefined | null): boolean;
+/**
+ * The receptionist's instructions, composed from the business's facts.
+ *
+ * ONE function, so the WhatsApp prompt and the voice prompt are built from the
+ * same source and cannot describe two different businesses. Channel shapes the
+ * delivery, never the facts: `channel` only changes the medium-specific lines
+ * at the end — how long a reply should be, what to do with a voice note.
+ *
+ * The guardrails are appended LAST and unconditionally. They are not the
+ * owner's to remove, and putting them last means no earlier instruction can
+ * read as overriding them.
+ */
+declare function composeSystemPrompt(base: {
+    business_name: string;
+    phone_display: string;
+    booking_link: string;
+}, profile: BusinessProfile, channel?: "whatsapp" | "voice"): string;
+/**
+ * The instructions this workspace's receptionist should actually receive.
+ *
+ * ONE resolver, so no caller has to remember the precedence. A workspace that
+ * has filled in its profile gets a prompt composed from those facts; one that
+ * has not keeps the prompt it already had, byte for byte.
+ *
+ * That fallback is the whole reason this can ship: Melany's hand-written
+ * prompt is live and answering real customers, and a migration that changed
+ * what her receptionist says the moment the code deployed would be a
+ * behaviour change nobody asked for.
+ */
+declare function resolveSystemPrompt(brain: BrainConfig, channel?: "whatsapp" | "voice"): string;
 
-export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, ROLES, ROLE_PERMS, type Role, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, contactMeta, contactName, draftSendsAtMs, err, formatPhoneDisplay, formatWaited, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, messageAt, messageText, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, replyDelayMs, threadStanding, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };
+export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, type BusinessProfile, BusinessProfileSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, GuardrailsSchema, type Hours, HoursSchema, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, ROLES, ROLE_PERMS, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, composeSystemPrompt, contactMeta, contactName, draftSendsAtMs, err, formatPhoneDisplay, formatWaited, hasProfile, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, messageAt, messageText, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, replyDelayMs, resolveSystemPrompt, threadStanding, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };

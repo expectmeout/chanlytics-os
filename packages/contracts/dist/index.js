@@ -783,6 +783,46 @@ var PolicyLimitsSchema = z.object({
    */
   reply_delay_ms: z.number().int().min(5e3).max(6e5).optional()
 }).strict();
+var HoursSchema = z.object({
+  /** "09:00". Absent or null = closed that day, which is a real answer. */
+  open: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional(),
+  close: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional()
+}).strict();
+var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+var ServiceSchema = z.object({
+  name: z.string().min(1).max(80),
+  /** Minutes. The receptionist is asked "how long does it take" constantly. */
+  duration_min: z.number().int().min(1).max(1440).optional(),
+  /**
+   * Free text, not a number, and deliberately so: "from $45", "quoted at
+   * consult", "varies by length". A price the business cannot state flatly
+   * must not be forced into a field that looks like it can.
+   */
+  price_note: z.string().max(120).optional()
+}).strict();
+var GuardrailsSchema = z.object({
+  never_quote_prices: z.boolean().optional(),
+  never_confirm_booking: z.boolean().optional(),
+  disclose_ai: z.boolean().optional()
+}).strict();
+var BusinessProfileSchema = z.object({
+  address: z.string().max(300).optional(),
+  hours: z.record(z.enum(DAYS), HoursSchema).optional(),
+  services: z.array(ServiceSchema).max(60).optional(),
+  languages: z.array(z.string().min(2).max(40)).max(8).optional(),
+  guardrails: GuardrailsSchema.optional(),
+  /** What must reach a person. One short line each. */
+  escalate_when: z.array(z.string().min(1).max(200)).max(20).optional(),
+  tone: z.string().max(200).optional(),
+  /**
+   * Anything the owner wants said that no field covers.
+   *
+   * The escape hatch that keeps this model honest — without it, structuring
+   * the facts would mean losing whatever did not fit, and the first migration
+   * would be a downgrade.
+   */
+  extra_instructions: z.string().max(8e3).optional()
+}).strict();
 var BrainConfigSchema = z.object({
   business_name: z.string().min(1).max(120),
   phone_display: z.string().min(3).max(40),
@@ -790,6 +830,14 @@ var BrainConfigSchema = z.object({
   /** The complete system prompt the model receives — the "AI memory" pane's
    *  one hard promise is that what it shows is EXACTLY this, nothing more. */
   system_prompt: z.string().min(40).max(2e4),
+  /**
+   * The business's facts, as fields.
+   *
+   * Optional: every config written before this existed stays valid, and
+   * nothing composes until a workspace actually fills it in. When present
+   * it REPLACES system_prompt as the source the prompt is built from.
+   */
+  profile: BusinessProfileSchema.optional(),
   fallbacks: z.object({
     /** Sent when no model key is configured. */
     greeting: z.string().min(1).max(2e3),
@@ -819,14 +867,104 @@ function parseTenantConfig(raw) {
   const r = parseTenantConfigResult(raw);
   return r.ok ? r.config : null;
 }
+var DAY_LABEL = {
+  mon: "Monday",
+  tue: "Tuesday",
+  wed: "Wednesday",
+  thu: "Thursday",
+  fri: "Friday",
+  sat: "Saturday",
+  sun: "Sunday"
+};
+function hoursLines(hours) {
+  if (!hours) return [];
+  const spans = DAYS.map((d) => {
+    const h = hours[d];
+    const open = h?.open ?? null;
+    const close = h?.close ?? null;
+    return { day: d, text: open && close ? `${open}\u2013${close}` : "Closed" };
+  });
+  const out = [];
+  let i = 0;
+  while (i < spans.length) {
+    let j = i;
+    while (j + 1 < spans.length && spans[j + 1].text === spans[i].text) j++;
+    const label = i === j ? DAY_LABEL[spans[i].day] : `${DAY_LABEL[spans[i].day]}\u2013${DAY_LABEL[spans[j].day]}`;
+    out.push(`${label}: ${spans[i].text}`);
+    i = j + 1;
+  }
+  return out;
+}
+function hasProfile(p) {
+  if (!p) return false;
+  return !!(p.address || p.tone || p.extra_instructions || p.hours && Object.keys(p.hours).length || p.services?.length || p.languages?.length || p.escalate_when?.length);
+}
+function composeSystemPrompt(base, profile, channel = "whatsapp") {
+  const s = [];
+  const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
+  s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
+  if (profile.tone) s.push(`Tone: ${profile.tone}`);
+  if (profile.languages?.length) s.push(`You speak: ${profile.languages.join(", ")}.`);
+  if (profile.address) s.push(`
+Address: ${profile.address}`);
+  s.push(`Phone: ${base.phone_display}`);
+  s.push(`Booking link: ${base.booking_link}`);
+  const hrs = hoursLines(profile.hours);
+  if (hrs.length) s.push(`
+Opening hours:
+${hrs.map((l) => `- ${l}`).join("\n")}`);
+  if (profile.services?.length) {
+    const lines = profile.services.map((sv) => {
+      const bits = [sv.name];
+      if (sv.duration_min) bits.push(`about ${sv.duration_min} minutes`);
+      if (sv.price_note) bits.push(sv.price_note);
+      return `- ${bits.join(" \u2014 ")}`;
+    });
+    s.push(`
+Services:
+${lines.join("\n")}`);
+  }
+  if (profile.escalate_when?.length) {
+    s.push(`
+Hand the conversation to a person when:
+${profile.escalate_when.map((e) => `- ${e}`).join("\n")}`);
+  }
+  if (profile.extra_instructions?.trim()) {
+    s.push(`
+${profile.extra_instructions.trim()}`);
+  }
+  s.push(
+    channel === "voice" ? "\nYou are speaking aloud. Keep answers to one or two sentences, never read a URL out character by character, and offer to text the booking link instead." : "\nKeep replies short enough to read on a phone. Send the booking link rather than describing how to book."
+  );
+  const g = profile.guardrails ?? {};
+  const rules = [];
+  if (g.never_quote_prices !== false) {
+    rules.push("Never quote or confirm a price. Say it is quoted in person or at a consult, and offer the booking link.");
+  }
+  if (g.never_confirm_booking !== false) {
+    rules.push("Never promise or confirm an appointment yourself. Booking happens on the booking link or with staff.");
+  }
+  if (g.disclose_ai !== false) {
+    rules.push("If asked whether you are a bot, a person, or AI, say plainly that you are the business's automated assistant and offer to bring in a person.");
+  }
+  if (rules.length) s.push(`
+Rules you must follow:
+${rules.map((r) => `- ${r}`).join("\n")}`);
+  return s.join("\n");
+}
+function resolveSystemPrompt(brain, channel = "whatsapp") {
+  return hasProfile(brain.profile) ? composeSystemPrompt(brain, brain.profile, channel) : brain.system_prompt;
+}
 export {
   ACTOR_TYPES,
   AppError,
   BrainConfigSchema,
+  BusinessProfileSchema,
   CALL_HEARTBEAT_MS,
   CHANNEL_KINDS,
   CONSENT_STATES,
   CONVERSATION_STATES,
+  DAYS,
   DECISION_SUBJECTS,
   DECISION_VERBS,
   DISCONNECTION_LABELS,
@@ -835,6 +973,8 @@ export {
   ESCALATION_REASON_LABELS,
   ESCALATION_STATES,
   EVENT_KINDS,
+  GuardrailsSchema,
+  HoursSchema,
   JOB_KINDS,
   JOB_STATES,
   MEMBERSHIP_ROLES,
@@ -855,16 +995,19 @@ export {
   REPLY_DELAY_MIN_MS,
   ROLES,
   ROLE_PERMS,
+  ServiceSchema,
   TEMPLATE_STATUSES,
   TENANT_STATUSES,
   TenantConfigSchema,
   WA_WINDOW_MS,
+  composeSystemPrompt,
   contactMeta,
   contactName,
   draftSendsAtMs,
   err,
   formatPhoneDisplay,
   formatWaited,
+  hasProfile,
   isHeldDraft,
   isLiveCall,
   isOptedOut,
@@ -876,6 +1019,7 @@ export {
   parseTenantConfig,
   parseTenantConfigResult,
   replyDelayMs,
+  resolveSystemPrompt,
   threadStanding,
   toCallVM,
   toConversationVM,
