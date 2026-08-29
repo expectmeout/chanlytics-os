@@ -1690,7 +1690,9 @@ declare function recordOutbound(db: Db$3, p: {
     body: string;
     externalId: string | null;
     meta?: Json;
-    status?: "sent" | "failed";
+    /** "queued" is a DRAFT awaiting its veto window — written by the bot,
+     *  fired later by outbound_send, cancellable until then. */
+    status?: "sent" | "failed" | "queued";
 }): Promise<string | null>;
 interface OutboundTarget {
     contactId: string;

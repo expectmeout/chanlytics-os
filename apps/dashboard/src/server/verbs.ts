@@ -114,3 +114,43 @@ export async function resolveOpenEscalation(
 
 export const PAUSE_MS = 24 * 3600 * 1000;
 export const SEND_GRACE_MS = 15 * 1000; // the cancelable window IS the undo (§6)
+
+/**
+ * Take the bot's held reply off the table.
+ *
+ * Under a veto window the receptionist writes its answer as `queued` and a job
+ * fires it after the configured delay. The whole point is that a human can get
+ * there first — so every path where a human asserts control (replying, taking
+ * the thread over) has to cancel that draft, or the customer receives BOTH the
+ * override and the words it was meant to replace.
+ *
+ * Order matters, and it is the opposite of the queueing order: cancel the JOB
+ * first, then the row. Marking the row canceled while its job still runs is
+ * harmless — outbound_send re-reads the row and no-ops on anything that is not
+ * still `queued` — whereas leaving the job scheduled after the row is gone would
+ * be a send with nothing left to stop it.
+ *
+ * Returns how many drafts were withdrawn, so a caller can tell the operator
+ * their reply replaced the bot's rather than merely followed it.
+ */
+export async function cancelPendingAiReply(
+  ctx: RouteContext,
+  conv: { id: string; tenant_id: string },
+  cancelJobs: (tenantId: string, key: string, value: string) => Promise<number>,
+): Promise<number> {
+  await cancelJobs(conv.tenant_id, "conversation_id", conv.id);
+  const { data, error } = await ctx.supabase
+    .from("messages")
+    .update({ status: "canceled", error: { reason: "superseded_by_human" } })
+    .eq("conversation_id", conv.id)
+    .eq("status", "queued")
+    .eq("sender", "ai")
+    .select("id");
+  if (error) {
+    // Not fatal to the operator's own action — but it means a draft may still
+    // fire, so it must be visible rather than swallowed.
+    console.error("cancel_pending_ai_reply_failed", conv.id, error.message);
+    return 0;
+  }
+  return data?.length ?? 0;
+}

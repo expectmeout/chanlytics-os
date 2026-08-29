@@ -72,3 +72,38 @@ export function isLiveCall(
   if (Number.isNaN(at)) return false;
   return now.getTime() - at < CALL_HEARTBEAT_MS;
 }
+
+/* --------------------------- the veto window ------------------------------ */
+
+/**
+ * How long the receptionist holds its own reply before sending it.
+ *
+ * A text channel is not a phone call. Nobody expects a WhatsApp answer in under
+ * a second, so a short pause costs the customer nothing — and it converts the
+ * only two options a business had, "let the bot speak" or "turn the bot off",
+ * into a third: let it draft, and redirect it before the customer ever sees it.
+ * Correcting a message that has already been read is not a feature; this is.
+ */
+export const REPLY_DELAY_DEFAULT_MS = 30_000;
+export const REPLY_DELAY_MIN_MS = 5_000;
+export const REPLY_DELAY_MAX_MS = 600_000;
+
+/**
+ * The wait for THIS reply, in ms. Zero means send now.
+ *
+ * Clamped rather than trusted: `limits` is tenant-editable JSON, and a typo of
+ * one extra zero would leave a customer waiting hours for an answer the bot had
+ * already written. A configuration mistake should degrade the experience by
+ * seconds, never strand someone.
+ */
+export function replyDelayMs(
+  mode: string | null | undefined,
+  limits?: { reply_delay_ms?: number } | null,
+): number {
+  // 'auto' answers immediately — that is what it means. Every other mode either
+  // holds for a human or never speaks, and neither reaches a send.
+  if (mode !== "veto") return 0;
+  const raw = limits?.reply_delay_ms;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return REPLY_DELAY_DEFAULT_MS;
+  return Math.min(REPLY_DELAY_MAX_MS, Math.max(REPLY_DELAY_MIN_MS, Math.round(raw)));
+}

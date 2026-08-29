@@ -4082,7 +4082,16 @@ var TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" 
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PolicyLimitsSchema = external_exports.object({
   max_replies_day: external_exports.number().int().min(1).max(200).optional(),
-  pause_hours: external_exports.number().int().min(1).max(168).optional()
+  pause_hours: external_exports.number().int().min(1).max(168).optional(),
+  /**
+   * How long the receptionist WAITS before its own reply goes out, in ms.
+   *
+   * Only meaningful when mode is 'veto'. A text channel is not a phone
+   * call — nobody expects an answer in under a second — so the delay costs
+   * the customer nothing and buys the business a window to redirect the bot
+   * before it speaks, rather than apologising for it afterwards.
+   */
+  reply_delay_ms: external_exports.number().int().min(5e3).max(6e5).optional()
 }).strict();
 var BrainConfigSchema = external_exports.object({
   business_name: external_exports.string().min(1).max(120),
@@ -8197,7 +8206,16 @@ var TIME_FMT2 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit"
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PolicyLimitsSchema2 = external_exports2.object({
   max_replies_day: external_exports2.number().int().min(1).max(200).optional(),
-  pause_hours: external_exports2.number().int().min(1).max(168).optional()
+  pause_hours: external_exports2.number().int().min(1).max(168).optional(),
+  /**
+   * How long the receptionist WAITS before its own reply goes out, in ms.
+   *
+   * Only meaningful when mode is 'veto'. A text channel is not a phone
+   * call — nobody expects an answer in under a second — so the delay costs
+   * the customer nothing and buys the business a window to redirect the bot
+   * before it speaks, rather than apologising for it afterwards.
+   */
+  reply_delay_ms: external_exports2.number().int().min(5e3).max(6e5).optional()
 }).strict();
 var BrainConfigSchema2 = external_exports2.object({
   business_name: external_exports2.string().min(1).max(120),
@@ -8233,7 +8251,7 @@ var SENDERS = {
 };
 async function outboundSend(ctx, job) {
   const p = job.payload;
-  const { data: msg } = await ctx.db.from("messages").select("id, status, body, template_name, channel").eq("id", p.message_id).eq("tenant_id", job.tenant_id).single();
+  const { data: msg } = await ctx.db.from("messages").select("id, status, body, template_name, channel, sender").eq("id", p.message_id).eq("tenant_id", job.tenant_id).single();
   if (!msg || msg.status !== "queued") return;
   const { data: convRow, error: consentErr } = await ctx.db.from("conversations").select("contacts (consent, dnc)").eq("id", p.conversation_id).eq("tenant_id", job.tenant_id).maybeSingle();
   if (consentErr || !convRow) {
@@ -8291,9 +8309,13 @@ async function outboundSend(ctx, job) {
       tenant_id: job.tenant_id,
       kind: "message.sent",
       category: "message",
+      // Read from the ROW, not hardcoded. This queue used to carry only human
+      // replies; under a veto window the receptionist's own reply travels the
+      // same path, and stamping every send as "human" would make the metrics
+      // report a bot's words as a person's.
       subject_type: "message",
       subject_id: p.message_id,
-      data: { sender: "human" }
+      data: { sender: msg.sender ?? "human" }
     });
   } else {
     await ctx.db.from("messages").update({ status: "failed", error: { http_status: sent.status, body: sent.errorBody ?? null } }).eq("id", p.message_id);

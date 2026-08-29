@@ -35,6 +35,15 @@ export const PolicyLimitsSchema = z
   .object({
     max_replies_day: z.number().int().min(1).max(200).optional(),
     pause_hours: z.number().int().min(1).max(168).optional(),
+    /**
+     * How long the receptionist WAITS before its own reply goes out, in ms.
+     *
+     * Only meaningful when mode is 'veto'. A text channel is not a phone
+     * call — nobody expects an answer in under a second — so the delay costs
+     * the customer nothing and buys the business a window to redirect the bot
+     * before it speaks, rather than apologising for it afterwards.
+     */
+    reply_delay_ms: z.number().int().min(5000).max(600000).optional(),
   })
   .strict();
 export type PolicyLimits = z.infer<typeof PolicyLimitsSchema>;

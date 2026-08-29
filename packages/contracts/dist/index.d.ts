@@ -436,6 +436,29 @@ declare function isLiveCall(call: {
     updated_at?: string | null;
     started_at?: string | null;
 }, now?: Date): boolean;
+/**
+ * How long the receptionist holds its own reply before sending it.
+ *
+ * A text channel is not a phone call. Nobody expects a WhatsApp answer in under
+ * a second, so a short pause costs the customer nothing — and it converts the
+ * only two options a business had, "let the bot speak" or "turn the bot off",
+ * into a third: let it draft, and redirect it before the customer ever sees it.
+ * Correcting a message that has already been read is not a feature; this is.
+ */
+declare const REPLY_DELAY_DEFAULT_MS = 30000;
+declare const REPLY_DELAY_MIN_MS = 5000;
+declare const REPLY_DELAY_MAX_MS = 600000;
+/**
+ * The wait for THIS reply, in ms. Zero means send now.
+ *
+ * Clamped rather than trusted: `limits` is tenant-editable JSON, and a typo of
+ * one extra zero would leave a customer waiting hours for an answer the bot had
+ * already written. A configuration mistake should degrade the experience by
+ * seconds, never strand someone.
+ */
+declare function replyDelayMs(mode: string | null | undefined, limits?: {
+    reply_delay_ms?: number;
+} | null): number;
 
 /**
  * Today (Slice 4): the morning brief.
@@ -626,12 +649,23 @@ type PolicyMode = (typeof POLICY_MODES)[number];
 declare const PolicyLimitsSchema: z.ZodObject<{
     max_replies_day: z.ZodOptional<z.ZodNumber>;
     pause_hours: z.ZodOptional<z.ZodNumber>;
+    /**
+     * How long the receptionist WAITS before its own reply goes out, in ms.
+     *
+     * Only meaningful when mode is 'veto'. A text channel is not a phone
+     * call — nobody expects an answer in under a second — so the delay costs
+     * the customer nothing and buys the business a window to redirect the bot
+     * before it speaks, rather than apologising for it afterwards.
+     */
+    reply_delay_ms: z.ZodOptional<z.ZodNumber>;
 }, "strict", z.ZodTypeAny, {
     max_replies_day?: number | undefined;
     pause_hours?: number | undefined;
+    reply_delay_ms?: number | undefined;
 }, {
     max_replies_day?: number | undefined;
     pause_hours?: number | undefined;
+    reply_delay_ms?: number | undefined;
 }>;
 type PolicyLimits = z.infer<typeof PolicyLimitsSchema>;
 interface PolicyRow {
@@ -829,4 +863,4 @@ declare function parseTenantConfigResult(raw: unknown): TenantConfigParse;
 /** Convenience for callers that genuinely cannot act on the difference. */
 declare function parseTenantConfig(raw: unknown): TenantConfig | null;
 
-export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, ROLES, ROLE_PERMS, type Role, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, contactMeta, contactName, err, formatPhoneDisplay, formatWaited, isLiveCall, isOptedOut, isOptedOutContact, messageAt, messageText, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, threadStanding, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };
+export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, ROLES, ROLE_PERMS, type Role, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, contactMeta, contactName, err, formatPhoneDisplay, formatWaited, isLiveCall, isOptedOut, isOptedOutContact, messageAt, messageText, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, replyDelayMs, threadStanding, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };

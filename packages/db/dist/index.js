@@ -4068,7 +4068,16 @@ var TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" 
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PolicyLimitsSchema = external_exports.object({
   max_replies_day: external_exports.number().int().min(1).max(200).optional(),
-  pause_hours: external_exports.number().int().min(1).max(168).optional()
+  pause_hours: external_exports.number().int().min(1).max(168).optional(),
+  /**
+   * How long the receptionist WAITS before its own reply goes out, in ms.
+   *
+   * Only meaningful when mode is 'veto'. A text channel is not a phone
+   * call — nobody expects an answer in under a second — so the delay costs
+   * the customer nothing and buys the business a window to redirect the bot
+   * before it speaks, rather than apologising for it afterwards.
+   */
+  reply_delay_ms: external_exports.number().int().min(5e3).max(6e5).optional()
 }).strict();
 var BrainConfigSchema = external_exports.object({
   business_name: external_exports.string().min(1).max(120),

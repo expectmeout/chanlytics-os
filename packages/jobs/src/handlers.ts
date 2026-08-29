@@ -60,7 +60,7 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   };
   const { data: msg } = await ctx.db
     .from("messages")
-    .select("id, status, body, template_name, channel")
+    .select("id, status, body, template_name, channel, sender")
     .eq("id", p.message_id)
     .eq("tenant_id", job.tenant_id)
     .single();
@@ -160,7 +160,11 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       .eq("id", p.conversation_id);
     await ctx.db.from("events").insert({
       tenant_id: job.tenant_id, kind: "message.sent", category: "message",
-      subject_type: "message", subject_id: p.message_id, data: { sender: "human" },
+      // Read from the ROW, not hardcoded. This queue used to carry only human
+      // replies; under a veto window the receptionist's own reply travels the
+      // same path, and stamping every send as "human" would make the metrics
+      // report a bot's words as a person's.
+      subject_type: "message", subject_id: p.message_id, data: { sender: msg.sender ?? "human" },
     });
   } else {
     await ctx.db.from("messages")
