@@ -9,6 +9,14 @@ jobs:
   gitleaks:
     name: Secret scan
     runs-on: ubuntu-latest
+    # gitleaks-action lists the PR's commits to scan only what the PR adds. The
+    # default GITHUB_TOKEN cannot read pull_requests, so on the repo's first PR
+    # the job died with "403 Resource not accessible by integration" — a scan
+    # that never ran, reported as a failure indistinguishable from a real leak.
+    # Read-only, and no more than the scan needs.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:
