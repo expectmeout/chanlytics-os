@@ -546,10 +546,21 @@ const PaneWorkspace = ({ flash }) => {
           </div>
         )}
       </div>
+      {/* Every workspace starts here, so this is not a footnote. A faint
+          Edit link in a card header is findable by someone who already knows
+          the form exists; the first thing an owner needs is to be told there
+          is something to fill in, and given the button. */}
       {real && !profile && (
-        <div className="set-team-mail" style={{ padding: "10px 0 2px" }}>
-          Your hours, services and address are still written inside the assistant's instructions.
-          Until they are filled in here, the phone agent cannot be given the same facts.
+        <div className="set-empty">
+          <div className="set-empty-title">Tell the receptionist about your business</div>
+          <div className="set-empty-body">
+            Your hours, services and address are still written inside the assistant's
+            instructions, where only the WhatsApp agent can read them. Fill them in
+            here and both the chat and the phone agent answer from the same facts.
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={() => setEditing(true)} {...window.gate("autonomy")}>
+            <Icon name="plus" size={12} /> Add your business details
+          </button>
         </div>
       )}
     </section>

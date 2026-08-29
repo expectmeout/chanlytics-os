@@ -160,3 +160,15 @@ html.legacy-on #root {
 .set-hours-sep { font-size: 12px; color: var(--ink-muted, #7a7a7a); }
 .set-check { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; }
 .set-check input { width: 15px; height: 15px; accent-color: var(--ok, #2a8); }
+
+/* The first thing a new workspace sees in Settings. Not a footnote — every
+   business has to fill this in before the phone agent knows anything. */
+.set-empty {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+  padding: 16px; margin-top: 10px;
+  border: 1px dashed var(--line, rgba(128,128,128,.3));
+  border-radius: 8px;
+  background: var(--surface-2, rgba(128,128,128,.05));
+}
+.set-empty-title { font-size: 13.5px; font-weight: 600; }
+.set-empty-body { font-size: 12.5px; line-height: 1.55; color: var(--ink-muted, #7a7a7a); max-width: 62ch; }

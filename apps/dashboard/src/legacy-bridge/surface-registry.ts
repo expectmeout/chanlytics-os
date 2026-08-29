@@ -85,9 +85,26 @@ export const ROUTE_SURFACE: Record<string, string> = {
  * The fallback is what keeps this safe: a new pane nobody has classified
  * inherits its page's state, which is `demo`, which is the honest default.
  */
+/**
+ * The pane a page opens on when the route names none.
+ *
+ * The shell renders Settings as `tab={param || "workspace"}`, so /admin with
+ * no pane DOES render the workspace pane — while the gate, asked about
+ * "admin", answered `demo` and replaced it with the Coming Soon card. The
+ * sidebar's Settings link is exactly that route, so the finished pane was
+ * unreachable by normal navigation and only a hand-typed #/admin/workspace
+ * could find it.
+ *
+ * The gate has to be asked about what will actually RENDER.
+ */
+export const SURFACE_DEFAULT_PARAM: Record<string, string> = {
+  admin: "workspace",
+};
+
 export function surfaceStateFor(page: string, param?: string | null): SurfaceState | undefined {
-  if (param) {
-    const specific = SURFACE_STATES[`${page}/${param}`];
+  const pane = param || SURFACE_DEFAULT_PARAM[page];
+  if (pane) {
+    const specific = SURFACE_STATES[`${page}/${pane}`];
     if (specific) return specific;
   }
   return SURFACE_STATES[page];
