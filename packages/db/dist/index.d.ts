@@ -1919,7 +1919,16 @@ interface PolicyRecord {
 /** Workspace-level rows only (subject IS NULL) — guardrail rows arrive with
  *  the People slice and get their own accessor then. */
 declare function listPolicies(db: Db, tenantId: string): Promise<PolicyRecord[]>;
-declare function setPolicyMode(db: Db, tenantId: string, policyClass: string, mode: string): Promise<PolicyRecord | null>;
+declare function setPolicyMode(db: Db, tenantId: string, policyClass: string, mode: string, 
+/**
+ * Merged into the existing limits, never replacing them.
+ *
+ * `limits` holds several unrelated settings for one class — a reply row
+ * carries both max_replies_day and reply_delay_ms — so a PUT that sent the
+ * whole object would silently drop whichever one the caller did not know
+ * about. Callers set what they mean and leave the rest alone.
+ */
+limits?: Record<string, unknown>): Promise<PolicyRecord | null>;
 
 /**
  * The single Realtime subscription wrapper (Blueprint §5): every surface
