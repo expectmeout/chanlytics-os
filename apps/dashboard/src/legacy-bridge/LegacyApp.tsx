@@ -41,19 +41,11 @@ const REQUIRED = ["CHANLY", "INBOX_DATA", "CLIENTS", "FLEET_DATA", "CHANLY_DATA"
 const SURFACES = [workspaceOverride, conversationsOverride, inboxOverride, todayOverride];
 const SURFACE_LABELS: Record<string, string> = { conversations: "Conversations", inbox: "Inbox", today: "Today" };
 
-/**
- * Which flipped surface backs each route. The shell asks this before painting:
- * a route whose data isn't ready yet shows the app's own skeleton rather than
- * the mockup's seeds. Routes absent from this map are seeded by design (their
- * slice hasn't happened) and are always ready — they must never wait.
- *
- * ORDERING IS LOAD-BEARING (see installRouteGate below).
- */
-const ROUTE_SURFACE: Record<string, string> = {
-  today: "today",
-  inbox: "inbox",
-  conversations: "conversations",
-};
+// Which flipped surface backs each route, and which routes are real at all —
+// both live in surface-registry.ts so the classification and the wiring cannot
+// drift apart. Routes absent from ROUTE_SURFACE are seeded by design and are
+// always "ready" — the registry decides separately whether they may RENDER.
+import { ROUTE_SURFACE, installSurfaceRegistry } from "./surface-registry";
 
 /**
  * The shell's route gate, installed at MODULE SCOPE — not in an effect.
@@ -87,6 +79,9 @@ function installRouteGate(): void {
   w.__onSurfaceReady = onSurfaceStatusChange;
 }
 installRouteGate();
+// Same ordering argument as the route gate: the shell decides real-vs-demo
+// during its FIRST render, so the classification must exist before React does.
+installSurfaceRegistry();
 
 interface Prefs {
   theme: "light" | "dark";

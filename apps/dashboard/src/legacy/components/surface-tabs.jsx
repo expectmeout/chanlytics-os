@@ -9,7 +9,9 @@ const ST_GROUPS = {
     match: ["clients", "leads", "pipeline", "segments"],
     tabs: [
       { id: "clients", label: "Clients", to: "clients" },
-      { id: "leads", label: "Leads", to: "leads", badge: () => ((window.LEADS || []).filter(l => l.stage === "ready").length) || null, tip: "Leads scored ready — your call to make" },
+      // badge is demo-only: LEADS is seed data, and this number rendered inside
+      // otherwise-real chrome — a fabricated "4" one tab away from real threads.
+      { id: "leads", label: "Leads", to: "leads", badge: () => (window.__DEMO_MODE ? ((window.LEADS || []).filter(l => l.stage === "ready").length) || null : null), tip: "Leads scored ready — your call to make" },
       { id: "pipeline", label: "Deal board", to: "pipeline", tip: "Deals are leads with money attached — same people, board view" },
       { id: "segments", label: "Lists", to: "segments" },
     ],
@@ -18,7 +20,9 @@ const ST_GROUPS = {
     match: ["conversations", "live"],
     tabs: [
       { id: "conversations", label: "All", to: "conversations" },
-      { id: "live", label: "Live", to: "live", pulse: () => !(window.LM_STORE && window.LM_STORE.isEnded("lc-selena")), tip: "Happening right now — watch, whisper, or take over" },
+      // pulse is demo-only: it advertised a call in progress for an invented
+      // caller, always on, beside the REAL Conversations tab.
+      { id: "live", label: "Live", to: "live", pulse: () => !!window.__DEMO_MODE && !(window.LM_STORE && window.LM_STORE.isEnded("lc-selena")), tip: "Happening right now — watch, whisper, or take over" },
     ],
   },
   campaigns: {

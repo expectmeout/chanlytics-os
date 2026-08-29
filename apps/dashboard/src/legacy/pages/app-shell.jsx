@@ -97,6 +97,12 @@ const SOON_META = {
   studio:     { icon: "sparkle",     title: "Agent Studio", blurb: "Compose custom agents from skills, tone, and guardrails." },
   reports:    { icon: "trending-up", title: "Reports",    blurb: "Revenue, conversion, and agent performance over time." },
   admin:      { icon: "settings",    title: "Settings",   blurb: "Team, billing, integrations, AI memory, and autonomy defaults." },
+  clients:    { icon: "users",       title: "Clients",    blurb: "Every customer's history, spend, and preferences in one profile." },
+  leads:      { icon: "bolt",        title: "Leads",      blurb: "New prospects captured, scored, and queued for your call." },
+  segments:   { icon: "filter",      title: "Lists",      blurb: "Smart lists that keep themselves current — lapsed, VIP, new." },
+  tasks:      { icon: "check",       title: "Tasks",      blurb: "The work ledger — a receipt for everything your agents did." },
+  live:       { icon: "phone",       title: "Live",       blurb: "Calls in progress — listen in, whisper, or take over." },
+  shared:     { icon: "trending-up", title: "Shared reports", blurb: "Read-only report links you can hand to a client or partner." },
 };
 
 const ComingSoon = ({ surface, onNavigate }) => {
@@ -111,9 +117,13 @@ const ComingSoon = ({ surface, onNavigate }) => {
         <button className="btn btn-sm" onClick={() => onNavigate("today")}>
           <Icon name="home" size={12} /> Back to Today
         </button>
-        <button className="btn btn-ghost btn-sm" onClick={() => window.askAbout({ mode: "compose", prompt: "About " + meta.title + ": " })}>
-          <Icon name="sparkle" size={12} /> Ask about {meta.title}
-        </button>
+        {/* askAbout is a no-op outside demo — a button that silently does
+            nothing is its own small lie, so it only renders where it works. */}
+        {window.__DEMO_MODE && (
+          <button className="btn btn-ghost btn-sm" onClick={() => window.askAbout({ mode: "compose", prompt: "About " + meta.title + ": " })}>
+            <Icon name="sparkle" size={12} /> Ask about {meta.title}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -200,11 +210,16 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
   const [route, setRoute] = useShellState(parseHash());
   const [askOpen, setAskOpen] = useShellState(false);
   const [inboxNeeds, setInboxNeeds] = useShellState(() => {
-    const T = (window.INBOX_DATA || {}).THREADS || [];
+    let T = (window.INBOX_DATA || {}).THREADS || [];
+    // On a real workspace, only real threads may count. A COLD boot runs this
+    // before the inbox override applies, when THREADS is still the seed array —
+    // which put an invented "6" on the sidebar an inch from Today's honest "0".
+    // Cache-hydrated real threads carry t.real and still count.
+    if (window.__surfaceState && window.__surfaceState("inbox") === "real" && !window.__DEMO_MODE) {
+      T = T.filter((t) => t.real);
+    }
     const D = (window.IX_STORE || {}).decisions || {};
-    const n = T.filter((t) => (t.state === "needs" || (t.state === "escalated" && !t.takenOver)) && !D[t.id]).length; // real escalations count too
-    // Never invent a count. An empty real workspace has 0 waiting, not 3.
-    return n;
+    return T.filter((t) => (t.state === "needs" || (t.state === "escalated" && !t.takenOver)) && !D[t.id]).length;
   });
 
   // Live Inbox badge — decisions made in the Inbox update the sidebar count
@@ -333,24 +348,11 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
     );
     content = <SegmentsPage initialId={param} />;
   } else if (page === "admin") {
+    const tabMeta = (window.SET_TABS || []).find(t => t.id === param);
     activeNav = "admin";
-    // Settings is the ONE surface whose controls would lie. Its six API routes
-    // are built, tested and role-guarded but have no callers yet, so the page
-    // renders session-only mock state: an invented staff roster on another
-    // company's domain, an "Invite sent" toast for an email nobody received,
-    // and a policy matrix captioned as the ruleset the backend enforces. A
-    // control that renders and lies is worse than one that is honestly absent
-    // — so outside a demo it shows the same coming-soon pane every other
-    // unbuilt surface uses. It flips back the moment the panes read the routes.
-    if (window.__DEMO_MODE) {
-      const tabMeta = (window.SET_TABS || []).find(t => t.id === param);
-      crumbs = tabMeta ? [{ label: "Settings", to: "admin" }, tabMeta.label] : ["Settings"];
-      pane = true;
-      content = <SettingsPage tab={param || "workspace"} onTab={(t) => navigate(`admin/${t}`)} />;
-    } else {
-      crumbs = ["Settings"];
-      content = <ComingSoon surface="admin" onNavigate={navigate} />;
-    }
+    crumbs = tabMeta ? [{ label: "Settings", to: "admin" }, tabMeta.label] : ["Settings"];
+    pane = true;
+    content = <SettingsPage tab={param || "workspace"} onTab={(t) => navigate(`admin/${t}`)} />;
   } else if (page === "tasks") {
     activeNav = "tasks";
     crumbs = ["Agents", "Tasks"];
@@ -458,6 +460,28 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
     content = <NotFound raw={page} onNavigate={navigate} />;
   }
 
+  // ---- The honesty gate: one interception, every route -----------------
+  // The bridge classifies each surface real-vs-demo (surface-registry.ts) and
+  // publishes it as window.__surfaceState. A "demo" surface renders only in a
+  // session that declared itself one; in production it shows the same
+  // ComingSoon pane Settings pioneered, instead of a finished-looking screen
+  // fed by invented customers, invented revenue, and success toasts for sends
+  // that never happened. Gating routes one by one is how fifteen of them were
+  // missed — the classification IS the gate now. Standalone mockup (no
+  // bridge): __surfaceState is absent and everything renders, which is right,
+  // because the whole artifact is a demo there.
+  const demoGated = !window.__DEMO_MODE
+    && window.__surfaceState && window.__surfaceState(page) === "demo";
+  if (demoGated) {
+    const soonTitle = SOON_META[page]?.title || page;
+    // Reset everything the branch above computed from seed data — a crumb
+    // carrying an invented client's name over an honest pane is still a lie.
+    crumbs = [soonTitle];
+    pane = false;
+    primaryAction = null;
+    content = <ComingSoon surface={page} onNavigate={navigate} />;
+  }
+
   const routeKey = `${page}/${param || ""}`;
   useShellEffect(() => {
     setNavOpen(false);
@@ -480,7 +504,11 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
 
   // Shared read-only viewer — chrome-less, rendered AFTER all hooks so the
   // hook order stays identical on every route (no early return between hooks).
-  if (page === "shared") {
+  // Demo-gated like everything else: outside a demo, this URL renders the
+  // normal chrome with the ComingSoon pane the interception above chose,
+  // instead of "Serenity Spa — Reports · expires in 7 days" over invented
+  // numbers, ungated, in production.
+  if (page === "shared" && !demoGated) {
     return (
       <div className="shared-root" data-theme={theme}>
         <div className="shared-banner">

@@ -165,17 +165,25 @@ const InboxList = ({
       {/* Threads */}
       <div className="ix-threads">
         {visible.length === 0 && (() => {
+          // "Is this a real workspace?" must come from the surface
+          // classification, not from the array being inspected: an EMPTY
+          // thread list made `threads.some(t => t.real)` false, so precisely
+          // when the empty state showed, it showed the mockup's copy — an
+          // empty Snoozed bucket reading "7 snoozed… Elena's win-back".
+          const isReal = window.__surfaceState
+            ? window.__surfaceState("inbox") === "real" && !window.__DEMO_MODE
+            : threads.some((t) => t.real);
           const meta = {
-            done:      threads.some((t) => t.real)
-              ? { icon: "check", title: "No conversations yet", body: "Messages to the salon's WhatsApp number show up here once they arrive.", cta: { label: "Open Conversations", to: "conversations" } }
+            done:      isReal
+              ? { icon: "check", title: "No conversations yet", body: "Messages to your WhatsApp number show up here once they arrive.", cta: { label: "Open Conversations", to: "conversations" } }
               : { icon: "check", title: "48 resolved this week", body: "Handled threads archive after 7 days — every transcript stays in Conversations.", cta: { label: "Open Conversations", to: "conversations" } },
-            snoozed:   threads.some((t) => t.real)
+            snoozed:   isReal
               ? { icon: "clock", title: "Nothing snoozed", body: "Snooze hides a thread from your queue. The receptionist keeps answering it." }
               : { icon: "clock", title: "7 snoozed, all sleeping", body: "They come back when they wake. Next: Elena's win-back, tomorrow 10:00." },
             needs:     { icon: "check", title: "Nothing needs you", body: "Threads the receptionist pauses for a human land here first." },
             watching:  { icon: "eye", title: "Nothing in flight", body: "Threads your agents are actively working show here." },
             drafts:    { icon: "edit", title: "No drafts waiting", body: "Agent-written replies queue here for your review." },
-            escalated: threads.some((t) => t.real)
+            escalated: isReal
               ? { icon: "check", title: "Nobody's waiting on you", body: "The receptionist is answering on its own. Anything it can't handle lands here." }
               : { icon: "flag", title: "No escalations", body: "Sensitive threads that need a human land here." },
           }[activeView ? "view" : activeBucket] || { icon: "filter", title: "Nothing in this view", body: "No threads match this saved view right now." };

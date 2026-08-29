@@ -180,7 +180,9 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
         )}
         <MoreMenu btnClass="btn btn-icon btn-sm" items={[
           { header: "Conversation" },
-          { label: "Open client", icon: "users", onClick: () => onOpenClient(thread.clientId) },
+          // Real threads have no client profile yet (clientId is null), so the
+          // item only renders when there is actually somewhere to go.
+          ...(thread.clientId ? [{ label: "Open client", icon: "users", onClick: () => onOpenClient(thread.clientId) }] : []),
           { label: "Mark as unread", icon: "inbox", onClick: () => onMarkUnread(thread.id) },
           { label: "Snooze", icon: "clock", onClick: () => onSnooze(thread.id) },
           { divider: true },
