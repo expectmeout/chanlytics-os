@@ -8,7 +8,7 @@ export const POST = withRoute(async (_req, ctx) => {
   const conv = await loadConversation(ctx, String(ctx.params.id ?? ""));
   await requireOperator(ctx, conv.tenant_id);
   if (!conv.phone_e164) throw new AppError("conflict", "Conversation has no phone identity.");
-  await mirrorBlobPause(conv.phone_e164, 0);
+  await mirrorBlobPause(conv.tenant_id, conv.phone_e164, 0);
 
   const { error } = await ctx.supabase
     .from("conversations")

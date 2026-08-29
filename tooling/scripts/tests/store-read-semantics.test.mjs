@@ -34,8 +34,12 @@ const src = fs.readFileSync(STORE, "utf8");
 // specifier ("Received protocol 'c:'").
 const { getThread, saveThread, isThreadUnknown } = await import(pathToFileURL(STORE).href);
 
+// Every store call is namespaced by tenant now; these tests use one probe
+// namespace so they exercise the same key derivation the real callers do.
+const NS = "test-store-semantics";
+
 test("an unseen thread is BLANK, not unknown", async () => {
-  const t = await getThread(`probe-new-${Date.now()}`);
+  const t = await getThread(NS, `probe-new-${Date.now()}`);
   assert.equal(isThreadUnknown(t), false, "a first-time customer must not be state-unavailable");
   assert.equal(t.pausedUntil, 0, "a blank thread is not paused");
   assert.deepEqual(t.history, []);
@@ -44,11 +48,11 @@ test("an unseen thread is BLANK, not unknown", async () => {
 
 test("a saved thread round-trips", async () => {
   const id = `probe-rt-${Date.now()}`;
-  const t = await getThread(id);
+  const t = await getThread(NS, id);
   t.history.push({ role: "user", content: "hello" });
   t.pausedUntil = 123;
-  assert.equal(await saveThread(id, t), true, "saveThread must report whether it persisted");
-  const back = await getThread(id);
+  assert.equal(await saveThread(NS, id, t), true, "saveThread must report whether it persisted");
+  const back = await getThread(NS, id);
   assert.equal(back.pausedUntil, 123);
   assert.equal(back.history.length, 1);
 });
@@ -57,8 +61,8 @@ test("an unknown state is never persisted, and saveThread says so", async () => 
   // Writing it would turn a transient read failure into a durable one.
   const id = `probe-unknown-${Date.now()}`;
   const poisoned = { history: [], seen: [], pausedUntil: -1, replies: [], unknown: true };
-  assert.equal(await saveThread(id, poisoned), false);
-  const back = await getThread(id);
+  assert.equal(await saveThread(NS, id, poisoned), false);
+  const back = await getThread(NS, id);
   assert.equal(back.pausedUntil, 0, "the refused write must not have landed");
 });
 
@@ -67,8 +71,8 @@ test("each call returns its OWN object — no shared sentinel", async () => {
   // identity. Callers mutate what getThread returns (thread.seen.push(...),
   // t.pausedUntil = ...), so every mutation accumulated on one shared object
   // and leaked between customers inside a warm lambda.
-  const a = await getThread(`probe-iso-a-${Date.now()}`);
-  const b = await getThread(`probe-iso-b-${Date.now()}`);
+  const a = await getThread(NS, `probe-iso-a-${Date.now()}`);
+  const b = await getThread(NS, `probe-iso-b-${Date.now()}`);
   assert.notEqual(a, b, "two reads returned the same object");
   a.seen.push("poison");
   a.pausedUntil = 999;

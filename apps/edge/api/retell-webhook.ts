@@ -11,7 +11,7 @@
  * many agents (432 calls across 8 in the live account) — an unrouted call is
  * dead-lettered, never guessed into a tenant.
  */
-import { getThread, saveThread } from "../lib/store.js";
+import { getThread, saveThread, threadNamespace } from "../lib/store.js";
 import { notify } from "../lib/notify.js";
 import { loadTenantNotifications } from "../lib/tenant-runtime.js";
 import { json } from "../lib/http.js";
@@ -122,15 +122,24 @@ export async function POST(request: Request): Promise<Response> {
     const sentiment = n.sentiment || "n/a";
     const durationS = n.durationMs ? Math.round(n.durationMs / 1000) : 0;
 
+    // Resolve the tenant ONCE for this block. Both the thread note and the
+    // summary email are tenant-scoped, and resolving it twice invites the two
+    // to disagree.
+    const db2 = pg();
+    const routedForCall = db2 && n.agentId ? await resolveChannel(db2, "voice", n.agentId) : null;
+
     // cross-channel memory for the pre-Gate-1b bot (Blob is still its context)
     if (from) {
       try {
-        const t = await getThread(from);
+        // Resolved from the SAME agent routing the call row used, so a voice
+        // note lands in the right business's thread rather than a shared one.
+        const noteNs = threadNamespace(routedForCall?.tenantId ?? null);
+        const t = await getThread(noteNs, from);
         t.history.push({
           role: "assistant",
           content: `[voice call note ${new Date().toISOString().slice(0, 16)}] Caller phoned the salon line. Summary: ${String(summary).slice(0, 400)}`,
         });
-        await saveThread(from, t);
+        await saveThread(noteNs, from, t);
       } catch (e) { console.error("call_note_failed", e instanceof Error ? e.message : e); }
     }
 
@@ -139,13 +148,11 @@ export async function POST(request: Request): Promise<Response> {
     // and it used to fall back to a hardcoded personal address: with a second
     // tenant, one business's call recording summary delivered to another
     // business's owner. It now goes only to a mailbox we know is this tenant's.
-    const db2 = pg();
-    const routedForAlert = db2 && n.agentId ? await resolveChannel(db2, "voice", n.agentId) : null;
-    const addressing = db2 && routedForAlert
-      ? await loadTenantNotifications(db2, routedForAlert.tenantId)
+    const addressing = db2 && routedForCall
+      ? await loadTenantNotifications(db2, routedForCall.tenantId)
       : { notifications: null, isEnvDefault: false };
     await notify(
-      { tenantId: routedForAlert?.tenantId ?? null, ...addressing },
+      { tenantId: routedForCall?.tenantId ?? null, ...addressing },
       {
         subject: `Voice call: ${call.from_number || "unknown"} (${durationS}s, ${sentiment})`,
         body:

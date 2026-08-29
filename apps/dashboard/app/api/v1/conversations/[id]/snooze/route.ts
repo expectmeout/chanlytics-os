@@ -20,7 +20,7 @@ export const POST = withRoute(async (req, ctx) => {
 
   // snooze hides the thread from the queue; it does NOT keep the receptionist
   // muted (that is take-over's job) — release any pause first.
-  if (conv.paused_until && conv.phone_e164) await mirrorBlobPause(conv.phone_e164, 0);
+  if (conv.paused_until && conv.phone_e164) await mirrorBlobPause(conv.tenant_id, conv.phone_e164, 0);
   const { error } = await ctx.supabase
     .from("conversations")
     .update({ state: "snoozed", snooze_until: until.toISOString(), paused_until: null, assignee_user_id: null })

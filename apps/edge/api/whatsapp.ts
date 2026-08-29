@@ -30,7 +30,7 @@
  *      PG_READS (Gate 1b), PG_DEDUPE (optional, implied by PG_READS).
  */
 import crypto from "node:crypto";
-import { getThread, isThreadUnknown, saveThread, storeBackend, type ThreadState } from "../lib/store.js";
+import { getThread, isThreadUnknown, saveThread, storeBackend, threadNamespace, type ThreadState } from "../lib/store.js";
 import { json, text } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import {
@@ -284,6 +284,10 @@ async function handleInbound(
   // Bound once, here, where the tenant becomes known. Every line below carries
   // it, which is the only way that stays true as this function changes.
   const L = logger({ tenant_id: tenantId, wamid: m.id, from, type: m.type });
+  // The thread store is keyed per TENANT. A phone number is not a globally
+  // unique identity, and this object holds history, pause, dedupe and the
+  // reply cap — all four of which two businesses would otherwise share.
+  const ns = threadNamespace(tenantId);
 
   // The control plane, through its one door (PRD §03). A tenant with no brain
   // profile never auto-replies — silence over someone else's voice — while the
@@ -334,10 +338,10 @@ async function handleInbound(
     ing = await pgIngest(tenantId, n);
     thread = await pgThread(db, tenantId, ing);
     memory = thread === PG_MISS ? "blob" : "pg";
-    if (memory === "blob") thread = await getThread(from);
+    if (memory === "blob") thread = await getThread(ns, from);
   } else {
     // The Blob read is side-effect-free, so it runs alongside the write.
-    [ing, thread] = (await Promise.all([pgIngest(tenantId, n), getThread(from)])) as
+    [ing, thread] = (await Promise.all([pgIngest(tenantId, n), getThread(ns, from)])) as
       [IngestResult | null, ThreadState];
   }
   const ingestMs = Date.now() - t0;
@@ -416,7 +420,7 @@ async function handleInbound(
       if (brainCfg) {
         await sendText(from, brainCfg.fallbacks.non_text, rt);
         thread.pausedUntil = Date.now() + pauseMs;
-        await saveThread(from, thread);
+        await saveThread(ns, from, thread);
       }
       await Promise.all([
         ...(brainCfg ? [sink.pause(new Date(Date.now() + pauseMs).toISOString())] : []),
@@ -438,13 +442,13 @@ async function handleInbound(
 
   if (Date.now() < thread.pausedUntil) {
     thread.history.push({ role: "user", content: m.text.body });
-    await saveThread(from, thread);
+    await saveThread(ns, from, thread);
     L.info("wa_skip_paused", { paused_until: thread.pausedUntil });
     await sink.processed();
     return;
   }
   if (thread.replies.length >= maxRepliesDay) {
-    await saveThread(from, thread);
+    await saveThread(ns, from, thread);
     L.info("wa_skip_ratecap", { cap: maxRepliesDay, used: thread.replies.length });
     // A customer who hits the cap was being abandoned to a console line: no
     // escalation, no alert, nothing on Today. `rate_cap` has been a declared,
@@ -463,7 +467,7 @@ async function handleInbound(
   // mode — everything escalates, a human answers; a tenant with no persona
   // behaves identically. The customer's message is already persisted above.
   if (!brainCfg || replyMode !== "auto") {
-    await saveThread(from, thread);
+    await saveThread(ns, from, thread);
     await Promise.all([
       sink.escalate(
         "policy_block",
@@ -532,12 +536,12 @@ async function handleInbound(
       post.push(alertStaff(from, m.text.body, replyText, "assistant flagged handoff", notifyTarget));
     }
     await Promise.all(post);
-    await saveThread(from, thread);
+    await saveThread(ns, from, thread);
     await sink.processed();
   } else {
     // The customer got NO reply and Meta already has its 200 — this must be
     // loud, and the message must stay visibly unprocessed for reconciliation.
-    await saveThread(from, thread);
+    await saveThread(ns, from, thread);
     await Promise.all([
       alertStaff(from, m.text.body, "(send failed — the customer received no reply)", "wa_send_failed", notifyTarget),
       sink.sendFailed(sent.status),
@@ -654,13 +658,16 @@ export async function POST(request: Request): Promise<Response> {
             for (const echo of v.message_echoes || []) {
               const to = echo.to;
               if (to) {
-                const t = await getThread(to);
+                // Same isolation rule: the echo belongs to the tenant whose
+                // channel it arrived on, not to a global phone-number bucket.
+                const echoNs = threadNamespace(tenantId);
+                const t = await getThread(echoNs, to);
                 t.pausedUntil = Date.now() + PAUSE_MS;
                 // A refused save means the Blob pause did NOT land, so the bot
                 // could answer over the human who just replied. Postgres below
                 // still records it, which under PG_READS=on is the source of
                 // truth — but this must not pass silently.
-                if (!(await saveThread(to, t))) console.error("echo_pause_not_persisted", to);
+                if (!(await saveThread(echoNs, to, t))) console.error("echo_pause_not_persisted", to);
                 if (db && tenantId) {
                   await pgSafe("echo", () =>
                     recordEchoAndPause(db, {

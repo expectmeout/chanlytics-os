@@ -8,7 +8,7 @@ export const POST = withRoute(async (_req, ctx) => {
   await requireOperator(ctx, conv.tenant_id);
   // closing a thread releases it completely — a later inbound reopens it
   // (ingest_inbound), and the receptionist must not stay muted meanwhile.
-  if (conv.paused_until && conv.phone_e164) await mirrorBlobPause(conv.phone_e164, 0);
+  if (conv.paused_until && conv.phone_e164) await mirrorBlobPause(conv.tenant_id, conv.phone_e164, 0);
   const { error } = await ctx.supabase
     .from("conversations")
     .update({ state: "archived", paused_until: null, assignee_user_id: null })

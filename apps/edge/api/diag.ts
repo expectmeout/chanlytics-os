@@ -2,7 +2,7 @@
  *  + Meta access-token permanence check (debug_token expires_at).
  *  Auth: x-diag-key header (DIAG_KEY). Legacy ?key=<WHATSAPP_VERIFY_TOKEN>
  *  accepted during the transition. Internal endpoint — not part of the frozen surface. */
-import { getThread, saveThread, storeBackend } from "../lib/store.js";
+import { getThread, saveThread, storeBackend, threadNamespace } from "../lib/store.js";
 import { json } from "../lib/http.js";
 
 const META_APP_ID = process.env.META_APP_ID || "1823820738182125";
@@ -35,10 +35,13 @@ export async function GET(request: Request): Promise<Response> {
 
   try {
     const probeId = "diag-probe";
-    const t = await getThread(probeId);
+    // The diagnostic probe writes to its own namespace so it can never touch
+    // a real tenant's stored conversation.
+    const probeNs = threadNamespace("diag-probe");
+    const t = await getThread(probeNs, probeId);
     t.history.push({ role: "user", content: "probe " + Date.now() });
-    await saveThread(probeId, t);
-    const back = await getThread(probeId);
+    await saveThread(probeNs, probeId, t);
+    const back = await getThread(probeNs, probeId);
     out.probe = {
       wrote: t.history.length,
       readBack: back.history.length,

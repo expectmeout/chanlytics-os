@@ -118,7 +118,7 @@ export const POST = withRoute(async (req, ctx) => {
   // queued, so the operator's "it failed" is the truth (previously the text
   // still went out 15s later while the API reported failure).
   const pauseUntil = Date.now() + PAUSE_MS;
-  await mirrorBlobPause(conv.phone_e164, pauseUntil);
+  await mirrorBlobPause(conv.tenant_id, conv.phone_e164, pauseUntil);
   await ctx.supabase
     .from("conversations")
     .update({

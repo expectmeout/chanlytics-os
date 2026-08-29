@@ -11,7 +11,7 @@ export const POST = withRoute(async (_req, ctx) => {
 
   // the live bot reads Blob until Gate 1b — mirror FIRST, fail loud (D10)
   if (!conv.phone_e164) throw new AppError("conflict", "Conversation has no phone identity.");
-  await mirrorBlobPause(conv.phone_e164, until);
+  await mirrorBlobPause(conv.tenant_id, conv.phone_e164, until);
 
   const { error } = await ctx.supabase
     .from("conversations")

@@ -60,14 +60,25 @@ const EDGE_BASE = "https://chanlytics-messaging.vercel.app";
  * flip — a dashboard pause that doesn't reach Blob doesn't pause the bot
  * (the D10 incident). Fails LOUD: callers treat a mirror failure as a failed verb.
  */
-export async function mirrorBlobPause(phoneE164: string, pausedUntilMs: number): Promise<void> {
+export async function mirrorBlobPause(
+  tenantId: string,
+  phoneE164: string,
+  pausedUntilMs: number,
+): Promise<void> {
   // Only the production dashboard owns the live bot's pause state; a preview
   // must never reach into the real Blob store.
   if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production") return;
   const r = await fetch(`${EDGE_BASE}/api/admin/pause`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
-    body: JSON.stringify({ phone_digits: phoneE164.replace(/[^\d]/g, ""), paused_until_ms: pausedUntilMs }),
+    // The tenant is REQUIRED. Without it the edge keyed the pause on the phone
+    // number alone, so taking over a conversation paused that customer's
+    // receptionist at every business that has them as a customer.
+    body: JSON.stringify({
+      tenant_id: tenantId,
+      phone_digits: phoneE164.replace(/[^\d]/g, ""),
+      paused_until_ms: pausedUntilMs,
+    }),
   });
   if (!r.ok) throw new Error(`blob pause mirror failed (${r.status})`);
 }
