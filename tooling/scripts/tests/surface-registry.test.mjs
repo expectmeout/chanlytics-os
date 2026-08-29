@@ -116,8 +116,9 @@ test("a sub-route is checked BEFORE its page", () => {
   const { surfaceStateFor } = registry;
   assert.equal(surfaceStateFor("admin", "workspace"), "real");
   assert.equal(surfaceStateFor("admin", "billing"), "demo", "an unlisted pane inherits its page");
-  assert.equal(surfaceStateFor("admin", null), "demo");
-  assert.equal(surfaceStateFor("admin"), "demo");
+  // No pane named resolves to the one the shell will actually render —
+  // see the default-pane test below.
+  assert.equal(surfaceStateFor("admin", null), "real");
 });
 
 test("an unclassified pane inherits DEMO, never real", () => {
@@ -169,4 +170,35 @@ test("a real workspace is not given an invented seat plan", () => {
   // real members would be a number nobody chose.
   const settings = fs.readFileSync(path.join(DASH, "legacy/pages/settings.jsx"), "utf8");
   assert.ok(settings.includes('Array.isArray(realTeam) ? team.length : S.seatsUsed()'));
+});
+
+test("REGRESSION: a page opens on the pane it actually renders", () => {
+  // The shell renders Settings as tab={param || "workspace"}, so /admin with no
+  // pane DOES render the workspace pane — while the gate, asked about "admin",
+  // answered demo and replaced it with the Coming Soon card. The sidebar's
+  // Settings link is exactly that route, so the finished pane was unreachable
+  // by normal navigation: only a hand-typed #/admin/workspace could find it.
+  assert.equal(registry.surfaceStateFor("admin", null), "real");
+  assert.equal(registry.surfaceStateFor("admin"), "real");
+  // A named pane still wins over the default.
+  assert.equal(registry.surfaceStateFor("admin", "billing"), "demo");
+});
+
+test("every default pane is one the registry classifies", () => {
+  // A default naming a pane with no entry would silently fall back to the
+  // page's state, which is the bug this map exists to fix.
+  for (const [page, pane] of Object.entries(registry.SURFACE_DEFAULT_PARAM)) {
+    assert.ok(
+      SURFACE_STATES[`${page}/${pane}`] !== undefined,
+      `${page} defaults to "${pane}", which is not classified`,
+    );
+  }
+});
+
+test("the empty profile leads with a button, not a footnote", () => {
+  // Every workspace starts here. A faint Edit link in a card header is findable
+  // by someone who already knows the form exists.
+  const settings = fs.readFileSync(path.join(DASH, "legacy/pages/settings.jsx"), "utf8");
+  assert.ok(settings.includes("Add your business details"));
+  assert.ok(settings.includes("set-empty"));
 });
