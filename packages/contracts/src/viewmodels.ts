@@ -79,6 +79,7 @@ export interface ConversationVM {
 
 import { formatPhoneDisplay } from "./phone";
 import { isOptedOutContact } from "./consent";
+import { waWindow } from "./policy";
 
 const AGENT = { glyph: "W", name: "WhatsApp Receptionist" };
 const CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the salon line\.\s*)?(Summary:\s*)?/;
@@ -189,6 +190,34 @@ export const ESCALATION_REASON_LABELS: Record<string, string> = {
   state_unavailable: "The receptionist could not read this thread — needs a human",
 };
 
+/**
+ * What the operator is walking into, per reason.
+ *
+ * This used to be ONE sentence for every escalation: "The customer already got a
+ * holding reply — they're expecting a real answer." That is false for five of
+ * the eleven reasons. The receptionist deliberately sends NOTHING on opt_out,
+ * rate_cap, state_unavailable, and on non_text/policy_block when the workspace
+ * has no persona configured — so on exactly the threads where something broke
+ * and the customer is sitting in silence, the operator was told the opposite.
+ *
+ * Split into "a holding message went out" and "nothing was sent", because the
+ * first sentence an operator reads decides whether they open with an apology or
+ * an answer.
+ */
+const ESCALATION_SUMMARIES: Record<string, string> = {
+  human_token: "They asked for a person. A holding message went out — they're waiting on you.",
+  refusal: "The receptionist wouldn't answer this one. A holding message went out.",
+  brain_error: "The receptionist errored and sent a holding message. They're waiting on a real answer.",
+  non_text: "They sent a voice note or photo the receptionist can't read. Open it and reply yourself.",
+  send_failed: "The reply never reached them — as far as the customer knows, nobody answered.",
+  policy_block: "A pricing question, held by policy. Quote it yourself.",
+  rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent — they're waiting in silence.",
+  deadman: "This sat unanswered long enough to flag. Nobody has replied.",
+  manual: "Flagged by hand for a human.",
+  opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
+  state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
+};
+
 /** "8m" / "3h" / "2d". An overnight wait is the NORMAL case for a morning
  *  brief, and "561 min" is not a number anyone reads as half a day. */
 export function formatWaited(ms: number): string {
@@ -257,7 +286,11 @@ export function toInboxThreadVM(
   const reasonLabel = escalation ? (ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason) : null;
   const last = dto.messages[dto.messages.length - 1];
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
-  const win = new Date(new Date(dto.last_wa_inbound_at ?? 0).getTime() + 24 * 3600 * 1000) > now;
+  // waWindow(), not a hand-rolled copy. This decides whether the composer tells
+  // the operator they can write freely, and the reply route decides whether the
+  // send is legal — with two expressions those answers drift the moment either
+  // moves, and the operator is told they can send something the server refuses.
+  const win = waWindow(dto.last_wa_inbound_at, now).open;
 
   const timeline: InboxThreadVM["timeline"] = dto.messages.map((m) => ({
     type: "msg" as const,
@@ -293,9 +326,7 @@ export function toInboxThreadVM(
     windowOpen: win,
     optedOut: isOptedOut(dto),
     who,
-    whoMeta: who === formatPhoneDisplay(dto.contact.phone_e164)
-      ? "WhatsApp · no name saved"
-      : `WhatsApp · ${formatPhoneDisplay(dto.contact.phone_e164) ?? "no phone"}`,
+    whoMeta: contactMeta(dto),
     avatar: initialsOf(who),
     state,
     takenOver,
@@ -317,7 +348,7 @@ export function toInboxThreadVM(
             : "No messages yet"),
     preview: last ? messageText(last).slice(0, 110) : "",
     summary: escalation
-      ? `${reasonLabel}. The customer already got a holding reply — they're expecting a real answer from the salon.`
+      ? ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.`
       : takenOver
         ? "You're answering this one. The receptionist stays quiet until you hand it back."
         : "The receptionist answered this on its own. Nothing is owed.",
@@ -340,11 +371,7 @@ export function toInboxThreadVM(
 }
 
 export function toConversationVM(dto: ConversationDto, now = new Date()): ConversationVM {
-  const who =
-    dto.contact.display_name ||
-    dto.contact.wa_profile_name ||
-    formatPhoneDisplay(dto.contact.phone_e164) ||
-    "Unknown";
+  const who = contactName(dto);
   const msgs = dto.messages.map((m): ConversationMessageVM => ({
     from: m.sender === "customer" ? "client" : "agent",
     at: bubbleTime(m.created_at, now),
