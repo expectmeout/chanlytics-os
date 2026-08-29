@@ -25,6 +25,14 @@ export interface WaRawMessage {
   video?: { id?: string; mime_type?: string; caption?: string };
   document?: { id?: string; mime_type?: string; caption?: string; filename?: string };
   sticker?: { id?: string; mime_type?: string };
+  /** Tap on a TEMPLATE quick-reply button. Both fields hold the label. */
+  button?: { payload?: string; text?: string };
+  /** Tap on an interactive reply button, or a pick from an interactive list. */
+  interactive?: {
+    type?: string;
+    button_reply?: { id?: string; title?: string };
+    list_reply?: { id?: string; title?: string; description?: string };
+  };
 }
 
 export interface WaChangeValue {
@@ -60,14 +68,55 @@ export interface NormalizedInbound {
   optIn: boolean;
 }
 
+/**
+ * What the customer actually chose, for messages where they chose rather than
+ * typed — a template quick-reply, an interactive button, a list selection.
+ *
+ * `label` is the text they saw and tapped; `id` is the developer-set payload
+ * behind it. Both are consent-bearing. The label is what a Spanish-speaking
+ * customer reads ("Detener"), the id is what the tenant controls and can set to
+ * a canonical token, so a button whose label is localised still opts out when
+ * its id is "stop". Meta's own webhook reference uses "Unsubscribe" as the
+ * example button payload — a word already in OPT_OUT_PATTERN.
+ */
+function chosenReply(m: WaRawMessage): { label: string; id: string } | null {
+  if (m.button) {
+    // payload and text both carry the label; payload is the one a tenant can
+    // set independently when building the template.
+    const label = m.button.text ?? m.button.payload ?? "";
+    const id = m.button.payload ?? "";
+    return label || id ? { label, id } : null;
+  }
+  const r = m.interactive?.button_reply ?? m.interactive?.list_reply;
+  if (r) {
+    const label = r.title ?? "";
+    const id = r.id ?? "";
+    return label || id ? { label, id } : null;
+  }
+  return null;
+}
+
 export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): NormalizedInbound {
   // Never guess identity: contacts[0] can belong to a DIFFERENT sender in a
   // batched webhook, and contact_identities.external_id is a permanent mapping.
   const list = value.contacts || [];
   const contact = list.find((c) => c.wa_id === m.from) ?? (list.length === 1 ? list[0] : undefined);
   const mediaSrc = m.image || m.audio || m.video || m.document || m.sticker || null;
-  const isText = m.type === "text" && !!m.text?.body;
-  const body = isText ? m.text!.body! : null;
+
+  // A tap IS text the customer sent — they just picked it instead of typing it.
+  // Treating button and list replies as unreadable was two bugs in one: the
+  // consent gate never saw a "Stop" button (so pressing it changed nothing),
+  // and the message fell through to the non-text branch, which answered a
+  // customer trying to unsubscribe with "sorry, I can't read that".
+  const chosen = chosenReply(m);
+  const typed = m.type === "text" && !!m.text?.body;
+  const isText = typed || !!chosen;
+  const body = typed ? m.text!.body! : chosen ? chosen.label || chosen.id : null;
+
+  // Consent is tested against the label AND the developer-set id, so a tenant
+  // can make a localised button opt out by giving it the id "stop".
+  const consentText = [body, chosen?.id].filter((s): s is string => !!s);
+  const matches = (re: RegExp) => consentText.some((s) => re.test(s));
   return {
     waId: contact?.wa_id || m.from,
     phoneDigits: m.from,
@@ -89,8 +138,8 @@ export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): Normali
           };
         })()
       : null,
-    optOut: isText ? OPT_OUT_PATTERN.test(body || "") : false,
-    optIn: isText ? OPT_IN_PATTERN.test(body || "") : false,
+    optOut: isText && matches(OPT_OUT_PATTERN),
+    optIn: isText && matches(OPT_IN_PATTERN),
   };
 }
 

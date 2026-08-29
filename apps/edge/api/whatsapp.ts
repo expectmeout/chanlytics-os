@@ -58,6 +58,7 @@ import type { Database, Json } from "../lib/workspace/db.js";
 import { upsertEscalation } from "../lib/workspace/jobs.js";
 import { loadTenantRuntime, waCfgFor, type TenantRuntime } from "../lib/tenant-runtime.js";
 import { replyPosture } from "../lib/reply-posture.js";
+import { resolveConsent } from "../lib/consent.js";
 import { logger, errField } from "../lib/log.js";
 import { notify, type NotifyTarget } from "../lib/notify.js";
 import { FALLBACK_BRAIN, FALLBACK_NOTIFICATIONS } from "../lib/tenant-fallback.js";
@@ -369,7 +370,7 @@ async function handleInbound(
         "state_unavailable",
         "The receptionist could not read this thread's history, so it did not reply. Please answer this one.",
       ),
-      alertStaff(from, m.text?.body ?? `[${m.type}]`, "(no reply sent — the receptionist could not read the thread state)", "state unavailable", notifyTarget),
+      alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — the receptionist could not read the thread state)", "state unavailable", notifyTarget),
       sink.processed(),
     ]);
     return;
@@ -384,16 +385,34 @@ async function handleInbound(
   // Two independent sources, and either is enough:
   //   n.optOut  — THIS message is the opt-out. Local knowledge, no database
   //               needed, so it holds even when Postgres is unreachable.
-  //   ing.dnc   — they opted out earlier. Only Postgres knows this; when it is
-  //               unconfigured or down, `ing` is null and history is invisible.
-  //               Documented rather than papered over: blocking every reply
-  //               whenever the database blips would be an outage, so this gate
-  //               is only as good as PG availability for the historical case.
+  //   ing.dnc   — they opted out earlier, per Postgres, which owns consent.
+  //   thread.optedOut — the same fact CACHED on the thread, consulted only when
+  //               Postgres did not answer. This used to be the hole: `ing` is
+  //               null during an outage, so an opt-out made last week silently
+  //               stopped applying and the bot resumed replying to someone who
+  //               had asked it to stop. The cache is never preferred over
+  //               Postgres, so a customer who has since texted START is not
+  //               held out by a stale copy, and an explicit START in THIS
+  //               message clears it even while the database is down.
   //
   // Nothing is sent back — not even a confirmation. A tenant-authored opt-out
   // acknowledgement is a config item, and inventing copy in the salon's voice
   // is exactly what the brain profile exists to prevent.
-  const optedOut = n.optOut || (!!ing && isOptedOutContact(ing));
+  const consent = resolveConsent({
+    optOutNow: n.optOut,
+    optInNow: n.optIn,
+    recorded: ing ? isOptedOutContact(ing) : null,
+    cached: thread.optedOut,
+  });
+  const optedOut = consent.optedOut;
+
+  // Keep the cache current for the NEXT request — which may be the one that
+  // finds Postgres down. Written only on a transition, so the steady state
+  // costs nothing.
+  if (thread.optedOut !== consent.cache) {
+    thread.optedOut = consent.cache;
+    await saveThread(ns, from, thread);
+  }
   if (optedOut) {
     const post: Promise<unknown>[] = [sink.processed()];
     if (n.optOut) {
@@ -403,16 +422,26 @@ async function handleInbound(
       // see once, not a log line.
       post.push(
         sink.escalate("opt_out", "Customer asked to stop receiving messages. Automatic replies are off for this contact until they text START."),
-        alertStaff(from, m.text?.body ?? `[${m.type}]`, "(no reply sent — the customer opted out)", "opt-out", notifyTarget),
+        alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — the customer opted out)", "opt-out", notifyTarget),
       );
     }
     await Promise.all(post);
-    L.info("wa_skip_opt_out", { this_message: n.optOut, on_record: ing?.consent ?? null });
+    // `decided_by` matters after the fact: "cache" means Postgres was down and
+    // the local copy is the only reason this customer was not texted.
+    L.info("wa_skip_opt_out", {
+      this_message: n.optOut,
+      on_record: ing?.consent ?? null,
+      decided_by: consent.source,
+    });
     return;
   }
 
-  if (m.type !== "text" || !m.text || !m.text.body) {
-    // non-text (voice note, image, sticker): hand to a human rather than guess
+  // Routing is on the NORMALIZED type, not the raw one. A quick-reply tap or a
+  // list selection arrives as type "button"/"interactive" with the customer's
+  // words in a different field; matching on m.type sent every one of them down
+  // the "I can't read that" path. normalizeInbound resolves what they chose.
+  if (n.type !== "text" || !n.body) {
+    // genuinely unreadable (voice note, image, sticker): hand to a human
     await sink.media(n);
     if (Date.now() > thread.pausedUntil) {
       // No persona configured -> no ack goes out (and nothing to pause); the
@@ -431,6 +460,11 @@ async function handleInbound(
     await sink.processed();
     return;
   }
+  // Past the gate above, this is the customer's message as words — typed, or
+  // the label of what they tapped. Everything downstream reads it from here so
+  // no branch can reach back to m.text and miss the tapped case.
+  const text = n.body;
+
   if (m.timestamp && Date.now() - Number(m.timestamp) * 1000 > STALE_MS) {
     L.info("wa_skip_stale");
     await sink.processed();
@@ -441,7 +475,7 @@ async function handleInbound(
   thread.seen.push(m.id);
 
   if (Date.now() < thread.pausedUntil) {
-    thread.history.push({ role: "user", content: m.text.body });
+    thread.history.push({ role: "user", content: text });
     await saveThread(ns, from, thread);
     L.info("wa_skip_paused", { paused_until: thread.pausedUntil });
     await sink.processed();
@@ -457,7 +491,7 @@ async function handleInbound(
     // fires on a busy thread, not only when someone lowers the limit.
     await Promise.all([
       sink.escalate("rate_cap", `Thread hit ${maxRepliesDay} automatic replies today — the receptionist stopped and is waiting for a human.`),
-      alertStaff(from, m.text.body, "(no reply sent — daily automatic-reply limit reached)", "rate cap", notifyTarget),
+      alertStaff(from, text, "(no reply sent — daily automatic-reply limit reached)", "rate cap", notifyTarget),
       sink.processed(),
     ]);
     return;
@@ -482,7 +516,7 @@ async function handleInbound(
       ),
       alertStaff(
         from,
-        m.text.body,
+        text,
         "(held — no auto-reply for this workspace)",
         brainCfg ? `reply mode ${replyMode}` : rt?.configBroken ? "settings could not be read" : "no persona configured",
         notifyTarget,
@@ -500,7 +534,7 @@ async function handleInbound(
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const { generateReply } = await import("../lib/brain.js");
-      const r = await generateReply(thread.history, m.text.body, brainCfg.system_prompt, brainCfg.fallbacks.error);
+      const r = await generateReply(thread.history, text, brainCfg.system_prompt, brainCfg.fallbacks.error);
       replyText = r.text; escalate = r.escalate; usage = r.usage;
       if (r.reason) escalationReason = r.reason;
       // Layer-2 policy enforcement (Blueprint §6): prompt text is never the
@@ -524,7 +558,7 @@ async function handleInbound(
   const sent = await sendText(from, replyText, rt);
   const tSent = Date.now();
   if (sent.ok) {
-    thread.history.push({ role: "user", content: m.text.body });
+    thread.history.push({ role: "user", content: text });
     thread.history.push({ role: "assistant", content: replyText });
     thread.replies.push(Date.now());
     const post: Promise<unknown>[] = [sink.outbound(replyText, sent.wamid)];
@@ -532,8 +566,8 @@ async function handleInbound(
     if (escalate) {
       thread.pausedUntil = Date.now() + pauseMs;
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
-      post.push(sink.escalate(escalationReason, m.text.body));
-      post.push(alertStaff(from, m.text.body, replyText, "assistant flagged handoff", notifyTarget));
+      post.push(sink.escalate(escalationReason, text));
+      post.push(alertStaff(from, text, replyText, "assistant flagged handoff", notifyTarget));
     }
     await Promise.all(post);
     await saveThread(ns, from, thread);
@@ -543,7 +577,7 @@ async function handleInbound(
     // loud, and the message must stay visibly unprocessed for reconciliation.
     await saveThread(ns, from, thread);
     await Promise.all([
-      alertStaff(from, m.text.body, "(send failed — the customer received no reply)", "wa_send_failed", notifyTarget),
+      alertStaff(from, text, "(send failed — the customer received no reply)", "wa_send_failed", notifyTarget),
       sink.sendFailed(sent.status),
       sink.escalate("send_failed", `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`),
     ]);
@@ -631,7 +665,7 @@ export async function POST(request: Request): Promise<Response> {
           await alertUnroutable(phoneNumberId, v.messages.length);
         } else if (field === "messages" && v.messages) {
           for (const m of v.messages) {
-            console.log("wa_inbound", JSON.stringify({ from: m.from, type: m.type, id: m.id, text: m.text && m.text.body }));
+            console.log("wa_inbound", JSON.stringify({ from: m.from, type: m.type, id: m.id, text: m.text?.body ?? null }));
             // Per MESSAGE, not per batch. Any throw used to unwind to the one
             // outer catch below, which returns 200 — so a single failure meant
             // Meta never retried AND every remaining message in the batch was
