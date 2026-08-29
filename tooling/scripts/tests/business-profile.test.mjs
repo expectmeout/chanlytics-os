@@ -126,6 +126,26 @@ test("free text cannot smuggle out the rules — it is a separate field", () => 
 
 /* ------------------------------- validation ------------------------------ */
 
+// A real salon's stored grid said open Sunday while her own prose said closed
+// Sunday. Both reached the receptionist, with nothing to break the tie.
+test("when the fields and the free text disagree, the FIELDS win", () => {
+  const p = composeSystemPrompt(
+    brain,
+    { ...profile, extra_instructions: "We are open Sundays." },
+    "whatsapp",
+  );
+  const rule = p.indexOf("the details above are current and correct");
+  assert.ok(rule > 0, "the free text must be introduced as subordinate");
+  assert.ok(rule < p.indexOf("We are open Sundays."), "the rule comes before the text it governs");
+  assert.ok(rule > p.indexOf("Opening hours:"), "and after the facts it defers to");
+});
+
+test("with no facts to defer to, the free text is left alone", () => {
+  const p = composeSystemPrompt(brain, { extra_instructions: "Be brief." }, "whatsapp");
+  assert.ok(!p.includes("current and correct"), "nothing to rank it against");
+  assert.ok(p.includes("Be brief."));
+});
+
 test("a malformed time is refused rather than silently kept", () => {
   const bad = parseTenantConfigResult({ brain: { ...brain, profile: { hours: { mon: { open: "9am", close: "6pm" } } } } });
   assert.equal(bad.ok, false);

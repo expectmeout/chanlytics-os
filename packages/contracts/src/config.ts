@@ -327,7 +327,19 @@ export function composeSystemPrompt(
   }
 
   if (profile.extra_instructions?.trim()) {
-    s.push(`\n${profile.extra_instructions.trim()}`);
+    // A business's own prose almost always restates the address, the hours or
+    // the services. Once a form fills those in structurally there are two
+    // sources for one fact, and they DID disagree on a live line: the grid
+    // said open Sunday, the prose said closed Sunday, and nothing told the
+    // receptionist which to believe. The fields above are the ones an owner
+    // can see and correct in one click, so those are the ones that win.
+    const stated = !!(profile.address || hrs.length || profile.services?.length);
+    const text = profile.extra_instructions.trim();
+    s.push(
+      stated
+        ? `\nFurther instructions from the business. Where these disagree with the address, hours or services above, the details above are current and correct:\n${text}`
+        : `\n${text}`,
+    );
   }
 
   // Medium, not facts. A phone caller cannot re-read a paragraph.
