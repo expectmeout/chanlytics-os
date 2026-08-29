@@ -29,10 +29,16 @@ type VerbResult = { ok: true; data?: unknown } | { ok: false; message: string };
  */
 const FALLBACK_TEMPLATE = { name: "booking_link_v1", language: "en_US" };
 
-async function call(url: string, body?: unknown, idempotencyKey?: string): Promise<VerbResult> {
+async function call(
+  url: string,
+  body?: unknown,
+  idempotencyKey?: string,
+  /** Settings is a PUT; every verb before it was a POST. */
+  method: "POST" | "PUT" = "POST",
+): Promise<VerbResult> {
   try {
     const res = await fetch(url, {
-      method: "POST",
+      method,
       headers: {
         "content-type": "application/json",
         ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
@@ -193,6 +199,7 @@ declare global {
     __inboxVerb: typeof inboxVerb;
     __cancelSend: typeof cancelSend;
     __refreshInbox: typeof refreshInbox;
+    __saveSettings: typeof saveSettings;
   }
 }
 
@@ -200,4 +207,23 @@ export function installInboxVerbs(): void {
   window.__inboxVerb = inboxVerb;
   window.__cancelSend = cancelSend;
   window.__refreshInbox = refreshInbox;
+  window.__saveSettings = saveSettings;
+}
+
+/**
+ * Save the workspace's settings.
+ *
+ * A WHOLE-config write with optimistic concurrency: the server compares the
+ * version we loaded against the row's, and a mismatch is a 409 rather than a
+ * silent overwrite of another owner's edit. So the caller must send the entire
+ * config it read, with its edits merged in — sending only the changed section
+ * would delete the rest.
+ *
+ * Refreshes on success so the pane and the version both come from the server
+ * rather than from what we hoped we saved.
+ */
+export async function saveSettings(config: unknown, version: number): Promise<VerbResult> {
+  const r = await call("/api/v1/settings", { config, version }, undefined, "PUT");
+  if (r.ok) await refresh();
+  return r;
 }
