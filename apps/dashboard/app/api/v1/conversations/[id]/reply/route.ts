@@ -2,8 +2,8 @@ import crypto from "node:crypto";
 import { AppError, waWindow } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { withRoute } from "@/server/with-route";
-import { assertCanSend, loadConversation, recordDecision, requireOperator, resolveOpenEscalation, PAUSE_MS, SEND_GRACE_MS } from "@/server/verbs";
-import { schedule, mirrorBlobPause } from "@/server/service";
+import { assertCanSend, cancelPendingAiReply, loadConversation, recordDecision, requireOperator, resolveOpenEscalation, PAUSE_MS, SEND_GRACE_MS } from "@/server/verbs";
+import { schedule, cancelKindFor, mirrorBlobPause } from "@/server/service";
 
 /**
  * Human reply (§4/§6): honest by API shape. Inside the 24h window -> freeform;
@@ -131,6 +131,12 @@ export const POST = withRoute(async (req, ctx) => {
     .eq("id", conv.id);
   await schedule(conv.tenant_id, "pause_expire", new Date(pauseUntil), { conversation_id: conv.id });
 
+  // The operator is REPLACING the receptionist's held reply, not queueing
+  // behind it. Withdraw the draft before writing their own, or the customer
+  // receives both — the override and the words it was meant to replace.
+  const withdrawnDrafts = await cancelPendingAiReply(ctx, conv, (tid, k, v) =>
+    cancelKindFor(tid, "outbound_send", k, v));
+
   const contentHash = crypto.createHash("sha256").update(messageBody ?? "").digest("hex").slice(0, 32);
   const { data: msg, error } = await ctx.supabase
     .from("messages")
@@ -179,6 +185,9 @@ export const POST = withRoute(async (req, ctx) => {
     status: "queued",
     cancelable_until: dueAt.toISOString(),
     window_open: window.open,
+    // So the UI can say "your reply replaced the receptionist's" rather than
+    // leaving the operator to wonder whether the draft they saw still went out.
+    withdrawn_drafts: withdrawnDrafts,
   };
   if (idemKey) {
     // Upsert, not insert: an expired key for the same intent already exists and

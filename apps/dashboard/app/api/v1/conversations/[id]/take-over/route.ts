@@ -1,5 +1,5 @@
 import { withRoute } from "@/server/with-route";
-import { requireOperator, loadConversation, recordDecision, PAUSE_MS } from "@/server/verbs";
+import { requireOperator, loadConversation, recordDecision, cancelPendingAiReply, PAUSE_MS } from "@/server/verbs";
 import { schedule, cancelKindFor, mirrorBlobPause } from "@/server/service";
 import { AppError } from "@chanlytics/contracts";
 
@@ -19,11 +19,15 @@ export const POST = withRoute(async (_req, ctx) => {
     .eq("id", conv.id);
   if (error) throw new Error(error.message);
 
+  // A held reply must not land after a human has taken the thread — that is
+  // the exact case the veto window exists to prevent.
+  const withdrawn = await cancelPendingAiReply(ctx, conv, (tid, k, v) =>
+    cancelKindFor(tid, "outbound_send", k, v));
   await cancelKindFor(conv.tenant_id, "snooze_wake", "conversation_id", conv.id);
   await cancelKindFor(conv.tenant_id, "pause_expire", "conversation_id", conv.id); // supersede, don't accumulate
   await schedule(conv.tenant_id, "pause_expire", new Date(until), { conversation_id: conv.id });
   const decisionId = await recordDecision(ctx, conv.tenant_id, "conversation", conv.id, "take_over", {
     paused_until: new Date(until).toISOString(),
   });
-  return { state: "needs_human", paused_until: new Date(until).toISOString(), decision_id: decisionId };
+  return { state: "needs_human", paused_until: new Date(until).toISOString(), decision_id: decisionId, withdrawn_drafts: withdrawn };
 });

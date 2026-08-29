@@ -167,6 +167,15 @@ function isLiveCall(call, now = /* @__PURE__ */ new Date()) {
   if (Number.isNaN(at)) return false;
   return now.getTime() - at < CALL_HEARTBEAT_MS;
 }
+var REPLY_DELAY_DEFAULT_MS = 3e4;
+var REPLY_DELAY_MIN_MS = 5e3;
+var REPLY_DELAY_MAX_MS = 6e5;
+function replyDelayMs(mode, limits) {
+  if (mode !== "veto") return 0;
+  const raw = limits?.reply_delay_ms;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return REPLY_DELAY_DEFAULT_MS;
+  return Math.min(REPLY_DELAY_MAX_MS, Math.max(REPLY_DELAY_MIN_MS, Math.round(raw)));
+}
 
 // src/viewmodels.ts
 function messageAt(m) {
@@ -737,7 +746,16 @@ var POLICY_CLASSES = ["reply", "booking", "faq", "reengage", "campaign", "money"
 var POLICY_MODES = ["auto", "veto", "ask", "never"];
 var PolicyLimitsSchema = z.object({
   max_replies_day: z.number().int().min(1).max(200).optional(),
-  pause_hours: z.number().int().min(1).max(168).optional()
+  pause_hours: z.number().int().min(1).max(168).optional(),
+  /**
+   * How long the receptionist WAITS before its own reply goes out, in ms.
+   *
+   * Only meaningful when mode is 'veto'. A text channel is not a phone
+   * call — nobody expects an answer in under a second — so the delay costs
+   * the customer nothing and buys the business a window to redirect the bot
+   * before it speaks, rather than apologising for it afterwards.
+   */
+  reply_delay_ms: z.number().int().min(5e3).max(6e5).optional()
 }).strict();
 var BrainConfigSchema = z.object({
   business_name: z.string().min(1).max(120),
@@ -806,6 +824,9 @@ export {
   POLICY_CLASSES,
   POLICY_MODES,
   PolicyLimitsSchema,
+  REPLY_DELAY_DEFAULT_MS,
+  REPLY_DELAY_MAX_MS,
+  REPLY_DELAY_MIN_MS,
   ROLES,
   ROLE_PERMS,
   TEMPLATE_STATUSES,
@@ -826,6 +847,7 @@ export {
   ok,
   parseTenantConfig,
   parseTenantConfigResult,
+  replyDelayMs,
   threadStanding,
   toCallVM,
   toConversationVM,

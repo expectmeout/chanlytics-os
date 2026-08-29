@@ -58,13 +58,14 @@ import type { Database, Json } from "../lib/workspace/db.js";
 import { upsertEscalation } from "../lib/workspace/jobs.js";
 import { loadTenantRuntime, waCfgFor, type TenantRuntime } from "../lib/tenant-runtime.js";
 import { replyPosture } from "../lib/reply-posture.js";
+import { scheduleJob } from "../lib/workspace/jobs.js";
 import { resolveConsent } from "../lib/consent.js";
 import { logger, errField } from "../lib/log.js";
 import { notify, type NotifyTarget } from "../lib/notify.js";
 import { FALLBACK_BRAIN, FALLBACK_NOTIFICATIONS } from "../lib/tenant-fallback.js";
 import type { BrainConfig, NotificationsConfig } from "../lib/workspace/contracts.js";
 import type { RoutedChannel } from "../lib/workspace/db.js";
-import { violatesNoPrices, isOptedOutContact } from "../lib/workspace/contracts.js";
+import { violatesNoPrices, isOptedOutContact, replyDelayMs } from "../lib/workspace/contracts.js";
 
 export const config = { maxDuration: 60 };
 
@@ -99,6 +100,63 @@ async function pgThread(
 // Credential resolution moved to tenant-runtime (waCfgFor) once a second send
 // path needed it; this alias keeps the call sites below unchanged.
 const waCfg = waCfgFor;
+
+/**
+ * Write the receptionist's reply as a DRAFT and schedule it to fire.
+ *
+ * Returns false when it could not be queued, and the caller then sends
+ * immediately. That fallback is deliberate: an un-vetoed reply is a worse
+ * outcome than a vetoed one, and no reply at all is worse than both. A missing
+ * QSTASH_TOKEN, an unreachable database, a scheduling failure — none of them
+ * should leave a customer waiting on an answer that was already written.
+ */
+async function queueReply(
+  db: ReturnType<typeof pg>,
+  tenantId: string | null,
+  ing: IngestResult | null,
+  toPhone: string,
+  body: string,
+  delayMs: number,
+  L: ReturnType<typeof logger>,
+): Promise<boolean> {
+  const token = process.env.QSTASH_TOKEN;
+  if (!db || !tenantId || !ing || !token) {
+    L.warn("wa_queue_unavailable", {
+      has_db: !!db, has_tenant: !!tenantId, has_ingest: !!ing, has_qstash: !!token,
+    });
+    return false;
+  }
+  try {
+    const messageId = await recordOutbound(db, {
+      tenantId,
+      conversationId: ing.conversation_id,
+      contactId: ing.contact_id,
+      sender: "ai",
+      type: "text",
+      body,
+      externalId: null,
+      status: "queued",
+      meta: { source: "veto_window", delay_ms: delayMs },
+    });
+    if (!messageId) return false;
+    await scheduleJob(db, {
+      tenantId,
+      kind: "outbound_send",
+      dueAt: new Date(Date.now() + delayMs),
+      payload: {
+        message_id: messageId,
+        conversation_id: ing.conversation_id,
+        to_phone: `+${toPhone.replace(/^\+/, "")}`,
+        body,
+      },
+      qstashToken: token,
+    });
+    return true;
+  } catch (e) {
+    L.error("wa_queue_failed", { error: errField(e) });
+    return false;
+  }
+}
 
 async function sendText(to: string, body: string, rt?: TenantRuntime | null): Promise<{ ok: boolean; wamid: string | null; status: number }> {
   const r = await waSendText(waCfg(rt), to, body);
@@ -511,7 +569,10 @@ async function handleInbound(
   // E3: the reply policy is consulted BEFORE generation. 'ask' is the timid
   // mode — everything escalates, a human answers; a tenant with no persona
   // behaves identically. The customer's message is already persisted above.
-  if (!brainCfg || replyMode !== "auto") {
+  // 'veto' composes a reply like 'auto' and then HOLDS it for a configured
+  // window before sending, so the business can redirect the bot before the
+  // customer sees it. It reaches the brain; what differs is the dispatch below.
+  if (!brainCfg || (replyMode !== "auto" && replyMode !== "veto")) {
     await saveThread(ns, from, thread);
     await Promise.all([
       sink.escalate(
@@ -564,6 +625,44 @@ async function handleInbound(
     }
   } else {
     replyText = brainCfg.fallbacks.greeting;
+  }
+
+  // THE VETO WINDOW.
+  //
+  // Under 'veto' the reply is written as `queued` and an outbound_send job is
+  // scheduled instead of going straight to the wire. It travels the same last
+  // door a human's reply does — consent re-checked at fire time, the sender
+  // registry, the same status transitions — so the delay adds a window, not a
+  // second send path.
+  //
+  // A text channel is not a phone call. Nobody expects a WhatsApp answer in
+  // under a second, so the wait costs the customer nothing and buys the
+  // business the only thing it could not previously have: a chance to redirect
+  // the bot BEFORE the customer reads it, rather than apologising after.
+  //
+  // Falls back to sending immediately if the job cannot be scheduled. A late
+  // reply is a worse outcome than an un-vetoed one, and silence is the worst.
+  const delayMs = replyDelayMs(replyMode, rt?.policy?.reply?.limits);
+  const queued = delayMs > 0 ? await queueReply(db, tenantId, ing, from, replyText, delayMs, L) : false;
+  if (queued) {
+    thread.history.push({ role: "user", content: bodyText });
+    thread.history.push({ role: "assistant", content: replyText });
+    thread.replies.push(Date.now());
+    const post: Promise<unknown>[] = [];
+    if (usage) post.push(sink.usage(usage));
+    if (escalate) {
+      // An escalating draft still pauses and alerts — a human should be looking
+      // at this one before the timer runs out, not after.
+      thread.pausedUntil = Date.now() + pauseMs;
+      post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
+      post.push(sink.escalate(escalationReason, bodyText));
+      post.push(alertStaff(from, bodyText, replyText, "assistant flagged handoff (reply held for review)", notifyTarget));
+    }
+    await Promise.all(post);
+    await saveThread(ns, from, thread);
+    await sink.processed();
+    L.info("wa_reply_queued", { delay_ms: delayMs, escalate });
+    return;
   }
 
   const sent = await sendText(from, replyText, rt);

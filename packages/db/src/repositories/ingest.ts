@@ -82,7 +82,9 @@ export async function recordOutbound(
     body: string;
     externalId: string | null; // wamid from the send response
     meta?: Json;
-    status?: "sent" | "failed";
+    /** "queued" is a DRAFT awaiting its veto window — written by the bot,
+     *  fired later by outbound_send, cancellable until then. */
+    status?: "sent" | "failed" | "queued";
   },
 ): Promise<string | null> {
   const { data, error } = await db
