@@ -481,8 +481,12 @@ const TimelineEntry = ({ entry, thread, channelLabels }) => {
               </span>
             ) : (
               <>
-                <span className="agent-avatar" style={{ width: 12, height: 12, fontSize: 7 }}>{thread.agent.glyph}</span>
-                <span>by {thread.agent.name}</span>
+                {/* Per-bubble when the viewmodel supplies it: a phone call
+                    summary is the Phone Receptionist's work, not the WhatsApp
+                    one's. Seeded threads carry no per-entry agent and keep the
+                    thread-level identity they have always used. */}
+                <span className="agent-avatar" style={{ width: 12, height: 12, fontSize: 7 }}>{entry.agentGlyph || thread.agent.glyph}</span>
+                <span>by {entry.agentName || thread.agent.name}</span>
               </>
             )}
           </div>

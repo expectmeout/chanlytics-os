@@ -16,6 +16,22 @@ export interface MessageDto {
   meta: Record<string, unknown> | null;
   status?: string;
   created_at: string;
+  /**
+   * When the event actually happened on its channel, as the provider reported
+   * it — Meta's message timestamp, or the moment a call started.
+   *
+   * `created_at` is when WE wrote the row, which is the same thing for a live
+   * WhatsApp message and emphatically not for a call: three calls placed at
+   * 20:59, 21:01 and 23:39 were imported in one batch and rendered as three
+   * rows one second apart, all reading "1:59 AM". The true time was already in
+   * this column; nothing selected it.
+   */
+  channel_ts?: string | null;
+}
+
+/** When a message happened, preferring the channel's own clock over ours. */
+export function messageAt(m: MessageDto): string {
+  return m.channel_ts ?? m.created_at;
 }
 
 export interface ConversationDto {
@@ -270,7 +286,19 @@ export interface InboxThreadVM {
   waitingMin?: number;
   wake?: string;
   timeline: Array<
-    | { type: "msg"; from: "client" | "agent"; channel: string; at: string; body: string; byYou?: boolean; status?: string; messageId?: string }
+    | {
+        type: "msg";
+        from: "client" | "agent";
+        channel: string;
+        at: string;
+        body: string;
+        byYou?: boolean;
+        status?: string;
+        messageId?: string;
+        /** Per-bubble attribution — a phone summary is not the WhatsApp agent. */
+        agentName?: string;
+        agentGlyph?: string;
+      }
     | { type: "event"; kind: string; at: string; body: string }
   >;
 }
@@ -320,15 +348,25 @@ export function toInboxThreadVM(
   // moves, and the operator is told they can send something the server refuses.
   const win = waWindow(dto.last_wa_inbound_at, now).open;
 
-  const timeline: InboxThreadVM["timeline"] = dto.messages.map((m) => ({
-    type: "msg" as const,
-    from: m.sender === "customer" ? ("client" as const) : ("agent" as const),
-    channel: m.type === "call_summary" ? "phone" : "whatsapp",
-    at: bubbleTime(m.created_at, now),
-    body: messageText(m),
-    ...(m.sender === "human" ? { byYou: true } : {}),
-    ...(m.sender !== "customer" && m.status ? { status: m.status, messageId: m.id } : {}),
-  }));
+  const timeline: InboxThreadVM["timeline"] = dto.messages.map((m) => {
+    const onPhone = m.type === "call_summary";
+    return {
+      type: "msg" as const,
+      from: m.sender === "customer" ? ("client" as const) : ("agent" as const),
+      channel: onPhone ? "phone" : "whatsapp",
+      at: bubbleTime(messageAt(m), now),
+      body: messageText(m),
+      // Who said it, per BUBBLE. The thread carries one agent identity, and the
+      // pane rendered that under every agent row — so a phone call summary was
+      // signed "by WhatsApp Receptionist", crediting the wrong assistant with
+      // work it did not do. The bubble already knows its own channel.
+      ...(m.sender !== "customer"
+        ? { agentName: onPhone ? "Phone Receptionist" : AGENT.name, agentGlyph: onPhone ? "P" : AGENT.glyph }
+        : {}),
+      ...(m.sender === "human" ? { byYou: true } : {}),
+      ...(m.sender !== "customer" && m.status ? { status: m.status, messageId: m.id } : {}),
+    };
+  });
   if (escalation) {
     // insert chronologically — appending would read "reply, then flagged"
     const idx = dto.messages.findIndex((m) => m.created_at > escalation.created_at);
@@ -403,7 +441,7 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
   const who = contactName(dto);
   const msgs = dto.messages.map((m): ConversationMessageVM => ({
     from: m.sender === "customer" ? "client" : "agent",
-    at: bubbleTime(m.created_at, now),
+    at: bubbleTime(messageAt(m), now),
     text: messageText(m),
   }));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
@@ -435,17 +473,17 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
     // The row's time and its preview must come from the SAME message —
     // last_message_at ignored call notes, so a row read "3:22 AM" beside a
     // preview imported at 2:15 PM.
-    at: shortTime(last ? last.created_at : dto.last_message_at, now),
+    at: shortTime(last ? messageAt(last) : dto.last_message_at, now),
     outcome,
     snippet: last ? messageText(last).slice(0, 110) : "",
     hasChat: chat.length > 0,
-    ts: last ? new Date(last.created_at).getTime() : dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
+    ts: last ? new Date(messageAt(last)).getTime() : dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
     summary: {
       headline: lastInbound ? messageText(lastInbound).slice(0, 110) : "No customer messages yet.",
       bullets: [
         `${chat.length} message${chat.length === 1 ? "" : "s"}${
           callNotes ? ` · ${callNotes} call${callNotes === 1 ? "" : "s"}` : ""
-        }${dto.messages[0] ? ` · started ${shortTime(dto.messages[0].created_at, now)}` : ""}`,
+        }${dto.messages[0] ? ` · started ${shortTime(messageAt(dto.messages[0]), now)}` : ""}`,
         needsHuman ? "Receptionist paused — a human has this thread" : "Answered by the receptionist",
       ],
     },

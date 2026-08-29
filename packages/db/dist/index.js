@@ -4170,14 +4170,21 @@ async function resolveOutboundTarget(db, p) {
       last_message_at: (/* @__PURE__ */ new Date()).toISOString()
     },
     { onConflict: "tenant_id,contact_id" }
-  ).select("id").single();
+  ).select("id, paused_until").single();
   if (cErr || !conv) throw new Error(`resolve_outbound_target conversation: ${cErr?.message}`);
   return {
     contactId: contact.id,
     conversationId: conv.id,
+    pausedUntil: conv.paused_until ?? null,
     consent: contact.consent ?? null,
     dnc: contact.dnc ?? false
   };
+}
+async function countSentToday(db, p) {
+  const since = new Date(Date.now() - 24 * 3600 * 1e3).toISOString();
+  const { count, error } = await db.from("messages").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).eq("conversation_id", p.conversationId).eq("direction", "outbound").gte("created_at", since).contains("meta", { source: p.source });
+  if (error) throw new Error(`count_sent_today: ${error.message}`);
+  return count ?? 0;
 }
 async function recordStatusByExternalId(db, tenantId, externalId, status, errorDetail) {
   const patch = { status };
@@ -4435,6 +4442,7 @@ function subscribeMessagesInserts(client, onInsert, opts = {}) {
   };
 }
 export {
+  countSentToday,
   createServiceClient,
   emitEvent,
   getTenantConfig,

@@ -31,7 +31,7 @@ export const GET = withRoute(async (req, ctx) => {
     // history, never a thread's most recent messages.
     const { data: msgs, error: merr } = await supabase
       .from("messages")
-      .select("id, conversation_id, direction, sender, type, body, media, meta, status, created_at")
+      .select("id, conversation_id, direction, sender, type, body, media, meta, status, created_at, channel_ts")
       .in("conversation_id", ids)
       .order("created_at", { ascending: false })
       .limit(4000);
@@ -49,6 +49,7 @@ export const GET = withRoute(async (req, ctx) => {
         meta: m.meta as MessageDto["meta"],
         status: m.status,
         created_at: m.created_at,
+        channel_ts: m.channel_ts,
       });
       byConv.set(m.conversation_id, list);
     }
