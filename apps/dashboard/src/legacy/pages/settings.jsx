@@ -173,13 +173,38 @@ const TeamSection = ({ flash }) => {
   const [email, setEmail] = useSetState("");
   const [inviteRole, setInviteRole] = useSetState("operator");
 
-  const team = S.getTeam();
-  const myRole = S.myRole();
+  // REAL members when the bridge has them.
+  //
+  // This rendered four invented colleagues — and put YOU beside one of them,
+  // on a real owner's own settings page. The seed store is the mockup's; the
+  // API behind this card has existed since Session B.
+  //
+  // The API has no display names, only emails: an invented "Marcus Webb" is
+  // exactly the kind of plausible detail that reads as fact, so the local part
+  // of the address is shown as-is and nothing is dressed up.
+  const realTeam = window.__TEAM;
+  const me = (window.__ME && window.__ME.email) || null;
+  const team = Array.isArray(realTeam)
+    ? realTeam.map((m) => ({
+        id: m.membershipId,
+        name: (m.email || "").split("@")[0],
+        email: m.email,
+        role: m.role,
+        status: "active",
+        isMe: !!me && m.email === me,
+      }))
+    : S.getTeam();
+  // The caller's REAL role decides what they may do. View-as still previews a
+  // narrower one, but it can only ever narrow.
+  const serverRole = (window.__SETTINGS && window.__SETTINGS.role) || null;
+  const myRole = Array.isArray(realTeam) ? (S.viewAsRole || serverRole || S.myRole()) : S.myRole();
   const canManage = S.can("team");
-  const isOwner = S.me() && S.me().role === "owner";
+  const isOwner = Array.isArray(realTeam) ? serverRole === "owner" : (S.me() && S.me().role === "owner");
   const previewing = !!S.viewAsRole;
-  const seatsUsed = S.seatsUsed();
-  const seatsLeft = S.seatsIncluded - seatsUsed;
+  // Seats are a billing concept and billing is not wired. On real data the
+  // count is the members we actually have; the plan limit is not invented.
+  const seatsUsed = Array.isArray(realTeam) ? team.length : S.seatsUsed();
+  const seatsLeft = Array.isArray(realTeam) ? 1 : S.seatsIncluded - seatsUsed;
 
   const invite = () => {
     const mail = email.trim().toLowerCase();
@@ -211,7 +236,7 @@ const TeamSection = ({ flash }) => {
     <section className="fl-card set-card">
       <div className="fl-card-head">
         <span className="fl-card-title">Team</span>
-        <span className="fl-card-sub">{seatsUsed} of {S.seatsIncluded} seats</span>
+        <span className="fl-card-sub">{Array.isArray(realTeam) ? `${seatsUsed} ${seatsUsed === 1 ? "person" : "people"}` : `${seatsUsed} of ${S.seatsIncluded} seats`}</span>
         {canManage && (seatsLeft > 0
           ? !inviting && <button className="btn btn-sm" onClick={() => setInviting(true)}><Icon name="plus" size={12} /> Invite</button>
           : <button className="btn btn-sm" disabled title="No seats left — remove someone or upgrade">Seats full</button>
@@ -244,7 +269,10 @@ const TeamSection = ({ flash }) => {
       )}
 
       {team.map(m => {
-        const isMe = m.id === S.meId;
+        // On real data, YOU is decided by the signed-in email — S.meId is the
+        // mockup's fabricated operator, which is how a stranger's name ended up
+        // wearing this badge on a real owner's settings page.
+        const isMe = m.isMe !== undefined ? m.isMe : m.id === S.meId;
         const pending = m.status === "invited";
         return (
           <div key={m.id} className={`set-team-row ${pending ? "pending" : ""}`}>
