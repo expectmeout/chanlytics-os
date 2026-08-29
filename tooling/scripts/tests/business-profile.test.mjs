@@ -197,5 +197,5 @@ test("REGRESSION: seven closed days is not a profile", () => {
 });
 
 test("the editor does not send an hours map nobody filled in", () => {
-  assert.match(settingsJsx, /if \(SET_DAYS\.some\(\(\[d\]\) => hours\[d\]\.open && hours\[d\]\.close\)\) profile\.hours = hrs;/);
+  assert.ok(settingsJsx.includes("if (SET_DAYS.some(([d]) => hours[d].isOpen && hours[d].open && hours[d].close)) profile.hours = hrs;"));
 });
