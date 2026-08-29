@@ -166,14 +166,29 @@ export async function cancelSend(messageId: string): Promise<VerbResult> {
   return r;
 }
 
+/**
+ * Re-read the surfaces, without committing anything.
+ *
+ * The veto countdown needs this: the deadline it displays belongs to the
+ * SERVER, and when it passes the browser has no idea what happened — the draft
+ * may have sent, or a colleague may have withdrawn it a second earlier. The
+ * mockup fabricates the send at zero; on a real thread the only honest move at
+ * zero is to go and look.
+ */
+export async function refreshInbox(): Promise<void> {
+  await refresh();
+}
+
 declare global {
   interface Window {
     __inboxVerb: typeof inboxVerb;
     __cancelSend: typeof cancelSend;
+    __refreshInbox: typeof refreshInbox;
   }
 }
 
 export function installInboxVerbs(): void {
   window.__inboxVerb = inboxVerb;
   window.__cancelSend = cancelSend;
+  window.__refreshInbox = refreshInbox;
 }

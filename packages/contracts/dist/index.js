@@ -223,6 +223,13 @@ function initialsOf(name) {
   const p = parts[0] || "?";
   return p.slice(0, 2).toUpperCase();
 }
+function isHeldDraft(m) {
+  return m.status === "queued" && m.sender === "ai";
+}
+function draftSendsAtMs(m) {
+  const delay = typeof m.meta?.delay_ms === "number" ? m.meta.delay_ms : 0;
+  return new Date(m.created_at).getTime() + delay;
+}
 function messageText(m) {
   if (m.type === "call_summary" && m.body) {
     return m.body.replace(CALL_NOTE_PREFIX, "").trim();
@@ -280,6 +287,14 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
   const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
   const needsHuman = dto.state === "needs_human" || paused;
   const { state, takenOver, needsYou } = threadStanding(dto, escalation, now);
+  let draftMsg = null;
+  for (let i = dto.messages.length - 1; i >= 0; i--) {
+    if (isHeldDraft(dto.messages[i])) {
+      draftMsg = dto.messages[i];
+      break;
+    }
+  }
+  const heldDraft = draftMsg ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) } : null;
   const claimedByOther = !!dto.assignee_user_id && dto.assignee_is_me === false;
   const reasonLabel = escalation ? ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason : null;
   const last = dto.messages[dto.messages.length - 1];
@@ -299,7 +314,9 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
       // work it did not do. The bubble already knows its own channel.
       ...m.sender !== "customer" ? { agentName: onPhone ? "Phone Receptionist" : AGENT.name, agentGlyph: onPhone ? "P" : AGENT.glyph } : {},
       ...m.sender === "human" ? { byYou: true } : {},
-      ...m.sender !== "customer" && m.status ? { status: m.status, messageId: m.id } : {}
+      ...m.sender !== "customer" && m.status ? { status: m.status, messageId: m.id } : {},
+      // A held draft is not a sent message and must not read as one.
+      ...isHeldDraft(m) ? { pending: true, sendsAtMs: draftSendsAtMs(m) } : {}
     };
   });
   if (escalation) {
@@ -327,6 +344,15 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
     state,
     takenOver,
     needsYou,
+    heldDraft,
+    ...heldDraft ? {
+      veto: {
+        window: Math.max(1, Math.round((heldDraft.sendsAtMs - new Date(draftMsg.created_at).getTime()) / 1e3)),
+        draft: heldDraft.body,
+        endsAtMs: heldDraft.sendsAtMs,
+        messageId: heldDraft.messageId
+      }
+    } : {},
     channels: ["whatsapp"],
     primaryChannel: "whatsapp",
     agent: { name: "WhatsApp Receptionist", glyph: "W", autonomy: "Pauses on handoff", tone: "Warm \xB7 bilingual (EN/ES)" },
@@ -835,9 +861,11 @@ export {
   WA_WINDOW_MS,
   contactMeta,
   contactName,
+  draftSendsAtMs,
   err,
   formatPhoneDisplay,
   formatWaited,
+  isHeldDraft,
   isLiveCall,
   isOptedOut,
   isOptedOutContact,

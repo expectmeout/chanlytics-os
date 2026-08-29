@@ -458,8 +458,12 @@ const TimelineEntry = ({ entry, thread, channelLabels }) => {
   }
 
   const isClient = entry.from === "client";
+  // A held draft is a message the customer has NOT seen. Rendered as an
+  // ordinary agent bubble it reads as already-sent, and an operator would
+  // either ignore it or apologise for something that never went out.
+  const held = !!entry.pending;
   return (
-    <div className={`tl-msg ${isClient ? "client" : "agent"}`}>
+    <div className={`tl-msg ${isClient ? "client" : "agent"}${held ? " held" : ""}`}>
       <div className="tl-msg-bubble">
         <div className="tl-msg-meta">
           <Icon name={channelIcon(entry.channel)} size={10} />
@@ -487,6 +491,7 @@ const TimelineEntry = ({ entry, thread, channelLabels }) => {
                     thread-level identity they have always used. */}
                 <span className="agent-avatar" style={{ width: 12, height: 12, fontSize: 7 }}>{entry.agentGlyph || thread.agent.glyph}</span>
                 <span>by {entry.agentName || thread.agent.name}</span>
+                {held && <span className="tl-held-tag">Not sent yet</span>}
               </>
             )}
           </div>

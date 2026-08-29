@@ -566,6 +566,10 @@ const VW_UTIL = {
   seed(threads) {
     const VW = this.store();
     (threads || []).forEach((t) => {
+      // Real threads are skipped: their countdown belongs to a scheduled job,
+      // and this store simulates one. Seeding both would put two clocks on the
+      // same draft, disagreeing about when the customer hears from us.
+      if (t.real) return;
       if (t.veto && !VW.state[t.id] && !(window.IX_STORE && window.IX_STORE.get(t.id))) {
         VW.state[t.id] = (!window.__DEMO_MODE || (window.PR_STORE && window.PR_STORE.away))
           ? { frozen: (t.veto.window || 30) * 1000 } // outside demo: countdowns render frozen, never auto-send
