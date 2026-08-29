@@ -643,10 +643,10 @@ async function handleInbound(
         thread.history,
         bodyText,
         // Composed from the workspace's structured facts when it has them,
-        // and its hand-written prompt when it does not. The facts are the
-        // same ones the voice agent will be given, which is the point: two
-        // copies of the hours is how two channels start disagreeing about
-        // when the business opens.
+        // and its hand-written prompt when it does not. retell-inbound.ts
+        // composes the SAME thing for the voice agent, which is the point:
+        // two copies of the hours is how two channels start disagreeing
+        // about when the business opens.
         resolveSystemPrompt(brainCfg, "whatsapp"),
         brainCfg.fallbacks.error,
         leadNote,
