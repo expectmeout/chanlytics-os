@@ -352,19 +352,38 @@ const hoursSummary = (hours) => {
  * would delete the rest. A version mismatch is a 409 the owner is told about,
  * never a silent overwrite of a colleague's edit.
  */
-const SET_DAYS = [["mon","Mon"],["tue","Tue"],["wed","Wed"],["thu","Thu"],["fri","Fri"],["sat","Sat"],["sun","Sun"]];
+const SET_DAYS = [["mon","Monday"],["tue","Tuesday"],["wed","Wednesday"],["thu","Thursday"],["fri","Friday"],["sat","Saturday"],["sun","Sunday"]];
+
+// Offered rather than typed. A comma-separated box asks someone to guess both
+// the spelling and the separator, and "Espanol" and "Spanish" would then be two
+// different languages to anything reading this later. Anything not listed can
+// still be added by hand.
+const SET_LANGS = ["English", "Spanish", "Portuguese", "French", "Haitian Creole", "Mandarin", "Cantonese", "Arabic", "Russian", "Polish", "Italian", "Hindi"];
+
+const SetSectionHead = ({ title, hint }) => (
+  <div className="set-sec-head">
+    <span className="set-sec-title">{title}</span>
+    {hint && <span className="set-sec-hint">{hint}</span>}
+  </div>
+);
 
 const BusinessEditor = ({ settings, onDone, flash }) => {
   const brain = (settings.config && settings.config.brain) || {};
   const p0 = brain.profile || {};
   const [address, setAddress] = useSetState(p0.address || "");
   const [tone, setTone] = useSetState(p0.tone || "");
-  const [languages, setLanguages] = useSetState((p0.languages || []).join(", "));
+  const [langs, setLangs] = useSetState(() => (p0.languages || []).slice());
+  const [langAdd, setLangAdd] = useSetState("");
   const [escalate, setEscalate] = useSetState((p0.escalate_when || []).join("\n"));
   const [extra, setExtra] = useSetState(p0.extra_instructions || "");
   const [hours, setHours] = useSetState(() => {
     const h = {};
-    SET_DAYS.forEach(([d]) => { const x = (p0.hours || {})[d] || {}; h[d] = { open: x.open || "", close: x.close || "" }; });
+    SET_DAYS.forEach(([d]) => {
+      const x = (p0.hours || {})[d] || {};
+      // `open` here means the business is open, not the opening time — a day
+      // is closed only when it has no times, which is what the schema stores.
+      h[d] = { open: x.open || "", close: x.close || "", isOpen: !!(x.open && x.close) };
+    });
     return h;
   });
   const [services, setServices] = useSetState(() => (p0.services || []).map((x) => ({ ...x })));
@@ -377,17 +396,36 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   }));
   const [saving, setSaving] = useSetState(false);
 
-  const setDay = (d, k, v) => setHours((h) => ({ ...h, [d]: { ...h[d], [k]: v } }));
+  const setDay = (d, patch) => setHours((h) => ({ ...h, [d]: { ...h[d], ...patch } }));
   const setSvc = (i, k, v) => setServices((l) => l.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  const toggleLang = (l) => setLangs((cur) => (cur.includes(l) ? cur.filter((x) => x !== l) : [...cur, l]));
+  const addLang = () => {
+    const v = langAdd.trim();
+    if (!v || langs.some((x) => x.toLowerCase() === v.toLowerCase())) { setLangAdd(""); return; }
+    setLangs((cur) => [...cur, v]);
+    setLangAdd("");
+  };
+
+  // Most businesses keep one set of weekday hours. Typing the same two times
+  // five more times is the kind of chore that makes people leave the field
+  // blank, and blank hours are what the receptionist cannot answer with.
+  const applyToAll = (from, days) => {
+    const src = hours[from];
+    if (!src.isOpen) return;
+    setHours((h) => {
+      const next = { ...h };
+      days.forEach((d) => { next[d] = { ...src }; });
+      return next;
+    });
+  };
 
   const save = () => {
     if (saving || !window.__saveSettings) return;
     // Only send what was filled in. An empty string is not a fact, and storing
-    // "" would have the composed prompt state an address of nothing.
+    // it would have the composed prompt state an address of nothing.
     const profile = {};
     if (address.trim()) profile.address = address.trim();
     if (tone.trim()) profile.tone = tone.trim();
-    const langs = languages.split(",").map((x) => x.trim()).filter(Boolean);
     if (langs.length) profile.languages = langs;
     const esc = escalate.split("\n").map((x) => x.trim()).filter(Boolean);
     if (esc.length) profile.escalate_when = esc;
@@ -395,14 +433,13 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     const hrs = {};
     SET_DAYS.forEach(([d]) => {
       const x = hours[d];
-      // A day with no times is CLOSED, which is a real answer and is stored as
-      // one — omitting it would read as "we did not say".
-      hrs[d] = x.open && x.close ? { open: x.open, close: x.close } : {};
+      // A day that is closed is stored as `{}` — a real answer. Omitting it
+      // would read as "we did not say".
+      hrs[d] = x.isOpen && x.open && x.close ? { open: x.open, close: x.close } : {};
     });
-    // Only send hours once at least one day has real times. Otherwise an
-    // untouched form would save seven closed days and read as a business that
-    // is never open.
-    if (SET_DAYS.some(([d]) => hours[d].open && hours[d].close)) profile.hours = hrs;
+    // Only send hours once at least one day has real times, or an untouched
+    // form would save seven closed days and read as a business never open.
+    if (SET_DAYS.some(([d]) => hours[d].isOpen && hours[d].open && hours[d].close)) profile.hours = hrs;
     const svcs = services.filter((x) => (x.name || "").trim()).map((x) => {
       const o = { name: x.name.trim() };
       const d = parseInt(x.duration_min, 10);
@@ -423,67 +460,153 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     });
   };
 
+  const openDays = SET_DAYS.filter(([d]) => hours[d].isOpen).length;
+
   return (
-    <section className="fl-card set-card">
+    <section className="fl-card set-card set-editor">
       <div className="fl-card-head">
         <span className="fl-card-title">Your business</span>
-        <span className="fl-card-sub">What the receptionist tells people</span>
+        <span className="fl-card-sub">Both agents answer from these</span>
       </div>
 
-      <label className="set-field"><span className="set-field-label">Address</span>
-        <input className="set-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street, city" />
-      </label>
+      <div className="set-sec">
+        <SetSectionHead title="Where you are" hint="Given when someone asks how to find you" />
+        <input
+          className="set-input"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder="123 Example St, Brooklyn, NY 11208"
+          autoComplete="street-address"
+          name="street-address"
+          aria-label="Business address"
+        />
+      </div>
 
-      <div className="set-field"><span className="set-field-label">Opening hours</span>
+      <div className="set-sec">
+        <SetSectionHead
+          title="When you are open"
+          hint={openDays ? `${openDays} ${openDays === 1 ? "day" : "days"} a week` : "Not set — it cannot answer this yet"}
+        />
         <div className="set-hours">
-          {SET_DAYS.map(([d, label]) => (
-            <div key={d} className="set-hours-row">
-              <span className="set-hours-day">{label}</span>
-              <input className="set-input set-input-sm" type="time" value={hours[d].open} onChange={(e) => setDay(d, "open", e.target.value)} />
-              <span className="set-hours-sep">to</span>
-              <input className="set-input set-input-sm" type="time" value={hours[d].close} onChange={(e) => setDay(d, "close", e.target.value)} />
-              {!(hours[d].open && hours[d].close) && <span className="set-team-mail">Closed</span>}
+          {SET_DAYS.map(([d, label], i) => (
+            <div key={d} className={`set-day ${hours[d].isOpen ? "" : "closed"}`}>
+              <button
+                type="button"
+                className={`set-switch ${hours[d].isOpen ? "on" : ""}`}
+                role="switch"
+                aria-checked={hours[d].isOpen}
+                aria-label={label}
+                onClick={() => setDay(d, { isOpen: !hours[d].isOpen })}
+              ><span className="set-knob" /></button>
+              <span className="set-day-name">{label}</span>
+              {hours[d].isOpen ? (
+                <>
+                  <input className="set-input set-input-time" type="time" value={hours[d].open} aria-label={`${label} opens`} onChange={(e) => setDay(d, { open: e.target.value })} />
+                  <span className="set-day-sep">to</span>
+                  <input className="set-input set-input-time" type="time" value={hours[d].close} aria-label={`${label} closes`} onChange={(e) => setDay(d, { close: e.target.value })} />
+                  {i === 0 && (
+                    <span className="set-day-apply">
+                      <button type="button" className="cl-bucket-link" onClick={() => applyToAll("mon", ["tue","wed","thu","fri"])}>Copy to weekdays</button>
+                      <button type="button" className="cl-bucket-link" onClick={() => applyToAll("mon", ["tue","wed","thu","fri","sat","sun"])}>to every day</button>
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="set-day-closed">Closed</span>
+              )}
             </div>
           ))}
         </div>
       </div>
 
-      <div className="set-field"><span className="set-field-label">Services</span>
+      <div className="set-sec">
+        <SetSectionHead title="What you offer" hint="Names and rough timings — a price only if you can state it flatly" />
+        {services.length > 0 && (
+          <div className="set-svc-head">
+            <span>Service</span><span>Takes</span><span>Price</span><span />
+          </div>
+        )}
         {services.map((sv, i) => (
-          <div key={i} className="set-hours-row">
-            <input className="set-input" value={sv.name || ""} placeholder="Name" onChange={(e) => setSvc(i, "name", e.target.value)} />
-            <input className="set-input set-input-sm" value={sv.duration_min || ""} placeholder="mins" onChange={(e) => setSvc(i, "duration_min", e.target.value)} />
-            <input className="set-input" value={sv.price_note || ""} placeholder="quoted at consult" onChange={(e) => setSvc(i, "price_note", e.target.value)} />
-            <button className="btn btn-ghost btn-icon btn-sm" aria-label="Remove" onClick={() => setServices((l) => l.filter((_, j) => j !== i))}><Icon name="x" size={12} /></button>
+          <div key={i} className="set-svc-row">
+            <input className="set-input" value={sv.name || ""} placeholder="Haircut" aria-label="Service name" onChange={(e) => setSvc(i, "name", e.target.value)} />
+            <span className="set-svc-mins">
+              <input className="set-input" inputMode="numeric" value={sv.duration_min || ""} placeholder="45" aria-label="Minutes" onChange={(e) => setSvc(i, "duration_min", e.target.value.replace(/[^0-9]/g, ""))} />
+              <span className="set-svc-unit">min</span>
+            </span>
+            <input className="set-input" value={sv.price_note || ""} placeholder="quoted at consult" aria-label="Price note" onChange={(e) => setSvc(i, "price_note", e.target.value)} />
+            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${sv.name || "service"}`} onClick={() => setServices((l) => l.filter((_, j) => j !== i))}><Icon name="x" size={12} /></button>
           </div>
         ))}
-        <button className="btn btn-sm" onClick={() => setServices((l) => [...l, { name: "" }])}><Icon name="plus" size={12} /> Add a service</button>
+        <button type="button" className="btn btn-sm" onClick={() => setServices((l) => [...l, { name: "" }])}><Icon name="plus" size={12} /> Add a service</button>
       </div>
 
-      <label className="set-field"><span className="set-field-label">Languages</span>
-        <input className="set-input" value={languages} onChange={(e) => setLanguages(e.target.value)} placeholder="English, Spanish" />
-      </label>
+      <div className="set-sec">
+        <SetSectionHead title="Languages it can answer in" hint="Tap to choose" />
+        <div className="set-chips">
+          {SET_LANGS.map((l) => (
+            <button
+              key={l}
+              type="button"
+              className={`set-chip ${langs.includes(l) ? "on" : ""}`}
+              aria-pressed={langs.includes(l)}
+              onClick={() => toggleLang(l)}
+            >{l}</button>
+          ))}
+          {langs.filter((l) => !SET_LANGS.includes(l)).map((l) => (
+            <button key={l} type="button" className="set-chip on" aria-pressed="true" onClick={() => toggleLang(l)}>{l}</button>
+          ))}
+        </div>
+        <div className="set-chip-add">
+          <input
+            className="set-input"
+            value={langAdd}
+            placeholder="Another language"
+            aria-label="Add another language"
+            onChange={(e) => setLangAdd(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addLang(); } }}
+          />
+          <button type="button" className="btn btn-sm" onClick={addLang} disabled={!langAdd.trim()}>Add</button>
+        </div>
+      </div>
 
-      <label className="set-field"><span className="set-field-label">Hand to a person when</span>
-        <textarea className="set-input set-textarea" rows={3} value={escalate} onChange={(e) => setEscalate(e.target.value)} placeholder="One per line" />
-      </label>
+      <div className="set-sec">
+        <SetSectionHead title="Hand over to a person when" hint="One per line" />
+        <textarea className="set-input set-textarea" rows={3} value={escalate} onChange={(e) => setEscalate(e.target.value)} placeholder={"They ask for the owner by name\nThey are unhappy about a previous visit"} aria-label="Escalation triggers" />
+      </div>
 
-      <div className="set-field"><span className="set-field-label">Rules the assistant always follows</span>
-        {[["never_quote_prices","Never quote or confirm a price"],["never_confirm_booking","Never confirm an appointment itself"],["disclose_ai","Say it is an assistant if asked"]].map(([k, label]) => (
-          <label key={k} className="set-check">
-            <input type="checkbox" checked={guards[k]} onChange={(e) => setGuards((g) => ({ ...g, [k]: e.target.checked }))} />
-            <span>{label}</span>
-          </label>
+      <div className="set-sec">
+        <SetSectionHead title="Rules it always follows" hint="These stay in force whatever else you write below" />
+        {[
+          ["never_quote_prices", "Never quote or confirm a price", "It offers a consult or the booking link instead"],
+          ["never_confirm_booking", "Never confirm an appointment itself", "Booking happens on your link or with your staff"],
+          ["disclose_ai", "Say it is an assistant if asked", "And offer to bring in a person"],
+        ].map(([k, label, hint]) => (
+          <div key={k} className="set-rule">
+            <button
+              type="button"
+              className={`set-switch ${guards[k] ? "on" : ""}`}
+              role="switch"
+              aria-checked={guards[k]}
+              aria-label={label}
+              onClick={() => setGuards((g) => ({ ...g, [k]: !g[k] }))}
+            ><span className="set-knob" /></button>
+            <span className="set-rule-body">
+              <span className="set-rule-label">{label}</span>
+              <span className="set-rule-hint">{hint}</span>
+            </span>
+          </div>
         ))}
       </div>
 
-      <label className="set-field"><span className="set-field-label">Anything else it should know</span>
-        <textarea className="set-input set-textarea" rows={4} value={extra} onChange={(e) => setExtra(e.target.value)} />
-      </label>
+      <div className="set-sec">
+        <SetSectionHead title="Anything else it should know" hint="Optional — written in your own words" />
+        <textarea className="set-input set-textarea" rows={4} value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="Parking is behind the building. We do not take walk-ins after 5pm." aria-label="Extra instructions" />
+      </div>
 
-      <div className="set-hours-row" style={{ justifyContent: "flex-end", gap: 8 }}>
-        <button className="btn btn-ghost btn-sm" onClick={onDone} disabled={saving}>Cancel</button>
-        <button className="btn btn-primary btn-sm" onClick={save} disabled={saving} {...window.gate("autonomy")}>
+      <div className="set-editor-foot">
+        <span className="set-editor-note">Saved changes apply to the receptionist's next message.</span>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onDone} disabled={saving}>Cancel</button>
+        <button type="button" className="btn btn-primary btn-sm" onClick={save} disabled={saving} {...window.gate("autonomy")}>
           {saving ? "Saving" : "Save"}
         </button>
       </div>
