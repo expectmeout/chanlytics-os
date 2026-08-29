@@ -326,6 +326,8 @@ interface CallDto {
     to_e164: string | null;
     started_at: string | null;
     ended_at: string | null;
+    /** Moves on every provider event — the heartbeat isLiveCall() reads. */
+    updated_at?: string | null;
     duration_ms: number | null;
     disconnection_reason: string | null;
     sentiment: string | null;
@@ -406,6 +408,34 @@ interface WaWindow {
     closesAtIso: string | null;
 }
 declare function waWindow(lastWaInboundAtIso: string | null | undefined, now?: Date): WaWindow;
+/**
+ * How long a call may go without any sign of life before we stop calling it
+ * live, whatever its status column says.
+ *
+ * `calls.status = 'ongoing'` is written from Retell's own `call_status`, and it
+ * is only ever cleared by a later webhook. So a single lost `call_ended` — a
+ * deploy mid-call, a provider blip, a 500 on our side — leaves that row
+ * `ongoing` FOREVER, and anything reading the flag alone shows a call in
+ * progress that hung up days ago. A status flag is a claim; this is the
+ * evidence.
+ *
+ * Ten minutes, not ninety seconds, and the difference is a deployment fact
+ * rather than a preference: with only `call_started` and `call_ended`
+ * configured on the Retell webhook, nothing touches the row between them, so a
+ * tight bound would declare every ordinary call dead a minute into it. Enabling
+ * the `transcript_updated` event — which fires on every turn — makes the
+ * heartbeat continuous and this bound effectively tight, at which point it can
+ * come down.
+ *
+ * This is a DISPLAY guard, not the fix. It bounds how long a phantom can be
+ * shown; only reconciling against the provider makes the row itself honest.
+ */
+declare const CALL_HEARTBEAT_MS: number;
+declare function isLiveCall(call: {
+    status: string;
+    updated_at?: string | null;
+    started_at?: string | null;
+}, now?: Date): boolean;
 
 /**
  * Today (Slice 4): the morning brief.
@@ -799,4 +829,4 @@ declare function parseTenantConfigResult(raw: unknown): TenantConfigParse;
 /** Convenience for callers that genuinely cannot act on the difference. */
 declare function parseTenantConfig(raw: unknown): TenantConfig | null;
 
-export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, ROLES, ROLE_PERMS, type Role, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, contactMeta, contactName, err, formatPhoneDisplay, formatWaited, isOptedOut, isOptedOutContact, messageAt, messageText, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, threadStanding, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };
+export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, ROLES, ROLE_PERMS, type Role, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, contactMeta, contactName, err, formatPhoneDisplay, formatWaited, isLiveCall, isOptedOut, isOptedOutContact, messageAt, messageText, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, threadStanding, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };

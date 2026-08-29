@@ -21,7 +21,7 @@ export const GET = withRoute(async (req, ctx) => {
   let q = supabase
     .from("calls")
     .select(
-      "id, retell_call_id, direction, call_type, status, from_e164, from_raw, to_e164, started_at, ended_at, duration_ms, disconnection_reason, sentiment, call_successful, in_voicemail, summary, transcript_object, recording, conversation_id, contact_id, message_id, contacts (display_name, wa_profile_name, phone_e164)",
+      "id, retell_call_id, direction, call_type, status, from_e164, from_raw, to_e164, started_at, ended_at, duration_ms, disconnection_reason, sentiment, call_successful, in_voicemail, summary, transcript_object, recording, conversation_id, contact_id, message_id, updated_at, contacts (display_name, wa_profile_name, phone_e164)",
     )
     .eq("tenant_id", tenantId)
     .order("started_at", { ascending: false, nullsFirst: false })
@@ -45,6 +45,9 @@ export const GET = withRoute(async (req, ctx) => {
       to_e164: c.to_e164,
       started_at: c.started_at,
       ended_at: c.ended_at,
+      // The heartbeat. Without it the viewmodel can only trust `status`, and a
+      // lost call_ended keeps that flag set for good.
+      updated_at: c.updated_at,
       duration_ms: c.duration_ms,
       disconnection_reason: c.disconnection_reason,
       sentiment: c.sentiment,

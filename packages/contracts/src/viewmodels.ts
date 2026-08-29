@@ -95,7 +95,7 @@ export interface ConversationVM {
 
 import { formatPhoneDisplay } from "./phone";
 import { isOptedOutContact } from "./consent";
-import { waWindow } from "./policy";
+import { waWindow, isLiveCall } from "./policy";
 
 const AGENT = { glyph: "W", name: "WhatsApp Receptionist" };
 const CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the salon line\.\s*)?(Summary:\s*)?/;
@@ -508,6 +508,8 @@ export interface CallDto {
   to_e164: string | null;
   started_at: string | null;
   ended_at: string | null;
+  /** Moves on every provider event — the heartbeat isLiveCall() reads. */
+  updated_at?: string | null;
   duration_ms: number | null;
   disconnection_reason: string | null;
   sentiment: string | null;
@@ -584,7 +586,9 @@ export function toCallVM(dto: CallDto, now = new Date()): CallVM {
   const who = withheld ? "Caller ID withheld" : name || phone || dto.from_raw || "Unknown caller";
   const whoShort = name ? name.split(" ")[0] : "Caller";
   const dur = mmss(dto.duration_ms);
-  const live = dto.status === "ongoing";
+  // Not `status === "ongoing"`. A lost call_ended leaves that flag set forever,
+  // and this viewmodel is what the Live surface would render from.
+  const live = isLiveCall(dto, now);
   const headSummary = (dto.summary || "").trim();
   const firstSentence = headSummary ? (headSummary.split(/(?<=[.!?])\s/)[0] ?? headSummary) : "";
 

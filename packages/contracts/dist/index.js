@@ -158,6 +158,15 @@ function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
   const closes = new Date(lastWaInboundAtIso).getTime() + WA_WINDOW_MS;
   return { open: closes > now.getTime(), closesAtIso: new Date(closes).toISOString() };
 }
+var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
+function isLiveCall(call, now = /* @__PURE__ */ new Date()) {
+  if (call.status !== "ongoing") return false;
+  const beat = call.updated_at ?? call.started_at;
+  if (!beat) return false;
+  const at = new Date(beat).getTime();
+  if (Number.isNaN(at)) return false;
+  return now.getTime() - at < CALL_HEARTBEAT_MS;
+}
 
 // src/viewmodels.ts
 function messageAt(m) {
@@ -404,7 +413,7 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
   const who = withheld ? "Caller ID withheld" : name || phone || dto.from_raw || "Unknown caller";
   const whoShort = name ? name.split(" ")[0] : "Caller";
   const dur = mmss(dto.duration_ms);
-  const live = dto.status === "ongoing";
+  const live = isLiveCall(dto, now);
   const headSummary = (dto.summary || "").trim();
   const firstSentence = headSummary ? headSummary.split(/(?<=[.!?])\s/)[0] ?? headSummary : "";
   const bullets = [
@@ -770,6 +779,7 @@ export {
   ACTOR_TYPES,
   AppError,
   BrainConfigSchema,
+  CALL_HEARTBEAT_MS,
   CHANNEL_KINDS,
   CONSENT_STATES,
   CONVERSATION_STATES,
@@ -807,6 +817,7 @@ export {
   err,
   formatPhoneDisplay,
   formatWaited,
+  isLiveCall,
   isOptedOut,
   isOptedOutContact,
   messageAt,
