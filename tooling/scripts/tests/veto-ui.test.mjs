@@ -136,3 +136,16 @@ test("REGRESSION: the VetoBar shows on a HANDLED real thread", () => {
   // case and left the draft unstoppable from the UI.
   assert.match(thread, /thread\.veto && !decided && \(thread\.real \|\| thread\.state !== "done"\)/);
 });
+
+test("REGRESSION: the composer fills when a draft ARRIVES, not only on mount", () => {
+  // useState(reply) reads its argument once. In the mockup that suffices — the
+  // draft is in the seed data before the pane renders. On a real thread the
+  // receptionist writes while the operator is already looking at the
+  // conversation, so the draft always arrives AFTER mount and the composer
+  // stayed empty: "Edit" focused a blank box.
+  assert.match(thread, /React\.useEffect\(\(\) => \{[\s\S]{0,200}?setText\(\(cur\) => \(cur && cur\.trim\(\) \? cur : reply\)\);/);
+});
+
+test("an arriving draft never overwrites what the operator is typing", () => {
+  assert.match(thread, /cur && cur\.trim\(\) \? cur : reply/);
+});
