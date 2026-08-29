@@ -340,17 +340,178 @@ const hoursSummary = (hours) => {
   return out.join(" · ");
 };
 
+/**
+ * Editing the business's facts.
+ *
+ * These are the same fields the receptionist is given on WhatsApp and, once
+ * the push lands, on the phone. Writing them here is what stops the two
+ * channels holding separate copies of the opening hours.
+ *
+ * Whole-config write with optimistic concurrency: the ENTIRE config we loaded
+ * goes back with the profile merged in, because sending only this section
+ * would delete the rest. A version mismatch is a 409 the owner is told about,
+ * never a silent overwrite of a colleague's edit.
+ */
+const SET_DAYS = [["mon","Mon"],["tue","Tue"],["wed","Wed"],["thu","Thu"],["fri","Fri"],["sat","Sat"],["sun","Sun"]];
+
+const BusinessEditor = ({ settings, onDone, flash }) => {
+  const brain = (settings.config && settings.config.brain) || {};
+  const p0 = brain.profile || {};
+  const [address, setAddress] = useSetState(p0.address || "");
+  const [tone, setTone] = useSetState(p0.tone || "");
+  const [languages, setLanguages] = useSetState((p0.languages || []).join(", "));
+  const [escalate, setEscalate] = useSetState((p0.escalate_when || []).join("\n"));
+  const [extra, setExtra] = useSetState(p0.extra_instructions || "");
+  const [hours, setHours] = useSetState(() => {
+    const h = {};
+    SET_DAYS.forEach(([d]) => { const x = (p0.hours || {})[d] || {}; h[d] = { open: x.open || "", close: x.close || "" }; });
+    return h;
+  });
+  const [services, setServices] = useSetState(() => (p0.services || []).map((x) => ({ ...x })));
+  const [guards, setGuards] = useSetState(() => ({
+    // Absent means ON. Only an explicit false turns one off, so an unset
+    // config must not render as three unticked boxes.
+    never_quote_prices: (p0.guardrails || {}).never_quote_prices !== false,
+    never_confirm_booking: (p0.guardrails || {}).never_confirm_booking !== false,
+    disclose_ai: (p0.guardrails || {}).disclose_ai !== false,
+  }));
+  const [saving, setSaving] = useSetState(false);
+
+  const setDay = (d, k, v) => setHours((h) => ({ ...h, [d]: { ...h[d], [k]: v } }));
+  const setSvc = (i, k, v) => setServices((l) => l.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+
+  const save = () => {
+    if (saving || !window.__saveSettings) return;
+    // Only send what was filled in. An empty string is not a fact, and storing
+    // "" would have the composed prompt state an address of nothing.
+    const profile = {};
+    if (address.trim()) profile.address = address.trim();
+    if (tone.trim()) profile.tone = tone.trim();
+    const langs = languages.split(",").map((x) => x.trim()).filter(Boolean);
+    if (langs.length) profile.languages = langs;
+    const esc = escalate.split("\n").map((x) => x.trim()).filter(Boolean);
+    if (esc.length) profile.escalate_when = esc;
+    if (extra.trim()) profile.extra_instructions = extra.trim();
+    const hrs = {};
+    SET_DAYS.forEach(([d]) => {
+      const x = hours[d];
+      // A day with no times is CLOSED, which is a real answer and is stored as
+      // one — omitting it would read as "we did not say".
+      hrs[d] = x.open && x.close ? { open: x.open, close: x.close } : {};
+    });
+    profile.hours = hrs;
+    const svcs = services.filter((x) => (x.name || "").trim()).map((x) => {
+      const o = { name: x.name.trim() };
+      const d = parseInt(x.duration_min, 10);
+      if (Number.isFinite(d) && d > 0) o.duration_min = d;
+      if ((x.price_note || "").trim()) o.price_note = x.price_note.trim();
+      return o;
+    });
+    if (svcs.length) profile.services = svcs;
+    profile.guardrails = { ...guards };
+
+    const next = { ...settings.config, brain: { ...brain, profile } };
+    setSaving(true);
+    window.__saveSettings(next, settings.version).then((r) => {
+      setSaving(false);
+      if (!r.ok) { flash({ msg: <>{r.message}</> }); return; }
+      flash({ msg: <>Saved — the receptionist uses these from its next message</> });
+      onDone();
+    });
+  };
+
+  return (
+    <section className="fl-card set-card">
+      <div className="fl-card-head">
+        <span className="fl-card-title">Your business</span>
+        <span className="fl-card-sub">What the receptionist tells people</span>
+      </div>
+
+      <label className="set-field"><span className="set-field-label">Address</span>
+        <input className="set-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street, city" />
+      </label>
+
+      <div className="set-field"><span className="set-field-label">Opening hours</span>
+        <div className="set-hours">
+          {SET_DAYS.map(([d, label]) => (
+            <div key={d} className="set-hours-row">
+              <span className="set-hours-day">{label}</span>
+              <input className="set-input set-input-sm" type="time" value={hours[d].open} onChange={(e) => setDay(d, "open", e.target.value)} />
+              <span className="set-hours-sep">to</span>
+              <input className="set-input set-input-sm" type="time" value={hours[d].close} onChange={(e) => setDay(d, "close", e.target.value)} />
+              {!(hours[d].open && hours[d].close) && <span className="set-team-mail">Closed</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="set-field"><span className="set-field-label">Services</span>
+        {services.map((sv, i) => (
+          <div key={i} className="set-hours-row">
+            <input className="set-input" value={sv.name || ""} placeholder="Name" onChange={(e) => setSvc(i, "name", e.target.value)} />
+            <input className="set-input set-input-sm" value={sv.duration_min || ""} placeholder="mins" onChange={(e) => setSvc(i, "duration_min", e.target.value)} />
+            <input className="set-input" value={sv.price_note || ""} placeholder="quoted at consult" onChange={(e) => setSvc(i, "price_note", e.target.value)} />
+            <button className="btn btn-ghost btn-icon btn-sm" aria-label="Remove" onClick={() => setServices((l) => l.filter((_, j) => j !== i))}><Icon name="x" size={12} /></button>
+          </div>
+        ))}
+        <button className="btn btn-sm" onClick={() => setServices((l) => [...l, { name: "" }])}><Icon name="plus" size={12} /> Add a service</button>
+      </div>
+
+      <label className="set-field"><span className="set-field-label">Languages</span>
+        <input className="set-input" value={languages} onChange={(e) => setLanguages(e.target.value)} placeholder="English, Spanish" />
+      </label>
+
+      <label className="set-field"><span className="set-field-label">Hand to a person when</span>
+        <textarea className="set-input set-textarea" rows={3} value={escalate} onChange={(e) => setEscalate(e.target.value)} placeholder="One per line" />
+      </label>
+
+      <div className="set-field"><span className="set-field-label">Rules the assistant always follows</span>
+        {[["never_quote_prices","Never quote or confirm a price"],["never_confirm_booking","Never confirm an appointment itself"],["disclose_ai","Say it is an assistant if asked"]].map(([k, label]) => (
+          <label key={k} className="set-check">
+            <input type="checkbox" checked={guards[k]} onChange={(e) => setGuards((g) => ({ ...g, [k]: e.target.checked }))} />
+            <span>{label}</span>
+          </label>
+        ))}
+      </div>
+
+      <label className="set-field"><span className="set-field-label">Anything else it should know</span>
+        <textarea className="set-input set-textarea" rows={4} value={extra} onChange={(e) => setExtra(e.target.value)} />
+      </label>
+
+      <div className="set-hours-row" style={{ justifyContent: "flex-end", gap: 8 }}>
+        <button className="btn btn-ghost btn-sm" onClick={onDone} disabled={saving}>Cancel</button>
+        <button className="btn btn-primary btn-sm" onClick={save} disabled={saving} {...window.gate("autonomy")}>
+          {saving ? "Saving" : "Save"}
+        </button>
+      </div>
+    </section>
+  );
+};
 const PaneWorkspace = ({ flash }) => {
-  const S = (window.__SETTINGS && window.__SETTINGS.config && window.__SETTINGS.config.brain) || null;
+  const [editing, setEditing] = useSetState(false);
+  const settings = window.__SETTINGS || null;
+  const S = (settings && settings.config && settings.config.brain) || null;
   const ws = (window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || null;
   const profile = (S && S.profile) || null;
   const real = !!S;
   const hrs = profile && hoursSummary(profile.hours);
+  if (real && editing) {
+    return (
+      <>
+        <BusinessEditor settings={settings} flash={flash} onDone={() => setEditing(false)} />
+        <TeamSection flash={flash} />
+      </>
+    );
+  }
   return (
   <>
     <section className="fl-card set-card">
       <div className="fl-card-head"><span className="fl-card-title">Business</span>
-        <button className="btn btn-ghost btn-sm" onClick={() => window.askAbout({ mode: "compose", prompt: "Update our business details: " })}><Icon name="edit" size={11} /> Edit</button>
+        {/* On real data this opens the form. The mockup's compose flow asked
+            an assistant to update details it had no way to write. */}
+        {real
+          ? <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)} {...window.gate("autonomy")}><Icon name="edit" size={11} /> Edit</button>
+          : <button className="btn btn-ghost btn-sm" onClick={() => window.askAbout({ mode: "compose", prompt: "Update our business details: " })}><Icon name="edit" size={11} /> Edit</button>}
       </div>
       <div className="cl-prof-attr-list">
         <div className="cl-prof-attr"><span className="cl-prof-attr-key">Name</span><span className="cl-prof-attr-val">{real ? (S.business_name || "—") : "Serenity Spa"}</span></div>

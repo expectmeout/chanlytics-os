@@ -137,3 +137,49 @@ test("an unknown profile field is refused, not ignored", () => {
   const bad = parseTenantConfigResult({ brain: { ...brain, profile: { adress: "typo" } } });
   assert.equal(bad.ok, false);
 });
+
+/* ------------------------- the editor's write contract -------------------- */
+
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+const here = path.dirname(fileURLToPath(import.meta.url));
+const settingsJsx = fs.readFileSync(
+  path.join(here, "../../../apps/dashboard/src/legacy/pages/settings.jsx"), "utf8",
+).split("\r\n").join("\n");
+
+test("the editor sends the WHOLE config, not just its own section", () => {
+  // PUT is a whole-config write. Sending only `brain` would delete
+  // notifications; sending only `profile` would delete the prompt beside it.
+  assert.match(settingsJsx, /\{ \.\.\.settings\.config, brain: \{ \.\.\.brain, profile \} \}/);
+});
+
+test("the version travels with the write", () => {
+  // Optimistic concurrency is the only thing standing between two owners
+  // editing at once and one of them losing their work silently.
+  assert.match(settingsJsx, /__saveSettings\(next, settings\.version\)/);
+});
+
+test("an empty field is omitted rather than stored as an empty string", () => {
+  // "" is not a fact. Storing it would have the composed prompt state an
+  // address of nothing.
+  assert.match(settingsJsx, /if \(address\.trim\(\)\) profile\.address = address\.trim\(\);/);
+});
+
+test("a day with no times is stored as CLOSED, not omitted", () => {
+  // Closed is a real answer; absent reads as "we did not say", and the
+  // receptionist would have nothing to tell someone asking about Sunday.
+  assert.match(settingsJsx, /x\.open && x\.close \? \{ open: x\.open, close: x\.close \} : \{\}/);
+});
+
+test("the guardrail checkboxes start ON when the config is silent", () => {
+  // Absent means on everywhere else; rendering three unticked boxes would
+  // invite an owner to believe the rules were off.
+  assert.match(settingsJsx, /never_quote_prices: \(p0\.guardrails \|\| \{\}\)\.never_quote_prices !== false/);
+});
+
+test("a save failure is shown, never swallowed", () => {
+  // A 409 means someone else saved first — the owner has to know their edit
+  // did not land.
+  assert.match(settingsJsx, /if \(!r\.ok\) \{ flash\(/);
+});
