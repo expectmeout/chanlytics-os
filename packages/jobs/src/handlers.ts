@@ -26,6 +26,30 @@ export interface ClaimedJob {
  * cancel window; if it is STILL queued, send it and finalize.
  * payload: { message_id, conversation_id, to_phone, body?, template? }
  */
+/**
+ * How to put a message on a given channel's wire.
+ *
+ * Adding SMS or email is an entry here plus an inbound adapter — every gate
+ * above this line (consent, role, pause, the cancel window, the audit row) is
+ * already channel-agnostic and is inherited unchanged. Each sender owns its own
+ * address format: WhatsApp's Graph API wants bare digits, so the "+" is
+ * stripped HERE rather than by the caller, who should not know that.
+ */
+type ChannelSend = (
+  ctx: JobContext,
+  to: string,
+  payload: { body: string; template?: { name: string; language: string; params: string[] } },
+) => Promise<{ ok: boolean; wamid: string | null; status: number; errorBody?: string }>;
+
+const SENDERS: Record<string, ChannelSend> = {
+  whatsapp: (ctx, to, p) => {
+    const digits = to.replace(/^\+/, "");
+    return p.template
+      ? sendTemplate(ctx.waCfg, digits, p.template)
+      : sendText(ctx.waCfg, digits, p.body);
+  },
+};
+
 async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const p = job.payload as {
     message_id: string;
@@ -36,7 +60,7 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   };
   const { data: msg } = await ctx.db
     .from("messages")
-    .select("id, status, body, template_name")
+    .select("id, status, body, template_name, channel")
     .eq("id", p.message_id)
     .eq("tenant_id", job.tenant_id)
     .single();
@@ -87,10 +111,30 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     return;
   }
 
-  const to = p.to_phone.replace(/^\+/, "");
-  const sent = p.template
-    ? await sendTemplate(ctx.waCfg, to, p.template)
-    : await sendText(ctx.waCfg, to, p.body ?? msg.body ?? "");
+  // The ONE channel-specific step in an otherwise channel-agnostic pipeline.
+  //
+  // This used to call the WhatsApp sender directly, which made it not merely
+  // WhatsApp-only but WhatsApp-ASSUMING: `messages.channel` has allowed
+  // 'whatsapp' | 'voice' | 'sms' | 'email' since the first migration, and a row
+  // queued on any of them would have been sent over WhatsApp to `to_phone`
+  // without anything noticing. Nothing queues those today — which is exactly
+  // when this is cheap to fix rather than a rewrite under deadline.
+  const channel = msg.channel ?? "whatsapp";
+  const send = SENDERS[channel];
+  if (!send) {
+    // Fail LOUDLY and leave the customer un-messaged rather than delivering
+    // their message over the wrong wire to a number that may not be theirs.
+    console.error(JSON.stringify({
+      level: "error", event: "outbound_no_sender_for_channel",
+      tenant_id: job.tenant_id, message_id: p.message_id, channel,
+    }));
+    await ctx.db.from("messages")
+      .update({ status: "failed", error: { reason: "no_sender_for_channel", channel } })
+      .eq("id", p.message_id)
+      .eq("status", "queued");
+    return;
+  }
+  const sent = await send(ctx, p.to_phone, { body: p.body ?? msg.body ?? "", template: p.template });
 
   if (sent.ok) {
     // Still `.eq("status","queued")`: the operator can cancel between the send
@@ -129,7 +173,7 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     await upsertEscalation(ctx.db, job.tenant_id, p.conversation_id, "send_failed",
       `Dashboard reply could not be delivered (HTTP ${sent.status}).`);
     await ctx.alert(
-      `Reply delivery failed: +${to}`,
+      `Reply delivery failed: ${p.to_phone}`,
       `A reply queued from the dashboard could not be sent (HTTP ${sent.status}). The thread is flagged in the Inbox.`,
     );
   }

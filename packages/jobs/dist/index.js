@@ -4077,6 +4077,7 @@ var coerce = {
 };
 var NEVER = INVALID;
 var WA_WINDOW_MS = 24 * 3600 * 1e3;
+var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
 var TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PolicyLimitsSchema = external_exports.object({
@@ -8191,6 +8192,7 @@ function isOptedOutContact(c) {
   return c.consent === "opted_out" || c.dnc === true;
 }
 var WA_WINDOW_MS2 = 24 * 3600 * 1e3;
+var CALL_HEARTBEAT_MS2 = 10 * 60 * 1e3;
 var TIME_FMT2 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PolicyLimitsSchema2 = external_exports2.object({
@@ -8223,9 +8225,15 @@ var TenantConfigSchema2 = external_exports2.object({
 });
 
 // src/handlers.ts
+var SENDERS = {
+  whatsapp: (ctx, to, p) => {
+    const digits = to.replace(/^\+/, "");
+    return p.template ? sendTemplate(ctx.waCfg, digits, p.template) : sendText(ctx.waCfg, digits, p.body);
+  }
+};
 async function outboundSend(ctx, job) {
   const p = job.payload;
-  const { data: msg } = await ctx.db.from("messages").select("id, status, body, template_name").eq("id", p.message_id).eq("tenant_id", job.tenant_id).single();
+  const { data: msg } = await ctx.db.from("messages").select("id, status, body, template_name, channel").eq("id", p.message_id).eq("tenant_id", job.tenant_id).single();
   if (!msg || msg.status !== "queued") return;
   const { data: convRow, error: consentErr } = await ctx.db.from("conversations").select("contacts (consent, dnc)").eq("id", p.conversation_id).eq("tenant_id", job.tenant_id).maybeSingle();
   if (consentErr || !convRow) {
@@ -8251,8 +8259,20 @@ async function outboundSend(ctx, job) {
     });
     return;
   }
-  const to = p.to_phone.replace(/^\+/, "");
-  const sent = p.template ? await sendTemplate(ctx.waCfg, to, p.template) : await sendText(ctx.waCfg, to, p.body ?? msg.body ?? "");
+  const channel = msg.channel ?? "whatsapp";
+  const send = SENDERS[channel];
+  if (!send) {
+    console.error(JSON.stringify({
+      level: "error",
+      event: "outbound_no_sender_for_channel",
+      tenant_id: job.tenant_id,
+      message_id: p.message_id,
+      channel
+    }));
+    await ctx.db.from("messages").update({ status: "failed", error: { reason: "no_sender_for_channel", channel } }).eq("id", p.message_id).eq("status", "queued");
+    return;
+  }
+  const sent = await send(ctx, p.to_phone, { body: p.body ?? msg.body ?? "", template: p.template });
   if (sent.ok) {
     const { data: marked } = await ctx.db.from("messages").update({ status: "sent", ...sent.wamid ? { external_id: sent.wamid } : {} }).eq("id", p.message_id).eq("status", "queued").select("id");
     if (!marked || marked.length === 0) {
@@ -8293,7 +8313,7 @@ async function outboundSend(ctx, job) {
       `Dashboard reply could not be delivered (HTTP ${sent.status}).`
     );
     await ctx.alert(
-      `Reply delivery failed: +${to}`,
+      `Reply delivery failed: ${p.to_phone}`,
       `A reply queued from the dashboard could not be sent (HTTP ${sent.status}). The thread is flagged in the Inbox.`
     );
   }
