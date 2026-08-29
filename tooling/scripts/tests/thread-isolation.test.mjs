@@ -156,11 +156,20 @@ test("every store call site passes a namespace", () => {
 
 test("the inbound-call endpoint refuses to read without a resolved tenant", () => {
   // This endpoint SPEAKS stored conversation back to a caller. Reading the
-  // wrong namespace is not a data-quality problem, it is a disclosure.
+  // wrong tenant is not a data-quality problem, it is a disclosure.
+  //
+  // The read moved from the Blob mirror to readLeadContext (Postgres) so both
+  // agents share one memory; the ORDER is what this test is really about and
+  // it is unchanged. Locating the read explicitly rather than comparing an
+  // indexOf that returns -1: if the call is ever renamed away again, this
+  // must fail loudly rather than pass because it found nothing.
   const src = fs.readFileSync(path.join(EDGE, "api/retell-inbound.ts"), "utf8");
-  assert.match(src, /resolveChannel\(db, "voice", agentId\)/, "it must resolve the tenant from the agent");
-  assert.match(src, /if \(!routed\)/, "it must have an explicit no-tenant branch");
+  assert.ok(src.includes(`resolveChannel(db, "voice", agentId)`), "it must resolve the tenant from the agent");
+  assert.ok(src.includes("if (!routed)"), "it must have an explicit no-tenant branch");
   const guard = src.indexOf("if (!routed)");
-  const read = src.indexOf("getThread(");
+  const read = src.indexOf("readLeadContext(");
+  assert.ok(read !== -1, "the caller-context read must still exist and be findable");
   assert.ok(guard !== -1 && guard < read, "the no-tenant guard must come BEFORE the read");
+  // And it must read the tenant it resolved, never a bare phone lookup.
+  assert.ok(src.includes("readLeadContext(db!, routed.tenantId"), "the read must be scoped to the resolved tenant");
 });

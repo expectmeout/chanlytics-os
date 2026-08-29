@@ -4353,16 +4353,8 @@ var DAY_MS = 24 * 3600 * 1e3;
 var BLOB_CALL_NOTE = /^\[voice call note /;
 var isBackfill = (m) => !!m.meta && typeof m.meta === "object" && m.meta.backfill === true;
 var effectiveAt = (m) => new Date(m.channel_ts ?? m.created_at).getTime();
-async function readThreadState(db, tenantId, conversationId, pausedUntilIso, historyLimit = 16) {
-  const since = new Date(Date.now() - DAY_MS).toISOString();
-  const [recent, replies] = await Promise.all([
-    db.from("messages").select("body, sender, direction, type, status, created_at, channel_ts, meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(historyLimit * 3),
-    // headroom: duplicates and blanks drop out below
-    db.from("messages").select("created_at, meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("sender", "ai").eq("direction", "outbound").in("status", DELIVERED).gte("created_at", since)
-  ]);
-  if (recent.error) throw new Error(`readThreadState/history: ${recent.error.message}`);
-  if (replies.error) throw new Error(`readThreadState/replies: ${replies.error.message}`);
-  const kept = (recent.data ?? []).filter((m) => {
+function assembleHistory(rows, limit) {
+  const kept = rows.filter((m) => {
     const body = (m.body ?? "").trim();
     if (!body) return false;
     if (m.direction === "outbound" && !DELIVERED.includes(String(m.status))) return false;
@@ -4370,14 +4362,26 @@ async function readThreadState(db, tenantId, conversationId, pausedUntilIso, his
     return true;
   });
   kept.sort((a, b) => effectiveAt(a) - effectiveAt(b));
-  const history = kept.map((m) => ({
-    // A call note is the customer's own history on another channel — the
-    // receptionist should know the call happened, same as it did on Blob.
+  return kept.map((m) => ({
+    // A call note is the customer's own history on another channel — one
+    // agent, so it counts the same as a message.
     role: m.sender === "customer" ? "user" : "assistant",
     content: (m.body ?? "").trim()
-  }));
+  })).slice(-limit);
+}
+var HISTORY_COLUMNS = "body, sender, direction, type, status, created_at, channel_ts, meta";
+async function readThreadState(db, tenantId, conversationId, pausedUntilIso, historyLimit = 16) {
+  const since = new Date(Date.now() - DAY_MS).toISOString();
+  const [recent, replies] = await Promise.all([
+    db.from("messages").select(HISTORY_COLUMNS).eq("tenant_id", tenantId).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(historyLimit * 3),
+    // headroom: duplicates and blanks drop out below
+    db.from("messages").select("created_at, meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("sender", "ai").eq("direction", "outbound").in("status", DELIVERED).gte("created_at", since)
+  ]);
+  if (recent.error) throw new Error(`readThreadState/history: ${recent.error.message}`);
+  if (replies.error) throw new Error(`readThreadState/replies: ${replies.error.message}`);
+  const history = assembleHistory(recent.data ?? [], historyLimit);
   return {
-    history: history.slice(-historyLimit),
+    history,
     seen: [],
     pausedUntil: pausedUntilIso ? new Date(pausedUntilIso).getTime() : 0,
     // Imported rows carry the timestamp of the IMPORT, not of a send. Counting
@@ -4385,6 +4389,55 @@ async function readThreadState(db, tenantId, conversationId, pausedUntilIso, his
     // never actually spent.
     replies: (replies.data ?? []).filter((r) => !isBackfill(r)).map((r) => new Date(r.created_at).getTime())
   };
+}
+var EMPTY_LEAD = {
+  contactId: null,
+  conversationId: null,
+  name: null,
+  returning: false,
+  lastSeenAt: null,
+  history: [],
+  optedOut: false
+};
+async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
+  const { data: contact, error: cErr } = await db.from("contacts").select("id, display_name, wa_profile_name, last_seen_at, consent, dnc").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+  if (cErr) throw new Error(`readLeadContext/contact: ${cErr.message}`);
+  if (!contact) return EMPTY_LEAD;
+  const { data: conv, error: vErr } = await db.from("conversations").select("id").eq("tenant_id", tenantId).eq("contact_id", contact.id).maybeSingle();
+  if (vErr) throw new Error(`readLeadContext/conversation: ${vErr.message}`);
+  let history = [];
+  if (conv) {
+    const { data: rows, error: hErr } = await db.from("messages").select(HISTORY_COLUMNS).eq("tenant_id", tenantId).eq("conversation_id", conv.id).order("created_at", { ascending: false }).limit(historyLimit * 3);
+    if (hErr) throw new Error(`readLeadContext/history: ${hErr.message}`);
+    history = assembleHistory(rows ?? [], historyLimit);
+  }
+  return {
+    contactId: contact.id,
+    conversationId: conv?.id ?? null,
+    // display_name is what a human typed; wa_profile_name is what WhatsApp
+    // reports. The human's version wins, and neither is invented.
+    name: contact.display_name || contact.wa_profile_name || null,
+    // Having said anything at all is what makes someone returning — not merely
+    // existing as a row, which an outbound-only contact would also satisfy.
+    returning: history.length > 0,
+    lastSeenAt: contact.last_seen_at ?? null,
+    history,
+    optedOut: contact.consent === "opted_out" || contact.dnc === true
+  };
+}
+function describeLead(lead, now = /* @__PURE__ */ new Date()) {
+  if (!lead.contactId) return "New contact \u2014 no prior history on record.";
+  const bits = [];
+  bits.push(lead.name ? `Name on record: ${lead.name}.` : "No name on record.");
+  if (lead.returning) {
+    const days = lead.lastSeenAt ? Math.floor((now.getTime() - new Date(lead.lastSeenAt).getTime()) / 864e5) : null;
+    const when = days === null ? "" : days <= 0 ? " Last in touch today." : days === 1 ? " Last in touch yesterday." : ` Last in touch ${days} days ago.`;
+    bits.push(`Returning contact.${when}`);
+  } else {
+    bits.push("First time reaching out.");
+  }
+  if (lead.optedOut) bits.push("They have asked not to receive messages.");
+  return bits.join(" ");
 }
 
 // src/repositories/control-plane.ts
@@ -4457,8 +4510,11 @@ function subscribeMessagesInserts(client, onInsert, opts = {}) {
   };
 }
 export {
+  HISTORY_COLUMNS,
+  assembleHistory,
   countSentToday,
   createServiceClient,
+  describeLead,
   emitEvent,
   getTenantConfig,
   ingestCall,
@@ -4468,6 +4524,7 @@ export {
   markProcessed,
   pauseConversation,
   putTenantConfig,
+  readLeadContext,
   readThreadState,
   recordCallNote,
   recordEchoAndPause,

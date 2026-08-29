@@ -1865,7 +1865,74 @@ interface PgThreadState {
     pausedUntil: number;
     replies: number[];
 }
+/**
+ * A conversation's turns, as the model should see them.
+ *
+ * Extracted so the WhatsApp receptionist and the voice agent cannot end up
+ * with different ideas of what was said. They used to: the bot read these rows
+ * from Postgres while the voice agent read a six-turn slice out of the Blob
+ * mirror, so the same customer got a different — and thinner — account of
+ * themselves depending on which number they used.
+ *
+ * Four rules live here and nowhere else:
+ *   - a blank body carries nothing to reason over
+ *   - an outbound row only counts once it actually LEFT; a canceled or failed
+ *     send was never seen, and must not appear as something "we said"
+ *   - the backfilled copy of a call note loses to the native row
+ *   - order is by when things HAPPENED, so yesterday's call sits before this
+ *     morning's message
+ */
+type HistoryRow = {
+    body: string | null;
+    sender: string;
+    direction: string;
+    status: string | null;
+    created_at: string;
+    channel_ts: string | null;
+    meta?: unknown;
+};
+declare function assembleHistory(rows: HistoryRow[], limit: number): ThreadTurn[];
+/** The columns assembleHistory needs. One string, so no caller can under-select. */
+declare const HISTORY_COLUMNS = "body, sender, direction, type, status, created_at, channel_ts, meta";
 declare function readThreadState(db: Db$1, tenantId: string, conversationId: string, pausedUntilIso: string | null, historyLimit?: number): Promise<PgThreadState>;
+interface LeadContext {
+    contactId: string | null;
+    conversationId: string | null;
+    /** What to call them, if we know. */
+    name: string | null;
+    /** We have spoken before. False for a genuinely first contact. */
+    returning: boolean;
+    lastSeenAt: string | null;
+    /** Cross-channel turns — calls and messages, in the order they happened. */
+    history: ThreadTurn[];
+    /** They asked us to stop. Carried so no caller has to look it up separately. */
+    optedOut: boolean;
+}
+/**
+ * Everything both agents know about one lead, from the one place that knows it.
+ *
+ * The WhatsApp receptionist and the voice agent are meant to be the same
+ * receptionist — a customer who phoned yesterday and texts today should not
+ * have to start again. They were not: the bot read this conversation from
+ * Postgres while the voice agent read a six-turn slice out of the Blob mirror,
+ * a store we are actively retiring. Same person, two different accounts of
+ * them, and only one of the two kept up to date.
+ *
+ * READ-ONLY on purpose. A context lookup must never create a contact or a
+ * conversation: an inbound call that is never answered, or a wrong number,
+ * would otherwise leave a lead behind in the workspace. The real ingest paths
+ * create rows; this one only reports what is already true.
+ */
+declare function readLeadContext(db: Db$1, tenantId: string, phoneE164: string, historyLimit?: number): Promise<LeadContext>;
+/**
+ * The lead, described for a model in a few plain lines.
+ *
+ * Shared so both agents introduce the same person the same way. Facts only —
+ * a name we were given, whether we have spoken, when. Nothing inferred, and
+ * nothing said at all when we know nothing, because "New caller" is itself a
+ * useful and honest thing to tell an agent.
+ */
+declare function describeLead(lead: LeadContext, now?: Date): string;
 
 /**
  * Control-plane repository (Session A): config, policies, team.
@@ -1954,4 +2021,4 @@ declare function subscribeMessagesInserts(client: SupabaseClient<Database>, onIn
     tenant_id: string;
 }) => void, opts?: SubscribeOptions): () => void;
 
-export { type ChannelLookup, type Database, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type NormalizedCallInput, type OutboundTarget, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, countSentToday, createServiceClient, emitEvent, getTenantConfig, ingestCall, ingestInbound, linkCallMessage, listPolicies, markProcessed, pauseConversation, putTenantConfig, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, setCallRecording, setPolicyMode, subscribeMessagesInserts };
+export { type ChannelLookup, type Database, HISTORY_COLUMNS, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type NormalizedCallInput, type OutboundTarget, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, assembleHistory, countSentToday, createServiceClient, describeLead, emitEvent, getTenantConfig, ingestCall, ingestInbound, linkCallMessage, listPolicies, markProcessed, pauseConversation, putTenantConfig, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, setCallRecording, setPolicyMode, subscribeMessagesInserts };

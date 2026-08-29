@@ -16,10 +16,10 @@
  * context rather than guessing. A caller treated as new is a small loss; a
  * caller read someone else's conversation is not recoverable.
  */
-import { getThread, threadNamespace } from "../lib/store.js";
+import { normalizePhone } from "../lib/workspace/contracts.js";
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
-import { resolveChannel } from "../lib/workspace/db.js";
+import { resolveChannel, readLeadContext, describeLead } from "../lib/workspace/db.js";
 import { logger } from "../lib/log.js";
 
 export async function POST(request: Request): Promise<Response> {
@@ -46,14 +46,22 @@ export async function POST(request: Request): Promise<Response> {
         // stranger their privacy.
         L.warn("inbound_ctx_unrouted");
       } else {
-        const t = await getThread(threadNamespace(routed.tenantId), from);
-        const recent = (t.history || []).slice(-6);
-        if (recent.length) {
-          const lines = recent.map((h) =>
-            `${h.role === "user" ? "Customer" : "Business"}: ${String(h.content).slice(0, 160)}`);
-          context =
-            "Returning contact. Recent interactions with this phone number (WhatsApp/calls):\n" +
-            lines.join("\n");
+        // Postgres, not the Blob mirror. Same rows, same rules, same order
+        // as the WhatsApp receptionist reads — a customer who texted this
+        // morning and phones this afternoon is talking to ONE receptionist,
+        // and it should not have a thinner memory on the phone.
+        const phone = normalizePhone(from);
+        const lead = phone ? await readLeadContext(db!, routed.tenantId, phone, 12) : null;
+        if (lead) {
+          const lines = lead.history.map(
+            (h) => `${h.role === "user" ? "Customer" : "Business"}: ${String(h.content).slice(0, 160)}`,
+          );
+          const parts = [describeLead(lead)];
+          if (lines.length) {
+            parts.push("Recent interactions on this number (calls and messages):");
+            parts.push(lines.join("\n"));
+          }
+          context = parts.join("\n");
         }
       }
     } catch (e) {

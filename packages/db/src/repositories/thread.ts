@@ -59,6 +59,54 @@ const isBackfill = (m: { meta?: unknown }): boolean =>
 const effectiveAt = (m: { channel_ts: string | null; created_at: string }): number =>
   new Date(m.channel_ts ?? m.created_at).getTime();
 
+/**
+ * A conversation's turns, as the model should see them.
+ *
+ * Extracted so the WhatsApp receptionist and the voice agent cannot end up
+ * with different ideas of what was said. They used to: the bot read these rows
+ * from Postgres while the voice agent read a six-turn slice out of the Blob
+ * mirror, so the same customer got a different — and thinner — account of
+ * themselves depending on which number they used.
+ *
+ * Four rules live here and nowhere else:
+ *   - a blank body carries nothing to reason over
+ *   - an outbound row only counts once it actually LEFT; a canceled or failed
+ *     send was never seen, and must not appear as something "we said"
+ *   - the backfilled copy of a call note loses to the native row
+ *   - order is by when things HAPPENED, so yesterday's call sits before this
+ *     morning's message
+ */
+type HistoryRow = {
+  body: string | null;
+  sender: string;
+  direction: string;
+  status: string | null;
+  created_at: string;
+  channel_ts: string | null;
+  meta?: unknown;
+};
+
+export function assembleHistory(rows: HistoryRow[], limit: number): ThreadTurn[] {
+  const kept = rows.filter((m) => {
+    const body = (m.body ?? "").trim();
+    if (!body) return false;
+    if (m.direction === "outbound" && !DELIVERED.includes(String(m.status))) return false;
+    if (isBackfill(m) && BLOB_CALL_NOTE.test(body)) return false;
+    return true;
+  });
+  kept.sort((a, b) => effectiveAt(a) - effectiveAt(b));
+  return kept
+    .map((m) => ({
+      // A call note is the customer's own history on another channel — one
+      // agent, so it counts the same as a message.
+      role: (m.sender === "customer" ? "user" : "assistant") as ThreadTurn["role"],
+      content: (m.body ?? "").trim(),
+    }))
+    .slice(-limit);
+}
+
+/** The columns assembleHistory needs. One string, so no caller can under-select. */
+export const HISTORY_COLUMNS = "body, sender, direction, type, status, created_at, channel_ts, meta";
 export async function readThreadState(
   db: Db,
   tenantId: string,
@@ -71,7 +119,7 @@ export async function readThreadState(
   const [recent, replies] = await Promise.all([
     db
       .from("messages")
-      .select("body, sender, direction, type, status, created_at, channel_ts, meta")
+      .select(HISTORY_COLUMNS)
       .eq("tenant_id", tenantId)
       .eq("conversation_id", conversationId)
       .order("created_at", { ascending: false })
@@ -90,27 +138,11 @@ export async function readThreadState(
   if (recent.error) throw new Error(`readThreadState/history: ${recent.error.message}`);
   if (replies.error) throw new Error(`readThreadState/replies: ${replies.error.message}`);
 
-  const kept = (recent.data ?? []).filter((m) => {
-    const body = (m.body ?? "").trim();
-    if (!body) return false; // media placeholders carry no text to reason over
-    if (m.direction === "outbound" && !DELIVERED.includes(String(m.status))) return false;
-    if (isBackfill(m) && BLOB_CALL_NOTE.test(body)) return false; // native row wins
-    return true;
-  });
-
-  // Order by when things actually happened, so a call the customer made
-  // yesterday sits before a message we sent this morning.
-  kept.sort((a, b) => effectiveAt(a) - effectiveAt(b));
-
-  const history: ThreadTurn[] = kept.map((m) => ({
-    // A call note is the customer's own history on another channel — the
-    // receptionist should know the call happened, same as it did on Blob.
-    role: m.sender === "customer" ? "user" : "assistant",
-    content: (m.body ?? "").trim(),
-  }));
+  const history = assembleHistory((recent.data ?? []) as never, historyLimit);
 
   return {
-    history: history.slice(-historyLimit),
+    history,
+
     seen: [],
     pausedUntil: pausedUntilIso ? new Date(pausedUntilIso).getTime() : 0,
     // Imported rows carry the timestamp of the IMPORT, not of a send. Counting
@@ -120,4 +152,127 @@ export async function readThreadState(
       .filter((r) => !isBackfill(r))
       .map((r) => new Date(r.created_at).getTime()),
   };
+}
+
+/* -------------------------------------------------------------------------
+ * ONE lead, ONE context — whichever number they used.
+ * ---------------------------------------------------------------------- */
+
+export interface LeadContext {
+  contactId: string | null;
+  conversationId: string | null;
+  /** What to call them, if we know. */
+  name: string | null;
+  /** We have spoken before. False for a genuinely first contact. */
+  returning: boolean;
+  lastSeenAt: string | null;
+  /** Cross-channel turns — calls and messages, in the order they happened. */
+  history: ThreadTurn[];
+  /** They asked us to stop. Carried so no caller has to look it up separately. */
+  optedOut: boolean;
+}
+
+const EMPTY_LEAD: LeadContext = {
+  contactId: null,
+  conversationId: null,
+  name: null,
+  returning: false,
+  lastSeenAt: null,
+  history: [],
+  optedOut: false,
+};
+
+/**
+ * Everything both agents know about one lead, from the one place that knows it.
+ *
+ * The WhatsApp receptionist and the voice agent are meant to be the same
+ * receptionist — a customer who phoned yesterday and texts today should not
+ * have to start again. They were not: the bot read this conversation from
+ * Postgres while the voice agent read a six-turn slice out of the Blob mirror,
+ * a store we are actively retiring. Same person, two different accounts of
+ * them, and only one of the two kept up to date.
+ *
+ * READ-ONLY on purpose. A context lookup must never create a contact or a
+ * conversation: an inbound call that is never answered, or a wrong number,
+ * would otherwise leave a lead behind in the workspace. The real ingest paths
+ * create rows; this one only reports what is already true.
+ */
+export async function readLeadContext(
+  db: Db,
+  tenantId: string,
+  phoneE164: string,
+  historyLimit = 16,
+): Promise<LeadContext> {
+  const { data: contact, error: cErr } = await db
+    .from("contacts")
+    .select("id, display_name, wa_profile_name, last_seen_at, consent, dnc")
+    .eq("tenant_id", tenantId)
+    .eq("phone_e164", phoneE164)
+    .maybeSingle();
+  if (cErr) throw new Error(`readLeadContext/contact: ${cErr.message}`);
+  if (!contact) return EMPTY_LEAD;
+
+  const { data: conv, error: vErr } = await db
+    .from("conversations")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("contact_id", contact.id)
+    .maybeSingle();
+  if (vErr) throw new Error(`readLeadContext/conversation: ${vErr.message}`);
+
+  let history: ThreadTurn[] = [];
+  if (conv) {
+    const { data: rows, error: hErr } = await db
+      .from("messages")
+      .select(HISTORY_COLUMNS)
+      .eq("tenant_id", tenantId)
+      .eq("conversation_id", conv.id)
+      .order("created_at", { ascending: false })
+      .limit(historyLimit * 3);
+    if (hErr) throw new Error(`readLeadContext/history: ${hErr.message}`);
+    history = assembleHistory((rows ?? []) as never, historyLimit);
+  }
+
+  return {
+    contactId: contact.id,
+    conversationId: conv?.id ?? null,
+    // display_name is what a human typed; wa_profile_name is what WhatsApp
+    // reports. The human's version wins, and neither is invented.
+    name: contact.display_name || contact.wa_profile_name || null,
+    // Having said anything at all is what makes someone returning — not merely
+    // existing as a row, which an outbound-only contact would also satisfy.
+    returning: history.length > 0,
+    lastSeenAt: contact.last_seen_at ?? null,
+    history,
+    optedOut: contact.consent === "opted_out" || contact.dnc === true,
+  };
+}
+
+/**
+ * The lead, described for a model in a few plain lines.
+ *
+ * Shared so both agents introduce the same person the same way. Facts only —
+ * a name we were given, whether we have spoken, when. Nothing inferred, and
+ * nothing said at all when we know nothing, because "New caller" is itself a
+ * useful and honest thing to tell an agent.
+ */
+export function describeLead(lead: LeadContext, now = new Date()): string {
+  if (!lead.contactId) return "New contact — no prior history on record.";
+  const bits: string[] = [];
+  bits.push(lead.name ? `Name on record: ${lead.name}.` : "No name on record.");
+  if (lead.returning) {
+    const days = lead.lastSeenAt
+      ? Math.floor((now.getTime() - new Date(lead.lastSeenAt).getTime()) / 86_400_000)
+      : null;
+    const when =
+      days === null ? "" :
+      days <= 0 ? " Last in touch today." :
+      days === 1 ? " Last in touch yesterday." :
+      ` Last in touch ${days} days ago.`;
+    bits.push(`Returning contact.${when}`);
+  } else {
+    bits.push("First time reaching out.");
+  }
+  if (lead.optedOut) bits.push("They have asked not to receive messages.");
+  return bits.join(" ");
 }

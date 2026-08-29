@@ -31,6 +31,16 @@ export async function generateReply(
   userText: string,
   systemPrompt: string,
   fallbackText: string,
+  /**
+   * Who the receptionist is talking to, in a line or two.
+   *
+   * The bot had the conversation but not the person: it would greet a
+   * customer of two years exactly as it greets a stranger, and could not use
+   * a name WhatsApp had already told us. Passed as a SEPARATE system block so
+   * the business profile above it stays byte-identical and keeps its prompt
+   * cache — this changes per contact, that does not.
+   */
+  leadNote?: string,
 ): Promise<BrainReply> {
   const messages = [...history, { role: "user" as const, content: userText }];
   // output_config/effort predates this SDK pin's types; the API accepts it (proven in prod).
@@ -38,7 +48,12 @@ export async function generateReply(
     model: "claude-opus-5",
     max_tokens: 600,
     output_config: { effort: "low" },
-    system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
+    system: [
+      { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
+      // Uncached on purpose: one line per contact would otherwise evict the
+      // business profile from the cache on every new customer.
+      ...(leadNote ? [{ type: "text", text: `Who you are speaking with: ${leadNote}` }] : []),
+    ],
     messages,
   })) as { stop_reason: string; content: TextBlock[]; usage?: { input_tokens: number; output_tokens: number } };
   const usage = response.usage

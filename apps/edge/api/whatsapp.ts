@@ -51,6 +51,8 @@ import {
   pauseConversation,
   emitEvent,
   readThreadState,
+  readLeadContext,
+  describeLead,
   type IngestResult,
 } from "../lib/workspace/db.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -621,7 +623,29 @@ async function handleInbound(
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const { generateReply } = await import("../lib/brain.js");
-      const r = await generateReply(thread.history, bodyText, brainCfg.system_prompt, brainCfg.fallbacks.error);
+      // The same description the voice agent is given, from the same reader.
+      // One receptionist means one account of who this person is — not a name
+      // on the phone and an anonymous stranger over text.
+      //
+      // Never fatal: an unavailable lead lookup costs recognition, and losing
+      // the reply entirely to get it would be a far worse trade.
+      let leadNote: string | undefined;
+      if (db && tenantId) {
+        try {
+          const e164 = from.startsWith("+") ? from : `+${from}`;
+          const lead = await readLeadContext(db, tenantId, e164, 1);
+          leadNote = describeLead(lead);
+        } catch (e) {
+          L.warn("lead_context_unavailable", { error: errField(e) });
+        }
+      }
+      const r = await generateReply(
+        thread.history,
+        bodyText,
+        brainCfg.system_prompt,
+        brainCfg.fallbacks.error,
+        leadNote,
+      );
       replyText = r.text; escalate = r.escalate; usage = r.usage;
       if (r.reason) escalationReason = r.reason;
       // Layer-2 policy enforcement (Blueprint §6): prompt text is never the
