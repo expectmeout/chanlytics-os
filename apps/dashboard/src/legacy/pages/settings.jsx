@@ -399,7 +399,10 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       // one — omitting it would read as "we did not say".
       hrs[d] = x.open && x.close ? { open: x.open, close: x.close } : {};
     });
-    profile.hours = hrs;
+    // Only send hours once at least one day has real times. Otherwise an
+    // untouched form would save seven closed days and read as a business that
+    // is never open.
+    if (SET_DAYS.some(([d]) => hours[d].open && hours[d].close)) profile.hours = hrs;
     const svcs = services.filter((x) => (x.name || "").trim()).map((x) => {
       const o = { name: x.name.trim() };
       const d = parseInt(x.duration_min, 10);
