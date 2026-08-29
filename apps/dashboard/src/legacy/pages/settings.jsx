@@ -283,30 +283,88 @@ const TeamSection = ({ flash }) => {
   );
 };
 
-const PaneWorkspace = ({ flash }) => (
+// Real workspace facts when the bridge has them, the mockup's seeds otherwise.
+// The card design is unchanged — only where the values come from moves.
+//
+// It rendered "Serenity Spa · +1 (415) 555-0100 · Lena Park, Jay Rivera": a
+// fabricated business with fabricated staff, shown to a real owner as their
+// own settings.
+const DAY_LABEL_SHORT = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
+
+const hoursSummary = (hours) => {
+  if (!hours) return null;
+  const days = ["mon","tue","wed","thu","fri","sat","sun"];
+  const spans = days.map((d) => {
+    const h = hours[d] || {};
+    return { d, text: h.open && h.close ? h.open + "–" + h.close : "Closed" };
+  });
+  // Same run-collapsing the composed prompt uses, so the owner reads the
+  // hours here exactly as the receptionist will state them.
+  const out = [];
+  let i = 0;
+  while (i < spans.length) {
+    let j = i;
+    while (j + 1 < spans.length && spans[j + 1].text === spans[i].text) j++;
+    const label = i === j ? DAY_LABEL_SHORT[spans[i].d] : DAY_LABEL_SHORT[spans[i].d] + "–" + DAY_LABEL_SHORT[spans[j].d];
+    out.push(label + " " + spans[i].text);
+    i = j + 1;
+  }
+  return out.join(" · ");
+};
+
+const PaneWorkspace = ({ flash }) => {
+  const S = (window.__SETTINGS && window.__SETTINGS.config && window.__SETTINGS.config.brain) || null;
+  const ws = (window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || null;
+  const profile = (S && S.profile) || null;
+  const real = !!S;
+  const hrs = profile && hoursSummary(profile.hours);
+  return (
   <>
     <section className="fl-card set-card">
       <div className="fl-card-head"><span className="fl-card-title">Business</span>
         <button className="btn btn-ghost btn-sm" onClick={() => window.askAbout({ mode: "compose", prompt: "Update our business details: " })}><Icon name="edit" size={11} /> Edit</button>
       </div>
       <div className="cl-prof-attr-list">
-        <div className="cl-prof-attr"><span className="cl-prof-attr-key">Name</span><span className="cl-prof-attr-val">Serenity Spa</span></div>
-        <div className="cl-prof-attr"><span className="cl-prof-attr-key">Workspace</span><span className="cl-prof-attr-val">Chanlytics Sales · Professional</span></div>
+        <div className="cl-prof-attr"><span className="cl-prof-attr-key">Name</span><span className="cl-prof-attr-val">{real ? (S.business_name || "—") : "Serenity Spa"}</span></div>
+        <div className="cl-prof-attr"><span className="cl-prof-attr-key">Workspace</span><span className="cl-prof-attr-val">{real ? ((ws && ws.name) || "—") : "Chanlytics Sales · Professional"}</span></div>
         <div className="cl-prof-attr"><span className="cl-prof-attr-key">Hours</span>
           <span className="cl-prof-attr-val" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-            Mon–Sun · 9:00 AM – 6:00 PM
-            <button className="cl-bucket-link" title="Availability rules live on the Calendar" onClick={() => window.CHANLY.nav("calendar")}>
-              Edit on Calendar <Icon name="arrow-right" size={10} />
-            </button>
+            {real
+              ? (hrs || <span className="set-team-mail">Not set — the receptionist cannot state your hours</span>)
+              : "Mon–Sun · 9:00 AM – 6:00 PM"}
+            {!real && (
+              <button className="cl-bucket-link" title="Availability rules live on the Calendar" onClick={() => window.CHANLY.nav("calendar")}>
+                Edit on Calendar <Icon name="arrow-right" size={10} />
+              </button>
+            )}
           </span>
         </div>
-        <div className="cl-prof-attr"><span className="cl-prof-attr-key">Phone line</span><span className="cl-prof-attr-val">+1 (415) 555-0100</span></div>
-        <div className="cl-prof-attr"><span className="cl-prof-attr-key">Therapists</span><span className="cl-prof-attr-val">Lena Park · Jay Rivera</span></div>
+        <div className="cl-prof-attr"><span className="cl-prof-attr-key">Phone line</span><span className="cl-prof-attr-val">{real ? (S.phone_display || "—") : "+1 (415) 555-0100"}</span></div>
+        {real ? (
+          <div className="cl-prof-attr"><span className="cl-prof-attr-key">Booking link</span><span className="cl-prof-attr-val">{S.booking_link || "—"}</span></div>
+        ) : (
+          <div className="cl-prof-attr"><span className="cl-prof-attr-key">Therapists</span><span className="cl-prof-attr-val">Lena Park · Jay Rivera</span></div>
+        )}
+        {real && profile && profile.address && (
+          <div className="cl-prof-attr"><span className="cl-prof-attr-key">Address</span><span className="cl-prof-attr-val">{profile.address}</span></div>
+        )}
+        {real && profile && profile.services && profile.services.length > 0 && (
+          <div className="cl-prof-attr"><span className="cl-prof-attr-key">Services</span>
+            <span className="cl-prof-attr-val">{profile.services.length} on record · {profile.services.slice(0, 3).map((x) => x.name).join(", ")}{profile.services.length > 3 ? "…" : ""}</span>
+          </div>
+        )}
       </div>
+      {real && !profile && (
+        <div className="set-team-mail" style={{ padding: "10px 0 2px" }}>
+          Your hours, services and address are still written inside the assistant's instructions.
+          Until they are filled in here, the phone agent cannot be given the same facts.
+        </div>
+      )}
     </section>
     <TeamSection flash={flash} />
   </>
-);
+  );
+};
 
 const PaneAutonomy = ({ flash }) => {
   const S = window.ST_STORE;

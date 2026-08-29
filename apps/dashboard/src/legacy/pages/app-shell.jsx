@@ -471,7 +471,7 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
   // bridge): __surfaceState is absent and everything renders, which is right,
   // because the whole artifact is a demo there.
   const demoGated = !window.__DEMO_MODE
-    && window.__surfaceState && window.__surfaceState(page) === "demo";
+    && window.__surfaceState && window.__surfaceState(page, param) === "demo";
   if (demoGated) {
     const soonTitle = SOON_META[page]?.title || page;
     // Reset everything the branch above computed from seed data — a crumb
