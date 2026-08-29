@@ -144,3 +144,29 @@ test("every real sub-route names an existing page", () => {
 test("the shell asks with the param, or sub-routes are decoration", () => {
   assert.match(shell, /__surfaceState\(page, param\)/);
 });
+
+/* ------------------------- no fabricated colleagues ----------------------- */
+
+test("REGRESSION: the team card reads real members, not the seed store", () => {
+  // Shipped once and caught by LOOKING at the deployed page: the business card
+  // was real while the card beneath it listed four invented colleagues — and
+  // put "You" beside one of them, on a real owner's own settings page.
+  const settings = fs.readFileSync(path.join(DASH, "legacy/pages/settings.jsx"), "utf8");
+  assert.ok(settings.includes("const realTeam = window.__TEAM;"), "the card must read the fetched members");
+  assert.ok(
+    settings.includes("Array.isArray(realTeam)"),
+    "and must distinguish 'fetched' from 'could not fetch' — null is not an empty team",
+  );
+});
+
+test("'You' is decided by the signed-in email, not the mockup's operator", () => {
+  const settings = fs.readFileSync(path.join(DASH, "legacy/pages/settings.jsx"), "utf8");
+  assert.ok(settings.includes("m.isMe !== undefined ? m.isMe : m.id === S.meId"));
+});
+
+test("a real workspace is not given an invented seat plan", () => {
+  // Seats are a billing concept and billing is not wired. "4 of 5 seats" over
+  // real members would be a number nobody chose.
+  const settings = fs.readFileSync(path.join(DASH, "legacy/pages/settings.jsx"), "utf8");
+  assert.ok(settings.includes('Array.isArray(realTeam) ? team.length : S.seatsUsed()'));
+});
