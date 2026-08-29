@@ -159,7 +159,11 @@ site_url = "https://chanlytics-os.vercel.app"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://chanlytics-os.vercel.app", "http://127.0.0.1:3000"]
+# Sign-in is OTP-CODE based and never redirects, so this allowlist is unused by
+# the live flow. The localhost entry is removed anyway: it allowed a token to be
+# redirected to a service listening on the machine of whoever clicked, which is
+# a real if contrived capture path, and it bought nothing.
+additional_redirect_urls = ["https://chanlytics-os.vercel.app"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -172,13 +176,19 @@ enable_refresh_token_rotation = true
 # Requires enable_refresh_token_rotation = true.
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
-enable_signup = true
+# FALSE: Chanlytics is invite-only. This was true, so "invite-only" rested
+# entirely on the browser passing shouldCreateUser:false — a direct POST to
+# /auth/v1/otp with create_user:true could mint an account. Admin invitation
+# (auth.admin.inviteUserByEmail / createUser) bypasses this flag, so the real
+# onboarding path is unaffected; verified against the live project.
+enable_signup = false
 # Allow/disallow anonymous sign-ins to your project.
 enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
-# Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
-minimum_password_length = 6
+# Nobody signs in with a password here (OTP only, and invited users never set
+# one), but if one is ever set it must not be a weak one.
+minimum_password_length = 12
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
 password_requirements = ""
@@ -216,7 +226,11 @@ web3 = 30
 # secret = ""
 
 [auth.email]
-# Allow/disallow new user signups via email to your project.
+# MUST STAY TRUE. This reads like "no new email signups" and is not: pushing it
+# false disabled the email provider outright — every existing operator got
+# 422 email_provider_disabled and nobody could sign in. The project-wide
+# [auth] enable_signup = false above is the correct switch for invite-only, and
+# it leaves this provider serving codes to accounts that already exist.
 enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
@@ -225,12 +239,20 @@ double_confirm_changes = true
 enable_confirmations = false
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
-# Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
-max_frequency = "1s"
+# Minimum time before another auth email may be sent to the same address.
+# The login form enforces a 60s resend cooldown, but that is CLIENT state: the
+# server accepted one code request per second, so anyone who knew an operator
+# address could flood their inbox by calling the API directly.
+max_frequency = "60s"
 # Number of characters used in the email OTP.
 otp_length = 6
-# Number of seconds before the email OTP expires (defaults to 1 hour).
-otp_expiry = 3600
+# Number of seconds before the email OTP expires.
+# 10 minutes, not the 1-hour default. A 6-digit code is 10^6 possibilities and
+# Supabase does not lock a code after N failed attempts — it rate-limits by IP
+# only — so the LIFETIME of the code is the brute-force budget. An hour handed a
+# distributed attacker six times the attempts. 10 minutes still covers slow
+# email delivery.
+otp_expiry = 600
 
 # Use a production-ready SMTP server
 # [auth.email.smtp]

@@ -1,0 +1,260 @@
+/**
+ * The auth gate, made load-bearing.
+ *
+ * Auth is the one system where a regression is silent: nothing renders wrong,
+ * no request fails, and the only symptom is that someone who should not be
+ * inside is inside. Every assertion here corresponds to a specific way this
+ * app could quietly stop being closed —
+ *
+ *   1. a new route under /auth shipping public because the gate matched a PREFIX
+ *   2. a new /api/v1 route shipping without the wrapper that verifies the user
+ *   3. the layout's own getUser() being deleted as "redundant with middleware"
+ *      (it is not — middleware bypass is a recurring Next.js CVE class)
+ *   4. getSession() replacing getUser(), which trusts an unverified cookie
+ *   5. the login form going back to confirming which emails have accounts
+ *   6. the sign-out CSRF check going back to being skippable by omitting a header
+ *   7. the hosted auth settings drifting back to their unsafe defaults
+ *
+ * These are text assertions against source, not behavioural tests, because the
+ * failure they guard is "someone edits this file and no one notices" — the edit
+ * IS the bug, and the text is where it lands.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.join(here, "../../..");
+const DASH = path.join(ROOT, "apps/dashboard");
+
+/**
+ * Strip comments, keeping string literals intact.
+ *
+ * Every assertion below is of the form "this pattern must NOT appear" — and the
+ * comment explaining WHY it must not appear necessarily contains it. Without
+ * this, each guard is tripped by its own rationale, and the only way to make the
+ * suite pass is to delete the explanation. Code is what is asserted on.
+ */
+function stripComments(src) {
+  let out = "";
+  let i = 0;
+  while (i < src.length) {
+    const c = src[i];
+    const next = src[i + 1];
+    if (c === '"' || c === "'" || c === "`") {
+      // Copy the whole literal verbatim, honouring backslash escapes.
+      out += c;
+      i++;
+      while (i < src.length && src[i] !== c) {
+        if (src[i] === "\\") { out += src[i]; i++; }
+        if (i < src.length) { out += src[i]; i++; }
+      }
+      out += src[i] ?? "";
+      i++;
+    } else if (c === "/" && next === "/") {
+      while (i < src.length && src[i] !== "\n") i++;
+    } else if (c === "/" && next === "*") {
+      i += 2;
+      while (i < src.length && !(src[i] === "*" && src[i + 1] === "/")) i++;
+      i += 2;
+    } else {
+      out += c;
+      i++;
+    }
+  }
+  return out;
+}
+
+/** Read normalised to LF — these files are CRLF and patterns must not care. */
+const readRaw = (p) => fs.readFileSync(path.join(ROOT, p), "utf8").split("\r\n").join("\n");
+/** Read as executable code: comments removed, string literals preserved. */
+const read = (p) => stripComments(readRaw(p));
+
+const middleware = read("apps/dashboard/middleware.ts");
+const signout = read("apps/dashboard/app/auth/signout/route.ts");
+const login = read("apps/dashboard/app/login/page.tsx");
+const osLayout = read("apps/dashboard/app/(os)/layout.tsx");
+const withRoute = read("apps/dashboard/src/server/with-route.ts");
+const nextConfig = read("apps/dashboard/next.config.ts");
+/**
+ * TOML comments are `#`, and the JS stripper would misread an apostrophe in
+ * prose ("the attacker's page") as opening a string literal and swallow real
+ * settings after it. Strip per line, honouring quotes within that line.
+ */
+function stripTomlComments(src) {
+  return src
+    .split("\n")
+    .map((line) => {
+      let quote = null;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (quote) {
+          if (c === quote) quote = null;
+        } else if (c === '"' || c === "'") {
+          quote = c;
+        } else if (c === "#") {
+          return line.slice(0, i);
+        }
+      }
+      return line;
+    })
+    .join("\n");
+}
+const supabaseConfig = stripTomlComments(readRaw("supabase/config.toml"));
+
+/* ------------------------------------------------------------------ 1 + 4 -- */
+
+test("the public path list is exact, never a prefix", () => {
+  // startsWith("/auth") made every future /auth/* route public on creation.
+  assert.ok(
+    !/startsWith\(\s*["']\/auth/.test(middleware),
+    "middleware matches /auth by PREFIX — a new route under /auth would ship unauthenticated",
+  );
+  assert.match(middleware, /PUBLIC_PATHS\.has\(path\)/, "the gate must test exact membership");
+});
+
+test("only these three paths are reachable without a session", () => {
+  const block = /PUBLIC_PATHS\s*=\s*new Set\(\[([^\]]*)\]/.exec(middleware);
+  assert.ok(block, "PUBLIC_PATHS must be a literal Set so this test can read it");
+  const paths = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]).sort();
+  // Pinned BY VALUE: widening the product's unauthenticated surface is a
+  // deliberate edit here, reviewed, not a side effect of adding a file.
+  assert.deepEqual(paths, ["/api/version", "/auth/signout", "/login"]);
+});
+
+test("the session is VERIFIED, never read from the cookie", () => {
+  // getSession() decodes the cookie without asking the auth server whether it is
+  // still valid — a revoked or forged session passes.
+  for (const [name, src] of [["middleware", middleware], ["withRoute", withRoute], ["(os) layout", osLayout]]) {
+    assert.ok(!/getSession\(/.test(src), `${name} must not use getSession()`);
+    assert.match(src, /getUser\(/, `${name} must verify with getUser()`);
+  }
+});
+
+/* ---------------------------------------------------------------------- 2 -- */
+
+test("every /api/v1 route verifies the user itself", () => {
+  const dir = path.join(DASH, "app/api/v1");
+  const routes = [];
+  (function walk(d) {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const full = path.join(d, e.name);
+      if (e.isDirectory()) walk(full);
+      else if (e.name === "route.ts") routes.push(full);
+    }
+  })(dir);
+
+  assert.ok(routes.length >= 20, `expected the v1 surface, found ${routes.length} routes`);
+  const raw = routes.filter((f) => !fs.readFileSync(f, "utf8").includes("withRoute"));
+  assert.deepEqual(
+    raw.map((f) => path.relative(DASH, f)),
+    [],
+    "these routes bypass withRoute, so they depend on middleware alone for auth",
+  );
+});
+
+/* ---------------------------------------------------------------------- 3 -- */
+
+test("the signed-in layout gates independently of middleware", () => {
+  // If middleware is bypassed (CVE-2025-29927 and its successors), this is the
+  // gate that still holds. It is not redundant.
+  assert.match(osLayout, /getUser\(/);
+  assert.match(osLayout, /redirect\(\s*["']\/login["']\s*\)/);
+});
+
+/* ---------------------------------------------------------------------- 5 -- */
+
+test("the login form does not reveal which emails have accounts", () => {
+  assert.ok(
+    !/isn't on a Chanlytics workspace/i.test(login),
+    "this copy told an anonymous caller whether an address has an account",
+  );
+  // The tell is structural: the code-request step must reach the code stage on
+  // the error path too, so "no such account" and "code sent" look identical.
+  assert.match(
+    login,
+    /requestCodeError\(/,
+    "the request step must route errors through the non-revealing translator",
+  );
+  assert.match(
+    login,
+    /if\s*\(shown\)\s*\{\s*setError\(shown\);\s*return;/,
+    "only an actionable error may stop the form advancing to the code stage",
+  );
+});
+
+/* ---------------------------------------------------------------------- 6 -- */
+
+test("sign-out requires positive same-origin evidence", () => {
+  // The old check read `if (origin && host && ...)`: omitting Origin skipped it.
+  assert.ok(
+    !/if\s*\(\s*origin\s*&&\s*host\s*&&/.test(signout),
+    "a request that omits Origin must be REJECTED, not exempted",
+  );
+  assert.match(signout, /sec-fetch-site/, "Fetch Metadata is the primary signal");
+  assert.ok(
+    !/["']same-site["']/.test(signout),
+    "same-site is not same-origin: on vercel.app a sibling subdomain is someone else's app",
+  );
+  assert.match(signout, /status:\s*403/);
+});
+
+/* ---------------------------------------------------------------------- 7 -- */
+
+/** Value of `key` inside the [section] table of config.toml. */
+function toml(section, key) {
+  const body = supabaseConfig.split(`\n[${section}]\n`)[1];
+  assert.ok(body !== undefined, `[${section}] missing from config.toml`);
+  const m = new RegExp(`^${key}\\s*=\\s*(.+)$`, "m").exec(body.split("\n[")[0]);
+  return m ? m[1].trim() : undefined;
+}
+
+test("the hosted project is invite-only at the SERVER, not just in the browser", () => {
+  // shouldCreateUser:false is a request parameter — the caller chooses it.
+  assert.equal(toml("auth", "enable_signup"), "false");
+  assert.equal(toml("auth", "enable_anonymous_sign_ins"), "false");
+});
+
+test("the email provider stays ENABLED — this key does not mean what it says", () => {
+  // Setting this false does not mean "no new signups by email". It disables the
+  // email provider outright: every existing operator gets 422
+  // email_provider_disabled and nobody can sign in. That was a live outage.
+  // Invite-only is [auth] enable_signup above; this must stay true.
+  assert.equal(toml("auth.email", "enable_signup"), "true");
+});
+
+test("a 6-digit code is not left guessable for an hour", () => {
+  // Supabase rate-limits verification by IP and does not lock a code after N
+  // failures, so the code's LIFETIME is the brute-force budget.
+  assert.ok(Number(toml("auth.email", "otp_expiry")) <= 600, "otp_expiry must be <= 10 minutes");
+  assert.equal(toml("auth.email", "otp_length"), "6");
+});
+
+test("the inbox cannot be flooded by calling the API directly", () => {
+  // The form's 60s resend cooldown is client state; this is the server's.
+  assert.equal(toml("auth.email", "max_frequency"), '"60s"');
+});
+
+test("no development origin is trusted by the production project", () => {
+  const urls = toml("auth", "additional_redirect_urls") ?? "";
+  assert.ok(!/localhost|127\.0\.0\.1/.test(urls), `dev origin still allowlisted: ${urls}`);
+});
+
+/* ------------------------------------------------------------- headers ---- */
+
+test("the dashboard cannot be framed", () => {
+  // Its signed-in surface has Approve, Send and Take-over buttons; without this
+  // an attacker's page can embed it invisibly and harvest those clicks.
+  assert.match(nextConfig, /frame-ancestors 'none'/);
+  assert.match(nextConfig, /X-Frame-Options["']?\s*,\s*value:\s*["']DENY/);
+  assert.match(nextConfig, /X-Content-Type-Options/);
+  assert.match(nextConfig, /Referrer-Policy/);
+  assert.match(nextConfig, /Permissions-Policy/);
+});
+
+test("the sign-in page is never stored in a shared cache", () => {
+  assert.match(nextConfig, /source:\s*["']\/login["']/);
+  assert.match(nextConfig, /no-store/);
+});
