@@ -16,6 +16,20 @@ export interface ThreadState {
   pausedUntil: number;   // epoch ms — human is handling this thread
   replies: number[];     // epoch ms of bot replies (rate cap)
   /**
+   * Cached consent, so an opt-out survives a Postgres outage.
+   *
+   * `contacts.consent` is authoritative and lives only in Postgres, so the gate
+   * read it from the ingest result — and when Postgres was unreachable that
+   * result is null, meaning a customer who opted out last week would start
+   * getting bot replies again for the duration of the outage. Exactly the
+   * moment the guarantee matters most is the moment it disappeared.
+   *
+   * This is a CACHE, never the source: it is consulted only when Postgres did
+   * not answer, so a customer who has since texted START is never held out by a
+   * stale local copy.
+   */
+  optedOut?: boolean;
+  /**
    * The store could not be READ. Distinct from "this thread is new", and the
    * difference decides behaviour: a blank thread has `pausedUntil: 0`, so
    * treating a read failure as blank makes the receptionist believe nobody has

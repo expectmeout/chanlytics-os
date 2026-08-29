@@ -34,6 +34,24 @@ interface WaRawMessage {
         id?: string;
         mime_type?: string;
     };
+    /** Tap on a TEMPLATE quick-reply button. Both fields hold the label. */
+    button?: {
+        payload?: string;
+        text?: string;
+    };
+    /** Tap on an interactive reply button, or a pick from an interactive list. */
+    interactive?: {
+        type?: string;
+        button_reply?: {
+            id?: string;
+            title?: string;
+        };
+        list_reply?: {
+            id?: string;
+            title?: string;
+            description?: string;
+        };
+    };
 }
 interface WaChangeValue {
     metadata?: {

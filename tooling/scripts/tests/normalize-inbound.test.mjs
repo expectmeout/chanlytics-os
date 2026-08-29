@@ -62,3 +62,79 @@ test("missing timestamp yields null channel ts", () => {
   const n = normalizeInbound(msg({ timestamp: undefined }), {});
   assert.equal(n.channelTsIso, null);
 });
+
+/* ---------------------------------------------------------------------------
+ * Tapped replies. A customer who presses a button has said something — the
+ * words just arrive in a different field. Before this, m.type was "button" or
+ * "interactive", isText was false, and the consequences were two:
+ *   - the consent gate never saw it, so a Stop button changed nothing, and
+ *   - the handler classified it as unreadable and answered the customer with
+ *     the non-text fallback ("sorry, I can't read that").
+ * Meta's own webhook reference uses "Unsubscribe" as its example button
+ * payload, so the very shape their docs demonstrate was the one being dropped.
+ * ------------------------------------------------------------------------ */
+
+const tapped = (over) => msg({ type: "button", text: undefined, ...over });
+
+test("a template quick-reply is text, not an unreadable message", () => {
+  const n = normalizeInbound(tapped({ button: { payload: "Book now", text: "Book now" } }), {});
+  assert.equal(n.type, "text");
+  assert.equal(n.body, "Book now");
+  assert.equal(n.rawType, "button");   // the distinction is kept, not erased
+  assert.equal(n.media, null);
+  assert.equal(n.optOut, false);
+});
+
+test("pressing an opt-out button opts the customer out", () => {
+  // Meta's documented example payload, verbatim.
+  const n = normalizeInbound(tapped({ button: { payload: "Unsubscribe", text: "Unsubscribe" } }), {});
+  assert.equal(n.optOut, true);
+  assert.equal(n.body, "Unsubscribe");
+});
+
+test("interactive button_reply and list_reply both carry consent", () => {
+  const btn = normalizeInbound(
+    msg({ type: "interactive", text: undefined, interactive: { type: "button_reply", button_reply: { id: "b1", title: "STOP" } } }),
+    {},
+  );
+  assert.equal(btn.type, "text");
+  assert.equal(btn.body, "STOP");
+  assert.equal(btn.optOut, true);
+
+  const list = normalizeInbound(
+    msg({ type: "interactive", text: undefined, interactive: { type: "list_reply", list_reply: { id: "l1", title: "Priority Mail", description: "2 days" } } }),
+    {},
+  );
+  assert.equal(list.type, "text");
+  assert.equal(list.body, "Priority Mail");
+  assert.equal(list.optOut, false);
+});
+
+test("a localised label still opts out when the tenant sets the id", () => {
+  // The label is what the customer reads; the id is what the tenant controls.
+  // Without this, a Spanish "Detener" button could never opt anyone out.
+  const n = normalizeInbound(
+    msg({ type: "interactive", text: undefined, interactive: { button_reply: { id: "stop", title: "Detener mensajes" } } }),
+    {},
+  );
+  assert.equal(n.optOut, true);
+  assert.equal(n.body, "Detener mensajes"); // staff still see what they tapped
+});
+
+test("START via a button lifts the opt-out the same way", () => {
+  const n = normalizeInbound(tapped({ button: { payload: "START", text: "START" } }), {});
+  assert.equal(n.optIn, true);
+  assert.equal(n.optOut, false);
+});
+
+test("a tap is still matched as a whole label, never a substring", () => {
+  const n = normalizeInbound(tapped({ button: { payload: "Stop by the salon", text: "Stop by the salon" } }), {});
+  assert.equal(n.optOut, false, "an anchored pattern must not fire on a phrase that merely starts with stop");
+});
+
+test("an empty interactive payload stays unreadable rather than becoming empty text", () => {
+  const n = normalizeInbound(msg({ type: "interactive", text: undefined, interactive: { type: "nfm_reply" } }), {});
+  assert.equal(n.type, "media");
+  assert.equal(n.body, null);
+  assert.equal(n.optOut, false);
+});

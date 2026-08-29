@@ -4082,12 +4082,30 @@ var TenantConfigSchema = external_exports.object({
 
 // src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";
+function chosenReply(m) {
+  if (m.button) {
+    const label = m.button.text ?? m.button.payload ?? "";
+    const id = m.button.payload ?? "";
+    return label || id ? { label, id } : null;
+  }
+  const r = m.interactive?.button_reply ?? m.interactive?.list_reply;
+  if (r) {
+    const label = r.title ?? "";
+    const id = r.id ?? "";
+    return label || id ? { label, id } : null;
+  }
+  return null;
+}
 function normalizeInbound(m, value) {
   const list = value.contacts || [];
   const contact = list.find((c) => c.wa_id === m.from) ?? (list.length === 1 ? list[0] : void 0);
   const mediaSrc = m.image || m.audio || m.video || m.document || m.sticker || null;
-  const isText = m.type === "text" && !!m.text?.body;
-  const body = isText ? m.text.body : null;
+  const chosen = chosenReply(m);
+  const typed = m.type === "text" && !!m.text?.body;
+  const isText = typed || !!chosen;
+  const body = typed ? m.text.body : chosen ? chosen.label || chosen.id : null;
+  const consentText = [body, chosen?.id].filter((s) => !!s);
+  const matches = (re) => consentText.some((s) => re.test(s));
   return {
     waId: contact?.wa_id || m.from,
     phoneDigits: m.from,
@@ -4107,8 +4125,8 @@ function normalizeInbound(m, value) {
         fetch_state: "pending"
       };
     })() : null,
-    optOut: isText ? OPT_OUT_PATTERN.test(body || "") : false,
-    optIn: isText ? OPT_IN_PATTERN.test(body || "") : false
+    optOut: isText && matches(OPT_OUT_PATTERN),
+    optIn: isText && matches(OPT_IN_PATTERN)
   };
 }
 var SEND_TIMEOUT_MS = 15e3;
