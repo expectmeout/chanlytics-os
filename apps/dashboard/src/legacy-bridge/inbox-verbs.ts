@@ -19,7 +19,15 @@ type VerbResult = { ok: true; data?: unknown } | { ok: false; message: string };
 // The template SEND is an intent; its params are tenant facts and are
 // resolved server-side from the control plane (PRD E4) — the browser no
 // longer knows or ships any workspace's booking link.
-const BOOKING_TEMPLATE = { name: "booking_link_v1", language: "en_US" };
+/**
+ * Last-resort template identity.
+ *
+ * The workspace's approved templates are fetched and offered; this is only
+ * used when that list has not arrived yet. It is a NAME, not content — the
+ * params are still resolved server-side from the control plane, so the browser
+ * continues to know nothing about any workspace's booking link.
+ */
+const FALLBACK_TEMPLATE = { name: "booking_link_v1", language: "en_US" };
 
 async function call(url: string, body?: unknown, idempotencyKey?: string): Promise<VerbResult> {
   try {
@@ -70,7 +78,7 @@ const inFlight = new Set<string>();
 export async function inboxVerb(
   thread: RealThread,
   verb: InboxVerb,
-  payload?: { text?: string; until?: string },
+  payload?: { text?: string; until?: string; template?: { name: string; language: string } },
 ): Promise<VerbResult> {
   const lock = `${thread.conversationId}:${verb}`;
   if (inFlight.has(lock)) return { ok: false, message: "Still working on that one…" };
@@ -96,7 +104,7 @@ function intentHash(text: string): string {
 async function runVerb(
   thread: RealThread,
   verb: InboxVerb,
-  payload?: { text?: string; until?: string },
+  payload?: { text?: string; until?: string; template?: { name: string; language: string } },
 ): Promise<VerbResult> {
   const convBase = `/api/v1/conversations/${thread.conversationId}`;
   // A replayed send must return the ORIGINAL result, never a second message.
@@ -114,9 +122,10 @@ async function runVerb(
   // carries no text — so every template in a conversation produced the SAME
   // key and the second one within the window was swallowed while the UI
   // reported success. The template's own identity goes into the key.
+  const tpl = payload?.template ?? FALLBACK_TEMPLATE;
   const intent = payload?.text?.trim()
     ? `text:${payload.text.trim()}`
-    : `template:${BOOKING_TEMPLATE.name}:${BOOKING_TEMPLATE.language}`;
+    : `template:${tpl.name}:${tpl.language}`;
   const sendKey = `${thread.conversationId}:${intentHash(intent)}`;
   let result: VerbResult;
   switch (verb) {
@@ -143,7 +152,7 @@ async function runVerb(
       result = await call(`${convBase}/reply`, { text: payload?.text ?? "" }, sendKey);
       break;
     case "reply-template":
-      result = await call(`${convBase}/reply`, { template: BOOKING_TEMPLATE }, sendKey);
+      result = await call(`${convBase}/reply`, { template: tpl }, sendKey);
       break;
     default:
       result = { ok: false, message: `Unknown verb ${verb as string}.` };
