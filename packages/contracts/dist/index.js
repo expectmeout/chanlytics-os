@@ -143,6 +143,22 @@ function isOptedOutContact(c) {
 }
 var OPT_OUT_REFUSAL = "This customer asked to stop receiving messages. They can text START to opt back in.";
 
+// src/policy.ts
+var PRICE_PATTERNS = [
+  /\$\s?\d/,
+  /\b\d+(?:[.,]\d{2})?\s?(?:dollars?|usd|bucks?)\b/i,
+  /\b\d+(?:[.,]\d{2})?\s?(?:d[oó]lares?|pesos?)\b/i
+];
+function violatesNoPrices(text) {
+  return PRICE_PATTERNS.some((p) => p.test(text));
+}
+var WA_WINDOW_MS = 24 * 3600 * 1e3;
+function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
+  if (!lastWaInboundAtIso) return { open: false, closesAtIso: null };
+  const closes = new Date(lastWaInboundAtIso).getTime() + WA_WINDOW_MS;
+  return { open: closes > now.getTime(), closesAtIso: new Date(closes).toISOString() };
+}
+
 // src/viewmodels.ts
 function isOptedOut(dto) {
   return isOptedOutContact(dto.contact);
@@ -210,6 +226,19 @@ var ESCALATION_REASON_LABELS = {
   opt_out: "Asked to stop receiving messages",
   state_unavailable: "The receptionist could not read this thread \u2014 needs a human"
 };
+var ESCALATION_SUMMARIES = {
+  human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
+  refusal: "The receptionist wouldn't answer this one. A holding message went out.",
+  brain_error: "The receptionist errored and sent a holding message. They're waiting on a real answer.",
+  non_text: "They sent a voice note or photo the receptionist can't read. Open it and reply yourself.",
+  send_failed: "The reply never reached them \u2014 as far as the customer knows, nobody answered.",
+  policy_block: "A pricing question, held by policy. Quote it yourself.",
+  rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent \u2014 they're waiting in silence.",
+  deadman: "This sat unanswered long enough to flag. Nobody has replied.",
+  manual: "Flagged by hand for a human.",
+  opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
+  state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out."
+};
 function formatWaited(ms) {
   const min = Math.max(1, Math.round(ms / 6e4));
   if (min < 60) return `${min}m`;
@@ -227,7 +256,7 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
   const reasonLabel = escalation ? ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason : null;
   const last = dto.messages[dto.messages.length - 1];
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
-  const win = new Date(new Date(dto.last_wa_inbound_at ?? 0).getTime() + 24 * 3600 * 1e3) > now;
+  const win = waWindow(dto.last_wa_inbound_at, now).open;
   const timeline = dto.messages.map((m) => ({
     type: "msg",
     from: m.sender === "customer" ? "client" : "agent",
@@ -257,7 +286,7 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
     windowOpen: win,
     optedOut: isOptedOut(dto),
     who,
-    whoMeta: who === formatPhoneDisplay(dto.contact.phone_e164) ? "WhatsApp \xB7 no name saved" : `WhatsApp \xB7 ${formatPhoneDisplay(dto.contact.phone_e164) ?? "no phone"}`,
+    whoMeta: contactMeta(dto),
     avatar: initialsOf(who),
     state,
     takenOver,
@@ -266,7 +295,7 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
     agent: { name: "WhatsApp Receptionist", glyph: "W", autonomy: "Pauses on handoff", tone: "Warm \xB7 bilingual (EN/ES)" },
     subject: (claimedByOther ? "A teammate is answering this" : null) ?? reasonLabel ?? (takenOver ? "You're answering this one" : lastInbound ? messageText(lastInbound).slice(0, 80) : last ? messageText(last).slice(0, 80) : "No messages yet"),
     preview: last ? messageText(last).slice(0, 110) : "",
-    summary: escalation ? `${reasonLabel}. The customer already got a holding reply \u2014 they're expecting a real answer from the salon.` : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : "The receptionist answered this on its own. Nothing is owed.",
+    summary: escalation ? ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.` : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : "The receptionist answered this on its own. Nothing is owed.",
     contextStrip: [
       ...reasonLabel ? [{ label: "Why you", value: reasonLabel }] : [],
       { label: "Waiting", value: waitingMin ? formatWaited(waitingMin * 6e4) : "\u2014", ...waitingMin && waitingMin > 30 ? { warn: true } : {} },
@@ -285,7 +314,7 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
   };
 }
 function toConversationVM(dto, now = /* @__PURE__ */ new Date()) {
-  const who = dto.contact.display_name || dto.contact.wa_profile_name || formatPhoneDisplay(dto.contact.phone_e164) || "Unknown";
+  const who = contactName(dto);
   const msgs = dto.messages.map((m) => ({
     from: m.sender === "customer" ? "client" : "agent",
     at: bubbleTime(m.created_at, now),
@@ -404,22 +433,6 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
     ...recState === "ready" ? { recordingUrl: `/api/v1/calls/${dto.id}/recording` } : {},
     ...dto.conversation_id ? { threadId: `th-${dto.conversation_id}` } : {}
   };
-}
-
-// src/policy.ts
-var PRICE_PATTERNS = [
-  /\$\s?\d/,
-  /\b\d+(?:[.,]\d{2})?\s?(?:dollars?|usd|bucks?)\b/i,
-  /\b\d+(?:[.,]\d{2})?\s?(?:d[oó]lares?|pesos?)\b/i
-];
-function violatesNoPrices(text) {
-  return PRICE_PATTERNS.some((p) => p.test(text));
-}
-var WA_WINDOW_MS = 24 * 3600 * 1e3;
-function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
-  if (!lastWaInboundAtIso) return { open: false, closesAtIso: null };
-  const closes = new Date(lastWaInboundAtIso).getTime() + WA_WINDOW_MS;
-  return { open: closes > now.getTime(), closesAtIso: new Date(closes).toISOString() };
 }
 
 // src/today.ts

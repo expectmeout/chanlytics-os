@@ -5,9 +5,13 @@ export const GET = withRoute(async (req, { supabase }) => {
   const state = new URL(req.url).searchParams.get("state") ?? "open";
   const { data, error } = await supabase
     .from("escalations")
-    .select(
-      "id, reason, details, state, created_at, conversation_id, conversations (id, state, paused_until, last_message_at, last_wa_inbound_at, contacts (id, display_name, wa_profile_name, phone_e164))",
-    )
+    // The joined conversation and its contact PII used to ride along here and
+    // no consumer ever read them: both callers (the Inbox and Today overrides)
+    // type these rows as EscalationDto + conversation_id and join to the
+    // conversations they already fetched. So every inbox refresh — which is
+    // every realtime message and every tab focus — shipped customer names and
+    // phone numbers across the wire to be discarded on arrival.
+    .select("id, reason, details, state, created_at, conversation_id")
     .eq("state", state)
     .order("created_at", { ascending: false })
     .limit(100);

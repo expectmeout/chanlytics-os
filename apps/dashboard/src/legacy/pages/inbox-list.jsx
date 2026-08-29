@@ -51,6 +51,11 @@ const InboxList = ({
   visible = [...visible].sort((a, b) => (priorityRank[a.priority] ?? 9) - (priorityRank[b.priority] ?? 9));
 
   const allSelected = visible.length > 0 && visible.every((t) => selected.includes(t.id));
+  // The agent name is only worth a row if the threads differ on it. This was
+  // computed INSIDE the row map — one Set built per rendered row, so 100
+  // threads meant 100 allocations and ~10,000 steps on every keystroke of the
+  // search box and every realtime reseed. It is constant for the whole list.
+  const multipleAgents = new Set(threads.map((x) => x.agent && x.agent.name)).size > 1;
   const anySelected = selected.length > 0;
   const inNeedsBucket = activeBucket === "needs";
 
@@ -258,7 +263,7 @@ const InboxList = ({
                   <span className="ix-thread-preview">{t.preview}</span>
                 </div>
                 <div className="ix-thread-foot">
-                  {new Set(threads.map((x) => x.agent && x.agent.name)).size > 1 && (
+                  {multipleAgents && (
                   <span className="ix-thread-agent">
                     <span className="agent-avatar" style={{ width: 14, height: 14, fontSize: 8 }}>{t.agent.glyph}</span>
                     <span>{t.agent.name}</span>

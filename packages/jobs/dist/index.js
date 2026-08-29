@@ -4076,9 +4076,9 @@ var coerce = {
   date: ((arg) => ZodDate.create({ ...arg, coerce: true }))
 };
 var NEVER = INVALID;
+var WA_WINDOW_MS = 24 * 3600 * 1e3;
 var TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WA_WINDOW_MS = 24 * 3600 * 1e3;
 var PolicyLimitsSchema = external_exports.object({
   max_replies_day: external_exports.number().int().min(1).max(200).optional(),
   pause_hours: external_exports.number().int().min(1).max(168).optional()
@@ -8190,9 +8190,9 @@ var NEVER2 = INVALID2;
 function isOptedOutContact(c) {
   return c.consent === "opted_out" || c.dnc === true;
 }
+var WA_WINDOW_MS2 = 24 * 3600 * 1e3;
 var TIME_FMT2 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WA_WINDOW_MS2 = 24 * 3600 * 1e3;
 var PolicyLimitsSchema2 = external_exports2.object({
   max_replies_day: external_exports2.number().int().min(1).max(200).optional(),
   pause_hours: external_exports2.number().int().min(1).max(168).optional()

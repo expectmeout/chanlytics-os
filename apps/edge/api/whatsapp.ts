@@ -441,8 +441,15 @@ async function handleInbound(
   // words in a different field; matching on m.type sent every one of them down
   // the "I can't read that" path. normalizeInbound resolves what they chose.
   if (n.type !== "text" || !n.body) {
-    // genuinely unreadable (voice note, image, sticker): hand to a human
-    await sink.media(n);
+    // genuinely unreadable (voice note, image, sticker): hand to a human.
+    //
+    // sink.media() downloads the attachment from Meta (an 8s metadata fetch,
+    // then up to 25MB with a 15s timeout) and uploads it to storage. That ran
+    // HERE, above the acknowledgement — so someone who sent a voice note waited
+    // through two Graph round trips and a multi-megabyte upload, as much as
+    // ~23s of pure timeout, before being told we had seen it. Nothing in the
+    // ack depends on those bytes, so it joins the post-reply work below.
+    const media = sink.media(n);
     if (Date.now() > thread.pausedUntil) {
       // No persona configured -> no ack goes out (and nothing to pause); the
       // message still escalates so a human sees it.
@@ -457,13 +464,17 @@ async function handleInbound(
         alertStaff(from, `[${m.type} message]`, brainCfg ? "(auto-acknowledged, bot paused)" : "(no auto-reply configured)", "non-text message", notifyTarget),
       ]);
     }
-    await sink.processed();
+    await Promise.all([media, sink.processed()]);
     return;
   }
   // Past the gate above, this is the customer's message as words — typed, or
   // the label of what they tapped. Everything downstream reads it from here so
   // no branch can reach back to m.text and miss the tapped case.
-  const text = n.body;
+  //
+  // Named bodyText, not text: `text` is the HTTP helper imported at the top of
+  // this file, and shadowing it here would make a later `return text(200, …)`
+  // inside this function fail in a thoroughly confusing way.
+  const bodyText = n.body;
 
   if (m.timestamp && Date.now() - Number(m.timestamp) * 1000 > STALE_MS) {
     L.info("wa_skip_stale");
@@ -475,7 +486,7 @@ async function handleInbound(
   thread.seen.push(m.id);
 
   if (Date.now() < thread.pausedUntil) {
-    thread.history.push({ role: "user", content: text });
+    thread.history.push({ role: "user", content: bodyText });
     await saveThread(ns, from, thread);
     L.info("wa_skip_paused", { paused_until: thread.pausedUntil });
     await sink.processed();
@@ -491,7 +502,7 @@ async function handleInbound(
     // fires on a busy thread, not only when someone lowers the limit.
     await Promise.all([
       sink.escalate("rate_cap", `Thread hit ${maxRepliesDay} automatic replies today — the receptionist stopped and is waiting for a human.`),
-      alertStaff(from, text, "(no reply sent — daily automatic-reply limit reached)", "rate cap", notifyTarget),
+      alertStaff(from, bodyText, "(no reply sent — daily automatic-reply limit reached)", "rate cap", notifyTarget),
       sink.processed(),
     ]);
     return;
@@ -516,7 +527,7 @@ async function handleInbound(
       ),
       alertStaff(
         from,
-        text,
+        bodyText,
         "(held — no auto-reply for this workspace)",
         brainCfg ? `reply mode ${replyMode}` : rt?.configBroken ? "settings could not be read" : "no persona configured",
         notifyTarget,
@@ -534,7 +545,7 @@ async function handleInbound(
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const { generateReply } = await import("../lib/brain.js");
-      const r = await generateReply(thread.history, text, brainCfg.system_prompt, brainCfg.fallbacks.error);
+      const r = await generateReply(thread.history, bodyText, brainCfg.system_prompt, brainCfg.fallbacks.error);
       replyText = r.text; escalate = r.escalate; usage = r.usage;
       if (r.reason) escalationReason = r.reason;
       // Layer-2 policy enforcement (Blueprint §6): prompt text is never the
@@ -558,7 +569,7 @@ async function handleInbound(
   const sent = await sendText(from, replyText, rt);
   const tSent = Date.now();
   if (sent.ok) {
-    thread.history.push({ role: "user", content: text });
+    thread.history.push({ role: "user", content: bodyText });
     thread.history.push({ role: "assistant", content: replyText });
     thread.replies.push(Date.now());
     const post: Promise<unknown>[] = [sink.outbound(replyText, sent.wamid)];
@@ -566,8 +577,8 @@ async function handleInbound(
     if (escalate) {
       thread.pausedUntil = Date.now() + pauseMs;
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
-      post.push(sink.escalate(escalationReason, text));
-      post.push(alertStaff(from, text, replyText, "assistant flagged handoff", notifyTarget));
+      post.push(sink.escalate(escalationReason, bodyText));
+      post.push(alertStaff(from, bodyText, replyText, "assistant flagged handoff", notifyTarget));
     }
     await Promise.all(post);
     await saveThread(ns, from, thread);
@@ -577,7 +588,7 @@ async function handleInbound(
     // loud, and the message must stay visibly unprocessed for reconciliation.
     await saveThread(ns, from, thread);
     await Promise.all([
-      alertStaff(from, text, "(send failed — the customer received no reply)", "wa_send_failed", notifyTarget),
+      alertStaff(from, bodyText, "(send failed — the customer received no reply)", "wa_send_failed", notifyTarget),
       sink.sendFailed(sent.status),
       sink.escalate("send_failed", `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`),
     ]);

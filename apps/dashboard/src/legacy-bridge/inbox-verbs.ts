@@ -6,6 +6,7 @@
  */
 import { conversationsOverride, inboxOverride, todayOverride, type SurfaceOverride } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
+import { clearSurfaceCache } from "./surface-cache";
 
 interface RealThread {
   conversationId: string;
@@ -31,6 +32,12 @@ async function call(url: string, body?: unknown, idempotencyKey?: string): Promi
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
     if (res.status === 401) {
+      // Clear BEFORE redirecting. The surface cache holds real customer
+      // transcripts in sessionStorage, and every other exit — sign-out, and a
+      // 401 during a surface refresh — clears it on the way out. This path did
+      // not, so a session expiring while an operator pressed a button left one
+      // workspace's messages sitting in storage for whoever signed in next.
+      clearSurfaceCache();
       window.location.assign("/login");
       return { ok: false, message: "Signed out." };
     }
