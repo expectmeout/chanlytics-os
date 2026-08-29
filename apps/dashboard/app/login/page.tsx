@@ -6,17 +6,47 @@ import { clearSurfaceCache } from "@/legacy-bridge/surface-cache";
 
 const RESEND_COOLDOWN_S = 60;
 
-/** Raw Supabase auth errors, translated for humans. */
-function friendlyError(message: string): string {
-  if (/signups not allowed/i.test(message)) {
-    return "This email isn't on a Chanlytics workspace yet — ask your Chanlytics contact to add you.";
-  }
+/**
+ * Errors on the CODE-REQUEST step, translated for humans without confirming
+ * whether an account exists.
+ *
+ * Supabase answers an unknown address with 422 "Signups not allowed for otp"
+ * and a known one with 200, and this used to render that difference as "This
+ * email isn't on a Chanlytics workspace yet" — a public oracle for exactly who
+ * has an account. On an invite-only product the account list IS the customer
+ * and staff list, and anyone could enumerate it one address at a time.
+ *
+ * So a request either reports a real, actionable problem (rate limiting) or it
+ * reports nothing at all: the caller is told a code was sent either way, and
+ * only someone who can read that inbox learns anything. Returning null means
+ * "say the neutral thing".
+ *
+ * NOTE: this closes the oracle on OUR surface, not at its source — the anon key
+ * is public by design, so the Supabase endpoint still answers differently. The
+ * complete fix is a CAPTCHA on the auth endpoints (Supabase supports hCaptcha
+ * and Turnstile), which needs a provider account and is flagged rather than
+ * silently half-done.
+ */
+function requestCodeError(message: string): string | null {
   const wait = /after (\d+) seconds/.exec(message);
-  if (/security purposes/i.test(message) && wait) {
-    return `Please wait ${wait[1]}s before requesting another code.`;
+  if (/security purposes|rate limit|too many/i.test(message)) {
+    return wait
+      ? `Please wait ${wait[1]}s before requesting another code.`
+      : "Too many requests just now — wait a minute and try again.";
   }
-  if (/expired|invalid/i.test(message) && /token|otp/i.test(message)) {
+  // Anything that distinguishes "no such account" from "code sent" is
+  // deliberately swallowed. A genuine outage still surfaces below.
+  if (/signup|otp_disabled|not allowed|not found|invalid/i.test(message)) return null;
+  return message;
+}
+
+/** Errors on the VERIFY step, where the account is already implied. */
+function verifyError(message: string): string {
+  if (/expired|invalid/i.test(message) && /token|otp|code/i.test(message)) {
     return "That code didn't match or has expired — request a new one.";
+  }
+  if (/security purposes|rate limit|too many/i.test(message)) {
+    return "Too many attempts — wait a minute before trying again.";
   }
   return message;
 }
@@ -61,14 +91,23 @@ export default function LoginPage() {
     setError(null);
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
+      // Belt and braces: the project now refuses signups server-side too, so
+      // this flag is no longer the only thing making the product invite-only.
       options: { shouldCreateUser: false },
     });
     setBusy(false);
-    if (error) setError(friendlyError(error.message));
-    else {
-      setStage("code");
-      startCooldown();
+
+    const shown = error ? requestCodeError(error.message) : null;
+    if (shown) {
+      setError(shown);
+      return;
     }
+    // Advance on success AND on a swallowed "no such account", so the two are
+    // indistinguishable from the outside. Someone who cannot read that inbox
+    // learns nothing; someone who can gets their code.
+    setError(null);
+    setStage("code");
+    startCooldown();
   }
 
   async function verifyCode(e: React.FormEvent) {
@@ -81,7 +120,7 @@ export default function LoginPage() {
       type: "email",
     });
     setBusy(false);
-    if (error) setError(friendlyError(error.message));
+    if (error) setError(verifyError(error.message));
     else {
       // Whoever signs in next must not inherit the previous account's cached
       // conversations. Sign-out already clears this; sign-in is the other half
