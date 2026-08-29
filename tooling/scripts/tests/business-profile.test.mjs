@@ -183,3 +183,19 @@ test("a save failure is shown, never swallowed", () => {
   // did not land.
   assert.match(settingsJsx, /if \(!r\.ok\) \{ flash\(/);
 });
+
+test("REGRESSION: seven closed days is not a profile", () => {
+  // The editor writes every day on save. If this counted keys, an owner who
+  // opened the form and pressed Save with nothing filled in would switch their
+  // receptionist onto a composed prompt with no hours, no services and no
+  // address — strictly worse than the hand-written one it replaced.
+  const allClosed = { mon: {}, tue: {}, wed: {}, thu: {}, fri: {}, sat: {}, sun: {} };
+  assert.equal(hasProfile({ hours: allClosed }), false);
+  assert.equal(resolveSystemPrompt({ ...brain, profile: { hours: allClosed } }), brain.system_prompt);
+  // One real opening time is enough to mean it.
+  assert.equal(hasProfile({ hours: { ...allClosed, mon: { open: "09:00", close: "17:00" } } }), true);
+});
+
+test("the editor does not send an hours map nobody filled in", () => {
+  assert.match(settingsJsx, /if \(SET_DAYS\.some\(\(\[d\]\) => hours\[d\]\.open && hours\[d\]\.close\)\) profile\.hours = hrs;/);
+});

@@ -897,7 +897,8 @@ function hoursLines(hours) {
 }
 function hasProfile(p) {
   if (!p) return false;
-  return !!(p.address || p.tone || p.extra_instructions || p.hours && Object.keys(p.hours).length || p.services?.length || p.languages?.length || p.escalate_when?.length);
+  const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close);
+  return !!(p.address || p.tone || p.extra_instructions || statedHours || p.services?.length || p.languages?.length || p.escalate_when?.length);
 }
 function composeSystemPrompt(base, profile, channel = "whatsapp") {
   const s = [];

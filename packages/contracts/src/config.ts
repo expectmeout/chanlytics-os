@@ -269,9 +269,15 @@ function hoursLines(hours: Record<string, Hours> | undefined): string[] {
 /** True when a profile carries anything worth composing from. */
 export function hasProfile(p: BusinessProfile | undefined | null): boolean {
   if (!p) return false;
+  // Seven days that are all closed is a SHAPE, not a fact. The editor writes
+  // every day on save, so counting keys would let an owner who opened the form
+  // and pressed Save with nothing filled in switch their receptionist onto a
+  // composed prompt containing no hours, no services and no address — strictly
+  // worse than the hand-written one it replaced. At least one real opening
+  // time has to exist before this counts.
+  const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close);
   return !!(
-    p.address || p.tone || p.extra_instructions ||
-    (p.hours && Object.keys(p.hours).length) ||
+    p.address || p.tone || p.extra_instructions || statedHours ||
     p.services?.length || p.languages?.length || p.escalate_when?.length
   );
 }
