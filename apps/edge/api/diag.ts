@@ -30,6 +30,11 @@ export async function GET(request: Request): Promise<Response> {
       metaSecret: !!process.env.META_APP_SECRET,
       retellKey: !!process.env.RETELL_API_KEY,
       diagKey: !!process.env.DIAG_KEY,
+      // Whether the receptionist can HOLD its own reply. Without this the
+      // edge cannot schedule, and a workspace on 'veto' silently gets the
+      // immediate replies it asked not to have — so this is the first thing
+      // to check when a configured veto window does not appear.
+      qstashToken: !!process.env.QSTASH_TOKEN,
     },
   };
 
