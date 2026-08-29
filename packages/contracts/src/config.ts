@@ -370,7 +370,21 @@ export function resolveSystemPrompt(
   brain: BrainConfig,
   channel: "whatsapp" | "voice" = "whatsapp",
 ): string {
-  return hasProfile(brain.profile)
-    ? composeSystemPrompt(brain, brain.profile as BusinessProfile, channel)
-    : brain.system_prompt;
+  if (!hasProfile(brain.profile)) return brain.system_prompt;
+  const profile = brain.profile as BusinessProfile;
+  // NOTHING a workspace already had may be lost by filling in a form.
+  //
+  // Filling in only the opening hours switched a live receptionist from a
+  // 5,000-character hand-written prompt to a 700-character composed one: the
+  // address, every service and duration, and the languages it spoke all
+  // disappeared, silently, on a line real customers were texting. The profile
+  // was doing what it was told; the DEFAULT was wrong.
+  //
+  // So an existing prompt is carried as extra instructions until the owner
+  // has written their own. Once they have, theirs wins — they have seen the
+  // old text in the form and decided what to keep.
+  const carried = profile.extra_instructions?.trim()
+    ? profile
+    : { ...profile, extra_instructions: brain.system_prompt };
+  return composeSystemPrompt(brain, carried, channel);
 }

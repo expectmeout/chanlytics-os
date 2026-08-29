@@ -375,7 +375,10 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   const [langs, setLangs] = useSetState(() => (p0.languages || []).slice());
   const [langAdd, setLangAdd] = useSetState("");
   const [escalate, setEscalate] = useSetState((p0.escalate_when || []).join("\n"));
-  const [extra, setExtra] = useSetState(p0.extra_instructions || "");
+  // Pre-filled with the workspace's existing instructions the first time this
+  // is opened, so nothing a business already told its receptionist quietly
+  // disappears the moment it fills in a form. Visible, and theirs to trim.
+  const [extra, setExtra] = useSetState(p0.extra_instructions || brain.system_prompt || "");
   const [hours, setHours] = useSetState(() => {
     const h = {};
     SET_DAYS.forEach(([d]) => {
@@ -452,11 +455,19 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
 
     const next = { ...settings.config, brain: { ...brain, profile } };
     setSaving(true);
-    window.__saveSettings(next, settings.version).then((r) => {
+    // saveSettings refreshes every surface on success — several seconds of
+    // fetching before this promise settles. Reporting only at the end meant
+    // pressing Save did nothing observable for long enough to conclude it was
+    // broken, which is exactly what happened.
+    window.__saveSettings(next, settings.version, () => {
+      // The server has accepted it. Say so NOW; the refresh can finish behind.
       setSaving(false);
-      if (!r.ok) { flash({ msg: <>{r.message}</> }); return; }
       flash({ msg: <>Saved — the receptionist uses these from its next message</> });
       onDone();
+    }).then((r) => {
+      if (r.ok) return;
+      setSaving(false);
+      flash({ msg: <>{r.message}</> });
     });
   };
 
