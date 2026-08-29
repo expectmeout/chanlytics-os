@@ -4093,6 +4093,46 @@ var PolicyLimitsSchema = external_exports.object({
    */
   reply_delay_ms: external_exports.number().int().min(5e3).max(6e5).optional()
 }).strict();
+var HoursSchema = external_exports.object({
+  /** "09:00". Absent or null = closed that day, which is a real answer. */
+  open: external_exports.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional(),
+  close: external_exports.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional()
+}).strict();
+var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+var ServiceSchema = external_exports.object({
+  name: external_exports.string().min(1).max(80),
+  /** Minutes. The receptionist is asked "how long does it take" constantly. */
+  duration_min: external_exports.number().int().min(1).max(1440).optional(),
+  /**
+   * Free text, not a number, and deliberately so: "from $45", "quoted at
+   * consult", "varies by length". A price the business cannot state flatly
+   * must not be forced into a field that looks like it can.
+   */
+  price_note: external_exports.string().max(120).optional()
+}).strict();
+var GuardrailsSchema = external_exports.object({
+  never_quote_prices: external_exports.boolean().optional(),
+  never_confirm_booking: external_exports.boolean().optional(),
+  disclose_ai: external_exports.boolean().optional()
+}).strict();
+var BusinessProfileSchema = external_exports.object({
+  address: external_exports.string().max(300).optional(),
+  hours: external_exports.record(external_exports.enum(DAYS), HoursSchema).optional(),
+  services: external_exports.array(ServiceSchema).max(60).optional(),
+  languages: external_exports.array(external_exports.string().min(2).max(40)).max(8).optional(),
+  guardrails: GuardrailsSchema.optional(),
+  /** What must reach a person. One short line each. */
+  escalate_when: external_exports.array(external_exports.string().min(1).max(200)).max(20).optional(),
+  tone: external_exports.string().max(200).optional(),
+  /**
+   * Anything the owner wants said that no field covers.
+   *
+   * The escape hatch that keeps this model honest — without it, structuring
+   * the facts would mean losing whatever did not fit, and the first migration
+   * would be a downgrade.
+   */
+  extra_instructions: external_exports.string().max(8e3).optional()
+}).strict();
 var BrainConfigSchema = external_exports.object({
   business_name: external_exports.string().min(1).max(120),
   phone_display: external_exports.string().min(3).max(40),
@@ -4100,6 +4140,14 @@ var BrainConfigSchema = external_exports.object({
   /** The complete system prompt the model receives — the "AI memory" pane's
    *  one hard promise is that what it shows is EXACTLY this, nothing more. */
   system_prompt: external_exports.string().min(40).max(2e4),
+  /**
+   * The business's facts, as fields.
+   *
+   * Optional: every config written before this existed stays valid, and
+   * nothing composes until a workspace actually fills it in. When present
+   * it REPLACES system_prompt as the source the prompt is built from.
+   */
+  profile: BusinessProfileSchema.optional(),
   fallbacks: external_exports.object({
     /** Sent when no model key is configured. */
     greeting: external_exports.string().min(1).max(2e3),
@@ -8217,6 +8265,46 @@ var PolicyLimitsSchema2 = external_exports2.object({
    */
   reply_delay_ms: external_exports2.number().int().min(5e3).max(6e5).optional()
 }).strict();
+var HoursSchema2 = external_exports2.object({
+  /** "09:00". Absent or null = closed that day, which is a real answer. */
+  open: external_exports2.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional(),
+  close: external_exports2.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional()
+}).strict();
+var DAYS2 = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+var ServiceSchema2 = external_exports2.object({
+  name: external_exports2.string().min(1).max(80),
+  /** Minutes. The receptionist is asked "how long does it take" constantly. */
+  duration_min: external_exports2.number().int().min(1).max(1440).optional(),
+  /**
+   * Free text, not a number, and deliberately so: "from $45", "quoted at
+   * consult", "varies by length". A price the business cannot state flatly
+   * must not be forced into a field that looks like it can.
+   */
+  price_note: external_exports2.string().max(120).optional()
+}).strict();
+var GuardrailsSchema2 = external_exports2.object({
+  never_quote_prices: external_exports2.boolean().optional(),
+  never_confirm_booking: external_exports2.boolean().optional(),
+  disclose_ai: external_exports2.boolean().optional()
+}).strict();
+var BusinessProfileSchema2 = external_exports2.object({
+  address: external_exports2.string().max(300).optional(),
+  hours: external_exports2.record(external_exports2.enum(DAYS2), HoursSchema2).optional(),
+  services: external_exports2.array(ServiceSchema2).max(60).optional(),
+  languages: external_exports2.array(external_exports2.string().min(2).max(40)).max(8).optional(),
+  guardrails: GuardrailsSchema2.optional(),
+  /** What must reach a person. One short line each. */
+  escalate_when: external_exports2.array(external_exports2.string().min(1).max(200)).max(20).optional(),
+  tone: external_exports2.string().max(200).optional(),
+  /**
+   * Anything the owner wants said that no field covers.
+   *
+   * The escape hatch that keeps this model honest — without it, structuring
+   * the facts would mean losing whatever did not fit, and the first migration
+   * would be a downgrade.
+   */
+  extra_instructions: external_exports2.string().max(8e3).optional()
+}).strict();
 var BrainConfigSchema2 = external_exports2.object({
   business_name: external_exports2.string().min(1).max(120),
   phone_display: external_exports2.string().min(3).max(40),
@@ -8224,6 +8312,14 @@ var BrainConfigSchema2 = external_exports2.object({
   /** The complete system prompt the model receives — the "AI memory" pane's
    *  one hard promise is that what it shows is EXACTLY this, nothing more. */
   system_prompt: external_exports2.string().min(40).max(2e4),
+  /**
+   * The business's facts, as fields.
+   *
+   * Optional: every config written before this existed stays valid, and
+   * nothing composes until a workspace actually fills it in. When present
+   * it REPLACES system_prompt as the source the prompt is built from.
+   */
+  profile: BusinessProfileSchema2.optional(),
   fallbacks: external_exports2.object({
     /** Sent when no model key is configured. */
     greeting: external_exports2.string().min(1).max(2e3),
