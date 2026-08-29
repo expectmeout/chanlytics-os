@@ -382,3 +382,50 @@ export const conversationsOverride: SurfaceOverride = {
     };
   },
 };
+
+/**
+ * Settings · Workspace — the business's own facts, and who is on the team.
+ *
+ * The pane rendered "Serenity Spa · +1 (415) 555-0100 · Lena Park, Jay Rivera"
+ * — a fabricated business with fabricated staff, shown to a real owner as their
+ * own settings. Both APIs behind it have existed since Session B with nothing
+ * calling them.
+ *
+ * Team is fetched even though the card is small: leaving it seeded would mean
+ * flipping this pane to "real" while half of it was still invented, which is
+ * exactly the thing the surface registry exists to prevent.
+ */
+export interface WorkspaceSettings {
+  brain?: {
+    business_name?: string;
+    phone_display?: string;
+    booking_link?: string;
+    profile?: Record<string, unknown>;
+  };
+}
+
+export const settingsOverride: SurfaceOverride = {
+  key: "settings",
+  globals: ["__SETTINGS", "__TEAM"],
+  events: ["surface:settings"],
+  apply: async () => {
+    const [cfg, team] = await Promise.all([
+      fetchEnvelope<{ config: WorkspaceSettings; version: number; role: string }>("/api/v1/settings"),
+      // A team read that fails must not blank the business card beside it.
+      fetchEnvelope<{ members: unknown[] }>("/api/v1/team").catch((e: unknown) => e as Error),
+    ]);
+    const w = window as unknown as {
+      __SETTINGS?: { config: WorkspaceSettings; version: number; role: string };
+      __TEAM?: unknown[] | null;
+    };
+    w.__SETTINGS = { config: cfg.config ?? {}, version: cfg.version, role: cfg.role };
+    if (team instanceof Error) {
+      // null, not [] — "we could not read the team" and "there is nobody" are
+      // different facts, and only one of them should render as an empty list.
+      w.__TEAM = null;
+      console.error("settings_team_fetch_failed", team.message);
+    } else {
+      w.__TEAM = team.members ?? [];
+    }
+  },
+};

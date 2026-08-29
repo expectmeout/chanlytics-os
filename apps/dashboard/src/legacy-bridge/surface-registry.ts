@@ -45,7 +45,10 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   outbound: "demo",
   content: "demo",
   broadcasts: "demo",
-  admin: "demo",    // six real routes behind it, zero callers yet (Session B wires them)
+  admin: "demo",    // billing, integrations and AI memory still render seeds
+  // …but ONE pane behind it is fed by real APIs now. Sub-routes are checked
+  // before their page, so the rest of Settings stays honestly gated.
+  "admin/workspace": "real",
 };
 
 /**
@@ -58,6 +61,10 @@ export const ROUTE_SURFACE: Record<string, string> = {
   today: "today",
   inbox: "inbox",
   conversations: "conversations",
+  // The pane is fed by settingsOverride, so the route gate waits for it the
+  // same way the other real routes do — otherwise it paints the mockup's
+  // fabricated business for a frame before the truth arrives.
+  "admin/workspace": "settings",
 };
 
 /**
@@ -65,7 +72,29 @@ export const ROUTE_SURFACE: Record<string, string> = {
  * Absent — the standalone mockup opened without the bridge — everything
  * renders, which is correct there: the whole artifact is a demo.
  */
+/**
+ * The state of one route, most specific first.
+ *
+ * Settings is one page with six panes behind it, and they are not all at the
+ * same stage: the workspace pane can be fed by real APIs while billing and
+ * integrations are still drawn from seeds. Classifying only the PAGE forced a
+ * choice between hiding a finished pane and shipping five invented ones — so
+ * the table now accepts `admin/workspace` as well as `admin`, and falls back
+ * to the page when no sub-route is listed.
+ *
+ * The fallback is what keeps this safe: a new pane nobody has classified
+ * inherits its page's state, which is `demo`, which is the honest default.
+ */
+export function surfaceStateFor(page: string, param?: string | null): SurfaceState | undefined {
+  if (param) {
+    const specific = SURFACE_STATES[`${page}/${param}`];
+    if (specific) return specific;
+  }
+  return SURFACE_STATES[page];
+}
+
 export function installSurfaceRegistry(): void {
-  (window as unknown as { __surfaceState?: (page: string) => SurfaceState | undefined }).__surfaceState =
-    (page) => SURFACE_STATES[page];
+  (window as unknown as {
+    __surfaceState?: (page: string, param?: string | null) => SurfaceState | undefined;
+  }).__surfaceState = surfaceStateFor;
 }

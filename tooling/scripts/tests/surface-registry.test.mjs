@@ -23,6 +23,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DASH = path.join(here, "../../../apps/dashboard/src");
+const registry = await import(
+  pathToFileURL(path.join(DASH, "legacy-bridge/surface-registry.ts")).href
+);
 const { SURFACE_STATES, ROUTE_SURFACE } = await import(
   pathToFileURL(path.join(DASH, "legacy-bridge/surface-registry.ts")).href
 );
@@ -55,7 +58,11 @@ test("every route the shell declares is classified", () => {
 test("the registry classifies nothing the shell does not route", () => {
   // A stale entry misleads the next person about what exists.
   const routed = routedPages();
-  const stale = Object.keys(SURFACE_STATES).filter((p) => !routed.has(p));
+  // A sub-route is legitimate when its PAGE is routed — the shell reaches
+  // admin/workspace through the admin branch, not a literal of its own.
+  const stale = Object.keys(SURFACE_STATES).filter(
+    (p) => !routed.has(p) && !routed.has(p.split("/")[0]),
+  );
   assert.deepEqual(stale, [], "classified but not routed");
 });
 
@@ -79,13 +86,13 @@ test("the real set is exactly the three converted surfaces", () => {
     .filter(([, v]) => v === "real")
     .map(([k]) => k)
     .sort();
-  assert.deepEqual(real, ["conversations", "inbox", "today"]);
+  assert.deepEqual(real, ["admin/workspace", "conversations", "inbox", "today"]);
 });
 
 test("the shell consults the registry through one interception, not per-route conditionals", () => {
   // The design property: ONE gate derived from the table. Per-route
   // __DEMO_MODE checks are how fifteen branches got missed the first time.
-  assert.match(shell, /window\.__surfaceState\(page\) === "demo"/, "the interception is gone");
+  assert.ok(shell.includes("window.__surfaceState(page, param) === \"demo\""), "the interception is gone");
   const adHoc = [...shell.matchAll(/page === "[a-z-]+"[^\n]*__DEMO_MODE/g)];
   assert.deepEqual(
     adHoc.map((m) => m[0]),
@@ -98,4 +105,42 @@ test("the shared viewer is gated too", () => {
   // It rendered another company's name over invented numbers, ungated, at a
   // URL anyone could type.
   assert.match(shell, /page === "shared" && !demoGated/, "the shared early return lost its gate");
+});
+
+/* ------------------------- sub-surface classification --------------------- */
+
+test("a sub-route is checked BEFORE its page", () => {
+  // Settings is one page with six panes behind it, and they are not at the same
+  // stage. Classifying only the page forced a choice between hiding a finished
+  // pane and shipping five invented ones.
+  const { surfaceStateFor } = registry;
+  assert.equal(surfaceStateFor("admin", "workspace"), "real");
+  assert.equal(surfaceStateFor("admin", "billing"), "demo", "an unlisted pane inherits its page");
+  assert.equal(surfaceStateFor("admin", null), "demo");
+  assert.equal(surfaceStateFor("admin"), "demo");
+});
+
+test("an unclassified pane inherits DEMO, never real", () => {
+  // The fallback is what keeps this safe: a pane nobody has classified must not
+  // become visible because someone forgot a line.
+  for (const pane of ["integrations", "memory", "notifications", "nonsense"]) {
+    assert.equal(registry.surfaceStateFor("admin", pane), "demo", pane);
+  }
+});
+
+test("every real sub-route names an existing page", () => {
+  // "conversation/x" with no "conversation" page would be a rule that can never
+  // fire — and would look like coverage while providing none.
+  for (const key of Object.keys(SURFACE_STATES)) {
+    if (!key.includes("/")) continue;
+    const [page] = key.split("/");
+    assert.ok(
+      SURFACE_STATES[page] !== undefined,
+      `${key} classifies a pane of "${page}", which is not itself a surface`,
+    );
+  }
+});
+
+test("the shell asks with the param, or sub-routes are decoration", () => {
+  assert.match(shell, /__surfaceState\(page, param\)/);
 });
