@@ -196,7 +196,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   // Only animate while there is actually a countdown. This tree has no
   // memoisation, so an unconditional 1Hz timer re-rendered the entire Inbox
   // once a second, forever, to move a number that isn't there. Real threads
-  // carry no veto drafts, so on real data the timer never starts — gated on
+  // carry a veto draft only while one is genuinely held server-side — gated on
   // the DATA rather than on __DEMO_MODE, because the presence listener below
   // is the Away->Available unfreeze path and must keep working either way.
   const hasLiveVeto = threads.some((t) => t.veto);
@@ -210,8 +210,58 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
       window.removeEventListener("presence:changed", onPres);
     };
   }, [hasLiveVeto]);
-  const vetoRemaining = (id) => window.VW_UTIL.remaining(id);
+  // Real threads count down to the SERVER's deadline. VW_UTIL owns a simulated
+  // timer for the mockup; borrowing it here would mean the number on screen and
+  // the moment the job actually fires were two different clocks.
+  /**
+   * Veto controls on a REAL thread. Every one of these commits server-side —
+   * the timer belongs to a scheduled job, and a button that only changed local
+   * state would leave the operator believing they had stopped something that
+   * was still on its way.
+   *
+   *   hold  — withdraw the draft outright; nothing is sent
+   *   edit  — focus the composer, which is already pre-filled with the draft;
+   *           the send REPLACES it (the reply route withdraws it server-side)
+   *   type  — the first keystroke means the operator is taking this one, so
+   *           the draft is withdrawn ONCE rather than racing the timer
+   */
+  const realVetoAct = (t, act) => {
+    if (!window.canDo("approve")) return;
+    const st = VW.state[t.id] || (VW.state[t.id] = {});
+    if (act === "edit") {
+      window.setTimeout(() => window.dispatchEvent(new CustomEvent("inbox:focus-composer")), 60);
+      return;
+    }
+    if (act !== "hold" && act !== "type") return;
+    if (st.held || !t.veto || !window.__cancelSend) return;
+    st.held = true;                       // optimistic: stops the countdown now
+    setVetoTick((n) => n + 1);
+    window.__cancelSend(t.veto.messageId).then((r) => {
+      if (r.ok) {
+        ppFlash({ msg: <>Held — <b>{t.who}</b> was not sent the draft</> });
+      } else {
+        // It may already have gone out. Say so rather than leaving the UI
+        // claiming a hold that never happened.
+        st.held = false;
+        setVetoTick((n) => n + 1);
+        ppFlash({ msg: <>{r.message}</> });
+      }
+    });
+  };
+
+  const vetoRemaining = (id) => {
+    const t = threads.find((x) => x.id === id);
+    if (t && t.real) {
+      if (!t.veto) return null;
+      const st = VW.state[id];
+      if (st && st.held) return null;                    // withdrawn — no countdown
+      return Math.max(0, Math.ceil((t.veto.endsAtMs - Date.now()) / 1000));
+    }
+    return window.VW_UTIL.remaining(id);
+  };
   const vetoAct = (id, act) => {
+    const tv = threads.find((x) => x.id === id);
+    if (tv && tv.real) return realVetoAct(tv, act);
     if (!window.canDo("approve")) return;
     const s = VW.state[id] || (VW.state[id] = {});
     if (s.sent) return;
@@ -222,6 +272,18 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   };
   React.useEffect(() => {
     threads.forEach((t) => {
+      // A real draft is fired by a job, not by this browser. Inventing the
+      // sent bubble here would put words in the thread that may never have
+      // reached the customer — the exact fabrication this project forbids.
+      // At zero the only honest move is to re-read what actually happened.
+      if (t.real) {
+        if (!t.veto || Date.now() < t.veto.endsAtMs) return;
+        const st = VW.state[t.id] || (VW.state[t.id] = {});
+        if (st.reconciled) return;
+        st.reconciled = true;
+        if (window.__refreshInbox) window.__refreshInbox();
+        return;
+      }
       if (!t.veto) return;
       const s = VW.state[t.id];
       if (!s || s.held || s.sent || !s.endsAt || Date.now() < s.endsAt) return;

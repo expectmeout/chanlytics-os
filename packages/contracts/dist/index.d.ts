@@ -219,6 +219,17 @@ interface ConversationVM {
 declare function contactName(dto: ConversationDto): string;
 /** The "WhatsApp · +1 …" subtitle line, same source as the thread viewmodel. */
 declare function contactMeta(dto: ConversationDto): string;
+/**
+ * A reply the receptionist has WRITTEN but not sent — it is sitting out its veto
+ * window, and until that expires a human can withdraw or replace it.
+ *
+ * The distinction matters most in the UI: rendered as an ordinary agent bubble a
+ * held draft looks exactly like a message the customer has already read, so an
+ * operator would either ignore it or apologise for something that never went out.
+ */
+declare function isHeldDraft(m: MessageDto): boolean;
+/** When a held draft is due to send, in epoch ms. */
+declare function draftSendsAtMs(m: MessageDto): number;
 declare function messageText(m: MessageDto): string;
 interface EscalationDto {
     id: string;
@@ -255,6 +266,36 @@ interface InboxThreadVM {
      * someone has already claimed, racing to write the same badge.
      */
     needsYou: boolean;
+    /**
+     * The receptionist's reply, written and waiting out its veto window.
+     *
+     * Lifted to the thread so the pane can offer the controls without scanning
+     * the timeline for them — and so "is there still something I can stop?" is a
+     * single truthy check rather than a search that could miss.
+     */
+    heldDraft: {
+        messageId: string;
+        body: string;
+        sendsAtMs: number;
+    } | null;
+    /**
+     * The SAME shape the mockup's VetoBar and Composer already read.
+     *
+     * The design for this existed before the backend did — a countdown, Edit /
+     * Hold / Take over, and a composer pre-filled with the draft. Mapping the
+     * real held reply onto it means the feature arrives as the product was
+     * drawn, rather than as a second control that looks nothing like it.
+     *
+     * `endsAtMs` is the SERVER's deadline. The mockup runs its own countdown in
+     * VW_STORE and fabricates the send at zero; on a real thread the job fires
+     * server-side and the UI only reports what is already true.
+     */
+    veto?: {
+        window: number;
+        draft: string;
+        endsAtMs: number;
+        messageId: string;
+    };
     channels: string[];
     primaryChannel: "whatsapp";
     agent: {
@@ -290,6 +331,10 @@ interface InboxThreadVM {
         byYou?: boolean;
         status?: string;
         messageId?: string;
+        /** Written but NOT sent — sitting out its veto window. */
+        pending?: true;
+        /** When it fires, epoch ms. Drives the countdown. */
+        sendsAtMs?: number;
         /** Per-bubble attribution — a phone summary is not the WhatsApp agent. */
         agentName?: string;
         agentGlyph?: string;
@@ -863,4 +908,4 @@ declare function parseTenantConfigResult(raw: unknown): TenantConfigParse;
 /** Convenience for callers that genuinely cannot act on the difference. */
 declare function parseTenantConfig(raw: unknown): TenantConfig | null;
 
-export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, ROLES, ROLE_PERMS, type Role, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, contactMeta, contactName, err, formatPhoneDisplay, formatWaited, isLiveCall, isOptedOut, isOptedOutContact, messageAt, messageText, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, replyDelayMs, threadStanding, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };
+export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, ROLES, ROLE_PERMS, type Role, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, contactMeta, contactName, draftSendsAtMs, err, formatPhoneDisplay, formatWaited, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, messageAt, messageText, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, replyDelayMs, threadStanding, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };

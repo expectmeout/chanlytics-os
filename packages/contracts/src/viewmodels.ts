@@ -163,6 +163,24 @@ function initialsOf(name: string): string {
   return p.slice(0, 2).toUpperCase();
 }
 
+/**
+ * A reply the receptionist has WRITTEN but not sent — it is sitting out its veto
+ * window, and until that expires a human can withdraw or replace it.
+ *
+ * The distinction matters most in the UI: rendered as an ordinary agent bubble a
+ * held draft looks exactly like a message the customer has already read, so an
+ * operator would either ignore it or apologise for something that never went out.
+ */
+export function isHeldDraft(m: MessageDto): boolean {
+  return m.status === "queued" && m.sender === "ai";
+}
+
+/** When a held draft is due to send, in epoch ms. */
+export function draftSendsAtMs(m: MessageDto): number {
+  const delay = typeof m.meta?.delay_ms === "number" ? m.meta.delay_ms : 0;
+  return new Date(m.created_at).getTime() + delay;
+}
+
 export function messageText(m: MessageDto): string {
   if (m.type === "call_summary" && m.body) {
     // the body already names itself ("Inbound call · 3 min — …"); the legacy
@@ -268,6 +286,27 @@ export interface InboxThreadVM {
    * someone has already claimed, racing to write the same badge.
    */
   needsYou: boolean;
+  /**
+   * The receptionist's reply, written and waiting out its veto window.
+   *
+   * Lifted to the thread so the pane can offer the controls without scanning
+   * the timeline for them — and so "is there still something I can stop?" is a
+   * single truthy check rather than a search that could miss.
+   */
+  heldDraft: { messageId: string; body: string; sendsAtMs: number } | null;
+  /**
+   * The SAME shape the mockup's VetoBar and Composer already read.
+   *
+   * The design for this existed before the backend did — a countdown, Edit /
+   * Hold / Take over, and a composer pre-filled with the draft. Mapping the
+   * real held reply onto it means the feature arrives as the product was
+   * drawn, rather than as a second control that looks nothing like it.
+   *
+   * `endsAtMs` is the SERVER's deadline. The mockup runs its own countdown in
+   * VW_STORE and fabricates the send at zero; on a real thread the job fires
+   * server-side and the UI only reports what is already true.
+   */
+  veto?: { window: number; draft: string; endsAtMs: number; messageId: string };
   channels: string[];
   primaryChannel: "whatsapp";
   agent: { name: string; glyph: string; autonomy: string; tone: string };
@@ -295,6 +334,10 @@ export interface InboxThreadVM {
         byYou?: boolean;
         status?: string;
         messageId?: string;
+        /** Written but NOT sent — sitting out its veto window. */
+        pending?: true;
+        /** When it fires, epoch ms. Drives the countdown. */
+        sendsAtMs?: number;
         /** Per-bubble attribution — a phone summary is not the WhatsApp agent. */
         agentName?: string;
         agentGlyph?: string;
@@ -338,6 +381,16 @@ export function toInboxThreadVM(
   // takenOver = a human claimed it (assignee set by take-over/reply) — the pane
   // then shows the owned-thread strip + hand-back instead of the take banner.
   const { state, takenOver, needsYou } = threadStanding(dto, escalation, now);
+  // The LAST held draft, not the first: if two ever coexist the newer one is
+  // what the customer would receive, so it is the one to offer controls for.
+  // Cancelling withdraws every queued AI row on the thread anyway.
+  let draftMsg: MessageDto | null = null;
+  for (let i = dto.messages.length - 1; i >= 0; i--) {
+    if (isHeldDraft(dto.messages[i])) { draftMsg = dto.messages[i]; break; }
+  }
+  const heldDraft = draftMsg
+    ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) }
+    : null;
   const claimedByOther = !!dto.assignee_user_id && dto.assignee_is_me === false;
   const reasonLabel = escalation ? (ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason) : null;
   const last = dto.messages[dto.messages.length - 1];
@@ -365,6 +418,8 @@ export function toInboxThreadVM(
         : {}),
       ...(m.sender === "human" ? { byYou: true } : {}),
       ...(m.sender !== "customer" && m.status ? { status: m.status, messageId: m.id } : {}),
+      // A held draft is not a sent message and must not read as one.
+      ...(isHeldDraft(m) ? { pending: true as const, sendsAtMs: draftSendsAtMs(m) } : {}),
     };
   });
   if (escalation) {
@@ -397,6 +452,17 @@ export function toInboxThreadVM(
     state,
     takenOver,
     needsYou,
+    heldDraft,
+    ...(heldDraft
+      ? {
+          veto: {
+            window: Math.max(1, Math.round((heldDraft.sendsAtMs - new Date(draftMsg!.created_at).getTime()) / 1000)),
+            draft: heldDraft.body,
+            endsAtMs: heldDraft.sendsAtMs,
+            messageId: heldDraft.messageId,
+          },
+        }
+      : {}),
     channels: ["whatsapp"],
     primaryChannel: "whatsapp",
     agent: { name: "WhatsApp Receptionist", glyph: "W", autonomy: "Pauses on handoff", tone: "Warm · bilingual (EN/ES)" },
