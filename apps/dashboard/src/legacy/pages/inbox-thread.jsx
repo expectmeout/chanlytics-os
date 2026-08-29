@@ -598,6 +598,22 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
   const taRef = React.useRef(null);
   const isApproveAndSend = hasApproval && text === reply;
 
+  // Seed the composer when a draft ARRIVES, not only when it mounts.
+  //
+  // useState(reply) reads its argument once. In the mockup that is enough —
+  // the veto draft is in the seed data before the pane renders. On a real
+  // thread the receptionist writes its reply while the operator is already
+  // looking at the conversation, so the draft always arrives AFTER mount and
+  // the composer stayed empty: "Edit" focused a blank box and the words the
+  // operator was invited to change were nowhere to be found.
+  //
+  // Only fills an EMPTY composer. Someone half-way through their own reply
+  // must never have it replaced by the bot's.
+  React.useEffect(() => {
+    if (!reply) return;
+    setText((cur) => (cur && cur.trim() ? cur : reply));
+  }, [reply]);
+
   const [sending, setSending] = useCvtState(false);
   const doSend = () => {
     if (sending || !text.trim() || !window.canDo("approve")) return;
