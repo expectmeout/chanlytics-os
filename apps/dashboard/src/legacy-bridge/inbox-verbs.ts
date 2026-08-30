@@ -7,7 +7,7 @@
 import { conversationsOverride, inboxOverride, todayOverride, type SurfaceOverride } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 import { clearSurfaceCache } from "./surface-cache";
-import { describeNow, resolveSystemPrompt } from "@chanlytics/contracts";
+import { describeNow, newReceptionistDefaults, resolveSystemPrompt } from "@chanlytics/contracts";
 
 interface RealThread {
   conversationId: string;
@@ -246,6 +246,7 @@ declare global {
     __refreshInbox: typeof refreshInbox;
     __saveSettings: typeof saveSettings;
     __composedPrompt: typeof composedPrompt;
+    __receptionistDefaults: typeof newReceptionistDefaults;
   }
 }
 
@@ -255,6 +256,9 @@ export function installInboxVerbs(): void {
   window.__refreshInbox = refreshInbox;
   window.__saveSettings = saveSettings;
   window.__composedPrompt = composedPrompt;
+  // The settings form builds a brand-new brain and must satisfy the same
+  // schema the edge parses; the defaults live beside that schema.
+  window.__receptionistDefaults = newReceptionistDefaults;
 }
 
 /**
