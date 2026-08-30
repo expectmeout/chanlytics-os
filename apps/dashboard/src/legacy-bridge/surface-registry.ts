@@ -101,6 +101,29 @@ export const SURFACE_DEFAULT_PARAM: Record<string, string> = {
   admin: "workspace",
 };
 
+/**
+ * Which override the route gate must WAIT for, most specific first.
+ *
+ * The twin of surfaceStateFor, and it exists because the registry being right
+ * was not enough. ROUTE_SURFACE has carried `admin/workspace` since Settings
+ * was flipped, but the gate looked up `ROUTE_SURFACE[page]` with the bare page
+ * — "admin" — found nothing, and answered "ready" before any settings data had
+ * arrived. A cold load of Settings therefore painted the mockup's business,
+ * its invented staff and its invented phone number to a real owner, for as
+ * long as the fetch took.
+ *
+ * Same resolution as the classification, for the same reason: the gate has to
+ * be asked about what will actually RENDER.
+ */
+export function routeSurfaceFor(page: string, param?: string | null): string | undefined {
+  const pane = param || SURFACE_DEFAULT_PARAM[page];
+  if (pane) {
+    const specific = ROUTE_SURFACE[`${page}/${pane}`];
+    if (specific) return specific;
+  }
+  return ROUTE_SURFACE[page];
+}
+
 export function surfaceStateFor(page: string, param?: string | null): SurfaceState | undefined {
   const pane = param || SURFACE_DEFAULT_PARAM[page];
   if (pane) {

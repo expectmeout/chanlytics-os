@@ -224,3 +224,36 @@ test("the empty profile leads with a button, not a footnote", () => {
   assert.ok(settings.includes("Add your business details"));
   assert.ok(settings.includes("set-empty"));
 });
+
+
+/* ------------------ the gate must resolve the same way ------------------- */
+
+test("REGRESSION: the route gate resolves the PANE, not just the page", () => {
+  // The registry was right and the LOOKUP was wrong. ROUTE_SURFACE has
+  // carried "admin/workspace" since Settings was flipped, but the gate asked
+  // ROUTE_SURFACE["admin"], found nothing, and answered "ready" before any
+  // settings data existed — so a cold load painted the mockup's business, its
+  // invented staff and its invented phone number to a real owner, for as long
+  // as the fetch took. Reproduced in the browser before it was fixed.
+  assert.equal(registry.routeSurfaceFor("admin", "workspace"), "settings");
+  assert.equal(registry.routeSurfaceFor("admin", null), "settings", "the default pane is what renders");
+  assert.equal(registry.routeSurfaceFor("admin"), "settings");
+});
+
+test("a seeded pane is not made to wait for a surface that does not feed it", () => {
+  assert.equal(registry.routeSurfaceFor("admin", "billing"), undefined);
+  assert.equal(registry.routeSurfaceFor("clients"), undefined);
+});
+
+test("the flipped pages still resolve exactly as before", () => {
+  for (const page of ["today", "inbox", "conversations"]) {
+    assert.equal(registry.routeSurfaceFor(page), page);
+  }
+});
+
+test("the shell asks the gate with the pane it is about to render", () => {
+  // A registry that resolves panes is useless if the caller drops the pane.
+  assert.ok(shell.includes("const surfaceReady = routeReady(page, param);"));
+  assert.ok(shell.includes("routeFailed(page, param)"));
+  assert.ok(!shell.includes("routeReady(page)"), "the bare-page call IS the bug");
+});

@@ -45,7 +45,7 @@ const SURFACE_LABELS: Record<string, string> = { conversations: "Conversations",
 // both live in surface-registry.ts so the classification and the wiring cannot
 // drift apart. Routes absent from ROUTE_SURFACE are seeded by design and are
 // always "ready" — the registry decides separately whether they may RENDER.
-import { ROUTE_SURFACE, installSurfaceRegistry } from "./surface-registry";
+import { installSurfaceRegistry, routeSurfaceFor } from "./surface-registry";
 
 /**
  * The shell's route gate, installed at MODULE SCOPE — not in an effect.
@@ -64,16 +64,19 @@ import { ROUTE_SURFACE, installSurfaceRegistry } from "./surface-registry";
  */
 function installRouteGate(): void {
   const w = window as unknown as {
-    __surfaceGate?: (page: string) => boolean;
-    __surfaceFailed?: (page: string) => boolean;
+    __surfaceGate?: (page: string, param?: string | null) => boolean;
+    __surfaceFailed?: (page: string, param?: string | null) => boolean;
     __onSurfaceReady?: (fn: () => void) => () => void;
   };
-  w.__surfaceGate = (page) => {
-    const key = ROUTE_SURFACE[page];
+  // The PANE decides, not the page. Asked with the bare page name, Settings
+  // resolved to nothing and the gate waved a cold load straight through onto
+  // the mockup's fabricated business.
+  w.__surfaceGate = (page, param) => {
+    const key = routeSurfaceFor(page, param);
     return key ? isSurfaceReady(key) : true;
   };
-  w.__surfaceFailed = (page) => {
-    const key = ROUTE_SURFACE[page];
+  w.__surfaceFailed = (page, param) => {
+    const key = routeSurfaceFor(page, param);
     return key ? isSurfaceFailed(key) : false;
   };
   w.__onSurfaceReady = onSurfaceStatusChange;
