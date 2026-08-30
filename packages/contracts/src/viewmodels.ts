@@ -69,6 +69,36 @@ export interface ConversationMessageVM {
   from: "client" | "agent";
   at: string;
   text: string;
+  /** "Canceled before sending", "Sending…" — absent when there is nothing to
+   *  say, which for an ordinary sent message is the honest answer. */
+  statusLabel?: string;
+  /** False when these words never reached the customer. The bubble must not
+   *  read as part of the conversation, because it was not. */
+  reachedCustomer?: boolean;
+}
+
+/**
+ * What happened to a message we tried to send, in the operator's words.
+ *
+ * ONE vocabulary. The Inbox had its own ternary and the Conversations pane had
+ * nothing at all, so the same message read as "Canceled before sending" on one
+ * screen and as an ordinary delivered reply on the other — and Conversations is
+ * the screen whose entire job is "what is my receptionist saying to people".
+ */
+export function messageStatusLabel(status: string | undefined): string | undefined {
+  switch (status) {
+    case "queued": return "Sending…";
+    case "failed": return "Didn't send";
+    case "canceled": return "Canceled before sending";
+    case "read": return "Read";
+    case "delivered": return "Delivered";
+    default: return undefined;
+  }
+}
+
+/** Did the customer actually receive these words? */
+export function reachedCustomer(status: string | undefined): boolean {
+  return status !== "queued" && status !== "failed" && status !== "canceled";
 }
 
 export interface ConversationVM {
@@ -417,7 +447,16 @@ export function toInboxThreadVM(
         ? { agentName: onPhone ? "Phone Receptionist" : AGENT.name, agentGlyph: onPhone ? "P" : AGENT.glyph }
         : {}),
       ...(m.sender === "human" ? { byYou: true } : {}),
-      ...(m.sender !== "customer" && m.status ? { status: m.status, messageId: m.id } : {}),
+      ...(m.sender !== "customer" && m.status
+        ? {
+            status: m.status,
+            messageId: m.id,
+            // The words themselves live in messageStatusLabel, so this pane and
+            // the Conversations pane cannot describe the same message
+            // differently — which is exactly what they were doing.
+            ...(messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {}),
+          }
+        : {}),
       // A held draft is not a sent message and must not read as one.
       ...(isHeldDraft(m) ? { pending: true as const, sendsAtMs: draftSendsAtMs(m) } : {}),
     };
@@ -505,10 +544,24 @@ export function toInboxThreadVM(
 
 export function toConversationVM(dto: ConversationDto, now = new Date()): ConversationVM {
   const who = contactName(dto);
+  // The status travels with the bubble. It used to be dropped here, and the
+  // conversations API filters nothing — so a queued draft still inside its veto
+  // window, a send that failed, and a reply an operator canceled all arrived on
+  // this surface indistinguishable from words the customer actually read. On a
+  // live account that showed one message twice, identically, when one of the
+  // two had been canceled before it ever left.
   const msgs = dto.messages.map((m): ConversationMessageVM => ({
     from: m.sender === "customer" ? "client" : "agent",
     at: bubbleTime(messageAt(m), now),
     text: messageText(m),
+    // Only for OUR messages. A customer's inbound message has no send status,
+    // and labelling it would be inventing one.
+    ...(m.sender !== "customer"
+      ? {
+          ...(messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {}),
+          reachedCustomer: reachedCustomer(m.status),
+        }
+      : {}),
   }));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   // A call has its OWN row on this surface, so the chat row must summarise the

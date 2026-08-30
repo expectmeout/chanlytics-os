@@ -335,3 +335,20 @@
 }
 .cv-line-note .icon { color: var(--accent); }
 .cv-line-you .cv-line-speaker { color: var(--accent); font-weight: 600; }
+
+/* ── A message that never reached the customer ────────────────────────────
+   This pane is where an operator reads back what their receptionist said, so
+   a canceled reply, a failed send and a draft still inside its veto window
+   must not look like part of the conversation. They were indistinguishable:
+   a live account showed the same text twice, and one of the two had been
+   canceled before it ever left. Dashed and dimmed, with the reason in the
+   meta line — legible, but visibly not something anyone read. */
+.tl-msg.undelivered .tl-msg-bubble {
+  opacity: 0.62;
+  border: 1px dashed var(--line-strong);
+  background: transparent;
+}
+.cv-msg-status {
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
