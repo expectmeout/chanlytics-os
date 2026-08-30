@@ -4093,11 +4093,25 @@ var PolicyLimitsSchema = external_exports.object({
    */
   reply_delay_ms: external_exports.number().int().min(5e3).max(6e5).optional()
 }).strict();
+var TIME = external_exports.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+var IntervalSchema = external_exports.object({ open: TIME, close: TIME });
 var HoursSchema = external_exports.object({
   /** "09:00". Absent or null = closed that day, which is a real answer. */
-  open: external_exports.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional(),
-  close: external_exports.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional()
+  open: TIME.nullable().optional(),
+  close: TIME.nullable().optional(),
+  /**
+   * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
+   * actually keeps. Additive: a day that has always been one stretch keeps
+   * saying so with open/close, and no stored config is rewritten.
+   */
+  intervals: external_exports.array(IntervalSchema).optional()
 }).strict();
+var DATE = external_exports.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+var ClosureSchema = external_exports.object({
+  date: DATE,
+  until: DATE.optional(),
+  note: external_exports.string().max(200).optional()
+});
 var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 var ServiceSchema = external_exports.object({
   name: external_exports.string().min(1).max(80),
@@ -4118,6 +4132,8 @@ var GuardrailsSchema = external_exports.object({
 var BusinessProfileSchema = external_exports.object({
   address: external_exports.string().max(300).optional(),
   hours: external_exports.record(external_exports.enum(DAYS), HoursSchema).optional(),
+  /** Dates the business is shut regardless of the weekly grid. */
+  closures: external_exports.array(ClosureSchema).optional(),
   services: external_exports.array(ServiceSchema).max(60).optional(),
   languages: external_exports.array(external_exports.string().min(2).max(40)).max(8).optional(),
   guardrails: GuardrailsSchema.optional(),
@@ -8265,11 +8281,25 @@ var PolicyLimitsSchema2 = external_exports2.object({
    */
   reply_delay_ms: external_exports2.number().int().min(5e3).max(6e5).optional()
 }).strict();
+var TIME2 = external_exports2.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+var IntervalSchema2 = external_exports2.object({ open: TIME2, close: TIME2 });
 var HoursSchema2 = external_exports2.object({
   /** "09:00". Absent or null = closed that day, which is a real answer. */
-  open: external_exports2.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional(),
-  close: external_exports2.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional()
+  open: TIME2.nullable().optional(),
+  close: TIME2.nullable().optional(),
+  /**
+   * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
+   * actually keeps. Additive: a day that has always been one stretch keeps
+   * saying so with open/close, and no stored config is rewritten.
+   */
+  intervals: external_exports2.array(IntervalSchema2).optional()
 }).strict();
+var DATE2 = external_exports2.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+var ClosureSchema2 = external_exports2.object({
+  date: DATE2,
+  until: DATE2.optional(),
+  note: external_exports2.string().max(200).optional()
+});
 var DAYS2 = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 var ServiceSchema2 = external_exports2.object({
   name: external_exports2.string().min(1).max(80),
@@ -8290,6 +8320,8 @@ var GuardrailsSchema2 = external_exports2.object({
 var BusinessProfileSchema2 = external_exports2.object({
   address: external_exports2.string().max(300).optional(),
   hours: external_exports2.record(external_exports2.enum(DAYS2), HoursSchema2).optional(),
+  /** Dates the business is shut regardless of the weekly grid. */
+  closures: external_exports2.array(ClosureSchema2).optional(),
   services: external_exports2.array(ServiceSchema2).max(60).optional(),
   languages: external_exports2.array(external_exports2.string().min(2).max(40)).max(8).optional(),
   guardrails: GuardrailsSchema2.optional(),
