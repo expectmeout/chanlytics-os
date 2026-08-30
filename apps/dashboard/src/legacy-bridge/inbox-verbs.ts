@@ -7,6 +7,7 @@
 import { conversationsOverride, inboxOverride, todayOverride, type SurfaceOverride } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 import { clearSurfaceCache } from "./surface-cache";
+import { describeNow, resolveSystemPrompt } from "@chanlytics/contracts";
 
 interface RealThread {
   conversationId: string;
@@ -194,12 +195,57 @@ export async function refreshInbox(): Promise<void> {
   await refresh();
 }
 
+/**
+ * Exactly what this workspace's receptionist is told, right now.
+ *
+ * Not a description of it, not a rendering that resembles it — the output of
+ * the SAME function the edge calls on the message it is about to answer, from
+ * the same saved config and the same `tenants.timezone`. Anything else drifts,
+ * and a prompt preview that drifts is worse than none: it is a screen telling
+ * an owner their receptionist knows something it does not.
+ *
+ * That was not hypothetical. Filling in the hours quietly replaced a live
+ * 5,000-character prompt with a 700-character one, and nothing anywhere in the
+ * product would have shown it. The composed hours and the owner's own prose
+ * then disagreed about whether the salon opened on Sundays, on a number real
+ * customers were texting, and that took a production incident to notice
+ * instead of a glance.
+ *
+ * `now` is separate because the edge sends it separately — an uncached block,
+ * rebuilt every message, so the cached business profile above it survives.
+ */
+export function composedPrompt(
+  channel: "whatsapp" | "voice" = "whatsapp",
+): { text: string; now: string; tz: string | null } | null {
+  const w = window as unknown as {
+    __SETTINGS?: { config?: { brain?: unknown } };
+    __WORKSPACES?: Array<{ id: string; timezone?: string | null }>;
+    __ACTIVE_WORKSPACE?: string;
+  };
+  const brain = w.__SETTINGS?.config?.brain;
+  if (!brain) return null;
+  const ws =
+    w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE) ?? w.__WORKSPACES?.[0] ?? null;
+  const tz = ws?.timezone ?? null;
+  try {
+    return {
+      text: resolveSystemPrompt(brain as Parameters<typeof resolveSystemPrompt>[0], channel, tz),
+      now: describeNow(tz),
+      tz,
+    };
+  } catch {
+    // A config the composer refuses is a real answer, and the pane says so.
+    return null;
+  }
+}
+
 declare global {
   interface Window {
     __inboxVerb: typeof inboxVerb;
     __cancelSend: typeof cancelSend;
     __refreshInbox: typeof refreshInbox;
     __saveSettings: typeof saveSettings;
+    __composedPrompt: typeof composedPrompt;
   }
 }
 
@@ -208,6 +254,7 @@ export function installInboxVerbs(): void {
   window.__cancelSend = cancelSend;
   window.__refreshInbox = refreshInbox;
   window.__saveSettings = saveSettings;
+  window.__composedPrompt = composedPrompt;
 }
 
 /**
