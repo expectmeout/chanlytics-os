@@ -653,7 +653,7 @@ async function handleInbound(
         // "Are you open?" it could already answer. "Are you open RIGHT NOW?"
         // it was answering too, from nothing — it had a table of hours and no
         // idea what day it was.
-        describeNow(rt?.timezone),
+        describeNow(rt?.timezone, new Date(), brainCfg.profile?.closures),
       );
       replyText = r.text; escalate = r.escalate; usage = r.usage;
       if (r.reason) escalationReason = r.reason;

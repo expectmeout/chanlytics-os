@@ -75,13 +75,57 @@ export interface PolicyRow {
  * actually fills these in.
  */
 
+const TIME = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+
+/**
+ * One stretch of the day the doors are open.
+ *
+ * DELIBERATELY LENIENT — no .strict(), no .refine(), no length bounds.
+ *
+ * This schema is on the READ path: apps/edge parses it out of the database on
+ * every inbound message, and a parse failure there is not a warning. It sets
+ * configBroken, the WhatsApp receptionist stops replying, and the voice agent
+ * is handed no facts at all. Rules that reject a stored row are rules that
+ * mute a live line, so the shape is all that lives here. Everything that can
+ * be WRONG rather than malformed — reversed times, overlapping shifts, a
+ * calendar date that does not exist — is checked on the way IN, and the
+ * composer is written to tell the truth about whatever is already stored.
+ */
+export const IntervalSchema = z.object({ open: TIME, close: TIME });
+
 export const HoursSchema = z
   .object({
     /** "09:00". Absent or null = closed that day, which is a real answer. */
-    open: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional(),
-    close: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional(),
+    open: TIME.nullable().optional(),
+    close: TIME.nullable().optional(),
+    /**
+     * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
+     * actually keeps. Additive: a day that has always been one stretch keeps
+     * saying so with open/close, and no stored config is rewritten.
+     */
+    intervals: z.array(IntervalSchema).optional(),
   })
   .strict();
+
+/** A plain calendar date in the business's own zone — never an instant. */
+const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+/**
+ * A day the business is shut whatever the weekly grid says.
+ *
+ * `until` because "closed 24 December to 2 January" is ONE decision an owner
+ * makes, and ten separate rows is how a holiday week ends up half-entered.
+ *
+ * Lenient for the same reason as IntervalSchema. Note the date regex accepts
+ * 2026-11-31, which is not a day; the renderer checks that it round-trips and
+ * prints the raw string when it does not, rather than confidently naming the
+ * wrong date.
+ */
+export const ClosureSchema = z.object({
+  date: DATE,
+  until: DATE.optional(),
+  note: z.string().max(200).optional(),
+});
 
 export const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 
@@ -119,6 +163,8 @@ export const BusinessProfileSchema = z
   .object({
     address: z.string().max(300).optional(),
     hours: z.record(z.enum(DAYS), HoursSchema).optional(),
+    /** Dates the business is shut regardless of the weekly grid. */
+    closures: z.array(ClosureSchema).optional(),
     services: z.array(ServiceSchema).max(60).optional(),
     languages: z.array(z.string().min(2).max(40)).max(8).optional(),
     guardrails: GuardrailsSchema.optional(),
@@ -139,6 +185,8 @@ export const BusinessProfileSchema = z
 export type BusinessProfile = z.infer<typeof BusinessProfileSchema>;
 export type Hours = z.infer<typeof HoursSchema>;
 export type Service = z.infer<typeof ServiceSchema>;
+export type Interval = z.infer<typeof IntervalSchema>;
+export type Closure = z.infer<typeof ClosureSchema>;
 
 export const BrainConfigSchema = z
   .object({
@@ -301,14 +349,67 @@ export interface HoursRun {
  * the card says "Mon–Thu 09:30–18:00"). So this returns the runs and each
  * caller writes its own sentence.
  */
+/**
+ * Every stretch a day is open, sorted and merged.
+ *
+ * Sorted because the gap between shifts is computed from neighbours, and array
+ * order is not chronology: [15:00-19:00, 09:30-13:00] read positionally says
+ * "closed 19:00-09:30", a window running backwards through the night. Merged
+ * because two touching shifts are one stretch, and a zero-length gap would
+ * otherwise be printed as "closed 13:00-13:00".
+ *
+ * open/close and intervals are UNIONED rather than one silently winning. Both
+ * can be present in a stored row, and dropping either would make a fact
+ * disappear from the prompt with nothing to show it had — which is the exact
+ * failure this whole area has already had.
+ */
+function dayIntervals(h: Hours | undefined): { open: string; close: string }[] {
+  const raw: { open: string; close: string }[] = [];
+  if (h?.open && h?.close) raw.push({ open: h.open, close: h.close });
+  for (const iv of h?.intervals ?? []) if (iv?.open && iv?.close) raw.push(iv);
+  const usable = raw
+    .filter((x) => x.close > x.open)
+    .sort((a, b) => (a.open < b.open ? -1 : a.open > b.open ? 1 : 0));
+  const merged: { open: string; close: string }[] = [];
+  for (const iv of usable) {
+    const last = merged[merged.length - 1];
+    if (last && iv.open <= last.close) {
+      if (iv.close > last.close) last.close = iv.close;
+    } else {
+      merged.push({ ...iv });
+    }
+  }
+  return merged;
+}
+
+function joinList(parts: string[]): string {
+  if (parts.length < 3) return parts.join(" and ");
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
+/**
+ * What one day says.
+ *
+ * "Closed" is an affirmative claim, so it is reserved for a day that states
+ * nothing. A day that states SOMETHING unusable — an opening time with no
+ * closing time, a span that ends before it starts — is not closed; it is a
+ * question we cannot answer, and saying "Closed" to a customer would be
+ * telling them not to come on a day the business may well be open.
+ */
+function dayText(h: Hours | undefined): string {
+  const spans = dayIntervals(h);
+  if (spans.length) {
+    const open = joinList(spans.map((x) => `${x.open}–${x.close}`));
+    const gaps = spans.slice(1).map((x, i) => `${spans[i].close}–${x.open}`);
+    return gaps.length ? `${open} (closed ${joinList(gaps)})` : open;
+  }
+  const saidSomething = !!(h?.open || h?.close || h?.intervals?.length);
+  return saidSomething ? "Hours not confirmed — ask them to call" : "Closed";
+}
+
 export function hoursRuns(hours: Record<string, Hours> | undefined): HoursRun[] {
   if (!hours) return [];
-  const spans = DAYS.map((d) => {
-    const h = hours[d];
-    const open = h?.open ?? null;
-    const close = h?.close ?? null;
-    return { day: d as string, text: open && close ? `${open}–${close}` : "Closed" };
-  });
+  const spans = DAYS.map((d) => ({ day: d as string, text: dayText(hours[d]) }));
   // A seven-line block is harder to read aloud AND longer in a prompt, for no
   // extra information.
   const out: HoursRun[] = [];
@@ -338,7 +439,14 @@ export function hasProfile(p: BusinessProfile | undefined | null): boolean {
   // composed prompt containing no hours, no services and no address — strictly
   // worse than the hand-written one it replaced. At least one real opening
   // time has to exist before this counts.
-  const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close);
+  const statedHours =
+    !!p.hours && Object.values(p.hours).some((h) => (h?.open && h?.close) || h?.intervals?.length);
+  // NOT closures. Their contents EXPIRE: a profile whose only fact is a closure
+  // would compose a real prompt while it was upcoming and, the day after it
+  // passed, compose one with no hours, no address and no services — while this
+  // still returned true, so it could never fall back to the hand-written
+  // prompt either. A prompt that changes what it says because a date went by,
+  // from a config nobody touched.
   return !!(
     p.address || p.tone || p.extra_instructions || statedHours ||
     p.services?.length || p.languages?.length || p.escalate_when?.length
@@ -363,6 +471,79 @@ export function hasProfile(p: BusinessProfile | undefined | null): boolean {
  * Silence would be worse than this. A model given opening hours and no date
  * will answer "are you open right now?" anyway, confidently, from nothing.
  */
+/** "YYYY-MM-DD" for an instant, as the business experiences it. */
+function dateKeyInZone(tz: string, at: Date): string | null {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+    }).formatToParts(at);
+    const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+    const y = get("year"), m = get("month"), d = get("day");
+    return y && m && d ? `${y}-${m}-${d}` : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A stored date is only named if it is a real day.
+ *
+ * The regex on the read path accepts 2026-11-31, which does not exist. Date
+ * parsing rolls it forward to 1 December — so the receptionist would announce
+ * a closure on a day the business is OPEN, and then drop the row on the very
+ * day it claimed. Rather than confidently name the wrong date, an impossible
+ * one is printed exactly as stored, where it reads as the mistake it is.
+ */
+function labelDate(key: string, withWeekday: boolean): string {
+  const at = new Date(`${key}T12:00:00Z`);
+  if (Number.isNaN(at.getTime()) || dateKeyInZone("UTC", at) !== key) return key;
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    ...(withWeekday ? { weekday: "long" as const } : {}),
+    month: "long", day: "numeric", year: "numeric",
+  }).format(at);
+}
+
+/** The closures still ahead of the business, oldest first. */
+function upcomingClosures(
+  closures: Closure[] | undefined,
+  tz: string | null | undefined,
+  at: Date,
+): Closure[] {
+  if (!closures?.length) return [];
+  // No zone means we do not know what day it is there. Err toward stating a
+  // closure a day longer rather than hiding one that is live.
+  const today = (tz && dateKeyInZone(tz, at)) || dateKeyInZone("UTC", new Date(at.getTime() - 86400000));
+  if (!today) return closures;
+  return closures
+    .filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= today)
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
+function closureLines(closures: Closure[]): string[] {
+  return closures.map((c) => {
+    const when = c.until && c.until !== c.date && c.until > c.date
+      ? `${labelDate(c.date, false)} – ${labelDate(c.until, false)}`
+      : labelDate(c.date, true);
+    return c.note ? `${when} — ${c.note}` : when;
+  });
+}
+
+/** Is the business shut on the date `at` falls on, in its own zone? */
+function closedToday(
+  closures: Closure[] | undefined,
+  tz: string | null | undefined,
+  at: Date,
+): Closure | null {
+  if (!closures?.length || !tz) return null;
+  const today = dateKeyInZone(tz, at);
+  if (!today) return null;
+  return closures.find((c) => {
+    const end = c.until && c.until >= c.date ? c.until : c.date;
+    return c.date <= today && today <= end;
+  }) ?? null;
+}
+
 const NO_CLOCK =
   "You do not know today's date or the current time. If a customer asks whether the business is open right now, or about today or tomorrow, state the opening hours and let them compare — never guess which day it is.";
 
@@ -377,7 +558,20 @@ const NO_CLOCK =
  * The timezone is `tenants.timezone` — the one the metrics RPCs and the Today
  * surface already use. There is no second copy of it on the profile.
  */
-export function describeNow(tz: string | null | undefined, now: Date = new Date()): string {
+export function describeNow(
+  tz: string | null | undefined,
+  now: Date = new Date(),
+  /**
+   * The workspace's closures, so a shut day is stated HERE.
+   *
+   * It matters that it is here and not only in the composed block above. This
+   * is the last thing the model reads, and on a closure day the weekly grid
+   * says open while the closure list says shut. Leaving the tie to block order
+   * would decide the single highest-stakes question — "are you open today?" —
+   * by accident.
+   */
+  closures?: Closure[],
+): string {
   if (!tz) return NO_CLOCK;
   try {
     const stamp = new Intl.DateTimeFormat("en-US", {
@@ -389,7 +583,11 @@ export function describeNow(tz: string | null | undefined, now: Date = new Date(
       minute: "2-digit",
       timeZone: tz,
     }).format(now);
-    return `Right now it is ${stamp} (${tz}). Use this for anything about today, tomorrow, or whether the business is open at this moment — compare it against the opening hours.`;
+    const shut = closedToday(closures, tz, now);
+    const today = shut
+      ? ` The business is CLOSED today${shut.note ? ` — ${shut.note}` : ""}, whatever the weekly hours say. Do not offer today; offer the next day it is open.`
+      : "";
+    return `Right now it is ${stamp} (${tz}).${today} Use this for anything about today, tomorrow, or whether the business is open at this moment — compare it against the opening hours and the closed dates, and treat a closed date as final.`;
   } catch {
     // An unknown IANA zone throws. A wrong clock is worse than no clock.
     return NO_CLOCK;
@@ -402,6 +600,14 @@ export function composeSystemPrompt(
   channel: "whatsapp" | "voice" = "whatsapp",
   /** IANA zone from `tenants.timezone`, so stated hours are unambiguous. */
   tz?: string | null,
+  /**
+   * Only used to drop closures that have already passed.
+   *
+   * No cron, no nightly prune: the composer already runs per message and
+   * already knows the zone, so "has this gone by?" is a string comparison.
+   * Rows that have passed stay in the config and simply stop being said.
+   */
+  now: Date = new Date(),
 ): string {
   const s: string[] = [];
   const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
@@ -420,6 +626,20 @@ export function composeSystemPrompt(
     // to reconcile these with the clock it is given separately.
     const where = tz ? ` (all times ${tz})` : "";
     s.push(`\nOpening hours${where}:\n${hrs.map((l) => `- ${l}`).join("\n")}`);
+  }
+
+  // EVERY upcoming closure, not the first handful. A cap here and a larger cap
+  // on the schema is a silent divergence between what an owner can store and
+  // what the receptionist will ever say — and because the list is sorted
+  // oldest-first, the ones a cap drops are the furthest out: exactly the dates
+  // customers book against months ahead.
+  const closed = closureLines(upcomingClosures(profile.closures, tz, now));
+  if (closed.length) {
+    s.push(
+      `\nClosed on these dates, whatever the opening hours above say:\n${closed
+        .map((l) => `- ${l}`)
+        .join("\n")}\nIf someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`,
+    );
   }
 
   if (profile.services?.length) {
@@ -443,7 +663,17 @@ export function composeSystemPrompt(
     // said open Sunday, the prose said closed Sunday, and nothing told the
     // receptionist which to believe. The fields above are the ones an owner
     // can see and correct in one click, so those are the ones that win.
-    const stated = !!(profile.address || hrs.length || profile.services?.length);
+    // Named from what was ACTUALLY emitted above, not from a fixed list. The
+    // sentence used to say "the address, hours or services above" whatever was
+    // there — so a profile carrying only closures pointed the model at three
+    // things the prompt did not contain, and never mentioned the one it did.
+    const above = [
+      profile.address ? "address" : "",
+      hrs.length ? "hours" : "",
+      closed.length ? "closed dates" : "",
+      profile.services?.length ? "services" : "",
+    ].filter(Boolean);
+    const stated = above.length > 0;
     const text = profile.extra_instructions.trim();
     // This block is often a prompt that was written for ONE channel before the
     // business had fields — Melany's opens "You are the WhatsApp assistant".
@@ -452,7 +682,7 @@ export function composeSystemPrompt(
     // came from. The channel line below and the rules after it still win.
     const header = [
       stated
-        ? "Further instructions from the business. Where these disagree with the address, hours or services above, the details above are current and correct."
+        ? `Further instructions from the business. Where these disagree with the ${joinList(above)} above, the details above are current and correct.`
         : "",
       channel === "voice"
         ? "Some of it was written for text conversations; you are on a phone call."
@@ -504,6 +734,8 @@ export function resolveSystemPrompt(
   channel: "whatsapp" | "voice" = "whatsapp",
   /** IANA zone from `tenants.timezone`. Labels the hours; never a second copy. */
   tz?: string | null,
+  /** Only used to drop closures that have already passed. */
+  now: Date = new Date(),
 ): string {
   if (!hasProfile(brain.profile)) return brain.system_prompt;
   const profile = brain.profile as BusinessProfile;
@@ -521,5 +753,5 @@ export function resolveSystemPrompt(
   const carried = profile.extra_instructions?.trim()
     ? profile
     : { ...profile, extra_instructions: brain.system_prompt };
-  return composeSystemPrompt(brain, carried, channel, tz);
+  return composeSystemPrompt(brain, carried, channel, tz, now);
 }

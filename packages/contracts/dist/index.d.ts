@@ -739,16 +739,87 @@ interface PolicyRow {
     limits: PolicyLimits;
     updated_at: string;
 }
+/**
+ * One stretch of the day the doors are open.
+ *
+ * DELIBERATELY LENIENT — no .strict(), no .refine(), no length bounds.
+ *
+ * This schema is on the READ path: apps/edge parses it out of the database on
+ * every inbound message, and a parse failure there is not a warning. It sets
+ * configBroken, the WhatsApp receptionist stops replying, and the voice agent
+ * is handed no facts at all. Rules that reject a stored row are rules that
+ * mute a live line, so the shape is all that lives here. Everything that can
+ * be WRONG rather than malformed — reversed times, overlapping shifts, a
+ * calendar date that does not exist — is checked on the way IN, and the
+ * composer is written to tell the truth about whatever is already stored.
+ */
+declare const IntervalSchema: z.ZodObject<{
+    open: z.ZodString;
+    close: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    open: string;
+    close: string;
+}, {
+    open: string;
+    close: string;
+}>;
 declare const HoursSchema: z.ZodObject<{
     /** "09:00". Absent or null = closed that day, which is a real answer. */
     open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    /**
+     * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
+     * actually keeps. Additive: a day that has always been one stretch keeps
+     * saying so with open/close, and no stored config is rewritten.
+     */
+    intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        open: z.ZodString;
+        close: z.ZodString;
+    }, "strip", z.ZodTypeAny, {
+        open: string;
+        close: string;
+    }, {
+        open: string;
+        close: string;
+    }>, "many">>;
 }, "strict", z.ZodTypeAny, {
     open?: string | null | undefined;
     close?: string | null | undefined;
+    intervals?: {
+        open: string;
+        close: string;
+    }[] | undefined;
 }, {
     open?: string | null | undefined;
     close?: string | null | undefined;
+    intervals?: {
+        open: string;
+        close: string;
+    }[] | undefined;
+}>;
+/**
+ * A day the business is shut whatever the weekly grid says.
+ *
+ * `until` because "closed 24 December to 2 January" is ONE decision an owner
+ * makes, and ten separate rows is how a holiday week ends up half-entered.
+ *
+ * Lenient for the same reason as IntervalSchema. Note the date regex accepts
+ * 2026-11-31, which is not a day; the renderer checks that it round-trips and
+ * prints the raw string when it does not, rather than confidently naming the
+ * wrong date.
+ */
+declare const ClosureSchema: z.ZodObject<{
+    date: z.ZodString;
+    until: z.ZodOptional<z.ZodString>;
+    note: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    date: string;
+    note?: string | undefined;
+    until?: string | undefined;
+}, {
+    date: string;
+    note?: string | undefined;
+    until?: string | undefined;
 }>;
 declare const DAYS: readonly ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 declare const ServiceSchema: z.ZodObject<{
@@ -797,13 +868,50 @@ declare const BusinessProfileSchema: z.ZodObject<{
         /** "09:00". Absent or null = closed that day, which is a real answer. */
         open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
         close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        /**
+         * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
+         * actually keeps. Additive: a day that has always been one stretch keeps
+         * saying so with open/close, and no stored config is rewritten.
+         */
+        intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            open: z.ZodString;
+            close: z.ZodString;
+        }, "strip", z.ZodTypeAny, {
+            open: string;
+            close: string;
+        }, {
+            open: string;
+            close: string;
+        }>, "many">>;
     }, "strict", z.ZodTypeAny, {
         open?: string | null | undefined;
         close?: string | null | undefined;
+        intervals?: {
+            open: string;
+            close: string;
+        }[] | undefined;
     }, {
         open?: string | null | undefined;
         close?: string | null | undefined;
+        intervals?: {
+            open: string;
+            close: string;
+        }[] | undefined;
     }>>>;
+    /** Dates the business is shut regardless of the weekly grid. */
+    closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        date: z.ZodString;
+        until: z.ZodOptional<z.ZodString>;
+        note: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        date: string;
+        note?: string | undefined;
+        until?: string | undefined;
+    }, {
+        date: string;
+        note?: string | undefined;
+        until?: string | undefined;
+    }>, "many">>;
     services: z.ZodOptional<z.ZodArray<z.ZodObject<{
         name: z.ZodString;
         /** Minutes. The receptionist is asked "how long does it take" constantly. */
@@ -853,7 +961,16 @@ declare const BusinessProfileSchema: z.ZodObject<{
     hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
         open?: string | null | undefined;
         close?: string | null | undefined;
+        intervals?: {
+            open: string;
+            close: string;
+        }[] | undefined;
     }>> | undefined;
+    closures?: {
+        date: string;
+        note?: string | undefined;
+        until?: string | undefined;
+    }[] | undefined;
     services?: {
         name: string;
         duration_min?: number | undefined;
@@ -873,7 +990,16 @@ declare const BusinessProfileSchema: z.ZodObject<{
     hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
         open?: string | null | undefined;
         close?: string | null | undefined;
+        intervals?: {
+            open: string;
+            close: string;
+        }[] | undefined;
     }>> | undefined;
+    closures?: {
+        date: string;
+        note?: string | undefined;
+        until?: string | undefined;
+    }[] | undefined;
     services?: {
         name: string;
         duration_min?: number | undefined;
@@ -892,6 +1018,8 @@ declare const BusinessProfileSchema: z.ZodObject<{
 type BusinessProfile = z.infer<typeof BusinessProfileSchema>;
 type Hours = z.infer<typeof HoursSchema>;
 type Service = z.infer<typeof ServiceSchema>;
+type Interval = z.infer<typeof IntervalSchema>;
+type Closure = z.infer<typeof ClosureSchema>;
 declare const BrainConfigSchema: z.ZodObject<{
     business_name: z.ZodString;
     phone_display: z.ZodString;
@@ -912,13 +1040,50 @@ declare const BrainConfigSchema: z.ZodObject<{
             /** "09:00". Absent or null = closed that day, which is a real answer. */
             open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
             close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+            /**
+             * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
+             * actually keeps. Additive: a day that has always been one stretch keeps
+             * saying so with open/close, and no stored config is rewritten.
+             */
+            intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                open: z.ZodString;
+                close: z.ZodString;
+            }, "strip", z.ZodTypeAny, {
+                open: string;
+                close: string;
+            }, {
+                open: string;
+                close: string;
+            }>, "many">>;
         }, "strict", z.ZodTypeAny, {
             open?: string | null | undefined;
             close?: string | null | undefined;
+            intervals?: {
+                open: string;
+                close: string;
+            }[] | undefined;
         }, {
             open?: string | null | undefined;
             close?: string | null | undefined;
+            intervals?: {
+                open: string;
+                close: string;
+            }[] | undefined;
         }>>>;
+        /** Dates the business is shut regardless of the weekly grid. */
+        closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            date: z.ZodString;
+            until: z.ZodOptional<z.ZodString>;
+            note: z.ZodOptional<z.ZodString>;
+        }, "strip", z.ZodTypeAny, {
+            date: string;
+            note?: string | undefined;
+            until?: string | undefined;
+        }, {
+            date: string;
+            note?: string | undefined;
+            until?: string | undefined;
+        }>, "many">>;
         services: z.ZodOptional<z.ZodArray<z.ZodObject<{
             name: z.ZodString;
             /** Minutes. The receptionist is asked "how long does it take" constantly. */
@@ -968,7 +1133,16 @@ declare const BrainConfigSchema: z.ZodObject<{
         hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
             open?: string | null | undefined;
             close?: string | null | undefined;
+            intervals?: {
+                open: string;
+                close: string;
+            }[] | undefined;
         }>> | undefined;
+        closures?: {
+            date: string;
+            note?: string | undefined;
+            until?: string | undefined;
+        }[] | undefined;
         services?: {
             name: string;
             duration_min?: number | undefined;
@@ -988,7 +1162,16 @@ declare const BrainConfigSchema: z.ZodObject<{
         hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
             open?: string | null | undefined;
             close?: string | null | undefined;
+            intervals?: {
+                open: string;
+                close: string;
+            }[] | undefined;
         }>> | undefined;
+        closures?: {
+            date: string;
+            note?: string | undefined;
+            until?: string | undefined;
+        }[] | undefined;
         services?: {
             name: string;
             duration_min?: number | undefined;
@@ -1035,7 +1218,16 @@ declare const BrainConfigSchema: z.ZodObject<{
         hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
             open?: string | null | undefined;
             close?: string | null | undefined;
+            intervals?: {
+                open: string;
+                close: string;
+            }[] | undefined;
         }>> | undefined;
+        closures?: {
+            date: string;
+            note?: string | undefined;
+            until?: string | undefined;
+        }[] | undefined;
         services?: {
             name: string;
             duration_min?: number | undefined;
@@ -1066,7 +1258,16 @@ declare const BrainConfigSchema: z.ZodObject<{
         hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
             open?: string | null | undefined;
             close?: string | null | undefined;
+            intervals?: {
+                open: string;
+                close: string;
+            }[] | undefined;
         }>> | undefined;
+        closures?: {
+            date: string;
+            note?: string | undefined;
+            until?: string | undefined;
+        }[] | undefined;
         services?: {
             name: string;
             duration_min?: number | undefined;
@@ -1155,13 +1356,50 @@ declare const TenantConfigSchema: z.ZodObject<{
                 /** "09:00". Absent or null = closed that day, which is a real answer. */
                 open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
                 close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                /**
+                 * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
+                 * actually keeps. Additive: a day that has always been one stretch keeps
+                 * saying so with open/close, and no stored config is rewritten.
+                 */
+                intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                    open: z.ZodString;
+                    close: z.ZodString;
+                }, "strip", z.ZodTypeAny, {
+                    open: string;
+                    close: string;
+                }, {
+                    open: string;
+                    close: string;
+                }>, "many">>;
             }, "strict", z.ZodTypeAny, {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
+                intervals?: {
+                    open: string;
+                    close: string;
+                }[] | undefined;
             }, {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
+                intervals?: {
+                    open: string;
+                    close: string;
+                }[] | undefined;
             }>>>;
+            /** Dates the business is shut regardless of the weekly grid. */
+            closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                date: z.ZodString;
+                until: z.ZodOptional<z.ZodString>;
+                note: z.ZodOptional<z.ZodString>;
+            }, "strip", z.ZodTypeAny, {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
+            }, {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
+            }>, "many">>;
             services: z.ZodOptional<z.ZodArray<z.ZodObject<{
                 name: z.ZodString;
                 /** Minutes. The receptionist is asked "how long does it take" constantly. */
@@ -1211,7 +1449,16 @@ declare const TenantConfigSchema: z.ZodObject<{
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
+                intervals?: {
+                    open: string;
+                    close: string;
+                }[] | undefined;
             }>> | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
+            }[] | undefined;
             services?: {
                 name: string;
                 duration_min?: number | undefined;
@@ -1231,7 +1478,16 @@ declare const TenantConfigSchema: z.ZodObject<{
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
+                intervals?: {
+                    open: string;
+                    close: string;
+                }[] | undefined;
             }>> | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
+            }[] | undefined;
             services?: {
                 name: string;
                 duration_min?: number | undefined;
@@ -1278,7 +1534,16 @@ declare const TenantConfigSchema: z.ZodObject<{
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
+                intervals?: {
+                    open: string;
+                    close: string;
+                }[] | undefined;
             }>> | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
+            }[] | undefined;
             services?: {
                 name: string;
                 duration_min?: number | undefined;
@@ -1309,7 +1574,16 @@ declare const TenantConfigSchema: z.ZodObject<{
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
+                intervals?: {
+                    open: string;
+                    close: string;
+                }[] | undefined;
             }>> | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
+            }[] | undefined;
             services?: {
                 name: string;
                 duration_min?: number | undefined;
@@ -1352,7 +1626,16 @@ declare const TenantConfigSchema: z.ZodObject<{
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
+                intervals?: {
+                    open: string;
+                    close: string;
+                }[] | undefined;
             }>> | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
+            }[] | undefined;
             services?: {
                 name: string;
                 duration_min?: number | undefined;
@@ -1389,7 +1672,16 @@ declare const TenantConfigSchema: z.ZodObject<{
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
+                intervals?: {
+                    open: string;
+                    close: string;
+                }[] | undefined;
             }>> | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
+            }[] | undefined;
             services?: {
                 name: string;
                 duration_min?: number | undefined;
@@ -1441,17 +1733,6 @@ interface HoursRun {
     /** "09:30–18:00", or "Closed". */
     text: string;
 }
-/**
- * Collapse the week into runs of identical days.
- *
- * Exported because the Settings card had a hand-copied second implementation
- * of this loop, under a comment promising it matched — which is the setup for
- * the owner's own summary disagreeing with what the receptionist says. The
- * ALGORITHM belongs in one place; the FORMATTING does not, because the two
- * surfaces genuinely differ (the prompt says "Monday–Thursday: 09:30–18:00",
- * the card says "Mon–Thu 09:30–18:00"). So this returns the runs and each
- * caller writes its own sentence.
- */
 declare function hoursRuns(hours: Record<string, Hours> | undefined): HoursRun[];
 /** True when a profile carries anything worth composing from. */
 declare function hasProfile(p: BusinessProfile | undefined | null): boolean;
@@ -1466,14 +1747,32 @@ declare function hasProfile(p: BusinessProfile | undefined | null): boolean;
  * The timezone is `tenants.timezone` — the one the metrics RPCs and the Today
  * surface already use. There is no second copy of it on the profile.
  */
-declare function describeNow(tz: string | null | undefined, now?: Date): string;
+declare function describeNow(tz: string | null | undefined, now?: Date, 
+/**
+ * The workspace's closures, so a shut day is stated HERE.
+ *
+ * It matters that it is here and not only in the composed block above. This
+ * is the last thing the model reads, and on a closure day the weekly grid
+ * says open while the closure list says shut. Leaving the tie to block order
+ * would decide the single highest-stakes question — "are you open today?" —
+ * by accident.
+ */
+closures?: Closure[]): string;
 declare function composeSystemPrompt(base: {
     business_name: string;
     phone_display: string;
     booking_link: string;
 }, profile: BusinessProfile, channel?: "whatsapp" | "voice", 
 /** IANA zone from `tenants.timezone`, so stated hours are unambiguous. */
-tz?: string | null): string;
+tz?: string | null, 
+/**
+ * Only used to drop closures that have already passed.
+ *
+ * No cron, no nightly prune: the composer already runs per message and
+ * already knows the zone, so "has this gone by?" is a string comparison.
+ * Rows that have passed stay in the config and simply stop being said.
+ */
+now?: Date): string;
 /**
  * The instructions this workspace's receptionist should actually receive.
  *
@@ -1488,6 +1787,8 @@ tz?: string | null): string;
  */
 declare function resolveSystemPrompt(brain: BrainConfig, channel?: "whatsapp" | "voice", 
 /** IANA zone from `tenants.timezone`. Labels the hours; never a second copy. */
-tz?: string | null): string;
+tz?: string | null, 
+/** Only used to drop closures that have already passed. */
+now?: Date): string;
 
-export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, type BusinessProfile, BusinessProfileSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, GuardrailsSchema, type Hours, type HoursRun, HoursSchema, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, ROLES, ROLE_PERMS, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, composeSystemPrompt, contactMeta, contactName, describeNow, draftSendsAtMs, err, formatPhoneDisplay, formatWaited, hasProfile, hoursRuns, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, messageAt, messageStatusLabel, messageText, newReceptionistDefaults, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, reachedCustomer, replyDelayMs, resolveSystemPrompt, threadStanding, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };
+export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, type BusinessProfile, BusinessProfileSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, GuardrailsSchema, type Hours, type HoursRun, HoursSchema, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, ROLES, ROLE_PERMS, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, composeSystemPrompt, contactMeta, contactName, describeNow, draftSendsAtMs, err, formatPhoneDisplay, formatWaited, hasProfile, hoursRuns, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, messageAt, messageStatusLabel, messageText, newReceptionistDefaults, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, reachedCustomer, replyDelayMs, resolveSystemPrompt, threadStanding, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };
