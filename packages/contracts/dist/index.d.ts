@@ -1399,22 +1399,24 @@ declare function parseTenantConfig(raw: unknown): TenantConfig | null;
 /** True when a profile carries anything worth composing from. */
 declare function hasProfile(p: BusinessProfile | undefined | null): boolean;
 /**
- * The receptionist's instructions, composed from the business's facts.
+ * The current moment, in the business's own timezone.
  *
- * ONE function, so the WhatsApp prompt and the voice prompt are built from the
- * same source and cannot describe two different businesses. Channel shapes the
- * delivery, never the facts: `channel` only changes the medium-specific lines
- * at the end — how long a reply should be, what to do with a voice note.
+ * Deliberately NOT part of composeSystemPrompt. That output is cached with the
+ * request; this changes every minute, and folding it in would evict the whole
+ * business profile from the prompt cache on every single message. It belongs
+ * in its own uncached block, next to the lead note that changes per contact.
  *
- * The guardrails are appended LAST and unconditionally. They are not the
- * owner's to remove, and putting them last means no earlier instruction can
- * read as overriding them.
+ * The timezone is `tenants.timezone` — the one the metrics RPCs and the Today
+ * surface already use. There is no second copy of it on the profile.
  */
+declare function describeNow(tz: string | null | undefined, now?: Date): string;
 declare function composeSystemPrompt(base: {
     business_name: string;
     phone_display: string;
     booking_link: string;
-}, profile: BusinessProfile, channel?: "whatsapp" | "voice"): string;
+}, profile: BusinessProfile, channel?: "whatsapp" | "voice", 
+/** IANA zone from `tenants.timezone`, so stated hours are unambiguous. */
+tz?: string | null): string;
 /**
  * The instructions this workspace's receptionist should actually receive.
  *
@@ -1427,6 +1429,8 @@ declare function composeSystemPrompt(base: {
  * what her receptionist says the moment the code deployed would be a
  * behaviour change nobody asked for.
  */
-declare function resolveSystemPrompt(brain: BrainConfig, channel?: "whatsapp" | "voice"): string;
+declare function resolveSystemPrompt(brain: BrainConfig, channel?: "whatsapp" | "voice", 
+/** IANA zone from `tenants.timezone`. Labels the hours; never a second copy. */
+tz?: string | null): string;
 
-export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, type BusinessProfile, BusinessProfileSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, GuardrailsSchema, type Hours, HoursSchema, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, ROLES, ROLE_PERMS, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, composeSystemPrompt, contactMeta, contactName, draftSendsAtMs, err, formatPhoneDisplay, formatWaited, hasProfile, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, messageAt, messageText, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, replyDelayMs, resolveSystemPrompt, threadStanding, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };
+export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, type BusinessProfile, BusinessProfileSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, GuardrailsSchema, type Hours, HoursSchema, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, ROLES, ROLE_PERMS, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, composeSystemPrompt, contactMeta, contactName, describeNow, draftSendsAtMs, err, formatPhoneDisplay, formatWaited, hasProfile, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, messageAt, messageText, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, replyDelayMs, resolveSystemPrompt, threadStanding, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };

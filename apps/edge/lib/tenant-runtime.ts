@@ -26,6 +26,14 @@ export interface TenantRuntime {
   policy: Record<string, { mode: string; limits: PolicyLimits }>;
   /** Per-tenant WhatsApp credentials from Vault; null = global env fallback. */
   waCreds: { accessToken: string; phoneId: string } | null;
+  /**
+   * IANA zone from `tenants.timezone` — the SAME column the metrics RPCs and
+   * the Today surface read. A receptionist that states opening hours needs to
+   * know which clock they are on, and a second copy of that on the business
+   * profile is how the dashboard and the bot start disagreeing about what day
+   * it is. null only when the row could not be read.
+   */
+  timezone: string | null;
   /** True when the control plane could not be read (infra blip, not config
    *  absence) — the caller may apply its designated DR fallback. */
   loadFailed: boolean;
@@ -46,7 +54,7 @@ export async function loadTenantRuntime(
   if (hit && hit.exp > Date.now()) return hit.v;
 
   try {
-    const [cfgQ, polQ, credsQ] = await Promise.all([
+    const [cfgQ, polQ, credsQ, tzQ] = await Promise.all([
       db.from("tenant_config").select("config").eq("tenant_id", routed.tenantId).maybeSingle(),
       db
         .from("policies")
@@ -56,10 +64,12 @@ export async function loadTenantRuntime(
       routed.credentialsRef
         ? db.rpc("get_channel_credentials", { p_channel_id: routed.channelId })
         : Promise.resolve({ data: null, error: null } as const),
+      db.from("tenants").select("timezone").eq("id", routed.tenantId).maybeSingle(),
     ]);
     if (cfgQ.error) throw new Error(cfgQ.error.message);
     if (polQ.error) throw new Error(polQ.error.message);
     if (credsQ.error) throw new Error(credsQ.error.message);
+    if (tzQ.error) throw new Error(tzQ.error.message);
 
     // A BROKEN config is not an ABSENT one. Both end in silence, but only one
     // is somebody's mistake, and reporting "no brain profile configured" while
@@ -86,6 +96,7 @@ export async function loadTenantRuntime(
         rawCreds?.access_token && rawCreds?.phone_id
           ? { accessToken: rawCreds.access_token, phoneId: rawCreds.phone_id }
           : null,
+      timezone: tzQ.data?.timezone ?? null,
       configBroken: !parseResult.ok,
       loadFailed: false,
     };
@@ -102,6 +113,7 @@ export async function loadTenantRuntime(
       notifications: null,
       policy: {},
       waCreds: null,
+      timezone: null,
       loadFailed: true,
     };
   }

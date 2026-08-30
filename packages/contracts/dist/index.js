@@ -900,7 +900,25 @@ function hasProfile(p) {
   const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close);
   return !!(p.address || p.tone || p.extra_instructions || statedHours || p.services?.length || p.languages?.length || p.escalate_when?.length);
 }
-function composeSystemPrompt(base, profile, channel = "whatsapp") {
+var NO_CLOCK = "You do not know today's date or the current time. If a customer asks whether the business is open right now, or about today or tomorrow, state the opening hours and let them compare \u2014 never guess which day it is.";
+function describeNow(tz, now = /* @__PURE__ */ new Date()) {
+  if (!tz) return NO_CLOCK;
+  try {
+    const stamp = new Intl.DateTimeFormat("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: tz
+    }).format(now);
+    return `Right now it is ${stamp} (${tz}). Use this for anything about today, tomorrow, or whether the business is open at this moment \u2014 compare it against the opening hours.`;
+  } catch {
+    return NO_CLOCK;
+  }
+}
+function composeSystemPrompt(base, profile, channel = "whatsapp", tz) {
   const s = [];
   const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
@@ -911,9 +929,12 @@ Address: ${profile.address}`);
   s.push(`Phone: ${base.phone_display}`);
   s.push(`Booking link: ${base.booking_link}`);
   const hrs = hoursLines(profile.hours);
-  if (hrs.length) s.push(`
-Opening hours:
+  if (hrs.length) {
+    const where = tz ? ` (all times ${tz})` : "";
+    s.push(`
+Opening hours${where}:
 ${hrs.map((l) => `- ${l}`).join("\n")}`);
+  }
   if (profile.services?.length) {
     const lines = profile.services.map((sv) => {
       const bits = [sv.name];
@@ -961,11 +982,11 @@ Rules you must follow:
 ${rules.map((r) => `- ${r}`).join("\n")}`);
   return s.join("\n");
 }
-function resolveSystemPrompt(brain, channel = "whatsapp") {
+function resolveSystemPrompt(brain, channel = "whatsapp", tz) {
   if (!hasProfile(brain.profile)) return brain.system_prompt;
   const profile = brain.profile;
   const carried = profile.extra_instructions?.trim() ? profile : { ...profile, extra_instructions: brain.system_prompt };
-  return composeSystemPrompt(brain, carried, channel);
+  return composeSystemPrompt(brain, carried, channel, tz);
 }
 export {
   ACTOR_TYPES,
@@ -1015,6 +1036,7 @@ export {
   composeSystemPrompt,
   contactMeta,
   contactName,
+  describeNow,
   draftSendsAtMs,
   err,
   formatPhoneDisplay,

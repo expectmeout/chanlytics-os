@@ -41,6 +41,15 @@ export async function generateReply(
    * cache — this changes per contact, that does not.
    */
   leadNote?: string,
+  /**
+   * The current moment in the business's timezone.
+   *
+   * Also a separate block, and for a sharper version of the same reason: this
+   * changes every MINUTE. Folded into the prompt above it would evict the
+   * business profile from the cache on literally every message, and the
+   * receptionist would pay full price for its own clock.
+   */
+  nowNote?: string,
 ): Promise<BrainReply> {
   const messages = [...history, { role: "user" as const, content: userText }];
   // output_config/effort predates this SDK pin's types; the API accepts it (proven in prod).
@@ -52,6 +61,7 @@ export async function generateReply(
       { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
       // Uncached on purpose: one line per contact would otherwise evict the
       // business profile from the cache on every new customer.
+      ...(nowNote ? [{ type: "text", text: nowNote }] : []),
       ...(leadNote ? [{ type: "text", text: `Who you are speaking with: ${leadNote}` }] : []),
     ],
     messages,
