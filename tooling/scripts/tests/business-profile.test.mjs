@@ -183,7 +183,7 @@ test("the version travels with the write", () => {
 test("an empty field is omitted rather than stored as an empty string", () => {
   // "" is not a fact. Storing it would have the composed prompt state an
   // address of nothing.
-  assert.match(settingsJsx, /if \(address\.trim\(\)\) profile\.address = address\.trim\(\);/);
+  assert.ok(settingsJsx.includes('put("address", address.trim() || undefined);'));
 });
 
 test("a day with no times is stored as CLOSED, not omitted", () => {
@@ -217,7 +217,24 @@ test("REGRESSION: seven closed days is not a profile", () => {
 });
 
 test("the editor does not send an hours map nobody filled in", () => {
-  assert.ok(settingsJsx.includes("if (SET_DAYS.some(([d]) => hours[d].isOpen && hours[d].open && hours[d].close)) profile.hours = hrs;"));
+  assert.ok(settingsJsx.includes('put("hours", SET_DAYS.some(([d]) => hours[d].isOpen && hours[d].open && hours[d].close) ? hrs : undefined);'));
+});
+
+test("REGRESSION: a save is not a rebuild — unknown profile keys survive", () => {
+  // save() built `profile` from {} and re-added only the keys this form
+  // renders, so every key it did not know about was deleted on every save.
+  // That is the mechanism that lost a live workspace its 5,027-character
+  // prompt: nobody deleted it, a rebuild dropped what it did not recognise.
+  assert.ok(settingsJsx.includes("const profile = { ...p0 };"), "start from what is stored");
+  assert.ok(!settingsJsx.includes("const profile = {};"), "never from nothing");
+});
+
+test("an emptied field DELETES its key rather than leaving the stored value", () => {
+  // The other half of starting from the stored profile: clearing the address
+  // has to clear it, not silently keep yesterday's.
+  assert.ok(settingsJsx.includes(
+    "const put = (k, v) => { if (v === undefined) delete profile[k]; else profile[k] = v; };",
+  ));
 });
 
 /* ---------------- nothing already there may be lost --------------------- */

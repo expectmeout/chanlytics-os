@@ -148,6 +148,28 @@ test("the shell asks with the param, or sub-routes are decoration", () => {
 
 /* ------------------------- no fabricated colleagues ----------------------- */
 
+test("REGRESSION: an unconfigured workspace is not shown somebody else's business", () => {
+  // The same bug as the team card, one row ABOVE it, and reachable by every
+  // new customer: migration 00017 provisions a tenant with an EMPTY
+  // tenant_config row, so `config.brain` is undefined and the card fell to
+  // its mockup branch — Serenity Spa, +1 (415) 555-0100, Lena Park and Jay
+  // Rivera, open Mon-Sun 9 to 6. Presented to a real owner as their own
+  // business, on a surface classified real, under a live pill.
+  //
+  // A config the parser refuses lands in the same branch: GET collapses it
+  // to {} and the owner sees an invented salon instead of a broken one.
+  const settings = fs.readFileSync(path.join(DASH, "legacy/pages/settings.jsx"), "utf8");
+  assert.ok(
+    settings.includes("const unconfigured = connected && !real;"),
+    "'no configuration' and 'this is the demo' must not be the same branch",
+  );
+  assert.ok(settings.includes("{unconfigured ? ("), "and the card must take the honest one");
+  assert.ok(
+    settings.includes("This workspace has no receptionist yet"),
+    "an empty workspace says so",
+  );
+});
+
 test("REGRESSION: the team card reads real members, not the seed store", () => {
   // Shipped once and caught by LOOKING at the deployed page: the business card
   // was real while the card beneath it listed four invented colleagues — and
