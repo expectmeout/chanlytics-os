@@ -67,7 +67,7 @@ import { notify, type NotifyTarget } from "../lib/notify.js";
 import { FALLBACK_BRAIN, FALLBACK_NOTIFICATIONS } from "../lib/tenant-fallback.js";
 import type { BrainConfig, NotificationsConfig } from "../lib/workspace/contracts.js";
 import type { RoutedChannel } from "../lib/workspace/db.js";
-import { violatesNoPrices, isOptedOutContact, replyDelayMs, resolveSystemPrompt } from "../lib/workspace/contracts.js";
+import { violatesNoPrices, isOptedOutContact, replyDelayMs, resolveSystemPrompt, describeNow } from "../lib/workspace/contracts.js";
 
 export const config = { maxDuration: 60 };
 
@@ -647,9 +647,13 @@ async function handleInbound(
         // composes the SAME thing for the voice agent, which is the point:
         // two copies of the hours is how two channels start disagreeing
         // about when the business opens.
-        resolveSystemPrompt(brainCfg, "whatsapp"),
+        resolveSystemPrompt(brainCfg, "whatsapp", rt?.timezone),
         brainCfg.fallbacks.error,
         leadNote,
+        // "Are you open?" it could already answer. "Are you open RIGHT NOW?"
+        // it was answering too, from nothing — it had a table of hours and no
+        // idea what day it was.
+        describeNow(rt?.timezone),
       );
       replyText = r.text; escalate = r.escalate; usage = r.usage;
       if (r.reason) escalationReason = r.reason;

@@ -294,10 +294,51 @@ export function hasProfile(p: BusinessProfile | undefined | null): boolean {
  * owner's to remove, and putting them last means no earlier instruction can
  * read as overriding them.
  */
+/**
+ * What the receptionist is told when it has no clock.
+ *
+ * Silence would be worse than this. A model given opening hours and no date
+ * will answer "are you open right now?" anyway, confidently, from nothing.
+ */
+const NO_CLOCK =
+  "You do not know today's date or the current time. If a customer asks whether the business is open right now, or about today or tomorrow, state the opening hours and let them compare — never guess which day it is.";
+
+/**
+ * The current moment, in the business's own timezone.
+ *
+ * Deliberately NOT part of composeSystemPrompt. That output is cached with the
+ * request; this changes every minute, and folding it in would evict the whole
+ * business profile from the prompt cache on every single message. It belongs
+ * in its own uncached block, next to the lead note that changes per contact.
+ *
+ * The timezone is `tenants.timezone` — the one the metrics RPCs and the Today
+ * surface already use. There is no second copy of it on the profile.
+ */
+export function describeNow(tz: string | null | undefined, now: Date = new Date()): string {
+  if (!tz) return NO_CLOCK;
+  try {
+    const stamp = new Intl.DateTimeFormat("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: tz,
+    }).format(now);
+    return `Right now it is ${stamp} (${tz}). Use this for anything about today, tomorrow, or whether the business is open at this moment — compare it against the opening hours.`;
+  } catch {
+    // An unknown IANA zone throws. A wrong clock is worse than no clock.
+    return NO_CLOCK;
+  }
+}
+
 export function composeSystemPrompt(
   base: { business_name: string; phone_display: string; booking_link: string },
   profile: BusinessProfile,
   channel: "whatsapp" | "voice" = "whatsapp",
+  /** IANA zone from `tenants.timezone`, so stated hours are unambiguous. */
+  tz?: string | null,
 ): string {
   const s: string[] = [];
   const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
@@ -310,7 +351,13 @@ export function composeSystemPrompt(
   s.push(`Booking link: ${base.booking_link}`);
 
   const hrs = hoursLines(profile.hours);
-  if (hrs.length) s.push(`\nOpening hours:\n${hrs.map((l) => `- ${l}`).join("\n")}`);
+  if (hrs.length) {
+    // "09:30–18:00" is not a fact until you say where. A customer calling from
+    // another state gets a straight answer either way; the model needs the zone
+    // to reconcile these with the clock it is given separately.
+    const where = tz ? ` (all times ${tz})` : "";
+    s.push(`\nOpening hours${where}:\n${hrs.map((l) => `- ${l}`).join("\n")}`);
+  }
 
   if (profile.services?.length) {
     const lines = profile.services.map((sv) => {
@@ -392,6 +439,8 @@ export function composeSystemPrompt(
 export function resolveSystemPrompt(
   brain: BrainConfig,
   channel: "whatsapp" | "voice" = "whatsapp",
+  /** IANA zone from `tenants.timezone`. Labels the hours; never a second copy. */
+  tz?: string | null,
 ): string {
   if (!hasProfile(brain.profile)) return brain.system_prompt;
   const profile = brain.profile as BusinessProfile;
@@ -409,5 +458,5 @@ export function resolveSystemPrompt(
   const carried = profile.extra_instructions?.trim()
     ? profile
     : { ...profile, extra_instructions: brain.system_prompt };
-  return composeSystemPrompt(brain, carried, channel);
+  return composeSystemPrompt(brain, carried, channel, tz);
 }
