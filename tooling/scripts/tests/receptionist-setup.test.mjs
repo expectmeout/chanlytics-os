@@ -120,3 +120,14 @@ test("a bad booking link is caught before a round trip, and names itself", () =>
   assert.ok(pane.includes("The receptionist needs {missing} before it can answer anyone."));
   assert.ok(pane.includes("That booking link needs to be a full web address"));
 });
+
+test("the setup form does not show one customer another customer's details", () => {
+  // The placeholders were the live salon's real name and real phone number.
+  // A different business setting itself up would have been shown them as its
+  // example — someone else's working line, in their form.
+  const ident = pane.slice(pane.indexOf("set-ident"), pane.indexOf("Where you are"));
+  for (const leak of ["Melany", "932-5775", "booksy.com", "1817434"]) {
+    assert.ok(!ident.includes(leak), `a real business's ${leak} must not be a placeholder`);
+  }
+  assert.ok(ident.includes("(555) 010-1234"), "555-01xx is the reserved fictional range");
+});
