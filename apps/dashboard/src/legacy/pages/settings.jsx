@@ -427,15 +427,27 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
 
   const save = () => {
     if (saving || !window.__saveSettings) return;
+    // Start from what is STORED, not from nothing.
+    //
+    // This used to be `const profile = {}` with the known keys added back, and
+    // that is not a save — it is a rebuild, and a rebuild silently deletes
+    // every key this form does not happen to render. It is the exact mechanism
+    // that lost a live workspace its 5,000-character prompt: nobody deleted
+    // anything, a rebuild simply dropped what it did not know about.
+    //
+    // Any field added to the profile later — by a newer editor, by a script,
+    // by the API — now survives an owner opening this form and pressing Save.
+    const profile = { ...p0 };
     // Only send what was filled in. An empty string is not a fact, and storing
-    // it would have the composed prompt state an address of nothing.
-    const profile = {};
-    if (address.trim()) profile.address = address.trim();
-    if (tone.trim()) profile.tone = tone.trim();
-    if (langs.length) profile.languages = langs;
+    // it would have the composed prompt state an address of nothing — so an
+    // emptied field DELETES its key rather than storing "".
+    const put = (k, v) => { if (v === undefined) delete profile[k]; else profile[k] = v; };
+    put("address", address.trim() || undefined);
+    put("tone", tone.trim() || undefined);
+    put("languages", langs.length ? langs : undefined);
     const esc = escalate.split("\n").map((x) => x.trim()).filter(Boolean);
-    if (esc.length) profile.escalate_when = esc;
-    if (extra.trim()) profile.extra_instructions = extra.trim();
+    put("escalate_when", esc.length ? esc : undefined);
+    put("extra_instructions", extra.trim() || undefined);
     const hrs = {};
     SET_DAYS.forEach(([d]) => {
       const x = hours[d];
@@ -445,7 +457,9 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     });
     // Only send hours once at least one day has real times, or an untouched
     // form would save seven closed days and read as a business never open.
-    if (SET_DAYS.some(([d]) => hours[d].isOpen && hours[d].open && hours[d].close)) profile.hours = hrs;
+    // Via put, so turning every day off CLEARS the stored grid instead of
+    // leaving yesterday's behind now that we start from the stored profile.
+    put("hours", SET_DAYS.some(([d]) => hours[d].isOpen && hours[d].open && hours[d].close) ? hrs : undefined);
     const svcs = services.filter((x) => (x.name || "").trim()).map((x) => {
       const o = { name: x.name.trim() };
       const d = parseInt(x.duration_min, 10);
@@ -453,7 +467,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       if ((x.price_note || "").trim()) o.price_note = x.price_note.trim();
       return o;
     });
-    if (svcs.length) profile.services = svcs;
+    put("services", svcs.length ? svcs : undefined);
     profile.guardrails = { ...guards };
 
     const next = { ...settings.config, brain: { ...brain, profile } };
@@ -465,7 +479,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     window.__saveSettings(next, settings.version, () => {
       // The server has accepted it. Say so NOW; the refresh can finish behind.
       setSaving(false);
-      flash({ msg: <>Saved — the receptionist uses these from its next message</> });
+      flash({ msg: <>Saved — the receptionist picks these up within a minute</> });
       onDone();
     }).then((r) => {
       if (r.ok) return;
@@ -618,7 +632,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       </div>
 
       <div className="set-editor-foot">
-        <span className="set-editor-note">Saved changes apply to the receptionist's next message.</span>
+        <span className="set-editor-note">Saved changes reach the receptionist within a minute. A call already in progress finishes on the old details.</span>
         <button type="button" className="btn btn-ghost btn-sm" onClick={onDone} disabled={saving}>Cancel</button>
         <button type="button" className="btn btn-primary btn-sm" onClick={save} disabled={saving} {...window.gate("autonomy")}>
           {saving ? "Saving" : "Save"}
@@ -634,6 +648,21 @@ const PaneWorkspace = ({ flash }) => {
   const ws = (window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || null;
   const profile = (S && S.profile) || null;
   const real = !!S;
+  /**
+   * "No configuration" is NOT "show the demo".
+   *
+   * `real` was doing two jobs: is this a live workspace, and do we have its
+   * details. A workspace with no brain fell to the mockup branch and rendered
+   * Serenity Spa's invented name, phone, therapists and 9–6 seven-day hours to
+   * a real owner, on a surface classified real, under a live pill.
+   *
+   * That is not hypothetical: migration 00017 provisions every new tenant with
+   * an EMPTY tenant_config row, so it was the first thing each new owner saw —
+   * and a config the parser refuses collapses to {} on read and lands here too.
+   * The same bug on the team card one row below shipped once already.
+   */
+  const connected = !!settings;
+  const unconfigured = connected && !real;
   const hrs = profile && hoursSummary(profile.hours);
   if (real && editing) {
     return (
@@ -651,8 +680,25 @@ const PaneWorkspace = ({ flash }) => {
             an assistant to update details it had no way to write. */}
         {real
           ? <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)} {...window.gate("autonomy")}><Icon name="edit" size={11} /> Edit</button>
-          : <button className="btn btn-ghost btn-sm" onClick={() => window.askAbout({ mode: "compose", prompt: "Update our business details: " })}><Icon name="edit" size={11} /> Edit</button>}
+          : unconfigured
+            /* No Edit here. This form cannot create a receptionist — it edits
+               the profile ON one, and the required identity fields
+               (business_name, phone_display, booking_link, fallbacks) are not
+               among the ones it collects. Offering the button would spend a
+               click to reach a rejected save. */
+            ? null
+            : <button className="btn btn-ghost btn-sm" onClick={() => window.askAbout({ mode: "compose", prompt: "Update our business details: " })}><Icon name="edit" size={11} /> Edit</button>}
       </div>
+      {unconfigured ? (
+        <div className="set-empty">
+          <div className="set-empty-title">This workspace has no receptionist yet</div>
+          <div className="set-empty-body">
+            Nothing has been set up for it — no business name, no phone line, no
+            booking link. Until it has those, there is nothing here to show you
+            and nothing answering your customers.
+          </div>
+        </div>
+      ) : (
       <div className="cl-prof-attr-list">
         <div className="cl-prof-attr"><span className="cl-prof-attr-key">Name</span><span className="cl-prof-attr-val">{real ? (S.business_name || "—") : "Serenity Spa"}</span></div>
         <div className="cl-prof-attr"><span className="cl-prof-attr-key">Workspace</span><span className="cl-prof-attr-val">{real ? ((ws && ws.name) || "—") : "Chanlytics Sales · Professional"}</span></div>
@@ -683,6 +729,7 @@ const PaneWorkspace = ({ flash }) => {
           </div>
         )}
       </div>
+      )}
       {/* Every workspace starts here, so this is not a footnote. A faint
           Edit link in a card header is findable by someone who already knows
           the form exists; the first thing an owner needs is to be told there
@@ -693,7 +740,7 @@ const PaneWorkspace = ({ flash }) => {
           <div className="set-empty-body">
             Your hours, services and address are still written inside the assistant's
             instructions, as prose. Fill them in as fields and the WhatsApp receptionist
-            answers from them straight away — and the phone agent reads the same ones,
+            answers from them within a minute — and the phone agent reads the same ones,
             once it has been pointed at them.
           </div>
           <button className="btn btn-primary btn-sm" onClick={() => setEditing(true)} {...window.gate("autonomy")}>
