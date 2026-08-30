@@ -560,7 +560,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
               className="set-input"
               value={bizName}
               onChange={(e) => setBizName(e.target.value)}
-              placeholder="Melany's Beauty Salon"
+              placeholder="The name customers know you by"
               aria-label="Business name"
             />
           </label>
@@ -570,7 +570,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
               className="set-input"
               value={phoneDisplay}
               onChange={(e) => setPhoneDisplay(e.target.value)}
-              placeholder="(646) 932-5775"
+              placeholder="(555) 010-1234"
               inputMode="tel"
               autoComplete="tel"
               aria-label="Phone line"
@@ -582,7 +582,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
               className="set-input"
               value={bookingLink}
               onChange={(e) => setBookingLink(e.target.value)}
-              placeholder="https://booksy.com/…"
+              placeholder="https://your-booking-page.com"
               inputMode="url"
               autoComplete="url"
               aria-label="Booking link"
