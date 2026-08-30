@@ -344,12 +344,16 @@ const CvViewer = ({ c }) => {
         {c.messages && (
           <div className="ix-timeline cv-messages">
             {c.messages.map((m, i) => (
-              <div key={i} className={`tl-msg ${m.from === "client" ? "client" : "agent"}`}>
+              /* `undelivered` is not styling for its own sake: this pane is
+                 where an operator reads back what their receptionist said, and
+                 a message that never left has to be legible as one. */
+              <div key={i} className={`tl-msg ${m.from === "client" ? "client" : "agent"}${m.reachedCustomer === false ? " undelivered" : ""}`}>
                 <div className="tl-msg-bubble">
                   <div className="tl-msg-meta">
                     <Icon name={CV_ICON[c.channel]} size={10} />
                     <span>{CV_LABEL[c.channel]}</span>
                     <span className="tl-msg-time tabular">{m.at}</span>
+                    {m.statusLabel && <span className="cv-msg-status">· {m.statusLabel}</span>}
                   </div>
                   <div className="tl-msg-body">{m.text}</div>
                 </div>

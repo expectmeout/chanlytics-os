@@ -482,12 +482,11 @@ const TimelineEntry = ({ entry, thread, channelLabels }) => {
             {entry.byYou ? (
               <span>
                 by you · {entry.at}
-                {entry.status === "queued" ? " · Sending…"
-                  : entry.status === "failed" ? " · Didn't send"
-                  : entry.status === "canceled" ? " · Canceled before sending"
-                  : entry.status === "read" ? " · Read"
-                  : entry.status === "delivered" ? " · Delivered"
-                  : ""}
+                {/* One vocabulary, computed in the viewmodel. This ternary was
+                    the only place these words existed, so the Conversations
+                    pane — which shows the same messages — said nothing at all
+                    and rendered a canceled reply as a delivered one. */}
+                {entry.statusLabel ? ` · ${entry.statusLabel}` : ""}
               </span>
             ) : (
               <>

@@ -184,6 +184,25 @@ function messageAt(m) {
 function isOptedOut(dto) {
   return isOptedOutContact(dto.contact);
 }
+function messageStatusLabel(status) {
+  switch (status) {
+    case "queued":
+      return "Sending\u2026";
+    case "failed":
+      return "Didn't send";
+    case "canceled":
+      return "Canceled before sending";
+    case "read":
+      return "Read";
+    case "delivered":
+      return "Delivered";
+    default:
+      return void 0;
+  }
+}
+function reachedCustomer(status) {
+  return status !== "queued" && status !== "failed" && status !== "canceled";
+}
 var AGENT = { glyph: "W", name: "WhatsApp Receptionist" };
 var CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the salon line\.\s*)?(Summary:\s*)?/;
 var TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
@@ -314,7 +333,14 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
       // work it did not do. The bubble already knows its own channel.
       ...m.sender !== "customer" ? { agentName: onPhone ? "Phone Receptionist" : AGENT.name, agentGlyph: onPhone ? "P" : AGENT.glyph } : {},
       ...m.sender === "human" ? { byYou: true } : {},
-      ...m.sender !== "customer" && m.status ? { status: m.status, messageId: m.id } : {},
+      ...m.sender !== "customer" && m.status ? {
+        status: m.status,
+        messageId: m.id,
+        // The words themselves live in messageStatusLabel, so this pane and
+        // the Conversations pane cannot describe the same message
+        // differently — which is exactly what they were doing.
+        ...messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {}
+      } : {},
       // A held draft is not a sent message and must not read as one.
       ...isHeldDraft(m) ? { pending: true, sendsAtMs: draftSendsAtMs(m) } : {}
     };
@@ -381,7 +407,13 @@ function toConversationVM(dto, now = /* @__PURE__ */ new Date()) {
   const msgs = dto.messages.map((m) => ({
     from: m.sender === "customer" ? "client" : "agent",
     at: bubbleTime(messageAt(m), now),
-    text: messageText(m)
+    text: messageText(m),
+    // Only for OUR messages. A customer's inbound message has no send status,
+    // and labelling it would be inventing one.
+    ...m.sender !== "customer" ? {
+      ...messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {},
+      reachedCustomer: reachedCustomer(m.status)
+    } : {}
   }));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   const chat = dto.messages.filter((m) => m.type !== "call_summary");
@@ -1047,11 +1079,13 @@ export {
   isOptedOut,
   isOptedOutContact,
   messageAt,
+  messageStatusLabel,
   messageText,
   normalizePhone,
   ok,
   parseTenantConfig,
   parseTenantConfigResult,
+  reachedCustomer,
   replyDelayMs,
   resolveSystemPrompt,
   threadStanding,
