@@ -257,3 +257,27 @@ test("the shell asks the gate with the pane it is about to render", () => {
   assert.ok(shell.includes("routeFailed(page, param)"));
   assert.ok(!shell.includes("routeReady(page)"), "the bare-page call IS the bug");
 });
+
+test("REGRESSION: a team we could not READ is not a team of four strangers", () => {
+  // window.__TEAM has three states and the card treated two of them as one.
+  // undefined = the bridge is not running (standalone mockup, seeds correct).
+  // null = the bridge ran and /api/v1/team FAILED — and that fell through to
+  // the same seeds, so a network blip put Sarah Chen, Marcus Webb, Lena Park
+  // and Jay Rivera on a real owner's settings page as their colleagues.
+  // The identical fabrication was caught and fixed once; it survived here.
+  const settings = fs.readFileSync(path.join(DASH, "legacy/pages/settings.jsx"), "utf8");
+  assert.ok(settings.includes("const teamUnavailable = realTeam === null;"), "null is its own state");
+  assert.ok(settings.includes("{!teamUnavailable && team.map("), "the seeded roster must not render");
+  assert.ok(settings.includes("Your team couldn"), "and it must say what happened");
+  assert.ok(
+    settings.includes("!teamUnavailable && canManage"),
+    "no Invite button over a roster we could not read",
+  );
+});
+
+test("a failed team read still uses the REAL role, not the seed's opinion", () => {
+  // Only the team fetch failed; the settings read gave us the caller's role.
+  const settings = fs.readFileSync(path.join(DASH, "legacy/pages/settings.jsx"), "utf8");
+  assert.ok(settings.includes("teamUnavailable ? (serverRole || S.myRole())"));
+  assert.ok(settings.includes("Array.isArray(realTeam) || teamUnavailable"), "owner-ness comes from the server");
+});

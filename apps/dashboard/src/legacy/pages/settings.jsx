@@ -183,6 +183,19 @@ const TeamSection = ({ flash }) => {
   // exactly the kind of plausible detail that reads as fact, so the local part
   // of the address is shown as-is and nothing is dressed up.
   const realTeam = window.__TEAM;
+  /**
+   * Three states, not two.
+   *
+   * `undefined` — the bridge is not running at all (the standalone mockup),
+   * where the seeded roster is the whole point.
+   * `null` — the bridge ran and /api/v1/team FAILED. This one was falling
+   * through to the same seeds, so a network blip put Sarah Chen, Marcus Webb,
+   * Lena Park and Jay Rivera on a real owner's settings page as their
+   * colleagues. That exact fabrication was caught and fixed once already; it
+   * survived in the error path.
+   * An array — the truth.
+   */
+  const teamUnavailable = realTeam === null;
   const me = (window.__ME && window.__ME.email) || null;
   const team = Array.isArray(realTeam)
     ? realTeam.map((m) => ({
@@ -197,9 +210,15 @@ const TeamSection = ({ flash }) => {
   // The caller's REAL role decides what they may do. View-as still previews a
   // narrower one, but it can only ever narrow.
   const serverRole = (window.__SETTINGS && window.__SETTINGS.role) || null;
-  const myRole = Array.isArray(realTeam) ? (S.viewAsRole || serverRole || S.myRole()) : S.myRole();
+  // When only the TEAM read failed, the settings read still gave us the
+  // caller's real role — better than the seeded roster's opinion of it.
+  const myRole = Array.isArray(realTeam)
+    ? (S.viewAsRole || serverRole || S.myRole())
+    : teamUnavailable ? (serverRole || S.myRole()) : S.myRole();
   const canManage = S.can("team");
-  const isOwner = Array.isArray(realTeam) ? serverRole === "owner" : (S.me() && S.me().role === "owner");
+  const isOwner = Array.isArray(realTeam) || teamUnavailable
+    ? serverRole === "owner"
+    : (S.me() && S.me().role === "owner");
   const previewing = !!S.viewAsRole;
   // Seats are a billing concept and billing is not wired. On real data the
   // count is the members we actually have; the plan limit is not invented.
@@ -236,8 +255,14 @@ const TeamSection = ({ flash }) => {
     <section className="fl-card set-card">
       <div className="fl-card-head">
         <span className="fl-card-title">Team</span>
-        <span className="fl-card-sub">{Array.isArray(realTeam) ? `${seatsUsed} ${seatsUsed === 1 ? "person" : "people"}` : `${seatsUsed} of ${S.seatsIncluded} seats`}</span>
-        {canManage && (seatsLeft > 0
+        <span className="fl-card-sub">
+          {teamUnavailable
+            ? "Couldn't be loaded"
+            : Array.isArray(realTeam)
+              ? `${seatsUsed} ${seatsUsed === 1 ? "person" : "people"}`
+              : `${seatsUsed} of ${S.seatsIncluded} seats`}
+        </span>
+        {!teamUnavailable && canManage && (seatsLeft > 0
           ? !inviting && <button className="btn btn-sm" onClick={() => setInviting(true)}><Icon name="plus" size={12} /> Invite</button>
           : <button className="btn btn-sm" disabled title="No seats left — remove someone or upgrade">Seats full</button>
         )}
@@ -268,7 +293,21 @@ const TeamSection = ({ flash }) => {
         </div>
       )}
 
-      {team.map(m => {
+      {/* A team we could not read is not a team of four strangers. */}
+      {teamUnavailable && (
+        <div className="set-empty">
+          <div className="set-empty-title">Your team couldn&apos;t be loaded</div>
+          <div className="set-empty-body">
+            Everything else on this page is current — only the member list failed
+            to load. Refresh to try again.
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={() => window.location.reload()}>
+            <Icon name="refresh" size={12} /> Refresh
+          </button>
+        </div>
+      )}
+
+      {!teamUnavailable && team.map(m => {
         // On real data, YOU is decided by the signed-in email — S.meId is the
         // mockup's fabricated operator, which is how a stranger's name ended up
         // wearing this badge on a real owner's settings page.
@@ -319,25 +358,26 @@ const TeamSection = ({ flash }) => {
 // own settings.
 const DAY_LABEL_SHORT = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
 
+/**
+ * The owner's own summary of their hours.
+ *
+ * The run-collapsing is the composer's, called through the bridge — this used
+ * to be a hand-copied second implementation under a comment promising it
+ * matched the prompt. Two copies of "which days share the same hours" is how
+ * the card and the receptionist start disagreeing, on the one screen an owner
+ * glances at to check. Only the wording is ours: short day names here, full
+ * ones in the prompt.
+ */
 const hoursSummary = (hours) => {
-  if (!hours) return null;
-  const days = ["mon","tue","wed","thu","fri","sat","sun"];
-  const spans = days.map((d) => {
-    const h = hours[d] || {};
-    return { d, text: h.open && h.close ? h.open + "–" + h.close : "Closed" };
-  });
-  // Same run-collapsing the composed prompt uses, so the owner reads the
-  // hours here exactly as the receptionist will state them.
-  const out = [];
-  let i = 0;
-  while (i < spans.length) {
-    let j = i;
-    while (j + 1 < spans.length && spans[j + 1].text === spans[i].text) j++;
-    const label = i === j ? DAY_LABEL_SHORT[spans[i].d] : DAY_LABEL_SHORT[spans[i].d] + "–" + DAY_LABEL_SHORT[spans[j].d];
-    out.push(label + " " + spans[i].text);
-    i = j + 1;
-  }
-  return out.join(" · ");
+  if (!hours || !window.__hoursRuns) return null;
+  return window.__hoursRuns(hours)
+    .map((r) => {
+      const label = r.from === r.to
+        ? DAY_LABEL_SHORT[r.from]
+        : DAY_LABEL_SHORT[r.from] + "–" + DAY_LABEL_SHORT[r.to];
+      return label + " " + r.text;
+    })
+    .join(" · ");
 };
 
 /**

@@ -924,7 +924,7 @@ var DAY_LABEL = {
   sat: "Saturday",
   sun: "Sunday"
 };
-function hoursLines(hours) {
+function hoursRuns(hours) {
   if (!hours) return [];
   const spans = DAYS.map((d) => {
     const h = hours[d];
@@ -937,11 +937,16 @@ function hoursLines(hours) {
   while (i < spans.length) {
     let j = i;
     while (j + 1 < spans.length && spans[j + 1].text === spans[i].text) j++;
-    const label = i === j ? DAY_LABEL[spans[i].day] : `${DAY_LABEL[spans[i].day]}\u2013${DAY_LABEL[spans[j].day]}`;
-    out.push(`${label}: ${spans[i].text}`);
+    out.push({ from: spans[i].day, to: spans[j].day, text: spans[i].text });
     i = j + 1;
   }
   return out;
+}
+function hoursLines(hours) {
+  return hoursRuns(hours).map((r) => {
+    const label = r.from === r.to ? DAY_LABEL[r.from] : `${DAY_LABEL[r.from]}\u2013${DAY_LABEL[r.to]}`;
+    return `${label}: ${r.text}`;
+  });
 }
 function hasProfile(p) {
   if (!p) return false;
@@ -1090,6 +1095,7 @@ export {
   formatPhoneDisplay,
   formatWaited,
   hasProfile,
+  hoursRuns,
   isHeldDraft,
   isLiveCall,
   isOptedOut,
