@@ -14,10 +14,10 @@ const { useState: useShellState, useEffect: useShellEffect, useCallback: useShel
 
 // Is this route's data actually available? The bridge installs __surfaceGate
 // for flipped surfaces; unflipped ones are seeded and always ready.
-const routeReady = (page) => !window.__surfaceGate || window.__surfaceGate(page);
+const routeReady = (page, param) => !window.__surfaceGate || window.__surfaceGate(page, param);
 // A flipped surface whose fetch failed. Painting the mockup here would show
 // invented customers as real, so the shell says so instead.
-const routeFailed = (page) => !!window.__surfaceFailed && window.__surfaceFailed(page);
+const routeFailed = (page, param) => !!window.__surfaceFailed && window.__surfaceFailed(page, param);
 
 const SurfaceUnavailable = ({ onNavigate }) => (
   <div className="soon">
@@ -486,7 +486,7 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
   useShellEffect(() => {
     setNavOpen(false);
     setRouteTimedOut(false);
-    if (routeReady(page)) return;
+    if (routeReady(page, param)) return;
     // Re-render when readiness changes; the render below reads the truth.
     const off = window.__onSurfaceReady ? window.__onSurfaceReady(() => setReadyTick((n) => n + 1)) : null;
     // Never strand the operator on a skeleton forever — but time out INTO the
@@ -498,8 +498,8 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
   // Derived every render, so a navigation can never commit the previous
   // route's answer. readyTick is read so the subscription re-evaluates it.
   void readyTick;
-  const surfaceReady = routeReady(page);
-  const surfaceUnavailable = !surfaceReady && (routeFailed(page) || routeTimedOut);
+  const surfaceReady = routeReady(page, param);
+  const surfaceUnavailable = !surfaceReady && (routeFailed(page, param) || routeTimedOut);
   const routeLoading = !surfaceReady && !surfaceUnavailable;
 
   // Shared read-only viewer — chrome-less, rendered AFTER all hooks so the
