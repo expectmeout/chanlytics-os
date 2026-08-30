@@ -815,11 +815,25 @@ var PolicyLimitsSchema = z.object({
    */
   reply_delay_ms: z.number().int().min(5e3).max(6e5).optional()
 }).strict();
+var TIME = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+var IntervalSchema = z.object({ open: TIME, close: TIME });
 var HoursSchema = z.object({
   /** "09:00". Absent or null = closed that day, which is a real answer. */
-  open: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional(),
-  close: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional()
+  open: TIME.nullable().optional(),
+  close: TIME.nullable().optional(),
+  /**
+   * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
+   * actually keeps. Additive: a day that has always been one stretch keeps
+   * saying so with open/close, and no stored config is rewritten.
+   */
+  intervals: z.array(IntervalSchema).optional()
 }).strict();
+var DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+var ClosureSchema = z.object({
+  date: DATE,
+  until: DATE.optional(),
+  note: z.string().max(200).optional()
+});
 var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 var ServiceSchema = z.object({
   name: z.string().min(1).max(80),
@@ -840,6 +854,8 @@ var GuardrailsSchema = z.object({
 var BusinessProfileSchema = z.object({
   address: z.string().max(300).optional(),
   hours: z.record(z.enum(DAYS), HoursSchema).optional(),
+  /** Dates the business is shut regardless of the weekly grid. */
+  closures: z.array(ClosureSchema).optional(),
   services: z.array(ServiceSchema).max(60).optional(),
   languages: z.array(z.string().min(2).max(40)).max(8).optional(),
   guardrails: GuardrailsSchema.optional(),
@@ -924,14 +940,39 @@ var DAY_LABEL = {
   sat: "Saturday",
   sun: "Sunday"
 };
+function dayIntervals(h) {
+  const raw = [];
+  if (h?.open && h?.close) raw.push({ open: h.open, close: h.close });
+  for (const iv of h?.intervals ?? []) if (iv?.open && iv?.close) raw.push(iv);
+  const usable = raw.filter((x) => x.close > x.open).sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
+  const merged = [];
+  for (const iv of usable) {
+    const last = merged[merged.length - 1];
+    if (last && iv.open <= last.close) {
+      if (iv.close > last.close) last.close = iv.close;
+    } else {
+      merged.push({ ...iv });
+    }
+  }
+  return merged;
+}
+function joinList(parts) {
+  if (parts.length < 3) return parts.join(" and ");
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+function dayText(h) {
+  const spans = dayIntervals(h);
+  if (spans.length) {
+    const open = joinList(spans.map((x) => `${x.open}\u2013${x.close}`));
+    const gaps = spans.slice(1).map((x, i) => `${spans[i].close}\u2013${x.open}`);
+    return gaps.length ? `${open} (closed ${joinList(gaps)})` : open;
+  }
+  const saidSomething = !!(h?.open || h?.close || h?.intervals?.length);
+  return saidSomething ? "Hours not confirmed \u2014 ask them to call" : "Closed";
+}
 function hoursRuns(hours) {
   if (!hours) return [];
-  const spans = DAYS.map((d) => {
-    const h = hours[d];
-    const open = h?.open ?? null;
-    const close = h?.close ?? null;
-    return { day: d, text: open && close ? `${open}\u2013${close}` : "Closed" };
-  });
+  const spans = DAYS.map((d) => ({ day: d, text: dayText(hours[d]) }));
   const out = [];
   let i = 0;
   while (i < spans.length) {
@@ -950,11 +991,58 @@ function hoursLines(hours) {
 }
 function hasProfile(p) {
   if (!p) return false;
-  const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close);
+  const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close || h?.intervals?.length);
   return !!(p.address || p.tone || p.extra_instructions || statedHours || p.services?.length || p.languages?.length || p.escalate_when?.length);
 }
+function dateKeyInZone(tz, at) {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).formatToParts(at);
+    const get = (t) => parts.find((p) => p.type === t)?.value ?? "";
+    const y = get("year"), m = get("month"), d = get("day");
+    return y && m && d ? `${y}-${m}-${d}` : null;
+  } catch {
+    return null;
+  }
+}
+function labelDate(key, withWeekday) {
+  const at = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  if (Number.isNaN(at.getTime()) || dateKeyInZone("UTC", at) !== key) return key;
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    ...withWeekday ? { weekday: "long" } : {},
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  }).format(at);
+}
+function upcomingClosures(closures, tz, at) {
+  if (!closures?.length) return [];
+  const today = tz && dateKeyInZone(tz, at) || dateKeyInZone("UTC", new Date(at.getTime() - 864e5));
+  if (!today) return closures;
+  return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= today).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+}
+function closureLines(closures) {
+  return closures.map((c) => {
+    const when = c.until && c.until !== c.date && c.until > c.date ? `${labelDate(c.date, false)} \u2013 ${labelDate(c.until, false)}` : labelDate(c.date, true);
+    return c.note ? `${when} \u2014 ${c.note}` : when;
+  });
+}
+function closedToday(closures, tz, at) {
+  if (!closures?.length || !tz) return null;
+  const today = dateKeyInZone(tz, at);
+  if (!today) return null;
+  return closures.find((c) => {
+    const end = c.until && c.until >= c.date ? c.until : c.date;
+    return c.date <= today && today <= end;
+  }) ?? null;
+}
 var NO_CLOCK = "You do not know today's date or the current time. If a customer asks whether the business is open right now, or about today or tomorrow, state the opening hours and let them compare \u2014 never guess which day it is.";
-function describeNow(tz, now = /* @__PURE__ */ new Date()) {
+function describeNow(tz, now = /* @__PURE__ */ new Date(), closures) {
   if (!tz) return NO_CLOCK;
   try {
     const stamp = new Intl.DateTimeFormat("en-US", {
@@ -966,12 +1054,14 @@ function describeNow(tz, now = /* @__PURE__ */ new Date()) {
       minute: "2-digit",
       timeZone: tz
     }).format(now);
-    return `Right now it is ${stamp} (${tz}). Use this for anything about today, tomorrow, or whether the business is open at this moment \u2014 compare it against the opening hours.`;
+    const shut = closedToday(closures, tz, now);
+    const today = shut ? ` The business is CLOSED today${shut.note ? ` \u2014 ${shut.note}` : ""}, whatever the weekly hours say. Do not offer today; offer the next day it is open.` : "";
+    return `Right now it is ${stamp} (${tz}).${today} Use this for anything about today, tomorrow, or whether the business is open at this moment \u2014 compare it against the opening hours and the closed dates, and treat a closed date as final.`;
   } catch {
     return NO_CLOCK;
   }
 }
-function composeSystemPrompt(base, profile, channel = "whatsapp", tz) {
+function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date()) {
   const s = [];
   const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
@@ -987,6 +1077,15 @@ Address: ${profile.address}`);
     s.push(`
 Opening hours${where}:
 ${hrs.map((l) => `- ${l}`).join("\n")}`);
+  }
+  const closed = closureLines(upcomingClosures(profile.closures, tz, now));
+  if (closed.length) {
+    s.push(
+      `
+Closed on these dates, whatever the opening hours above say:
+${closed.map((l) => `- ${l}`).join("\n")}
+If someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`
+    );
   }
   if (profile.services?.length) {
     const lines = profile.services.map((sv) => {
@@ -1005,10 +1104,16 @@ Hand the conversation to a person when:
 ${profile.escalate_when.map((e) => `- ${e}`).join("\n")}`);
   }
   if (profile.extra_instructions?.trim()) {
-    const stated = !!(profile.address || hrs.length || profile.services?.length);
+    const above = [
+      profile.address ? "address" : "",
+      hrs.length ? "hours" : "",
+      closed.length ? "closed dates" : "",
+      profile.services?.length ? "services" : ""
+    ].filter(Boolean);
+    const stated = above.length > 0;
     const text = profile.extra_instructions.trim();
     const header = [
-      stated ? "Further instructions from the business. Where these disagree with the address, hours or services above, the details above are current and correct." : "",
+      stated ? `Further instructions from the business. Where these disagree with the ${joinList(above)} above, the details above are current and correct.` : "",
       channel === "voice" ? "Some of it was written for text conversations; you are on a phone call." : ""
     ].filter(Boolean).join(" ");
     s.push(header ? `
@@ -1035,11 +1140,11 @@ Rules you must follow:
 ${rules.map((r) => `- ${r}`).join("\n")}`);
   return s.join("\n");
 }
-function resolveSystemPrompt(brain, channel = "whatsapp", tz) {
+function resolveSystemPrompt(brain, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date()) {
   if (!hasProfile(brain.profile)) return brain.system_prompt;
   const profile = brain.profile;
   const carried = profile.extra_instructions?.trim() ? profile : { ...profile, extra_instructions: brain.system_prompt };
-  return composeSystemPrompt(brain, carried, channel, tz);
+  return composeSystemPrompt(brain, carried, channel, tz, now);
 }
 export {
   ACTOR_TYPES,
@@ -1050,6 +1155,7 @@ export {
   CHANNEL_KINDS,
   CONSENT_STATES,
   CONVERSATION_STATES,
+  ClosureSchema,
   DAYS,
   DECISION_SUBJECTS,
   DECISION_VERBS,
@@ -1061,6 +1167,7 @@ export {
   EVENT_KINDS,
   GuardrailsSchema,
   HoursSchema,
+  IntervalSchema,
   JOB_KINDS,
   JOB_STATES,
   MEMBERSHIP_ROLES,

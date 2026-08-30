@@ -85,7 +85,7 @@ export async function POST(request: Request): Promise<Response> {
         // its own. Substitution happens once, at call start, so there is no
         // cache to protect here — and a second variable would mean asking
         // every owner to edit their Retell prompt again.
-        facts = `${resolveSystemPrompt(rt.brain, "voice", rt.timezone)}\n\n${describeNow(rt.timezone)}`;
+        facts = `${resolveSystemPrompt(rt.brain, "voice", rt.timezone)}\n\n${describeNow(rt.timezone, new Date(), rt.brain.profile?.closures)}`;
       } else {
         L.warn("inbound_facts_missing", { config_broken: !!rt.configBroken });
       }
