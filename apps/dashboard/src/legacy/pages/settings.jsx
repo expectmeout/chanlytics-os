@@ -702,8 +702,77 @@ const PaneWorkspace = ({ flash }) => {
         </div>
       )}
     </section>
+    {real && <PromptPreview />}
     <TeamSection flash={flash} />
   </>
+  );
+};
+
+/**
+ * What the receptionist is actually told.
+ *
+ * Every other card here shows what an owner TYPED. This one shows what their
+ * customers' receptionist receives, which had been true of nothing in the
+ * product: the fields are composed, the workspace's older instructions are
+ * carried in beneath them, guardrails are appended, and the result was visible
+ * only by reading the source.
+ *
+ * That gap cost a live salon. Filling in the hours silently swapped a
+ * 5,000-character prompt for a 700-character one; the composed hours then
+ * disagreed with the prose right below them about Sunday. Both would have been
+ * obvious at a glance. Neither was glanceable.
+ *
+ * Not a mock-up of the prompt — window.__composedPrompt runs the SAME function
+ * the edge runs, on the same saved config.
+ */
+const PromptPreview = () => {
+  const [open, setOpen] = useSetState(false);
+  const [channel, setChannel] = useSetState("whatsapp");
+  const composed = window.__composedPrompt ? window.__composedPrompt(channel) : null;
+  if (!composed) return null;
+  const CHANNELS = [["whatsapp", "WhatsApp"], ["voice", "Phone"]];
+  return (
+    <section className="fl-card set-card">
+      <div className="fl-card-head">
+        <span className="fl-card-title">What your receptionist is told</span>
+        <button className="btn btn-ghost btn-sm" onClick={() => setOpen(!open)}>
+          <Icon name={open ? "chevron-up" : "chevron-down"} size={11} /> {open ? "Hide" : "Show"}
+        </button>
+      </div>
+      <div className="set-prompt-meta">
+        {/* The number is the point: a prompt that halves is a prompt that lost
+            something, and it is the only signal that reads at a glance. */}
+        <span className="set-prompt-count">{composed.text.length.toLocaleString()} characters</span>
+        <span className="set-prompt-sep">·</span>
+        <span>every message, word for word</span>
+      </div>
+      {open && (
+        <>
+          <div className="set-prompt-tabs" role="tablist">
+            {CHANNELS.map(([id, label]) => (
+              <button
+                key={id}
+                role="tab"
+                aria-selected={channel === id}
+                className={`set-prompt-tab ${channel === id ? "on" : ""}`}
+                onClick={() => setChannel(id)}
+              >{label}</button>
+            ))}
+          </div>
+          <pre className="set-prompt-body">{composed.text}</pre>
+          <div className="set-prompt-now">
+            <div className="set-prompt-now-label">
+              Sent alongside it, rebuilt for every message
+              {composed.tz ? <> · {composed.tz}</> : null}
+            </div>
+            {/* Shown separately because it IS sent separately — folding a value
+                that changes every minute into the block above would throw away
+                the prompt cache on every message. */}
+            <pre className="set-prompt-body set-prompt-body-sm">{composed.now}</pre>
+          </div>
+        </>
+      )}
+    </section>
   );
 };
 

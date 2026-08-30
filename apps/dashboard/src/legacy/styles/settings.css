@@ -305,3 +305,76 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
 }
 .set-empty-title { font-size: 13px; font-weight: 600; color: var(--ink); }
 .set-empty-body { font-size: 12px; line-height: var(--leading-relaxed); color: var(--ink-muted); max-width: 62ch; }
+
+/* ── What the receptionist is told ────────────────────────────────────────
+   The composed prompt, verbatim. Monospace and generously leaded because it
+   is read to CHECK something — "does it still know my address", "why did it
+   say we open Sunday" — not skimmed. Collapsed by default: six thousand
+   characters is a wall, and the character count above it is the part that
+   actually reads at a glance. */
+.set-prompt-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 14px;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+.set-prompt-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+.set-prompt-sep { color: var(--ink-faint); }
+
+.set-prompt-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 16px 12px;
+}
+.set-prompt-tab {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-dim);
+  border-radius: var(--radius-full);
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out);
+}
+.set-prompt-tab:hover { background: var(--bg-hover); color: var(--ink); }
+.set-prompt-tab.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+.set-prompt-tab:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+
+.set-prompt-body {
+  margin: 0 16px;
+  padding: 14px 16px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: var(--leading-relaxed);
+  color: var(--ink-muted);
+  /* Long, and the page must never scroll sideways because of it. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 420px;
+  overflow-y: auto;
+}
+.set-prompt-body-sm { max-height: none; color: var(--ink-dim); }
+
+.set-prompt-now { padding-top: 14px; }
+.set-prompt-now-label {
+  padding: 0 16px 8px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
