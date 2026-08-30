@@ -7,7 +7,7 @@
 import { conversationsOverride, inboxOverride, todayOverride, type SurfaceOverride } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 import { clearSurfaceCache } from "./surface-cache";
-import { describeNow, newReceptionistDefaults, resolveSystemPrompt } from "@chanlytics/contracts";
+import { describeNow, hoursRuns, newReceptionistDefaults, resolveSystemPrompt } from "@chanlytics/contracts";
 
 interface RealThread {
   conversationId: string;
@@ -247,6 +247,7 @@ declare global {
     __saveSettings: typeof saveSettings;
     __composedPrompt: typeof composedPrompt;
     __receptionistDefaults: typeof newReceptionistDefaults;
+    __hoursRuns: typeof hoursRuns;
   }
 }
 
@@ -259,6 +260,9 @@ export function installInboxVerbs(): void {
   // The settings form builds a brand-new brain and must satisfy the same
   // schema the edge parses; the defaults live beside that schema.
   window.__receptionistDefaults = newReceptionistDefaults;
+  // The Settings card summarises the week with the SAME collapse the prompt
+  // uses; only the day-name wording differs between them.
+  window.__hoursRuns = hoursRuns;
 }
 
 /**
