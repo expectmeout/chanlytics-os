@@ -1084,6 +1084,24 @@ declare const BrainConfigSchema: z.ZodObject<{
     } | undefined;
 }>;
 type BrainConfig = z.infer<typeof BrainConfigSchema>;
+/**
+ * The parts of a brand-new receptionist nobody should have to write.
+ *
+ * BrainConfigSchema requires a system_prompt and three fallback messages, and
+ * until this existed there was no way to produce them from inside the product:
+ * provisioning inserts an empty tenant_config row and the settings form only
+ * ever edited the profile ON an existing brain. Onboarding a business meant
+ * hand-writing its config into the database.
+ *
+ * It lives HERE, beside the schema it has to satisfy, because a default that
+ * drifts out of spec does not fail in review — it fails for the next business
+ * that tries to set itself up.
+ *
+ * The prompt states no facts on purpose. The address, hours and services are
+ * composed from the profile; a baseline that repeated them would be a second
+ * copy of every one, free to go stale the moment the owner edits a field.
+ */
+declare function newReceptionistDefaults(businessName: string, phoneDisplay: string, bookingLink: string): Pick<BrainConfig, "system_prompt" | "fallbacks">;
 declare const NotificationsConfigSchema: z.ZodObject<{
     escalation_emails: z.ZodArray<z.ZodString, "many">;
     from: z.ZodOptional<z.ZodString>;
@@ -1450,4 +1468,4 @@ declare function resolveSystemPrompt(brain: BrainConfig, channel?: "whatsapp" | 
 /** IANA zone from `tenants.timezone`. Labels the hours; never a second copy. */
 tz?: string | null): string;
 
-export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, type BusinessProfile, BusinessProfileSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, GuardrailsSchema, type Hours, HoursSchema, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, ROLES, ROLE_PERMS, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, composeSystemPrompt, contactMeta, contactName, describeNow, draftSendsAtMs, err, formatPhoneDisplay, formatWaited, hasProfile, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, messageAt, messageStatusLabel, messageText, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, reachedCustomer, replyDelayMs, resolveSystemPrompt, threadStanding, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };
+export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, type BusinessProfile, BusinessProfileSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, GuardrailsSchema, type Hours, HoursSchema, type InboxThreadVM, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, ROLES, ROLE_PERMS, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, composeSystemPrompt, contactMeta, contactName, describeNow, draftSendsAtMs, err, formatPhoneDisplay, formatWaited, hasProfile, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, messageAt, messageStatusLabel, messageText, newReceptionistDefaults, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, reachedCustomer, replyDelayMs, resolveSystemPrompt, threadStanding, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };

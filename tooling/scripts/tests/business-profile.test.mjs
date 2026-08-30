@@ -171,7 +171,14 @@ const settingsJsx = fs.readFileSync(
 test("the editor sends the WHOLE config, not just its own section", () => {
   // PUT is a whole-config write. Sending only `brain` would delete
   // notifications; sending only `profile` would delete the prompt beside it.
-  assert.match(settingsJsx, /\{ \.\.\.settings\.config, brain: \{ \.\.\.brain, profile \} \}/);
+  // Asserted as intent, not as formatting: the identity fields (name, phone
+  // line, booking link) now live in this object too, so it spans lines.
+  assert.ok(settingsJsx.includes("...settings.config,"), "every other section must survive");
+  assert.ok(settingsJsx.includes("...brain,"), "and everything already on the brain");
+  assert.ok(
+    settingsJsx.indexOf("...brain,") < settingsJsx.indexOf("profile,"),
+    "the spread must come first, or it overwrites the edits",
+  );
 });
 
 test("the version travels with the write", () => {

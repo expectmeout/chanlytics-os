@@ -171,6 +171,43 @@ export const BrainConfigSchema = z
 
 export type BrainConfig = z.infer<typeof BrainConfigSchema>;
 
+/**
+ * The parts of a brand-new receptionist nobody should have to write.
+ *
+ * BrainConfigSchema requires a system_prompt and three fallback messages, and
+ * until this existed there was no way to produce them from inside the product:
+ * provisioning inserts an empty tenant_config row and the settings form only
+ * ever edited the profile ON an existing brain. Onboarding a business meant
+ * hand-writing its config into the database.
+ *
+ * It lives HERE, beside the schema it has to satisfy, because a default that
+ * drifts out of spec does not fail in review — it fails for the next business
+ * that tries to set itself up.
+ *
+ * The prompt states no facts on purpose. The address, hours and services are
+ * composed from the profile; a baseline that repeated them would be a second
+ * copy of every one, free to go stale the moment the owner edits a field.
+ */
+export function newReceptionistDefaults(
+  businessName: string,
+  phoneDisplay: string,
+  bookingLink: string,
+): Pick<BrainConfig, "system_prompt" | "fallbacks"> {
+  return {
+    system_prompt:
+      `You are the assistant for ${businessName}, answering inbound customer messages. ` +
+      "You are warm, concise and professional — a great front-desk person, in text form. " +
+      "If you do not know something, say so plainly and offer to have a person follow up.",
+    // What a customer reads when the model cannot be reached. Built from what
+    // the owner just typed, so they are the business's own details.
+    fallbacks: {
+      greeting: `Hi! Thanks for reaching out to ${businessName}.\n\nBook anytime: ${bookingLink}\n\nOr reply here with any question.`,
+      error: `Thanks for reaching out to ${businessName}! Book anytime: ${bookingLink} — or a member of our team will reply here soon.`,
+      non_text: `Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at ${phoneDisplay}.`,
+    },
+  };
+}
+
 export const NotificationsConfigSchema = z
   .object({
     escalation_emails: z.array(z.string().email()).min(1).max(10),

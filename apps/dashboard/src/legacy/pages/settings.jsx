@@ -373,6 +373,19 @@ const SetSectionHead = ({ title, hint }) => (
 const BusinessEditor = ({ settings, onDone, flash }) => {
   const brain = (settings.config && settings.config.brain) || {};
   const p0 = brain.profile || {};
+  /**
+   * Is there a receptionist here at all?
+   *
+   * Provisioning inserts an EMPTY tenant_config row (migration 00017), and this
+   * form only ever edited the profile ON a brain — it never collected the name,
+   * phone line or booking link, so a new workspace could not be set up through
+   * the product at all. It also meant nobody could change their own booking
+   * link after the fact. Same form, both jobs.
+   */
+  const creating = !brain.business_name;
+  const [bizName, setBizName] = useSetState(brain.business_name || "");
+  const [phoneDisplay, setPhoneDisplay] = useSetState(brain.phone_display || "");
+  const [bookingLink, setBookingLink] = useSetState(brain.booking_link || "");
   const [address, setAddress] = useSetState(p0.address || "");
   const [tone, setTone] = useSetState(p0.tone || "");
   const [langs, setLangs] = useSetState(() => (p0.languages || []).slice());
@@ -470,7 +483,41 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     put("services", svcs.length ? svcs : undefined);
     profile.guardrails = { ...guards };
 
-    const next = { ...settings.config, brain: { ...brain, profile } };
+    // Checked here so the owner is told WHICH field, and told it before a round
+    // trip. The API rejects the same things, but surfaces only the first issue's
+    // message with no path — "Config rejected: Invalid url" names nothing.
+    const name = bizName.trim();
+    const phone = phoneDisplay.trim();
+    const link = bookingLink.trim();
+    const missing = !name ? "a business name" : !phone ? "a phone line" : !link ? "a booking link" : "";
+    if (missing) {
+      flash({ msg: <>The receptionist needs {missing} before it can answer anyone.</> });
+      return;
+    }
+    if (!/^https?:\/\/.+\..+/.test(link)) {
+      flash({ msg: <>That booking link needs to be a full web address, starting with https://</> });
+      return;
+    }
+    const defaults = window.__receptionistDefaults(name, phone, link);
+
+    const next = {
+      ...settings.config,
+      brain: {
+        ...brain,
+        business_name: name,
+        phone_display: phone,
+        booking_link: link,
+        // Only invented when there is nothing there. An existing workspace keeps
+        // every word it already had — these are the fields a customer actually
+        // reads when the model is unreachable, and overwriting them because
+        // somebody opened a form would be replacing their words with ours.
+        //
+        // Built in contracts, beside the schema they have to satisfy.
+        system_prompt: brain.system_prompt || defaults.system_prompt,
+        fallbacks: brain.fallbacks || defaults.fallbacks,
+        profile,
+      },
+    };
     setSaving(true);
     // saveSettings refreshes every surface on success — several seconds of
     // fetching before this promise settles. Reporting only at the end meant
@@ -493,8 +540,59 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   return (
     <section className="fl-card set-card set-editor">
       <div className="fl-card-head">
-        <span className="fl-card-title">Your business</span>
-        <span className="fl-card-sub">Both agents answer from these</span>
+        <span className="fl-card-title">{creating ? "Set up your receptionist" : "Your business"}</span>
+        <span className="fl-card-sub">
+          {creating ? "The three things it cannot answer anyone without" : "Both agents answer from these"}
+        </span>
+      </div>
+
+      {/* First, because without these there is no receptionist — and because
+          until now there was no way to change your own booking link at all. */}
+      <div className="set-sec">
+        <SetSectionHead
+          title="Who you are"
+          hint={creating ? "Required — the receptionist introduces itself with these" : "What it calls you, and where it sends people"}
+        />
+        <div className="set-ident">
+          <label className="set-ident-row">
+            <span className="set-ident-key">Business name</span>
+            <input
+              className="set-input"
+              value={bizName}
+              onChange={(e) => setBizName(e.target.value)}
+              placeholder="Melany's Beauty Salon"
+              aria-label="Business name"
+            />
+          </label>
+          <label className="set-ident-row">
+            <span className="set-ident-key">Phone line</span>
+            <input
+              className="set-input"
+              value={phoneDisplay}
+              onChange={(e) => setPhoneDisplay(e.target.value)}
+              placeholder="(646) 932-5775"
+              inputMode="tel"
+              autoComplete="tel"
+              aria-label="Phone line"
+            />
+          </label>
+          <label className="set-ident-row">
+            <span className="set-ident-key">Booking link</span>
+            <input
+              className="set-input"
+              value={bookingLink}
+              onChange={(e) => setBookingLink(e.target.value)}
+              placeholder="https://booksy.com/…"
+              inputMode="url"
+              autoComplete="url"
+              aria-label="Booking link"
+            />
+          </label>
+        </div>
+        {/* Said once, plainly, rather than discovered by a customer. */}
+        <div className="set-sec-note">
+          The receptionist sends this link instead of confirming appointments itself.
+        </div>
       </div>
 
       <div className="set-sec">
@@ -664,7 +762,10 @@ const PaneWorkspace = ({ flash }) => {
   const connected = !!settings;
   const unconfigured = connected && !real;
   const hrs = profile && hoursSummary(profile.hours);
-  if (real && editing) {
+  // `connected`, not `real`: a workspace with no receptionist is exactly the
+  // one that most needs this form. It used to be the one case that could not
+  // open it.
+  if (connected && editing) {
     return (
       <>
         <BusinessEditor settings={settings} flash={flash} onDone={() => setEditing(false)} />
@@ -697,6 +798,9 @@ const PaneWorkspace = ({ flash }) => {
             booking link. Until it has those, there is nothing here to show you
             and nothing answering your customers.
           </div>
+          <button className="btn btn-primary btn-sm" onClick={() => setEditing(true)} {...window.gate("autonomy")}>
+            <Icon name="plus" size={12} /> Set up the receptionist
+          </button>
         </div>
       ) : (
       <div className="cl-prof-attr-list">

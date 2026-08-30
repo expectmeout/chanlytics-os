@@ -879,6 +879,22 @@ var BrainConfigSchema = z.object({
     non_text: z.string().min(1).max(2e3)
   }).strict()
 }).strict();
+function newReceptionistDefaults(businessName, phoneDisplay, bookingLink) {
+  return {
+    system_prompt: `You are the assistant for ${businessName}, answering inbound customer messages. You are warm, concise and professional \u2014 a great front-desk person, in text form. If you do not know something, say so plainly and offer to have a person follow up.`,
+    // What a customer reads when the model cannot be reached. Built from what
+    // the owner just typed, so they are the business's own details.
+    fallbacks: {
+      greeting: `Hi! Thanks for reaching out to ${businessName}.
+
+Book anytime: ${bookingLink}
+
+Or reply here with any question.`,
+      error: `Thanks for reaching out to ${businessName}! Book anytime: ${bookingLink} \u2014 or a member of our team will reply here soon.`,
+      non_text: `Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at ${phoneDisplay}.`
+    }
+  };
+}
 var NotificationsConfigSchema = z.object({
   escalation_emails: z.array(z.string().email()).min(1).max(10),
   from: z.string().max(200).optional()
@@ -1081,6 +1097,7 @@ export {
   messageAt,
   messageStatusLabel,
   messageText,
+  newReceptionistDefaults,
   normalizePhone,
   ok,
   parseTenantConfig,
