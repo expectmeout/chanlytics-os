@@ -1704,6 +1704,479 @@ declare const TenantConfigSchema: z.ZodObject<{
     } | undefined;
 }>;
 type TenantConfig = z.infer<typeof TenantConfigSchema>;
+/** The most shifts one day may be split into. Must match the editor's cap. */
+declare const MAX_INTERVALS_PER_DAY = 4;
+/** As many closures as the composer will state — there is no render cap. */
+declare const MAX_CLOSURES = 60;
+/** Does this string name a real day? "2026-11-31" does not. */
+declare function isRealDate(key: string): boolean;
+/**
+ * The same config, with the rules that only apply on the way IN.
+ *
+ * Wrapping TenantConfigSchema rather than replacing it, so the shape and the
+ * lenience stay defined in exactly one place and this can only ever be
+ * stricter.
+ */
+declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
+    brain: z.ZodOptional<z.ZodObject<{
+        business_name: z.ZodString;
+        phone_display: z.ZodString;
+        booking_link: z.ZodString;
+        /** The complete system prompt the model receives — the "AI memory" pane's
+         *  one hard promise is that what it shows is EXACTLY this, nothing more. */
+        system_prompt: z.ZodString;
+        /**
+         * The business's facts, as fields.
+         *
+         * Optional: every config written before this existed stays valid, and
+         * nothing composes until a workspace actually fills it in. When present
+         * it REPLACES system_prompt as the source the prompt is built from.
+         */
+        profile: z.ZodOptional<z.ZodObject<{
+            address: z.ZodOptional<z.ZodString>;
+            hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<["mon", "tue", "wed", "thu", "fri", "sat", "sun"]>, z.ZodObject<{
+                /** "09:00". Absent or null = closed that day, which is a real answer. */
+                open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                /**
+                 * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
+                 * actually keeps. Additive: a day that has always been one stretch keeps
+                 * saying so with open/close, and no stored config is rewritten.
+                 */
+                intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                    open: z.ZodString;
+                    close: z.ZodString;
+                }, "strip", z.ZodTypeAny, {
+                    open: string;
+                    close: string;
+                }, {
+                    open: string;
+                    close: string;
+                }>, "many">>;
+            }, "strict", z.ZodTypeAny, {
+                open?: string | null | undefined;
+                close?: string | null | undefined;
+                intervals?: {
+                    open: string;
+                    close: string;
+                }[] | undefined;
+            }, {
+                open?: string | null | undefined;
+                close?: string | null | undefined;
+                intervals?: {
+                    open: string;
+                    close: string;
+                }[] | undefined;
+            }>>>;
+            /** Dates the business is shut regardless of the weekly grid. */
+            closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                date: z.ZodString;
+                until: z.ZodOptional<z.ZodString>;
+                note: z.ZodOptional<z.ZodString>;
+            }, "strip", z.ZodTypeAny, {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
+            }, {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
+            }>, "many">>;
+            services: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                /** Minutes. The receptionist is asked "how long does it take" constantly. */
+                duration_min: z.ZodOptional<z.ZodNumber>;
+                /**
+                 * Free text, not a number, and deliberately so: "from $45", "quoted at
+                 * consult", "varies by length". A price the business cannot state flatly
+                 * must not be forced into a field that looks like it can.
+                 */
+                price_note: z.ZodOptional<z.ZodString>;
+            }, "strict", z.ZodTypeAny, {
+                name: string;
+                duration_min?: number | undefined;
+                price_note?: string | undefined;
+            }, {
+                name: string;
+                duration_min?: number | undefined;
+                price_note?: string | undefined;
+            }>, "many">>;
+            languages: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+            guardrails: z.ZodOptional<z.ZodObject<{
+                never_quote_prices: z.ZodOptional<z.ZodBoolean>;
+                never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
+                disclose_ai: z.ZodOptional<z.ZodBoolean>;
+            }, "strict", z.ZodTypeAny, {
+                never_quote_prices?: boolean | undefined;
+                never_confirm_booking?: boolean | undefined;
+                disclose_ai?: boolean | undefined;
+            }, {
+                never_quote_prices?: boolean | undefined;
+                never_confirm_booking?: boolean | undefined;
+                disclose_ai?: boolean | undefined;
+            }>>;
+            /** What must reach a person. One short line each. */
+            escalate_when: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+            tone: z.ZodOptional<z.ZodString>;
+            /**
+             * Anything the owner wants said that no field covers.
+             *
+             * The escape hatch that keeps this model honest — without it, structuring
+             * the facts would mean losing whatever did not fit, and the first migration
+             * would be a downgrade.
+             */
+            extra_instructions: z.ZodOptional<z.ZodString>;
+        }, "strict", z.ZodTypeAny, {
+            address?: string | undefined;
+            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+                open?: string | null | undefined;
+                close?: string | null | undefined;
+                intervals?: {
+                    open: string;
+                    close: string;
+                }[] | undefined;
+            }>> | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
+            }[] | undefined;
+            services?: {
+                name: string;
+                duration_min?: number | undefined;
+                price_note?: string | undefined;
+            }[] | undefined;
+            languages?: string[] | undefined;
+            guardrails?: {
+                never_quote_prices?: boolean | undefined;
+                never_confirm_booking?: boolean | undefined;
+                disclose_ai?: boolean | undefined;
+            } | undefined;
+            escalate_when?: string[] | undefined;
+            tone?: string | undefined;
+            extra_instructions?: string | undefined;
+        }, {
+            address?: string | undefined;
+            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+                open?: string | null | undefined;
+                close?: string | null | undefined;
+                intervals?: {
+                    open: string;
+                    close: string;
+                }[] | undefined;
+            }>> | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
+            }[] | undefined;
+            services?: {
+                name: string;
+                duration_min?: number | undefined;
+                price_note?: string | undefined;
+            }[] | undefined;
+            languages?: string[] | undefined;
+            guardrails?: {
+                never_quote_prices?: boolean | undefined;
+                never_confirm_booking?: boolean | undefined;
+                disclose_ai?: boolean | undefined;
+            } | undefined;
+            escalate_when?: string[] | undefined;
+            tone?: string | undefined;
+            extra_instructions?: string | undefined;
+        }>>;
+        fallbacks: z.ZodObject<{
+            /** Sent when no model key is configured. */
+            greeting: z.ZodString;
+            /** Sent when the model call failed. */
+            error: z.ZodString;
+            /** Sent for voice notes / photos before escalating. */
+            non_text: z.ZodString;
+        }, "strict", z.ZodTypeAny, {
+            non_text: string;
+            greeting: string;
+            error: string;
+        }, {
+            non_text: string;
+            greeting: string;
+            error: string;
+        }>;
+    }, "strict", z.ZodTypeAny, {
+        business_name: string;
+        phone_display: string;
+        booking_link: string;
+        system_prompt: string;
+        fallbacks: {
+            non_text: string;
+            greeting: string;
+            error: string;
+        };
+        profile?: {
+            address?: string | undefined;
+            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+                open?: string | null | undefined;
+                close?: string | null | undefined;
+                intervals?: {
+                    open: string;
+                    close: string;
+                }[] | undefined;
+            }>> | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
+            }[] | undefined;
+            services?: {
+                name: string;
+                duration_min?: number | undefined;
+                price_note?: string | undefined;
+            }[] | undefined;
+            languages?: string[] | undefined;
+            guardrails?: {
+                never_quote_prices?: boolean | undefined;
+                never_confirm_booking?: boolean | undefined;
+                disclose_ai?: boolean | undefined;
+            } | undefined;
+            escalate_when?: string[] | undefined;
+            tone?: string | undefined;
+            extra_instructions?: string | undefined;
+        } | undefined;
+    }, {
+        business_name: string;
+        phone_display: string;
+        booking_link: string;
+        system_prompt: string;
+        fallbacks: {
+            non_text: string;
+            greeting: string;
+            error: string;
+        };
+        profile?: {
+            address?: string | undefined;
+            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+                open?: string | null | undefined;
+                close?: string | null | undefined;
+                intervals?: {
+                    open: string;
+                    close: string;
+                }[] | undefined;
+            }>> | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
+            }[] | undefined;
+            services?: {
+                name: string;
+                duration_min?: number | undefined;
+                price_note?: string | undefined;
+            }[] | undefined;
+            languages?: string[] | undefined;
+            guardrails?: {
+                never_quote_prices?: boolean | undefined;
+                never_confirm_booking?: boolean | undefined;
+                disclose_ai?: boolean | undefined;
+            } | undefined;
+            escalate_when?: string[] | undefined;
+            tone?: string | undefined;
+            extra_instructions?: string | undefined;
+        } | undefined;
+    }>>;
+    notifications: z.ZodOptional<z.ZodObject<{
+        escalation_emails: z.ZodArray<z.ZodString, "many">;
+        from: z.ZodOptional<z.ZodString>;
+    }, "strict", z.ZodTypeAny, {
+        escalation_emails: string[];
+        from?: string | undefined;
+    }, {
+        escalation_emails: string[];
+        from?: string | undefined;
+    }>>;
+}, "strip", z.ZodTypeAny, {
+    brain?: {
+        business_name: string;
+        phone_display: string;
+        booking_link: string;
+        system_prompt: string;
+        fallbacks: {
+            non_text: string;
+            greeting: string;
+            error: string;
+        };
+        profile?: {
+            address?: string | undefined;
+            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+                open?: string | null | undefined;
+                close?: string | null | undefined;
+                intervals?: {
+                    open: string;
+                    close: string;
+                }[] | undefined;
+            }>> | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
+            }[] | undefined;
+            services?: {
+                name: string;
+                duration_min?: number | undefined;
+                price_note?: string | undefined;
+            }[] | undefined;
+            languages?: string[] | undefined;
+            guardrails?: {
+                never_quote_prices?: boolean | undefined;
+                never_confirm_booking?: boolean | undefined;
+                disclose_ai?: boolean | undefined;
+            } | undefined;
+            escalate_when?: string[] | undefined;
+            tone?: string | undefined;
+            extra_instructions?: string | undefined;
+        } | undefined;
+    } | undefined;
+    notifications?: {
+        escalation_emails: string[];
+        from?: string | undefined;
+    } | undefined;
+}, {
+    brain?: {
+        business_name: string;
+        phone_display: string;
+        booking_link: string;
+        system_prompt: string;
+        fallbacks: {
+            non_text: string;
+            greeting: string;
+            error: string;
+        };
+        profile?: {
+            address?: string | undefined;
+            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+                open?: string | null | undefined;
+                close?: string | null | undefined;
+                intervals?: {
+                    open: string;
+                    close: string;
+                }[] | undefined;
+            }>> | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
+            }[] | undefined;
+            services?: {
+                name: string;
+                duration_min?: number | undefined;
+                price_note?: string | undefined;
+            }[] | undefined;
+            languages?: string[] | undefined;
+            guardrails?: {
+                never_quote_prices?: boolean | undefined;
+                never_confirm_booking?: boolean | undefined;
+                disclose_ai?: boolean | undefined;
+            } | undefined;
+            escalate_when?: string[] | undefined;
+            tone?: string | undefined;
+            extra_instructions?: string | undefined;
+        } | undefined;
+    } | undefined;
+    notifications?: {
+        escalation_emails: string[];
+        from?: string | undefined;
+    } | undefined;
+}>, {
+    brain?: {
+        business_name: string;
+        phone_display: string;
+        booking_link: string;
+        system_prompt: string;
+        fallbacks: {
+            non_text: string;
+            greeting: string;
+            error: string;
+        };
+        profile?: {
+            address?: string | undefined;
+            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+                open?: string | null | undefined;
+                close?: string | null | undefined;
+                intervals?: {
+                    open: string;
+                    close: string;
+                }[] | undefined;
+            }>> | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
+            }[] | undefined;
+            services?: {
+                name: string;
+                duration_min?: number | undefined;
+                price_note?: string | undefined;
+            }[] | undefined;
+            languages?: string[] | undefined;
+            guardrails?: {
+                never_quote_prices?: boolean | undefined;
+                never_confirm_booking?: boolean | undefined;
+                disclose_ai?: boolean | undefined;
+            } | undefined;
+            escalate_when?: string[] | undefined;
+            tone?: string | undefined;
+            extra_instructions?: string | undefined;
+        } | undefined;
+    } | undefined;
+    notifications?: {
+        escalation_emails: string[];
+        from?: string | undefined;
+    } | undefined;
+}, {
+    brain?: {
+        business_name: string;
+        phone_display: string;
+        booking_link: string;
+        system_prompt: string;
+        fallbacks: {
+            non_text: string;
+            greeting: string;
+            error: string;
+        };
+        profile?: {
+            address?: string | undefined;
+            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+                open?: string | null | undefined;
+                close?: string | null | undefined;
+                intervals?: {
+                    open: string;
+                    close: string;
+                }[] | undefined;
+            }>> | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
+            }[] | undefined;
+            services?: {
+                name: string;
+                duration_min?: number | undefined;
+                price_note?: string | undefined;
+            }[] | undefined;
+            languages?: string[] | undefined;
+            guardrails?: {
+                never_quote_prices?: boolean | undefined;
+                never_confirm_booking?: boolean | undefined;
+                disclose_ai?: boolean | undefined;
+            } | undefined;
+            escalate_when?: string[] | undefined;
+            tone?: string | undefined;
+            extra_instructions?: string | undefined;
+        } | undefined;
+    } | undefined;
+    notifications?: {
+        escalation_emails: string[];
+        from?: string | undefined;
+    } | undefined;
+}>;
 type TenantConfigParse = {
     ok: true;
     config: TenantConfig;
@@ -1791,4 +2264,4 @@ tz?: string | null,
 /** Only used to drop closures that have already passed. */
 now?: Date): string;
 
-export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, type BusinessProfile, BusinessProfileSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, GuardrailsSchema, type Hours, type HoursRun, HoursSchema, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, ROLES, ROLE_PERMS, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, composeSystemPrompt, contactMeta, contactName, describeNow, draftSendsAtMs, err, formatPhoneDisplay, formatWaited, hasProfile, hoursRuns, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, messageAt, messageStatusLabel, messageText, newReceptionistDefaults, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, reachedCustomer, replyDelayMs, resolveSystemPrompt, threadStanding, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };
+export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, type BusinessProfile, BusinessProfileSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, GuardrailsSchema, type Hours, type HoursRun, HoursSchema, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, ROLES, ROLE_PERMS, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, composeSystemPrompt, contactMeta, contactName, describeNow, draftSendsAtMs, err, formatPhoneDisplay, formatWaited, hasProfile, hoursRuns, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isRealDate, messageAt, messageStatusLabel, messageText, newReceptionistDefaults, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, reachedCustomer, replyDelayMs, resolveSystemPrompt, threadStanding, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };

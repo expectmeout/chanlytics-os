@@ -446,6 +446,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     return h;
   });
   const [services, setServices] = useSetState(() => (p0.services || []).map((x) => ({ ...x })));
+  const [closures, setClosures] = useSetState(() => (p0.closures || []).map((x) => ({ ...x })));
   const [guards, setGuards] = useSetState(() => ({
     // Absent means ON. Only an explicit false turns one off, so an unset
     // config must not render as three unticked boxes.
@@ -457,6 +458,34 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
 
   const setDay = (d, patch) => setHours((h) => ({ ...h, [d]: { ...h[d], ...patch } }));
   const setSvc = (i, k, v) => setServices((l) => l.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  const setClosure = (i, k, v) => setClosures((l) => l.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  /**
+   * Removing one closure is undoable, because it is a date somebody typed.
+   *
+   * Every other destructive control in this file offers an undo; a bulk
+   * "clear past dates" button would not have, and does not exist — the
+   * composer already stops stating a date once it has gone by, so there is
+   * nothing an owner has to tidy and nothing for them to delete by accident.
+   */
+  const removeClosure = (i) => {
+    const gone = closures[i];
+    setClosures((l) => l.filter((_, j) => j !== i));
+    flash({
+      msg: <>Removed {gone.date ? <b>{gone.date}</b> : "the closure"}{gone.note ? ` — ${gone.note}` : ""}</>,
+      undo: () => setClosures((l) => [...l.slice(0, i), gone, ...l.slice(i)]),
+    });
+  };
+  // Today in the BUSINESS's zone, not the browser's. An owner working from
+  // another country must not be told a date has passed when it has not.
+  const wsTz = ((window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || {}).timezone;
+  const todayKey = (() => {
+    try {
+      return new Intl.DateTimeFormat("en-CA", { timeZone: wsTz || undefined }).format(new Date());
+    } catch { return null; }
+  })();
+  const upcomingCount = todayKey
+    ? closures.filter((c) => c.date && (c.until && c.until >= c.date ? c.until : c.date) >= todayKey).length
+    : closures.filter((c) => c.date).length;
   const toggleLang = (l) => setLangs((cur) => (cur.includes(l) ? cur.filter((x) => x !== l) : [...cur, l]));
   const addLang = () => {
     const v = langAdd.trim();
@@ -521,6 +550,19 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       return o;
     });
     put("services", svcs.length ? svcs : undefined);
+    // A row with no date is a row somebody started and did not finish. Sending
+    // it would fail validation and name a field they cannot see; dropping it
+    // is what they meant.
+    const closed = closures
+      .filter((c) => (c.date || "").trim())
+      .map((c) => {
+        const o = { date: c.date.trim() };
+        // `until` equal to `date` is a one-day closure said twice.
+        if ((c.until || "").trim() && c.until.trim() !== o.date) o.until = c.until.trim();
+        if ((c.note || "").trim()) o.note = c.note.trim();
+        return o;
+      });
+    put("closures", closed.length ? closed : undefined);
     profile.guardrails = { ...guards };
 
     // Checked here so the owner is told WHICH field, and told it before a round
@@ -704,6 +746,55 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
           </div>
         ))}
         <button type="button" className="btn btn-sm" onClick={() => setServices((l) => [...l, { name: "" }])}><Icon name="plus" size={12} /> Add a service</button>
+      </div>
+
+      {/* Holidays. Kept next to the hours because that is the question they
+          answer — "are you open on the 24th" — and separate because a closure
+          overrides the weekly grid rather than editing it. */}
+      <div className="set-sec">
+        <SetSectionHead
+          title="Days you are closed"
+          hint={upcomingCount ? `${upcomingCount} still ahead` : "Holidays and one-off closures"}
+        />
+        {closures.length > 0 && (
+          <div className="set-svc-head set-closure-head">
+            <span>From</span><span>Until (optional)</span><span>Why</span><span />
+          </div>
+        )}
+        {closures.map((c, i) => (
+          <div key={i} className="set-svc-row set-closure-row">
+            {/* type=date, so 31 November cannot be typed at all — the class of
+                bug where a stored non-date names the wrong day downstream. */}
+            <input
+              className="set-input" type="date" value={c.date || ""}
+              aria-label="Closed from" onChange={(e) => setClosure(i, "date", e.target.value)}
+            />
+            <input
+              className="set-input" type="date" value={c.until || ""} min={c.date || undefined}
+              aria-label="Closed until" onChange={(e) => setClosure(i, "until", e.target.value)}
+            />
+            <input
+              className="set-input" value={c.note || ""} placeholder="Christmas"
+              aria-label="Reason" onChange={(e) => setClosure(i, "note", e.target.value)}
+            />
+            <button
+              type="button" className="btn btn-ghost btn-icon btn-sm"
+              aria-label={`Remove closure ${c.date || ""}`}
+              onClick={() => removeClosure(i)}
+            ><Icon name="x" size={12} /></button>
+          </div>
+        ))}
+        <button type="button" className="btn btn-sm" onClick={() => setClosures((l) => [...l, { date: "", note: "" }])}>
+          <Icon name="plus" size={12} /> Add a closed day
+        </button>
+        {/* The one case this cannot express, said plainly rather than left for
+            an owner to discover by picking the only option and turning away an
+            afternoon of bookings. */}
+        <div className="set-sec-note">
+          Closing early rather than all day? Leave it out of this list and set that
+          day&apos;s hours above instead. Dates that have passed stop being mentioned
+          on their own — there is nothing to tidy up.
+        </div>
       </div>
 
       <div className="set-sec">
