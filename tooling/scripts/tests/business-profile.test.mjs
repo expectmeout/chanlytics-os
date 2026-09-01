@@ -196,7 +196,7 @@ test("an empty field is omitted rather than stored as an empty string", () => {
 test("a day with no times is stored as CLOSED, not omitted", () => {
   // Closed is a real answer; absent reads as "we did not say", and the
   // receptionist would have nothing to tell someone asking about Sunday.
-  assert.match(settingsJsx, /x\.open && x\.close \? \{ open: x\.open, close: x\.close \} : \{\}/);
+  assert.ok(settingsJsx.includes("hrs[d] = shifts.length === 0 ? {}"));
 });
 
 test("the guardrail checkboxes start ON when the config is silent", () => {
@@ -224,7 +224,10 @@ test("REGRESSION: seven closed days is not a profile", () => {
 });
 
 test("the editor does not send an hours map nobody filled in", () => {
-  assert.ok(settingsJsx.includes('put("hours", SET_DAYS.some(([d]) => hours[d].isOpen && hours[d].open && hours[d].close) ? hrs : undefined);'));
+  assert.ok(
+    settingsJsx.includes("SET_DAYS.some(([d]) => hours[d].isOpen && hours[d].shifts.some((s) => s.open && s.close))"),
+    "an untouched form must not save seven closed days and read as never open",
+  );
 });
 
 test("REGRESSION: a save is not a rebuild — unknown profile keys survive", () => {

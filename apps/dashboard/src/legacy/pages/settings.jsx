@@ -395,6 +395,11 @@ const hoursSummary = (hours) => {
  * would delete the rest. A version mismatch is a 409 the owner is told about,
  * never a silent overwrite of a colleague's edit.
  */
+// The write schema refuses more than this, so the editor must not offer it.
+// Published by the bridge; the literal is the standalone mockup fallback and
+// a test pins it to MAX_INTERVALS_PER_DAY.
+const MAX_SHIFTS = ((window.__configLimits || {}).maxIntervalsPerDay) || 4;
+
 const SET_DAYS = [["mon","Monday"],["tue","Tuesday"],["wed","Wednesday"],["thu","Thursday"],["fri","Friday"],["sat","Saturday"],["sun","Sunday"]];
 
 // Offered rather than typed. A comma-separated box asks someone to guess both
@@ -439,9 +444,14 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     const h = {};
     SET_DAYS.forEach(([d]) => {
       const x = (p0.hours || {})[d] || {};
-      // `open` here means the business is open, not the opening time — a day
-      // is closed only when it has no times, which is what the schema stores.
-      h[d] = { open: x.open || "", close: x.close || "", isOpen: !!(x.open && x.close) };
+      // One editable list per day, however the day happens to be stored: a
+      // plain open/close pair reads as a single shift, so the two shapes are
+      // one thing to edit and only differ again on save.
+      const shifts = (x.intervals || []).filter((s) => s && s.open && s.close).map((s) => ({ ...s }));
+      if (!shifts.length && x.open && x.close) shifts.push({ open: x.open, close: x.close });
+      // `isOpen` means the business is open, not the opening time — a day is
+      // closed only when it has no times, which is what the schema stores.
+      h[d] = { shifts, isOpen: shifts.length > 0 };
     });
     return h;
   });
@@ -457,6 +467,34 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   const [saving, setSaving] = useSetState(false);
 
   const setDay = (d, patch) => setHours((h) => ({ ...h, [d]: { ...h[d], ...patch } }));
+  const setShift = (d, n, k, v) =>
+    setHours((h) => ({
+      ...h,
+      [d]: { ...h[d], shifts: h[d].shifts.map((s, j) => (j === n ? { ...s, [k]: v } : s)) },
+    }));
+  /**
+   * Toggling a day closed KEEPS its shifts.
+   *
+   * The switch sits about ten pixels from the times. Dropping the shifts on
+   * the way through would mean an accidental tap costs an owner four times and
+   * the decision about lunch, with the day switch offering no undo — and
+   * reopening the day would present empty boxes as if nothing had been there.
+   * The save is what decides a closed day stores nothing.
+   */
+  const toggleDay = (d) => setDay(d, { isOpen: !hours[d].isOpen, shifts: hours[d].shifts.length ? hours[d].shifts : [{ open: "", close: "" }] });
+  const addShift = (d) =>
+    setHours((h) => ({ ...h, [d]: { ...h[d], shifts: [...h[d].shifts, { open: "", close: "" }] } }));
+  const removeShift = (d, n) => {
+    const gone = hours[d].shifts[n];
+    setHours((h) => ({ ...h, [d]: { ...h[d], shifts: h[d].shifts.filter((_, j) => j !== n) } }));
+    flash({
+      msg: <>Removed the {DAY_LABEL_SHORT[d]} shift{gone.open ? <> at <b>{gone.open}</b></> : null}</>,
+      undo: () => setHours((h) => ({
+        ...h,
+        [d]: { ...h[d], shifts: [...h[d].shifts.slice(0, n), gone, ...h[d].shifts.slice(n)] },
+      })),
+    });
+  };
   const setSvc = (i, k, v) => setServices((l) => l.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
   const setClosure = (i, k, v) => setClosures((l) => l.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
   /**
@@ -497,13 +535,44 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   // Most businesses keep one set of weekday hours. Typing the same two times
   // five more times is the kind of chore that makes people leave the field
   // blank, and blank hours are what the receptionist cannot answer with.
+  /** The same shifts, in the same order? Used to tell a no-op from a loss. */
+  const sameShifts = (a, b) =>
+    a.isOpen === b.isOpen &&
+    a.shifts.length === b.shifts.length &&
+    a.shifts.every((s, i) => s.open === b.shifts[i].open && s.close === b.shifts[i].close);
+
+  /**
+   * Copy one day's hours onto others — and SAY what that did.
+   *
+   * This is where the salon lost its Sundays: a whole-day replace across seven
+   * days, from a link sitting inches from two other links, with a toast that
+   * counted successes. The button still does what it says, because "make the
+   * week look like Monday" is the thing people want. What changed is that the
+   * surprising part is named — days that were CLOSED and are now open, and
+   * days whose own hours (a lunch break, a late Thursday) were replaced — and
+   * that the whole grid can be put back in one click.
+   */
   const applyToAll = (from, days) => {
     const src = hours[from];
     if (!src.isOpen) return;
+    const opened = days.filter((d) => !hours[d].isOpen);
+    const replaced = days.filter((d) => hours[d].isOpen && !sameShifts(hours[d], src));
+    const before = {};
+    SET_DAYS.forEach(([d]) => { before[d] = { isOpen: hours[d].isOpen, shifts: hours[d].shifts.map((s) => ({ ...s })) }; });
     setHours((h) => {
       const next = { ...h };
-      days.forEach((d) => { next[d] = { ...src }; });
+      days.forEach((d) => { next[d] = { isOpen: true, shifts: src.shifts.map((s) => ({ ...s })) }; });
       return next;
+    });
+    const names = (list) => list.map((d) => DAY_LABEL_SHORT[d]).join(", ");
+    const notes = [];
+    if (opened.length) notes.push(<><b>{names(opened)}</b> {opened.length === 1 ? "was" : "were"} closed and {opened.length === 1 ? "is" : "are"} now open</>);
+    if (replaced.length) notes.push(<>replaced different hours on <b>{names(replaced)}</b></>);
+    flash({
+      msg: notes.length
+        ? <>Copied {DAY_LABEL_SHORT[from]}&apos;s hours — {notes.map((n, i) => <React.Fragment key={i}>{i ? ", and " : ""}{n}</React.Fragment>)}</>
+        : <>Copied {DAY_LABEL_SHORT[from]}&apos;s hours — nothing else changed</>,
+      undo: () => setHours(before),
     });
   };
 
@@ -533,15 +602,28 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     const hrs = {};
     SET_DAYS.forEach(([d]) => {
       const x = hours[d];
+      const shifts = x.isOpen ? x.shifts.filter((s) => s.open && s.close) : [];
+      // ONE shift is still written as open/close, not as a one-element
+      // intervals array. Writing it the new way would rewrite every existing
+      // config into a new shape the first time anybody pressed Save — a
+      // migration nobody asked for, on rows that already said this correctly.
+      //
       // A day that is closed is stored as `{}` — a real answer. Omitting it
       // would read as "we did not say".
-      hrs[d] = x.isOpen && x.open && x.close ? { open: x.open, close: x.close } : {};
+      hrs[d] = shifts.length === 0 ? {}
+        : shifts.length === 1 ? { open: shifts[0].open, close: shifts[0].close }
+        : { intervals: shifts.map((s) => ({ open: s.open, close: s.close })) };
     });
     // Only send hours once at least one day has real times, or an untouched
     // form would save seven closed days and read as a business never open.
     // Via put, so turning every day off CLEARS the stored grid instead of
     // leaving yesterday's behind now that we start from the stored profile.
-    put("hours", SET_DAYS.some(([d]) => hours[d].isOpen && hours[d].open && hours[d].close) ? hrs : undefined);
+    put(
+      "hours",
+      SET_DAYS.some(([d]) => hours[d].isOpen && hours[d].shifts.some((s) => s.open && s.close))
+        ? hrs
+        : undefined,
+    );
     const svcs = services.filter((x) => (x.name || "").trim()).map((x) => {
       const o = { name: x.name.trim() };
       const d = parseInt(x.duration_min, 10);
@@ -704,14 +786,43 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
                 role="switch"
                 aria-checked={hours[d].isOpen}
                 aria-label={label}
-                onClick={() => setDay(d, { isOpen: !hours[d].isOpen })}
+                onClick={() => toggleDay(d)}
               ><span className="set-knob" /></button>
               <span className="set-day-name">{label}</span>
               {hours[d].isOpen ? (
                 <>
-                  <input className="set-input set-input-time" type="time" value={hours[d].open} aria-label={`${label} opens`} onChange={(e) => setDay(d, { open: e.target.value })} />
-                  <span className="set-day-sep">to</span>
-                  <input className="set-input set-input-time" type="time" value={hours[d].close} aria-label={`${label} closes`} onChange={(e) => setDay(d, { close: e.target.value })} />
+                  <span className="set-day-shifts">
+                    {hours[d].shifts.map((sh, n) => (
+                      <span key={n} className="set-day-shift">
+                        <input
+                          className="set-input set-input-time" type="time" value={sh.open}
+                          aria-label={n === 0 ? `${label} opens` : `${label} shift ${n + 1} opens`}
+                          onChange={(e) => setShift(d, n, "open", e.target.value)}
+                        />
+                        <span className="set-day-sep">to</span>
+                        <input
+                          className="set-input set-input-time" type="time" value={sh.close}
+                          aria-label={n === 0 ? `${label} closes` : `${label} shift ${n + 1} closes`}
+                          onChange={(e) => setShift(d, n, "close", e.target.value)}
+                        />
+                        {/* The first shift has no remove control: the switch on
+                            the left already means "closed", and two ways to say
+                            the same thing is how one of them gets misread. */}
+                        {n > 0 && (
+                          <button
+                            type="button" className="btn btn-ghost btn-icon btn-sm"
+                            aria-label={`Remove ${label} shift ${n + 1}`}
+                            onClick={() => removeShift(d, n)}
+                          ><Icon name="x" size={11} /></button>
+                        )}
+                      </span>
+                    ))}
+                    {hours[d].shifts.length < MAX_SHIFTS && (
+                      <button type="button" className="set-day-break" onClick={() => addShift(d)}>
+                        <Icon name="plus" size={10} /> break
+                      </button>
+                    )}
+                  </span>
                   {i === 0 && (
                     <span className="set-day-apply">
                       <button type="button" className="cl-bucket-link" onClick={() => applyToAll("mon", ["tue","wed","thu","fri"])}>Copy to weekdays</button>
