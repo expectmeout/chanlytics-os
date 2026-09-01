@@ -25,6 +25,7 @@ import {
   hasProfile,
   hoursRuns,
 } from "@chanlytics/contracts";
+import { readCode } from "./_source.mjs";
 
 const base = { business_name: "Aurora", phone_display: "p", booking_link: "https://b.example" };
 const TZ = "America/New_York";
@@ -154,4 +155,43 @@ test("closures do NOT decide whether a workspace has a profile", () => {
   // says the day after a date passed, from a config nobody touched.
   assert.equal(hasProfile({ closures: [{ date: "2099-01-01" }] }), false);
   assert.equal(hasProfile({ hours: { mon: { intervals: [{ open: "09:00", close: "17:00" }] } } }), true);
+});
+
+
+/* ---------------------------- the editor --------------------------------- */
+
+const pane = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+
+test("a closure date is picked, not typed", () => {
+  // type=date makes 31 November unenterable, which is the only real cure for
+  // a stored non-date naming the wrong day downstream.
+  assert.ok(pane.includes('type="date" value={c.date || ""}'));
+  assert.ok(pane.includes("min={c.date || undefined}"), "the end date cannot precede the start");
+});
+
+test("removing a closure is undoable, like every other destructive control here", () => {
+  assert.ok(pane.includes("const removeClosure = (i) => {"));
+  assert.ok(pane.includes("undo: () => setClosures("));
+});
+
+test("there is no bulk clear-past button to delete a date by accident", () => {
+  // The composer already stops stating a date once it has gone by, so there
+  // is nothing to tidy — and a bulk delete with no undo would be strictly
+  // worse than the to-every-day click that already cost this salon once.
+  assert.ok(!/clear past/i.test(pane));
+});
+
+test("past is judged in the BUSINESS timezone, not the browser's", () => {
+  assert.ok(pane.includes("timeZone: wsTz || undefined"));
+});
+
+test("an unfinished closure row is dropped, not sent", () => {
+  // Sending it would fail validation and name a field the owner cannot see.
+  assert.ok(pane.includes('put("closures", closed.length ? closed : undefined);'));
+});
+
+test("the half-day case is named rather than left to be discovered", () => {
+  // The only expressible answer for open-10-to-2-on-Christmas-Eve is a
+  // full-day closure, which would turn away an afternoon of bookings.
+  assert.ok(pane.includes("Closing early rather than all day?"));
 });

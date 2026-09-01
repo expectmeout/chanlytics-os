@@ -1,5 +1,5 @@
 import { withRoute, memberContext, requireRole } from "@/server/with-route";
-import { AppError, parseTenantConfig, TenantConfigSchema } from "@chanlytics/contracts";
+import { AppError, parseTenantConfig, TenantConfigWriteSchema } from "@chanlytics/contracts";
 import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
 import type { Json } from "@chanlytics/db";
 
@@ -25,9 +25,28 @@ export const PUT = withRoute(async (req, ctx) => {
   if (!body || typeof body.version !== "number") {
     throw new AppError("validation", "Body must be { config, version }.");
   }
-  const parsed = TenantConfigSchema.safeParse(body.config ?? {});
+  // The WRITE schema: the same shape, plus the rules that only apply on the
+  // way in. They are not on the read schema because a refinement there turns
+  // an already-stored bad row into configBroken, and the receptionist goes
+  // silent rather than an owner seeing a message.
+  const parsed = TenantConfigWriteSchema.safeParse(body.config ?? {});
   if (!parsed.success) {
-    throw new AppError("validation", `Config rejected: ${parsed.error.issues[0]?.message ?? "invalid"}.`);
+    // Say WHICH field, and say all of them.
+    //
+    // This reported issues[0].message alone and threw the path away, so a form
+    // rejected for two bad days produced "Config rejected: A day needs both an
+    // opening and a closing time" — no day named — and the caller fixed one,
+    // resubmitted, and got the same unattributed sentence again. The write
+    // rules build a path for exactly this.
+    const said = parsed.error.issues.slice(0, 3).map((i) => {
+      const field = i.path.filter((p) => typeof p === "string").slice(-2).join(".");
+      return field ? `${field}: ${i.message}` : i.message;
+    });
+    const more = parsed.error.issues.length - said.length;
+    throw new AppError(
+      "validation",
+      `Config rejected — ${said.join(" ")}${more > 0 ? ` (and ${more} more)` : ""}`,
+    );
   }
   const result = await putTenantConfig(ctx.supabase, member.tenantId, parsed.data as Json, body.version);
   if (!result.ok) {

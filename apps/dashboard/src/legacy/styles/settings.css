@@ -408,3 +408,22 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
 @media (max-width: 640px) {
   .set-ident-row { grid-template-columns: 1fr; gap: 4px; }
 }
+
+/* ── Days you are closed ──────────────────────────────────────────────────
+   Reuses the services row geometry (three fields + a remove gutter); only
+   the column widths differ, because two of the three are dates. */
+.set-closure-head,
+.set-closure-row {
+  grid-template-columns: 1fr 1fr 1.4fr 30px;
+}
+.set-closure-row .set-input[type="date"] {
+  /* Safari/Chrome give date inputs their own intrinsic width, which overflows
+     a narrow grid column and pushes the remove button off the row. */
+  min-width: 0;
+  width: 100%;
+}
+@media (max-width: 640px) {
+  .set-closure-head { display: none; }
+  .set-closure-row { grid-template-columns: 1fr 1fr; }
+  .set-closure-row .set-input:nth-child(3) { grid-column: 1 / -1; }
+}

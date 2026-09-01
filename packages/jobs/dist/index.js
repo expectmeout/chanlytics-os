@@ -4181,6 +4181,105 @@ var TenantConfigSchema = external_exports.object({
   brain: BrainConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional()
 });
+var MAX_INTERVALS_PER_DAY = 4;
+var MAX_CLOSURES = 60;
+function isRealDate(key) {
+  const at = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  return !Number.isNaN(at.getTime()) && at.toISOString().slice(0, 10) === key;
+}
+var DAY_NAME = {
+  mon: "Monday",
+  tue: "Tuesday",
+  wed: "Wednesday",
+  thu: "Thursday",
+  fri: "Friday",
+  sat: "Saturday",
+  sun: "Sunday"
+};
+function checkDay(h, day, ctx) {
+  const name = DAY_NAME[day] ?? day;
+  const at = (...rest) => ["brain", "profile", "hours", day, ...rest];
+  const open = h.open ?? void 0;
+  const close = h.close ?? void 0;
+  if (!!open !== !!close) {
+    ctx.addIssue({
+      code: external_exports.ZodIssueCode.custom,
+      path: at(open ? "close" : "open"),
+      message: `${name} needs both an opening and a closing time, or neither.`
+    });
+  }
+  if (open && close && close <= open) {
+    ctx.addIssue({
+      code: external_exports.ZodIssueCode.custom,
+      path: at("close"),
+      message: `${name} closes at or before it opens.`
+    });
+  }
+  const iv = h.intervals ?? [];
+  if (iv.length > MAX_INTERVALS_PER_DAY) {
+    ctx.addIssue({
+      code: external_exports.ZodIssueCode.custom,
+      path: at("intervals"),
+      message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.`
+    });
+  }
+  iv.forEach((x, n) => {
+    if (x.close <= x.open) {
+      ctx.addIssue({
+        code: external_exports.ZodIssueCode.custom,
+        path: at("intervals", n, "close"),
+        message: `${name}: a shift has to close after it opens.`
+      });
+    }
+  });
+  const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
+  for (let n = 1; n < sorted.length; n++) {
+    if (sorted[n].open < sorted[n - 1].close) {
+      ctx.addIssue({
+        code: external_exports.ZodIssueCode.custom,
+        path: at("intervals", n, "open"),
+        message: `${name}: two shifts overlap.`
+      });
+    }
+  }
+}
+function checkClosure(c, n, ctx) {
+  const at = (...rest) => ["brain", "profile", "closures", n, ...rest];
+  if (!isRealDate(c.date)) {
+    ctx.addIssue({
+      code: external_exports.ZodIssueCode.custom,
+      path: at("date"),
+      message: `${c.date} is not a date on the calendar.`
+    });
+  }
+  if (c.until && !isRealDate(c.until)) {
+    ctx.addIssue({
+      code: external_exports.ZodIssueCode.custom,
+      path: at("until"),
+      message: `${c.until} is not a date on the calendar.`
+    });
+  }
+  if (c.until && c.until < c.date) {
+    ctx.addIssue({
+      code: external_exports.ZodIssueCode.custom,
+      path: at("until"),
+      message: "A closure cannot end before it starts."
+    });
+  }
+}
+var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
+  const p = cfg.brain?.profile;
+  if (!p) return;
+  for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay(h, day, ctx);
+  if ((p.closures?.length ?? 0) > MAX_CLOSURES) {
+    ctx.addIssue({
+      code: external_exports.ZodIssueCode.custom,
+      path: ["brain", "profile", "closures"],
+      message: `At most ${MAX_CLOSURES} closures.`
+    });
+  }
+  (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
+});
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -8368,6 +8467,105 @@ var NotificationsConfigSchema2 = external_exports2.object({
 var TenantConfigSchema2 = external_exports2.object({
   brain: BrainConfigSchema2.optional(),
   notifications: NotificationsConfigSchema2.optional()
+});
+var MAX_INTERVALS_PER_DAY2 = 4;
+var MAX_CLOSURES2 = 60;
+function isRealDate2(key) {
+  const at = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  return !Number.isNaN(at.getTime()) && at.toISOString().slice(0, 10) === key;
+}
+var DAY_NAME2 = {
+  mon: "Monday",
+  tue: "Tuesday",
+  wed: "Wednesday",
+  thu: "Thursday",
+  fri: "Friday",
+  sat: "Saturday",
+  sun: "Sunday"
+};
+function checkDay2(h, day, ctx) {
+  const name = DAY_NAME2[day] ?? day;
+  const at = (...rest) => ["brain", "profile", "hours", day, ...rest];
+  const open = h.open ?? void 0;
+  const close = h.close ?? void 0;
+  if (!!open !== !!close) {
+    ctx.addIssue({
+      code: external_exports2.ZodIssueCode.custom,
+      path: at(open ? "close" : "open"),
+      message: `${name} needs both an opening and a closing time, or neither.`
+    });
+  }
+  if (open && close && close <= open) {
+    ctx.addIssue({
+      code: external_exports2.ZodIssueCode.custom,
+      path: at("close"),
+      message: `${name} closes at or before it opens.`
+    });
+  }
+  const iv = h.intervals ?? [];
+  if (iv.length > MAX_INTERVALS_PER_DAY2) {
+    ctx.addIssue({
+      code: external_exports2.ZodIssueCode.custom,
+      path: at("intervals"),
+      message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY2} shifts.`
+    });
+  }
+  iv.forEach((x, n) => {
+    if (x.close <= x.open) {
+      ctx.addIssue({
+        code: external_exports2.ZodIssueCode.custom,
+        path: at("intervals", n, "close"),
+        message: `${name}: a shift has to close after it opens.`
+      });
+    }
+  });
+  const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
+  for (let n = 1; n < sorted.length; n++) {
+    if (sorted[n].open < sorted[n - 1].close) {
+      ctx.addIssue({
+        code: external_exports2.ZodIssueCode.custom,
+        path: at("intervals", n, "open"),
+        message: `${name}: two shifts overlap.`
+      });
+    }
+  }
+}
+function checkClosure2(c, n, ctx) {
+  const at = (...rest) => ["brain", "profile", "closures", n, ...rest];
+  if (!isRealDate2(c.date)) {
+    ctx.addIssue({
+      code: external_exports2.ZodIssueCode.custom,
+      path: at("date"),
+      message: `${c.date} is not a date on the calendar.`
+    });
+  }
+  if (c.until && !isRealDate2(c.until)) {
+    ctx.addIssue({
+      code: external_exports2.ZodIssueCode.custom,
+      path: at("until"),
+      message: `${c.until} is not a date on the calendar.`
+    });
+  }
+  if (c.until && c.until < c.date) {
+    ctx.addIssue({
+      code: external_exports2.ZodIssueCode.custom,
+      path: at("until"),
+      message: "A closure cannot end before it starts."
+    });
+  }
+}
+var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
+  const p = cfg.brain?.profile;
+  if (!p) return;
+  for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay2(h, day, ctx);
+  if ((p.closures?.length ?? 0) > MAX_CLOSURES2) {
+    ctx.addIssue({
+      code: external_exports2.ZodIssueCode.custom,
+      path: ["brain", "profile", "closures"],
+      message: `At most ${MAX_CLOSURES2} closures.`
+    });
+  }
+  (p.closures ?? []).forEach((c, n) => checkClosure2(c, n, ctx));
 });
 
 // src/handlers.ts

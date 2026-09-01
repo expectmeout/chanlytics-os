@@ -291,6 +291,133 @@ export const TenantConfigSchema = z.object({
 });
 export type TenantConfig = z.infer<typeof TenantConfigSchema>;
 
+/* -------------------------------------------------------- writing it back
+ *
+ * The rules a config has to satisfy to be SAVED, kept deliberately apart from
+ * the rules it has to satisfy to be READ.
+ *
+ * Data already in the database has to keep parsing; data on its way in does
+ * not. A refinement on the read schema turns an already-stored bad row into a
+ * whole-config parse failure, and on this codepath that is not a warning — it
+ * is configBroken: the receptionist stays silent and staff are told the
+ * settings could not be read. So everything that is WRONG rather than
+ * malformed is checked here, on the way in, where the answer is a message
+ * naming the field instead of a muted phone line.
+ *
+ * This is not the only door — migrations and a service-role client both write
+ * tenant_config directly — which is exactly why the composer is written to
+ * tell the truth about rows these rules would have refused.
+ */
+
+/** The most shifts one day may be split into. Must match the editor's cap. */
+export const MAX_INTERVALS_PER_DAY = 4;
+/** As many closures as the composer will state — there is no render cap. */
+export const MAX_CLOSURES = 60;
+
+/** Does this string name a real day? "2026-11-31" does not. */
+export function isRealDate(key: string): boolean {
+  const at = new Date(`${key}T12:00:00Z`);
+  return !Number.isNaN(at.getTime()) && at.toISOString().slice(0, 10) === key;
+}
+
+const DAY_NAME: Record<string, string> = {
+  mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday",
+  fri: "Friday", sat: "Saturday", sun: "Sunday",
+};
+
+function checkDay(h: Hours, day: string, ctx: z.RefinementCtx): void {
+  const name = DAY_NAME[day] ?? day;
+  const at = (...rest: (string | number)[]) => ["brain", "profile", "hours", day, ...rest];
+  const open = h.open ?? undefined;
+  const close = h.close ?? undefined;
+  if (!!open !== !!close) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: at(open ? "close" : "open"),
+      message: `${name} needs both an opening and a closing time, or neither.`,
+    });
+  }
+  if (open && close && close <= open) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom, path: at("close"),
+      message: `${name} closes at or before it opens.`,
+    });
+  }
+  const iv = h.intervals ?? [];
+  if (iv.length > MAX_INTERVALS_PER_DAY) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom, path: at("intervals"),
+      message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.`,
+    });
+  }
+  iv.forEach((x, n) => {
+    if (x.close <= x.open) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom, path: at("intervals", n, "close"),
+        message: `${name}: a shift has to close after it opens.`,
+      });
+    }
+  });
+  // Overlap, not adjacency. Two shifts that TOUCH — 09:00-13:00 and
+  // 13:00-19:00 — are an ordinary two-stylist day, and rejecting them would
+  // refuse a legitimate entry. Compared on sorted copies so the owner is not
+  // told their day is wrong merely because they typed the afternoon first.
+  const sorted = [...iv].sort((a, b) => (a.open < b.open ? -1 : a.open > b.open ? 1 : 0));
+  for (let n = 1; n < sorted.length; n++) {
+    if (sorted[n].open < sorted[n - 1].close) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom, path: at("intervals", n, "open"),
+        message: `${name}: two shifts overlap.`,
+      });
+    }
+  }
+}
+
+function checkClosure(c: Closure, n: number, ctx: z.RefinementCtx): void {
+  const at = (...rest: (string | number)[]) => ["brain", "profile", "closures", n, ...rest];
+  // The read regex accepts 2026-11-31. Caught here so it never reaches a
+  // renderer that would have to print it raw to avoid naming the wrong day.
+  if (!isRealDate(c.date)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom, path: at("date"),
+      message: `${c.date} is not a date on the calendar.`,
+    });
+  }
+  if (c.until && !isRealDate(c.until)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom, path: at("until"),
+      message: `${c.until} is not a date on the calendar.`,
+    });
+  }
+  if (c.until && c.until < c.date) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom, path: at("until"),
+      message: "A closure cannot end before it starts.",
+    });
+  }
+}
+
+/**
+ * The same config, with the rules that only apply on the way IN.
+ *
+ * Wrapping TenantConfigSchema rather than replacing it, so the shape and the
+ * lenience stay defined in exactly one place and this can only ever be
+ * stricter.
+ */
+export const TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
+  const p = cfg.brain?.profile;
+  if (!p) return;
+  for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay(h, day, ctx);
+  if ((p.closures?.length ?? 0) > MAX_CLOSURES) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["brain", "profile", "closures"],
+      message: `At most ${MAX_CLOSURES} closures.`,
+    });
+  }
+  (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
+});
+
 export type TenantConfigParse =
   | { ok: true; config: TenantConfig }
   | { ok: false; issues: string[] };
