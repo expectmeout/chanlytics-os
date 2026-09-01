@@ -24,6 +24,7 @@ import {
   describeNow,
   hasProfile,
   hoursRuns,
+  MAX_INTERVALS_PER_DAY,
 } from "@chanlytics/contracts";
 import { readCode } from "./_source.mjs";
 
@@ -194,4 +195,54 @@ test("the half-day case is named rather than left to be discovered", () => {
   // The only expressible answer for open-10-to-2-on-Christmas-Eve is a
   // full-day closure, which would turn away an afternoon of bookings.
   assert.ok(pane.includes("Closing early rather than all day?"));
+});
+
+/* --------------------------- the shifts editor ---------------------------- */
+
+test("one shift is still stored as open/close, never as a one-item array", () => {
+  // Writing a single stretch the new way would rewrite every existing config
+  // into a new shape the first time anybody pressed Save — a migration nobody
+  // asked for, on rows that already said this correctly.
+  assert.ok(pane.includes("shifts.length === 1 ? { open: shifts[0].open, close: shifts[0].close }"));
+  assert.ok(pane.includes(": { intervals: shifts.map((s) => ({ open: s.open, close: s.close })) };"));
+});
+
+test("the editor cannot offer a shift the write schema would refuse", () => {
+  // The cap is published by the bridge from MAX_INTERVALS_PER_DAY; the literal
+  // in the page is only the standalone-mockup fallback, and it must agree — an
+  // editor that offers a fifth shift the schema refuses is a form that cannot
+  // be saved, with the error naming a field the owner did not know existed.
+  assert.ok(
+    pane.includes(`maxIntervalsPerDay) || ${MAX_INTERVALS_PER_DAY}`),
+    "the fallback must equal the schema's cap",
+  );
+  assert.ok(pane.includes("hours[d].shifts.length < MAX_SHIFTS"), "and the button respects it");
+});
+
+test("closing a day KEEPS its shifts, so a mis-tap costs nothing", () => {
+  // The switch sits ~10px from the times and offers no undo of its own.
+  assert.ok(pane.includes("const toggleDay = (d) =>"));
+  assert.ok(pane.includes("shifts: hours[d].shifts.length ? hours[d].shifts : [{ open: " + '"", close: ""' + " }]") || pane.includes("hours[d].shifts.length ? hours[d].shifts"));
+  assert.ok(!pane.includes("setDay(d, { isOpen: !hours[d].isOpen })"), "the bare toggle dropped them");
+});
+
+test("removing an extra shift is undoable; the first has no remove at all", () => {
+  assert.ok(pane.includes("const removeShift = (d, n) => {"));
+  assert.ok(pane.includes("undo: () => setHours("));
+  assert.ok(pane.includes("{n > 0 && ("), "the day switch already means closed");
+});
+
+test("Copy to weekdays NAMES what it overwrote, and can be undone", () => {
+  // This is where the salon lost its Sundays: a whole-day replace across
+  // seven days, with a toast that counted successes.
+  assert.ok(pane.includes("const opened = days.filter((d) => !hours[d].isOpen);"));
+  assert.ok(pane.includes("const replaced = days.filter((d) => hours[d].isOpen && !sameShifts(hours[d], src));"));
+  // Both surprises are named by DAY, not counted. The old toast reported how
+  // many days it had copied to, which affirms success while destroying things.
+  assert.ok(pane.includes("if (opened.length) notes.push("), "days newly opened are named");
+  assert.ok(pane.includes("names(opened)"));
+  assert.ok(pane.includes("if (replaced.length) notes.push("), "days whose own hours went are named");
+  assert.ok(pane.includes("names(replaced)"));
+  assert.ok(pane.includes("replaced different hours on"));
+  assert.ok(pane.includes("undo: () => setHours(before)"));
 });

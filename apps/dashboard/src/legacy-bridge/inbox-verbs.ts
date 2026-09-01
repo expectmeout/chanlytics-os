@@ -7,7 +7,7 @@
 import { conversationsOverride, inboxOverride, todayOverride, type SurfaceOverride } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 import { clearSurfaceCache } from "./surface-cache";
-import { describeNow, hoursRuns, newReceptionistDefaults, resolveSystemPrompt } from "@chanlytics/contracts";
+import { MAX_INTERVALS_PER_DAY, describeNow, hoursRuns, newReceptionistDefaults, resolveSystemPrompt } from "@chanlytics/contracts";
 
 interface RealThread {
   conversationId: string;
@@ -248,6 +248,7 @@ declare global {
     __composedPrompt: typeof composedPrompt;
     __receptionistDefaults: typeof newReceptionistDefaults;
     __hoursRuns: typeof hoursRuns;
+    __configLimits: { maxIntervalsPerDay: number };
   }
 }
 
@@ -263,6 +264,9 @@ export function installInboxVerbs(): void {
   // The Settings card summarises the week with the SAME collapse the prompt
   // uses; only the day-name wording differs between them.
   window.__hoursRuns = hoursRuns;
+  // The editor must not offer a shift the write schema will refuse, so the
+  // cap is published rather than retyped.
+  window.__configLimits = { maxIntervalsPerDay: MAX_INTERVALS_PER_DAY };
 }
 
 /**

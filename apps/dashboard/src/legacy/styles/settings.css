@@ -427,3 +427,38 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
   .set-closure-row { grid-template-columns: 1fr 1fr; }
   .set-closure-row .set-input:nth-child(3) { grid-column: 1 / -1; }
 }
+
+/* ── Split shifts ─────────────────────────────────────────────────────────
+   A day is a LIST of stretches now, so the times wrap as a group and the
+   "break" affordance sits with them. It is styled unlike the two copy links
+   beside it on purpose: those overwrite six other days, this adds one row to
+   this one, and the last incident here started with three identical-looking
+   links in the same 10px cluster. */
+.set-day-shifts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+}
+.set-day-shift {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.set-day-break {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px dashed var(--line-strong);
+  background: transparent;
+  color: var(--ink-dim);
+  border-radius: var(--radius-full);
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out);
+}
+.set-day-break:hover { color: var(--ink); border-color: var(--accent); }
+.set-day-break:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
