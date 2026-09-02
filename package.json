@@ -6,13 +6,16 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test tooling/scripts/tests/*.test.mjs",
     "check:dist": "node tooling/scripts/check-dist.mjs",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "e2e": "playwright test",
+    "e2e:install": "playwright install --with-deps chromium"
   },
   "engines": {
     "node": ">=22"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "@playwright/test": "^1.62.1",
     "eslint": "^9.17.0",
     "eslint-plugin-react-hooks": "^5.1.0",
     "globals": "^15.14.0",

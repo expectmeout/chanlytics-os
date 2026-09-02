@@ -34,3 +34,8 @@ tooling/scripts/optout-probe.log.jsonl
 
 # TypeScript incremental build state — machine-local, never shared
 *.tsbuildinfo
+
+# playwright
+/playwright-report/
+/test-results/
+/blob-report/
