@@ -9,5 +9,5 @@ import { teamRoster } from "@/server/service";
  */
 export const GET = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
-  return await teamRoster(member.tenantId, member.role);
+  return await teamRoster(ctx.supabase, member.tenantId, member.role);
 });

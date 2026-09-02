@@ -104,10 +104,29 @@ export interface OpenInvite {
   expires_at: string;
 }
 
-export async function teamRoster(tenantId: string, callerRole: string) {
-  const db = serviceDb();
+/**
+ * The roster, in one round trip, on the CALLER's own client.
+ *
+ * This used to run on the service role and loop `auth.admin.getUserById` once
+ * per member, sequentially — twenty people meant twenty round trips on every
+ * Settings load. It did that because `memberships_self_select` is
+ * `user_id = auth.uid()`, so a session client can see its own membership row
+ * and nobody else's, and emails live in auth.users which PostgREST does not
+ * expose at all.
+ *
+ * `team_roster` (00022) checks the caller's membership itself, which is what
+ * lets this drop the service role rather than merely parallelise it. Fewer
+ * privileged paths is the point; the speed is a side effect.
+ */
+export async function teamRoster(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  callerRole: string,
+) {
   const [members, invites] = await Promise.all([
-    db.from("memberships").select("id, user_id, role, created_at").eq("tenant_id", tenantId).order("created_at"),
+    db.rpc("team_roster", { p_tenant_id: tenantId }),
+    // Plain RLS: invitations_member_read already scopes this to the caller's
+    // workspaces, so it never needed a privileged client.
     db
       .from("invitations")
       .select("id, email, role, created_at, expires_at")
@@ -119,15 +138,18 @@ export async function teamRoster(tenantId: string, callerRole: string) {
   if (members.error) throw new Error(members.error.message);
   if (invites.error) throw new Error(invites.error.message);
 
-  const roster: TeamMember[] = [];
-  for (const m of members.data ?? []) {
-    const { data: u } = await db.auth.admin.getUserById(m.user_id);
-    roster.push({ membershipId: m.id, userId: m.user_id, email: u?.user?.email ?? null, role: m.role });
-  }
+  const roster: TeamMember[] = (members.data ?? []).map((m) => ({
+    membershipId: m.membership_id,
+    userId: m.member_user_id,
+    email: m.email,
+    role: m.role,
+  }));
   return { members: roster, invites: (invites.data ?? []) as OpenInvite[], callerRole };
 }
 
 export async function inviteMember(
+  /** The caller's own client — used for the owner-checked email lookup. */
+  caller: SupabaseClient<Database>,
   tenantId: string,
   invitedBy: string,
   email: string,
@@ -135,18 +157,29 @@ export async function inviteMember(
 ) {
   const db = serviceDb();
   // A person who already belongs shouldn't get a confusing signup email.
-  const { data: users } = await db.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  const existing = users?.users.find((u) => (u.email ?? "").toLowerCase() === email);
-  if (existing) {
+  //
+  // One indexed lookup, not a page of the whole platform. This was
+  // `auth.admin.listUsers({ perPage: 1000 })` — O(every account) per invite,
+  // and silently wrong past a thousand: an existing user on page two read as
+  // new, the invite email then failed because the account already existed, and
+  // the invitation row was rolled back. The owner got an error they could not
+  // act on, and the person was never added. supabase-js has no
+  // getUserByEmail, so the lookup lives in the database.
+  const { data: existingId, error: lookupErr } = await caller.rpc("lookup_user_for_invite", {
+    p_tenant_id: tenantId,
+    p_email: email,
+  });
+  if (lookupErr) throw new Error(lookupErr.message);
+  if (existingId) {
     const { data: mem } = await db
       .from("memberships")
       .select("id")
       .eq("tenant_id", tenantId)
-      .eq("user_id", existing.id)
+      .eq("user_id", existingId)
       .maybeSingle();
     if (mem) return { alreadyMember: true as const };
     // Known account, new workspace: membership now, no email ceremony needed.
-    const { error } = await db.from("memberships").insert({ tenant_id: tenantId, user_id: existing.id, role });
+    const { error } = await db.from("memberships").insert({ tenant_id: tenantId, user_id: existingId, role });
     if (error) throw new Error(error.message);
     return { added: true as const };
   }

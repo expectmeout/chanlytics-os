@@ -1552,6 +1552,10 @@ export type Database = {
         Returns: Json
       }
       is_acting_member: { Args: { p_tenant: string }; Returns: boolean }
+      lookup_user_for_invite: {
+        Args: { p_email: string; p_tenant_id: string }
+        Returns: string
+      }
       mark_processed: {
         Args: { p_message_id: string; p_tenant_id: string }
         Returns: undefined
@@ -1578,6 +1582,16 @@ export type Database = {
           last_run: string
           last_status: string
           schedule: string
+        }[]
+      }
+      team_roster: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          email: string
+          joined_at: string
+          member_user_id: string
+          membership_id: string
+          role: string
         }[]
       }
       trigger_call_reconcile: { Args: never; Returns: number }
