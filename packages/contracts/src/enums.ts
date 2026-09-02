@@ -98,10 +98,26 @@ export type EscalationState = (typeof ESCALATION_STATES)[number];
 export const DECISION_VERBS = [
   "approve", "edit", "decline", "snooze", "take_over", "hand_back",
   "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent",
+  /**
+   * What one member can do to another.
+   *
+   * The ledger recorded every conversation verb and nothing about the team —
+   * the one table where "who did this" is hardest to reconstruct afterwards
+   * and matters most. Promoting someone to owner hands them billing, the
+   * ability to remove everyone else, and the receptionist's voice.
+   *
+   * These must stay in step with decisions_verb_check (migration 00023): the
+   * database rejects a verb this list allows, and a verb the database allows
+   * but this omits cannot be written by any typed caller.
+   */
+  "invite", "revoke_invite", "change_role", "remove_member",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 
-export const DECISION_SUBJECTS = ["conversation", "escalation", "draft", "lead", "message", "agent"] as const;
+export const DECISION_SUBJECTS = [
+  "conversation", "escalation", "draft", "lead", "message", "agent",
+  "membership", "invitation",
+] as const;
 export type DecisionSubject = (typeof DECISION_SUBJECTS)[number];
 
 export const ACTOR_TYPES = ["user", "ai", "system", "owner_phone"] as const;

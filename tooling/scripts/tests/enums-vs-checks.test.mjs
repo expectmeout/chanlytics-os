@@ -71,7 +71,15 @@ test("slice-2 enums match inbox table CHECKs", () => {
   // subject_type exists on decisions AND policies (0012) — content-addressed
   const subjSets = sqlSets("subject_type");
   assert.deepEqual(bySignature(subjSets, ["segment"]), ["contact", "segment"], "policies.subject_type");
-  assert.deepEqual(subjSets.find((s) => !s.includes("segment")), [...DECISION_SUBJECTS].sort(), "decisions.subject_type");
+  // The LAST non-segment set, not the first. Every other assertion here reads
+  // the latest migration's CHECK, because a later one supersedes an earlier —
+  // that is what sqlSet() does. This line used find(), which was
+  // indistinguishable from "last" only while decisions.subject_type had never
+  // been widened. The moment it was, this compared the ORIGINAL constraint to
+  // the current enum and failed for a reason that had nothing to do with the
+  // change under test.
+  const decisionSubjects = subjSets.filter((s) => !s.includes("segment")).at(-1);
+  assert.deepEqual(decisionSubjects, [...DECISION_SUBJECTS].sort(), "decisions.subject_type");
   assert.deepEqual(sqlSet("actor_type"), [...ACTOR_TYPES].sort());
   assert.deepEqual(sqlSet("meta_status"), [...TEMPLATE_STATUSES].sort());
   const stateSets = sqlSets("state");
