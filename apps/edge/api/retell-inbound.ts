@@ -36,6 +36,28 @@ import { logger } from "../lib/log.js";
 const FACTS_UNAVAILABLE =
   "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory — you do not have them. Say you will have someone confirm, offer to take a message, and offer to text the booking link.";
 
+/**
+ * The opening line, with the business named only when we know which it is.
+ *
+ * Composed here rather than typed into Retell's dashboard, so the business
+ * NAME does not become a third hand-kept copy of a fact the product already
+ * owns — a rename would otherwise leave the phone greeting saying the old one.
+ *
+ * A whole sentence, not the name on its own: Retell leaves a variable it
+ * cannot fill in the prompt verbatim, and "Thank you for calling
+ * {{business_name}}" read down a phone line is worse than any wording. When
+ * the business is unknown this simply greets nobody by name, which is never
+ * wrong.
+ *
+ * Both disclosures — recording, and that this is an automated assistant — live
+ * here rather than in the agent's config, because they are promises the
+ * product makes and should not be editable by whoever last opened Retell.
+ */
+function greetingFor(name: string | null): string {
+  const who = name ? ` ${name}` : "";
+  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant — how can I help you today?`;
+}
+
 export async function POST(request: Request): Promise<Response> {
   if (new URL(request.url).searchParams.get("key") !== process.env.RETELL_FN_SECRET) {
     return json(401, { ok: false });
@@ -50,6 +72,7 @@ export async function POST(request: Request): Promise<Response> {
   const L = logger({ from, agent_id: agentId });
   let context = "";
   let facts = "";
+  let businessName: string | null = null;
 
   // NOT gated on the caller's number. Who is calling decides the memory; the
   // business's own hours and services are owed to every call, including the
@@ -86,6 +109,7 @@ export async function POST(request: Request): Promise<Response> {
         // cache to protect here — and a second variable would mean asking
         // every owner to edit their Retell prompt again.
         facts = `${resolveSystemPrompt(rt.brain, "voice", rt.timezone)}\n\n${describeNow(rt.timezone, new Date(), rt.brain.profile?.closures)}`;
+        businessName = rt.brain.business_name;
       } else {
         L.warn("inbound_facts_missing", { config_broken: !!rt.configBroken });
       }
@@ -112,6 +136,17 @@ export async function POST(request: Request): Promise<Response> {
       dynamic_variables: {
         caller_context: context || "New caller - no prior interactions on record.",
         business_facts: facts || FACTS_UNAVAILABLE,
+        // The first sentence of the call, composed here rather than typed into
+        // Retell — otherwise the business's NAME becomes a third hand-kept copy
+        // of a fact the product already owns, and a rename leaves the phone
+        // greeting saying the old one.
+        //
+        // A whole sentence, not the name on its own: a variable Retell cannot
+        // fill is left in the prompt verbatim, and "Thank you for calling
+        // {{business_name}}" read aloud is worse than any wording. When the
+        // business is unknown the fallback is simply a greeting that names
+        // nobody, which is never wrong.
+        greeting: greetingFor(businessName),
       },
     },
   });

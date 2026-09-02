@@ -1,4 +1,33 @@
-"""Create the Melany's voice agent on Retell: LLM -> agent -> bind +13083368109."""
+"""Provision a Retell voice agent that reads its facts from Chanlytics, not from here.
+
+Run:  RETELL_API_KEY=... VOICE_NUMBER=+1... VOICE_TRANSFER_TO=+1... python setup_voice.py
+
+WHY THIS FILE NO LONGER CONTAINS A BUSINESS.
+
+It used to carry one business's hours, address, phone number, booking link and
+services in a hardcoded prompt — a frozen copy of facts the product now owns.
+Two things followed from that, and both were real:
+
+  * correcting the opening hours in Settings changed what the WhatsApp
+    receptionist said and left the phone agent saying the old ones, because its
+    prompt lived in Retell's dashboard;
+  * re-running this script would have RESTORED that copy over the top, silently
+    undoing the fix.
+
+The agent's prompt is now a shell over dynamic variables the inbound webhook
+supplies per call (apps/edge/api/retell-inbound.ts):
+
+  {{business_facts}}   the composed prompt — hours, services, closures,
+                       guardrails, and the current time in the business's zone
+  {{caller_context}}   who is calling, from the same rows the WhatsApp
+                       receptionist reads
+  {{greeting}}         the opening line, naming the business only when the
+                       call could be routed to one
+
+Anything you would be tempted to add here as text is a fact, and facts belong
+in Settings, where the owner can see and change them. What stays is the shape
+of the call: which tools exist, which number is bound, how long silence runs.
+"""
 import json
 import os
 import sys
@@ -10,36 +39,32 @@ KEY = os.environ["RETELL_API_KEY"]  # never hardcode: this key is also the webho
 BASE = "https://api.retellai.com"
 SITE_FN = "https://chanlytics-messaging.vercel.app/api/retell-fn"
 SITE_WH = "https://chanlytics-messaging.vercel.app/api/retell-webhook"
-NUMBER = "+13083368109"
-TRANSFER_TO = "+16469325775"  # salon line (changeable)
 
-PROMPT = """You are the phone assistant for Melany's Beauty Salon, a newly renovated hair salon at 2581 Pitkin Avenue in Brooklyn, New York. You answer inbound calls. You are warm, natural, and efficient — like a great front-desk person.
+# Per-tenant, so provisioning a second business is a different invocation of
+# the same script rather than a second copy of it.
+NUMBER = os.environ["VOICE_NUMBER"]                 # e.g. +13083368109
+TRANSFER_TO = os.environ["VOICE_TRANSFER_TO"]       # the line a human answers
+AGENT_NAME = os.environ.get("VOICE_AGENT_NAME", "Front Desk")
+VOICE_ID = os.environ.get("VOICE_ID", "11labs-Hailey-Latin-America-Spanish-localized")
 
-## Language
-Speak English by default. If the caller speaks Spanish, switch to natural Latin-American Spanish immediately and stay in it. Never mix languages unless the caller does.
+# The ENTIRE prompt. Every fact arrives at call time; what is written here is
+# only what the variables cannot say for themselves — the shape of a phone call
+# and when to reach for a tool.
+PROMPT = """{{business_facts}}
 
-## Identity & honesty
-You are the salon's automated assistant. If asked, say so plainly and offer to transfer to a person. Never invent facts, prices, or appointment availability. Never confirm or promise an appointment — booking happens on Booksy or with staff.
+Who you are speaking with:
+{{caller_context}}
 
-## What you know
-- Hours: Monday to Saturday. Monday-Thursday 9:30 AM to 6 PM; Friday-Saturday 9:30 AM to 7 PM. Closed Sunday.
-- Address: 2581 Pitkin Avenue, Brooklyn. The salon's call/WhatsApp number is 646-932-5775.
-- Booking: on Booksy — offer to SEND THE LINK TO THEIR WHATSAPP using the send_booking_link function. Walk-ins welcome; appointments recommended for long services.
-- Services (typical session times; NEVER state dollar prices — pricing is quoted in person based on length and texture): balayage (~3h, our signature), highlights (full ~2h, partial ~1h30), all-over color (~3h), root touch-up (~1h30), color correction (~3h), haircuts (~1-2h30), blowouts (~2h), silk press (~3h30), updos (~1h30), keratin (~2h30), deep conditioning (~2h), perms (~3h30), relaxers (~4h30), braids/weaves/wig installs (~2h30), extensions by consult. Bridal, quinceañera and event styling by consultation.
-- The Beauty Academy: Melany teaches hands-on classes (cutting, color, balayage), small groups, English or Spanish, certificate. Details at melanysbeautysalon dot com.
-- Chair rental for stylists is available — details on the website under Work With Us.
-
-## Hard rules
-- NO dollar prices ever. If pushed: pricing depends on hair length, texture and time; the stylist quotes it at consult.
-- NO medical or chemical-safety advice (allergies, scalp conditions, pregnancy and chemical services). Recommend discussing with the stylist in person, or a doctor. If someone describes an active reaction, tell them to seek medical care.
-- No holds, reschedules, or cancellations by you — for those, transfer to staff or have them call back and speak to a person.
-- Keep answers SHORT — one to three sentences. This is a phone call; do not read lists unless asked.
-- If the caller asks for a person, for Melany, is upset, has a complaint, or asks about bridal parties, the academy, or chair rental in detail: use the transfer_to_staff function during open hours; outside hours, take a message (name + what they need) and say the team will follow up.
-
-## Booking flow
-When someone wants to book: offer to send the booking link to their WhatsApp right now (use send_booking_link). Confirm it was sent. If it fails, tell them to text the salon's WhatsApp at 646-932-5775 or visit booksy dot com and search Melany's Beauty Salon Brooklyn."""
-
-BEGIN = "Thank you for calling Melany's Beauty Salon! This call may be recorded. I'm the salon's automated assistant — how can I help you today?"
+On this call:
+- You are on the phone. Keep answers to one or two sentences and never read a
+  URL out character by character — offer to text it instead.
+- To send the booking link to the caller's WhatsApp, use send_booking_link, then
+  confirm it was sent. If it fails, give the phone number above and say a person
+  will follow up.
+- If the caller asks for a person, is upset, has a complaint, or needs something
+  the facts above do not cover, use transfer_to_staff during opening hours.
+  Outside them, take a name and a message and say the team will follow up.
+- End the call with end_call once the caller has said goodbye."""
 
 
 def call(method, path, payload=None):
@@ -60,7 +85,9 @@ def call(method, path, payload=None):
 llm = call("POST", "/create-retell-llm", {
     "model": "claude-4.5-haiku",
     "start_speaker": "agent",
-    "begin_message": BEGIN,
+    # Composed by the webhook, so the recording disclosure and the business
+    # name cannot drift apart from the product.
+    "begin_message": "{{greeting}}",
     "general_prompt": PROMPT,
     "model_temperature": 0,
     "general_tools": [
@@ -72,14 +99,14 @@ llm = call("POST", "/create-retell-llm", {
         {
             "type": "transfer_call",
             "name": "transfer_to_staff",
-            "description": "Transfer the caller to salon staff. Use when the caller asks for a person or Melany, has a complaint, or needs booking changes.",
+            "description": "Transfer the caller to staff. Use when the caller asks for a person, has a complaint, or needs booking changes.",
             "transfer_destination": {"type": "predefined", "number": TRANSFER_TO},
             "transfer_option": {"type": "cold_transfer"},
         },
         {
             "type": "custom",
             "name": "send_booking_link",
-            "description": "Send the Booksy booking link to the caller's WhatsApp. Use when the caller wants to book an appointment.",
+            "description": "Send the booking link to the caller's WhatsApp. Use when the caller wants to book an appointment.",
             "url": SITE_FN,
             "method": "POST",
             "speak_during_execution": True,
@@ -101,9 +128,9 @@ llm = call("POST", "/create-retell-llm", {
 print("llm_id:", llm["llm_id"])
 
 agent = call("POST", "/create-agent", {
-    "agent_name": "Melanys Salon Front Desk",
+    "agent_name": AGENT_NAME,
     "response_engine": {"type": "retell-llm", "llm_id": llm["llm_id"]},
-    "voice_id": "11labs-Hailey-Latin-America-Spanish-localized",
+    "voice_id": VOICE_ID,
     "language": "multi",
     "webhook_url": SITE_WH,
     "end_call_after_silence_ms": 30000,
@@ -119,3 +146,6 @@ print("number bound:", json.dumps({k: num.get(k) for k in ("phone_number", "inbo
 json.dump({"llm_id": llm["llm_id"], "agent_id": agent["agent_id"], "number": NUMBER},
           open(__file__.replace("setup_voice.py", "voice-ids.json"), "w"), indent=2)
 print("DONE — call", NUMBER)
+print()
+print("The agent holds no business facts. They arrive per call from")
+print("apps/edge/api/retell-inbound.ts, so editing Settings changes what it says.")
