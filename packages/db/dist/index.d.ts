@@ -1472,6 +1472,20 @@ type Database = {
                 };
                 Returns: Json;
             };
+            create_workspace: {
+                Args: {
+                    p_name: string;
+                    p_timezone?: string;
+                };
+                Returns: {
+                    id: string;
+                    locale: string;
+                    name: string;
+                    slug: string;
+                    status: string;
+                    timezone: string;
+                }[];
+            };
             deadman_candidates: {
                 Args: {
                     p_older_than?: string;
@@ -1612,6 +1626,10 @@ type Database = {
                     last_status: string;
                     schedule: string;
                 }[];
+            };
+            trigger_call_reconcile: {
+                Args: never;
+                Returns: number;
             };
             trigger_deadman_sweep: {
                 Args: never;
