@@ -118,6 +118,42 @@ export interface OpenInvite {
  * lets this drop the service role rather than merely parallelise it. Fewer
  * privileged paths is the point; the speed is a side effect.
  */
+/**
+ * Write a team change to the SAME ledger the conversation verbs use.
+ *
+ * decisions recorded every conversation verb and nothing about the team —
+ * the one table where reconstructing who did what afterwards is hardest, and
+ * where it matters most: promoting someone to owner hands them billing, the
+ * power to remove everyone else, and the receptionist's voice.
+ *
+ * On the CALLER's client. decisions_acting_member_insert already admits an
+ * acting member, so this needs no privilege the request does not have — and
+ * actor_user_id is then the session's own user rather than something passed
+ * in and trusted.
+ *
+ * Deliberately non-fatal. The audit row must never be the reason a role
+ * change fails: the change has already happened, and throwing here would
+ * report failure for something that succeeded.
+ */
+async function noteTeamChange(
+  ctx: { supabase: SupabaseClient<Database>; userId: string },
+  tenantId: string,
+  subjectType: "membership" | "invitation",
+  subjectId: string,
+  verb: "invite" | "revoke_invite" | "change_role" | "remove_member",
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await ctx.supabase.from("decisions").insert({
+    tenant_id: tenantId,
+    subject_type: subjectType,
+    subject_id: subjectId,
+    verb,
+    actor_type: "user",
+    actor_user_id: ctx.userId,
+    payload: payload as Json,
+  });
+  if (error) console.error("team_audit_failed", verb, error.message);
+}
 export async function teamRoster(
   db: SupabaseClient<Database>,
   tenantId: string,
@@ -179,8 +215,15 @@ export async function inviteMember(
       .maybeSingle();
     if (mem) return { alreadyMember: true as const };
     // Known account, new workspace: membership now, no email ceremony needed.
-    const { error } = await db.from("memberships").insert({ tenant_id: tenantId, user_id: existingId, role });
+    const { data: created, error } = await db
+      .from("memberships")
+      .insert({ tenant_id: tenantId, user_id: existingId, role })
+      .select("id")
+      .single();
     if (error) throw new Error(error.message);
+    await noteTeamChange({ supabase: caller, userId: invitedBy }, tenantId, "membership", created.id, "invite", {
+      email, role, joined_existing_account: true,
+    });
     return { added: true as const };
   }
 
@@ -200,7 +243,12 @@ export async function inviteMember(
   return { invited: true as const };
 }
 
-export async function setMemberRole(tenantId: string, membershipId: string, role: string) {
+export async function setMemberRole(
+  ctx: { supabase: SupabaseClient<Database>; userId: string },
+  tenantId: string,
+  membershipId: string,
+  role: string,
+) {
   const db = serviceDb();
   if (role !== "owner") {
     // Demoting the LAST owner strands the workspace — nobody could ever
@@ -229,10 +277,20 @@ export async function setMemberRole(tenantId: string, membershipId: string, role
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new Error("not_found");
+  // The previous role is the part that matters later: "was promoted to
+  // owner" is a different fact from "was already one".
+  await noteTeamChange(ctx, tenantId, "membership", data.id, "change_role", {
+    to: data.role,
+  });
   return { membershipId: data.id, role: data.role };
 }
 
-export async function removeMember(tenantId: string, id: string, callerUserId: string) {
+export async function removeMember(
+  ctx: { supabase: SupabaseClient<Database>; userId: string },
+  tenantId: string,
+  id: string,
+  callerUserId: string,
+) {
   const db = serviceDb();
   // id may be a membership or an open invite — try the invite first (cheaper).
   const { data: inv } = await db
@@ -245,6 +303,7 @@ export async function removeMember(tenantId: string, id: string, callerUserId: s
   if (inv) {
     const { error } = await db.from("invitations").update({ revoked_at: new Date().toISOString() }).eq("id", inv.id);
     if (error) throw new Error(error.message);
+    await noteTeamChange(ctx, tenantId, "invitation", inv.id, "revoke_invite", {});
     return { revokedInvite: true as const };
   }
   const { data: target } = await db
@@ -265,6 +324,12 @@ export async function removeMember(tenantId: string, id: string, callerUserId: s
   }
   const { error } = await db.from("memberships").delete().eq("id", target.id);
   if (error) throw new Error(error.message);
+  // Recorded AFTER the delete, and carrying the role they held — the
+  // membership row is gone, so this is the only surviving record of it.
+  await noteTeamChange(ctx, tenantId, "membership", target.id, "remove_member", {
+    removed_user_id: target.user_id,
+    had_role: target.role,
+  });
   return { removed: true as const };
 }
 

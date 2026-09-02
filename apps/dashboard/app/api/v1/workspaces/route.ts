@@ -19,9 +19,20 @@ export const GET = withRoute(async (_req, ctx) => {
     .order("name");
   if (error) throw new Error(error.message);
 
-  // First sign-in after an invite: no memberships yet -> accept any open
-  // invites for this email, then re-read. Self-healing, no accept endpoint.
-  if (!data?.length && (await acceptOpenInvites(userId, email ?? null)) > 0) {
+  // Accept any open invitation for this address, then re-read. Self-healing:
+  // there is no accept endpoint to get wrong, and no link that expires into a
+  // dead end.
+  //
+  // This used to run ONLY when the caller had no memberships, which quietly
+  // stranded anyone who acquired one first. Self-serve workspace creation made
+  // that ordinary rather than exotic: someone invited before they had an
+  // account, who signs up and creates their own workspace, holds a membership
+  // by the time the invitation is looked at — so it was never honoured, nobody
+  // was told, and the owner who sent it saw "pending" forever.
+  //
+  // It now runs on every workspace read. Migration 00023 adds the partial
+  // index that makes that a lookup rather than the sequential scan it was.
+  if ((await acceptOpenInvites(userId, email ?? null)) > 0) {
     const retry = await supabase.from("tenants").select("id, slug, name, status, timezone").order("name");
     if (retry.error) throw new Error(retry.error.message);
     data = retry.data;
