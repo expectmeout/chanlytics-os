@@ -26,6 +26,7 @@ import {
 } from "./surface-runner";
 import { clearSurfaceCache, hydrateSurfaceCache } from "./surface-cache";
 import { installInboxVerbs } from "./inbox-verbs";
+import CreateWorkspace from "./CreateWorkspace";
 
 installInboxVerbs();
 
@@ -187,6 +188,29 @@ export default function LegacyApp() {
           <div style={{ fontSize: 13, marginTop: 6 }}>Missing: {missing.join(", ")} — refresh to retry.</div>
         </div>
       </div>
+    );
+  }
+
+  /**
+   * An account that belongs to nowhere gets the create screen, not the app.
+   *
+   * Gated on the workspace surface being READY, not merely on the list being
+   * empty — before the fetch lands every account looks like it has no
+   * workspaces, and flashing "create your workspace" at an owner who has one
+   * is the same class of lie as painting mockup data during a load.
+   */
+  if (isSurfaceReady("workspace") && allWorkspaces.length === 0) {
+    const me = (window as unknown as { __ME?: { email?: string | null } }).__ME;
+    return (
+      <CreateWorkspace
+        email={me?.email ?? null}
+        onCreated={(w) => {
+          // switchWorkspace persists the choice and re-runs every surface, so
+          // the new workspace is the one the app opens on — which is where the
+          // "no receptionist yet" setup card is waiting.
+          switchWorkspace(w.id);
+        }}
+      />
     );
   }
 
