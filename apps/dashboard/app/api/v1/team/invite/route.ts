@@ -18,5 +18,5 @@ export const POST = withRoute(async (req, ctx) => {
   if (!(ROLES as readonly string[]).includes(role) || role === "owner") {
     throw new AppError("validation", "Invites can grant operator or viewer.");
   }
-  return await inviteMember(member.tenantId, ctx.userId, email, role as "operator" | "viewer");
+  return await inviteMember(ctx.supabase, member.tenantId, ctx.userId, email, role as "operator" | "viewer");
 });
