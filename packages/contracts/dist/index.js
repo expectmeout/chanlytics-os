@@ -1247,7 +1247,16 @@ If someone asks about one of these dates, say the business is closed that day an
 Services:
 ${lines.join("\n")}`);
   }
-  if (profile.escalate_when?.length) {
+  if (channel === "whatsapp") {
+    const when = profile.escalate_when?.length ? `
+${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
+    s.push(
+      `
+Handing the conversation to a person:
+Put the exact token [[HUMAN]] at the very end of your reply. It is removed before the customer sees it, and it is the only thing that alerts a human \u2014 saying you will fetch someone does nothing on its own. Write the reply you would normally send, then add the token.
+Do this whenever the customer asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
+    );
+  } else if (profile.escalate_when?.length) {
     s.push(`
 Hand the conversation to a person when:
 ${profile.escalate_when.map((e) => `- ${e}`).join("\n")}`);
