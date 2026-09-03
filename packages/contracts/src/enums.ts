@@ -98,7 +98,7 @@ export const ESCALATION_STATES = ["open", "resolved"] as const;
 export type EscalationState = (typeof ESCALATION_STATES)[number];
 
 export const DECISION_VERBS = [
-  "approve", "edit", "decline", "snooze", "take_over", "hand_back",
+  "approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back",
   "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent",
   /**
    * What one member can do to another.

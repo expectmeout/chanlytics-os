@@ -45,7 +45,20 @@ const InboxThread = ({ thread, channelLabels, veto = null, vetoPaused = false, o
         {thread.state === "snoozed" && (
           <div className="ix-resolved">
             <Icon name="clock" size={13} />
-            <span>Snoozed — wakes <b>{thread.wake || "tomorrow 10:00"}</b>. Nothing happens until then.</span>
+            {/* "Nothing happens until then" was false on a real thread: snooze
+                deliberately does NOT mute the receptionist, so it keeps
+                answering, and a new message from the customer reopens the
+                conversation. Say what a snooze actually is — hidden, not
+                paused — and, when the customer asked for a person, say that
+                the request is still standing rather than letting the operator
+                believe it was dealt with. */}
+            <span>
+              Snoozed — back <b>{thread.wake || "tomorrow 10:00"}</b>.
+              {thread.real
+                ? " Hidden from your queue; the receptionist still answers, and a new message brings it back."
+                : " Nothing happens until then."}
+              {thread.real && thread.escalationId ? " They asked for a person — that's still waiting for you." : ""}
+            </span>
             <button className="cl-bucket-link" onClick={() => onWake(thread.id)}>
               Wake now <Icon name="arrow-right" size={10} />
             </button>

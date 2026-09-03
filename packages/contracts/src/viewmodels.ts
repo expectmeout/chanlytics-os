@@ -393,8 +393,17 @@ export function threadStanding(
 ): { state: InboxThreadVM["state"]; takenOver: boolean; needsYou: boolean } {
   const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
   const needsHuman = dto.state === "needs_human" || paused;
+  // Snoozed wins over escalated, and that ordering is the whole point.
+  //
+  // Snoozing used to RESOLVE the open escalation, because otherwise the thread
+  // would have stayed in "Needs you" and the snooze would have done nothing.
+  // The cost was the customer's request: at wake the thread reappeared as
+  // "Handled" under the banner "Answered by the receptionist — no one asked
+  // for you", while the person who had asked for a human was still waiting.
+  // Snooze now leaves the escalation open and hides the thread by STATE, so
+  // "come back to this later" means the request comes back too.
   const state: InboxThreadVM["state"] =
-    escalation || needsHuman ? "escalated" : dto.state === "snoozed" ? "snoozed" : "done";
+    dto.state === "snoozed" ? "snoozed" : escalation || needsHuman ? "escalated" : "done";
   // "You own this" must mean YOU — a teammate's claim reads differently.
   const claimedByOther = !!dto.assignee_user_id && dto.assignee_is_me === false;
   const takenOver =
