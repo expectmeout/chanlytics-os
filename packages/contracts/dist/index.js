@@ -129,6 +129,7 @@ var DECISION_VERBS = [
   "edit",
   "decline",
   "snooze",
+  "wake",
   "take_over",
   "hand_back",
   "resolve",
@@ -328,7 +329,7 @@ function formatWaited(ms) {
 function threadStanding(dto, escalation, now = /* @__PURE__ */ new Date()) {
   const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
   const needsHuman = dto.state === "needs_human" || paused;
-  const state = escalation || needsHuman ? "escalated" : dto.state === "snoozed" ? "snoozed" : "done";
+  const state = dto.state === "snoozed" ? "snoozed" : escalation || needsHuman ? "escalated" : "done";
   const claimedByOther = !!dto.assignee_user_id && dto.assignee_is_me === false;
   const takenOver = state === "escalated" && !claimedByOther && (!!dto.assignee_user_id || !escalation && needsHuman);
   return { state, takenOver, needsYou: state === "escalated" && !takenOver };

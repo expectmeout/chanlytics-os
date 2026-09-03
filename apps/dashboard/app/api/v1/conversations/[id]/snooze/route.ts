@@ -1,6 +1,6 @@
 import { AppError } from "@chanlytics/contracts";
 import { withRoute } from "@/server/with-route";
-import { requireOperator, loadConversation, recordDecision, resolveOpenEscalation } from "@/server/verbs";
+import { requireOperator, loadConversation, recordDecision } from "@/server/verbs";
 import { schedule, cancelKindFor, mirrorBlobPause } from "@/server/service";
 
 const MAX_SNOOZE_MS = 30 * 24 * 3600 * 1000;
@@ -32,6 +32,14 @@ export const POST = withRoute(async (req, ctx) => {
   const decisionId = await recordDecision(ctx, conv.tenant_id, "conversation", conv.id, "snooze", {
     until: until.toISOString(),
   });
-  await resolveOpenEscalation(ctx, conv.id, decisionId);
+  // The escalation deliberately stays OPEN.
+  //
+  // This used to resolve it, because an open escalation outranked "snoozed" in
+  // threadStanding and the thread would not have hidden. The cost was the
+  // thing the operator was postponing: at wake the thread came back as
+  // "Handled", under the banner "Answered by the receptionist — no one asked
+  // for you", while the customer who had asked for a person was still waiting
+  // and no longer in anyone's queue. Snoozed now wins that ordering instead,
+  // so hiding a thread hides it without discarding what it was about.
   return { state: "snoozed", snooze_until: until.toISOString(), decision_id: decisionId };
 });

@@ -353,7 +353,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     if (!window.canDo("approve")) return;
     const t = threads.find((x) => x.id === id);
     if (!t || t.state !== "snoozed") return;
-    if (t.real) { realVerb(t, "hand-back", {}, "awake — back in the queue"); return; }
+    if (t.real) { realVerb(t, "wake", {}, "awake — back in the queue"); return; }
     const wakeAt = t.wake;
     if (window.IX_STORE) window.IX_STORE.clear(id);
     mutate(id, (x) => ({ ...x, state: "needs", wake: undefined, unread: true }));

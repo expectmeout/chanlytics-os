@@ -88,7 +88,7 @@ declare const ESCALATION_REASONS: readonly ["human_token", "non_text", "refusal"
 type EscalationReason = (typeof ESCALATION_REASONS)[number];
 declare const ESCALATION_STATES: readonly ["open", "resolved"];
 type EscalationState = (typeof ESCALATION_STATES)[number];
-declare const DECISION_VERBS: readonly ["approve", "edit", "decline", "snooze", "take_over", "hand_back", "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role", "remove_member"];
+declare const DECISION_VERBS: readonly ["approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role", "remove_member"];
 type DecisionVerb = (typeof DECISION_VERBS)[number];
 declare const DECISION_SUBJECTS: readonly ["conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation"];
 type DecisionSubject = (typeof DECISION_SUBJECTS)[number];

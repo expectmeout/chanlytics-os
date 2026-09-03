@@ -80,7 +80,7 @@ async function refresh(): Promise<void> {
 }
 
 export type InboxVerb =
-  | "take-over" | "hand-back" | "snooze" | "archive" | "resolve"
+  | "take-over" | "hand-back" | "snooze" | "wake" | "archive" | "resolve"
   | "reply" | "reply-template";
 
 // One verb per thread at a time: no double-click double-send, no two claims.
@@ -151,6 +151,11 @@ async function runVerb(
       result = await call(`${convBase}/snooze`, { until });
       break;
     }
+    case "wake":
+      // Its own verb, not hand-back: waking ends the snooze and leaves the
+      // thread exactly as it was, rather than resolving what it was about.
+      result = await call(`${convBase}/wake`);
+      break;
     case "archive":
       result = await call(`${convBase}/archive`);
       break;
