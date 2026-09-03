@@ -9,7 +9,7 @@ import { createServiceClient } from "@chanlytics/db";
 import type { Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { scheduleJob, cancelJobsFor } from "@chanlytics/jobs";
-import type { JobKind } from "@chanlytics/contracts";
+import { AppError, type JobKind } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 
 let svc: SupabaseClient<Database> | null = null;
@@ -238,7 +238,7 @@ export async function inviteMember(
   if (mailErr) {
     // The intent row without the email is a lie in the invites list — undo it.
     await db.from("invitations").delete().eq("tenant_id", tenantId).eq("email", email).is("accepted_at", null);
-    throw new Error(`Invite email failed: ${mailErr.message}`);
+    throw new AppError("upstream_email", `We could not send the invitation email: ${mailErr.message}`, 502);
   }
   return { invited: true as const };
 }
@@ -265,7 +265,7 @@ export async function setMemberRole(
         .select("id", { count: "exact", head: true })
         .eq("tenant_id", tenantId)
         .eq("role", "owner");
-      if ((count ?? 0) <= 1) throw new Error("last_owner");
+      if ((count ?? 0) <= 1) throw new AppError("conflict", "This is the only owner. Promote someone else first.", 409);
     }
   }
   const { data, error } = await db
@@ -276,7 +276,7 @@ export async function setMemberRole(
     .select("id, role")
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!data) throw new Error("not_found");
+  if (!data) throw new AppError("not_found", "That person is not on this team.", 404);
   // The previous role is the part that matters later: "was promoted to
   // owner" is a different fact from "was already one".
   await noteTeamChange(ctx, tenantId, "membership", data.id, "change_role", {
@@ -312,15 +312,15 @@ export async function removeMember(
     .eq("tenant_id", tenantId)
     .eq("id", id)
     .maybeSingle();
-  if (!target) throw new Error("not_found");
-  if (target.user_id === callerUserId) throw new Error("self_remove");
+  if (!target) throw new AppError("not_found", "That person is not on this team.", 404);
+  if (target.user_id === callerUserId) throw new AppError("conflict", "You cannot remove yourself. Ask another owner.", 409);
   if (target.role === "owner") {
     const { count } = await db
       .from("memberships")
       .select("id", { count: "exact", head: true })
       .eq("tenant_id", tenantId)
       .eq("role", "owner");
-    if ((count ?? 0) <= 1) throw new Error("last_owner");
+    if ((count ?? 0) <= 1) throw new AppError("conflict", "This is the only owner. Promote someone else first.", 409);
   }
   const { error } = await db.from("memberships").delete().eq("id", target.id);
   if (error) throw new Error(error.message);

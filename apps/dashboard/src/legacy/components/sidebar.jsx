@@ -111,7 +111,19 @@ const SidebarRow = ({ item, active, parentActive, onNavigate, depth = 0, expande
 // Falls back to the seeded persona only in demo mode; signed in with no
 // identity yet we say so rather than borrow someone else's name.
 const sbMe = () => window.__ME || null;
-const sbWorkspace = () => (window.__WORKSPACES || [])[0] || null;
+// The workspace being VIEWED, not the first one alphabetically.
+//
+// Every data surface, the bridge pill and Settings resolve by
+// __ACTIVE_WORKSPACE; only the chrome still read [0]. Membership order and
+// name order diverge the moment anyone belongs to two workspaces, and the
+// result is one business's name standing over another's conversations — which
+// the seam's own switchWorkspace comment calls the single worst thing this app
+// can do. [0] survives only as the fallback for a boot that has not resolved
+// an active workspace yet.
+const sbWorkspace = () => {
+  const all = window.__WORKSPACES || [];
+  return all.find((w) => w.id === window.__ACTIVE_WORKSPACE) || all[0] || null;
+};
 const sbWorkspaceName = () => {
   const ws = sbWorkspace();
   if (ws && ws.name) return ws.name;
@@ -234,11 +246,26 @@ const Sidebar = ({ active = "home", onNavigate = () => {}, onNewChat = () => {},
         <Icon name="chevron-down" size={14} style={{ color: "var(--ink-dim)" }} />
       </div>
 
-      {/* New Chat — primary CTA */}
+      {/* New Chat — primary CTA.
+          Opens the Ask assistant, which answers from seed data: invented
+          revenue, invented waiting decisions, a refund dispute for a customer
+          who does not exist. The other three entry points (window.appAsk, ⌘K,
+          the topbar button) were all gated when Ask was stubbed; the most
+          prominent control in the chrome was not, so the fabrication the
+          registry and the pill exist to prevent was one click away on every
+          real workspace. Gated the same way the topbar is, and worded the
+          same. */}
       <div className="sb-newchat">
-        <button className="btn btn-primary" style={{ width: "100%", height: 32, justifyContent: "center" }} onClick={onNewChat}>
+        <button
+          className="btn btn-primary"
+          style={{ width: "100%", height: 32, justifyContent: "center" }}
+          onClick={window.__DEMO_MODE ? onNewChat : undefined}
+          disabled={!window.__DEMO_MODE}
+          title={window.__DEMO_MODE ? "Start a new Ask thread" : "Ask isn't connected to your data yet"}
+        >
           <Icon name="plus" size={13} />
           New Chat
+          {window.__DEMO_MODE ? null : <span className="kbd" style={{ marginLeft: 6 }}>Soon</span>}
         </button>
       </div>
 

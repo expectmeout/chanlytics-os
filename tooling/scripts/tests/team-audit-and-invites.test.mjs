@@ -108,3 +108,78 @@ test("the index matches how the reader actually filters", () => {
   const invite = readCode("apps/dashboard/app/api/v1/team/invite/route.ts");
   assert.ok(invite.includes('.trim().toLowerCase()'), "stored lowercased at the door");
 });
+
+/* ---- the card writes to the SERVER, not to the seeded roster ---- */
+{
+  const { readCode } = await import("./_source.mjs");
+  const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  const bridge = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
+  const seam = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+
+  test("invite, role change and remove call the API on a real roster", () => {
+    // They mutated ST_STORE and toasted success on a pane fed by live data:
+    // "Invite sent to x as Operator" while nothing was sent, stored or
+    // audited, and a demotion confirmed while the database still said owner.
+    for (const verb of ["__teamInvite", "__teamSetRole", "__teamRemove"]) {
+      assert.ok(settings.includes(`window.${verb}(`), `${verb} must be called from the Team card`);
+      assert.ok(bridge.includes(verb), `${verb} must be published by the bridge`);
+    }
+  });
+
+  test("the seeded store is only written when the roster is seeded", () => {
+    // Every ST_STORE write in the team handlers must sit behind !realRoster.
+    const start = settings.indexOf("const invite = async");
+    const end = settings.indexOf("return (", start);
+    const handlers = settings.slice(start, end);
+    assert.ok(start > -1 && end > start, "team handlers must be locatable");
+    for (const write of ["S.addMember(", "S.setRole(", "S.removeMember("]) {
+      let at = handlers.indexOf(write);
+      while (at > -1) {
+        const before = handlers.slice(0, at);
+        assert.ok(
+          before.lastIndexOf("!realRoster") > before.lastIndexOf("realRoster\n"),
+          `${write} must be reachable only on a seeded roster`,
+        );
+        at = handlers.indexOf(write, at + 1);
+      }
+    }
+  });
+
+  test("no team write claims an undo it cannot perform", () => {
+    // An invitation email cannot be recalled and a role change is the power to
+    // message customers, so the real branch waits for the server and re-reads
+    // rather than predicting an outcome it would have to walk back.
+    const start = settings.indexOf("const invite = async");
+    const end = settings.indexOf("return (", start);
+    // Every `undo:` must sit in a seeded branch: reading backwards from it,
+    // the guard that opened that branch must be nearer than any server call.
+    const handlers = settings.slice(start, end);
+    let at = handlers.indexOf("undo:");
+    let checked = 0;
+    while (at > -1) {
+      const before = handlers.slice(0, at);
+      assert.ok(
+        before.lastIndexOf("!realRoster") > before.lastIndexOf("window.__team"),
+        "an undo may only be offered on the seeded roster",
+      );
+      checked++;
+      at = handlers.indexOf("undo:", at + 1);
+    }
+    assert.ok(checked >= 2, "the seeded branches still offer undo, so there is something to check");
+  });
+
+  test("pending invitations are published and rendered", () => {
+    assert.ok(seam.includes("__TEAM_INVITES"), "the seam must publish open invitations");
+    assert.ok(settings.includes("__TEAM_INVITES"), "the card must render them");
+  });
+
+  test("service-layer rules reach the owner as their own sentence", () => {
+    // last_owner / self_remove / not_found were plain Error strings, which
+    // withRoute turns into a generic 500 "Something went wrong" — so the one
+    // guard that protects a workspace from losing its last owner read as a
+    // crash.
+    const service = readCode("apps/dashboard/src/server/service.ts");
+    assert.ok(!/throw new Error\("(last_owner|self_remove|not_found)"\)/.test(service));
+    assert.ok(service.includes("AppError"), "team rules must throw AppError");
+  });
+}

@@ -10,6 +10,8 @@ export const ERROR_CODES = [
   "upstream_meta",
   "upstream_retell",
   "upstream_anthropic",
+  /** The transactional email provider refused or failed. */
+  "upstream_email",
   "internal",
 ] as const;
 
@@ -40,5 +42,6 @@ const DEFAULT_STATUS: Record<ErrorCode, number> = {
   upstream_meta: 502,
   upstream_retell: 502,
   upstream_anthropic: 502,
+  upstream_email: 502,
   internal: 500,
 };

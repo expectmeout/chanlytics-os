@@ -4,7 +4,7 @@
  * the overrides re-apply (fresh globals + surface events), and the caller's
  * toast reports honestly. Business logic stays server-side — this is a courier.
  */
-import { conversationsOverride, inboxOverride, scoped, todayOverride, type SurfaceOverride } from "./surface-data";
+import { conversationsOverride, inboxOverride, scoped, settingsOverride, todayOverride, type SurfaceOverride } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 import { clearSurfaceCache } from "./surface-cache";
 import { MAX_INTERVALS_PER_DAY, describeNow, hoursRuns, newReceptionistDefaults, resolveSystemPrompt } from "@chanlytics/contracts";
@@ -34,8 +34,8 @@ async function call(
   url: string,
   body?: unknown,
   idempotencyKey?: string,
-  /** Settings is a PUT; every verb before it was a POST. */
-  method: "POST" | "PUT" = "POST",
+  /** Settings is a PUT; the team verbs added PATCH and DELETE. */
+  method: "POST" | "PUT" | "PATCH" | "DELETE" = "POST",
 ): Promise<VerbResult> {
   try {
     // Scoped HERE rather than at each call site, for the same reason the reads
@@ -243,9 +243,53 @@ export function composedPrompt(
   }
 }
 
+/**
+ * Team changes, against the routes that have existed since Session A and had
+ * no caller until now.
+ *
+ * The card read the real roster and then wrote to the mockup's seeded store:
+ * an owner pressed Invite, read "Invite sent to x as Operator", and nothing
+ * was sent, stored or audited; a demotion showed a confirmation while the
+ * database still said owner. That is the README's one rule — nothing in the UI
+ * may state a fact the database cannot support — broken on the surface where
+ * it is most consequential, because these controls hand out the power to
+ * message customers.
+ *
+ * Everything goes through `call()`, so each request carries the active
+ * workspace and each failure arrives as the server's own sentence rather than
+ * a generic "Something went wrong".
+ */
+async function teamInvite(email: string, role: "operator" | "viewer"): Promise<VerbResult> {
+  const r = await call("/api/v1/team/invite", { email, role });
+  if (r.ok) await refreshSettings();
+  return r;
+}
+
+async function teamSetRole(membershipId: string, role: string): Promise<VerbResult> {
+  const r = await call(`/api/v1/team/${encodeURIComponent(membershipId)}`, { role }, undefined, "PATCH");
+  if (r.ok) await refreshSettings();
+  return r;
+}
+
+/** Removes a member, or revokes an invitation that has not been accepted. */
+async function teamRemove(id: string): Promise<VerbResult> {
+  const r = await call(`/api/v1/team/${encodeURIComponent(id)}`, undefined, undefined, "DELETE");
+  if (r.ok) await refreshSettings();
+  return r;
+}
+
+/** Re-read the roster so the card shows what the server now holds, never what
+ *  the browser hoped it would. */
+async function refreshSettings(): Promise<void> {
+  await refreshSurfaces([settingsOverride]);
+}
+
 declare global {
   interface Window {
     __inboxVerb: typeof inboxVerb;
+    __teamInvite: typeof teamInvite;
+    __teamSetRole: typeof teamSetRole;
+    __teamRemove: typeof teamRemove;
     __cancelSend: typeof cancelSend;
     __refreshInbox: typeof refreshInbox;
     __saveSettings: typeof saveSettings;
@@ -258,6 +302,9 @@ declare global {
 
 export function installInboxVerbs(): void {
   window.__inboxVerb = inboxVerb;
+  window.__teamInvite = teamInvite;
+  window.__teamSetRole = teamSetRole;
+  window.__teamRemove = teamRemove;
   window.__cancelSend = cancelSend;
   window.__refreshInbox = refreshInbox;
   window.__saveSettings = saveSettings;
