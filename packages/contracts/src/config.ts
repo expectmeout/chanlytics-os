@@ -779,7 +779,36 @@ export function composeSystemPrompt(
     s.push(`\nServices:\n${lines.join("\n")}`);
   }
 
-  if (profile.escalate_when?.length) {
+  // HOW to hand off, not just when — and unconditionally, because the product
+  // promise depends on it.
+  //
+  // The composer told the model WHEN to fetch a human and never how. The only
+  // mechanism the runtime honours is the literal [[HUMAN]] token appended to a
+  // reply, and that was taught nowhere except inside one salon's hand-written
+  // prose. So a composed prompt — the only kind a new workspace can get —
+  // produced a receptionist that answers "let me get someone for you" and does
+  // nothing: no escalation row, no pause, no staff email, no row on Today. The
+  // core promise, that anything it should not decide reaches a person, silently
+  // did not exist. It is latent for the live tenant too: her prompt carries the
+  // token only until she writes her own extra instructions.
+  //
+  // WhatsApp only. On the phone there is no token to emit — Retell has its own
+  // transfer tool — and a model reading "[[HUMAN]]" aloud to a caller is worse
+  // than no handoff at all.
+  if (channel === "whatsapp") {
+    const when = profile.escalate_when?.length
+      ? `\n${profile.escalate_when.map((e) => `- ${e}`).join("\n")}`
+      : "";
+    s.push(
+      `\nHanding the conversation to a person:\n` +
+        `Put the exact token [[HUMAN]] at the very end of your reply. It is removed ` +
+        `before the customer sees it, and it is the only thing that alerts a human — ` +
+        `saying you will fetch someone does nothing on its own. Write the reply you ` +
+        `would normally send, then add the token.\n` +
+        `Do this whenever the customer asks for a person, is upset, or asks something ` +
+        `these instructions do not cover${when ? ", and whenever:" : "."}${when}`,
+    );
+  } else if (profile.escalate_when?.length) {
     s.push(`\nHand the conversation to a person when:\n${profile.escalate_when.map((e) => `- ${e}`).join("\n")}`);
   }
 

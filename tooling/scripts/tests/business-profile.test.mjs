@@ -289,3 +289,44 @@ test("saving reports the moment the SERVER accepts, not after the refetch", () =
   // did nothing observable, which is exactly how it was reported.
   assert.ok(settingsJsx.includes("window.__saveSettings(next, settings.version, () => {"));
 });
+
+/* ---- a composed prompt must know HOW to reach a human, not only when ---- */
+{
+  const PROFILE = {
+    address: "12 Oak St",
+    hours: { mon: { open: "09:00", close: "17:00" } },
+    services: [{ name: "Cut" }],
+  };
+  const BASE = { business_name: "Test Salon", phone_display: "+1 555 0100", booking_link: "https://book.example" };
+
+  test("the WhatsApp prompt teaches the [[HUMAN]] token, even with no escalate_when", () => {
+    // The runtime honours exactly one handoff mechanism: the literal token
+    // appended to a reply (apps/edge/lib/brain.ts). It was taught only inside
+    // one salon's hand-written prose, so every composed prompt produced a
+    // receptionist that says "let me get someone" and raises nothing — no
+    // escalation, no pause, no staff email.
+    const p = composeSystemPrompt(BASE, PROFILE, "whatsapp");
+    assert.match(p, /\[\[HUMAN\]\]/);
+    assert.match(p, /asks for a person/);
+  });
+
+  test("the owner's own escalate_when lines survive alongside the mechanism", () => {
+    const p = composeSystemPrompt(
+      BASE,
+      { ...PROFILE, escalate_when: ["they mention a complaint", "they ask about refunds"] },
+      "whatsapp",
+    );
+    assert.match(p, /\[\[HUMAN\]\]/);
+    assert.match(p, /they mention a complaint/);
+    assert.match(p, /they ask about refunds/);
+  });
+
+  test("the phone prompt never mentions the token", () => {
+    // There is nothing on the voice path that consumes it, and a model reading
+    // "[[HUMAN]]" aloud to a caller is worse than no handoff at all — Retell
+    // has its own transfer tool.
+    const p = composeSystemPrompt(BASE, { ...PROFILE, escalate_when: ["they are upset"] }, "voice");
+    assert.ok(!p.includes("[[HUMAN]]"), "the token must never reach a phone call");
+    assert.match(p, /they are upset/, "but the owner's escalation rules still apply");
+  });
+}
