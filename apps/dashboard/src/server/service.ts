@@ -53,6 +53,61 @@ export async function signedMediaUrl(storagePath: string, seconds = 300): Promis
   return data?.signedUrl ?? null;
 }
 
+/**
+ * Remove private objects from the `media` bucket.
+ *
+ * storage.objects has no RLS policies at all — service-role is the only door,
+ * which is why this cannot live on the session client like the rest of an
+ * erasure. A key that is already absent is the desired end state, so a short
+ * `removed` list is NOT a failure; only a transport error is.
+ */
+export async function removeMediaObjects(
+  paths: string[],
+): Promise<{ requested: number; removed: string[]; error: string | null }> {
+  if (!paths.length) return { requested: 0, removed: [], error: null };
+  const { data, error } = await serviceDb().storage.from("media").remove(paths);
+  if (error) {
+    console.error("media_remove_failed", error.message);
+    return { requested: paths.length, removed: [], error: error.message };
+  }
+  return { requested: paths.length, removed: (data ?? []).map((o) => o.name), error: null };
+}
+
+/**
+ * The Blob leg's retry handle.
+ *
+ * The thread key is the customer's phone digits, and after the tombstone there
+ * is nowhere left to recompute it — so a failed erase job's own payload is the
+ * only thing that can drive the retry.
+ *
+ * The decision is made on the PAYLOAD, not the state. claim_job flips
+ * scheduled -> fired BEFORE dispatch and fail_job runs only from fire.ts's
+ * catch block, so a lambda timeout or a hard crash leaves the row at 'fired'
+ * with its thread_ids intact — and reading 'fired' as "already done" would
+ * strand that transcript forever. The handler scrubs the payload on success,
+ * so an unscrubbed payload means unfinished, whatever the state says.
+ */
+export async function rescheduleBlobErase(
+  tenantId: string,
+  contactId: string,
+): Promise<{ jobId: string } | null> {
+  const { data } = await serviceDb()
+    .from("jobs")
+    .select("id, state, payload")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "blob_thread_erase")
+    .eq("payload->>contact_id", contactId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const prior = data?.[0];
+  if (!prior) return null;
+  const payload = prior.payload as { thread_ids?: string[]; scrubbed?: boolean } | null;
+  if (payload?.scrubbed) return null;                        // the leg finished
+  if (prior.state === "scheduled") return { jobId: prior.id }; // still queued
+  if (!payload?.thread_ids?.length) return null;             // nothing to retry
+  return await schedule(tenantId, "blob_thread_erase", new Date(), prior.payload as Json);
+}
+
 const EDGE_BASE = "https://chanlytics-messaging.vercel.app";
 
 /**

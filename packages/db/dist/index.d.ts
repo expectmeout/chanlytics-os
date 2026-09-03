@@ -225,6 +225,7 @@ type Database = {
                     created_at: string;
                     display_name: string | null;
                     dnc: boolean;
+                    erased_at: string | null;
                     first_seen_at: string;
                     id: string;
                     last_seen_at: string;
@@ -241,6 +242,7 @@ type Database = {
                     created_at?: string;
                     display_name?: string | null;
                     dnc?: boolean;
+                    erased_at?: string | null;
                     first_seen_at?: string;
                     id?: string;
                     last_seen_at?: string;
@@ -257,6 +259,7 @@ type Database = {
                     created_at?: string;
                     display_name?: string | null;
                     dnc?: boolean;
+                    erased_at?: string | null;
                     first_seen_at?: string;
                     id?: string;
                     last_seen_at?: string;
@@ -1535,6 +1538,13 @@ type Database = {
                     p_month: string;
                 };
                 Returns: undefined;
+            };
+            erase_contact: {
+                Args: {
+                    p_contact_id: string;
+                    p_legs?: Json;
+                };
+                Returns: Json;
             };
             expire_stale_pauses: {
                 Args: never;

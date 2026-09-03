@@ -64,12 +64,12 @@ declare const MESSAGE_STATUSES: readonly ["received", "queued", "sent", "deliver
 type MessageStatus = (typeof MESSAGE_STATUSES)[number];
 declare const CONSENT_STATES: readonly ["unknown", "opted_in", "opted_out"];
 type ConsentState = (typeof CONSENT_STATES)[number];
-declare const JOB_KINDS: readonly ["outbound_send", "veto_fire", "snooze_wake", "pause_expire", "media_fetch", "rollup_daily", "deadman", "report_weekly", "broadcast_send"];
+declare const JOB_KINDS: readonly ["outbound_send", "veto_fire", "snooze_wake", "pause_expire", "media_fetch", "rollup_daily", "deadman", "report_weekly", "broadcast_send", "blob_thread_erase"];
 type JobKind = (typeof JOB_KINDS)[number];
 declare const JOB_STATES: readonly ["scheduled", "fired", "canceled", "failed"];
 type JobState = (typeof JOB_STATES)[number];
 /** Dot-namespaced event kinds emitted so far (grows per slice). */
-declare const EVENT_KINDS: readonly ["message.received", "message.sent", "message.status", "escalation.opened", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.pg_failed", "message.send_failed", "message.send_blocked", "message.send_raced_cancel", "conversation.reopened", "conversation.pause_expired"];
+declare const EVENT_KINDS: readonly ["message.received", "message.sent", "message.status", "escalation.opened", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.pg_failed", "message.send_failed", "message.send_blocked", "message.send_raced_cancel", "conversation.reopened", "conversation.pause_expired", "contact.erased", "contact.blob_erased"];
 type EventKind = (typeof EVENT_KINDS)[number];
 /** Customer texts that mean opt-out (webhook consent handling, §4). */
 declare const OPT_OUT_PATTERN: RegExp;
@@ -88,9 +88,9 @@ declare const ESCALATION_REASONS: readonly ["human_token", "non_text", "refusal"
 type EscalationReason = (typeof ESCALATION_REASONS)[number];
 declare const ESCALATION_STATES: readonly ["open", "resolved"];
 type EscalationState = (typeof ESCALATION_STATES)[number];
-declare const DECISION_VERBS: readonly ["approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role", "remove_member"];
+declare const DECISION_VERBS: readonly ["approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role", "remove_member", "erase"];
 type DecisionVerb = (typeof DECISION_VERBS)[number];
-declare const DECISION_SUBJECTS: readonly ["conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation"];
+declare const DECISION_SUBJECTS: readonly ["conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation", "contact"];
 type DecisionSubject = (typeof DECISION_SUBJECTS)[number];
 declare const ACTOR_TYPES: readonly ["user", "ai", "system", "owner_phone"];
 type ActorType = (typeof ACTOR_TYPES)[number];

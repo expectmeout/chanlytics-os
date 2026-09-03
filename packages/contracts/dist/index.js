@@ -87,7 +87,13 @@ var JOB_KINDS = [
   "rollup_daily",
   "deadman",
   "report_weekly",
-  "broadcast_send"
+  "broadcast_send",
+  /**
+   * Erase one customer's stored Blob thread. The DASHBOARD orchestrates
+   * erasure and cannot reach Blob; the EDGE holds BLOB_READ_WRITE_TOKEN and
+   * cannot publish QStash jobs. This kind is the seam.
+   */
+  "blob_thread_erase"
 ];
 var JOB_STATES = ["scheduled", "fired", "canceled", "failed"];
 var EVENT_KINDS = [
@@ -104,7 +110,9 @@ var EVENT_KINDS = [
   "message.send_blocked",
   "message.send_raced_cancel",
   "conversation.reopened",
-  "conversation.pause_expired"
+  "conversation.pause_expired",
+  "contact.erased",
+  "contact.blob_erased"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta)\s*[.!]?\s*$/i;
@@ -153,7 +161,15 @@ var DECISION_VERBS = [
   "invite",
   "revoke_invite",
   "change_role",
-  "remove_member"
+  "remove_member",
+  /**
+   * The only irreversible verb. privacy.html promises deletion on verified
+   * request; this is the record that it happened, on subject_type 'contact',
+   * and it survives the data it destroyed. Written twice per erasure: once by
+   * the owner (actor_type 'user') and once by the job that finishes the Blob
+   * leg (actor_type 'system').
+   */
+  "erase"
 ];
 var DECISION_SUBJECTS = [
   "conversation",
@@ -163,7 +179,8 @@ var DECISION_SUBJECTS = [
   "message",
   "agent",
   "membership",
-  "invitation"
+  "invitation",
+  "contact"
 ];
 var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
 var TEMPLATE_STATUSES = ["approved", "pending", "rejected"];

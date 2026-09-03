@@ -44,6 +44,12 @@ export const JOB_KINDS = [
   "deadman",
   "report_weekly",
   "broadcast_send",
+  /**
+   * Erase one customer's stored Blob thread. The DASHBOARD orchestrates
+   * erasure and cannot reach Blob; the EDGE holds BLOB_READ_WRITE_TOKEN and
+   * cannot publish QStash jobs. This kind is the seam.
+   */
+  "blob_thread_erase",
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
@@ -66,6 +72,8 @@ export const EVENT_KINDS = [
   "message.send_raced_cancel",
   "conversation.reopened",
   "conversation.pause_expired",
+  "contact.erased",
+  "contact.blob_erased",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 
@@ -113,12 +121,20 @@ export const DECISION_VERBS = [
    * but this omits cannot be written by any typed caller.
    */
   "invite", "revoke_invite", "change_role", "remove_member",
+  /**
+   * The only irreversible verb. privacy.html promises deletion on verified
+   * request; this is the record that it happened, on subject_type 'contact',
+   * and it survives the data it destroyed. Written twice per erasure: once by
+   * the owner (actor_type 'user') and once by the job that finishes the Blob
+   * leg (actor_type 'system').
+   */
+  "erase",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 
 export const DECISION_SUBJECTS = [
   "conversation", "escalation", "draft", "lead", "message", "agent",
-  "membership", "invitation",
+  "membership", "invitation", "contact",
 ] as const;
 export type DecisionSubject = (typeof DECISION_SUBJECTS)[number];
 

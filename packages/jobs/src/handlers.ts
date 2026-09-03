@@ -12,6 +12,16 @@ export interface JobContext {
   db: SupabaseClient<Database>;
   waCfg: WaConfig;
   alert: (subject: string, body: string) => Promise<void>;
+  /**
+   * Delete one customer's stored Blob thread.
+   *
+   * INJECTED, not imported. The store is apps/edge/lib/store.ts because the
+   * edge is the runtime that holds BLOB_READ_WRITE_TOKEN, and a package must
+   * not reach into an app. Optional because the type is shared with any future
+   * runner; a runner that cannot do it must FAIL, never succeed quietly —
+   * see blobThreadErase.
+   */
+  eraseThread?: (namespace: string, threadId: string) => Promise<boolean>;
 }
 
 export interface ClaimedJob {
@@ -226,6 +236,77 @@ async function snoozeWake(ctx: JobContext, job: ClaimedJob): Promise<void> {
     .eq("id", p.conversation_id);
 }
 
+/**
+ * blob_thread_erase: the copy Postgres cannot reach.
+ *
+ * The Vercel Blob thread holds the verbatim conversation, outside RLS and
+ * outside the database, so deleting the rows is not deleting the data. The
+ * dashboard queues this job BEFORE it destroys anything, so a crash mid-
+ * erasure leaves a retryable request rather than an orphaned transcript whose
+ * key nobody can reconstruct.
+ *
+ * payload: { contact_id, namespace, thread_ids: string[] }
+ */
+async function blobThreadErase(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  const p = job.payload as {
+    contact_id?: string; namespace?: string; thread_ids?: string[]; scrubbed?: boolean;
+  };
+  // A sibling job (a retry that raced this one) already finished this
+  // contact's Blob leg and scrubbed every payload for it. Nothing to do, and
+  // no second ledger row.
+  if (p.scrubbed) return;
+  if (!p.namespace) throw new Error("blob_thread_erase: payload has no namespace");
+  const ids = (Array.isArray(p.thread_ids) ? p.thread_ids : [])
+    .filter((t): t is string => typeof t === "string" && t.length > 0);
+
+  // THROW, never return. A handler that reported "done" without a store would
+  // tell the owner the customer's conversation was deleted while it sat in
+  // Blob — the exact lie this whole change exists to remove. Throwing makes
+  // fire.ts record fail_job and alert the workspace.
+  if (!ctx.eraseThread) throw new Error("blob_thread_erase: no thread store on this runner");
+
+  const failed: string[] = [];
+  for (const id of ids) {
+    if (!(await ctx.eraseThread(p.namespace, id))) failed.push(id);
+  }
+  if (failed.length) throw new Error(`blob_thread_erase: ${failed.length} thread(s) not deleted`);
+
+  // The payload carried the customer's phone digits, because that IS the Blob
+  // key. Once the objects are gone it is a durable copy of the identifier we
+  // were asked to erase, in a table whose rows are never deleted. Scrub it —
+  // but only on success: while the leg is outstanding, this payload is the
+  // only thing that can retry it (see rescheduleBlobErase). EVERY job row for
+  // this contact is scrubbed, not just this one, so an earlier crashed attempt
+  // does not keep the digits forever.
+  const scrubbed = {
+    contact_id: p.contact_id ?? null, namespace: p.namespace,
+    threads: ids.length, scrubbed: true,
+  };
+  if (p.contact_id) {
+    await ctx.db.from("jobs").update({ payload: scrubbed })
+      .eq("tenant_id", job.tenant_id)
+      .eq("kind", "blob_thread_erase")
+      .eq("payload->>contact_id", p.contact_id);
+  } else {
+    await ctx.db.from("jobs").update({ payload: scrubbed }).eq("id", job.id);
+  }
+
+  if (p.contact_id) {
+    // Same ledger as the owner's own erase decision, so one query tells the
+    // whole story. actor_type 'system' with a null actor_user_id is what
+    // decisions_check requires; the service role is not subject to RLS here.
+    await ctx.db.from("decisions").insert({
+      tenant_id: job.tenant_id, subject_type: "contact", subject_id: p.contact_id,
+      verb: "erase", actor_type: "system",
+      payload: { leg: "blob", threads: ids.length, job_id: job.id },
+    });
+    await ctx.db.from("events").insert({
+      tenant_id: job.tenant_id, kind: "contact.blob_erased", category: "contact",
+      subject_type: "contact", subject_id: p.contact_id, data: { threads: ids.length },
+    });
+  }
+}
+
 export async function upsertEscalation(
   db: SupabaseClient<Database>,
   tenantId: string,
@@ -251,6 +332,7 @@ const HANDLERS: Record<string, (ctx: JobContext, job: ClaimedJob) => Promise<voi
   outbound_send: outboundSend,
   pause_expire: pauseExpire,
   snooze_wake: snoozeWake,
+blob_thread_erase: blobThreadErase,
 };
 
 export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind"> {
