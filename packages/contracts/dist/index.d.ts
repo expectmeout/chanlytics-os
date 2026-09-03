@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** Closed error-code enum for the /api/v1 envelope (Blueprint §4). */
-declare const ERROR_CODES: readonly ["unauthorized", "forbidden", "not_found", "validation", "conflict", "rate_limited", "window_closed", "upstream_meta", "upstream_retell", "upstream_anthropic", "internal"];
+declare const ERROR_CODES: readonly ["unauthorized", "forbidden", "not_found", "validation", "conflict", "rate_limited", "window_closed", "upstream_meta", "upstream_retell", "upstream_anthropic", "upstream_email", "internal"];
 type ErrorCode = (typeof ERROR_CODES)[number];
 declare class AppError extends Error {
     readonly code: ErrorCode;

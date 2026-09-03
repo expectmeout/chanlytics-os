@@ -197,15 +197,30 @@ const TeamSection = ({ flash }) => {
    */
   const teamUnavailable = realTeam === null;
   const me = (window.__ME && window.__ME.email) || null;
+  // Members AND the invitations nobody has accepted yet. The API has always
+  // returned both; only members were rendered, so an invitation that had been
+  // sent, accepted or revoked was invisible on the card whose whole job is
+  // saying who has access to this workspace.
+  const realInvites = Array.isArray(window.__TEAM_INVITES) ? window.__TEAM_INVITES : [];
   const team = Array.isArray(realTeam)
-    ? realTeam.map((m) => ({
-        id: m.membershipId,
-        name: (m.email || "").split("@")[0],
-        email: m.email,
-        role: m.role,
-        status: "active",
-        isMe: !!me && m.email === me,
-      }))
+    ? [
+        ...realTeam.map((m) => ({
+          id: m.membershipId,
+          name: (m.email || "").split("@")[0],
+          email: m.email,
+          role: m.role,
+          status: "active",
+          isMe: !!me && m.email === me,
+        })),
+        ...realInvites.map((i) => ({
+          id: i.id,
+          name: (i.email || "").split("@")[0],
+          email: i.email,
+          role: i.role,
+          status: "invited",
+          isMe: false,
+        })),
+      ]
     : S.getTeam();
   // The caller's REAL role decides what they may do. View-as still previews a
   // narrower one, but it can only ever narrow.
@@ -222,33 +237,93 @@ const TeamSection = ({ flash }) => {
   const previewing = !!S.viewAsRole;
   // Seats are a billing concept and billing is not wired. On real data the
   // count is the members we actually have; the plan limit is not invented.
-  const seatsUsed = Array.isArray(realTeam) ? team.length : S.seatsUsed();
+  const seatsUsed = Array.isArray(realTeam) ? realTeam.length : S.seatsUsed();
   const seatsLeft = Array.isArray(realTeam) ? 1 : S.seatsIncluded - seatsUsed;
 
-  const invite = () => {
+  // On a REAL roster every write goes to the server, and the card shows what
+  // the server says afterwards.
+  //
+  // These three handlers used to mutate the seeded demo roster and toast
+  // success on a pane fed by live data: an owner read "Invite sent to x as
+  // Operator" and nothing was sent, stored or audited; a demotion showed a
+  // confirmation while the database still said owner. Real rows carry real
+  // membership ids the seed roster does not contain, so the writes were silent
+  // no-ops and the toast was the only artifact. The routes have existed, been
+  // tested and been role-gated since Session A with no caller.
+  //
+  // There is no optimistic update and no undo. An invitation email cannot be
+  // recalled, and a role change is the power to message customers — so the
+  // card waits for the server and then re-reads, rather than showing an
+  // outcome it is only predicting.
+  const realRoster = Array.isArray(realTeam);
+  const [teamBusy, setTeamBusy] = useSetState(false);
+
+  const invite = async () => {
     const mail = email.trim().toLowerCase();
     if (!ST_EMAIL_RE.test(mail)) { flash({ msg: <>That doesn't look like an email — check the address</> }); return; }
     if (team.some(m => m.email.toLowerCase() === mail)) { flash({ msg: <><b>{mail}</b> is already on the team</> }); return; }
-    if (seatsLeft <= 0) { flash({ msg: <>No seats left — remove someone or upgrade the plan</> }); return; }
-    const id = "u-" + mail.split("@")[0].replace(/[^a-z0-9]/g, "");
-    const name = mail.split("@")[0].replace(/[._]+/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-    S.addMember({ id, name, email: mail, role: inviteRole, status: "invited" });
+    if (!realRoster) {
+      if (seatsLeft <= 0) { flash({ msg: <>No seats left — remove someone or upgrade the plan</> }); return; }
+      const id = "u-" + mail.split("@")[0].replace(/[^a-z0-9]/g, "");
+      const name = mail.split("@")[0].replace(/[._]+/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      S.addMember({ id, name, email: mail, role: inviteRole, status: "invited" });
+      setEmail(""); setInviting(false);
+      flash({ msg: <>Invite sent to <b>{mail}</b> as {ST_ROLE_META[inviteRole].label}</>, undo: () => S.removeMember(id) });
+      return;
+    }
+    setTeamBusy(true);
+    const r = await window.__teamInvite(mail, inviteRole);
+    setTeamBusy(false);
+    if (!r.ok) { flash({ msg: <>{r.message}</> }); return; }
     setEmail(""); setInviting(false);
-    flash({ msg: <>Invite sent to <b>{mail}</b> as {ST_ROLE_META[inviteRole].label}</>, undo: () => S.removeMember(id) });
+    // The server distinguishes these; saying "invite sent" for an account that
+    // was simply added would promise an email nobody receives.
+    const d = r.data || {};
+    flash({
+      msg: d.alreadyMember
+        ? <><b>{mail}</b> is already on the team</>
+        : d.added
+          ? <><b>{mail}</b> already had an account and was added as {ST_ROLE_META[inviteRole].label}</>
+          : d.alreadyInvited
+            ? <><b>{mail}</b> already has an invitation waiting</>
+            : <>Invitation emailed to <b>{mail}</b> as {ST_ROLE_META[inviteRole].label}</>,
+    });
   };
 
-  const changeRole = (m, role) => {
+  const changeRole = async (m, role) => {
     if (m.role === role) return;
-    if (m.role === "owner" && role !== "owner" && S.ownerCount() <= 1) { flash({ msg: <>Promote another owner first — a workspace needs one</> }); return; }
-    const prev = m.role;
-    S.setRole(m.id, role);
-    flash({ msg: <><b>{m.name.split(" ")[0]}</b> is now {ST_ROLE_META[role].label}</>, undo: () => S.setRole(m.id, prev) });
+    if (!realRoster) {
+      if (m.role === "owner" && role !== "owner" && S.ownerCount() <= 1) { flash({ msg: <>Promote another owner first — a workspace needs one</> }); return; }
+      const prev = m.role;
+      S.setRole(m.id, role);
+      flash({ msg: <><b>{m.name.split(" ")[0]}</b> is now {ST_ROLE_META[role].label}</>, undo: () => S.setRole(m.id, prev) });
+      return;
+    }
+    // The last-owner rule is enforced in the database and its message comes
+    // back from there; checking it against the SEEDED roster here, as this did,
+    // asked Sarah Chen whether this workspace still has an owner.
+    setTeamBusy(true);
+    const r = await window.__teamSetRole(m.id, role);
+    setTeamBusy(false);
+    flash({ msg: r.ok ? <><b>{m.name}</b> is now {ST_ROLE_META[role].label}</> : <>{r.message}</> });
   };
-  const remove = (m) => {
-    if (m.role === "owner" && S.ownerCount() <= 1) { flash({ msg: <>Can't remove the only owner</> }); return; }
-    const snap = { ...m };
-    S.removeMember(m.id);
-    flash({ msg: <><b>{m.name}</b> {m.status === "invited" ? "invite revoked" : "removed from the team"}</>, undo: () => S.addMember(snap) });
+
+  const remove = async (m) => {
+    if (!realRoster) {
+      if (m.role === "owner" && S.ownerCount() <= 1) { flash({ msg: <>Can't remove the only owner</> }); return; }
+      const snap = { ...m };
+      S.removeMember(m.id);
+      flash({ msg: <><b>{m.name}</b> {m.status === "invited" ? "invite revoked" : "removed from the team"}</>, undo: () => S.addMember(snap) });
+      return;
+    }
+    setTeamBusy(true);
+    const r = await window.__teamRemove(m.id);
+    setTeamBusy(false);
+    flash({
+      msg: r.ok
+        ? <><b>{m.name}</b> {(r.data && r.data.revokedInvite) ? "invitation revoked" : "removed from the team"}</>
+        : <>{r.message}</>,
+    });
   };
 
   return (
@@ -288,7 +363,7 @@ const TeamSection = ({ flash }) => {
               <button key={r} className={`cl-tab ${inviteRole === r ? "active" : ""}`} onClick={() => setInviteRole(r)}>{ST_ROLE_META[r].label}</button>
             ))}
           </div>
-          <button className="btn btn-primary btn-sm" onClick={invite}>Send invite</button>
+          <button className="btn btn-primary btn-sm" onClick={invite} disabled={teamBusy}>{teamBusy ? "Sending…" : "Send invite"}</button>
           <button className="btn btn-ghost btn-icon btn-sm" onClick={() => { setInviting(false); setEmail(""); }} aria-label="Cancel"><Icon name="x" size={12} /></button>
         </div>
       )}
@@ -326,7 +401,7 @@ const TeamSection = ({ flash }) => {
                 { header: "Role" },
                 ...["owner", "operator", "viewer"].map(r => ({ label: ST_ROLE_META[r].label + (m.role === r ? "  ✓" : ""), icon: r === "owner" ? "shield" : r === "operator" ? "agents" : "users", onClick: () => changeRole(m, r) })),
                 { divider: true },
-                ...(pending ? [{ label: "Resend invite", icon: "mail", onClick: () => flash({ msg: <>Invite resent to <b>{m.email}</b></> }) }] : []),
+                ...(pending && !realRoster ? [{ label: "Resend invite", icon: "mail", onClick: () => flash({ msg: <>Invite resent to <b>{m.email}</b></> }) }] : []),
                 { label: pending ? "Revoke invite" : "Remove", icon: "x", danger: true, onClick: () => remove(m) },
               ]} />
             ) : <span className="set-team-spacer" />}

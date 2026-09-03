@@ -190,8 +190,17 @@ test("'You' is decided by the signed-in email, not the mockup's operator", () =>
 test("a real workspace is not given an invented seat plan", () => {
   // Seats are a billing concept and billing is not wired. "4 of 5 seats" over
   // real members would be a number nobody chose.
+  //
+  // Counted over realTeam, not over `team`: the list now also carries the
+  // invitations nobody has accepted, and an invitation is not a person. "3
+  // people" has to mean three people.
   const settings = fs.readFileSync(path.join(DASH, "legacy/pages/settings.jsx"), "utf8");
-  assert.ok(settings.includes('Array.isArray(realTeam) ? team.length : S.seatsUsed()'));
+  assert.ok(settings.includes('Array.isArray(realTeam) ? realTeam.length : S.seatsUsed()'));
+  assert.ok(
+    !settings.includes("seatsIncluded - seatsUsed") ||
+      settings.includes("Array.isArray(realTeam) ? 1 : S.seatsIncluded - seatsUsed"),
+    "a real workspace must not be told how many seats a plan it does not have includes",
+  );
 });
 
 test("REGRESSION: a page opens on the pane it actually renders", () => {

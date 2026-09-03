@@ -415,26 +415,32 @@ export interface WorkspaceSettings {
 
 export const settingsOverride: SurfaceOverride = {
   key: "settings",
-  globals: ["__SETTINGS", "__TEAM"],
+  globals: ["__SETTINGS", "__TEAM", "__TEAM_INVITES"],
   events: ["surface:settings"],
   apply: async () => {
     const [cfg, team] = await Promise.all([
       fetchEnvelope<{ config: WorkspaceSettings; version: number; role: string }>("/api/v1/settings"),
       // A team read that fails must not blank the business card beside it.
-      fetchEnvelope<{ members: unknown[] }>("/api/v1/team").catch((e: unknown) => e as Error),
+      fetchEnvelope<{ members: unknown[]; invites?: unknown[] }>("/api/v1/team").catch((e: unknown) => e as Error),
     ]);
     const w = window as unknown as {
       __SETTINGS?: { config: WorkspaceSettings; version: number; role: string };
       __TEAM?: unknown[] | null;
+      __TEAM_INVITES?: unknown[] | null;
     };
     w.__SETTINGS = { config: cfg.config ?? {}, version: cfg.version, role: cfg.role };
     if (team instanceof Error) {
       // null, not [] — "we could not read the team" and "there is nobody" are
       // different facts, and only one of them should render as an empty list.
       w.__TEAM = null;
+      w.__TEAM_INVITES = null;
       console.error("settings_team_fetch_failed", team.message);
     } else {
       w.__TEAM = team.members ?? [];
+      // The API has always returned open invitations and nothing rendered
+      // them, so an invitation that was sent, accepted or revoked was
+      // invisible on the one card whose job is saying who has access.
+      w.__TEAM_INVITES = team.invites ?? [];
     }
   },
 };
