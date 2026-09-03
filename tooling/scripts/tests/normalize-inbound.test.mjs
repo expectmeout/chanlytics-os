@@ -138,3 +138,95 @@ test("an empty interactive payload stays unreadable rather than becoming empty t
   assert.equal(n.body, null);
   assert.equal(n.optOut, false);
 });
+
+/* ---- what ARRIVED is not the same question as which column it lands in ----
+ *
+ * Everything that was neither typed text nor an attachment used to collapse to
+ * "media with no body", and the edge's unreadable branch then acknowledged it,
+ * paused the receptionist for a day, opened an escalation and emailed the
+ * owner. A thumbs-up is the commonest gesture on WhatsApp.
+ */
+
+test("an emoji reaction is a reaction, and carries the emoji", () => {
+  const n = normalizeInbound(
+    msg({ type: "reaction", text: undefined, reaction: { message_id: "wamid.prev", emoji: "\u{1F44D}" } }),
+    { contacts: [{ wa_id: "15550001111" }] },
+  );
+  assert.equal(n.kind, "reaction");
+  assert.equal(n.body, "\u{1F44D}");
+  assert.notEqual(n.kind, "media", "a reaction must never reach the unreadable branch");
+});
+
+test("a shared location reads as a sentence a person can act on", () => {
+  const n = normalizeInbound(
+    msg({
+      type: "location", text: undefined,
+      location: { latitude: 41.88, longitude: -87.62, name: "Salon", address: "12 Oak St" },
+    }),
+    { contacts: [{ wa_id: "15550001111" }] },
+  );
+  assert.equal(n.kind, "location");
+  assert.equal(n.type, "text", "it has words, so it is stored as words");
+  assert.match(n.body, /Salon/);
+  assert.match(n.body, /12 Oak St/);
+  assert.match(n.body, /41\.88/);
+});
+
+test("a location with only coordinates still describes itself", () => {
+  const n = normalizeInbound(
+    msg({ type: "location", text: undefined, location: { latitude: 1.5, longitude: 2.5 } }),
+    { contacts: [{ wa_id: "15550001111" }] },
+  );
+  assert.equal(n.kind, "location");
+  assert.match(n.body, /1\.5, 2\.5/);
+});
+
+test("a shared contact card names who was shared", () => {
+  const n = normalizeInbound(
+    msg({ type: "contacts", text: undefined, contacts: [{ name: { formatted_name: "Rosa Diaz" } }] }),
+    { contacts: [{ wa_id: "15550001111" }] },
+  );
+  assert.equal(n.kind, "contacts");
+  assert.match(n.body, /Rosa Diaz/);
+});
+
+test("a system notice is not a customer asking for anything", () => {
+  const n = normalizeInbound(
+    msg({ type: "system", text: undefined, system: { body: "Ana changed their phone number" } }),
+    { contacts: [{ wa_id: "15550001111" }] },
+  );
+  assert.equal(n.kind, "system");
+});
+
+test("a genuine attachment is still media, and an unknown type is still unsupported", () => {
+  const img = normalizeInbound(
+    msg({ type: "image", text: undefined, image: { id: "m1", mime_type: "image/jpeg" } }),
+    { contacts: [{ wa_id: "15550001111" }] },
+  );
+  assert.equal(img.kind, "media");
+  assert.equal(img.type, "media");
+
+  const weird = normalizeInbound(msg({ type: "order", text: undefined }), {
+    contacts: [{ wa_id: "15550001111" }],
+  });
+  assert.equal(weird.kind, "unsupported");
+  assert.equal(weird.type, "media", "unknown types keep the old, safe handling");
+});
+
+test("typed text and tapped buttons are still text", () => {
+  assert.equal(normalizeInbound(msg(), { contacts: [] }).kind, "text");
+  const tapped = normalizeInbound(
+    msg({ type: "button", text: undefined, button: { text: "Book now", payload: "book" } }),
+    { contacts: [] },
+  );
+  assert.equal(tapped.kind, "text");
+  assert.equal(tapped.body, "Book now");
+});
+
+test("a STOP tapped as a button still opts out, whatever its kind", () => {
+  const n = normalizeInbound(
+    msg({ type: "button", text: undefined, button: { text: "Detener", payload: "stop" } }),
+    { contacts: [] },
+  );
+  assert.equal(n.optOut, true);
+});

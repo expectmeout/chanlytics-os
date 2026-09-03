@@ -33,6 +33,14 @@ export interface WaRawMessage {
     button_reply?: { id?: string; title?: string };
     list_reply?: { id?: string; title?: string; description?: string };
   };
+  /** An emoji tapped onto one of OUR messages. Carries no request. */
+  reaction?: { message_id?: string; emoji?: string };
+  /** A pin drop. Readable by a person, and useful — unlike a voice note. */
+  location?: { latitude?: number; longitude?: number; name?: string; address?: string };
+  /** One or more shared contact cards. */
+  contacts?: Array<{ name?: { formatted_name?: string }; phones?: Array<{ phone?: string }> }>;
+  /** Platform housekeeping (a customer changed their number). Not from a person. */
+  system?: { body?: string; type?: string };
 }
 
 export interface WaChangeValue {
@@ -59,6 +67,21 @@ export interface NormalizedInbound {
   profileName: string | null;
   messageId: string;
   type: "text" | "media";
+  /**
+   * What KIND of thing arrived, which is not the same question as which column
+   * it is stored in.
+   *
+   * `type` above answers "text or attachment" and maps to messages.type. It
+   * cannot answer "should the receptionist apologise for this", and collapsing
+   * the two is how a thumbs-up came to mute the bot for a day: anything that
+   * was not text or an attachment fell into "media with no body", and the
+   * edge's unreadable branch then acknowledged it, paused the receptionist for
+   * pauseMs, opened an escalation and emailed the owner. A reaction carries no
+   * request; a pin drop is perfectly readable by a person; a system notice is
+   * not from the customer at all. Each needs a different answer, so each gets
+   * a name.
+   */
+  kind: "text" | "media" | "reaction" | "location" | "contacts" | "system" | "unsupported";
   rawType: string;
   body: string | null;
   channelTsIso: string | null;
@@ -111,7 +134,52 @@ export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): Normali
   const chosen = chosenReply(m);
   const typed = m.type === "text" && !!m.text?.body;
   const isText = typed || !!chosen;
-  const body = typed ? m.text!.body! : chosen ? chosen.label || chosen.id : null;
+
+  // Everything that is neither typed text nor an attachment, named rather than
+  // lumped together. Location and contacts get a body a person can read, so
+  // they reach the operator as a fact rather than as "[location message]".
+  const loc = m.location;
+  const cards = m.contacts?.length ? m.contacts : null;
+  const kind: NormalizedInbound["kind"] = isText
+    ? "text"
+    : m.type === "reaction" && m.reaction
+      ? "reaction"
+      : loc && (loc.latitude != null || loc.address || loc.name)
+        ? "location"
+        : cards
+          ? "contacts"
+          : m.type === "system"
+            ? "system"
+            : mediaSrc?.id
+              ? "media"
+              : "unsupported";
+
+  const describeLocation = (): string => {
+    const where = [loc?.name, loc?.address].filter(Boolean).join(", ");
+    const coords =
+      loc?.latitude != null && loc?.longitude != null ? `${loc.latitude}, ${loc.longitude}` : null;
+    return `Shared a location${where ? `: ${where}` : ""}${coords ? ` (${coords})` : ""}`;
+  };
+  const describeCards = (): string => {
+    const names = (cards ?? [])
+      .map((c) => c.name?.formatted_name || c.phones?.[0]?.phone)
+      .filter(Boolean);
+    return `Shared a contact card${names.length ? `: ${names.join(", ")}` : ""}`;
+  };
+
+  const body = typed
+    ? m.text!.body!
+    : chosen
+      ? chosen.label || chosen.id
+      : kind === "reaction"
+        ? m.reaction?.emoji ?? null
+        : kind === "location"
+          ? describeLocation()
+          : kind === "contacts"
+            ? describeCards()
+            : kind === "system"
+              ? m.system?.body ?? null
+              : null;
 
   // Consent is tested against the label AND the developer-set id, so a tenant
   // can make a localised button opt out by giving it the id "stop".
@@ -122,7 +190,11 @@ export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): Normali
     phoneDigits: m.from,
     profileName: contact?.profile?.name || null,
     messageId: m.id,
-    type: isText ? "text" : "media",
+    // Reactions, locations, contact cards and system notices all carry words
+    // rather than bytes, so they are stored as text — messages.type has no
+    // column for them and needs none. `kind` is what routing consults.
+    type: isText || (body !== null && kind !== "media") ? "text" : "media",
+    kind,
     rawType: m.type,
     body,
     channelTsIso: m.timestamp ? new Date(Number(m.timestamp) * 1000).toISOString() : null,

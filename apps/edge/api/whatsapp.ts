@@ -73,7 +73,8 @@ export const config = { maxDuration: 60 };
 
 const PAUSE_MS = 24 * 3600 * 1000;   // human echo pauses the bot for 24h
 const MAX_REPLIES_PER_DAY = 20;      // per thread
-const STALE_MS = 10 * 60 * 1000;     // ignore messages older than 10 min (webhook replays)
+const STALE_MS = 10 * 60 * 1000;          // "late" — worth noting in the log
+const STALE_REPLY_MS = 2 * 60 * 60 * 1000; // past this a person answers, not the bot
 
 /** Gate 1b: read the bot's memory from Postgres instead of Blob. */
 const PG_READS = process.env.PG_READS === "on";
@@ -534,6 +535,35 @@ async function handleInbound(
   // list selection arrives as type "button"/"interactive" with the customer's
   // words in a different field; matching on m.type sent every one of them down
   // the "I can't read that" path. normalizeInbound resolves what they chose.
+  // Nothing was asked of us. A customer tapping a thumbs-up on the
+  // receptionist's reply is the commonest gesture on WhatsApp, and it used to
+  // be answered with "sorry, I can't read that", followed by the receptionist
+  // going silent on that customer for twenty-four hours, an escalation, an
+  // email to the owner, and a deadman nag two hours later. A system notice is
+  // not from the customer at all. Both are already persisted by ingest; record
+  // that we handled them and stop.
+  if (n.kind === "reaction" || n.kind === "system") {
+    L.info("wa_skip_no_request", { kind: n.kind });
+    await sink.processed();
+    return;
+  }
+
+  // Readable, but not ours to answer. A pin drop or a contact card is
+  // perfectly legible to a person — the customer is telling the salon
+  // something, and normalizeInbound has already written it as a sentence. What
+  // would be wrong is the apology: acknowledging it as unreadable tells the
+  // customer we did not receive what they plainly sent. So this escalates like
+  // the branch below, without the ack and without muting the receptionist.
+  if (n.kind === "location" || n.kind === "contacts") {
+    await Promise.all([
+      sink.escalate("non_text", `${n.body} — needs a person.`),
+      alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — passed to a human)", n.kind, notifyTarget),
+      sink.processed(),
+    ]);
+    L.info("wa_escalate_readable_nontext", { kind: n.kind });
+    return;
+  }
+
   if (n.type !== "text" || !n.body) {
     // genuinely unreadable (voice note, image, sticker): hand to a human.
     //
@@ -570,11 +600,31 @@ async function handleInbound(
   // inside this function fail in a thoroughly confusing way.
   const bodyText = n.body;
 
-  if (m.timestamp && Date.now() - Number(m.timestamp) * 1000 > STALE_MS) {
-    L.info("wa_skip_stale");
-    await sink.processed();
+  // Late, but somebody is still waiting.
+  //
+  // This used to stamp anything over ten minutes old as processed and return —
+  // no reply, no escalation, nobody told. Meta redelivers undelivered webhooks
+  // with backoff for days, so a fifteen-minute outage turned its entire
+  // redelivery backlog into customers who wrote and were never answered, and
+  // the only trace was one log line per message. The guard was written against
+  // webhook REPLAYS, and replays are already stopped by the dedupe gate below
+  // in both memory modes, so this only ever caught late FIRST deliveries.
+  //
+  // Two ages, because the right answer changes with the delay. Inside the
+  // reply horizon the customer is still in the conversation they started, and
+  // answering late beats not answering. Beyond it an automated reply would
+  // arrive out of nowhere, so a person picks it up — but a person is told.
+  const ageMs = m.timestamp ? Date.now() - Number(m.timestamp) * 1000 : 0;
+  if (ageMs > STALE_REPLY_MS) {
+    await Promise.all([
+      sink.escalate("stale", `Message arrived ${Math.round(ageMs / 60000)} minutes late — too old to answer automatically.`),
+      alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — arrived too late to answer automatically)", "late message", notifyTarget),
+      sink.processed(),
+    ]);
+    L.info("wa_stale_escalated", { age_ms: ageMs });
     return;
   }
+  if (ageMs > STALE_MS) L.info("wa_late_but_answering", { age_ms: ageMs });
 
   if (thread.seen.includes(m.id)) { L.info("wa_skip_dupe"); return; }
   thread.seen.push(m.id);
