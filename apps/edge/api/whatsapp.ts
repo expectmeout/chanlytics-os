@@ -128,8 +128,15 @@ async function queueReply(
     });
     return false;
   }
+  // Declared out here so the catch can undo it. The row is written before the
+  // job is published, so a scheduling failure used to leave a `queued` message
+  // behind while the caller — correctly — sent the same words immediately: the
+  // Inbox then showed a held draft with Edit and Hold controls for a reply the
+  // customer already had, and if QStash had in fact accepted the publish before
+  // timing out, the job later found the row still queued and sent it twice.
+  let messageId: string | null = null;
   try {
-    const messageId = await recordOutbound(db, {
+    messageId = await recordOutbound(db, {
       tenantId,
       conversationId: ing.conversation_id,
       contactId: ing.contact_id,
@@ -156,6 +163,18 @@ async function queueReply(
     return true;
   } catch (e) {
     L.error("wa_queue_failed", { error: errField(e) });
+    if (messageId) {
+      // The caller is about to send these exact words immediately. Retire the
+      // draft first so it cannot be sent a second time and cannot render as a
+      // pending one, and mark it canceled rather than deleting it — the row is
+      // the only record that a veto window was attempted and did not happen.
+      const { error } = await db
+        .from("messages")
+        .update({ status: "canceled", error: { reason: "scheduling_failed" } })
+        .eq("id", messageId)
+        .eq("status", "queued");
+      if (error) L.error("wa_queue_rollback_failed", { message_id: messageId, error: error.message });
+    }
     return false;
   }
 }

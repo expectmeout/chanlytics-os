@@ -124,11 +124,19 @@ export const SEND_GRACE_MS = 15 * 1000; // the cancelable window IS the undo (§
  * the thread over) has to cancel that draft, or the customer receives BOTH the
  * override and the words it was meant to replace.
  *
- * Order matters, and it is the opposite of the queueing order: cancel the JOB
- * first, then the row. Marking the row canceled while its job still runs is
- * harmless — outbound_send re-reads the row and no-ops on anything that is not
- * still `queued` — whereas leaving the job scheduled after the row is gone would
- * be a send with nothing left to stop it.
+ * Cancel by MESSAGE, never by conversation. Cancelling every scheduled
+ * outbound_send on the thread also withdrew the job behind a HUMAN reply still
+ * inside its 15-second grace window — while the row-level update only marked
+ * `sender = 'ai'` rows canceled. So an operator who sent two replies in quick
+ * succession, or replied and then pressed Take over, lost the first message:
+ * its job was gone, its row stayed `queued`, the Inbox said "Sending…" forever
+ * and the customer received nothing. Withdrawing the receptionist's draft must
+ * not touch a colleague's words.
+ *
+ * Order is row first, then job, and that is deliberate. If the row update
+ * lands and the job cancel fails, the job fires and no-ops on a row that is no
+ * longer `queued`. The reverse leaves a queued row with nothing left to send
+ * it — the same strand, reached from the other side.
  *
  * Returns how many drafts were withdrawn, so a caller can tell the operator
  * their reply replaced the bot's rather than merely followed it.
@@ -138,7 +146,6 @@ export async function cancelPendingAiReply(
   conv: { id: string; tenant_id: string },
   cancelJobs: (tenantId: string, key: string, value: string) => Promise<number>,
 ): Promise<number> {
-  await cancelJobs(conv.tenant_id, "conversation_id", conv.id);
   const { data, error } = await ctx.supabase
     .from("messages")
     .update({ status: "canceled", error: { reason: "superseded_by_human" } })
@@ -152,5 +159,9 @@ export async function cancelPendingAiReply(
     console.error("cancel_pending_ai_reply_failed", conv.id, error.message);
     return 0;
   }
-  return data?.length ?? 0;
+  const ids = (data ?? []).map((m) => m.id);
+  for (const id of ids) {
+    await cancelJobs(conv.tenant_id, "message_id", id);
+  }
+  return ids.length;
 }

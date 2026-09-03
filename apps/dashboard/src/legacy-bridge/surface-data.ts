@@ -91,8 +91,17 @@ export function setActiveWorkspace(id: string | null): void {
   }
 }
 
-/** Append ?workspace= unless the caller named one explicitly. */
-function scoped(url: string): string {
+/**
+ * Append ?workspace= unless the caller named one explicitly.
+ *
+ * Exported because reads were not the only thing that needs it. The verb
+ * courier fetched its URLs verbatim, so every mutation arrived with no
+ * workspace named — and the server's own ambiguity guard then refuses any
+ * write from an account holding more than one membership, which self-serve
+ * workspace creation makes an ordinary state. The symptom is a Save button
+ * that returns "say which workspace" with no control that can say it.
+ */
+export function scoped(url: string): string {
   const ws = getActiveWorkspace();
   if (!ws || url.includes("workspace=")) return url;
   return `${url}${url.includes("?") ? "&" : "?"}workspace=${encodeURIComponent(ws)}`;

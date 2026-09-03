@@ -68,13 +68,17 @@ export async function POST(request: Request): Promise<Response> {
     return json(200, { ok: true, skipped: c.reason });
   }
 
+  // Built before the try so the failure path can address the alert. It used to
+  // live inside, which is why a thrown handler recorded fail_job and told
+  // nobody: the one function that knows whose job this is was out of scope
+  // exactly where it was needed.
+  const job: ClaimedJob = {
+    id: c.id,
+    tenant_id: c.tenant_id,
+    kind: c.kind,
+    payload: (c.payload ?? {}) as Record<string, unknown>,
+  };
   try {
-    const job: ClaimedJob = {
-      id: c.id,
-      tenant_id: c.tenant_id,
-      kind: c.kind,
-      payload: (c.payload ?? {}) as Record<string, unknown>,
-    };
     const outcome = await dispatchJob(
       {
         db,
@@ -92,6 +96,19 @@ export async function POST(request: Request): Promise<Response> {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("job_handler_failed", c.kind, msg);
     await db.rpc("fail_job", { p_job_id: jobId, p_error: msg } as never);
+    // The ledger owns retry policy, which means nothing retries this on its
+    // own — so somebody has to be told. An outbound_send that fails here is a
+    // reply the operator believes is on its way, and it will sit as "Sending…"
+    // until a human notices. Alerting is best effort: it must not turn a
+    // recorded failure into an unrecorded one.
+    try {
+      await alertFor(db, job)(
+        `A ${job.kind} job failed`,
+        `Job ${job.id} (${job.kind}) failed and will not retry on its own.\n\n${msg}`,
+      );
+    } catch (alertErr) {
+      console.error("job_failure_alert_failed", job.id, alertErr instanceof Error ? alertErr.message : alertErr);
+    }
     return json(200, { ok: true, outcome: "failed" }); // claimed: our ledger owns retry policy
   }
 }

@@ -119,7 +119,14 @@ export const POST = withRoute(async (req, ctx) => {
   // still went out 15s later while the API reported failure).
   const pauseUntil = Date.now() + PAUSE_MS;
   await mirrorBlobPause(conv.tenant_id, conv.phone_e164, pauseUntil);
-  await ctx.supabase
+  // The result of this write is not optional. Under PG_READS this row IS the
+  // receptionist's answer to "may I speak?", and this is the only one of the
+  // five conversation verbs that ignored it: a transient failure meant the
+  // operator's text went out, the API reported success, and the bot carried on
+  // replying underneath them — the incident this pause exists to prevent.
+  // Zero rows counts as failure for the same reason it does everywhere else in
+  // this codebase: a forbidden or mis-targeted UPDATE reports success.
+  const { data: paused, error: pauseErr } = await ctx.supabase
     .from("conversations")
     .update({
       state: "needs_human",
@@ -128,7 +135,17 @@ export const POST = withRoute(async (req, ctx) => {
       assignee_user_id: ctx.userId,
       last_message_at: new Date().toISOString(),
     })
-    .eq("id", conv.id);
+    .eq("id", conv.id)
+    .select("id");
+  if (pauseErr || !paused || paused.length === 0) {
+    // Nothing has been queued yet, so refusing here is the honest outcome: the
+    // operator retries instead of watching a reply they were told was sent.
+    throw new AppError(
+      "conflict",
+      "Could not take this thread over just now, so nothing was sent. Try again.",
+      409,
+    );
+  }
   await schedule(conv.tenant_id, "pause_expire", new Date(pauseUntil), { conversation_id: conv.id });
 
   // The operator is REPLACING the receptionist's held reply, not queueing

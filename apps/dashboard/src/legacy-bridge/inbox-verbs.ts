@@ -4,7 +4,7 @@
  * the overrides re-apply (fresh globals + surface events), and the caller's
  * toast reports honestly. Business logic stays server-side — this is a courier.
  */
-import { conversationsOverride, inboxOverride, todayOverride, type SurfaceOverride } from "./surface-data";
+import { conversationsOverride, inboxOverride, scoped, todayOverride, type SurfaceOverride } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 import { clearSurfaceCache } from "./surface-cache";
 import { MAX_INTERVALS_PER_DAY, describeNow, hoursRuns, newReceptionistDefaults, resolveSystemPrompt } from "@chanlytics/contracts";
@@ -38,7 +38,11 @@ async function call(
   method: "POST" | "PUT" = "POST",
 ): Promise<VerbResult> {
   try {
-    const res = await fetch(url, {
+    // Scoped HERE rather than at each call site, for the same reason the reads
+    // are scoped inside fetchEnvelope: a rule applied per call site is a rule
+    // someone forgets on call site seven. Every current and future verb
+    // inherits it.
+    const res = await fetch(scoped(url), {
       method,
       headers: {
         "content-type": "application/json",
