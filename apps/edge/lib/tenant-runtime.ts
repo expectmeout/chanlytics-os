@@ -46,6 +46,54 @@ export interface TenantRuntime {
 const TTL_MS = 60 * 1000;
 const cache = new Map<string, { v: TenantRuntime; exp: number }>();
 
+/**
+ * This tenant's WhatsApp credentials, whichever channel is asking.
+ *
+ * Two queries rather than one because `get_channel_credentials` takes a
+ * channel id and the routed channel may be the voice one. The WhatsApp row is
+ * looked up by tenant and kind, and only then are its credentials fetched — so
+ * a voice-routed runtime and a WhatsApp-routed runtime for the same tenant
+ * resolve to the same thing, which is what the tenant-keyed cache already
+ * assumed.
+ *
+ * Returns null when the tenant has no active WhatsApp channel or that channel
+ * carries no credentials_ref; waCfgFor then falls back to the environment,
+ * which is correct for the one tenant still running on env vars.
+ */
+async function resolveWaCredentials(
+  db: SupabaseClient<Database>,
+  routed: RoutedChannel,
+): Promise<{ data: { access_token?: string; phone_id?: string } | null; error: null }> {
+  // The routed channel already IS the WhatsApp one on the commonest path;
+  // skip the lookup rather than pay for it on every inbound message.
+  let channelId: string | null = null;
+  let ref: string | null = null;
+  if (routed.kind === "whatsapp") {
+    channelId = routed.channelId;
+    ref = routed.credentialsRef ?? null;
+  } else {
+    const { data } = await db
+      .from("tenant_channels")
+      .select("id, credentials_ref")
+      .eq("tenant_id", routed.tenantId)
+      .eq("kind", "whatsapp")
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle();
+    channelId = data?.id ?? null;
+    ref = data?.credentials_ref ?? null;
+  }
+  if (!channelId || !ref) return { data: null, error: null };
+  const { data, error } = await db.rpc("get_channel_credentials", { p_channel_id: channelId });
+  if (error) {
+    // Loud, then fall back to the environment. A credential lookup that fails
+    // must not take the line down for the tenant that does not need it.
+    console.error("wa_credentials_lookup_failed", routed.tenantId, error.message);
+    return { data: null, error: null };
+  }
+  return { data: data as { access_token?: string; phone_id?: string } | null, error: null };
+}
+
 export async function loadTenantRuntime(
   db: SupabaseClient<Database>,
   routed: RoutedChannel,
@@ -61,14 +109,28 @@ export async function loadTenantRuntime(
         .select("class, mode, limits")
         .eq("tenant_id", routed.tenantId)
         .is("subject_type", null),
-      routed.credentialsRef
-        ? db.rpc("get_channel_credentials", { p_channel_id: routed.channelId })
-        : Promise.resolve({ data: null, error: null } as const),
+      // WhatsApp credentials belong to the tenant's WHATSAPP channel, not to
+      // whichever channel happened to route this request.
+      //
+      // This asked for the ROUTED channel's credentials, which is only ever
+      // correct when the request arrived over WhatsApp. A phone call routes on
+      // the voice channel, whose credentials_ref is null, so retell-fn could
+      // never send with a tenant's own WhatsApp credentials and silently fell
+      // back to the environment's. Worse, the result is cached under the
+      // tenant id alone — so what a WhatsApp webhook got back depended on which
+      // endpoint had most recently warmed that instance.
+      //
+      // Resolving by tenant + kind makes the tenant-keyed cache correct by
+      // construction and closes the voice path in the same change.
+      resolveWaCredentials(db, routed),
       db.from("tenants").select("timezone").eq("id", routed.tenantId).maybeSingle(),
     ]);
     if (cfgQ.error) throw new Error(cfgQ.error.message);
     if (polQ.error) throw new Error(polQ.error.message);
-    if (credsQ.error) throw new Error(credsQ.error.message);
+    // No check here on purpose: resolveWaCredentials handles its own failure
+    // by logging and falling back to the environment. Throwing would put the
+    // whole runtime into its DR posture — silencing a tenant that does not use
+    // per-channel credentials at all — over a lookup it never needed.
     if (tzQ.error) throw new Error(tzQ.error.message);
 
     // A BROKEN config is not an ABSENT one. Both end in silence, but only one
@@ -129,6 +191,42 @@ export async function loadTenantRuntime(
  * straight for `process.env`, which is how that path came to send every
  * tenant's message from tenant #1's number.
  */
+/**
+ * A tenant's WhatsApp credentials, for callers holding a tenant_id and no
+ * routed channel — the job runner being the one that matters.
+ *
+ * Every outbound_send went out on process.env regardless of whose job it was,
+ * so at tenant #2 an operator's reply would have left from tenant #1's number
+ * on tenant #1's token. Falls back to the environment, which is right for the
+ * one tenant still running that way.
+ */
+export async function waCredentialsForTenant(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+): Promise<{ phoneId: string; accessToken: string }> {
+  try {
+    const { data: ch } = await db
+      .from("tenant_channels")
+      .select("id, credentials_ref")
+      .eq("tenant_id", tenantId)
+      .eq("kind", "whatsapp")
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle();
+    if (ch?.id && ch.credentials_ref) {
+      const { data, error } = await db.rpc("get_channel_credentials", { p_channel_id: ch.id });
+      const c = data as { access_token?: string; phone_id?: string } | null;
+      if (!error && c?.access_token && c?.phone_id) {
+        return { phoneId: c.phone_id, accessToken: c.access_token };
+      }
+      if (error) console.error("wa_credentials_for_tenant_failed", tenantId, error.message);
+    }
+  } catch (e) {
+    console.error("wa_credentials_for_tenant_threw", tenantId, e instanceof Error ? e.message : e);
+  }
+  return waCfgFor(null);
+}
+
 export function waCfgFor(rt?: TenantRuntime | null): { phoneId: string; accessToken: string } {
   if (rt?.waCreds) return { phoneId: rt.waCreds.phoneId, accessToken: rt.waCreds.accessToken };
   return {

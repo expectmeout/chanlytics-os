@@ -286,7 +286,21 @@ const MIME_EXT: Record<string, string> = {
 };
 
 /** All PG bookkeeping for one inbound message; every method no-ops when unconfigured. */
-function pgSink(db: SupabaseClient<Database> | null, tenantId: string | null, ing: IngestResult | null) {
+/**
+ * `rt` is threaded in so the media download uses the TENANT's credentials.
+ *
+ * fetchMediaBytes ran on waCfg() with no argument — the environment pair —
+ * while the runtime holding this tenant's own credentials was already in scope
+ * at every call site. For tenant #2 that is a download attempted with another
+ * business's token against their WABA, which cannot succeed: every voice note
+ * and photo their customers send would fail to store.
+ */
+function pgSink(
+  db: SupabaseClient<Database> | null,
+  tenantId: string | null,
+  ing: IngestResult | null,
+  rt?: TenantRuntime | null,
+) {
   const on = !!(db && tenantId && ing);
   return {
     on,
@@ -342,7 +356,7 @@ function pgSink(db: SupabaseClient<Database> | null, tenantId: string | null, in
     media: (n: NormalizedInbound) =>
       on && n.media
         ? pgSafe("media_fetch", async () => {
-            const got = await fetchMediaBytes(waCfg(), n.media!.provider_media_id);
+            const got = await fetchMediaBytes(waCfg(rt), n.media!.provider_media_id);
             const mediaOut = { ...n.media } as Record<string, unknown>;
             if (got) {
               const ext = MIME_EXT[got.mime || ""] || "bin";
@@ -414,7 +428,7 @@ async function handleInbound(
   if (allow.length && !allow.includes(from)) {
     // §4 delta (deliberate): allowlist gates the REPLY, not the persist.
     const ing = await pgIngest(tenantId, n);
-    const sink = pgSink(db, tenantId, ing);
+    const sink = pgSink(db, tenantId, ing, rt);
     await sink.allowlistSkip();
     await sink.processed();
     return;
@@ -441,7 +455,7 @@ async function handleInbound(
       [IngestResult | null, ThreadState];
   }
   const ingestMs = Date.now() - t0;
-  const sink = pgSink(db, tenantId, ing);
+  const sink = pgSink(db, tenantId, ing, rt);
 
   // Atomic concurrent-redelivery gate. PG_READS implies it: Postgres-sourced
   // memory carries no `seen` list, so is_new IS the dedupe — and it is stronger

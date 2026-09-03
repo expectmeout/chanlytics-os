@@ -8,7 +8,7 @@ import { json } from "../../lib/http.js";
 import { pg } from "../../lib/pg.js";
 import { dispatchJob, FIRE_URL, type ClaimedJob } from "../../lib/workspace/jobs.js";
 import { notify } from "../../lib/notify.js";
-import { loadTenantNotifications } from "../../lib/tenant-runtime.js";
+import { loadTenantNotifications, waCredentialsForTenant } from "../../lib/tenant-runtime.js";
 import { deleteThread } from "../../lib/store.js";
 
 export const config = { maxDuration: 60 };
@@ -83,7 +83,14 @@ export async function POST(request: Request): Promise<Response> {
     const outcome = await dispatchJob(
       {
         db,
-        waCfg: { phoneId: process.env.WHATSAPP_PHONE_ID || "", accessToken: process.env.WHATSAPP_ACCESS_TOKEN || "" },
+        // The TENANT's credentials, not the environment's.
+        //
+        // Every outbound_send went out on process.env regardless of
+        // job.tenant_id — so with a second business, their operator's reply
+        // would leave from the first business's phone number, on the first
+        // business's token. The same file already resolves per-tenant
+        // notification settings per job; the credentials simply never were.
+        waCfg: await waCredentialsForTenant(db, job.tenant_id),
         alert: alertFor(db, job),
         // The edge is the only runtime holding BLOB_READ_WRITE_TOKEN, which is
         // why the erase job is fired here rather than orchestrated from the
