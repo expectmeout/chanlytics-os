@@ -16,13 +16,21 @@ async function scheduleJob(db, p) {
   }).select("id, cancel_token").single();
   if (error || !job) throw new Error(`schedule_job: ${error?.message}`);
   const qstash = new Client({ token: p.qstashToken });
-  const res = await qstash.publishJSON({
-    url: FIRE_URL,
-    body: { job_id: job.id },
-    notBefore: Math.ceil(p.dueAt.getTime() / 1e3),
-    deduplicationId: job.id
-  });
-  await db.from("jobs").update({ qstash_id: res.messageId }).eq("id", job.id);
+  let res;
+  try {
+    res = await qstash.publishJSON({
+      url: FIRE_URL,
+      body: { job_id: job.id },
+      notBefore: Math.ceil(p.dueAt.getTime() / 1e3),
+      deduplicationId: job.id
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await db.from("jobs").update({ state: "failed", last_error: `publish: ${msg}` }).eq("id", job.id);
+    throw new Error(`schedule_job publish: ${msg}`);
+  }
+  const { error: linkErr } = await db.from("jobs").update({ qstash_id: res.messageId }).eq("id", job.id);
+  if (linkErr) console.error("schedule_job_link_failed", job.id, linkErr.message);
   return { jobId: job.id, cancelToken: job.cancel_token };
 }
 async function cancelJob(db, jobId, qstashToken) {
@@ -8577,7 +8585,10 @@ var SENDERS = {
 };
 async function outboundSend(ctx, job) {
   const p = job.payload;
-  const { data: msg } = await ctx.db.from("messages").select("id, status, body, template_name, channel, sender").eq("id", p.message_id).eq("tenant_id", job.tenant_id).single();
+  const { data: msg, error: readErr } = await ctx.db.from("messages").select("id, status, body, template_name, channel, sender").eq("id", p.message_id).eq("tenant_id", job.tenant_id).maybeSingle();
+  if (readErr) {
+    throw new Error(`outbound_send: cannot read message ${p.message_id}: ${readErr.message}`);
+  }
   if (!msg || msg.status !== "queued") return;
   const { data: convRow, error: consentErr } = await ctx.db.from("conversations").select("contacts (consent, dnc)").eq("id", p.conversation_id).eq("tenant_id", job.tenant_id).maybeSingle();
   if (consentErr || !convRow) {

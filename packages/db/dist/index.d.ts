@@ -1785,8 +1785,23 @@ declare function recordEchoAndPause(db: Db$3, p: {
     externalId: string | null;
     pausedUntilIso: string;
 }): Promise<void>;
-/** Mirror of the Blob pausedUntil semantics for AI-side pauses (non-text / escalation). */
-declare function pauseConversation(db: Db$3, tenantId: string, conversationId: string, pausedUntilIso: string): Promise<void>;
+/**
+ * Mirror of the Blob pausedUntil semantics for AI-side pauses (non-text / escalation).
+ *
+ * Returns whether the pause actually landed, and the caller must care.
+ *
+ * This used to discard the result entirely, which under PG_READS makes it the
+ * quietest way to break the product: `paused_until` on this row IS the answer
+ * to "may I speak?", so a transient PostgREST failure here means the bot opens
+ * an escalation, emails staff, and then keeps answering the thread it just
+ * handed to a human. supabase-js does not throw, so the surrounding try/catch
+ * never saw it either — the only evidence was a customer being talked over.
+ *
+ * `.select("id")` is not decoration: an UPDATE that RLS or a wrong tenant id
+ * excludes matches zero rows and reports success, so the row count is the only
+ * way to tell a write that happened from one that was silently skipped.
+ */
+declare function pauseConversation(db: Db$3, tenantId: string, conversationId: string, pausedUntilIso: string): Promise<boolean>;
 declare function emitEvent(db: Db$3, tenantId: string, kind: string, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
 
 /** Webhook → tenant routing over tenant_channels(kind, external_id). */

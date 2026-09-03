@@ -328,18 +328,43 @@ export async function recordEchoAndPause(
   if (error && error.code !== "23505") console.error("record_echo_failed", error.message);
 }
 
-/** Mirror of the Blob pausedUntil semantics for AI-side pauses (non-text / escalation). */
+/**
+ * Mirror of the Blob pausedUntil semantics for AI-side pauses (non-text / escalation).
+ *
+ * Returns whether the pause actually landed, and the caller must care.
+ *
+ * This used to discard the result entirely, which under PG_READS makes it the
+ * quietest way to break the product: `paused_until` on this row IS the answer
+ * to "may I speak?", so a transient PostgREST failure here means the bot opens
+ * an escalation, emails staff, and then keeps answering the thread it just
+ * handed to a human. supabase-js does not throw, so the surrounding try/catch
+ * never saw it either — the only evidence was a customer being talked over.
+ *
+ * `.select("id")` is not decoration: an UPDATE that RLS or a wrong tenant id
+ * excludes matches zero rows and reports success, so the row count is the only
+ * way to tell a write that happened from one that was silently skipped.
+ */
 export async function pauseConversation(
   db: Db,
   tenantId: string,
   conversationId: string,
   pausedUntilIso: string,
-): Promise<void> {
-  await db
+): Promise<boolean> {
+  const { data, error } = await db
     .from("conversations")
     .update({ state: "needs_human", paused_until: pausedUntilIso })
     .eq("id", conversationId)
-    .eq("tenant_id", tenantId);
+    .eq("tenant_id", tenantId)
+    .select("id");
+  if (error) {
+    console.error("pause_conversation_failed", conversationId, error.message);
+    return false;
+  }
+  if (!data || data.length === 0) {
+    console.error("pause_conversation_noop", conversationId);
+    return false;
+  }
+  return true;
 }
 
 export async function emitEvent(

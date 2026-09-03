@@ -58,12 +58,24 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     body?: string;
     template?: { name: string; language: string; params: string[] };
   };
-  const { data: msg } = await ctx.db
+  // A read that FAILED and a message that is genuinely gone are different
+  // facts, and collapsing them is how an operator's reply disappears: the
+  // error was discarded, a transient PostgREST blip looked exactly like
+  // "already canceled", the handler returned success, claim_job had already
+  // consumed the job, and the row sat `queued` forever with nothing left to
+  // send it and nobody told. maybeSingle() reports the absent row as
+  // `data: null` without an error, so the two cases stay separable.
+  const { data: msg, error: readErr } = await ctx.db
     .from("messages")
     .select("id, status, body, template_name, channel, sender")
     .eq("id", p.message_id)
     .eq("tenant_id", job.tenant_id)
-    .single();
+    .maybeSingle();
+  if (readErr) {
+    // Throw: the fire callback records fail_job and alerts the tenant, so the
+    // message is visibly stuck rather than invisibly lost.
+    throw new Error(`outbound_send: cannot read message ${p.message_id}: ${readErr.message}`);
+  }
   if (!msg || msg.status !== "queued") return; // canceled or already handled — no-op
 
   // The LAST gate before the wire. The reply route already refuses an

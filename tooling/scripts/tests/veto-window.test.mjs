@@ -93,14 +93,35 @@ test("EVERY path where a human takes control withdraws the draft", () => {
   }
 });
 
-test("the job is canceled BEFORE the row is", () => {
-  // Marking the row canceled while its job still runs is harmless —
-  // outbound_send re-reads and no-ops on anything not still queued. Leaving the
-  // job scheduled after the row is gone would be a send with nothing to stop it.
+test("the ROW is canceled before the job is", () => {
+  // This pinned the opposite order, on a rationale that contradicted its own
+  // first sentence: marking the row canceled while its job still runs IS
+  // harmless, because outbound_send re-reads the row and no-ops on anything
+  // that is not still queued — so "a send with nothing left to stop it" cannot
+  // happen. The real asymmetry runs the other way. Cancel the job first and
+  // then fail to update the row, and the row sits `queued` forever with
+  // nothing that will ever send it: the Inbox says "Sending…", the customer
+  // receives nothing, and no alert fires. Row first makes the worst case a
+  // redundant job that finds nothing to do.
   const fn = verbs.slice(verbs.indexOf("export async function cancelPendingAiReply"));
   assert.ok(
-    fn.indexOf("cancelJobs(") < fn.indexOf('.update({ status: "canceled"'),
-    "cancel the job first, then the row",
+    fn.indexOf('.update({ status: "canceled"') < fn.indexOf("cancelJobs("),
+    "cancel the row first, then its job",
+  );
+});
+
+test("drafts are withdrawn BY MESSAGE, never by conversation", () => {
+  // Cancelling every outbound_send on the conversation also withdrew the job
+  // behind a HUMAN reply still inside its 15-second grace window, while the
+  // row update only touched sender='ai' rows. Two quick replies, or a reply
+  // followed by Take over, therefore stranded the operator's first message:
+  // job gone, row still queued, nothing to send it. Withdrawing the
+  // receptionist's draft must not touch a colleague's words.
+  const fn = verbs.slice(verbs.indexOf("export async function cancelPendingAiReply"));
+  assert.match(fn, /cancelJobs\([^)]*"message_id"/s, "cancel jobs keyed on the message, not the thread");
+  assert.ok(
+    !/cancelJobs\([^)]*"conversation_id"/s.test(fn),
+    "cancelling by conversation_id also withdraws a human reply's job",
   );
 });
 
@@ -108,6 +129,33 @@ test("only the BOT's drafts are withdrawn, never a colleague's queued reply", ()
   const fn = verbs.slice(verbs.indexOf("export async function cancelPendingAiReply"));
   assert.match(fn, /\.eq\("sender", "ai"\)/);
   assert.match(fn, /\.eq\("status", "queued"\)/);
+});
+
+test("a veto draft that could not be scheduled is retired, not left pending", () => {
+  // The row is written before the job is published. A scheduling failure used
+  // to leave it `queued` while the caller sent the same words immediately: the
+  // Inbox showed a held draft with Edit and Hold controls for a reply the
+  // customer already had, and a publish that in fact succeeded before timing
+  // out would later fire and send it twice.
+  const fn = edge.slice(edge.indexOf("async function queueReply"));
+  const body = fn.slice(0, fn.indexOf("\nasync function ", 1));
+  // The rollback lives in the catch, so slice from there rather than measuring
+  // a character distance a future comment would break.
+  const rollback = body.slice(body.indexOf("} catch"));
+  assert.ok(rollback.includes('status: "canceled"'), "a draft that could not be scheduled must be canceled");
+  assert.ok(rollback.includes("scheduling_failed"), "and the row must say why");
+  assert.ok(
+    rollback.includes('.eq("status", "queued")'),
+    "only retire a row that has not already been sent",
+  );
+});
+
+test("a job row is never left scheduled for a publish that did not happen", () => {
+  // An orphan `scheduled` row is worse than no row: nothing will ever fire it,
+  // cancelJobsFor dutifully cancels a job that does not exist, and a snoozed
+  // thread stays hidden until the customer writes again.
+  const schedule = read("packages/jobs/src/schedule.ts");
+  assert.match(schedule, /catch[\s\S]{0,300}?state: "failed"[\s\S]{0,80}?last_error/);
 });
 
 test("a delayed bot reply is not recorded as a human's", () => {

@@ -35,14 +35,34 @@ export async function scheduleJob(
     .single();
   if (error || !job) throw new Error(`schedule_job: ${error?.message}`);
 
+  // Two writes, two systems, and the row goes in first — so a publish that
+  // never happens must not leave a row claiming it did. An orphan `scheduled`
+  // row is worse than no row: nothing will ever fire it, `cancelJobsFor` will
+  // dutifully cancel a job that does not exist, and a snoozed thread stays
+  // hidden until the customer writes again. Mark it failed, then rethrow so
+  // the caller still learns the deferred action did not get scheduled.
   const qstash = new Client({ token: p.qstashToken });
-  const res = await qstash.publishJSON({
-    url: FIRE_URL,
-    body: { job_id: job.id },
-    notBefore: Math.ceil(p.dueAt.getTime() / 1000),
-    deduplicationId: job.id,
-  });
-  await db.from("jobs").update({ qstash_id: res.messageId }).eq("id", job.id);
+  let res: { messageId: string };
+  try {
+    res = await qstash.publishJSON({
+      url: FIRE_URL,
+      body: { job_id: job.id },
+      notBefore: Math.ceil(p.dueAt.getTime() / 1000),
+      deduplicationId: job.id,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await db.from("jobs").update({ state: "failed", last_error: `publish: ${msg}` }).eq("id", job.id);
+    throw new Error(`schedule_job publish: ${msg}`);
+  }
+  const { error: linkErr } = await db
+    .from("jobs")
+    .update({ qstash_id: res.messageId })
+    .eq("id", job.id);
+  // The job WILL fire either way — this column only lets cancelJob withdraw it
+  // from QStash as well as from the ledger, so a failure costs a redundant
+  // fire, not a lost one. Loud, not fatal.
+  if (linkErr) console.error("schedule_job_link_failed", job.id, linkErr.message);
   return { jobId: job.id, cancelToken: job.cancel_token };
 }
 

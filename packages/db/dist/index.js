@@ -4406,7 +4406,16 @@ async function recordEchoAndPause(db, p) {
   if (error && error.code !== "23505") console.error("record_echo_failed", error.message);
 }
 async function pauseConversation(db, tenantId, conversationId, pausedUntilIso) {
-  await db.from("conversations").update({ state: "needs_human", paused_until: pausedUntilIso }).eq("id", conversationId).eq("tenant_id", tenantId);
+  const { data, error } = await db.from("conversations").update({ state: "needs_human", paused_until: pausedUntilIso }).eq("id", conversationId).eq("tenant_id", tenantId).select("id");
+  if (error) {
+    console.error("pause_conversation_failed", conversationId, error.message);
+    return false;
+  }
+  if (!data || data.length === 0) {
+    console.error("pause_conversation_noop", conversationId);
+    return false;
+  }
+  return true;
 }
 async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, data = {}) {
   const { error } = await db.from("events").insert({
