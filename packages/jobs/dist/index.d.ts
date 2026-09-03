@@ -30,6 +30,16 @@ interface JobContext {
     db: SupabaseClient<Database>;
     waCfg: WaConfig;
     alert: (subject: string, body: string) => Promise<void>;
+    /**
+     * Delete one customer's stored Blob thread.
+     *
+     * INJECTED, not imported. The store is apps/edge/lib/store.ts because the
+     * edge is the runtime that holds BLOB_READ_WRITE_TOKEN, and a package must
+     * not reach into an app. Optional because the type is shared with any future
+     * runner; a runner that cannot do it must FAIL, never succeed quietly —
+     * see blobThreadErase.
+     */
+    eraseThread?: (namespace: string, threadId: string) => Promise<boolean>;
 }
 interface ClaimedJob {
     id: string;

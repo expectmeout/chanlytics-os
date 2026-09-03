@@ -230,6 +230,7 @@ export type Database = {
           created_at: string
           display_name: string | null
           dnc: boolean
+          erased_at: string | null
           first_seen_at: string
           id: string
           last_seen_at: string
@@ -246,6 +247,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           dnc?: boolean
+          erased_at?: string | null
           first_seen_at?: string
           id?: string
           last_seen_at?: string
@@ -262,6 +264,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           dnc?: boolean
+          erased_at?: string | null
           first_seen_at?: string
           id?: string
           last_seen_at?: string
@@ -1521,6 +1524,10 @@ export type Database = {
       }
       deadman_mark_alerted: { Args: { p_ids: string[] }; Returns: number }
       ensure_events_partition: { Args: { p_month: string }; Returns: undefined }
+      erase_contact: {
+        Args: { p_contact_id: string; p_legs?: Json }
+        Returns: Json
+      }
       expire_stale_pauses: { Args: never; Returns: number }
       fail_job: {
         Args: { p_error: string; p_job_id: string }

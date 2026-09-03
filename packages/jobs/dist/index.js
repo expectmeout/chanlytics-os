@@ -8691,6 +8691,47 @@ async function snoozeWake(ctx, job) {
   if (conv.snooze_until && new Date(conv.snooze_until).getTime() > Date.now() + 1e3) return;
   await ctx.db.from("conversations").update({ state: "open", snooze_until: null }).eq("id", p.conversation_id);
 }
+async function blobThreadErase(ctx, job) {
+  const p = job.payload;
+  if (p.scrubbed) return;
+  if (!p.namespace) throw new Error("blob_thread_erase: payload has no namespace");
+  const ids = (Array.isArray(p.thread_ids) ? p.thread_ids : []).filter((t) => typeof t === "string" && t.length > 0);
+  if (!ctx.eraseThread) throw new Error("blob_thread_erase: no thread store on this runner");
+  const failed = [];
+  for (const id of ids) {
+    if (!await ctx.eraseThread(p.namespace, id)) failed.push(id);
+  }
+  if (failed.length) throw new Error(`blob_thread_erase: ${failed.length} thread(s) not deleted`);
+  const scrubbed = {
+    contact_id: p.contact_id ?? null,
+    namespace: p.namespace,
+    threads: ids.length,
+    scrubbed: true
+  };
+  if (p.contact_id) {
+    await ctx.db.from("jobs").update({ payload: scrubbed }).eq("tenant_id", job.tenant_id).eq("kind", "blob_thread_erase").eq("payload->>contact_id", p.contact_id);
+  } else {
+    await ctx.db.from("jobs").update({ payload: scrubbed }).eq("id", job.id);
+  }
+  if (p.contact_id) {
+    await ctx.db.from("decisions").insert({
+      tenant_id: job.tenant_id,
+      subject_type: "contact",
+      subject_id: p.contact_id,
+      verb: "erase",
+      actor_type: "system",
+      payload: { leg: "blob", threads: ids.length, job_id: job.id }
+    });
+    await ctx.db.from("events").insert({
+      tenant_id: job.tenant_id,
+      kind: "contact.blob_erased",
+      category: "contact",
+      subject_type: "contact",
+      subject_id: p.contact_id,
+      data: { threads: ids.length }
+    });
+  }
+}
 async function upsertEscalation(db, tenantId, conversationId, reason, details) {
   const { error } = await db.from("escalations").insert({
     tenant_id: tenantId,
@@ -8707,7 +8748,8 @@ async function upsertEscalation(db, tenantId, conversationId, reason, details) {
 var HANDLERS = {
   outbound_send: outboundSend,
   pause_expire: pauseExpire,
-  snooze_wake: snoozeWake
+  snooze_wake: snoozeWake,
+  blob_thread_erase: blobThreadErase
 };
 async function dispatchJob(ctx, job) {
   const handler = HANDLERS[job.kind];

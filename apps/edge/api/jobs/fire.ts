@@ -9,6 +9,7 @@ import { pg } from "../../lib/pg.js";
 import { dispatchJob, FIRE_URL, type ClaimedJob } from "../../lib/workspace/jobs.js";
 import { notify } from "../../lib/notify.js";
 import { loadTenantNotifications } from "../../lib/tenant-runtime.js";
+import { deleteThread } from "../../lib/store.js";
 
 export const config = { maxDuration: 60 };
 
@@ -84,6 +85,10 @@ export async function POST(request: Request): Promise<Response> {
         db,
         waCfg: { phoneId: process.env.WHATSAPP_PHONE_ID || "", accessToken: process.env.WHATSAPP_ACCESS_TOKEN || "" },
         alert: alertFor(db, job),
+        // The edge is the only runtime holding BLOB_READ_WRITE_TOKEN, which is
+        // why the erase job is fired here rather than orchestrated from the
+        // dashboard that requested it.
+        eraseThread: deleteThread,
       },
       job,
     );

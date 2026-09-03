@@ -38,7 +38,14 @@ test("job kinds match jobs.kind", () => {
     m[1].split(",").map((s) => s.trim().replace(/^'|'$/g, "")).sort(),
   );
   assert.ok(all.length >= 2, "expected channel-kind and job-kind CHECKs");
-  const jobs = all.find((set) => set.includes("media_fetch"));
+  // The LAST set, not the first — a later migration supersedes an earlier one,
+  // which is what sqlSet() does everywhere else in this file. find() was
+  // indistinguishable from "last" only while jobs.kind had never been widened
+  // since 00002. The moment it was, this compared the ORIGINAL constraint to
+  // the current enum and failed for a reason that had nothing to do with the
+  // change under test — exactly the trap already fixed below for
+  // decisions.subject_type.
+  const jobs = all.filter((set) => set.includes("media_fetch")).at(-1);
   const channels = all.find((set) => set.includes("whatsapp") && set.includes("voice"));
   assert.deepEqual(jobs, [...JOB_KINDS].sort());
   assert.deepEqual(channels, [...CHANNEL_KINDS].sort());
