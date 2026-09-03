@@ -120,3 +120,52 @@ test("the patterns are anchored and case-insensitive", () => {
     assert.ok(!p.flags.includes("g"), "must not be global: lastIndex would persist between messages");
   }
 });
+
+/* ---- the edge routes on KIND, not on the storage column ---- */
+{
+  const { readCode } = await import("./_source.mjs");
+  const edgeSrc = readCode("apps/edge/api/whatsapp.ts");
+
+  test("a reaction or a system notice ends the request without an ack", () => {
+    // The bug this pins: a customer tapping a thumbs-up got "sorry, I can't
+    // read that", the receptionist muted itself for 24h, an escalation opened
+    // and the owner was emailed. The check must come BEFORE the unreadable
+    // branch or it never runs.
+    const quiet = edgeSrc.indexOf('n.kind === "reaction"');
+    const unreadable = edgeSrc.indexOf('if (n.type !== "text" || !n.body)');
+    assert.ok(quiet > -1, "reactions must be handled by kind");
+    assert.ok(unreadable > -1, "the unreadable branch must still exist");
+    assert.ok(quiet < unreadable, "handle the no-request kinds before the unreadable branch");
+  });
+
+  test("a location or contact card escalates WITHOUT the cannot-read apology", () => {
+    // Both are legible to a person and normalizeInbound already wrote them as
+    // a sentence. Acknowledging them as unreadable tells the customer we did
+    // not receive what they plainly sent.
+    const at = edgeSrc.indexOf('n.kind === "location"');
+    assert.ok(at > -1, "readable non-text kinds must be routed by kind");
+    // Bound the slice to THIS branch. A fixed character window runs on into
+    // the unreadable branch below, which does send the apology — so the
+    // assertion would have been reading the code it exists to rule out.
+    const rest = edgeSrc.slice(at);
+    const branch = rest.slice(0, rest.indexOf("\n  }") + 4);
+    assert.ok(branch.includes("sink.escalate"), "a person has to be told");
+    assert.ok(!branch.includes("fallbacks.non_text"), "must not send the unreadable acknowledgement");
+    assert.ok(!branch.includes("sink.pause"), "must not mute the receptionist");
+  });
+
+  test("a late message is answered or escalated, never dropped in silence", () => {
+    // Meta redelivers for days, so any outage longer than the guard turned its
+    // whole backlog into customers who wrote and were never answered.
+    assert.ok(edgeSrc.includes("STALE_REPLY_MS"), "there must be a horizon past which a person answers");
+    const at = edgeSrc.indexOf("ageMs > STALE_REPLY_MS");
+    assert.ok(at > -1);
+    const branch = edgeSrc.slice(at, at + 700);
+    assert.ok(branch.includes('sink.escalate("stale"'), "escalate rather than return quietly");
+    assert.ok(branch.includes("alertStaff"), "and tell somebody");
+    assert.ok(
+      !/wa_skip_stale/.test(edgeSrc),
+      "the silent drop must be gone, not merely bypassed",
+    );
+  });
+}

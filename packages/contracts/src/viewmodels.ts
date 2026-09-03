@@ -252,6 +252,7 @@ export const ESCALATION_REASON_LABELS: Record<string, string> = {
   manual: "Flagged manually",
   opt_out: "Asked to stop receiving messages",
   state_unavailable: "The receptionist could not read this thread — needs a human",
+  stale: "Arrived hours late — too old to answer automatically",
 };
 
 /**
@@ -280,6 +281,7 @@ const ESCALATION_SUMMARIES: Record<string, string> = {
   manual: "Flagged by hand for a human.",
   opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
   state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
+  stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent — they have been waiting since.",
 };
 
 /** "8m" / "3h" / "2d". An overnight wait is the NORMAL case for a morning

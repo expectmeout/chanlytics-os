@@ -89,6 +89,8 @@ export const OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta)\s*[.!]?\s*$/i;
 export const ESCALATION_REASONS = [
   "human_token", "non_text", "refusal", "rate_cap", "policy_block",
   "send_failed", "deadman", "brain_error", "manual", "opt_out", "state_unavailable",
+  /** Delivered so late that an automated reply would arrive out of nowhere. */
+  "stale",
 ] as const;
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
 

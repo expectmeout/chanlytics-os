@@ -52,6 +52,32 @@ interface WaRawMessage {
             description?: string;
         };
     };
+    /** An emoji tapped onto one of OUR messages. Carries no request. */
+    reaction?: {
+        message_id?: string;
+        emoji?: string;
+    };
+    /** A pin drop. Readable by a person, and useful — unlike a voice note. */
+    location?: {
+        latitude?: number;
+        longitude?: number;
+        name?: string;
+        address?: string;
+    };
+    /** One or more shared contact cards. */
+    contacts?: Array<{
+        name?: {
+            formatted_name?: string;
+        };
+        phones?: Array<{
+            phone?: string;
+        }>;
+    }>;
+    /** Platform housekeeping (a customer changed their number). Not from a person. */
+    system?: {
+        body?: string;
+        type?: string;
+    };
 }
 interface WaChangeValue {
     metadata?: {
@@ -94,6 +120,21 @@ interface NormalizedInbound {
     profileName: string | null;
     messageId: string;
     type: "text" | "media";
+    /**
+     * What KIND of thing arrived, which is not the same question as which column
+     * it is stored in.
+     *
+     * `type` above answers "text or attachment" and maps to messages.type. It
+     * cannot answer "should the receptionist apologise for this", and collapsing
+     * the two is how a thumbs-up came to mute the bot for a day: anything that
+     * was not text or an attachment fell into "media with no body", and the
+     * edge's unreadable branch then acknowledged it, paused the receptionist for
+     * pauseMs, opened an escalation and emailed the owner. A reaction carries no
+     * request; a pin drop is perfectly readable by a person; a system notice is
+     * not from the customer at all. Each needs a different answer, so each gets
+     * a name.
+     */
+    kind: "text" | "media" | "reaction" | "location" | "contacts" | "system" | "unsupported";
     rawType: string;
     body: string | null;
     channelTsIso: string | null;

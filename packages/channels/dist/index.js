@@ -4276,7 +4276,19 @@ function normalizeInbound(m, value) {
   const chosen = chosenReply(m);
   const typed = m.type === "text" && !!m.text?.body;
   const isText = typed || !!chosen;
-  const body = typed ? m.text.body : chosen ? chosen.label || chosen.id : null;
+  const loc = m.location;
+  const cards = m.contacts?.length ? m.contacts : null;
+  const kind = isText ? "text" : m.type === "reaction" && m.reaction ? "reaction" : loc && (loc.latitude != null || loc.address || loc.name) ? "location" : cards ? "contacts" : m.type === "system" ? "system" : mediaSrc?.id ? "media" : "unsupported";
+  const describeLocation = () => {
+    const where = [loc?.name, loc?.address].filter(Boolean).join(", ");
+    const coords = loc?.latitude != null && loc?.longitude != null ? `${loc.latitude}, ${loc.longitude}` : null;
+    return `Shared a location${where ? `: ${where}` : ""}${coords ? ` (${coords})` : ""}`;
+  };
+  const describeCards = () => {
+    const names = (cards ?? []).map((c) => c.name?.formatted_name || c.phones?.[0]?.phone).filter(Boolean);
+    return `Shared a contact card${names.length ? `: ${names.join(", ")}` : ""}`;
+  };
+  const body = typed ? m.text.body : chosen ? chosen.label || chosen.id : kind === "reaction" ? m.reaction?.emoji ?? null : kind === "location" ? describeLocation() : kind === "contacts" ? describeCards() : kind === "system" ? m.system?.body ?? null : null;
   const consentText = [body, chosen?.id].filter((s) => !!s);
   const matches = (re) => consentText.some((s) => re.test(s));
   return {
@@ -4284,7 +4296,11 @@ function normalizeInbound(m, value) {
     phoneDigits: m.from,
     profileName: contact?.profile?.name || null,
     messageId: m.id,
-    type: isText ? "text" : "media",
+    // Reactions, locations, contact cards and system notices all carry words
+    // rather than bytes, so they are stored as text — messages.type has no
+    // column for them and needs none. `kind` is what routing consults.
+    type: isText || body !== null && kind !== "media" ? "text" : "media",
+    kind,
     rawType: m.type,
     body,
     channelTsIso: m.timestamp ? new Date(Number(m.timestamp) * 1e3).toISOString() : null,

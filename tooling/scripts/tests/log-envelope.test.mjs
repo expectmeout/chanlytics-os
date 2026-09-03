@@ -89,11 +89,21 @@ test("the message path's event names are unchanged by the conversion", () => {
   // These are the identifiers greps and any future alerting depend on. The
   // logger changed the ENVELOPE; renaming the events would break the part that
   // already worked.
+  //
+  // `wa_skip_stale` is deliberately NOT in this list any more, and that is the
+  // one kind of removal this guard should allow: the behaviour it named is
+  // gone, not merely renamed. It marked a late message processed and returned
+  // — no reply, no escalation, nobody told — which meant any outage longer
+  // than the guard turned Meta's whole redelivery backlog into unanswered
+  // customers. A late message is now answered (`wa_late_but_answering`) or
+  // escalated (`wa_stale_escalated`), so an event meaning "silently dropped"
+  // would have nothing to describe.
   const src = fs.readFileSync(path.join(EDGE, "api/whatsapp.ts"), "utf8");
   const required = [
-    "wa_replied", "wa_skip_dupe", "wa_skip_pg_dupe", "wa_skip_stale", "wa_skip_paused",
+    "wa_replied", "wa_skip_dupe", "wa_skip_pg_dupe", "wa_skip_paused",
     "wa_skip_ratecap", "wa_skip_opt_out", "wa_held_by_policy", "wa_state_unavailable",
     "policy_block_price", "brain_failed", "wa_unroutable", "wa_skip_unroutable",
+    "wa_stale_escalated", "wa_late_but_answering",
   ];
   for (const name of required) {
     assert.ok(src.includes(`"${name}"`), `event name ${name} disappeared from the message path`);

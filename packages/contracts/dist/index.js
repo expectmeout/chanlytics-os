@@ -116,7 +116,9 @@ var ESCALATION_REASONS = [
   "brain_error",
   "manual",
   "opt_out",
-  "state_unavailable"
+  "state_unavailable",
+  /** Delivered so late that an automated reply would arrive out of nowhere. */
+  "stale"
 ];
 var ESCALATION_STATES = ["open", "resolved"];
 var DECISION_VERBS = [
@@ -296,7 +298,8 @@ var ESCALATION_REASON_LABELS = {
   deadman: "Nobody picked this up \u2014 flagged after silence",
   manual: "Flagged manually",
   opt_out: "Asked to stop receiving messages",
-  state_unavailable: "The receptionist could not read this thread \u2014 needs a human"
+  state_unavailable: "The receptionist could not read this thread \u2014 needs a human",
+  stale: "Arrived hours late \u2014 too old to answer automatically"
 };
 var ESCALATION_SUMMARIES = {
   human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
@@ -309,7 +312,8 @@ var ESCALATION_SUMMARIES = {
   deadman: "This sat unanswered long enough to flag. Nobody has replied.",
   manual: "Flagged by hand for a human.",
   opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
-  state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out."
+  state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
+  stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since."
 };
 function formatWaited(ms) {
   const min = Math.max(1, Math.round(ms / 6e4));
