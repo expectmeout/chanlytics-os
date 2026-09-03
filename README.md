@@ -96,6 +96,37 @@ after themselves.
 `tooling/scripts/golden-edge.mjs` is the frozen-contract check for the edge's
 HTTP surface. It needs `BASE_URL` plus the Meta and Retell secrets.
 
+### End-to-end, in a real browser
+
+```bash
+corepack pnpm e2e:install             # once, fetches Chromium
+corepack pnpm e2e                     # runs against production by default
+```
+
+Sixteen of these need no credentials and pin the auth gate. The rest sign in,
+and need four variables:
+
+```
+NEXT_PUBLIC_SUPABASE_URL       NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY      E2E_USER_EMAIL
+```
+
+Without them those specs **skip**, with the reason printed. `E2E_BASE_URL`
+points the run somewhere other than production.
+
+There is no password anywhere in this product — sign-in is an emailed
+code — so `e2e/session.ts` mints a session over the API and hands the browser
+the cookie `@supabase/ssr` reads, rather than typing anything into the form.
+`generate_link` does **not** send mail, so this cannot reach a real inbox even
+pointed at production. One session is minted per RUN, not per test: Supabase
+allows 30 token verifications an hour, and a session per test spent a third of
+that budget in one go.
+
+The signed-in specs are read-only against real data with one deliberate
+exception: `e2e/team-card.spec.ts` intercepts its own `POST`/`PATCH` and
+answers them itself, so it proves the button issued the request without any
+invitation being sent or any membership changing.
+
 ## Operational levers
 
 | Want to | Do |
