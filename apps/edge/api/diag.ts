@@ -4,6 +4,8 @@
  *  accepted during the transition. Internal endpoint — not part of the frozen surface. */
 import { getThread, saveThread, storeBackend, threadNamespace } from "../lib/store.js";
 import { json } from "../lib/http.js";
+import { pg } from "../lib/pg.js";
+import type { SweepHealthRow } from "../lib/sweep-health.js";
 
 const META_APP_ID = process.env.META_APP_ID || "1823820738182125";
 
@@ -54,6 +56,29 @@ export async function GET(request: Request): Promise<Response> {
     };
   } catch (e) {
     out.probe = { error: String(e instanceof Error ? e.message : e).slice(0, 200) };
+  }
+
+  // Is the watchdog itself alive? pg_cron marks a sweep 'succeeded' the moment
+  // net.http_post queues the request, so the run history cannot answer this —
+  // only the edge's real reply can, and pg_net keeps that for six hours. This
+  // is also the only place the HEALTH sweep's own last response is judged: the
+  // health route cannot judge it, because when it runs that request is still
+  // in flight.
+  try {
+    const db = pg();
+    if (!db) {
+      out.sweeps = { unavailable: "no database client (PG_WRITES is not 'on')" };
+    } else {
+      const { data, error } = await db.rpc("sweep_health");
+      if (error) {
+        out.sweeps = { error: error.message.slice(0, 200) };
+      } else {
+        const rows = (data ?? []) as unknown as SweepHealthRow[];
+        out.sweeps = { ok: rows.every((r) => r.healthy), detail: rows };
+      }
+    }
+  } catch (e) {
+    out.sweeps = { error: String(e instanceof Error ? e.message : e).slice(0, 200) };
   }
 
   // Token permanence: a temp WHATSAPP_ACCESS_TOKEN expiring mid-App-Review would
