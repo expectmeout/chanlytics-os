@@ -30,7 +30,9 @@ const WATCHED: Array<{ table: string; event: "INSERT" | "*" }> = [
 
 export function subscribeMessagesInserts(
   client: SupabaseClient<Database>,
-  onInsert: (row: { conversation_id: string; tenant_id: string }) => void,
+  /** Called with the changed row and the TABLE it came from, so a caller can
+   *  route the event instead of repainting everything on every change. */
+  onInsert: (row: { conversation_id: string; tenant_id: string }, table: string) => void,
   opts: SubscribeOptions = {},
 ): () => void {
   const topic = `db-changes:${opts.topic ?? "bridge"}`;
@@ -54,7 +56,7 @@ export function subscribeMessagesInserts(
           table: w.table,
           ...(opts.tenantId ? { filter: `tenant_id=eq.${opts.tenantId}` } : {}),
         },
-        (payload) => onInsert((payload.new ?? payload.old ?? {}) as { conversation_id: string; tenant_id: string }),
+        (payload) => onInsert((payload.new ?? payload.old ?? {}) as { conversation_id: string; tenant_id: string }, w.table),
       );
     }
     channel = channel

@@ -4066,6 +4066,8 @@ var WA_WINDOW_MS = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
 var TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var LIVE_STALE_MS = 5 * 60 * 1e3;
+var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
 var PolicyLimitsSchema = external_exports.object({
   max_replies_day: external_exports.number().int().min(1).max(200).optional(),
@@ -4279,9 +4281,6 @@ var DAY_MS2 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS2;
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var LIVE_STALE_MS = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;
 
 // src/repositories/ingest.ts
 async function ingestInbound(db, p) {
@@ -4496,7 +4495,11 @@ async function ingestCall(db, tenantId, n, raw) {
     p_summary: n.summary,
     p_transcript: n.transcript,
     p_transcript_obj: n.transcriptObject ?? null,
-    p_recording: n.recordingUrl ? { provider_url: n.recordingUrl, fetch_state: "pending" } : null,
+    // The provider URL is NOT written to the row: calls is in the realtime
+    // publication, so every column reaches every member's browser, and the
+    // REST layer's care in stripping it was being undone one layer down. A
+    // retry asks the provider for a fresh URL by call id.
+    p_recording: n.recordingUrl ? { fetch_state: "pending" } : null,
     p_public_log_url: n.publicLogUrl,
     p_cost: n.cost ?? null,
     p_latency: n.latency ?? null,
@@ -4528,11 +4531,19 @@ async function recordCallNote(db, p) {
     status: "received"
   }).select("id").single();
   if (error) {
-    if (error.code === "23505") return null;
+    if (error.code === "23505") {
+      const { data: prior } = await db.from("messages").select("id").eq("tenant_id", p.tenantId).eq("external_id", p.externalId).maybeSingle();
+      return prior?.id ?? null;
+    }
     console.error("record_call_note_failed", error.message);
     return null;
   }
   return data.id;
+}
+async function claimCallNotification(db, tenantId, callId) {
+  const { data, error } = await db.from("calls").update({ notified_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", callId).eq("tenant_id", tenantId).is("notified_at", null).select("id");
+  if (error) throw new Error(`claim_call_notification: ${error.message}`);
+  return (data?.length ?? 0) > 0;
 }
 
 // src/repositories/thread.ts
@@ -4703,7 +4714,7 @@ function subscribeMessagesInserts(client, onInsert, opts = {}) {
           table: w.table,
           ...opts.tenantId ? { filter: `tenant_id=eq.${opts.tenantId}` } : {}
         },
-        (payload) => onInsert(payload.new ?? payload.old ?? {})
+        (payload) => onInsert(payload.new ?? payload.old ?? {}, w.table)
       );
     }
     channel = channel.subscribe((status) => {
@@ -4719,6 +4730,7 @@ function subscribeMessagesInserts(client, onInsert, opts = {}) {
 export {
   HISTORY_COLUMNS,
   assembleHistory,
+  claimCallNotification,
   countSentToday,
   createServiceClient,
   describeLead,

@@ -35,6 +35,7 @@ import {
   ingestCall,
   recordCallNote,
   linkCallMessage,
+  claimCallNotification,
   emitEvent,
 } from "../lib/workspace/db.js";
 import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "../lib/call-recording.js";
@@ -65,6 +66,9 @@ export async function POST(request: Request): Promise<Response> {
 
   const n = normalizeCall(call);
   const db = pg();
+  // null = no control plane to ask; true = this delivery owns the post-call
+  // side effects; false = a retry or replay, they already went out.
+  let notifyClaim: boolean | null = null;
 
   // ---- canonical calls row (additive; never breaks the legacy path) ----
   if (db && n.agentId) {
@@ -82,8 +86,13 @@ export async function POST(request: Request): Promise<Response> {
           console.log("retell_event_stale", event, n.retellCallId);
         }
 
-        // the call belongs in the customer's one thread, not a silo
-        if (res.conversation_id && (event === "call_analyzed" || n.status === "ended")) {
+        // The call belongs in the customer's one thread, not a silo — written
+        // once the SUMMARY exists. Message bodies are immutable (P3), and a
+        // note written on call_ended read "No summary available." forever:
+        // in the thread, in the WhatsApp bot's memory, and read aloud as the
+        // caller's context on their next call. A call the provider never
+        // analyses gets its line from the reconcile sweep instead.
+        if (res.conversation_id && (event === "call_analyzed" || n.summary !== null || n.inVoicemail === true)) {
           const msgId = await recordCallNote(db, {
             tenantId: routed.tenantId,
             conversationId: res.conversation_id,
@@ -95,11 +104,18 @@ export async function POST(request: Request): Promise<Response> {
           if (msgId) await linkCallMessage(db, routed.tenantId, res.call_id, msgId);
         }
 
+        // The email and the memory note below happen ONCE per call. Retell
+        // retries a slow delivery and replays inside the signature window; the
+        // claim is what makes the second delivery a no-op.
+        if (event === "call_analyzed") {
+          notifyClaim = await claimCallNotification(db, routed.tenantId, res.call_id);
+        }
+
         // Retell serves recordings from an UNSIGNED public CDN URL — copy the
         // audio into the private bucket so a customer's call isn't one guessed
         // link away, and so it survives provider retention. On a short budget:
-        // this handler has Retell's 10 s delivery timeout over its head, and a
-        // copy that does not finish is retried by the reconcile sweep.
+        // this handler has the agent's 20 s delivery timeout over its head, and
+        // a copy that does not finish is retried by the reconcile sweep.
         if (
           n.recordingUrl &&
           res.recording_state !== "stored" && res.recording_state !== "failed" &&
@@ -115,11 +131,22 @@ export async function POST(request: Request): Promise<Response> {
         }
       }
     } catch (e) {
+      // A non-2xx is the only thing that earns a retry. Swallowing this with
+      // a 200 forfeited the three deliveries Retell offers, and an ended call
+      // whose analysis failed to land read "No summary" forever — while the
+      // email below still went out. The side effects are idempotent now (the
+      // notification claim), so a retry is safe.
       console.error("ingest_call_failed", e instanceof Error ? e.message : e);
+      return json(500, { ok: false, error: "ingest_failed" });
     }
   }
 
   if (event === "call_analyzed") {
+    if (notifyClaim === false) {
+      // A retry or a replay: the row says this call's email and note went out.
+      console.log("retell_analyzed_duplicate", n.retellCallId);
+      return json(200, { ok: true, duplicate: true });
+    }
     const from = (call.from_number || "").replace(/^\+/, "");
     const summary = n.summary || "(no summary)";
     const sentiment = n.sentiment || "n/a";

@@ -107,7 +107,7 @@ export async function GET(request: Request): Promise<Response> {
 
         if (withRecordings && nn.recordingUrl && res.recording_state !== "stored") {
           const got = await fetchRecording(nn.recordingUrl);
-          if (got) {
+          if (got.ok) {
             const ext = REC_EXT[got.mime || ""] || "wav";
             const path = `${tenant.id}/calls/${res.call_id}.${ext}`;
             const { error } = await db.storage.from("media").upload(path, got.bytes, {
@@ -116,7 +116,7 @@ export async function GET(request: Request): Promise<Response> {
             });
             if (!error) {
               await setCallRecording(db, tenant.id, res.call_id, {
-                provider_url: nn.recordingUrl, storage_path: path,
+                storage_path: path,
                 fetch_state: "stored", mime: got.mime, bytes: got.bytes.byteLength,
               });
               row.recording = "stored";

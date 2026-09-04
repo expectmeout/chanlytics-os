@@ -75,9 +75,11 @@ export async function ingestCall(
     p_summary: n.summary,
     p_transcript: n.transcript,
     p_transcript_obj: (n.transcriptObject ?? null) as Json,
-    p_recording: (n.recordingUrl
-      ? { provider_url: n.recordingUrl, fetch_state: "pending" }
-      : null) as Json,
+    // The provider URL is NOT written to the row: calls is in the realtime
+    // publication, so every column reaches every member's browser, and the
+    // REST layer's care in stripping it was being undone one layer down. A
+    // retry asks the provider for a fresh URL by call id.
+    p_recording: (n.recordingUrl ? { fetch_state: "pending" } : null) as Json,
     p_public_log_url: n.publicLogUrl,
     p_cost: (n.cost ?? null) as Json,
     p_latency: (n.latency ?? null) as Json,
@@ -147,9 +149,37 @@ export async function recordCallNote(
     .select("id")
     .single();
   if (error) {
-    if (error.code === "23505") return null; // already noted
+    if (error.code === "23505") {
+      // Already noted. Message bodies are immutable (P3), so the existing
+      // line stands; hand back its id so the call row can still be linked
+      // to it (a backfilled call whose link was dropped converges here).
+      const { data: prior } = await db
+        .from("messages")
+        .select("id")
+        .eq("tenant_id", p.tenantId)
+        .eq("external_id", p.externalId)
+        .maybeSingle();
+      return prior?.id ?? null;
+    }
     console.error("record_call_note_failed", error.message);
     return null;
   }
   return data.id;
+}
+
+/**
+ * Claim the one-time post-call side effects (the summary email, the memory
+ * note). True for the first caller; false once claimed. Throws on a database
+ * error so the webhook answers non-2xx and the provider retries.
+ */
+export async function claimCallNotification(db: Db, tenantId: string, callId: string): Promise<boolean> {
+  const { data, error } = await db
+    .from("calls")
+    .update({ notified_at: new Date().toISOString() })
+    .eq("id", callId)
+    .eq("tenant_id", tenantId)
+    .is("notified_at", null)
+    .select("id");
+  if (error) throw new Error(`claim_call_notification: ${error.message}`);
+  return (data?.length ?? 0) > 0;
 }
