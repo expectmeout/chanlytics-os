@@ -291,3 +291,6 @@
 .rp2-table th { text-align: left; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-dim); padding: 6px 8px; border-bottom: 1px solid var(--line-strong); white-space: nowrap; }
 .rp2-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); color: var(--ink-muted); }
 .rp2-table td.num { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+
+/* a period that did not load: say so under the control */
+.rp2-range-failed { font-size: 12px; color: var(--warn); margin-top: 6px; }
