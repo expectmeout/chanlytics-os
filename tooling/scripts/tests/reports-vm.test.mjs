@@ -87,7 +87,7 @@ test("reply time: median and slowest tenth from the raw seconds, bucketed on fix
 
 test("escalation reasons are labelled in the owner's words, largest first", () => {
   const vm = toReportVM(dto());
-  assert.deepEqual(vm.reasons.map((r) => [r.label, r.value, r.share]), [["Asked for a person", 2, 1], ["Needs your approval", 1, 0.5]]);
+  assert.deepEqual(vm.reasons.map((r) => [r.label, r.value, r.share]), [["Asked for a person", 2, 1], ["Held by your reply setting", 1, 0.5]]);
 });
 
 test("an empty period says so instead of drawing zero-height bars as if they meant something", () => {

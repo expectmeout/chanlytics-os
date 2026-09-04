@@ -27,7 +27,8 @@
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { loadTenantRuntime, waCfgFor } from "../lib/tenant-runtime.js";
-import { resolveChannel, resolveOutboundTarget, recordOutbound, countSentToday } from "../lib/workspace/db.js";
+import { effectiveReplyMode } from "../lib/reply-posture.js";
+import { resolveChannel, resolveOutboundTarget, recordOutbound, countSentToday, personReplyMode } from "../lib/workspace/db.js";
 import { isOptedOutContact, normalizePhone } from "../lib/workspace/contracts.js";
 import { sendTemplate } from "../lib/workspace/channels.js";
 import { outboundGate, refusalScript } from "../lib/outbound-gate.js";
@@ -123,6 +124,17 @@ export async function POST(request: Request): Promise<Response> {
       });
     }
 
+    // The person's own receptionist mode wins here too. A caller the owner
+    // has set to Never is someone the receptionist stays away from — on
+    // WhatsApp, and when they phone and ask for a text. Looked up per call,
+    // never cached; a failed lookup keeps the workspace mode.
+    const workspaceMode = rt.policy?.reply?.mode ?? "ask";
+    const personMode = await personReplyMode(db, routed.tenantId, contact.contactId).catch((e: unknown) => {
+      console.error("retell_fn_person_mode_failed", e instanceof Error ? e.message : e);
+      return null;
+    });
+    const replyMode = effectiveReplyMode({ drFallback: false, replyMode: workspaceMode }, personMode);
+
     // Every gate the conversational receptionist obeys, in one decision.
     //
     // This path used to check consent and stop. So a booking link would land in
@@ -133,7 +145,7 @@ export async function POST(request: Request): Promise<Response> {
     const gate = outboundGate({
       optedOut: isOptedOutContact(contact),
       pausedUntilMs: contact.pausedUntil ? new Date(contact.pausedUntil).getTime() : null,
-      replyMode: rt.policy?.reply?.mode ?? "ask",
+      replyMode,
       sentToday: await countSentToday(db, {
         tenantId: routed.tenantId,
         conversationId: contact.conversationId,
@@ -144,7 +156,7 @@ export async function POST(request: Request): Promise<Response> {
     });
 
     if (!gate.allowed) {
-      log("retell_fn_refused", { tenant: routed.tenantId, reason: gate.refusal });
+      log("retell_fn_refused", { tenant: routed.tenantId, reason: gate.refusal, mode: replyMode, person_mode: personMode });
       // The caller is on the line, so the agent is told what to SAY — never
       // that a colleague is mid-thread with them, or what our policy is.
       return json(200, { result: refusalScript(gate.refusal!, brain.phone_display) });

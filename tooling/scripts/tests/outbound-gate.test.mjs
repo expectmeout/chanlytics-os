@@ -63,7 +63,7 @@ test("an EXPIRED pause does not block — the human is done", () => {
 test("REGRESSION: 'ask' mode silences this sender too", () => {
   // A send triggered from a phone call is no less automatic for having been
   // requested out loud. The workspace turned automation off.
-  for (const mode of ["ask", "off", "veto", ""]) {
+  for (const mode of ["ask", "off", "never", ""]) {
     assert.equal(gate({ replyMode: mode }).refusal, "policy_hold", `mode ${mode}`);
   }
 });
@@ -101,4 +101,13 @@ test("every refusal offers the caller a way forward", () => {
       `${r} must name an alternative — the caller is waiting on the line`,
     );
   }
+});
+
+test("veto is not off: the booking link a caller just asked for goes out", () => {
+  // Veto holds a reply the receptionist COMPOSED so a person can redirect it.
+  // A template the caller requested has nothing to redirect, and refusing it
+  // silently punished the workspaces that chose the middle setting.
+  assert.equal(gate({ replyMode: "veto" }).allowed, true);
+  assert.equal(gate({ replyMode: "auto" }).allowed, true);
+  assert.equal(gate({ replyMode: "never" }).refusal, "policy_hold", "a person set to Never is still refused");
 });

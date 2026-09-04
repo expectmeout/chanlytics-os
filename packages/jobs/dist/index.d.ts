@@ -47,7 +47,12 @@ interface ClaimedJob {
     kind: string;
     payload: Record<string, unknown>;
 }
-declare function upsertEscalation(db: SupabaseClient<Database>, tenantId: string, conversationId: string, reason: string, details: string): Promise<void>;
+/** How an escalation landed: a new open row, a refresh of the one already
+ *  open on that thread, or nothing (the insert failed for another reason).
+ *  Callers that alert a human use it to alert once per hold, not once per
+ *  message. */
+type EscalationOutcome = "opened" | "refreshed" | "failed";
+declare function upsertEscalation(db: SupabaseClient<Database>, tenantId: string, conversationId: string, reason: string, details: string): Promise<EscalationOutcome>;
 declare function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind">;
 
-export { type ClaimedJob, FIRE_URL, type JobContext, type ScheduleParams, cancelJob, cancelJobsFor, dispatchJob, scheduleJob, upsertEscalation };
+export { type ClaimedJob, type EscalationOutcome, FIRE_URL, type JobContext, type ScheduleParams, cancelJob, cancelJobsFor, dispatchJob, scheduleJob, upsertEscalation };

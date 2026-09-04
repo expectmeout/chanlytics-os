@@ -763,7 +763,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
             {rmPerson
               ? (rmPerson === "auto" ? "Answers this person automatically — set for them alone."
                 : rmPerson === "ask" ? "Every message from this person waits for you before anything is sent."
-                : "The receptionist stays out of it — their messages come straight to you.")
+                : "The receptionist stays out of their WhatsApp thread — their messages come straight to you, and it won't text them after a call. It still answers the phone.")
               : `Following the workspace setting${p.receptionistMode.workspace ? ` (${RM_LABEL[p.receptionistMode.workspace]})` : ""}.`}
             {!isOwner && " Only an owner can change this."}
           </div>
