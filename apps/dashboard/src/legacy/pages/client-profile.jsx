@@ -568,6 +568,10 @@ const PersonProfileFrame = ({ onBack, children }) => (
 
 const ClientProfileReal = ({ id, onBack = () => {} }) => {
   const [st, setSt] = useStateP({ loading: true, vm: null, missing: false, error: null });
+  const [toastNode, ppFlash] = window.usePPToast();
+  // "Delete this person" is a typed-name confirmation, not a click: it erases
+  // messages, media and recordings and cannot be undone.
+  const [del, setDel] = useStateP({ open: false, typed: "", busy: false, error: null });
   const load = React.useCallback(() => {
     if (!window.__personDetail) return;
     setSt((s) => ({ ...s, loading: !s.vm, error: null }));
@@ -598,6 +602,23 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
 
   const p = vm;
   const tone = p.rightNow.tone;
+  const isOwner = !!(window.__ME && window.__ME.role === "owner");
+  const digitsOf = (x) => String(x || "").replace(/\D/g, "");
+  const typedMatches =
+    del.typed.trim() === p.name ||
+    (!!p.phone && digitsOf(del.typed).length >= 7 && digitsOf(del.typed) === digitsOf(p.phone));
+  const closeDelete = () => setDel({ open: false, typed: "", busy: false, error: null });
+  const confirmDelete = async () => {
+    if (!window.__deletePerson || !typedMatches) return;
+    setDel((d) => ({ ...d, busy: true, error: null }));
+    const r = await window.__deletePerson(p.id);
+    if (!r.ok) {
+      setDel((d) => ({ ...d, busy: false, error: r.message || "Could not delete this person." }));
+      return;
+    }
+    ppFlash({ msg: <><b>{p.name}</b> deleted — their messages, media and recordings are gone</> });
+    onBack();
+  };
   // Nobody is called "+1": a person known only by number is "them" in copy
   // and their full number where a speaker is named.
   const phoneOnly = /^[+\d(]/.test(p.name);
@@ -705,7 +726,40 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
           </div>
         </div>
         {/* Per-person receptionist mode ships with its enforcer in the edge runtime (PR 3). */}
+        {isOwner && (
+          <div className="cl-prof-rail-section">
+            <div className="cl-prof-rail-label">Danger</div>
+            {!del.open ? (
+              <button className="btn btn-sm" style={{ color: "var(--danger)" }} onClick={() => setDel({ open: true, typed: "", busy: false, error: null })}>
+                Delete this person…
+              </button>
+            ) : (
+              <div data-testid="delete-confirm">
+                <div className="cl-prof-aut-hint" style={{ marginBottom: 8 }}>
+                  Removes their messages, media and recordings from Chanlytics and stops any reply still queued. This cannot be undone. Type <b>{p.name}</b> to confirm.
+                </div>
+                <div className="cl-search-wrap" style={{ marginBottom: 8 }}>
+                  <input
+                    value={del.typed}
+                    onChange={(e) => setDel((d) => ({ ...d, typed: e.target.value }))}
+                    placeholder={p.name}
+                    aria-label="Type the name to confirm"
+                    autoFocus
+                  />
+                </div>
+                {del.error && <div className="cl-prof-aut-hint" style={{ color: "var(--danger)", marginBottom: 8 }}>{del.error}</div>}
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button className="btn btn-sm" style={{ color: "var(--danger)", borderColor: "var(--danger)" }} disabled={del.busy || !typedMatches} onClick={confirmDelete}>
+                    {del.busy ? "Deleting…" : "Delete"}
+                  </button>
+                  <button className="btn btn-ghost btn-sm" disabled={del.busy} onClick={closeDelete}>Cancel</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+      {toastNode}
     </div>
   );
 };
