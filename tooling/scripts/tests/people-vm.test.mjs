@@ -296,3 +296,14 @@ test("the view model never carries a number the schema does not hold", () => {
   for (const k of Object.keys(vm)) assert.ok(!banned.test(k), `field ${k}`);
   for (const f of vm.facts) assert.ok(!banned.test(f.label), f.label);
 });
+
+test("a person known only by number is never called \"+1\": the speaker label is the whole number", () => {
+  const d = detail({ row: row({ display_name: null, wa_profile_name: null }) });
+  d.conversations[0].contact.display_name = null;
+  d.conversations[0].contact.wa_profile_name = null;
+  const vm = toPersonVM(d, NOW);
+  const customer = vm.timeline.find((i) => i.kind === "customer");
+  assert.notEqual(customer.who, "+1");
+  assert.equal(customer.who, vm.name);
+  assert.match(vm.name, /81$/);
+});

@@ -46,12 +46,13 @@ test.describe("People on a real workspace", () => {
     await expect(page.locator(".stabs")).toHaveCount(0);
 
     // The table's columns are the measured ones.
+    // innerText follows the CSS text-transform, so compare case-insensitively.
     const headers = await page.locator(".cl-table thead th").allInnerTexts();
-    expect(headers.map((h) => h.replace(/[▲▼]/g, "").trim())).toEqual(["Client", "State", "Last contact", "Receptionist", "First contact"]);
+    expect(headers.map((h) => h.replace(/[▲▼]/g, "").trim().toLowerCase())).toEqual(["client", "state", "last contact", "receptionist", "first contact"]);
 
     // Every state pill is one of the six.
     const pills = await page.locator(".cl-row-bucket-pill").allInnerTexts();
-    for (const p of pills) expect(["Needs you", "Waiting on you", "Opted out", "New", "Quiet", "Active"]).toContain(p.trim());
+    for (const p of pills) expect(["needs you", "waiting on you", "opted out", "new", "quiet", "active"]).toContain(p.trim().toLowerCase());
 
     // The header counts are integers, and "People" equals the rows shown when nothing is filtered.
     const shown = await page.locator(".cl-table tbody tr:not(:has(.cl-table-empty))").count();
@@ -75,7 +76,7 @@ test.describe("People on a real workspace", () => {
     await expect(page.locator(".cl-prof-section-title", { hasText: "Timeline" })).toBeVisible();
 
     const facts = await page.locator(".cl-prof-money .stat-cell-label").allInnerTexts();
-    expect(facts.map((f) => f.trim())).toEqual(["First contact", "Last contact", "Conversations", "Calls", "Consent", "Receptionist"]);
+    expect(facts.map((f) => f.trim().toLowerCase())).toEqual(["first contact", "last contact", "conversations", "calls", "consent", "receptionist"]);
 
     // Back returns to the list, not to a "client not found" page.
     await page.locator(".cl-prof-back").click();
