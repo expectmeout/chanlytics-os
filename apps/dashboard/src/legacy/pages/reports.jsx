@@ -471,7 +471,7 @@ const RpStacked = ({ points, max, days }) => {
                 ? <path key={r.k} d={rpTopRound(x, r.top, bw, r.h, 4)} className={`rp2-seg ${r.k}`} />
                 : <rect key={r.k} x={x} y={r.top} width={bw} height={r.h} className={`rp2-seg ${r.k}`} />))}
               {i % every === 0 && <text x={L + i * slot + slot / 2} y={H - 8} className="rp2-tick" textAnchor="middle">{p.label}</text>}
-              <rect x={L + i * slot} y={T} width={slot} height={ph} className="rp2-hit" tabIndex={0}
+              <rect x={L + i * slot} y={T} width={slot} height={ph} className="rp2-hit"
                 onMouseEnter={() => setTip({ i, p })} onFocus={() => setTip({ i, p })}
                 onMouseLeave={() => setTip(null)} onBlur={() => setTip(null)} />
             </g>
@@ -518,7 +518,7 @@ const RpColumns = ({ points, field, max, days, label }) => {
             <g key={p.day} className={tip && tip.i === i ? "rp2-col hot" : "rp2-col"}>
               {v > 0 && <path d={rpTopRound(x, y(0) - h, bw, h, 4)} className="rp2-seg ai" />}
               {i % every === 0 && <text x={L + i * slot + slot / 2} y={H - 6} className="rp2-tick" textAnchor="middle">{i === 0 || days <= 7 ? p.label : p.short}</text>}
-              <rect x={L + i * slot} y={T} width={slot} height={ph} className="rp2-hit" tabIndex={0}
+              <rect x={L + i * slot} y={T} width={slot} height={ph} className="rp2-hit"
                 onMouseEnter={() => setTip({ i, p, v })} onFocus={() => setTip({ i, p, v })}
                 onMouseLeave={() => setTip(null)} onBlur={() => setTip(null)} />
             </g>
@@ -577,27 +577,40 @@ const RP2_RANGES = [[7, "7 days"], [30, "30 days"], [90, "90 days"]];
 const ReportsReal = () => {
   const R = useReports();
   const [busy, setBusy] = useRpState(false);
+  // The period that failed to load, if any: the page keeps the old one and
+  // says so, instead of dimming forever and switching later on its own.
+  const [failed, setFailed] = useRpState(null);
   const fetchedAt = R ? R.fetchedAt : 0;
   React.useEffect(() => { setBusy(false); }, [fetchedAt]);
   if (!R) return null;
   const vm = R.vm;
-  const pick = (days) => {
+  const pick = async (days) => {
     if (days === R.days || !window.__setReportDays) return;
     setBusy(true);
-    window.__setReportDays(days);
+    setFailed(null);
+    const ok = await window.__setReportDays(days);
+    if (!ok) {
+      setBusy(false);
+      setFailed(days);
+    }
   };
   return (
     <div className="reports" data-testid="reports-real">
       <div className="cl-head">
         <div className="cl-head-titles">
           <div className="cl-page-title">Reports</div>
-          <div className="cl-page-sub">What the receptionist handled, day by day · {vm.since} – {vm.until} · {vm.timezone}</div>
+          <div className="cl-page-sub" title={`Days follow ${vm.timezone}`}>What the receptionist handled, day by day · {vm.since} – {vm.until}</div>
         </div>
         <div className="rp2-range cl-tabs" role="group" aria-label="Period">
           {RP2_RANGES.map(([d, l]) => (
             <button key={d} className={`cl-tab ${R.days === d ? "active" : ""}`} aria-pressed={R.days === d} onClick={() => pick(d)}>{l}</button>
           ))}
         </div>
+        {failed && (
+          <div className="rp2-range-failed" role="status">
+            Couldn't load {(RP2_RANGES.find(([d]) => d === failed) || [])[1]} — still showing {(RP2_RANGES.find(([d]) => d === R.days) || [])[1]}.
+          </div>
+        )}
       </div>
 
       <div className={`rp-body rp2-body ${busy ? "rp2-loading" : ""}`} aria-busy={busy ? "true" : "false"}>
@@ -624,7 +637,9 @@ const ReportsReal = () => {
             <div className="rp2-row">
               <RpCard title="Why the receptionist stopped" sub={vm.reasons.length ? `${vm.tiles[3].value} times` : ""} testid="chart-reasons"
                 table={{ columns: ["Reason", "Times"], rows: vm.reasons.map((r) => [r.label, r.value]) }}>
-                <RpBars rows={vm.reasons} empty="It never stopped in this period — every message was answered without you." />
+                <RpBars rows={vm.reasons} empty={vm.answered.totals.you === 0 && vm.answered.totals.none === 0
+                  ? "It never stopped in this period — every message was answered without you."
+                  : "It never stopped in this period, though some messages were answered by you or by nobody — see above."} />
               </RpCard>
               <RpCard title="How fast it answers" sub="from a customer's message to the receptionist's reply" testid="chart-reply"
                 table={{ columns: ["Reply time", "Replies"], rows: vm.replyTime.buckets.map((b) => [b.label, b.value]) }}>

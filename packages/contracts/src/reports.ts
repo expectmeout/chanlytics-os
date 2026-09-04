@@ -143,6 +143,18 @@ export function deltaOf(current: number, previous: number, upIsGood: boolean, no
   return { text: `${up ? "+" : ""}${pct}% vs prior ${noun}`, tone: up === upIsGood ? "pos" : "neg" };
 }
 
+/**
+ * A share against the prior period's share, in percentage points — never a
+ * percentage of a percentage, and null when either period has nothing to
+ * take a share of.
+ */
+export function pointsDelta(current: number | null, previous: number | null, noun: string): ReportTileVM["delta"] {
+  if (current === null || previous === null) return null;
+  const pts = current - previous;
+  if (pts === 0) return { text: `same share as the prior ${noun}`, tone: "" };
+  return { text: `${pts > 0 ? "+" : ""}${pts} pts vs prior ${noun}`, tone: pts > 0 ? "pos" : "neg" };
+}
+
 const REPLY_BUCKETS: { id: string; label: string; max: number }[] = [
   { id: "lt15", label: "under 15s", max: 15 },
   { id: "lt60", label: "15s – 1m", max: 60 },
@@ -191,6 +203,8 @@ export function toReportVM(dto: ReportDto): ReportVM {
   const prev = {
     in: sum(previous.map((d) => d.messages_in)),
     ai: sum(previous.map((d) => d.answered_ai)),
+    you: sum(previous.map((d) => d.answered_you)),
+    none: sum(previous.map((d) => d.unanswered)),
     escalations: sum(previous.map((d) => d.escalations)),
     calls: sum(previous.map((d) => d.calls)),
     newPeople: sum(previous.map((d) => d.new_contacts)),
@@ -198,6 +212,8 @@ export function toReportVM(dto: ReportDto): ReportVM {
   const noun = `${days} days`;
   const answeredTotal = tot.ai + tot.you + tot.none;
   const aiShare = answeredTotal ? Math.round((tot.ai / answeredTotal) * 100) : null;
+  const prevAnsweredTotal = prev.ai + prev.you + prev.none;
+  const prevShare = prevAnsweredTotal ? Math.round((prev.ai / prevAnsweredTotal) * 100) : null;
 
   const sortedReply = [...(dto.reply_seconds ?? [])].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
   const median = quantile(sortedReply, 0.5);
@@ -212,7 +228,7 @@ export function toReportVM(dto: ReportDto): ReportVM {
       id: "messages",
       label: "Customer messages",
       value: String(tot.in),
-      meta: tot.in ? `${sum(current.map((d) => d.conversations))} conversation-days` : "none in this period",
+      meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${days} days` : "none in this period",
       delta: deltaOf(tot.in, prev.in, true, noun),
       spark: points.map((p) => p.in),
     },
@@ -221,7 +237,9 @@ export function toReportVM(dto: ReportDto): ReportVM {
       label: "Answered by the receptionist",
       value: aiShare === null ? "—" : `${aiShare}%`,
       meta: answeredTotal ? `${tot.ai} of ${answeredTotal} · ${tot.you} by you · ${tot.none} unanswered` : "nothing to answer",
-      delta: deltaOf(tot.ai, prev.ai, true, noun),
+      // A share compares in POINTS. Against counts, the share could fall from
+      // 100% to 60% while the delta read +20% in green.
+      delta: pointsDelta(aiShare, prevShare, noun),
       spark: points.map((p) => p.ai),
     },
     {

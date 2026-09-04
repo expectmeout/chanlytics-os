@@ -702,8 +702,11 @@ function tzDayAndTime(iso, tz, now) {
   if (!iso) return null;
   const t = tzTime(iso, tz);
   if (!t) return null;
-  const days = Math.floor((now.getTime() - new Date(iso).getTime()) / 864e5);
+  const key = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const toUtc = (k) => Date.UTC(Number(k.slice(0, 4)), Number(k.slice(5, 7)) - 1, Number(k.slice(8, 10)));
+  const days = Math.round((toUtc(key(now)) - toUtc(key(new Date(iso)))) / 864e5);
   if (days < 1) return t;
+  if (days === 1) return `yesterday at ${t}`;
   try {
     const d = new Date(iso);
     if (days < 7) {
@@ -799,7 +802,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     ) : null;
     const names = m.channels.map((c) => CHANNEL_LABEL[c.kind] ?? c.kind).join(" and ");
     const plural2 = m.channels.length > 1 ? "are" : "is";
-    const sub = lastIn ? `${names} ${plural2} connected. The last message arrived ${lastIn}${gap !== null && gap > 0 && gap < 3600 ? `, and the receptionist answered ${secondsPhrase(gap)} later.` : "."}` : `${names} ${plural2} connected. No messages have arrived yet.`;
+    const sub = m.channels.length === 0 ? "No phone line or WhatsApp number is connected yet, so nothing can come in." : lastIn ? `${names} ${plural2} connected. The last message arrived ${lastIn}${gap !== null && gap > 0 && gap < 3600 ? `, and the receptionist answered ${secondsPhrase(gap)} later.` : "."}` : `${names} ${plural2} connected. No messages have arrived yet.`;
     return {
       standing: {
         eyebrow: `${datePart} \xB7 ${clock} \xB7 ${m.workspace.name}`,
@@ -821,9 +824,11 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
         headline: "Nothing has come in yet today.",
         sub,
         proof: [
+          ...m.channels.length === 0 ? [{ label: "Channels", value: "none connected yet" }] : [],
           ...m.channels.map((c) => ({
             label: CHANNEL_LABEL[c.kind] ?? c.kind,
-            value: `${c.number ?? "connected"} \xB7 ${c.status}`
+            // "on" / "off" in the owner's words, never the column's value.
+            value: `${c.number ?? "connected"} \xB7 ${c.status === "active" ? "on" : "off"}`
           })),
           { label: "Checked", value: "just now" }
         ],
@@ -858,7 +863,8 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       );
     }
     if (p.calls) bits.push(`${p.calls} call${p.calls === 1 ? "" : "s"}`);
-    headline = bits.length ? `The receptionist handled everything \u2014 ${bits.join(" and ")} today. Nothing needs you.` : "Nothing needs you.";
+    const allByReceptionist = p.unanswered_in_window === 0 && p.messages_out_you === 0;
+    headline = bits.length ? allByReceptionist ? `The receptionist handled everything \u2014 ${bits.join(" and ")} today. Nothing needs you.` : `${bits.join(" and ")} today. Nothing needs you right now.` : "Nothing needs you.";
     if (p.median_reply_seconds_ai !== null && p.messages_in > 0) {
       detail = `It answered ${p.answered_by_ai} of the ${p.messages_in} on its own, typically in about ${secondsPhrase(
         p.median_reply_seconds_ai
@@ -924,7 +930,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       count: live.escalations_open,
       hint: "The receptionist stopped and asked for a human.",
       rows: needsRows,
-      empty: needsRows.length ? null : "Nothing is waiting on you. The receptionist answered every message that came in, and nobody asked for a person."
+      empty: needsRows.length ? null : p.unanswered_in_window === 0 && p.messages_out_you === 0 ? "Nothing is waiting on you. The receptionist answered every message that came in, and nobody asked for a person." : "Nothing is waiting on you right now \u2014 nobody asked for a person."
     },
     windowClosing: closingRows.length ? {
       label: "Reply window closing",
@@ -1887,6 +1893,12 @@ function deltaOf(current, previous, upIsGood, noun) {
   const up = pct > 0;
   return { text: `${up ? "+" : ""}${pct}% vs prior ${noun}`, tone: up === upIsGood ? "pos" : "neg" };
 }
+function pointsDelta(current, previous, noun) {
+  if (current === null || previous === null) return null;
+  const pts = current - previous;
+  if (pts === 0) return { text: `same share as the prior ${noun}`, tone: "" };
+  return { text: `${pts > 0 ? "+" : ""}${pts} pts vs prior ${noun}`, tone: pts > 0 ? "pos" : "neg" };
+}
 var REPLY_BUCKETS = [
   { id: "lt15", label: "under 15s", max: 15 },
   { id: "lt60", label: "15s \u2013 1m", max: 60 },
@@ -1931,6 +1943,8 @@ function toReportVM(dto) {
   const prev = {
     in: sum(previous.map((d) => d.messages_in)),
     ai: sum(previous.map((d) => d.answered_ai)),
+    you: sum(previous.map((d) => d.answered_you)),
+    none: sum(previous.map((d) => d.unanswered)),
     escalations: sum(previous.map((d) => d.escalations)),
     calls: sum(previous.map((d) => d.calls)),
     newPeople: sum(previous.map((d) => d.new_contacts))
@@ -1938,6 +1952,8 @@ function toReportVM(dto) {
   const noun = `${days} days`;
   const answeredTotal = tot.ai + tot.you + tot.none;
   const aiShare = answeredTotal ? Math.round(tot.ai / answeredTotal * 100) : null;
+  const prevAnsweredTotal = prev.ai + prev.you + prev.none;
+  const prevShare = prevAnsweredTotal ? Math.round(prev.ai / prevAnsweredTotal * 100) : null;
   const sortedReply = [...dto.reply_seconds ?? []].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
   const median = quantile(sortedReply, 0.5);
   const p90 = quantile(sortedReply, 0.9);
@@ -1950,7 +1966,7 @@ function toReportVM(dto) {
       id: "messages",
       label: "Customer messages",
       value: String(tot.in),
-      meta: tot.in ? `${sum(current.map((d) => d.conversations))} conversation-days` : "none in this period",
+      meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${days} days` : "none in this period",
       delta: deltaOf(tot.in, prev.in, true, noun),
       spark: points.map((p) => p.in)
     },
@@ -1959,7 +1975,9 @@ function toReportVM(dto) {
       label: "Answered by the receptionist",
       value: aiShare === null ? "\u2014" : `${aiShare}%`,
       meta: answeredTotal ? `${tot.ai} of ${answeredTotal} \xB7 ${tot.you} by you \xB7 ${tot.none} unanswered` : "nothing to answer",
-      delta: deltaOf(tot.ai, prev.ai, true, noun),
+      // A share compares in POINTS. Against counts, the share could fall from
+      // 100% to 60% while the delta read +20% in green.
+      delta: pointsDelta(aiShare, prevShare, noun),
       spark: points.map((p) => p.ai)
     },
     {
@@ -2125,6 +2143,7 @@ export {
   peopleAggregates,
   personName,
   personStateFor,
+  pointsDelta,
   quantile,
   reachedCustomer,
   reasonShort,

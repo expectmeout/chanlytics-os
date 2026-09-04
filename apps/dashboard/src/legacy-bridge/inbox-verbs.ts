@@ -316,7 +316,7 @@ export async function refreshSettings(): Promise<void> {
 
 declare global {
   interface Window {
-    __setReportDays?: (days: number) => Promise<void>;
+    __setReportDays?: (days: number) => Promise<boolean>;
     __setPolicy?: (cls: string, mode: string, replyDelayMs?: number) => Promise<VerbResult>;
     __refreshSettings?: () => Promise<void>;
     __inboxVerb: typeof inboxVerb;
@@ -357,9 +357,21 @@ export async function setPolicy(cls: string, mode: string, replyDelayMs?: number
 
 /** Reports: change the period and re-read through the runner, so the cache
  *  and the pill agree with what is on screen. */
-export async function setReportRange(days: number): Promise<void> {
+export async function setReportRange(days: number): Promise<boolean> {
+  const reports = (window as unknown as { __REPORTS?: { days?: number } }).__REPORTS;
+  const prev = reports?.days ?? days;
   setReportDays(days);
   await refreshSurfaces([reportsOverride]);
+  // The override writes the period it fetched. Anything else means the
+  // fetch failed and the page is still showing the old period — so the
+  // preferred period goes back too, or the next background refresh would
+  // load the new one silently.
+  const got = (window as unknown as { __REPORTS?: { days?: number } }).__REPORTS?.days;
+  if (got !== days) {
+    setReportDays(prev);
+    return false;
+  }
+  return true;
 }
 
 export function installInboxVerbs(): void {

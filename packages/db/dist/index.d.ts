@@ -1566,6 +1566,20 @@ type Database = {
                 };
                 Returns: undefined;
             };
+            first_replies: {
+                Args: {
+                    p_start: string;
+                    p_tenant_id: string;
+                };
+                Returns: {
+                    ai_at: string;
+                    ai_seconds: number;
+                    asked_at: string;
+                    conversation_id: string;
+                    human_at: string;
+                    who: string;
+                }[];
+            };
             get_channel_credentials: {
                 Args: {
                     p_channel_id: string;

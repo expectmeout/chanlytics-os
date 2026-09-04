@@ -147,8 +147,13 @@ function tzDayAndTime(iso: string | null, tz: string, now: Date): string | null 
   if (!iso) return null;
   const t = tzTime(iso, tz);
   if (!t) return null;
-  const days = Math.floor((now.getTime() - new Date(iso).getTime()) / 86400000);
+  // The tenant's calendar day, not a 24-hour multiple: at 8 AM, a message
+  // from 9:15 AM yesterday is "yesterday", however few hours ago it was.
+  const key = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const toUtc = (k: string) => Date.UTC(Number(k.slice(0, 4)), Number(k.slice(5, 7)) - 1, Number(k.slice(8, 10)));
+  const days = Math.round((toUtc(key(now)) - toUtc(key(new Date(iso)))) / 86400000);
   if (days < 1) return t;
+  if (days === 1) return `yesterday at ${t}`;
   try {
     const d = new Date(iso);
     if (days < 7) {
@@ -302,13 +307,17 @@ export function toTodayVM(
         : null;
     const names = m.channels.map((c) => CHANNEL_LABEL[c.kind] ?? c.kind).join(" and ");
     const plural = m.channels.length > 1 ? "are" : "is";
-    const sub = lastIn
-      ? `${names} ${plural} connected. The last message arrived ${lastIn}${
-          gap !== null && gap > 0 && gap < 3600
-            ? `, and the receptionist answered ${secondsPhrase(gap)} later.`
-            : "."
-        }`
-      : `${names} ${plural} connected. No messages have arrived yet.`;
+    // A workspace with no channel yet is a new owner's first Today — it must
+    // not read " is connected." with nothing in front of it.
+    const sub = m.channels.length === 0
+      ? "No phone line or WhatsApp number is connected yet, so nothing can come in."
+      : lastIn
+        ? `${names} ${plural} connected. The last message arrived ${lastIn}${
+            gap !== null && gap > 0 && gap < 3600
+              ? `, and the receptionist answered ${secondsPhrase(gap)} later.`
+              : "."
+          }`
+        : `${names} ${plural} connected. No messages have arrived yet.`;
     return {
       standing: {
         eyebrow: `${datePart} · ${clock} · ${m.workspace.name}`,
@@ -330,9 +339,11 @@ export function toTodayVM(
         headline: "Nothing has come in yet today.",
         sub,
         proof: [
+          ...(m.channels.length === 0 ? [{ label: "Channels", value: "none connected yet" }] : []),
           ...m.channels.map((c) => ({
             label: CHANNEL_LABEL[c.kind] ?? c.kind,
-            value: `${c.number ?? "connected"} · ${c.status}`,
+            // "on" / "off" in the owner's words, never the column's value.
+            value: `${c.number ?? "connected"} · ${c.status === "active" ? "on" : "off"}`,
           })),
           { label: "Checked", value: "just now" },
         ],
@@ -378,8 +389,13 @@ export function toTodayVM(
       );
     }
     if (p.calls) bits.push(`${p.calls} call${p.calls === 1 ? "" : "s"}`);
+    // "Handled everything" only when the receptionist did: a message you
+    // answered yourself, or one nobody answered, is not the receptionist's.
+    const allByReceptionist = p.unanswered_in_window === 0 && p.messages_out_you === 0;
     headline = bits.length
-      ? `The receptionist handled everything — ${bits.join(" and ")} today. Nothing needs you.`
+      ? allByReceptionist
+        ? `The receptionist handled everything — ${bits.join(" and ")} today. Nothing needs you.`
+        : `${bits.join(" and ")} today. Nothing needs you right now.`
       : "Nothing needs you.";
     if (p.median_reply_seconds_ai !== null && p.messages_in > 0) {
       detail = `It answered ${p.answered_by_ai} of the ${p.messages_in} on its own, typically in about ${secondsPhrase(
@@ -511,7 +527,9 @@ export function toTodayVM(
       rows: needsRows,
       empty: needsRows.length
         ? null
-        : "Nothing is waiting on you. The receptionist answered every message that came in, and nobody asked for a person.",
+        : p.unanswered_in_window === 0 && p.messages_out_you === 0
+          ? "Nothing is waiting on you. The receptionist answered every message that came in, and nobody asked for a person."
+          : "Nothing is waiting on you right now — nobody asked for a person.",
     },
     windowClosing: closingRows.length
       ? {
