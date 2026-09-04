@@ -208,7 +208,7 @@ interface ConversationVM {
     id: string;
     who: string;
     initials: string;
-    clientId: null;
+    clientId: string | null;
     channel: "whatsapp";
     agent: {
         glyph: string;
@@ -231,11 +231,13 @@ interface ConversationVM {
      *  their own rows, so a chat row with nothing to preview is pure duplication. */
     hasChat: boolean;
 }
+declare function shortTime(iso: string | null, now: Date): string;
 /** The display name for a contact, without building a whole thread viewmodel
  *  to read one field (Today was doing exactly that per open escalation). */
 declare function contactName(dto: ConversationDto): string;
 /** The "WhatsApp · +1 …" subtitle line, same source as the thread viewmodel. */
 declare function contactMeta(dto: ConversationDto): string;
+declare function initialsOf(name: string): string;
 /**
  * A reply the receptionist has WRITTEN but not sent — it is sitting out its veto
  * window, and until that expires a human can withdraw or replace it.
@@ -263,6 +265,8 @@ interface InboxThreadVM {
     id: string;
     real: true;
     conversationId: string;
+    /** The contact behind the thread — where "Open client" goes now that People is real. */
+    clientId: string | null;
     escalationId: string | null;
     windowOpen: boolean;
     /** The customer asked to stop receiving messages. Stronger than a closed
@@ -428,7 +432,7 @@ interface CallVM {
     who: string;
     whoShort: string;
     initials: string;
-    clientId: null;
+    clientId: string | null;
     channel: "phone";
     agent: {
         glyph: string;
@@ -2264,4 +2268,233 @@ tz?: string | null,
 /** Only used to drop closures that have already passed. */
 now?: Date): string;
 
-export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, type BusinessProfile, BusinessProfileSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, GuardrailsSchema, type Hours, type HoursRun, HoursSchema, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, POLICY_CLASSES, POLICY_MODES, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, ROLES, ROLE_PERMS, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, composeSystemPrompt, contactMeta, contactName, describeNow, draftSendsAtMs, err, formatPhoneDisplay, formatWaited, hasProfile, hoursRuns, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isRealDate, messageAt, messageStatusLabel, messageText, newReceptionistDefaults, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, reachedCustomer, replyDelayMs, resolveSystemPrompt, threadStanding, toCallVM, toConversationVM, toInboxThreadVM, toTodayVM, violatesNoPrices, waWindow };
+/** One row of `people_list(tenant, contact?)`. Every column is nullable on
+ *  the wire (RETURNS TABLE), so readers coalesce. */
+interface PersonRowDto {
+    id: string;
+    display_name: string | null;
+    wa_profile_name: string | null;
+    phone_e164: string | null;
+    consent: string | null;
+    consent_source: string | null;
+    consent_updated_at: string | null;
+    dnc: boolean | null;
+    channels: string[] | null;
+    conversation_count: number | null;
+    escalation_count: number | null;
+    needs_human: boolean | null;
+    open_escalation_reason: string | null;
+    open_escalation_since: string | null;
+    latest_conversation_id: string | null;
+    latest_state: string | null;
+    latest_paused_until: string | null;
+    latest_assignee_user_id: string | null;
+    latest_snooze_until: string | null;
+    latest_wa_inbound_at: string | null;
+    last_message_at: string | null;
+    last_message_direction: string | null;
+    last_message_sender: string | null;
+    last_inbound_text: string | null;
+    last_inbound_at: string | null;
+    last_call_at: string | null;
+    call_count: number | null;
+    call_seconds: number | null;
+    /** Earliest REAL event time: a dated message or a call. Null when the only
+     *  history is an undated import. */
+    first_contact_at: string | null;
+    /** Earliest row we hold, whatever it dates — the import moment for a
+     *  backfilled person. The floor for "before …". */
+    earliest_row_at: string | null;
+    has_backfill: boolean | null;
+    has_chat: boolean | null;
+    queued_reply_at: string | null;
+}
+interface PersonIdentityDto {
+    channel: string;
+    external_id: string;
+    created_at: string;
+}
+interface PersonEscalationDto {
+    id: string;
+    conversation_id: string;
+    reason: string;
+    state: string;
+    details: string | null;
+    created_at: string;
+    updated_at: string;
+    resolved_by_user_id: string | null;
+}
+interface PersonDecisionDto {
+    id: string;
+    verb: string;
+    subject_type: string;
+    subject_id: string;
+    actor_type: string;
+    actor_user_id: string | null;
+    created_at: string;
+    payload: Record<string, unknown> | null;
+}
+interface PersonDetailDto {
+    row: PersonRowDto;
+    identities: PersonIdentityDto[];
+    conversations: ConversationDto[];
+    calls: CallDto[];
+    escalations: PersonEscalationDto[];
+    decisions: PersonDecisionDto[];
+}
+type PersonState = "needs_you" | "waiting_on_you" | "opted_out" | "new" | "quiet" | "active";
+declare const PERSON_STATE_LABELS: Record<PersonState, string>;
+/** The list's tabs: the states, in the order the rule evaluates them. */
+declare const PEOPLE_TABS: readonly {
+    id: "all" | PersonState;
+    label: string;
+}[];
+/** First contact this recent, with no imported history, is "new". */
+declare const NEW_WINDOW_MS: number;
+/** Nothing heard for this long is "quiet". */
+declare const QUIET_AFTER_MS: number;
+declare function reasonShort(reason: string | null | undefined): string;
+/** "2h ago" inside a week; the date beyond it. */
+declare function ago(ms: number, nowMs: number): string;
+declare function personName(r: Pick<PersonRowDto, "display_name" | "wa_profile_name" | "phone_e164">): string;
+type PersonChannel = "whatsapp" | "voice";
+declare function isOwned(r: Pick<PersonRowDto, "latest_assignee_user_id" | "latest_paused_until">, nowMs: number): boolean;
+declare function personStateFor(r: PersonRowDto, nowMs: number): PersonState;
+interface PersonLastContact {
+    ts: number | null;
+    at: string | null;
+    kind: "message" | "call" | null;
+    who: "they" | "receptionist" | "you" | "system" | null;
+    /** "They wrote · 2h ago" */
+    label: string;
+}
+interface PersonFirstContact {
+    ts: number | null;
+    /** "Jul 14", "Before Aug 27", or "—" */
+    label: string;
+    /** True when the only history is an undated import: we know a floor, not a date. */
+    estimate: boolean;
+    /** True when this date may count as "new" (no imported history). */
+    evidence: boolean;
+}
+interface PersonConsent {
+    state: "unknown" | "opted_in" | "opted_out";
+    dnc: boolean;
+    label: string;
+    sub: string;
+}
+type ReceptionistTone = "answering" | "escalated" | "queued" | "snoozed" | "paused" | "silent";
+interface PersonReceptionist {
+    tone: ReceptionistTone;
+    label: string;
+}
+interface PersonRowVM {
+    id: string;
+    real: true;
+    name: string;
+    initials: string;
+    phone: string | null;
+    waName: string | null;
+    channels: PersonChannel[];
+    hasChat: boolean;
+    state: PersonState;
+    stateLabel: string;
+    /** The reason behind the state, in a few words. Empty for "active". */
+    stateDetail: string;
+    lastContact: PersonLastContact;
+    receptionist: PersonReceptionist;
+    firstContact: PersonFirstContact;
+    consent: PersonConsent;
+    /** The customer's last words, verbatim. */
+    quote: string | null;
+    threads: number;
+    calls: number;
+    escalations: number;
+    callSeconds: number;
+    /** The Inbox route id (`th-<conversation>`); null without a chat. */
+    threadId: string | null;
+    needsYouSinceMs: number | null;
+}
+declare function toPersonRowVM(r: PersonRowDto, now?: Date): PersonRowVM;
+/** The rail's smart lists: computed filters over facts, not saved segments. */
+declare const PEOPLE_LISTS: readonly {
+    id: string;
+    label: string;
+    test: (vm: PersonRowVM) => boolean;
+}[];
+interface PeopleAggregates {
+    total: number;
+    needsYou: number;
+    needsYouOldestMs: number | null;
+    /** First contact within 30 days, by evidence. */
+    newThisMonth: number;
+    /** Any message or call within 7 days. */
+    reachedWeek: number;
+    reachedWeekNew: number;
+}
+declare function peopleAggregates(rows: PersonRowVM[], nowMs: number): PeopleAggregates;
+/** Days since last contact, bucketed — the honest replacement for the
+ *  mockup's temperature strip. */
+declare function recencyCells(rows: PersonRowVM[], nowMs: number): {
+    label: string;
+    count: number;
+}[];
+type TimelineKind = "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision";
+interface PersonTimelineItemVM {
+    id: string;
+    ts: number;
+    time: string;
+    day: string;
+    kind: TimelineKind;
+    who: string;
+    text: string;
+    sub?: string;
+    link?: {
+        label: string;
+        to: string;
+    };
+}
+interface PersonRightNow {
+    tone: ReceptionistTone;
+    title: string;
+    detail: string;
+    cta: {
+        label: string;
+        to: string;
+    } | null;
+}
+interface PersonFact {
+    label: string;
+    value: string | number;
+    meta: string;
+    tone?: "neg" | "pos" | "";
+}
+interface PersonVM extends PersonRowVM {
+    /** "Since Jul 14" / "Since before Aug 27" / "" */
+    since: string;
+    /** "3 conversations · 2 calls" */
+    metaLine: string;
+    lastExchange: {
+        customer: {
+            text: string;
+            at: string;
+        } | null;
+        reply: {
+            text: string;
+            at: string;
+            who: "Receptionist" | "You";
+        } | null;
+    };
+    facts: PersonFact[];
+    rightNow: PersonRightNow;
+    timeline: PersonTimelineItemVM[];
+    about: {
+        k: string;
+        v: string;
+    }[];
+    /** "inbox/th-…" or null for a phone-only person. */
+    openThread: string | null;
+}
+declare function toPersonVM(d: PersonDetailDto, now?: Date): PersonVM;
+
+export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, type BusinessProfile, BusinessProfileSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelKind, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, GuardrailsSchema, type Hours, type HoursRun, HoursSchema, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, PEOPLE_LISTS, PEOPLE_TABS, PERSON_STATE_LABELS, POLICY_CLASSES, POLICY_MODES, type PeopleAggregates, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, QUIET_AFTER_MS, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, ROLES, ROLE_PERMS, type ReceptionistTone, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TimelineKind, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, ago, composeSystemPrompt, contactMeta, contactName, describeNow, draftSendsAtMs, err, formatPhoneDisplay, formatWaited, hasProfile, hoursRuns, initialsOf, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, messageAt, messageStatusLabel, messageText, newReceptionistDefaults, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, peopleAggregates, personName, personStateFor, reachedCustomer, reasonShort, recencyCells, replyDelayMs, resolveSystemPrompt, shortTime, threadStanding, toCallVM, toConversationVM, toInboxThreadVM, toPersonRowVM, toPersonVM, toTodayVM, violatesNoPrices, waWindow };

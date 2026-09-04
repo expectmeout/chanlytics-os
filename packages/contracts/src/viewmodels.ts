@@ -105,7 +105,7 @@ export interface ConversationVM {
   id: string;
   who: string;
   initials: string;
-  clientId: null;
+  clientId: string | null;
   channel: "whatsapp";
   agent: { glyph: string; name: string };
   at: string;
@@ -152,7 +152,7 @@ function dayKey(now: Date): string {
   return sameDayValue;
 }
 
-function shortTime(iso: string | null, now: Date): string {
+export function shortTime(iso: string | null, now: Date): string {
   if (!iso) return "";
   const d = new Date(iso);
   return d.toDateString() === dayKey(now) ? TIME_FMT.format(d) : DATE_FMT.format(d);
@@ -183,7 +183,7 @@ export function contactMeta(dto: ConversationDto): string {
   return contactName(dto) === phone ? "WhatsApp · no name saved" : `WhatsApp · ${phone ?? "no phone"}`;
 }
 
-function initialsOf(name: string): string {
+export function initialsOf(name: string): string {
   const digits = name.replace(/[^\d]/g, "");
   // phone-like display: last two digits distinguish contacts (never a "+1" avatar)
   if (digits.length >= 7 && /^[+\d\s()-]+$/.test(name)) return digits.slice(-2);
@@ -298,6 +298,8 @@ export interface InboxThreadVM {
   id: string;
   real: true;
   conversationId: string;
+  /** The contact behind the thread — where "Open client" goes now that People is real. */
+  clientId: string | null;
   escalationId: string | null;
   windowOpen: boolean;
   /** The customer asked to stop receiving messages. Stronger than a closed
@@ -493,6 +495,7 @@ export function toInboxThreadVM(
     id: `th-${dto.id}`,
     real: true,
     conversationId: dto.id,
+    clientId: dto.contact.id || null,
     escalationId: escalation?.id ?? null,
     windowOpen: win,
     optedOut: isOptedOut(dto),
@@ -597,7 +600,7 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
     id: dto.id,
     who,
     initials: initialsOf(who),
-    clientId: null,
+    clientId: dto.contact.id || null,
     channel: "whatsapp",
     agent: AGENT,
     // The row's time and its preview must come from the SAME message —
@@ -679,7 +682,7 @@ export interface CallVM {
   who: string;
   whoShort: string;
   initials: string;
-  clientId: null;
+  clientId: string | null;
   channel: "phone";
   agent: { glyph: string; name: string };
   at: string;
@@ -756,7 +759,7 @@ export function toCallVM(dto: CallDto, now = new Date()): CallVM {
     who,
     whoShort,
     initials: withheld ? "–" : initialsOf(who),
-    clientId: null,
+    clientId: dto.contact_id,
     channel: "phone",
     agent: { glyph: "P", name: "Phone Receptionist" },
     at: shortTime(dto.started_at, now),
