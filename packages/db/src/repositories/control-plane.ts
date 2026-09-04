@@ -126,3 +126,52 @@ export async function setPolicyMode(
   if (error) throw new Error(error.message);
   return data;
 }
+
+/* ------------------------- receptionist mode per person ------------------- */
+
+/**
+ * The receptionist mode set for ONE person, or null to follow the workspace.
+ *
+ * Read by the edge once per inbound message — a single lookup on the unique
+ * key, never cached. The whole point of "Never" for a difficult customer is
+ * that it applies to their NEXT message, not to one sixty seconds later.
+ */
+export async function personReplyMode(db: Db, tenantId: string, contactId: string): Promise<string | null> {
+  const { data, error } = await db
+    .from("policies")
+    .select("mode")
+    .eq("tenant_id", tenantId)
+    .eq("class", "reply")
+    .eq("subject_type", "contact")
+    .eq("subject_id", contactId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data?.mode ?? null;
+}
+
+/**
+ * Set or clear one person's receptionist mode. `null` removes the row, so the
+ * person follows the workspace policy again. Insert and delete are owner-only
+ * under RLS (00029); a forbidden insert raises, and the route decides the
+ * role before getting here.
+ */
+export async function setPersonReplyMode(db: Db, tenantId: string, contactId: string, mode: string | null): Promise<void> {
+  if (mode === null) {
+    const { error } = await db
+      .from("policies")
+      .delete()
+      .eq("tenant_id", tenantId)
+      .eq("class", "reply")
+      .eq("subject_type", "contact")
+      .eq("subject_id", contactId);
+    if (error) throw new Error(error.message);
+    return;
+  }
+  const { error } = await db
+    .from("policies")
+    .upsert(
+      { tenant_id: tenantId, class: "reply", mode, subject_type: "contact", subject_id: contactId },
+      { onConflict: "tenant_id,class,subject_type,subject_id" },
+    );
+  if (error) throw new Error(error.message);
+}

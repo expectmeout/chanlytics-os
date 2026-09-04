@@ -68,3 +68,16 @@ export function replyPosture(f: RoutingFacts): ReplyPosture {
 
   return { drFallback, replyMode };
 }
+
+/**
+ * The mode in force for ONE message, once the person's own setting is known.
+ *
+ * A person-level setting (People → profile → "Receptionist for …") wins over
+ * the workspace policy — on the routed path only. The DR profile answers the
+ * env-default tenant with no control plane to consult, so nothing
+ * person-specific can exist there, and an absent setting changes nothing.
+ */
+export function effectiveReplyMode(posture: ReplyPosture, personMode: string | null | undefined): string {
+  if (posture.drFallback || !personMode) return posture.replyMode;
+  return personMode;
+}

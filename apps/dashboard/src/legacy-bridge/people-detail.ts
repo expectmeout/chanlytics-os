@@ -72,14 +72,47 @@ export async function deletePerson(id: string): Promise<DeleteResult> {
   }
 }
 
+/**
+ * Receptionist mode for one person: `window.__setPersonReceptionist(id, mode)`.
+ *
+ * "auto" / "ask" / "never" set the person's own row; "inherit" removes it so
+ * they follow the workspace policy again. Owner-only on the server. The list
+ * is re-fetched afterwards because the Receptionist column reads from it.
+ */
+export async function setPersonReceptionist(id: string, mode: "auto" | "ask" | "never" | "inherit"): Promise<DeleteResult> {
+  try {
+    const res = await fetch(scoped(`/api/v1/contacts/${encodeURIComponent(id)}/receptionist`), {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mode }),
+    });
+    if (res.status === 401) {
+      clearSurfaceCache();
+      window.location.assign("/login");
+      return { ok: false, message: "Signed out." };
+    }
+    const j = (await res.json().catch(() => null)) as
+      | { ok: boolean; data?: unknown; error?: { message?: string } }
+      | null;
+    if (!j || !j.ok) return { ok: false, message: j?.error?.message ?? `Request failed (${res.status}).` };
+    invalidateInFlight();
+    await refreshSurfaces([peopleOverride]);
+    return { ok: true, data: j.data };
+  } catch {
+    return { ok: false, message: "Network error — nothing was changed." };
+  }
+}
+
 declare global {
   interface Window {
     __personDetail?: (id: string) => Promise<PersonVM | null>;
     __deletePerson?: (id: string) => Promise<DeleteResult>;
+    __setPersonReceptionist?: (id: string, mode: "auto" | "ask" | "never" | "inherit") => Promise<DeleteResult>;
   }
 }
 
 export function installPeopleCourier(): void {
   window.__personDetail = personDetail;
   window.__deletePerson = deletePerson;
+  window.__setPersonReceptionist = setPersonReceptionist;
 }

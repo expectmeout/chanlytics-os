@@ -1310,6 +1310,11 @@ function resolveSystemPrompt(brain, channel = "whatsapp", tz, now = /* @__PURE__
 }
 
 // src/people.ts
+var PERSON_MODES = ["auto", "ask", "never"];
+var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
+function asPersonMode(s) {
+  return s && PERSON_MODES.includes(s) ? s : null;
+}
 var PERSON_STATE_LABELS = {
   needs_you: "Needs you",
   waiting_on_you: "Waiting on you",
@@ -1683,7 +1688,11 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
     rightNow,
     timeline: items,
     about,
-    openThread: base.threadId ? `inbox/${base.threadId}` : null
+    openThread: base.threadId ? `inbox/${base.threadId}` : null,
+    receptionistMode: {
+      person: asPersonMode(d.receptionist_mode),
+      workspace: d.workspace_reply_mode === "veto" ? "auto" : asPersonMode(d.workspace_reply_mode)
+    }
   };
 }
 export {
@@ -1725,6 +1734,8 @@ export {
   OPT_OUT_REFUSAL,
   PEOPLE_LISTS,
   PEOPLE_TABS,
+  PERSON_MODES,
+  PERSON_MODE_LABELS,
   PERSON_STATE_LABELS,
   POLICY_CLASSES,
   POLICY_MODES,
@@ -1742,6 +1753,7 @@ export {
   TenantConfigWriteSchema,
   WA_WINDOW_MS,
   ago,
+  asPersonMode,
   composeSystemPrompt,
   contactMeta,
   contactName,

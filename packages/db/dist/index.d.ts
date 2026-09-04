@@ -2153,6 +2153,21 @@ declare function setPolicyMode(db: Db, tenantId: string, policyClass: string, mo
  * about. Callers set what they mean and leave the rest alone.
  */
 limits?: Record<string, unknown>): Promise<PolicyRecord | null>;
+/**
+ * The receptionist mode set for ONE person, or null to follow the workspace.
+ *
+ * Read by the edge once per inbound message — a single lookup on the unique
+ * key, never cached. The whole point of "Never" for a difficult customer is
+ * that it applies to their NEXT message, not to one sixty seconds later.
+ */
+declare function personReplyMode(db: Db, tenantId: string, contactId: string): Promise<string | null>;
+/**
+ * Set or clear one person's receptionist mode. `null` removes the row, so the
+ * person follows the workspace policy again. Insert and delete are owner-only
+ * under RLS (00029); a forbidden insert raises, and the route decides the
+ * role before getting here.
+ */
+declare function setPersonReplyMode(db: Db, tenantId: string, contactId: string, mode: string | null): Promise<void>;
 
 /**
  * The single Realtime subscription wrapper (Blueprint §5): every surface
@@ -2178,4 +2193,4 @@ declare function subscribeMessagesInserts(client: SupabaseClient<Database>, onIn
     tenant_id: string;
 }) => void, opts?: SubscribeOptions): () => void;
 
-export { type ChannelLookup, type Database, HISTORY_COLUMNS, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type NormalizedCallInput, type OutboundTarget, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, assembleHistory, countSentToday, createServiceClient, describeLead, emitEvent, getTenantConfig, ingestCall, ingestInbound, linkCallMessage, listPolicies, markProcessed, pauseConversation, putTenantConfig, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, setCallRecording, setPolicyMode, subscribeMessagesInserts };
+export { type ChannelLookup, type Database, HISTORY_COLUMNS, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type NormalizedCallInput, type OutboundTarget, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, assembleHistory, countSentToday, createServiceClient, describeLead, emitEvent, getTenantConfig, ingestCall, ingestInbound, linkCallMessage, listPolicies, markProcessed, pauseConversation, personReplyMode, putTenantConfig, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, setCallRecording, setPersonReplyMode, setPolicyMode, subscribeMessagesInserts };

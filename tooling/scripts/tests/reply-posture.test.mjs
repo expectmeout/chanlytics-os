@@ -11,7 +11,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { replyPosture } from "../../../apps/edge/lib/reply-posture.ts";
+import { replyPosture, effectiveReplyMode } from "../../../apps/edge/lib/reply-posture.ts";
 
 /** A routed, healthy tenant with a policy. */
 const healthy = {
@@ -153,4 +153,21 @@ test("DR is never granted without an active channel when routing WAS consulted",
       }
     }
   }
+});
+
+/* ---------------------- the person's own setting wins -------------------- */
+
+test("a person's own receptionist mode overrides the workspace policy on the routed path", () => {
+  const routed = { drFallback: false, replyMode: "auto" };
+  assert.equal(effectiveReplyMode(routed, "never"), "never", "Never for a difficult customer silences the bot for them");
+  assert.equal(effectiveReplyMode(routed, "ask"), "ask");
+  assert.equal(effectiveReplyMode({ drFallback: false, replyMode: "ask" }, "auto"), "auto", "and can unmute one person in a timid workspace");
+});
+
+test("no person setting changes nothing, and the DR profile ignores person settings entirely", () => {
+  assert.equal(effectiveReplyMode({ drFallback: false, replyMode: "veto" }, null), "veto");
+  assert.equal(effectiveReplyMode({ drFallback: false, replyMode: "auto" }, undefined), "auto");
+  // No control plane was consulted on this path, so nothing person-specific
+  // can be trusted — the DR profile keeps answering as it always has.
+  assert.equal(effectiveReplyMode({ drFallback: true, replyMode: "auto" }, "never"), "auto");
 });
