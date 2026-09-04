@@ -1447,7 +1447,7 @@ const PaneAutonomyReal = ({ flash }) => {
           <span className="fl-card-title">Reply timing</span>
           <span className="fl-card-sub">Only matters while Replies is set to Veto</span>
         </div>
-        <SetRow label="Hold window" hint="The receptionist writes its reply and waits this long before sending, so you can stop or change it from the Inbox.">
+        <SetRow label="Hold window" hint="The receptionist writes its reply and waits this long before sending, so you can stop or change it from the Inbox. A booking link a caller asks for on the phone is texted right away — there is nothing to hold.">
           <SetSeg
             value={delayLabel}
             options={AUT_DELAYS.map((d) => d[0])}

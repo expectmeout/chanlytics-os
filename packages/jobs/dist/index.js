@@ -8771,11 +8771,13 @@ async function upsertEscalation(db, tenantId, conversationId, reason, details) {
     reason,
     details
   });
-  if (error?.code === "23505") {
+  if (!error) return "opened";
+  if (error.code === "23505") {
     await db.from("escalations").update({ details, reason }).eq("conversation_id", conversationId).eq("state", "open");
-  } else if (error) {
-    console.error("escalation_upsert_failed", error.message);
+    return "refreshed";
   }
+  console.error("escalation_upsert_failed", error.message);
+  return "failed";
 }
 var HANDLERS = {
   outbound_send: outboundSend,

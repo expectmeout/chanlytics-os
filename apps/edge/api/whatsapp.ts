@@ -58,7 +58,7 @@ import {
 } from "../lib/workspace/db.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../lib/workspace/db.js";
-import { upsertEscalation } from "../lib/workspace/jobs.js";
+import { upsertEscalation, type EscalationOutcome } from "../lib/workspace/jobs.js";
 import { loadTenantRuntime, waCfgFor, type TenantRuntime } from "../lib/tenant-runtime.js";
 import { replyPosture, effectiveReplyMode } from "../lib/reply-posture.js";
 import { scheduleJob } from "../lib/workspace/jobs.js";
@@ -273,11 +273,12 @@ async function pgIngest(tenantId: string | null, n: NormalizedInbound): Promise<
   }
 }
 
-async function pgSafe(label: string, fn: () => Promise<unknown>): Promise<void> {
+async function pgSafe<T>(label: string, fn: () => Promise<T>): Promise<T | undefined> {
   try {
-    await fn();
+    return await fn();
   } catch (e) {
     console.error(`pg_${label}_failed`, e instanceof Error ? e.message : e);
+    return undefined;
   }
 }
 
@@ -349,11 +350,15 @@ function pgSink(
             emitEvent(db!, tenantId!, "message.send_failed", "message", "message", ing!.message_id,
               { http_status: httpStatus } as Json))
         : Promise.resolve(),
-    escalate: (reason: string, details: string) =>
+    /** Resolves to how the escalation landed — "opened" for a new one,
+     *  "refreshed" when the thread already had one open — so a caller can
+     *  alert once per hold rather than once per message. Undefined when
+     *  Postgres is off or the write failed. */
+    escalate: (reason: string, details: string): Promise<EscalationOutcome | undefined> =>
       on
         ? pgSafe("escalation", () =>
             upsertEscalation(db!, tenantId!, ing!.conversation_id, reason, details.slice(0, 400)))
-        : Promise.resolve(),
+        : Promise.resolve(undefined),
     media: (n: NormalizedInbound) =>
       on && n.media
         ? pgSafe("media_fetch", async () => {
@@ -471,6 +476,25 @@ async function handleInbound(
   if ((process.env.PG_DEDUPE === "on" || memory === "pg") && ing && !ing.is_new) {
     L.info("wa_skip_pg_dupe");
     return;
+  }
+
+  // The person's own receptionist mode (People → profile → "Receptionist
+  // for …") wins over the workspace policy. Looked up per message and never
+  // cached: "Never" for a difficult customer must apply to their NEXT message.
+  // A failed lookup keeps the workspace mode — a blip must neither silence
+  // nor unmute anyone.
+  //
+  // Looked up HERE, before the first branch that can speak. It used to sit
+  // just above the policy consult, below the non-text acknowledgement — so a
+  // person set to Never who sent a photo got the canned "I can't read
+  // attachments" text from the receptionist that was told to stay out.
+  if (db && tenantId && ing?.contact_id && !drFallback) {
+    try {
+      personMode = await personReplyMode(db, tenantId, ing.contact_id);
+      replyMode = effectiveReplyMode(posture, personMode);
+    } catch (e) {
+      L.warn("wa_person_mode_lookup_failed", { error: e instanceof Error ? e.message : String(e) });
+    }
   }
 
   // Both memory sources failed: Postgres missed AND the Blob read errored. We
@@ -595,18 +619,29 @@ async function handleInbound(
     // ack depends on those bytes, so it joins the post-reply work below.
     const media = sink.media(n);
     if (Date.now() > thread.pausedUntil) {
-      // No persona configured -> no ack goes out (and nothing to pause); the
-      // message still escalates so a human sees it.
-      if (brainCfg) {
-        await sendText(from, brainCfg.fallbacks.non_text, rt);
+      // The acknowledgement is the receptionist speaking, so it obeys the
+      // same rule as every reply: only when the mode in force lets it speak.
+      // A workspace on Ask, or a person set to Never, gets no canned text —
+      // the message still escalates so a human sees it. No persona -> no ack.
+      const mayAck = !!brainCfg && (replyMode === "auto" || replyMode === "veto");
+      if (mayAck) {
+        await sendText(from, brainCfg!.fallbacks.non_text, rt);
         thread.pausedUntil = Date.now() + pauseMs;
         await saveThread(ns, from, thread);
       }
+      const why = mayAck
+        ? "auto-acknowledged, bot paused"
+        : !brainCfg
+          ? "no auto-reply configured"
+          : personMode
+            ? `no acknowledgement — this person is set to '${replyMode}'`
+            : `no acknowledgement — reply mode is '${replyMode}'`;
       await Promise.all([
-        ...(brainCfg ? [sink.pause(new Date(Date.now() + pauseMs).toISOString())] : []),
-        sink.escalate("non_text", `Customer sent a ${m.type} message — ${brainCfg ? "auto-acknowledged, bot paused" : "no auto-reply configured"}.`),
-        alertStaff(from, `[${m.type} message]`, brainCfg ? "(auto-acknowledged, bot paused)" : "(no auto-reply configured)", "non-text message", notifyTarget),
+        ...(mayAck ? [sink.pause(new Date(Date.now() + pauseMs).toISOString())] : []),
+        sink.escalate("non_text", `Customer sent a ${m.type} message — ${why}.`),
+        alertStaff(from, `[${m.type} message]`, `(${why})`, "non-text message", notifyTarget),
       ]);
+      L.info("wa_nontext", { acked: mayAck, mode: replyMode, person_mode: personMode });
     }
     await Promise.all([media, sink.processed()]);
     return;
@@ -672,20 +707,6 @@ async function handleInbound(
     return;
   }
 
-  // The person's own receptionist mode (People → profile → "Receptionist
-  // for …") wins over the workspace policy. Looked up per message and never
-  // cached: "Never" for a difficult customer must apply to their NEXT message.
-  // A failed lookup keeps the workspace mode — a blip must neither silence
-  // nor unmute anyone.
-  if (db && tenantId && ing?.contact_id && !drFallback) {
-    try {
-      personMode = await personReplyMode(db, tenantId, ing.contact_id);
-      replyMode = effectiveReplyMode(posture, personMode);
-    } catch (e) {
-      L.warn("wa_person_mode_lookup_failed", { error: e instanceof Error ? e.message : String(e) });
-    }
-  }
-
   // E3: the reply policy is consulted BEFORE generation. 'ask' is the timid
   // mode — everything escalates, a human answers; a tenant with no persona
   // behaves identically. The customer's message is already persisted above.
@@ -694,30 +715,43 @@ async function handleInbound(
   // customer sees it. It reaches the brain; what differs is the dispatch below.
   if (!brainCfg || (replyMode !== "auto" && replyMode !== "veto")) {
     await saveThread(ns, from, thread);
+    // A hold the owner chose for THIS person is its own reason: it is not a
+    // workspace setting, and the Inbox should say "you handle this person",
+    // not "held by policy". It also alerts ONCE per open hold rather than
+    // once per message — the owner asked to handle this person themselves,
+    // and a thread already in their Inbox does not need a second email.
+    const personHold = !!brainCfg && !!personMode;
+    const outcome = await sink.escalate(
+      personHold ? "person_hold" : "policy_block",
+      brainCfg
+        ? personHold
+          ? `You set the receptionist to '${replyMode}' for this person — it stays out of the thread; answer them yourself.`
+          : `Reply mode is '${replyMode}' — the receptionist holds everything for a human.`
+        : rt?.configBroken
+          // A saved-but-unparseable config is a MISTAKE, not an absence, and
+          // sending the operator to "fill one in" when a good persona is
+          // already there behind one bad field sends them to the wrong place.
+          ? "This workspace's settings could not be read, so the receptionist stayed silent. The saved configuration has an invalid field."
+          : "No brain profile configured — the receptionist stays silent until Settings fills one in.",
+    );
+    const alertNeeded = !personHold || outcome !== "refreshed";
     await Promise.all([
-      sink.escalate(
-        "policy_block",
-        brainCfg
-          ? personMode
-            ? `This person is set to '${replyMode}' — the receptionist stays out of it; answer them yourself.`
-            : `Reply mode is '${replyMode}' — the receptionist holds everything for a human.`
-          : rt?.configBroken
-            // A saved-but-unparseable config is a MISTAKE, not an absence, and
-            // sending the operator to "fill one in" when a good persona is
-            // already there behind one bad field sends them to the wrong place.
-            ? "This workspace's settings could not be read, so the receptionist stayed silent. The saved configuration has an invalid field."
-            : "No brain profile configured — the receptionist stays silent until Settings fills one in.",
-      ),
-      alertStaff(
-        from,
-        bodyText,
-        "(held — no auto-reply for this workspace)",
-        brainCfg ? `reply mode ${replyMode}` : rt?.configBroken ? "settings could not be read" : "no persona configured",
-        notifyTarget,
-      ),
+      ...(alertNeeded
+        ? [
+            alertStaff(
+              from,
+              bodyText,
+              personHold ? "(held — you handle this person yourself)" : "(held — no auto-reply for this workspace)",
+              brainCfg
+                ? personHold ? `this person is set to ${replyMode}` : `reply mode ${replyMode}`
+                : rt?.configBroken ? "settings could not be read" : "no persona configured",
+              notifyTarget,
+            ),
+          ]
+        : []),
       sink.processed(),
     ]);
-    L.info("wa_held_by_policy", { mode: replyMode, person_mode: personMode, persona: !!brainCfg, config_broken: !!rt?.configBroken });
+    L.info("wa_held_by_policy", { mode: replyMode, person_mode: personMode, persona: !!brainCfg, config_broken: !!rt?.configBroken, escalation: outcome ?? "n/a", alerted: alertNeeded });
     return;
   }
 

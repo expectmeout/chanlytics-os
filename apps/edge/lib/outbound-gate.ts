@@ -19,7 +19,9 @@ export interface OutboundFacts {
   optedOut: boolean;
   /** conversations.paused_until — a human has this thread. */
   pausedUntilMs: number | null;
-  /** Workspace reply policy: only 'auto' permits an unattended send. */
+  /** The mode in force — the workspace's, or the person's own when set.
+   *  'auto' and 'veto' permit an unattended template send; anything else
+   *  holds for a human. */
   replyMode: string;
   /** Voice-initiated sends already made to this thread today. */
   sentToday: number;
@@ -54,8 +56,11 @@ export function outboundGate(f: OutboundFacts): OutboundDecision {
 
   // 3. The workspace turned automation off. 'ask' means a human approves
   //    everything, and a send triggered from a phone call is no less automatic
-  //    for having been requested out loud.
-  if (f.replyMode !== "auto") return { allowed: false, refusal: "policy_hold" };
+  //    for having been requested out loud. 'veto' is NOT off: it holds a reply
+  //    the receptionist composed so a person can redirect it, and a booking
+  //    link the caller just asked for has nothing to redirect — refusing it
+  //    silently punished the workspaces that chose the middle setting.
+  if (f.replyMode !== "auto" && f.replyMode !== "veto") return { allowed: false, refusal: "policy_hold" };
 
   // 4. Runaway guard. The conversational path caps bot replies per thread per
   //    day; nothing capped this one, so a caller who phoned thirty times — or a

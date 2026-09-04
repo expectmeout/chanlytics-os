@@ -99,6 +99,10 @@ export const ESCALATION_REASONS = [
   "send_failed", "deadman", "brain_error", "manual", "opt_out", "state_unavailable",
   /** Delivered so late that an automated reply would arrive out of nowhere. */
   "stale",
+  /** The owner set the receptionist to Ask or Never for THIS person; the
+   *  thread is theirs to answer. A choice about one customer, never a
+   *  workspace setting. */
+  "person_hold",
 ] as const;
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
 

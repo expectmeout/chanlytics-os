@@ -132,7 +132,11 @@ var ESCALATION_REASONS = [
   "opt_out",
   "state_unavailable",
   /** Delivered so late that an automated reply would arrive out of nowhere. */
-  "stale"
+  "stale",
+  /** The owner set the receptionist to Ask or Never for THIS person; the
+   *  thread is theirs to answer. A choice about one customer, never a
+   *  workspace setting. */
+  "person_hold"
 ];
 var ESCALATION_STATES = ["open", "resolved"];
 var DECISION_VERBS = [
@@ -317,7 +321,8 @@ var ESCALATION_REASON_LABELS = {
   brain_error: "The receptionist hit an error \u2014 a holding message went out",
   non_text: "Sent a voice note / photo",
   send_failed: "Reply failed to deliver",
-  policy_block: "Pricing question \u2014 held by policy",
+  policy_block: "Held by your reply setting \u2014 nothing was sent",
+  person_hold: "You handle this person \u2014 the receptionist stays out",
   rate_cap: "Too many replies too fast \u2014 the receptionist paused itself",
   deadman: "Nobody picked this up \u2014 flagged after silence",
   manual: "Flagged manually",
@@ -331,7 +336,8 @@ var ESCALATION_SUMMARIES = {
   brain_error: "The receptionist errored and sent a holding message. They're waiting on a real answer.",
   non_text: "They sent a voice note or photo the receptionist can't read. Open it and reply yourself.",
   send_failed: "The reply never reached them \u2014 as far as the customer knows, nobody answered.",
-  policy_block: "A pricing question, held by policy. Quote it yourself.",
+  policy_block: "Your reply setting holds every message for a person. Nothing was sent \u2014 answer them yourself.",
+  person_hold: "You set the receptionist to stay out of this person's thread. Nothing was sent \u2014 answer them yourself.",
   rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent \u2014 they're waiting in silence.",
   deadman: "This sat unanswered long enough to flag. Nobody has replied.",
   manual: "Flagged by hand for a human.",
@@ -1346,7 +1352,8 @@ var REASON_SHORT = {
   non_text: "sent something the receptionist can't read",
   refusal: "the receptionist declined to answer",
   rate_cap: "reply limit reached",
-  policy_block: "needs your approval",
+  policy_block: "held by your reply setting",
+  person_hold: "held for you",
   send_failed: "a reply failed to send",
   deadman: "no answer in time",
   brain_error: "the receptionist hit an error",

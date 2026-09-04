@@ -307,25 +307,33 @@ async function blobThreadErase(ctx: JobContext, job: ClaimedJob): Promise<void> 
   }
 }
 
+/** How an escalation landed: a new open row, a refresh of the one already
+ *  open on that thread, or nothing (the insert failed for another reason).
+ *  Callers that alert a human use it to alert once per hold, not once per
+ *  message. */
+export type EscalationOutcome = "opened" | "refreshed" | "failed";
+
 export async function upsertEscalation(
   db: SupabaseClient<Database>,
   tenantId: string,
   conversationId: string,
   reason: string,
   details: string,
-): Promise<void> {
+): Promise<EscalationOutcome> {
   const { error } = await db.from("escalations").insert({
     tenant_id: tenantId, conversation_id: conversationId, reason, details,
   });
-  if (error?.code === "23505") {
+  if (!error) return "opened";
+  if (error.code === "23505") {
     // one open escalation per conversation: repeat triggers refresh details
     await db.from("escalations")
       .update({ details, reason })
       .eq("conversation_id", conversationId)
       .eq("state", "open");
-  } else if (error) {
-    console.error("escalation_upsert_failed", error.message);
+    return "refreshed";
   }
+  console.error("escalation_upsert_failed", error.message);
+  return "failed";
 }
 
 const HANDLERS: Record<string, (ctx: JobContext, job: ClaimedJob) => Promise<void>> = {
