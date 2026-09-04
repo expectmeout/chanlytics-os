@@ -181,12 +181,15 @@ const LrPanel = ({ c, elapsed }) => {
         c.transcript.length ? (
           <LrTranscript c={c} />
         ) : (
-          <div className="lm-waiting">
-            <Icon name="phone" size={16} />
-            <div>
-              The receptionist is on the line with {c.whoShort}. The transcript arrives when the call ends — it will be in Conversations with the recording.
+          <>
+            <div className="lm-waiting">
+              <Icon name="phone" size={16} />
+              <div>
+                The receptionist is on the line with {c.whoShort}. The transcript arrives when the call ends — it will be in Conversations with the recording.
+              </div>
             </div>
-          </div>
+            <div className="lm-spacer" />
+          </>
         )
       ) : (
         <div className="lm-summary" data-testid="live-summary">
@@ -212,6 +215,7 @@ const LrPanel = ({ c, elapsed }) => {
           )}
         </div>
       )}
+      {!c.live && <div className="lm-spacer" />}
 
       <footer className="lm-controls">
         <span className="lm-controls-who tabular">{c.number || "Caller ID withheld"} &nbsp;&amp;&nbsp; Phone receptionist</span>

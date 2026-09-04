@@ -320,3 +320,4 @@
   color: var(--ink-dim);
 }
 .lm-summary-actions { display: flex; gap: 8px; margin-top: 2px; }
+.lm-spacer { flex: 1 1 auto; }
