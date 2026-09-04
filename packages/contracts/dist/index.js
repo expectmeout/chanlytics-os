@@ -535,10 +535,11 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
   const whoShort = name ? name.split(" ")[0] : "Caller";
   const dur = mmss(dto.duration_ms);
   const live = isLiveCall(dto, now);
+  const missed = dto.status === "not_connected";
   const headSummary = (dto.summary || "").trim();
   const firstSentence = headSummary ? headSummary.split(/(?<=[.!?])\s/)[0] ?? headSummary : "";
   const bullets = [
-    `${dto.direction === "inbound" ? "Inbound" : "Outbound"} \xB7 ${spokenDuration(dto.duration_ms)}`
+    `${dto.direction === "inbound" ? "Inbound" : "Outbound"} \xB7 ${missed ? "never connected" : spokenDuration(dto.duration_ms)}`
   ];
   if (dto.disconnection_reason) {
     bullets.push(`Ended: ${DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " ")}`);
@@ -546,10 +547,12 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
   if (dto.sentiment) {
     bullets.push(`Caller sentiment: ${dto.sentiment} \u2014 the voice provider's own read`);
   }
-  const recState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording ? "pending" : "none";
-  bullets.push(
-    recState === "ready" ? "Recording saved" : recState === "pending" ? "Recording still processing" : "No recording for this call"
-  );
+  const recState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording?.fetch_state === "failed" ? "failed" : dto.recording ? "pending" : "none";
+  if (!missed) {
+    bullets.push(
+      recState === "ready" ? "Recording saved" : recState === "pending" ? "Recording still processing" : recState === "failed" ? "Recording couldn't be saved from the voice provider" : "No recording for this call"
+    );
+  }
   if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s WhatsApp thread`);
   const transcript = (dto.transcript_object ?? []).map((turn) => {
     const start = turn.words?.[0]?.start;
@@ -559,7 +562,7 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
       text: turn.content ?? ""
     };
   });
-  const snippetBody = firstSentence || (dto.in_voicemail ? "Reached voicemail." : "No summary from this call.");
+  const snippetBody = missed ? "The call never connected." : firstSentence || (dto.in_voicemail ? "Reached voicemail." : "No summary from this call.");
   return {
     id: `cv-${dto.id}`,
     real: true,
@@ -573,7 +576,7 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
     at: shortTime(dto.started_at, now),
     ts: dto.started_at ? new Date(dto.started_at).getTime() : 0,
     ...dur ? { duration: dur } : {},
-    outcome: live ? "live" : "handled",
+    outcome: live ? "live" : missed ? "missed" : "handled",
     ...live ? { live: true } : {},
     snippet: withheld ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 caller ID withheld, so this call isn't linked to a customer.` : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 ${snippetBody}`,
     summary: { headline: firstSentence || snippetBody, bullets },
@@ -623,6 +626,7 @@ function secondsPhrase(s) {
   return r ? `${m}m ${r}s` : `${m}m`;
 }
 var SENT = ["sent", "delivered", "read"];
+var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
 function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ new Date()) {
   const tz = m.workspace.timezone;
   const p = m.period;
@@ -796,17 +800,18 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     to: `inbox/th-${conv.id}`
   }));
   const NEEDS_EAR = ["dial_no_answer", "inactivity", "concurrency_limit_reached", "marked_as_spam"];
-  const callRows = callsInWindow.filter(
-    (c) => c.in_voicemail || c.sentiment === "Negative" || !c.summary || (c.disconnection_reason ? NEEDS_EAR.includes(c.disconnection_reason) : false)
-  ).map((c) => {
-    const vm = toCallVM(c, now);
+  const callRows = callsInWindow.filter((c) => c.status !== "not_connected").map((c) => ({ c, vm: toCallVM(c, now) })).filter(
+    ({ c, vm }) => vm.live || c.in_voicemail || c.sentiment === "Negative" || !c.summary || (c.disconnection_reason ? NEEDS_EAR.includes(c.disconnection_reason) : false)
+  ).map(({ c, vm }) => {
+    const endedMs = c.ended_at ? new Date(c.ended_at).getTime() : NaN;
+    const analysisDue = !c.summary && Number.isFinite(endedMs) && now.getTime() - endedMs < ANALYSIS_GRACE_MS;
     return {
       id: c.id,
       who: vm.who,
       at: tzTime(c.started_at, tz) ?? "",
       duration: vm.duration ?? "",
-      note: c.in_voicemail ? "Reached voicemail" : c.sentiment === "Negative" ? "Caller sentiment: Negative \u2014 the voice provider's own read" : !c.summary ? "No summary from the voice provider" : DISCONNECTION_LABELS[c.disconnection_reason ?? ""] ?? "Ended early",
-      to: `conversations/cv-${c.id}`
+      note: vm.live ? "In progress right now" : c.in_voicemail ? "Reached voicemail" : c.sentiment === "Negative" ? "Caller sentiment: Negative \u2014 the voice provider's own read" : analysisDue ? "Summary on its way from the voice provider" : !c.summary ? "No summary from the voice provider" : DISCONNECTION_LABELS[c.disconnection_reason ?? ""] ?? "Ended early",
+      to: vm.live ? "live" : `conversations/cv-${c.id}`
     };
   });
   return {

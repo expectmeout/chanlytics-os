@@ -37,6 +37,10 @@ export interface RetellCall {
   disconnection_reason?: string;
   transcript?: string;
   transcript_object?: RetellTranscriptTurn[];
+  /** Present on transcript_updated events (every turn, plus a final one):
+   *  the turns so far, interleaved with tool-call items. Only the agent and
+   *  user turns are speech — see liveTurns. */
+  transcript_with_tool_calls?: RetellTranscriptTurn[];
   call_analysis?: {
     call_summary?: string;
     user_sentiment?: string;
@@ -64,7 +68,9 @@ export interface NormalizedCall {
   /** Whatever the provider sent, verbatim (withheld ids, SIP URIs, "web_call"). */
   fromRaw: string | null;
   toE164: string | null;
-  status: "registered" | "ongoing" | "ended" | "error";
+  /** Retell's own lifecycle. not_connected: the dial never connected — it
+   *  is recorded as an attempt, never counted as a call. */
+  status: "registered" | "ongoing" | "ended" | "error" | "not_connected";
   startedAtIso: string | null;
   endedAtIso: string | null;
   durationMs: number | null;
@@ -88,8 +94,24 @@ function toStatus(s: string | undefined): NormalizedCall["status"] {
     case "registered": return "registered";
     case "ongoing": return "ongoing";
     case "error": return "error";
+    case "not_connected": return "not_connected";
     default: return "ended";
   }
+}
+
+/**
+ * The spoken turns of a LIVE transcript, in the stored turn shape.
+ *
+ * `transcript_with_tool_calls` interleaves speech with tool invocations and
+ * results; the dashboard renders speakers, so everything that is not an
+ * agent or user turn is dropped. Null when there is nothing spoken yet, so
+ * the upsert's coalesce keeps whatever the row already holds.
+ */
+export function liveTurns(items: RetellCall["transcript_with_tool_calls"]): RetellTranscriptTurn[] | null {
+  if (!items?.length) return null;
+  const spoken = items.filter((t) => t.role === "agent" || t.role === "user");
+  if (!spoken.length) return null;
+  return spoken.map(({ role, content, words }) => ({ role, content: content ?? "", ...(words ? { words } : {}) }));
 }
 
 export function normalizeCall(c: RetellCall): NormalizedCall {
@@ -116,7 +138,7 @@ export function normalizeCall(c: RetellCall): NormalizedCall {
     inVoicemail: analysis.in_voicemail ?? null,
     summary: analysis.call_summary ?? null,
     transcript: c.transcript ?? null,
-    transcriptObject: c.transcript_object ?? null,
+    transcriptObject: c.transcript_object ?? liveTurns(c.transcript_with_tool_calls),
     recordingUrl: c.recording_url ?? null,
     publicLogUrl: c.public_log_url ?? null,
     cost: c.call_cost ?? null,
@@ -199,6 +221,44 @@ export async function getCall(cfg: RetellConfig, callId: string): Promise<Retell
   return (await r.json()) as RetellCall;
 }
 
+/** The agent settings that decide what the call pipeline can show. */
+export interface RetellAgentConfig {
+  agent_id: string;
+  agent_name: string | null;
+  version: number | null;
+  is_published: boolean | null;
+  webhook_url: string | null;
+  /** Absent means Retell's default: call_started, call_ended, call_analyzed.
+   *  transcript_updated (live transcript) is opt-in. */
+  webhook_events: string[] | null;
+  webhook_timeout_ms: number | null;
+  data_storage_setting: string | null;
+  opt_in_signed_url: boolean | null;
+}
+
+/** GET /get-agent — the fields above, read-only. Null when the provider says no. */
+export async function getAgent(cfg: RetellConfig, agentId: string): Promise<RetellAgentConfig | null> {
+  const r = await fetch(`${API}/get-agent/${agentId}`, {
+    headers: { Authorization: `Bearer ${cfg.apiKey}` },
+  });
+  if (!r.ok) return null;
+  const a = (await r.json()) as Record<string, unknown>;
+  const str = (k: string) => (typeof a[k] === "string" ? (a[k] as string) : null);
+  const num = (k: string) => (typeof a[k] === "number" ? (a[k] as number) : null);
+  const bool = (k: string) => (typeof a[k] === "boolean" ? (a[k] as boolean) : null);
+  return {
+    agent_id: str("agent_id") ?? agentId,
+    agent_name: str("agent_name"),
+    version: num("version"),
+    is_published: bool("is_published"),
+    webhook_url: str("webhook_url"),
+    webhook_events: Array.isArray(a.webhook_events) ? (a.webhook_events as unknown[]).map(String) : null,
+    webhook_timeout_ms: num("webhook_timeout_ms"),
+    data_storage_setting: str("data_storage_setting"),
+    opt_in_signed_url: bool("opt_in_signed_url"),
+  };
+}
+
 /** True when a v3 list row still needs a getCall to be complete. */
 export function needsHydration(c: RetellCall): boolean {
   return !c.transcript && !c.transcript_object;
@@ -211,8 +271,14 @@ export function needsHydration(c: RetellCall): boolean {
  */
 export async function fetchRecording(
   url: string,
+  opts: { timeoutMs?: number } = {},
 ): Promise<{ bytes: ArrayBuffer; mime: string | null } | null> {
-  const r = await fetch(url);
+  // A bounded wait: the webhook that calls this has Retell's 10 s delivery
+  // timeout over its head, and an unbounded fetch inside it earns a retry of
+  // the whole event. A timeout REJECTS (unlike a provider refusal, which
+  // returns null) so the caller can tell "try again later" from "never".
+  const signal = opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined;
+  const r = await fetch(url, signal ? { signal } : undefined);
   if (!r.ok) return null;
   return { bytes: await r.arrayBuffer(), mime: r.headers.get("content-type") };
 }

@@ -17,7 +17,7 @@ export interface NormalizedCallInput {
   fromE164: string | null;
   fromRaw: string | null;
   toE164: string | null;
-  status: "registered" | "ongoing" | "ended" | "error";
+  status: "registered" | "ongoing" | "ended" | "error" | "not_connected";
   startedAtIso: string | null;
   endedAtIso: string | null;
   durationMs: number | null;
@@ -39,6 +39,12 @@ export interface IngestCallResult {
   is_new: boolean;
   /** 'stored' means audio is already in private storage — skip re-copying. */
   recording_state: string | null;
+  /** Copy attempts so far — the bound the sweep and the webhook share. */
+  recording_attempts?: number | null;
+  /** True when the event ranked below the row's status (a retried
+   *  call_started after call_ended): nothing was written, updated_at did
+   *  not move. */
+  skipped?: boolean;
   contact_id: string | null;
   conversation_id: string | null;
 }

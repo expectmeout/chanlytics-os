@@ -27,6 +27,7 @@ import { pg } from "../../lib/pg.js";
 import { logger, errField } from "../../lib/log.js";
 import { getCall, normalizeCall } from "../../lib/workspace/channels.js";
 import { ingestCall } from "../../lib/workspace/db.js";
+import { copyRecording, RECORDING_MAX_ATTEMPTS, SWEEP_COPY_TIMEOUT_MS } from "../../lib/call-recording.js";
 
 /** Only look at rows that have had time to settle — a call that started
  *  seconds ago is not evidence of anything, and asking about it wastes a
@@ -36,6 +37,12 @@ const SETTLE_MS = 5 * 60 * 1000;
 /** A bound per tick. A backlog drains over successive runs rather than turning
  *  one cron tick into a hundred sequential API calls. */
 const MAX_PER_TICK = 25;
+
+/** Recording copies retried per tick. Each may wait SWEEP_COPY_TIMEOUT_MS,
+ *  so the two together stay inside this function's own budget. */
+const MAX_RECORDINGS_PER_TICK = 3;
+
+export const config = { maxDuration: 60 };
 
 function secretsMatch(a: string, b: string): boolean {
   const x = Buffer.from(a);
@@ -113,6 +120,38 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
-  L.info("calls_sweep_done", { candidates: stale?.length ?? 0, closed, still_live: stillLive, unknown });
-  return json(200, { ok: true, candidates: stale?.length ?? 0, closed, stillLive, unknown });
+  // ---- recordings that did not finish copying inside the webhook's budget ----
+  // Same settle rule: the row's own updated_at moved on the last attempt, so
+  // waiting five minutes IS the back-off. After RECORDING_MAX_ATTEMPTS the
+  // copy is marked failed by copyRecording and stops being a candidate.
+  const recordings = { candidates: 0, stored: 0, retry: 0, failed: 0 };
+  const { data: pendingRec, error: recErr } = await db
+    .from("calls")
+    .select("id, tenant_id, recording")
+    .in("status", ["ended", "error"])
+    .filter("recording->>fetch_state", "eq", "pending")
+    .lt("updated_at", new Date(Date.now() - SETTLE_MS).toISOString())
+    .order("updated_at", { ascending: true })
+    .limit(MAX_RECORDINGS_PER_TICK * 2);
+  if (recErr) L.error("calls_sweep_recordings_query_failed", { error: recErr.message });
+  for (const row of pendingRec ?? []) {
+    const rec = (row.recording ?? {}) as { provider_url?: string; attempts?: number };
+    if (!rec.provider_url || (rec.attempts ?? 0) >= RECORDING_MAX_ATTEMPTS) continue;
+    if (recordings.candidates >= MAX_RECORDINGS_PER_TICK) break;
+    recordings.candidates++;
+    const outcome = await copyRecording(db, {
+      tenantId: row.tenant_id,
+      callId: row.id,
+      providerUrl: rec.provider_url,
+      attempts: rec.attempts ?? 0,
+      timeoutMs: SWEEP_COPY_TIMEOUT_MS,
+    });
+    recordings[outcome]++;
+  }
+
+  L.info("calls_sweep_done", {
+    candidates: stale?.length ?? 0, closed, still_live: stillLive, unknown,
+    recordings: JSON.stringify(recordings),
+  });
+  return json(200, { ok: true, candidates: stale?.length ?? 0, closed, stillLive, unknown, recordings });
 }

@@ -171,6 +171,10 @@ function secondsPhrase(s: number): string {
 
 const SENT = ["sent", "delivered", "read"];
 
+/** Retell's analysis lands a little after call_ended. Inside this window
+ *  "no summary" is a fact about the clock, not about the call. */
+const ANALYSIS_GRACE_MS = 10 * 60 * 1000;
+
 export function toTodayVM(
   m: MetricsSummaryDto,
   conversations: ConversationDto[],
@@ -460,28 +464,37 @@ export function toTodayVM(
      attention — the whole point of the region is that it stays short. ---- */
   const NEEDS_EAR = ["dial_no_answer", "inactivity", "concurrency_limit_reached", "marked_as_spam"];
   const callRows: TodayCallRowVM[] = callsInWindow
+    // A dial that never connected is not a call, so it is not a call worth an ear.
+    .filter((c) => c.status !== "not_connected")
+    .map((c) => ({ c, vm: toCallVM(c, now) }))
     .filter(
-      (c) =>
+      ({ c, vm }) =>
+        vm.live ||
         c.in_voicemail ||
         c.sentiment === "Negative" ||
         !c.summary ||
         (c.disconnection_reason ? NEEDS_EAR.includes(c.disconnection_reason) : false),
     )
-    .map((c) => {
-      const vm = toCallVM(c, now);
+    .map(({ c, vm }) => {
+      const endedMs = c.ended_at ? new Date(c.ended_at).getTime() : NaN;
+      const analysisDue = !c.summary && Number.isFinite(endedMs) && now.getTime() - endedMs < ANALYSIS_GRACE_MS;
       return {
         id: c.id,
         who: vm.who,
         at: tzTime(c.started_at, tz) ?? "",
         duration: vm.duration ?? "",
-        note: c.in_voicemail
-          ? "Reached voicemail"
-          : c.sentiment === "Negative"
-            ? "Caller sentiment: Negative — the voice provider's own read"
-            : !c.summary
-              ? "No summary from the voice provider"
-              : (DISCONNECTION_LABELS[c.disconnection_reason ?? ""] ?? "Ended early"),
-        to: `conversations/cv-${c.id}`,
+        note: vm.live
+          ? "In progress right now"
+          : c.in_voicemail
+            ? "Reached voicemail"
+            : c.sentiment === "Negative"
+              ? "Caller sentiment: Negative — the voice provider's own read"
+              : analysisDue
+                ? "Summary on its way from the voice provider"
+                : !c.summary
+                  ? "No summary from the voice provider"
+                  : (DISCONNECTION_LABELS[c.disconnection_reason ?? ""] ?? "Ended early"),
+        to: vm.live ? "live" : `conversations/cv-${c.id}`,
       };
     });
 
