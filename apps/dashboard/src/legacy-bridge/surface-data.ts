@@ -247,6 +247,9 @@ import {
   type PeopleAggregates,
   recencyCells,
   PEOPLE_TABS,
+  toChannelVM,
+  type ChannelDto,
+  type ChannelVM,
 } from "@chanlytics/contracts";
 
 /**
@@ -472,24 +475,34 @@ export interface WorkspaceSettings {
 
 export const settingsOverride: SurfaceOverride = {
   key: "settings",
-  globals: ["__SETTINGS", "__TEAM", "__TEAM_INVITES", "__POLICIES"],
+  globals: ["__SETTINGS", "__TEAM", "__TEAM_INVITES", "__POLICIES", "__CHANNELS"],
   events: ["surface:settings"],
   apply: async () => {
-    const [cfg, team, pol] = await Promise.all([
+    const [cfg, team, pol, ch] = await Promise.all([
       fetchEnvelope<{ config: WorkspaceSettings; version: number; role: string }>("/api/v1/settings"),
       // A team read that fails must not blank the business card beside it.
       fetchEnvelope<{ members: unknown[]; invites?: unknown[] }>("/api/v1/team").catch((e: unknown) => e as Error),
       // The autonomy matrix. Same rule: a failed read is its own state (null),
       // never the mockup's charter.
       fetchEnvelope<{ policies: PolicyRecordLike[]; role?: string }>("/api/v1/policies").catch((e: unknown) => e as Error),
+      // The numbers the business is reachable on, for Integrations.
+      fetchEnvelope<{ channels: ChannelDto[] }>("/api/v1/channels").catch((e: unknown) => e as Error),
     ]);
     const w = window as unknown as {
       __SETTINGS?: { config: WorkspaceSettings; version: number; role: string };
       __TEAM?: unknown[] | null;
       __TEAM_INVITES?: unknown[] | null;
       __POLICIES?: PoliciesSurface | null;
+      __CHANNELS?: ChannelVM[] | null;
     };
     w.__SETTINGS = { config: cfg.config ?? {}, version: cfg.version, role: cfg.role };
+    if (ch instanceof Error) {
+      w.__CHANNELS = null;
+      console.error("settings_channels_fetch_failed", ch.message);
+    } else {
+      const now = new Date();
+      w.__CHANNELS = (ch.channels ?? []).map((c) => toChannelVM(c, now));
+    }
     if (pol instanceof Error) {
       w.__POLICIES = null;
       console.error("settings_policies_fetch_failed", pol.message);

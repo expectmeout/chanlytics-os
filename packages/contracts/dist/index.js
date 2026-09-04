@@ -1695,6 +1695,59 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
     }
   };
 }
+
+// src/channels.ts
+var DAY_MS2 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS2;
+var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+function ago2(ms, nowMs) {
+  const diff = Math.max(0, nowMs - ms);
+  if (diff < 6e4) return "just now";
+  if (diff < 36e5) return `${Math.round(diff / 6e4)}m ago`;
+  if (diff < DAY_MS2) return `${Math.round(diff / 36e5)}h ago`;
+  if (diff < QUIET_AFTER_MS2) return `${Math.round(diff / DAY_MS2)}d ago`;
+  return DATE_FMT3.format(new Date(ms));
+}
+var KIND_META = {
+  whatsapp: { name: "WhatsApp Business", what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
+  voice: { name: "Phone line", what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  sms: { name: "SMS", what: "Text messages", icon: "chat", noun: "message" },
+  email: { name: "Email", what: "Email", icon: "mail", noun: "email" },
+  instagram: { name: "Instagram", what: "Direct messages", icon: "instagram", noun: "message" }
+};
+function toChannelVM(dto, now = /* @__PURE__ */ new Date()) {
+  const nowMs = now.getTime();
+  const meta = KIND_META[dto.kind] ?? { name: dto.kind.charAt(0).toUpperCase() + dto.kind.slice(1), what: "", icon: "chat", noun: "message" };
+  const last = dto.last_inbound_at ? new Date(dto.last_inbound_at).getTime() : null;
+  const on = dto.status === "active";
+  let health;
+  let healthLabel;
+  if (!on) {
+    health = "off";
+    healthLabel = "Switched off \u2014 messages are recorded and you are emailed; the receptionist stays silent";
+  } else if (last === null) {
+    health = "unused";
+    healthLabel = `On \u2014 no ${meta.noun} has arrived yet`;
+  } else if (nowMs - last <= QUIET_AFTER_MS2) {
+    health = "receiving";
+    healthLabel = `Receiving \xB7 last ${meta.noun} ${ago2(last, nowMs)}`;
+  } else {
+    health = "quiet";
+    healthLabel = `Quiet \xB7 last ${meta.noun} ${ago2(last, nowMs)}`;
+  }
+  return {
+    id: dto.id,
+    kind: dto.kind,
+    name: meta.name,
+    what: meta.what,
+    icon: meta.icon,
+    number: formatPhoneDisplay(dto.number_e164),
+    on,
+    health,
+    healthLabel,
+    lastInboundMs: last
+  };
+}
 export {
   ACTOR_TYPES,
   AppError,
@@ -1790,6 +1843,7 @@ export {
   shortTime,
   threadStanding,
   toCallVM,
+  toChannelVM,
   toConversationVM,
   toInboxThreadVM,
   toPersonRowVM,

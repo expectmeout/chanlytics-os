@@ -51,6 +51,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   "admin/workspace": "real",
   "admin/autonomy": "real",   // the policies table, live for the reply row
   "admin/notifications": "real",  // who is alerted, from tenant_config
+  "admin/integrations": "real",   // the channels in tenant_channels, read-only
 };
 
 /**
@@ -70,6 +71,7 @@ export const ROUTE_SURFACE: Record<string, string> = {
   "admin/workspace": "settings",
   "admin/autonomy": "settings",
   "admin/notifications": "settings",
+  "admin/integrations": "settings",
 };
 
 /**

@@ -4296,6 +4296,9 @@ var QUIET_AFTER_MS = 30 * DAY_MS;
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_YEAR_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
 var TIME_FMT2 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
+var DAY_MS2 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS2;
+var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -8382,7 +8385,7 @@ function isOptedOutContact(c) {
 var WA_WINDOW_MS2 = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS2 = 10 * 60 * 1e3;
 var TIME_FMT3 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PolicyLimitsSchema2 = external_exports2.object({
   max_replies_day: external_exports2.number().int().min(1).max(200).optional(),
   pause_hours: external_exports2.number().int().min(1).max(168).optional(),
@@ -8583,14 +8586,17 @@ var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c, n) => checkClosure2(c, n, ctx));
 });
-var DAY_MS2 = 864e5;
-var WEEK_MS2 = 7 * DAY_MS2;
-var MONTH_MS2 = 30 * DAY_MS2;
-var NEW_WINDOW_MS2 = 7 * DAY_MS2;
-var QUIET_AFTER_MS2 = 30 * DAY_MS2;
+var DAY_MS3 = 864e5;
+var WEEK_MS2 = 7 * DAY_MS3;
+var MONTH_MS2 = 30 * DAY_MS3;
+var NEW_WINDOW_MS2 = 7 * DAY_MS3;
+var QUIET_AFTER_MS3 = 30 * DAY_MS3;
 var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_YEAR_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
 var TIME_FMT22 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
+var DAY_MS22 = 864e5;
+var QUIET_AFTER_MS22 = 7 * DAY_MS22;
+var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 
 // src/handlers.ts
 var SENDERS = {
