@@ -13,9 +13,9 @@ const { useState: useSetState, useEffect: useSetEffect } = React;
 // this literal is the standalone-mockup fallback only. Two hand-kept copies is
 // one edit away from the client offering a control the server refuses.
 const ST_PERMS = window.ROLE_PERMS || {
-  owner:    { approve: true,  autonomy: true,  disconnect: true,  billing: true,  team: true },
-  operator: { approve: true,  autonomy: true,  disconnect: false, billing: false, team: false },
-  viewer:   { approve: false, autonomy: false, disconnect: false, billing: false, team: false },
+  owner:    { approve: true,  autonomy: true,  disconnect: true,  billing: true,  team: true,  settings: true },
+  operator: { approve: true,  autonomy: true,  disconnect: false, billing: false, team: false, settings: false },
+  viewer:   { approve: false, autonomy: false, disconnect: false, billing: false, team: false, settings: false },
 };
 const ST_ROLE_META = {
   owner:    { label: "Owner",    tone: "accent", can: "Everything — billing, team, and disconnecting agents" },
@@ -398,9 +398,15 @@ const TeamSection = ({ flash }) => {
             <RolePill role={m.role} />
             {canManage && !isMe ? (
               <MoreMenu btnClass="btn btn-icon btn-sm" items={[
-                { header: "Role" },
-                ...["owner", "operator", "viewer"].map(r => ({ label: ST_ROLE_META[r].label + (m.role === r ? "  ✓" : ""), icon: r === "owner" ? "shield" : r === "operator" ? "agents" : "users", onClick: () => changeRole(m, r) })),
-                { divider: true },
+                // An open invitation has no membership row to change a role
+                // on: the server looks the id up among members and answers
+                // "not on this team". The role was chosen when the invite was
+                // sent — revoke and re-invite to change it.
+                ...(pending && realRoster ? [] : [
+                  { header: "Role" },
+                  ...["owner", "operator", "viewer"].map(r => ({ label: ST_ROLE_META[r].label + (m.role === r ? "  ✓" : ""), icon: r === "owner" ? "shield" : r === "operator" ? "agents" : "users", onClick: () => changeRole(m, r) })),
+                  { divider: true },
+                ]),
                 ...(pending && !realRoster ? [{ label: "Resend invite", icon: "mail", onClick: () => flash({ msg: <>Invite resent to <b>{m.email}</b></> }) }] : []),
                 { label: pending ? "Revoke invite" : "Remove", icon: "x", danger: true, onClick: () => remove(m) },
               ]} />
@@ -1049,7 +1055,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       <div className="set-editor-foot">
         <span className="set-editor-note">Saved changes reach the receptionist within a minute. A call already in progress finishes on the old details.</span>
         <button type="button" className="btn btn-ghost btn-sm" onClick={onDone} disabled={saving}>Cancel</button>
-        <button type="button" className="btn btn-primary btn-sm" onClick={save} disabled={saving} {...window.gate("autonomy")}>
+        <button type="button" className="btn btn-primary btn-sm" onClick={save} disabled={saving} {...window.gate("settings")}>
           {saving ? "Saving" : "Save"}
         </button>
       </div>
@@ -1078,10 +1084,34 @@ const PaneWorkspace = ({ flash }) => {
    */
   const connected = !!settings;
   const unconfigured = connected && !real;
+  // And "broken" is a third thing. The server now says so instead of handing
+  // back {} — which landed here as `unconfigured` and offered a form whose
+  // save would have replaced the broken row with its few fields.
+  const broken = !!(settings && settings.broken);
   const hrs = profile && hoursSummary(profile.hours);
   // `connected`, not `real`: a workspace with no receptionist is exactly the
   // one that most needs this form. It used to be the one case that could not
   // open it.
+  if (broken) {
+    return (
+      <>
+        <section className="fl-card set-card">
+          <div className="fl-card-head"><span className="fl-card-title">Business</span></div>
+          <div className="set-empty">
+            <div className="set-empty-title">This workspace's settings can't be read</div>
+            <div className="set-empty-body">
+              Something saved in this workspace's configuration no longer passes the
+              checks the receptionist runs before it answers, so the receptionist is
+              silent and this form is closed — saving from here would replace what
+              is still there. Chanlytics has to repair it.
+            </div>
+            <ul className="set-broken-issues">{settings.broken.issues.map((i) => <li key={i}>{i}</li>)}</ul>
+          </div>
+        </section>
+        <TeamSection flash={flash} />
+      </>
+    );
+  }
   if (connected && editing) {
     return (
       <>
@@ -1097,7 +1127,7 @@ const PaneWorkspace = ({ flash }) => {
         {/* On real data this opens the form. The mockup's compose flow asked
             an assistant to update details it had no way to write. */}
         {real
-          ? <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)} {...window.gate("autonomy")}><Icon name="edit" size={11} /> Edit</button>
+          ? <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)} {...window.gate("settings")}><Icon name="edit" size={11} /> Edit</button>
           : unconfigured
             /* No Edit here. This form cannot create a receptionist — it edits
                the profile ON one, and the required identity fields
@@ -1115,7 +1145,7 @@ const PaneWorkspace = ({ flash }) => {
             booking link. Until it has those, there is nothing here to show you
             and nothing answering your customers.
           </div>
-          <button className="btn btn-primary btn-sm" onClick={() => setEditing(true)} {...window.gate("autonomy")}>
+          <button className="btn btn-primary btn-sm" onClick={() => setEditing(true)} {...window.gate("settings")}>
             <Icon name="plus" size={12} /> Set up the receptionist
           </button>
         </div>
@@ -1212,7 +1242,9 @@ const PromptPreview = () => {
             something, and it is the only signal that reads at a glance. */}
         <span className="set-prompt-count">{composed.text.length.toLocaleString()} characters</span>
         <span className="set-prompt-sep">·</span>
-        <span>every message, word for word</span>
+        <span>{channel === "voice"
+          ? "what the phone line would be told — today it runs its own script and reads none of this"
+          : "every WhatsApp message, word for word"}</span>
       </div>
       {open && (
         <>
@@ -1451,7 +1483,7 @@ const PaneAutonomyReal = ({ flash }) => {
           <SetSeg
             value={delayLabel}
             options={AUT_DELAYS.map((d) => d[0])}
-            onChange={(v) => { const d = AUT_DELAYS.find((x) => x[0] === v); if (d && reply && reply.mode) put(reply, reply.mode.toLowerCase(), d[1]); }}
+            onChange={(v) => { const d = AUT_DELAYS.find((x) => x[0] === v); if (d && reply) put(reply, undefined, d[1]); }}
           />
         </SetRow>
       </section>
@@ -1590,7 +1622,7 @@ const PaneIntegrationsReal = () => {
         {list.length > 0 && (
           <div className="set-row">
             <div className="set-row-info">
-              <span className="set-row-hint">Switching a number off silences the receptionist on it and emails you every message instead. It is an operator action for now, not a button here.</span>
+              <span className="set-row-hint">Switching a number off means messages to it are neither answered nor recorded — Chanlytics is told they are arriving, you are not. It is an operator action for now, not a button here.</span>
             </div>
           </div>
         )}
@@ -1732,8 +1764,12 @@ const NOTIF_KINDS = [
   { title: "Still waiting", what: "Nobody has answered a customer for a while after a handoff." },
   { title: "After every phone call", what: "A summary of the call: who, how long, how it went." },
   { title: "A reply failed to send", what: "The receptionist wrote an answer and the channel refused it." },
-  { title: "Messages arriving for a switched-off number", what: "Someone is texting a channel this workspace has disabled." },
-  { title: "Background checks", what: "When the watchdog that re-checks unanswered threads stops running, and when it recovers." },
+  // The last two are platform alerts: a switched-off number has no workspace
+  // to address, and a stalled sweep belongs to nobody's workspace. They go to
+  // Chanlytics. Listing them beside "goes to each of these addresses" without
+  // saying so promised an owner an email they will never receive.
+  { title: "Messages arriving for a switched-off number", what: "Someone is texting a channel this workspace has disabled. Goes to Chanlytics, not to the addresses above — a switched-off number has no workspace to alert.", platform: true },
+  { title: "Background checks", what: "When the watchdog that re-checks unanswered threads stops running, and when it recovers. Goes to Chanlytics, not to the addresses above.", platform: true },
 ];
 
 const PaneNotificationsReal = ({ flash }) => {
@@ -1751,7 +1787,13 @@ const PaneNotificationsReal = ({ flash }) => {
   const notif = cfg.notifications || {};
   const emails = Array.isArray(notif.escalation_emails) ? notif.escalation_emails : [];
   const isOwner = !!(window.__ME && window.__ME.role === "owner");
-  const lockTitle = isOwner ? undefined : "Only an owner can change who is alerted";
+  // A save here writes the WHOLE config it read. When the config could not be
+  // read, what it read is {} — and saving would replace the broken row with
+  // one holding nothing but these addresses.
+  const broken = !!(settings && settings.broken);
+  const lockTitle = broken
+    ? "This workspace's settings can't be read — Chanlytics has to repair them before anything here can change"
+    : isOwner ? undefined : "Only an owner can change who is alerted";
 
   const save = (nextEmails, msg) => {
     if (!window.__saveSettings || !settings) return;
@@ -1775,7 +1817,7 @@ const PaneNotificationsReal = ({ flash }) => {
       <section className="fl-card set-card" data-testid="notif-recipients">
         <div className="fl-card-head">
           <span className="fl-card-title">Who gets alerted</span>
-          <span className="fl-card-sub">Every alert below goes to each of these addresses</span>
+          <span className="fl-card-sub">Each alert below goes to each of these addresses, except the two marked for Chanlytics</span>
         </div>
         {emails.length === 0 && (
           <div className="set-row">
@@ -1790,7 +1832,7 @@ const PaneNotificationsReal = ({ flash }) => {
             <div className="set-row-info"><span className="set-row-label">{e}</span></div>
             <button
               className="btn btn-ghost btn-sm"
-              disabled={!isOwner || busy || emails.length <= 1}
+              disabled={broken || !isOwner || busy || emails.length <= 1}
               title={emails.length <= 1 ? "At least one address must stay — the receptionist has to be able to reach someone" : lockTitle}
               onClick={() => remove(e)}
             >
@@ -1805,14 +1847,14 @@ const PaneNotificationsReal = ({ flash }) => {
               type="email"
               placeholder="owner@yourbusiness.com"
               value={email}
-              disabled={!isOwner || busy}
+              disabled={broken || !isOwner || busy}
               title={lockTitle}
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && add()}
               aria-label="Add an address to alert"
             />
           </div>
-          <button className="btn btn-primary btn-sm" disabled={!isOwner || busy || !email.trim()} title={lockTitle} onClick={add}>
+          <button className="btn btn-primary btn-sm" disabled={broken || !isOwner || busy || !email.trim()} title={lockTitle} onClick={add}>
             {busy ? "Saving…" : "Add"}
           </button>
         </div>
@@ -1826,7 +1868,7 @@ const PaneNotificationsReal = ({ flash }) => {
         {NOTIF_KINDS.map((k) => (
           <div className="set-row" key={k.title}>
             <div className="set-row-info">
-              <span className="set-row-label">{k.title}</span>
+              <span className="set-row-label">{k.title}{k.platform && <span className="pill set-notif-platform">to Chanlytics</span>}</span>
               <span className="set-row-hint">{k.what}</span>
             </div>
           </div>

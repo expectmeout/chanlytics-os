@@ -3,7 +3,7 @@ import { AppError, waWindow } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { withRoute } from "@/server/with-route";
 import { z } from "zod";
-import { assertCanSend, cancelPendingAiReply, loadConversation, recordDecision, requireOperator, resolveOpenEscalation, PAUSE_MS, SEND_GRACE_MS } from "@/server/verbs";
+import { assertCanSend, cancelPendingAiReply, loadConversation, recordDecision, requireOperator, resolveOpenEscalation, pauseMsFor, SEND_GRACE_MS } from "@/server/verbs";
 import { schedule, cancelKindFor, mirrorBlobPause } from "@/server/service";
 
 /**
@@ -164,7 +164,7 @@ export const POST = withRoute(async (req, ctx) => {
   // exists that a job could send. A mirror failure here means nothing was
   // queued, so the operator's "it failed" is the truth (previously the text
   // still went out 15s later while the API reported failure).
-  const pauseUntil = Date.now() + PAUSE_MS;
+  const pauseUntil = Date.now() + await pauseMsFor(ctx, conv.tenant_id);
   await mirrorBlobPause(conv.tenant_id, conv.phone_e164, pauseUntil);
   // The result of this write is not optional. Under PG_READS this row IS the
   // receptionist's answer to "may I speak?", and this is the only one of the

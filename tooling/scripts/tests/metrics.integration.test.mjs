@@ -78,10 +78,13 @@ test("Today and Reports agree on who answered, and the first replier wins", { sk
     assert.equal(mine[0].ai_seconds, null, "an AI reply that came second is not timed");
 
     // And the two functions read that rule identically for the same day.
-    // Read back-to-back; a concurrent test could still land between the two
-    // calls, so one disagreement earns one more look.
+    // Read back-to-back; a concurrent test's fixture can still land between
+    // the two calls (the integration files share this tenant and run at the
+    // same time), so a disagreement earns a few more looks before it counts.
     let after = await both(tenantId);
-    if (after.m.period.answered_by_you !== after.today.answered_you || after.m.period.answered_by_ai !== after.today.answered_ai) {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (after.m.period.answered_by_you === after.today.answered_you && after.m.period.answered_by_ai === after.today.answered_ai && after.m.period.unanswered_in_window === after.today.unanswered) break;
+      await new Promise((r) => setTimeout(r, 400));
       after = await both(tenantId);
     }
     assert.equal(after.m.period.answered_by_ai, after.today.answered_ai, "Today and Reports: same number for the same day");
