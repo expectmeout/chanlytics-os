@@ -1,5 +1,6 @@
 import { withRoute, memberContext } from "@/server/with-route";
 import { AppError, REPORT_RANGES, type ReportDto } from "@chanlytics/contracts";
+import { takeRate } from "@/server/rate-limit";
 
 /**
  * GET /api/v1/reports?days=7|30|90 — the receptionist's numbers, day by day.
@@ -11,6 +12,7 @@ import { AppError, REPORT_RANGES, type ReportDto } from "@chanlytics/contracts";
  * one beside it stops agreeing with itself.
  */
 export const GET = withRoute(async (req, ctx) => {
+  takeRate(ctx.userId, "aggregate");
   const url = new URL(req.url);
   const days = Number(url.searchParams.get("days") ?? 30);
   if (!REPORT_RANGES.some((r) => r.days === days)) {

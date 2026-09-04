@@ -1,6 +1,7 @@
 import { withRoute, memberContext, requireRole } from "@/server/with-route";
 import { AppError, ROLES } from "@chanlytics/contracts";
 import { inviteMember } from "@/server/service";
+import { takeRate } from "@/server/rate-limit";
 
 /**
  * POST /api/v1/team/invite — {email, role}. Owner-only. Sends the real
@@ -11,6 +12,7 @@ import { inviteMember } from "@/server/service";
 export const POST = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   requireRole(member, "owner");
+  takeRate(ctx.userId, "invite");
   const body = (await req.json().catch(() => null)) as { email?: string; role?: string } | null;
   const email = (body?.email ?? "").trim().toLowerCase();
   const role = body?.role ?? "";

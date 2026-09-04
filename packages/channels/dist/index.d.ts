@@ -288,6 +288,8 @@ interface RetellAgentConfig {
     webhook_events: string[] | null;
     webhook_timeout_ms: number | null;
     data_storage_setting: string | null;
+    /** Days the provider keeps a call; null = forever. */
+    data_storage_retention_days: number | null;
     opt_in_signed_url: boolean | null;
 }
 /** GET /get-agent — the fields above, read-only. Null when the provider says no. */
@@ -445,5 +447,42 @@ declare function voiceShellDrift(live: LiveVoiceLlm): {
     converged: boolean;
     drift: string[];
 };
+/** The webhook events the call pipeline is built on. transcript_updated is
+ *  opt-in at Retell and is what makes the Live page's transcript live. */
+declare const VOICE_WEBHOOK_EVENTS: readonly ["call_started", "call_ended", "call_analyzed", "transcript_updated"];
+/** The webhook copies the recording inside its budget; Retell's default 10 s is too short for it. */
+declare const VOICE_WEBHOOK_TIMEOUT_MS = 20000;
+/** The agent-level fields the plan reads, as get-agent returns them. */
+interface LiveAgentSettings {
+    webhook_events?: string[] | null;
+    webhook_timeout_ms?: number | null;
+    opt_in_signed_url?: boolean | null;
+    data_storage_retention_days?: number | null;
+}
+interface AgentPlan {
+    drift: string[];
+    /** The PATCH body for update-agent, or null when nothing differs. */
+    agentPatch: Record<string, unknown> | null;
+}
+/**
+ * The agent settings the pipeline depends on, and the patch that sets them.
+ *
+ * Signed recording URLs: with opt_in_signed_url off, every recording link
+ * Retell hands out is public and permanent (review F10 made this urgent).
+ * The pipeline copies audio into private storage within seconds of the call
+ * and refetches a fresh link through get-call when a copy has to retry, so a
+ * link that expires costs it nothing.
+ *
+ * Retention is NOT drift. How long the provider keeps a call is a product
+ * decision, applied only when the converger is told a number.
+ */
+declare function planAgentSettings(live: LiveAgentSettings, opts?: {
+    retentionDays?: number;
+}): AgentPlan;
+/** The diagnostic's view of the agent settings. Strings only. */
+declare function agentSettingsDrift(live: LiveAgentSettings): {
+    converged: boolean;
+    drift: string[];
+};
 
-export { CALLER_UNKNOWN, DEFAULT_FN_URL, FACTS_UNAVAILABLE, GREETING_DEFAULT, HANDOFF_VAR, type ListCallsPage, type LiveCallControl, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type SendResult, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, type VoiceConvergencePlan, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, callSummaryLine, desiredVoiceShell, fetchMediaBytes, fetchRecording, getAgent, getCall, getRetellLlm, listCalls, liveTurns, needsHydration, normalizeCall, normalizeInbound, planVoiceConvergence, sendTemplate, sendText, updateLiveCall, verifyRetellSignature, voiceShellDrift, voiceShellTools };
+export { type AgentPlan, CALLER_UNKNOWN, DEFAULT_FN_URL, FACTS_UNAVAILABLE, GREETING_DEFAULT, HANDOFF_VAR, type ListCallsPage, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type SendResult, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, agentSettingsDrift, callSummaryLine, desiredVoiceShell, fetchMediaBytes, fetchRecording, getAgent, getCall, getRetellLlm, listCalls, liveTurns, needsHydration, normalizeCall, normalizeInbound, planAgentSettings, planVoiceConvergence, sendTemplate, sendText, updateLiveCall, verifyRetellSignature, voiceShellDrift, voiceShellTools };

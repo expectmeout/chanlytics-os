@@ -4536,6 +4536,7 @@ async function getAgent(cfg, agentId) {
     webhook_events: Array.isArray(a.webhook_events) ? a.webhook_events.map(String) : null,
     webhook_timeout_ms: num("webhook_timeout_ms"),
     data_storage_setting: str("data_storage_setting"),
+    data_storage_retention_days: num("data_storage_retention_days"),
     opt_in_signed_url: bool("opt_in_signed_url")
   };
 }
@@ -4725,6 +4726,41 @@ function voiceShellDrift(live) {
   if (booking && !headers) drift.push("send_booking_link has no x-fn-secret header \u2014 the edge will refuse it");
   return { converged: drift.length === 0, drift };
 }
+var VOICE_WEBHOOK_EVENTS = ["call_started", "call_ended", "call_analyzed", "transcript_updated"];
+var VOICE_WEBHOOK_TIMEOUT_MS = 2e4;
+var RETELL_DEFAULT_EVENTS = ["call_started", "call_ended", "call_analyzed"];
+function planAgentSettings(live, opts = {}) {
+  const drift = [];
+  const patch = {};
+  const events = live.webhook_events ?? RETELL_DEFAULT_EVENTS;
+  const missing = VOICE_WEBHOOK_EVENTS.filter((e) => !events.includes(e));
+  if (missing.length) {
+    drift.push(`webhook_events missing ${missing.join(", ")} (the live transcript needs transcript_updated)`);
+    patch.webhook_events = [.../* @__PURE__ */ new Set([...events, ...VOICE_WEBHOOK_EVENTS])];
+  }
+  const timeout = live.webhook_timeout_ms ?? 1e4;
+  if (timeout < VOICE_WEBHOOK_TIMEOUT_MS) {
+    drift.push(`webhook_timeout_ms is ${timeout}; the recording copy needs ${VOICE_WEBHOOK_TIMEOUT_MS}`);
+    patch.webhook_timeout_ms = VOICE_WEBHOOK_TIMEOUT_MS;
+  }
+  if (live.opt_in_signed_url !== true) {
+    drift.push("recording URLs are public and permanent (opt_in_signed_url off); the pipeline copies audio within seconds and refetches a fresh link when it must");
+    patch.opt_in_signed_url = true;
+  }
+  if (opts.retentionDays !== void 0 && live.data_storage_retention_days !== opts.retentionDays) {
+    if (!Number.isInteger(opts.retentionDays) || opts.retentionDays < 1 || opts.retentionDays > 730) {
+      drift.push(`retention must be a whole number of days from 1 to 730, not ${opts.retentionDays}`);
+    } else {
+      drift.push(`data_storage_retention_days is ${live.data_storage_retention_days ?? "unset (kept forever)"}; asked for ${opts.retentionDays}`);
+      patch.data_storage_retention_days = opts.retentionDays;
+    }
+  }
+  return { drift, agentPatch: Object.keys(patch).length ? patch : null };
+}
+function agentSettingsDrift(live) {
+  const plan = planAgentSettings(live);
+  return { converged: plan.drift.length === 0, drift: plan.drift };
+}
 export {
   CALLER_UNKNOWN,
   DEFAULT_FN_URL,
@@ -4733,6 +4769,9 @@ export {
   HANDOFF_VAR,
   VOICE_SHELL_BEGIN,
   VOICE_SHELL_PROMPT,
+  VOICE_WEBHOOK_EVENTS,
+  VOICE_WEBHOOK_TIMEOUT_MS,
+  agentSettingsDrift,
   callSummaryLine,
   desiredVoiceShell,
   fetchMediaBytes,
@@ -4745,6 +4784,7 @@ export {
   needsHydration,
   normalizeCall,
   normalizeInbound,
+  planAgentSettings,
   planVoiceConvergence,
   sendTemplate,
   sendText,

@@ -5,6 +5,7 @@ import { withRoute } from "@/server/with-route";
 import { z } from "zod";
 import { assertCanSend, cancelPendingAiReply, loadConversation, recordDecision, requireOperator, resolveOpenEscalation, pauseMsFor, SEND_GRACE_MS } from "@/server/verbs";
 import { schedule, cancelKindFor, mirrorBlobPause } from "@/server/service";
+import { takeRate } from "@/server/rate-limit";
 
 /**
  * Human reply (§4/§6): honest by API shape. Inside the 24h window -> freeform;
@@ -29,6 +30,7 @@ export const POST = withRoute(async (req, ctx) => {
   // Role first: a viewer must not learn a customer's consent state from the
   // shape of the refusal, and this is the route that actually reaches a person.
   await requireOperator(ctx, conv.tenant_id);
+  takeRate(ctx.userId, "reply");
   if (!conv.phone_e164) throw new AppError("conflict", "Conversation has no phone identity.");
   // An opt-out binds the humans too — refuse BEFORE anything is queued, so the
   // operator is told rather than watching a message sit in "queued" and then

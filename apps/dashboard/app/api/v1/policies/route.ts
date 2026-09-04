@@ -7,6 +7,7 @@ import {
   REPLY_DELAY_MAX_MS,
 } from "@chanlytics/contracts";
 import { listPolicies, setPolicyMode } from "@chanlytics/db";
+import { takeRate } from "@/server/rate-limit";
 
 /** GET /api/v1/policies — the workspace autonomy matrix (E3). */
 export const GET = withRoute(async (req, ctx) => {
@@ -24,6 +25,7 @@ export const GET = withRoute(async (req, ctx) => {
 export const PUT = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   requireRole(member, "operator");
+  takeRate(ctx.userId, "settings");
   const body = (await req.json().catch(() => null)) as
     | { class?: string; mode?: string; replyDelayMs?: number }
     | null;

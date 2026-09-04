@@ -6,7 +6,7 @@ import { getThread, saveThread, storeBackend, threadNamespace } from "../lib/sto
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import type { SweepHealthRow } from "../lib/sweep-health.js";
-import { getAgent, getRetellLlm, voiceShellDrift } from "../lib/workspace/channels.js";
+import { getAgent, getRetellLlm, voiceShellDrift, agentSettingsDrift } from "../lib/workspace/channels.js";
 
 const META_APP_ID = process.env.META_APP_ID || "1823820738182125";
 
@@ -132,6 +132,10 @@ export async function GET(request: Request): Promise<Response> {
                 channel_status: r.status,
                 live_transcript: (a.webhook_events ?? []).includes("transcript_updated"),
                 shell: llm ? voiceShellDrift(llm) : { error: a.llm_id ? "llm_unreadable" : "not_a_retell_llm" },
+                // The agent-level settings the pipeline needs: the live
+                // transcript event, a webhook budget the recording copy fits
+                // in, signed recording links.
+                agent: agentSettingsDrift(a),
               }
             : { agent_id: r.external_id, channel_status: r.status, error: "unreadable" },
         );

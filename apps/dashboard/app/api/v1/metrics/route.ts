@@ -1,5 +1,6 @@
 import { withRoute, memberContext } from "@/server/with-route";
 import { AppError } from "@chanlytics/contracts";
+import { takeRate } from "@/server/rate-limit";
 
 /**
  * GET /api/v1/metrics?days=1 — the numbers behind Today.
@@ -17,6 +18,7 @@ import { AppError } from "@chanlytics/contracts";
  */
 export const GET = withRoute(async (req, ctx) => {
   const { supabase } = ctx;
+  takeRate(ctx.userId, "aggregate");
   const url = new URL(req.url);
   const days = Math.min(90, Math.max(1, Number(url.searchParams.get("days") ?? 1) || 1));
 

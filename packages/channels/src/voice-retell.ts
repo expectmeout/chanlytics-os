@@ -237,6 +237,8 @@ export interface RetellAgentConfig {
   webhook_events: string[] | null;
   webhook_timeout_ms: number | null;
   data_storage_setting: string | null;
+  /** Days the provider keeps a call; null = forever. */
+  data_storage_retention_days: number | null;
   opt_in_signed_url: boolean | null;
 }
 
@@ -264,6 +266,7 @@ export async function getAgent(cfg: RetellConfig, agentId: string): Promise<Rete
     webhook_events: Array.isArray(a.webhook_events) ? (a.webhook_events as unknown[]).map(String) : null,
     webhook_timeout_ms: num("webhook_timeout_ms"),
     data_storage_setting: str("data_storage_setting"),
+    data_storage_retention_days: num("data_storage_retention_days"),
     opt_in_signed_url: bool("opt_in_signed_url"),
   };
 }

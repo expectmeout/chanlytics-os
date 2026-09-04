@@ -29,22 +29,30 @@
  *                        without it). A live header is carried over untouched.
  *       VOICE_FN_URL     optional — where the booking tool posts
  *
- * Usage: node tooling/scripts/voice-converge.mjs [--apply] [--pin]
+ * Usage: node tooling/scripts/voice-converge.mjs [--apply] [--pin] [--retention-days N]
  *   --pin   also bind the number to agent_version "latest_published" (weight
  *           1), so a later draft cannot go live by being saved. REFUSED while
  *           the latest version is unpublished — pinning then would switch the
  *           line back to the stale published one.
+ *   --retention-days N   also ask the provider to delete calls after N days
+ *           (1–730). Retention is a product decision, so it is never part of
+ *           the drift the script closes on its own.
+ *
+ * The agent's own settings are planned too (planAgentSettings): the
+ * transcript_updated event, a 20 s webhook budget, signed recording links.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { desiredVoiceShell, planVoiceConvergence, DEFAULT_FN_URL } from "@chanlytics/channels";
+import { desiredVoiceShell, planVoiceConvergence, planAgentSettings, DEFAULT_FN_URL } from "@chanlytics/channels";
 
 const KEY = process.env.RETELL_API_KEY;
 const AGENT_ID = process.env.VOICE_AGENT_ID;
 if (!KEY || !AGENT_ID) { console.error("RETELL_API_KEY and VOICE_AGENT_ID required"); process.exit(2); }
 const apply = process.argv.includes("--apply");
 const pin = process.argv.includes("--pin");
+const retentionArg = process.argv.indexOf("--retention-days");
+const retentionDays = retentionArg >= 0 ? Number(process.argv[retentionArg + 1]) : undefined;
 const BASE = "https://api.retellai.com";
 
 async function call(method, path, payload) {
@@ -102,6 +110,13 @@ for (const line of plan.drift) console.log(`  - ${line}`);
 if (!headers) console.log("  ! send_booking_link will have NO x-fn-secret header — set RETELL_FN_SECRET or add it in Retell, or the edge refuses the tool");
 if (plan.llmPatch) console.log(`  PATCH /update-retell-llm/${llm.llm_id} with: ${Object.keys(plan.llmPatch).join(", ")}`);
 
+// The agent's own settings: the events, the webhook budget, signed links.
+const agentPlan = planAgentSettings(agent, retentionDays !== undefined ? { retentionDays } : {});
+console.log("\nagent settings:");
+if (!agentPlan.drift.length) console.log("  converged — nothing to change");
+for (const line of agentPlan.drift) console.log(`  - ${line}`);
+if (agentPlan.agentPatch) console.log(`  PATCH /update-agent/${agent.agent_id} with: ${Object.keys(agentPlan.agentPatch).join(", ")}`);
+
 // The pin is a separate decision with its own guard.
 let numberPatch = null;
 if (pin) {
@@ -131,6 +146,12 @@ if (plan.llmPatch) {
   console.log(again.drift.length ? `  ! still drifting: ${again.drift.join("; ")}` : "  converged (re-planned against the response)");
 } else {
   console.log("\nllm: nothing to apply");
+}
+if (agentPlan.agentPatch) {
+  const after = await call("PATCH", `/update-agent/${agent.agent_id}`, agentPlan.agentPatch);
+  console.log(`agent updated: version ${agent.version} -> ${after.version}`);
+} else {
+  console.log("agent: nothing to apply");
 }
 if (numberPatch) {
   const n = await call("PATCH", `/update-phone-number/${encodeURIComponent(number.phone_number)}`, numberPatch);
