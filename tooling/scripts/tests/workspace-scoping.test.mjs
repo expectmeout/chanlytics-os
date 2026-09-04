@@ -129,3 +129,59 @@ test("the cache is keyed on the ACTIVE workspace", () => {
   // never fire — the exact case it exists for.
   assert.match(runner, /__ACTIVE_WORKSPACE/);
 });
+
+/* ---------------- the checks every mutation should pass ------------------- */
+{
+  const { readCode } = await import("./_source.mjs");
+  const wrapper = readCode("apps/dashboard/src/server/with-route.ts");
+  const guards = readCode("apps/dashboard/src/server/request-guards.ts");
+  const verbsSrc = readCode("apps/dashboard/src/server/verbs.ts");
+  const replySrc = readCode("apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts");
+
+  test("a cross-site write is refused before anything reads the database", () => {
+    // These endpoints authenticate with a cookie, so a form on another site
+    // could aim at them. Nothing stopped that except two accidents:
+    // @supabase/ssr's SameSite=Lax default, and vercel.app being on the
+    // public-suffix list. Both stop being true on a shared custom domain.
+    const at = wrapper.indexOf("isSameOrigin(req)");
+    assert.ok(at > -1, "withRoute must make the check");
+    assert.ok(at < wrapper.indexOf("getUser()"), "and make it before the session lookup");
+    assert.match(wrapper, /status: 403/);
+  });
+
+  test("reads stay exempt from the origin check", () => {
+    // A GET changes nothing, and cross-site GETs are how link previews and
+    // prefetches legitimately arrive.
+    assert.match(wrapper, /req\.method !== "GET"/);
+    assert.match(wrapper, /req\.method !== "HEAD"/);
+  });
+
+  test("a malformed id is a 404, not a 500", () => {
+    // PostgREST answers 22P02 for a bad uuid, which withRoute turns into
+    // "Something went wrong" — a typo in a URL reading as a server fault.
+    assert.match(guards, /export function requireUuid/);
+    assert.match(guards, /"not_found"/);
+    assert.match(verbsSrc, /requireUuid\(id, "conversation"\)/, "checked once at the chokepoint");
+  });
+
+  test("the reply body is validated at the door", () => {
+    // The one route that reaches a real person took whatever the body held. An
+    // over-length reply was stored, reported queued, and failed 15 seconds
+    // later as an escalation plus an alert email.
+    assert.match(replySrc, /4096/);
+    assert.match(replySrc, /safeParse/);
+    assert.match(replySrc, /\.strict\(\)/);
+  });
+
+  test("template params come from config FIRST, not from the browser", () => {
+    // The route's own comment has always said params are tenant facts resolved
+    // server-side "so the browser neither knows nor ships any workspace's
+    // booking link" — and the code preferred whatever the browser sent, so an
+    // operator session could choose the link that lands on the customer's phone.
+    const at = replySrc.indexOf("let params: string[] = []");
+    const cfg = replySrc.indexOf("tenant_config", at);
+    const client = replySrc.indexOf("body.template.params", at);
+    assert.ok(at > -1 && cfg > -1 && client > -1);
+    assert.ok(cfg < client, "config is consulted before the client's params");
+  });
+}

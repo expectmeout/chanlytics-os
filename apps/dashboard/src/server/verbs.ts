@@ -7,6 +7,7 @@
 import { AppError, isOptedOutContact, OPT_OUT_REFUSAL, type DecisionVerb, type DecisionSubject } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { memberContext, requireRole, type RouteContext } from "./with-route";
+import { requireUuid } from "./request-guards";
 
 /**
  * Every committing verb goes through here first.
@@ -41,10 +42,15 @@ export interface VerbConversation {
 }
 
 export async function loadConversation(ctx: RouteContext, id: string): Promise<VerbConversation> {
+  // The chokepoint every conversation verb goes through, so the id is checked
+  // once here rather than remembered per route. A malformed id used to reach
+  // PostgREST, come back as 22P02, and surface as a generic 500 "Something
+  // went wrong" — a typo in a URL reading as a server fault.
+  const convId = requireUuid(id, "conversation");
   const { data, error } = await ctx.supabase
     .from("conversations")
     .select("id, tenant_id, state, paused_until, last_wa_inbound_at, contact_id, contacts (phone_e164, consent, dnc)")
-    .eq("id", id)
+    .eq("id", convId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", "Conversation not found.");
