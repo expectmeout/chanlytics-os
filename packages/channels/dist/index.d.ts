@@ -278,6 +278,10 @@ interface RetellAgentConfig {
     agent_name: string | null;
     version: number | null;
     is_published: boolean | null;
+    /** The Retell LLM behind the agent, at the version the agent points at —
+     *  what a diagnostic reads to say whether the line runs the product's shell. */
+    llm_id: string | null;
+    llm_version: number | null;
     webhook_url: string | null;
     /** Absent means Retell's default: call_started, call_ended, call_analyzed.
      *  transcript_updated (live transcript) is opt-in. */
@@ -288,6 +292,22 @@ interface RetellAgentConfig {
 }
 /** GET /get-agent — the fields above, read-only. Null when the provider says no. */
 declare function getAgent(cfg: RetellConfig, agentId: string): Promise<RetellAgentConfig | null>;
+/** The fields of a Retell LLM the shell is defined over. */
+interface RetellLlmConfig {
+    llm_id: string;
+    version: number | null;
+    general_prompt: string | null;
+    begin_message: string | null;
+    default_dynamic_variables: Record<string, string> | null;
+    /** Retell's tool objects as stored — the booking tool carries a secret header. */
+    general_tools: Array<Record<string, unknown> & {
+        type: string;
+        name: string;
+    }> | null;
+    knowledge_base_ids: string[] | null;
+}
+/** GET /get-retell-llm at a version. Null when the provider says no. */
+declare function getRetellLlm(cfg: RetellConfig, llmId: string, version?: number | null): Promise<RetellLlmConfig | null>;
 /** True when a v3 list row still needs a getCall to be complete. */
 declare function needsHydration(c: RetellCall): boolean;
 /**
@@ -309,4 +329,104 @@ declare function fetchRecording(url: string, opts?: {
 /** Retell webhook signature: `v={ts},d={hmac}` over rawBody+ts, keyed by the API key. */
 declare function verifyRetellSignature(rawBody: string, header: string | null | undefined, apiKey: string | undefined): boolean;
 
-export { type ListCallsPage, type NormalizedCall, type NormalizedInbound, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellTranscriptTurn, type SendResult, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, callSummaryLine, fetchMediaBytes, fetchRecording, getAgent, getCall, listCalls, liveTurns, needsHydration, normalizeCall, normalizeInbound, sendTemplate, sendText, verifyRetellSignature };
+/**
+ * The Retell "shell": everything the phone agent is told that is NOT a fact.
+ *
+ * The facts — hours, address, services, closures, the handoff line, the
+ * owner's own notes — arrive at call start as dynamic variables, composed by
+ * the inbound-call webhook from the same profile the WhatsApp receptionist
+ * reads. What is written here is only what the variables cannot say for
+ * themselves: where they go in the prompt, which tools exist, and what the
+ * agent hears when a variable could not be supplied.
+ *
+ * ONE definition, in code, for three readers: the converger script that
+ * brings a live agent onto it, the diagnostic that reports whether a line
+ * has drifted off it, and the provisioning script for a new tenant (a mirror,
+ * pinned equal by a test). The live salon agent predates all of this and was
+ * typed by hand in Retell's dashboard — its prompt bakes the hours, the
+ * address and a transfer number, so correcting the hours in Settings changed
+ * what the chat receptionist said and left the phone saying the old ones.
+ *
+ * Retell's variable semantics decide the shape of the defaults:
+ *   - a variable that is omitted or null is substituted from
+ *     `default_dynamic_variables`, and left as the literal `{{name}}` when
+ *     there is no default either — read aloud, braces and all;
+ *   - a variable set to "" is substituted with nothing AND skips the default.
+ * So every placeholder in the prompt has a default here that is a real
+ * sentence, and the webhook OMITS a variable it cannot fill rather than
+ * sending "".
+ */
+/** The prompt body. Both placeholders are mandatory; a test pins them. */
+declare const VOICE_SHELL_PROMPT = "{{business_facts}}\n\nWho you are speaking with:\n{{caller_context}}";
+/** Composed by the webhook so the business name never becomes a third copy. */
+declare const VOICE_SHELL_BEGIN = "{{greeting}}";
+/** The transfer tool dials this; the webhook fills it from the profile. */
+declare const HANDOFF_VAR = "{{handoff_number}}";
+/**
+ * What the agent is told when the business's facts could not be loaded.
+ * `apps/edge/api/retell-inbound.ts` keeps a literal copy (a test pins the two
+ * equal): the webhook must never depend on a package import to say this.
+ */
+declare const FACTS_UNAVAILABLE = "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory \u2014 you do not have them. Say you will have someone confirm, offer to take a message, and offer to text the booking link.";
+declare const CALLER_UNKNOWN = "New caller - no prior interactions on record.";
+/** The greeting with no business named — never wrong, never a placeholder. */
+declare const GREETING_DEFAULT = "Thank you for calling! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?";
+/** Where the booking-link tool posts. Overridable for previews. */
+declare const DEFAULT_FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
+/** Retell's own tool object, loosely: the fields we set plus whatever it adds. */
+type RetellTool = Record<string, unknown> & {
+    type: string;
+    name: string;
+};
+interface VoiceShellTarget {
+    general_prompt: string;
+    begin_message: string;
+    default_dynamic_variables: Record<string, string>;
+    general_tools: RetellTool[];
+}
+/**
+ * The tools, as Retell stores them.
+ *
+ * `headers` on the booking-link tool carries the shared secret the edge
+ * checks (`x-fn-secret`). The converger never knows it unless told, so the
+ * live tool's headers are carried over untouched, and a tool with none is
+ * reported rather than silently created secret-less.
+ */
+declare function voiceShellTools(fnUrl?: string, bookingHeaders?: Record<string, string> | null): RetellTool[];
+/** The whole target: what a converged agent's LLM holds. */
+declare function desiredVoiceShell(fnUrl?: string, bookingHeaders?: Record<string, string> | null): VoiceShellTarget;
+/** What the converger reads off a live Retell LLM. */
+interface LiveVoiceLlm {
+    general_prompt?: string | null;
+    begin_message?: string | null;
+    default_dynamic_variables?: Record<string, string> | null;
+    general_tools?: RetellTool[] | null;
+}
+interface VoiceConvergencePlan {
+    /** Human-readable, one line per difference. Never carries a secret. */
+    drift: string[];
+    /** The PATCH body for update-retell-llm, or null when nothing differs. */
+    llmPatch: Partial<VoiceShellTarget> | null;
+    /** Live tools the shell does not define. Listed, never silently dropped. */
+    unknownTools: string[];
+}
+/**
+ * What separates a live LLM from the shell, and the patch that closes it.
+ *
+ * Pure, so the dry run IS the plan the apply executes: the script prints the
+ * result of this function and, with --apply, sends exactly `llmPatch`. Extra
+ * default variables on the live LLM are kept (merged), not deleted; tools the
+ * shell does not know are reported and would be REPLACED by an apply, which
+ * is why they are listed by name in the plan.
+ */
+declare function planVoiceConvergence(live: LiveVoiceLlm, desired: VoiceShellTarget): VoiceConvergencePlan;
+/**
+ * The diagnostic's view: on the shell or not, and why not. Strings only —
+ * this is printed by /api/diag, and the live tools carry a secret header.
+ */
+declare function voiceShellDrift(live: LiveVoiceLlm): {
+    converged: boolean;
+    drift: string[];
+};
+
+export { CALLER_UNKNOWN, DEFAULT_FN_URL, FACTS_UNAVAILABLE, GREETING_DEFAULT, HANDOFF_VAR, type ListCallsPage, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type SendResult, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, type VoiceConvergencePlan, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, callSummaryLine, desiredVoiceShell, fetchMediaBytes, fetchRecording, getAgent, getCall, getRetellLlm, listCalls, liveTurns, needsHydration, normalizeCall, normalizeInbound, planVoiceConvergence, sendTemplate, sendText, verifyRetellSignature, voiceShellDrift, voiceShellTools };

@@ -6,7 +6,7 @@ import { getThread, saveThread, storeBackend, threadNamespace } from "../lib/sto
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import type { SweepHealthRow } from "../lib/sweep-health.js";
-import { getAgent } from "../lib/workspace/channels.js";
+import { getAgent, getRetellLlm, voiceShellDrift } from "../lib/workspace/channels.js";
 
 const META_APP_ID = process.env.META_APP_ID || "1823820738182125";
 
@@ -120,12 +120,18 @@ export async function GET(request: Request): Promise<Response> {
       const agents: unknown[] = [];
       for (const r of rows ?? []) {
         const a = await getAgent({ apiKey: process.env.RETELL_API_KEY }, r.external_id);
+        // Whether the line runs the product's shell — facts and caller context
+        // arriving per call — or a hand-typed prompt with the hours baked in.
+        // Read at the version the agent points at; strings only come out,
+        // because the live tools carry a secret header.
+        const llm = a?.llm_id ? await getRetellLlm({ apiKey: process.env.RETELL_API_KEY }, a.llm_id, a.llm_version) : null;
         agents.push(
           a
             ? {
                 ...a,
                 channel_status: r.status,
                 live_transcript: (a.webhook_events ?? []).includes("transcript_updated"),
+                shell: llm ? voiceShellDrift(llm) : { error: a.llm_id ? "llm_unreadable" : "not_a_retell_llm" },
               }
             : { agent_id: r.external_id, channel_status: r.status, error: "unreadable" },
         );

@@ -1016,8 +1016,20 @@ var ServiceSchema = z.object({
 var GuardrailsSchema = z.object({
   never_quote_prices: z.boolean().optional(),
   never_confirm_booking: z.boolean().optional(),
-  disclose_ai: z.boolean().optional()
+  disclose_ai: z.boolean().optional(),
+  /**
+   * OPT-IN, unlike the three above. Those default on because absent means
+   * "the safe reading"; this one arrived after prompts were live, and a
+   * rule that defaulted on would have changed every composed prompt in
+   * production the moment it deployed.
+   */
+  no_health_advice: z.boolean().optional()
 }).strict();
+var NoteSchema = z.object({
+  title: z.string().min(1).max(80),
+  text: z.string().min(1).max(1200)
+}).strict();
+var E164 = /^\+[1-9]\d{6,14}$/;
 var BusinessProfileSchema = z.object({
   address: z.string().max(300).optional(),
   hours: z.record(z.enum(DAYS), HoursSchema).optional(),
@@ -1029,6 +1041,14 @@ var BusinessProfileSchema = z.object({
   /** What must reach a person. One short line each. */
   escalate_when: z.array(z.string().min(1).max(200)).max(20).optional(),
   tone: z.string().max(200).optional(),
+  /**
+   * The line a PERSON answers. The phone receptionist warm-transfers here
+   * during opening hours; absent, it takes a message instead. Never the
+   * receptionist's own line — that would ring itself.
+   */
+  handoff_number: z.string().regex(E164, "E.164, like +16469325775").optional(),
+  website: z.string().url().max(500).optional(),
+  notes: z.array(NoteSchema).max(10).optional(),
   /**
    * Anything the owner wants said that no field covers.
    *
@@ -1258,7 +1278,7 @@ function hoursLines(hours) {
 function hasProfile(p) {
   if (!p) return false;
   const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close || h?.intervals?.length);
-  return !!(p.address || p.tone || p.extra_instructions || statedHours || p.services?.length || p.languages?.length || p.escalate_when?.length);
+  return !!(p.address || p.tone || p.extra_instructions || statedHours || p.services?.length || p.languages?.length || p.escalate_when?.length || p.website || p.notes?.length);
 }
 function dateKeyInZone(tz, at) {
   try {
@@ -1332,11 +1352,18 @@ function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @
   const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
   if (profile.tone) s.push(`Tone: ${profile.tone}`);
-  if (profile.languages?.length) s.push(`You speak: ${profile.languages.join(", ")}.`);
+  if (profile.languages?.length) {
+    s.push(
+      `You speak: ${profile.languages.join(", ")}.` + // A caller picks the language by speaking it; nobody asks a phone
+      // agent to "reply in Spanish".
+      (channel === "voice" ? " Answer in whichever of these the caller uses, and switch if they do." : "")
+    );
+  }
   if (profile.address) s.push(`
 Address: ${profile.address}`);
   s.push(`Phone: ${base.phone_display}`);
   s.push(`Booking link: ${base.booking_link}`);
+  if (profile.website) s.push(`Website: ${profile.website}`);
   const hrs = hoursLines(profile.hours);
   if (hrs.length) {
     const where = tz ? ` (all times ${tz})` : "";
@@ -1364,6 +1391,11 @@ If someone asks about one of these dates, say the business is closed that day an
 Services:
 ${lines.join("\n")}`);
   }
+  if (profile.notes?.length) {
+    s.push(`
+Other things to know:
+${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
+  }
   if (channel === "whatsapp") {
     const when = profile.escalate_when?.length ? `
 ${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
@@ -1373,10 +1405,19 @@ Handing the conversation to a person:
 Put the exact token [[HUMAN]] at the very end of your reply. It is removed before the customer sees it, and it is the only thing that alerts a human \u2014 saying you will fetch someone does nothing on its own. Write the reply you would normally send, then add the token.
 Do this whenever the customer asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
     );
-  } else if (profile.escalate_when?.length) {
-    s.push(`
-Hand the conversation to a person when:
-${profile.escalate_when.map((e) => `- ${e}`).join("\n")}`);
+  } else {
+    const when = profile.escalate_when?.length ? `
+${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
+    const staffed = profile.handoff_number ? "Use transfer_to_staff during opening hours \u2014 it rings the line a person answers, and you stay on until they pick up. Outside opening hours, or if the transfer does not connect, take the caller's name and a short message and say the team will follow up." : "There is no line to transfer to. Take the caller's name and a short message and say the team will follow up.";
+    s.push(
+      `
+Handing the caller to a person:
+${staffed}
+Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
+    );
+    s.push(
+      "\nBooking: when the caller wants to book, use send_booking_link \u2014 it texts the booking link to the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Then confirm it was sent. If it fails, give the phone number above and offer to have someone follow up.\nEnding: once the caller has said goodbye, use end_call."
+    );
   }
   if (profile.extra_instructions?.trim()) {
     const above = [
@@ -1409,6 +1450,9 @@ ${text}`);
   }
   if (g.disclose_ai !== false) {
     rules.push("If asked whether you are a bot, a person, or AI, say plainly that you are the business's automated assistant and offer to bring in a person.");
+  }
+  if (g.no_health_advice === true) {
+    rules.push("Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment and offer the booking link.");
   }
   if (rules.length) s.push(`
 Rules you must follow:
@@ -2084,6 +2128,7 @@ export {
   DECISION_SUBJECTS,
   DECISION_VERBS,
   DISCONNECTION_LABELS,
+  E164,
   ERROR_CODES,
   ESCALATION_REASONS,
   ESCALATION_REASON_LABELS,
@@ -2105,6 +2150,7 @@ export {
   MESSAGE_STATUSES,
   MESSAGE_TYPES,
   NEW_WINDOW_MS,
+  NoteSchema,
   NotificationsConfigSchema,
   OPT_IN_PATTERN,
   OPT_OUT_PATTERN,

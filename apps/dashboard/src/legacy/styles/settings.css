@@ -534,3 +534,8 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
 .set-broken-issues { margin: 10px 0 0; padding-left: 18px; font-family: var(--mono, ui-monospace, monospace); font-size: 12px; line-height: 1.5; color: var(--ink-muted); }
 .set-broken-issues li { margin: 2px 0; }
 .set-notif-platform { margin-left: 8px; font-size: 10px; vertical-align: middle; }
+
+/* Notes the receptionist should know: a title beside its text, like a service row. */
+.set-note-row { display: grid; grid-template-columns: minmax(120px, 1fr) 2fr auto; gap: 8px; align-items: start; margin-bottom: 8px; }
+.set-note-row .set-textarea { min-height: 0; }
+@media (max-width: 640px) { .set-note-row { grid-template-columns: 1fr; } }

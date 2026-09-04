@@ -1,6 +1,21 @@
 # Voice agent settings — design note
 
-**Status:** researched, not built. Phase deferred deliberately.
+**Status:** the SHELL pipeline is built (2026-09-04); the settings pane below is
+still a design note.
+
+**Built:** `packages/channels/src/voice-shell.ts` defines the agent's prompt
+shell (`{{business_facts}}` + `{{caller_context}}`, greeting `{{greeting}}`,
+warm transfer to `{{handoff_number}}`, spoken defaults for every variable).
+The inbound-call webhook fills the variables per call from the same profile
+the WhatsApp receptionist reads — `composeSystemPrompt(…, "voice")` now
+carries the phone mechanics (transfer, booking link, end call) and the new
+profile fields `handoff_number`, `website`, `notes[]` and the opt-in
+`no_health_advice` guardrail, all editable in Settings → Business.
+`tooling/scripts/voice-converge.mjs` brings an existing hand-typed agent onto
+the shell (dry-run default, JSONL backup, `--apply`, `--pin`), and
+`/api/diag` reports `voiceAgents[].shell.drift` so a line that slid off it is
+visible. Applying it to the live salon agent is the owner's step: the line
+runs the LATEST version, so the apply changes what the next caller hears.
 **Goal:** a tenant tunes their phone receptionist from Chanlytics. Nobody signs
 into Retell.
 

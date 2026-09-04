@@ -227,6 +227,10 @@ export interface RetellAgentConfig {
   agent_name: string | null;
   version: number | null;
   is_published: boolean | null;
+  /** The Retell LLM behind the agent, at the version the agent points at —
+   *  what a diagnostic reads to say whether the line runs the product's shell. */
+  llm_id: string | null;
+  llm_version: number | null;
   webhook_url: string | null;
   /** Absent means Retell's default: call_started, call_ended, call_analyzed.
    *  transcript_updated (live transcript) is opt-in. */
@@ -246,11 +250,14 @@ export async function getAgent(cfg: RetellConfig, agentId: string): Promise<Rete
   const str = (k: string) => (typeof a[k] === "string" ? (a[k] as string) : null);
   const num = (k: string) => (typeof a[k] === "number" ? (a[k] as number) : null);
   const bool = (k: string) => (typeof a[k] === "boolean" ? (a[k] as boolean) : null);
+  const engine = (a.response_engine ?? {}) as Record<string, unknown>;
   return {
     agent_id: str("agent_id") ?? agentId,
     agent_name: str("agent_name"),
     version: num("version"),
     is_published: bool("is_published"),
+    llm_id: engine.type === "retell-llm" && typeof engine.llm_id === "string" ? engine.llm_id : null,
+    llm_version: typeof engine.version === "number" ? engine.version : null,
     // The URL only, never its query string: Retell lets a secret ride there
     // (?key=...) and this object is meant to be printed by a diagnostic.
     webhook_url: str("webhook_url")?.split("?")[0] ?? null,
@@ -258,6 +265,47 @@ export async function getAgent(cfg: RetellConfig, agentId: string): Promise<Rete
     webhook_timeout_ms: num("webhook_timeout_ms"),
     data_storage_setting: str("data_storage_setting"),
     opt_in_signed_url: bool("opt_in_signed_url"),
+  };
+}
+
+/** The fields of a Retell LLM the shell is defined over. */
+export interface RetellLlmConfig {
+  llm_id: string;
+  version: number | null;
+  general_prompt: string | null;
+  begin_message: string | null;
+  default_dynamic_variables: Record<string, string> | null;
+  /** Retell's tool objects as stored — the booking tool carries a secret header. */
+  general_tools: Array<Record<string, unknown> & { type: string; name: string }> | null;
+  knowledge_base_ids: string[] | null;
+}
+
+/** GET /get-retell-llm at a version. Null when the provider says no. */
+export async function getRetellLlm(
+  cfg: RetellConfig,
+  llmId: string,
+  version?: number | null,
+): Promise<RetellLlmConfig | null> {
+  const q = version === undefined || version === null ? "" : `?version=${version}`;
+  const r = await fetch(`${API}/get-retell-llm/${llmId}${q}`, {
+    headers: { Authorization: `Bearer ${cfg.apiKey}` },
+  });
+  if (!r.ok) return null;
+  const l = (await r.json()) as Record<string, unknown>;
+  const str = (k: string) => (typeof l[k] === "string" ? (l[k] as string) : null);
+  return {
+    llm_id: str("llm_id") ?? llmId,
+    version: typeof l.version === "number" ? l.version : null,
+    general_prompt: str("general_prompt"),
+    begin_message: str("begin_message"),
+    default_dynamic_variables:
+      l.default_dynamic_variables && typeof l.default_dynamic_variables === "object"
+        ? (l.default_dynamic_variables as Record<string, string>)
+        : null,
+    general_tools: Array.isArray(l.general_tools)
+      ? (l.general_tools as Array<Record<string, unknown> & { type: string; name: string }>)
+      : null,
+    knowledge_base_ids: Array.isArray(l.knowledge_base_ids) ? (l.knowledge_base_ids as unknown[]).map(String) : null,
   };
 }
 
