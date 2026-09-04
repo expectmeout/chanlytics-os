@@ -21,14 +21,20 @@ type VerbResult = { ok: true; data?: unknown } | { ok: false; message: string };
 // resolved server-side from the control plane (PRD E4) — the browser no
 // longer knows or ships any workspace's booking link.
 /**
- * Last-resort template identity.
+ * The workspace's own approved templates decide what can be sent outside the
+ * 24-hour window. There is deliberately no fallback name here any more.
  *
- * The workspace's approved templates are fetched and offered; this is only
- * used when that list has not arrived yet. It is a NAME, not content — the
- * params are still resolved server-side from the control plane, so the browser
- * continues to know nothing about any workspace's booking link.
+ * This file carried `{ name: "booking_link_v1", language: "en_US" }` and the
+ * docblock claimed the real list was "fetched and offered" — nothing fetched
+ * it. That literal is right for exactly one workspace and a guaranteed failure
+ * for every other, including every newly created one, which has no template
+ * row at all: the operator saw a working-looking button and a server error
+ * they could do nothing about. The composer now sends a template the server
+ * has actually confirmed as approved, or renders an honest empty state.
+ *
+ * Params stay server-resolved from the control plane, so the browser still
+ * knows nothing about any workspace's booking link.
  */
-const FALLBACK_TEMPLATE = { name: "booking_link_v1", language: "en_US" };
 
 async function call(
   url: string,
@@ -133,10 +139,10 @@ async function runVerb(
   // carries no text — so every template in a conversation produced the SAME
   // key and the second one within the window was swallowed while the UI
   // reported success. The template's own identity goes into the key.
-  const tpl = payload?.template ?? FALLBACK_TEMPLATE;
+  const tpl = payload?.template ?? null;
   const intent = payload?.text?.trim()
     ? `text:${payload.text.trim()}`
-    : `template:${tpl.name}:${tpl.language}`;
+    : `template:${tpl ? `${tpl.name}:${tpl.language}` : "none"}`;
   const sendKey = `${thread.conversationId}:${intentHash(intent)}`;
   let result: VerbResult;
   switch (verb) {
@@ -168,7 +174,12 @@ async function runVerb(
       result = await call(`${convBase}/reply`, { text: payload?.text ?? "" }, sendKey);
       break;
     case "reply-template":
-      result = await call(`${convBase}/reply`, { template: tpl }, sendKey);
+      // Refuse in the browser rather than sending a request the server must
+      // reject: "we do not know of an approved template" is a clearer thing to
+      // say than "Template not found or not approved".
+      result = tpl
+        ? await call(`${convBase}/reply`, { template: tpl }, sendKey)
+        : { ok: false, message: "This workspace has no approved template yet, so nothing can be sent outside the 24-hour window." };
       break;
     default:
       result = { ok: false, message: `Unknown verb ${verb as string}.` };

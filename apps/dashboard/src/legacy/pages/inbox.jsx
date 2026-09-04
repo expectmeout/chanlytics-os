@@ -387,7 +387,16 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     if (!t) return;
     if (t.real) {
       return text && typeof text === "object" && text.template
-        ? realVerb(t, "reply-template", undefined, "booking link sends in 15 seconds", true)
+        // Forward the CHOSEN template. This passed undefined, so the courier
+        // fell back to a hardcoded booking_link_v1/en_US — right for one
+        // workspace, a guaranteed server rejection for every other.
+        ? realVerb(
+            t,
+            "reply-template",
+            typeof text.template === "object" ? { template: text.template } : undefined,
+            typeof text.template === "object" ? `${text.template.name} sends in 15 seconds` : "booking link sends in 15 seconds",
+            true,
+          )
         : realVerb(t, "reply", { text: String(text || "") }, "reply sends in 15 seconds", true);
     }
     if (window.IX_STORE && (viaApproval || t.state === "drafts")) {

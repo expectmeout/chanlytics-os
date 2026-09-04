@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { readCode } from "./_source.mjs";
 import {
   replyDelayMs,
   REPLY_DELAY_DEFAULT_MS,
@@ -183,3 +184,42 @@ test("diag reports whether the edge can hold a reply at all", () => {
   const diag = read("apps/edge/api/diag.ts");
   assert.match(diag, /qstashToken: !!process\.env\.QSTASH_TOKEN/);
 });
+
+/* ---- the closed-window send uses the workspace's OWN approved template ---- */
+{
+  const seam = read("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  // readCode, not read: the forbidden-name assertion below is otherwise
+  // satisfied by the COMMENT explaining why that name is forbidden, so the
+  // only way to make the guard pass would be to delete the rationale. Same
+  // trap auth-gate.test.mjs documents.
+  const verbs2 = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
+  const thread = read("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
+
+  test("the approved templates are actually fetched", () => {
+    // /api/v1/templates existed, was tenant-scoped and approved-only, and had
+    // no caller anywhere. The composer named a template by a literal instead.
+    assert.match(seam, /\/api\/v1\/templates/);
+    assert.match(seam, /__TEMPLATES/);
+  });
+
+  test("no hardcoded template name survives in the courier", () => {
+    // booking_link_v1/en_US is right for exactly one workspace and a
+    // guaranteed server rejection for every other — including every newly
+    // created one, which has no template row at all.
+    assert.ok(!/booking_link_v1/.test(verbs2), "the fallback template name must be gone");
+    assert.ok(!/FALLBACK_TEMPLATE/.test(verbs2));
+  });
+
+  test("with no approved template the composer says so instead of offering a send", () => {
+    assert.match(thread, /No approved template yet/);
+    // And the courier refuses rather than posting a request the server must
+    // reject with a message the operator cannot act on.
+    assert.match(verbs2, /has no approved template yet/);
+  });
+
+  test("a template read that fails degrades, it does not blank the Inbox", () => {
+    const at = seam.indexOf("/api/v1/templates");
+    const around = seam.slice(at - 200, at + 400);
+    assert.match(around, /catch/, "the templates fetch is additive, like calls");
+  });
+}
