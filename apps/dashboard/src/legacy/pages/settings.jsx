@@ -1519,6 +1519,103 @@ const PaneIntegrations = ({ flash }) => {
   );
 };
 
+// ====== Real branch — Settings · Integrations on tenant_channels ======
+// The seeded pane listed seven "connected" services that do not exist. The
+// real one lists the numbers this workspace is reachable on, from the table
+// the webhooks route by, and names the rest as not available yet.
+
+const INT_NOT_AVAILABLE = [
+  { name: "Instagram", desc: "Direct messages", icon: "instagram" },
+  { name: "Google Calendar", desc: "Bookings and availability", icon: "calendar" },
+  { name: "Stripe", desc: "Deposits and payments", icon: "money" },
+  { name: "Email", desc: "An address the receptionist answers", icon: "mail" },
+  { name: "SMS", desc: "Plain text messages", icon: "chat" },
+];
+
+const PaneIntegrationsReal = () => {
+  const [, tick] = useSetState(0);
+  React.useEffect(() => {
+    const bump = () => tick((n) => n + 1);
+    window.addEventListener("surface:settings", bump);
+    return () => window.removeEventListener("surface:settings", bump);
+  }, []);
+  const channels = window.__CHANNELS;
+
+  if (channels === null) {
+    return (
+      <section className="fl-card set-card" data-testid="channels">
+        <div className="fl-card-head"><span className="fl-card-title">Your channels</span><span className="fl-card-sub">Couldn't be loaded right now</span></div>
+        <div className="set-row">
+          <div className="set-row-info"><span className="set-row-hint">The receptionist keeps answering; this page just can't show the channels at the moment.</span></div>
+          <button className="btn btn-sm" onClick={() => window.__refreshSettings && window.__refreshSettings()}>Retry</button>
+        </div>
+      </section>
+    );
+  }
+
+  const list = channels || [];
+  const on = list.filter((c) => c.on).length;
+  const receiving = list.filter((c) => c.health === "receiving").length;
+  const sub = list.length === 0
+    ? "No channel is connected yet"
+    : `${list.length} channel${list.length === 1 ? "" : "s"} · ${on} on · ${receiving} receiving`;
+
+  return (
+    <>
+      <section className="fl-card set-card" data-testid="channels">
+        <div className="fl-card-head">
+          <span className="fl-card-title">Your channels</span>
+          <span className="fl-card-sub">{sub}</span>
+        </div>
+        {list.length === 0 && (
+          <div className="set-row">
+            <div className="set-row-info">
+              <span className="set-row-label">Nothing connected</span>
+              <span className="set-row-hint">A WhatsApp number or a phone line is connected by Chanlytics when your workspace is set up.</span>
+            </div>
+          </div>
+        )}
+        {list.map((c) => (
+          <div key={c.id} className="set-int-row">
+            <span className="st-tile installed set-int-tile"><Icon name={c.icon} size={14} /></span>
+            <span className="set-team-body">
+              <span className="set-team-name">{c.name}{c.number ? <span className="dim"> · {c.number}</span> : null}</span>
+              <span className="set-team-mail">{c.healthLabel}</span>
+            </span>
+            {c.on
+              ? <span className={`pill ${c.health === "receiving" ? "pill-ok" : ""}`}><span className="dot" />On</span>
+              : <span className="pill pill-warn">Off</span>}
+          </div>
+        ))}
+        {list.length > 0 && (
+          <div className="set-row">
+            <div className="set-row-info">
+              <span className="set-row-hint">Switching a number off silences the receptionist on it and emails you every message instead. It is an operator action for now, not a button here.</span>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="fl-card set-card" data-testid="not-available">
+        <div className="fl-card-head">
+          <span className="fl-card-title">Not available yet</span>
+          <span className="fl-card-sub">Chanlytics doesn't connect to these — nothing here pretends to</span>
+        </div>
+        {INT_NOT_AVAILABLE.map((it) => (
+          <div key={it.name} className="set-int-row">
+            <span className="st-tile set-int-tile"><Icon name={it.icon} size={14} /></span>
+            <span className="set-team-body">
+              <span className="set-team-name">{it.name}</span>
+              <span className="set-team-mail">{it.desc}</span>
+            </span>
+            <span className="pill">Not available</span>
+          </div>
+        ))}
+      </section>
+    </>
+  );
+};
+
 const SET_MEMORY_SEED = [
   { k: "Refund policy", v: "One waiver per quarter — used by Phone Rep on Aisha's request", src: "Learned Feb 14", srcTo: "inbox/th-aisha-refund", uses: 14, impact: "+$820 attributed", tone: "ok" },
   { k: "Holiday pricing", v: "Couples 90 carries a $60 weekend surcharge", src: "Set Apr 26 · from Jordan's booking", srcTo: "calendar/a-jordan", uses: 2, impact: "+$120 attributed", tone: "ok" },
@@ -1894,7 +1991,7 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
       <div className="set-pane" key={active.id}>
         {active.id === "workspace" && <PaneWorkspace flash={flash} />}
         {active.id === "autonomy" && (window.__POLICIES === undefined ? <PaneAutonomy flash={flash} /> : <PaneAutonomyReal flash={flash} />)}
-        {active.id === "integrations" && <PaneIntegrations flash={flash} />}
+        {active.id === "integrations" && (window.__CHANNELS === undefined ? <PaneIntegrations flash={flash} /> : <PaneIntegrationsReal />)}
         {active.id === "memory" && <PaneMemory flash={flash} />}
         {active.id === "notifications" && (window.__SETTINGS === undefined ? <PaneNotifications /> : <PaneNotificationsReal flash={flash} />)}
         {active.id === "billing" && <PaneBilling flash={flash} />}

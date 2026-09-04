@@ -4274,6 +4274,9 @@ var QUIET_AFTER_MS = 30 * DAY_MS;
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_YEAR_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
 var TIME_FMT2 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
+var DAY_MS2 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS2;
+var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 
 // src/repositories/ingest.ts
 async function ingestInbound(db, p) {
@@ -4529,7 +4532,7 @@ async function recordCallNote(db, p) {
 
 // src/repositories/thread.ts
 var DELIVERED = ["sent", "delivered", "read"];
-var DAY_MS2 = 24 * 3600 * 1e3;
+var DAY_MS3 = 24 * 3600 * 1e3;
 var BLOB_CALL_NOTE = /^\[voice call note /;
 var isBackfill = (m) => !!m.meta && typeof m.meta === "object" && m.meta.backfill === true;
 var effectiveAt = (m) => new Date(m.channel_ts ?? m.created_at).getTime();
@@ -4551,7 +4554,7 @@ function assembleHistory(rows, limit) {
 }
 var HISTORY_COLUMNS = "body, sender, direction, type, status, created_at, channel_ts, meta";
 async function readThreadState(db, tenantId, conversationId, pausedUntilIso, historyLimit = 16) {
-  const since = new Date(Date.now() - DAY_MS2).toISOString();
+  const since = new Date(Date.now() - DAY_MS3).toISOString();
   const [recent, replies] = await Promise.all([
     db.from("messages").select(HISTORY_COLUMNS).eq("tenant_id", tenantId).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(historyLimit * 3),
     // headroom: duplicates and blanks drop out below
