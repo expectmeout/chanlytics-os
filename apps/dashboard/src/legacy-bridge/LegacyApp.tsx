@@ -47,7 +47,7 @@ markHydrated(hydrateSurfaceCache());
 const REQUIRED = ["CHANLY", "INBOX_DATA", "CLIENTS", "FLEET_DATA", "CHANLY_DATA", "POLICY", "ChanlyticsApp"] as const;
 
 const SURFACES = [workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, reportsOverride, liveOverride];
-const SURFACE_LABELS: Record<string, string> = { conversations: "Conversations", inbox: "Inbox", today: "Today", people: "People", reports: "Reports", live: "Live" };
+const SURFACE_LABELS: Record<string, string> = { conversations: "Conversations", inbox: "Inbox", today: "Today", people: "People", reports: "Reports", live: "Calls" };
 
 // Which flipped surface backs each route, and which routes are real at all —
 // both live in surface-registry.ts so the classification and the wiring cannot
