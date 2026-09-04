@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+// One implementation, shared with withRoute — every mutating /api/v1 route
+// now makes the same check this route has made since the auth hardening pass.
+import { isSameOrigin } from "@/server/request-guards";
 
 /**
  * Is this request provably from our own pages?
@@ -16,20 +19,6 @@ import { createClient } from "@/lib/supabase/server";
  * fallback for anything that predates Fetch Metadata; browsers always send it on
  * POST, same-origin included.
  */
-function isSameOrigin(request: Request): boolean {
-  const site = request.headers.get("sec-fetch-site");
-  // "none" is a direct user action (typed URL, bookmark) — not an attacker's page.
-  if (site) return site === "same-origin" || site === "none";
-
-  const origin = request.headers.get("origin");
-  const host = request.headers.get("host");
-  if (!origin || !host) return false;
-  try {
-    return new URL(origin).host === host;
-  } catch {
-    return false;
-  }
-}
 
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) {

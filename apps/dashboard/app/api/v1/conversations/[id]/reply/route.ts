@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { AppError, waWindow } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { withRoute } from "@/server/with-route";
+import { z } from "zod";
 import { assertCanSend, cancelPendingAiReply, loadConversation, recordDecision, requireOperator, resolveOpenEscalation, PAUSE_MS, SEND_GRACE_MS } from "@/server/verbs";
 import { schedule, cancelKindFor, mirrorBlobPause } from "@/server/service";
 
@@ -34,10 +35,41 @@ export const POST = withRoute(async (req, ctx) => {
   // silently cancel itself when the job re-checks.
   assertCanSend(conv);
 
-  const body = (await req.json().catch(() => ({}))) as {
-    text?: string;
-    template?: { name: string; language: string; params?: string[] };
-  };
+  // Validated at the door, not read hopefully.
+  //
+  // This route is the one that reaches a real person, and it took whatever the
+  // body happened to contain. Two consequences it actually had: a reply over
+  // 4,096 characters was stored twice, reported queued, and then failed
+  // fifteen seconds later as an escalation plus an alert email, because that
+  // is WhatsApp's limit and nothing checked it here; and `params` was accepted
+  // from the client with no shape at all, so an operator session could put
+  // arbitrary text into an approved template's variables — a foreign link in a
+  // message the customer receives from the business.
+  //
+  // `.strict()` on the template so a stray field is a 400 here rather than
+  // something silently ignored on the way to Meta.
+  const ReplyBody = z
+    .object({
+      text: z.string().max(4096, "WhatsApp refuses a message over 4096 characters.").optional(),
+      template: z
+        .object({
+          name: z.string().min(1).max(512),
+          language: z.string().min(2).max(15),
+          // Kept only so an older client's request still parses; the server
+          // resolves params from the control plane and ignores these.
+          params: z.array(z.string().max(1024)).max(10).optional(),
+        })
+        .strict()
+        .optional(),
+    })
+    .strict();
+  const parsed = ReplyBody.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    const field = first.path.filter((p) => typeof p === "string").join(".");
+    throw new AppError("validation", field ? `${field}: ${first.message}` : first.message);
+  }
+  const body = parsed.data;
   const window = waWindow(conv.last_wa_inbound_at);
 
   // Idempotency: a replayed POST returns the original envelope, never a double
@@ -88,11 +120,16 @@ export const POST = withRoute(async (req, ctx) => {
       throw new AppError("validation", "Template not found or not approved.");
     }
     // Params are TENANT FACTS (E4): resolved here from the control plane, so
-    // the browser neither knows nor ships any workspace's booking link. A
-    // client-supplied params array is accepted only if config has nothing —
-    // and once every tenant has a brain profile, that path dies too.
-    let params = body.template.params ?? [];
-    if (!params.length) {
+    // the browser neither knows nor ships any workspace's booking link.
+    //
+    // Config FIRST, then the client's — the inverse of what this did. The
+    // sentence above has always been the stated rule, and the code preferred
+    // whatever the browser sent, so an operator session could choose the link
+    // that lands on the customer's phone.
+    // Client params remain a fallback for a workspace with no config, and even
+    // then they are length-bounded by the schema above.
+    let params: string[] = [];
+    {
       const { data: cfgRow } = await ctx.supabase
         .from("tenant_config")
         .select("config")
@@ -103,6 +140,7 @@ export const POST = withRoute(async (req, ctx) => {
         params = [brain.business_name, brain.booking_link.replace(/^https?:[/][/]/, "")];
       }
     }
+    if (!params.length) params = body.template.params ?? [];
     if (!params.length) throw new AppError("validation", "This workspace has no template facts configured yet.");
     templateName = tpl.name;
     templateVars = { language: tpl.language, params } as Json;

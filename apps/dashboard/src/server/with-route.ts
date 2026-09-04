@@ -3,6 +3,7 @@ import { AppError, err, ok } from "@chanlytics/contracts";
 import { createClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
+import { isSameOrigin } from "./request-guards";
 
 export interface RouteContext {
   supabase: SupabaseClient<Database>;
@@ -38,6 +39,22 @@ export function withRoute<T>(
     const started = Date.now();
     const route = new URL(req.url).pathname;
     try {
+      // Cross-site submission, refused before anything else happens.
+      //
+      // These endpoints authenticate with a cookie, so a form on another site
+      // could aim at them. Nothing has stopped that except two accidents:
+      // @supabase/ssr defaults its cookies to SameSite=Lax, and vercel.app is
+      // on the public-suffix list so a sibling deployment cannot set cookies
+      // for this one. Both stop being true on a custom domain shared with
+      // anything else. Reads are exempt — they change nothing, and a GET is
+      // where a link preview or a prefetch legitimately arrives cross-site.
+      if (req.method !== "GET" && req.method !== "HEAD" && !isSameOrigin(req)) {
+        console.log(JSON.stringify({ level: "warn", route, event: "cross_site_write_refused" }));
+        return NextResponse.json(
+          err("forbidden", "This request did not come from the app."),
+          { status: 403, headers: PRIVATE },
+        );
+      }
       const params = routeCtx?.params ? await routeCtx.params : {};
       const supabase = await createClient();
       const {

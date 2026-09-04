@@ -149,18 +149,35 @@ test("the login form does not reveal which emails have accounts", () => {
 
 /* ---------------------------------------------------------------------- 6 -- */
 
-test("sign-out requires positive same-origin evidence", () => {
+test("same-origin evidence must be POSITIVE, and every mutation demands it", () => {
+  // The rule moved out of the sign-out route into a shared guard once every
+  // mutating /api/v1 route needed it too. The invariants are unchanged and now
+  // cover twenty-two more endpoints; they are asserted where the code lives.
+  const guards = read("apps/dashboard/src/server/request-guards.ts");
   // The old check read `if (origin && host && ...)`: omitting Origin skipped it.
   assert.ok(
-    !/if\s*\(\s*origin\s*&&\s*host\s*&&/.test(signout),
+    !/if\s*\(\s*origin\s*&&\s*host\s*&&/.test(guards),
     "a request that omits Origin must be REJECTED, not exempted",
   );
-  assert.match(signout, /sec-fetch-site/, "Fetch Metadata is the primary signal");
+  assert.match(guards, /sec-fetch-site/, "Fetch Metadata is the primary signal");
   assert.ok(
-    !/["']same-site["']/.test(signout),
+    !/["']same-site["']/.test(guards),
     "same-site is not same-origin: on vercel.app a sibling subdomain is someone else's app",
   );
+
+  // Both callers still make the check, and there is only one implementation.
+  assert.match(signout, /isSameOrigin\(request\)/);
   assert.match(signout, /status:\s*403/);
+  assert.ok(
+    !/function isSameOrigin/.test(signout),
+    "one implementation, imported — not a second copy that can drift",
+  );
+
+  const wrapper = read("apps/dashboard/src/server/with-route.ts");
+  assert.match(wrapper, /isSameOrigin\(req\)/, "every mutating route inherits it");
+  // Reads stay exempt: a GET changes nothing, and cross-site GETs are how link
+  // previews and prefetches legitimately arrive.
+  assert.match(wrapper, /req\.method !== "GET"/);
 });
 
 /* ---------------------------------------------------------------------- 7 -- */
