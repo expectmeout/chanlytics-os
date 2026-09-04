@@ -251,7 +251,9 @@ export async function getAgent(cfg: RetellConfig, agentId: string): Promise<Rete
     agent_name: str("agent_name"),
     version: num("version"),
     is_published: bool("is_published"),
-    webhook_url: str("webhook_url"),
+    // The URL only, never its query string: Retell lets a secret ride there
+    // (?key=...) and this object is meant to be printed by a diagnostic.
+    webhook_url: str("webhook_url")?.split("?")[0] ?? null,
     webhook_events: Array.isArray(a.webhook_events) ? (a.webhook_events as unknown[]).map(String) : null,
     webhook_timeout_ms: num("webhook_timeout_ms"),
     data_storage_setting: str("data_storage_setting"),
