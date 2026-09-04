@@ -1624,6 +1624,130 @@ const PaneNotifications = () => {
   );
 };
 
+// ====== Real branch — Settings · Notifications on the workspace's own config ======
+// The seeded pane is six toggles in localStorage with nothing behind them. The
+// real one is what the system actually does: it emails the addresses in
+// notifications.escalation_emails, for the kinds of alert the edge really
+// sends, and nothing else. No toggle is offered that no code reads.
+
+const NOTIF_KINDS = [
+  { title: "A customer needs a person", what: "The receptionist stopped on a WhatsApp thread and someone is waiting. The alert carries their message." },
+  { title: "Still waiting", what: "Nobody has answered a customer for a while after a handoff." },
+  { title: "After every phone call", what: "A summary of the call: who, how long, how it went." },
+  { title: "A reply failed to send", what: "The receptionist wrote an answer and the channel refused it." },
+  { title: "Messages arriving for a switched-off number", what: "Someone is texting a channel this workspace has disabled." },
+  { title: "Background checks", what: "When the watchdog that re-checks unanswered threads stops running, and when it recovers." },
+];
+
+const PaneNotificationsReal = ({ flash }) => {
+  const [, tick] = useSetState(0);
+  React.useEffect(() => {
+    const bump = () => tick((n) => n + 1);
+    window.addEventListener("surface:settings", bump);
+    return () => window.removeEventListener("surface:settings", bump);
+  }, []);
+  const [email, setEmail] = useSetState("");
+  const [busy, setBusy] = useSetState(false);
+
+  const settings = window.__SETTINGS;
+  const cfg = (settings && settings.config) || {};
+  const notif = cfg.notifications || {};
+  const emails = Array.isArray(notif.escalation_emails) ? notif.escalation_emails : [];
+  const isOwner = !!(window.__ME && window.__ME.role === "owner");
+  const lockTitle = isOwner ? undefined : "Only an owner can change who is alerted";
+
+  const save = (nextEmails, msg) => {
+    if (!window.__saveSettings || !settings) return;
+    const next = { ...cfg, notifications: { ...notif, escalation_emails: nextEmails } };
+    setBusy(true);
+    window.__saveSettings(next, settings.version, () => { setBusy(false); flash({ msg }); })
+      .then((r) => { if (r.ok) return; setBusy(false); flash({ msg: <>{r.message}</> }); });
+  };
+  const add = () => {
+    const v = email.trim().toLowerCase();
+    if (!ST_EMAIL_RE.test(v)) { flash({ msg: <>That doesn't look like an email address.</> }); return; }
+    if (emails.includes(v)) { setEmail(""); return; }
+    if (emails.length >= 10) { flash({ msg: <>Up to ten addresses can be alerted.</> }); return; }
+    setEmail("");
+    save([...emails, v], <><b>{v}</b> will be alerted from the next escalation</>);
+  };
+  const remove = (v) => save(emails.filter((e) => e !== v), <><b>{v}</b> removed — no more alerts to that address</>);
+
+  return (
+    <>
+      <section className="fl-card set-card" data-testid="notif-recipients">
+        <div className="fl-card-head">
+          <span className="fl-card-title">Who gets alerted</span>
+          <span className="fl-card-sub">Every alert below goes to each of these addresses</span>
+        </div>
+        {emails.length === 0 && (
+          <div className="set-row">
+            <div className="set-row-info">
+              <span className="set-row-label">Nobody yet</span>
+              <span className="set-row-hint">Until an address is added, the platform operator receives a notice that this workspace needs attention — without the customer's message, which is withheld rather than sent to a stranger.</span>
+            </div>
+          </div>
+        )}
+        {emails.map((e) => (
+          <div className="set-row" key={e}>
+            <div className="set-row-info"><span className="set-row-label">{e}</span></div>
+            <button
+              className="btn btn-ghost btn-sm"
+              disabled={!isOwner || busy || emails.length <= 1}
+              title={emails.length <= 1 ? "At least one address must stay — the receptionist has to be able to reach someone" : lockTitle}
+              onClick={() => remove(e)}
+            >
+              <Icon name="x" size={11} /> Remove
+            </button>
+          </div>
+        ))}
+        <div className="set-row">
+          <div className="set-row-info" style={{ flex: 1 }}>
+            <input
+              className="sd-input"
+              type="email"
+              placeholder="owner@yourbusiness.com"
+              value={email}
+              disabled={!isOwner || busy}
+              title={lockTitle}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && add()}
+              aria-label="Add an address to alert"
+            />
+          </div>
+          <button className="btn btn-primary btn-sm" disabled={!isOwner || busy || !email.trim()} title={lockTitle} onClick={add}>
+            {busy ? "Saving…" : "Add"}
+          </button>
+        </div>
+      </section>
+
+      <section className="fl-card set-card" data-testid="notif-kinds">
+        <div className="fl-card-head">
+          <span className="fl-card-title">What you'll get</span>
+          <span className="fl-card-sub">The alerts the receptionist actually sends — by email, as they happen</span>
+        </div>
+        {NOTIF_KINDS.map((k) => (
+          <div className="set-row" key={k.title}>
+            <div className="set-row-info">
+              <span className="set-row-label">{k.title}</span>
+              <span className="set-row-hint">{k.what}</span>
+            </div>
+          </div>
+        ))}
+      </section>
+
+      <section className="fl-card set-card">
+        <div className="fl-card-head"><span className="fl-card-title">How</span></div>
+        <ul className="st-bullets">
+          <li><Icon name="check" size={11} /><span>By email, the moment it happens. SMS and push notifications are not built.</span></li>
+          <li><Icon name="check" size={11} /><span>Sent from {notif.from ? <b>{notif.from}</b> : "the Chanlytics alert address"}{notif.from ? "" : " until your own sending domain is verified"}.</span></li>
+          <li><Icon name="check" size={11} /><span>No daily brief or weekly report goes out yet; Today is the brief.</span></li>
+        </ul>
+      </section>
+    </>
+  );
+};
+
 const PaneBilling = ({ flash }) => {
   // Single source — stat cells, bar, Ask answers, and the breakdown all derive from this
   const BILLING = window.__BILLING = window.__BILLING || {
@@ -1772,7 +1896,7 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
         {active.id === "autonomy" && (window.__POLICIES === undefined ? <PaneAutonomy flash={flash} /> : <PaneAutonomyReal flash={flash} />)}
         {active.id === "integrations" && <PaneIntegrations flash={flash} />}
         {active.id === "memory" && <PaneMemory flash={flash} />}
-        {active.id === "notifications" && <PaneNotifications />}
+        {active.id === "notifications" && (window.__SETTINGS === undefined ? <PaneNotifications /> : <PaneNotificationsReal flash={flash} />)}
         {active.id === "billing" && <PaneBilling flash={flash} />}
       </div>
 

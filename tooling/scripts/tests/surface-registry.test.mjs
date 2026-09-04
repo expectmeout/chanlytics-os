@@ -86,7 +86,7 @@ test("the real set is exactly the converted surfaces", () => {
     .filter(([, v]) => v === "real")
     .map(([k]) => k)
     .sort();
-  assert.deepEqual(real, ["admin/autonomy", "admin/workspace", "clients", "conversations", "inbox", "today"]);
+  assert.deepEqual(real, ["admin/autonomy", "admin/notifications", "admin/workspace", "clients", "conversations", "inbox", "today"]);
 });
 
 test("the shell consults the registry through one interception, not per-route conditionals", () => {
@@ -124,7 +124,9 @@ test("a sub-route is checked BEFORE its page", () => {
 test("an unclassified pane inherits DEMO, never real", () => {
   // The fallback is what keeps this safe: a pane nobody has classified must not
   // become visible because someone forgot a line.
-  for (const pane of ["integrations", "memory", "notifications", "nonsense"]) {
+  // notifications and autonomy have since been classified real; billing,
+  // integrations and memory are still seeds.
+  for (const pane of ["integrations", "memory", "billing", "nonsense"]) {
     assert.equal(registry.surfaceStateFor("admin", pane), "demo", pane);
   }
 });

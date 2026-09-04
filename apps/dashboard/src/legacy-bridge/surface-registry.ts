@@ -50,6 +50,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   // before their page, so the rest of Settings stays honestly gated.
   "admin/workspace": "real",
   "admin/autonomy": "real",   // the policies table, live for the reply row
+  "admin/notifications": "real",  // who is alerted, from tenant_config
 };
 
 /**
@@ -68,6 +69,7 @@ export const ROUTE_SURFACE: Record<string, string> = {
   // fabricated business for a frame before the truth arrives.
   "admin/workspace": "settings",
   "admin/autonomy": "settings",
+  "admin/notifications": "settings",
 };
 
 /**
