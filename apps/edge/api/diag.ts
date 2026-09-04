@@ -1,7 +1,7 @@
 /** Ops diagnostic — store backend + live write/read probe + env presence
  *  + Meta access-token permanence check (debug_token expires_at).
- *  Auth: x-diag-key header (DIAG_KEY). Legacy ?key=<WHATSAPP_VERIFY_TOKEN>
- *  accepted during the transition. Internal endpoint — not part of the frozen surface. */
+ *  Auth: x-diag-key header (DIAG_KEY). Internal endpoint — not part of the
+ *  frozen surface. */
 import { getThread, saveThread, storeBackend, threadNamespace } from "../lib/store.js";
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
@@ -11,9 +11,11 @@ import { getAgent } from "../lib/workspace/channels.js";
 const META_APP_ID = process.env.META_APP_ID || "1823820738182125";
 
 export async function GET(request: Request): Promise<Response> {
+  // Header only. The WhatsApp verify token used to open this door from the
+  // query string — a value Meta also carries in its own verification URL,
+  // and one that lands in access logs.
   const headerOk = !!process.env.DIAG_KEY && request.headers.get("x-diag-key") === process.env.DIAG_KEY;
-  const legacyOk = new URL(request.url).searchParams.get("key") === process.env.WHATSAPP_VERIFY_TOKEN;
-  if (!headerOk && !legacyOk) {
+  if (!headerOk) {
     return json(403, { ok: false });
   }
 

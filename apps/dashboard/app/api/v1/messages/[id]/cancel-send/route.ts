@@ -2,11 +2,12 @@ import { AppError } from "@chanlytics/contracts";
 import { withRoute } from "@/server/with-route";
 import { requireOperator, recordDecision } from "@/server/verbs";
 import { cancelKindFor } from "@/server/service";
+import { requireUuid } from "@/server/request-guards";
 
 /** The honest undo (§6): inside the grace window a queued send cancels cleanly;
  *  after fire it is out, and this says so. */
 export const POST = withRoute(async (_req, ctx) => {
-  const id = String(ctx.params.id ?? "");
+  const id = requireUuid(ctx.params.id, "message");
   const { data: msg, error } = await ctx.supabase
     .from("messages")
     .select("id, tenant_id, conversation_id, status")

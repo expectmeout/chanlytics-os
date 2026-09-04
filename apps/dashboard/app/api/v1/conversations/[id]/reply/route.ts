@@ -79,16 +79,25 @@ export const POST = withRoute(async (req, ctx) => {
   // A stored response is only honoured briefly. Retries happen in seconds; an
   // operator deliberately sending the same words an hour later means it, and
   // must not be answered with an hour-old receipt.
-  const idemKey = req.headers.get("idempotency-key");
+  //
+  // The key is scoped to the CALLER and checked against the INTENT. The client
+  // derives it from the thread and the words, which any member can predict,
+  // so a stored receipt used to answer a colleague's identical send — and a
+  // planted row could swallow a real one. A different body under the same
+  // key is a different intent and goes through.
+  const idemHeader = req.headers.get("idempotency-key");
+  const idemKey = idemHeader ? `${ctx.userId}:${idemHeader}` : null;
+  const intentHash = crypto.createHash("sha256").update(JSON.stringify(body)).digest("hex").slice(0, 32);
   if (idemKey) {
     const { data: prior, error: priorErr } = await ctx.supabase
       .from("idempotency_keys")
-      .select("response, created_at")
+      .select("response, created_at, request_hash")
       .eq("tenant_id", conv.tenant_id)
       .eq("key", idemKey)
       .maybeSingle();
     if (priorErr) throw new Error(`idempotency lookup: ${priorErr.message}`);
-    if (prior?.response && Date.now() - new Date(prior.created_at).getTime() < IDEMPOTENCY_WINDOW_MS) {
+    const sameIntent = !prior?.request_hash || prior.request_hash === intentHash;
+    if (prior?.response && sameIntent && Date.now() - new Date(prior.created_at).getTime() < IDEMPOTENCY_WINDOW_MS) {
       return prior.response as Json;
     }
   }
@@ -253,7 +262,7 @@ export const POST = withRoute(async (req, ctx) => {
         tenant_id: conv.tenant_id,
         key: idemKey,
         route: "reply",
-        request_hash: contentHash,
+        request_hash: intentHash,
         response: response as unknown as Json,
         created_at: new Date().toISOString(),
       },

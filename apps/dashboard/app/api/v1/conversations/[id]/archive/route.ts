@@ -1,3 +1,4 @@
+import { AppError } from "@chanlytics/contracts";
 import { withRoute } from "@/server/with-route";
 import { requireOperator, loadConversation, recordDecision, resolveOpenEscalation } from "@/server/verbs";
 import { cancelKindFor, mirrorBlobPause } from "@/server/service";
@@ -9,11 +10,18 @@ export const POST = withRoute(async (_req, ctx) => {
   // closing a thread releases it completely — a later inbound reopens it
   // (ingest_inbound), and the receptionist must not stay muted meanwhile.
   if (conv.paused_until && conv.phone_e164) await mirrorBlobPause(conv.tenant_id, conv.phone_e164, 0);
-  const { error } = await ctx.supabase
+  // Row count, not just the error: an UPDATE that RLS or a vanished row
+  // excludes reports success while changing nothing, and everything below
+  // would then describe a change that never happened.
+  const { data: archived, error } = await ctx.supabase
     .from("conversations")
     .update({ state: "archived", paused_until: null, assignee_user_id: null })
-    .eq("id", conv.id);
+    .eq("id", conv.id)
+    .select("id");
   if (error) throw new Error(error.message);
+  if (!archived || archived.length === 0) {
+    throw new AppError("conflict", "Could not archive this thread — reload and try again.", 409);
+  }
   await cancelKindFor(conv.tenant_id, "pause_expire", "conversation_id", conv.id);
   const decisionId = await recordDecision(ctx, conv.tenant_id, "conversation", conv.id, "archive");
   await resolveOpenEscalation(ctx, conv.id, decisionId);

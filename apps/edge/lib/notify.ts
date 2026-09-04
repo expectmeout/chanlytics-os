@@ -57,7 +57,7 @@ function platformTo(): string | null {
 async function post(from: string, to: string[], subject: string, text: string): Promise<boolean> {
   const key = process.env.RESEND_API_KEY;
   if (!key) {
-    console.error("notify_skipped_no_api_key", subject);
+    console.error("notify_skipped_no_api_key", redactNumbers(subject));
     return false;
   }
   try {
@@ -71,12 +71,12 @@ async function post(from: string, to: string[], subject: string, text: string): 
       // Loud, with the status: this is the alarm channel failing, and the only
       // place it can be noticed is the log.
       const detail = await r.text().catch(() => "");
-      console.error("notify_rejected", JSON.stringify({ status: r.status, subject, detail: detail.slice(0, 200) }));
+      console.error("notify_rejected", JSON.stringify({ status: r.status, subject: redactNumbers(subject), detail: detail.slice(0, 200) }));
       return false;
     }
     return true;
   } catch (e) {
-    console.error("notify_failed", JSON.stringify({ subject, error: e instanceof Error ? e.message : String(e) }));
+    console.error("notify_failed", JSON.stringify({ subject: redactNumbers(subject), error: e instanceof Error ? e.message : String(e) }));
     return false;
   }
 }
@@ -125,7 +125,7 @@ export async function notify(target: NotifyTarget, msg: NotifyMessage): Promise<
       return post(addressing.from, addressing.to, msg.subject, msg.body);
 
     case "redacted": {
-      console.error("notify_tenant_unaddressable", JSON.stringify({ tenant: target.tenantId, subject: msg.subject }));
+      console.error("notify_tenant_unaddressable", JSON.stringify({ tenant: target.tenantId, subject: redactNumbers(msg.subject) }));
       if (!msg.redactedBody) return false;
       return post(
         addressing.from,
@@ -138,7 +138,16 @@ export async function notify(target: NotifyTarget, msg: NotifyMessage): Promise<
     }
 
     case "none":
-      console.error("notify_no_recipient", JSON.stringify({ tenant: target.tenantId, subject: msg.subject }));
+      console.error("notify_no_recipient", JSON.stringify({ tenant: target.tenantId, subject: redactNumbers(msg.subject) }));
       return false;
   }
+}
+
+/**
+ * A subject line names the customer ("WhatsApp handoff needed: +1917…"), which
+ * is right for the owner's inbox and wrong for a log. Digits in runs of six or
+ * more are a phone number; everything else in the subject is kept.
+ */
+function redactNumbers(subject: string): string {
+  return subject.replace(/\+?\d[\d\s().-]{4,}\d/g, "[number]");
 }

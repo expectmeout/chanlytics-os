@@ -1,13 +1,11 @@
 import { AppError } from "@chanlytics/contracts";
 import type { ConversationDto, MessageDto } from "@chanlytics/contracts";
 import { withRoute } from "@/server/with-route";
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { requireUuid } from "@/server/request-guards";
 
 /** GET /api/v1/conversations/:id — one thread's transcript, paginated by ?before. */
 export const GET = withRoute(async (req, { supabase, params, userId }) => {
-  const id = String(params.id ?? "");
-  if (!UUID.test(id)) throw new AppError("not_found", "Conversation not found.");
+  const id = requireUuid(params.id, "conversation");
   const before = new URL(req.url).searchParams.get("before");
 
   const { data: conv, error } = await supabase

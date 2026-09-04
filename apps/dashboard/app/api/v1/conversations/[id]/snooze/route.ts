@@ -21,11 +21,18 @@ export const POST = withRoute(async (req, ctx) => {
   // snooze hides the thread from the queue; it does NOT keep the receptionist
   // muted (that is take-over's job) — release any pause first.
   if (conv.paused_until && conv.phone_e164) await mirrorBlobPause(conv.tenant_id, conv.phone_e164, 0);
-  const { error } = await ctx.supabase
+  // Row count, not just the error: an UPDATE that RLS or a vanished row
+  // excludes reports success while changing nothing, and everything below
+  // would then describe a change that never happened.
+  const { data: snoozed, error } = await ctx.supabase
     .from("conversations")
     .update({ state: "snoozed", snooze_until: until.toISOString(), paused_until: null, assignee_user_id: null })
-    .eq("id", conv.id);
+    .eq("id", conv.id)
+    .select("id");
   if (error) throw new Error(error.message);
+  if (!snoozed || snoozed.length === 0) {
+    throw new AppError("conflict", "Could not snooze this thread — reload and try again.", 409);
+  }
 
   await cancelKindFor(conv.tenant_id, "pause_expire", "conversation_id", conv.id);
   await schedule(conv.tenant_id, "snooze_wake", until, { conversation_id: conv.id });

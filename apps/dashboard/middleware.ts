@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { isRetryableAuthError } from "@/server/auth-errors";
 
 /**
  * The complete set of paths reachable without a session. Everything else — every
@@ -47,6 +48,7 @@ export async function middleware(request: NextRequest) {
   // getUser() validates the JWT server-side — never trust getSession() here.
   const {
     data: { user },
+    error: authErr,
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
@@ -56,6 +58,25 @@ export async function middleware(request: NextRequest) {
   // nothing in review would have flagged it. Adding a public route is now a
   // deliberate edit to this list, which the auth tests assert against.
   const isPublic = PUBLIC_PATHS.has(path);
+
+  // "We could not ask" is not "you are not signed in". withRoute answers 503
+  // for a retryable auth failure so the client keeps its session — but this
+  // gate ran first and answered 401, so that branch was unreachable in the
+  // exact outage it was written for.
+  if (!user && !isPublic && isRetryableAuthError(authErr)) {
+    if (path.startsWith("/api/")) {
+      return NextResponse.json(
+        { ok: false, error: { code: "upstream_auth", message: "Could not verify your session just now — try again." } },
+        { status: 503, headers: { "cache-control": "private, no-store", "retry-after": "5" } },
+      );
+    }
+    return noStore(
+      new NextResponse("Could not verify your session just now. Please try again in a moment.", {
+        status: 503,
+        headers: { "content-type": "text/plain; charset=utf-8", "retry-after": "5" },
+      }),
+    );
+  }
 
   if (!user && !isPublic) {
     // API callers get a machine-readable 401 — redirecting a fetch() to the

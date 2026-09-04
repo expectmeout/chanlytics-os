@@ -44,7 +44,15 @@ export const config = { maxDuration: 60 };
 export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
   const sigOk = verifyRetellSignature(raw, request.headers.get("x-retell-signature"), process.env.RETELL_API_KEY);
+  // The `?key=` in the URL is a secret that rides in Retell's dashboard and
+  // in access logs; anyone holding it could forge a call_analyzed — a
+  // fabricated transcript emailed to the owner and a poisoned note in a
+  // customer's bot memory. Retell signs every delivery, and the signature
+  // should be the only credential. Which one passed is logged on every
+  // event so the key can be retired once a real delivery proves the
+  // signature verifies against the key this deployment holds.
   const keyOk = new URL(request.url).searchParams.get("key") === process.env.RETELL_FN_SECRET;
+  console.log("retell_webhook_auth", JSON.stringify({ sig: sigOk, key: keyOk }));
   if (!sigOk && !keyOk) {
     return json(401, { ok: false, error: "unauthorized" });
   }
