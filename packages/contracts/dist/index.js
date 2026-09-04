@@ -375,7 +375,7 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
   const heldDraft = draftMsg ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) } : null;
   const claimedByOther = !!dto.assignee_user_id && dto.assignee_is_me === false;
   const reasonLabel = escalation ? ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason : null;
-  const last = dto.messages[dto.messages.length - 1];
+  const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   const win = waWindow(dto.last_wa_inbound_at, now).open;
   const timeline = dto.messages.map((m) => {
@@ -464,8 +464,10 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
 }
 function toConversationVM(dto, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
+  const whoShort = /^[+\d(]/.test(who) ? who : who.split(" ")[0] || who;
   const msgs = dto.messages.map((m) => ({
     from: m.sender === "customer" ? "client" : "agent",
+    channel: m.type === "call_summary" ? "phone" : "whatsapp",
     at: bubbleTime(messageAt(m), now),
     text: messageText(m),
     // Only for OUR messages. A customer's inbound message has no send status,
@@ -478,13 +480,14 @@ function toConversationVM(dto, now = /* @__PURE__ */ new Date()) {
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   const chat = dto.messages.filter((m) => m.type !== "call_summary");
   const callNotes = dto.messages.length - chat.length;
-  const last = chat[chat.length - 1];
+  const last = [...chat].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
   const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
   const needsHuman = dto.state === "needs_human" || paused;
   const outcome = needsHuman ? "escalated" : last?.direction === "inbound" || dto.state === "snoozed" ? "open" : "handled";
   return {
     id: dto.id,
     who,
+    whoShort,
     initials: initialsOf(who),
     clientId: dto.contact.id || null,
     channel: "whatsapp",
@@ -538,7 +541,7 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
   const phone = formatPhoneDisplay(dto.from_e164);
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
   const who = withheld ? "Caller ID withheld" : name || phone || dto.from_raw || "Unknown caller";
-  const whoShort = name ? name.split(" ")[0] : "Caller";
+  const whoShort = name ? /^[+\d(]/.test(name) ? name : name.split(" ")[0] : "Caller";
   const dur = mmss(dto.duration_ms);
   const live = isLiveCall(dto, now);
   const missed = dto.status === "not_connected";
@@ -1507,8 +1510,10 @@ function isOwned(r, nowMs) {
   return !!r.latest_assignee_user_id || paused !== null && paused > nowMs;
 }
 function personStateFor(r, nowMs) {
-  if (r.needs_human || r.open_escalation_reason) return "needs_you";
-  if (isOwned(r, nowMs) && r.last_message_direction === "inbound") return "waiting_on_you";
+  const flagged = !!(r.needs_human || r.open_escalation_reason);
+  const owned = isOwned(r, nowMs);
+  if (flagged && !owned && r.latest_state !== "snoozed") return "needs_you";
+  if (owned && (flagged || r.last_message_direction === "inbound")) return "waiting_on_you";
   if (r.consent === "opted_out" || r.dnc) return "opted_out";
   const first = ts(r.first_contact_at);
   if (!r.has_backfill && first !== null && nowMs - first <= NEW_WINDOW_MS) return "new";
@@ -1543,6 +1548,7 @@ function consentOf(r, nowMs) {
   return { state, dnc, label: state === "opted_out" ? "Opted out" : state === "opted_in" ? "Opted in" : "Unknown", sub };
 }
 function receptionistOf(r, nowMs) {
+  if (isOwned(r, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
   if (r.open_escalation_reason) return { tone: "escalated", label: `Escalated, ${reasonShort(r.open_escalation_reason)}` };
   if (r.needs_human) return { tone: "escalated", label: "Waiting for a person" };
   if (r.queued_reply_at) return { tone: "queued", label: "Reply queued" };
@@ -1550,8 +1556,9 @@ function receptionistOf(r, nowMs) {
   if (r.latest_state === "snoozed" && snooze !== null && snooze > nowMs) {
     return { tone: "snoozed", label: `Snoozed until ${shortTime(r.latest_snooze_until, new Date(nowMs))}` };
   }
-  if (isOwned(r, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
   if (r.consent === "opted_out" || r.dnc) return { tone: "silent", label: "Silent, they opted out" };
+  if (r.effective_reply_mode === "never") return { tone: "paused", label: "Held for you, set to Never" };
+  if (r.effective_reply_mode === "ask") return { tone: "paused", label: "Held for you, set to Ask" };
   return { tone: "answering", label: "Answering" };
 }
 function toPersonRowVM(r, now = /* @__PURE__ */ new Date()) {
@@ -1657,8 +1664,10 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
     open_escalation_reason: openEsc?.reason ?? d.row.open_escalation_reason,
     open_escalation_since: openEsc?.created_at ?? d.row.open_escalation_since,
     conversation_count: d.conversations.length || d.row.conversation_count,
-    call_count: d.calls.length || d.row.call_count,
-    call_seconds: d.calls.length ? Math.round(d.calls.reduce((a, k) => a + (k.duration_ms ?? 0), 0) / 1e3) : d.row.call_seconds,
+    // A dial that never connected is not a call; people_list agrees, and the
+    // profile used to count one more than the list.
+    call_count: d.calls.length ? d.calls.filter((k) => k.status !== "not_connected").length : d.row.call_count,
+    call_seconds: d.calls.length ? Math.round(d.calls.filter((k) => k.status !== "not_connected").reduce((a, k) => a + (k.duration_ms ?? 0), 0) / 1e3) : d.row.call_seconds,
     escalation_count: d.escalations.length || d.row.escalation_count
   };
   const base = toPersonRowVM(row, now);
@@ -1683,15 +1692,16 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
     if (t === null) continue;
     const dur = mmss3(k.duration_ms);
     const summary = (k.summary || "").trim();
-    const sentence = summary ? summary.split(/(?<=[.!?])\s/)[0] ?? summary : k.in_voicemail ? "Reached voicemail." : "No summary from this call.";
+    const missed = k.status === "not_connected";
+    const sentence = missed ? "The call never connected." : summary ? summary.split(/(?<=[.!?])\s/)[0] ?? summary : k.in_voicemail ? "Reached voicemail." : "No summary from this call.";
     items.push({
       id: `k-${k.id}`,
       ts: t,
       ...stamp(t),
       kind: "call",
-      who: `${k.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""}`,
+      who: missed ? "Missed call" : `${k.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""}`,
       text: sentence,
-      sub: k.recording?.fetch_state === "stored" ? "Recording and transcript in Conversations" : "Transcript in Conversations",
+      sub: missed ? "Never connected" : k.recording?.fetch_state === "stored" ? "Recording and transcript in Conversations" : "Transcript in Conversations",
       link: { label: "Open", to: `conversations/cv-${k.id}` }
     });
   }
@@ -1757,6 +1767,15 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
     rightNow = { tone: "paused", title: "Paused, a person owns this thread", detail: "The receptionist will not answer until the thread is handed back", cta: openInbox };
   } else if (base.consent.state === "opted_out") {
     rightNow = { tone: "silent", title: "Silent, they opted out", detail: base.consent.sub, cta: null };
+  } else if (["never", "ask"].includes(d.receptionist_mode ?? "") || ["never", "ask"].includes(d.workspace_reply_mode ?? "")) {
+    const theirs = ["never", "ask"].includes(d.receptionist_mode ?? "");
+    const mode = theirs ? d.receptionist_mode : d.workspace_reply_mode;
+    rightNow = {
+      tone: "paused",
+      title: `Held for you, set to ${mode === "never" ? "Never" : "Ask"}`,
+      detail: theirs ? "You set the receptionist to stay out of this person's thread \u2014 their messages come straight to you" : "Your workspace reply setting holds every message for a person",
+      cta: openInbox
+    };
   } else {
     rightNow = { tone: "answering", title: "Answering", detail: "New messages are answered automatically", cta: base.threadId ? { label: "Open thread", to: `inbox/${base.threadId}` } : null };
   }

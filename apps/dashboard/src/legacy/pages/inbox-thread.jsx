@@ -10,7 +10,7 @@
 
 const { useState: useCvtState } = React;
 
-const InboxThread = ({ thread, channelLabels, veto = null, vetoPaused = false, onVetoAct = () => {}, onVerdict = () => {}, stale = null, onReconcile = () => {}, onDismissStale = () => {}, onOpenClient = () => {}, onDecide = () => {}, onSnooze = () => {}, onSend = () => {}, onTakeOver = () => {}, onWake = () => {}, onHandBack = () => {}, onMarkUnread = () => {}, planParam = 0, onPlanParam = () => {} }) => {
+const InboxThread = ({ thread, channelLabels, veto = null, vetoPaused = false, onVetoAct = () => {}, onVerdict = () => {}, stale = null, onReconcile = () => {}, onDismissStale = () => {}, onOpenClient = () => {}, onDecide = () => {}, onSnooze = () => {}, onSend = () => {}, onTakeOver = () => {}, onWake = () => {}, onHandBack = () => {}, onMarkUnread = () => {}, planParam = 0, onPlanParam = () => {}, notice = null }) => {
   if (!thread) return <InboxEmpty />;
 
   const decided = !!thread.resolution;
@@ -19,6 +19,7 @@ const InboxThread = ({ thread, channelLabels, veto = null, vetoPaused = false, o
     <div className="ix-thread-pane">
       <ThreadHeader thread={thread} channelLabels={channelLabels} onOpenClient={onOpenClient} onSnooze={onSnooze} onMarkUnread={onMarkUnread} />
       <ContextStrip thread={thread} />
+      {notice && <div className="ix-notice" role="status">{notice}</div>}
 
       <div className="ix-th-scroll">
         {stale && (

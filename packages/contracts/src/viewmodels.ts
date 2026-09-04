@@ -67,6 +67,9 @@ export function isOptedOut(dto: Pick<ConversationDto, "contact">): boolean {
 
 export interface ConversationMessageVM {
   from: "client" | "agent";
+  /** Where it happened. A call note is not a WhatsApp bubble, and the
+   *  viewer must not draw it as one. */
+  channel: "whatsapp" | "phone";
   at: string;
   text: string;
   /** "Canceled before sending", "Sending…" — absent when there is nothing to
@@ -104,6 +107,8 @@ export function reachedCustomer(status: string | undefined): boolean {
 export interface ConversationVM {
   id: string;
   who: string;
+  /** First name, or the whole thing when it is a number. */
+  whoShort: string;
   initials: string;
   clientId: string | null;
   channel: "whatsapp";
@@ -438,7 +443,7 @@ export function toInboxThreadVM(
     : null;
   const claimedByOther = !!dto.assignee_user_id && dto.assignee_is_me === false;
   const reasonLabel = escalation ? (ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason) : null;
-  const last = dto.messages[dto.messages.length - 1];
+  const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   // waWindow(), not a hand-rolled copy. This decides whether the composer tells
   // the operator they can write freely, and the reply route decides whether the
@@ -560,6 +565,9 @@ export function toInboxThreadVM(
 
 export function toConversationVM(dto: ConversationDto, now = new Date()): ConversationVM {
   const who = contactName(dto);
+  // A phone-like name is not split: "+1" is nobody's first name. The
+  // viewer read "Latest from +1" for a person known only by number.
+  const whoShort = /^[+\d(]/.test(who) ? who : who.split(" ")[0] || who;
   // The status travels with the bubble. It used to be dropped here, and the
   // conversations API filters nothing — so a queued draft still inside its veto
   // window, a send that failed, and a reply an operator canceled all arrived on
@@ -568,6 +576,7 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
   // two had been canceled before it ever left.
   const msgs = dto.messages.map((m): ConversationMessageVM => ({
     from: m.sender === "customer" ? "client" : "agent",
+    channel: m.type === "call_summary" ? "phone" : "whatsapp",
     at: bubbleTime(messageAt(m), now),
     text: messageText(m),
     // Only for OUR messages. A customer's inbound message has no send status,
@@ -588,7 +597,9 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
   // merely phoned and been handled.
   const chat = dto.messages.filter((m) => m.type !== "call_summary");
   const callNotes = dto.messages.length - chat.length;
-  const last = chat[chat.length - 1];
+  // The last thing that actually happened between them: a queued or cancelled
+  // draft is not the thread's last word, and previewing it read "handled".
+  const last = [...chat].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
   const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
   const needsHuman = dto.state === "needs_human" || paused;
   // Honest pills: escalated when a human has it; open while the last word is
@@ -601,6 +612,7 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
   return {
     id: dto.id,
     who,
+    whoShort,
     initials: initialsOf(who),
     clientId: dto.contact.id || null,
     channel: "whatsapp",
@@ -721,7 +733,7 @@ export function toCallVM(dto: CallDto, now = new Date()): CallVM {
   const phone = formatPhoneDisplay(dto.from_e164);
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
   const who = withheld ? "Caller ID withheld" : name || phone || dto.from_raw || "Unknown caller";
-  const whoShort = name ? name.split(" ")[0] : "Caller";
+  const whoShort = name ? (/^[+\d(]/.test(name) ? name : name.split(" ")[0]) : "Caller";
   const dur = mmss(dto.duration_ms);
   // Not `status === "ongoing"`. A lost call_ended leaves that flag set forever,
   // and this viewmodel is what the Live surface would render from.

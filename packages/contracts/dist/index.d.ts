@@ -184,6 +184,9 @@ interface ConversationDto {
 declare function isOptedOut(dto: Pick<ConversationDto, "contact">): boolean;
 interface ConversationMessageVM {
     from: "client" | "agent";
+    /** Where it happened. A call note is not a WhatsApp bubble, and the
+     *  viewer must not draw it as one. */
+    channel: "whatsapp" | "phone";
     at: string;
     text: string;
     /** "Canceled before sending", "Sending…" — absent when there is nothing to
@@ -207,6 +210,8 @@ declare function reachedCustomer(status: string | undefined): boolean;
 interface ConversationVM {
     id: string;
     who: string;
+    /** First name, or the whole thing when it is a number. */
+    whoShort: string;
     initials: string;
     clientId: string | null;
     channel: "whatsapp";
@@ -2310,6 +2315,10 @@ interface PersonRowDto {
     has_backfill: boolean | null;
     has_chat: boolean | null;
     queued_reply_at: string | null;
+    /** The reply mode in force for this person — their own setting, else the
+     *  workspace's. Attached by the API from the policies table; people_list
+     *  does not carry it. */
+    effective_reply_mode?: string | null;
 }
 interface PersonIdentityDto {
     channel: string;

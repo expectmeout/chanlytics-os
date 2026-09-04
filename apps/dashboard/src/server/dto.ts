@@ -104,6 +104,13 @@ export function groupMessages(rows: MessageRow[]): Map<string, MessageDto[]> {
     });
     byConv.set(m.conversation_id, list);
   }
+  // Reading order is CHANNEL time — when the message happened on WhatsApp, or
+  // when the call started — never created_at, which for an imported row is
+  // the import moment and for a call note the moment the analysis arrived.
+  // On the live line the Aug 26 call note rendered below the Aug 27 messages.
+  for (const list of byConv.values()) {
+    list.sort((a, b) => Date.parse(a.channel_ts ?? a.created_at) - Date.parse(b.channel_ts ?? b.created_at));
+  }
   return byConv;
 }
 
