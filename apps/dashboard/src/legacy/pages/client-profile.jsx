@@ -137,7 +137,7 @@ const GenericQueue = ({ c, onFlash, held }) => {
   );
 };
 
-const ClientProfile = ({ id = "c-aisha", onBack = () => {} }) => {
+const ClientProfileSeed = ({ id = "c-aisha", onBack = () => {} }) => {
   const c = CLIENTS.find(x => x.id === id) || CLIENTS[0];
   const isAisha = c.id === "c-aisha";
   const [autonomy, setAutonomyState] = useStateP(() => window.CP_STORE.autonomy[c.id] || "ask");
@@ -494,5 +494,219 @@ const ClientProfile = ({ id = "c-aisha", onBack = () => {} }) => {
     </div>
   );
 };
+
+// ====== Real branch — one person, in full ======
+// Fetched on open through the bridge courier (window.__personDetail): every
+// message, call, escalation and operator decision for this contact, mapped in
+// contracts where the rule is tested. The frame is the seeded profile's; the
+// six money cells became six measured facts, the agent queue became what the
+// receptionist is doing right now, and the timeline is the record itself.
+
+const PP_TONE_CLASS = { escalated: "escalated", queued: "approval", snoozed: "scheduled", paused: "paused", silent: "paused", answering: "" };
+
+const PersonTimeline = ({ items, initials }) => {
+  let lastDay = null;
+  return (
+    <div className="cl-prof-timeline">
+      {items.map((e) => {
+        const dayHead = e.day !== lastDay ? <div className="cl-rail-label" style={{ margin: "10px 0 4px" }}>{e.day}</div> : null;
+        lastDay = e.day;
+        const markClass = e.kind === "customer" ? "client" : e.kind === "receptionist" || e.kind === "you" ? "agent" : e.kind === "call" ? "session" : "event";
+        const mark =
+          e.kind === "customer" ? initials
+          : e.kind === "receptionist" ? "W"
+          : e.kind === "you" ? "You"
+          : e.kind === "call" ? <Icon name="phone" size={12} />
+          : e.kind === "escalation" ? <Icon name="alert" size={11} />
+          : <Icon name="dot" size={10} />;
+        return (
+          <React.Fragment key={e.id}>
+            {dayHead}
+            <div className="cl-tl-row">
+              <div className={`cl-tl-mark ${markClass}`}>{mark}</div>
+              <div className="cl-tl-body">
+                <div className="cl-tl-head">
+                  <span className="cl-tl-who">{e.who}</span>
+                  {e.kind === "receptionist" && <span style={{ color: "var(--ink-faint)" }}>· receptionist</span>}
+                  {e.sub && <span style={{ color: "var(--ink-faint)" }}>· {e.sub}</span>}
+                  <span style={{ marginLeft: "auto", color: "var(--ink-faint)" }}>{e.time}</span>
+                </div>
+                <div className={`cl-tl-text ${e.kind === "customer" ? "" : "muted"}`}>
+                  {e.text}
+                  {e.link && (
+                    <>
+                      {" "}
+                      <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(e.link.to)}>
+                        {e.link.label} <Icon name="arrow-right" size={10} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </React.Fragment>
+        );
+      })}
+      {items.length === 0 && <div className="cl-decision-empty">Nothing recorded yet.</div>}
+    </div>
+  );
+};
+
+const PersonProfileFrame = ({ onBack, children }) => (
+  <div className="cl-profile">
+    <div className="cl-prof-main">
+      <div className="cl-prof-hero">
+        <button className="cl-prof-back" onClick={onBack}>
+          <Icon name="chevron" size={11} style={{ transform: "rotate(180deg)" }} />
+          All clients
+        </button>
+        {children}
+      </div>
+    </div>
+  </div>
+);
+
+const ClientProfileReal = ({ id, onBack = () => {} }) => {
+  const [st, setSt] = useStateP({ loading: true, vm: null, missing: false, error: null });
+  const load = React.useCallback(() => {
+    if (!window.__personDetail) return;
+    setSt((s) => ({ ...s, loading: !s.vm, error: null }));
+    window.__personDetail(id).then(
+      (vm) => setSt({ loading: false, vm, missing: vm === null, error: null }),
+      (e) => setSt((s) => ({ ...s, loading: false, error: e && e.message ? e.message : "could not load this person" })),
+    );
+  }, [id, setSt]);
+  useEffectP(() => { load(); }, [load]);
+  useEffectP(() => {
+    window.addEventListener("surface:clients", load);
+    return () => window.removeEventListener("surface:clients", load);
+  }, [load]);
+
+  const { vm, loading, missing, error } = st;
+  if (missing) return (
+    <PersonProfileFrame onBack={onBack}>
+      <div className="cl-decision-empty">This person is not in your workspace — they may have been deleted.</div>
+    </PersonProfileFrame>
+  );
+  if (!vm) return (
+    <PersonProfileFrame onBack={onBack}>
+      <div className="cl-decision-empty" aria-busy={loading ? "true" : "false"}>
+        {loading ? "Loading…" : <>Couldn't load this person — {error}. <button className="cl-bucket-link" onClick={load}>Retry</button></>}
+      </div>
+    </PersonProfileFrame>
+  );
+
+  const p = vm;
+  const tone = p.rightNow.tone;
+  const first = p.name.split(" ")[0];
+  const hot = tone === "escalated" || tone === "queued";
+  return (
+    <div className="cl-profile">
+      <div className="cl-prof-main">
+        <div className="cl-prof-hero">
+          <button className="cl-prof-back" onClick={onBack}>
+            <Icon name="chevron" size={11} style={{ transform: "rotate(180deg)" }} />
+            All clients
+          </button>
+          <div className="cl-prof-id">
+            <div className="cl-prof-avatar">{p.initials}</div>
+            <div className="cl-prof-titles">
+              <div className="cl-prof-name">{p.name}</div>
+              <div className="cl-prof-meta">
+                {p.since && <><span>{p.since}</span><span style={{ color: "var(--ink-faint)" }}>·</span></>}
+                <span>{p.metaLine}</span>
+                <span style={{ color: "var(--ink-faint)" }}>·</span>
+                <span style={{ display: "inline-flex", gap: 3 }}>
+                  {p.channels.map((ch, i) => <ChannelGlyph key={ch} kind={ch === "voice" ? "phone" : "chat"} primary={i === 0} size={11} />)}
+                </span>
+                <span className="cl-tag-stack" style={{ marginLeft: 4 }}>
+                  <ClientTag signal={p.consent.state === "opted_out"}>{p.consent.state === "opted_out" ? "Opted out" : p.consent.state === "opted_in" ? "Opted in" : "Consent unknown"}</ClientTag>
+                  <ClientTag>{p.stateLabel}</ClientTag>
+                </span>
+              </div>
+            </div>
+            <div className="cl-prof-actions">
+              {p.openThread && (
+                <button className="btn btn-sm btn-primary" onClick={() => window.CHANLY.nav(p.openThread)}>
+                  <Icon name="chat" size={12} /> Open thread
+                </button>
+              )}
+              {window.__DEMO_MODE && <button className="btn btn-sm"><Icon name="phone" size={12} /> Call</button>}
+              {window.__DEMO_MODE && <button className="btn btn-sm"><Icon name="calendar" size={12} /> Book</button>}
+            </div>
+          </div>
+          <div className="cl-prof-narr">
+            <span className="cl-prof-narr-eyebrow">Last exchange</span>
+            <div>
+              {p.lastExchange.customer ? (
+                <div className="cl-prof-narr-text"><b>{first}</b> \u201c{p.lastExchange.customer.text}\u201d <span className="dim" style={{ fontSize: 11 }}>{p.lastExchange.customer.at}</span></div>
+              ) : (
+                <div className="cl-prof-narr-text">{p.calls ? "They have only phoned — the transcript is in Conversations." : "Nothing written yet."}</div>
+              )}
+              {p.lastExchange.reply && (
+                <div className="cl-prof-narr-text"><b>{p.lastExchange.reply.who}</b> \u201c{p.lastExchange.reply.text}\u201d <span className="dim" style={{ fontSize: 11 }}>{p.lastExchange.reply.at}</span></div>
+              )}
+              <div className="cl-prof-narr-byline">Verbatim from the thread</div>
+            </div>
+          </div>
+          <StatStrip className="cl-prof-money">
+            {p.facts.map((f) => (
+              <StatCell key={f.label} label={f.label} value={f.value} valueSize={typeof f.value === "string" ? 14 : undefined} meta={f.meta} metaTone={f.tone || ""} />
+            ))}
+          </StatStrip>
+        </div>
+
+        <div className="cl-prof-section">
+          <div className="cl-prof-section-head">
+            <span className="cl-prof-section-title">Right now</span>
+            <span className="cl-prof-section-sub">what the receptionist is doing for {first}</span>
+          </div>
+          <div className="cl-prof-queue">
+            <div className={`cl-prof-queue-item ${hot ? "approval" : ""}`}>
+              <div className={`agent-avatar ${hot ? "active" : ""}`}>W</div>
+              <div className="cl-prof-queue-body">
+                <div className="cl-prof-queue-line1">
+                  <span className="cl-prof-queue-agent">Receptionist</span>
+                  <span className={`cl-prof-queue-tag ${PP_TONE_CLASS[tone] || ""}`}>{p.rightNow.title}</span>
+                </div>
+                <div className="cl-prof-queue-action">{p.rightNow.detail}</div>
+              </div>
+              <div className="cl-prof-queue-actions">
+                {p.rightNow.cta && (
+                  <button className={`btn btn-sm ${tone === "escalated" ? "btn-primary" : ""}`} onClick={() => window.CHANLY.nav(p.rightNow.cta.to)}>
+                    {p.rightNow.cta.label}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="cl-prof-section">
+          <div className="cl-prof-section-head">
+            <span className="cl-prof-section-title">Timeline</span>
+            <span className="cl-prof-section-sub">Messages, calls and your decisions · in true order</span>
+          </div>
+          <PersonTimeline items={p.timeline} initials={p.initials} />
+        </div>
+      </div>
+
+      <div className="cl-prof-rail">
+        <div className="cl-prof-rail-section">
+          <div className="cl-prof-rail-label">About</div>
+          <div className="cl-prof-attr-list">
+            {p.about.map((a) => (
+              <div className="cl-prof-attr" key={a.k}><span className="cl-prof-attr-key">{a.k}</span><span className="cl-prof-attr-val">{a.v}</span></div>
+            ))}
+          </div>
+        </div>
+        {/* Per-person receptionist mode ships with its enforcer in the edge runtime (PR 3). */}
+      </div>
+    </div>
+  );
+};
+
+// A real workspace fetches the person; the seeded profile keeps the demo.
+const ClientProfile = (props) => (window.__PEOPLE ? <ClientProfileReal {...props} /> : <ClientProfileSeed {...props} />);
 
 window.ClientProfile = ClientProfile;

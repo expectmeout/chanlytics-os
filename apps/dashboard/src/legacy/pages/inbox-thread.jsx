@@ -199,8 +199,8 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
         )}
         <MoreMenu btnClass="btn btn-icon btn-sm" items={[
           { header: "Conversation" },
-          // Real threads have no client profile yet (clientId is null), so the
-          // item only renders when there is actually somewhere to go.
+          // clientId is the contact behind the thread, so the item only renders
+          // when there is actually somewhere to go (a phone-only caller has none).
           ...(thread.clientId ? [{ label: "Open client", icon: "users", onClick: () => onOpenClient(thread.clientId) }] : []),
           { label: "Mark as unread", icon: "inbox", onClick: () => onMarkUnread(thread.id) },
           { label: "Snooze", icon: "clock", onClick: () => onSnooze(thread.id) },

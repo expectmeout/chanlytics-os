@@ -1595,6 +1595,44 @@ export type Database = {
         Args: { p_days?: number; p_tenant_id: string }
         Returns: Json
       }
+      people_list: {
+        Args: { p_contact_id?: string; p_tenant_id: string }
+        Returns: {
+          call_count: number
+          call_seconds: number
+          channels: string[]
+          consent: string
+          consent_source: string
+          consent_updated_at: string
+          conversation_count: number
+          display_name: string
+          dnc: boolean
+          earliest_row_at: string
+          escalation_count: number
+          first_contact_at: string
+          has_backfill: boolean
+          has_chat: boolean
+          id: string
+          last_call_at: string
+          last_inbound_at: string
+          last_inbound_text: string
+          last_message_at: string
+          last_message_direction: string
+          last_message_sender: string
+          latest_assignee_user_id: string
+          latest_conversation_id: string
+          latest_paused_until: string
+          latest_snooze_until: string
+          latest_state: string
+          latest_wa_inbound_at: string
+          needs_human: boolean
+          open_escalation_reason: string
+          open_escalation_since: string
+          phone_e164: string
+          queued_reply_at: string
+          wa_profile_name: string
+        }[]
+      }
       provision_tenant: { Args: { p_tenant_id: string }; Returns: undefined }
       purge_cron_history: {
         Args: { p_keep?: string; p_keep_per_job?: number }

@@ -3,6 +3,9 @@ import type { Json } from "@chanlytics/db";
 import { withRoute, memberContext, requireRole } from "@/server/with-route";
 import { recordDecision } from "@/server/verbs";
 import { schedule, removeMediaObjects, rescheduleBlobErase } from "@/server/service";
+import { requireUuid } from "@/server/request-guards";
+import { CALL_COLUMNS, CONVERSATION_COLUMNS, MESSAGE_COLUMNS, groupMessages, toCallDto, toConversationDto } from "@/server/dto";
+import type { MessageDto, PersonDecisionDto, PersonDetailDto, PersonEscalationDto, PersonRowDto } from "@chanlytics/contracts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const digits = (s: string) => s.replace(/\D/g, "");
@@ -147,3 +150,65 @@ export const DELETE = withRoute(async (_req, ctx) => {
 });
 
 export const dynamic = "force-dynamic";
+
+/**
+ * GET /api/v1/contacts/:id — one person, in full.
+ *
+ * The same row the list shows (people_list narrowed to this contact) plus
+ * everything the profile renders from: identities, conversations with their
+ * messages, calls, escalations, and the operator decisions on those threads.
+ * RLS floors every read; the workspace named on the request is the door.
+ */
+export const GET = withRoute(async (req, ctx) => {
+  const id = requireUuid(ctx.params.id, "contact");
+  const { tenantId } = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
+  const { data: rows, error } = await ctx.supabase.rpc("people_list", { p_tenant_id: tenantId, p_contact_id: id });
+  if (error) throw new Error(error.message);
+  const row = (rows ?? [])[0] as PersonRowDto | undefined;
+  if (!row) throw new AppError("not_found", "This person is not in your workspace.", 404);
+
+  const sb = ctx.supabase;
+  const [idents, convs, calls] = await Promise.all([
+    sb.from("contact_identities").select("channel, external_id, created_at").eq("contact_id", id).order("created_at"),
+    sb.from("conversations").select(CONVERSATION_COLUMNS).eq("tenant_id", tenantId).eq("contact_id", id)
+      .order("last_message_at", { ascending: false, nullsFirst: false }),
+    sb.from("calls").select(CALL_COLUMNS).eq("tenant_id", tenantId).eq("contact_id", id)
+      .order("started_at", { ascending: false, nullsFirst: false }).limit(200),
+  ]);
+  if (idents.error) throw new Error(idents.error.message);
+  if (convs.error) throw new Error(convs.error.message);
+  if (calls.error) throw new Error(calls.error.message);
+
+  const convIds = (convs.data ?? []).map((c) => c.id);
+  let byConv = new Map<string, MessageDto[]>();
+  let escalations: PersonEscalationDto[] = [];
+  let decisions: PersonDecisionDto[] = [];
+  if (convIds.length) {
+    const [msgs, escs, decs] = await Promise.all([
+      // Newest-first so a cap drops the oldest history; groupMessages restores order.
+      sb.from("messages").select(MESSAGE_COLUMNS).in("conversation_id", convIds)
+        .order("created_at", { ascending: false }).limit(2000),
+      sb.from("escalations").select("id, conversation_id, reason, state, details, created_at, updated_at, resolved_by_user_id")
+        .in("conversation_id", convIds).order("created_at", { ascending: false }),
+      sb.from("decisions").select("id, verb, subject_type, subject_id, actor_type, actor_user_id, created_at, payload")
+        .eq("subject_type", "conversation").in("subject_id", convIds)
+        .order("created_at", { ascending: false }).limit(500),
+    ]);
+    if (msgs.error) throw new Error(msgs.error.message);
+    if (escs.error) throw new Error(escs.error.message);
+    if (decs.error) throw new Error(decs.error.message);
+    byConv = groupMessages(msgs.data ?? []);
+    escalations = escs.data ?? [];
+    decisions = (decs.data ?? []).map((d) => ({ ...d, payload: d.payload as Record<string, unknown> | null }));
+  }
+
+  const person: PersonDetailDto = {
+    row,
+    identities: idents.data ?? [],
+    conversations: (convs.data ?? []).map((c) => toConversationDto(c, byConv.get(c.id) ?? [], ctx.userId)),
+    calls: (calls.data ?? []).map(toCallDto),
+    escalations,
+    decisions,
+  };
+  return { person };
+});

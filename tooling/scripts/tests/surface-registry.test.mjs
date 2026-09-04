@@ -79,14 +79,14 @@ test("'real' and the SurfaceData wiring agree exactly", () => {
   );
 });
 
-test("the real set is exactly the three converted surfaces", () => {
+test("the real set is exactly the converted surfaces", () => {
   // Pinned by value, deliberately: flipping a surface to real is a decision
   // that should show up in THIS diff, not slide in via a helper.
   const real = Object.entries(SURFACE_STATES)
     .filter(([, v]) => v === "real")
     .map(([k]) => k)
     .sort();
-  assert.deepEqual(real, ["admin/workspace", "conversations", "inbox", "today"]);
+  assert.deepEqual(real, ["admin/workspace", "clients", "conversations", "inbox", "today"]);
 });
 
 test("the shell consults the registry through one interception, not per-route conditionals", () => {
@@ -251,7 +251,14 @@ test("REGRESSION: the route gate resolves the PANE, not just the page", () => {
 
 test("a seeded pane is not made to wait for a surface that does not feed it", () => {
   assert.equal(registry.routeSurfaceFor("admin", "billing"), undefined);
-  assert.equal(registry.routeSurfaceFor("clients"), undefined);
+  assert.equal(registry.routeSurfaceFor("leads"), undefined);
+});
+
+test("People resolves to its override for the list AND for a profile deep link", () => {
+  // The profile route is clients/<contact id>; the pane is fed by the same
+  // fetch as the list, so the gate waits on the same surface for both.
+  assert.equal(registry.routeSurfaceFor("clients"), "people");
+  assert.equal(registry.routeSurfaceFor("clients", "3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c"), "people");
 });
 
 test("the flipped pages still resolve exactly as before", () => {

@@ -31,10 +31,13 @@ const INVENTED = [
   "Jay Rivera",
   "(415) 555-0100",
   "serenityspa.co",
+  // the mockup's clients, now that People is real
+  "Aisha Khan",
+  "David Chen",
 ];
 
 /** Surfaces classified `real` in surface-registry.ts — fed by live data. */
-const REAL_ROUTES = ["#/today", "#/inbox", "#/conversations", "#/admin/workspace"];
+const REAL_ROUTES = ["#/today", "#/inbox", "#/conversations", "#/clients", "#/admin/workspace"];
 
 async function assertNothingInvented(page: Page, where: string) {
   const text = await page.locator("body").innerText();

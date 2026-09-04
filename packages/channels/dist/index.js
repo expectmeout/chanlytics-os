@@ -4252,6 +4252,14 @@ var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
 });
+var DAY_MS = 864e5;
+var WEEK_MS = 7 * DAY_MS;
+var MONTH_MS = 30 * DAY_MS;
+var NEW_WINDOW_MS = 7 * DAY_MS;
+var QUIET_AFTER_MS = 30 * DAY_MS;
+var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_YEAR_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
+var TIME_FMT2 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 
 // src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";
