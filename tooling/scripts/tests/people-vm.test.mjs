@@ -307,3 +307,12 @@ test("a person known only by number is never called \"+1\": the speaker label is
   assert.equal(customer.who, vm.name);
   assert.match(vm.name, /81$/);
 });
+
+test("the profile carries the person's own receptionist mode and the workspace's, and never invents one", () => {
+  const vm = toPersonVM(detail({ receptionist_mode: "never", workspace_reply_mode: "veto" }), NOW);
+  assert.deepEqual(vm.receptionistMode, { person: "never", workspace: "auto" }, "veto answers after a hold, so it reads as Answer");
+  const following = toPersonVM(detail({ receptionist_mode: null, workspace_reply_mode: "ask" }), NOW);
+  assert.deepEqual(following.receptionistMode, { person: null, workspace: "ask" });
+  const junk = toPersonVM(detail({ receptionist_mode: "sometimes", workspace_reply_mode: undefined }), NOW);
+  assert.deepEqual(junk.receptionistMode, { person: null, workspace: null });
+});

@@ -572,6 +572,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   // "Delete this person" is a typed-name confirmation, not a click: it erases
   // messages, media and recordings and cannot be undone.
   const [del, setDel] = useStateP({ open: false, typed: "", busy: false, error: null });
+  const [rm, setRm] = useStateP({ busy: false, error: null });
   const load = React.useCallback(() => {
     if (!window.__personDetail) return;
     setSt((s) => ({ ...s, loading: !s.vm, error: null }));
@@ -608,6 +609,24 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
     del.typed.trim() === p.name ||
     (!!p.phone && digitsOf(del.typed).length >= 7 && digitsOf(del.typed) === digitsOf(p.phone));
   const closeDelete = () => setDel({ open: false, typed: "", busy: false, error: null });
+  // Receptionist for this person: the person's own setting wins; "inherit"
+  // removes it. Re-fetched from the server afterwards, never assumed.
+  const RM_LABEL = { auto: "Answer", ask: "Ask me first", never: "Never" };
+  const rmPerson = p.receptionistMode.person;
+  const rmEffective = rmPerson || p.receptionistMode.workspace;
+  const setMode = async (mode) => {
+    if (!window.__setPersonReceptionist || rm.busy) return;
+    setRm({ busy: true, error: null });
+    const r = await window.__setPersonReceptionist(p.id, mode);
+    if (!r.ok) { setRm({ busy: false, error: r.message || "Could not change this." }); return; }
+    setRm({ busy: false, error: null });
+    ppFlash({
+      msg: mode === "inherit"
+        ? <><b>{first === "them" ? "This person" : first}</b> follows the workspace setting again</>
+        : <>Receptionist for <b>{first === "them" ? "this person" : first}</b>: {RM_LABEL[mode]}</>,
+    });
+    load();
+  };
   const confirmDelete = async () => {
     if (!window.__deletePerson || !typedMatches) return;
     setDel((d) => ({ ...d, busy: true, error: null }));
@@ -725,7 +744,36 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
             ))}
           </div>
         </div>
-        {/* Per-person receptionist mode ships with its enforcer in the edge runtime (PR 3). */}
+        <div className="cl-prof-rail-section" data-testid="receptionist-mode">
+          <div className="cl-prof-rail-label">Receptionist for {first === "them" ? "this person" : first}</div>
+          <div className="cl-prof-autonomy">
+            {["auto", "ask", "never"].map((m) => (
+              <button
+                key={m}
+                className={`cl-prof-aut-seg ${rmEffective === m ? "active" : ""}`}
+                aria-pressed={rmEffective === m}
+                disabled={!isOwner || rm.busy}
+                onClick={() => setMode(m)}
+              >
+                {RM_LABEL[m]}
+              </button>
+            ))}
+          </div>
+          <div className="cl-prof-aut-hint">
+            {rmPerson
+              ? (rmPerson === "auto" ? "Answers this person automatically — set for them alone."
+                : rmPerson === "ask" ? "Every message from this person waits for you before anything is sent."
+                : "The receptionist stays out of it — their messages come straight to you.")
+              : `Following the workspace setting${p.receptionistMode.workspace ? ` (${RM_LABEL[p.receptionistMode.workspace]})` : ""}.`}
+            {!isOwner && " Only an owner can change this."}
+          </div>
+          {rmPerson && isOwner && (
+            <button className="cl-bucket-link" disabled={rm.busy} onClick={() => setMode("inherit")}>
+              Use the workspace setting <Icon name="arrow-right" size={10} />
+            </button>
+          )}
+          {rm.error && <div className="cl-prof-aut-hint" style={{ color: "var(--danger)" }}>{rm.error}</div>}
+        </div>
         {isOwner && (
           <div className="cl-prof-rail-section">
             <div className="cl-prof-rail-label">Danger</div>

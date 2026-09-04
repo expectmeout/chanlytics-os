@@ -11,6 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { personReplyMode, setPersonReplyMode } from "@chanlytics/db";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -135,6 +136,36 @@ test("a person who only ever phoned has no chat, a voice channel, and the call a
     assert.equal(r.last_message_at, null);
     assert.equal(r.has_backfill, false);
   } finally {
+    await cleanup(tenantId);
+  }
+});
+
+test("a person's receptionist mode is a policy row scoped to them: set, read, cleared", { skip }, async () => {
+  const tenantId = await smokeTenantId();
+  await cleanup(tenantId);
+  try {
+    const contact = ok(await db.from("contacts").insert({ tenant_id: tenantId, phone_e164: PHONE, display_name: "Mode Probe" }).select("id").single());
+    assert.equal(await personReplyMode(db, tenantId, contact.id), null, "nothing set = follow the workspace");
+
+    await setPersonReplyMode(db, tenantId, contact.id, "never");
+    assert.equal(await personReplyMode(db, tenantId, contact.id), "never");
+    const rows = ok(await db.from("policies").select("class, subject_type, subject_id, mode").eq("tenant_id", tenantId).eq("subject_id", contact.id));
+    assert.deepEqual(rows, [{ class: "reply", subject_type: "contact", subject_id: contact.id, mode: "never" }]);
+
+    // Changing it is an upsert on the same row, not a second row.
+    await setPersonReplyMode(db, tenantId, contact.id, "ask");
+    assert.equal(await personReplyMode(db, tenantId, contact.id), "ask");
+    const again = ok(await db.from("policies").select("id").eq("tenant_id", tenantId).eq("subject_id", contact.id));
+    assert.equal(again.length, 1);
+
+    // The workspace row is untouched by any of this.
+    const ws = ok(await db.from("policies").select("mode").eq("tenant_id", tenantId).eq("class", "reply").is("subject_type", null).maybeSingle());
+    assert.ok(ws, "the workspace reply row still exists");
+
+    await setPersonReplyMode(db, tenantId, contact.id, null);
+    assert.equal(await personReplyMode(db, tenantId, contact.id), null);
+  } finally {
+    await db.from("policies").delete().eq("tenant_id", tenantId).eq("subject_type", "contact");
     await cleanup(tenantId);
   }
 });

@@ -4648,6 +4648,23 @@ async function setPolicyMode(db, tenantId, policyClass, mode, limits) {
   if (error) throw new Error(error.message);
   return data;
 }
+async function personReplyMode(db, tenantId, contactId) {
+  const { data, error } = await db.from("policies").select("mode").eq("tenant_id", tenantId).eq("class", "reply").eq("subject_type", "contact").eq("subject_id", contactId).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data?.mode ?? null;
+}
+async function setPersonReplyMode(db, tenantId, contactId, mode) {
+  if (mode === null) {
+    const { error: error2 } = await db.from("policies").delete().eq("tenant_id", tenantId).eq("class", "reply").eq("subject_type", "contact").eq("subject_id", contactId);
+    if (error2) throw new Error(error2.message);
+    return;
+  }
+  const { error } = await db.from("policies").upsert(
+    { tenant_id: tenantId, class: "reply", mode, subject_type: "contact", subject_id: contactId },
+    { onConflict: "tenant_id,class,subject_type,subject_id" }
+  );
+  if (error) throw new Error(error.message);
+}
 
 // src/realtime.ts
 var WATCHED = [
@@ -4703,6 +4720,7 @@ export {
   listPolicies,
   markProcessed,
   pauseConversation,
+  personReplyMode,
   putTenantConfig,
   readLeadContext,
   readThreadState,
@@ -4714,6 +4732,7 @@ export {
   resolveChannelDetailed,
   resolveOutboundTarget,
   setCallRecording,
+  setPersonReplyMode,
   setPolicyMode,
   subscribeMessagesInserts
 };

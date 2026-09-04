@@ -115,6 +115,13 @@ export const DELETE = withRoute(async (_req, ctx) => {
     } as unknown as Json,
   });
   if (rpcErr) throw new Error(`erase_contact: ${rpcErr.message}`);
+  // The person's own receptionist setting goes with them: a policy row scoped
+  // to an erased contact is a name that outlives its erasure.
+  {
+    const { error: polErr } = await ctx.supabase.from("policies").delete()
+      .eq("tenant_id", contact.tenant_id).eq("subject_type", "contact").eq("subject_id", id);
+    if (polErr) console.error("erase_person_policy_failed", id, polErr.message);
+  }
   const out = rpc as unknown as {
     counts?: Record<string, number>; storage_paths?: string[]; jobs_canceled?: number;
   };
@@ -168,14 +175,21 @@ export const GET = withRoute(async (req, ctx) => {
   if (!row) throw new AppError("not_found", "This person is not in your workspace.", 404);
 
   const sb = ctx.supabase;
-  const [idents, convs, calls] = await Promise.all([
+  const [idents, convs, calls, personPol, wsPol] = await Promise.all([
     sb.from("contact_identities").select("channel, external_id, created_at").eq("contact_id", id).order("created_at"),
     sb.from("conversations").select(CONVERSATION_COLUMNS).eq("tenant_id", tenantId).eq("contact_id", id)
       .order("last_message_at", { ascending: false, nullsFirst: false }),
     sb.from("calls").select(CALL_COLUMNS).eq("tenant_id", tenantId).eq("contact_id", id)
       .order("started_at", { ascending: false, nullsFirst: false }).limit(200),
+    // This person's own receptionist mode, and the workspace's, for the rail.
+    sb.from("policies").select("mode").eq("tenant_id", tenantId).eq("class", "reply")
+      .eq("subject_type", "contact").eq("subject_id", id).maybeSingle(),
+    sb.from("policies").select("mode").eq("tenant_id", tenantId).eq("class", "reply")
+      .is("subject_type", null).maybeSingle(),
   ]);
   if (idents.error) throw new Error(idents.error.message);
+  if (personPol.error) throw new Error(personPol.error.message);
+  if (wsPol.error) throw new Error(wsPol.error.message);
   if (convs.error) throw new Error(convs.error.message);
   if (calls.error) throw new Error(calls.error.message);
 
@@ -209,6 +223,8 @@ export const GET = withRoute(async (req, ctx) => {
     calls: (calls.data ?? []).map(toCallDto),
     escalations,
     decisions,
+    receptionist_mode: personPol.data?.mode ?? null,
+    workspace_reply_mode: wsPol.data?.mode ?? null,
   };
   return { person };
 });

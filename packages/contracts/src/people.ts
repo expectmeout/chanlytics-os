@@ -102,6 +102,19 @@ export interface PersonDetailDto {
   calls: CallDto[];
   escalations: PersonEscalationDto[];
   decisions: PersonDecisionDto[];
+  /** This person's own receptionist mode, or null to follow the workspace. */
+  receptionist_mode?: string | null;
+  /** The workspace's reply policy mode, for the "following …" hint. */
+  workspace_reply_mode?: string | null;
+}
+
+/** What an owner may set for one person: answer, ask first, or stay out. */
+export type PersonMode = "auto" | "ask" | "never";
+export const PERSON_MODES: readonly PersonMode[] = ["auto", "ask", "never"];
+export const PERSON_MODE_LABELS: Record<PersonMode, string> = { auto: "Answer", ask: "Ask me first", never: "Never" };
+
+export function asPersonMode(s: string | null | undefined): PersonMode | null {
+  return s && (PERSON_MODES as readonly string[]).includes(s) ? (s as PersonMode) : null;
 }
 
 /* -------------------------------- states --------------------------------- */
@@ -508,6 +521,10 @@ export interface PersonVM extends PersonRowVM {
   about: { k: string; v: string }[];
   /** "inbox/th-…" or null for a phone-only person. */
   openThread: string | null;
+  /** The person's own setting (null = following the workspace) and the
+   *  workspace's mode, so the rail can say which is in force. 'veto' at the
+   *  workspace level still answers, after a hold, so it reads as "Answer". */
+  receptionistMode: { person: PersonMode | null; workspace: PersonMode | null };
 }
 
 const DECISION_LABELS: Record<string, { who: string; text: string }> = {
@@ -699,5 +716,9 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
     timeline: items,
     about,
     openThread: base.threadId ? `inbox/${base.threadId}` : null,
+    receptionistMode: {
+      person: asPersonMode(d.receptionist_mode),
+      workspace: d.workspace_reply_mode === "veto" ? "auto" : asPersonMode(d.workspace_reply_mode),
+    },
   };
 }

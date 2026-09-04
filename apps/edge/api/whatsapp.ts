@@ -53,13 +53,14 @@ import {
   readThreadState,
   readLeadContext,
   describeLead,
+  personReplyMode,
   type IngestResult,
 } from "../lib/workspace/db.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../lib/workspace/db.js";
 import { upsertEscalation } from "../lib/workspace/jobs.js";
 import { loadTenantRuntime, waCfgFor, type TenantRuntime } from "../lib/tenant-runtime.js";
-import { replyPosture } from "../lib/reply-posture.js";
+import { replyPosture, effectiveReplyMode } from "../lib/reply-posture.js";
 import { scheduleJob } from "../lib/workspace/jobs.js";
 import { resolveConsent } from "../lib/consent.js";
 import { logger, errField } from "../lib/log.js";
@@ -408,7 +409,7 @@ async function handleInbound(
   // The posture rules live in ./reply-posture.ts, dependency-free and tested as
   // a truth table — they were four inline booleans, and one of them made
   // `status='disabled'` fail to silence the receptionist.
-  const { drFallback, replyMode } = replyPosture({
+  const posture = replyPosture({
     isEnvDefault,
     routingConsulted: !!db,
     routingFailed,
@@ -416,6 +417,11 @@ async function handleInbound(
     runtimeUsable: !!rt && !rt.loadFailed,
     policyMode: rt?.policy["reply"]?.mode,
   });
+  const { drFallback } = posture;
+  // Reassigned once THIS person's own setting is known, just before the
+  // policy is consulted below.
+  let replyMode = posture.replyMode;
+  let personMode: string | null = null;
   const brainCfg: BrainConfig | null = rt?.brain ?? (drFallback ? FALLBACK_BRAIN : null);
   const notif: NotificationsConfig | null = rt?.notifications ?? (drFallback ? FALLBACK_NOTIFICATIONS : null);
   // One addressing decision per message, reused by every alert below.
@@ -666,6 +672,20 @@ async function handleInbound(
     return;
   }
 
+  // The person's own receptionist mode (People → profile → "Receptionist
+  // for …") wins over the workspace policy. Looked up per message and never
+  // cached: "Never" for a difficult customer must apply to their NEXT message.
+  // A failed lookup keeps the workspace mode — a blip must neither silence
+  // nor unmute anyone.
+  if (db && tenantId && ing?.contact_id && !drFallback) {
+    try {
+      personMode = await personReplyMode(db, tenantId, ing.contact_id);
+      replyMode = effectiveReplyMode(posture, personMode);
+    } catch (e) {
+      L.warn("wa_person_mode_lookup_failed", { error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
   // E3: the reply policy is consulted BEFORE generation. 'ask' is the timid
   // mode — everything escalates, a human answers; a tenant with no persona
   // behaves identically. The customer's message is already persisted above.
@@ -678,7 +698,9 @@ async function handleInbound(
       sink.escalate(
         "policy_block",
         brainCfg
-          ? `Reply mode is '${replyMode}' — the receptionist holds everything for a human.`
+          ? personMode
+            ? `This person is set to '${replyMode}' — the receptionist stays out of it; answer them yourself.`
+            : `Reply mode is '${replyMode}' — the receptionist holds everything for a human.`
           : rt?.configBroken
             // A saved-but-unparseable config is a MISTAKE, not an absence, and
             // sending the operator to "fill one in" when a good persona is
@@ -695,7 +717,7 @@ async function handleInbound(
       ),
       sink.processed(),
     ]);
-    L.info("wa_held_by_policy", { mode: replyMode, persona: !!brainCfg, config_broken: !!rt?.configBroken });
+    L.info("wa_held_by_policy", { mode: replyMode, person_mode: personMode, persona: !!brainCfg, config_broken: !!rt?.configBroken });
     return;
   }
 
