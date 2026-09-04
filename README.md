@@ -34,8 +34,11 @@ corepack pnpm test
 ```
 
 `pnpm` is corepack-only here — bare `pnpm` is not on PATH. Node 22+ is required
-(`.nvmrc`); the test suite imports TypeScript directly using Node's type
-stripping.
+(`.nvmrc`); the test suite runs under `tsx`, so a test can import the app's own
+TypeScript — the edge handlers, the permission layer, the packages — and
+execute it. It used to run on Node's type stripping, which could load only leaf
+modules with no imports, and that limit is why so many tests assert on source
+text instead of behaviour.
 
 Copy `apps/edge/.env.example` and `apps/dashboard/.env.example`. Both are
 complete and pinned by a test, so a variable the code reads cannot go
@@ -69,8 +72,11 @@ and is shown; an invented number is not. This is the rule most likely to be
 violated by accident.
 
 **`PG_READS` / `PG_WRITES` are the rollback levers.** Postgres is the bot's
-memory; Blob is still written underneath so the flip is reversible by an env
-change with no redeploy. That is why the Blob path still has to be correct.
+memory; Blob is still written underneath, which is what makes the flip
+reversible. The env change needs a redeploy to take effect — measured, not
+assumed — so budget a couple of minutes, and confirm with `/api/diag`, which
+reports `memory` as `postgres` or `blob`. That is why the Blob path still has
+to be correct.
 
 **Row Level Security is the floor, not the door.** RLS stops cross-tenant
 access. *Which member may do a thing* is decided in the route with
@@ -132,6 +138,6 @@ invitation being sent or any membership changing.
 | Want to | Do |
 |---|---|
 | Silence one business's receptionist | `tenant_channels.status = 'disabled'` — inbound is then recorded as unroutable and a human is emailed |
-| Roll back to Blob memory | `PG_READS=off` in the edge project env; no redeploy needed |
+| Roll back to Blob memory | `PG_READS=off` in the edge project env, **then redeploy** — a Vercel env change alone does not reach a running deployment. Confirm with `/api/diag`: `memory` reads `blob`. |
 | Stop a queued reply | The cancel window in the UI, or `messages.status = 'canceled'` while it is still `queued` |
 | See what the system did | `events` (append-only), `decisions` (every operator verb), `escalations` (what needed a human) |
