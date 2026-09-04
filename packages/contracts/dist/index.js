@@ -960,9 +960,12 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
 import { z } from "zod";
 var ROLES = MEMBERSHIP_ROLES;
 var ROLE_PERMS = {
-  owner: { approve: true, autonomy: true, disconnect: true, billing: true, team: true },
-  operator: { approve: true, autonomy: true, disconnect: false, billing: false, team: false },
-  viewer: { approve: false, autonomy: false, disconnect: false, billing: false, team: false }
+  // `settings` is the business details and who is alerted: PUT /settings is
+  // owner-only, and the form used to open on the autonomy gate, which let an
+  // operator fill it in and be refused at Save.
+  owner: { approve: true, autonomy: true, disconnect: true, billing: true, team: true, settings: true },
+  operator: { approve: true, autonomy: true, disconnect: false, billing: false, team: false, settings: false },
+  viewer: { approve: false, autonomy: false, disconnect: false, billing: false, team: false, settings: false }
 };
 var POLICY_CLASSES = ["reply", "booking", "faq", "reengage", "campaign", "money"];
 var POLICY_MODES = ["auto", "veto", "ask", "never"];

@@ -1,5 +1,5 @@
 import { withRoute, memberContext, requireRole } from "@/server/with-route";
-import { AppError, parseTenantConfig, TenantConfigWriteSchema } from "@chanlytics/contracts";
+import { AppError, parseTenantConfig, parseTenantConfigResult, TenantConfigWriteSchema } from "@chanlytics/contracts";
 import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
 import type { Json } from "@chanlytics/db";
 
@@ -9,7 +9,14 @@ export const GET = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   const row = await getTenantConfig(ctx.supabase, member.tenantId);
   if (!row) throw new AppError("not_found", "Workspace has no configuration row.", 404);
-  return { config: parseTenantConfig(row.config) ?? {}, version: row.version, role: member.role };
+  // A config the parser refuses is a different fact from "nothing configured".
+  // Collapsing both to {} showed a broken workspace the "no receptionist yet"
+  // invitation — and the form behind it would have saved over the broken row,
+  // deleting whatever it still held. The edge already tells the two apart
+  // (tenant-runtime's configBroken); this is the same answer for the pane.
+  const parsed = parseTenantConfigResult(row.config);
+  if (parsed.ok) return { config: parsed.config, version: row.version, role: member.role, configBroken: false };
+  return { config: null, version: row.version, role: member.role, configBroken: true, issues: parsed.issues };
 });
 
 /**

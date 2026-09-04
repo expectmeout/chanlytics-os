@@ -28,8 +28,16 @@ export const PUT = withRoute(async (req, ctx) => {
     | { class?: string; mode?: string; replyDelayMs?: number }
     | null;
   const cls = body?.class ?? "";
-  const mode = body?.mode ?? "";
   if (!(POLICY_CLASSES as readonly string[]).includes(cls)) throw new AppError("validation", "Unknown policy class.");
+  // A delay edit carries no mode: the row keeps the one it has. Requiring the
+  // client to resend it meant a stale page changing the hold window could
+  // silently flip Replies to whatever mode that page had loaded.
+  let mode = body?.mode ?? "";
+  if (mode === "" && body?.replyDelayMs !== undefined) {
+    const current = (await listPolicies(ctx.supabase, member.tenantId)).find((p) => p.class === cls);
+    if (!current) throw new AppError("not_found", "Policy row not found.", 404);
+    mode = current.mode;
+  }
   if (!(POLICY_MODES as readonly string[]).includes(mode)) throw new AppError("validation", "Unknown mode.");
   // 'veto' used to be refused here on the rule "no option without an
   // enforcer" — offering a mode nothing implemented would have been a switch

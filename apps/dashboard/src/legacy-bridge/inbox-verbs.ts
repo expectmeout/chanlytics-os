@@ -317,7 +317,7 @@ export async function refreshSettings(): Promise<void> {
 declare global {
   interface Window {
     __setReportDays?: (days: number) => Promise<boolean>;
-    __setPolicy?: (cls: string, mode: string, replyDelayMs?: number) => Promise<VerbResult>;
+    __setPolicy?: (cls: string, mode: string | undefined, replyDelayMs?: number) => Promise<VerbResult>;
     __refreshSettings?: () => Promise<void>;
     __inboxVerb: typeof inboxVerb;
     __teamInvite: typeof teamInvite;
@@ -341,16 +341,20 @@ declare global {
  * matrix, the approval chips and the cache all agree) and the mockup's own
  * `policy:changed` event fires, which is what every reader listens for.
  */
-export async function setPolicy(cls: string, mode: string, replyDelayMs?: number): Promise<VerbResult> {
+export async function setPolicy(cls: string, mode: string | undefined, replyDelayMs?: number): Promise<VerbResult> {
+  // A delay edit sends no mode. It used to resend the one this page had
+  // loaded, so changing the hold window from a stale tab could quietly flip
+  // Replies back to whatever that tab remembered.
   const r = await call(
     "/api/v1/policies",
-    { class: cls, mode, ...(replyDelayMs !== undefined ? { replyDelayMs } : {}) },
+    { class: cls, ...(mode !== undefined ? { mode } : {}), ...(replyDelayMs !== undefined ? { replyDelayMs } : {}) },
     undefined,
     "PUT",
   );
   if (r.ok) {
     await refreshSurfaces([settingsOverride]);
-    window.dispatchEvent(new CustomEvent("policy:changed", { detail: { class: cls, mode } }));
+    const saved = (r.data as { policy?: { mode?: string } } | undefined)?.policy?.mode ?? mode;
+    window.dispatchEvent(new CustomEvent("policy:changed", { detail: { class: cls, mode: saved } }));
   }
   return r;
 }
@@ -424,6 +428,11 @@ export async function saveSettings(
   const r = await call("/api/v1/settings", { config, version }, undefined, "PUT");
   if (!r.ok) return r;
   onAccepted?.();
-  await refresh();
+  // The settings surface itself, FIRST: it carries the version the next save
+  // has to send. `refresh()` re-reads the Inbox, threads and Today and never
+  // this pane, so the second save in a row went out with the version from
+  // before the first and came back as "someone else saved settings after you
+  // loaded them". Today follows because it states the workspace's facts.
+  await refreshSurfaces([settingsOverride, todayOverride]);
   return r;
 }

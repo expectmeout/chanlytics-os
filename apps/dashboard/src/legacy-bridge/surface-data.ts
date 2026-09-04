@@ -488,7 +488,7 @@ export const settingsOverride: SurfaceOverride = {
   events: ["surface:settings"],
   apply: async () => {
     const [cfg, team, pol, ch] = await Promise.all([
-      fetchEnvelope<{ config: WorkspaceSettings; version: number; role: string }>("/api/v1/settings"),
+      fetchEnvelope<{ config: WorkspaceSettings | null; version: number; role: string; configBroken?: boolean; issues?: string[] }>("/api/v1/settings"),
       // A team read that fails must not blank the business card beside it.
       fetchEnvelope<{ members: unknown[]; invites?: unknown[] }>("/api/v1/team").catch((e: unknown) => e as Error),
       // The autonomy matrix. Same rule: a failed read is its own state (null),
@@ -498,13 +498,18 @@ export const settingsOverride: SurfaceOverride = {
       fetchEnvelope<{ channels: ChannelDto[] }>("/api/v1/channels").catch((e: unknown) => e as Error),
     ]);
     const w = window as unknown as {
-      __SETTINGS?: { config: WorkspaceSettings; version: number; role: string };
+      __SETTINGS?: { config: WorkspaceSettings | null; version: number; role: string; broken: { issues: string[] } | null };
       __TEAM?: unknown[] | null;
       __TEAM_INVITES?: unknown[] | null;
       __POLICIES?: PoliciesSurface | null;
       __CHANNELS?: ChannelVM[] | null;
     };
-    w.__SETTINGS = { config: cfg.config ?? {}, version: cfg.version, role: cfg.role };
+    // `broken` is its own state, not an empty config: the pane closes its
+    // forms on it, because a save from a form that read {} would replace the
+    // broken row with the form's few fields.
+    w.__SETTINGS = cfg.configBroken
+      ? { config: null, version: cfg.version, role: cfg.role, broken: { issues: cfg.issues ?? [] } }
+      : { config: cfg.config ?? {}, version: cfg.version, role: cfg.role, broken: null };
     if (ch instanceof Error) {
       w.__CHANNELS = null;
       console.error("settings_channels_fetch_failed", ch.message);

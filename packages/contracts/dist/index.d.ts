@@ -711,6 +711,7 @@ declare const ROLE_PERMS: Record<Role, {
     disconnect: boolean;
     billing: boolean;
     team: boolean;
+    settings: boolean;
 }>;
 declare const POLICY_CLASSES: readonly ["reply", "booking", "faq", "reengage", "campaign", "money"];
 type PolicyClass = (typeof POLICY_CLASSES)[number];

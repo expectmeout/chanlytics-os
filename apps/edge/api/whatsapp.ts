@@ -199,6 +199,7 @@ async function alertStaff(
   botText: string,
   reason: string,
   target: NotifyTarget,
+  pauseHours = 24,
 ): Promise<void> {
   await notify(target, {
     subject: `WhatsApp handoff needed: +${threadId}`,
@@ -207,7 +208,7 @@ async function alertStaff(
       `Customer: +${threadId}\n` +
       `Their message: ${userText}\n` +
       `Bot's reply: ${botText}\n\n` +
-      `Reply from the WhatsApp Business app — the bot is paused on this thread for 24h.`,
+      `Reply from the WhatsApp Business app — the bot is paused on this thread for ${pauseHours}h.`,
     redactedBody: `A WhatsApp conversation needed a human (${reason}), and nobody could be told.`,
   });
 }
@@ -434,6 +435,9 @@ async function handleInbound(
   const replyLimits = rt?.policy["reply"]?.limits ?? {};
   const maxRepliesDay = replyLimits.max_replies_day ?? MAX_REPLIES_PER_DAY;
   const pauseMs = (replyLimits.pause_hours ? replyLimits.pause_hours * 3600 * 1000 : PAUSE_MS);
+  // The number the handoff email states. It reads the same limit the pause
+  // does, so the email and Settings never disagree about it.
+  const pauseHours = Math.round(pauseMs / 3600000);
 
   const allow = (process.env.WHATSAPP_TEST_ALLOWLIST || "").split(",").map((s) => s.trim()).filter(Boolean);
   if (allow.length && !allow.includes(from)) {
@@ -509,7 +513,7 @@ async function handleInbound(
         "state_unavailable",
         "The receptionist could not read this thread's history, so it did not reply. Please answer this one.",
       ),
-      alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — the receptionist could not read the thread state)", "state unavailable", notifyTarget),
+      alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — the receptionist could not read the thread state)", "state unavailable", notifyTarget, pauseHours),
       sink.processed(),
     ]);
     return;
@@ -561,7 +565,7 @@ async function handleInbound(
       // see once, not a log line.
       post.push(
         sink.escalate("opt_out", "Customer asked to stop receiving messages. Automatic replies are off for this contact until they text START."),
-        alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — the customer opted out)", "opt-out", notifyTarget),
+        alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — the customer opted out)", "opt-out", notifyTarget, pauseHours),
       );
     }
     await Promise.all(post);
@@ -601,7 +605,7 @@ async function handleInbound(
   if (n.kind === "location" || n.kind === "contacts") {
     await Promise.all([
       sink.escalate("non_text", `${n.body} — needs a person.`),
-      alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — passed to a human)", n.kind, notifyTarget),
+      alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — passed to a human)", n.kind, notifyTarget, pauseHours),
       sink.processed(),
     ]);
     L.info("wa_escalate_readable_nontext", { kind: n.kind });
@@ -639,7 +643,7 @@ async function handleInbound(
       await Promise.all([
         ...(mayAck ? [sink.pause(new Date(Date.now() + pauseMs).toISOString())] : []),
         sink.escalate("non_text", `Customer sent a ${m.type} message — ${why}.`),
-        alertStaff(from, `[${m.type} message]`, `(${why})`, "non-text message", notifyTarget),
+        alertStaff(from, `[${m.type} message]`, `(${why})`, "non-text message", notifyTarget, pauseHours),
       ]);
       L.info("wa_nontext", { acked: mayAck, mode: replyMode, person_mode: personMode });
     }
@@ -673,7 +677,7 @@ async function handleInbound(
   if (ageMs > STALE_REPLY_MS) {
     await Promise.all([
       sink.escalate("stale", `Message arrived ${Math.round(ageMs / 60000)} minutes late — too old to answer automatically.`),
-      alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — arrived too late to answer automatically)", "late message", notifyTarget),
+      alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — arrived too late to answer automatically)", "late message", notifyTarget, pauseHours),
       sink.processed(),
     ]);
     L.info("wa_stale_escalated", { age_ms: ageMs });
@@ -701,7 +705,7 @@ async function handleInbound(
     // fires on a busy thread, not only when someone lowers the limit.
     await Promise.all([
       sink.escalate("rate_cap", `Thread hit ${maxRepliesDay} automatic replies today — the receptionist stopped and is waiting for a human.`),
-      alertStaff(from, bodyText, "(no reply sent — daily automatic-reply limit reached)", "rate cap", notifyTarget),
+      alertStaff(from, bodyText, "(no reply sent — daily automatic-reply limit reached)", "rate cap", notifyTarget, pauseHours),
       sink.processed(),
     ]);
     return;
@@ -746,6 +750,7 @@ async function handleInbound(
                 ? personHold ? `this person is set to ${replyMode}` : `reply mode ${replyMode}`
                 : rt?.configBroken ? "settings could not be read" : "no persona configured",
               notifyTarget,
+              pauseHours,
             ),
           ]
         : []),
@@ -855,7 +860,7 @@ async function handleInbound(
       thread.pausedUntil = Date.now() + pauseMs;
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
       post.push(sink.escalate(escalationReason, bodyText));
-      post.push(alertStaff(from, bodyText, replyText, "assistant flagged handoff (reply held for review)", notifyTarget));
+      post.push(alertStaff(from, bodyText, replyText, "assistant flagged handoff (reply held for review)", notifyTarget, pauseHours));
     }
     await Promise.all(post);
     await saveThread(ns, from, thread);
@@ -876,7 +881,7 @@ async function handleInbound(
       thread.pausedUntil = Date.now() + pauseMs;
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
       post.push(sink.escalate(escalationReason, bodyText));
-      post.push(alertStaff(from, bodyText, replyText, "assistant flagged handoff", notifyTarget));
+      post.push(alertStaff(from, bodyText, replyText, "assistant flagged handoff", notifyTarget, pauseHours));
     }
     await Promise.all(post);
     await saveThread(ns, from, thread);
@@ -886,7 +891,7 @@ async function handleInbound(
     // loud, and the message must stay visibly unprocessed for reconciliation.
     await saveThread(ns, from, thread);
     await Promise.all([
-      alertStaff(from, bodyText, "(send failed — the customer received no reply)", "wa_send_failed", notifyTarget),
+      alertStaff(from, bodyText, "(send failed — the customer received no reply)", "wa_send_failed", notifyTarget, pauseHours),
       sink.sendFailed(sent.status),
       sink.escalate("send_failed", `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`),
     ]);
@@ -998,6 +1003,13 @@ export async function POST(request: Request): Promise<Response> {
         } else if (field === "smb_message_echoes") {
           // The owner (or staff) replied from the WhatsApp Business app -> pause the bot on that thread
           try {
+            // The pause is the tenant's own setting, the one Settings shows as
+            // "stays paused for N hours". This path had no runtime loaded and
+            // paused for a hard-coded day whatever the owner had chosen. One
+            // read per echo batch, never per echo.
+            const echoRt = db && routedChannel ? await loadTenantRuntime(db, routedChannel) : null;
+            const echoLimits = echoRt?.policy["reply"]?.limits ?? {};
+            const echoPauseMs = (echoLimits.pause_hours ? echoLimits.pause_hours * 3600 * 1000 : PAUSE_MS);
             for (const echo of v.message_echoes || []) {
               const to = echo.to;
               if (to) {
@@ -1005,7 +1017,7 @@ export async function POST(request: Request): Promise<Response> {
                 // channel it arrived on, not to a global phone-number bucket.
                 const echoNs = threadNamespace(tenantId);
                 const t = await getThread(echoNs, to);
-                t.pausedUntil = Date.now() + PAUSE_MS;
+                t.pausedUntil = Date.now() + echoPauseMs;
                 // A refused save means the Blob pause did NOT land, so the bot
                 // could answer over the human who just replied. Postgres below
                 // still records it, which under PG_READS=on is the source of
@@ -1016,7 +1028,7 @@ export async function POST(request: Request): Promise<Response> {
                     recordEchoAndPause(db, {
                       tenantId, customerPhoneDigits: to,
                       body: echo.text?.body ?? null, externalId: echo.id ?? null,
-                      pausedUntilIso: new Date(Date.now() + PAUSE_MS).toISOString(),
+                      pausedUntilIso: new Date(Date.now() + echoPauseMs).toISOString(),
                     }));
                 }
                 console.log("wa_paused_by_echo", to);

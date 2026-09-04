@@ -528,3 +528,9 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
   color: var(--ink-faint);
   line-height: var(--leading-normal);
 }
+
+/* Settings truth: a broken configuration lists what the parser refused, and
+   the notification rows that go to the platform say so beside their title. */
+.set-broken-issues { margin: 10px 0 0; padding-left: 18px; font-family: var(--mono, ui-monospace, monospace); font-size: 12px; line-height: 1.5; color: var(--ink-muted); }
+.set-broken-issues li { margin: 2px 0; }
+.set-notif-platform { margin-left: 8px; font-size: 10px; vertical-align: middle; }

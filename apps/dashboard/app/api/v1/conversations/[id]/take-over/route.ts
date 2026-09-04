@@ -1,5 +1,5 @@
 import { withRoute } from "@/server/with-route";
-import { requireOperator, loadConversation, recordDecision, cancelPendingAiReply, PAUSE_MS } from "@/server/verbs";
+import { requireOperator, loadConversation, recordDecision, cancelPendingAiReply, pauseMsFor } from "@/server/verbs";
 import { schedule, cancelKindFor, mirrorBlobPause } from "@/server/service";
 import { AppError } from "@chanlytics/contracts";
 
@@ -7,7 +7,7 @@ import { AppError } from "@chanlytics/contracts";
 export const POST = withRoute(async (_req, ctx) => {
   const conv = await loadConversation(ctx, String(ctx.params.id ?? ""));
   await requireOperator(ctx, conv.tenant_id);
-  const until = Date.now() + PAUSE_MS;
+  const until = Date.now() + await pauseMsFor(ctx, conv.tenant_id);
 
   // the live bot reads Blob until Gate 1b — mirror FIRST, fail loud (D10)
   if (!conv.phone_e164) throw new AppError("conflict", "Conversation has no phone identity.");
