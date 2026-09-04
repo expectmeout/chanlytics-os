@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { AppError } from "@chanlytics/contracts";
 import { withRoute } from "@/server/with-route";
 import { signedMediaUrl } from "@/server/service";
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { requireUuid } from "@/server/request-guards";
 
 /**
  * GET /api/v1/calls/:id/recording — the ONLY way audio reaches a browser.
@@ -11,8 +10,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * for the private object. The permanent CDN URL never leaves the server.
  */
 export const GET = withRoute(async (_req, { supabase, params }) => {
-  const id = String(params.id ?? "");
-  if (!UUID.test(id)) throw new AppError("not_found", "Call not found.");
+  const id = requireUuid(params.id, "call");
 
   const { data: call, error } = await supabase
     .from("calls")

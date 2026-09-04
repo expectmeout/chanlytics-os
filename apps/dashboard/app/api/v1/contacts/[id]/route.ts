@@ -7,7 +7,6 @@ import { requireUuid } from "@/server/request-guards";
 import { CALL_COLUMNS, CONVERSATION_COLUMNS, MESSAGE_COLUMNS, groupMessages, toCallDto, toConversationDto } from "@/server/dto";
 import type { MessageDto, PersonDecisionDto, PersonDetailDto, PersonEscalationDto, PersonRowDto } from "@chanlytics/contracts";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const digits = (s: string) => s.replace(/\D/g, "");
 
 /**
@@ -26,8 +25,7 @@ const digits = (s: string) => s.replace(/\D/g, "");
  * transcript in Blob that nobody can ever find again.
  */
 export const DELETE = withRoute(async (_req, ctx) => {
-  const id = String(ctx.params.id ?? "");
-  if (!UUID.test(id)) throw new AppError("not_found", "Contact not found.");
+  const id = requireUuid(ctx.params.id, "contact");
 
   // RLS scopes this read to the caller's workspaces, so a contact they cannot
   // see is a 404 rather than a leak. The ROLE is then decided against the

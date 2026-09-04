@@ -31,9 +31,9 @@ export async function POST(request: Request): Promise<Response> {
     // here would make it report a pause that does not exist, and the bot would
     // keep replying under a human's feet — the exact incident this endpoint
     // was built for.
-    console.error("admin_pause_not_persisted", JSON.stringify({ phone, until: body.paused_until_ms }));
+    console.error("admin_pause_not_persisted", JSON.stringify({ phone_tail: String(phone).slice(-4), until: body.paused_until_ms }));
     return json(503, { ok: false, error: "pause_not_persisted" });
   }
-  console.log("admin_pause", JSON.stringify({ phone, tenant: body.tenant_id ?? null, until: body.paused_until_ms }));
+  console.log("admin_pause", JSON.stringify({ phone_tail: String(phone).slice(-4), tenant: body.tenant_id ?? null, until: body.paused_until_ms }));
   return json(200, { ok: true });
 }

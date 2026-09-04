@@ -9,6 +9,7 @@ import { createClient } from "../lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import { isSameOrigin } from "./request-guards";
+import { isRetryableAuthError } from "./auth-errors";
 
 export interface RouteContext {
   supabase: SupabaseClient<Database>;
@@ -73,11 +74,8 @@ export function withRoute<T>(
         // a brief auth outage logged every operator out and discarded whatever
         // they were typing. A 503 says try again, and the client leaves the
         // session alone.
-        const retryable =
-          !!authErr &&
-          (authErr.status === undefined || authErr.status >= 500 || authErr.name === "AuthRetryableFetchError");
-        if (retryable) {
-          console.error(JSON.stringify({ level: "error", route, event: "auth_unavailable", error: authErr.message }));
+        if (isRetryableAuthError(authErr)) {
+          console.error(JSON.stringify({ level: "error", route, event: "auth_unavailable", error: authErr?.message }));
           return NextResponse.json(
             err("upstream_auth", "Could not verify your session just now — try again."),
             { status: 503, headers: PRIVATE },

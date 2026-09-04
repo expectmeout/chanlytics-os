@@ -182,6 +182,13 @@ test("nothing outside the runner calls activateOverride directly", () => {
     // brief Supabase blip logged every operator out mid-sentence.
     assert.match(wrapper, /upstream_auth/);
     assert.match(wrapper, /status: 503/);
-    assert.match(wrapper, /AuthRetryableFetchError|authErr\.status >= 500/);
+    // ONE predicate, shared with the middleware — which used to answer 401
+    // for API paths before the wrapper ever ran.
+    assert.match(wrapper, /isRetryableAuthError\(authErr\)/);
+    const predicate = readCode("apps/dashboard/src/server/auth-errors.ts");
+    assert.match(predicate, /AuthRetryableFetchError|err\.status >= 500/);
+    const middleware = readCode("apps/dashboard/middleware.ts");
+    assert.match(middleware, /isRetryableAuthError\(authErr\)/, "the gate must not answer 401 for an outage");
+    assert.match(middleware, /status: 503/);
   });
 }

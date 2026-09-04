@@ -13,11 +13,21 @@ export const POST = withRoute(async (_req, ctx) => {
   if (!conv.phone_e164) throw new AppError("conflict", "Conversation has no phone identity.");
   await mirrorBlobPause(conv.tenant_id, conv.phone_e164, until);
 
-  const { error } = await ctx.supabase
+  // Row count, not just the error: an UPDATE that RLS or a vanished row
+  // excludes reports success while changing nothing, and everything below
+  // would then describe a change that never happened.
+  const { data: taken, error } = await ctx.supabase
     .from("conversations")
     .update({ state: "needs_human", paused_until: new Date(until).toISOString(), snooze_until: null, assignee_user_id: ctx.userId })
-    .eq("id", conv.id);
+    .eq("id", conv.id)
+    .select("id");
   if (error) throw new Error(error.message);
+  if (!taken || taken.length === 0) {
+    // The mirror already paused the bot in Blob; release it so the two
+    // stores do not disagree about a thread nobody took.
+    await mirrorBlobPause(conv.tenant_id, conv.phone_e164, 0);
+    throw new AppError("conflict", "Could not take this thread over — reload and try again.", 409);
+  }
 
   // A held reply must not land after a human has taken the thread — that is
   // the exact case the veto window exists to prevent.

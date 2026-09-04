@@ -69,7 +69,9 @@ export async function POST(request: Request): Promise<Response> {
   const from = String(inbound.from_number || "").replace(/^\+/, "");
   const agentId = inbound.agent_id;
 
-  const L = logger({ from, agent_id: agentId });
+  // The last four digits identify a caller across a log search without
+  // writing their number into every line.
+  const L = logger({ from_tail: from.slice(-4), agent_id: agentId });
   let context = "";
   let facts = "";
   let businessName: string | null = null;

@@ -1,5 +1,6 @@
 import { withRoute, memberContext } from "@/server/with-route";
 import { CALL_COLUMNS, toCallDto } from "@/server/dto";
+import { requireUuid } from "@/server/request-guards";
 import type { CallDto } from "@chanlytics/contracts";
 
 /**
@@ -22,7 +23,7 @@ export const GET = withRoute(async (req, ctx) => {
     .eq("tenant_id", tenantId)
     .order("started_at", { ascending: false, nullsFirst: false })
     .limit(100);
-  if (conversationId) q = q.eq("conversation_id", conversationId);
+  if (conversationId) q = q.eq("conversation_id", requireUuid(conversationId, "conversation"));
   if (status) q = q.eq("status", status);
 
   const { data, error } = await q;
