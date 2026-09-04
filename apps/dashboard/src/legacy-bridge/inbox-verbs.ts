@@ -4,7 +4,7 @@
  * the overrides re-apply (fresh globals + surface events), and the caller's
  * toast reports honestly. Business logic stays server-side — this is a courier.
  */
-import { conversationsOverride, inboxOverride, scoped, settingsOverride, todayOverride, type SurfaceOverride } from "./surface-data";
+import { conversationsOverride, inboxOverride, invalidateInFlight, scoped, settingsOverride, todayOverride, type SurfaceOverride } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 import { clearSurfaceCache } from "./surface-cache";
 import { MAX_INTERVALS_PER_DAY, describeNow, hoursRuns, newReceptionistDefaults, resolveSystemPrompt } from "@chanlytics/contracts";
@@ -70,6 +70,10 @@ async function call(
       | { ok: boolean; data?: unknown; error?: { message?: string } }
       | null;
     if (!j || !j.ok) return { ok: false, message: j?.error?.message ?? `Request failed (${res.status}).` };
+    // Something changed. Anything already in flight was issued before that
+    // change and cannot describe the world the operator is now in — sharing it
+    // with the refresh that follows repaints the thread exactly as it was.
+    invalidateInFlight();
     return { ok: true, data: j.data };
   } catch {
     return { ok: false, message: "Network error — nothing was changed." };

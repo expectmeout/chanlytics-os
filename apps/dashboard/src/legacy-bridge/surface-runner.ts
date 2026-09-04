@@ -100,8 +100,20 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
         ok = await activateOverride(o);
       }
       if (cancelled) return;
-      if (ok) persist(o);
-      setStatus(o.key, ok ? "live" : "seeded");
+      if (ok) {
+        persist(o);
+        setStatus(o.key, "live");
+      } else if (isSurfaceReady(o.key)) {
+        // The cache already restored REAL rows for this surface before React
+        // mounted, and both boot attempts then failed. Recording "seeded"
+        // there is the one thing that is not true: yesterday's real
+        // conversations were on screen under a status meaning "no real data",
+        // so the pill showed neither live nor stale. `refresh` has always used
+        // this rule; boot did not.
+        setStatus(o.key, "degraded");
+      } else {
+        setStatus(o.key, "seeded");
+      }
     } catch (e) {
       if (e instanceof UnauthorizedError) onUnauthorized();
       else if (!cancelled) setStatus(o.key, "seeded");
