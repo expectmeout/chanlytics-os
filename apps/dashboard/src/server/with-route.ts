@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { AppError, err, ok } from "@chanlytics/contracts";
-import { createClient } from "@/lib/supabase/server";
+// Relative, not "@/": the alias is a build-tool convenience, and depending on
+// one here made this module — which decides who may do what — unimportable by
+// anything that is not Next. It is the only such import in src/server, and
+// removing it is what lets the permission layer be tested by executing it
+// rather than by grepping its source.
+import { createClient } from "../lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import { isSameOrigin } from "./request-guards";

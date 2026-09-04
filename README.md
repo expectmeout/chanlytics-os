@@ -34,8 +34,11 @@ corepack pnpm test
 ```
 
 `pnpm` is corepack-only here — bare `pnpm` is not on PATH. Node 22+ is required
-(`.nvmrc`); the test suite imports TypeScript directly using Node's type
-stripping.
+(`.nvmrc`); the test suite runs under `tsx`, so a test can import the app's own
+TypeScript — the edge handlers, the permission layer, the packages — and
+execute it. It used to run on Node's type stripping, which could load only leaf
+modules with no imports, and that limit is why so many tests assert on source
+text instead of behaviour.
 
 Copy `apps/edge/.env.example` and `apps/dashboard/.env.example`. Both are
 complete and pinned by a test, so a variable the code reads cannot go
