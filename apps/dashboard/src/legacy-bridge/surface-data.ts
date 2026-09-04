@@ -232,6 +232,8 @@ import {
   toConversationVM,
   toInboxThreadVM,
   toCallVM,
+  toLiveVM,
+  type LiveVM,
   threadStanding,
   toTodayVM,
   type ConversationDto,
@@ -639,5 +641,35 @@ export const reportsOverride: SurfaceOverride = {
       days,
       fetchedAt: Date.now(),
     };
+  },
+};
+
+/**
+ * Live — the phone line right now.
+ *
+ * Deliberately NOT cached: `globals` is empty, so the runner never snapshots
+ * it and a reload cannot paint a call that ended while the tab was closed.
+ * A cold load waits on the fetch like every other real surface. Realtime on
+ * the calls table (a call starting, each live turn, its end, its analysis)
+ * re-runs this apply; the page itself runs the clock and re-applies the
+ * heartbeat rule between refreshes.
+ */
+export const liveOverride: SurfaceOverride = {
+  key: "live",
+  globals: [],
+  events: ["surface:live"],
+  refreshOnMessageInserts: true,
+  debounceMs: 300,
+  apply: async () => {
+    const [callsRes, chRes] = await Promise.all([
+      fetchEnvelope<{ calls: CallDto[] }>("/api/v1/calls"),
+      // The line's number and switch are context, not a precondition.
+      fetchEnvelope<{ channels: ChannelDto[] }>("/api/v1/channels").catch((e: unknown) => e as Error),
+    ]);
+    if (chRes instanceof Error) console.error("live_channels_fetch_failed", chRes.message);
+    (window as unknown as { __LIVE?: LiveVM }).__LIVE = toLiveVM(
+      callsRes.calls,
+      chRes instanceof Error ? null : chRes.channels,
+    );
   },
 };

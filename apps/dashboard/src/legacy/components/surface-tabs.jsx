@@ -25,7 +25,9 @@ const ST_GROUPS = {
       { id: "conversations", label: "All", to: "conversations" },
       // pulse is demo-only: it advertised a call in progress for an invented
       // caller, always on, beside the REAL Conversations tab.
-      { id: "live", label: "Live", to: "live", pulse: () => !!window.__DEMO_MODE && !(window.LM_STORE && window.LM_STORE.isEnded("lc-selena")), tip: "Happening right now — watch, whisper, or take over" },
+      // With the bridge running the pulse is the real thing: a call in
+      // progress under the heartbeat rule. The seeded pulse stays demo-only.
+      { id: "live", label: "Live", to: "live", pulse: () => (window.__LIVE ? window.__LIVE.now.length > 0 : !!window.__DEMO_MODE && !(window.LM_STORE && window.LM_STORE.isEnded("lc-selena"))), tip: "Calls on your line, as they happen" },
     ],
   },
   campaigns: {
@@ -50,7 +52,7 @@ const ST_GROUPS = {
 const SurfaceTabs = ({ page, param, onNavigate }) => {
   const [, stBump] = React.useReducer(n => n + 1, 0);
   React.useEffect(() => {
-    const evs = ["live:ended", "inbox:decisions", "leads:verdict"];
+    const evs = ["live:ended", "surface:live", "inbox:decisions", "leads:verdict"];
     evs.forEach(e => window.addEventListener(e, stBump));
     return () => evs.forEach(e => window.removeEventListener(e, stBump));
   }, []);

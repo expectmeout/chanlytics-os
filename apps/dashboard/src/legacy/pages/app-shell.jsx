@@ -101,7 +101,7 @@ const SOON_META = {
   leads:      { icon: "bolt",        title: "Leads",      blurb: "New prospects captured, scored, and queued for your call." },
   segments:   { icon: "filter",      title: "Lists",      blurb: "Smart lists that keep themselves current — lapsed, VIP, new." },
   tasks:      { icon: "check",       title: "Tasks",      blurb: "The work ledger — a receipt for everything your agents did." },
-  live:       { icon: "phone",       title: "Live",       blurb: "Calls in progress — listen in, whisper, or take over." },
+  live:       { icon: "phone",       title: "Live",       blurb: "Calls on your line, as they happen." },
   shared:     { icon: "trending-up", title: "Shared reports", blurb: "Read-only report links you can hand to a client or partner." },
 };
 

@@ -1932,8 +1932,99 @@ function toReportVM(dto) {
     }
   };
 }
+
+// src/live.ts
+var LIVE_STALE_MS = 5 * 60 * 1e3;
+var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
+var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;
+var RECENT_MAX = 8;
+var mmss3 = (ms) => {
+  const total = Math.max(0, Math.round(ms / 1e3));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+};
+function fmtClock(seconds) {
+  return mmss3(Math.max(0, seconds) * 1e3);
+}
+function turnsOf(dto) {
+  return (dto.transcript_object ?? []).filter((turn) => turn.role === "agent" || turn.role === "user").map((turn) => {
+    const start = turn.words?.[0]?.start;
+    return {
+      speaker: turn.role === "agent" ? "agent" : "client",
+      text: turn.content ?? "",
+      t: typeof start === "number" ? mmss3(start * 1e3) : "\u2014"
+    };
+  });
+}
+function toLiveCallVM(dto, now = /* @__PURE__ */ new Date()) {
+  const nowMs = now.getTime();
+  const withheld = !dto.from_e164 && !dto.from_raw;
+  const phone = formatPhoneDisplay(dto.from_e164);
+  const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
+  const who = withheld ? "Caller ID withheld" : name || phone || dto.from_raw || "Unknown caller";
+  const whoShort = name ? /^[+\d(]/.test(name) ? name : name.split(" ")[0] : "the caller";
+  const live = isLiveCall(dto, now);
+  const missed = dto.status === "not_connected";
+  const startedAtMs = dto.started_at ? new Date(dto.started_at).getTime() : null;
+  const beat = dto.updated_at ?? dto.started_at;
+  const heartbeatAtMs = beat ? new Date(beat).getTime() : null;
+  let checking = false;
+  let checkingWhy = null;
+  if (live) {
+    const sinceBeat = heartbeatAtMs === null ? 0 : nowMs - heartbeatAtMs;
+    const sinceStart = startedAtMs === null ? 0 : nowMs - startedAtMs;
+    if (sinceBeat > LIVE_STALE_MS) {
+      checking = true;
+      checkingWhy = `no word from the phone provider for ${Math.round(sinceBeat / 6e4)} minutes`;
+    } else if (sinceStart > LIVE_OVERLONG_MS) {
+      checking = true;
+      checkingWhy = `live for over ${Math.floor(sinceStart / 6e4)} minutes`;
+    }
+  }
+  const endedMs = dto.ended_at ? new Date(dto.ended_at).getTime() : null;
+  const summary = (dto.summary ?? "").trim() || null;
+  const summaryState = missed ? "missed" : summary ? "ready" : live || endedMs !== null && nowMs - endedMs < ANALYSIS_GRACE_MS2 ? "pending" : "none";
+  const recordingState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording?.fetch_state === "failed" ? "failed" : dto.recording ? "pending" : "none";
+  return {
+    callId: dto.id,
+    cvId: `cv-${dto.id}`,
+    clientId: dto.contact_id,
+    who,
+    whoShort,
+    initials: withheld ? "\u2013" : initialsOf(who),
+    number: withheld ? null : phone ?? dto.from_raw,
+    direction: dto.direction,
+    status: dto.status,
+    live,
+    missed,
+    checking,
+    checkingWhy,
+    startedAtMs,
+    heartbeatAtMs,
+    startedLabel: shortTime(dto.started_at, now),
+    duration: live || missed || !dto.duration_ms ? null : mmss3(dto.duration_ms),
+    summaryState,
+    summary,
+    sentiment: dto.sentiment,
+    endedHow: dto.disconnection_reason ? DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " ") : null,
+    recordingState,
+    transcript: turnsOf(dto)
+  };
+}
+function toLiveVM(calls, channels, now = /* @__PURE__ */ new Date()) {
+  const vms = calls.map((c) => toLiveCallVM(c, now));
+  const nowList = vms.filter((c) => c.live).sort((a, b) => (a.startedAtMs ?? 0) - (b.startedAtMs ?? 0));
+  const recent = vms.filter((c) => !c.live).sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0)).slice(0, RECENT_MAX);
+  const voice = channels?.find((ch) => ch.kind === "voice") ?? null;
+  const line = voice ? {
+    number: formatPhoneDisplay(voice.number_e164),
+    on: voice.status === "active",
+    lastCallLabel: voice.last_inbound_at ? shortTime(voice.last_inbound_at, now) : null
+  } : null;
+  return { now: nowList, recent, line, heartbeatMs: CALL_HEARTBEAT_MS, fetchedAtMs: now.getTime() };
+}
 export {
   ACTOR_TYPES,
+  ANALYSIS_GRACE_MS2 as ANALYSIS_GRACE_MS,
   AppError,
   BrainConfigSchema,
   BusinessProfileSchema,
@@ -1956,6 +2047,8 @@ export {
   IntervalSchema,
   JOB_KINDS,
   JOB_STATES,
+  LIVE_OVERLONG_MS,
+  LIVE_STALE_MS,
   MAX_CLOSURES,
   MAX_INTERVALS_PER_DAY,
   MEMBERSHIP_ROLES,
@@ -1978,6 +2071,7 @@ export {
   POLICY_MODES,
   PolicyLimitsSchema,
   QUIET_AFTER_MS,
+  RECENT_MAX,
   REPLY_DELAY_DEFAULT_MS,
   REPLY_DELAY_MAX_MS,
   REPLY_DELAY_MIN_MS,
@@ -1999,6 +2093,7 @@ export {
   describeNow,
   draftSendsAtMs,
   err,
+  fmtClock,
   fmtDay,
   fmtSeconds,
   formatPhoneDisplay,
@@ -2035,6 +2130,8 @@ export {
   toChannelVM,
   toConversationVM,
   toInboxThreadVM,
+  toLiveCallVM,
+  toLiveVM,
   toPersonRowVM,
   toPersonVM,
   toReportVM,

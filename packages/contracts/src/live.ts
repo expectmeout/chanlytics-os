@@ -1,0 +1,209 @@
+/**
+ * Calls right now — the phone line at this moment, as facts.
+ *
+ * The mockup's Live monitor promised Live Listen, Take Over and End Call over
+ * an invented caller. The phone provider offers none of those for a hosted
+ * agent. What it does give us is enough for an honest page: which calls are
+ * up (under the heartbeat rule, never the status flag alone), when each
+ * started (so a clock can run from the real start), the transcript turns
+ * when the agent is configured to send them, and — the moment a call ends —
+ * the summary as it arrives.
+ *
+ * Everything here is derived from columns. The page runs its own clock from
+ * `startedAtMs` and re-applies the heartbeat rule between refreshes with
+ * `heartbeatMs`, so a call nobody has heard from leaves the list even before
+ * the next fetch says so.
+ */
+import { CALL_HEARTBEAT_MS, isLiveCall } from "./policy";
+import { formatPhoneDisplay } from "./phone";
+import { DISCONNECTION_LABELS, initialsOf, shortTime, type CallDto } from "./viewmodels";
+import type { ChannelDto } from "./channels";
+
+/** A live call whose heartbeat is older than this is "still marked live · checking". */
+export const LIVE_STALE_MS = 5 * 60 * 1000;
+/** A call live longer than this is flagged the same way: long calls happen, rarely. */
+export const LIVE_OVERLONG_MS = 30 * 60 * 1000;
+/** Retell's analysis lands a little after call_ended; until then "no summary"
+ *  is a fact about the clock, not the call. */
+export const ANALYSIS_GRACE_MS = 10 * 60 * 1000;
+/** How many finished calls the page lists beside the live ones. */
+export const RECENT_MAX = 8;
+
+export interface LiveTurnVM {
+  speaker: "agent" | "client";
+  text: string;
+  /** "0:42" from the provider's word timings, or "—". */
+  t: string;
+}
+
+export interface LiveCallVM {
+  callId: string;
+  /** The call's row in Conversations. */
+  cvId: string;
+  clientId: string | null;
+  who: string;
+  whoShort: string;
+  initials: string;
+  /** Display phone, or null when the caller ID was withheld. */
+  number: string | null;
+  direction: "inbound" | "outbound";
+  status: string;
+  /** In progress under the heartbeat rule. */
+  live: boolean;
+  /** Retell's not_connected: the dial never connected. */
+  missed: boolean;
+  /** Live, but the heartbeat is older than LIVE_STALE_MS or the call has run
+   *  past LIVE_OVERLONG_MS: shown as "still marked live · checking". */
+  checking: boolean;
+  checkingWhy: string | null;
+  startedAtMs: number | null;
+  /** The last time the provider told us anything about this call. */
+  heartbeatAtMs: number | null;
+  /** "2:14 PM" today, "Aug 26" otherwise. */
+  startedLabel: string;
+  /** mm:ss once the call has ended; null while live (the page runs its own clock). */
+  duration: string | null;
+  summaryState: "ready" | "pending" | "none" | "missed";
+  summary: string | null;
+  sentiment: string | null;
+  /** Why the call ended, in the owner's words. */
+  endedHow: string | null;
+  recordingState: "ready" | "pending" | "failed" | "none";
+  transcript: LiveTurnVM[];
+}
+
+export interface LiveLineVM {
+  number: string | null;
+  on: boolean;
+  /** When the line last rang, in the same short form. */
+  lastCallLabel: string | null;
+}
+
+export interface LiveVM {
+  /** In progress, oldest first — the one that has been waiting longest leads. */
+  now: LiveCallVM[];
+  /** Finished or missed, newest first, at most RECENT_MAX. */
+  recent: LiveCallVM[];
+  /** The voice channel, or null when the workspace has no phone line. */
+  line: LiveLineVM | null;
+  heartbeatMs: number;
+  fetchedAtMs: number;
+}
+
+const mmss = (ms: number): string => {
+  const total = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+};
+
+/** Seconds → "m:ss", the page's clock format. */
+export function fmtClock(seconds: number): string {
+  return mmss(Math.max(0, seconds) * 1000);
+}
+
+function turnsOf(dto: CallDto): LiveTurnVM[] {
+  return (dto.transcript_object ?? [])
+    .filter((turn) => turn.role === "agent" || turn.role === "user")
+    .map((turn) => {
+      const start = turn.words?.[0]?.start;
+      return {
+        speaker: turn.role === "agent" ? "agent" : "client",
+        text: turn.content ?? "",
+        t: typeof start === "number" ? mmss(start * 1000) : "—",
+      };
+    });
+}
+
+export function toLiveCallVM(dto: CallDto, now = new Date()): LiveCallVM {
+  const nowMs = now.getTime();
+  const withheld = !dto.from_e164 && !dto.from_raw;
+  const phone = formatPhoneDisplay(dto.from_e164);
+  const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
+  const who = withheld ? "Caller ID withheld" : name || phone || dto.from_raw || "Unknown caller";
+  // A phone-like name is not split: "+1" is nobody's first name.
+  const whoShort = name ? (/^[+\d(]/.test(name) ? name : name.split(" ")[0]) : "the caller";
+
+  const live = isLiveCall(dto, now);
+  const missed = dto.status === "not_connected";
+  const startedAtMs = dto.started_at ? new Date(dto.started_at).getTime() : null;
+  const beat = dto.updated_at ?? dto.started_at;
+  const heartbeatAtMs = beat ? new Date(beat).getTime() : null;
+
+  let checking = false;
+  let checkingWhy: string | null = null;
+  if (live) {
+    const sinceBeat = heartbeatAtMs === null ? 0 : nowMs - heartbeatAtMs;
+    const sinceStart = startedAtMs === null ? 0 : nowMs - startedAtMs;
+    if (sinceBeat > LIVE_STALE_MS) {
+      checking = true;
+      checkingWhy = `no word from the phone provider for ${Math.round(sinceBeat / 60_000)} minutes`;
+    } else if (sinceStart > LIVE_OVERLONG_MS) {
+      checking = true;
+      checkingWhy = `live for over ${Math.floor(sinceStart / 60_000)} minutes`;
+    }
+  }
+
+  const endedMs = dto.ended_at ? new Date(dto.ended_at).getTime() : null;
+  const summary = (dto.summary ?? "").trim() || null;
+  const summaryState: LiveCallVM["summaryState"] = missed
+    ? "missed"
+    : summary
+      ? "ready"
+      : live || (endedMs !== null && nowMs - endedMs < ANALYSIS_GRACE_MS)
+        ? "pending"
+        : "none";
+
+  const recordingState: LiveCallVM["recordingState"] =
+    dto.recording?.fetch_state === "stored" ? "ready" :
+    dto.recording?.fetch_state === "failed" ? "failed" :
+    dto.recording ? "pending" : "none";
+
+  return {
+    callId: dto.id,
+    cvId: `cv-${dto.id}`,
+    clientId: dto.contact_id,
+    who,
+    whoShort,
+    initials: withheld ? "–" : initialsOf(who),
+    number: withheld ? null : phone ?? dto.from_raw,
+    direction: dto.direction,
+    status: dto.status,
+    live,
+    missed,
+    checking,
+    checkingWhy,
+    startedAtMs,
+    heartbeatAtMs,
+    startedLabel: shortTime(dto.started_at, now),
+    duration: live || missed || !dto.duration_ms ? null : mmss(dto.duration_ms),
+    summaryState,
+    summary,
+    sentiment: dto.sentiment,
+    endedHow: dto.disconnection_reason
+      ? (DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " "))
+      : null,
+    recordingState,
+    transcript: turnsOf(dto),
+  };
+}
+
+export function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, now = new Date()): LiveVM {
+  const vms = calls.map((c) => toLiveCallVM(c, now));
+  const nowList = vms
+    .filter((c) => c.live)
+    .sort((a, b) => (a.startedAtMs ?? 0) - (b.startedAtMs ?? 0));
+  const recent = vms
+    .filter((c) => !c.live)
+    .sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0))
+    .slice(0, RECENT_MAX);
+
+  const voice = channels?.find((ch) => ch.kind === "voice") ?? null;
+  const line: LiveLineVM | null = voice
+    ? {
+        number: formatPhoneDisplay(voice.number_e164),
+        on: voice.status === "active",
+        lastCallLabel: voice.last_inbound_at ? shortTime(voice.last_inbound_at, now) : null,
+      }
+    : null;
+
+  return { now: nowList, recent, line, heartbeatMs: CALL_HEARTBEAT_MS, fetchedAtMs: now.getTime() };
+}

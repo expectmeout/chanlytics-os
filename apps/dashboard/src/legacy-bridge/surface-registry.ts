@@ -29,6 +29,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   conversations: "real",
   clients: "real",  // People · Clients; Leads / Deal board / Lists stay demo
   reports: "real",  // the receptionist's numbers; the share link stays demo
+  live: "real",     // calls in progress + the last few; Listen / Take over / End stay in the demo
 
   // Render entirely from seed data. Each becomes one edited line here the day
   // its slice ships.
@@ -36,7 +37,6 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   segments: "demo",
   pipeline: "demo",
   calendar: "demo",
-  live: "demo",
   shared: "demo",   // the read-only report viewer — a share link over invented numbers
   tasks: "demo",
   fleet: "demo",
@@ -66,6 +66,7 @@ export const ROUTE_SURFACE: Record<string, string> = {
   conversations: "conversations",
   clients: "people",
   reports: "reports",
+  live: "live",
   // The pane is fed by settingsOverride, so the route gate waits for it the
   // same way the other real routes do — otherwise it paints the mockup's
   // fabricated business for a frame before the truth arrives.

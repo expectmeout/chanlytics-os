@@ -4265,6 +4265,9 @@ var DAY_MS2 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS2;
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var LIVE_STALE_MS = 5 * 60 * 1e3;
+var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
+var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;
 
 // src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";
