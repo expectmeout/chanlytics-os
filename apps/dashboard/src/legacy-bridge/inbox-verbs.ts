@@ -4,7 +4,15 @@
  * the overrides re-apply (fresh globals + surface events), and the caller's
  * toast reports honestly. Business logic stays server-side — this is a courier.
  */
-import { conversationsOverride, inboxOverride, invalidateInFlight, scoped, settingsOverride, todayOverride, type SurfaceOverride } from "./surface-data";
+import {
+  conversationsOverride,
+  inboxOverride,
+  invalidateInFlight,
+  scoped,
+  settingsOverride,
+  todayOverride,
+  type SurfaceOverride,
+} from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 import { clearSurfaceCache } from "./surface-cache";
 import { MAX_INTERVALS_PER_DAY, describeNow, hoursRuns, newReceptionistDefaults, resolveSystemPrompt } from "@chanlytics/contracts";
@@ -300,12 +308,14 @@ async function teamRemove(id: string): Promise<VerbResult> {
 
 /** Re-read the roster so the card shows what the server now holds, never what
  *  the browser hoped it would. */
-async function refreshSettings(): Promise<void> {
+export async function refreshSettings(): Promise<void> {
   await refreshSurfaces([settingsOverride]);
 }
 
 declare global {
   interface Window {
+    __setPolicy?: (cls: string, mode: string, replyDelayMs?: number) => Promise<VerbResult>;
+    __refreshSettings?: () => Promise<void>;
     __inboxVerb: typeof inboxVerb;
     __teamInvite: typeof teamInvite;
     __teamSetRole: typeof teamSetRole;
@@ -320,8 +330,32 @@ declare global {
   }
 }
 
+/**
+ * Settings → Autonomy: `window.__setPolicy(class, mode, replyDelayMs?)`.
+ *
+ * PUT /api/v1/policies, operator or owner; viewers get the server's refusal.
+ * On success the settings surface is re-fetched through the runner (so the
+ * matrix, the approval chips and the cache all agree) and the mockup's own
+ * `policy:changed` event fires, which is what every reader listens for.
+ */
+export async function setPolicy(cls: string, mode: string, replyDelayMs?: number): Promise<VerbResult> {
+  const r = await call(
+    "/api/v1/policies",
+    { class: cls, mode, ...(replyDelayMs !== undefined ? { replyDelayMs } : {}) },
+    undefined,
+    "PUT",
+  );
+  if (r.ok) {
+    await refreshSurfaces([settingsOverride]);
+    window.dispatchEvent(new CustomEvent("policy:changed", { detail: { class: cls, mode } }));
+  }
+  return r;
+}
+
 export function installInboxVerbs(): void {
   window.__inboxVerb = inboxVerb;
+  window.__setPolicy = setPolicy;
+  window.__refreshSettings = refreshSettings;
   window.__teamInvite = teamInvite;
   window.__teamSetRole = teamSetRole;
   window.__teamRemove = teamRemove;

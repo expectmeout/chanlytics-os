@@ -11,6 +11,7 @@
  */
 
 import { clearSurfaceCache } from "./surface-cache";
+import type { PoliciesSurface, PolicyRecordLike } from "./policy-store";
 
 export interface SurfaceOverride {
   /** Surface key, matching the slice that owns it (e.g. "conversations"). */
@@ -471,20 +472,33 @@ export interface WorkspaceSettings {
 
 export const settingsOverride: SurfaceOverride = {
   key: "settings",
-  globals: ["__SETTINGS", "__TEAM", "__TEAM_INVITES"],
+  globals: ["__SETTINGS", "__TEAM", "__TEAM_INVITES", "__POLICIES"],
   events: ["surface:settings"],
   apply: async () => {
-    const [cfg, team] = await Promise.all([
+    const [cfg, team, pol] = await Promise.all([
       fetchEnvelope<{ config: WorkspaceSettings; version: number; role: string }>("/api/v1/settings"),
       // A team read that fails must not blank the business card beside it.
       fetchEnvelope<{ members: unknown[]; invites?: unknown[] }>("/api/v1/team").catch((e: unknown) => e as Error),
+      // The autonomy matrix. Same rule: a failed read is its own state (null),
+      // never the mockup's charter.
+      fetchEnvelope<{ policies: PolicyRecordLike[]; role?: string }>("/api/v1/policies").catch((e: unknown) => e as Error),
     ]);
     const w = window as unknown as {
       __SETTINGS?: { config: WorkspaceSettings; version: number; role: string };
       __TEAM?: unknown[] | null;
       __TEAM_INVITES?: unknown[] | null;
+      __POLICIES?: PoliciesSurface | null;
     };
     w.__SETTINGS = { config: cfg.config ?? {}, version: cfg.version, role: cfg.role };
+    if (pol instanceof Error) {
+      w.__POLICIES = null;
+      console.error("settings_policies_fetch_failed", pol.message);
+    } else {
+      w.__POLICIES = {
+        rows: (pol.policies ?? []).map((r) => ({ class: r.class, mode: r.mode, limits: r.limits ?? {} })),
+        role: pol.role ?? null,
+      };
+    }
     if (team instanceof Error) {
       // null, not [] — "we could not read the team" and "there is nobody" are
       // different facts, and only one of them should render as an empty list.

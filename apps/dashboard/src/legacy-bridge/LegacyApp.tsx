@@ -27,10 +27,15 @@ import {
 import { clearSurfaceCache, hydrateSurfaceCache } from "./surface-cache";
 import { installInboxVerbs } from "./inbox-verbs";
 import { installPeopleCourier } from "./people-detail";
+import { installPolicyStore } from "./policy-store";
 import CreateWorkspace from "./CreateWorkspace";
 
 installInboxVerbs();
 installPeopleCourier();
+// After the manifest (which seeds window.POLICY) and before React: the
+// approval chips and the matrix read the workspace's real modes from the
+// first paint, including from the cache.
+installPolicyStore();
 
 // Runs at module scope — AFTER the manifest has installed its seeds, and
 // BEFORE React renders anything. That ordering is the whole point: a refresh

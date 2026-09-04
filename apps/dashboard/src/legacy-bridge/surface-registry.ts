@@ -49,6 +49,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   // …but ONE pane behind it is fed by real APIs now. Sub-routes are checked
   // before their page, so the rest of Settings stays honestly gated.
   "admin/workspace": "real",
+  "admin/autonomy": "real",   // the policies table, live for the reply row
 };
 
 /**
@@ -66,6 +67,7 @@ export const ROUTE_SURFACE: Record<string, string> = {
   // same way the other real routes do — otherwise it paints the mockup's
   // fabricated business for a frame before the truth arrives.
   "admin/workspace": "settings",
+  "admin/autonomy": "settings",
 };
 
 /**

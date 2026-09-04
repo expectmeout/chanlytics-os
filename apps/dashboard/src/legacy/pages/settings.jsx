@@ -1344,6 +1344,131 @@ const PaneAutonomy = ({ flash }) => {
   );
 };
 
+// ====== Real branch — Settings · Autonomy on the workspace's policies table ======
+// Same cards and classes as the seeded pane. The reply row is the only class
+// the receptionist consults today, so it is the only live switch; money is
+// locked in the database; the other four say plainly that they are stored
+// but not enforced. Hard limits are the runtime's actual numbers.
+
+const AUT_DELAYS = [["15s", 15000], ["30s", 30000], ["1m", 60000], ["2m", 120000], ["5m", 300000]];
+const AUT_MODE_HINT = {
+  Auto: "sends right away",
+  Veto: "writes the reply, waits, then sends unless you stop it",
+  Ask: "waits for you before anything is sent",
+  Never: "stays silent",
+};
+
+const PaneAutonomyReal = ({ flash }) => {
+  const [, tick] = useSetState(0);
+  React.useEffect(() => {
+    const bump = () => tick((n) => n + 1);
+    window.addEventListener("policy:changed", bump);
+    window.addEventListener("surface:settings", bump);
+    return () => { window.removeEventListener("policy:changed", bump); window.removeEventListener("surface:settings", bump); };
+  }, []);
+  const [busy, setBusy] = useSetState(null);
+
+  if (window.__POLICIES === null) {
+    return (
+      <section className="fl-card set-card">
+        <div className="fl-card-head"><span className="fl-card-title">Policy matrix</span><span className="fl-card-sub">Your autonomy settings couldn't be loaded</span></div>
+        <div className="set-row"><div className="set-row-info"><span className="set-row-hint">The receptionist keeps running on the settings it already has; this page just can't show them right now.</span></div>
+          <button className="btn btn-sm" onClick={() => window.__refreshSettings && window.__refreshSettings()}>Retry</button></div>
+      </section>
+    );
+  }
+
+  const rows = window.POLICY.ROWS;
+  const MODES = window.POLICY.MODES;
+  const reply = rows.find((r) => r.id === "reply");
+  const limits = (reply && reply.limits) || {};
+  const delayMs = Number(limits.reply_delay_ms) || 30000;
+  const delayLabel = (AUT_DELAYS.find((d) => d[1] === delayMs) || [`${Math.round(delayMs / 1000)}s`])[0];
+  const maxDay = Number(limits.max_replies_day) || 20;
+  const pauseH = Number(limits.pause_hours) || 24;
+
+  const put = async (r, mode, replyDelayMs) => {
+    if (!window.__setPolicy) return;
+    setBusy(r.cls);
+    const res = await window.__setPolicy(r.cls, mode, replyDelayMs);
+    setBusy(null);
+    if (!res.ok) { flash({ msg: <><b>Not changed</b> — {res.message}</> }); return; }
+    flash({
+      msg: replyDelayMs !== undefined
+        ? <><b>Hold window</b> → {(AUT_DELAYS.find((d) => d[1] === replyDelayMs) || [`${replyDelayMs / 1000}s`])[0]} — from the next reply</>
+        : <><b>{r.label}</b> → {mode.charAt(0).toUpperCase() + mode.slice(1)} — from the next message</>,
+    });
+  };
+
+  return (
+    <>
+      <section className="fl-card set-card">
+        <div className="fl-card-head">
+          <span className="fl-card-title">Policy matrix</span>
+          <span className="fl-card-sub">What the receptionist may do without you — Replies is the row it consults today</span>
+        </div>
+        <table className="pol-table">
+          <thead><tr><th>Action class</th>{MODES.map((m) => <th key={m} className="pol-mode" title={AUT_MODE_HINT[m]}>{m}</th>)}</tr></thead>
+          <tbody>
+            {rows.map((r) => {
+              const live = r.enforced && !r.locked;
+              return (
+                <tr key={r.id} className={r.locked ? "pol-locked" : ""}>
+                  <td>
+                    <span className="pol-label">{r.label}</span>
+                    <span className="pol-note">{r.note}</span>
+                    {r.locked && <span className="pol-evidence">Locked by charter — enforced in the database</span>}
+                    {!r.enforced && <span className="pol-evidence">Stored · not enforced yet — the receptionist does not consult this class</span>}
+                  </td>
+                  {MODES.map((m) => (
+                    <td key={m} className="pol-cell">
+                      {r.locked && m !== "Never" ? <span className="pol-dash">—</span> : (
+                        <button
+                          className={`pol-dot ${r.mode === m ? "on" : ""}`}
+                          title={r.locked ? "Charter — fixed" : live ? AUT_MODE_HINT[m] : "Not enforced yet"}
+                          disabled={r.locked || !live || busy === r.cls}
+                          onClick={() => put(r, m.toLowerCase())}
+                          {...window.gate("autonomy")}
+                        >
+                          {r.mode === m ? <Icon name={r.locked ? "shield" : "check"} size={11} /> : ""}
+                        </button>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </section>
+
+      <section className="fl-card set-card">
+        <div className="fl-card-head">
+          <span className="fl-card-title">Reply timing</span>
+          <span className="fl-card-sub">Only matters while Replies is set to Veto</span>
+        </div>
+        <SetRow label="Hold window" hint="The receptionist writes its reply and waits this long before sending, so you can stop or change it from the Inbox.">
+          <SetSeg
+            value={delayLabel}
+            options={AUT_DELAYS.map((d) => d[0])}
+            onChange={(v) => { const d = AUT_DELAYS.find((x) => x[0] === v); if (d && reply && reply.mode) put(reply, reply.mode.toLowerCase(), d[1]); }}
+          />
+        </SetRow>
+      </section>
+
+      <section className="fl-card set-card">
+        <div className="fl-card-head"><span className="fl-card-title">Hard limits</span><span className="fl-card-sub">Never crossed, whatever the matrix says</span></div>
+        <ul className="st-bullets">
+          <li><Icon name="check" size={11} /><span>Never messages a customer who asked to stop</span></li>
+          <li><Icon name="check" size={11} /><span>Refunds, rates and negotiation always go to you — locked in the database</span></li>
+          <li><Icon name="check" size={11} /><span>Stops after {maxDay} automatic replies to one person in a day and asks for you</span></li>
+          <li><Icon name="check" size={11} /><span>Stays paused for {pauseH} hours after you take over a thread</span></li>
+        </ul>
+      </section>
+    </>
+  );
+};
+
 const PaneIntegrations = ({ flash }) => {
   const [, setTick] = useSetState(0);
   const gmailFixed = window.INT_STORE.isFixed("gmail");
@@ -1644,7 +1769,7 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
       </aside>
       <div className="set-pane" key={active.id}>
         {active.id === "workspace" && <PaneWorkspace flash={flash} />}
-        {active.id === "autonomy" && <PaneAutonomy flash={flash} />}
+        {active.id === "autonomy" && (window.__POLICIES === undefined ? <PaneAutonomy flash={flash} /> : <PaneAutonomyReal flash={flash} />)}
         {active.id === "integrations" && <PaneIntegrations flash={flash} />}
         {active.id === "memory" && <PaneMemory flash={flash} />}
         {active.id === "notifications" && <PaneNotifications />}
