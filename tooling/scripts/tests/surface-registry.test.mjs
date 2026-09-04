@@ -124,7 +124,9 @@ test("a sub-route is checked BEFORE its page", () => {
 test("an unclassified pane inherits DEMO, never real", () => {
   // The fallback is what keeps this safe: a pane nobody has classified must not
   // become visible because someone forgot a line.
-  for (const pane of ["integrations", "memory", "notifications", "nonsense"]) {
+  // notifications and autonomy have since been classified real; billing,
+  // integrations and memory are still seeds.
+  for (const pane of ["integrations", "memory", "billing", "nonsense"]) {
     assert.equal(registry.surfaceStateFor("admin", pane), "demo", pane);
   }
 });
