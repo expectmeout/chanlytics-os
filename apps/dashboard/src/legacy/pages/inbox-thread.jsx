@@ -580,26 +580,73 @@ const VetoBar = ({ thread, remaining, paused = false, onAct = () => {}, onTakeOv
 // whole Inbox pane rather than offering the one send that would work.
 // Named after what it SENDS, not after the mechanism: the operator should know
 // what lands on their customer's phone before they click.
-const TemplateSendButton = ({ onSend = () => {}, threadId }) => {
+const TemplateSendButton = ({ onSend = () => {}, threadId, real = false }) => {
   const [sending, setSending] = useCvtState(false);
+  // The workspace's OWN approved templates, published by the seam. The button
+  // used to name one by a hardcoded literal — booking_link_v1/en_US — which is
+  // right for exactly one workspace and a guaranteed failure for every other,
+  // including every newly created one, which has no template row at all.
+  const templates = Array.isArray(window.__TEMPLATES) ? window.__TEMPLATES : null;
+  const [picked, setPicked] = useCvtState(0);
+
+  // On a seeded thread there is nothing to look up and nothing to send; keep
+  // the mockup's own affordance.
+  const list = real ? templates : null;
+  const chosen = list ? list[Math.min(picked, list.length - 1)] : null;
+
   const fire = () => {
     if (sending || !window.canDo("approve")) return;
-    const r = onSend(threadId, { template: true });
+    if (real && !chosen) return;
+    const r = onSend(threadId, chosen ? { template: chosen } : { template: true });
     if (r && typeof r.then === "function") {
       setSending(true);
       r.finally(() => setSending(false));
     }
   };
+
+  // Nothing approved yet. Say so, rather than offering a send that cannot
+  // happen: outside the window this is the only thing WhatsApp will deliver,
+  // so an operator needs to know the gap is at Meta and not on this screen.
+  if (real && list && list.length === 0) {
+    return (
+      <span className="ix-tpl-none">
+        No approved template yet — outside the 24-hour window WhatsApp delivers nothing else.
+      </span>
+    );
+  }
+  if (real && !list) {
+    return <span className="ix-tpl-none">Checking which templates are approved…</span>;
+  }
+
   return (
-    <button
-      className="btn btn-sm btn-primary"
-      onClick={fire}
-      disabled={sending}
-      title="Sends your approved booking-link template — the only message WhatsApp delivers outside the 24-hour window"
-      {...window.gate("approve")}
-    >
-      <Icon name="send" size={12} /> {sending ? "Sending…" : "Send booking link"}
-    </button>
+    <>
+      {list && list.length > 1 && (
+        <select
+          className="sd-input ix-tpl-pick"
+          value={picked}
+          onChange={(e) => setPicked(Number(e.target.value))}
+          aria-label="Which approved template to send"
+        >
+          {list.map((t, i) => (
+            <option key={t.id} value={i}>{t.name} · {t.language}</option>
+          ))}
+        </select>
+      )}
+      <button
+        className="btn btn-sm btn-primary"
+        onClick={fire}
+        disabled={sending}
+        title={
+          chosen
+            ? `Sends your approved template "${chosen.name}" — the only message WhatsApp delivers outside the 24-hour window`
+            : "Sends your approved booking-link template — the only message WhatsApp delivers outside the 24-hour window"
+        }
+        {...window.gate("approve")}
+      >
+        <Icon name="send" size={12} />{" "}
+        {sending ? "Sending…" : chosen && list.length > 1 ? "Send template" : "Send booking link"}
+      </button>
+    </>
   );
 };
 
@@ -680,7 +727,7 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
             <span>WHATSAPP · to {thread.who}</span>
           </div>
           <div className="ix-composer-actions">
-            <TemplateSendButton onSend={onSend} threadId={thread.id} />
+            <TemplateSendButton onSend={onSend} threadId={thread.id} real={!!thread.real} />
           </div>
         </div>
       </div>

@@ -239,18 +239,48 @@ const REAL_BUCKETS = [
   { id: "snoozed", label: "Snoozed", hint: "Hidden until they wake", icon: "clock" },
 ];
 
+/** One approved template, as the composer needs to know it. */
+export interface ApprovedTemplate {
+  id: string;
+  channel: string;
+  name: string;
+  language: string;
+  body_preview: string | null;
+  variables: unknown;
+}
+
 export const inboxOverride: SurfaceOverride = {
   key: "inbox",
-  globals: ["INBOX_DATA"],
+  globals: ["INBOX_DATA", "__TEMPLATES"],
   // inbox:counts is NOT dispatched here — a detail-less event zeroes the
   // sidebar badge; the reseeded Inbox emits the real count itself.
   events: ["surface:inbox"],
   refreshOnMessageInserts: true,
   apply: async () => {
-    const [convData, escData] = await Promise.all([
+    const [convData, escData, tplRes] = await Promise.all([
       fetchEnvelope<{ conversations: ConversationDto[] }>("/api/v1/conversations"),
       fetchEnvelope<{ escalations: EscalationRow[] }>("/api/v1/escalations?state=open"),
+      // The one send that works outside the 24-hour window. The composer named
+      // a template by a hardcoded literal and this endpoint had no caller at
+      // all, so a workspace whose approved template is registered under any
+      // other name — or which has none yet, which is every new workspace —
+      // showed a working-looking button that failed on click with a message
+      // the operator could do nothing about.
+      //
+      // Additive, like calls: a template read that fails must not blank the
+      // Inbox. It degrades to "no approved template", which is the honest
+      // reading of "we do not know of one".
+      fetchEnvelope<{ templates: ApprovedTemplate[] }>("/api/v1/templates").catch(
+        (e: unknown) => e as Error,
+      ),
     ]);
+    const w0 = window as unknown as { __TEMPLATES?: ApprovedTemplate[] };
+    if (tplRes instanceof Error) {
+      w0.__TEMPLATES = [];
+      console.error("templates_fetch_failed", tplRes.message);
+    } else {
+      w0.__TEMPLATES = (tplRes.templates ?? []).filter((t) => t.channel === "whatsapp");
+    }
     const byConv = new Map<string, EscalationRow>();
     for (const e of escData.escalations) byConv.set(e.conversation_id, e);
 

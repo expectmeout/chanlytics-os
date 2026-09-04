@@ -1556,3 +1556,16 @@ button.ix-policy.pill-warn{border:1px solid transparent}
 .ix-pol-locked .icon{color:var(--warn);flex-shrink:0;margin-top:1px}
 .ix-pol-link{display:inline-flex;align-items:center;gap:3px;background:none;border:none;padding:0;margin-top:4px;color:var(--accent);font:inherit;font-size:11px;cursor:pointer}
 .ix-pol-link:hover{text-decoration:underline}
+
+/* The composer's honest state when a workspace has no approved template.
+   Outside the 24-hour window WhatsApp delivers nothing else, so the operator
+   needs to see that the gap is at Meta rather than on this screen. */
+.ix-tpl-none {
+  font-size: 12px;
+  color: var(--ink-dim);
+  line-height: 1.4;
+}
+.ix-tpl-pick {
+  max-width: 210px;
+  font-size: 12px;
+}
