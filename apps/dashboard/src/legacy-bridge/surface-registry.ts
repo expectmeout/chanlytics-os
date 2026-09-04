@@ -27,10 +27,10 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   today: "real",
   inbox: "real",
   conversations: "real",
+  clients: "real",  // People · Clients; Leads / Deal board / Lists stay demo
 
   // Render entirely from seed data. Each becomes one edited line here the day
   // its slice ships.
-  clients: "demo",
   leads: "demo",
   segments: "demo",
   pipeline: "demo",
@@ -61,6 +61,7 @@ export const ROUTE_SURFACE: Record<string, string> = {
   today: "today",
   inbox: "inbox",
   conversations: "conversations",
+  clients: "people",
   // The pane is fed by settingsOverride, so the route gate waits for it the
   // same way the other real routes do — otherwise it paints the mockup's
   // fabricated business for a frame before the truth arrives.

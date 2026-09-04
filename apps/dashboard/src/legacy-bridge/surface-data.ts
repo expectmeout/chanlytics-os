@@ -238,6 +238,14 @@ import {
   type CallDto,
   type MetricsSummaryDto,
   type TodayVM,
+  toPersonRowVM,
+  peopleAggregates,
+  PEOPLE_LISTS,
+  type PersonRowDto,
+  type PersonRowVM,
+  type PeopleAggregates,
+  recencyCells,
+  PEOPLE_TABS,
 } from "@chanlytics/contracts";
 
 /**
@@ -490,5 +498,56 @@ export const settingsOverride: SurfaceOverride = {
       // invisible on the one card whose job is saying who has access.
       w.__TEAM_INVITES = team.invites ?? [];
     }
+  },
+};
+
+/* ------------------------------- People ---------------------------------- */
+
+/** What the People surface reads: rows already mapped, the rail's list
+ *  counts, and the header totals — all from one fetch. */
+export interface PeopleSurface {
+  rows: PersonRowVM[];
+  /** The rail's smart lists with their members — the predicates stay in
+   *  contracts; the mockup only needs the ids. */
+  lists: { id: string; label: string; count: number; ids: string[] }[];
+  aggregates: PeopleAggregates;
+  /** Days-since-last-contact histogram per state, for the console strip. */
+  recency: Record<string, { label: string; count: number }[]>;
+  fetchedAt: number;
+}
+
+/**
+ * People · Clients — everyone who has written to or phoned the business.
+ *
+ * The mockup drew sixty invented clients with health scores, packages and
+ * therapists. The real surface renders what the schema holds: who they are,
+ * which channels, who spoke last and when, what the receptionist is doing
+ * for them, and whether they need a person. The state a row is in comes from
+ * the tested rule in contracts, never from this file.
+ *
+ * Realtime message inserts re-apply, so a customer who writes moves rows the
+ * way they move threads in the Inbox.
+ */
+export const peopleOverride: SurfaceOverride = {
+  key: "people",
+  globals: ["__PEOPLE"],
+  events: ["surface:clients"],
+  refreshOnMessageInserts: true,
+  apply: async () => {
+    const data = await fetchEnvelope<{ people: PersonRowDto[] }>("/api/v1/contacts");
+    const now = new Date();
+    const rows = data.people.map((r) => toPersonRowVM(r, now));
+    (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE = {
+      rows,
+      lists: PEOPLE_LISTS.map((l) => {
+        const ids = rows.filter(l.test).map((r) => r.id);
+        return { id: l.id, label: l.label, count: ids.length, ids };
+      }),
+      aggregates: peopleAggregates(rows, now.getTime()),
+      recency: Object.fromEntries(
+        PEOPLE_TABS.filter((t) => t.id !== "all").map((t) => [t.id, recencyCells(rows.filter((r) => r.state === t.id), now.getTime())]),
+      ),
+      fetchedAt: now.getTime(),
+    };
   },
 };
