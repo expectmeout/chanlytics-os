@@ -176,7 +176,14 @@ var DECISION_VERBS = [
    * the owner (actor_type 'user') and once by the job that finishes the Blob
    * leg (actor_type 'system').
    */
-  "erase"
+  "erase",
+  /**
+   * A sentence handed to the phone receptionist mid-call, heard by it alone
+   * and worked into its next answer (Retell update-live-call). Subject
+   * 'call'. The ledger keeps the words: they are the operator's, and they
+   * changed what a customer was told.
+   */
+  "whisper"
 ];
 var DECISION_SUBJECTS = [
   "conversation",
@@ -187,7 +194,8 @@ var DECISION_SUBJECTS = [
   "agent",
   "membership",
   "invitation",
-  "contact"
+  "contact",
+  "call"
 ];
 var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
 var TEMPLATE_STATUSES = ["approved", "pending", "rejected"];

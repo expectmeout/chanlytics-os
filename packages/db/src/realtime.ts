@@ -32,7 +32,7 @@ export function subscribeMessagesInserts(
   client: SupabaseClient<Database>,
   /** Called with the changed row and the TABLE it came from, so a caller can
    *  route the event instead of repainting everything on every change. */
-  onInsert: (row: { conversation_id: string; tenant_id: string }, table: string) => void,
+  onInsert: (row: { conversation_id: string; tenant_id: string }, table: string, event?: string) => void,
   opts: SubscribeOptions = {},
 ): () => void {
   const topic = `db-changes:${opts.topic ?? "bridge"}`;
@@ -56,7 +56,9 @@ export function subscribeMessagesInserts(
           table: w.table,
           ...(opts.tenantId ? { filter: `tenant_id=eq.${opts.tenantId}` } : {}),
         },
-        (payload) => onInsert((payload.new ?? payload.old ?? {}) as { conversation_id: string; tenant_id: string }, w.table),
+        // The event too: a surface may want a call STARTING and ENDING and
+        // not the transcript turn every few seconds in between.
+        (payload) => onInsert((payload.new ?? payload.old ?? {}) as { conversation_id: string; tenant_id: string }, w.table, payload.eventType),
       );
     }
     channel = channel

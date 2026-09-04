@@ -133,12 +133,19 @@ export const DECISION_VERBS = [
    * leg (actor_type 'system').
    */
   "erase",
+  /**
+   * A sentence handed to the phone receptionist mid-call, heard by it alone
+   * and worked into its next answer (Retell update-live-call). Subject
+   * 'call'. The ledger keeps the words: they are the operator's, and they
+   * changed what a customer was told.
+   */
+  "whisper",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 
 export const DECISION_SUBJECTS = [
   "conversation", "escalation", "draft", "lead", "message", "agent",
-  "membership", "invitation", "contact",
+  "membership", "invitation", "contact", "call",
 ] as const;
 export type DecisionSubject = (typeof DECISION_SUBJECTS)[number];
 

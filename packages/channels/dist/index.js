@@ -4539,6 +4539,20 @@ async function getAgent(cfg, agentId) {
     opt_in_signed_url: bool("opt_in_signed_url")
   };
 }
+async function updateLiveCall(cfg, callId, control) {
+  const r = await fetch(`${API}/v2/update-live-call/${encodeURIComponent(callId)}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      call_control: {
+        additional_context: control.additionalContext,
+        ...control.triggerResponse !== void 0 ? { trigger_response: control.triggerResponse } : {}
+      }
+    }),
+    signal: AbortSignal.timeout(8e3)
+  });
+  return { ok: r.ok, status: r.status };
+}
 async function getRetellLlm(cfg, llmId, version) {
   const q = version === void 0 || version === null ? "" : `?version=${version}`;
   const r = await fetch(`${API}/get-retell-llm/${llmId}${q}`, {
@@ -4734,6 +4748,7 @@ export {
   planVoiceConvergence,
   sendTemplate,
   sendText,
+  updateLiveCall,
   verifyRetellSignature,
   voiceShellDrift,
   voiceShellTools

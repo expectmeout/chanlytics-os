@@ -19,7 +19,14 @@ const HeroBrief = () => {
 };
 
 const HeroBriefReal = ({ vm }) => {
-  const { standing, needsYou, windowClosing, recap, pulse, launchpad, quiet } = vm;
+  const { standing, needsYou, windowClosing, recap, pulse, launchpad, quiet, calls } = vm;
+  // The VM has carried these rows since the Calls slice: the call in progress,
+  // the one that reached voicemail, the one whose caller was angry. Nothing
+  // rendered them, so a customer could be ON THE LINE while the page built to
+  // say what is happening said nothing about it.
+  const callRows = calls ? calls.rows : [];
+  const liveCalls = callRows.filter((r) => r.to === "live");
+  const earCalls = callRows.filter((r) => r.to !== "live").slice(0, 2);
   const [toastNode, ppFlash] = window.usePPToast();
   const nav = (to) => window.appNavigate && window.appNavigate(to);
   const up = standing.chips.filter((c) => c.ok).length;
@@ -57,6 +64,13 @@ const HeroBriefReal = ({ vm }) => {
             </span>
           </h1>
           <div className="brief-beats">
+            {liveCalls.map((r) => (
+              <div key={`live-${r.id}`} className="brief-beat" data-testid="brief-live-call">
+                <span className="brief-beat-dot" style={{ background: "var(--accent)" }} />
+                <span className="brief-beat-text"><b>{r.who}</b> is on the phone line right now · since {r.at}</span>
+                <button className="brief-chip primary" onClick={() => nav("live")}>Open Live <Icon name="arrow-right" size={10} /></button>
+              </div>
+            ))}
             {standing.detail && !standing.alert && (
               <div className="brief-beat">
                 <span className="brief-beat-dot" />
@@ -94,6 +108,13 @@ const HeroBriefReal = ({ vm }) => {
                   <button className="brief-chip primary" onClick={() => nav(r.to)}>Open and reply</button>
                   <button className="brief-chip" onClick={() => snooze(r)} {...window.gate("approve")}>Snooze</button>
                 </span>
+              </div>
+            ))}
+            {earCalls.map((r) => (
+              <div key={`call-${r.id}`} className="brief-beat" data-testid="brief-call-row">
+                <span className="brief-beat-dot" style={{ background: "var(--warn)" }} />
+                <span className="brief-beat-text"><b>{r.who}</b> — {r.note} · {r.at}{r.duration ? ` · ${r.duration}` : ""}</span>
+                <button className="brief-chip" onClick={() => nav(r.to)}>Open the call <Icon name="arrow-right" size={10} /></button>
               </div>
             ))}
             {(windowClosing ? windowClosing.rows : []).map((r) => (

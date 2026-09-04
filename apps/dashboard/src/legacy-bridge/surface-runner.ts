@@ -159,7 +159,10 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
       supabase,
       // Routed by table: a live call's transcript turns repaint Live, not the
       // five surfaces that never asked (three of them plpgsql aggregates).
-      (_row, table) => realtimeOverrides.filter((o) => wantsRefresh(o, table)).forEach(scheduleRefresh),
+      (row, table, event) =>
+        realtimeOverrides
+          .filter((o) => wantsRefresh(o, table, { table, event: event ?? "*", row: row as Record<string, unknown> }))
+          .forEach(scheduleRefresh),
       {
         topic,
         onStatus: (status) => {

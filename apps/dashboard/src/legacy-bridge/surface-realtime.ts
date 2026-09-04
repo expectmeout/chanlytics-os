@@ -13,16 +13,33 @@
  */
 export const DEFAULT_REFRESH_TABLES: readonly string[] = ["messages", "conversations", "escalations"];
 
+/** One realtime event, as the rule sees it. */
+export interface RealtimeChange {
+  table: string;
+  /** INSERT | UPDATE | DELETE, or "*" when the source did not say. */
+  event: string;
+  row: Record<string, unknown>;
+}
+
 export interface RefreshPreference {
   /** The historical flag: repaint on the default tables. */
   refreshOnMessageInserts?: boolean;
   /** An explicit list wins over the flag. */
   refreshOnTables?: readonly string[];
+  /**
+   * A finer rule on top of the table list, judged per event. Today wants a
+   * call STARTING and ENDING, not the transcript turn every few seconds in
+   * between — those are UPDATEs that leave the status ongoing.
+   */
+  refreshWhen?: (change: RealtimeChange) => boolean;
 }
 
-export function wantsRefresh(o: RefreshPreference, table: string): boolean {
-  if (o.refreshOnTables?.length) return o.refreshOnTables.includes(table);
-  return !!o.refreshOnMessageInserts && DEFAULT_REFRESH_TABLES.includes(table);
+export function wantsRefresh(o: RefreshPreference, table: string, change?: RealtimeChange): boolean {
+  const wanted = o.refreshOnTables?.length
+    ? o.refreshOnTables.includes(table)
+    : !!o.refreshOnMessageInserts && DEFAULT_REFRESH_TABLES.includes(table);
+  if (!wanted) return false;
+  return o.refreshWhen && change ? o.refreshWhen(change) : true;
 }
 
 /** True when the surface subscribes to anything at all. */

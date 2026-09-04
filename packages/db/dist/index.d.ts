@@ -2242,6 +2242,6 @@ declare function subscribeMessagesInserts(client: SupabaseClient<Database>,
 onInsert: (row: {
     conversation_id: string;
     tenant_id: string;
-}, table: string) => void, opts?: SubscribeOptions): () => void;
+}, table: string, event?: string) => void, opts?: SubscribeOptions): () => void;
 
 export { type ChannelLookup, type Database, HISTORY_COLUMNS, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type NormalizedCallInput, type OutboundTarget, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, assembleHistory, claimCallNotification, countSentToday, createServiceClient, describeLead, emitEvent, getTenantConfig, ingestCall, ingestInbound, linkCallMessage, listPolicies, markProcessed, pauseConversation, personReplyMode, putTenantConfig, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, setCallRecording, setPersonReplyMode, setPolicyMode, subscribeMessagesInserts };

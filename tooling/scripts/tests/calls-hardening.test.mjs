@@ -85,11 +85,11 @@ test("realtime events are routed by table: a transcript turn repaints Live, not 
   assert.equal(subscribesToRealtime({}), false);
   assert.equal(subscribesToRealtime(live), true);
   const runner = readCode("apps/dashboard/src/legacy-bridge/surface-runner.ts");
-  assert.ok(runner.includes("realtimeOverrides.filter((o) => wantsRefresh(o, table))"));
+  assert.ok(runner.includes('wantsRefresh(o, table, { table, event: event ?? "*", row: row as Record<string, unknown> })'));
   const seam = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(seam.includes('refreshOnTables: ["calls"]'), "Live listens to calls alone");
   const rt = readCode("packages/db/src/realtime.ts");
-  assert.ok(rt.includes(", w.table)"), "the subscription hands the table to the callback");
+  assert.ok(rt.includes(", w.table, payload.eventType)"), "the subscription hands the table and the event to the callback");
 });
 
 test("the sweep asks about calls that have simply run too long", () => {

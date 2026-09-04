@@ -292,6 +292,23 @@ interface RetellAgentConfig {
 }
 /** GET /get-agent — the fields above, read-only. Null when the provider says no. */
 declare function getAgent(cfg: RetellConfig, agentId: string): Promise<RetellAgentConfig | null>;
+/** What an operator says to the agent mid-call, heard by the agent alone. */
+interface LiveCallControl {
+    /** Free text, injected into the transcript as "injected" and worked into the next answer. */
+    additionalContext: string;
+    /** Interrupt the agent (or nudge a silent one) to answer with it now. */
+    triggerResponse?: boolean;
+}
+/**
+ * PATCH /v2/update-live-call — the ONE control Retell offers over a hosted
+ * agent's ongoing call: no listen-in, no take-over, no hang-up. Returns the
+ * status instead of throwing; a whisper into a call that has just ended is a
+ * 4xx the caller reports in a sentence, not an exception in a route.
+ */
+declare function updateLiveCall(cfg: RetellConfig, callId: string, control: LiveCallControl): Promise<{
+    ok: boolean;
+    status: number;
+}>;
 /** The fields of a Retell LLM the shell is defined over. */
 interface RetellLlmConfig {
     llm_id: string;
@@ -429,4 +446,4 @@ declare function voiceShellDrift(live: LiveVoiceLlm): {
     drift: string[];
 };
 
-export { CALLER_UNKNOWN, DEFAULT_FN_URL, FACTS_UNAVAILABLE, GREETING_DEFAULT, HANDOFF_VAR, type ListCallsPage, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type SendResult, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, type VoiceConvergencePlan, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, callSummaryLine, desiredVoiceShell, fetchMediaBytes, fetchRecording, getAgent, getCall, getRetellLlm, listCalls, liveTurns, needsHydration, normalizeCall, normalizeInbound, planVoiceConvergence, sendTemplate, sendText, verifyRetellSignature, voiceShellDrift, voiceShellTools };
+export { CALLER_UNKNOWN, DEFAULT_FN_URL, FACTS_UNAVAILABLE, GREETING_DEFAULT, HANDOFF_VAR, type ListCallsPage, type LiveCallControl, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type SendResult, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, type VoiceConvergencePlan, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, callSummaryLine, desiredVoiceShell, fetchMediaBytes, fetchRecording, getAgent, getCall, getRetellLlm, listCalls, liveTurns, needsHydration, normalizeCall, normalizeInbound, planVoiceConvergence, sendTemplate, sendText, updateLiveCall, verifyRetellSignature, voiceShellDrift, voiceShellTools };
