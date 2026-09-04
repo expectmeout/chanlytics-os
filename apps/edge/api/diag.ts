@@ -6,6 +6,7 @@ import { getThread, saveThread, storeBackend, threadNamespace } from "../lib/sto
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import type { SweepHealthRow } from "../lib/sweep-health.js";
+import { getAgent } from "../lib/workspace/channels.js";
 
 const META_APP_ID = process.env.META_APP_ID || "1823820738182125";
 
@@ -102,6 +103,37 @@ export async function GET(request: Request): Promise<Response> {
     }
   } else {
     out.waTokenCheck = null;
+  }
+
+  // The voice agent's own settings decide what the call pipeline can show:
+  // whether Retell sends transcript_updated (a live transcript), how long it
+  // keeps recordings, whether their URLs are signed. Nothing else can read
+  // them — the API key lives here.
+  if (process.env.RETELL_API_KEY) {
+    try {
+      const db = pg();
+      const { data: rows } = db
+        ? await db.from("tenant_channels").select("external_id, status").eq("kind", "voice")
+        : { data: null };
+      const agents: unknown[] = [];
+      for (const r of rows ?? []) {
+        const a = await getAgent({ apiKey: process.env.RETELL_API_KEY }, r.external_id);
+        agents.push(
+          a
+            ? {
+                ...a,
+                channel_status: r.status,
+                live_transcript: (a.webhook_events ?? []).includes("transcript_updated"),
+              }
+            : { agent_id: r.external_id, channel_status: r.status, error: "unreadable" },
+        );
+      }
+      out.voiceAgents = agents;
+    } catch (e) {
+      out.voiceAgents = { error: String(e instanceof Error ? e.message : e).slice(0, 200) };
+    }
+  } else {
+    out.voiceAgents = null;
   }
 
   return json(200, out);

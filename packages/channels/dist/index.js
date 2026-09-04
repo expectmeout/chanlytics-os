@@ -4052,6 +4052,7 @@ var WA_WINDOW_MS = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
 var TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
 var PolicyLimitsSchema = external_exports.object({
   max_replies_day: external_exports.number().int().min(1).max(200).optional(),
   pause_hours: external_exports.number().int().min(1).max(168).optional(),
@@ -4411,9 +4412,17 @@ function toStatus(s) {
       return "ongoing";
     case "error":
       return "error";
+    case "not_connected":
+      return "not_connected";
     default:
       return "ended";
   }
+}
+function liveTurns(items) {
+  if (!items?.length) return null;
+  const spoken = items.filter((t) => t.role === "agent" || t.role === "user");
+  if (!spoken.length) return null;
+  return spoken.map(({ role, content, words }) => ({ role, content: content ?? "", ...words ? { words } : {} }));
 }
 function normalizeCall(c) {
   const analysis = c.call_analysis ?? {};
@@ -4437,7 +4446,7 @@ function normalizeCall(c) {
     inVoicemail: analysis.in_voicemail ?? null,
     summary: analysis.call_summary ?? null,
     transcript: c.transcript ?? null,
-    transcriptObject: c.transcript_object ?? null,
+    transcriptObject: c.transcript_object ?? liveTurns(c.transcript_with_tool_calls),
     recordingUrl: c.recording_url ?? null,
     publicLogUrl: c.public_log_url ?? null,
     cost: c.call_cost ?? null,
@@ -4482,11 +4491,33 @@ async function getCall(cfg, callId) {
   if (!r.ok) return null;
   return await r.json();
 }
+async function getAgent(cfg, agentId) {
+  const r = await fetch(`${API}/get-agent/${agentId}`, {
+    headers: { Authorization: `Bearer ${cfg.apiKey}` }
+  });
+  if (!r.ok) return null;
+  const a = await r.json();
+  const str = (k) => typeof a[k] === "string" ? a[k] : null;
+  const num = (k) => typeof a[k] === "number" ? a[k] : null;
+  const bool = (k) => typeof a[k] === "boolean" ? a[k] : null;
+  return {
+    agent_id: str("agent_id") ?? agentId,
+    agent_name: str("agent_name"),
+    version: num("version"),
+    is_published: bool("is_published"),
+    webhook_url: str("webhook_url"),
+    webhook_events: Array.isArray(a.webhook_events) ? a.webhook_events.map(String) : null,
+    webhook_timeout_ms: num("webhook_timeout_ms"),
+    data_storage_setting: str("data_storage_setting"),
+    opt_in_signed_url: bool("opt_in_signed_url")
+  };
+}
 function needsHydration(c) {
   return !c.transcript && !c.transcript_object;
 }
-async function fetchRecording(url) {
-  const r = await fetch(url);
+async function fetchRecording(url, opts = {}) {
+  const signal = opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : void 0;
+  const r = await fetch(url, signal ? { signal } : void 0);
   if (!r.ok) return null;
   return { bytes: await r.arrayBuffer(), mime: r.headers.get("content-type") };
 }
@@ -4505,8 +4536,10 @@ export {
   callSummaryLine,
   fetchMediaBytes,
   fetchRecording,
+  getAgent,
   getCall,
   listCalls,
+  liveTurns,
   needsHydration,
   normalizeCall,
   normalizeInbound,

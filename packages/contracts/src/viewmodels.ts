@@ -688,12 +688,14 @@ export interface CallVM {
   at: string;
   duration?: string;
   ts: number;
-  outcome: "live" | "handled";
+  /** live: in progress under the heartbeat rule · missed: the dial never
+   *  connected (Retell's not_connected) · handled: everything else. */
+  outcome: "live" | "handled" | "missed";
   live?: boolean;
   snippet: string;
   summary: { headline: string; bullets: string[] };
   transcript: Array<{ t: string; speaker: "agent" | "client"; text: string }>;
-  recordingState: "ready" | "pending" | "none";
+  recordingState: "ready" | "pending" | "failed" | "none";
   recordingUrl?: string;
   threadId?: string;
 }
@@ -722,11 +724,13 @@ export function toCallVM(dto: CallDto, now = new Date()): CallVM {
   // Not `status === "ongoing"`. A lost call_ended leaves that flag set forever,
   // and this viewmodel is what the Live surface would render from.
   const live = isLiveCall(dto, now);
+  // Retell's not_connected: the dial never connected. An attempt, not a call.
+  const missed = dto.status === "not_connected";
   const headSummary = (dto.summary || "").trim();
   const firstSentence = headSummary ? (headSummary.split(/(?<=[.!?])\s/)[0] ?? headSummary) : "";
 
   const bullets: string[] = [
-    `${dto.direction === "inbound" ? "Inbound" : "Outbound"} · ${spokenDuration(dto.duration_ms)}`,
+    `${dto.direction === "inbound" ? "Inbound" : "Outbound"} · ${missed ? "never connected" : spokenDuration(dto.duration_ms)}`,
   ];
   if (dto.disconnection_reason) {
     bullets.push(`Ended: ${DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " ")}`);
@@ -735,11 +739,17 @@ export function toCallVM(dto: CallDto, now = new Date()): CallVM {
     bullets.push(`Caller sentiment: ${dto.sentiment} — the voice provider's own read`);
   }
   const recState: CallVM["recordingState"] =
-    dto.recording?.fetch_state === "stored" ? "ready" : dto.recording ? "pending" : "none";
-  bullets.push(
-    recState === "ready" ? "Recording saved" :
-    recState === "pending" ? "Recording still processing" : "No recording for this call",
-  );
+    dto.recording?.fetch_state === "stored" ? "ready" :
+    dto.recording?.fetch_state === "failed" ? "failed" :
+    dto.recording ? "pending" : "none";
+  if (!missed) {
+    bullets.push(
+      recState === "ready" ? "Recording saved" :
+      recState === "pending" ? "Recording still processing" :
+      recState === "failed" ? "Recording couldn't be saved from the voice provider" :
+      "No recording for this call",
+    );
+  }
   if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s WhatsApp thread`);
 
   const transcript = (dto.transcript_object ?? []).map((turn) => {
@@ -751,7 +761,9 @@ export function toCallVM(dto: CallDto, now = new Date()): CallVM {
     };
   });
 
-  const snippetBody = firstSentence || (dto.in_voicemail ? "Reached voicemail." : "No summary from this call.");
+  const snippetBody = missed
+    ? "The call never connected."
+    : firstSentence || (dto.in_voicemail ? "Reached voicemail." : "No summary from this call.");
   return {
     id: `cv-${dto.id}`,
     real: true,
@@ -765,7 +777,7 @@ export function toCallVM(dto: CallDto, now = new Date()): CallVM {
     at: shortTime(dto.started_at, now),
     ts: dto.started_at ? new Date(dto.started_at).getTime() : 0,
     ...(dur ? { duration: dur } : {}),
-    outcome: live ? "live" : "handled",
+    outcome: live ? "live" : missed ? "missed" : "handled",
     ...(live ? { live: true } : {}),
     snippet: withheld
       ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""} — caller ID withheld, so this call isn't linked to a customer.`

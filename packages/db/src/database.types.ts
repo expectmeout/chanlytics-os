@@ -1498,6 +1498,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      call_status_rank: { Args: { p_status: string }; Returns: number }
       claim_job: { Args: { p_job_id: string }; Returns: Json }
       create_workspace: {
         Args: { p_name: string; p_timezone?: string }

@@ -1,5 +1,13 @@
 /**
- * Retell post-call webhook — call_started / call_ended / call_analyzed.
+ * Retell call webhook — call_started / transcript_updated / call_ended /
+ * call_analyzed.
+ *
+ * Every event carrying a call is ingested (ingest_call is forward-only: an
+ * event older than the row is a no-op it reports as `skipped`). The note,
+ * the recording copy and the summary email wait for the end of the call.
+ * transcript_updated is opt-in on the agent; when it is on, each turn
+ * refreshes the row's transcript and heartbeat, which is what makes a live
+ * transcript possible on the dashboard.
  *
  * Slice 3: every stage dual-writes the canonical `calls` row (idempotent on
  * retell_call_id, so started -> ended -> analyzed enrich ONE row), attaches the
@@ -19,7 +27,6 @@ import { pg } from "../lib/pg.js";
 import {
   normalizeCall,
   callSummaryLine,
-  fetchRecording,
   verifyRetellSignature,
   type RetellCall,
 } from "../lib/workspace/channels.js";
@@ -28,16 +35,11 @@ import {
   ingestCall,
   recordCallNote,
   linkCallMessage,
-  setCallRecording,
   emitEvent,
 } from "../lib/workspace/db.js";
+import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "../lib/call-recording.js";
 
 export const config = { maxDuration: 60 };
-
-const REC_EXT: Record<string, string> = {
-  "audio/wav": "wav", "audio/x-wav": "wav", "audio/mpeg": "mp3",
-  "audio/mp4": "m4a", "application/octet-stream": "wav",
-};
 
 export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
@@ -66,6 +68,11 @@ export async function POST(request: Request): Promise<Response> {
           { channel: "voice", agent_id: n.agentId }).catch(() => {});
       } else {
         const res = await ingestCall(db, routed.tenantId, n, call);
+        if (res.skipped) {
+          // Older than the row: a retried call_started after call_ended, or a
+          // partial transcript after the final one. Nothing was written.
+          console.log("retell_event_stale", event, n.retellCallId);
+        }
 
         // the call belongs in the customer's one thread, not a silo
         if (res.conversation_id && (event === "call_analyzed" || n.status === "ended")) {
@@ -82,33 +89,21 @@ export async function POST(request: Request): Promise<Response> {
 
         // Retell serves recordings from an UNSIGNED public CDN URL — copy the
         // audio into the private bucket so a customer's call isn't one guessed
-        // link away, and so it survives provider retention.
-        if (n.recordingUrl && res.recording_state !== "stored" && (event === "call_analyzed" || n.status === "ended")) {
-          try {
-            const got = await fetchRecording(n.recordingUrl);
-            if (got) {
-              const ext = REC_EXT[got.mime || ""] || "wav";
-              const path = `${routed.tenantId}/calls/${res.call_id}.${ext}`;
-              const { error } = await db.storage.from("media").upload(path, got.bytes, {
-                contentType: got.mime || "audio/wav",
-                upsert: true,
-              });
-              if (error) throw new Error(error.message);
-              await setCallRecording(db, routed.tenantId, res.call_id, {
-                provider_url: n.recordingUrl,
-                storage_path: path,
-                fetch_state: "stored",
-                mime: got.mime,
-                bytes: got.bytes.byteLength,
-              });
-            } else {
-              await setCallRecording(db, routed.tenantId, res.call_id, {
-                provider_url: n.recordingUrl, fetch_state: "failed",
-              });
-            }
-          } catch (e) {
-            console.error("call_recording_copy_failed", e instanceof Error ? e.message : e);
-          }
+        // link away, and so it survives provider retention. On a short budget:
+        // this handler has Retell's 10 s delivery timeout over its head, and a
+        // copy that does not finish is retried by the reconcile sweep.
+        if (
+          n.recordingUrl &&
+          res.recording_state !== "stored" && res.recording_state !== "failed" &&
+          (event === "call_analyzed" || n.status === "ended")
+        ) {
+          await copyRecording(db, {
+            tenantId: routed.tenantId,
+            callId: res.call_id,
+            providerUrl: n.recordingUrl,
+            attempts: res.recording_attempts ?? 0,
+            timeoutMs: WEBHOOK_COPY_TIMEOUT_MS,
+          });
         }
       }
     } catch (e) {

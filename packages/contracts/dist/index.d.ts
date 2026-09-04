@@ -441,7 +441,9 @@ interface CallVM {
     at: string;
     duration?: string;
     ts: number;
-    outcome: "live" | "handled";
+    /** live: in progress under the heartbeat rule · missed: the dial never
+     *  connected (Retell's not_connected) · handled: everything else. */
+    outcome: "live" | "handled" | "missed";
     live?: boolean;
     snippet: string;
     summary: {
@@ -453,7 +455,7 @@ interface CallVM {
         speaker: "agent" | "client";
         text: string;
     }>;
-    recordingState: "ready" | "pending" | "none";
+    recordingState: "ready" | "pending" | "failed" | "none";
     recordingUrl?: string;
     threadId?: string;
 }

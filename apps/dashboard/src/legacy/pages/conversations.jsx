@@ -11,6 +11,7 @@ const CV_LABEL = { phone: "Phone", sms: "SMS", whatsapp: "WhatsApp", instagram: 
 const OutcomePill = ({ outcome, decidedAction, channel }) => {
   if (decidedAction) return <span className="pill pill-ok"><Icon name="check" size={9} />Handled · you chose {decidedAction}</span>;
   if (outcome === "live") return <span className="pill pill-accent"><span className="live-dot" style={{ width: 5, height: 5 }} />Live</span>;
+  if (outcome === "missed") return <span className="pill">Never connected</span>;
   if (outcome === "booked") return <span className="pill pill-ok">Booked</span>;
   if (outcome === "escalated") return <span className="pill pill-warn">Waiting on you</span>;
   if (outcome === "handled") return <span className="pill">{channel === "phone" ? "Receptionist handled it" : "Receptionist replied"}</span>;
@@ -206,6 +207,17 @@ const CvViewer = ({ c }) => {
     return () => { window.clearInterval(tick); window.clearTimeout(t1); window.clearTimeout(t2); };
   }, [isLive, c && c.id]);
 
+  // A REAL call in progress: the duration is the wall clock since it started
+  // (c.ts is started_at in ms), never the seed's frozen 0:42. Ticks only
+  // while the call is live.
+  useCvEffect(() => {
+    if (!isLive || !c || !c.real || !(c.ts > 0)) return undefined;
+    const sync = () => setLiveSec(Math.max(0, Math.floor((Date.now() - c.ts) / 1000)));
+    sync();
+    const tick = window.setInterval(sync, 1000);
+    return () => window.clearInterval(tick);
+  }, [isLive, c && c.id, c && c.ts]);
+
   if (!c) return null;
   const isCall = c.channel === "phone";
   const realCall = !!c.real && isCall;
@@ -299,7 +311,7 @@ const CvViewer = ({ c }) => {
             <span className="cv-live-label">Live transcription</span>
             <span className="mono tabular cv-play-time">{liveDur}</span>
             <button className="btn btn-sm" onClick={() => window.CHANLY.nav("live")}>
-              <Icon name="headphones" size={12} /> Listen in
+              <Icon name="phone" size={12} /> Open Live
             </button>
           </div>
         )}
