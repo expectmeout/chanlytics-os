@@ -1638,6 +1638,10 @@ export type Database = {
         Args: { p_keep?: string; p_keep_per_job?: number }
         Returns: number
       }
+      report_series: {
+        Args: { p_days?: number; p_tenant_id: string }
+        Returns: Json
+      }
       sweep_health: {
         Args: never
         Returns: {

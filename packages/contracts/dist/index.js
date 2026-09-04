@@ -1748,6 +1748,185 @@ function toChannelVM(dto, now = /* @__PURE__ */ new Date()) {
     lastInboundMs: last
   };
 }
+
+// src/reports.ts
+var REPORT_RANGES = [
+  { days: 7, id: "7d", label: "7 days" },
+  { days: 30, id: "30d", label: "30 days" },
+  { days: 90, id: "90d", label: "90 days" }
+];
+var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+function dayDate(day) {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1);
+}
+function fmtDay(day) {
+  return DATE_FMT4.format(dayDate(day));
+}
+function fmtSeconds(s) {
+  if (s == null || !Number.isFinite(s)) return "\u2014";
+  const v = Math.max(0, Math.round(s));
+  if (v < 60) return `${v}s`;
+  if (v < 600) return `${Math.floor(v / 60)}m ${String(v % 60).padStart(2, "0")}s`;
+  if (v < 3600) return `${Math.round(v / 60)}m`;
+  return `${Math.floor(v / 3600)}h ${String(Math.round(v % 3600 / 60)).padStart(2, "0")}m`;
+}
+function quantile(sorted, q) {
+  if (!sorted.length) return null;
+  const pos = (sorted.length - 1) * q;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+}
+function deltaOf(current, previous, upIsGood, noun) {
+  if (!previous) return null;
+  const pct = Math.round((current - previous) / previous * 100);
+  if (pct === 0) return { text: `same as the prior ${noun}`, tone: "" };
+  const up = pct > 0;
+  return { text: `${up ? "+" : ""}${pct}% vs prior ${noun}`, tone: up === upIsGood ? "pos" : "neg" };
+}
+var REPLY_BUCKETS = [
+  { id: "lt15", label: "under 15s", max: 15 },
+  { id: "lt60", label: "15s \u2013 1m", max: 60 },
+  { id: "lt300", label: "1 \u2013 5m", max: 300 },
+  { id: "lt1800", label: "5 \u2013 30m", max: 1800 },
+  { id: "gte1800", label: "over 30m", max: Infinity }
+];
+function bars(entries) {
+  const max = Math.max(1, ...entries.map((e) => e[2]));
+  return entries.map(([id, label, value]) => ({ id, label, value, share: value / max }));
+}
+var sum = (xs) => xs.reduce((a, b) => a + b, 0);
+var capitalize2 = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
+function toReportVM(dto) {
+  const days = dto.days;
+  const series = dto.series ?? [];
+  const current = series.slice(-days);
+  const previous = series.slice(0, Math.max(0, series.length - days));
+  const points = current.map((d) => ({
+    day: d.day,
+    label: fmtDay(d.day),
+    short: String(dayDate(d.day).getDate()),
+    in: d.messages_in,
+    ai: d.answered_ai,
+    you: d.answered_you,
+    none: d.unanswered,
+    calls: d.calls,
+    callSeconds: d.call_seconds,
+    escalations: d.escalations,
+    newPeople: d.new_contacts
+  }));
+  const tot = {
+    in: sum(current.map((d) => d.messages_in)),
+    ai: sum(current.map((d) => d.answered_ai)),
+    you: sum(current.map((d) => d.answered_you)),
+    none: sum(current.map((d) => d.unanswered)),
+    escalations: sum(current.map((d) => d.escalations)),
+    calls: sum(current.map((d) => d.calls)),
+    callSeconds: sum(current.map((d) => d.call_seconds)),
+    newPeople: sum(current.map((d) => d.new_contacts))
+  };
+  const prev = {
+    in: sum(previous.map((d) => d.messages_in)),
+    ai: sum(previous.map((d) => d.answered_ai)),
+    escalations: sum(previous.map((d) => d.escalations)),
+    calls: sum(previous.map((d) => d.calls)),
+    newPeople: sum(previous.map((d) => d.new_contacts))
+  };
+  const noun = `${days} days`;
+  const answeredTotal = tot.ai + tot.you + tot.none;
+  const aiShare = answeredTotal ? Math.round(tot.ai / answeredTotal * 100) : null;
+  const sortedReply = [...dto.reply_seconds ?? []].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
+  const median = quantile(sortedReply, 0.5);
+  const p90 = quantile(sortedReply, 0.9);
+  const bucketCounts = REPLY_BUCKETS.map((b, i) => {
+    const lo = i === 0 ? -Infinity : REPLY_BUCKETS[i - 1].max;
+    return [b.id, b.label, sortedReply.filter((s) => s >= lo && s < b.max).length];
+  });
+  const tiles = [
+    {
+      id: "messages",
+      label: "Customer messages",
+      value: String(tot.in),
+      meta: tot.in ? `${sum(current.map((d) => d.conversations))} conversation-days` : "none in this period",
+      delta: deltaOf(tot.in, prev.in, true, noun),
+      spark: points.map((p) => p.in)
+    },
+    {
+      id: "answered",
+      label: "Answered by the receptionist",
+      value: aiShare === null ? "\u2014" : `${aiShare}%`,
+      meta: answeredTotal ? `${tot.ai} of ${answeredTotal} \xB7 ${tot.you} by you \xB7 ${tot.none} unanswered` : "nothing to answer",
+      delta: deltaOf(tot.ai, prev.ai, true, noun),
+      spark: points.map((p) => p.ai)
+    },
+    {
+      id: "reply",
+      label: "Median reply time",
+      value: fmtSeconds(median),
+      meta: sortedReply.length ? `slowest tenth ${fmtSeconds(p90)} \xB7 ${sortedReply.length} replies` : "no receptionist replies yet",
+      delta: null,
+      spark: []
+    },
+    {
+      id: "needed",
+      label: "Needed you",
+      value: String(tot.escalations),
+      meta: tot.escalations ? "times the receptionist stopped" : "the receptionist never stopped",
+      delta: deltaOf(tot.escalations, prev.escalations, false, noun),
+      spark: points.map((p) => p.escalations)
+    },
+    {
+      id: "calls",
+      label: "Calls",
+      value: String(tot.calls),
+      meta: tot.calls ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone \xB7 ${dto.voicemail ?? 0} to voicemail` : "no calls",
+      delta: deltaOf(tot.calls, prev.calls, true, noun),
+      spark: points.map((p) => p.calls)
+    },
+    {
+      id: "people",
+      label: "New people",
+      value: String(tot.newPeople),
+      meta: tot.newPeople ? "first contact in this period, by evidence" : "nobody new",
+      delta: deltaOf(tot.newPeople, prev.newPeople, true, noun),
+      spark: points.map((p) => p.newPeople)
+    }
+  ];
+  const reasons = bars(
+    Object.entries(dto.reasons ?? {}).sort((a, b) => b[1] - a[1]).map(([r, n]) => [r, capitalize2(reasonShort(r)) || r, n])
+  );
+  const sentiments = bars(
+    Object.entries(dto.sentiments ?? {}).sort((a, b) => b[1] - a[1]).map(([s, n]) => [s, s, n])
+  );
+  const first = current[0]?.day;
+  const last = current[current.length - 1]?.day;
+  return {
+    days,
+    rangeLabel: REPORT_RANGES.find((r) => r.days === days)?.label ?? `${days} days`,
+    since: first ? fmtDay(first) : "",
+    until: last ? fmtDay(last) : "",
+    timezone: dto.timezone,
+    empty: tot.in === 0 && tot.calls === 0,
+    tiles,
+    answered: { points, totals: { in: tot.in, ai: tot.ai, you: tot.you, none: tot.none }, max: Math.max(1, ...points.map((p) => p.ai + p.you + p.none)) },
+    reasons,
+    replyTime: {
+      count: sortedReply.length,
+      median,
+      p90,
+      medianLabel: fmtSeconds(median),
+      p90Label: fmtSeconds(p90),
+      buckets: bars(bucketCounts)
+    },
+    calls: { points, total: tot.calls, minutes: Math.round(tot.callSeconds / 60), voicemail: dto.voicemail ?? 0, sentiments, max: Math.max(1, ...points.map((p) => p.calls)) },
+    people: { points, total: tot.newPeople, max: Math.max(1, ...points.map((p) => p.newPeople)) },
+    table: {
+      columns: ["Day", "Customer messages", "Answered by receptionist", "Answered by you", "Unanswered", "Calls", "Needed you", "New people"],
+      rows: points.map((p) => [p.label, p.in, p.ai, p.you, p.none, p.calls, p.escalations, p.newPeople])
+    }
+  };
+}
 export {
   ACTOR_TYPES,
   AppError,
@@ -1797,6 +1976,7 @@ export {
   REPLY_DELAY_DEFAULT_MS,
   REPLY_DELAY_MAX_MS,
   REPLY_DELAY_MIN_MS,
+  REPORT_RANGES,
   ROLES,
   ROLE_PERMS,
   ServiceSchema,
@@ -1810,9 +1990,12 @@ export {
   composeSystemPrompt,
   contactMeta,
   contactName,
+  deltaOf,
   describeNow,
   draftSendsAtMs,
   err,
+  fmtDay,
+  fmtSeconds,
   formatPhoneDisplay,
   formatWaited,
   hasProfile,
@@ -1835,6 +2018,7 @@ export {
   peopleAggregates,
   personName,
   personStateFor,
+  quantile,
   reachedCustomer,
   reasonShort,
   recencyCells,
@@ -1848,6 +2032,7 @@ export {
   toInboxThreadVM,
   toPersonRowVM,
   toPersonVM,
+  toReportVM,
   toTodayVM,
   violatesNoPrices,
   waWindow
