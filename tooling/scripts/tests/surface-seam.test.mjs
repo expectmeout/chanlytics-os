@@ -143,3 +143,45 @@ test("nothing outside the runner calls activateOverride directly", () => {
     .filter((f) => src(f).includes("activateOverride("));
   assert.deepEqual(offenders, [], "these must go through refreshSurfaces() so status and cache stay truthful");
 });
+
+/* ------- three states the operator's screen could show falsely ----------- */
+{
+  const { readCode } = await import("./_source.mjs");
+  const runner = readCode("apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  const seam = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const verbs = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
+  const wrapper = readCode("apps/dashboard/src/server/with-route.ts");
+
+  test("a failed boot over CACHED real data is degraded, not seeded", () => {
+    // The cache restores real rows before React mounts. If both boot attempts
+    // then fail, recording "seeded" is the one thing that is not true:
+    // yesterday's real conversations are on screen under a status meaning "no
+    // real data", so the pill shows neither live nor stale. refresh() has
+    // always used this rule; boot did not.
+    const fn = runner.slice(runner.indexOf("const boot = async"));
+    const body = fn.slice(0, fn.indexOf("\n  };"));
+    assert.match(body, /isSurfaceReady\(o\.key\)/, "boot must ask whether real data is already showing");
+    assert.match(body, /"degraded"/);
+  });
+
+  test("a successful write forgets every in-flight read", () => {
+    // The collapser shares a pending request for two seconds. A verb commits
+    // and then refreshes; that refresh joins a request issued BEFORE the
+    // commit and repaints the thread exactly as it was, under a "live" pill.
+    assert.match(seam, /export function invalidateInFlight/);
+    const at = verbs.indexOf("invalidateInFlight()");
+    assert.ok(at > -1, "the courier must invalidate after a write");
+    // Before the return, i.e. on the success path.
+    assert.ok(at < verbs.indexOf("return { ok: true, data: j.data }"));
+  });
+
+  test("an auth outage is a 503, not a sign-out", () => {
+    // getUser() returns no user for BOTH a missing session and a network
+    // failure. Reporting 401 for the second made the client wipe the surface
+    // cache — real customer transcripts — and hard-redirect to /login, so a
+    // brief Supabase blip logged every operator out mid-sentence.
+    assert.match(wrapper, /upstream_auth/);
+    assert.match(wrapper, /status: 503/);
+    assert.match(wrapper, /AuthRetryableFetchError|authErr\.status >= 500/);
+  });
+}

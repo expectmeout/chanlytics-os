@@ -57,10 +57,27 @@ export function withRoute<T>(
       }
       const params = routeCtx?.params ? await routeCtx.params : {};
       const supabase = await createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user }, error: authErr } = await supabase.auth.getUser();
       if (!user) {
+        // "We could not ask" is not "you are not signed in".
+        //
+        // getUser() returns no user for BOTH a missing session and a network
+        // or 5xx failure against Supabase Auth, and this reported 401 either
+        // way. The client treats a 401 as a sign-out: it wipes the surface
+        // cache — real customer transcripts — and hard-redirects to /login. So
+        // a brief auth outage logged every operator out and discarded whatever
+        // they were typing. A 503 says try again, and the client leaves the
+        // session alone.
+        const retryable =
+          !!authErr &&
+          (authErr.status === undefined || authErr.status >= 500 || authErr.name === "AuthRetryableFetchError");
+        if (retryable) {
+          console.error(JSON.stringify({ level: "error", route, event: "auth_unavailable", error: authErr.message }));
+          return NextResponse.json(
+            err("upstream_auth", "Could not verify your session just now — try again."),
+            { status: 503, headers: PRIVATE },
+          );
+        }
         return NextResponse.json(err("unauthorized", "Sign in required."), { status: 401, headers: PRIVATE });
       }
       const data = await handler(req, { supabase, userId: user.id, email: user.email, params });

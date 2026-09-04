@@ -19,6 +19,8 @@ var ERROR_CODES = [
   "upstream_anthropic",
   /** The transactional email provider refused or failed. */
   "upstream_email",
+  /** Supabase Auth could not be reached — distinct from "not signed in". */
+  "upstream_auth",
   "internal"
 ];
 var AppError = class extends Error {
@@ -45,6 +47,7 @@ var DEFAULT_STATUS = {
   upstream_retell: 502,
   upstream_anthropic: 502,
   upstream_email: 502,
+  upstream_auth: 503,
   internal: 500
 };
 

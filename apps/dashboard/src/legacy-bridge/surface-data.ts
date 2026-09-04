@@ -107,6 +107,24 @@ export function scoped(url: string): string {
   return `${url}${url.includes("?") ? "&" : "?"}workspace=${encodeURIComponent(ws)}`;
 }
 
+/**
+ * Forget every in-flight response.
+ *
+ * The collapser above shares a pending request for two seconds, which is right
+ * for three overrides asking for the same list at boot — and wrong the instant
+ * something has been WRITTEN. A verb commits and then refreshes; that refresh
+ * joins a request issued BEFORE the commit and repaints the thread exactly as
+ * it was, under a pill still saying "live". That is a second cause of the
+ * regression the runner's own comment describes as fixed, and one that
+ * threading an AbortSignal would not have closed.
+ *
+ * Called by the verb courier on any 2xx: after a successful write, nothing
+ * already in flight can be describing the world the operator is now in.
+ */
+export function invalidateInFlight(): void {
+  inFlight.clear();
+}
+
 export async function fetchEnvelope<T>(rawUrl: string): Promise<T> {
   const url = scoped(rawUrl);
   const hit = inFlight.get(url);
