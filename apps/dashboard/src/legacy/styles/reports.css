@@ -199,7 +199,8 @@
 .rp2-loading { opacity: 0.6; transition: opacity 0.2s; }
 
 /* Tiles */
-.rp2-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.rp2-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 760px) { .rp2-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .rp2-tile {
   background: var(--bg-raised);
   border: 1px solid var(--line);

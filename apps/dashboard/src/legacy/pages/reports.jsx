@@ -437,7 +437,7 @@ const RpCard = ({ title, sub, testid, table, children, className = "" }) => {
 
 const RpStacked = ({ points, max, days }) => {
   const [tip, setTip] = useRpState(null);
-  const W = 720, H = 220, L = 34, R = 8, T = 10, B = 26;
+  const W = 1100, H = 200, L = 34, R = 8, T = 10, B = 26;
   const pw = W - L - R, ph = H - T - B;
   const nice = rpNice(max);
   const n = Math.max(1, points.length);
@@ -470,7 +470,7 @@ const RpStacked = ({ points, max, days }) => {
               {rects.map((r) => (r === last
                 ? <path key={r.k} d={rpTopRound(x, r.top, bw, r.h, 4)} className={`rp2-seg ${r.k}`} />
                 : <rect key={r.k} x={x} y={r.top} width={bw} height={r.h} className={`rp2-seg ${r.k}`} />))}
-              {i % every === 0 && <text x={L + i * slot + slot / 2} y={H - 8} className="rp2-tick" textAnchor="middle">{days <= 7 ? p.label : p.short}</text>}
+              {i % every === 0 && <text x={L + i * slot + slot / 2} y={H - 8} className="rp2-tick" textAnchor="middle">{p.label}</text>}
               <rect x={L + i * slot} y={T} width={slot} height={ph} className="rp2-hit" tabIndex={0}
                 onMouseEnter={() => setTip({ i, p })} onFocus={() => setTip({ i, p })}
                 onMouseLeave={() => setTip(null)} onBlur={() => setTip(null)} />
@@ -493,7 +493,7 @@ const RpStacked = ({ points, max, days }) => {
 
 const RpColumns = ({ points, field, max, days, label }) => {
   const [tip, setTip] = useRpState(null);
-  const W = 360, H = 140, L = 26, R = 6, T = 8, B = 22;
+  const W = 560, H = 150, L = 28, R = 6, T = 8, B = 22;
   const pw = W - L - R, ph = H - T - B;
   const nice = rpNice(max);
   const n = Math.max(1, points.length);
@@ -517,7 +517,7 @@ const RpColumns = ({ points, field, max, days, label }) => {
           return (
             <g key={p.day} className={tip && tip.i === i ? "rp2-col hot" : "rp2-col"}>
               {v > 0 && <path d={rpTopRound(x, y(0) - h, bw, h, 4)} className="rp2-seg ai" />}
-              {i % every === 0 && <text x={L + i * slot + slot / 2} y={H - 6} className="rp2-tick" textAnchor="middle">{p.short}</text>}
+              {i % every === 0 && <text x={L + i * slot + slot / 2} y={H - 6} className="rp2-tick" textAnchor="middle">{i === 0 || days <= 7 ? p.label : p.short}</text>}
               <rect x={L + i * slot} y={T} width={slot} height={ph} className="rp2-hit" tabIndex={0}
                 onMouseEnter={() => setTip({ i, p, v })} onFocus={() => setTip({ i, p, v })}
                 onMouseLeave={() => setTip(null)} onBlur={() => setTip(null)} />
@@ -616,7 +616,9 @@ const ReportsReal = () => {
                 <span className="rp2-key"><i className="rp2-swatch you" />You <b>{vm.answered.totals.you}</b></span>
                 <span className="rp2-key"><i className="rp2-swatch none" />Unanswered <b>{vm.answered.totals.none}</b></span>
               </div>
-              <RpStacked points={vm.answered.points} max={vm.answered.max} days={vm.days} />
+              {vm.answered.totals.in
+                ? <RpStacked points={vm.answered.points} max={vm.answered.max} days={vm.days} />
+                : <div className="rp2-empty">No customer messages in this period — the receptionist had nothing to answer by text. Calls are below.</div>}
             </RpCard>
 
             <div className="rp2-row">
