@@ -250,6 +250,10 @@ import {
   toChannelVM,
   type ChannelDto,
   type ChannelVM,
+  toReportVM,
+  REPORT_RANGES,
+  type ReportDto,
+  type ReportVM,
 } from "@chanlytics/contracts";
 
 /**
@@ -575,6 +579,65 @@ export const peopleOverride: SurfaceOverride = {
         PEOPLE_TABS.filter((t) => t.id !== "all").map((t) => [t.id, recencyCells(rows.filter((r) => r.state === t.id), now.getTime())]),
       ),
       fetchedAt: now.getTime(),
+    };
+  },
+};
+
+/* ------------------------------- Reports --------------------------------- */
+
+const REPORT_DAYS_KEY = "chanlytics.report.days";
+let reportDays = 30;
+try {
+  if (typeof window !== "undefined") {
+    const saved = Number(window.localStorage.getItem(REPORT_DAYS_KEY));
+    if (REPORT_RANGES.some((r) => r.days === saved)) reportDays = saved;
+  }
+} catch {
+  /* storage unavailable: the default range stands */
+}
+
+export function getReportDays(): number {
+  return reportDays;
+}
+
+/** The one period every chart on Reports is scoped to. Only the presets. */
+export function setReportDays(days: number): void {
+  if (!REPORT_RANGES.some((r) => r.days === days)) return;
+  reportDays = days;
+  try {
+    window.localStorage.setItem(REPORT_DAYS_KEY, String(days));
+  } catch {
+    /* a preference, not a fact */
+  }
+}
+
+export interface ReportsSurface {
+  vm: ReportVM;
+  days: number;
+  fetchedAt: number;
+}
+
+/**
+ * Reports — the receptionist's own numbers over a period.
+ *
+ * The mockup drew revenue, bookings and eight agents. This publishes the
+ * report view model built from one SQL function that already applies the
+ * Today metrics' rules (tenant time zone, no undated imports, answered-by =
+ * first reply). Realtime message inserts re-apply so today's column moves.
+ */
+export const reportsOverride: SurfaceOverride = {
+  key: "reports",
+  globals: ["__REPORTS"],
+  events: ["surface:reports"],
+  refreshOnMessageInserts: true,
+  debounceMs: 800,
+  apply: async () => {
+    const days = reportDays;
+    const data = await fetchEnvelope<{ report: ReportDto }>(`/api/v1/reports?days=${days}`);
+    (window as unknown as { __REPORTS?: ReportsSurface }).__REPORTS = {
+      vm: toReportVM(data.report),
+      days,
+      fetchedAt: Date.now(),
     };
   },
 };

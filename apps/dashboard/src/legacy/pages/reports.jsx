@@ -82,7 +82,7 @@ const RpShareDialog = ({ rangeLabel, onClose }) => {
   );
 };
 
-const ReportsPage = () => {
+const ReportsSeed = () => {
   const { RP_RANGES, RP_SERIES, RP_STATS, RP_AGENTS, RP_CHANNELS, RP_DECISIONS } = window.REPORTS_DATA;
   const [range, setRange] = useRpState("30d");
   const [shareOpen, setShareOpen] = useRpState(false);
@@ -342,5 +342,321 @@ const ReportsPage = () => {
     </div>
   );
 };
+
+// ====== Real branch — Reports on the receptionist's own numbers ======
+// The seeded page led with revenue, bookings and eight agents; none exist.
+// This renders window.__REPORTS (the reports override → toReportVM): six
+// measured tiles with sparklines and prior-period deltas, one stacked column
+// chart of who answered each day, why the receptionist stopped, how fast it
+// answers, calls, and new people — every chart with a table twin. The colors
+// are tokens in reports.css, validated for both themes.
+
+const useReports = () => {
+  const [, tick] = useRpState(0);
+  React.useEffect(() => {
+    const bump = () => tick((n) => n + 1);
+    window.addEventListener("surface:reports", bump);
+    return () => window.removeEventListener("surface:reports", bump);
+  }, []);
+  return window.__REPORTS;
+};
+
+// A clean axis maximum whose half is still a whole number.
+const rpNice = (max) => {
+  const m = Math.max(4, Math.ceil(max || 0));
+  const p = Math.pow(10, Math.floor(Math.log10(m)));
+  for (const k of [2, 4, 6, 8, 10]) if (k * p >= m) return k * p;
+  return 10 * p;
+};
+
+// 4px rounded data-end, square at the baseline.
+const rpTopRound = (x, y, w, h, r) => {
+  if (h <= 0) return "";
+  const rr = Math.min(r, w / 2, h);
+  return `M${x},${y + h} V${y + rr} Q${x},${y} ${x + rr},${y} H${x + w - rr} Q${x + w},${y} ${x + w},${y + rr} V${y + h} Z`;
+};
+
+const RpSpark = ({ points }) => {
+  if (!points || points.length < 2) return null;
+  const w = 120, h = 32, pad = 3;
+  const max = Math.max(1, ...points);
+  const step = (w - pad * 2) / (points.length - 1);
+  const xy = points.map((v, i) => [pad + i * step, pad + (h - pad * 2) * (1 - v / max)]);
+  const d = xy.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const last = xy[xy.length - 1];
+  return (
+    <svg className="rp2-spark" viewBox={`0 0 ${w} ${h}`} width={w} height={h} aria-hidden="true">
+      <path d={`${d} L${last[0].toFixed(1)},${h - pad} L${pad},${h - pad} Z`} className="rp2-spark-area" />
+      <path d={d} className="rp2-spark-line" />
+      <circle cx={last[0]} cy={last[1]} r="3" className="rp2-spark-end" />
+    </svg>
+  );
+};
+
+const RpTile = ({ t }) => (
+  <div className="rp2-tile" data-tile={t.id}>
+    <div className="rp2-tile-label">{t.label}</div>
+    <div className="rp2-tile-value">{t.value}</div>
+    <div className="rp2-tile-meta">{t.meta}</div>
+    <div className="rp2-tile-foot">
+      <span className={`rp2-delta ${t.delta ? t.delta.tone : ""}`}>{t.delta ? t.delta.text : ""}</span>
+      <RpSpark points={t.spark} />
+    </div>
+  </div>
+);
+
+const RpTable = ({ columns, rows }) => (
+  <div className="rp2-tablewrap">
+    <table className="rp2-table">
+      <thead><tr>{columns.map((c) => <th key={c}>{c}</th>)}</tr></thead>
+      <tbody>
+        {rows.map((r, i) => <tr key={i}>{r.map((v, j) => <td key={j} className={j ? "num" : ""}>{v}</td>)}</tr>)}
+        {rows.length === 0 && <tr><td colSpan={columns.length} className="rp2-empty">Nothing in this period.</td></tr>}
+      </tbody>
+    </table>
+  </div>
+);
+
+const RpCard = ({ title, sub, testid, table, children, className = "" }) => {
+  const [showTable, setShowTable] = useRpState(false);
+  return (
+    <section className={`fl-card rp2-card ${className}`} data-testid={testid}>
+      <div className="fl-card-head">
+        <span className="fl-card-title">{title}</span>
+        {sub ? <span className="fl-card-sub">{sub}</span> : null}
+        {table && (
+          <button className={`btn btn-ghost btn-sm rp2-toggle ${showTable ? "active" : ""}`} aria-pressed={showTable} onClick={() => setShowTable((v) => !v)}>
+            {showTable ? "Chart" : "Table"}
+          </button>
+        )}
+      </div>
+      {showTable && table ? <RpTable columns={table.columns} rows={table.rows} /> : children}
+    </section>
+  );
+};
+
+const RpStacked = ({ points, max, days }) => {
+  const [tip, setTip] = useRpState(null);
+  const W = 720, H = 220, L = 34, R = 8, T = 10, B = 26;
+  const pw = W - L - R, ph = H - T - B;
+  const nice = rpNice(max);
+  const n = Math.max(1, points.length);
+  const slot = pw / n;
+  const bw = Math.min(24, Math.max(3, slot * 0.68));
+  const y = (v) => T + ph * (1 - v / nice);
+  const every = days <= 7 ? 1 : days <= 30 ? 5 : 15;
+  return (
+    <div className="rp2-plot">
+      <svg viewBox={`0 0 ${W} ${H}`} className="rp2-svg" role="img" aria-label="Customer messages per day, split by who answered">
+        {[0, nice / 2, nice].map((t) => (
+          <g key={t}>
+            <line x1={L} x2={W - R} y1={y(t)} y2={y(t)} className="rp2-grid" />
+            <text x={L - 6} y={y(t) + 3.5} className="rp2-tick" textAnchor="end">{t}</text>
+          </g>
+        ))}
+        {points.map((p, i) => {
+          const x = L + i * slot + (slot - bw) / 2;
+          const rects = [];
+          let base = y(0);
+          [["ai", p.ai], ["you", p.you], ["none", p.none]].forEach(([k, v]) => {
+            if (!v) return;
+            const h = ph * (v / nice);
+            rects.push({ k, top: base - h, h });
+            base = base - h - 2; // a 2px surface gap between segments
+          });
+          const last = rects[rects.length - 1];
+          return (
+            <g key={p.day} className={tip && tip.i === i ? "rp2-col hot" : "rp2-col"}>
+              {rects.map((r) => (r === last
+                ? <path key={r.k} d={rpTopRound(x, r.top, bw, r.h, 4)} className={`rp2-seg ${r.k}`} />
+                : <rect key={r.k} x={x} y={r.top} width={bw} height={r.h} className={`rp2-seg ${r.k}`} />))}
+              {i % every === 0 && <text x={L + i * slot + slot / 2} y={H - 8} className="rp2-tick" textAnchor="middle">{days <= 7 ? p.label : p.short}</text>}
+              <rect x={L + i * slot} y={T} width={slot} height={ph} className="rp2-hit" tabIndex={0}
+                onMouseEnter={() => setTip({ i, p })} onFocus={() => setTip({ i, p })}
+                onMouseLeave={() => setTip(null)} onBlur={() => setTip(null)} />
+            </g>
+          );
+        })}
+      </svg>
+      {tip && (
+        <div className="rp2-tip" style={{ left: `${((L + tip.i * slot + slot / 2) / W) * 100}%` }}>
+          <div className="rp2-tip-day">{tip.p.label}</div>
+          <div className="rp2-tip-row"><b>{tip.p.in}</b> customer message{tip.p.in === 1 ? "" : "s"}</div>
+          <div className="rp2-tip-row"><i className="rp2-key-line ai" /><b>{tip.p.ai}</b> answered by the receptionist</div>
+          <div className="rp2-tip-row"><i className="rp2-key-line you" /><b>{tip.p.you}</b> answered by you</div>
+          <div className="rp2-tip-row"><i className="rp2-key-line none" /><b>{tip.p.none}</b> unanswered</div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const RpColumns = ({ points, field, max, days, label }) => {
+  const [tip, setTip] = useRpState(null);
+  const W = 360, H = 140, L = 26, R = 6, T = 8, B = 22;
+  const pw = W - L - R, ph = H - T - B;
+  const nice = rpNice(max);
+  const n = Math.max(1, points.length);
+  const slot = pw / n;
+  const bw = Math.min(24, Math.max(3, slot * 0.68));
+  const y = (v) => T + ph * (1 - v / nice);
+  const every = days <= 7 ? 1 : days <= 30 ? 5 : 15;
+  return (
+    <div className="rp2-plot small">
+      <svg viewBox={`0 0 ${W} ${H}`} className="rp2-svg" role="img" aria-label={`${label} per day`}>
+        {[0, nice / 2, nice].map((t) => (
+          <g key={t}>
+            <line x1={L} x2={W - R} y1={y(t)} y2={y(t)} className="rp2-grid" />
+            <text x={L - 5} y={y(t) + 3.5} className="rp2-tick" textAnchor="end">{t}</text>
+          </g>
+        ))}
+        {points.map((p, i) => {
+          const v = p[field];
+          const x = L + i * slot + (slot - bw) / 2;
+          const h = ph * (v / nice);
+          return (
+            <g key={p.day} className={tip && tip.i === i ? "rp2-col hot" : "rp2-col"}>
+              {v > 0 && <path d={rpTopRound(x, y(0) - h, bw, h, 4)} className="rp2-seg ai" />}
+              {i % every === 0 && <text x={L + i * slot + slot / 2} y={H - 6} className="rp2-tick" textAnchor="middle">{p.short}</text>}
+              <rect x={L + i * slot} y={T} width={slot} height={ph} className="rp2-hit" tabIndex={0}
+                onMouseEnter={() => setTip({ i, p, v })} onFocus={() => setTip({ i, p, v })}
+                onMouseLeave={() => setTip(null)} onBlur={() => setTip(null)} />
+            </g>
+          );
+        })}
+      </svg>
+      {tip && (
+        <div className="rp2-tip" style={{ left: `${((L + tip.i * slot + slot / 2) / W) * 100}%` }}>
+          <div className="rp2-tip-day">{tip.p.label}</div>
+          <div className="rp2-tip-row"><b>{tip.v}</b> {label}</div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const RpBars = ({ rows, empty }) => {
+  if (!rows.length) return <div className="rp2-empty">{empty}</div>;
+  return (
+    <div className="rp2-bars">
+      {rows.map((r) => (
+        <div className="rp2-bar-row" key={r.id}>
+          <span className="rp2-bar-label">{r.label}</span>
+          <span className="rp2-bar-track"><span className="rp2-bar-fill" style={{ width: `${Math.max(2, r.share * 100)}%` }} /></span>
+          <span className="rp2-bar-value">{r.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const RpBuckets = ({ rt }) => {
+  if (!rt.count) return <div className="rp2-empty">No receptionist replies in this period to time.</div>;
+  return (
+    <div className="rp2-buckets">
+      <div className="rp2-bucket-stats">
+        <span><b>{rt.medianLabel}</b> median</span>
+        <span><b>{rt.p90Label}</b> slowest tenth</span>
+        <span><b>{rt.count}</b> replies</span>
+      </div>
+      <div className="rp2-bucket-cols">
+        {rt.buckets.map((b, i) => (
+          <div className="rp2-bucket" key={b.id} title={`${b.value} repl${b.value === 1 ? "y" : "ies"} ${b.label}`}>
+            <div className="rp2-bucket-col"><div className={`rp2-bucket-fill r${i + 1}`} style={{ height: `${b.value ? Math.max(4, b.share * 100) : 0}%` }} /></div>
+            <div className="rp2-bucket-value">{b.value}</div>
+            <div className="rp2-bucket-label">{b.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const RP2_RANGES = [[7, "7 days"], [30, "30 days"], [90, "90 days"]];
+
+const ReportsReal = () => {
+  const R = useReports();
+  const [busy, setBusy] = useRpState(false);
+  const fetchedAt = R ? R.fetchedAt : 0;
+  React.useEffect(() => { setBusy(false); }, [fetchedAt]);
+  if (!R) return null;
+  const vm = R.vm;
+  const pick = (days) => {
+    if (days === R.days || !window.__setReportDays) return;
+    setBusy(true);
+    window.__setReportDays(days);
+  };
+  return (
+    <div className="reports" data-testid="reports-real">
+      <div className="cl-head">
+        <div className="cl-head-titles">
+          <div className="cl-page-title">Reports</div>
+          <div className="cl-page-sub">What the receptionist handled, day by day · {vm.since} – {vm.until} · {vm.timezone}</div>
+        </div>
+        <div className="rp2-range cl-tabs" role="group" aria-label="Period">
+          {RP2_RANGES.map(([d, l]) => (
+            <button key={d} className={`cl-tab ${R.days === d ? "active" : ""}`} aria-pressed={R.days === d} onClick={() => pick(d)}>{l}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className={`rp-body rp2-body ${busy ? "rp2-loading" : ""}`} aria-busy={busy ? "true" : "false"}>
+        <div className="rp2-tiles">{vm.tiles.map((t) => <RpTile key={t.id} t={t} />)}</div>
+
+        {vm.empty ? (
+          <section className="fl-card rp2-card">
+            <div className="fl-card-head"><span className="fl-card-title">Nothing came in</span></div>
+            <div className="rp2-empty">Nobody wrote or called between {vm.since} and {vm.until}, so there is nothing to chart. The tiles above are real zeros.</div>
+          </section>
+        ) : (
+          <>
+            <RpCard title="Who answered, day by day" sub={`${vm.answered.totals.in} customer messages · last ${vm.rangeLabel}`} testid="chart-answered" table={vm.table} className="rp2-main">
+              <div className="rp2-legend">
+                <span className="rp2-key"><i className="rp2-swatch ai" />Receptionist <b>{vm.answered.totals.ai}</b></span>
+                <span className="rp2-key"><i className="rp2-swatch you" />You <b>{vm.answered.totals.you}</b></span>
+                <span className="rp2-key"><i className="rp2-swatch none" />Unanswered <b>{vm.answered.totals.none}</b></span>
+              </div>
+              <RpStacked points={vm.answered.points} max={vm.answered.max} days={vm.days} />
+            </RpCard>
+
+            <div className="rp2-row">
+              <RpCard title="Why the receptionist stopped" sub={vm.reasons.length ? `${vm.tiles[3].value} times` : ""} testid="chart-reasons"
+                table={{ columns: ["Reason", "Times"], rows: vm.reasons.map((r) => [r.label, r.value]) }}>
+                <RpBars rows={vm.reasons} empty="It never stopped in this period — every message was answered without you." />
+              </RpCard>
+              <RpCard title="How fast it answers" sub="from a customer's message to the receptionist's reply" testid="chart-reply"
+                table={{ columns: ["Reply time", "Replies"], rows: vm.replyTime.buckets.map((b) => [b.label, b.value]) }}>
+                <RpBuckets rt={vm.replyTime} />
+              </RpCard>
+            </div>
+
+            <div className="rp2-row">
+              <RpCard title="Calls" sub={vm.calls.total ? `${vm.calls.total} calls · ${vm.calls.minutes} min · ${vm.calls.voicemail} to voicemail` : "no calls in this period"} testid="chart-calls"
+                table={{ columns: ["Day", "Calls", "Seconds"], rows: vm.calls.points.map((p) => [p.label, p.calls, p.callSeconds]) }}>
+                {vm.calls.total ? (
+                  <>
+                    <RpColumns points={vm.calls.points} field="calls" max={vm.calls.max} days={vm.days} label="calls" />
+                    {vm.calls.sentiments.length > 0 && (
+                      <div className="rp2-foot">Caller mood, the voice provider's own read: {vm.calls.sentiments.map((s) => `${s.label} ${s.value}`).join(" · ")}</div>
+                    )}
+                  </>
+                ) : <div className="rp2-empty">Nobody phoned in this period.</div>}
+              </RpCard>
+              <RpCard title="New people" sub={vm.people.total ? `${vm.people.total} first contacts, by evidence` : "nobody new"} testid="chart-people"
+                table={{ columns: ["Day", "New people"], rows: vm.people.points.map((p) => [p.label, p.newPeople]) }}>
+                {vm.people.total
+                  ? <RpColumns points={vm.people.points} field="newPeople" max={vm.people.max} days={vm.days} label="new people" />
+                  : <div className="rp2-empty">Nobody new wrote or called in this period.</div>}
+              </RpCard>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// A real workspace renders its own numbers; the seeded page keeps the demo.
+const ReportsPage = () => (window.__REPORTS === undefined ? <ReportsSeed /> : <ReportsReal />);
 
 window.ReportsPage = ReportsPage;

@@ -12,6 +12,8 @@ import {
   settingsOverride,
   todayOverride,
   type SurfaceOverride,
+  reportsOverride,
+  setReportDays,
 } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 import { clearSurfaceCache } from "./surface-cache";
@@ -314,6 +316,7 @@ export async function refreshSettings(): Promise<void> {
 
 declare global {
   interface Window {
+    __setReportDays?: (days: number) => Promise<void>;
     __setPolicy?: (cls: string, mode: string, replyDelayMs?: number) => Promise<VerbResult>;
     __refreshSettings?: () => Promise<void>;
     __inboxVerb: typeof inboxVerb;
@@ -352,8 +355,16 @@ export async function setPolicy(cls: string, mode: string, replyDelayMs?: number
   return r;
 }
 
+/** Reports: change the period and re-read through the runner, so the cache
+ *  and the pill agree with what is on screen. */
+export async function setReportRange(days: number): Promise<void> {
+  setReportDays(days);
+  await refreshSurfaces([reportsOverride]);
+}
+
 export function installInboxVerbs(): void {
   window.__inboxVerb = inboxVerb;
+  window.__setReportDays = setReportRange;
   window.__setPolicy = setPolicy;
   window.__refreshSettings = refreshSettings;
   window.__teamInvite = teamInvite;

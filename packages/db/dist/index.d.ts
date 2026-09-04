@@ -1695,6 +1695,13 @@ type Database = {
                 };
                 Returns: number;
             };
+            report_series: {
+                Args: {
+                    p_days?: number;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
             sweep_health: {
                 Args: never;
                 Returns: {

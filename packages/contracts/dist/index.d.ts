@@ -2541,4 +2541,131 @@ interface ChannelVM {
 }
 declare function toChannelVM(dto: ChannelDto, now?: Date): ChannelVM;
 
-export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, type BusinessProfile, BusinessProfileSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelVM, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, GuardrailsSchema, type Hours, type HoursRun, HoursSchema, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, PEOPLE_LISTS, PEOPLE_TABS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_STATE_LABELS, POLICY_CLASSES, POLICY_MODES, type PeopleAggregates, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, QUIET_AFTER_MS, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, ROLES, ROLE_PERMS, type ReceptionistTone, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TimelineKind, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, ago, asPersonMode, composeSystemPrompt, contactMeta, contactName, describeNow, draftSendsAtMs, err, formatPhoneDisplay, formatWaited, hasProfile, hoursRuns, initialsOf, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, messageAt, messageStatusLabel, messageText, newReceptionistDefaults, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, peopleAggregates, personName, personStateFor, reachedCustomer, reasonShort, recencyCells, replyDelayMs, resolveSystemPrompt, shortTime, threadStanding, toCallVM, toChannelVM, toConversationVM, toInboxThreadVM, toPersonRowVM, toPersonVM, toTodayVM, violatesNoPrices, waWindow };
+interface ReportDayDto {
+    day: string;
+    messages_in: number;
+    conversations: number;
+    answered_ai: number;
+    answered_you: number;
+    unanswered: number;
+    out_ai: number;
+    out_you: number;
+    escalations: number;
+    calls: number;
+    call_seconds: number;
+    new_contacts: number;
+}
+/** What `report_series(tenant, days)` returns. `series` spans TWO periods —
+ *  the requested one and the one before it — newest last. */
+interface ReportDto {
+    timezone: string;
+    days: number;
+    span_days: number;
+    today: string;
+    series: ReportDayDto[];
+    reasons: Record<string, number>;
+    reply_seconds: number[];
+    sentiments: Record<string, number>;
+    voicemail: number;
+    error?: string;
+}
+declare const REPORT_RANGES: readonly {
+    days: number;
+    id: string;
+    label: string;
+}[];
+interface ReportTileVM {
+    id: string;
+    label: string;
+    value: string;
+    meta: string;
+    /** Signed change against the previous period, or null when there is no
+     *  prior data to compare with (never a fabricated 0%). */
+    delta: {
+        text: string;
+        tone: "pos" | "neg" | "";
+    } | null;
+    /** One point per day of the current period, for the sparkline. */
+    spark: number[];
+}
+interface ReportPointVM {
+    day: string;
+    /** "Aug 28" */
+    label: string;
+    /** "28" */
+    short: string;
+    in: number;
+    ai: number;
+    you: number;
+    none: number;
+    calls: number;
+    callSeconds: number;
+    escalations: number;
+    newPeople: number;
+}
+interface ReportBarVM {
+    id: string;
+    label: string;
+    value: number;
+    /** 0..1 of the largest bar in its group. */
+    share: number;
+}
+interface ReportVM {
+    days: number;
+    rangeLabel: string;
+    since: string;
+    until: string;
+    timezone: string;
+    /** Nothing came in during the period: no customer message and no call. */
+    empty: boolean;
+    tiles: ReportTileVM[];
+    answered: {
+        points: ReportPointVM[];
+        totals: {
+            in: number;
+            ai: number;
+            you: number;
+            none: number;
+        };
+        max: number;
+    };
+    reasons: ReportBarVM[];
+    replyTime: {
+        count: number;
+        median: number | null;
+        p90: number | null;
+        medianLabel: string;
+        p90Label: string;
+        buckets: ReportBarVM[];
+    };
+    calls: {
+        points: ReportPointVM[];
+        total: number;
+        minutes: number;
+        voicemail: number;
+        sentiments: ReportBarVM[];
+        max: number;
+    };
+    people: {
+        points: ReportPointVM[];
+        total: number;
+        max: number;
+    };
+    table: {
+        columns: string[];
+        rows: (string | number)[][];
+    };
+}
+declare function fmtDay(day: string): string;
+/** "12s", "1m 05s", "14m", "2h 10m". */
+declare function fmtSeconds(s: number | null | undefined): string;
+declare function quantile(sorted: number[], q: number): number | null;
+/**
+ * Signed change vs the previous period. Null when the previous period has
+ * nothing to compare against: "+∞%" and "vs 0" are not information.
+ * `upIsGood` decides the tone; a change of zero has none.
+ */
+declare function deltaOf(current: number, previous: number, upIsGood: boolean, noun: string): ReportTileVM["delta"];
+declare function toReportVM(dto: ReportDto): ReportVM;
+
+export { ACTOR_TYPES, type ActorType, AppError, type BrainConfig, BrainConfigSchema, type BusinessProfile, BusinessProfileSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelVM, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, GuardrailsSchema, type Hours, type HoursRun, HoursSchema, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, PEOPLE_LISTS, PEOPLE_TABS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_STATE_LABELS, POLICY_CLASSES, POLICY_MODES, type PeopleAggregates, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, QUIET_AFTER_MS, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPORT_RANGES, ROLES, ROLE_PERMS, type ReceptionistTone, type ReportBarVM, type ReportDayDto, type ReportDto, type ReportPointVM, type ReportTileVM, type ReportVM, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TimelineKind, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, ago, asPersonMode, composeSystemPrompt, contactMeta, contactName, deltaOf, describeNow, draftSendsAtMs, err, fmtDay, fmtSeconds, formatPhoneDisplay, formatWaited, hasProfile, hoursRuns, initialsOf, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, messageAt, messageStatusLabel, messageText, newReceptionistDefaults, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, peopleAggregates, personName, personStateFor, quantile, reachedCustomer, reasonShort, recencyCells, replyDelayMs, resolveSystemPrompt, shortTime, threadStanding, toCallVM, toChannelVM, toConversationVM, toInboxThreadVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, violatesNoPrices, waWindow };
