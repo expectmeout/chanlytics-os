@@ -11,9 +11,12 @@ const ST_GROUPS = {
       { id: "clients", label: "Clients", to: "clients" },
       // badge is demo-only: LEADS is seed data, and this number rendered inside
       // otherwise-real chrome — a fabricated "4" one tab away from real threads.
-      { id: "leads", label: "Leads", to: "leads", badge: () => (window.__DEMO_MODE ? ((window.LEADS || []).filter(l => l.stage === "ready").length) || null : null), tip: "Leads scored ready — your call to make" },
-      { id: "pipeline", label: "Deal board", to: "pipeline", tip: "Deals are leads with money attached — same people, board view" },
-      { id: "segments", label: "Lists", to: "segments" },
+      // Leads, the deal board and saved lists are Tier 2: seed data with no
+      // table behind it. A real workspace sees Clients alone, so the strip
+      // hides itself rather than offering three Coming Soon panes.
+      { id: "leads", label: "Leads", to: "leads", demoOnly: true, badge: () => (window.__DEMO_MODE ? ((window.LEADS || []).filter(l => l.stage === "ready").length) || null : null), tip: "Leads scored ready — your call to make" },
+      { id: "pipeline", label: "Deal board", to: "pipeline", demoOnly: true, tip: "Deals are leads with money attached — same people, board view" },
+      { id: "segments", label: "Lists", to: "segments", demoOnly: true },
     ],
   },
   conversations: {
@@ -53,11 +56,13 @@ const SurfaceTabs = ({ page, param, onNavigate }) => {
   }, []);
   const group = Object.values(ST_GROUPS).find(g => g.match.includes(page));
   if (!group) return null;
+  const tabs = group.tabs.filter(t => !t.demoOnly || window.__DEMO_MODE);
+  if (tabs.length < 2) return null;
   // Detail views keep their focus: hide on a client profile
   if (page === "clients" && param && !param.startsWith("seg:")) return null;
   return (
     <nav className="stabs" aria-label="Section views">
-      {group.tabs.map(t => {
+      {tabs.map(t => {
         const badge = t.badge ? t.badge() : null;
         const pulse = t.pulse ? t.pulse() : false;
         return (

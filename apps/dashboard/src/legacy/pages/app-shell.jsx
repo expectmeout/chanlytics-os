@@ -303,22 +303,27 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
     pane = true;
     content = <ClientsA initialSegment={segId} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
   } else if (page === "clients" && param) {
-    const client = (window.CLIENTS || []).find(c => c.id === param);
+    // A real workspace resolves the person from the People surface; the
+    // profile fetches in full and says so itself when the id is not here.
+    const people = window.__PEOPLE;
+    const client = people ? people.rows.find(c => c.id === param) : (window.CLIENTS || []).find(c => c.id === param);
     activeNav = "clients";
     crumbs = ["People", { label: "Clients", to: "clients" }, client ? client.name : "Profile"];
     pane = true;
-    content = client
+    content = client || people
       ? <ClientProfile id={param} onBack={() => navigate("clients")} />
       : <ClientNotFound onNavigate={navigate} />;
   } else if (page === "clients") {
     activeNav = "clients";
     crumbs = ["People", "Clients"];
     pane = true;
-    primaryAction = (
+    // "Add client" opens the Ask overlay, which is demo theater; a real
+    // workspace gains people when they write or phone.
+    primaryAction = window.__DEMO_MODE ? (
       <button className="btn btn-sm" onClick={openAsk}>
         <Icon name="plus" size={12} /> Add client
       </button>
-    );
+    ) : null;
     content = <ClientsA onOpenProfile={(id) => navigate(`clients/${id}`)} />;
   } else if (page === "leads") {
     const srcParam = param && param.startsWith("src:") ? param.slice(4) : null;
