@@ -59,7 +59,12 @@ as $$
            case when coalesce(m.meta->>'backfill', 'false') = 'true'
                 then m.channel_ts
                 else coalesce(m.channel_ts, m.created_at) end as at,
-           coalesce(m.meta->>'backfill', 'false') = 'true' as backfill
+           coalesce(m.meta->>'backfill', 'false') = 'true' as backfill,
+           -- Something the customer actually saw or said. A reply still in its
+           -- cancel window, a canceled or failed send, an internal note and a
+           -- call's own summary row are not "the last word" in the thread.
+           m.type in ('text', 'template', 'media')
+             and m.status not in ('queued', 'canceled', 'failed') as spoken
       from messages m
      where m.tenant_id = p_tenant_id
        and m.contact_id is not null
@@ -115,7 +120,7 @@ as $$
   left join lateral (
     select e.at, e.direction, e.sender
       from ev e
-     where e.contact_id = c.id and e.at is not null and e.type <> 'call_summary'
+     where e.contact_id = c.id and e.at is not null and e.spoken
      order by e.at desc
      limit 1
   ) lm on true
@@ -123,15 +128,15 @@ as $$
     select e.at, e.body
       from ev e
      where e.contact_id = c.id and e.at is not null
-       and e.direction = 'inbound' and e.type <> 'call_summary' and e.body is not null
+       and e.direction = 'inbound' and e.spoken and e.body is not null
      order by e.at desc
      limit 1
   ) li on true
   left join lateral (
-    select min(e.at) filter (where e.type <> 'call_summary') as first_at,
+    select min(e.at) filter (where e.spoken) as first_at,
            min(e.created_at) as first_row_at,
            bool_or(e.backfill) as has_backfill,
-           bool_or(e.type <> 'call_summary') as has_chat,
+           bool_or(e.type in ('text', 'template', 'media')) as has_chat,
            max(e.created_at) filter (where e.direction = 'outbound' and e.status = 'queued') as queued_at
       from ev e where e.contact_id = c.id
   ) ma on true
