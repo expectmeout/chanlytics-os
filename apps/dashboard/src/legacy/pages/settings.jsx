@@ -517,6 +517,10 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   const [langs, setLangs] = useSetState(() => (p0.languages || []).slice());
   const [langAdd, setLangAdd] = useSetState("");
   const [escalate, setEscalate] = useSetState((p0.escalate_when || []).join("\n"));
+  const [handoff, setHandoff] = useSetState(p0.handoff_number || "");
+  const [website, setWebsite] = useSetState(p0.website || "");
+  const [notes, setNotes] = useSetState(() => (p0.notes || []).map((x) => ({ ...x })));
+  const setNote = (i, k, v) => setNotes((l) => l.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
   // Pre-filled with the workspace's existing instructions the first time this
   // is opened, so nothing a business already told its receptionist quietly
   // disappears the moment it fills in a form. Visible, and theirs to trim.
@@ -544,6 +548,9 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     never_quote_prices: (p0.guardrails || {}).never_quote_prices !== false,
     never_confirm_booking: (p0.guardrails || {}).never_confirm_booking !== false,
     disclose_ai: (p0.guardrails || {}).disclose_ai !== false,
+    // Opt-in, unlike the three above: a rule that defaulted on would have
+    // changed every composed prompt already live the moment it shipped.
+    no_health_advice: (p0.guardrails || {}).no_health_advice === true,
   }));
   const [saving, setSaving] = useSetState(false);
 
@@ -680,6 +687,35 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     const esc = escalate.split("\n").map((x) => x.trim()).filter(Boolean);
     put("escalate_when", esc.length ? esc : undefined);
     put("extra_instructions", extra.trim() || undefined);
+    // The handoff line is stored as E.164 whatever was typed — "(646) 932-5775"
+    // becomes +16469325775 only if a country code was given, because a bare
+    // ten-digit number is a guess about the country and a transfer tool
+    // dialling a guess rings a stranger.
+    const handoffRaw = handoff.trim();
+    const handoffNorm = handoffRaw ? "+" + handoffRaw.replace(/[^0-9]/g, "") : "";
+    if (handoffRaw && !(/^\+/.test(handoffRaw) && /^\+[1-9][0-9]{6,14}$/.test(handoffNorm))) {
+      flash({ msg: <>The handoff number needs the country code, like +1 646 932 5775.</> });
+      return;
+    }
+    if (handoffNorm && handoffNorm === "+" + phoneDisplay.replace(/[^0-9]/g, "")) {
+      flash({ msg: <>The handoff number is the receptionist's own line — it would ring itself. Use a line a person answers.</> });
+      return;
+    }
+    put("handoff_number", handoffNorm || undefined);
+    const site = website.trim();
+    if (site && !/^https?:\/\/.+\..+/.test(site)) {
+      flash({ msg: <>The website needs to be a full web address, starting with https://</> });
+      return;
+    }
+    put("website", site || undefined);
+    const noteRows = notes
+      .map((n) => ({ title: (n.title || "").trim(), text: (n.text || "").trim() }))
+      .filter((n) => n.title || n.text);
+    if (noteRows.some((n) => !n.title || !n.text)) {
+      flash({ msg: <>Each note needs both a title and the text to say.</> });
+      return;
+    }
+    put("notes", noteRows.length ? noteRows : undefined);
     const hrs = {};
     SET_DAYS.forEach(([d]) => {
       const x = hours[d];
@@ -854,6 +890,36 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       </div>
 
       <div className="set-sec">
+        <SetSectionHead title="How callers reach a person" hint="The phone receptionist transfers here during opening hours" />
+        <input
+          className="set-input"
+          value={handoff}
+          onChange={(e) => setHandoff(e.target.value)}
+          placeholder="+1 646 932 5775"
+          inputMode="tel"
+          autoComplete="tel"
+          aria-label="Handoff number"
+        />
+        <div className="set-sec-note">
+          A line a person answers, with the country code. Leave it empty and the phone
+          receptionist takes a message instead of transferring. Never the receptionist's own line.
+        </div>
+      </div>
+
+      <div className="set-sec">
+        <SetSectionHead title="Website" hint="Optional — given when someone asks" />
+        <input
+          className="set-input"
+          value={website}
+          onChange={(e) => setWebsite(e.target.value)}
+          placeholder="https://example.com"
+          inputMode="url"
+          autoComplete="url"
+          aria-label="Website"
+        />
+      </div>
+
+      <div className="set-sec">
         <SetSectionHead
           title="When you are open"
           hint={openDays ? `${openDays} ${openDays === 1 ? "day" : "days"} a week` : "Not set — it cannot answer this yet"}
@@ -1024,11 +1090,26 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       </div>
 
       <div className="set-sec">
+        <SetSectionHead title="Other things it should know" hint="One topic each — the academy, chair rental, parking. Both receptionists say these." />
+        {notes.map((n, i) => (
+          <div key={i} className="set-note-row">
+            <input className="set-input" value={n.title || ""} placeholder="Chair rental" aria-label="Note title" onChange={(e) => setNote(i, "title", e.target.value)} />
+            <textarea className="set-input set-textarea" rows={2} value={n.text || ""} placeholder="Stylists can rent a chair by the week — ask for the owner." aria-label="Note text" onChange={(e) => setNote(i, "text", e.target.value)} />
+            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${n.title || "note"}`} onClick={() => setNotes((l) => l.filter((_, j) => j !== i))}><Icon name="x" size={12} /></button>
+          </div>
+        ))}
+        {notes.length < 10 && (
+          <button type="button" className="btn btn-sm" onClick={() => setNotes((l) => [...l, { title: "", text: "" }])}><Icon name="plus" size={12} /> Add a note</button>
+        )}
+      </div>
+
+      <div className="set-sec">
         <SetSectionHead title="Rules it always follows" hint="These stay in force whatever else you write below" />
         {[
           ["never_quote_prices", "Never quote or confirm a price", "It offers a consult or the booking link instead"],
           ["never_confirm_booking", "Never confirm an appointment itself", "Booking happens on your link or with your staff"],
           ["disclose_ai", "Say it is an assistant if asked", "And offer to bring in a person"],
+          ["no_health_advice", "Never give health advice", "Skin reactions, allergies, pregnancy, medication — a professional advises at the appointment"],
         ].map(([k, label, hint]) => (
           <div key={k} className="set-rule">
             <button

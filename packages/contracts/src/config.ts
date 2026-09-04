@@ -159,8 +159,32 @@ export const GuardrailsSchema = z
     never_quote_prices: z.boolean().optional(),
     never_confirm_booking: z.boolean().optional(),
     disclose_ai: z.boolean().optional(),
+    /**
+     * OPT-IN, unlike the three above. Those default on because absent means
+     * "the safe reading"; this one arrived after prompts were live, and a
+     * rule that defaulted on would have changed every composed prompt in
+     * production the moment it deployed.
+     */
+    no_health_advice: z.boolean().optional(),
   })
   .strict();
+
+/**
+ * A thing the receptionist should know that fits no field — the academy, the
+ * chair rental, the parking. One topic each, said by BOTH receptionists. The
+ * long tail that a knowledge base would hold later; never the hours or the
+ * booking link, which have fields.
+ */
+export const NoteSchema = z
+  .object({
+    title: z.string().min(1).max(80),
+    text: z.string().min(1).max(1200),
+  })
+  .strict();
+export type Note = z.infer<typeof NoteSchema>;
+
+/** E.164: a plus, then 7–15 digits, no leading zero. */
+export const E164 = /^\+[1-9]\d{6,14}$/;
 
 export const BusinessProfileSchema = z
   .object({
@@ -174,6 +198,14 @@ export const BusinessProfileSchema = z
     /** What must reach a person. One short line each. */
     escalate_when: z.array(z.string().min(1).max(200)).max(20).optional(),
     tone: z.string().max(200).optional(),
+    /**
+     * The line a PERSON answers. The phone receptionist warm-transfers here
+     * during opening hours; absent, it takes a message instead. Never the
+     * receptionist's own line — that would ring itself.
+     */
+    handoff_number: z.string().regex(E164, "E.164, like +16469325775").optional(),
+    website: z.string().url().max(500).optional(),
+    notes: z.array(NoteSchema).max(10).optional(),
     /**
      * Anything the owner wants said that no field covers.
      *
@@ -579,7 +611,8 @@ export function hasProfile(p: BusinessProfile | undefined | null): boolean {
   // from a config nobody touched.
   return !!(
     p.address || p.tone || p.extra_instructions || statedHours ||
-    p.services?.length || p.languages?.length || p.escalate_when?.length
+    p.services?.length || p.languages?.length || p.escalate_when?.length ||
+    p.website || p.notes?.length
   );
 }
 
@@ -743,11 +776,19 @@ export function composeSystemPrompt(
   const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
   if (profile.tone) s.push(`Tone: ${profile.tone}`);
-  if (profile.languages?.length) s.push(`You speak: ${profile.languages.join(", ")}.`);
+  if (profile.languages?.length) {
+    s.push(
+      `You speak: ${profile.languages.join(", ")}.` +
+        // A caller picks the language by speaking it; nobody asks a phone
+        // agent to "reply in Spanish".
+        (channel === "voice" ? " Answer in whichever of these the caller uses, and switch if they do." : ""),
+    );
+  }
 
   if (profile.address) s.push(`\nAddress: ${profile.address}`);
   s.push(`Phone: ${base.phone_display}`);
   s.push(`Booking link: ${base.booking_link}`);
+  if (profile.website) s.push(`Website: ${profile.website}`);
 
   const hrs = hoursLines(profile.hours);
   if (hrs.length) {
@@ -782,6 +823,10 @@ export function composeSystemPrompt(
     s.push(`\nServices:\n${lines.join("\n")}`);
   }
 
+  if (profile.notes?.length) {
+    s.push(`\nOther things to know:\n${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
+  }
+
   // HOW to hand off, not just when — and unconditionally, because the product
   // promise depends on it.
   //
@@ -811,8 +856,34 @@ export function composeSystemPrompt(
         `Do this whenever the customer asks for a person, is upset, or asks something ` +
         `these instructions do not cover${when ? ", and whenever:" : "."}${when}`,
     );
-  } else if (profile.escalate_when?.length) {
-    s.push(`\nHand the conversation to a person when:\n${profile.escalate_when.map((e) => `- ${e}`).join("\n")}`);
+  } else {
+    // The phone has real mechanics where WhatsApp has a token: a transfer
+    // tool, a booking-link tool and an end-call tool, all defined on the Retell
+    // shell (packages/channels/src/voice-shell.ts). The prompt has to name
+    // them and say when, or the model reads "hand the caller to a person",
+    // has no idea how, and says "let me get someone" to nobody.
+    //
+    // Only a workspace WITH a handoff line is told to transfer. The tool
+    // exists on the shell regardless, dialling `{{handoff_number}}`; with no
+    // line the variable is empty, and an agent told to use it would ring
+    // nothing and go quiet on the caller.
+    const when = profile.escalate_when?.length
+      ? `\n${profile.escalate_when.map((e) => `- ${e}`).join("\n")}`
+      : "";
+    const staffed = profile.handoff_number
+      ? "Use transfer_to_staff during opening hours — it rings the line a person answers, and you stay on until they pick up. " +
+        "Outside opening hours, or if the transfer does not connect, take the caller's name and a short message and say the team will follow up."
+      : "There is no line to transfer to. Take the caller's name and a short message and say the team will follow up.";
+    s.push(
+      `\nHanding the caller to a person:\n${staffed}\n` +
+        `Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`,
+    );
+    s.push(
+      "\nBooking: when the caller wants to book, use send_booking_link — it texts the booking link to the number they are calling from, " +
+        "so do not ask them for a number unless they want it sent somewhere else. Then confirm it was sent. " +
+        "If it fails, give the phone number above and offer to have someone follow up.\n" +
+        "Ending: once the caller has said goodbye, use end_call.",
+    );
   }
 
   if (profile.extra_instructions?.trim()) {
@@ -870,6 +941,9 @@ export function composeSystemPrompt(
   }
   if (g.disclose_ai !== false) {
     rules.push("If asked whether you are a bot, a person, or AI, say plainly that you are the business's automated assistant and offer to bring in a person.");
+  }
+  if (g.no_health_advice === true) {
+    rules.push("Never give medical or health advice — for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment and offer the booking link.");
   }
   if (rules.length) s.push(`\nRules you must follow:\n${rules.map((r) => `- ${r}`).join("\n")}`);
 

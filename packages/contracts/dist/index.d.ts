@@ -865,15 +865,43 @@ declare const GuardrailsSchema: z.ZodObject<{
     never_quote_prices: z.ZodOptional<z.ZodBoolean>;
     never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
     disclose_ai: z.ZodOptional<z.ZodBoolean>;
+    /**
+     * OPT-IN, unlike the three above. Those default on because absent means
+     * "the safe reading"; this one arrived after prompts were live, and a
+     * rule that defaulted on would have changed every composed prompt in
+     * production the moment it deployed.
+     */
+    no_health_advice: z.ZodOptional<z.ZodBoolean>;
 }, "strict", z.ZodTypeAny, {
     never_quote_prices?: boolean | undefined;
     never_confirm_booking?: boolean | undefined;
     disclose_ai?: boolean | undefined;
+    no_health_advice?: boolean | undefined;
 }, {
     never_quote_prices?: boolean | undefined;
     never_confirm_booking?: boolean | undefined;
     disclose_ai?: boolean | undefined;
+    no_health_advice?: boolean | undefined;
 }>;
+/**
+ * A thing the receptionist should know that fits no field — the academy, the
+ * chair rental, the parking. One topic each, said by BOTH receptionists. The
+ * long tail that a knowledge base would hold later; never the hours or the
+ * booking link, which have fields.
+ */
+declare const NoteSchema: z.ZodObject<{
+    title: z.ZodString;
+    text: z.ZodString;
+}, "strict", z.ZodTypeAny, {
+    text: string;
+    title: string;
+}, {
+    text: string;
+    title: string;
+}>;
+type Note = z.infer<typeof NoteSchema>;
+/** E.164: a plus, then 7–15 digits, no leading zero. */
+declare const E164: RegExp;
 declare const BusinessProfileSchema: z.ZodObject<{
     address: z.ZodOptional<z.ZodString>;
     hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<["mon", "tue", "wed", "thu", "fri", "sat", "sun"]>, z.ZodObject<{
@@ -948,18 +976,44 @@ declare const BusinessProfileSchema: z.ZodObject<{
         never_quote_prices: z.ZodOptional<z.ZodBoolean>;
         never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
         disclose_ai: z.ZodOptional<z.ZodBoolean>;
+        /**
+         * OPT-IN, unlike the three above. Those default on because absent means
+         * "the safe reading"; this one arrived after prompts were live, and a
+         * rule that defaulted on would have changed every composed prompt in
+         * production the moment it deployed.
+         */
+        no_health_advice: z.ZodOptional<z.ZodBoolean>;
     }, "strict", z.ZodTypeAny, {
         never_quote_prices?: boolean | undefined;
         never_confirm_booking?: boolean | undefined;
         disclose_ai?: boolean | undefined;
+        no_health_advice?: boolean | undefined;
     }, {
         never_quote_prices?: boolean | undefined;
         never_confirm_booking?: boolean | undefined;
         disclose_ai?: boolean | undefined;
+        no_health_advice?: boolean | undefined;
     }>>;
     /** What must reach a person. One short line each. */
     escalate_when: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
     tone: z.ZodOptional<z.ZodString>;
+    /**
+     * The line a PERSON answers. The phone receptionist warm-transfers here
+     * during opening hours; absent, it takes a message instead. Never the
+     * receptionist's own line — that would ring itself.
+     */
+    handoff_number: z.ZodOptional<z.ZodString>;
+    website: z.ZodOptional<z.ZodString>;
+    notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        title: z.ZodString;
+        text: z.ZodString;
+    }, "strict", z.ZodTypeAny, {
+        text: string;
+        title: string;
+    }, {
+        text: string;
+        title: string;
+    }>, "many">>;
     /**
      * Anything the owner wants said that no field covers.
      *
@@ -993,9 +1047,16 @@ declare const BusinessProfileSchema: z.ZodObject<{
         never_quote_prices?: boolean | undefined;
         never_confirm_booking?: boolean | undefined;
         disclose_ai?: boolean | undefined;
+        no_health_advice?: boolean | undefined;
     } | undefined;
     escalate_when?: string[] | undefined;
     tone?: string | undefined;
+    handoff_number?: string | undefined;
+    website?: string | undefined;
+    notes?: {
+        text: string;
+        title: string;
+    }[] | undefined;
     extra_instructions?: string | undefined;
 }, {
     address?: string | undefined;
@@ -1022,9 +1083,16 @@ declare const BusinessProfileSchema: z.ZodObject<{
         never_quote_prices?: boolean | undefined;
         never_confirm_booking?: boolean | undefined;
         disclose_ai?: boolean | undefined;
+        no_health_advice?: boolean | undefined;
     } | undefined;
     escalate_when?: string[] | undefined;
     tone?: string | undefined;
+    handoff_number?: string | undefined;
+    website?: string | undefined;
+    notes?: {
+        text: string;
+        title: string;
+    }[] | undefined;
     extra_instructions?: string | undefined;
 }>;
 type BusinessProfile = z.infer<typeof BusinessProfileSchema>;
@@ -1120,18 +1188,44 @@ declare const BrainConfigSchema: z.ZodObject<{
             never_quote_prices: z.ZodOptional<z.ZodBoolean>;
             never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
             disclose_ai: z.ZodOptional<z.ZodBoolean>;
+            /**
+             * OPT-IN, unlike the three above. Those default on because absent means
+             * "the safe reading"; this one arrived after prompts were live, and a
+             * rule that defaulted on would have changed every composed prompt in
+             * production the moment it deployed.
+             */
+            no_health_advice: z.ZodOptional<z.ZodBoolean>;
         }, "strict", z.ZodTypeAny, {
             never_quote_prices?: boolean | undefined;
             never_confirm_booking?: boolean | undefined;
             disclose_ai?: boolean | undefined;
+            no_health_advice?: boolean | undefined;
         }, {
             never_quote_prices?: boolean | undefined;
             never_confirm_booking?: boolean | undefined;
             disclose_ai?: boolean | undefined;
+            no_health_advice?: boolean | undefined;
         }>>;
         /** What must reach a person. One short line each. */
         escalate_when: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         tone: z.ZodOptional<z.ZodString>;
+        /**
+         * The line a PERSON answers. The phone receptionist warm-transfers here
+         * during opening hours; absent, it takes a message instead. Never the
+         * receptionist's own line — that would ring itself.
+         */
+        handoff_number: z.ZodOptional<z.ZodString>;
+        website: z.ZodOptional<z.ZodString>;
+        notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            title: z.ZodString;
+            text: z.ZodString;
+        }, "strict", z.ZodTypeAny, {
+            text: string;
+            title: string;
+        }, {
+            text: string;
+            title: string;
+        }>, "many">>;
         /**
          * Anything the owner wants said that no field covers.
          *
@@ -1165,9 +1259,16 @@ declare const BrainConfigSchema: z.ZodObject<{
             never_quote_prices?: boolean | undefined;
             never_confirm_booking?: boolean | undefined;
             disclose_ai?: boolean | undefined;
+            no_health_advice?: boolean | undefined;
         } | undefined;
         escalate_when?: string[] | undefined;
         tone?: string | undefined;
+        handoff_number?: string | undefined;
+        website?: string | undefined;
+        notes?: {
+            text: string;
+            title: string;
+        }[] | undefined;
         extra_instructions?: string | undefined;
     }, {
         address?: string | undefined;
@@ -1194,9 +1295,16 @@ declare const BrainConfigSchema: z.ZodObject<{
             never_quote_prices?: boolean | undefined;
             never_confirm_booking?: boolean | undefined;
             disclose_ai?: boolean | undefined;
+            no_health_advice?: boolean | undefined;
         } | undefined;
         escalate_when?: string[] | undefined;
         tone?: string | undefined;
+        handoff_number?: string | undefined;
+        website?: string | undefined;
+        notes?: {
+            text: string;
+            title: string;
+        }[] | undefined;
         extra_instructions?: string | undefined;
     }>>;
     fallbacks: z.ZodObject<{
@@ -1250,9 +1358,16 @@ declare const BrainConfigSchema: z.ZodObject<{
             never_quote_prices?: boolean | undefined;
             never_confirm_booking?: boolean | undefined;
             disclose_ai?: boolean | undefined;
+            no_health_advice?: boolean | undefined;
         } | undefined;
         escalate_when?: string[] | undefined;
         tone?: string | undefined;
+        handoff_number?: string | undefined;
+        website?: string | undefined;
+        notes?: {
+            text: string;
+            title: string;
+        }[] | undefined;
         extra_instructions?: string | undefined;
     } | undefined;
 }, {
@@ -1290,9 +1405,16 @@ declare const BrainConfigSchema: z.ZodObject<{
             never_quote_prices?: boolean | undefined;
             never_confirm_booking?: boolean | undefined;
             disclose_ai?: boolean | undefined;
+            no_health_advice?: boolean | undefined;
         } | undefined;
         escalate_when?: string[] | undefined;
         tone?: string | undefined;
+        handoff_number?: string | undefined;
+        website?: string | undefined;
+        notes?: {
+            text: string;
+            title: string;
+        }[] | undefined;
         extra_instructions?: string | undefined;
     } | undefined;
 }>;
@@ -1436,18 +1558,44 @@ declare const TenantConfigSchema: z.ZodObject<{
                 never_quote_prices: z.ZodOptional<z.ZodBoolean>;
                 never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
                 disclose_ai: z.ZodOptional<z.ZodBoolean>;
+                /**
+                 * OPT-IN, unlike the three above. Those default on because absent means
+                 * "the safe reading"; this one arrived after prompts were live, and a
+                 * rule that defaulted on would have changed every composed prompt in
+                 * production the moment it deployed.
+                 */
+                no_health_advice: z.ZodOptional<z.ZodBoolean>;
             }, "strict", z.ZodTypeAny, {
                 never_quote_prices?: boolean | undefined;
                 never_confirm_booking?: boolean | undefined;
                 disclose_ai?: boolean | undefined;
+                no_health_advice?: boolean | undefined;
             }, {
                 never_quote_prices?: boolean | undefined;
                 never_confirm_booking?: boolean | undefined;
                 disclose_ai?: boolean | undefined;
+                no_health_advice?: boolean | undefined;
             }>>;
             /** What must reach a person. One short line each. */
             escalate_when: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
             tone: z.ZodOptional<z.ZodString>;
+            /**
+             * The line a PERSON answers. The phone receptionist warm-transfers here
+             * during opening hours; absent, it takes a message instead. Never the
+             * receptionist's own line — that would ring itself.
+             */
+            handoff_number: z.ZodOptional<z.ZodString>;
+            website: z.ZodOptional<z.ZodString>;
+            notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                title: z.ZodString;
+                text: z.ZodString;
+            }, "strict", z.ZodTypeAny, {
+                text: string;
+                title: string;
+            }, {
+                text: string;
+                title: string;
+            }>, "many">>;
             /**
              * Anything the owner wants said that no field covers.
              *
@@ -1481,9 +1629,16 @@ declare const TenantConfigSchema: z.ZodObject<{
                 never_quote_prices?: boolean | undefined;
                 never_confirm_booking?: boolean | undefined;
                 disclose_ai?: boolean | undefined;
+                no_health_advice?: boolean | undefined;
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
+            handoff_number?: string | undefined;
+            website?: string | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
             extra_instructions?: string | undefined;
         }, {
             address?: string | undefined;
@@ -1510,9 +1665,16 @@ declare const TenantConfigSchema: z.ZodObject<{
                 never_quote_prices?: boolean | undefined;
                 never_confirm_booking?: boolean | undefined;
                 disclose_ai?: boolean | undefined;
+                no_health_advice?: boolean | undefined;
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
+            handoff_number?: string | undefined;
+            website?: string | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
             extra_instructions?: string | undefined;
         }>>;
         fallbacks: z.ZodObject<{
@@ -1566,9 +1728,16 @@ declare const TenantConfigSchema: z.ZodObject<{
                 never_quote_prices?: boolean | undefined;
                 never_confirm_booking?: boolean | undefined;
                 disclose_ai?: boolean | undefined;
+                no_health_advice?: boolean | undefined;
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
+            handoff_number?: string | undefined;
+            website?: string | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
             extra_instructions?: string | undefined;
         } | undefined;
     }, {
@@ -1606,9 +1775,16 @@ declare const TenantConfigSchema: z.ZodObject<{
                 never_quote_prices?: boolean | undefined;
                 never_confirm_booking?: boolean | undefined;
                 disclose_ai?: boolean | undefined;
+                no_health_advice?: boolean | undefined;
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
+            handoff_number?: string | undefined;
+            website?: string | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
             extra_instructions?: string | undefined;
         } | undefined;
     }>>;
@@ -1658,9 +1834,16 @@ declare const TenantConfigSchema: z.ZodObject<{
                 never_quote_prices?: boolean | undefined;
                 never_confirm_booking?: boolean | undefined;
                 disclose_ai?: boolean | undefined;
+                no_health_advice?: boolean | undefined;
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
+            handoff_number?: string | undefined;
+            website?: string | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
             extra_instructions?: string | undefined;
         } | undefined;
     } | undefined;
@@ -1704,9 +1887,16 @@ declare const TenantConfigSchema: z.ZodObject<{
                 never_quote_prices?: boolean | undefined;
                 never_confirm_booking?: boolean | undefined;
                 disclose_ai?: boolean | undefined;
+                no_health_advice?: boolean | undefined;
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
+            handoff_number?: string | undefined;
+            website?: string | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
             extra_instructions?: string | undefined;
         } | undefined;
     } | undefined;
@@ -1818,18 +2008,44 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 never_quote_prices: z.ZodOptional<z.ZodBoolean>;
                 never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
                 disclose_ai: z.ZodOptional<z.ZodBoolean>;
+                /**
+                 * OPT-IN, unlike the three above. Those default on because absent means
+                 * "the safe reading"; this one arrived after prompts were live, and a
+                 * rule that defaulted on would have changed every composed prompt in
+                 * production the moment it deployed.
+                 */
+                no_health_advice: z.ZodOptional<z.ZodBoolean>;
             }, "strict", z.ZodTypeAny, {
                 never_quote_prices?: boolean | undefined;
                 never_confirm_booking?: boolean | undefined;
                 disclose_ai?: boolean | undefined;
+                no_health_advice?: boolean | undefined;
             }, {
                 never_quote_prices?: boolean | undefined;
                 never_confirm_booking?: boolean | undefined;
                 disclose_ai?: boolean | undefined;
+                no_health_advice?: boolean | undefined;
             }>>;
             /** What must reach a person. One short line each. */
             escalate_when: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
             tone: z.ZodOptional<z.ZodString>;
+            /**
+             * The line a PERSON answers. The phone receptionist warm-transfers here
+             * during opening hours; absent, it takes a message instead. Never the
+             * receptionist's own line — that would ring itself.
+             */
+            handoff_number: z.ZodOptional<z.ZodString>;
+            website: z.ZodOptional<z.ZodString>;
+            notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                title: z.ZodString;
+                text: z.ZodString;
+            }, "strict", z.ZodTypeAny, {
+                text: string;
+                title: string;
+            }, {
+                text: string;
+                title: string;
+            }>, "many">>;
             /**
              * Anything the owner wants said that no field covers.
              *
@@ -1863,9 +2079,16 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 never_quote_prices?: boolean | undefined;
                 never_confirm_booking?: boolean | undefined;
                 disclose_ai?: boolean | undefined;
+                no_health_advice?: boolean | undefined;
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
+            handoff_number?: string | undefined;
+            website?: string | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
             extra_instructions?: string | undefined;
         }, {
             address?: string | undefined;
@@ -1892,9 +2115,16 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 never_quote_prices?: boolean | undefined;
                 never_confirm_booking?: boolean | undefined;
                 disclose_ai?: boolean | undefined;
+                no_health_advice?: boolean | undefined;
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
+            handoff_number?: string | undefined;
+            website?: string | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
             extra_instructions?: string | undefined;
         }>>;
         fallbacks: z.ZodObject<{
@@ -1948,9 +2178,16 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 never_quote_prices?: boolean | undefined;
                 never_confirm_booking?: boolean | undefined;
                 disclose_ai?: boolean | undefined;
+                no_health_advice?: boolean | undefined;
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
+            handoff_number?: string | undefined;
+            website?: string | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
             extra_instructions?: string | undefined;
         } | undefined;
     }, {
@@ -1988,9 +2225,16 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 never_quote_prices?: boolean | undefined;
                 never_confirm_booking?: boolean | undefined;
                 disclose_ai?: boolean | undefined;
+                no_health_advice?: boolean | undefined;
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
+            handoff_number?: string | undefined;
+            website?: string | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
             extra_instructions?: string | undefined;
         } | undefined;
     }>>;
@@ -2040,9 +2284,16 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 never_quote_prices?: boolean | undefined;
                 never_confirm_booking?: boolean | undefined;
                 disclose_ai?: boolean | undefined;
+                no_health_advice?: boolean | undefined;
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
+            handoff_number?: string | undefined;
+            website?: string | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
             extra_instructions?: string | undefined;
         } | undefined;
     } | undefined;
@@ -2086,9 +2337,16 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 never_quote_prices?: boolean | undefined;
                 never_confirm_booking?: boolean | undefined;
                 disclose_ai?: boolean | undefined;
+                no_health_advice?: boolean | undefined;
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
+            handoff_number?: string | undefined;
+            website?: string | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
             extra_instructions?: string | undefined;
         } | undefined;
     } | undefined;
@@ -2132,9 +2390,16 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 never_quote_prices?: boolean | undefined;
                 never_confirm_booking?: boolean | undefined;
                 disclose_ai?: boolean | undefined;
+                no_health_advice?: boolean | undefined;
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
+            handoff_number?: string | undefined;
+            website?: string | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
             extra_instructions?: string | undefined;
         } | undefined;
     } | undefined;
@@ -2178,9 +2443,16 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 never_quote_prices?: boolean | undefined;
                 never_confirm_booking?: boolean | undefined;
                 disclose_ai?: boolean | undefined;
+                no_health_advice?: boolean | undefined;
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
+            handoff_number?: string | undefined;
+            website?: string | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
             extra_instructions?: string | undefined;
         } | undefined;
     } | undefined;
@@ -2761,4 +3033,4 @@ declare function fmtClock(seconds: number): string;
 declare function toLiveCallVM(dto: CallDto, now?: Date): LiveCallVM;
 declare function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, now?: Date): LiveVM;
 
-export { ACTOR_TYPES, ANALYSIS_GRACE_MS, type ActorType, AppError, type BrainConfig, BrainConfigSchema, type BusinessProfile, BusinessProfileSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelVM, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, GuardrailsSchema, type Hours, type HoursRun, HoursSchema, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, PEOPLE_LISTS, PEOPLE_TABS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_STATE_LABELS, POLICY_CLASSES, POLICY_MODES, type PeopleAggregates, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, QUIET_AFTER_MS, RECENT_MAX, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPORT_RANGES, ROLES, ROLE_PERMS, type ReceptionistTone, type ReportBarVM, type ReportDayDto, type ReportDto, type ReportPointVM, type ReportTileVM, type ReportVM, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TimelineKind, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, ago, asPersonMode, composeSystemPrompt, contactMeta, contactName, deltaOf, describeNow, draftSendsAtMs, err, fmtClock, fmtDay, fmtSeconds, formatPhoneDisplay, formatWaited, hasProfile, hoursRuns, initialsOf, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, messageAt, messageStatusLabel, messageText, newReceptionistDefaults, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, peopleAggregates, personName, personStateFor, pointsDelta, quantile, reachedCustomer, reasonShort, recencyCells, replyDelayMs, resolveSystemPrompt, shortTime, threadStanding, toCallVM, toChannelVM, toConversationVM, toInboxThreadVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, violatesNoPrices, waWindow };
+export { ACTOR_TYPES, ANALYSIS_GRACE_MS, type ActorType, AppError, type BrainConfig, BrainConfigSchema, type BusinessProfile, BusinessProfileSchema, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CallDto, type CallVM, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelVM, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, E164, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, GuardrailsSchema, type Hours, type HoursRun, HoursSchema, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type Note, NoteSchema, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, PEOPLE_LISTS, PEOPLE_TABS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_STATE_LABELS, POLICY_CLASSES, POLICY_MODES, type PeopleAggregates, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, QUIET_AFTER_MS, RECENT_MAX, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPORT_RANGES, ROLES, ROLE_PERMS, type ReceptionistTone, type ReportBarVM, type ReportDayDto, type ReportDto, type ReportPointVM, type ReportTileVM, type ReportVM, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TimelineKind, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, ago, asPersonMode, composeSystemPrompt, contactMeta, contactName, deltaOf, describeNow, draftSendsAtMs, err, fmtClock, fmtDay, fmtSeconds, formatPhoneDisplay, formatWaited, hasProfile, hoursRuns, initialsOf, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, messageAt, messageStatusLabel, messageText, newReceptionistDefaults, normalizePhone, ok, parseTenantConfig, parseTenantConfigResult, peopleAggregates, personName, personStateFor, pointsDelta, quantile, reachedCustomer, reasonShort, recencyCells, replyDelayMs, resolveSystemPrompt, shortTime, threadStanding, toCallVM, toChannelVM, toConversationVM, toInboxThreadVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, violatesNoPrices, waWindow };

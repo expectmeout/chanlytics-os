@@ -4116,8 +4116,20 @@ var ServiceSchema = external_exports.object({
 var GuardrailsSchema = external_exports.object({
   never_quote_prices: external_exports.boolean().optional(),
   never_confirm_booking: external_exports.boolean().optional(),
-  disclose_ai: external_exports.boolean().optional()
+  disclose_ai: external_exports.boolean().optional(),
+  /**
+   * OPT-IN, unlike the three above. Those default on because absent means
+   * "the safe reading"; this one arrived after prompts were live, and a
+   * rule that defaulted on would have changed every composed prompt in
+   * production the moment it deployed.
+   */
+  no_health_advice: external_exports.boolean().optional()
 }).strict();
+var NoteSchema = external_exports.object({
+  title: external_exports.string().min(1).max(80),
+  text: external_exports.string().min(1).max(1200)
+}).strict();
+var E164 = /^\+[1-9]\d{6,14}$/;
 var BusinessProfileSchema = external_exports.object({
   address: external_exports.string().max(300).optional(),
   hours: external_exports.record(external_exports.enum(DAYS), HoursSchema).optional(),
@@ -4129,6 +4141,14 @@ var BusinessProfileSchema = external_exports.object({
   /** What must reach a person. One short line each. */
   escalate_when: external_exports.array(external_exports.string().min(1).max(200)).max(20).optional(),
   tone: external_exports.string().max(200).optional(),
+  /**
+   * The line a PERSON answers. The phone receptionist warm-transfers here
+   * during opening hours; absent, it takes a message instead. Never the
+   * receptionist's own line — that would ring itself.
+   */
+  handoff_number: external_exports.string().regex(E164, "E.164, like +16469325775").optional(),
+  website: external_exports.string().url().max(500).optional(),
+  notes: external_exports.array(NoteSchema).max(10).optional(),
   /**
    * Anything the owner wants said that no field covers.
    *

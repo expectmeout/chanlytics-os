@@ -1,6 +1,6 @@
 """Provision a Retell voice agent that reads its facts from Chanlytics, not from here.
 
-Run:  RETELL_API_KEY=... VOICE_NUMBER=+1... VOICE_TRANSFER_TO=+1... python setup_voice.py
+Run:  RETELL_API_KEY=... RETELL_FN_SECRET=... VOICE_NUMBER=+1... python setup_voice.py
 
 WHY THIS FILE NO LONGER CONTAINS A BUSINESS.
 
@@ -23,6 +23,14 @@ supplies per call (apps/edge/api/retell-inbound.ts):
                        receptionist reads
   {{greeting}}         the opening line, naming the business only when the
                        call could be routed to one
+  {{handoff_number}}   the line a person answers, from the profile; the
+                       transfer tool dials it. Omitted when there is none.
+
+This file is a MIRROR of packages/channels/src/voice-shell.ts — the prompt,
+the variable names and the tools are defined there once, read by the
+converger (tooling/scripts/voice-converge.mjs, which brings an EXISTING agent
+onto the shell in place) and by /api/diag's drift report. A test pins PROMPT
+equal to the shell. Edit the TypeScript first.
 
 Anything you would be tempted to add here as text is a fact, and facts belong
 in Settings, where the owner can see and change them. What stays is the shape
@@ -43,28 +51,33 @@ SITE_WH = "https://chanlytics-messaging.vercel.app/api/retell-webhook"
 # Per-tenant, so provisioning a second business is a different invocation of
 # the same script rather than a second copy of it.
 NUMBER = os.environ["VOICE_NUMBER"]                 # e.g. +13083368109
-TRANSFER_TO = os.environ["VOICE_TRANSFER_TO"]       # the line a human answers
+FN_SECRET = os.environ["RETELL_FN_SECRET"]          # the edge refuses the booking tool without it
+# The transfer number is NOT an env fact any more: it is the profile's
+# handoff_number, sent per call as {{handoff_number}}.
 AGENT_NAME = os.environ.get("VOICE_AGENT_NAME", "Front Desk")
 VOICE_ID = os.environ.get("VOICE_ID", "11labs-Hailey-Latin-America-Spanish-localized")
 
-# The ENTIRE prompt. Every fact arrives at call time; what is written here is
-# only what the variables cannot say for themselves — the shape of a phone call
-# and when to reach for a tool.
+# The ENTIRE prompt. Every fact arrives at call time — and so does the shape
+# of the call: the composer (contracts composeSystemPrompt, channel "voice")
+# tells the agent when to transfer, how booking works and when to end the
+# call, inside business_facts. Nothing here but the placeholders.
 PROMPT = """{{business_facts}}
 
 Who you are speaking with:
-{{caller_context}}
+{{caller_context}}"""
 
-On this call:
-- You are on the phone. Keep answers to one or two sentences and never read a
-  URL out character by character — offer to text it instead.
-- To send the booking link to the caller's WhatsApp, use send_booking_link, then
-  confirm it was sent. If it fails, give the phone number above and say a person
-  will follow up.
-- If the caller asks for a person, is upset, has a complaint, or needs something
-  the facts above do not cover, use transfer_to_staff during opening hours.
-  Outside them, take a name and a message and say the team will follow up.
-- End the call with end_call once the caller has said goodbye."""
+# What the agent hears when a variable could not be supplied. A missing
+# variable is read aloud as its own placeholder; "" skips this default.
+DEFAULT_VARIABLES = {
+    "business_facts": (
+        "The business's details could not be loaded for this call. Do not state opening hours, prices, "
+        "services or an address from memory — you do not have them. Say you will have someone confirm, "
+        "offer to take a message, and offer to text the booking link."
+    ),
+    "caller_context": "New caller - no prior interactions on record.",
+    "greeting": "Thank you for calling! This call may be recorded. I'm the automated assistant — how can I help you today?",
+    "handoff_number": "",
+}
 
 
 def call(method, path, payload=None):
@@ -90,25 +103,28 @@ llm = call("POST", "/create-retell-llm", {
     "begin_message": "{{greeting}}",
     "general_prompt": PROMPT,
     "model_temperature": 0,
+    "default_dynamic_variables": DEFAULT_VARIABLES,
     "general_tools": [
         {
             "type": "end_call",
             "name": "end_call",
-            "description": "End the call when the conversation is complete and the caller has said goodbye.",
+            "description": "End the call once the conversation is complete and the caller has said goodbye.",
         },
         {
             "type": "transfer_call",
             "name": "transfer_to_staff",
-            "description": "Transfer the caller to staff. Use when the caller asks for a person, has a complaint, or needs booking changes.",
-            "transfer_destination": {"type": "predefined", "number": TRANSFER_TO},
-            "transfer_option": {"type": "cold_transfer"},
+            "description": "Transfer the caller to a person on the business's own line. Use during opening hours when the caller asks for a person, has a complaint, or needs something the facts do not cover.",
+            # A dynamic variable, filled per call from the workspace's profile.
+            "transfer_destination": {"type": "predefined", "number": "{{handoff_number}}"},
+            "transfer_option": {"type": "warm_transfer", "show_transferee_as_caller": True, "on_hold_music": "relaxing_sound"},
         },
         {
             "type": "custom",
             "name": "send_booking_link",
-            "description": "Send the booking link to the caller's WhatsApp. Use when the caller wants to book an appointment.",
+            "description": "Text the booking link to the caller's WhatsApp. Use when the caller wants to book. It goes to the number they are calling from unless another number is given.",
             "url": SITE_FN,
             "method": "POST",
+            "headers": {"x-fn-secret": FN_SECRET},
             "speak_during_execution": True,
             "execution_message_description": "Say you are sending the booking link to their WhatsApp now.",
             "speak_after_execution": True,

@@ -75,6 +75,7 @@ export async function POST(request: Request): Promise<Response> {
   let context = "";
   let facts = "";
   let businessName: string | null = null;
+  let handoff: string | null = null;
 
   // NOT gated on the caller's number. Who is calling decides the memory; the
   // business's own hours and services are owed to every call, including the
@@ -112,6 +113,7 @@ export async function POST(request: Request): Promise<Response> {
         // every owner to edit their Retell prompt again.
         facts = `${resolveSystemPrompt(rt.brain, "voice", rt.timezone)}\n\n${describeNow(rt.timezone, new Date(), rt.brain.profile?.closures)}`;
         businessName = rt.brain.business_name;
+        handoff = rt.brain.profile?.handoff_number ?? null;
       } else {
         L.warn("inbound_facts_missing", { config_broken: !!rt.configBroken });
       }
@@ -138,6 +140,12 @@ export async function POST(request: Request): Promise<Response> {
       dynamic_variables: {
         caller_context: context || "New caller - no prior interactions on record.",
         business_facts: facts || FACTS_UNAVAILABLE,
+        // The line the transfer tool dials. OMITTED when the workspace has no
+        // handoff line: Retell then applies the LLM's default ("" — nowhere
+        // to dial), and the composed facts have already told the agent to
+        // take a message instead of transferring. Sending "" from here would
+        // be the same decision made in two places.
+        ...(handoff ? { handoff_number: handoff } : {}),
         // The first sentence of the call, composed here rather than typed into
         // Retell — otherwise the business's NAME becomes a third hand-kept copy
         // of a fact the product already owns, and a rename leaves the phone

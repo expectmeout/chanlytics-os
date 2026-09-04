@@ -4102,8 +4102,20 @@ var ServiceSchema = external_exports.object({
 var GuardrailsSchema = external_exports.object({
   never_quote_prices: external_exports.boolean().optional(),
   never_confirm_booking: external_exports.boolean().optional(),
-  disclose_ai: external_exports.boolean().optional()
+  disclose_ai: external_exports.boolean().optional(),
+  /**
+   * OPT-IN, unlike the three above. Those default on because absent means
+   * "the safe reading"; this one arrived after prompts were live, and a
+   * rule that defaulted on would have changed every composed prompt in
+   * production the moment it deployed.
+   */
+  no_health_advice: external_exports.boolean().optional()
 }).strict();
+var NoteSchema = external_exports.object({
+  title: external_exports.string().min(1).max(80),
+  text: external_exports.string().min(1).max(1200)
+}).strict();
+var E164 = /^\+[1-9]\d{6,14}$/;
 var BusinessProfileSchema = external_exports.object({
   address: external_exports.string().max(300).optional(),
   hours: external_exports.record(external_exports.enum(DAYS), HoursSchema).optional(),
@@ -4115,6 +4127,14 @@ var BusinessProfileSchema = external_exports.object({
   /** What must reach a person. One short line each. */
   escalate_when: external_exports.array(external_exports.string().min(1).max(200)).max(20).optional(),
   tone: external_exports.string().max(200).optional(),
+  /**
+   * The line a PERSON answers. The phone receptionist warm-transfers here
+   * during opening hours; absent, it takes a message instead. Never the
+   * receptionist's own line — that would ring itself.
+   */
+  handoff_number: external_exports.string().regex(E164, "E.164, like +16469325775").optional(),
+  website: external_exports.string().url().max(500).optional(),
+  notes: external_exports.array(NoteSchema).max(10).optional(),
   /**
    * Anything the owner wants said that no field covers.
    *
@@ -4405,7 +4425,7 @@ async function fetchMediaBytes(cfg, providerMediaId) {
 // src/voice-retell.ts
 import crypto from "crypto";
 var API = "https://api.retellai.com";
-var E164 = /^\+[1-9]\d{6,14}$/;
+var E1642 = /^\+[1-9]\d{6,14}$/;
 function toStatus(s) {
   switch (s) {
     case "registered":
@@ -4435,9 +4455,9 @@ function normalizeCall(c) {
     agentId: c.agent_id ?? null,
     direction: c.direction === "outbound" ? "outbound" : "inbound",
     callType: c.call_type ?? null,
-    fromE164: from && E164.test(from) ? from : null,
+    fromE164: from && E1642.test(from) ? from : null,
     fromRaw: from,
-    toE164: c.to_number && E164.test(c.to_number) ? c.to_number : null,
+    toE164: c.to_number && E1642.test(c.to_number) ? c.to_number : null,
     status: toStatus(c.call_status),
     startedAtIso: c.start_timestamp ? new Date(c.start_timestamp).toISOString() : null,
     endedAtIso: c.end_timestamp ? new Date(c.end_timestamp).toISOString() : null,
@@ -4502,11 +4522,14 @@ async function getAgent(cfg, agentId) {
   const str = (k) => typeof a[k] === "string" ? a[k] : null;
   const num = (k) => typeof a[k] === "number" ? a[k] : null;
   const bool = (k) => typeof a[k] === "boolean" ? a[k] : null;
+  const engine = a.response_engine ?? {};
   return {
     agent_id: str("agent_id") ?? agentId,
     agent_name: str("agent_name"),
     version: num("version"),
     is_published: bool("is_published"),
+    llm_id: engine.type === "retell-llm" && typeof engine.llm_id === "string" ? engine.llm_id : null,
+    llm_version: typeof engine.version === "number" ? engine.version : null,
     // The URL only, never its query string: Retell lets a secret ride there
     // (?key=...) and this object is meant to be printed by a diagnostic.
     webhook_url: str("webhook_url")?.split("?")[0] ?? null,
@@ -4514,6 +4537,24 @@ async function getAgent(cfg, agentId) {
     webhook_timeout_ms: num("webhook_timeout_ms"),
     data_storage_setting: str("data_storage_setting"),
     opt_in_signed_url: bool("opt_in_signed_url")
+  };
+}
+async function getRetellLlm(cfg, llmId, version) {
+  const q = version === void 0 || version === null ? "" : `?version=${version}`;
+  const r = await fetch(`${API}/get-retell-llm/${llmId}${q}`, {
+    headers: { Authorization: `Bearer ${cfg.apiKey}` }
+  });
+  if (!r.ok) return null;
+  const l = await r.json();
+  const str = (k) => typeof l[k] === "string" ? l[k] : null;
+  return {
+    llm_id: str("llm_id") ?? llmId,
+    version: typeof l.version === "number" ? l.version : null,
+    general_prompt: str("general_prompt"),
+    begin_message: str("begin_message"),
+    default_dynamic_variables: l.default_dynamic_variables && typeof l.default_dynamic_variables === "object" ? l.default_dynamic_variables : null,
+    general_tools: Array.isArray(l.general_tools) ? l.general_tools : null,
+    knowledge_base_ids: Array.isArray(l.knowledge_base_ids) ? l.knowledge_base_ids.map(String) : null
   };
 }
 function needsHydration(c) {
@@ -4536,18 +4577,164 @@ function verifyRetellSignature(rawBody, header, apiKey) {
   const b = Buffer.from(expected);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
+
+// src/voice-shell.ts
+var VOICE_SHELL_PROMPT = "{{business_facts}}\n\nWho you are speaking with:\n{{caller_context}}";
+var VOICE_SHELL_BEGIN = "{{greeting}}";
+var HANDOFF_VAR = "{{handoff_number}}";
+var FACTS_UNAVAILABLE = "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory \u2014 you do not have them. Say you will have someone confirm, offer to take a message, and offer to text the booking link.";
+var CALLER_UNKNOWN = "New caller - no prior interactions on record.";
+var GREETING_DEFAULT = "Thank you for calling! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?";
+var DEFAULT_FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
+function voiceShellTools(fnUrl = DEFAULT_FN_URL, bookingHeaders) {
+  return [
+    {
+      type: "end_call",
+      name: "end_call",
+      description: "End the call once the conversation is complete and the caller has said goodbye."
+    },
+    {
+      type: "transfer_call",
+      name: "transfer_to_staff",
+      description: "Transfer the caller to a person on the business's own line. Use during opening hours when the caller asks for a person, has a complaint, or needs something the facts do not cover.",
+      // A dynamic variable, filled per call from the workspace's profile. An
+      // E.164 number typed here would be a fact kept in a second place.
+      transfer_destination: { type: "predefined", number: HANDOFF_VAR },
+      transfer_option: {
+        type: "warm_transfer",
+        show_transferee_as_caller: true,
+        on_hold_music: "relaxing_sound"
+      }
+    },
+    {
+      type: "custom",
+      name: "send_booking_link",
+      description: "Text the booking link to the caller's WhatsApp. Use when the caller wants to book. It goes to the number they are calling from unless another number is given.",
+      url: fnUrl,
+      method: "POST",
+      speak_during_execution: true,
+      execution_message_description: "Say you are sending the booking link to their WhatsApp now.",
+      speak_after_execution: true,
+      ...bookingHeaders ? { headers: bookingHeaders } : {},
+      parameters: {
+        type: "object",
+        properties: {
+          phone_number: {
+            type: "string",
+            description: "Alternate number to send the link to, digits only with country code. Omit to use the caller's number."
+          }
+        },
+        required: []
+      }
+    }
+  ];
+}
+function desiredVoiceShell(fnUrl = DEFAULT_FN_URL, bookingHeaders) {
+  return {
+    general_prompt: VOICE_SHELL_PROMPT,
+    begin_message: VOICE_SHELL_BEGIN,
+    default_dynamic_variables: {
+      business_facts: FACTS_UNAVAILABLE,
+      caller_context: CALLER_UNKNOWN,
+      greeting: GREETING_DEFAULT,
+      // Empty on purpose: with no line to reach, the transfer tool has
+      // nowhere to dial and the composed facts tell the agent to take a
+      // message instead of transferring.
+      handoff_number: ""
+    },
+    general_tools: voiceShellTools(fnUrl, bookingHeaders)
+  };
+}
+var norm = (s) => (s ?? "").replace(/\r\n/g, "\n").trim();
+function stableJson(v) {
+  if (Array.isArray(v)) return `[${v.map(stableJson).join(",")}]`;
+  if (v && typeof v === "object") {
+    const o = v;
+    return `{${Object.keys(o).sort().map((k) => `${JSON.stringify(k)}:${stableJson(o[k])}`).join(",")}}`;
+  }
+  return JSON.stringify(v);
+}
+function pick(live, desired) {
+  const out = {};
+  for (const k of Object.keys(desired)) if (k in live) out[k] = live[k];
+  return out;
+}
+function planVoiceConvergence(live, desired) {
+  const drift = [];
+  const patch = {};
+  if (norm(live.general_prompt) !== norm(desired.general_prompt)) {
+    const has = (v) => norm(live.general_prompt).includes(v);
+    drift.push(
+      `general_prompt differs (${norm(live.general_prompt).length} chars live; reads {{business_facts}}: ${has("{{business_facts}}")}, {{caller_context}}: ${has("{{caller_context}}")})`
+    );
+    patch.general_prompt = desired.general_prompt;
+  }
+  if (norm(live.begin_message) !== norm(desired.begin_message)) {
+    drift.push(`begin_message is typed in (${JSON.stringify(norm(live.begin_message).slice(0, 60))}\u2026), not ${desired.begin_message}`);
+    patch.begin_message = desired.begin_message;
+  }
+  const liveDefaults = live.default_dynamic_variables ?? {};
+  const missingDefaults = Object.keys(desired.default_dynamic_variables).filter(
+    (k) => liveDefaults[k] !== desired.default_dynamic_variables[k]
+  );
+  if (missingDefaults.length) {
+    drift.push(`default_dynamic_variables missing or different: ${missingDefaults.join(", ")}`);
+    patch.default_dynamic_variables = { ...liveDefaults, ...desired.default_dynamic_variables };
+  }
+  const liveTools = live.general_tools ?? [];
+  const byName = new Map(liveTools.map((t) => [t.name, t]));
+  let toolsDiffer = false;
+  for (const want of desired.general_tools) {
+    const have = byName.get(want.name);
+    if (!have) {
+      drift.push(`tool ${want.name} is missing`);
+      toolsDiffer = true;
+      continue;
+    }
+    if (stableJson(pick(have, want)) !== stableJson(want)) {
+      const what = want.name === "transfer_to_staff" ? ` (live destination: ${JSON.stringify(have.transfer_destination?.number ?? "?")}, option: ${JSON.stringify(have.transfer_option?.type ?? "?")})` : "";
+      drift.push(`tool ${want.name} differs${what}`);
+      toolsDiffer = true;
+    }
+  }
+  const unknownTools = liveTools.map((t) => t.name).filter((n) => !desired.general_tools.some((t) => t.name === n));
+  if (unknownTools.length) drift.push(`live tools the shell does not define (an apply would drop them): ${unknownTools.join(", ")}`);
+  if (toolsDiffer) patch.general_tools = desired.general_tools;
+  return { drift, llmPatch: Object.keys(patch).length ? patch : null, unknownTools };
+}
+function voiceShellDrift(live) {
+  const booking = (live.general_tools ?? []).find((t) => t.name === "send_booking_link");
+  const url = typeof booking?.url === "string" ? booking.url : DEFAULT_FN_URL;
+  const headers = booking?.headers ?? null;
+  const plan = planVoiceConvergence(live, desiredVoiceShell(url, headers));
+  const drift = [...plan.drift];
+  if (booking && !headers) drift.push("send_booking_link has no x-fn-secret header \u2014 the edge will refuse it");
+  return { converged: drift.length === 0, drift };
+}
 export {
+  CALLER_UNKNOWN,
+  DEFAULT_FN_URL,
+  FACTS_UNAVAILABLE,
+  GREETING_DEFAULT,
+  HANDOFF_VAR,
+  VOICE_SHELL_BEGIN,
+  VOICE_SHELL_PROMPT,
   callSummaryLine,
+  desiredVoiceShell,
   fetchMediaBytes,
   fetchRecording,
   getAgent,
   getCall,
+  getRetellLlm,
   listCalls,
   liveTurns,
   needsHydration,
   normalizeCall,
   normalizeInbound,
+  planVoiceConvergence,
   sendTemplate,
   sendText,
-  verifyRetellSignature
+  verifyRetellSignature,
+  voiceShellDrift,
+  voiceShellTools
 };

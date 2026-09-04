@@ -49,12 +49,16 @@ test("what remains is the SHAPE of a call, not its content", () => {
 });
 
 test("a second business is another invocation, not another copy of the file", () => {
-  // The number, transfer target, agent name and voice were hardcoded to one
-  // salon, so onboarding a second meant duplicating the script.
-  for (const v of ["VOICE_NUMBER", "VOICE_TRANSFER_TO", "VOICE_AGENT_NAME", "VOICE_ID"]) {
+  // The number, agent name and voice were hardcoded to one salon, so
+  // onboarding a second meant duplicating the script.
+  for (const v of ["VOICE_NUMBER", "VOICE_AGENT_NAME", "VOICE_ID"]) {
     assert.ok(script.includes(v), `${v} must come from the environment`);
   }
   assert.ok(!/NUMBER = "\+\d/.test(script), "no hardcoded phone number");
+  // The transfer target is not an env fact either any more: it is the
+  // profile's handoff_number, sent per call, so the tool dials the variable.
+  assert.ok(!script.includes("VOICE_TRANSFER_TO"), "the transfer number is a per-call variable, not an env fact");
+  assert.ok(script.includes('"number": "{{handoff_number}}"'));
 });
 
 test("the key is still never written down", () => {
