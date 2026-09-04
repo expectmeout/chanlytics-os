@@ -11,6 +11,7 @@
  */
 
 import { clearSurfaceCache } from "./surface-cache";
+import { DEFAULT_REFRESH_TABLES, type RealtimeChange } from "./surface-realtime";
 import type { PoliciesSurface, PolicyRecordLike } from "./policy-store";
 
 export interface SurfaceOverride {
@@ -32,6 +33,8 @@ export interface SurfaceOverride {
   /** Re-apply on events from THESE tables instead — an explicit list wins
    *  over the flag (see surface-realtime.ts). */
   refreshOnTables?: string[];
+  /** A finer rule per event on top of the table list — see surface-realtime. */
+  refreshWhen?: (change: RealtimeChange) => boolean;
   /** Debounce for realtime-triggered re-applies (default 400ms). */
   debounceMs?: number;
 }
@@ -373,6 +376,12 @@ export const todayOverride: SurfaceOverride = {
   globals: ["TODAY_DATA"],
   events: ["surface:today"],
   refreshOnMessageInserts: true,
+  // Calls too: the brief now shows who is on the line, and a call that ends
+  // must leave it. The default trio never included the calls table — and the
+  // transcript turn every few seconds (an UPDATE that keeps the status
+  // ongoing) must NOT re-run three plpgsql aggregates; a start or an end does.
+  refreshOnTables: [...DEFAULT_REFRESH_TABLES, "calls"],
+  refreshWhen: (c) => c.table !== "calls" || c.event !== "UPDATE" || c.row.status !== "ongoing",
   debounceMs: 800, // the recap is aggregate, not per-thread — no need to be twitchy
   apply: async () => {
     // Calls are additive context, not a precondition — a voice outage must not

@@ -210,6 +210,15 @@ function tomorrowAt(hour: number): string {
 }
 
 /** The honest undo: cancel a queued send inside its grace window. */
+/**
+ * Live: a sentence for the phone receptionist, heard by it alone and worked
+ * into its next answer. `trigger` asks it to answer with it now rather than
+ * at its next turn.
+ */
+export async function whisperCall(callId: string, text: string, trigger = true): Promise<VerbResult> {
+  return call(`/api/v1/calls/${encodeURIComponent(callId)}/whisper`, { text, trigger });
+}
+
 export async function cancelSend(messageId: string): Promise<VerbResult> {
   const r = await call(`/api/v1/messages/${messageId}/cancel-send`);
   if (r.ok) await refresh();
@@ -324,6 +333,7 @@ declare global {
     __teamSetRole: typeof teamSetRole;
     __teamRemove: typeof teamRemove;
     __cancelSend: typeof cancelSend;
+    __whisperCall: typeof whisperCall;
     __refreshInbox: typeof refreshInbox;
     __saveSettings: typeof saveSettings;
     __composedPrompt: typeof composedPrompt;
@@ -387,6 +397,7 @@ export function installInboxVerbs(): void {
   window.__teamSetRole = teamSetRole;
   window.__teamRemove = teamRemove;
   window.__cancelSend = cancelSend;
+  window.__whisperCall = whisperCall;
   window.__refreshInbox = refreshInbox;
   window.__saveSettings = saveSettings;
   window.__composedPrompt = composedPrompt;

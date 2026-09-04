@@ -10,7 +10,8 @@
 // seeded console stays for demo sessions only.
 //
 // Reads window.__LIVE (written by liveOverride in the bridge) and re-renders
-// on "surface:live". No writes: nothing here changes a call.
+// on "surface:live". One write: a whisper — a sentence only the receptionist
+// hears, the single control the provider offers over a hosted agent's call.
 
 const { useState: useLrState, useEffect: useLrEffect, useReducer: useLrReducer, useRef: useLrRef } = React;
 
@@ -128,6 +129,57 @@ const lrRecordingLine = (c) =>
         : c.summaryState === "pending" ? "Recording on its way"
           : "No recording";
 
+// The one control the phone provider offers over a hosted agent's call: a
+// sentence only the receptionist hears, worked into its next answer. Not a
+// take-over, not a listen-in — those buttons stayed in the demo because
+// nothing real stands behind them.
+const LrWhisper = ({ c }) => {
+  const [text, setText] = useLrState("");
+  const [busy, setBusy] = useLrState(false);
+  const [last, setLast] = useLrState(null);
+  const [toastNode, flash] = window.usePPToast();
+  const send = async () => {
+    const t = text.trim();
+    if (!t || busy || !window.__whisperCall) return;
+    setBusy(true);
+    const r = await window.__whisperCall(c.callId, t, true);
+    setBusy(false);
+    if (r.ok) {
+      setLast(t);
+      setText("");
+      flash({ msg: <>Whispered — the receptionist works it into its next answer</> });
+    } else {
+      flash({ msg: <>Not whispered — {r.message}</> });
+    }
+  };
+  return (
+    <div className="lm-whisper" data-testid="live-whisper">
+      <div className="lm-whisper-label">Whisper to the receptionist</div>
+      <div className="lm-whisper-row">
+        <input
+          className="set-input"
+          value={text}
+          maxLength={500}
+          placeholder="Tell them the owner can see them at 4:30 today"
+          aria-label="Whisper to the receptionist"
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); send(); } }}
+          disabled={busy}
+        />
+        <button className="btn btn-primary btn-sm" onClick={send} disabled={busy || !text.trim()} {...window.gate("approve")}>
+          {busy ? "Sending…" : "Whisper"}
+        </button>
+      </div>
+      <div className="lm-whisper-hint">
+        {last
+          ? <>Last whispered: &ldquo;{last}&rdquo;</>
+          : "Only the receptionist hears it, and works it into the next thing it says. The caller never hears your words."}
+      </div>
+      {toastNode}
+    </div>
+  );
+};
+
 const LrPanel = ({ c, elapsed }) => {
   if (!c) {
     return (
@@ -217,6 +269,7 @@ const LrPanel = ({ c, elapsed }) => {
           )}
         </div>
       )}
+      {c.live && <LrWhisper c={c} />}
       {!c.live && <div className="lm-spacer" />}
 
       <footer className="lm-controls">

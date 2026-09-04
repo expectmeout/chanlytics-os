@@ -268,6 +268,39 @@ export async function getAgent(cfg: RetellConfig, agentId: string): Promise<Rete
   };
 }
 
+/** What an operator says to the agent mid-call, heard by the agent alone. */
+export interface LiveCallControl {
+  /** Free text, injected into the transcript as "injected" and worked into the next answer. */
+  additionalContext: string;
+  /** Interrupt the agent (or nudge a silent one) to answer with it now. */
+  triggerResponse?: boolean;
+}
+
+/**
+ * PATCH /v2/update-live-call — the ONE control Retell offers over a hosted
+ * agent's ongoing call: no listen-in, no take-over, no hang-up. Returns the
+ * status instead of throwing; a whisper into a call that has just ended is a
+ * 4xx the caller reports in a sentence, not an exception in a route.
+ */
+export async function updateLiveCall(
+  cfg: RetellConfig,
+  callId: string,
+  control: LiveCallControl,
+): Promise<{ ok: boolean; status: number }> {
+  const r = await fetch(`${API}/v2/update-live-call/${encodeURIComponent(callId)}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      call_control: {
+        additional_context: control.additionalContext,
+        ...(control.triggerResponse !== undefined ? { trigger_response: control.triggerResponse } : {}),
+      },
+    }),
+    signal: AbortSignal.timeout(8000),
+  });
+  return { ok: r.ok, status: r.status };
+}
+
 /** The fields of a Retell LLM the shell is defined over. */
 export interface RetellLlmConfig {
   llm_id: string;

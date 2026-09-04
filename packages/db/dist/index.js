@@ -4734,7 +4734,9 @@ function subscribeMessagesInserts(client, onInsert, opts = {}) {
           table: w.table,
           ...opts.tenantId ? { filter: `tenant_id=eq.${opts.tenantId}` } : {}
         },
-        (payload) => onInsert(payload.new ?? payload.old ?? {}, w.table)
+        // The event too: a surface may want a call STARTING and ENDING and
+        // not the transcript turn every few seconds in between.
+        (payload) => onInsert(payload.new ?? payload.old ?? {}, w.table, payload.eventType)
       );
     }
     channel = channel.subscribe((status) => {

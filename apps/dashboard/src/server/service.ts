@@ -138,6 +138,28 @@ export async function mirrorBlobPause(
   if (!r.ok) throw new Error(`blob pause mirror failed (${r.status})`);
 }
 
+/**
+ * Whisper to the phone receptionist mid-call, through the edge — the
+ * provider key lives there. Same production guard as the pause mirror: a
+ * preview must never speak into a real customer's call. Returns a reason
+ * instead of throwing so the route can answer in a sentence.
+ */
+export async function whisperLiveCall(
+  retellCallId: string,
+  text: string,
+  trigger: boolean,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production") return { ok: false, reason: "preview" };
+  const r = await fetch(`${EDGE_BASE}/api/admin/whisper`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
+    body: JSON.stringify({ call_id: retellCallId, text, trigger }),
+  });
+  if (r.ok) return { ok: true };
+  const j = (await r.json().catch(() => ({}))) as { error?: string; status?: number };
+  return { ok: false, reason: j.error ? `${j.error}${j.status ? ` ${j.status}` : ""}` : `edge ${r.status}` };
+}
+
 /* ---- E1 team operations (Session A) --------------------------------------
    The ONLY file that touches auth.admin. Every function takes a tenantId the
    route has already proven the caller belongs to (memberContext), then scopes
