@@ -4265,6 +4265,9 @@ var DAY_MS2 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS2;
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var LIVE_STALE_MS = 5 * 60 * 1e3;
+var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
+var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;
 
 // src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";
@@ -4505,7 +4508,9 @@ async function getAgent(cfg, agentId) {
     agent_name: str("agent_name"),
     version: num("version"),
     is_published: bool("is_published"),
-    webhook_url: str("webhook_url"),
+    // The URL only, never its query string: Retell lets a secret ride there
+    // (?key=...) and this object is meant to be printed by a diagnostic.
+    webhook_url: str("webhook_url")?.split("?")[0] ?? null,
     webhook_events: Array.isArray(a.webhook_events) ? a.webhook_events.map(String) : null,
     webhook_timeout_ms: num("webhook_timeout_ms"),
     data_storage_setting: str("data_storage_setting"),

@@ -4279,6 +4279,9 @@ var DAY_MS2 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS2;
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var LIVE_STALE_MS = 5 * 60 * 1e3;
+var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
+var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;
 
 // src/repositories/ingest.ts
 async function ingestInbound(db, p) {
@@ -4676,8 +4679,10 @@ var WATCHED = [
   { table: "messages", event: "INSERT" },
   { table: "conversations", event: "*" },
   // pause_expire, snooze_wake, other tabs
-  { table: "escalations", event: "*" }
+  { table: "escalations", event: "*" },
   // opened by the edge, resolved elsewhere
+  { table: "calls", event: "*" }
+  // a call starting, each live turn, its end, its analysis
 ];
 function subscribeMessagesInserts(client, onInsert, opts = {}) {
   const topic = `db-changes:${opts.topic ?? "bridge"}`;

@@ -15,7 +15,7 @@ import "./manifest";
 // legacy.css is NOT imported here: it lives in app/(os)/layout.tsx so the
 // 254KB design system ships as document <link>s and downloads in parallel
 // with this chunk, rather than serially behind it.
-import { workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, reportsOverride, switchWorkspace, type Workspace } from "./surface-data";
+import { workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, reportsOverride, liveOverride, switchWorkspace, type Workspace } from "./surface-data";
 import {
   getSurfaceStatuses,
   isSurfaceFailed,
@@ -46,8 +46,8 @@ markHydrated(hydrateSurfaceCache());
 // The mockup's own data-before-mount contract (boot gate).
 const REQUIRED = ["CHANLY", "INBOX_DATA", "CLIENTS", "FLEET_DATA", "CHANLY_DATA", "POLICY", "ChanlyticsApp"] as const;
 
-const SURFACES = [workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, reportsOverride];
-const SURFACE_LABELS: Record<string, string> = { conversations: "Conversations", inbox: "Inbox", today: "Today", people: "People", reports: "Reports" };
+const SURFACES = [workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, reportsOverride, liveOverride];
+const SURFACE_LABELS: Record<string, string> = { conversations: "Conversations", inbox: "Inbox", today: "Today", people: "People", reports: "Reports", live: "Live" };
 
 // Which flipped surface backs each route, and which routes are real at all —
 // both live in surface-registry.ts so the classification and the wiring cannot
