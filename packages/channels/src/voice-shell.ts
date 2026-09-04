@@ -256,3 +256,74 @@ export function voiceShellDrift(live: LiveVoiceLlm): { converged: boolean; drift
   if (booking && !headers) drift.push("send_booking_link has no x-fn-secret header — the edge will refuse it");
   return { converged: drift.length === 0, drift };
 }
+
+/* ----------------------------- agent settings ----------------------------- */
+
+/** The webhook events the call pipeline is built on. transcript_updated is
+ *  opt-in at Retell and is what makes the Live page's transcript live. */
+export const VOICE_WEBHOOK_EVENTS = ["call_started", "call_ended", "call_analyzed", "transcript_updated"] as const;
+/** The webhook copies the recording inside its budget; Retell's default 10 s is too short for it. */
+export const VOICE_WEBHOOK_TIMEOUT_MS = 20000;
+/** What Retell applies when webhook_events is absent. */
+const RETELL_DEFAULT_EVENTS = ["call_started", "call_ended", "call_analyzed"];
+
+/** The agent-level fields the plan reads, as get-agent returns them. */
+export interface LiveAgentSettings {
+  webhook_events?: string[] | null;
+  webhook_timeout_ms?: number | null;
+  opt_in_signed_url?: boolean | null;
+  data_storage_retention_days?: number | null;
+}
+
+export interface AgentPlan {
+  drift: string[];
+  /** The PATCH body for update-agent, or null when nothing differs. */
+  agentPatch: Record<string, unknown> | null;
+}
+
+/**
+ * The agent settings the pipeline depends on, and the patch that sets them.
+ *
+ * Signed recording URLs: with opt_in_signed_url off, every recording link
+ * Retell hands out is public and permanent (review F10 made this urgent).
+ * The pipeline copies audio into private storage within seconds of the call
+ * and refetches a fresh link through get-call when a copy has to retry, so a
+ * link that expires costs it nothing.
+ *
+ * Retention is NOT drift. How long the provider keeps a call is a product
+ * decision, applied only when the converger is told a number.
+ */
+export function planAgentSettings(live: LiveAgentSettings, opts: { retentionDays?: number } = {}): AgentPlan {
+  const drift: string[] = [];
+  const patch: Record<string, unknown> = {};
+  const events = live.webhook_events ?? RETELL_DEFAULT_EVENTS;
+  const missing = VOICE_WEBHOOK_EVENTS.filter((e) => !events.includes(e));
+  if (missing.length) {
+    drift.push(`webhook_events missing ${missing.join(", ")} (the live transcript needs transcript_updated)`);
+    patch.webhook_events = [...new Set([...events, ...VOICE_WEBHOOK_EVENTS])];
+  }
+  const timeout = live.webhook_timeout_ms ?? 10000;
+  if (timeout < VOICE_WEBHOOK_TIMEOUT_MS) {
+    drift.push(`webhook_timeout_ms is ${timeout}; the recording copy needs ${VOICE_WEBHOOK_TIMEOUT_MS}`);
+    patch.webhook_timeout_ms = VOICE_WEBHOOK_TIMEOUT_MS;
+  }
+  if (live.opt_in_signed_url !== true) {
+    drift.push("recording URLs are public and permanent (opt_in_signed_url off); the pipeline copies audio within seconds and refetches a fresh link when it must");
+    patch.opt_in_signed_url = true;
+  }
+  if (opts.retentionDays !== undefined && live.data_storage_retention_days !== opts.retentionDays) {
+    if (!Number.isInteger(opts.retentionDays) || opts.retentionDays < 1 || opts.retentionDays > 730) {
+      drift.push(`retention must be a whole number of days from 1 to 730, not ${opts.retentionDays}`);
+    } else {
+      drift.push(`data_storage_retention_days is ${live.data_storage_retention_days ?? "unset (kept forever)"}; asked for ${opts.retentionDays}`);
+      patch.data_storage_retention_days = opts.retentionDays;
+    }
+  }
+  return { drift, agentPatch: Object.keys(patch).length ? patch : null };
+}
+
+/** The diagnostic's view of the agent settings. Strings only. */
+export function agentSettingsDrift(live: LiveAgentSettings): { converged: boolean; drift: string[] } {
+  const plan = planAgentSettings(live);
+  return { converged: plan.drift.length === 0, drift: plan.drift };
+}

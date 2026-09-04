@@ -3,6 +3,7 @@ import { AppError } from "@chanlytics/contracts";
 import { requireOperator, recordDecision } from "@/server/verbs";
 import { whisperLiveCall } from "@/server/service";
 import { requireUuid } from "@/server/request-guards";
+import { takeRate } from "@/server/rate-limit";
 
 /** One answer's worth. The edge enforces the same cap. */
 const MAX_CHARS = 500;
@@ -22,6 +23,7 @@ const MAX_CHARS = 500;
  */
 export const POST = withRoute(async (req, ctx) => {
   const id = requireUuid(ctx.params.id, "call");
+  takeRate(ctx.userId, "whisper");
   const body = (await req.json().catch(() => null)) as { text?: unknown; trigger?: unknown } | null;
   const text = typeof body?.text === "string" ? body.text.trim() : "";
   if (!text) throw new AppError("validation", "Say something for the receptionist to use.");

@@ -1,6 +1,7 @@
 import { withRoute } from "@/server/with-route";
 import { AppError } from "@chanlytics/contracts";
 import { z } from "zod";
+import { takeRate } from "@/server/rate-limit";
 
 /**
  * POST /api/v1/workspaces/create — bring a new workspace into existence.
@@ -35,6 +36,7 @@ const RAISED: Record<string, { code: "validation" | "forbidden" | "conflict"; st
 };
 
 export const POST = withRoute(async (req, ctx) => {
+  takeRate(ctx.userId, "create_workspace");
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     throw new AppError("validation", parsed.error.issues[0]?.message ?? "Give the workspace a name.");

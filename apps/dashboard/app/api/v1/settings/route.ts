@@ -2,6 +2,7 @@ import { withRoute, memberContext, requireRole } from "@/server/with-route";
 import { AppError, parseTenantConfig, parseTenantConfigResult, TenantConfigWriteSchema } from "@chanlytics/contracts";
 import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
 import type { Json } from "@chanlytics/db";
+import { takeRate } from "@/server/rate-limit";
 
 /** GET /api/v1/settings — the tenant's config, with the version the client
  *  must echo back on write. Members read; RLS scopes. */
@@ -28,6 +29,7 @@ export const GET = withRoute(async (req, ctx) => {
 export const PUT = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   requireRole(member, "owner");
+  takeRate(ctx.userId, "settings");
   const body = (await req.json().catch(() => null)) as { config?: unknown; version?: number } | null;
   if (!body || typeof body.version !== "number") {
     throw new AppError("validation", "Body must be { config, version }.");

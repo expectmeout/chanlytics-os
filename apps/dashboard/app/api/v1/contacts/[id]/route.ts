@@ -6,6 +6,7 @@ import { schedule, removeMediaObjects, rescheduleBlobErase, scrubErasedJobs } fr
 import { requireUuid } from "@/server/request-guards";
 import { CALL_COLUMNS, CONVERSATION_COLUMNS, MESSAGE_COLUMNS, groupMessages, toCallDto, toConversationDto } from "@/server/dto";
 import type { MessageDto, PersonDecisionDto, PersonDetailDto, PersonEscalationDto, PersonRowDto } from "@chanlytics/contracts";
+import { takeRate } from "@/server/rate-limit";
 
 const digits = (s: string) => s.replace(/\D/g, "");
 
@@ -26,6 +27,7 @@ const digits = (s: string) => s.replace(/\D/g, "");
  */
 export const DELETE = withRoute(async (_req, ctx) => {
   const id = requireUuid(ctx.params.id, "contact");
+  takeRate(ctx.userId, "erase");
 
   // RLS scopes this read to the caller's workspaces, so a contact they cannot
   // see is a 404 rather than a leak. The ROLE is then decided against the

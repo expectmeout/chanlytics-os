@@ -149,6 +149,12 @@ agent = call("POST", "/create-agent", {
     "voice_id": VOICE_ID,
     "language": "multi",
     "webhook_url": SITE_WH,
+    # The events the pipeline is built on (transcript_updated = live
+    # transcript), a webhook budget the recording copy fits in, and signed
+    # recording links. Mirrors planAgentSettings in voice-shell.ts.
+    "webhook_events": ["call_started", "call_ended", "call_analyzed", "transcript_updated"],
+    "webhook_timeout_ms": 20000,
+    "opt_in_signed_url": True,
     "end_call_after_silence_ms": 30000,
     "post_call_analysis_data": [],
 })

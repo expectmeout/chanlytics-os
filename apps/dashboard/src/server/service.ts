@@ -121,8 +121,10 @@ export async function mirrorBlobPause(
   pausedUntilMs: number,
 ): Promise<void> {
   // Only the production dashboard owns the live bot's pause state; a preview
-  // must never reach into the real Blob store.
-  if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production") return;
+  // must never reach into the real Blob store — and neither may a laptop.
+  // The guard used to fire only when VERCEL_ENV was SET, so plain local dev,
+  // where it is unset, mirrored pauses into the live store (review F42).
+  if (process.env.VERCEL_ENV !== "production") return;
   const r = await fetch(`${EDGE_BASE}/api/admin/pause`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
@@ -149,7 +151,7 @@ export async function whisperLiveCall(
   text: string,
   trigger: boolean,
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
-  if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production") return { ok: false, reason: "preview" };
+  if (process.env.VERCEL_ENV !== "production") return { ok: false, reason: "preview" };
   const r = await fetch(`${EDGE_BASE}/api/admin/whisper`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },

@@ -3,6 +3,7 @@ import { setPersonReplyMode } from "@chanlytics/db";
 import { withRoute, memberContext, requireRole } from "@/server/with-route";
 import { jsonBody, requireUuid } from "@/server/request-guards";
 import { recordDecision } from "@/server/verbs";
+import { takeRate } from "@/server/rate-limit";
 
 const MODES = ["auto", "ask", "never", "inherit"] as const;
 type Mode = (typeof MODES)[number];
@@ -22,6 +23,7 @@ type Mode = (typeof MODES)[number];
  * check here is the door, decided against the contact's OWN tenant.
  */
 export const PUT = withRoute(async (req, ctx) => {
+  takeRate(ctx.userId, "person_mode");
   const id = requireUuid(ctx.params.id, "contact");
   const body = (await jsonBody(req)) as { mode?: unknown } | null;
   const mode = body?.mode;
