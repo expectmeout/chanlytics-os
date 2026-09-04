@@ -2,7 +2,7 @@ import { AppError } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { withRoute, memberContext, requireRole } from "@/server/with-route";
 import { recordDecision } from "@/server/verbs";
-import { schedule, removeMediaObjects, rescheduleBlobErase } from "@/server/service";
+import { schedule, removeMediaObjects, rescheduleBlobErase, scrubErasedJobs } from "@/server/service";
 import { requireUuid } from "@/server/request-guards";
 import { CALL_COLUMNS, CONVERSATION_COLUMNS, MESSAGE_COLUMNS, groupMessages, toCallDto, toConversationDto } from "@/server/dto";
 import type { MessageDto, PersonDecisionDto, PersonDetailDto, PersonEscalationDto, PersonRowDto } from "@chanlytics/contracts";
@@ -120,6 +120,14 @@ export const DELETE = withRoute(async (_req, ctx) => {
       .eq("tenant_id", contact.tenant_id).eq("subject_type", "contact").eq("subject_id", id);
     if (polErr) console.error("erase_person_policy_failed", id, polErr.message);
   }
+  // The jobs that carried their number or words. erase_contact cancels what
+  // is still scheduled; done, failed and canceled rows kept `to_phone` and
+  // `body` in their payload forever.
+  const jobsScrubbed = await scrubErasedJobs(contact.tenant_id, id, threadIds).catch((e: unknown) => {
+    console.error("erase_jobs_scrub_failed", id, e instanceof Error ? e.message : e);
+    return 0;
+  });
+  console.log(JSON.stringify({ level: "info", event: "erase_jobs_scrubbed", contact: id, jobs: jobsScrubbed }));
   const out = rpc as unknown as {
     counts?: Record<string, number>; storage_paths?: string[]; jobs_canceled?: number;
   };
@@ -215,7 +223,7 @@ export const GET = withRoute(async (req, ctx) => {
   }
 
   const person: PersonDetailDto = {
-    row,
+    row: { ...row, effective_reply_mode: personPol.data?.mode ?? wsPol.data?.mode ?? null },
     identities: idents.data ?? [],
     conversations: (convs.data ?? []).map((c) => toConversationDto(c, byConv.get(c.id) ?? [], ctx.userId)),
     calls: (calls.data ?? []).map(toCallDto),

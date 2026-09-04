@@ -415,3 +415,37 @@ export async function acceptOpenInvites(userId: string, email: string | null): P
   }
   return n;
 }
+
+/**
+ * After an erasure: the jobs that carried the customer's number or words.
+ *
+ * erase_contact cancels what is still scheduled and touches nothing else, so
+ * done, failed and canceled outbound_send rows kept `to_phone` and `body` in
+ * their payload — a copy of the conversation the erasure promised to remove.
+ * Matched by contact id or by the number in any of its forms; the Blob-erase
+ * job is left alone because it is the one doing the erasing.
+ */
+export async function scrubErasedJobs(tenantId: string, contactId: string, phones: string[]): Promise<number> {
+  const db = serviceDb();
+  const { data: rows, error } = await db
+    .from("jobs")
+    .select("id, payload")
+    .eq("tenant_id", tenantId)
+    .neq("kind", "blob_thread_erase");
+  if (error) throw new Error(`scrub_jobs_read: ${error.message}`);
+  const digits = new Set(phones.map((p) => p.replace(/\D/g, "")).filter(Boolean));
+  const hit = (rows ?? []).filter((j) => {
+    const p = (j.payload ?? {}) as Record<string, unknown>;
+    if (p.contact_id === contactId) return true;
+    const to = typeof p.to_phone === "string" ? p.to_phone.replace(/\D/g, "") : "";
+    return !!to && digits.has(to);
+  });
+  for (const j of hit) {
+    const { error: uerr } = await db
+      .from("jobs")
+      .update({ payload: { scrubbed_at: new Date().toISOString(), reason: "contact erased" } })
+      .eq("id", j.id);
+    if (uerr) throw new Error(`scrub_jobs_update: ${uerr.message}`);
+  }
+  return hit.length;
+}

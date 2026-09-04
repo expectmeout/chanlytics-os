@@ -57,7 +57,6 @@ test("Today and Reports agree on who answered, and the first replier wins", { sk
   const tenantId = await smokeTenantId();
   await cleanup(tenantId);
   try {
-    const before = await both(tenantId);
     const contact = ok(await db.from("contacts").insert({ tenant_id: tenantId, phone_e164: PHONE, display_name: "Metrics Probe" }).select("id").single());
     const conv = ok(await db.from("conversations").insert({ tenant_id: tenantId, contact_id: contact.id, state: "open", last_message_at: minutesAgo(1) }).select("id").single());
     const base = { tenant_id: tenantId, conversation_id: conv.id, contact_id: contact.id, channel: "whatsapp", type: "text", meta: {} };
@@ -70,9 +69,21 @@ test("Today and Reports agree on who answered, and the first replier wins", { sk
       { ...base, direction: "outbound", sender: "ai", status: "sent", body: "we open at 9:30", created_at: minutesAgo(1) },
     ]));
 
-    const after = await both(tenantId);
-    assert.equal(after.m.period.answered_by_you - before.m.period.answered_by_you, 1, "you answered first");
-    assert.equal(after.m.period.answered_by_ai - before.m.period.answered_by_ai, 0, "REGRESSION: the later AI reply counted too");
+    // The shared rule, asked about THIS conversation: other integration files
+    // run against the same smoke tenant at the same time, so tenant-wide
+    // deltas are not a fixture of ours.
+    const mine = ok(await db.rpc("first_replies", { p_tenant_id: tenantId, p_start: minutesAgo(30) })).filter((r) => r.conversation_id === conv.id);
+    assert.equal(mine.length, 1);
+    assert.equal(mine[0].who, "you", "REGRESSION: the later AI reply counted too — the first replier wins");
+    assert.equal(mine[0].ai_seconds, null, "an AI reply that came second is not timed");
+
+    // And the two functions read that rule identically for the same day.
+    // Read back-to-back; a concurrent test could still land between the two
+    // calls, so one disagreement earns one more look.
+    let after = await both(tenantId);
+    if (after.m.period.answered_by_you !== after.today.answered_you || after.m.period.answered_by_ai !== after.today.answered_ai) {
+      after = await both(tenantId);
+    }
     assert.equal(after.m.period.answered_by_ai, after.today.answered_ai, "Today and Reports: same number for the same day");
     assert.equal(after.m.period.answered_by_you, after.today.answered_you);
     assert.equal(after.m.period.unanswered_in_window, after.today.unanswered);
@@ -93,10 +104,15 @@ test("reply time runs from the moment the reply left, not from the draft", { ski
     const ai = ok(await db.from("messages").insert({ ...base, direction: "outbound", sender: "ai", status: "sent", body: "we open at 9:30", created_at: minutesAgo(9) }).select("id").single());
     ok(await db.from("events").insert({ tenant_id: tenantId, kind: "message.sent", category: "message", subject_type: "message", subject_id: ai.id, data: { sender: "ai" }, created_at: minutesAgo(3) }));
 
+    // Asked about THIS conversation, so other files' fixtures cannot interfere.
+    const mine = ok(await db.rpc("first_replies", { p_tenant_id: tenantId, p_start: minutesAgo(30) })).filter((r) => r.conversation_id === conv.id);
+    assert.equal(mine.length, 1);
+    assert.equal(mine[0].who, "ai");
+    const secs = Number(mine[0].ai_seconds);
+    assert.ok(Math.abs(secs - 420) <= 5, `REGRESSION: expected ~420 s (the send), got ${secs} (60 s would be the draft)`);
+    // And it reaches Reports' raw list for the median.
     const { r } = await both(tenantId);
-    const secs = r.reply_seconds.map(Number);
-    assert.ok(secs.some((s) => Math.abs(s - 420) <= 5), `REGRESSION: expected ~420 s (the send), got ${JSON.stringify(secs)} (60 s would be the draft)`);
-    assert.ok(!secs.some((s) => Math.abs(s - 60) <= 5), "the draft moment must not be timed");
+    assert.ok(r.reply_seconds.map(Number).some((s) => Math.abs(s - 420) <= 5));
   } finally {
     await cleanup(tenantId);
   }

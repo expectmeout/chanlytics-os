@@ -283,7 +283,7 @@ const CvViewer = ({ c }) => {
         <div className="cv-summary">
           <div className="cv-summary-eyebrow">
             <Icon name={c.channel === "phone" ? "phone" : "chat"} size={11} />
-            {c.channel === "phone" ? "What happened on this call" : `Latest from ${c.whoShort || String(c.who || "").split(" ")[0]}`}
+            {c.channel === "phone" ? "What happened on this call" : `Latest from ${c.whoShort || c.who}`}
             {c.policyClass && <PolicyChip cls={c.policyClass} className="cv-pol" />}
           </div>
           <div className="cv-summary-headline">{c.summary.headline}</div>
@@ -322,7 +322,7 @@ const CvViewer = ({ c }) => {
             {transcript.map((line, i) => (
               <div key={i} className={`cv-line ${line.speaker}`}>
                 <span className="cv-line-t mono tabular">{line.t}</span>
-                <span className="cv-line-speaker">{line.speaker === "agent" ? c.agent.name : (c.whoShort || c.who.split(" ")[0])}</span>
+                <span className="cv-line-speaker">{line.speaker === "agent" ? c.agent.name : (c.whoShort || c.who)}</span>
                 <span className="cv-line-text">
                   {line.text}
                   {isLive && i === transcript.length - 1 && <span className="cv-cursor" />}
@@ -359,11 +359,14 @@ const CvViewer = ({ c }) => {
               /* `undelivered` is not styling for its own sake: this pane is
                  where an operator reads back what their receptionist said, and
                  a message that never left has to be legible as one. */
-              <div key={i} className={`tl-msg ${m.from === "client" ? "client" : "agent"}${m.reachedCustomer === false ? " undelivered" : ""}`}>
+              /* A call note is drawn as a note, not as words the receptionist
+                 said to the customer — it was labelled WhatsApp and styled as a
+                 sent bubble, which is two false facts. */
+              <div key={i} className={`tl-msg ${m.from === "client" ? "client" : "agent"}${m.channel === "phone" ? " note" : ""}${m.reachedCustomer === false ? " undelivered" : ""}`}>
                 <div className="tl-msg-bubble">
                   <div className="tl-msg-meta">
-                    <Icon name={CV_ICON[c.channel]} size={10} />
-                    <span>{CV_LABEL[c.channel]}</span>
+                    <Icon name={m.channel === "phone" ? "phone" : CV_ICON[c.channel]} size={10} />
+                    <span>{m.channel === "phone" ? "Phone · call note" : CV_LABEL[c.channel]}</span>
                     <span className="tl-msg-time tabular">{m.at}</span>
                     {m.statusLabel && <span className="cv-msg-status">· {m.statusLabel}</span>}
                   </div>
@@ -418,6 +421,9 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
 
   // Keep selection valid within the filtered list
   const selected = visible.find(c => c.id === selectedId) || visible[0];
+  // A deep link to a conversation that is not in view must not open someone
+  // else's transcript in silence: the first row still shows, with a notice.
+  const requestedMissing = !!initialId && selectedId === initialId && visible.length > 0 && !visible.some((c) => c.id === initialId);
   useCvEffect(() => { if (!initialId) setSelectedId(null); }, [channel]);
 
   const counts = useCvMemo(() => ({
@@ -468,6 +474,11 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
         </div>
       </aside>
 
+      {requestedMissing && (
+        <div className="cv-missing" role="status">
+          That conversation isn't among the newest {CONVERSATIONS.length} shown here — open the person in People to find it.
+        </div>
+      )}
       {selected ? <CvViewer c={selected} /> : (
         <div className="ix-empty-state">
           <div className="ix-empty-glyph"><Icon name="chat" size={28} /></div>

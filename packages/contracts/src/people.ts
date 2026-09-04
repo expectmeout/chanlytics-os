@@ -65,6 +65,10 @@ export interface PersonRowDto {
   has_backfill: boolean | null;
   has_chat: boolean | null;
   queued_reply_at: string | null;
+  /** The reply mode in force for this person — their own setting, else the
+   *  workspace's. Attached by the API from the policies table; people_list
+   *  does not carry it. */
+  effective_reply_mode?: string | null;
 }
 
 export interface PersonIdentityDto {
@@ -243,8 +247,13 @@ export function isOwned(r: Pick<PersonRowDto, "latest_assignee_user_id" | "lates
 /* ------------------------------ the rule --------------------------------- */
 
 export function personStateFor(r: PersonRowDto, nowMs: number): PersonState {
-  if (r.needs_human || r.open_escalation_reason) return "needs_you";
-  if (isOwned(r, nowMs) && r.last_message_direction === "inbound") return "waiting_on_you";
+  const flagged = !!(r.needs_human || r.open_escalation_reason);
+  const owned = isOwned(r, nowMs);
+  // The Inbox's rule (threadStanding): a thread someone has taken over is
+  // theirs, and a snoozed one is for later — neither is "needs you". The two
+  // surfaces counted different people under the same word.
+  if (flagged && !owned && r.latest_state !== "snoozed") return "needs_you";
+  if (owned && (flagged || r.last_message_direction === "inbound")) return "waiting_on_you";
   if (r.consent === "opted_out" || r.dnc) return "opted_out";
   const first = ts(r.first_contact_at);
   if (!r.has_backfill && first !== null && nowMs - first <= NEW_WINDOW_MS) return "new";
@@ -327,6 +336,9 @@ export interface PersonReceptionist {
 }
 
 function receptionistOf(r: PersonRowDto, nowMs: number): PersonReceptionist {
+  // A thread a person owns is theirs, whatever flagged it — the Inbox says
+  // "you have it" for the same row, and the two must not disagree.
+  if (isOwned(r, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
   if (r.open_escalation_reason) return { tone: "escalated", label: `Escalated, ${reasonShort(r.open_escalation_reason)}` };
   if (r.needs_human) return { tone: "escalated", label: "Waiting for a person" };
   if (r.queued_reply_at) return { tone: "queued", label: "Reply queued" };
@@ -334,8 +346,10 @@ function receptionistOf(r: PersonRowDto, nowMs: number): PersonReceptionist {
   if (r.latest_state === "snoozed" && snooze !== null && snooze > nowMs) {
     return { tone: "snoozed", label: `Snoozed until ${shortTime(r.latest_snooze_until, new Date(nowMs))}` };
   }
-  if (isOwned(r, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
   if (r.consent === "opted_out" || r.dnc) return { tone: "silent", label: "Silent, they opted out" };
+  // "Answering" was shown for a person the owner had set to Never.
+  if (r.effective_reply_mode === "never") return { tone: "paused", label: "Held for you, set to Never" };
+  if (r.effective_reply_mode === "ask") return { tone: "paused", label: "Held for you, set to Ask" };
   return { tone: "answering", label: "Answering" };
 }
 
@@ -558,8 +572,10 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
     open_escalation_reason: openEsc?.reason ?? d.row.open_escalation_reason,
     open_escalation_since: openEsc?.created_at ?? d.row.open_escalation_since,
     conversation_count: d.conversations.length || d.row.conversation_count,
-    call_count: d.calls.length || d.row.call_count,
-    call_seconds: d.calls.length ? Math.round(d.calls.reduce((a, k) => a + (k.duration_ms ?? 0), 0) / 1000) : d.row.call_seconds,
+    // A dial that never connected is not a call; people_list agrees, and the
+    // profile used to count one more than the list.
+    call_count: d.calls.length ? d.calls.filter((k) => k.status !== "not_connected").length : d.row.call_count,
+    call_seconds: d.calls.length ? Math.round(d.calls.filter((k) => k.status !== "not_connected").reduce((a, k) => a + (k.duration_ms ?? 0), 0) / 1000) : d.row.call_seconds,
     escalation_count: d.escalations.length || d.row.escalation_count,
   };
   const base = toPersonRowVM(row, now);
@@ -589,15 +605,16 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
     if (t === null) continue;
     const dur = mmss(k.duration_ms);
     const summary = (k.summary || "").trim();
-    const sentence = summary ? (summary.split(/(?<=[.!?])\s/)[0] ?? summary) : k.in_voicemail ? "Reached voicemail." : "No summary from this call.";
+    const missed = k.status === "not_connected";
+    const sentence = missed ? "The call never connected." : summary ? (summary.split(/(?<=[.!?])\s/)[0] ?? summary) : k.in_voicemail ? "Reached voicemail." : "No summary from this call.";
     items.push({
       id: `k-${k.id}`,
       ts: t,
       ...stamp(t),
       kind: "call",
-      who: `${k.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""}`,
+      who: missed ? "Missed call" : `${k.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""}`,
       text: sentence,
-      sub: k.recording?.fetch_state === "stored" ? "Recording and transcript in Conversations" : "Transcript in Conversations",
+      sub: missed ? "Never connected" : k.recording?.fetch_state === "stored" ? "Recording and transcript in Conversations" : "Transcript in Conversations",
       link: { label: "Open", to: `conversations/cv-${k.id}` },
     });
   }
@@ -670,6 +687,18 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
     rightNow = { tone: "paused", title: "Paused, a person owns this thread", detail: "The receptionist will not answer until the thread is handed back", cta: openInbox };
   } else if (base.consent.state === "opted_out") {
     rightNow = { tone: "silent", title: "Silent, they opted out", detail: base.consent.sub, cta: null };
+  } else if (["never", "ask"].includes(d.receptionist_mode ?? "") || ["never", "ask"].includes(d.workspace_reply_mode ?? "")) {
+    // "Answering" sat two inches from "Receptionist for Dani: Never".
+    const theirs = ["never", "ask"].includes(d.receptionist_mode ?? "");
+    const mode = theirs ? d.receptionist_mode : d.workspace_reply_mode;
+    rightNow = {
+      tone: "paused",
+      title: `Held for you, set to ${mode === "never" ? "Never" : "Ask"}`,
+      detail: theirs
+        ? "You set the receptionist to stay out of this person's thread — their messages come straight to you"
+        : "Your workspace reply setting holds every message for a person",
+      cta: openInbox,
+    };
   } else {
     rightNow = { tone: "answering", title: "Answering", detail: "New messages are answered automatically", cta: base.threadId ? { label: "Open thread", to: `inbox/${base.threadId}` } : null };
   }

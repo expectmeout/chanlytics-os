@@ -499,6 +499,9 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   // keep a customer (with a live Snooze button) on screen beside a list that
   // said "0 threads".
   const activeThread = visible.find((t) => t.id === activeThreadId) || visible[0];
+  // A deep link (People → "Open thread") to a thread outside the newest
+  // hundred must not open someone else's thread in silence.
+  const requestedMissing = !!initialThreadId && activeThreadId === initialThreadId && visible.length > 0 && !visible.some((t) => t.id === initialThreadId);
 
   // Keyboard: A approve recommended · D decline · E focus composer
   React.useEffect(() => {
@@ -586,6 +589,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
       <InboxThread
         key={activeThread?.id}
         thread={activeThread}
+        notice={requestedMissing ? "That conversation isn't among the newest shown here — open the person in People to find it." : null}
         channelLabels={CHANNEL_LABELS}
         stale={stale && activeThread && stale.threadId === activeThread.id ? stale : null}
         onReconcile={reconcile}
