@@ -545,7 +545,9 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
     escalation_count: d.escalations.length || d.row.escalation_count,
   };
   const base = toPersonRowVM(row, now);
-  const first = base.name.split(" ")[0] || base.name;
+  // A person we know only by number has no first name to shorten to: "+1"
+  // as a speaker label is nobody. Keep the whole formatted number.
+  const first = /^[+\d(]/.test(base.name) ? base.name : base.name.split(" ")[0] || base.name;
   const stamp = (t: number) => ({ time: TIME_FMT.format(new Date(t)), day: dayLabel(t, nowMs) });
   const items: PersonTimelineItemVM[] = [];
   const convIds = new Set(d.conversations.map((c) => c.id));

@@ -768,7 +768,8 @@ const PeopleTriage = ({ rows, recency, attentionTab, setAttentionTab, onOpen, on
   const shown = rows.filter((r) => r.state === active).slice(0, 3);
   return (
     <section className="cl-triage">
-      <div className="cl-triage-tabs" role="tablist">
+      {/* Five states on the seeded four-column strip would wrap the fifth. */}
+      <div className="cl-triage-tabs" role="tablist" style={{ gridTemplateColumns: "repeat(5, 1fr)" }}>
         {PL_TABS.map((t) => {
           const cells = (recency && recency[t]) || [];
           const max = Math.max(1, ...cells.map((c) => c.count));

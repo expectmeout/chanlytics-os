@@ -1549,7 +1549,7 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
     escalation_count: d.escalations.length || d.row.escalation_count
   };
   const base = toPersonRowVM(row, now);
-  const first = base.name.split(" ")[0] || base.name;
+  const first = /^[+\d(]/.test(base.name) ? base.name : base.name.split(" ")[0] || base.name;
   const stamp = (t) => ({ time: TIME_FMT2.format(new Date(t)), day: dayLabel(t, nowMs) });
   const items = [];
   const convIds = new Set(d.conversations.map((c) => c.id));

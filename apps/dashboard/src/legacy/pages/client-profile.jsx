@@ -598,7 +598,11 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
 
   const p = vm;
   const tone = p.rightNow.tone;
-  const first = p.name.split(" ")[0];
+  // Nobody is called "+1": a person known only by number is "them" in copy
+  // and their full number where a speaker is named.
+  const phoneOnly = /^[+\d(]/.test(p.name);
+  const first = phoneOnly ? "them" : p.name.split(" ")[0];
+  const speaker = phoneOnly ? p.name : first;
   const hot = tone === "escalated" || tone === "queued";
   return (
     <div className="cl-profile">
@@ -639,12 +643,12 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
             <span className="cl-prof-narr-eyebrow">Last exchange</span>
             <div>
               {p.lastExchange.customer ? (
-                <div className="cl-prof-narr-text"><b>{first}</b> \u201c{p.lastExchange.customer.text}\u201d <span className="dim" style={{ fontSize: 11 }}>{p.lastExchange.customer.at}</span></div>
+                <div className="cl-prof-narr-text"><b>{speaker}</b> “{p.lastExchange.customer.text}” <span className="dim" style={{ fontSize: 11 }}>{p.lastExchange.customer.at}</span></div>
               ) : (
                 <div className="cl-prof-narr-text">{p.calls ? "They have only phoned — the transcript is in Conversations." : "Nothing written yet."}</div>
               )}
               {p.lastExchange.reply && (
-                <div className="cl-prof-narr-text"><b>{p.lastExchange.reply.who}</b> \u201c{p.lastExchange.reply.text}\u201d <span className="dim" style={{ fontSize: 11 }}>{p.lastExchange.reply.at}</span></div>
+                <div className="cl-prof-narr-text"><b>{p.lastExchange.reply.who}</b> “{p.lastExchange.reply.text}” <span className="dim" style={{ fontSize: 11 }}>{p.lastExchange.reply.at}</span></div>
               )}
               <div className="cl-prof-narr-byline">Verbatim from the thread</div>
             </div>
