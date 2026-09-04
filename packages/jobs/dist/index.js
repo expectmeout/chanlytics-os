@@ -4088,6 +4088,8 @@ var WA_WINDOW_MS = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
 var TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var LIVE_STALE_MS = 5 * 60 * 1e3;
+var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
 var PolicyLimitsSchema = external_exports.object({
   max_replies_day: external_exports.number().int().min(1).max(200).optional(),
@@ -4301,9 +4303,6 @@ var DAY_MS2 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS2;
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var LIVE_STALE_MS = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -8391,7 +8390,9 @@ var WA_WINDOW_MS2 = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS2 = 10 * 60 * 1e3;
 var TIME_FMT3 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var ANALYSIS_GRACE_MS3 = 10 * 60 * 1e3;
+var LIVE_STALE_MS2 = 5 * 60 * 1e3;
+var LIVE_OVERLONG_MS2 = 30 * 60 * 1e3;
+var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;
 var PolicyLimitsSchema2 = external_exports2.object({
   max_replies_day: external_exports2.number().int().min(1).max(200).optional(),
   pause_hours: external_exports2.number().int().min(1).max(168).optional(),
@@ -8604,9 +8605,6 @@ var DAY_MS22 = 864e5;
 var QUIET_AFTER_MS22 = 7 * DAY_MS22;
 var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_FMT42 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var LIVE_STALE_MS2 = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS2 = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS22 = 10 * 60 * 1e3;
 
 // src/handlers.ts
 var SENDERS = {

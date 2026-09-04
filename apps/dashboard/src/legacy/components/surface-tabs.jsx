@@ -27,7 +27,11 @@ const ST_GROUPS = {
       // caller, always on, beside the REAL Conversations tab.
       // With the bridge running the pulse is the real thing: a call in
       // progress under the heartbeat rule. The seeded pulse stays demo-only.
-      { id: "live", label: "Live", to: "live", pulse: () => (window.__LIVE ? window.__LIVE.now.length > 0 : !!window.__DEMO_MODE && !(window.LM_STORE && window.LM_STORE.isEnded("lc-selena"))), tip: "Calls on your line, as they happen" },
+      { id: "live", label: "Live", to: "live", pulse: () => (window.__LIVE
+        // The same heartbeat rule the page applies between refreshes, so the
+        // tab does not pulse for a phantom the page has already dropped.
+        ? window.__LIVE.now.some((c) => Date.now() - (c.heartbeatAtMs || c.startedAtMs || 0) < window.__LIVE.heartbeatMs)
+        : !!window.__DEMO_MODE && !(window.LM_STORE && window.LM_STORE.isEnded("lc-selena"))), tip: "Calls on your line, as they happen" },
     ],
   },
   campaigns: {

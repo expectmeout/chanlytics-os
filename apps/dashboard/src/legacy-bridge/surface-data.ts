@@ -29,6 +29,9 @@ export interface SurfaceOverride {
   events?: string[];
   /** Re-apply when a realtime message INSERT arrives (the runner owns the one shared subscription). */
   refreshOnMessageInserts?: boolean;
+  /** Re-apply on events from THESE tables instead — an explicit list wins
+   *  over the flag (see surface-realtime.ts). */
+  refreshOnTables?: string[];
   /** Debounce for realtime-triggered re-applies (default 400ms). */
   debounceMs?: number;
 }
@@ -658,7 +661,10 @@ export const liveOverride: SurfaceOverride = {
   key: "live",
   globals: [],
   events: ["surface:live"],
-  refreshOnMessageInserts: true,
+  // Calls only: a transcript turn is a calls UPDATE and nothing else needs
+  // to repaint for it; the note a call leaves in the thread is a messages
+  // INSERT the default surfaces already follow.
+  refreshOnTables: ["calls"],
   debounceMs: 300,
   apply: async () => {
     const [callsRes, chRes] = await Promise.all([

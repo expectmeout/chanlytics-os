@@ -59,6 +59,7 @@ export type Database = {
           in_voicemail: boolean | null
           latency: Json | null
           message_id: string | null
+          notified_at: string | null
           public_log_url: string | null
           raw: Json
           recording: Json | null
@@ -92,6 +93,7 @@ export type Database = {
           in_voicemail?: boolean | null
           latency?: Json | null
           message_id?: string | null
+          notified_at?: string | null
           public_log_url?: string | null
           raw?: Json
           recording?: Json | null
@@ -125,6 +127,7 @@ export type Database = {
           in_voicemail?: boolean | null
           latency?: Json | null
           message_id?: string | null
+          notified_at?: string | null
           public_log_url?: string | null
           raw?: Json
           recording?: Json | null
@@ -1643,6 +1646,7 @@ export type Database = {
         Args: { p_days?: number; p_tenant_id: string }
         Returns: Json
       }
+      scrub_call_raw: { Args: { p_raw: Json }; Returns: Json }
       sweep_health: {
         Args: never
         Returns: {

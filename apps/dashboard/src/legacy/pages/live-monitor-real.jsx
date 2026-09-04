@@ -31,6 +31,7 @@ const useLiveSurface = () => {
 const LrPill = ({ c }) => {
   if (c.live) return <span className="pill pill-accent"><span className="live-dot" style={{ width: 5, height: 5 }} />Live</span>;
   if (c.missed) return <span className="pill">Never connected</span>;
+  if (c.stale) return <span className="pill" title="Marked live by the phone provider, but silent past the heartbeat. Checked within five minutes.">No word from the provider</span>;
   return <span className="pill">Ended</span>;
 };
 
@@ -120,11 +121,12 @@ const LrTranscript = ({ c }) => {
   );
 };
 
-const lrRecordingLine = (state) =>
-  state === "ready" ? "Recording saved"
-    : state === "pending" ? "Recording still processing"
-      : state === "failed" ? "Recording couldn't be saved"
-        : "No recording";
+const lrRecordingLine = (c) =>
+  c.recordingState === "ready" ? "Recording saved"
+    : c.recordingState === "pending" ? "Recording still processing"
+      : c.recordingState === "failed" ? "Recording couldn't be saved"
+        : c.summaryState === "pending" ? "Recording on its way"
+          : "No recording";
 
 const LrPanel = ({ c, elapsed }) => {
   if (!c) {
@@ -173,7 +175,7 @@ const LrPanel = ({ c, elapsed }) => {
       {c.live && c.checking && (
         <div className="lm-banner" data-testid="live-checking">
           <span className="live-dot" style={{ width: 6, height: 6, background: "var(--warn)" }} />
-          Still marked live — {c.checkingWhy}. Checking with the phone provider.
+          Still marked live — {c.checkingWhy}. It is checked with the phone provider within five minutes.
         </div>
       )}
 
@@ -185,7 +187,7 @@ const LrPanel = ({ c, elapsed }) => {
             <div className="lm-waiting">
               <Icon name="phone" size={16} />
               <div>
-                The receptionist is on the line with {c.whoShort}. The transcript arrives when the call ends — it will be in Conversations with the recording.
+                The receptionist is on the line with {c.whoShort}. Nothing has been said yet; the words appear here as the phone provider sends them.
               </div>
             </div>
             <div className="lm-spacer" />
@@ -206,7 +208,7 @@ const LrPanel = ({ c, elapsed }) => {
             <span>{c.direction === "inbound" ? "Inbound" : "Outbound"}{c.duration ? ` · ${c.duration}` : ""}</span>
             {c.endedHow && <span>Ended: {c.endedHow}</span>}
             {c.sentiment && <span>Caller mood: {c.sentiment} — the voice provider's own read</span>}
-            {!c.missed && <span>{lrRecordingLine(c.recordingState)}</span>}
+            {!c.missed && <span>{lrRecordingLine(c)}</span>}
           </div>
           {!c.missed && (
             <div className="lm-summary-actions">
@@ -224,7 +226,9 @@ const LrPanel = ({ c, elapsed }) => {
             ? "The receptionist is handling this call on its own."
             : c.missed
               ? "Nothing to review."
-              : <>Call ended · <button className="lm-link" onClick={open}>open the transcript</button></>}
+              : c.stale
+                ? "Marked live by the phone provider, but silent — it is checked within five minutes."
+                : <>Call ended · <button className="lm-link" onClick={open}>open the transcript</button></>}
         </span>
       </footer>
     </div>

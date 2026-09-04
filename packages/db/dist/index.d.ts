@@ -54,6 +54,7 @@ type Database = {
                     in_voicemail: boolean | null;
                     latency: Json | null;
                     message_id: string | null;
+                    notified_at: string | null;
                     public_log_url: string | null;
                     raw: Json;
                     recording: Json | null;
@@ -87,6 +88,7 @@ type Database = {
                     in_voicemail?: boolean | null;
                     latency?: Json | null;
                     message_id?: string | null;
+                    notified_at?: string | null;
                     public_log_url?: string | null;
                     raw?: Json;
                     recording?: Json | null;
@@ -120,6 +122,7 @@ type Database = {
                     in_voicemail?: boolean | null;
                     latency?: Json | null;
                     message_id?: string | null;
+                    notified_at?: string | null;
                     public_log_url?: string | null;
                     raw?: Json;
                     recording?: Json | null;
@@ -1708,6 +1711,12 @@ type Database = {
                 };
                 Returns: Json;
             };
+            scrub_call_raw: {
+                Args: {
+                    p_raw: Json;
+                };
+                Returns: Json;
+            };
             sweep_health: {
                 Args: never;
                 Returns: {
@@ -2009,6 +2018,12 @@ declare function recordCallNote(db: Db$2, p: {
     externalId: string;
     channelTsIso: string | null;
 }): Promise<string | null>;
+/**
+ * Claim the one-time post-call side effects (the summary email, the memory
+ * note). True for the first caller; false once claimed. Throws on a database
+ * error so the webhook answers non-2xx and the provider retries.
+ */
+declare function claimCallNotification(db: Db$2, tenantId: string, callId: string): Promise<boolean>;
 
 /**
  * Gate 1b: the bot's working memory, read from Postgres.
@@ -2207,9 +2222,12 @@ interface SubscribeOptions {
     /** Observability: called with SUBSCRIBED / CHANNEL_ERROR / TIMED_OUT / CLOSED. */
     onStatus?: (status: string) => void;
 }
-declare function subscribeMessagesInserts(client: SupabaseClient<Database>, onInsert: (row: {
+declare function subscribeMessagesInserts(client: SupabaseClient<Database>, 
+/** Called with the changed row and the TABLE it came from, so a caller can
+ *  route the event instead of repainting everything on every change. */
+onInsert: (row: {
     conversation_id: string;
     tenant_id: string;
-}) => void, opts?: SubscribeOptions): () => void;
+}, table: string) => void, opts?: SubscribeOptions): () => void;
 
-export { type ChannelLookup, type Database, HISTORY_COLUMNS, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type NormalizedCallInput, type OutboundTarget, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, assembleHistory, countSentToday, createServiceClient, describeLead, emitEvent, getTenantConfig, ingestCall, ingestInbound, linkCallMessage, listPolicies, markProcessed, pauseConversation, personReplyMode, putTenantConfig, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, setCallRecording, setPersonReplyMode, setPolicyMode, subscribeMessagesInserts };
+export { type ChannelLookup, type Database, HISTORY_COLUMNS, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type NormalizedCallInput, type OutboundTarget, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, assembleHistory, claimCallNotification, countSentToday, createServiceClient, describeLead, emitEvent, getTenantConfig, ingestCall, ingestInbound, linkCallMessage, listPolicies, markProcessed, pauseConversation, personReplyMode, putTenantConfig, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, setCallRecording, setPersonReplyMode, setPolicyMode, subscribeMessagesInserts };

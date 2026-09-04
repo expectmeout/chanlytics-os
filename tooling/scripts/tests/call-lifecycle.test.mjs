@@ -71,7 +71,7 @@ test("the recording fetch is bounded: a stalled provider rejects, a refusal retu
   const { port } = server.address();
   try {
     await assert.rejects(fetchRecording(`http://127.0.0.1:${port}/stall`, { timeoutMs: 80 }), (e) => e.name === "TimeoutError");
-    assert.equal(await fetchRecording(`http://127.0.0.1:${port}/refuse`, { timeoutMs: 2000 }), null);
+    assert.deepEqual(await fetchRecording(`http://127.0.0.1:${port}/refuse`, { timeoutMs: 2000 }), { ok: false, status: 404 });
   } finally {
     server.closeAllConnections?.();
     await new Promise((r) => server.close(r));
@@ -179,7 +179,7 @@ test("the sweep retries pending copies, bounded, and the trigger wakes for them"
   assert.ok(sql.includes("coalesce((recording->>'attempts')::int, 0) < 3"), "a copy given up on stops waking the edge");
   const lib = readCode("apps/edge/lib/call-recording.ts");
   assert.ok(lib.includes("export const RECORDING_MAX_ATTEMPTS = 3;"));
-  assert.ok(lib.includes('fetch_state: exhausted ? "failed" : "pending"'));
+  assert.ok(lib.includes('settle(exhausted ? "failed" : "pending"'));
 });
 
 test("the diagnostic reports what the agent is configured to send", () => {

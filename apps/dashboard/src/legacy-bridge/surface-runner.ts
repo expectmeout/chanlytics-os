@@ -14,6 +14,7 @@ import { subscribeMessagesInserts } from "@chanlytics/db";
 import { activateOverride, UnauthorizedError, type SurfaceOverride } from "./surface-data";
 import { cachedTenant, clearSurfaceCache, snapshotSurface } from "./surface-cache";
 import { isSurfaceReady, setStatus } from "./surface-status";
+import { subscribesToRealtime, wantsRefresh } from "./surface-realtime";
 
 // Re-exported so consumers keep importing the seam from one place.
 export {
@@ -131,7 +132,7 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
     );
   };
 
-  const realtimeOverrides = overrides.filter((o) => o.refreshOnMessageInserts);
+  const realtimeOverrides = overrides.filter(subscribesToRealtime);
   let unsubscribe: (() => void) | null = null;
   let everSubscribed = false;
 
@@ -156,7 +157,9 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
     const supabase = createClient();
     unsubscribe = subscribeMessagesInserts(
       supabase,
-      () => realtimeOverrides.forEach(scheduleRefresh),
+      // Routed by table: a live call's transcript turns repaint Live, not the
+      // five surfaces that never asked (three of them plpgsql aggregates).
+      (_row, table) => realtimeOverrides.filter((o) => wantsRefresh(o, table)).forEach(scheduleRefresh),
       {
         topic,
         onStatus: (status) => {

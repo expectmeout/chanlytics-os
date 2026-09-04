@@ -25,8 +25,8 @@ import crypto from "node:crypto";
 import { json } from "../../lib/http.js";
 import { pg } from "../../lib/pg.js";
 import { logger, errField } from "../../lib/log.js";
-import { getCall, normalizeCall } from "../../lib/workspace/channels.js";
-import { ingestCall } from "../../lib/workspace/db.js";
+import { getCall, normalizeCall, callSummaryLine, type NormalizedCall } from "../../lib/workspace/channels.js";
+import { ingestCall, recordCallNote, linkCallMessage } from "../../lib/workspace/db.js";
 import { copyRecording, RECORDING_MAX_ATTEMPTS, SWEEP_COPY_TIMEOUT_MS } from "../../lib/call-recording.js";
 
 /** Only look at rows that have had time to settle — a call that started
@@ -34,13 +34,22 @@ import { copyRecording, RECORDING_MAX_ATTEMPTS, SWEEP_COPY_TIMEOUT_MS } from "..
  *  provider round trip per tick. */
 const SETTLE_MS = 5 * 60 * 1000;
 
+/** A call live longer than this is asked about even when it is still
+ *  producing turns: the Live page tells the owner it is being checked. */
+const OVERLONG_MS = 30 * 60 * 1000;
+
+/** How long after call_ended a call without an analysis still gets a line
+ *  in the customer's thread — the webhook writes it on call_analyzed. */
+const NOTE_GRACE_MS = 15 * 60 * 1000;
+const MAX_NOTES_PER_TICK = 10;
+
 /** A bound per tick. A backlog drains over successive runs rather than turning
  *  one cron tick into a hundred sequential API calls. */
 const MAX_PER_TICK = 25;
 
 /** Recording copies retried per tick. Each may wait SWEEP_COPY_TIMEOUT_MS,
  *  so the two together stay inside this function's own budget. */
-const MAX_RECORDINGS_PER_TICK = 3;
+const MAX_RECORDINGS_PER_TICK = 2;
 
 export const config = { maxDuration: 60 };
 
@@ -80,7 +89,10 @@ export async function POST(request: Request): Promise<Response> {
     .from("calls")
     .select("id, tenant_id, retell_call_id, updated_at")
     .eq("status", "ongoing")
-    .lt("updated_at", new Date(Date.now() - SETTLE_MS).toISOString())
+    // Two reasons to ask: nobody has heard from the call for SETTLE_MS, or it
+    // has simply run past OVERLONG_MS — long calls happen, and the Live page
+    // says such a call is being checked, which has to be true.
+    .or(`updated_at.lt.${new Date(Date.now() - SETTLE_MS).toISOString()},started_at.lt.${new Date(Date.now() - OVERLONG_MS).toISOString()}`)
     .order("updated_at", { ascending: true })
     .limit(MAX_PER_TICK);
   if (error) {
@@ -127,7 +139,7 @@ export async function POST(request: Request): Promise<Response> {
   const recordings = { candidates: 0, stored: 0, retry: 0, failed: 0 };
   const { data: pendingRec, error: recErr } = await db
     .from("calls")
-    .select("id, tenant_id, recording")
+    .select("id, tenant_id, retell_call_id, recording")
     .in("status", ["ended", "error"])
     .filter("recording->>fetch_state", "eq", "pending")
     .lt("updated_at", new Date(Date.now() - SETTLE_MS).toISOString())
@@ -135,23 +147,67 @@ export async function POST(request: Request): Promise<Response> {
     .limit(MAX_RECORDINGS_PER_TICK * 2);
   if (recErr) L.error("calls_sweep_recordings_query_failed", { error: recErr.message });
   for (const row of pendingRec ?? []) {
-    const rec = (row.recording ?? {}) as { provider_url?: string; attempts?: number };
-    if (!rec.provider_url || (rec.attempts ?? 0) >= RECORDING_MAX_ATTEMPTS) continue;
+    const rec = (row.recording ?? {}) as { attempts?: number };
+    if ((rec.attempts ?? 0) >= RECORDING_MAX_ATTEMPTS) continue;
     if (recordings.candidates >= MAX_RECORDINGS_PER_TICK) break;
     recordings.candidates++;
+    // The URL is not kept on the row (it would reach every member's browser
+    // over realtime); the provider hands out a fresh one by call id.
+    const fresh = await getCall({ apiKey }, row.retell_call_id).catch(() => null);
+    const url = fresh?.recording_url ?? null;
+    if (!url) {
+      L.warn("calls_sweep_recording_no_url", { call: row.retell_call_id });
+      continue;
+    }
     const outcome = await copyRecording(db, {
       tenantId: row.tenant_id,
       callId: row.id,
-      providerUrl: rec.provider_url,
+      providerUrl: url,
       attempts: rec.attempts ?? 0,
       timeoutMs: SWEEP_COPY_TIMEOUT_MS,
     });
     recordings[outcome]++;
   }
 
+  // ---- calls that ended without an analysis still get a line in the thread ----
+  // The webhook writes the customer-thread note when the summary exists;
+  // a call the provider never analyses would otherwise leave no trace there.
+  const notes = { candidates: 0, written: 0 };
+  const { data: unnoted, error: noteErr } = await db
+    .from("calls")
+    .select("id, tenant_id, retell_call_id, conversation_id, contact_id, direction, duration_ms, in_voicemail, summary, started_at")
+    .in("status", ["ended", "error"])
+    .is("message_id", null)
+    .not("conversation_id", "is", null)
+    .lt("ended_at", new Date(Date.now() - NOTE_GRACE_MS).toISOString())
+    .order("ended_at", { ascending: true })
+    .limit(MAX_NOTES_PER_TICK);
+  if (noteErr) L.error("calls_sweep_notes_query_failed", { error: noteErr.message });
+  for (const row of unnoted ?? []) {
+    notes.candidates++;
+    const line = callSummaryLine({
+      direction: row.direction === "outbound" ? "outbound" : "inbound",
+      durationMs: row.duration_ms,
+      summary: row.summary,
+      inVoicemail: row.in_voicemail,
+    } as NormalizedCall);
+    const msgId = await recordCallNote(db, {
+      tenantId: row.tenant_id,
+      conversationId: row.conversation_id as string,
+      contactId: row.contact_id,
+      body: line,
+      externalId: `call:${row.retell_call_id}`,
+      channelTsIso: row.started_at,
+    });
+    if (msgId) {
+      await linkCallMessage(db, row.tenant_id, row.id, msgId);
+      notes.written++;
+    }
+  }
+
   L.info("calls_sweep_done", {
     candidates: stale?.length ?? 0, closed, still_live: stillLive, unknown,
-    recordings: JSON.stringify(recordings),
+    recordings: JSON.stringify(recordings), notes: JSON.stringify(notes),
   });
-  return json(200, { ok: true, candidates: stale?.length ?? 0, closed, stillLive, unknown, recordings });
+  return json(200, { ok: true, candidates: stale?.length ?? 0, closed, stillLive, unknown, recordings, notes });
 }

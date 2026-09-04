@@ -2701,6 +2701,10 @@ interface LiveCallVM {
     live: boolean;
     /** Retell's not_connected: the dial never connected. */
     missed: boolean;
+    /** Marked ongoing by the provider but silent past the heartbeat: the
+     *  reconcile sweep will settle it; until then it is neither live nor
+     *  ended, and the page must not call it either. */
+    stale: boolean;
     /** Live, but the heartbeat is older than LIVE_STALE_MS or the call has run
      *  past LIVE_OVERLONG_MS: shown as "still marked live · checking". */
     checking: boolean;

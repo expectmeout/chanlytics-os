@@ -24,6 +24,7 @@ import {
   type CallDto,
 } from "./viewmodels";
 import { waWindow } from "./policy";
+import { ANALYSIS_GRACE_MS } from "./live";
 
 export interface MetricsSummaryDto {
   workspace: { name: string; timezone: string; status: string };
@@ -170,10 +171,6 @@ function secondsPhrase(s: number): string {
 }
 
 const SENT = ["sent", "delivered", "read"];
-
-/** Retell's analysis lands a little after call_ended. Inside this window
- *  "no summary" is a fact about the clock, not about the call. */
-const ANALYSIS_GRACE_MS = 10 * 60 * 1000;
 
 export function toTodayVM(
   m: MetricsSummaryDto,

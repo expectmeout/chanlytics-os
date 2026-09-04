@@ -271,18 +271,23 @@ export function needsHydration(c: RetellCall): boolean {
  * (verified: HEAD 200 with no auth) — so we copy customer audio into private
  * storage rather than leaving it one guessed link away.
  */
+export type RecordingFetch =
+  | { ok: true; bytes: ArrayBuffer; mime: string | null }
+  | { ok: false; status: number };
+
 export async function fetchRecording(
   url: string,
   opts: { timeoutMs?: number } = {},
-): Promise<{ bytes: ArrayBuffer; mime: string | null } | null> {
-  // A bounded wait: the webhook that calls this has Retell's 10 s delivery
+): Promise<RecordingFetch> {
+  // A bounded wait: the webhook that calls this has the agent's delivery
   // timeout over its head, and an unbounded fetch inside it earns a retry of
-  // the whole event. A timeout REJECTS (unlike a provider refusal, which
-  // returns null) so the caller can tell "try again later" from "never".
+  // the whole event. A timeout REJECTS; a non-2xx returns its status, so the
+  // caller can tell a recording the CDN has not published yet (try again)
+  // from one the provider refuses (give up).
   const signal = opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined;
   const r = await fetch(url, signal ? { signal } : undefined);
-  if (!r.ok) return null;
-  return { bytes: await r.arrayBuffer(), mime: r.headers.get("content-type") };
+  if (!r.ok) return { ok: false, status: r.status };
+  return { ok: true, bytes: await r.arrayBuffer(), mime: r.headers.get("content-type") };
 }
 
 /* --------------------------------- crypto -------------------------------- */

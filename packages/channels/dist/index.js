@@ -4052,6 +4052,8 @@ var WA_WINDOW_MS = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
 var TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var LIVE_STALE_MS = 5 * 60 * 1e3;
+var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
 var PolicyLimitsSchema = external_exports.object({
   max_replies_day: external_exports.number().int().min(1).max(200).optional(),
@@ -4265,9 +4267,6 @@ var DAY_MS2 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS2;
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var LIVE_STALE_MS = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;
 
 // src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";
@@ -4523,8 +4522,8 @@ function needsHydration(c) {
 async function fetchRecording(url, opts = {}) {
   const signal = opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : void 0;
   const r = await fetch(url, signal ? { signal } : void 0);
-  if (!r.ok) return null;
-  return { bytes: await r.arrayBuffer(), mime: r.headers.get("content-type") };
+  if (!r.ok) return { ok: false, status: r.status };
+  return { ok: true, bytes: await r.arrayBuffer(), mime: r.headers.get("content-type") };
 }
 function verifyRetellSignature(rawBody, header, apiKey) {
   if (!header || !apiKey) return false;

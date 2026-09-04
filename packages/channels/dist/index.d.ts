@@ -295,13 +295,18 @@ declare function needsHydration(c: RetellCall): boolean;
  * (verified: HEAD 200 with no auth) — so we copy customer audio into private
  * storage rather than leaving it one guessed link away.
  */
-declare function fetchRecording(url: string, opts?: {
-    timeoutMs?: number;
-}): Promise<{
+type RecordingFetch = {
+    ok: true;
     bytes: ArrayBuffer;
     mime: string | null;
-} | null>;
+} | {
+    ok: false;
+    status: number;
+};
+declare function fetchRecording(url: string, opts?: {
+    timeoutMs?: number;
+}): Promise<RecordingFetch>;
 /** Retell webhook signature: `v={ts},d={hmac}` over rawBody+ts, keyed by the API key. */
 declare function verifyRetellSignature(rawBody: string, header: string | null | undefined, apiKey: string | undefined): boolean;
 
-export { type ListCallsPage, type NormalizedCall, type NormalizedInbound, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellTranscriptTurn, type SendResult, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, callSummaryLine, fetchMediaBytes, fetchRecording, getAgent, getCall, listCalls, liveTurns, needsHydration, normalizeCall, normalizeInbound, sendTemplate, sendText, verifyRetellSignature };
+export { type ListCallsPage, type NormalizedCall, type NormalizedInbound, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellTranscriptTurn, type SendResult, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, callSummaryLine, fetchMediaBytes, fetchRecording, getAgent, getCall, listCalls, liveTurns, needsHydration, normalizeCall, normalizeInbound, sendTemplate, sendText, verifyRetellSignature };

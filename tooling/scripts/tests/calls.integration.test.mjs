@@ -152,6 +152,47 @@ test("a dial that never connected is stored as not_connected and counted nowhere
   }
 });
 
+test("two deliveries of the same ended call, at once, meter it once", { skip }, async () => {
+  const tenantId = await smokeTenantId();
+  await cleanup(tenantId);
+  const id = `${PREFIX}-race`;
+  try {
+    await ingestCall(db, tenantId, call(id));
+    // A webhook retry overlapping the reconcile sweep: both carry the duration.
+    const ended = call(id, { status: "ended", endedAtIso: new Date().toISOString(), durationMs: 42_000 });
+    const [a, b] = await Promise.all([ingestCall(db, tenantId, ended), ingestCall(db, tenantId, ended)]);
+    assert.equal(a.call_id, b.call_id);
+    assert.equal((await usageRows(a.call_id)).length, 1, "REGRESSION: the prior-duration read ran outside the lock");
+  } finally {
+    await cleanup(tenantId);
+  }
+});
+
+test("no provider URL is stored on the row; the audit copy keeps its analysis", { skip }, async () => {
+  const tenantId = await smokeTenantId();
+  await cleanup(tenantId);
+  const id = `${PREFIX}-scrub`;
+  try {
+    const rawEnded = { call_id: id, recording_url: "https://cdn.invalid/a.wav", public_log_url: "https://logs.invalid/x", call_status: "ended" };
+    const res = await ingestCall(db, tenantId, call(id, { status: "ended", durationMs: 5_000, recordingUrl: "https://cdn.invalid/a.wav", publicLogUrl: "https://logs.invalid/x" }), rawEnded);
+    const row = ok(await db.from("calls").select("raw, public_log_url, recording").eq("id", res.call_id).single());
+    assert.equal(row.raw.recording_url, undefined);
+    assert.equal(row.raw.public_log_url, undefined);
+    assert.equal(row.public_log_url, null);
+    assert.equal(row.recording.provider_url, undefined);
+    assert.equal(row.recording.fetch_state, "pending");
+
+    // call_analyzed, then a retried call_ended (same rank): the analysis stays.
+    await ingestCall(db, tenantId, call(id, { status: "ended", durationMs: 5_000, summary: "Booked." }), { ...rawEnded, call_analysis: { call_summary: "Booked." } });
+    await ingestCall(db, tenantId, call(id, { status: "ended", durationMs: 5_000 }), rawEnded);
+    const after = ok(await db.from("calls").select("raw, summary").eq("id", res.call_id).single());
+    assert.equal(after.summary, "Booked.");
+    assert.ok(after.raw.call_analysis, "REGRESSION: a same-rank retry replaced the richer payload");
+  } finally {
+    await cleanup(tenantId);
+  }
+});
+
 test("a recording's copy state survives re-ingest: pending keeps its attempts, failed and stored are terminal", { skip }, async () => {
   const tenantId = await smokeTenantId();
   await cleanup(tenantId);
