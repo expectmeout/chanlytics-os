@@ -1609,3 +1609,8 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 /* ---------- Why the receptionist said it ---------- */
 .tl-msg-why { color: var(--ink-dim); font-size: 10.5px; margin-left: 2px; cursor: default; }
 .ix-veto-why { font-size: 11px; color: var(--ink-muted); margin-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 42%; }
+
+/* ---------- The text whisper: rewrite a held draft ---------- */
+.ix-steer { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); color: var(--ink-dim); }
+.ix-steer-input { flex: 1; min-width: 0; font: inherit; font-size: 12.5px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg-raised); color: var(--ink); }
+.ix-steer-input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }

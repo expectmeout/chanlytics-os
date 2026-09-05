@@ -220,6 +220,13 @@ export async function whisperCall(callId: string, text: string, trigger = false)
   return call(`/api/v1/calls/${encodeURIComponent(callId)}/whisper`, { text, trigger });
 }
 
+/** The text whisper: one line, and the held draft is written again with it in mind. */
+export async function steerDraft(messageId: string, text: string): Promise<VerbResult> {
+  const r = await call(`/api/v1/messages/${encodeURIComponent(messageId)}/steer`, { text });
+  if (r.ok) await refresh();
+  return r;
+}
+
 export async function cancelSend(messageId: string): Promise<VerbResult> {
   const r = await call(`/api/v1/messages/${messageId}/cancel-send`);
   if (r.ok) await refresh();
@@ -338,6 +345,7 @@ declare global {
     __refreshLive?: () => Promise<void>;
     __inboxVerb: typeof inboxVerb;
     __scoped: typeof scoped;
+    __steerDraft: typeof steerDraft;
     __teamInvite: typeof teamInvite;
     __teamSetRole: typeof teamSetRole;
     __teamRemove: typeof teamRemove;
@@ -410,6 +418,7 @@ export function installInboxVerbs(): void {
   window.__teamSetRole = teamSetRole;
   window.__teamRemove = teamRemove;
   window.__cancelSend = cancelSend;
+  window.__steerDraft = steerDraft;
   window.__whisperCall = whisperCall;
   window.__refreshInbox = refreshInbox;
   window.__saveSettings = saveSettings;
