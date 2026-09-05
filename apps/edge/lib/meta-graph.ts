@@ -97,6 +97,15 @@ export function alreadyRegistered(r: GraphResult<unknown>): boolean {
   return !r.ok && /already registered|already been registered/i.test(r.error);
 }
 
+/**
+ * Meta's answer when the number has two-step verification on and the PIN
+ * offered is not its PIN (code 133005). Registration cannot proceed
+ * without that PIN, and this flow never asks for one.
+ */
+export function pinMismatch(r: GraphResult<unknown>): boolean {
+  return !r.ok && (r.code === 133005 || /pin mismatch/i.test(r.error));
+}
+
 /** A six-digit PIN from the platform's randomness. */
 export function newPin(): string {
   const n = new Uint32Array(1);
