@@ -405,9 +405,12 @@ interface CallDto {
     call_successful: boolean | null;
     in_voicemail: boolean | null;
     summary: string | null;
+    /** Turns. `start` (seconds) is the turn's first word; `words` is the raw
+     *  provider shape and is stripped by the list route (F15). */
     transcript_object: Array<{
         role?: string;
         content?: string;
+        start?: number;
         words?: Array<{
             start?: number;
         }>;

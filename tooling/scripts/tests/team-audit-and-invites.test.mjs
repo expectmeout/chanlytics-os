@@ -83,9 +83,12 @@ test("the routes hand the caller through", () => {
 test("REGRESSION: acceptance is no longer gated on having no memberships", () => {
   // `!data?.length &&` was the strand. Self-serve workspace creation made it
   // the ordinary path rather than an edge case.
+  // Gated on the request being the app's own (F51: a GET is exempt from the
+  // cross-site check, so its write must not run for a cross-site read) —
+  // never on having no memberships.
   assert.ok(
-    workspaces.includes("if ((await acceptOpenInvites(userId, email ?? null)) > 0) {"),
-    "acceptance must be attempted on every workspace read",
+    workspaces.includes("if (isSameOrigin(_req) && (await acceptOpenInvites(userId, email ?? null)) > 0) {"),
+    "acceptance must be attempted on every same-origin workspace read",
   );
   assert.ok(
     !workspaces.includes("!data?.length && (await acceptOpenInvites"),

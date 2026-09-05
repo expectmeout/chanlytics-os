@@ -664,7 +664,9 @@ export interface CallDto {
   call_successful: boolean | null;
   in_voicemail: boolean | null;
   summary: string | null;
-  transcript_object: Array<{ role?: string; content?: string; words?: Array<{ start?: number }> }> | null;
+  /** Turns. `start` (seconds) is the turn's first word; `words` is the raw
+   *  provider shape and is stripped by the list route (F15). */
+  transcript_object: Array<{ role?: string; content?: string; start?: number; words?: Array<{ start?: number }> }> | null;
   /** storage_path and provider_url are stripped server-side — audio is only
    *  reachable through the signed-URL route. */
   recording: { fetch_state?: string; mime?: string | null; bytes?: number } | null;
@@ -768,7 +770,7 @@ export function toCallVM(dto: CallDto, now = new Date()): CallVM {
   if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s WhatsApp thread`);
 
   const transcript = (dto.transcript_object ?? []).map((turn) => {
-    const start = turn.words?.[0]?.start;
+    const start = turn.start ?? turn.words?.[0]?.start;
     // An injected turn is a whisper: the owner's own words, shown as theirs.
     if (turn.role === "injected") {
       return { t: "—", speaker: "whisper" as const, text: whisperText(turn.content) };
