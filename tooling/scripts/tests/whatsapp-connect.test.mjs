@@ -38,7 +38,9 @@ test("the edge connect endpoint: diagnostic key, the four Graph calls in order, 
   let last = -1;
   for (const step of order) { const i = c.indexOf(step); assert.ok(i > last, step); last = i; }
   assert.ok(c.includes('error: "number_taken"'), "a number connected elsewhere is not connected twice");
-  assert.ok(c.includes("const registered = reg.ok || alreadyRegistered(reg);"), "a number already registered is done, not failed");
+  assert.ok(c.includes('const onCloud = num.data.platform_type === "CLOUD_API";') && c.includes("const pin = onCloud ? null : newPin();"), "a number already on Cloud API is left alone: registration belongs to the number, not the app");
+  assert.ok(c.includes("if (reg && !reg.ok && !alreadyRegistered(reg)) {"), "a number already registered is done, not failed");
+  assert.ok(c.includes('pinMismatch(reg) ? "pin_required" : "register_failed"'), "a two-step PIN in the way is named, not a generic failure");
   assert.ok(c.includes('await db.from("tenant_channels").update({ status: "disabled" }).eq("id", row.id);'), "a row without its own credentials would ride the environment token: disabled instead");
   assert.ok(c.includes('{ onConflict: "kind,external_id" }'), "the routing key is the unique key");
   assert.ok(!c.includes("WHATSAPP_ACCESS_TOKEN"), "the environment token plays no part in a connection");
@@ -67,6 +69,9 @@ test("the graph helpers: E.164 out of Meta's display form, a six-digit PIN, the 
   assert.equal(mod.alreadyRegistered({ ok: false, error: "This phone number is already registered.", code: 133010, status: 400 }), true);
   assert.equal(mod.alreadyRegistered({ ok: false, error: "Invalid OAuth access token", code: 190, status: 401 }), false);
   assert.equal(mod.alreadyRegistered({ ok: true, data: {} }), false);
+  assert.equal(mod.pinMismatch({ ok: false, error: "Two step verification PIN Mismatch", code: 133005, status: 400 }), true);
+  assert.equal(mod.pinMismatch({ ok: false, error: "(#100) Invalid parameter", code: 100, status: 400 }), false);
+  assert.equal(mod.pinMismatch({ ok: true, data: { success: true } }), false);
 });
 
 test("the dashboard route: owner only, the settings rate bucket, the sign-up ids validated, the ledger keeps the connection in the owner's words", () => {
@@ -77,6 +82,7 @@ test("the dashboard route: owner only, the settings rate bucket, the sign-up ids
   assert.ok(r.includes('recordDecision(ctx, member.tenantId, "channel", r.channelId, "connect_channel", {'));
   assert.ok(r.includes('"upstream_meta"'), "Meta is the upstream that failed, not the model");
   assert.ok(r.includes("number_taken: \"That number is already connected to another workspace.\""));
+  assert.ok(r.includes("pin_required:"), "the PIN wall has its own words");
   const svc = readCode("apps/dashboard/src/server/service.ts");
   assert.ok(svc.includes('if (process.env.VERCEL_ENV !== "production") return { ok: false, reason: "preview" };'), "a preview never connects a real number");
   assert.ok(svc.includes("`${EDGE_BASE}/api/admin/whatsapp/connect`") && svc.includes("`${EDGE_BASE}/api/admin/whatsapp/signup-config`"));

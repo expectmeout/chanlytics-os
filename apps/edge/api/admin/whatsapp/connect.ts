@@ -19,7 +19,7 @@ import { json } from "../../../lib/http.js";
 import { pg } from "../../../lib/pg.js";
 import { emitEvent } from "../../../lib/workspace/db.js";
 import type { Json } from "../../../lib/workspace/db.js";
-import { alreadyRegistered, exchangeCode, metaAppId, newPin, phoneNumber, registerNumber, subscribeWaba, toE164, wabaInfo } from "../../../lib/meta-graph.js";
+import { alreadyRegistered, exchangeCode, metaAppId, newPin, phoneNumber, pinMismatch, registerNumber, subscribeWaba, toE164, wabaInfo } from "../../../lib/meta-graph.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ID = /^\d{6,32}$/;
@@ -82,14 +82,19 @@ export async function POST(request: Request): Promise<Response> {
     return json(502, { ok: false, error: "subscribe_failed", detail: sub.error });
   }
 
-  // 4. Registered for Cloud API messaging, with a PIN we keep.
-  const pin = newPin();
-  const reg = await registerNumber(token, phoneNumberId, pin);
-  const registered = reg.ok || alreadyRegistered(reg);
-  if (!registered) {
+  // 4. Registered for Cloud API messaging. Registration belongs to the
+  // number, not to the app: a number Meta already reports on Cloud API is
+  // left alone, since re-registering it with a fresh PIN would only trip its
+  // two-step verification. A fresh number gets a PIN we keep. A number whose
+  // own PIN stands in the way is named as such, not as a generic failure.
+  const onCloud = num.data.platform_type === "CLOUD_API";
+  const pin = onCloud ? null : newPin();
+  const reg = pin ? await registerNumber(token, phoneNumberId, pin) : null;
+  if (reg && !reg.ok && !alreadyRegistered(reg)) {
     log("wa_connect_register_failed", { error: reg.error, code: reg.code });
-    return json(502, { ok: false, error: "register_failed", detail: reg.error });
+    return json(502, { ok: false, error: pinMismatch(reg) ? "pin_required" : "register_failed", detail: reg.error });
   }
+  const registration = reg?.ok ? "registered" : "already_registered";
 
   // 5. The channel row: routing key, number, WABA, and what Meta calls it.
   const config = {
@@ -98,7 +103,7 @@ export async function POST(request: Request): Promise<Response> {
     waba_name: waba.data.name ?? null,
     connected_at: new Date().toISOString(),
     connected_by: userId,
-    registration: reg.ok ? "registered" : "already_registered",
+    registration,
   };
   const { data: row, error: upErr } = await db
     .from("tenant_channels")

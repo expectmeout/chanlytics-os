@@ -24,6 +24,7 @@ const SAID: Record<string, string> = {
   waba_unreadable: "Meta did not let Chanlytics read the WhatsApp Business Account. Check that it was shared in the sign-up window.",
   subscribe_failed: "Chanlytics could not subscribe to the account's messages. Try again in a moment.",
   register_failed: "The number could not be registered for messaging. If it is still in use by the WhatsApp app on a phone, remove it there first.",
+  pin_required: "This number has two-step verification on, and Chanlytics cannot register it without that PIN. Turn two-step verification off in WhatsApp Manager, connect again, then turn it back on.",
   credentials_failed: "The connection could not be saved safely, so it was not kept. Try again.",
   channel_write_failed: "The connection could not be saved. Try again.",
   no_app_credentials: "Chanlytics is not set up to connect numbers yet.",
