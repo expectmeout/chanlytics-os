@@ -27,6 +27,7 @@ export interface GatewayCall {
     messages: unknown[];
     tools?: unknown[];
     tool_choice?: unknown;
+    output_config?: { effort: "low" | "medium" | "high" };
   };
   signal?: AbortSignal;
 }

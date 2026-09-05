@@ -128,7 +128,10 @@ export interface GatewayRequest {
   tools?: unknown[];
   tool_choice?: unknown;
   temperature?: number;
+  output_config?: { effort: "low" | "medium" | "high" };
 }
+
+const EFFORTS = new Set(["low", "medium", "high"]);
 
 export const GATEWAY_MODELS = ["claude-opus-5", "claude-sonnet-5"] as const;
 export const GATEWAY_MAX_TOKENS = 2000;
@@ -161,6 +164,9 @@ export function validateGatewayRequest(raw: unknown): { ok: true; request: Gatew
       ...(r.tools ? { tools: r.tools } : {}),
       ...(r.tool_choice ? { tool_choice: r.tool_choice } : {}),
       ...(typeof r.temperature === "number" ? { temperature: Math.min(1, Math.max(0, r.temperature)) } : {}),
+      ...(r.output_config && typeof r.output_config === "object" && EFFORTS.has(String((r.output_config as { effort?: unknown }).effort))
+        ? { output_config: { effort: (r.output_config as { effort: "low" | "medium" | "high" }).effort } }
+        : {}),
     },
   };
 }

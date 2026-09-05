@@ -130,11 +130,14 @@ for (const c of cases) {
     r = { final: null, error: e instanceof Error ? e.message : String(e), ms: 0, deltas: 0 };
   }
   const j = r.final ? judge(c, r) : { pass: false, fails: [r.error ?? "no answer"] };
-  results.push({ id: c.id, text: c.text, answer: r.final?.text ?? null, tools: r.final?.tools ?? [], proposals: (r.final?.proposals ?? []).map((p) => ({ kind: p.kind, title: p.title, summary: p.summary })), citations: r.final?.citations ?? [], language: r.final?.language ?? null, latency_ms: r.final?.latencyMs ?? r.ms, deltas: r.deltas, threadId: r.threadId ?? null, ...j });
-  process.stderr.write(`${j.pass ? "PASS" : "FAIL"} ${c.id} (${r.ms} ms, tools ${JSON.stringify(r.final?.tools ?? [])}, cards ${JSON.stringify((r.final?.proposals ?? []).map((p) => p.kind))})${j.pass ? "" : "\n     " + j.fails.join("\n     ")}\n`);
+  results.push({ id: c.id, text: c.text, answer: r.final?.text ?? null, rounds: r.final?.rounds ?? null, tools: r.final?.tools ?? [], proposals: (r.final?.proposals ?? []).map((p) => ({ kind: p.kind, title: p.title, summary: p.summary })), citations: r.final?.citations ?? [], language: r.final?.language ?? null, latency_ms: r.final?.latencyMs ?? r.ms, deltas: r.deltas, threadId: r.threadId ?? null, ...j });
+  process.stderr.write(`${j.pass ? "PASS" : "FAIL"} ${c.id} (${r.ms} ms, ${r.final?.rounds ?? "?"} round(s), tools ${JSON.stringify(r.final?.tools ?? [])}, cards ${JSON.stringify((r.final?.proposals ?? []).map((p) => p.kind))})${j.pass ? "" : "\n     " + j.fails.join("\n     ")}\n`);
 }
 const passed = results.filter((r) => r.pass).length;
-console.log(`\nAsk evals: ${passed}/${results.length} passed`);
+const lat = results.map((r) => r.latency_ms).filter((n) => typeof n === "number" && n > 0).sort((a, b) => a - b);
+const median = lat.length ? lat[Math.floor(lat.length / 2)] : 0;
+const oneRound = results.filter((r) => r.rounds === 1).length;
+console.log(`\nAsk evals: ${passed}/${results.length} passed · median ${median} ms · one-round ${oneRound}/${results.length}`);
 for (const r of results) console.log(`- ${r.pass ? "ok  " : "FAIL"} ${r.id}: ${(r.answer ?? "").replace(/\s+/g, " ").slice(0, 160)}`);
 mkdirSync("tooling/backups", { recursive: true });
 const out = `tooling/backups/eval-ask-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;

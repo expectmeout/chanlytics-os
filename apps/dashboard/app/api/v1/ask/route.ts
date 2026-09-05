@@ -124,6 +124,7 @@ export const POST = withRoute(async (req, ctx) => {
         ungrounded: result.ungrounded,
         tools: result.tools,
         latencyMs: result.latencyMs,
+        rounds: result.rounds,
         failed: result.failed,
       };
       console.log(JSON.stringify({ level: "info", event: "ask_turn", tenant: tenantId, tools: result.tools, proposals: result.proposals.map((p) => p.kind), rounds: result.rounds, ms: Date.now() - t0, failed: result.failed, failure: result.failure, ungrounded: result.ungrounded, citations: result.citations.length, language: result.language }));
