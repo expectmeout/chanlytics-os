@@ -308,7 +308,11 @@
   .phone-tabs {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
-    flex: none;
+    /* Fixed, not flowed: the shell's column can run taller than the phone's
+       viewport, and a bar that lives at the end of it lives below the fold. */
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 120;
     background: var(--bg-raised);
     border-top: 1px solid var(--line);
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
@@ -327,4 +331,15 @@
   }
   /* The tab bar's More replaces the hamburger */
   .tb-menu { display: none; }
+  /* Room under every surface for the bar, and the toast sits above it */
+  .main-scroll { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+  .pp-toast { bottom: calc(76px + env(safe-area-inset-bottom)); }
+
+  /* The thread header on a phone: Back, avatar and name on one line, the
+     actions on their own row; a phone number as a name does not wrap thrice */
+  .ix-th-head { grid-template-columns: minmax(0, 1fr); row-gap: 8px; }
+  .ix-th-head-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .ix-th-id { min-width: 0; }
+  .ix-th-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ix-th-actions { flex-wrap: wrap; justify-content: flex-start; }
 }

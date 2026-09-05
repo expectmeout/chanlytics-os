@@ -60,7 +60,7 @@ const tbOverlay = (n) => {
   return n;
 };
 
-const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onClose }) => {
+const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onClose, alerts = null, onAlerts = () => {} }) => {
   const fresh = items.filter(n => n.unread);
   const earlier = items.filter(n => !n.unread);
   const row = (n) => (
@@ -108,6 +108,28 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onClose }) => {
           {earlier.length > 0 && <div className="tbn-sec">Earlier</div>}
           {earlier.map(row)}
         </div>
+        {/* Device alerts, outside a demo: a system notification when something
+            new needs the owner while the app is in the background. */}
+        {alerts && (
+          <footer className="tbn-foot" data-testid="notif-alerts">
+            {!alerts.can ? (
+              <span className="tbn-foot-note">This browser can't show alerts.</span>
+            ) : alerts.permission === "denied" ? (
+              <span className="tbn-foot-note">Alerts are blocked in your browser settings.</span>
+            ) : (
+              <button
+                type="button"
+                className={`tbn-alert-switch ${alerts.on ? "on" : ""}`}
+                role="switch"
+                aria-checked={alerts.on}
+                onClick={() => onAlerts(!alerts.on)}
+              >
+                <span className="tbn-alert-dot" aria-hidden="true" />
+                {alerts.on ? "Alerting this device when something needs you" : "Alert this device when something needs you"}
+              </button>
+            )}
+          </footer>
+        )}
       </div>
     </>
   );
@@ -122,6 +144,18 @@ const Topbar = ({
   right = null,
 }) => {
   const [notifs, setNotifs] = React.useState(TB_NOTIFS);
+  // Outside a demo the bell reads the workspace's own rows through the bridge
+  // (legacy-bridge/notifications.ts): who needs you, a draft waiting, a
+  // missed call, an open invitation. Read state is this device's.
+  const real = !window.__DEMO_MODE && window.__notifs ? window.__notifs : null;
+  const [realRows, setRealRows] = React.useState(() => (real ? real.feed() : []));
+  const [alertState, setAlertState] = React.useState(() => (real ? real.alerts() : null));
+  React.useEffect(() => {
+    if (!real) return undefined;
+    const refresh = () => { setRealRows(real.feed()); setAlertState(real.alerts()); };
+    refresh();
+    return real.onChange(refresh);
+  }, [real]);
   const [openNotifs, setOpenNotifs] = React.useState(false);
   const [ping, setPing] = React.useState(false);
   const pingKey = React.useRef(null);
@@ -279,8 +313,22 @@ const Topbar = ({
   // The seeded notification feed is demo theater — "Aisha's refund", a trust
   // milestone, a Gmail outage — none of it happened. Outside demo we show no
   // count rather than a badge promising five things to read that don't exist.
-  const shown = window.__DEMO_MODE ? notifs.map(tbOverlay) : [];
+  const shown = real ? realRows : window.__DEMO_MODE ? notifs.map(tbOverlay) : [];
   const unread = shown.filter(n => n.unread).length;
+
+  // The bell swings when something new needs you (real feed).
+  const prevUnread = React.useRef(unread);
+  React.useEffect(() => {
+    if (!real) return undefined;
+    if (unread > prevUnread.current) {
+      setPing(true);
+      const t = setTimeout(() => setPing(false), 1200);
+      prevUnread.current = unread;
+      return () => clearTimeout(t);
+    }
+    prevUnread.current = unread;
+    return undefined;
+  }, [unread, real]);
 
   React.useEffect(() => {
     if (!openNotifs) return;
@@ -302,18 +350,39 @@ const Topbar = ({
   }, [notifs]);
 
   const act = (id, to) => {
-    setNotifs(list => list.map(n => n.id === id ? { ...n, unread: false } : n));
+    if (real) real.read(id);
+    else setNotifs(list => list.map(n => n.id === id ? { ...n, unread: false } : n));
     setOpenNotifs(false);
     if (to) window.CHANLY.nav(to);
   };
 
+  const onAlerts = async (on) => {
+    if (!real) return;
+    const r = await real.setAlerts(on);
+    setAlertState(real.alerts());
+    flash({
+      msg: r.on
+        ? <>This device will be alerted when something needs you</>
+        : r.permission === "denied"
+          ? <>Alerts are blocked in your browser settings</>
+          : <>Alerts off on this device</>,
+    });
+  };
+
   const readAll = () => {
+    if (real) { real.seenAll(); flash({ msg: <>All caught up on this device</> }); return; }
     const prev = notifs;
     setNotifs(list => list.map(n => ({ ...n, unread: false })));
     flash({ msg: <>All notifications marked read</>, undo: () => setNotifs(prev) });
   };
 
   const dismiss = (id) => {
+    if (real) {
+      const item = realRows.find(n => n.id === id);
+      real.dismiss(id);
+      flash({ msg: <>Dismissed <b>“{item ? item.title : "notification"}”</b></>, undo: () => real.restore(id) });
+      return;
+    }
     const idx = notifs.findIndex(n => n.id === id);
     const item = notifs[idx];
     if (!item) return;
@@ -383,7 +452,9 @@ const Topbar = ({
         />
         <button
           className={`btn btn-ghost btn-icon btn-sm tb-bell ${ping ? "ping" : ""}`}
-          data-tip={unread > 0 ? `${unread} unread — what agents did while you weren't looking` : "What agents did while you weren't looking"}
+          data-tip={real
+            ? (unread > 0 ? `${unread} new — what needs you` : "Nothing needs you right now")
+            : (unread > 0 ? `${unread} unread — what agents did while you weren't looking` : "What agents did while you weren't looking")}
           data-tip-side="bottom"
           aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
           aria-haspopup="dialog"
@@ -400,6 +471,8 @@ const Topbar = ({
             onReadAll={readAll}
             onDismiss={dismiss}
             onClose={() => setOpenNotifs(false)}
+            alerts={real ? alertState : null}
+            onAlerts={onAlerts}
           />
         )}
       </div>

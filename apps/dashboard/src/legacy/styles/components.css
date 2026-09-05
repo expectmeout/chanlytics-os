@@ -1614,3 +1614,12 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 .ix-steer { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); color: var(--ink-dim); }
 .ix-steer-input { flex: 1; min-width: 0; font: inherit; font-size: 12.5px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg-raised); color: var(--ink); }
 .ix-steer-input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+
+/* ---------- The bell's foot: device alerts ---------- */
+.tbn-foot { padding: 8px 12px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-dim); }
+.tbn-foot-note { display: block; }
+.tbn-alert-switch { appearance: none; background: none; border: 0; padding: 4px 0; font: inherit; font-size: 12px; color: var(--ink-muted); display: inline-flex; align-items: center; gap: 8px; cursor: pointer; text-align: left; }
+.tbn-alert-switch:hover { color: var(--ink); }
+.tbn-alert-dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--line-strong); background: transparent; flex: none; }
+.tbn-alert-switch.on { color: var(--ink); }
+.tbn-alert-switch.on .tbn-alert-dot { background: var(--accent); border-color: var(--accent); }
