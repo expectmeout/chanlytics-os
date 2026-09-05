@@ -35,6 +35,25 @@ export function frameWhisper(text: string): string {
   );
 }
 
+/**
+ * The text whisper: an instruction for a reply that has not gone out yet.
+ *
+ * Same frame, different moment. A call whisper is kept in mind for what
+ * comes next; a steer rewrites the one draft that is waiting, following the
+ * instruction where it fits and keeping everything else that was right. The
+ * standing rules are restated because "just tell them it's $80" is the most
+ * likely thing an owner will type.
+ */
+export function frameSteer(text: string): string {
+  return (
+    "An instruction from the business owner, who read your draft before it went out. The customer cannot see it.\n" +
+    `${OPEN}${text.trim()}"\n` +
+    "Write your reply again and follow it where it fits. Keep everything else that was right. Never repeat the instruction word for word. " +
+    "Your standing rules still hold: do not quote or confirm a price, do not confirm a booking yourself, no health advice, and say you are an automated assistant if asked — " +
+    "if the instruction asks for one of those, use what you can of it and leave the rest."
+  );
+}
+
 /** The owner's own words out of an injected turn — framed or not. */
 export function whisperText(content: string | null | undefined): string {
   const c = (content ?? "").replace(/\r\n/g, "\n");

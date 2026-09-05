@@ -63,9 +63,9 @@ import { loadTenantRuntime, waCfgFor, type TenantRuntime } from "../lib/tenant-r
 import { openingsFor } from "../lib/availability.js";
 import { isVisionMime, photoUserText, toBase64, VISION_MAX_BYTES } from "../lib/vision.js";
 import { tokensLast24h } from "../lib/budget.js";
+import { queueDraft } from "../lib/draft-queue.js";
 import type { BrainMeta } from "../lib/workspace/contracts.js";
 import { replyPosture, effectiveReplyMode } from "../lib/reply-posture.js";
-import { scheduleJob } from "../lib/workspace/jobs.js";
 import { resolveConsent } from "../lib/consent.js";
 import { logger, errField } from "../lib/log.js";
 import { notify, type NotifyTarget } from "../lib/notify.js";
@@ -131,62 +131,20 @@ async function queueReply(
   /** What the row remembers about the answer (contracts/brain.ts). */
   brainMeta?: BrainMeta,
 ): Promise<boolean> {
-  const token = process.env.QSTASH_TOKEN;
-  if (!db || !tenantId || !ing || !token) {
+  if (!db || !tenantId || !ing) {
     L.warn("wa_queue_unavailable", {
-      has_db: !!db, has_tenant: !!tenantId, has_ingest: !!ing, has_qstash: !!token,
+      has_db: !!db, has_tenant: !!tenantId, has_ingest: !!ing, has_qstash: !!process.env.QSTASH_TOKEN,
     });
     return false;
   }
-  // Declared out here so the catch can undo it. The row is written before the
-  // job is published, so a scheduling failure used to leave a `queued` message
-  // behind while the caller — correctly — sent the same words immediately: the
-  // Inbox then showed a held draft with Edit and Hold controls for a reply the
-  // customer already had, and if QStash had in fact accepted the publish before
-  // timing out, the job later found the row still queued and sent it twice.
-  let messageId: string | null = null;
-  try {
-    messageId = await recordOutbound(db, {
-      tenantId,
-      conversationId: ing.conversation_id,
-      contactId: ing.contact_id,
-      sender: "ai",
-      type: "text",
-      body,
-      externalId: null,
-      status: "queued",
-      meta: { source, delay_ms: delayMs, ...(brainMeta ?? {}) },
-    });
-    if (!messageId) return false;
-    await scheduleJob(db, {
-      tenantId,
-      kind: "outbound_send",
-      dueAt: new Date(Date.now() + delayMs),
-      payload: {
-        message_id: messageId,
-        conversation_id: ing.conversation_id,
-        to_phone: `+${toPhone.replace(/^\+/, "")}`,
-        body,
-      },
-      qstashToken: token,
-    });
-    return true;
-  } catch (e) {
-    L.error("wa_queue_failed", { error: errField(e) });
-    if (messageId) {
-      // The caller is about to send these exact words immediately. Retire the
-      // draft first so it cannot be sent a second time and cannot render as a
-      // pending one, and mark it canceled rather than deleting it — the row is
-      // the only record that a veto window was attempted and did not happen.
-      const { error } = await db
-        .from("messages")
-        .update({ status: "canceled", error: { reason: "scheduling_failed" } })
-        .eq("id", messageId)
-        .eq("status", "queued");
-      if (error) L.error("wa_queue_rollback_failed", { message_id: messageId, error: error.message });
-    }
-    return false;
-  }
+  // One writer for a held draft (lib/draft-queue.ts): the steer endpoint
+  // queues the same row and the same job when an owner has one rewritten.
+  const id = await queueDraft(
+    db,
+    { tenantId, conversationId: ing.conversation_id, contactId: ing.contact_id, toPhone, body, delayMs, source, brainMeta },
+    L,
+  );
+  return !!id;
 }
 
 async function sendText(to: string, body: string, rt?: TenantRuntime | null): Promise<{ ok: boolean; wamid: string | null; status: number }> {

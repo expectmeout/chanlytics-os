@@ -101,6 +101,11 @@ export async function generateReply(
    * are built in vision.ts and restate the standing rules.
    */
   image?: { mime: string; base64: string },
+  /**
+   * The owner's instruction for a rewrite (contracts frameSteer): a separate,
+   * uncached system block, present only when a held draft is being steered.
+   */
+  steer?: string,
 ): Promise<BrainReply> {
   const userContent = image
     ? [
@@ -108,7 +113,12 @@ export async function generateReply(
         { type: "text", text: userText },
       ]
     : userText;
-  const messages = [...history, { role: "user" as const, content: userContent }];
+  // The thread's memory is read after the customer's message is stored, so
+  // its last turn is usually that same message; appending it again showed
+  // the model every message twice. The copy is skipped, the memory kept.
+  const last = history[history.length - 1];
+  const prior = last && last.role === "user" && last.content.trim() === userText.trim() ? history.slice(0, -1) : history;
+  const messages = [...prior, { role: "user" as const, content: userContent }];
   const base = {
     model: BRAIN_MODEL,
     // The record costs more tokens than the words alone; a capped answer is
@@ -120,6 +130,7 @@ export async function generateReply(
       // business profile from the cache on every new customer.
       ...(nowNote ? [{ type: "text", text: nowNote }] : []),
       ...(leadNote ? [{ type: "text", text: `Who you are speaking with: ${leadNote}` }] : []),
+      ...(steer ? [{ type: "text", text: steer }] : []),
     ],
     messages,
   };

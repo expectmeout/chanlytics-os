@@ -116,6 +116,11 @@ const InboxThread = ({ thread, channelLabels, veto = null, vetoPaused = false, o
         {thread.veto && !decided && (thread.real || thread.state !== "done") && (
           <VetoBar thread={thread} remaining={veto} paused={vetoPaused} onAct={onVetoAct} onTakeOver={onTakeOver} />
         )}
+        {/* The text whisper: only on a real draft that is still counting down.
+            A held (manual) draft has Edit; a seeded one has no edge to ask. */}
+        {thread.veto && !decided && thread.real && veto != null && thread.veto.messageId && (
+          <SteerBox messageId={thread.veto.messageId} />
+        )}
 
         {thread.approval && !decided && (
           <ApprovalCard thread={thread} approval={thread.approval} onDecide={onDecide} planParam={planParam} onPlanParam={onPlanParam} />
@@ -564,6 +569,48 @@ const VerdictCard = ({ thread, onVerdict = () => {} }) => {
           </button>
         )}
       </div>
+    </div>
+  );
+};
+
+// =============== STEER — rewrite a held draft to the owner's instruction ===============
+// The WhatsApp counterpart of the call whisper. One line, and the receptionist
+// writes the waiting draft again with it in mind, under the same rules; the
+// new draft waits its turn like the first one. Nothing is sent from here.
+const SteerBox = ({ messageId }) => {
+  const [text, setText] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [toastNode, flash] = window.usePPToast();
+  const send = async () => {
+    const t = text.trim();
+    if (!t || busy || !window.__steerDraft) return;
+    setBusy(true);
+    const r = await window.__steerDraft(messageId, t);
+    setBusy(false);
+    if (r.ok) {
+      setText("");
+      flash({ msg: <>Rewritten — the new draft waits its turn like the first one</> });
+    } else {
+      flash({ msg: <>Not rewritten — {r.message}</> });
+    }
+  };
+  return (
+    <div className="ix-steer" data-testid="steer-box">
+      <Icon name="sparkle" size={12} />
+      <input
+        className="ix-steer-input"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") send(); }}
+        placeholder="Tell it what to change — “mention Saturday is full”, “shorter, in Spanish”"
+        maxLength={500}
+        disabled={busy}
+        aria-label="Instruction for the rewrite"
+      />
+      <button className="btn btn-sm" onClick={send} disabled={busy || !text.trim()} {...window.gate("approve")}>
+        {busy ? "Rewriting…" : "Rewrite"}
+      </button>
+      {toastNode}
     </div>
   );
 };

@@ -162,6 +162,26 @@ export async function whisperLiveCall(
   return { ok: false, reason: j.error ? `${j.error}${j.status ? ` ${j.status}` : ""}` : `edge ${r.status}` };
 }
 
+/**
+ * Have the edge rewrite a held draft to the owner's instruction. The model
+ * key lives there; RLS and the role door have already been checked by the
+ * route that calls this.
+ */
+export async function steerDraft(
+  messageId: string,
+  text: string,
+): Promise<{ ok: true; messageId: string; text: string } | { ok: false; reason: string }> {
+  if (process.env.VERCEL_ENV !== "production") return { ok: false, reason: "preview" };
+  const r = await fetch(`${EDGE_BASE}/api/admin/steer`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
+    body: JSON.stringify({ message_id: messageId, text }),
+  });
+  const j = (await r.json().catch(() => ({}))) as { ok?: boolean; message_id?: string; text?: string; error?: string };
+  if (r.ok && j.ok && j.message_id) return { ok: true, messageId: j.message_id, text: j.text ?? "" };
+  return { ok: false, reason: j.error ? String(j.error) : `edge ${r.status}` };
+}
+
 /* ---- E1 team operations (Session A) --------------------------------------
    The ONLY file that touches auth.admin. Every function takes a tenantId the
    route has already proven the caller belongs to (memberContext), then scopes
