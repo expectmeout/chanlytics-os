@@ -1740,6 +1740,50 @@ const INT_NOT_AVAILABLE = [
   { name: "SMS", desc: "Plain text messages", icon: "chat" },
 ];
 
+// Connect your WhatsApp number: Meta's own sign-up window, then the app's
+// route. Shown when the workspace has no WhatsApp channel. The row says
+// exactly why it cannot start when it cannot, rather than drawing a button
+// that opens nothing.
+const ConnectWhatsAppRow = () => {
+  const [cfg, setCfg] = React.useState(undefined);
+  const [busy, setBusy] = React.useState(false);
+  const [toastNode, flash] = window.usePPToast();
+  React.useEffect(() => {
+    let on = true;
+    const p = window.__waConnect ? window.__waConnect.config() : Promise.resolve(null);
+    p.then((c) => { if (on) setCfg(c); }).catch(() => { if (on) setCfg(null); });
+    return () => { on = false; };
+  }, []);
+  const start = async () => {
+    if (!window.__waConnect || busy) return;
+    setBusy(true);
+    const r = await window.__waConnect.start();
+    setBusy(false);
+    flash({ msg: r.ok ? <>WhatsApp {r.number || "number"} is connected — the receptionist answers on it now</> : <>{r.message}</> });
+  };
+  const owner = window.canDo ? window.canDo("settings") : false;
+  let hint;
+  if (cfg === undefined) hint = "Checking whether Chanlytics can connect a number…";
+  else if (cfg && cfg.ready) hint = owner ? "Sign in to Meta, pick the number, and the receptionist answers on it. Nothing here touches a phone line." : "An owner connects the number here.";
+  else hint = owner
+    ? `Chanlytics isn't set up to connect numbers yet${cfg && cfg.reason === "no_config_id" ? " — the Embedded Signup configuration is missing on the Chanlytics side" : cfg && cfg.reason === "preview" ? " — only on the production dashboard" : ""}. A phone line is set up by Chanlytics.`
+    : "A WhatsApp number is connected by an owner; a phone line is set up by Chanlytics.";
+  return (
+    <div className="set-row" data-testid="connect-whatsapp">
+      <div className="set-row-info">
+        <span className="set-row-label">WhatsApp Business</span>
+        <span className="set-row-hint">{hint}</span>
+      </div>
+      {cfg && cfg.ready && owner && (
+        <button className="btn btn-primary btn-sm" onClick={start} disabled={busy} data-testid="connect-whatsapp-btn">
+          {busy ? "Connecting…" : "Connect WhatsApp"}
+        </button>
+      )}
+      {toastNode}
+    </div>
+  );
+};
+
 const PaneIntegrationsReal = () => {
   const [, tick] = useSetState(0);
   React.useEffect(() => {
@@ -1775,14 +1819,7 @@ const PaneIntegrationsReal = () => {
           <span className="fl-card-title">Your channels</span>
           <span className="fl-card-sub">{sub}</span>
         </div>
-        {list.length === 0 && (
-          <div className="set-row">
-            <div className="set-row-info">
-              <span className="set-row-label">Nothing connected</span>
-              <span className="set-row-hint">A WhatsApp number or a phone line is connected by Chanlytics when your workspace is set up.</span>
-            </div>
-          </div>
-        )}
+        {!list.some((c) => c.kind === "whatsapp") && <ConnectWhatsAppRow />}
         {list.map((c) => (
           <div key={c.id} className="set-int-row">
             <span className="st-tile installed set-int-tile"><Icon name={c.icon} size={14} /></span>

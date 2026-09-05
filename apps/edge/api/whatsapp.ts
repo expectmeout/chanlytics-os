@@ -30,6 +30,7 @@
  *      PG_READS (Gate 1b), PG_DEDUPE (optional, implied by PG_READS).
  */
 import crypto from "node:crypto";
+import { WABA_FIELDS, handleWabaChange, notificationsFor } from "../lib/waba-events.js";
 import { getThread, isThreadUnknown, saveThread, storeBackend, threadNamespace, type ThreadState } from "../lib/store.js";
 import { json, text } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
@@ -983,7 +984,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   interface WebhookBody {
-    entry?: Array<{ changes?: Array<{ field?: string; value?: WaChangeValue }> }>;
+    entry?: Array<{ id?: string; changes?: Array<{ field?: string; value?: WaChangeValue }> }>;
   }
   let body: WebhookBody = {};
   try { body = JSON.parse(raw) as WebhookBody; } catch { /* ack anyway */ }
@@ -999,6 +1000,17 @@ export async function POST(request: Request): Promise<Response> {
         let unroutable = false;
         let routingFailed = false;
         const db = pg();
+        // The account's own news (quality, limits, templates, reviews) is keyed
+        // on the WABA, not on a number: routed by waba_id, kept as an event,
+        // and alerted through the same path a failed send uses.
+        if (db && field && WABA_FIELDS.has(field)) {
+          const wabaId = String(entry.id || "");
+          const outcome = wabaId
+            ? await handleWabaChange(db, wabaId, { field, value: v as unknown as Record<string, unknown> }, (tid) => notificationsFor(db, tid))
+            : "unrouted";
+          console.log("wa_waba_event", JSON.stringify({ field, waba_id: wabaId || null, outcome }));
+          continue;
+        }
         const phoneNumberId = v.metadata?.phone_number_id;
         const isEnvDefault = !!phoneNumberId && phoneNumberId === (process.env.WHATSAPP_PHONE_ID || "");
         if (db && phoneNumberId) {

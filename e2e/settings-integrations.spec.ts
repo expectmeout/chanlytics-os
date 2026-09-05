@@ -18,6 +18,29 @@ test.describe("Settings → Integrations on a real workspace", () => {
     await signIn(page);
   });
 
+  test("the signup route says whether a number can be connected, and why not", async ({ page }) => {
+    const res = await page.request.get("/api/v1/channels/whatsapp/signup");
+    expect(res.status()).toBe(200);
+    const { data } = await res.json();
+    expect(typeof data.ready).toBe("boolean");
+    if (!data.ready) expect(typeof data.reason).toBe("string");
+    expect(typeof data.canConnect).toBe("boolean");
+    // Never a credential in the answer.
+    expect(JSON.stringify(data)).not.toMatch(/secret|token/i);
+  });
+
+  test("a workspace without a WhatsApp channel is offered the connection, or told why it cannot start", async ({ page }) => {
+    await page.goto("/#/admin/integrations");
+    await page.waitForLoadState("networkidle");
+    const card = page.getByTestId("channels");
+    await expect(card).toBeVisible();
+    const hasWhatsApp = (await card.locator(".set-int-row", { hasText: "WhatsApp" }).count()) > 0;
+    if (hasWhatsApp) return;
+    const row = page.getByTestId("connect-whatsapp");
+    await expect(row).toBeVisible();
+    await expect(row).toContainText(/Connect WhatsApp|isn't set up to connect|connected by an owner|Checking/);
+  });
+
   test("lists the real channels with their state and nothing invented", async ({ page }) => {
     await page.goto("/#/admin/integrations");
     await page.waitForLoadState("networkidle");
