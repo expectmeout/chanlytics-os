@@ -55,11 +55,13 @@ const PLATFORM_TENANT = "00000000-0000-0000-0000-000000000000";
  * holds. Platform-scoped, no call content, best-effort; /api/diag lists the
  * last few.
  */
-async function recordWebhookAuth(sig: boolean, key: boolean): Promise<void> {
+async function recordWebhookAuth(sig: boolean, key: boolean, forms: { raw: boolean; restringified: boolean }): Promise<void> {
   try {
     const db = pg();
     if (!db) return;
-    await emitEvent(db, PLATFORM_TENANT, "webhook.auth", "ingest", null, null, { provider: "retell", sig, key });
+    await emitEvent(db, PLATFORM_TENANT, "webhook.auth", "ingest", null, null, {
+      provider: "retell", sig, key, sig_raw: forms.raw, sig_restringified: forms.restringified,
+    });
   } catch (e) {
     console.error("webhook_auth_event_failed", e instanceof Error ? e.message : e);
   }
@@ -103,7 +105,21 @@ async function recordDelivery(
 
 export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
-  const sigOk = verifyRetellSignature(raw, request.headers.get("x-retell-signature"), process.env.RETELL_API_KEY);
+  // Two forms of the body, because the provider's own example verifies
+  // `JSON.stringify(req.body)` — the parsed body re-serialised — not the raw
+  // bytes. The two differ whenever an encoder escapes non-ASCII (the greeting
+  // carries an em dash on every delivery), so a signature made over one form
+  // fails over the other with the RIGHT key. Both are tried; which one
+  // verified is recorded, so the key question settles itself on the next
+  // delivery instead of on a guess.
+  const signature = request.headers.get("x-retell-signature");
+  const sigRaw = verifyRetellSignature(raw, signature, process.env.RETELL_API_KEY);
+  let restringified: string | null = null;
+  try { restringified = JSON.stringify(JSON.parse(raw)); } catch { /* not JSON: nothing to re-serialise */ }
+  const sigRestringified = !sigRaw && restringified !== null && restringified !== raw
+    ? verifyRetellSignature(restringified, signature, process.env.RETELL_API_KEY)
+    : sigRaw;
+  const sigOk = sigRaw || sigRestringified;
   // The `?key=` in the URL is a secret that rides in Retell's dashboard and
   // in access logs; anyone holding it could forge a call_analyzed — a
   // fabricated transcript emailed to the owner and a poisoned note in a
@@ -113,7 +129,7 @@ export async function POST(request: Request): Promise<Response> {
   // signature verifies against the key this deployment holds.
   const keyOk = new URL(request.url).searchParams.get("key") === process.env.RETELL_FN_SECRET;
   console.log("retell_webhook_auth", JSON.stringify({ sig: sigOk, key: keyOk }));
-  void recordWebhookAuth(sigOk, keyOk);
+  void recordWebhookAuth(sigOk, keyOk, { raw: sigRaw, restringified: sigRestringified });
   if (!sigOk && !keyOk) {
     return json(401, { ok: false, error: "unauthorized" });
   }

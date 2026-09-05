@@ -142,13 +142,25 @@ const lrRecordingLine = (c) =>
 // sentence only the receptionist hears, worked into its next answer. Not a
 // take-over, not a listen-in — those buttons stayed in the demo because
 // nothing real stands behind them.
+// Speech recognition in the browser, where it exists (Chrome, Edge, Safari;
+// not Firefox). The owner is usually listening to the call, not typing:
+// hold the button, say the whisper, let go — the words are transcribed on
+// the device and sent as text like any other whisper. Nothing is recorded
+// or uploaded; the browser's own recogniser does the work.
+const lrRecognizer = () => window.SpeechRecognition || window.webkitSpeechRecognition || null;
+
 const LrWhisper = ({ c }) => {
   const [text, setText] = useLrState("");
   const [busy, setBusy] = useLrState(false);
   const [last, setLast] = useLrState(null);
+  const [listening, setListening] = useLrState(false);
+  const recRef = useLrRef(null);
+  const heardRef = useLrRef("");
   const [toastNode, flash] = window.usePPToast();
-  const send = async () => {
-    const t = text.trim();
+  const canTalk = !!lrRecognizer();
+
+  const send = async (words) => {
+    const t = String(words ?? text).trim();
     if (!t || busy || !window.__whisperCall) return;
     setBusy(true);
     // No nudge to speak: a whisper is kept in mind and used when it fits,
@@ -164,6 +176,53 @@ const LrWhisper = ({ c }) => {
       flash({ msg: <>Not whispered — {r.message}</> });
     }
   };
+
+  // Hold to talk. Press starts the recogniser; release stops it; what was
+  // heard is sent on its own once the recogniser has finished, so a whisper
+  // said aloud never waits for a click. Interim words show in the box as
+  // they come, so the owner sees what will be sent.
+  const startTalking = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const SR = lrRecognizer();
+    if (!SR || listening || busy) return;
+    const rec = new SR();
+    rec.lang = navigator.language || "en-US";
+    rec.interimResults = true;
+    rec.continuous = true;
+    heardRef.current = "";
+    rec.onresult = (ev) => {
+      let finals = "";
+      let interim = "";
+      for (let i = 0; i < ev.results.length; i++) {
+        const r = ev.results[i];
+        if (r.isFinal) finals += r[0].transcript;
+        else interim += r[0].transcript;
+      }
+      heardRef.current = finals.trim();
+      setText((finals + interim).trim());
+    };
+    rec.onerror = (ev) => {
+      setListening(false);
+      recRef.current = null;
+      if (ev && ev.error === "not-allowed") flash({ msg: <>The browser needs microphone permission to whisper by voice.</> });
+      else if (ev && ev.error !== "aborted" && ev.error !== "no-speech") flash({ msg: <>Couldn&rsquo;t hear you — try again or type it.</> });
+    };
+    rec.onend = () => {
+      setListening(false);
+      recRef.current = null;
+      const heard = heardRef.current;
+      heardRef.current = "";
+      if (heard) send(heard);
+    };
+    recRef.current = rec;
+    setListening(true);
+    try { rec.start(); } catch { setListening(false); recRef.current = null; }
+  };
+  const stopTalking = () => {
+    const rec = recRef.current;
+    if (rec) { try { rec.stop(); } catch { /* already stopped */ } }
+  };
+
   return (
     <div className="lm-whisper" data-testid="live-whisper">
       <div className="lm-whisper-label">Whisper to the receptionist</div>
@@ -172,20 +231,40 @@ const LrWhisper = ({ c }) => {
           className="set-input"
           value={text}
           maxLength={500}
-          placeholder="Tell them the owner can see them at 4:30 today"
+          placeholder={listening ? "Listening…" : "Tell them the owner can see them at 4:30 today"}
           aria-label="Whisper to the receptionist"
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); send(); } }}
           disabled={busy}
         />
-        <button className="btn btn-primary btn-sm" onClick={send} disabled={busy || !text.trim()} {...window.gate("approve")}>
+        {canTalk && (
+          <button
+            type="button"
+            className={`btn btn-sm lm-talk ${listening ? "on" : ""}`}
+            data-testid="live-whisper-talk"
+            aria-pressed={listening}
+            title="Hold and say the whisper; it is sent when you let go"
+            onPointerDown={startTalking}
+            onPointerUp={stopTalking}
+            onPointerLeave={stopTalking}
+            onPointerCancel={stopTalking}
+            onKeyDown={(e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) startTalking(e); }}
+            onKeyUp={(e) => { if (e.key === " " || e.key === "Enter") stopTalking(); }}
+            onContextMenu={(e) => e.preventDefault()}
+            disabled={busy}
+            {...window.gate("approve")}
+          >
+            <Icon name="wave" size={12} /> {listening ? "Listening… let go to send" : "Hold to talk"}
+          </button>
+        )}
+        <button className="btn btn-primary btn-sm" onClick={() => send()} disabled={busy || listening || !text.trim()} {...window.gate("approve")}>
           {busy ? "Sending…" : "Whisper"}
         </button>
       </div>
       <div className="lm-whisper-hint">
         {last
           ? <>Last whispered: &ldquo;{last}&rdquo;</>
-          : "Only the receptionist hears it. It keeps it in mind and uses it in its own words when it fits — never word for word, and never against its rules: it will not quote a price or confirm a booking because you whispered one. The caller never hears your words."}
+          : <>Only the receptionist hears it. It keeps it in mind and uses it in its own words when it fits — never word for word, and never against its rules: it will not quote a price or confirm a booking because you whispered one. The caller never hears your words.{canTalk ? " Hold the button and say it, or type it." : ""}</>}
       </div>
       {toastNode}
     </div>

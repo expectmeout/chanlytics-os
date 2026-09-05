@@ -46,8 +46,9 @@ test("a freshly applied agent, with the provider's own defaults added, is conver
 
 test("every delivery leaves a readable row saying which credential it passed; the fallback stays until a real one shows sig:true", () => {
   const hook = readCode("apps/edge/api/retell-webhook.ts");
-  assert.ok(hook.includes("void recordWebhookAuth(sigOk, keyOk);"));
-  assert.ok(hook.includes('emitEvent(db, PLATFORM_TENANT, "webhook.auth", "ingest", null, null, { provider: "retell", sig, key })'));
+  assert.ok(hook.includes("void recordWebhookAuth(sigOk, keyOk, { raw: sigRaw, restringified: sigRestringified });"));
+  assert.ok(hook.includes('emitEvent(db, PLATFORM_TENANT, "webhook.auth", "ingest", null, null, {'));
+  assert.ok(hook.includes('provider: "retell", sig, key, sig_raw: forms.raw, sig_restringified: forms.restringified,'), "which credential, and which body form, verified");
   assert.ok(hook.includes("if (!sigOk && !keyOk) {"), "the key still opens the door — retirement waits on the evidence");
   const diag = readCode("apps/edge/api/diag.ts");
   assert.ok(diag.includes("out.retellAuth = {"));
