@@ -45,13 +45,17 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   outbound: "demo",
   content: "demo",
   broadcasts: "demo",
-  admin: "demo",    // billing, integrations and AI memory still render seeds
-  // …but ONE pane behind it is fed by real APIs now. Sub-routes are checked
-  // before their page, so the rest of Settings stays honestly gated.
+  admin: "demo",    // the page itself: every pane below is classified, and a
+                    // pane nobody has listed inherits this honest default
   "admin/workspace": "real",
   "admin/autonomy": "real",   // the policies table, live for the reply row
   "admin/notifications": "real",  // who is alerted, from tenant_config
   "admin/integrations": "real",   // the channels in tenant_channels, read-only
+  // Not built, and said so IN the pane. Falling through to the page's "demo"
+  // replaced all of Settings with a bare card titled "billing"; the pane now
+  // keeps the nav and states what exists instead (settings.jsx PaneSoon).
+  "admin/billing": "real",
+  "admin/memory": "real",
 };
 
 /**
@@ -74,6 +78,8 @@ export const ROUTE_SURFACE: Record<string, string> = {
   "admin/autonomy": "settings",
   "admin/notifications": "settings",
   "admin/integrations": "settings",
+  "admin/billing": "settings",
+  "admin/memory": "settings",
 };
 
 /**

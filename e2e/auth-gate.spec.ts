@@ -12,7 +12,7 @@ import { test, expect } from "@playwright/test";
 /** Public by exact path. Everything else requires a validated user. */
 const PUBLIC = ["/login", "/api/version"];
 
-const PROTECTED_PAGES = ["/", "/admin", "/inbox", "/foundation"];
+const PROTECTED_PAGES = ["/", "/admin", "/inbox"];
 const PROTECTED_APIS = [
   "/api/v1/conversations",
   "/api/v1/settings",

@@ -268,13 +268,20 @@ const CvViewer = ({ c }) => {
               </button>
             )
           )}
-          <MoreMenu items={[
-            { header: "Thread" },
-            ...(c.threadId ? [{ label: dec ? `View thread · decided “${dec.action}”` : "View thread in Inbox", icon: "inbox", onClick: () => window.CHANLY.nav(window.CHANLY.R.thread(c.threadId)) }] : []),
-            { label: "Export transcript", icon: "external", onClick: () => window.askAbout({ prompt: "Export this transcript", answer: "I can export it as PDF or CSV — which would you like?" }) },
-            { divider: true },
-            { label: "Assign to an agent", icon: "sparkle", onClick: () => window.askAbout({ mode: "compose", prompt: "Assign this thread to " }) },
-          ]} />
+          {/* Export and Assign open the Ask overlay, a no-op outside a demo:
+              two menu items that did nothing on a real workspace. Export gets
+              a real route next; Assign has no agent to assign to; the one
+              working item duplicates the button beside it. So outside a demo
+              there is no menu. */}
+          {window.__DEMO_MODE && (
+            <MoreMenu items={[
+              { header: "Thread" },
+              ...(c.threadId ? [{ label: dec ? `View thread · decided “${dec.action}”` : "View thread in Inbox", icon: "inbox", onClick: () => window.CHANLY.nav(window.CHANLY.R.thread(c.threadId)) }] : []),
+              { label: "Export transcript", icon: "external", onClick: () => window.askAbout({ prompt: "Export this transcript", answer: "I can export it as PDF or CSV — which would you like?" }) },
+              { divider: true },
+              { label: "Assign to an agent", icon: "sparkle", onClick: () => window.askAbout({ mode: "compose", prompt: "Assign this thread to " }) },
+            ]} />
+          )}
         </div>
       </header>
 

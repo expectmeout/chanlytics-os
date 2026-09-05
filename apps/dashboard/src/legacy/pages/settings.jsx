@@ -2157,6 +2157,42 @@ const PaneBilling = ({ flash }) => {
 };
 
 // ---------- Page ----------
+// ---------- Not built yet: Billing and AI memory, said in the pane ----------
+// Outside a demo these two tabs used to fall through the shell's gate, which
+// replaced the WHOLE settings page with a bare card titled "billing" and a
+// "Back to Today" button — the owner lost the settings nav for clicking a tab.
+// They are panes like the others now: they say what is true, keep the nav, and
+// point at the pane that holds what exists instead.
+const SET_SOON = {
+  memory: {
+    title: "AI memory",
+    chip: "Not built yet",
+    body: "The receptionist does not learn rules on its own yet. Everything it knows comes from Workspace: the business details, hours, services, notes and the extra instructions saved there.",
+    action: { label: "Open Workspace", tab: "workspace", icon: "home" },
+  },
+  billing: {
+    title: "Billing",
+    chip: "Not built yet",
+    body: "There is no billing in the product yet. This workspace runs on a direct arrangement, and nothing on this screen charges anything.",
+    action: null,
+  },
+};
+
+const PaneSoon = ({ which, onTab }) => {
+  const m = SET_SOON[which];
+  return (
+    <section className="fl-card set-card" data-testid={`soon-${which}`}>
+      <div className="fl-card-head"><span className="fl-card-title">{m.title}</span><span className="fl-card-sub">{m.chip}</span></div>
+      <div className="set-row">
+        <div className="set-row-info"><span className="set-row-hint">{m.body}</span></div>
+        {m.action && (
+          <button className="btn btn-sm" onClick={() => onTab(m.action.tab)}><Icon name={m.action.icon} size={12} /> {m.action.label}</button>
+        )}
+      </div>
+    </section>
+  );
+};
+
 const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
   const active = SET_TABS.find(t => t.id === tab) || SET_TABS[0];
   const [toastNode, flash] = window.usePPToast();
@@ -2175,9 +2211,9 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
         {active.id === "workspace" && <PaneWorkspace flash={flash} />}
         {active.id === "autonomy" && (window.__POLICIES === undefined ? <PaneAutonomy flash={flash} /> : <PaneAutonomyReal flash={flash} />)}
         {active.id === "integrations" && (window.__CHANNELS === undefined ? <PaneIntegrations flash={flash} /> : <PaneIntegrationsReal />)}
-        {active.id === "memory" && <PaneMemory flash={flash} />}
+        {active.id === "memory" && (window.__SETTINGS === undefined ? <PaneMemory flash={flash} /> : <PaneSoon which="memory" onTab={onTab} />)}
         {active.id === "notifications" && (window.__SETTINGS === undefined ? <PaneNotifications /> : <PaneNotificationsReal flash={flash} />)}
-        {active.id === "billing" && <PaneBilling flash={flash} />}
+        {active.id === "billing" && (window.__SETTINGS === undefined ? <PaneBilling flash={flash} /> : <PaneSoon which="billing" onTab={onTab} />)}
       </div>
 
       {toastNode}
