@@ -519,6 +519,13 @@ const TimelineEntry = ({ entry, thread, channelLabels }) => {
                     thread-level identity they have always used. */}
                 <span className="agent-avatar" style={{ width: 12, height: 12, fontSize: 7 }}>{entry.agentGlyph || thread.agent.glyph}</span>
                 <span>by {entry.agentName || thread.agent.name}</span>
+                {/* Why it said that, when the row remembers: the intent and
+                    how sure it was; the reason and the facts on hover. */}
+                {entry.why && (
+                  <span className="tl-msg-why" title={[entry.why.reason, entry.why.facts.length ? `Used: ${entry.why.facts.join(" · ")}` : ""].filter(Boolean).join("\n")}>
+                    · {entry.why.summary}
+                  </span>
+                )}
                 {held && <span className="tl-held-tag">Not sent yet</span>}
               </>
             )}
@@ -571,6 +578,13 @@ const VetoBar = ({ thread, remaining, paused = false, onAct = () => {}, onTakeOv
         : <>Held — manual send</>}
     </span>
     {thread.veto.policyClass && <PolicyChip cls={thread.veto.policyClass} />}
+    {thread.veto.why && (
+      <span className="ix-veto-why" title={thread.veto.why.reason || ""}>
+        {thread.veto.why.heldFor === "low_confidence" ? "Not sure enough to send alone · " : ""}
+        {thread.veto.why.summary}
+        {thread.veto.why.facts.length ? ` · used: ${thread.veto.why.facts.join(", ")}` : ""}
+      </span>
+    )}
     {(() => { const t = window.TRUST && window.TRUST.agent(window.CHANLY.agentIdFor(thread.agent.name)); return t ? <span className="ix-veto-trust" data-tip="30-day edit rate — under 5% is the earn-more-autonomy signal">{thread.agent.name} · {window.TRUST.rate(t)}% edit rate</span> : null; })()}
     <span className="ix-veto-spacer"></span>
     {remaining != null && (

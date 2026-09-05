@@ -83,7 +83,8 @@ test("a queued draft falls back to sending when it cannot be scheduled", () => {
   // An un-vetoed reply is a worse outcome than a vetoed one. No reply at all is
   // worse than both — so a missing token or a dead queue must not mean silence.
   assert.match(edge, /queueReply\(/);
-  assert.match(edge, /delayMs > 0 \? await queueReply\([^)]*\) : false/s);
+  // Spans lines since the confidence dial: the same expression, more arguments.
+  assert.match(edge, /delayMs > 0\s*\?\s*await queueReply\([^)]*\)\s*:\s*false/s);
 });
 
 test("EVERY path where a human takes control withdraws the draft", () => {

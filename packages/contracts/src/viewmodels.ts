@@ -76,6 +76,8 @@ export interface ConversationMessageVM {
   text: string;
   /** The attachment, when the message is one. */
   media?: MediaVM;
+  /** Why the receptionist said it, when the row remembers. */
+  why?: ReplyWhyVM;
   /** "Canceled before sending", "Sending…" — absent when there is nothing to
    *  say, which for an ordinary sent message is the honest answer. */
   statusLabel?: string;
@@ -133,6 +135,7 @@ export interface ConversationVM {
 }
 
 import { whisperText } from "./whisper";
+import { replyWhy, type ReplyWhyVM } from "./brain";
 import { formatPhoneDisplay } from "./phone";
 import { isOptedOutContact } from "./consent";
 import { waWindow, isLiveCall } from "./policy";
@@ -400,7 +403,7 @@ export interface InboxThreadVM {
    * VW_STORE and fabricates the send at zero; on a real thread the job fires
    * server-side and the UI only reports what is already true.
    */
-  veto?: { window: number; draft: string; endsAtMs: number; messageId: string };
+  veto?: { window: number; draft: string; endsAtMs: number; messageId: string; why?: ReplyWhyVM };
   channels: string[];
   primaryChannel: "whatsapp";
   agent: { name: string; glyph: string; autonomy: string; tone: string };
@@ -427,6 +430,8 @@ export interface InboxThreadVM {
         body: string;
         /** The attachment, when the message is one. */
         media?: MediaVM;
+        /** Why the receptionist said it, when the row remembers. */
+        why?: ReplyWhyVM;
         byYou?: boolean;
         status?: string;
         messageId?: string;
@@ -509,6 +514,7 @@ export function toInboxThreadVM(
   const timeline: InboxThreadVM["timeline"] = dto.messages.map((m) => {
     const onPhone = m.type === "call_summary";
     const media = mediaVM(m);
+    const why = m.sender === "ai" ? replyWhy(m.meta) : null;
     return {
       type: "msg" as const,
       from: m.sender === "customer" ? ("client" as const) : ("agent" as const),
@@ -516,6 +522,7 @@ export function toInboxThreadVM(
       at: bubbleTime(messageAt(m), now),
       body: messageText(m),
       ...(media ? { media } : {}),
+      ...(why ? { why } : {}),
       // Who said it, per BUBBLE. The thread carries one agent identity, and the
       // pane rendered that under every agent row — so a phone call summary was
       // signed "by WhatsApp Receptionist", crediting the wrong assistant with
@@ -577,6 +584,7 @@ export function toInboxThreadVM(
             draft: heldDraft.body,
             endsAtMs: heldDraft.sendsAtMs,
             messageId: heldDraft.messageId,
+            ...(replyWhy(draftMsg!.meta) ? { why: replyWhy(draftMsg!.meta) as ReplyWhyVM } : {}),
           },
         }
       : {}),
@@ -637,6 +645,7 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
     at: bubbleTime(messageAt(m), now),
     text: messageText(m),
     ...(mediaVM(m) ? { media: mediaVM(m) as MediaVM } : {}),
+    ...(m.sender === "ai" && replyWhy(m.meta) ? { why: replyWhy(m.meta) as ReplyWhyVM } : {}),
     // Only for OUR messages. A customer's inbound message has no send status,
     // and labelling it would be inventing one.
     ...(m.sender !== "customer"

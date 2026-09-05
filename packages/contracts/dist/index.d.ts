@@ -126,6 +126,143 @@ declare function isOptedOutContact(c: ConsentBearing): boolean;
 declare const OPT_OUT_REFUSAL = "This customer asked to stop receiving messages. They can text START to opt back in.";
 
 /**
+ * What the receptionist says back, as a record and not just a string.
+ *
+ * The brain used to return text with a handoff token hidden in it, and
+ * nothing else: no reading of what the customer wanted, no sense of how sure
+ * it was, no trace of which fact it leaned on. Every "why did it say that?"
+ * had to be guessed from the words. This is the shape it answers in now,
+ * constrained by the API (output_config.format), validated here, carried on
+ * the message row's meta, and read by the Inbox.
+ *
+ * Kept to what a salon owner can act on: the intent names the class of
+ * question, the confidence drives the hold-for-review dial, the reason is one
+ * sentence for the rail, the facts are what to check when the answer is
+ * wrong.
+ */
+
+declare const BRAIN_INTENTS: readonly ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
+type BrainIntent = (typeof BRAIN_INTENTS)[number];
+declare const INTENT_LABELS: Record<BrainIntent, string>;
+declare const BRAIN_LANGUAGES: readonly ["en", "es", "other"];
+/**
+ * The JSON Schema the API constrains decoding to. Only what the API supports:
+ * no numeric ranges, no length limits, no nullable unions — those are checked
+ * by the zod schema below after the fact, and clamped rather than refused.
+ */
+declare const BRAIN_OUTPUT_JSON_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly reply: {
+            readonly type: "string";
+            readonly description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here.";
+        };
+        readonly intent: {
+            readonly type: "string";
+            readonly enum: readonly ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
+            readonly description: "What the customer is after.";
+        };
+        readonly escalate: {
+            readonly type: "boolean";
+            readonly description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so.";
+        };
+        readonly reason: {
+            readonly type: "string";
+            readonly description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies.";
+        };
+        readonly confidence: {
+            readonly type: "number";
+            readonly description: "How sure you are that this reply is right and complete for this customer, from 0 to 1.";
+        };
+        readonly facts_used: {
+            readonly type: "array";
+            readonly items: {
+                readonly type: "string";
+            };
+            readonly description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none.";
+        };
+        readonly language: {
+            readonly type: "string";
+            readonly enum: readonly ["en", "es", "other"];
+            readonly description: "The language the reply is written in.";
+        };
+    };
+    readonly required: readonly ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"];
+    readonly additionalProperties: false;
+};
+/** The read side: tolerant of what a model might still do, strict about shape. */
+declare const BrainOutputSchema: z.ZodObject<{
+    reply: z.ZodString;
+    intent: z.ZodCatch<z.ZodEnum<["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"]>>;
+    escalate: z.ZodCatch<z.ZodBoolean>;
+    reason: z.ZodEffects<z.ZodCatch<z.ZodString>, string, unknown>;
+    confidence: z.ZodEffects<z.ZodCatch<z.ZodNumber>, number, unknown>;
+    facts_used: z.ZodEffects<z.ZodCatch<z.ZodArray<z.ZodString, "many">>, string[], unknown>;
+    language: z.ZodCatch<z.ZodEnum<["en", "es", "other"]>>;
+}, "strip", z.ZodTypeAny, {
+    reply: string;
+    intent: "booking" | "pricing" | "hours" | "services" | "location" | "complaint" | "smalltalk" | "other";
+    escalate: boolean;
+    reason: string;
+    confidence: number;
+    facts_used: string[];
+    language: "other" | "en" | "es";
+}, {
+    reply: string;
+    intent?: unknown;
+    escalate?: unknown;
+    reason?: unknown;
+    confidence?: unknown;
+    facts_used?: unknown;
+    language?: unknown;
+}>;
+type BrainOutput = z.infer<typeof BrainOutputSchema>;
+/**
+ * Parse what the model returned. With constrained decoding the JSON is well
+ * formed unless the answer was cut off by max_tokens; a truncated document
+ * fails here and the caller falls back to the holding reply, as it always
+ * did for a capped answer.
+ */
+declare function parseBrainOutput(raw: string): {
+    ok: true;
+    value: BrainOutput;
+} | {
+    ok: false;
+    error: string;
+};
+/**
+ * What a message row remembers about its own reasoning. Written by the edge
+ * beside source/delay_ms; read back by the Inbox through the meta the DTO
+ * already carries.
+ */
+interface BrainMeta {
+    intent: BrainIntent;
+    confidence: number;
+    reason: string;
+    facts_used: string[];
+    language: (typeof BRAIN_LANGUAGES)[number];
+    model: string;
+}
+declare function brainMetaOf(out: BrainOutput, model: string): BrainMeta;
+/** The rail beside a reply: why it said what it said. */
+interface ReplyWhyVM {
+    intent: BrainIntent;
+    intentLabel: string;
+    /** 0–100, or null when the row predates this. */
+    confidence: number | null;
+    reason: string | null;
+    facts: string[];
+    /** Why the draft is waiting, when it is. */
+    heldFor: "low_confidence" | "veto_window" | null;
+    /** One line for a chip: "Pricing question · 62% sure". */
+    summary: string;
+}
+/** From a message row's meta; null when the row carries no reasoning. */
+declare function replyWhy(meta: Record<string, unknown> | null | undefined): ReplyWhyVM | null;
+/** The confidence dial, as the Autonomy pane offers it. 0 means off. */
+declare const CONFIDENCE_STEPS: readonly [0, 0.6, 0.75, 0.9];
+
+/**
  * ThreadCard/ConversationVM viewmodels (Blueprint §7): pure mapping from API
  * DTOs into the exact shapes the mockup surfaces render. Fed fields only —
  * nothing invented: summaries are factual lines, never fabricated analysis.
@@ -195,6 +332,8 @@ interface ConversationMessageVM {
     text: string;
     /** The attachment, when the message is one. */
     media?: MediaVM;
+    /** Why the receptionist said it, when the row remembers. */
+    why?: ReplyWhyVM;
     /** "Canceled before sending", "Sending…" — absent when there is nothing to
      *  say, which for an ordinary sent message is the honest answer. */
     statusLabel?: string;
@@ -242,6 +381,7 @@ interface ConversationVM {
      *  their own rows, so a chat row with nothing to preview is pure duplication. */
     hasChat: boolean;
 }
+
 declare function shortTime(iso: string | null, now: Date): string;
 /** The display name for a contact, without building a whole thread viewmodel
  *  to read one field (Today was doing exactly that per open escalation). */
@@ -341,6 +481,7 @@ interface InboxThreadVM {
         draft: string;
         endsAtMs: number;
         messageId: string;
+        why?: ReplyWhyVM;
     };
     channels: string[];
     primaryChannel: "whatsapp";
@@ -376,6 +517,8 @@ interface InboxThreadVM {
         body: string;
         /** The attachment, when the message is one. */
         media?: MediaVM;
+        /** Why the receptionist said it, when the row remembers. */
+        why?: ReplyWhyVM;
         byYou?: boolean;
         status?: string;
         messageId?: string;
@@ -758,14 +901,23 @@ declare const PolicyLimitsSchema: z.ZodObject<{
      * before it speaks, rather than apologising for it afterwards.
      */
     reply_delay_ms: z.ZodOptional<z.ZodNumber>;
+    /**
+     * The confidence dial. Under 'auto', a reply the model is less sure about
+     * than this waits in the hold window (reply_delay_ms) for a person instead
+     * of going straight out — sure enough sends itself, not sure enough waits.
+     * 0 or absent means off.
+     */
+    min_confidence: z.ZodOptional<z.ZodNumber>;
 }, "strict", z.ZodTypeAny, {
     max_replies_day?: number | undefined;
     pause_hours?: number | undefined;
     reply_delay_ms?: number | undefined;
+    min_confidence?: number | undefined;
 }, {
     max_replies_day?: number | undefined;
     pause_hours?: number | undefined;
     reply_delay_ms?: number | undefined;
+    min_confidence?: number | undefined;
 }>;
 type PolicyLimits = z.infer<typeof PolicyLimitsSchema>;
 interface PolicyRow {
@@ -1116,11 +1268,6 @@ declare const BusinessProfileSchema: z.ZodObject<{
      */
     extra_instructions: z.ZodOptional<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
-    notes?: {
-        text: string;
-        title: string;
-    }[] | undefined;
-    address?: string | undefined;
     hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
         open?: string | null | undefined;
         close?: string | null | undefined;
@@ -1129,15 +1276,20 @@ declare const BusinessProfileSchema: z.ZodObject<{
             close: string;
         }[] | undefined;
     }>> | undefined;
-    closures?: {
-        date: string;
-        note?: string | undefined;
-        until?: string | undefined;
-    }[] | undefined;
     services?: {
         name: string;
         duration_min?: number | undefined;
         price_note?: string | undefined;
+    }[] | undefined;
+    notes?: {
+        text: string;
+        title: string;
+    }[] | undefined;
+    address?: string | undefined;
+    closures?: {
+        date: string;
+        note?: string | undefined;
+        until?: string | undefined;
     }[] | undefined;
     languages?: string[] | undefined;
     guardrails?: {
@@ -1161,11 +1313,6 @@ declare const BusinessProfileSchema: z.ZodObject<{
     } | undefined;
     extra_instructions?: string | undefined;
 }, {
-    notes?: {
-        text: string;
-        title: string;
-    }[] | undefined;
-    address?: string | undefined;
     hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
         open?: string | null | undefined;
         close?: string | null | undefined;
@@ -1174,15 +1321,20 @@ declare const BusinessProfileSchema: z.ZodObject<{
             close: string;
         }[] | undefined;
     }>> | undefined;
-    closures?: {
-        date: string;
-        note?: string | undefined;
-        until?: string | undefined;
-    }[] | undefined;
     services?: {
         name: string;
         duration_min?: number | undefined;
         price_note?: string | undefined;
+    }[] | undefined;
+    notes?: {
+        text: string;
+        title: string;
+    }[] | undefined;
+    address?: string | undefined;
+    closures?: {
+        date: string;
+        note?: string | undefined;
+        until?: string | undefined;
     }[] | undefined;
     languages?: string[] | undefined;
     guardrails?: {
@@ -1377,11 +1529,6 @@ declare const BrainConfigSchema: z.ZodObject<{
          */
         extra_instructions: z.ZodOptional<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
-        notes?: {
-            text: string;
-            title: string;
-        }[] | undefined;
-        address?: string | undefined;
         hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
             open?: string | null | undefined;
             close?: string | null | undefined;
@@ -1390,15 +1537,20 @@ declare const BrainConfigSchema: z.ZodObject<{
                 close: string;
             }[] | undefined;
         }>> | undefined;
-        closures?: {
-            date: string;
-            note?: string | undefined;
-            until?: string | undefined;
-        }[] | undefined;
         services?: {
             name: string;
             duration_min?: number | undefined;
             price_note?: string | undefined;
+        }[] | undefined;
+        notes?: {
+            text: string;
+            title: string;
+        }[] | undefined;
+        address?: string | undefined;
+        closures?: {
+            date: string;
+            note?: string | undefined;
+            until?: string | undefined;
         }[] | undefined;
         languages?: string[] | undefined;
         guardrails?: {
@@ -1422,11 +1574,6 @@ declare const BrainConfigSchema: z.ZodObject<{
         } | undefined;
         extra_instructions?: string | undefined;
     }, {
-        notes?: {
-            text: string;
-            title: string;
-        }[] | undefined;
-        address?: string | undefined;
         hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
             open?: string | null | undefined;
             close?: string | null | undefined;
@@ -1435,15 +1582,20 @@ declare const BrainConfigSchema: z.ZodObject<{
                 close: string;
             }[] | undefined;
         }>> | undefined;
-        closures?: {
-            date: string;
-            note?: string | undefined;
-            until?: string | undefined;
-        }[] | undefined;
         services?: {
             name: string;
             duration_min?: number | undefined;
             price_note?: string | undefined;
+        }[] | undefined;
+        notes?: {
+            text: string;
+            title: string;
+        }[] | undefined;
+        address?: string | undefined;
+        closures?: {
+            date: string;
+            note?: string | undefined;
+            until?: string | undefined;
         }[] | undefined;
         languages?: string[] | undefined;
         guardrails?: {
@@ -1476,12 +1628,12 @@ declare const BrainConfigSchema: z.ZodObject<{
         non_text: z.ZodString;
     }, "strict", z.ZodTypeAny, {
         non_text: string;
-        greeting: string;
         error: string;
+        greeting: string;
     }, {
         non_text: string;
-        greeting: string;
         error: string;
+        greeting: string;
     }>;
 }, "strict", z.ZodTypeAny, {
     business_name: string;
@@ -1490,15 +1642,10 @@ declare const BrainConfigSchema: z.ZodObject<{
     system_prompt: string;
     fallbacks: {
         non_text: string;
-        greeting: string;
         error: string;
+        greeting: string;
     };
     profile?: {
-        notes?: {
-            text: string;
-            title: string;
-        }[] | undefined;
-        address?: string | undefined;
         hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
             open?: string | null | undefined;
             close?: string | null | undefined;
@@ -1507,15 +1654,20 @@ declare const BrainConfigSchema: z.ZodObject<{
                 close: string;
             }[] | undefined;
         }>> | undefined;
-        closures?: {
-            date: string;
-            note?: string | undefined;
-            until?: string | undefined;
-        }[] | undefined;
         services?: {
             name: string;
             duration_min?: number | undefined;
             price_note?: string | undefined;
+        }[] | undefined;
+        notes?: {
+            text: string;
+            title: string;
+        }[] | undefined;
+        address?: string | undefined;
+        closures?: {
+            date: string;
+            note?: string | undefined;
+            until?: string | undefined;
         }[] | undefined;
         languages?: string[] | undefined;
         guardrails?: {
@@ -1546,15 +1698,10 @@ declare const BrainConfigSchema: z.ZodObject<{
     system_prompt: string;
     fallbacks: {
         non_text: string;
-        greeting: string;
         error: string;
+        greeting: string;
     };
     profile?: {
-        notes?: {
-            text: string;
-            title: string;
-        }[] | undefined;
-        address?: string | undefined;
         hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
             open?: string | null | undefined;
             close?: string | null | undefined;
@@ -1563,15 +1710,20 @@ declare const BrainConfigSchema: z.ZodObject<{
                 close: string;
             }[] | undefined;
         }>> | undefined;
-        closures?: {
-            date: string;
-            note?: string | undefined;
-            until?: string | undefined;
-        }[] | undefined;
         services?: {
             name: string;
             duration_min?: number | undefined;
             price_note?: string | undefined;
+        }[] | undefined;
+        notes?: {
+            text: string;
+            title: string;
+        }[] | undefined;
+        address?: string | undefined;
+        closures?: {
+            date: string;
+            note?: string | undefined;
+            until?: string | undefined;
         }[] | undefined;
         languages?: string[] | undefined;
         guardrails?: {
@@ -1843,11 +1995,6 @@ declare const TenantConfigSchema: z.ZodObject<{
              */
             extra_instructions: z.ZodOptional<z.ZodString>;
         }, "strict", z.ZodTypeAny, {
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            address?: string | undefined;
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
@@ -1856,15 +2003,20 @@ declare const TenantConfigSchema: z.ZodObject<{
                     close: string;
                 }[] | undefined;
             }>> | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
             services?: {
                 name: string;
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
+            }[] | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
+            address?: string | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
             }[] | undefined;
             languages?: string[] | undefined;
             guardrails?: {
@@ -1888,11 +2040,6 @@ declare const TenantConfigSchema: z.ZodObject<{
             } | undefined;
             extra_instructions?: string | undefined;
         }, {
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            address?: string | undefined;
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
@@ -1901,15 +2048,20 @@ declare const TenantConfigSchema: z.ZodObject<{
                     close: string;
                 }[] | undefined;
             }>> | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
             services?: {
                 name: string;
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
+            }[] | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
+            address?: string | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
             }[] | undefined;
             languages?: string[] | undefined;
             guardrails?: {
@@ -1942,12 +2094,12 @@ declare const TenantConfigSchema: z.ZodObject<{
             non_text: z.ZodString;
         }, "strict", z.ZodTypeAny, {
             non_text: string;
-            greeting: string;
             error: string;
+            greeting: string;
         }, {
             non_text: string;
-            greeting: string;
             error: string;
+            greeting: string;
         }>;
     }, "strict", z.ZodTypeAny, {
         business_name: string;
@@ -1956,15 +2108,10 @@ declare const TenantConfigSchema: z.ZodObject<{
         system_prompt: string;
         fallbacks: {
             non_text: string;
-            greeting: string;
             error: string;
+            greeting: string;
         };
         profile?: {
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            address?: string | undefined;
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
@@ -1973,15 +2120,20 @@ declare const TenantConfigSchema: z.ZodObject<{
                     close: string;
                 }[] | undefined;
             }>> | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
             services?: {
                 name: string;
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
+            }[] | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
+            address?: string | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
             }[] | undefined;
             languages?: string[] | undefined;
             guardrails?: {
@@ -2012,15 +2164,10 @@ declare const TenantConfigSchema: z.ZodObject<{
         system_prompt: string;
         fallbacks: {
             non_text: string;
-            greeting: string;
             error: string;
+            greeting: string;
         };
         profile?: {
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            address?: string | undefined;
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
@@ -2029,15 +2176,20 @@ declare const TenantConfigSchema: z.ZodObject<{
                     close: string;
                 }[] | undefined;
             }>> | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
             services?: {
                 name: string;
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
+            }[] | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
+            address?: string | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
             }[] | undefined;
             languages?: string[] | undefined;
             guardrails?: {
@@ -2094,15 +2246,10 @@ declare const TenantConfigSchema: z.ZodObject<{
         system_prompt: string;
         fallbacks: {
             non_text: string;
-            greeting: string;
             error: string;
+            greeting: string;
         };
         profile?: {
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            address?: string | undefined;
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
@@ -2111,15 +2258,20 @@ declare const TenantConfigSchema: z.ZodObject<{
                     close: string;
                 }[] | undefined;
             }>> | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
             services?: {
                 name: string;
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
+            }[] | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
+            address?: string | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
             }[] | undefined;
             languages?: string[] | undefined;
             guardrails?: {
@@ -2162,15 +2314,10 @@ declare const TenantConfigSchema: z.ZodObject<{
         system_prompt: string;
         fallbacks: {
             non_text: string;
-            greeting: string;
             error: string;
+            greeting: string;
         };
         profile?: {
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            address?: string | undefined;
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
@@ -2179,15 +2326,20 @@ declare const TenantConfigSchema: z.ZodObject<{
                     close: string;
                 }[] | undefined;
             }>> | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
             services?: {
                 name: string;
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
+            }[] | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
+            address?: string | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
             }[] | undefined;
             languages?: string[] | undefined;
             guardrails?: {
@@ -2404,11 +2556,6 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
              */
             extra_instructions: z.ZodOptional<z.ZodString>;
         }, "strict", z.ZodTypeAny, {
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            address?: string | undefined;
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
@@ -2417,15 +2564,20 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                     close: string;
                 }[] | undefined;
             }>> | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
             services?: {
                 name: string;
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
+            }[] | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
+            address?: string | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
             }[] | undefined;
             languages?: string[] | undefined;
             guardrails?: {
@@ -2449,11 +2601,6 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
             } | undefined;
             extra_instructions?: string | undefined;
         }, {
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            address?: string | undefined;
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
@@ -2462,15 +2609,20 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                     close: string;
                 }[] | undefined;
             }>> | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
             services?: {
                 name: string;
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
+            }[] | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
+            address?: string | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
             }[] | undefined;
             languages?: string[] | undefined;
             guardrails?: {
@@ -2503,12 +2655,12 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
             non_text: z.ZodString;
         }, "strict", z.ZodTypeAny, {
             non_text: string;
-            greeting: string;
             error: string;
+            greeting: string;
         }, {
             non_text: string;
-            greeting: string;
             error: string;
+            greeting: string;
         }>;
     }, "strict", z.ZodTypeAny, {
         business_name: string;
@@ -2517,15 +2669,10 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
         system_prompt: string;
         fallbacks: {
             non_text: string;
-            greeting: string;
             error: string;
+            greeting: string;
         };
         profile?: {
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            address?: string | undefined;
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
@@ -2534,15 +2681,20 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                     close: string;
                 }[] | undefined;
             }>> | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
             services?: {
                 name: string;
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
+            }[] | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
+            address?: string | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
             }[] | undefined;
             languages?: string[] | undefined;
             guardrails?: {
@@ -2573,15 +2725,10 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
         system_prompt: string;
         fallbacks: {
             non_text: string;
-            greeting: string;
             error: string;
+            greeting: string;
         };
         profile?: {
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            address?: string | undefined;
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
@@ -2590,15 +2737,20 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                     close: string;
                 }[] | undefined;
             }>> | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
             services?: {
                 name: string;
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
+            }[] | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
+            address?: string | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
             }[] | undefined;
             languages?: string[] | undefined;
             guardrails?: {
@@ -2655,15 +2807,10 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
         system_prompt: string;
         fallbacks: {
             non_text: string;
-            greeting: string;
             error: string;
+            greeting: string;
         };
         profile?: {
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            address?: string | undefined;
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
@@ -2672,15 +2819,20 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                     close: string;
                 }[] | undefined;
             }>> | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
             services?: {
                 name: string;
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
+            }[] | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
+            address?: string | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
             }[] | undefined;
             languages?: string[] | undefined;
             guardrails?: {
@@ -2723,15 +2875,10 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
         system_prompt: string;
         fallbacks: {
             non_text: string;
-            greeting: string;
             error: string;
+            greeting: string;
         };
         profile?: {
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            address?: string | undefined;
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
@@ -2740,15 +2887,20 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                     close: string;
                 }[] | undefined;
             }>> | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
             services?: {
                 name: string;
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
+            }[] | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
+            address?: string | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
             }[] | undefined;
             languages?: string[] | undefined;
             guardrails?: {
@@ -2791,15 +2943,10 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
         system_prompt: string;
         fallbacks: {
             non_text: string;
-            greeting: string;
             error: string;
+            greeting: string;
         };
         profile?: {
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            address?: string | undefined;
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
@@ -2808,15 +2955,20 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                     close: string;
                 }[] | undefined;
             }>> | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
             services?: {
                 name: string;
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
+            }[] | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
+            address?: string | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
             }[] | undefined;
             languages?: string[] | undefined;
             guardrails?: {
@@ -2859,15 +3011,10 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
         system_prompt: string;
         fallbacks: {
             non_text: string;
-            greeting: string;
             error: string;
+            greeting: string;
         };
         profile?: {
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            address?: string | undefined;
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
                 close?: string | null | undefined;
@@ -2876,15 +3023,20 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                     close: string;
                 }[] | undefined;
             }>> | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
             services?: {
                 name: string;
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
+            }[] | undefined;
+            notes?: {
+                text: string;
+                title: string;
+            }[] | undefined;
+            address?: string | undefined;
+            closures?: {
+                date: string;
+                note?: string | undefined;
+                until?: string | undefined;
             }[] | undefined;
             languages?: string[] | undefined;
             guardrails?: {
@@ -3603,4 +3755,4 @@ declare function fmtClock(seconds: number): string;
 declare function toLiveCallVM(dto: CallDto, now?: Date): LiveCallVM;
 declare function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, now?: Date): LiveVM;
 
-export { ACTOR_TYPES, ANALYSIS_GRACE_MS, type ActorType, AppError, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BrainConfig, BrainConfigSchema, type BusinessProfile, BusinessProfileSchema, type BusyBlock, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CalendarConfig, CalendarConfigSchema, type CallDto, type CallVM, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelVM, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, E164, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type FeaturesConfig, FeaturesConfigSchema, type FreeWindowsInput, GuardrailsSchema, type Hours, type HoursRun, HoursSchema, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MediaVM, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type Note, NoteSchema, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, type Opening, PEOPLE_LISTS, PEOPLE_TABS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_STATE_LABELS, POLICY_CLASSES, POLICY_MODES, type ParseOptions, type ParsedFeed, type PeopleAggregates, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, QUIET_AFTER_MS, RECENT_MAX, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPORT_RANGES, ROLES, ROLE_PERMS, type ReceptionistTone, type ReportBarVM, type ReportDayDto, type ReportDto, type ReportPointVM, type ReportTileVM, type ReportVM, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TimelineKind, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, ago, asPersonMode, composeSystemPrompt, contactMeta, contactName, dayInZone, deltaOf, describeNow, describeOpenings, draftSendsAtMs, err, filterOpenings, fmtClock, fmtDay, fmtSeconds, formatPhoneDisplay, formatWaited, frameWhisper, freeWindows, hasProfile, hoursRuns, initialsOf, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, localToUtcMs, mediaKind, mediaVM, messageAt, messageStatusLabel, messageText, newReceptionistDefaults, normalizePhone, ok, parseIcs, parseTenantConfig, parseTenantConfigResult, peopleAggregates, personName, personStateFor, pointsDelta, quantile, reachedCustomer, reasonShort, recencyCells, replyDelayMs, resolveSystemPrompt, shortTime, threadStanding, toCallVM, toChannelVM, toConversationVM, toInboxThreadVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, violatesNoPrices, waWindow, whisperText, zoneOffsetMs };
+export { ACTOR_TYPES, ANALYSIS_GRACE_MS, type ActorType, AppError, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BusinessProfile, BusinessProfileSchema, type BusyBlock, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONFIDENCE_STEPS, CONSENT_STATES, CONVERSATION_STATES, type CalendarConfig, CalendarConfigSchema, type CallDto, type CallVM, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelVM, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, E164, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type FeaturesConfig, FeaturesConfigSchema, type FreeWindowsInput, GuardrailsSchema, type Hours, type HoursRun, HoursSchema, INTENT_LABELS, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MediaVM, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type Note, NoteSchema, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, type Opening, PEOPLE_LISTS, PEOPLE_TABS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_STATE_LABELS, POLICY_CLASSES, POLICY_MODES, type ParseOptions, type ParsedFeed, type PeopleAggregates, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, QUIET_AFTER_MS, RECENT_MAX, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPORT_RANGES, ROLES, ROLE_PERMS, type ReceptionistTone, type ReplyWhyVM, type ReportBarVM, type ReportDayDto, type ReportDto, type ReportPointVM, type ReportTileVM, type ReportVM, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TimelineKind, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, ago, asPersonMode, brainMetaOf, composeSystemPrompt, contactMeta, contactName, dayInZone, deltaOf, describeNow, describeOpenings, draftSendsAtMs, err, filterOpenings, fmtClock, fmtDay, fmtSeconds, formatPhoneDisplay, formatWaited, frameWhisper, freeWindows, hasProfile, hoursRuns, initialsOf, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, localToUtcMs, mediaKind, mediaVM, messageAt, messageStatusLabel, messageText, newReceptionistDefaults, normalizePhone, ok, parseBrainOutput, parseIcs, parseTenantConfig, parseTenantConfigResult, peopleAggregates, personName, personStateFor, pointsDelta, quantile, reachedCustomer, reasonShort, recencyCells, replyDelayMs, replyWhy, resolveSystemPrompt, shortTime, threadStanding, toCallVM, toChannelVM, toConversationVM, toInboxThreadVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, violatesNoPrices, waWindow, whisperText, zoneOffsetMs };
