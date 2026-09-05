@@ -670,6 +670,7 @@ const PL_LIST_TIP = {
   new_week: "First contact in the last 7 days, by evidence — imported history never counts",
   quiet: "No message or call in 30 days",
   phoned_only: "Only ever phoned — no WhatsApp thread",
+  opted_in: "Said yes to offers by WhatsApp — the only people a broadcast may reach",
   opted_out: "Asked to stop; the receptionist stays silent",
 };
 

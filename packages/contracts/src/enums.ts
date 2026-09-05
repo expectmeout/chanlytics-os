@@ -148,6 +148,12 @@ export const DECISION_VERBS = [
    * The one verb whose consequence is a credential in Vault.
    */
   "connect_channel",
+  /**
+   * A customer's answer about marketing messages, recorded by the person
+   * who heard it: subject 'contact', payload the answer, how it was given,
+   * and what it was before. The record a broadcast stands on.
+   */
+  "consent_change",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 

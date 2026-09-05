@@ -1,4 +1,4 @@
-import { toPersonVM, type PersonDetailDto, type PersonVM } from "@chanlytics/contracts";
+import { CONSENT_SOURCES, toPersonVM, type PersonDetailDto, type PersonVM } from "@chanlytics/contracts";
 import {
   conversationsOverride,
   fetchEnvelope,
@@ -103,9 +103,48 @@ export async function setPersonReceptionist(id: string, mode: "auto" | "ask" | "
   }
 }
 
+/**
+ * The customer's answer about offers by WhatsApp: `window.__setPersonConsent(id, body)`.
+ *
+ * { consent: "opted_in" | "opted_out", source } or { consent: "unknown" }.
+ * Owner or operator on the server. The list is re-fetched afterwards because
+ * the Consent column and the "Can receive offers" list read from it.
+ */
+export interface ConsentBody {
+  consent: "opted_in" | "opted_out" | "unknown";
+  source?: string;
+  note?: string;
+}
+
+export async function setPersonConsent(id: string, body: ConsentBody): Promise<DeleteResult> {
+  try {
+    const res = await fetch(scoped(`/api/v1/contacts/${encodeURIComponent(id)}/consent`), {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.status === 401) {
+      clearSurfaceCache();
+      window.location.assign("/login");
+      return { ok: false, message: "Signed out." };
+    }
+    const j = (await res.json().catch(() => null)) as
+      | { ok: boolean; data?: unknown; error?: { message?: string } }
+      | null;
+    if (!j || !j.ok) return { ok: false, message: j?.error?.message ?? `Request failed (${res.status}).` };
+    invalidateInFlight();
+    await refreshSurfaces([peopleOverride]);
+    return { ok: true, data: j.data };
+  } catch {
+    return { ok: false, message: "Network error — nothing was changed." };
+  }
+}
+
 declare global {
   interface Window {
     __personDetail?: (id: string) => Promise<PersonVM | null>;
+    __setPersonConsent?: (id: string, body: ConsentBody) => Promise<DeleteResult>;
+    __consentSources?: readonly { id: string; label: string }[];
     __deletePerson?: (id: string) => Promise<DeleteResult>;
     __setPersonReceptionist?: (id: string, mode: "auto" | "ask" | "never" | "inherit") => Promise<DeleteResult>;
   }
@@ -115,4 +154,6 @@ export function installPeopleCourier(): void {
   window.__personDetail = personDetail;
   window.__deletePerson = deletePerson;
   window.__setPersonReceptionist = setPersonReceptionist;
+  window.__setPersonConsent = setPersonConsent;
+  window.__consentSources = CONSENT_SOURCES;
 }

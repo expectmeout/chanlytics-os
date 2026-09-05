@@ -191,7 +191,13 @@ var DECISION_VERBS = [
    * 'channel', payload the number, the WABA and the registration outcome.
    * The one verb whose consequence is a credential in Vault.
    */
-  "connect_channel"
+  "connect_channel",
+  /**
+   * A customer's answer about marketing messages, recorded by the person
+   * who heard it: subject 'contact', payload the answer, how it was given,
+   * and what it was before. The record a broadcast stands on.
+   */
+  "consent_change"
 ];
 var DECISION_SUBJECTS = [
   "conversation",
@@ -2821,12 +2827,33 @@ function firstContactOf(r, nowMs) {
   if (e !== null) return { ts: e, label: fmtDate(e, nowMs), estimate: false, evidence: !r.has_backfill };
   return { ts: null, label: "\u2014", estimate: true, evidence: false };
 }
+var CONSENT_SOURCES = [
+  { id: "in_person", label: "In person" },
+  { id: "phone", label: "On the phone" },
+  { id: "form", label: "Sign-up form" },
+  { id: "customer_message", label: "Their own message" }
+];
+var CONSENT_RESET_SOURCE = "operator";
+function consentSourceLabel(source) {
+  if (!source) return null;
+  const known = CONSENT_SOURCES.find((s) => s.id === source);
+  if (known) return known.label;
+  return source === CONSENT_RESET_SOURCE ? null : source;
+}
 function consentOf(r, nowMs) {
   const dnc = !!r.dnc;
   const state = r.consent === "opted_out" || dnc ? "opted_out" : r.consent === "opted_in" ? "opted_in" : "unknown";
   const when = ts(r.consent_updated_at);
-  const sub = state === "opted_out" ? `STOP received${when !== null ? ` ${fmtDate(when, nowMs)}` : ""}` : state === "opted_in" ? `${r.consent_source ? `${r.consent_source} \xB7 ` : ""}${when !== null ? fmtDate(when, nowMs) : "recorded"}` : "no opt-in recorded";
-  return { state, dnc, label: state === "opted_out" ? "Opted out" : state === "opted_in" ? "Opted in" : "Unknown", sub };
+  const date = when !== null ? fmtDate(when, nowMs) : "recorded";
+  const how = consentSourceLabel(r.consent_source);
+  const sub = state === "opted_out" ? r.consent_source === "customer_message" ? `STOP received${when !== null ? ` ${fmtDate(when, nowMs)}` : ""}` : `${how ? `${how} \xB7 ` : ""}${date}` : state === "opted_in" ? `${how ? `${how} \xB7 ` : ""}${date}` : "no opt-in recorded";
+  return {
+    state,
+    dnc,
+    label: state === "opted_out" ? "Opted out" : state === "opted_in" ? "Opted in" : "Unknown",
+    sub,
+    source: r.consent_source ?? null
+  };
 }
 function receptionistOf(r, nowMs) {
   if (isOwned(r, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
@@ -2882,6 +2909,8 @@ var PEOPLE_LISTS = [
   { id: "quiet", label: "Quiet 30+ days", test: (v) => v.state === "quiet" },
   { id: "phoned_only", label: "Phoned only", test: (v) => !v.hasChat && v.calls > 0 },
   // A fact, not the state: someone who opted out AND needs you is in both lists.
+  // The only people a broadcast may reach: they said yes, and it is on record.
+  { id: "opted_in", label: "Can receive offers", test: (v) => v.consent.state === "opted_in" },
   { id: "opted_out", label: "Opted out", test: (v) => v.consent.state === "opted_out" }
 ];
 function peopleAggregates(rows, nowMs) {
@@ -3376,6 +3405,8 @@ export {
   CALL_HEARTBEAT_MS,
   CHANNEL_KINDS,
   CONFIDENCE_STEPS,
+  CONSENT_RESET_SOURCE,
+  CONSENT_SOURCES,
   CONSENT_STATES,
   CONVERSATION_STATES,
   CalendarConfigSchema,
@@ -3450,6 +3481,7 @@ export {
   citationsToShow,
   cleanAnswer,
   composeSystemPrompt,
+  consentSourceLabel,
   contactMeta,
   contactName,
   dayFromQuestion,
