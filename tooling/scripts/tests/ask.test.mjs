@@ -31,6 +31,7 @@ import {
   fastPath,
   groundCitations,
   isUngrounded,
+  normalizeNavigate,
   parseAskFinish,
   partialAnswer,
   safeNavigate,
@@ -251,7 +252,7 @@ test("the loop: read tools plus finish, tool_choice any then finish forced on th
   assert.ok(l.includes('tool_choice: last ? { type: "tool", name: "finish" } : { type: "any" },'));
   assert.ok(l.includes("const outcomes = await Promise.all("), "several reads run at once");
   assert.ok(l.includes("const { kept, dropped } = groundCitations(f.citations, tc.read);"));
-  assert.ok(l.includes("safeNavigate(f.navigate.to, tc.read)"));
+  assert.ok(l.includes("normalizeNavigate(f.navigate.to, tc.read)"));
   assert.ok(l.includes("ungrounded: isUngrounded(f.answer, reads + proposals.length),"), "a proposal counts as a read: its figures are the request, checked against the workspace");
   assert.ok(l.includes("featureRejected(e.refusal.message)") && l.includes("strict = false;"), "a strict-tools rejection retries without strict, like the receptionist's format fallback");
   assert.ok(l.includes('cache_control: { type: "ephemeral" }'), "the stable block is cached");
@@ -442,7 +443,7 @@ test("an answer never carries tags: the leak seen on production is cut, its cita
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(tools.includes("recent: v.timeline"), "list_threads carries the last exchanges, so one read round answers most questions");
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
-  assert.ok(prompt.includes("under sixty words") && prompt.includes("set navigate to that row"));
+  assert.ok(prompt.includes("under sixty words") && prompt.includes("set navigate.to to that row"));
   const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
   assert.ok(ui.includes('className="ask-from"'), "citations read as sources");
   assert.ok(readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css").includes(".ask-real .ask-msg-text{white-space:pre-wrap;word-break:break-word}"));
@@ -462,7 +463,32 @@ test("the composer is the way on: focus comes back, the mic is always visible, '
   assert.ok(ui.includes("if (final && final.navigate && final.navigate.now && final.navigate.to && !final.failed) {"), "open/show/see goes there as the answer lands");
   assert.ok(ui.includes("const arDedupe = (cites) =>") && ui.includes("const arChipLabel = (c, t) =>"), "chips name their kind and never repeat a place");
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
-  assert.ok(prompt.includes("with now: true and answer in one line") && prompt.includes("More than two items (calls, threads, people) go one per line."));
+  assert.ok(prompt.includes("with now: true, and answer in one line") && prompt.includes("More than two items (calls, threads, people) go one per line."));
   const judge = readCode("tooling/scripts/eval-ask.mjs");
   assert.ok(judge.includes("e.navigate_now"));
+});
+
+test("a place to open is normalised to the app's route, never dropped over its spelling; every row a tool returns says where it opens", () => {
+  const read = emptyReadSet();
+  read.call.add(ID);
+  read.person.add(ID2);
+  assert.equal(normalizeNavigate(`conversations/cv-${ID}`, read), `conversations/cv-${ID}`);
+  assert.equal(normalizeNavigate(`calls/${ID}`, read), `conversations/cv-${ID}`, "the model's own spelling of a call");
+  assert.equal(normalizeNavigate(`#/live/${ID}`, read), `conversations/cv-${ID}`);
+  assert.equal(normalizeNavigate(ID, read), `conversations/cv-${ID}`, "a bare id lands on the set that holds it");
+  assert.equal(normalizeNavigate(`people/${ID2}`, read), `clients/${ID2}`);
+  assert.equal(normalizeNavigate(`contacts/${ID2}/profile`, read), `clients/${ID2}`);
+  assert.equal(normalizeNavigate(`clients/${ID}`, read), `conversations/cv-${ID}`, "an id the turn read as a call opens the call even under the wrong kind");
+  assert.equal(normalizeNavigate("clients/1f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b00", read), null, "an id that was never read is nothing, even in a good spelling");
+  assert.equal(normalizeNavigate("inbox", read), "inbox");
+  assert.equal(normalizeNavigate("admin/autonomy", read), "admin/autonomy");
+  assert.equal(normalizeNavigate("https://evil.example/x", read), null);
+  const tr = emptyReadSet(); tr.thread.add(ID);
+  assert.equal(normalizeNavigate(`inbox/${ID}`, tr), `inbox/th-${ID}`);
+  assert.equal(normalizeNavigate(`conversations/${ID}`, tr), `inbox/th-${ID}`, "a chat conversation opens in the Inbox");
+  const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
+  for (const r of ["route: `inbox/th-${r.conversationId}`", "route: `conversations/${r.id}`", "route: `inbox/th-${v.conversationId}`", "route: `clients/${r.id}`", "route: `conversations/cv-${v.callId}`", "route: `conversations/cv-${id}`"]) assert.ok(tools.includes(r), r);
+  const loop = readCode("apps/dashboard/src/server/ask/loop.ts");
+  assert.ok(loop.includes("normalizeNavigate(f.navigate.to, tc.read)") && !loop.includes("safeNavigate("));
+  assert.ok(loop.includes('console.warn("ask_navigate_dropped"'), "a dropped target is logged so the next spelling can be taught");
 });

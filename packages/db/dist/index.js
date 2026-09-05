@@ -4417,7 +4417,7 @@ var ASK_FINISH_JSON_SCHEMA = {
     },
     navigate: {
       type: "object",
-      description: "When the best answer is a page, the route to open (a page route such as inbox, or a row route the tools gave you) and a label. Empty strings when there is nothing to open. now: true when the person asked to open, show or see that thing; the app goes there as soon as the answer is read, so keep the answer to one line.",
+      description: "When the best answer is a page, the route to open and a label. to: the exact `route` field a tool returned for a row (a call, a thread, a person), or a page route (today, inbox, clients, conversations, live, reports, admin/workspace). Empty strings when there is nothing to open. now: true when the person asked to open, show or see that thing; the app goes there as soon as the answer is read, so keep the answer to one line.",
       properties: { to: { type: "string" }, label: { type: "string" }, now: { type: "boolean" } },
       required: ["to", "label", "now"],
       additionalProperties: false

@@ -1847,7 +1847,7 @@ var ASK_FINISH_JSON_SCHEMA = {
     },
     navigate: {
       type: "object",
-      description: "When the best answer is a page, the route to open (a page route such as inbox, or a row route the tools gave you) and a label. Empty strings when there is nothing to open. now: true when the person asked to open, show or see that thing; the app goes there as soon as the answer is read, so keep the answer to one line.",
+      description: "When the best answer is a page, the route to open and a label. to: the exact `route` field a tool returned for a row (a call, a thread, a person), or a page route (today, inbox, clients, conversations, live, reports, admin/workspace). Empty strings when there is nothing to open. now: true when the person asked to open, show or see that thing; the app goes there as soon as the answer is read, so keep the answer to one line.",
       properties: { to: { type: "string" }, label: { type: "string" }, now: { type: "boolean" } },
       required: ["to", "label", "now"],
       additionalProperties: false
@@ -1968,6 +1968,26 @@ function citationRoute(c) {
     default:
       return c.id;
   }
+}
+var UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+function normalizeNavigate(to, read) {
+  const s = (to ?? "").trim().replace(/^#?\/+/, "");
+  if (!s) return null;
+  const id = (UUID_RE.exec(s) ?? [])[0]?.toLowerCase();
+  if (id) {
+    const head = s.toLowerCase();
+    const isCall = /call|cv-|live/.test(head);
+    const isPerson = /client|people|person|contact|profile/.test(head);
+    const isThread = /inbox|thread|th-|conversation/.test(head);
+    if (isCall && read.call.has(id)) return `conversations/cv-${id}`;
+    if (isPerson && read.person.has(id)) return `clients/${id}`;
+    if (isThread && (read.thread.has(id) || read.conversation.has(id))) return `inbox/th-${id}`;
+    if (read.call.has(id)) return `conversations/cv-${id}`;
+    if (read.thread.has(id) || read.conversation.has(id)) return `inbox/th-${id}`;
+    if (read.person.has(id)) return `clients/${id}`;
+    return null;
+  }
+  return PAGE_PREFIX.test(s) ? s : null;
 }
 function safeNavigate(to, read) {
   if (!to) return false;
@@ -3389,6 +3409,7 @@ export {
   messageStatusLabel,
   messageText,
   newReceptionistDefaults,
+  normalizeNavigate,
   normalizePhone,
   ok,
   parseAskFinish,
