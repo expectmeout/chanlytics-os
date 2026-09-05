@@ -614,6 +614,11 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
           </ShellErrorBoundary>
         </div>
         <PhoneTabs page={page} inboxNeeds={inboxNeeds} onNavigate={navigate} onMenu={() => setNavOpen(true)} />
+        {!askOpen && !navOpen && (
+          <button type="button" className="phone-ask" onClick={openAsk} aria-label="Ask Chanlytics" title="Ask Chanlytics" data-testid="phone-ask">
+            <Icon name="sparkle" size={20} />
+          </button>
+        )}
       </div>
 
       <AskBar open={askOpen} onClose={() => setAskOpen(false)} />

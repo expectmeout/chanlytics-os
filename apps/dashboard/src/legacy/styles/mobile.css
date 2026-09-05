@@ -344,6 +344,9 @@
   .ix-th-actions { flex-wrap: wrap; justify-content: flex-start; }
 }
 
+/* The phone's ✦ exists only on a phone; on a desktop the topbar button and ⌘K are the doors */
+.phone-ask { display: none; }
+
 /* ---- Ask on a phone: a sheet from the bottom, the composer at the thumb ---- */
 @media (max-width: 720px) {
   .ask-overlay { padding: 0; padding-top: 0; align-items: flex-end; }
@@ -358,4 +361,16 @@
   .ask-real .cmd-input { font-size: 16px; }
   .ask-real .ask-msgs { padding: 14px 14px 8px; }
   .ask-real .ask-fast { margin: 10px 12px 4px; }
+  /* The ✦ above the tab bar, thumb-reachable, above the bridge pill's lane */
+  .phone-ask {
+    display: grid; place-items: center;
+    position: fixed; right: 14px; bottom: calc(70px + env(safe-area-inset-bottom));
+    width: 48px; height: 48px; border-radius: 50%; border: 0; cursor: pointer;
+    background: var(--accent); color: #fff; z-index: 121;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+  }
+  .phone-ask:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .phone-ask:active { transform: scale(0.96); }
+  /* Hold to talk fills the thumb's row on a phone */
+  .ask-real .ask-talk { min-height: 40px; padding: 0 12px; }
 }

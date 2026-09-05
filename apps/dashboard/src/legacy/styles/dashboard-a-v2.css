@@ -1814,3 +1814,8 @@ button.dec-policy.pill-warn{border:1px solid transparent}
 .ask-card-receipt{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-dim)}
 .ask-card-receipt .ok{color:var(--ok)}
 .ask-card-undo{margin-left:auto}
+
+/* ---- Hold to talk in the palette ---- */
+.ask-talk{flex:none;gap:6px;touch-action:none;user-select:none;-webkit-user-select:none}
+.ask-talk.on{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+@media (max-width:720px){.ask-talk-label{display:none}.ask-talk{width:40px;padding:0;justify-content:center}}

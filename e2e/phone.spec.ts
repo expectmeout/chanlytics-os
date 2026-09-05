@@ -34,6 +34,22 @@ test.describe("Phone shell on a real workspace", () => {
     await signIn(page);
   });
 
+  test("the ✦ above the tab bar opens Ask as a sheet, and it hides while the sheet is open", async ({ page }) => {
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    const fab = page.getByTestId("phone-ask");
+    await expect(fab).toBeVisible();
+    await fab.click();
+    const pal = page.getByTestId("ask-real");
+    await expect(pal).toBeVisible();
+    await expect(fab).toBeHidden();
+    await expect(page.getByTestId("ask-input")).toBeVisible();
+    await page.screenshot({ path: "test-results/phone-ask.png" });
+    await page.keyboard.press("Escape");
+    await expect(pal).toBeHidden();
+    await expect(fab).toBeVisible();
+  });
+
   test("the tab bar replaces the menu button, and the Inbox shows one pane at a time", async ({ page }) => {
     await page.goto("/#/inbox");
     await page.waitForLoadState("networkidle");

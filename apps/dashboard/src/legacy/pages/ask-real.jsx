@@ -36,6 +36,10 @@ const AR_TEXT = {
     noCalendar: "No calendar is connected, so I can't see openings. The hours are in Settings.",
     unavailable: "The calendar couldn't be read right now.",
     openings: "Open times",
+    talk: "Hold to talk",
+    listening: "Listening…",
+    micDenied: "The browser needs microphone permission to talk to Ask.",
+    micFailed: "Couldn't hear you — try again or type it.",
     approve: "Approve",
     send: "Send",
     notNow: "Not now",
@@ -68,6 +72,10 @@ const AR_TEXT = {
     noCalendar: "No hay calendario conectado, así que no veo huecos. El horario está en Ajustes.",
     unavailable: "No se pudo leer el calendario ahora.",
     openings: "Horas libres",
+    talk: "Mantén para hablar",
+    listening: "Escuchando…",
+    micDenied: "El navegador necesita permiso del micrófono para hablar con Ask.",
+    micFailed: "No te oí — inténtalo de nuevo o escríbelo.",
     approve: "Aprobar",
     send: "Enviar",
     notNow: "Ahora no",
@@ -79,6 +87,60 @@ const AR_TEXT = {
     windowNote: "Su ventana de 24 horas está cerrada: solo se puede enviar una plantilla aprobada. Abre el hilo para elegir una.",
     kReply: "respuesta", kSteer: "reescritura", kInbox: "inbox", kPerson: "recepcionista", kAutonomy: "autonomía", kSettings: "ajustes", kWhisper: "susurro", kTeam: "equipo",
   },
+};
+
+const arRecognizer = () => window.SpeechRecognition || window.webkitSpeechRecognition || null;
+
+// Hold to talk, as the live whisper does it: press starts the browser's own
+// recogniser, release stops it, and what was heard is submitted on its own.
+// Interim words show in the input as they come. Nothing is recorded or
+// uploaded; the words are typed for the person, then sent like typed ones.
+const useArTalk = ({ lang, onWords, onHeard, disabled }) => {
+  const [listening, setListening] = useArState(false);
+  const recRef = useArRef(null);
+  const heardRef = useArRef("");
+  const canTalk = !!arRecognizer();
+  const start = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const SR = arRecognizer();
+    if (!SR || listening || disabled) return;
+    const rec = new SR();
+    rec.lang = lang === "es" ? "es-ES" : (navigator.language || "en-US");
+    rec.interimResults = true;
+    rec.continuous = true;
+    heardRef.current = "";
+    rec.onresult = (ev) => {
+      let finals = "";
+      let interim = "";
+      for (let i = 0; i < ev.results.length; i++) {
+        const r = ev.results[i];
+        if (r.isFinal) finals += r[0].transcript;
+        else interim += r[0].transcript;
+      }
+      heardRef.current = finals.trim();
+      onWords((finals + interim).trim());
+    };
+    rec.onerror = (ev) => {
+      setListening(false);
+      recRef.current = null;
+      onHeard(null, ev && ev.error ? ev.error : "error");
+    };
+    rec.onend = () => {
+      setListening(false);
+      recRef.current = null;
+      const heard = heardRef.current;
+      heardRef.current = "";
+      if (heard) onHeard(heard, null);
+    };
+    recRef.current = rec;
+    setListening(true);
+    try { rec.start(); } catch { setListening(false); recRef.current = null; }
+  };
+  const stop = () => {
+    const rec = recRef.current;
+    if (rec) { try { rec.stop(); } catch { /* already stopped */ } }
+  };
+  return { canTalk, listening, start, stop };
 };
 
 const arAgo = (ms) => {
@@ -235,6 +297,16 @@ const AskReal = ({ open, onClose }) => {
   const t = AR_TEXT[lang === "es" ? "es" : "en"];
   const route = arRoute();
   const surface = A ? A.surfaceFor(route.page) : "other";
+  const talk = useArTalk({
+    lang,
+    disabled: !!live,
+    onWords: (words) => setQuery(words),
+    onHeard: (heard, error) => {
+      if (heard) { submit(heard); return; }
+      if (error === "not-allowed") flash({ msg: <>{t.micDenied}</> });
+      else if (error && error !== "aborted" && error !== "no-speech") flash({ msg: <>{t.micFailed}</> });
+    },
+  });
 
   // Open: focus, take the route's scope, load the threads, follow the feed.
   useArEffect(() => {
@@ -408,7 +480,7 @@ const AskReal = ({ open, onClose }) => {
           <input
             ref={inputRef}
             className="cmd-input"
-            placeholder={active ? t.follow : t.placeholder}
+            placeholder={talk.listening ? t.listening : active ? t.follow : t.placeholder}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKey}
@@ -417,6 +489,23 @@ const AskReal = ({ open, onClose }) => {
             data-testid="ask-input"
             maxLength={1000}
           />
+          {talk.canTalk && (
+            <button
+              type="button"
+              className={`btn btn-sm ask-talk ${talk.listening ? "on" : ""}`}
+              data-testid="ask-talk"
+              aria-pressed={talk.listening}
+              title={t.talk}
+              disabled={!!live}
+              onPointerDown={talk.start}
+              onPointerUp={talk.stop}
+              onPointerLeave={talk.stop}
+              onPointerCancel={talk.stop}
+              onContextMenu={(e) => e.preventDefault()}
+            >
+              <Icon name="wave" size={13} /> <span className="ask-talk-label">{talk.listening ? t.listening : t.talk}</span>
+            </button>
+          )}
           <span className="kbd">↵</span>
         </div>
 

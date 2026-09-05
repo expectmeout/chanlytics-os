@@ -25,11 +25,14 @@ const SECURITY_HEADERS = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   // Never leak a path (which can carry a conversation id) to another origin.
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // This app needs none of these; denying them removes a whole class of
-  // prompt-and-permission abuse from an embedded or compromised page.
+  // This app needs none of these but the microphone, which hold-to-talk (the
+  // Ask palette, the live whisper) asks the browser for on this origin only;
+  // denying the rest removes a whole class of prompt-and-permission abuse
+  // from an embedded or compromised page. Framing is already refused above,
+  // so (self) can never be a frame on someone else's page.
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
+    value: "camera=(), microphone=(self), geolocation=(), payment=(), usb=(), interest-cohort=()",
   },
 ];
 
