@@ -7,6 +7,7 @@
 import {
   conversationsOverride,
   inboxOverride,
+  liveOverride,
   invalidateInFlight,
   scoped,
   settingsOverride,
@@ -317,6 +318,12 @@ async function teamRemove(id: string): Promise<VerbResult> {
   return r;
 }
 
+/** Live: re-read the calls in progress. The page calls this every 8 s while
+ *  a call is up, as insurance beside the realtime channel. */
+export async function refreshLive(): Promise<void> {
+  await refreshSurfaces([liveOverride]);
+}
+
 /** Re-read the roster so the card shows what the server now holds, never what
  *  the browser hoped it would. */
 export async function refreshSettings(): Promise<void> {
@@ -328,6 +335,7 @@ declare global {
     __setReportDays?: (days: number) => Promise<boolean>;
     __setPolicy?: (cls: string, mode: string | undefined, replyDelayMs?: number) => Promise<VerbResult>;
     __refreshSettings?: () => Promise<void>;
+    __refreshLive?: () => Promise<void>;
     __inboxVerb: typeof inboxVerb;
     __teamInvite: typeof teamInvite;
     __teamSetRole: typeof teamSetRole;
@@ -393,6 +401,7 @@ export function installInboxVerbs(): void {
   window.__setReportDays = setReportRange;
   window.__setPolicy = setPolicy;
   window.__refreshSettings = refreshSettings;
+  window.__refreshLive = refreshLive;
   window.__teamInvite = teamInvite;
   window.__teamSetRole = teamSetRole;
   window.__teamRemove = teamRemove;
