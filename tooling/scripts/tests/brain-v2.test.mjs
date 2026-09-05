@@ -119,7 +119,7 @@ test("the dial reaches the policy row through the route and the pane", () => {
   const route = readCode("apps/dashboard/app/api/v1/policies/route.ts");
   assert.ok(route.includes("minConfidence?: number"));
   assert.ok(route.includes("limits.min_confidence = Math.round(c * 100) / 100;"));
-  assert.ok(route.includes('if (mode === "" && (body?.replyDelayMs !== undefined || body?.minConfidence !== undefined)) {'), "a dial edit carries no mode, like a delay edit");
+  assert.ok(route.includes('if (mode === "" && (body?.replyDelayMs !== undefined || body?.minConfidence !== undefined || body?.maxTokensDay !== undefined)) {'), "a dial edit carries no mode, like a delay edit");
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts").includes("...(minConfidence !== undefined ? { minConfidence } : {})"));
   const pane = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
   assert.ok(pane.includes('const AUT_CONF = [["Off", 0], ["60%", 0.6], ["75%", 0.75], ["90%", 0.9]];'));

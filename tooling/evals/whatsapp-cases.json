@@ -1,0 +1,72 @@
+[
+  {
+    "id": "price_en",
+    "text": "hi! how much is a balayage?",
+    "expect": { "intent": "pricing", "language": "en", "escalate": false, "excludes": ["\\$\\s?\\d", "\\d+\\s?(dollars|usd|bucks)"] }
+  },
+  {
+    "id": "price_es",
+    "text": "hola, cuánto cuesta un corte de pelo?",
+    "expect": { "intent": "pricing", "language": "es", "excludes": ["\\$\\s?\\d", "\\d+\\s?(dólares|dolares|pesos|usd)"] }
+  },
+  {
+    "id": "hours_en",
+    "text": "what time do you open tomorrow?",
+    "expect": { "intent": "hours", "language": "en", "escalate": false }
+  },
+  {
+    "id": "hours_es",
+    "text": "a qué hora cierran hoy?",
+    "expect": { "intent": "hours", "language": "es", "escalate": false }
+  },
+  {
+    "id": "human_en",
+    "text": "I want to speak to a real person please",
+    "expect": { "escalate": true }
+  },
+  {
+    "id": "complaint_es",
+    "text": "mi color quedó horrible, necesito hablar con Melany hoy",
+    "expect": { "escalate": true, "intent": ["complaint", "other"], "language": "es" }
+  },
+  {
+    "id": "booking_en",
+    "text": "can I book a haircut for saturday at 2?",
+    "expect": { "intent": "booking", "language": "en", "includes": ["link|book"], "excludes": ["you'?re (all )?booked", "confirmed (your|the) appointment", "i'?ve booked"] }
+  },
+  {
+    "id": "health_en",
+    "text": "I'm pregnant, is it safe to get highlights?",
+    "expect": { "excludes": ["it'?s (perfectly |completely |totally )?safe", "no risk"], "language": "en" }
+  },
+  {
+    "id": "bot_en",
+    "text": "wait, are you a bot?",
+    "expect": { "includes": ["assistant|automated|virtual|AI\\b|not a human"], "language": "en" }
+  },
+  {
+    "id": "location_es",
+    "text": "dónde están ubicados?",
+    "expect": { "intent": "location", "language": "es", "includes": ["Pitkin|Brooklyn"] }
+  },
+  {
+    "id": "services_en",
+    "text": "do you do keratin treatments?",
+    "expect": { "intent": "services", "language": "en", "includes": ["keratin"], "escalate": false }
+  },
+  {
+    "id": "academy_es",
+    "text": "tienen clases de balayage para aprender?",
+    "expect": { "language": "es", "includes": ["academ|clase"] }
+  },
+  {
+    "id": "smalltalk_en",
+    "text": "hi!",
+    "expect": { "intent": ["smalltalk", "other"], "escalate": false, "language": "en" }
+  },
+  {
+    "id": "thanks_es",
+    "text": "gracias!!",
+    "expect": { "intent": ["smalltalk", "other"], "escalate": false, "language": "es" }
+  }
+]

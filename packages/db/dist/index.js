@@ -4136,7 +4136,15 @@ var PolicyLimitsSchema = external_exports.object({
    * of going straight out — sure enough sends itself, not sure enough waits.
    * 0 or absent means off.
    */
-  min_confidence: external_exports.number().min(0).max(1).optional()
+  min_confidence: external_exports.number().min(0).max(1).optional(),
+  /**
+   * The day's token budget: model tokens in and out over a rolling 24
+   * hours, read from the usage events every reply writes. Over it the
+   * receptionist stops and files a `budget` escalation, as it does at the
+   * reply cap. 0 or absent is off; a value is at least a thousand, because
+   * a budget of ten would be a mute button with a misleading name.
+   */
+  max_llm_tokens_day: external_exports.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
 }).strict();
 var TIME = external_exports.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 var IntervalSchema = external_exports.object({ open: TIME, close: TIME });
