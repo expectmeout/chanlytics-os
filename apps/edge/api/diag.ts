@@ -151,6 +151,11 @@ export async function GET(request: Request): Promise<Response> {
         recent: db
           ? ((await db.from("events").select("created_at, data").eq("kind", "webhook.auth").order("created_at", { ascending: false }).limit(5)).data ?? [])
           : [],
+        // What the last deliveries DID — per event: status carried and
+        // normalised, turns brought, whether the ingest declined them.
+        deliveries: db
+          ? ((await db.from("events").select("created_at, subject_id, data").eq("kind", "webhook.delivery").order("created_at", { ascending: false }).limit(20)).data ?? [])
+          : [],
       };
     } catch (e) {
       out.voiceAgents = { error: String(e instanceof Error ? e.message : e).slice(0, 200) };
