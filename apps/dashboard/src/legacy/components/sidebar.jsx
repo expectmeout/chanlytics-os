@@ -259,13 +259,12 @@ const Sidebar = ({ active = "home", onNavigate = () => {}, onNewChat = () => {},
         <button
           className="btn btn-primary"
           style={{ width: "100%", height: 32, justifyContent: "center" }}
-          onClick={window.__DEMO_MODE ? onNewChat : undefined}
-          disabled={!window.__DEMO_MODE}
-          title={window.__DEMO_MODE ? "Start a new Ask thread" : "Ask isn't connected to your data yet"}
+          onClick={onNewChat}
+          title="Start a new Ask thread"
+          data-testid="sb-newchat"
         >
           <Icon name="plus" size={13} />
           New Chat
-          {window.__DEMO_MODE ? null : <span className="kbd" style={{ marginLeft: 6 }}>Soon</span>}
         </button>
       </div>
 

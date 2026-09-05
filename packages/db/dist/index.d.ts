@@ -34,6 +34,89 @@ type Database = {
     };
     public: {
         Tables: {
+            ask_messages: {
+                Row: {
+                    content: Json;
+                    created_at: string;
+                    id: string;
+                    role: string;
+                    tenant_id: string;
+                    thread_id: string;
+                    user_id: string;
+                };
+                Insert: {
+                    content?: Json;
+                    created_at?: string;
+                    id?: string;
+                    role: string;
+                    tenant_id: string;
+                    thread_id: string;
+                    user_id: string;
+                };
+                Update: {
+                    content?: Json;
+                    created_at?: string;
+                    id?: string;
+                    role?: string;
+                    tenant_id?: string;
+                    thread_id?: string;
+                    user_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "ask_messages_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "ask_messages_thread_id_fkey";
+                        columns: ["thread_id"];
+                        isOneToOne: false;
+                        referencedRelation: "ask_threads";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            ask_threads: {
+                Row: {
+                    created_at: string;
+                    id: string;
+                    last_at: string;
+                    scope: Json | null;
+                    tenant_id: string;
+                    title: string;
+                    user_id: string;
+                };
+                Insert: {
+                    created_at?: string;
+                    id?: string;
+                    last_at?: string;
+                    scope?: Json | null;
+                    tenant_id: string;
+                    title?: string;
+                    user_id: string;
+                };
+                Update: {
+                    created_at?: string;
+                    id?: string;
+                    last_at?: string;
+                    scope?: Json | null;
+                    tenant_id?: string;
+                    title?: string;
+                    user_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "ask_threads_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             calls: {
                 Row: {
                     agent_id: string | null;
@@ -1711,6 +1794,12 @@ type Database = {
                 };
                 Returns: undefined;
             };
+            purge_ask: {
+                Args: {
+                    p_keep?: string;
+                };
+                Returns: number;
+            };
             purge_cron_history: {
                 Args: {
                     p_keep?: string;
@@ -1730,6 +1819,14 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: Json;
+            };
+            scrub_ask_for_contact: {
+                Args: {
+                    p_contact_id: string;
+                    p_needles: string[];
+                    p_tenant_id: string;
+                };
+                Returns: number;
             };
             scrub_call_raw: {
                 Args: {

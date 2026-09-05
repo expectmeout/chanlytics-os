@@ -4398,6 +4398,77 @@ var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
   (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
 });
 var DAY_MS = 24 * 3600 * 1e3;
+var ASK_CAPS = {
+  threads: 20,
+  messages: 30,
+  messagesMore: 80,
+  calls: 20,
+  transcript: 40,
+  people: 12,
+  citations: 6,
+  followups: 3,
+  needsRows: 10
+};
+var ASK_CITATION_KINDS = ["thread", "conversation", "call", "person", "page"];
+var ASK_LANGUAGES = ["en", "es", "other"];
+var ASK_FINISH_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    answer: {
+      type: "string",
+      description: "The answer, in the person's language, two or three short sentences at most. Plain text, no markdown, no headings. Say what you found; if a read returned nothing, say so plainly."
+    },
+    citations: {
+      type: "array",
+      description: "The rows the answer rests on, taken ONLY from what the tools returned this turn. Each needs the kind, the exact id the tool gave you, and a short label (a name, a day, a call time).",
+      items: {
+        type: "object",
+        properties: {
+          kind: { type: "string", enum: [...ASK_CITATION_KINDS] },
+          id: { type: "string" },
+          label: { type: "string" }
+        },
+        required: ["kind", "id", "label"],
+        additionalProperties: false
+      }
+    },
+    followups: {
+      type: "array",
+      description: "Up to three short questions the person might ask next, in their language. Empty when nothing natural follows.",
+      items: { type: "string" }
+    },
+    navigate: {
+      type: "object",
+      description: "When the best answer is a page, the route to open (a page route such as inbox, or a row route the tools gave you) and a label. Empty strings when there is nothing to open.",
+      properties: { to: { type: "string" }, label: { type: "string" } },
+      required: ["to", "label"],
+      additionalProperties: false
+    },
+    language: { type: "string", enum: [...ASK_LANGUAGES] }
+  },
+  required: ["answer", "citations", "followups", "navigate", "language"],
+  additionalProperties: false
+};
+var clip = (n) => (s) => s.trim().slice(0, n);
+var AskFinishSchema = external_exports.object({
+  answer: external_exports.string().catch("").transform(clip(1500)),
+  citations: external_exports.array(
+    external_exports.object({
+      kind: external_exports.enum(ASK_CITATION_KINDS).catch("page"),
+      id: external_exports.string().catch("").transform(clip(200)),
+      label: external_exports.string().catch("").transform(clip(80))
+    })
+  ).catch([]).transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS.citations)),
+  followups: external_exports.array(external_exports.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS.followups).map((s) => s.slice(0, 90))),
+  navigate: external_exports.object({ to: external_exports.string().catch(""), label: external_exports.string().catch("") }).catch({ to: "", label: "" }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open" } : null),
+  language: external_exports.enum(ASK_LANGUAGES).catch("other")
+});
+var AskSettingsChangeSchema = external_exports.discriminatedUnion("op", [
+  external_exports.object({ op: external_exports.literal("add_closure"), date: external_exports.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: external_exports.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: external_exports.string().max(200).optional() }),
+  external_exports.object({ op: external_exports.literal("set_hours"), day: external_exports.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: external_exports.string().regex(/^\d{2}:\d{2}$/).nullable(), close: external_exports.string().regex(/^\d{2}:\d{2}$/).nullable() }),
+  external_exports.object({ op: external_exports.literal("add_note"), title: external_exports.string().min(1).max(80), text: external_exports.string().min(1).max(1200) }),
+  external_exports.object({ op: external_exports.literal("add_service"), name: external_exports.string().min(1).max(80), duration_min: external_exports.number().int().min(1).max(1440).optional() })
+]);
 var DAY_MS2 = 864e5;
 var WEEK_MS = 7 * DAY_MS2;
 var MONTH_MS = 30 * DAY_MS2;
@@ -8807,6 +8878,77 @@ var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
   (p.closures ?? []).forEach((c, n) => checkClosure2(c, n, ctx));
 });
 var DAY_MS4 = 24 * 3600 * 1e3;
+var ASK_CAPS2 = {
+  threads: 20,
+  messages: 30,
+  messagesMore: 80,
+  calls: 20,
+  transcript: 40,
+  people: 12,
+  citations: 6,
+  followups: 3,
+  needsRows: 10
+};
+var ASK_CITATION_KINDS2 = ["thread", "conversation", "call", "person", "page"];
+var ASK_LANGUAGES2 = ["en", "es", "other"];
+var ASK_FINISH_JSON_SCHEMA2 = {
+  type: "object",
+  properties: {
+    answer: {
+      type: "string",
+      description: "The answer, in the person's language, two or three short sentences at most. Plain text, no markdown, no headings. Say what you found; if a read returned nothing, say so plainly."
+    },
+    citations: {
+      type: "array",
+      description: "The rows the answer rests on, taken ONLY from what the tools returned this turn. Each needs the kind, the exact id the tool gave you, and a short label (a name, a day, a call time).",
+      items: {
+        type: "object",
+        properties: {
+          kind: { type: "string", enum: [...ASK_CITATION_KINDS2] },
+          id: { type: "string" },
+          label: { type: "string" }
+        },
+        required: ["kind", "id", "label"],
+        additionalProperties: false
+      }
+    },
+    followups: {
+      type: "array",
+      description: "Up to three short questions the person might ask next, in their language. Empty when nothing natural follows.",
+      items: { type: "string" }
+    },
+    navigate: {
+      type: "object",
+      description: "When the best answer is a page, the route to open (a page route such as inbox, or a row route the tools gave you) and a label. Empty strings when there is nothing to open.",
+      properties: { to: { type: "string" }, label: { type: "string" } },
+      required: ["to", "label"],
+      additionalProperties: false
+    },
+    language: { type: "string", enum: [...ASK_LANGUAGES2] }
+  },
+  required: ["answer", "citations", "followups", "navigate", "language"],
+  additionalProperties: false
+};
+var clip2 = (n) => (s) => s.trim().slice(0, n);
+var AskFinishSchema2 = external_exports2.object({
+  answer: external_exports2.string().catch("").transform(clip2(1500)),
+  citations: external_exports2.array(
+    external_exports2.object({
+      kind: external_exports2.enum(ASK_CITATION_KINDS2).catch("page"),
+      id: external_exports2.string().catch("").transform(clip2(200)),
+      label: external_exports2.string().catch("").transform(clip2(80))
+    })
+  ).catch([]).transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS2.citations)),
+  followups: external_exports2.array(external_exports2.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS2.followups).map((s) => s.slice(0, 90))),
+  navigate: external_exports2.object({ to: external_exports2.string().catch(""), label: external_exports2.string().catch("") }).catch({ to: "", label: "" }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open" } : null),
+  language: external_exports2.enum(ASK_LANGUAGES2).catch("other")
+});
+var AskSettingsChangeSchema2 = external_exports2.discriminatedUnion("op", [
+  external_exports2.object({ op: external_exports2.literal("add_closure"), date: external_exports2.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: external_exports2.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: external_exports2.string().max(200).optional() }),
+  external_exports2.object({ op: external_exports2.literal("set_hours"), day: external_exports2.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: external_exports2.string().regex(/^\d{2}:\d{2}$/).nullable(), close: external_exports2.string().regex(/^\d{2}:\d{2}$/).nullable() }),
+  external_exports2.object({ op: external_exports2.literal("add_note"), title: external_exports2.string().min(1).max(80), text: external_exports2.string().min(1).max(1200) }),
+  external_exports2.object({ op: external_exports2.literal("add_service"), name: external_exports2.string().min(1).max(80), duration_min: external_exports2.number().int().min(1).max(1440).optional() })
+]);
 var DAY_MS22 = 864e5;
 var WEEK_MS2 = 7 * DAY_MS22;
 var MONTH_MS2 = 30 * DAY_MS22;

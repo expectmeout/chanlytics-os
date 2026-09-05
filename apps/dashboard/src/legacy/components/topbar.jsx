@@ -420,19 +420,12 @@ const Topbar = ({
 
       <div className="topbar-spacer" />
 
-      {/* ⌘K is already stubbed outside demo, but this button still opened the
-          overlay — which answers "$1,840 booked against a $4,200 pace" from
-          seed data, on every surface including the live ones. Until Ask has a
-          real engine, it says so instead of inventing an answer. */}
-      <button
-        className="tb-ask"
-        onClick={window.__DEMO_MODE ? onAsk : undefined}
-        disabled={!window.__DEMO_MODE}
-        title={window.__DEMO_MODE ? "Ask Chanlytics (⌘K)" : "Ask isn't connected to your data yet"}
-      >
+      {/* Ask reads the workspace as the signed-in person (ask-real.jsx); in a
+          demo it answers the seed world. Either way the button opens it. */}
+      <button className="tb-ask" onClick={onAsk} title="Ask Chanlytics (⌘K)" data-testid="tb-ask">
         <Icon name="sparkle" size={13} />
         <span className="tb-ask-label">Ask Chanlytics</span>
-        {window.__DEMO_MODE ? <span className="kbd">⌘K</span> : <span className="kbd">Soon</span>}
+        <span className="kbd">⌘K</span>
       </button>
 
       {right}

@@ -358,7 +358,6 @@ const askTopicFor = (q, prev = null) => {
 // Global entry point for agent actions anywhere in the app:
 // askAbout({ prompt, title?, answer?, links?, mode: "thread" | "compose" })
 window.askAbout = (detail) => {
-  if (!window.__DEMO_MODE) return; // Ask is stubbed until the real LLM Ask ships (v1.x)
   if (window.appAsk) window.appAsk();
   window.dispatchEvent(new CustomEvent("ask:seed", { detail: detail || {} }));
 };
@@ -408,7 +407,7 @@ const AskAnswer = ({ msg, onClose, onAction }) => (
   </div>
 );
 
-const AskBar = ({ open, onClose }) => {
+const AskBarSeed = ({ open, onClose }) => {
   const { ASK_SUGGESTIONS } = window.CHANLY_DATA;
   const [query, setQuery] = React.useState("");
   const [threads, setThreads] = React.useState(askLoadThreads);
@@ -726,5 +725,10 @@ const AmbientDock = ({ onAsk }) => {
   );
 };
 
+// Outside a demo the palette reads the workspace (ask-real.jsx); the seed
+// palette above answers only the seed world and stays for the demo.
+const AskBar = (props) => (!window.__DEMO_MODE && window.AskReal ? <window.AskReal {...props} /> : <AskBarSeed {...props} />);
+
 window.AskBar = AskBar;
+window.AskBarSeed = AskBarSeed;
 window.AmbientDock = AmbientDock;

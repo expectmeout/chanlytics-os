@@ -35,6 +35,7 @@ import "@/legacy/pages/dashboard-a-command.jsx";
 import "@/legacy/pages/dashboard-a-live.jsx";
 import "@/legacy/pages/dashboard-a-fleet.jsx";
 import "@/legacy/pages/dashboard-a-ask.jsx";
+import "@/legacy/pages/ask-real.jsx";
 import "@/legacy/pages/dashboard-a.jsx";
 import "@/legacy/pages/inbox-list.jsx";
 import "@/legacy/pages/inbox-thread.jsx";

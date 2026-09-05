@@ -1799,6 +1799,422 @@ function agoLabel(atMs, now) {
 }
 var ALERT_KINDS = ["needs_you", "held_draft", "missed_call"];
 
+// src/ask.ts
+import { z as z3 } from "zod";
+var ASK_MAX_CHARS = 1e3;
+var ASK_MAX_ROUNDS = 4;
+var ASK_TURN_BUDGET_MS = 45e3;
+var ASK_TOKENS_DAY = 4e5;
+var ASK_RETENTION_DAYS = 90;
+var ASK_CAPS = {
+  threads: 20,
+  messages: 30,
+  messagesMore: 80,
+  calls: 20,
+  transcript: 40,
+  people: 12,
+  citations: 6,
+  followups: 3,
+  needsRows: 10
+};
+var ASK_CITATION_KINDS = ["thread", "conversation", "call", "person", "page"];
+var ASK_LANGUAGES = ["en", "es", "other"];
+var ASK_FINISH_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    answer: {
+      type: "string",
+      description: "The answer, in the person's language, two or three short sentences at most. Plain text, no markdown, no headings. Say what you found; if a read returned nothing, say so plainly."
+    },
+    citations: {
+      type: "array",
+      description: "The rows the answer rests on, taken ONLY from what the tools returned this turn. Each needs the kind, the exact id the tool gave you, and a short label (a name, a day, a call time).",
+      items: {
+        type: "object",
+        properties: {
+          kind: { type: "string", enum: [...ASK_CITATION_KINDS] },
+          id: { type: "string" },
+          label: { type: "string" }
+        },
+        required: ["kind", "id", "label"],
+        additionalProperties: false
+      }
+    },
+    followups: {
+      type: "array",
+      description: "Up to three short questions the person might ask next, in their language. Empty when nothing natural follows.",
+      items: { type: "string" }
+    },
+    navigate: {
+      type: "object",
+      description: "When the best answer is a page, the route to open (a page route such as inbox, or a row route the tools gave you) and a label. Empty strings when there is nothing to open.",
+      properties: { to: { type: "string" }, label: { type: "string" } },
+      required: ["to", "label"],
+      additionalProperties: false
+    },
+    language: { type: "string", enum: [...ASK_LANGUAGES] }
+  },
+  required: ["answer", "citations", "followups", "navigate", "language"],
+  additionalProperties: false
+};
+var clip = (n) => (s) => s.trim().slice(0, n);
+var AskFinishSchema = z3.object({
+  answer: z3.string().catch("").transform(clip(1500)),
+  citations: z3.array(
+    z3.object({
+      kind: z3.enum(ASK_CITATION_KINDS).catch("page"),
+      id: z3.string().catch("").transform(clip(200)),
+      label: z3.string().catch("").transform(clip(80))
+    })
+  ).catch([]).transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS.citations)),
+  followups: z3.array(z3.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS.followups).map((s) => s.slice(0, 90))),
+  navigate: z3.object({ to: z3.string().catch(""), label: z3.string().catch("") }).catch({ to: "", label: "" }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open" } : null),
+  language: z3.enum(ASK_LANGUAGES).catch("other")
+});
+function parseAskFinish(raw) {
+  let json = raw;
+  if (typeof raw === "string") {
+    try {
+      json = JSON.parse(raw);
+    } catch (e) {
+      return { ok: false, error: `not JSON: ${e instanceof Error ? e.message : String(e)}` };
+    }
+  }
+  const r = AskFinishSchema.safeParse(json);
+  if (!r.success) return { ok: false, error: r.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
+  if (!r.data.answer) return { ok: false, error: "empty answer" };
+  return { ok: true, value: r.data };
+}
+function emptyReadSet() {
+  return { thread: /* @__PURE__ */ new Set(), conversation: /* @__PURE__ */ new Set(), call: /* @__PURE__ */ new Set(), person: /* @__PURE__ */ new Set() };
+}
+var ASK_PAGE_ROUTES = [
+  "today",
+  "inbox",
+  "clients",
+  "conversations",
+  "live",
+  "reports",
+  "admin/workspace",
+  "admin/autonomy",
+  "admin/notifications",
+  "admin/integrations",
+  "admin/memory"
+];
+var PAGE_PREFIX = /^(today|inbox|clients|conversations|live|reports|admin)(\/[A-Za-z0-9:_-]+)?$/;
+function groundCitations(citations, read) {
+  const kept = [];
+  let dropped = 0;
+  const seen = /* @__PURE__ */ new Set();
+  for (const c of citations) {
+    const ok2 = c.kind === "page" ? PAGE_PREFIX.test(c.id) : read[c.kind].has(c.id);
+    const key = `${c.kind}:${c.id}`;
+    if (!ok2 || seen.has(key)) {
+      dropped++;
+      continue;
+    }
+    seen.add(key);
+    kept.push(c);
+  }
+  return { kept, dropped };
+}
+function citationRoute(c) {
+  switch (c.kind) {
+    case "thread":
+      return `inbox/th-${c.id}`;
+    case "conversation":
+      return `conversations/${c.id}`;
+    case "call":
+      return `conversations/cv-${c.id}`;
+    case "person":
+      return `clients/${c.id}`;
+    default:
+      return c.id;
+  }
+}
+function safeNavigate(to, read) {
+  if (!to) return false;
+  if (PAGE_PREFIX.test(to)) {
+    const m = /^inbox\/th-(.+)$/.exec(to);
+    if (m) return read.thread.has(m[1]) || read.conversation.has(m[1]);
+    const cv = /^conversations\/cv-(.+)$/.exec(to);
+    if (cv) return read.call.has(cv[1]);
+    const conv = /^conversations\/([0-9a-f-]{36})$/.exec(to);
+    if (conv) return read.conversation.has(conv[1]);
+    const person = /^clients\/([0-9a-f-]{36})$/.exec(to);
+    if (person) return read.person.has(person[1]);
+    return true;
+  }
+  return false;
+}
+function isUngrounded(answer, reads) {
+  return reads === 0 && /\d/.test(answer);
+}
+function partialAnswer(prefix) {
+  const key = prefix.indexOf('"answer"');
+  if (key < 0) return "";
+  let i = prefix.indexOf('"', prefix.indexOf(":", key) + 1);
+  if (i < 0) return "";
+  i++;
+  let out = "";
+  while (i < prefix.length) {
+    const c = prefix[i];
+    if (c === '"') break;
+    if (c === "\\") {
+      const n = prefix[i + 1];
+      if (n === void 0) break;
+      if (n === "n") out += "\n";
+      else if (n === "t") out += "	";
+      else if (n === "u") {
+        const hex = prefix.slice(i + 2, i + 6);
+        if (hex.length < 4) break;
+        out += String.fromCharCode(parseInt(hex, 16) || 32);
+        i += 4;
+      } else out += n;
+      i += 2;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+function scopeFromRoute(page, param, label) {
+  if (!param) return null;
+  if (page === "inbox" && param.startsWith("th-")) return { kind: "thread", id: param.slice(3), label: label || "this thread" };
+  if (page === "conversations" && param.startsWith("cv-")) return { kind: "call", id: param.slice(3), label: label || "this call" };
+  if (page === "conversations" && /^[0-9a-f-]{36}$/.test(param)) return { kind: "conversation", id: param, label: label || "this conversation" };
+  if (page === "clients" && /^[0-9a-f-]{36}$/.test(param)) return { kind: "person", id: param, label: label || "this person" };
+  return null;
+}
+var ES_HINT = /[áéíóúñ¿¡]|\b(qué|que|quién|quien|cómo|como|cuándo|cuando|dónde|donde|hoy|mañana|hola|gracias|abierto|libre|cita|cliente|llam[oó]|llamaron|necesita|espera|por favor|el|la|los|las|una?|est[aá]n?)\b/i;
+var EN_HINT = /\b(what|who|when|where|how|did|does|is|are|open|today|tomorrow|call|called|needs|waiting|the|a|an|please|tell)\b/i;
+function detectLanguage(text) {
+  const es = (text.match(ES_HINT) || []).length;
+  const en = (text.match(EN_HINT) || []).length;
+  if (!es && !en) return "other";
+  return es > en ? "es" : "en";
+}
+var ASK_PAGES = [
+  { label: "Today", to: "today", kind: "page" },
+  { label: "Inbox", to: "inbox", kind: "page" },
+  { label: "People", to: "clients", kind: "page" },
+  { label: "Conversations", to: "conversations", kind: "page" },
+  { label: "Calls", to: "live", kind: "page", sub: "live and recent" },
+  { label: "Reports", to: "reports", kind: "page" },
+  { label: "Settings", to: "admin/workspace", kind: "page" },
+  { label: "Autonomy", to: "admin/autonomy", kind: "page", sub: "what the receptionist may do alone" },
+  { label: "Team", to: "admin/workspace", kind: "page", sub: "members and invitations" },
+  { label: "Notifications", to: "admin/notifications", kind: "page" },
+  { label: "Integrations", to: "admin/integrations", kind: "page", sub: "WhatsApp, phone line, calendar" },
+  { label: "Receptionist memory", to: "admin/memory", kind: "page", sub: "hours, services, notes" }
+];
+function askJump(query, index, limit = 6) {
+  const s = query.trim().toLowerCase();
+  if (s.length < 2 || s.split(/\s+/).length > 3 || /[?¿]$/.test(s)) return [];
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  const push = (e) => {
+    if (seen.has(e.to)) return;
+    seen.add(e.to);
+    out.push(e);
+  };
+  for (const p of index) if (p.kind === "page" && p.label.toLowerCase().startsWith(s)) push(p);
+  for (const p of index) if (p.kind === "page" && p.label.toLowerCase().includes(s)) push(p);
+  for (const p of index) if (p.kind !== "page" && p.label.toLowerCase().includes(s)) push(p);
+  return out.slice(0, limit);
+}
+var T = {
+  en: {
+    needs: "Who needs me right now?",
+    held: "What is the receptionist holding for me?",
+    calls: "Did anyone call while I was busy?",
+    live: "What is the call on the line about?",
+    openSat: "What's open Saturday?",
+    openTomorrow: "What's open tomorrow?",
+    week: "How did the week go?",
+    said: "What did the receptionist tell {name}?",
+    why: "Why was this reply held?",
+    who: "Who wrote today?",
+    rules: "What can the receptionist do on its own?",
+    hours: "What are our hours this week?",
+    brief: "Brief me on today"
+  },
+  es: {
+    needs: "\xBFQui\xE9n me necesita ahora?",
+    held: "\xBFQu\xE9 tiene retenido la recepcionista para m\xED?",
+    calls: "\xBFLlam\xF3 alguien mientras estaba ocupada?",
+    live: "\xBFDe qu\xE9 trata la llamada en curso?",
+    openSat: "\xBFQu\xE9 hay libre el s\xE1bado?",
+    openTomorrow: "\xBFQu\xE9 hay libre ma\xF1ana?",
+    week: "\xBFC\xF3mo fue la semana?",
+    said: "\xBFQu\xE9 le dijo la recepcionista a {name}?",
+    why: "\xBFPor qu\xE9 se retuvo esta respuesta?",
+    who: "\xBFQui\xE9n escribi\xF3 hoy?",
+    rules: "\xBFQu\xE9 puede hacer la recepcionista sola?",
+    hours: "\xBFCu\xE1l es nuestro horario esta semana?",
+    brief: "Res\xFAmeme el d\xEDa"
+  }
+};
+function buildAskSuggestions(input) {
+  const t = T[input.language === "es" ? "es" : "en"];
+  const out = [];
+  const add = (q, kind, icon, fast = false) => {
+    if (!out.some((s2) => s2.q === q)) out.push({ q, kind, icon, fast });
+  };
+  const s = input.scope;
+  if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
+    add(t.said.replace("{name}", s.label), "ask", "chat");
+    if (s.kind === "thread") add(t.why, "ask", "sparkle");
+  }
+  if (s && s.kind === "call") add(t.live, "ask", "phone");
+  if (input.needsYou > 0) add(t.needs, "ask", "inbox", true);
+  if (input.heldDrafts > 0) add(t.held, "ask", "clock");
+  if (input.liveNow > 0) add(t.live, "ask", "phone");
+  if (input.missedToday > 0) add(t.calls, "ask", "phone", true);
+  if (input.hasCalendar) add(input.surface === "today" ? t.openTomorrow : t.openSat, "ask", "calendar", true);
+  switch (input.surface) {
+    case "today":
+      add(t.brief, "ask", "sparkle");
+      add(t.who, "ask", "users");
+      break;
+    case "inbox":
+      add(t.who, "ask", "users");
+      add(t.rules, "ask", "shield");
+      break;
+    case "people":
+      add(t.who, "ask", "users");
+      break;
+    case "reports":
+      add(t.week, "ask", "trending-up");
+      break;
+    case "settings":
+      add(t.rules, "ask", "shield");
+      add(t.hours, "ask", "clock");
+      break;
+    case "live":
+    case "conversations":
+      add(t.calls, "ask", "phone", input.missedToday > 0);
+      break;
+    default:
+      break;
+  }
+  if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
+  add(t.week, "ask", "trending-up");
+  add(t.rules, "ask", "shield");
+  return out.slice(0, 7);
+}
+var NEEDS_RE = /\b(who needs me|who needs my|needs? (my|me)\b|what('s| is| do i have)? waiting|waiting (on|for) me|anyone waiting|qui[eé]n me necesita|qu[eé] (me )?espera|qu[eé] (hay )?pendiente|pendientes?)\b/i;
+var CALLS_RE = /\b((did|has|have) (anyone|someone|anybody|somebody) (call|called|rang|phoned)|missed calls?|who called|any calls?|llam[oó] alguien|llamaron|llamadas? perdidas?|qui[eé]n llam[oó]|alguna llamada)\b/i;
+var OPEN_RE = /\b(what('s| is) open|what('s| is) free|openings?|availab|free (slot|slots|time)|any (slots?|room|space|time)|qu[eé] (hay|tengo) (libre|disponible)|disponibilidad|disponibles?|huecos?|espacios? libres?|cu[aá]ndo (hay|tienen) (libre|espacio))\b/i;
+var DAY_WORDS = [
+  [/\b(mon|monday|lunes)\b/i, "mon"],
+  [/\b(tue|tues|tuesday|martes)\b/i, "tue"],
+  [/\b(wed|wednesday|mi[eé]rcoles)\b/i, "wed"],
+  [/\b(thu|thur|thursday|jueves)\b/i, "thu"],
+  [/\b(fri|friday|viernes)\b/i, "fri"],
+  [/\b(sat|saturday|s[aá]bado)\b/i, "sat"],
+  [/\b(sun|sunday|domingo)\b/i, "sun"]
+];
+function dayKey2(atMs, tz) {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: tz || void 0, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(atMs));
+  } catch {
+    return new Date(atMs).toISOString().slice(0, 10);
+  }
+}
+function dayFromQuestion(q, now, tz) {
+  if (/\b(tomorrow|mañana)\b/i.test(q)) return dayKey2(now + 864e5, tz);
+  if (/\b(today|hoy)\b/i.test(q)) return dayKey2(now, tz);
+  for (const [re, key] of DAY_WORDS) if (re.test(q)) return key;
+  return null;
+}
+function fastPath(question, ctx) {
+  const q = question.trim();
+  if (!q || q.length > 160) return null;
+  const es = ctx.language === "es";
+  if (NEEDS_RE.test(q)) {
+    const rows = ctx.feed.filter((i) => i.kind === "needs_you" || i.kind === "held_draft");
+    if (!rows.length) {
+      return {
+        kind: "needs",
+        answer: es ? "Nadie te espera ahora mismo. La recepcionista est\xE1 respondiendo sola." : "Nobody is waiting on you right now. The receptionist is answering on its own.",
+        links: [{ label: es ? "Abrir Inbox" : "Open Inbox", to: "inbox" }]
+      };
+    }
+    const names = rows.slice(0, 4).map((r) => r.title.replace(/ needs you$/, "").replace(/ is waiting for you$/, ""));
+    const more = rows.length - names.length;
+    const answer = es ? `${rows.length === 1 ? "Una persona" : `${rows.length} personas`} te esperan: ${names.join(", ")}${more > 0 ? ` y ${more} m\xE1s` : ""}.` : `${rows.length === 1 ? "One person needs" : `${rows.length} people need`} you: ${names.join(", ")}${more > 0 ? ` and ${more} more` : ""}.`;
+    return { kind: "needs", answer, links: rows.slice(0, 4).map((r) => ({ label: r.title, to: r.to })) };
+  }
+  if (CALLS_RE.test(q)) {
+    const today = dayKey2(ctx.now, ctx.timezone);
+    const missed = ctx.calls.filter((c) => c.missed && c.startedAtMs && dayKey2(c.startedAtMs, ctx.timezone) === today);
+    const live = ctx.calls.filter((c) => c.live);
+    if (!missed.length) {
+      const answer2 = live.length ? es ? `Ninguna llamada perdida hoy. Hay ${live.length === 1 ? "una llamada" : `${live.length} llamadas`} en curso.` : `No missed calls today. ${live.length === 1 ? "One call is" : `${live.length} calls are`} on the line now.` : es ? "Ninguna llamada perdida hoy." : "No missed calls today.";
+      return { kind: "calls", answer: answer2, links: [{ label: es ? "Ver llamadas" : "See calls", to: "live" }] };
+    }
+    const names = missed.slice(0, 4).map((c) => c.who);
+    const answer = es ? `${missed.length === 1 ? "Una llamada perdida" : `${missed.length} llamadas perdidas`} hoy: ${names.join(", ")}.` : `${missed.length === 1 ? "One missed call" : `${missed.length} missed calls`} today: ${names.join(", ")}.`;
+    return { kind: "calls", answer, links: missed.slice(0, 4).map((c) => ({ label: c.who, to: `conversations/cv-${c.callId}` })) };
+  }
+  if (OPEN_RE.test(q)) {
+    return { kind: "openings", day: dayFromQuestion(q, ctx.now, ctx.timezone), service: q };
+  }
+  return null;
+}
+var AskSettingsChangeSchema = z3.discriminatedUnion("op", [
+  z3.object({ op: z3.literal("add_closure"), date: z3.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: z3.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: z3.string().max(200).optional() }),
+  z3.object({ op: z3.literal("set_hours"), day: z3.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: z3.string().regex(/^\d{2}:\d{2}$/).nullable(), close: z3.string().regex(/^\d{2}:\d{2}$/).nullable() }),
+  z3.object({ op: z3.literal("add_note"), title: z3.string().min(1).max(80), text: z3.string().min(1).max(1200) }),
+  z3.object({ op: z3.literal("add_service"), name: z3.string().min(1).max(80), duration_min: z3.number().int().min(1).max(1440).optional() })
+]);
+function applySettingsChange(config, change) {
+  const brain = { ...config.brain ?? {} };
+  const profile = { ...brain.profile ?? {} };
+  switch (change.op) {
+    case "add_closure": {
+      const closures = [...profile.closures ?? []];
+      closures.push({ date: change.date, ...change.until ? { until: change.until } : {}, ...change.note ? { note: change.note } : {} });
+      profile.closures = closures;
+      break;
+    }
+    case "set_hours": {
+      const hours = { ...profile.hours ?? {} };
+      hours[change.day] = change.open && change.close ? { open: change.open, close: change.close } : { open: null, close: null };
+      profile.hours = hours;
+      break;
+    }
+    case "add_note": {
+      const notes = [...profile.notes ?? []];
+      notes.push({ title: change.title, text: change.text });
+      profile.notes = notes;
+      break;
+    }
+    case "add_service": {
+      const services = [...profile.services ?? []];
+      services.push({ name: change.name, ...change.duration_min ? { duration_min: change.duration_min } : {} });
+      profile.services = services;
+      break;
+    }
+  }
+  brain.profile = profile;
+  return { ...config, brain };
+}
+function describeSettingsChange(change) {
+  switch (change.op) {
+    case "add_closure":
+      return change.until ? `Closed ${change.date} to ${change.until}${change.note ? ` (${change.note})` : ""}` : `Closed on ${change.date}${change.note ? ` (${change.note})` : ""}`;
+    case "set_hours":
+      return change.open && change.close ? `${change.day}: ${change.open}\u2013${change.close}` : `${change.day}: closed`;
+    case "add_note":
+      return `Note for the receptionist: \u201C${change.title}\u201D`;
+    case "add_service":
+      return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
+  }
+}
+
 // src/availability.ts
 function zoneParts(tz, at) {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -1869,8 +2285,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z3] = m;
-  if (z3) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z4] = m;
+  if (z4) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -2777,7 +3193,20 @@ export {
   ACTOR_TYPES,
   ALERT_KINDS,
   ANALYSIS_GRACE_MS,
+  ASK_CAPS,
+  ASK_CITATION_KINDS,
+  ASK_FINISH_JSON_SCHEMA,
+  ASK_LANGUAGES,
+  ASK_MAX_CHARS,
+  ASK_MAX_ROUNDS,
+  ASK_PAGES,
+  ASK_PAGE_ROUTES,
+  ASK_RETENTION_DAYS,
+  ASK_TOKENS_DAY,
+  ASK_TURN_BUDGET_MS,
   AppError,
+  AskFinishSchema,
+  AskSettingsChangeSchema,
   BRAIN_INTENTS,
   BRAIN_LANGUAGES,
   BRAIN_OUTPUT_JSON_SCHEMA,
@@ -2851,18 +3280,27 @@ export {
   ago,
   agoLabel,
   applyReadState,
+  applySettingsChange,
   asPersonMode,
+  askJump,
   brainMetaOf,
+  buildAskSuggestions,
   buildNotificationFeed,
+  citationRoute,
   composeSystemPrompt,
   contactMeta,
   contactName,
+  dayFromQuestion,
   dayInZone,
   deltaOf,
   describeNow,
   describeOpenings,
+  describeSettingsChange,
+  detectLanguage,
   draftSendsAtMs,
+  emptyReadSet,
   err,
+  fastPath,
   filterOpenings,
   fmtClock,
   fmtDay,
@@ -2872,6 +3310,7 @@ export {
   frameSteer,
   frameWhisper,
   freeWindows,
+  groundCitations,
   hasProfile,
   hoursRuns,
   initialsOf,
@@ -2881,6 +3320,7 @@ export {
   isOptedOutContact,
   isOwned,
   isRealDate,
+  isUngrounded,
   localToUtcMs,
   mediaKind,
   mediaVM,
@@ -2890,10 +3330,12 @@ export {
   newReceptionistDefaults,
   normalizePhone,
   ok,
+  parseAskFinish,
   parseBrainOutput,
   parseIcs,
   parseTenantConfig,
   parseTenantConfigResult,
+  partialAnswer,
   peopleAggregates,
   personName,
   personStateFor,
@@ -2905,6 +3347,8 @@ export {
   replyDelayMs,
   replyWhy,
   resolveSystemPrompt,
+  safeNavigate,
+  scopeFromRoute,
   shortTime,
   threadStanding,
   toCallVM,

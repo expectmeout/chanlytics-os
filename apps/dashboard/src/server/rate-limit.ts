@@ -45,6 +45,8 @@ export const RATE = {
   person_mode: { limit: 60, windowMs: 60_000, noun: "receptionist changes" },
   /** A whole thread, a whole call, or everyone, as a file. */
   export: { limit: 10, windowMs: 60_000, noun: "exports" },
+  /** A question to the workspace assistant: a model turn, tools and all. */
+  ask: { limit: 20, windowMs: 60_000, noun: "questions" },
 } as const satisfies Record<string, RateRule>;
 
 export type RateBucket = keyof typeof RATE;

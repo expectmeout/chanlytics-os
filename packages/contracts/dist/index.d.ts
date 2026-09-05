@@ -3281,6 +3281,431 @@ declare function agoLabel(atMs: number, now: number): string;
 declare const ALERT_KINDS: readonly NotificationKind[];
 
 /**
+ * Ask: the workspace assistant, as a contract.
+ *
+ * What lives here is everything about Ask that is pure and shared: the shape
+ * of a turn's final answer and how it is parsed, the rule that keeps a
+ * citation honest, the palette's jump index and suggestions, the three
+ * questions that are answered without a model, and the small partial-JSON
+ * reader that lets the answer stream while the rest of the turn is still
+ * being written. The route that runs the model lives in the dashboard; the
+ * palette that shows the answer lives in the mockup; both read from here.
+ */
+
+/** One question, in characters. Longer than this is a document, not a question. */
+declare const ASK_MAX_CHARS = 1000;
+/** Tool rounds per turn: reads, then the answer. The last round is forced to finish. */
+declare const ASK_MAX_ROUNDS = 4;
+/** End to end, under the route's sixty-second ceiling. */
+declare const ASK_TURN_BUDGET_MS = 45000;
+/** Ask's own daily token budget per workspace, apart from the receptionist's. */
+declare const ASK_TOKENS_DAY = 400000;
+/** Ask threads are purged after this many days; they quote customers. */
+declare const ASK_RETENTION_DAYS = 90;
+/** How much of the workspace one read may return. The words stay the pages' words. */
+declare const ASK_CAPS: {
+    readonly threads: 20;
+    readonly messages: 30;
+    readonly messagesMore: 80;
+    readonly calls: 20;
+    readonly transcript: 40;
+    readonly people: 12;
+    readonly citations: 6;
+    readonly followups: 3;
+    readonly needsRows: 10;
+};
+declare const ASK_CITATION_KINDS: readonly ["thread", "conversation", "call", "person", "page"];
+type AskCitationKind = (typeof ASK_CITATION_KINDS)[number];
+interface AskCitation {
+    kind: AskCitationKind;
+    /** A conversation, call or contact id; for a page, its route. */
+    id: string;
+    label: string;
+}
+declare const ASK_LANGUAGES: readonly ["en", "es", "other"];
+type AskLanguage = (typeof ASK_LANGUAGES)[number];
+/**
+ * The shape the model must answer in, as the `finish` tool's input. Every
+ * property is required and nothing else is allowed, so the API can decode it
+ * under constraint; "no navigation" is an empty route, never a missing key.
+ */
+declare const ASK_FINISH_JSON_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly answer: {
+            readonly type: "string";
+            readonly description: "The answer, in the person's language, two or three short sentences at most. Plain text, no markdown, no headings. Say what you found; if a read returned nothing, say so plainly.";
+        };
+        readonly citations: {
+            readonly type: "array";
+            readonly description: "The rows the answer rests on, taken ONLY from what the tools returned this turn. Each needs the kind, the exact id the tool gave you, and a short label (a name, a day, a call time).";
+            readonly items: {
+                readonly type: "object";
+                readonly properties: {
+                    readonly kind: {
+                        readonly type: "string";
+                        readonly enum: readonly ["thread", "conversation", "call", "person", "page"];
+                    };
+                    readonly id: {
+                        readonly type: "string";
+                    };
+                    readonly label: {
+                        readonly type: "string";
+                    };
+                };
+                readonly required: readonly ["kind", "id", "label"];
+                readonly additionalProperties: false;
+            };
+        };
+        readonly followups: {
+            readonly type: "array";
+            readonly description: "Up to three short questions the person might ask next, in their language. Empty when nothing natural follows.";
+            readonly items: {
+                readonly type: "string";
+            };
+        };
+        readonly navigate: {
+            readonly type: "object";
+            readonly description: "When the best answer is a page, the route to open (a page route such as inbox, or a row route the tools gave you) and a label. Empty strings when there is nothing to open.";
+            readonly properties: {
+                readonly to: {
+                    readonly type: "string";
+                };
+                readonly label: {
+                    readonly type: "string";
+                };
+            };
+            readonly required: readonly ["to", "label"];
+            readonly additionalProperties: false;
+        };
+        readonly language: {
+            readonly type: "string";
+            readonly enum: readonly ["en", "es", "other"];
+        };
+    };
+    readonly required: readonly ["answer", "citations", "followups", "navigate", "language"];
+    readonly additionalProperties: false;
+};
+declare const AskFinishSchema: z.ZodObject<{
+    answer: z.ZodEffects<z.ZodCatch<z.ZodString>, string, unknown>;
+    citations: z.ZodEffects<z.ZodCatch<z.ZodArray<z.ZodObject<{
+        kind: z.ZodCatch<z.ZodEnum<["thread", "conversation", "call", "person", "page"]>>;
+        id: z.ZodEffects<z.ZodCatch<z.ZodString>, string, unknown>;
+        label: z.ZodEffects<z.ZodCatch<z.ZodString>, string, unknown>;
+    }, "strip", z.ZodTypeAny, {
+        id: string;
+        kind: "conversation" | "call" | "person" | "thread" | "page";
+        label: string;
+    }, {
+        id?: unknown;
+        kind?: unknown;
+        label?: unknown;
+    }>, "many">>, {
+        id: string;
+        kind: "conversation" | "call" | "person" | "thread" | "page";
+        label: string;
+    }[], unknown>;
+    followups: z.ZodEffects<z.ZodCatch<z.ZodArray<z.ZodString, "many">>, string[], unknown>;
+    navigate: z.ZodEffects<z.ZodCatch<z.ZodObject<{
+        to: z.ZodCatch<z.ZodString>;
+        label: z.ZodCatch<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        label: string;
+        to: string;
+    }, {
+        label?: unknown;
+        to?: unknown;
+    }>>, {
+        to: string;
+        label: string;
+    } | null, unknown>;
+    language: z.ZodCatch<z.ZodEnum<["en", "es", "other"]>>;
+}, "strip", z.ZodTypeAny, {
+    language: "other" | "en" | "es";
+    answer: string;
+    citations: {
+        id: string;
+        kind: "conversation" | "call" | "person" | "thread" | "page";
+        label: string;
+    }[];
+    followups: string[];
+    navigate: {
+        to: string;
+        label: string;
+    } | null;
+}, {
+    language?: unknown;
+    answer?: unknown;
+    citations?: unknown;
+    followups?: unknown;
+    navigate?: unknown;
+}>;
+type AskFinish = z.infer<typeof AskFinishSchema>;
+declare function parseAskFinish(raw: unknown): {
+    ok: true;
+    value: AskFinish;
+} | {
+    ok: false;
+    error: string;
+};
+/** What the tools returned this turn, by kind: the only rows a citation may name. */
+type AskReadSet = Record<Exclude<AskCitationKind, "page">, Set<string>>;
+declare function emptyReadSet(): AskReadSet;
+/** The pages a citation or a navigate target may point at without a read. */
+declare const ASK_PAGE_ROUTES: readonly ["today", "inbox", "clients", "conversations", "live", "reports", "admin/workspace", "admin/autonomy", "admin/notifications", "admin/integrations", "admin/memory"];
+/**
+ * Drop every citation that names a row the tools did not return this turn.
+ * A model that read nothing cannot cite anything; a model that read the
+ * Inbox can cite only the threads it saw. Pages are always allowed, because
+ * a page is not a claim.
+ */
+declare function groundCitations(citations: AskCitation[], read: AskReadSet): {
+    kept: AskCitation[];
+    dropped: number;
+};
+/** Where a citation opens. The same routes the pages use for the same rows. */
+declare function citationRoute(c: AskCitation): string;
+/** A navigate target is safe when it is a page or a row route the tools could have produced. */
+declare function safeNavigate(to: string, read: AskReadSet): boolean;
+/**
+ * An answer that states a figure without having read anything is not from
+ * the workspace. Times, counts and money all carry digits; a turn with no
+ * read tool behind such an answer is marked so the palette can say so.
+ */
+declare function isUngrounded(answer: string, reads: number): boolean;
+/**
+ * The `answer` string out of a JSON prefix that is still arriving.
+ *
+ * The finish tool's input streams as partial JSON; the palette wants the
+ * words as they come. This reads `"answer": "` and then the string up to the
+ * first unescaped quote, decoding the escapes it has seen so far. Anything
+ * before the key, or a key that has not arrived, is an empty string.
+ */
+declare function partialAnswer(prefix: string): string;
+type AskRole = "user" | "assistant";
+/** A proposal the model made; a card the person may approve. Executed by the client through the verbs. */
+interface AskProposal {
+    id: string;
+    kind: "reply" | "steer" | "thread_verb" | "person_mode" | "policy" | "settings" | "whisper" | "invite";
+    /** The lowest role that may commit it; the route re-checks on Approve. */
+    needs: "operator" | "owner";
+    title: string;
+    /** The exact change, in the person's words. */
+    summary: string;
+    payload: Record<string, unknown>;
+    /** What undo looks like, when the verb has one. */
+    undo: string | null;
+}
+interface AskMessageVM {
+    id: string;
+    role: AskRole;
+    text: string;
+    at: string;
+    atMs: number;
+    citations: Array<AskCitation & {
+        to: string;
+    }>;
+    followups: string[];
+    navigate: {
+        to: string;
+        label: string;
+    } | null;
+    proposals: AskProposal[];
+    language: AskLanguage;
+    /** A figure with no read behind it. */
+    ungrounded: boolean;
+    /** The tools this turn ran, in order. */
+    tools: string[];
+    latencyMs: number | null;
+    /** Set on a turn that could not be answered; the text says why. */
+    failed: boolean;
+}
+interface AskThreadVM {
+    id: string;
+    title: string;
+    lastAtMs: number;
+    scope: AskScope | null;
+}
+/** What the person was looking at when they asked. Carried into the turn as a fact. */
+interface AskScope {
+    kind: "thread" | "conversation" | "call" | "person" | "page";
+    id: string;
+    label: string;
+}
+/** The scope a route implies, when it names a row. */
+declare function scopeFromRoute(page: string, param: string | null | undefined, label?: string | null): AskScope | null;
+/** A light guess at the language of a question; the model settles it. */
+declare function detectLanguage(text: string): AskLanguage;
+interface JumpEntry {
+    label: string;
+    to: string;
+    kind: "page" | "person" | "thread" | "call";
+    sub?: string;
+}
+/** The pages a real workspace has. Nothing here is seeded or demo-only. */
+declare const ASK_PAGES: JumpEntry[];
+/**
+ * Two words jump to a page, a person, a thread or a call from what the
+ * browser already holds. A question mark or a long sentence is a question,
+ * not a jump.
+ */
+declare function askJump(query: string, index: JumpEntry[], limit?: number): JumpEntry[];
+type AskSurface = "today" | "inbox" | "people" | "conversations" | "live" | "reports" | "settings" | "other";
+interface AskSuggestion {
+    q: string;
+    kind: "ask" | "act";
+    icon: string;
+    /** Answered without a model. */
+    fast?: boolean;
+}
+interface SuggestionInput {
+    surface: AskSurface;
+    language: AskLanguage;
+    needsYou: number;
+    heldDrafts: number;
+    missedToday: number;
+    liveNow: number;
+    hasCalendar: boolean;
+    scope?: AskScope | null;
+}
+/**
+ * Questions the workspace can answer today, for where the person is. Built
+ * from the data, in the person's language, never from a seed; a workspace
+ * with no missed call is not offered a question about missed calls.
+ */
+declare function buildAskSuggestions(input: SuggestionInput): AskSuggestion[];
+interface FastCall {
+    callId: string;
+    who: string;
+    missed: boolean;
+    live: boolean;
+    startedAtMs: number | null;
+}
+interface FastContext {
+    feed: NotificationItem[];
+    calls: FastCall[];
+    now: number;
+    language: AskLanguage;
+    timezone?: string | null;
+}
+type FastPath = {
+    kind: "needs";
+    answer: string;
+    links: Array<{
+        label: string;
+        to: string;
+    }>;
+} | {
+    kind: "calls";
+    answer: string;
+    links: Array<{
+        label: string;
+        to: string;
+    }>;
+} | {
+    kind: "openings";
+    day: string | null;
+    service: string;
+} | null;
+/** The day a question names: a weekday key, "today"/"tomorrow" as a date, or nothing. */
+declare function dayFromQuestion(q: string, now: number, tz?: string | null): string | null;
+/**
+ * The three questions an owner asks most, answered without a model: who
+ * needs me, did anyone call, what is open. The first two come from what the
+ * page already holds; the third names the day and the service so the palette
+ * can ask the availability engine directly. Everything else is the model's.
+ */
+declare function fastPath(question: string, ctx: FastContext): FastPath;
+/**
+ * The few settings an owner changes from the floor, as a change the model
+ * may propose and a card may apply: a closure, a day's hours, a note the
+ * receptionist will read, a service. Applied to a parsed config, never to
+ * the row, so the settings route's own validation still decides.
+ */
+type AskSettingsChange = {
+    op: "add_closure";
+    date: string;
+    until?: string;
+    note?: string;
+} | {
+    op: "set_hours";
+    day: string;
+    open: string | null;
+    close: string | null;
+} | {
+    op: "add_note";
+    title: string;
+    text: string;
+} | {
+    op: "add_service";
+    name: string;
+    duration_min?: number;
+};
+declare const AskSettingsChangeSchema: z.ZodDiscriminatedUnion<"op", [z.ZodObject<{
+    op: z.ZodLiteral<"add_closure">;
+    date: z.ZodString;
+    until: z.ZodOptional<z.ZodString>;
+    note: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    date: string;
+    op: "add_closure";
+    note?: string | undefined;
+    until?: string | undefined;
+}, {
+    date: string;
+    op: "add_closure";
+    note?: string | undefined;
+    until?: string | undefined;
+}>, z.ZodObject<{
+    op: z.ZodLiteral<"set_hours">;
+    day: z.ZodEnum<["mon", "tue", "wed", "thu", "fri", "sat", "sun"]>;
+    open: z.ZodNullable<z.ZodString>;
+    close: z.ZodNullable<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    open: string | null;
+    day: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+    close: string | null;
+    op: "set_hours";
+}, {
+    open: string | null;
+    day: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+    close: string | null;
+    op: "set_hours";
+}>, z.ZodObject<{
+    op: z.ZodLiteral<"add_note">;
+    title: z.ZodString;
+    text: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    text: string;
+    title: string;
+    op: "add_note";
+}, {
+    text: string;
+    title: string;
+    op: "add_note";
+}>, z.ZodObject<{
+    op: z.ZodLiteral<"add_service">;
+    name: z.ZodString;
+    duration_min: z.ZodOptional<z.ZodNumber>;
+}, "strip", z.ZodTypeAny, {
+    name: string;
+    op: "add_service";
+    duration_min?: number | undefined;
+}, {
+    name: string;
+    op: "add_service";
+    duration_min?: number | undefined;
+}>]>;
+type Cfg = {
+    brain?: {
+        profile?: Record<string, unknown>;
+    } & Record<string, unknown>;
+} & Record<string, unknown>;
+declare function applySettingsChange<C extends Cfg>(config: C, change: AskSettingsChange): C;
+/** One line for a card: what the change does, in the person's words. */
+declare function describeSettingsChange(change: AskSettingsChange): string;
+
+/**
  * Read-only availability: what is open, from a calendar feed and the rules.
  *
  * The receptionist never books. It may SEE the calendar — the owner's
@@ -3872,4 +4297,4 @@ declare function fmtClock(seconds: number): string;
 declare function toLiveCallVM(dto: CallDto, now?: Date): LiveCallVM;
 declare function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, now?: Date): LiveVM;
 
-export { ACTOR_TYPES, ALERT_KINDS, ANALYSIS_GRACE_MS, type ActorType, AppError, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BusinessProfile, BusinessProfileSchema, type BusyBlock, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONFIDENCE_STEPS, CONSENT_STATES, CONVERSATION_STATES, type CalendarConfig, CalendarConfigSchema, type CallDto, type CallVM, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelVM, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, E164, EMPTY_READ_STATE, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type FeaturesConfig, FeaturesConfigSchema, type FeedCall, type FeedInput, type FeedInvite, type FeedThread, type FreeWindowsInput, GuardrailsSchema, type Hours, type HoursRun, HoursSchema, INTENT_LABELS, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MediaVM, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type Note, NoteSchema, type NotificationItem, type NotificationKind, type NotificationReadState, type NotificationRow, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, type Opening, PEOPLE_LISTS, PEOPLE_TABS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_STATE_LABELS, POLICY_CLASSES, POLICY_MODES, type ParseOptions, type ParsedFeed, type PeopleAggregates, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, QUIET_AFTER_MS, RECENT_MAX, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPORT_RANGES, ROLES, ROLE_PERMS, type ReceptionistTone, type ReplyWhyVM, type ReportBarVM, type ReportDayDto, type ReportDto, type ReportPointVM, type ReportTileVM, type ReportVM, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TimelineKind, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, ago, agoLabel, applyReadState, asPersonMode, brainMetaOf, buildNotificationFeed, composeSystemPrompt, contactMeta, contactName, dayInZone, deltaOf, describeNow, describeOpenings, draftSendsAtMs, err, filterOpenings, fmtClock, fmtDay, fmtSeconds, formatPhoneDisplay, formatWaited, frameSteer, frameWhisper, freeWindows, hasProfile, hoursRuns, initialsOf, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, localToUtcMs, mediaKind, mediaVM, messageAt, messageStatusLabel, messageText, newReceptionistDefaults, normalizePhone, ok, parseBrainOutput, parseIcs, parseTenantConfig, parseTenantConfigResult, peopleAggregates, personName, personStateFor, pointsDelta, quantile, reachedCustomer, reasonShort, recencyCells, replyDelayMs, replyWhy, resolveSystemPrompt, shortTime, threadStanding, toCallVM, toChannelVM, toConversationVM, toInboxThreadVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, violatesNoPrices, waWindow, whisperText, zoneOffsetMs };
+export { ACTOR_TYPES, ALERT_KINDS, ANALYSIS_GRACE_MS, ASK_CAPS, ASK_CITATION_KINDS, ASK_FINISH_JSON_SCHEMA, ASK_LANGUAGES, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_PAGES, ASK_PAGE_ROUTES, ASK_RETENTION_DAYS, ASK_TOKENS_DAY, ASK_TURN_BUDGET_MS, type ActorType, AppError, type AskCitation, type AskCitationKind, type AskFinish, AskFinishSchema, type AskLanguage, type AskMessageVM, type AskProposal, type AskReadSet, type AskRole, type AskScope, type AskSettingsChange, AskSettingsChangeSchema, type AskSuggestion, type AskSurface, type AskThreadVM, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BusinessProfile, BusinessProfileSchema, type BusyBlock, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONFIDENCE_STEPS, CONSENT_STATES, CONVERSATION_STATES, type CalendarConfig, CalendarConfigSchema, type CallDto, type CallVM, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelVM, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, E164, EMPTY_READ_STATE, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type FastCall, type FastContext, type FastPath, type FeaturesConfig, FeaturesConfigSchema, type FeedCall, type FeedInput, type FeedInvite, type FeedThread, type FreeWindowsInput, GuardrailsSchema, type Hours, type HoursRun, HoursSchema, INTENT_LABELS, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, type JumpEntry, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MediaVM, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type Note, NoteSchema, type NotificationItem, type NotificationKind, type NotificationReadState, type NotificationRow, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, type Opening, PEOPLE_LISTS, PEOPLE_TABS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_STATE_LABELS, POLICY_CLASSES, POLICY_MODES, type ParseOptions, type ParsedFeed, type PeopleAggregates, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, QUIET_AFTER_MS, RECENT_MAX, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPORT_RANGES, ROLES, ROLE_PERMS, type ReceptionistTone, type ReplyWhyVM, type ReportBarVM, type ReportDayDto, type ReportDto, type ReportPointVM, type ReportTileVM, type ReportVM, type Role, type Service, ServiceSchema, type SuggestionInput, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TimelineKind, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, ago, agoLabel, applyReadState, applySettingsChange, asPersonMode, askJump, brainMetaOf, buildAskSuggestions, buildNotificationFeed, citationRoute, composeSystemPrompt, contactMeta, contactName, dayFromQuestion, dayInZone, deltaOf, describeNow, describeOpenings, describeSettingsChange, detectLanguage, draftSendsAtMs, emptyReadSet, err, fastPath, filterOpenings, fmtClock, fmtDay, fmtSeconds, formatPhoneDisplay, formatWaited, frameSteer, frameWhisper, freeWindows, groundCitations, hasProfile, hoursRuns, initialsOf, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, isUngrounded, localToUtcMs, mediaKind, mediaVM, messageAt, messageStatusLabel, messageText, newReceptionistDefaults, normalizePhone, ok, parseAskFinish, parseBrainOutput, parseIcs, parseTenantConfig, parseTenantConfigResult, partialAnswer, peopleAggregates, personName, personStateFor, pointsDelta, quantile, reachedCustomer, reasonShort, recencyCells, replyDelayMs, replyWhy, resolveSystemPrompt, safeNavigate, scopeFromRoute, shortTime, threadStanding, toCallVM, toChannelVM, toConversationVM, toInboxThreadVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, violatesNoPrices, waWindow, whisperText, zoneOffsetMs };

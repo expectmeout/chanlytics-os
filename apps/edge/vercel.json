@@ -2,6 +2,9 @@
   "functions": {
     "api/whatsapp.ts": {
       "maxDuration": 60
+    },
+    "api/admin/llm.ts": {
+      "maxDuration": 60
     }
   }
 }

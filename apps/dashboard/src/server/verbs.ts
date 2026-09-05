@@ -90,7 +90,7 @@ export async function recordDecision(
       verb,
       actor_type: "user",
       actor_user_id: ctx.userId,
-      payload,
+      payload: ctx.via && payload && typeof payload === "object" && !Array.isArray(payload) ? { ...(payload as Record<string, Json>), via: ctx.via } : payload,
     })
     .select("id")
     .single();

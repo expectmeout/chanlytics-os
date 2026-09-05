@@ -343,3 +343,19 @@
   .ix-th-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ix-th-actions { flex-wrap: wrap; justify-content: flex-start; }
 }
+
+/* ---- Ask on a phone: a sheet from the bottom, the composer at the thumb ---- */
+@media (max-width: 720px) {
+  .ask-overlay { padding: 0; padding-top: 0; align-items: flex-end; }
+  .ask-modal.cmd-modal.ask-real {
+    max-width: 100%; width: 100%; height: min(78vh, 640px);
+    border-radius: 18px 18px 0 0; border-bottom: 0;
+    display: flex; flex-direction: column-reverse;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .ask-real .cmd-input-bar { border-bottom: 0; border-top: 1px solid var(--line); }
+  .ask-real .cmd-foot { display: none; }
+  .ask-real .cmd-input { font-size: 16px; }
+  .ask-real .ask-msgs { padding: 14px 14px 8px; }
+  .ask-real .ask-fast { margin: 10px 12px 4px; }
+}

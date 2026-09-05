@@ -10,6 +10,7 @@ export * from "./config";
 export * from "./whisper";
 export * from "./brain";
 export * from "./notifications";
+export * from "./ask";
 export * from "./availability";
 export * from "./people";
 export * from "./channels";

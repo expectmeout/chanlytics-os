@@ -288,7 +288,7 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
 
   // Expose for deep components (fleet cards, command rows) without prop-drilling
   window.appNavigate = navigate;
-  window.appAsk = window.__DEMO_MODE ? openAsk : () => {}; // Ask stubbed outside demo (real Ask is v1.x)
+  window.appAsk = openAsk;
 
   useShellEffect(() => {
     const onHash = () => setRoute(parseHash());
@@ -299,7 +299,6 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
   useShellEffect(() => {
     const handler = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        if (!window.__DEMO_MODE) return; // Ask stubbed outside demo
         e.preventDefault(); setAskOpen(v => !v);
       }
     };
