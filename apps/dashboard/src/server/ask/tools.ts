@@ -207,11 +207,11 @@ async function getToday(t: ToolContext): Promise<unknown> {
   return {
     standing: { headline: vm.standing.headline, detail: vm.standing.detail, tone: vm.standing.tone, chips: vm.standing.chips.map((c) => c.text) },
     needs_you: vm.needsYou
-      ? { count: vm.needsYou.count, rows: vm.needsYou.rows.slice(0, ASK_CAPS.needsRows).map((r) => ({ conversation_id: r.conversationId, who: r.who, reason: r.reason, waited: r.waited, quote: r.quote })) }
+      ? { count: vm.needsYou.count, rows: vm.needsYou.rows.slice(0, ASK_CAPS.needsRows).map((r) => ({ conversation_id: r.conversationId, route: `inbox/th-${r.conversationId}`, who: r.who, reason: r.reason, waited: r.waited, quote: r.quote })) }
       : null,
     drafts_about_to_send: vm.windowClosing ? vm.windowClosing.rows.map((r) => r.text) : [],
     recap: vm.recap ? { sentences: vm.recap.sentences.map((s) => s.text), facts: vm.recap.facts.map((f) => `${f.label}: ${f.value}`) } : null,
-    calls: vm.calls ? { line: vm.calls.line, rows: vm.calls.rows.slice(0, 5).map((r) => ({ call_id: r.id.replace(/^cv-/, ""), who: r.who, at: r.at, duration: r.duration, note: r.note })) } : null,
+    calls: vm.calls ? { line: vm.calls.line, rows: vm.calls.rows.slice(0, 5).map((r) => ({ call_id: r.id.replace(/^cv-/, ""), route: `conversations/${r.id}`, who: r.who, at: r.at, duration: r.duration, note: r.note })) } : null,
     quiet: vm.quiet ? { headline: vm.quiet.headline, sub: vm.quiet.sub } : null,
     period: { messages_in: metrics.period.messages_in, answered_by_receptionist: metrics.period.answered_by_ai, answered_by_you: metrics.period.answered_by_you, unanswered: metrics.period.unanswered_in_window, calls: metrics.period.calls, new_people: metrics.period.new_contacts },
   };
@@ -237,6 +237,7 @@ async function listThreads(t: ToolContext, input: Record<string, unknown>): Prom
     total_matching: vms.filter((v) => picked.includes(v) || filter === "recent").length,
     threads: picked.map((v) => ({
       conversation_id: v.conversationId,
+      route: `inbox/th-${v.conversationId}`,
       who: v.who,
       state: v.needsYou ? "needs you" : v.takenOver ? "waiting on you" : v.state === "snoozed" ? "snoozed" : v.optedOut ? "opted out" : "answering",
       held_draft: v.veto ? { message_id: v.veto.messageId, text: v.veto.draft.slice(0, 200), why: v.veto.why?.summary ?? null } : v.heldDraft ? { message_id: v.heldDraft.messageId, text: v.heldDraft.body.slice(0, 200) } : null,
@@ -282,7 +283,9 @@ async function getThread(t: ToolContext, input: Record<string, unknown>): Promis
   const fmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   return {
     conversation_id: id,
+    route: `inbox/th-${id}`,
     contact_id: dto.contact.id || null,
+    contact_route: dto.contact.id ? `clients/${dto.contact.id}` : null,
     who: vm.who,
     state: vm.needsYou ? "needs you" : vm.takenOver ? "waiting on you" : vm.state === "snoozed" ? "snoozed" : vm.optedOut ? "opted out" : "answering",
     escalation: esc ? { id: (esc as EscalationDto).id, reason: ESCALATION_REASON_LABELS[(esc as EscalationDto).reason] ?? (esc as EscalationDto).reason, details: (esc as EscalationDto).details } : null,
@@ -307,6 +310,7 @@ function personLine(r: PersonRowDto, nowMs: number) {
   const stateKey = r.dnc ? "opted_out" : r.needs_human ? "needs_you" : "active";
   return {
     contact_id: r.id,
+    route: `clients/${r.id}`,
     name: personName(r),
     state: PERSON_STATE_LABELS[stateKey as keyof typeof PERSON_STATE_LABELS] ?? stateKey,
     last_contact: r.last_message_at ? ago(nowMs - Date.parse(r.last_message_at), nowMs) : r.last_call_at ? ago(nowMs - Date.parse(r.last_call_at), nowMs) : "never",
@@ -385,6 +389,7 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
   for (const c of detail.calls) t.read.call.add(c.id);
   return {
     contact_id: id,
+    route: `clients/${id}`,
     name: vm.name,
     since: vm.since,
     right_now: { title: vm.rightNow.title, detail: vm.rightNow.detail },
@@ -393,8 +398,8 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
     receptionist_mode: vm.receptionistMode,
     last_exchange: vm.lastExchange,
     open_conversation_id: vm.openThread ? vm.openThread.replace(/^th-/, "") : null,
-    conversations: detail.conversations.slice(0, 5).map((c) => ({ conversation_id: c.id, state: c.state, last_at: c.last_message_at })),
-    calls: detail.calls.slice(0, 5).map((c) => ({ call_id: c.id, at: c.started_at, status: c.status })),
+    conversations: detail.conversations.slice(0, 5).map((c) => ({ conversation_id: c.id, route: `inbox/th-${c.id}`, state: c.state, last_at: c.last_message_at })),
+    calls: detail.calls.slice(0, 5).map((c) => ({ call_id: c.id, route: `conversations/cv-${c.id}`, at: c.started_at, status: c.status })),
     timeline: vm.timeline.slice(0, 20).map((i) => ({ day: i.day, time: i.time, kind: i.kind, who: i.who, text: i.text.slice(0, 240) })),
   };
 }
@@ -419,6 +424,7 @@ async function listCalls(t: ToolContext, input: Record<string, unknown>): Promis
     filter,
     calls: picked.map((v) => ({
       call_id: v.callId,
+      route: `conversations/cv-${v.callId}`,
       who: v.who,
       at: v.at,
       duration: v.duration ?? null,
@@ -441,6 +447,7 @@ async function getCall(t: ToolContext, input: Record<string, unknown>): Promise<
   if (v.clientId) t.read.person.add(v.clientId);
   return {
     call_id: id,
+    route: `conversations/cv-${id}`,
     who: v.who,
     at: v.at,
     duration: v.duration ?? null,

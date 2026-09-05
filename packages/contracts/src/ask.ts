@@ -88,7 +88,7 @@ export const ASK_FINISH_JSON_SCHEMA = {
     navigate: {
       type: "object",
       description:
-        "When the best answer is a page, the route to open (a page route such as inbox, or a row route the tools gave you) and a label. Empty strings when there is nothing to open. now: true when the person asked to open, show or see that thing; the app goes there as soon as the answer is read, so keep the answer to one line.",
+        "When the best answer is a page, the route to open and a label. to: the exact `route` field a tool returned for a row (a call, a thread, a person), or a page route (today, inbox, clients, conversations, live, reports, admin/workspace). Empty strings when there is nothing to open. now: true when the person asked to open, show or see that thing; the app goes there as soon as the answer is read, so keep the answer to one line.",
       properties: { to: { type: "string" }, label: { type: "string" }, now: { type: "boolean" } },
       required: ["to", "label", "now"],
       additionalProperties: false,
@@ -235,6 +235,39 @@ export function citationRoute(c: AskCitation): string {
     case "person": return `clients/${c.id}`;
     default: return c.id;
   }
+}
+
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+/**
+ * The route the app knows for what the model meant.
+ *
+ * The model writes routes as it understands them: "conversations/cv-<id>"
+ * when a tool said so, but also "calls/<id>", "people/<id>", "inbox/<id>",
+ * or a bare id. Any spelling that names a row the tools returned this turn
+ * becomes that row's canonical route; a page route passes as is; anything
+ * else is nothing. Dropping a real row over its spelling left "Opening the
+ * call…" opening nothing.
+ */
+export function normalizeNavigate(to: string, read: AskReadSet): string | null {
+  const s = (to ?? "").trim().replace(/^#?\/+/, "");
+  if (!s) return null;
+  const id = (UUID_RE.exec(s) ?? [])[0]?.toLowerCase();
+  if (id) {
+    const head = s.toLowerCase();
+    const isCall = /call|cv-|live/.test(head);
+    const isPerson = /client|people|person|contact|profile/.test(head);
+    const isThread = /inbox|thread|th-|conversation/.test(head);
+    if (isCall && read.call.has(id)) return `conversations/cv-${id}`;
+    if (isPerson && read.person.has(id)) return `clients/${id}`;
+    if (isThread && (read.thread.has(id) || read.conversation.has(id))) return `inbox/th-${id}`;
+    // No kind in the spelling: whichever set holds the id.
+    if (read.call.has(id)) return `conversations/cv-${id}`;
+    if (read.thread.has(id) || read.conversation.has(id)) return `inbox/th-${id}`;
+    if (read.person.has(id)) return `clients/${id}`;
+    return null;
+  }
+  return PAGE_PREFIX.test(s) ? s : null;
 }
 
 /** A navigate target is safe when it is a page or a row route the tools could have produced. */

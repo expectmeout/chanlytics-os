@@ -5,9 +5,9 @@ import {
   citationRoute,
   groundCitations,
   isUngrounded,
+  normalizeNavigate,
   parseAskFinish,
   partialAnswer,
-  safeNavigate,
   type AskFinish,
   type AskLanguage,
   type AskMessageVM,
@@ -243,7 +243,9 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
         const f = parsed.value;
         const { kept, dropped } = groundCitations(f.citations, tc.read);
         if (dropped) console.warn("ask_citations_dropped", JSON.stringify({ dropped, tenant: input.tenantId }));
-        const navigate = f.navigate && safeNavigate(f.navigate.to, tc.read) ? f.navigate : null;
+        const navTo = f.navigate ? normalizeNavigate(f.navigate.to, tc.read) : null;
+        if (f.navigate && !navTo) console.warn("ask_navigate_dropped", JSON.stringify({ to: f.navigate.to.slice(0, 120), tenant: input.tenantId }));
+        const navigate = f.navigate && navTo ? { ...f.navigate, to: navTo } : null;
         return done({
           finish: f,
           answer: f.answer,
