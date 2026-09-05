@@ -414,6 +414,10 @@ export interface InboxThreadVM {
   contextStrip: Array<{ label: string; value: string; warn?: boolean }>;
   lastAt: string;
   lastAtFull: string;
+  /** Absolute times, epoch ms, for anything that must not drift with the
+   *  clock — the bell keys its read state on them. */
+  lastAtMs: number;
+  escalatedAtMs?: number;
   unread: boolean;
   pinned: false;
   value?: number;      // omitted: no revenue model on real threads (v1.1)
@@ -619,6 +623,8 @@ export function toInboxThreadVM(
     ],
     lastAt: shortTime(dto.last_message_at, now),
     lastAtFull: shortTime(dto.last_message_at, now),
+    lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
+    ...(escalation ? { escalatedAtMs: new Date(escalation.created_at).getTime() } : {}),
     unread: state === "escalated" && !takenOver,
     pinned: false,
     tags: [],

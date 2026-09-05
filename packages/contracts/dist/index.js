@@ -635,6 +635,8 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
     ],
     lastAt: shortTime(dto.last_message_at, now),
     lastAtFull: shortTime(dto.last_message_at, now),
+    lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
+    ...escalation ? { escalatedAtMs: new Date(escalation.created_at).getTime() } : {},
     unread: state === "escalated" && !takenOver,
     pinned: false,
     tags: [],
@@ -1721,7 +1723,7 @@ function buildNotificationFeed(input) {
   for (const t of input.threads ?? []) {
     if (!t.real) continue;
     if (t.needsYou) {
-      const at = typeof t.waitingMin === "number" ? now - t.waitingMin * 6e4 : now;
+      const at = t.escalatedAtMs ?? (typeof t.waitingMin === "number" ? now - t.waitingMin * 6e4 : t.lastAtMs ?? now);
       items.push({
         key: `needs:${t.id}`,
         kind: "needs_you",
