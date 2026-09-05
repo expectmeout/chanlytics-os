@@ -136,4 +136,11 @@ html.legacy-on #root {
   color: var(--warn, #9a5b00);
 }
 
-
+/* Phone: the pill sits above the tab bar (it covered it and swallowed its
+   taps), spans the width on one line, and the surfaces list truncates so
+   the workspace name and Sign out stay readable. */
+@media (max-width: 720px) {
+  .bridge-pill { left: 12px; right: 12px; bottom: calc(74px + env(safe-area-inset-bottom)); padding: 6px 12px; }
+  .bridge-pill > span { min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bridge-pill .pill-signout { flex: none; }
+}
