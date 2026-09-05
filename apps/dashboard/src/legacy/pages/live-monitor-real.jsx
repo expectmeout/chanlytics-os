@@ -235,15 +235,12 @@ const LrPanel = ({ c, elapsed }) => {
         c.transcript.length ? (
           <LrTranscript c={c} />
         ) : (
-          <>
-            <div className="lm-waiting">
-              <Icon name="phone" size={16} />
-              <div>
-                The receptionist is on the line with {c.whoShort}. Nothing has been said yet; the words appear here as the phone provider sends them.
-              </div>
+          <div className="lm-waiting">
+            <Icon name="phone" size={16} />
+            <div>
+              The receptionist is on the line with {c.whoShort}. It opens with the greeting; the phone provider sends the words after the first exchange, and they appear here turn by turn.
             </div>
-            <div className="lm-spacer" />
-          </>
+          </div>
         )
       ) : (
         <div className="lm-summary" data-testid="live-summary">
@@ -270,7 +267,11 @@ const LrPanel = ({ c, elapsed }) => {
         </div>
       )}
       {c.live && <LrWhisper c={c} />}
-      {!c.live && <div className="lm-spacer" />}
+      {/* A transcript grows to fill the panel on its own. Everything else
+          needs the spacer to keep the footer at the bottom — and it sits
+          AFTER the whisper box, which used to be pushed below the fold by a
+          spacer inside the waiting state, where nobody found it. */}
+      {!(c.live && c.transcript.length) && <div className="lm-spacer" />}
 
       <footer className="lm-controls">
         <span className="lm-controls-who tabular">{c.number || "Caller ID withheld"} &nbsp;&amp;&nbsp; Phone receptionist</span>
@@ -300,6 +301,15 @@ const LiveMonitorReal = () => {
     const t = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(t);
   }, [hasLive]);
+  // Insurance while a call is up: realtime carries each turn (proved on the
+  // deployed page), but a channel that drops silently after a sleep would
+  // leave a live transcript frozen with no sign. One re-read every 8 s, only
+  // while a call is live, costs one calls fetch and cannot be wrong.
+  useLrEffect(() => {
+    if (!hasLive || !window.__refreshLive) return undefined;
+    const t = window.setInterval(() => { window.__refreshLive(); }, 8000);
+    return () => window.clearInterval(t);
+  }, [hasLive]);
   useLrEffect(() => { setNowMs(Date.now()); }, [L && L.fetchedAtMs]);
 
   if (!L) return null;
@@ -319,7 +329,7 @@ const LiveMonitorReal = () => {
         <div className="cl-head-titles">
           <div className="cl-page-title">Live</div>
           <div className="cl-page-sub">
-            Calls on your line as they happen. The receptionist answers; you watch, and read the summary the moment a call ends.
+            Calls on your line as they happen. The receptionist answers; you follow the words, whisper it a line if you need to, and read the summary the moment a call ends.
           </div>
         </div>
         <StatStrip className="cl-head-stats">
