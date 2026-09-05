@@ -501,11 +501,16 @@ export function askJump(query: string, index: JumpEntry[], limit = 6): JumpEntry
 export type AskSurface = "today" | "inbox" | "people" | "conversations" | "live" | "reports" | "settings" | "other";
 
 export interface AskSuggestion {
+  /** The words sent, or placed in the input when `compose` is set. */
   q: string;
   kind: "ask" | "act";
   icon: string;
   /** Answered without a model. */
   fast?: boolean;
+  /** What the row shows when it differs from the words. */
+  label?: string;
+  /** Put the words in the input for the person to finish, rather than sending them. */
+  compose?: boolean;
 }
 
 export interface SuggestionInput {
@@ -517,6 +522,8 @@ export interface SuggestionInput {
   liveNow: number;
   hasCalendar: boolean;
   scope?: AskScope | null;
+  /** Operators and owners may act; a viewer is never offered a card. */
+  canAct?: boolean;
 }
 
 const T = {
@@ -534,6 +541,20 @@ const T = {
     rules: "What can the receptionist do on its own?",
     hours: "What are our hours this week?",
     brief: "Brief me on today",
+    actLate: "Tell {name} we're running late",
+    actLateQ: "Tell {name} we're running about 15 minutes late today",
+    actDraft: "Draft a reply to {name}",
+    actDraftQ: "Draft a reply to {name}: ",
+    actRemember: "Remember something for the receptionist",
+    actRememberQ: "Remember that ",
+    actClose: "Close the salon on a day",
+    actCloseQ: "Close the salon on ",
+    actHours: "Change a day's hours",
+    actHoursQ: "Change Saturday's hours to ",
+    actInvite: "Invite a teammate",
+    actInviteQ: "Invite ",
+    actHold: "Hold every reply for my review",
+    actHoldQ: "Hold every reply for my review before it sends",
   },
   es: {
     needs: "¿Quién me necesita ahora?",
@@ -549,6 +570,20 @@ const T = {
     rules: "¿Qué puede hacer la recepcionista sola?",
     hours: "¿Cuál es nuestro horario esta semana?",
     brief: "Resúmeme el día",
+    actLate: "Dile a {name} que vamos con retraso",
+    actLateQ: "Dile a {name} que vamos con unos 15 minutos de retraso hoy",
+    actDraft: "Redacta una respuesta a {name}",
+    actDraftQ: "Redacta una respuesta a {name}: ",
+    actRemember: "Recuérdale algo a la recepcionista",
+    actRememberQ: "Recuerda que ",
+    actClose: "Cerrar el salón un día",
+    actCloseQ: "Cierra el salón el ",
+    actHours: "Cambiar el horario de un día",
+    actHoursQ: "Cambia el horario del sábado a ",
+    actInvite: "Invitar a alguien del equipo",
+    actInviteQ: "Invita a ",
+    actHold: "Retener cada respuesta para revisarla",
+    actHoldQ: "Retén cada respuesta para mi revisión antes de enviarla",
   },
 } as const;
 
@@ -586,7 +621,25 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
   if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
   add(t.week, "ask", "trending-up");
   add(t.rules, "ask", "shield");
-  return out.slice(0, 7);
+  const asks = out.slice(0, 7);
+  if (!input.canAct) return asks;
+  // The Act group: each becomes a card, never an action. A scoped person gets
+  // the two that name them; the rest are the settings an owner changes from
+  // the floor, left for the person to finish in the input.
+  const acts: AskSuggestion[] = [];
+  const act = (label: string, q: string, icon: string, compose = false) => {
+    if (!acts.some((a) => a.q === q)) acts.push({ q, kind: "act", icon, label, compose });
+  };
+  if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
+    act(t.actLate.replace("{name}", s.label), t.actLateQ.replace("{name}", s.label), "chat");
+    act(t.actDraft.replace("{name}", s.label), t.actDraftQ.replace("{name}", s.label), "edit", true);
+  }
+  act(t.actRemember, t.actRememberQ, "sparkle", true);
+  if (input.surface === "settings" || input.surface === "today") act(t.actClose, t.actCloseQ, "calendar", true);
+  if (input.surface === "settings") act(t.actHours, t.actHoursQ, "clock", true);
+  if (input.surface === "settings") act(t.actInvite, t.actInviteQ, "users", true);
+  if (input.surface === "inbox" || input.heldDrafts > 0) act(t.actHold, t.actHoldQ, "shield");
+  return [...asks, ...acts.slice(0, 4)];
 }
 
 /* -------------------------------------------------------------- fast paths */

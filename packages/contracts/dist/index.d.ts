@@ -3606,11 +3606,16 @@ declare const ASK_PAGES: JumpEntry[];
 declare function askJump(query: string, index: JumpEntry[], limit?: number): JumpEntry[];
 type AskSurface = "today" | "inbox" | "people" | "conversations" | "live" | "reports" | "settings" | "other";
 interface AskSuggestion {
+    /** The words sent, or placed in the input when `compose` is set. */
     q: string;
     kind: "ask" | "act";
     icon: string;
     /** Answered without a model. */
     fast?: boolean;
+    /** What the row shows when it differs from the words. */
+    label?: string;
+    /** Put the words in the input for the person to finish, rather than sending them. */
+    compose?: boolean;
 }
 interface SuggestionInput {
     surface: AskSurface;
@@ -3621,6 +3626,8 @@ interface SuggestionInput {
     liveNow: number;
     hasCalendar: boolean;
     scope?: AskScope | null;
+    /** Operators and owners may act; a viewer is never offered a card. */
+    canAct?: boolean;
 }
 /**
  * Questions the workspace can answer today, for where the person is. Built

@@ -4,8 +4,8 @@ import { takeRate } from "@/server/rate-limit";
 import { requireUuid } from "@/server/request-guards";
 import { tenantFacts } from "@/server/tenant";
 import { runAskTurn, type TurnEvent } from "@/server/ask/loop";
-import { workspaceFacts, titleFromQuestion } from "@/server/ask/prompt";
-import { appendMessage, createThread, readThread, touchThread } from "@/server/ask/store";
+import { workspaceFacts, resultTitle, titleFromQuestion } from "@/server/ask/prompt";
+import { appendMessage, createThread, readThread, retitleThread, touchThread } from "@/server/ask/store";
 
 /**
  * POST /api/v1/ask — one turn of the workspace assistant.
@@ -106,7 +106,9 @@ export const POST = withRoute(async (req, ctx) => {
       let saved: { id: string; created_at: string } | null = null;
       try {
         saved = await appendMessage(ctx, thread.id, tenantId, "assistant", content);
-        await touchThread(ctx, thread.id);
+        // A new thread is titled by what its first answer did.
+        if (!threadId && !result.failed) await retitleThread(ctx, thread.id, resultTitle(text, result.proposals, result.navigate));
+        else await touchThread(ctx, thread.id);
       } catch (e) {
         console.error("ask_save_failed", JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
       }

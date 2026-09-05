@@ -516,3 +516,27 @@ test("context first: the day rides into every turn, its rows can be cited, loade
   const ev = readCode("tooling/scripts/eval-ask.mjs");
   assert.ok(ev.includes("one-round ${oneRound}/${results.length}"), "the eval measures the one-round share");
 });
+
+test("the rail, result titles and the Act group: a desktop conversation has the mockup's rail, a thread is titled by what it did, and an operator is offered cards to finish", () => {
+  const withActs = buildAskSuggestions({ surface: "settings", language: "en", needsYou: 0, heldDrafts: 0, missedToday: 0, liveNow: 0, hasCalendar: false, canAct: true, scope: { kind: "person", id: ID, label: "Rosa" } });
+  const acts = withActs.filter((s) => s.kind === "act");
+  assert.ok(acts.length >= 3 && acts.length <= 4, "a few cards, never a wall");
+  assert.ok(acts.some((s) => s.label === "Tell Rosa we're running late" && !s.compose && /15 minutes late/.test(s.q)), "a scoped person gets a card to send");
+  assert.ok(acts.some((s) => s.compose && s.q === "Remember that "), "a note is left for the person to finish");
+  const viewer = buildAskSuggestions({ surface: "settings", language: "en", needsYou: 0, heldDrafts: 0, missedToday: 0, liveNow: 0, hasCalendar: false, canAct: false });
+  assert.equal(viewer.filter((s) => s.kind === "act").length, 0, "a viewer is never offered a card");
+  const es = buildAskSuggestions({ surface: "inbox", language: "es", needsYou: 1, heldDrafts: 1, missedToday: 0, liveNow: 0, hasCalendar: false, canAct: true });
+  assert.ok(es.some((s) => s.kind === "act" && /Retén cada respuesta/.test(s.q)));
+  const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
+  assert.ok(prompt.includes("export function resultTitle("));
+  const route = readCode("apps/dashboard/app/api/v1/ask/route.ts");
+  assert.ok(route.includes("await retitleThread(ctx, thread.id, resultTitle(text, result.proposals, result.navigate));"), "a new thread is titled by its first answer's result");
+  const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
+  assert.ok(ui.includes('data-testid="ask-rail"') && ui.includes('className="ask-new-btn"') && ui.includes("const AR_RAIL_CAP = 10;"));
+  assert.ok(ui.includes('window.matchMedia("(min-width: 721px)")'), "the rail is a desktop's; the phone keeps its sheet");
+  assert.ok(ui.includes("const railOn = wide && !!active;"), "the rail appears beside a conversation, not on the palette at rest");
+  assert.ok(ui.includes('sections.push({ key: "act", label: t.act,'), "Ask and Act are two groups");
+  assert.ok(ui.includes("if (it.compose) { setQuery(it.q);"), "a compose row lands in the input for the person to finish");
+  const bridge = readCode("apps/dashboard/src/legacy-bridge/ask.ts");
+  assert.ok(bridge.includes('canAct: w.__ME?.role === "owner" || w.__ME?.role === "operator",'));
+});

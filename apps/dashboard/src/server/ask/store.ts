@@ -98,6 +98,12 @@ export async function appendMessage(
   return data;
 }
 
+/** A thread's title, once its first answer says what it was about. */
+export async function retitleThread(ctx: RouteContext, threadId: string, title: string): Promise<void> {
+  const { error } = await ctx.supabase.from("ask_threads").update({ title: title.slice(0, 80), last_at: new Date().toISOString() }).eq("id", threadId);
+  if (error) console.error("ask_thread_retitle_failed", error.message);
+}
+
 export async function touchThread(ctx: RouteContext, threadId: string): Promise<void> {
   const { error } = await ctx.supabase.from("ask_threads").update({ last_at: new Date().toISOString() }).eq("id", threadId);
   if (error) console.error("ask_thread_touch_failed", error.message);

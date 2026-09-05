@@ -131,6 +131,9 @@ test.describe("Ask on a real workspace", () => {
     const text = await turn.first().innerText();
     expect(text.length).toBeGreaterThan(10);
     for (const s of INVENTED) expect(text).not.toContain(s);
+    // On a desktop the conversation has the rail beside it, with New chat.
+    await expect(page.getByTestId("ask-rail")).toBeVisible();
+    await expect(page.getByTestId("ask-rail").locator(".ask-new-btn")).toBeVisible();
     await page.screenshot({ path: "test-results/ask-turn.png" });
   });
 });

@@ -2116,7 +2116,21 @@ var T = {
     who: "Who wrote today?",
     rules: "What can the receptionist do on its own?",
     hours: "What are our hours this week?",
-    brief: "Brief me on today"
+    brief: "Brief me on today",
+    actLate: "Tell {name} we're running late",
+    actLateQ: "Tell {name} we're running about 15 minutes late today",
+    actDraft: "Draft a reply to {name}",
+    actDraftQ: "Draft a reply to {name}: ",
+    actRemember: "Remember something for the receptionist",
+    actRememberQ: "Remember that ",
+    actClose: "Close the salon on a day",
+    actCloseQ: "Close the salon on ",
+    actHours: "Change a day's hours",
+    actHoursQ: "Change Saturday's hours to ",
+    actInvite: "Invite a teammate",
+    actInviteQ: "Invite ",
+    actHold: "Hold every reply for my review",
+    actHoldQ: "Hold every reply for my review before it sends"
   },
   es: {
     needs: "\xBFQui\xE9n me necesita ahora?",
@@ -2131,7 +2145,21 @@ var T = {
     who: "\xBFQui\xE9n escribi\xF3 hoy?",
     rules: "\xBFQu\xE9 puede hacer la recepcionista sola?",
     hours: "\xBFCu\xE1l es nuestro horario esta semana?",
-    brief: "Res\xFAmeme el d\xEDa"
+    brief: "Res\xFAmeme el d\xEDa",
+    actLate: "Dile a {name} que vamos con retraso",
+    actLateQ: "Dile a {name} que vamos con unos 15 minutos de retraso hoy",
+    actDraft: "Redacta una respuesta a {name}",
+    actDraftQ: "Redacta una respuesta a {name}: ",
+    actRemember: "Recu\xE9rdale algo a la recepcionista",
+    actRememberQ: "Recuerda que ",
+    actClose: "Cerrar el sal\xF3n un d\xEDa",
+    actCloseQ: "Cierra el sal\xF3n el ",
+    actHours: "Cambiar el horario de un d\xEDa",
+    actHoursQ: "Cambia el horario del s\xE1bado a ",
+    actInvite: "Invitar a alguien del equipo",
+    actInviteQ: "Invita a ",
+    actHold: "Retener cada respuesta para revisarla",
+    actHoldQ: "Ret\xE9n cada respuesta para mi revisi\xF3n antes de enviarla"
   }
 };
 function buildAskSuggestions(input) {
@@ -2180,7 +2208,22 @@ function buildAskSuggestions(input) {
   if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
   add(t.week, "ask", "trending-up");
   add(t.rules, "ask", "shield");
-  return out.slice(0, 7);
+  const asks = out.slice(0, 7);
+  if (!input.canAct) return asks;
+  const acts = [];
+  const act = (label, q, icon, compose = false) => {
+    if (!acts.some((a) => a.q === q)) acts.push({ q, kind: "act", icon, label, compose });
+  };
+  if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
+    act(t.actLate.replace("{name}", s.label), t.actLateQ.replace("{name}", s.label), "chat");
+    act(t.actDraft.replace("{name}", s.label), t.actDraftQ.replace("{name}", s.label), "edit", true);
+  }
+  act(t.actRemember, t.actRememberQ, "sparkle", true);
+  if (input.surface === "settings" || input.surface === "today") act(t.actClose, t.actCloseQ, "calendar", true);
+  if (input.surface === "settings") act(t.actHours, t.actHoursQ, "clock", true);
+  if (input.surface === "settings") act(t.actInvite, t.actInviteQ, "users", true);
+  if (input.surface === "inbox" || input.heldDrafts > 0) act(t.actHold, t.actHoldQ, "shield");
+  return [...asks, ...acts.slice(0, 4)];
 }
 var NEEDS_RE = /\b(who needs me|who needs my|needs? (my|me)\b|what('s| is| do i have)? waiting|waiting (on|for) me|anyone waiting|qui[eé]n me necesita|qu[eé] (me )?espera|qu[eé] (hay )?pendiente|pendientes?)\b/i;
 var CALLS_RE = /\b((did|has|have) (anyone|someone|anybody|somebody) (call|called|rang|phoned)|missed calls?|who called|any calls?|llam[oó] alguien|llamaron|llamadas? perdidas?|qui[eé]n llam[oó]|alguna llamada)\b/i;
