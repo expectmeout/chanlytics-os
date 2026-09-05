@@ -32,6 +32,7 @@ import { installPolicyStore } from "./policy-store";
 import { installNotifications } from "./notifications";
 import { installAsk } from "./ask";
 import { installWhatsAppConnect } from "./whatsapp-connect";
+import { installTemplates } from "./templates";
 import CreateWorkspace from "./CreateWorkspace";
 
 installInboxVerbs();
@@ -48,6 +49,7 @@ installPolicyStore();
 installNotifications();
 installAsk();
 installWhatsAppConnect();
+installTemplates();
 // The installable shell's service worker (public/sw.js). It caches nothing
 // and answers nothing — the workspace is live data — and exists so a phone
 // can add the app to its home screen. Production only: a worker on a dev

@@ -41,6 +41,19 @@ test.describe("Settings → Integrations on a real workspace", () => {
     await expect(row).toContainText(/Connect WhatsApp|isn't set up to connect|connected by an owner|Checking/);
   });
 
+  test("the templates card shows what Meta holds, or says none yet, and never invents one", async ({ page }) => {
+    await page.goto("/#/admin/integrations");
+    await page.waitForLoadState("networkidle");
+    const card = page.getByTestId("templates");
+    await expect(card).toBeVisible();
+    const res = await page.request.get("/api/v1/templates?all=1");
+    expect(res.status()).toBe(200);
+    const { data } = await res.json();
+    const wa = data.templates.filter((t: { channel: string }) => t.channel === "whatsapp");
+    await expect(card.getByTestId("template-row")).toHaveCount(wa.length);
+    await expect(card).toContainText(wa.length === 0 ? "None on file yet" : "on file");
+  });
+
   test("lists the real channels with their state and nothing invented", async ({ page }) => {
     await page.goto("/#/admin/integrations");
     await page.waitForLoadState("networkidle");

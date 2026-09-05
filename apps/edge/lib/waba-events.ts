@@ -10,6 +10,7 @@
  * ride the same alert path a failed send already uses.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { mapCategory, mapStatus } from "./meta-templates.js";
 import type { Database, Json } from "./workspace/db.js";
 import { emitEvent } from "./workspace/db.js";
 import { notify, type NotifyTarget } from "./notify.js";
@@ -21,7 +22,7 @@ export async function notificationsFor(db: SupabaseClient<Database>, tenantId: s
   return parseTenantConfig(data?.config ?? null)?.notifications ?? null;
 }
 
-export const WABA_FIELDS = new Set(["phone_number_quality_update", "account_update", "message_template_status_update", "account_review_update", "message_template_quality_update"]);
+export const WABA_FIELDS = new Set(["phone_number_quality_update", "account_update", "message_template_status_update", "account_review_update", "message_template_quality_update", "template_category_update"]);
 
 export interface WabaChange {
   field: string;
@@ -74,6 +75,11 @@ export function describeWabaChange(c: WabaChange, number: string | null): { subj
       if (event === "APPROVED") return { subject: `Template “${name}” approved`, body: `WhatsApp approved the template “${name}”. It can be sent outside the 24-hour window now.`, alert: false };
       return null;
     }
+    case "template_category_update": {
+      const name = typeof v.message_template_name === "string" ? v.message_template_name : "a template";
+      const to = typeof v.new_category === "string" ? v.new_category.toLowerCase() : "another category";
+      return { subject: `Template “${name}” is now ${to}`, body: `Meta moved the template “${name}” to ${to}.${to === "marketing" ? " Sends that use it now need the customer's recorded yes." : ""}`, alert: to === "marketing" };
+    }
     case "account_review_update": {
       const decision = String(v.decision ?? "");
       if (decision === "REJECTED") return { subject: "WhatsApp account review rejected", body: `WhatsApp's review of the account behind ${line.toLowerCase()} was rejected. Messaging limits stay where they are until it is appealed.`, alert: true };
@@ -89,6 +95,8 @@ export function describeWabaChange(c: WabaChange, number: string | null): { subj
  * Keep the change and, when it matters, tell the workspace. Returns what it
  * did, for the log; never throws — the webhook has already been acknowledged.
  */
+const TEMPLATE_STATUS_EVENTS = new Set(["APPROVED", "REJECTED", "PAUSED", "DISABLED", "PENDING_DELETION", "IN_APPEAL"]);
+
 export async function handleWabaChange(
   db: SupabaseClient<Database>,
   wabaId: string,
@@ -109,6 +117,29 @@ export async function handleWabaChange(
     const { data: row } = await db.from("tenant_channels").select("config").eq("id", routed.channelId).maybeSingle();
     const cfg = (row?.config && typeof row.config === "object" ? row.config : {}) as Record<string, unknown>;
     await db.from("tenant_channels").update({ config: { ...cfg, messaging_limit: change.value.current_limit, quality_event: change.value.event ?? null, quality_at: new Date().toISOString() } as unknown as Json }).eq("id", routed.channelId);
+  }
+  // The templates table follows Meta's word: a status or category change
+  // lands on the row the sync keeps, by name and language. Only the events
+  // that change whether a template can be sent move the status; a quality
+  // flag on an approved template leaves it approved.
+  if (change.field === "message_template_status_update" || change.field === "template_category_update") {
+    const name = typeof change.value.message_template_name === "string" ? change.value.message_template_name : null;
+    const language = typeof change.value.message_template_language === "string" ? change.value.message_template_language : null;
+    if (name && language) {
+      if (change.field === "message_template_status_update") {
+        const event = String(change.value.event ?? "");
+        if (TEMPLATE_STATUS_EVENTS.has(event)) {
+          const reason = event === "REJECTED" && typeof change.value.reason === "string" && change.value.reason !== "NONE" ? change.value.reason : null;
+          const { error } = await db.from("templates").update({ meta_status: mapStatus(event), rejected_reason: reason })
+            .eq("tenant_id", routed.tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language);
+          if (error) console.error("template_status_write_failed", error.message);
+        }
+      } else {
+        const { error } = await db.from("templates").update({ category: mapCategory(typeof change.value.new_category === "string" ? change.value.new_category : null) })
+          .eq("tenant_id", routed.tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language);
+        if (error) console.error("template_category_write_failed", error.message);
+      }
+    }
   }
   if (!described || !described.alert) return "kept";
   const target: NotifyTarget = { tenantId: routed.tenantId, notifications: await loadNotifications(routed.tenantId), isEnvDefault: false };

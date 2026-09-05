@@ -1499,36 +1499,54 @@ type Database = {
             templates: {
                 Row: {
                     body_preview: string | null;
+                    category: string | null;
                     channel: string;
+                    components: Json | null;
                     created_at: string;
                     id: string;
                     language: string;
+                    meta_id: string | null;
                     meta_status: string;
                     name: string;
+                    quality: string | null;
+                    rejected_reason: string | null;
+                    synced_at: string | null;
                     tenant_id: string;
                     updated_at: string;
                     variables: Json;
                 };
                 Insert: {
                     body_preview?: string | null;
+                    category?: string | null;
                     channel: string;
+                    components?: Json | null;
                     created_at?: string;
                     id?: string;
                     language: string;
+                    meta_id?: string | null;
                     meta_status?: string;
                     name: string;
+                    quality?: string | null;
+                    rejected_reason?: string | null;
+                    synced_at?: string | null;
                     tenant_id: string;
                     updated_at?: string;
                     variables?: Json;
                 };
                 Update: {
                     body_preview?: string | null;
+                    category?: string | null;
                     channel?: string;
+                    components?: Json | null;
                     created_at?: string;
                     id?: string;
                     language?: string;
+                    meta_id?: string | null;
                     meta_status?: string;
                     name?: string;
+                    quality?: string | null;
+                    rejected_reason?: string | null;
+                    synced_at?: string | null;
                     tenant_id?: string;
                     updated_at?: string;
                     variables?: Json;
