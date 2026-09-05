@@ -13,7 +13,7 @@
  * the receptionist says nothing about open times (the link still works),
  * and the failure is logged where the diagnostic can find it.
  */
-import { parseIcs, freeWindows, describeOpenings } from "./workspace/contracts.js";
+import { parseIcs, freeWindows, describeOpenings, type Opening } from "./workspace/contracts.js";
 import type { TenantRuntime } from "./tenant-runtime.js";
 
 const CACHE_MS = 5 * 60 * 1000;
@@ -51,26 +51,40 @@ async function fetchFeed(tenantId: string, url: string): Promise<string | null> 
   return text;
 }
 
+/** The openings as data, for the phone tool that answers about one day. */
+export interface OpeningsData {
+  openings: Opening[];
+  tz: string;
+  daysAhead: number;
+}
+
 /**
- * The openings block for the prompt, or null when there is nothing to say —
- * no feed configured, or a feed that could not be read.
+ * The openings, or null when there is nothing to say — no feed configured,
+ * or a feed that could not be read.
  */
-export async function openingsFor(rt: TenantRuntime, now = new Date()): Promise<string | null> {
+export async function openingsData(rt: TenantRuntime, now = new Date()): Promise<OpeningsData | null> {
   const url = rt.calendar?.ical_url;
   const profile = rt.brain?.profile;
   if (!url || !profile || !rt.timezone) return null;
   const text = await fetchFeed(rt.tenantId, url);
   if (text === null) return null;
   try {
-    const feed = parseIcs(text, rt.timezone);
     const rules = profile.booking_rules ?? null;
+    const daysAhead = rules?.max_days_ahead ?? 14;
+    const feed = parseIcs(text, rt.timezone, { horizon: { from: now.getTime() - 86400000, to: now.getTime() + (daysAhead + 1) * 86400000 } });
     const openings = freeWindows({ hours: profile.hours, closures: profile.closures, tz: rt.timezone, busy: feed.busy, rules, now });
     if (feed.skippedRecurring) console.log("availability_recurring_skipped", JSON.stringify({ tenant: rt.tenantId, count: feed.skippedRecurring }));
-    return describeOpenings(openings, rt.timezone, { daysAhead: rules?.max_days_ahead ?? 14 });
+    return { openings, tz: rt.timezone, daysAhead };
   } catch (e) {
     console.error("availability_compute_failed", JSON.stringify({ tenant: rt.tenantId, error: e instanceof Error ? e.message : String(e) }));
     return null;
   }
+}
+
+/** The openings block for the prompt, or null when there is nothing to say. */
+export async function openingsFor(rt: TenantRuntime, now = new Date()): Promise<string | null> {
+  const data = await openingsData(rt, now);
+  return data ? describeOpenings(data.openings, data.tz, { daysAhead: data.daysAhead }) : null;
 }
 
 /** Tests and the diagnostic: forget every cached feed. */

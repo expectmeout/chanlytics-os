@@ -46,6 +46,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 KEY = os.environ["RETELL_API_KEY"]  # never hardcode: this key is also the webhook HMAC secret
 BASE = "https://api.retellai.com"
 SITE_FN = "https://chanlytics-messaging.vercel.app/api/retell-fn"
+SITE_AVAIL = "https://chanlytics-messaging.vercel.app/api/retell-availability"
 SITE_WH = "https://chanlytics-messaging.vercel.app/api/retell-webhook"
 
 # Per-tenant, so provisioning a second business is a different invocation of
@@ -135,6 +136,24 @@ llm = call("POST", "/create-retell-llm", {
                         "type": "string",
                         "description": "Alternate number to send the link to, digits only with country code. Omit to use the caller's number.",
                     }
+                },
+            },
+        },
+        {
+            "type": "custom",
+            "name": "check_availability",
+            "description": "Check which appointment times are open right now. Use when the caller asks when they could come in, or before offering a time. Returns the open windows; offer up to three that fit, then send the booking link. Never confirm a slot yourself.",
+            "url": SITE_AVAIL,
+            "method": "POST",
+            "speak_during_execution": True,
+            "execution_message_description": "Say you are checking the calendar.",
+            "speak_after_execution": True,
+            "headers": {"x-fn-secret": FN_SECRET},
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "day": {"type": "string", "description": "A day the caller asked about, as YYYY-MM-DD or a weekday name. Omit for the next few days."},
+                    "service": {"type": "string", "description": "The service they want, so only windows long enough for it are offered. Omit if unknown."},
                 },
             },
         },

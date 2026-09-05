@@ -63,8 +63,9 @@ const ICS = [
 test("the feed: zones, folding, all-day, cancelled and free events, recurring counted", () => {
   const feed = parseIcs(ICS, TZ);
   assert.equal(feed.events, 6);
-  assert.equal(feed.skippedRecurring, 1, "recurring events are counted, not expanded (yet)");
-  assert.equal(feed.busy.length, 3, "two appointments and the training day; not the cancelled one, not the free one");
+  assert.equal(feed.recurringExpanded, 1, "the weekly event is expanded inside the horizon");
+  assert.equal(feed.skippedRecurring, 0);
+  assert.ok(feed.busy.length >= 4, "two appointments, the training day, and the weekly occurrences; not the cancelled one, not the free one");
   const ny = (h, m = 0) => localToUtcMs(TZ, 2026, 9, 9, h, m);
   assert.deepEqual(feed.busy[0], { start: ny(11), end: ny(13) }, "a TZID time is that zone's wall clock");
   assert.deepEqual(feed.busy[1], { start: ny(15), end: ny(16) }, "19:00Z is 3 PM in New York in September");
