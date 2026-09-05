@@ -255,8 +255,27 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
       }
 
       const ordered = [...blocks.entries()].sort((a, b) => a[0] - b[0]).map(([, b]) => b);
-      const finish = ordered.find((b) => b.type === "tool_use" && b.name === "finish");
+      let finish = ordered.find((b) => b.type === "tool_use" && b.name === "finish");
       const readCalls = ordered.filter((b) => b.type === "tool_use" && b.name !== "finish");
+
+      // A proposal and the answer in one round: the act tools run first (they
+      // only check and propose), then the finish call stands. A read beside a
+      // finish is different: the answer was written before the read, so that
+      // finish is set aside and the model answers next round with the rows.
+      if (finish && readCalls.length && readCalls.every((b) => ACT_TOOL_NAMES.has(b.name))) {
+        for (const b of readCalls) {
+          let parsedInput: Record<string, unknown> = {};
+          try { parsedInput = b.json ? (JSON.parse(b.json) as Record<string, unknown>) : {}; } catch { /* an empty input */ }
+          toolsUsed.push(b.name);
+          input.emit({ t: "trace", text: proposalLabel(b.name) });
+          const p = await buildProposal(tc, b.name, parsedInput);
+          if (p.proposal) proposals.push(p.proposal);
+        }
+        readCalls.length = 0;
+      } else if (finish && readCalls.length) {
+        console.warn("ask_finish_beside_read", JSON.stringify({ tools: readCalls.map((b) => b.name), tenant: input.tenantId }));
+        finish = undefined;
+      }
 
       if (finish) {
         const parsed = parseAskFinish(finish.json || "{}");

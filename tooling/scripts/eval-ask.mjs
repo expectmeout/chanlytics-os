@@ -105,7 +105,7 @@ export function judge(c, r) {
   // every turn as the snapshot, so a case that named them is satisfied by an
   // answer that needed no read at all.
   const OVERVIEW = ["get_today", "list_threads", "list_calls"];
-  const fromSnapshot = m.tools.length === 0 && e.tools_any && e.tools_any.some((t) => OVERVIEW.includes(t));
+  const fromSnapshot = e.tools_any && e.tools_any.some((t) => OVERVIEW.includes(t)) && !m.tools.some((t) => OVERVIEW.includes(t));
   if (e.tools_any && !fromSnapshot && !e.tools_any.some((t) => m.tools.includes(t))) fails.push(`tools ${JSON.stringify(m.tools)} include none of ${e.tools_any.join("/")}`);
   if (m.failed && /daily budget|presupuesto diario/.test(text)) fails.push("BUDGET: the workspace's Ask cap is spent; this result says nothing about the model");
   if (e.tools_also_any && !e.tools_also_any.some((t) => m.tools.includes(t))) fails.push(`tools ${JSON.stringify(m.tools)} include none of ${e.tools_also_any.join("/")}`);

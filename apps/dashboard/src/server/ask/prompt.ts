@@ -45,7 +45,7 @@ export const ASK_RULES = [
   "Phone numbers belong to the workspace's customers. Show them only when asked for a number.",
   "Use the workspace's own words for states: needs you, waiting on you, held draft, answering, snoozed, opted out.",
   "When the right answer is a page or a row, set navigate to it. Use follow-ups for the next natural question, never to pad.",
-  "Call finish exactly once, when you have what you need or when there is nothing more to read. Read in parallel when several reads are needed.",
+  "Call finish exactly once, when you have what you need or when there is nothing more to read. Read in parallel when several reads are needed. A proposal needs no second round: call the act tool and finish together, and say what you proposed.",
 ] as const;
 
 export interface WorkspaceFacts {
