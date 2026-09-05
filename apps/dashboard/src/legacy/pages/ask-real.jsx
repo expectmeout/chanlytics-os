@@ -36,6 +36,12 @@ const AR_TEXT = {
     noCalendar: "No calendar is connected, so I can't see openings. The hours are in Settings.",
     unavailable: "The calendar couldn't be read right now.",
     openings: "Open times",
+    newChat: "New chat",
+    threads: "Threads",
+    earlier: "Earlier…",
+    tagAnswer: "answer",
+    tagCard: "card",
+    act: "Act",
     from: "From",
     talk: "Hold to talk",
     listening: "Listening…",
@@ -77,6 +83,12 @@ const AR_TEXT = {
     noCalendar: "No hay calendario conectado, así que no veo huecos. El horario está en Ajustes.",
     unavailable: "No se pudo leer el calendario ahora.",
     openings: "Horas libres",
+    newChat: "Nuevo chat",
+    threads: "Hilos",
+    earlier: "Anteriores…",
+    tagAnswer: "respuesta",
+    tagCard: "tarjeta",
+    act: "Actuar",
     from: "De",
     talk: "Mantén para hablar",
     listening: "Escuchando…",
@@ -152,6 +164,23 @@ const useArTalk = ({ lang, onWords, onHeard, disabled }) => {
   };
   return { canTalk, listening, start, stop };
 };
+
+// A desktop has room for the mockup's rail beside a conversation; a phone
+// keeps the single-column sheet.
+const useArWide = () => {
+  const mq = () => (typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 721px)") : null);
+  const [wide, setWide] = useArState(() => { const m = mq(); return !!(m && m.matches); });
+  useArEffect(() => {
+    const m = mq();
+    if (!m) return;
+    const on = () => setWide(m.matches);
+    if (m.addEventListener) m.addEventListener("change", on); else m.addListener(on);
+    return () => { if (m.removeEventListener) m.removeEventListener("change", on); else m.removeListener(on); };
+  }, []);
+  return wide;
+};
+
+const AR_RAIL_CAP = 10;
 
 const arAgo = (ms) => {
   if (!ms) return "";
@@ -315,6 +344,8 @@ const AskReal = ({ open, onClose }) => {
   const [sel, setSel] = useArState(0);
   const [lang, setLang] = useArState(() => (A ? A.language() : "en"));
   const [tick, setTick] = useArState(0);
+  const [railMore, setRailMore] = useArState(false);
+  const wide = useArWide();
   const [toastNode, flash] = window.usePPToast();
   const inputRef = useArRef(null);
   const bodyRef = useArRef(null);
@@ -447,7 +478,11 @@ const AskReal = ({ open, onClose }) => {
     if (!final) final = { id: "e-" + Date.now(), role: "assistant", text: lang === "es" ? "Se cortó la respuesta. Inténtalo de nuevo." : "The answer was cut off. Try again.", failed: true, citations: [], followups: [], proposals: [], atMs: Date.now() };
     setLive(null);
     setActive((prev) => (prev ? { ...prev, id: threadId || prev.id, messages: [...prev.messages, final] } : prev));
-    if (threadId) A.threads().then(setThreads);
+    if (threadId) A.threads().then((list) => {
+      setThreads(list);
+      const mine = list.find((x) => x.id === threadId);
+      if (mine) setActive((prev) => (prev && prev.id === threadId ? { ...prev, title: mine.title } : prev));
+    });
     // "Open the 3:34 AM call": the app goes there as the answer lands. The
     // thread stays; ⌘K resumes it.
     if (final && final.navigate && final.navigate.now && final.navigate.to && !final.failed) {
@@ -468,12 +503,15 @@ const AskReal = ({ open, onClose }) => {
       sections.push({ key: "fb", items: [{ type: "ask", icon: "sparkle", label: t.askRow(qStr), sub: fp ? (lang === "es" ? "Respuesta al instante" : "Instant answer") : t.askSub, q: qStr }] });
       const jumps = A.jump(qStr);
       if (jumps.length) sections.push({ key: "jump", label: t.jump, items: jumps.map((j) => ({ type: "jump", icon: j.kind === "person" ? "users" : j.kind === "thread" ? "inbox" : j.kind === "call" ? "phone" : "arrow-right", label: j.label, sub: j.sub, meta: j.kind, to: j.to })) });
-      const hits = A.suggestions(surface, scope, lang).filter((s) => s.q.toLowerCase().includes(qStr.toLowerCase()));
-      if (hits.length) sections.push({ key: "sug", label: t.ask, items: hits.map((s) => ({ type: "ask", icon: s.icon, label: s.q, q: s.q })) });
+      const hits = A.suggestions(surface, scope, lang).filter((s) => (s.label || s.q).toLowerCase().includes(qStr.toLowerCase()));
+      if (hits.length) sections.push({ key: "sug", label: t.ask, items: hits.map((s) => ({ type: s.kind === "act" ? "act" : "ask", icon: s.icon, label: s.label || s.q, q: s.q, compose: s.compose, meta: s.kind === "act" ? t.tagCard : undefined })) });
     } else {
       const now = A.rightNow().slice(0, 4);
       if (now.length) sections.push({ key: "now", label: t.now, items: now.map((n) => ({ type: "now", icon: n.icon || "inbox", label: n.title, sub: n.message, to: n.to })) });
-      sections.push({ key: "ask", label: t.ask, items: A.suggestions(surface, scope, lang).map((s) => ({ type: "ask", icon: s.icon, label: s.q, q: s.q, fast: s.fast })) });
+      const all = A.suggestions(surface, scope, lang);
+      sections.push({ key: "ask", label: t.ask, items: all.filter((s) => s.kind !== "act").map((s) => ({ type: "ask", icon: s.icon, label: s.q, q: s.q, fast: s.fast })) });
+      const acts = all.filter((s) => s.kind === "act");
+      if (acts.length) sections.push({ key: "act", label: t.act, items: acts.map((s) => ({ type: "act", icon: s.icon, label: s.label || s.q, q: s.q, compose: s.compose, meta: t.tagCard })) });
       if (threads.length) sections.push({ key: "recent", label: t.recent, items: threads.slice(0, 6).map((th) => ({ type: "thread", icon: "sparkle", label: th.title, sub: arAgo(th.lastAtMs), th })) });
     }
   }
@@ -485,8 +523,12 @@ const AskReal = ({ open, onClose }) => {
     if (!it) return;
     if (it.type === "thread") { openThread(it.th); return; }
     if (it.type === "jump" || it.type === "now") { nav(it.to); return; }
+    if (it.compose) { setQuery(it.q); setTimeout(() => inputRef.current && inputRef.current.focus(), 20); return; }
     submit(it.q);
   };
+  const newChat = () => { setActive(null); setQuery(""); setFast(null); setRailMore(false); };
+  const railOn = wide && !!active;
+  const railThreads = railMore ? threads.slice(0, 40) : threads.slice(0, AR_RAIL_CAP);
 
   const onKey = (e) => {
     if (active) {
@@ -504,7 +546,25 @@ const AskReal = ({ open, onClose }) => {
 
   return (
     <div className="ask-overlay" onClick={onClose} data-tick={tick}>
-      <div className="ask-modal cmd-modal ask-real" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Ask Chanlytics" data-testid="ask-real">
+      <div className={`ask-modal ask-real ${railOn ? "ask-modal-threads" : "cmd-modal"}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Ask Chanlytics" data-testid="ask-real">
+        {railOn && (
+          <aside className="ask-rail" data-testid="ask-rail">
+            <button className="ask-new-btn" onClick={newChat}><Icon name="plus" size={12} /> {t.newChat}</button>
+            <div className="ask-rail-label"><span>{t.threads}</span></div>
+            <div className="ask-rail-list">
+              {railThreads.map((th) => (
+                <button key={th.id} className={`ask-thread ${active && active.id === th.id ? "active" : ""}`} onClick={() => openThread(th)}>
+                  <span className="ask-thread-title">{th.title}</span>
+                  <span className="ask-thread-at">{arAgo(th.lastAtMs)}</span>
+                </button>
+              ))}
+              {!railMore && threads.length > AR_RAIL_CAP && (
+                <button className="ask-thread ask-thread-more" onClick={() => setRailMore(true)}><span className="ask-thread-at">{t.earlier}</span></button>
+              )}
+            </div>
+          </aside>
+        )}
+        <div className={railOn ? "ask-main" : "ask-single"}>
         <div className="cmd-input-bar">
           {active
             ? <button className="cmd-back" onClick={() => { setActive(null); setQuery(""); }} aria-label="Back to the palette"><Icon name="chevron" size={13} style={{ transform: "rotate(180deg)" }} /></button>
@@ -612,6 +672,7 @@ const AskReal = ({ open, onClose }) => {
             ? <><span><span className="kbd">↵</span> send</span><span><span className="kbd">esc</span> back</span><span className="cmd-foot-note">{t.footNote}</span></>
             : <><span><span className="kbd">↑↓</span> move</span><span><span className="kbd">↵</span> select</span><span><span className="kbd">esc</span> close</span><span className="cmd-foot-note">{t.footNote}</span></>}
         </footer>
+        </div>
       </div>
       {toastNode}
     </div>

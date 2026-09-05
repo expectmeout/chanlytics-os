@@ -149,3 +149,14 @@ export function titleFromQuestion(q: string): string {
   const s = q.replace(/\s+/g, " ").trim();
   return s.length > 60 ? `${s.slice(0, 57).trimEnd()}…` : s;
 }
+
+/**
+ * A thread's title once it has an answer: by its result when it produced
+ * one (the card it put up), by the question otherwise. Two threads that
+ * asked the same thing keep the same title; the rail shows when.
+ */
+export function resultTitle(question: string, proposals: Array<{ title: string }>, navigate: { label: string } | null): string {
+  if (proposals.length) return proposals.length === 1 ? proposals[0].title : `${proposals[0].title} +${proposals.length - 1}`;
+  if (navigate && navigate.label && /^(open|show|ver|abrir|mostrar)/i.test(question.trim())) return navigate.label.slice(0, 60);
+  return titleFromQuestion(question);
+}

@@ -52,6 +52,7 @@ interface Globals {
   __ACTIVE_WORKSPACE?: string | null;
   __DEMO_MODE?: boolean;
   __TEAM_INVITES?: unknown[] | null;
+  __ME?: { role?: string | null } | null;
 }
 
 export type SendEvent =
@@ -319,6 +320,7 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
         liveNow: calls.filter((c) => c.live).length,
         hasCalendar: !!w.__SETTINGS?.config?.calendar?.ical_url,
         scope,
+        canAct: w.__ME?.role === "owner" || w.__ME?.role === "operator",
       });
     },
     fast: (question) => {

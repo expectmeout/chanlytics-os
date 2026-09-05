@@ -1827,3 +1827,11 @@ button.dec-policy.pill-warn{border:1px solid transparent}
 /* ---- The mic is always there; where the browser cannot listen it says so ---- */
 .ask-talk.off{opacity:.55}
 .ask-talk.off:hover{opacity:.8}
+
+/* ---- The rail beside a desktop conversation; the single column keeps its flex ---- */
+.ask-real .ask-single{display:contents}
+.ask-real.ask-modal-threads .ask-main{height:100%}
+.ask-real .ask-thread{cursor:pointer;border:0;font:inherit;width:100%}
+.ask-real .ask-thread-more .ask-thread-at{color:var(--ink-dim)}
+.ask-real .ask-new-btn{cursor:pointer;font:inherit;font-size:12px}
+.cmd-row.act .cmd-row-kind{color:var(--accent)}
