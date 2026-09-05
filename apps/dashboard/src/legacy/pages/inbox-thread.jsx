@@ -1,4 +1,4 @@
-/* global React, Icon, ConfidenceDots */
+/* global React, Icon, ConfidenceDots, TlMedia */
 // Inbox Thread Pane — perfectionist refinement.
 // New structure:
 //   1. Header (compact — name, channels, actions)
@@ -499,6 +499,7 @@ const TimelineEntry = ({ entry, thread, channelLabels }) => {
           <span className="tl-msg-time tabular">{entry.at}</span>
         </div>
         <div className="tl-msg-body">{entry.body}</div>
+        {entry.media && <TlMedia media={entry.media} />}
         {!isClient && (
           <div className="tl-msg-by">
             {entry.byYou ? (

@@ -12,7 +12,9 @@ export interface MessageDto {
   sender: "customer" | "ai" | "human" | "system";
   type: string;
   body: string | null;
-  media: { mime_type?: string | null; fetch_state?: string } | null;
+  /** The attachment facts a browser may see; the bytes are behind
+   *  /api/v1/messages/:id/media. Absent for words. */
+  media: { mime_type?: string | null; fetch_state?: string; filename?: string | null; caption?: string | null } | null;
   meta: Record<string, unknown> | null;
   status?: string;
   created_at: string;
@@ -72,6 +74,8 @@ export interface ConversationMessageVM {
   channel: "whatsapp" | "phone";
   at: string;
   text: string;
+  /** The attachment, when the message is one. */
+  media?: MediaVM;
   /** "Canceled before sending", "Sending…" — absent when there is nothing to
    *  say, which for an ordinary sent message is the honest answer. */
   statusLabel?: string;
@@ -217,6 +221,51 @@ export function draftSendsAtMs(m: MessageDto): number {
   return new Date(m.created_at).getTime() + delay;
 }
 
+/** An attachment as the thread draws it. */
+export interface MediaVM {
+  messageId: string;
+  kind: "image" | "audio" | "video" | "document" | "other";
+  mime: string | null;
+  filename: string | null;
+  caption: string | null;
+  /** Stored and servable; false while it is fetching or after a failed fetch. */
+  available: boolean;
+}
+
+const MEDIA_LABEL: Record<MediaVM["kind"], string> = {
+  image: "Photo", audio: "Voice note", video: "Video", document: "Document", other: "Attachment",
+};
+
+/** What kind of thing an attachment is: from its mime, else from WhatsApp's own word for it. */
+export function mediaKind(mime: string | null | undefined, raw?: string | null): MediaVM["kind"] {
+  const t = (mime ?? "").toLowerCase();
+  if (t.startsWith("image/")) return "image";
+  if (t.startsWith("audio/")) return "audio";
+  if (t.startsWith("video/")) return "video";
+  if (t.startsWith("application/") || t.startsWith("text/")) return "document";
+  switch (raw) {
+    case "image": case "sticker": return "image";
+    case "audio": return "audio";
+    case "video": return "video";
+    case "document": return "document";
+    default: return "other";
+  }
+}
+
+/** The attachment on a message, as the thread draws it; null for words. */
+export function mediaVM(m: MessageDto): MediaVM | null {
+  if (m.type !== "media" || !m.media) return null;
+  const mime = m.media.mime_type ?? null;
+  return {
+    messageId: m.id,
+    kind: mediaKind(mime, (m.meta && (m.meta.raw_type as string)) || null),
+    mime,
+    filename: m.media.filename ?? null,
+    caption: m.media.caption ?? null,
+    available: m.media.fetch_state === "stored",
+  };
+}
+
 export function messageText(m: MessageDto): string {
   if (m.type === "call_summary" && m.body) {
     // the body already names itself ("Inbound call · 3 min — …"); the legacy
@@ -225,8 +274,11 @@ export function messageText(m: MessageDto): string {
   }
   if (m.body) return m.body;
   if (m.type === "media") {
-    const kind = (m.meta && (m.meta.raw_type as string)) || "media";
-    return `[${kind} attachment]`;
+    // "Photo: the caption" over "[image attachment]": the thread draws the
+    // attachment itself now, and this line is what sits above it.
+    const label = MEDIA_LABEL[mediaKind(m.media?.mime_type, (m.meta && (m.meta.raw_type as string)) || null)];
+    const caption = m.media?.caption?.trim();
+    return caption ? `${label}: ${caption}` : label;
   }
   return `[${m.type}]`;
 }
@@ -373,6 +425,8 @@ export interface InboxThreadVM {
         channel: string;
         at: string;
         body: string;
+        /** The attachment, when the message is one. */
+        media?: MediaVM;
         byYou?: boolean;
         status?: string;
         messageId?: string;
@@ -454,12 +508,14 @@ export function toInboxThreadVM(
 
   const timeline: InboxThreadVM["timeline"] = dto.messages.map((m) => {
     const onPhone = m.type === "call_summary";
+    const media = mediaVM(m);
     return {
       type: "msg" as const,
       from: m.sender === "customer" ? ("client" as const) : ("agent" as const),
       channel: onPhone ? "phone" : "whatsapp",
       at: bubbleTime(messageAt(m), now),
       body: messageText(m),
+      ...(media ? { media } : {}),
       // Who said it, per BUBBLE. The thread carries one agent identity, and the
       // pane rendered that under every agent row — so a phone call summary was
       // signed "by WhatsApp Receptionist", crediting the wrong assistant with
@@ -580,6 +636,7 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
     channel: m.type === "call_summary" ? "phone" : "whatsapp",
     at: bubbleTime(messageAt(m), now),
     text: messageText(m),
+    ...(mediaVM(m) ? { media: mediaVM(m) as MediaVM } : {}),
     // Only for OUR messages. A customer's inbound message has no send status,
     // and labelling it would be inventing one.
     ...(m.sender !== "customer"

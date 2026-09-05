@@ -86,6 +86,23 @@ export interface CallRow {
  * oldest history, never a thread's most recent messages. `unshift` puts each
  * conversation back in reading order.
  */
+/**
+ * The attachment facts a browser may see. The stored JSON also carries the
+ * storage path, the provider's media id and a checksum — server business;
+ * the bytes are reachable only through /api/v1/messages/:id/media.
+ */
+export function mediaPublic(raw: unknown): MessageDto["media"] {
+  if (!raw || typeof raw !== "object") return null;
+  const m = raw as Record<string, unknown>;
+  const str = (k: string) => (typeof m[k] === "string" ? (m[k] as string) : null);
+  return {
+    mime_type: str("mime_type"),
+    ...(str("fetch_state") ? { fetch_state: str("fetch_state") as string } : {}),
+    filename: str("filename"),
+    caption: str("caption"),
+  };
+}
+
 export function groupMessages(rows: MessageRow[]): Map<string, MessageDto[]> {
   const byConv = new Map<string, MessageDto[]>();
   for (const m of rows) {
@@ -96,7 +113,7 @@ export function groupMessages(rows: MessageRow[]): Map<string, MessageDto[]> {
       sender: m.sender as MessageDto["sender"],
       type: m.type,
       body: m.body,
-      media: m.media as MessageDto["media"],
+      media: mediaPublic(m.media),
       meta: m.meta as MessageDto["meta"],
       status: m.status,
       created_at: m.created_at,

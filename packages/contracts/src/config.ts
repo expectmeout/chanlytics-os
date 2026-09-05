@@ -362,10 +362,21 @@ export const CalendarConfigSchema = z
   .strict();
 export type CalendarConfig = z.infer<typeof CalendarConfigSchema>;
 
+/**
+ * Opt-in abilities, off unless the workspace turns them on.
+ *
+ * `vision`: the receptionist looks at photos customers send over WhatsApp and
+ * answers them like words, under every rule it already follows. Off, a photo
+ * is acknowledged and handed to a person, as before.
+ */
+export const FeaturesConfigSchema = z.object({ vision: z.boolean().optional() }).strict();
+export type FeaturesConfig = z.infer<typeof FeaturesConfigSchema>;
+
 export const TenantConfigSchema = z.object({
   brain: BrainConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional(),
   calendar: CalendarConfigSchema.optional(),
+  features: FeaturesConfigSchema.optional(),
 });
 export type TenantConfig = z.infer<typeof TenantConfigSchema>;
 

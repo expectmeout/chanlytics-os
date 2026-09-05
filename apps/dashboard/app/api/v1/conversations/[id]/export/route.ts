@@ -4,6 +4,7 @@ import { withRoute, memberContext } from "@/server/with-route";
 import { requireUuid } from "@/server/request-guards";
 import { takeRate } from "@/server/rate-limit";
 import { tenantFacts } from "@/server/tenant";
+import { mediaPublic } from "@/server/dto";
 import { attachment, dateTag, personLabel, safeName, transcriptText } from "@/server/export";
 
 const PAGE = 500;
@@ -52,7 +53,7 @@ export const GET = withRoute(async (req, ctx) => {
         sender: m.sender as MessageDto["sender"],
         type: m.type,
         body: m.body,
-        media: m.media as MessageDto["media"],
+        media: mediaPublic(m.media),
         meta: m.meta as MessageDto["meta"],
         status: m.status,
         created_at: m.created_at,

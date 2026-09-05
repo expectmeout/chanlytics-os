@@ -328,14 +328,54 @@ function draftSendsAtMs(m) {
   const delay = typeof m.meta?.delay_ms === "number" ? m.meta.delay_ms : 0;
   return new Date(m.created_at).getTime() + delay;
 }
+var MEDIA_LABEL = {
+  image: "Photo",
+  audio: "Voice note",
+  video: "Video",
+  document: "Document",
+  other: "Attachment"
+};
+function mediaKind(mime, raw) {
+  const t = (mime ?? "").toLowerCase();
+  if (t.startsWith("image/")) return "image";
+  if (t.startsWith("audio/")) return "audio";
+  if (t.startsWith("video/")) return "video";
+  if (t.startsWith("application/") || t.startsWith("text/")) return "document";
+  switch (raw) {
+    case "image":
+    case "sticker":
+      return "image";
+    case "audio":
+      return "audio";
+    case "video":
+      return "video";
+    case "document":
+      return "document";
+    default:
+      return "other";
+  }
+}
+function mediaVM(m) {
+  if (m.type !== "media" || !m.media) return null;
+  const mime = m.media.mime_type ?? null;
+  return {
+    messageId: m.id,
+    kind: mediaKind(mime, m.meta && m.meta.raw_type || null),
+    mime,
+    filename: m.media.filename ?? null,
+    caption: m.media.caption ?? null,
+    available: m.media.fetch_state === "stored"
+  };
+}
 function messageText(m) {
   if (m.type === "call_summary" && m.body) {
     return m.body.replace(CALL_NOTE_PREFIX, "").trim();
   }
   if (m.body) return m.body;
   if (m.type === "media") {
-    const kind = m.meta && m.meta.raw_type || "media";
-    return `[${kind} attachment]`;
+    const label = MEDIA_LABEL[mediaKind(m.media?.mime_type, m.meta && m.meta.raw_type || null)];
+    const caption = m.media?.caption?.trim();
+    return caption ? `${label}: ${caption}` : label;
   }
   return `[${m.type}]`;
 }
@@ -404,12 +444,14 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
   const win = waWindow(dto.last_wa_inbound_at, now).open;
   const timeline = dto.messages.map((m) => {
     const onPhone = m.type === "call_summary";
+    const media = mediaVM(m);
     return {
       type: "msg",
       from: m.sender === "customer" ? "client" : "agent",
       channel: onPhone ? "phone" : "whatsapp",
       at: bubbleTime(messageAt(m), now),
       body: messageText(m),
+      ...media ? { media } : {},
       // Who said it, per BUBBLE. The thread carries one agent identity, and the
       // pane rendered that under every agent row — so a phone call summary was
       // signed "by WhatsApp Receptionist", crediting the wrong assistant with
@@ -494,6 +536,7 @@ function toConversationVM(dto, now = /* @__PURE__ */ new Date()) {
     channel: m.type === "call_summary" ? "phone" : "whatsapp",
     at: bubbleTime(messageAt(m), now),
     text: messageText(m),
+    ...mediaVM(m) ? { media: mediaVM(m) } : {},
     // Only for OUR messages. A customer's inbound message has no send status,
     // and labelling it would be inventing one.
     ...m.sender !== "customer" ? {
@@ -1153,10 +1196,12 @@ var NotificationsConfigSchema = z.object({
 var CalendarConfigSchema = z.object({
   ical_url: z.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
 }).strict();
+var FeaturesConfigSchema = z.object({ vision: z.boolean().optional() }).strict();
 var TenantConfigSchema = z.object({
   brain: BrainConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional(),
-  calendar: CalendarConfigSchema.optional()
+  calendar: CalendarConfigSchema.optional(),
+  features: FeaturesConfigSchema.optional()
 });
 var MAX_INTERVALS_PER_DAY = 4;
 var MAX_CLOSURES = 60;
@@ -2533,6 +2578,7 @@ export {
   ESCALATION_REASON_LABELS,
   ESCALATION_STATES,
   EVENT_KINDS,
+  FeaturesConfigSchema,
   GuardrailsSchema,
   HoursSchema,
   IntervalSchema,
@@ -2605,6 +2651,8 @@ export {
   isOwned,
   isRealDate,
   localToUtcMs,
+  mediaKind,
+  mediaVM,
   messageAt,
   messageStatusLabel,
   messageText,

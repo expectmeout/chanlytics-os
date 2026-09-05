@@ -4205,10 +4205,12 @@ var NotificationsConfigSchema = external_exports.object({
 var CalendarConfigSchema = external_exports.object({
   ical_url: external_exports.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
 }).strict();
+var FeaturesConfigSchema = external_exports.object({ vision: external_exports.boolean().optional() }).strict();
 var TenantConfigSchema = external_exports.object({
   brain: BrainConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional(),
-  calendar: CalendarConfigSchema.optional()
+  calendar: CalendarConfigSchema.optional(),
+  features: FeaturesConfigSchema.optional()
 });
 var MAX_INTERVALS_PER_DAY = 4;
 var MAX_CLOSURES = 60;

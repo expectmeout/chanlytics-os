@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell, CONVERSATIONS_DATA */
+/* global React, Icon, StatStrip, StatCell, CONVERSATIONS_DATA, TlMedia */
 // Chanlytics — Conversations
 // The raw communication layer: every call, chat, and email. Calls carry
 // transcripts + agent summaries; the live call streams at the top.
@@ -390,6 +390,7 @@ const CvViewer = ({ c }) => {
                     {m.statusLabel && <span className="cv-msg-status">· {m.statusLabel}</span>}
                   </div>
                   <div className="tl-msg-body">{m.text}</div>
+                  {m.media && <TlMedia media={m.media} />}
                 </div>
               </div>
             ))}

@@ -6,7 +6,7 @@
  * lambda instance. The edge never queries the control-plane tables anywhere
  * else, so "what does the runtime consult?" has exactly one answer.
  */
-import type { CalendarConfig } from "./workspace/contracts.js";
+import type { CalendarConfig, FeaturesConfig } from "./workspace/contracts.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./workspace/db.js";
 import {
@@ -25,6 +25,8 @@ export interface TenantRuntime {
   notifications: NotificationsConfig | null;
   /** The calendar the receptionist may read for open times; null = none set. */
   calendar: CalendarConfig | null;
+  /** Opt-in abilities (features.vision, …); null = none set. */
+  features: FeaturesConfig | null;
   /** Workspace-level policy modes, class → mode. Unexpected/missing → 'ask'. */
   policy: Record<string, { mode: string; limits: PolicyLimits }>;
   /** Per-tenant WhatsApp credentials from Vault; null = global env fallback. */
@@ -157,6 +159,7 @@ export async function loadTenantRuntime(
       brain: parsed?.brain ?? null,
       notifications: parsed?.notifications ?? null,
       calendar: parsed?.calendar ?? null,
+      features: parsed?.features ?? null,
       policy,
       waCreds:
         rawCreds?.access_token && rawCreds?.phone_id
@@ -178,6 +181,7 @@ export async function loadTenantRuntime(
       brain: null,
       notifications: null,
       calendar: null,
+      features: null,
       policy: {},
       waCreds: null,
       timezone: null,
