@@ -1823,3 +1823,7 @@ button.dec-policy.pill-warn{border:1px solid transparent}
 /* ---- Answers keep their line breaks; citations read as sources ---- */
 .ask-real .ask-msg-text{white-space:pre-wrap;word-break:break-word}
 .ask-from{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);align-self:center;margin-right:2px}
+
+/* ---- The mic is always there; where the browser cannot listen it says so ---- */
+.ask-talk.off{opacity:.55}
+.ask-talk.off:hover{opacity:.8}

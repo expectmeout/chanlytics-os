@@ -4380,7 +4380,7 @@ var ASK_FINISH_JSON_SCHEMA = {
   properties: {
     answer: {
       type: "string",
-      description: "The answer, in the person's language: two or three short sentences, under sixty words, unless they asked for detail (a transcript, a list). Plain text only: no markdown, no headings, and never a tag such as <answer> or <parameter> inside this string. Say what you found; if a read returned nothing, say so plainly."
+      description: "The answer, in the person's language: two or three short sentences, under sixty words, unless they asked for detail (a transcript, a list). Plain text only: no markdown, no headings, and never a tag such as <answer> or <parameter> inside this string. More than two items go one per line, separated by newlines. Say what you found; if a read returned nothing, say so plainly."
     },
     citations: {
       type: "array",
@@ -4403,9 +4403,9 @@ var ASK_FINISH_JSON_SCHEMA = {
     },
     navigate: {
       type: "object",
-      description: "When the best answer is a page, the route to open (a page route such as inbox, or a row route the tools gave you) and a label. Empty strings when there is nothing to open.",
-      properties: { to: { type: "string" }, label: { type: "string" } },
-      required: ["to", "label"],
+      description: "When the best answer is a page, the route to open (a page route such as inbox, or a row route the tools gave you) and a label. Empty strings when there is nothing to open. now: true when the person asked to open, show or see that thing; the app goes there as soon as the answer is read, so keep the answer to one line.",
+      properties: { to: { type: "string" }, label: { type: "string" }, now: { type: "boolean" } },
+      required: ["to", "label", "now"],
       additionalProperties: false
     },
     language: { type: "string", enum: [...ASK_LANGUAGES] }
@@ -4431,7 +4431,7 @@ var AskFinishSchema = external_exports.object({
     })
   ).catch([]).transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS.citations)),
   followups: external_exports.array(external_exports.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS.followups).map((s) => s.slice(0, 90))),
-  navigate: external_exports.object({ to: external_exports.string().catch(""), label: external_exports.string().catch("") }).catch({ to: "", label: "" }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open" } : null),
+  navigate: external_exports.object({ to: external_exports.string().catch(""), label: external_exports.string().catch(""), now: external_exports.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open", now: n.now === true } : null),
   language: external_exports.enum(ASK_LANGUAGES).catch("other")
 });
 var AskProposalOutcomeSchema = external_exports.object({

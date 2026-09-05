@@ -63,7 +63,7 @@ export const ASK_FINISH_JSON_SCHEMA = {
     answer: {
       type: "string",
       description:
-        "The answer, in the person's language: two or three short sentences, under sixty words, unless they asked for detail (a transcript, a list). Plain text only: no markdown, no headings, and never a tag such as <answer> or <parameter> inside this string. Say what you found; if a read returned nothing, say so plainly.",
+        "The answer, in the person's language: two or three short sentences, under sixty words, unless they asked for detail (a transcript, a list). Plain text only: no markdown, no headings, and never a tag such as <answer> or <parameter> inside this string. More than two items go one per line, separated by newlines. Say what you found; if a read returned nothing, say so plainly.",
     },
     citations: {
       type: "array",
@@ -88,9 +88,9 @@ export const ASK_FINISH_JSON_SCHEMA = {
     navigate: {
       type: "object",
       description:
-        "When the best answer is a page, the route to open (a page route such as inbox, or a row route the tools gave you) and a label. Empty strings when there is nothing to open.",
-      properties: { to: { type: "string" }, label: { type: "string" } },
-      required: ["to", "label"],
+        "When the best answer is a page, the route to open (a page route such as inbox, or a row route the tools gave you) and a label. Empty strings when there is nothing to open. now: true when the person asked to open, show or see that thing; the app goes there as soon as the answer is read, so keep the answer to one line.",
+      properties: { to: { type: "string" }, label: { type: "string" }, now: { type: "boolean" } },
+      required: ["to", "label", "now"],
       additionalProperties: false,
     },
     language: { type: "string", enum: [...ASK_LANGUAGES] },
@@ -159,9 +159,9 @@ export const AskFinishSchema = z.object({
     .catch([])
     .transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS.followups).map((s) => s.slice(0, 90))),
   navigate: z
-    .object({ to: z.string().catch(""), label: z.string().catch("") })
-    .catch({ to: "", label: "" })
-    .transform((n) => (n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open" } : null)),
+    .object({ to: z.string().catch(""), label: z.string().catch(""), now: z.boolean().catch(false) })
+    .catch({ to: "", label: "", now: false })
+    .transform((n) => (n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open", now: n.now === true } : null)),
   language: z.enum(ASK_LANGUAGES).catch("other"),
 });
 export type AskFinish = z.infer<typeof AskFinishSchema>;
@@ -366,7 +366,7 @@ export interface AskMessageVM {
   atMs: number;
   citations: Array<AskCitation & { to: string }>;
   followups: string[];
-  navigate: { to: string; label: string } | null;
+  navigate: { to: string; label: string; now?: boolean } | null;
   proposals: AskProposal[];
   language: AskLanguage;
   /** A figure with no read behind it. */

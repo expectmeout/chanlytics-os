@@ -263,5 +263,36 @@
         "no puede"
       ]
     }
+  },
+  {
+    "id": "open_transcript",
+    "text": "open the transcript of the most recent call",
+    "expect": {
+      "tools_any": [
+        "list_calls",
+        "get_call",
+        "get_today"
+      ],
+      "navigate_now": true,
+      "excludes": [
+        "</answer>",
+        "<parameter"
+      ],
+      "no_write": true
+    }
+  },
+  {
+    "id": "show_profile",
+    "text": "show me the profile of the person who called most recently",
+    "expect": {
+      "tools_any": [
+        "list_calls",
+        "get_today",
+        "get_person",
+        "search_people"
+      ],
+      "navigate_now": true,
+      "no_write": true
+    }
   }
 ]

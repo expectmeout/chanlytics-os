@@ -57,7 +57,7 @@ test("the finish shape: every key required, nothing extra, and the parse is forg
   assert.equal(ok.value.answer, "Two people need you: Dani and Rosa.");
   assert.deepEqual(ok.value.citations, [{ kind: "thread", id: ID, label: "Dani" }], "a citation without a label is dropped; an unknown kind becomes a page");
   assert.deepEqual(ok.value.followups, ["What did Dani ask?", "Open Rosa", "a"], "three follow-ups at most, trimmed");
-  assert.deepEqual(ok.value.navigate, { to: "inbox", label: "Open" }, "a route is a route without the hash");
+  assert.deepEqual(ok.value.navigate, { to: "inbox", label: "Open", now: false }, "a route is a route without the hash; now defaults to false");
   assert.equal(parseAskFinish('{"answer":""}').ok, false);
   assert.equal(parseAskFinish("not json").ok, false);
   const bare = parseAskFinish({ answer: "Hola", language: "xx" });
@@ -446,4 +446,23 @@ test("an answer never carries tags: the leak seen on production is cut, its cita
   const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
   assert.ok(ui.includes('className="ask-from"'), "citations read as sources");
   assert.ok(readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css").includes(".ask-real .ask-msg-text{white-space:pre-wrap;word-break:break-word}"));
+});
+
+test("the composer is the way on: focus comes back, the mic is always visible, 'open' goes there, lists go one per line", () => {
+  assert.deepEqual(ASK_FINISH_JSON_SCHEMA.properties.navigate.required, ["to", "label", "now"]);
+  const go = parseAskFinish({ answer: "Opening the 3:34 AM call.", citations: [], followups: [], navigate: { to: "conversations/cv-" + ID, label: "Open the call", now: true }, language: "en" });
+  assert.ok(go.ok && go.value.navigate.now === true);
+  const stay = parseAskFinish({ answer: "Two people wrote.", citations: [], followups: [], navigate: { to: "inbox", label: "Inbox" }, language: "en" });
+  assert.ok(stay.ok && stay.value.navigate.now === false, "now defaults to false");
+  const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
+  assert.ok(ui.includes("}, [open, live, active]);") && ui.includes("inputRef.current.focus(); }, 30);"), "focus returns after every turn and chip");
+  assert.ok(!ui.includes('data-testid="ask-input"\n            maxLength={1000}\n          />\n          {talk.canTalk && ('), "the input is never disabled while a turn runs");
+  assert.ok(!/disabled=\{!!live\}\s*\n\s*aria-label="Ask Chanlytics"/.test(ui), "the input stays enabled during a turn");
+  assert.ok(ui.includes('data-testid="ask-talk-off"'), "where the browser cannot listen, the mic says so instead of vanishing");
+  assert.ok(ui.includes("if (final && final.navigate && final.navigate.now && final.navigate.to && !final.failed) {"), "open/show/see goes there as the answer lands");
+  assert.ok(ui.includes("const arDedupe = (cites) =>") && ui.includes("const arChipLabel = (c, t) =>"), "chips name their kind and never repeat a place");
+  const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
+  assert.ok(prompt.includes("with now: true and answer in one line") && prompt.includes("More than two items (calls, threads, people) go one per line."));
+  const judge = readCode("tooling/scripts/eval-ask.mjs");
+  assert.ok(judge.includes("e.navigate_now"));
 });
