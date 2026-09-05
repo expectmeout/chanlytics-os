@@ -402,3 +402,23 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   const thread = readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
   assert.ok(thread.includes("if (words) setText(words);"), "Edit in the composer lands the words in the composer");
 });
+
+test("voice and the phone: hold to talk uses the browser's recogniser, the origin may ask for the microphone, the phone's ✦ opens Ask above the tab bar", () => {
+  const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
+  assert.ok(ui.includes("const arRecognizer = () => window.SpeechRecognition || window.webkitSpeechRecognition || null;"));
+  assert.ok(ui.includes('data-testid="ask-talk"') && ui.includes("onPointerDown={talk.start}") && ui.includes("onPointerUp={talk.stop}"), "press to start, release to stop");
+  assert.ok(ui.includes("if (heard) { submit(heard); return; }"), "what was heard is sent on its own");
+  assert.ok(ui.includes('rec.lang = lang === "es" ? "es-ES" : (navigator.language || "en-US");'), "the recogniser listens in the palette's language");
+  assert.ok(ui.includes("A.speak(m.text, m.language)") || ui.includes("onSpeak={speak}"), "read it to me stays");
+  const cfg = readCode("apps/dashboard/next.config.ts");
+  assert.ok(cfg.includes('microphone=(self)'), "the page may ask for the microphone");
+  assert.ok(cfg.includes('camera=()') && cfg.includes('geolocation=()') && cfg.includes('payment=()'), "everything else stays denied");
+  assert.ok(cfg.includes("frame-ancestors 'none'"), "and the page can never be framed, so (self) is only ever this app");
+  const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
+  assert.ok(shell.includes('className="phone-ask"') && shell.includes("onClick={openAsk}") && shell.includes('data-testid="phone-ask"'));
+  assert.ok(shell.includes("{!askOpen && !navOpen && ("), "hidden while the palette or the drawer is open");
+  const mobile = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
+  assert.ok(mobile.includes(".phone-ask { display: none; }"), "a desktop has the topbar button and ⌘K");
+  assert.ok(mobile.includes("position: fixed; right: 14px; bottom: calc(70px + env(safe-area-inset-bottom));"), "above the tab bar, at the thumb");
+  assert.ok(mobile.includes("grid-template-columns: repeat(5, 1fr);"), "the five tabs keep their places");
+});
