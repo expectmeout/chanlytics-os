@@ -1,4 +1,4 @@
-/* global React, Icon, CLIENTS, ChannelGlyph, TempBar, ClientTag */
+/* global React, Icon, CLIENTS, ChannelGlyph, TempBar, ClientTag, MoreMenu */
 // Chanlytics — Client profile page.
 // The last approval surface wired into the decide engine: Aisha's queue
 // approves through IX_STORE (toast + undo), overlays live decisions, and
@@ -496,6 +496,71 @@ const ClientProfileSeed = ({ id = "c-aisha", onBack = () => {} }) => {
 };
 
 // ====== Real branch — one person, in full ======
+// The person's saved lists, read from the People surface; a change goes
+// through window.__lists and the surface is re-fetched, so the chips are the
+// server's. Owner or operator may change them.
+const PersonLists = ({ personId, canEdit, first, flash }) => {
+  const [, bump] = React.useReducer((n) => n + 1, 0);
+  React.useEffect(() => {
+    window.addEventListener("surface:clients", bump);
+    return () => window.removeEventListener("surface:clients", bump);
+  }, []);
+  const [busy, setBusy] = React.useState(false);
+  const saved = (window.__PEOPLE && window.__PEOPLE.saved) || [];
+  const on = saved.filter((s) => s.ids.includes(personId));
+  const off = saved.filter((s) => !s.ids.includes(personId));
+  const who = first === "them" ? "This person" : first;
+  const change = async (fn, msg) => {
+    if (!window.__lists || busy) return;
+    setBusy(true);
+    const r = await fn();
+    setBusy(false);
+    if (!r.ok) { flash({ msg: <>{r.message || "Could not change the list."}</> }); return; }
+    flash({ msg });
+  };
+  if (saved.length === 0) {
+    return <div className="cl-prof-aut-hint">No lists yet — make one on the People rail, then add people here.</div>;
+  }
+  return (
+    <div>
+      <div className="cl-tag-stack" style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+        {on.map((s) => (
+          <span key={s.id} className="seg-chip" data-testid="person-list-chip">
+            {s.name}
+            {canEdit && (
+              <button
+                className="cl-seg-filter-x"
+                title={`Take ${who} off ${s.name}`}
+                disabled={busy}
+                onClick={() => change(() => window.__lists.drop(s.id, [personId]), <><b>{who}</b> is off <b>{s.name}</b></>)}
+              >
+                <Icon name="x" size={9} />
+              </button>
+            )}
+          </span>
+        ))}
+        {on.length === 0 && <span className="cl-prof-aut-hint">On no list yet.</span>}
+      </div>
+      {canEdit && off.length > 0 && (
+        <MoreMenu
+          btnClass="btn btn-sm"
+          label="Add to…"
+          title="Add to a list"
+          items={[
+            { header: "Add to" },
+            ...off.map((s) => ({
+              label: s.name,
+              icon: "filter",
+              onClick: () => change(() => window.__lists.add(s.id, [personId]), <><b>{who}</b> is on <b>{s.name}</b></>),
+            })),
+          ]}
+        />
+      )}
+      {!canEdit && <div className="cl-prof-aut-hint">Only an owner or operator can change lists.</div>}
+    </div>
+  );
+};
+
 // Fetched on open through the bridge courier (window.__personDetail): every
 // message, call, escalation and operator decision for this contact, mapped in
 // contracts where the rule is tested. The frame is the seeded profile's; the
@@ -841,6 +906,10 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
             {!canRecord && " Only an owner or operator can change this."}
           </div>
           {cs.error && <div className="cl-prof-aut-hint" style={{ color: "var(--danger)" }}>{cs.error}</div>}
+        </div>
+        <div className="cl-prof-rail-section" data-testid="person-lists">
+          <div className="cl-prof-rail-label">Lists</div>
+          <PersonLists personId={p.id} canEdit={canRecord} first={first} flash={ppFlash} />
         </div>
         {isOwner && (
           <div className="cl-prof-rail-section">

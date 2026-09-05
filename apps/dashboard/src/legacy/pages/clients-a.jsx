@@ -681,6 +681,10 @@ const plAgo = (ms) => {
   return `${Math.round(diff / 86400000)}d`;
 };
 
+// A stable empty list, so a workspace without saved lists does not re-run the
+// table's memo on every render.
+const PL_NO_LISTS = [];
+
 const usePeople = () => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
   React.useEffect(() => {
@@ -708,7 +712,80 @@ const PeopleReceptionist = ({ r }) => (
   </span>
 );
 
-const PeopleRail = ({ lists, active, onPick }) => (
+// A list kept by hand, named on the rail. The name is the only thing typed
+// here; people join from their profile. The POST answers before the rail
+// re-reads the surface, so the new row is the server's.
+const NewListRow = ({ onCreate }) => {
+  const [open, setOpen] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState(null);
+  const close = () => { setOpen(false); setName(""); setError(null); };
+  const submit = async () => {
+    const n = name.trim();
+    if (!n || busy) return;
+    setBusy(true); setError(null);
+    const r = await onCreate(n);
+    setBusy(false);
+    if (!r.ok) { setError(r.message || "Could not make the list."); return; }
+    close();
+  };
+  if (!open) {
+    return (
+      <div className="cl-rail-foot">
+        <button className="cl-rail-newseg" onClick={() => setOpen(true)} data-testid="new-list">
+          <Icon name="plus" size={11} />
+          New list
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="cl-rail-foot">
+      <div className="cl-rail-newlist">
+        <input
+          autoFocus
+          value={name}
+          placeholder="Name the list"
+          maxLength={60}
+          disabled={busy}
+          data-testid="new-list-name"
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") close(); }}
+        />
+        <button className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={submit}>Add</button>
+      </div>
+      {error && <div className="cl-rail-hint" style={{ color: "var(--danger)" }}>{error}</div>}
+    </div>
+  );
+};
+
+// Deleting a list keeps the people; only the grouping goes. Asked once,
+// inline, in the words that say so.
+const DeleteListButton = ({ list, onDeleted }) => {
+  const [arm, setArm] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const go = async () => {
+    if (!window.__lists || busy) return;
+    setBusy(true);
+    const r = await window.__lists.remove(list.id);
+    setBusy(false);
+    setArm(false);
+    if (r.ok) onDeleted();
+  };
+  if (!arm) {
+    return <button className="cl-bucket-link" style={{ marginLeft: 8 }} onClick={() => setArm(true)} data-testid="delete-list">Delete list…</button>;
+  }
+  return (
+    <span className="cl-section-sub" style={{ marginLeft: 8 }}>
+      Delete “{list.name}”? The people stay.{" "}
+      <button className="cl-bucket-link" disabled={busy} onClick={go}>Yes, delete</button>{" "}
+      <button className="cl-bucket-link" disabled={busy} onClick={() => setArm(false)}>No</button>
+    </span>
+  );
+};
+
+const PeopleRail = ({ lists, active, onPick, saved = [], activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null }) => (
   <aside className="cl-rail">
     <div className="cl-rail-section">
       <div className="cl-rail-label">
@@ -722,18 +799,19 @@ const PeopleRail = ({ lists, active, onPick }) => (
         </button>
       ))}
     </div>
-    {/* Saved lists need a segments table (Tier 2); the seeded ones render only in a demo. */}
-    {window.__DEMO_MODE && (
-      <div className="cl-rail-section">
-        <div className="cl-rail-label">Saved</div>
-        {CLIENT_SEGMENTS.filter((s) => s.kind === "manual").map((s) => (
-          <button key={s.id} className="cl-rail-row" data-tip={s.query}>
-            <span className="label">{s.label}</span>
-            <span className="count">{s.count}</span>
-          </button>
-        ))}
-      </div>
-    )}
+    <div className="cl-rail-section" data-testid="saved-lists">
+      <div className="cl-rail-label">Saved</div>
+      {saved.map((s) => (
+        <button key={s.id} className={`cl-rail-row ${activeSaved === s.id ? "active" : ""}`} onClick={() => onPickSaved(s.id)} data-tip="A list kept by hand — add people from their profile">
+          <span className="label">{s.name}</span>
+          <span className="count">{s.count}</span>
+        </button>
+      ))}
+      {saved.length === 0 && (
+        <div className="cl-rail-hint">No lists yet. Keep one by hand — a stylist's clients, the package holders — and add people from their profile.</div>
+      )}
+    </div>
+    {canEdit && onCreateList && <NewListRow onCreate={onCreateList} />}
   </aside>
 );
 
@@ -887,6 +965,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null }) => {
   const listFor = (id) => (id && lists.some((l) => l.id === id) ? id : null);
   const [listId, setListId] = useState(listFor(initialSegment));
   React.useEffect(() => { setListId(listFor(initialSegment)); }, [initialSegment]); // eslint-disable-line react-hooks/exhaustive-deps
+  const saved = people.saved || PL_NO_LISTS;
+  const [savedId, setSavedId] = useState(null);
+  const canEditLists = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
   const [tab, setTab] = useState("all");
   const [attentionTab, setAttentionTab] = useState("needs_you");
   const [showTriage, setShowTriage] = useState(true);
@@ -921,6 +1002,11 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null }) => {
       const ids = new Set(l ? l.ids : []);
       list = list.filter((p) => ids.has(p.id));
     }
+    if (savedId) {
+      const s = saved.find((x) => x.id === savedId);
+      const ids = new Set(s ? s.ids : []);
+      list = list.filter((p) => ids.has(p.id));
+    }
     const needle = q.trim().toLowerCase();
     const digits = needle.replace(/\D/g, "");
     if (needle) {
@@ -943,7 +1029,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null }) => {
       if (av > bv) return sortDir === "asc" ? 1 : -1;
       return 0;
     });
-  }, [rows, lists, tab, listId, q, sortBy, sortDir]);
+  }, [rows, lists, saved, tab, listId, savedId, q, sortBy, sortDir]);
 
   const sortLabels = {
     last: ["Latest contact first", "Oldest contact first"],
@@ -953,13 +1039,23 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null }) => {
   };
   const sortLabel = (sortLabels[sortBy] || ["Sorted", "Sorted"])[sortDir === "desc" ? 0 : 1];
   const activeList = listId && lists.find((l) => l.id === listId);
-  const filtered = tab !== "all" || !!listId || !!q.trim();
+  const activeSaved = savedId && saved.find((s) => s.id === savedId);
+  const filtered = tab !== "all" || !!listId || !!savedId || !!q.trim();
   const ws = (window.__WORKSPACES || []).find((w) => w.id === window.__ACTIVE_WORKSPACE) || (window.__WORKSPACES || [])[0];
   const fetched = people.fetchedAt ? new Date(people.fetchedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
 
   return (
     <div className="clients">
-      <PeopleRail lists={lists} active={listId} onPick={(id) => setListId((cur) => (cur === id ? null : id))} />
+      <PeopleRail
+        lists={lists}
+        active={listId}
+        onPick={(id) => setListId((cur) => (cur === id ? null : id))}
+        saved={saved}
+        activeSaved={savedId}
+        onPickSaved={(id) => setSavedId((cur) => (cur === id ? null : id))}
+        canEdit={canEditLists}
+        onCreateList={window.__lists ? (name) => window.__lists.create(name) : null}
+      />
 
       <div className="cl-main">
         <div className="cl-main-scroll" ref={scrollRef}>
@@ -1027,6 +1123,16 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null }) => {
                     </button>
                   </span>
                 )}
+                {activeSaved && (
+                  <span className="cl-seg-filter" data-testid="saved-filter">
+                    <Icon name="filter" size={10} />
+                    {activeSaved.name}
+                    <button className="cl-seg-filter-x" title="Clear list filter" onClick={() => setSavedId(null)}>
+                      <Icon name="x" size={9} />
+                    </button>
+                  </span>
+                )}
+                {activeSaved && canEditLists && <DeleteListButton list={activeSaved} onDeleted={() => setSavedId(null)} />}
               </div>
               <div className="cl-tabs">
                 {["all", ...PL_TABS].map((t) => (
@@ -1044,7 +1150,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null }) => {
             onSort={onSort}
             onOpen={onOpenProfile}
             filtered={filtered}
-            onClearFilters={() => { setQ(""); setTab("all"); setListId(null); }}
+            onClearFilters={() => { setQ(""); setTab("all"); setListId(null); setSavedId(null); }}
           />
         </div>
       </div>

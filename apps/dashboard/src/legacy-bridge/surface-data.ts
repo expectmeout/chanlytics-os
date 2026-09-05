@@ -560,6 +560,9 @@ export interface PeopleSurface {
   /** The rail's smart lists with their members — the predicates stay in
    *  contracts; the mockup only needs the ids. */
   lists: { id: string; label: string; count: number; ids: string[] }[];
+  /** The lists kept by hand (segments), counted over the rows on the page so
+   *  an erased person never counts. */
+  saved: { id: string; name: string; count: number; ids: string[] }[];
   aggregates: PeopleAggregates;
   /** Days-since-last-contact histogram per state, for the console strip. */
   recency: Record<string, { label: string; count: number }[]>;
@@ -584,14 +587,22 @@ export const peopleOverride: SurfaceOverride = {
   events: ["surface:clients"],
   refreshOnMessageInserts: true,
   apply: async () => {
-    const data = await fetchEnvelope<{ people: PersonRowDto[] }>("/api/v1/contacts");
+    const [data, savedData] = await Promise.all([
+      fetchEnvelope<{ people: PersonRowDto[] }>("/api/v1/contacts"),
+      fetchEnvelope<{ lists: { id: string; name: string; ids: string[] }[] }>("/api/v1/segments"),
+    ]);
     const now = new Date();
     const rows = data.people.map((r) => toPersonRowVM(r, now));
+    const rowIds = new Set(rows.map((r) => r.id));
     (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE = {
       rows,
       lists: PEOPLE_LISTS.map((l) => {
         const ids = rows.filter(l.test).map((r) => r.id);
         return { id: l.id, label: l.label, count: ids.length, ids };
+      }),
+      saved: savedData.lists.map((l) => {
+        const ids = l.ids.filter((id) => rowIds.has(id));
+        return { id: l.id, name: l.name, count: ids.length, ids };
       }),
       aggregates: peopleAggregates(rows, now.getTime()),
       recency: Object.fromEntries(

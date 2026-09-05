@@ -27,6 +27,7 @@ import {
 import { clearSurfaceCache, hydrateSurfaceCache } from "./surface-cache";
 import { installInboxVerbs } from "./inbox-verbs";
 import { installPeopleCourier } from "./people-detail";
+import { installLists } from "./people-lists";
 import { installPolicyStore } from "./policy-store";
 import { installNotifications } from "./notifications";
 import { installAsk } from "./ask";
@@ -35,6 +36,7 @@ import CreateWorkspace from "./CreateWorkspace";
 
 installInboxVerbs();
 installPeopleCourier();
+installLists();
 // After the manifest (which seeds window.POLICY) and before React: the
 // approval chips and the matrix read the workspace's real modes from the
 // first paint, including from the cache.

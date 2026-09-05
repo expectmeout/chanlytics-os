@@ -44,6 +44,7 @@ export const RATE = {
   /** A person's receptionist mode. */
   person_mode: { limit: 60, windowMs: 60_000, noun: "receptionist changes" },
   consent: { limit: 60, windowMs: 60_000, noun: "consent changes" },
+  lists: { limit: 60, windowMs: 60_000, noun: "list changes" },
   /** A whole thread, a whole call, or everyone, as a file. */
   export: { limit: 10, windowMs: 60_000, noun: "exports" },
   /** A question to the workspace assistant: a model turn, tools and all. */

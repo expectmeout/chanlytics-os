@@ -1396,6 +1396,87 @@ export type Database = {
           },
         ]
       }
+      segment_members: {
+        Row: {
+          added_at: string
+          added_by: string | null
+          contact_id: string
+          segment_id: string
+          tenant_id: string
+        }
+        Insert: {
+          added_at?: string
+          added_by?: string | null
+          contact_id: string
+          segment_id: string
+          tenant_id: string
+        }
+        Update: {
+          added_at?: string
+          added_by?: string | null
+          contact_id?: string
+          segment_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "segment_members_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "segment_members_segment_id_fkey"
+            columns: ["segment_id"]
+            isOneToOne: false
+            referencedRelation: "segments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "segment_members_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      segments: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "segments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sweep_status: {
         Row: {
           alerted_at: string | null
