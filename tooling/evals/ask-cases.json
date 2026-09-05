@@ -42,9 +42,7 @@
       "tools_any": [
         "list_threads",
         "get_today",
-        "search_people"
-      ],
-      "tools_also_any": [
+        "search_people",
         "get_thread"
       ],
       "cites_or_says_nothing": true,
@@ -196,7 +194,8 @@
       "tools_any": [
         "list_threads",
         "get_today",
-        "search_people"
+        "search_people",
+        "get_thread"
       ],
       "no_write": true
     }

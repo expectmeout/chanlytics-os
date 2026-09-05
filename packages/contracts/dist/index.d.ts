@@ -3298,8 +3298,15 @@ declare const ASK_MAX_CHARS = 1000;
 declare const ASK_MAX_ROUNDS = 4;
 /** End to end, under the route's sixty-second ceiling. */
 declare const ASK_TURN_BUDGET_MS = 45000;
-/** Ask's own daily token budget per workspace, apart from the receptionist's. */
-declare const ASK_TOKENS_DAY = 400000;
+/**
+ * Ask's own daily token budget per workspace, apart from the receptionist's.
+ * Counted on uncached input plus output. With the day's snapshot riding into
+ * every round, a turn costs two to eight thousand such tokens; a busy owner
+ * asking sixty questions stays well under this, and an eval run of the whole
+ * case set fits several times over. The first cap (400k) was spent by a day
+ * of eval runs and refused the palette until the window rolled.
+ */
+declare const ASK_TOKENS_DAY = 1500000;
 /** Ask threads are purged after this many days; they quote customers. */
 declare const ASK_RETENTION_DAYS = 90;
 /** How much of the workspace one read may return. The words stay the pages' words. */

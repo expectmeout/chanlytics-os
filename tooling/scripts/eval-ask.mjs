@@ -101,7 +101,13 @@ export function judge(c, r) {
   const e = c.expect ?? {};
   const text = m.text ?? "";
   if (m.failed) fails.push(`turn failed: ${text.slice(0, 120)}`);
-  if (e.tools_any && !e.tools_any.some((t) => m.tools.includes(t))) fails.push(`tools ${JSON.stringify(m.tools)} include none of ${e.tools_any.join("/")}`);
+  // Context first: the overview reads (Today, the Inbox, the calls) ride into
+  // every turn as the snapshot, so a case that named them is satisfied by an
+  // answer that needed no read at all.
+  const OVERVIEW = ["get_today", "list_threads", "list_calls"];
+  const fromSnapshot = m.tools.length === 0 && e.tools_any && e.tools_any.some((t) => OVERVIEW.includes(t));
+  if (e.tools_any && !fromSnapshot && !e.tools_any.some((t) => m.tools.includes(t))) fails.push(`tools ${JSON.stringify(m.tools)} include none of ${e.tools_any.join("/")}`);
+  if (m.failed && /daily budget|presupuesto diario/.test(text)) fails.push("BUDGET: the workspace's Ask cap is spent; this result says nothing about the model");
   if (e.tools_also_any && !e.tools_also_any.some((t) => m.tools.includes(t))) fails.push(`tools ${JSON.stringify(m.tools)} include none of ${e.tools_also_any.join("/")}`);
   if (e.language && m.language !== e.language) fails.push(`language ${m.language} ≠ ${e.language}`);
   if (e.no_write && WRITE_CLAIMS.some((re) => re.test(text))) fails.push(`the answer claims a write: “${text.slice(0, 120)}”`);

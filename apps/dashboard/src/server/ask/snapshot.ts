@@ -36,7 +36,6 @@ const CALLS = 8;
 const HELD = 6;
 
 export interface Snapshot {
-  now_local: string;
   counts: { needs_you: number; held_drafts: number; calls_today: number; missed_today: number; messages_in_today: number };
   needs_you: Array<{ conversation_id: string; route: string; who: string; reason: string; since: string; quote: string | null }>;
   held_drafts: Array<{ message_id: string; conversation_id: string; route: string; who: string; text: string; sends_at: string | null }>;
@@ -200,7 +199,6 @@ export async function buildSnapshot(t: ToolContext, timezone: string, scope: Ask
   }
 
   return {
-    now_local: new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: timezone }).format(now),
     counts: {
       needs_you: needs.length,
       held_drafts: heldRows.length,
@@ -217,10 +215,15 @@ export async function buildSnapshot(t: ToolContext, timezone: string, scope: Ask
   };
 }
 
-/** The snapshot as the turn's block: the day, then the rule for using it. */
+/**
+ * The snapshot as the turn's block: the day, then the rule for using it.
+ * No clock inside it: the turn block above carries the time, and a snapshot
+ * that reads the same from one minute to the next is a prompt-cache hit for
+ * a turn's later rounds and for a quick follow-up.
+ */
 export function snapshotBlock(s: Snapshot): string {
   return [
-    `The workspace right now (${s.now_local}):`,
+    "The workspace right now:",
     JSON.stringify(s),
     "Answer from this when it is enough. Read only for what is not here: a whole conversation or transcript, a person's profile, a report, openings, settings. A thread's `route`, a call's `route` and a person's `route` are what navigate.to takes.",
   ].join("\n");

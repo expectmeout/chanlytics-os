@@ -282,7 +282,7 @@ test("the gateway: the key stays on the edge, Ask's tokens have their own event 
   assert.ok(lib.includes('export const ASK_USAGE_KIND = "usage.ask_tokens";'));
   const budget = readCode("apps/edge/lib/budget.ts");
   assert.ok(budget.includes('.eq("kind", "usage.llm_tokens")') && !budget.includes("ask_tokens"), "the receptionist's budget never counts Ask");
-  assert.equal(ASK_TOKENS_DAY, 400_000);
+  assert.equal(ASK_TOKENS_DAY, 1_500_000, "sized for a workspace's day with the snapshot in every round; 400k was spent by one day of eval runs");
   const dash = readCode("apps/dashboard/src/server/ask/gateway.ts");
   assert.ok(dash.includes('"x-diag-key": process.env.DIAG_KEY'));
   assert.ok(!readCode("apps/dashboard/src/server/ask/loop.ts").includes("ANTHROPIC_API_KEY"), "no model key on the dashboard");
@@ -505,7 +505,10 @@ test("context first: the day rides into every turn, its rows can be cited, loade
   assert.ok(loop.includes("snapshot = snapshotBlock(await buildSnapshot(tc, input.timezone, input.scope));"));
   assert.ok(loop.includes('console.error("ask_snapshot_failed"'), "a failed snapshot costs the snapshot, never the turn");
   assert.ok(loop.includes("output_config: { effort: EFFORT },") && loop.includes('const EFFORT: "low" | "medium" = "low";'));
-  assert.ok(loop.includes("...(snapshot ? [{ type: \"text\", text: snapshot }] : []),"), "the snapshot is this turn's block, never the cached one");
+  assert.ok(loop.includes("...(snapshot ? [{ type: \"text\", text: snapshot, cache_control: { type: \"ephemeral\" } }] : []),"), "the snapshot is the second cache breakpoint: a turn's later rounds and a quick follow-up read it from the cache");
+  assert.ok(!snap.includes("now_local"), "no clock inside the snapshot, so it caches across a minute");
+  assert.ok(readCode("apps/dashboard/src/server/ask/prompt.ts").includes("Already in this prompt, above: the hours, closures, services"), "what the prompt already holds needs no read");
+  assert.ok(readCode("tooling/scripts/eval-ask.mjs").includes("const fromSnapshot = m.tools.length === 0"), "the eval knows an overview can come from the snapshot");
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(tools.includes("memo: new Map()") && tools.includes("return memoised(t, `conversations:${limit}`"), "one turn never fetches the same rows twice");
   assert.ok(tools.includes("const CONVERSATIONS = 40;") && tools.includes("const MESSAGES = 600;") && !tools.includes(".limit(2000)"), "the Inbox read no longer moves two thousand messages");
