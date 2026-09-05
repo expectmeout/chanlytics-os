@@ -250,7 +250,7 @@ test("the loop: read tools plus finish, tool_choice any then finish forced on th
   assert.ok(l.includes("const outcomes = await Promise.all("), "several reads run at once");
   assert.ok(l.includes("const { kept, dropped } = groundCitations(f.citations, tc.read);"));
   assert.ok(l.includes("safeNavigate(f.navigate.to, tc.read)"));
-  assert.ok(l.includes("ungrounded: isUngrounded(f.answer, reads),"));
+  assert.ok(l.includes("ungrounded: isUngrounded(f.answer, reads + proposals.length),"), "a proposal counts as a read: its figures are the request, checked against the workspace");
   assert.ok(l.includes("featureRejected(e.refusal.message)") && l.includes("strict = false;"), "a strict-tools rejection retries without strict, like the receptionist's format fallback");
   assert.ok(l.includes('cache_control: { type: "ephemeral" }'), "the stable block is cached");
   assert.ok(l.includes("partialAnswer(b.json)"), "the answer streams out of the finish call");
