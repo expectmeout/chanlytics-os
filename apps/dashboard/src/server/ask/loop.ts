@@ -130,10 +130,16 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
   }
   const snapshotMs = Date.now() - tSnap;
 
+  // Two cache breakpoints: the stable block (rules, definitions, the business
+  // facts) for every turn in the workspace, and the snapshot for this turn's
+  // later rounds and a quick follow-up. The clock sits between them, so it
+  // is rewritten each turn without touching either cache. The turn block
+  // holds the minute, so a follow-up within the same minute hits the second
+  // breakpoint; a later one pays for the snapshot once more, not the rules.
   const system = [
     { type: "text", text: stableSystem(input.facts), cache_control: { type: "ephemeral" } },
     { type: "text", text: turnSystem({ role: input.role, personLabel: input.personLabel, scope: input.scope, surface: input.surface, language: input.language, timezone: input.timezone, closures: input.facts.closures, now }) },
-    ...(snapshot ? [{ type: "text", text: snapshot }] : []),
+    ...(snapshot ? [{ type: "text", text: snapshot, cache_control: { type: "ephemeral" } }] : []),
   ];
   const messages: Msg[] = [
     ...input.history.slice(-MAX_HISTORY).map((h) => ({ role: h.role, content: h.text.slice(0, HISTORY_CHARS) })),
