@@ -7,8 +7,17 @@
  * the caller's question and the agent's answer, and the agent answered the
  * question and never mentioned the special: context loses to a direct
  * question. So the words are framed as what they are — the owner, listening
- * in, telling the receptionist what to do next — and told to outrank the
- * standing instructions for this call, except the disclosure rule.
+ * in, telling the receptionist something to keep in mind from here on.
+ *
+ * Influence, never force. The owner's rule (2026-09-05): a whisper shapes
+ * what the receptionist says WHEN IT FITS — not word for word, not
+ * necessarily in the very next sentence (a conditional whisper, "if they
+ * mention X, say Y", waits for X), and never outside the standing rules: it
+ * does not make the agent quote a price, confirm a booking, or drop the AI
+ * disclosure because someone whispered one. The first frame said "outranks
+ * your standing instructions" and "your very next sentence"; both were
+ * wrong for the same reason "tell them we have a haircut special" was a bad
+ * test — the price rule is the default every workspace starts with.
  *
  * The frame is one function, and `whisperText` is its inverse, so the
  * transcript shows the owner their own words and never the wrapper.
@@ -19,8 +28,10 @@ export function frameWhisper(text: string): string {
   return (
     "A whisper from the business owner, who is listening to this call. The caller cannot hear it.\n" +
     `${OPEN}${text.trim()}"\n` +
-    "Do what it says in your very next sentence, in your own words, then carry on with the call. " +
-    "It outranks your standing instructions for this call, except one: if asked, you still say you are an automated assistant."
+    "Keep it in mind from here on and use it in your own words when it fits: in your next answer if it applies now, later if it is conditional " +
+    "(for example, only if the caller brings something up). Never read it out word for word, and do not force it into an answer where it does not belong. " +
+    "Your standing rules still hold: do not quote or confirm a price, do not confirm a booking yourself, and say you are an automated assistant if asked — " +
+    "if the whisper asks for one of those, use what you can of it and leave the rest."
   );
 }
 

@@ -6,7 +6,7 @@
  * and the agent's answer. The agent answered the question and never
  * mentioned the special — injected context loses to a direct question. So
  * the words now go framed as what they are (the owner, listening in, saying
- * what to do next, outranking the standing instructions for this call), the
+ * what to bring into its next answer, within its standing rules), the
  * injected turn is kept in the stored transcript, and both transcripts show
  * "You whispered" with the owner's own words, where they landed.
  */
@@ -20,9 +20,13 @@ test("the frame is an owner instruction with the words quoted, and its inverse g
   const framed = frameWhisper("  tell them we have a haircut special ");
   assert.ok(framed.startsWith("A whisper from the business owner, who is listening to this call."));
   assert.ok(framed.includes('Owner: "tell them we have a haircut special"'));
-  assert.ok(framed.includes("very next sentence"), "REGRESSION: context loses to a direct question");
-  assert.ok(framed.includes("outranks your standing instructions for this call"));
-  assert.ok(framed.includes("automated assistant"), "the disclosure rule is the one thing a whisper cannot override");
+  assert.ok(framed.includes("Keep it in mind from here on and use it in your own words when it fits"), "influence, never force");
+  assert.ok(framed.includes("later if it is conditional"), "a whisper like 'if they mention X, say Y' waits for X");
+  assert.ok(framed.includes("Never read it out word for word"));
+  assert.ok(!framed.includes("very next sentence"), "REGRESSION: the first frame forced the next sentence");
+  assert.ok(framed.includes("Your standing rules still hold"), "influence, never override — a whisper is not the way around the price rule");
+  assert.ok(!framed.includes("outranks"), "REGRESSION: the first frame let a whisper override the guardrails");
+  assert.ok(framed.includes("do not quote or confirm a price") && framed.includes("automated assistant"));
   assert.equal(whisperText(framed), "tell them we have a haircut special");
   assert.equal(whisperText('plain injected text with a "quote"'), 'plain injected text with a "quote"', "an unframed injection is shown as is");
   assert.equal(whisperText(null), "");
