@@ -4151,6 +4151,21 @@ var NoteSchema = external_exports.object({
   title: external_exports.string().min(1).max(80),
   text: external_exports.string().min(1).max(1200)
 }).strict();
+var BookingRulesSchema = external_exports.object({
+  /** Least notice for a slot, in hours. Absent = 2. */
+  lead_hours: external_exports.number().int().min(0).max(168).optional(),
+  /** Gap kept around each existing appointment, in minutes. Absent = 0. */
+  buffer_min: external_exports.number().int().min(0).max(120).optional(),
+  /** How far ahead open times are offered, in days. Absent = 14. */
+  max_days_ahead: external_exports.number().int().min(1).max(90).optional(),
+  /** The shortest window worth naming, in minutes. Absent = 30. */
+  slot_min: external_exports.number().int().min(15).max(240).optional(),
+  /** Services that need a consultation before they can be booked. */
+  consult_first: external_exports.array(external_exports.string().min(1).max(80)).max(20).optional(),
+  party_max: external_exports.number().int().min(1).max(20).optional(),
+  /** Anything else about booking, one short line each. */
+  notes: external_exports.array(external_exports.string().min(1).max(200)).max(10).optional()
+}).strict();
 var E164 = /^\+[1-9]\d{6,14}$/;
 var BusinessProfileSchema = external_exports.object({
   address: external_exports.string().max(300).optional(),
@@ -4171,6 +4186,7 @@ var BusinessProfileSchema = external_exports.object({
   handoff_number: external_exports.string().regex(E164, "E.164, like +16469325775").optional(),
   website: external_exports.string().url().max(500).optional(),
   notes: external_exports.array(NoteSchema).max(10).optional(),
+  booking_rules: BookingRulesSchema.optional(),
   /**
    * Anything the owner wants said that no field covers.
    *
@@ -4208,9 +4224,13 @@ var NotificationsConfigSchema = external_exports.object({
   escalation_emails: external_exports.array(external_exports.string().email()).min(1).max(10),
   from: external_exports.string().max(200).optional()
 }).strict();
+var CalendarConfigSchema = external_exports.object({
+  ical_url: external_exports.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
+}).strict();
 var TenantConfigSchema = external_exports.object({
   brain: BrainConfigSchema.optional(),
-  notifications: NotificationsConfigSchema.optional()
+  notifications: NotificationsConfigSchema.optional(),
+  calendar: CalendarConfigSchema.optional()
 });
 var MAX_INTERVALS_PER_DAY = 4;
 var MAX_CLOSURES = 60;
@@ -8473,6 +8493,21 @@ var NoteSchema2 = external_exports2.object({
   title: external_exports2.string().min(1).max(80),
   text: external_exports2.string().min(1).max(1200)
 }).strict();
+var BookingRulesSchema2 = external_exports2.object({
+  /** Least notice for a slot, in hours. Absent = 2. */
+  lead_hours: external_exports2.number().int().min(0).max(168).optional(),
+  /** Gap kept around each existing appointment, in minutes. Absent = 0. */
+  buffer_min: external_exports2.number().int().min(0).max(120).optional(),
+  /** How far ahead open times are offered, in days. Absent = 14. */
+  max_days_ahead: external_exports2.number().int().min(1).max(90).optional(),
+  /** The shortest window worth naming, in minutes. Absent = 30. */
+  slot_min: external_exports2.number().int().min(15).max(240).optional(),
+  /** Services that need a consultation before they can be booked. */
+  consult_first: external_exports2.array(external_exports2.string().min(1).max(80)).max(20).optional(),
+  party_max: external_exports2.number().int().min(1).max(20).optional(),
+  /** Anything else about booking, one short line each. */
+  notes: external_exports2.array(external_exports2.string().min(1).max(200)).max(10).optional()
+}).strict();
 var E1642 = /^\+[1-9]\d{6,14}$/;
 var BusinessProfileSchema2 = external_exports2.object({
   address: external_exports2.string().max(300).optional(),
@@ -8493,6 +8528,7 @@ var BusinessProfileSchema2 = external_exports2.object({
   handoff_number: external_exports2.string().regex(E1642, "E.164, like +16469325775").optional(),
   website: external_exports2.string().url().max(500).optional(),
   notes: external_exports2.array(NoteSchema2).max(10).optional(),
+  booking_rules: BookingRulesSchema2.optional(),
   /**
    * Anything the owner wants said that no field covers.
    *
@@ -8530,9 +8566,13 @@ var NotificationsConfigSchema2 = external_exports2.object({
   escalation_emails: external_exports2.array(external_exports2.string().email()).min(1).max(10),
   from: external_exports2.string().max(200).optional()
 }).strict();
+var CalendarConfigSchema2 = external_exports2.object({
+  ical_url: external_exports2.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
+}).strict();
 var TenantConfigSchema2 = external_exports2.object({
   brain: BrainConfigSchema2.optional(),
-  notifications: NotificationsConfigSchema2.optional()
+  notifications: NotificationsConfigSchema2.optional(),
+  calendar: CalendarConfigSchema2.optional()
 });
 var MAX_INTERVALS_PER_DAY2 = 4;
 var MAX_CLOSURES2 = 60;
