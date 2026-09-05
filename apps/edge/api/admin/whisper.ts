@@ -14,6 +14,7 @@
  */
 import { json } from "../../lib/http.js";
 import { updateLiveCall } from "../../lib/workspace/channels.js";
+import { frameWhisper } from "../../lib/workspace/contracts.js";
 
 /** One answer's worth. A whisper is worked into the next thing said. */
 const MAX_CHARS = 500;
@@ -35,7 +36,8 @@ export async function POST(request: Request): Promise<Response> {
   const r = await updateLiveCall(
     { apiKey: process.env.RETELL_API_KEY },
     callId,
-    { additionalContext: text, triggerResponse: body.trigger === true },
+    // Framed as the owner's instruction, not loose context — see contracts/whisper.ts.
+    { additionalContext: frameWhisper(text), triggerResponse: body.trigger === true },
   );
   // The words are the operator's and stay out of the log; the length and the
   // outcome are what a search needs.

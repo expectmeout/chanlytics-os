@@ -7,6 +7,7 @@ export * from "./viewmodels";
 export * from "./policy";
 export * from "./today";
 export * from "./config";
+export * from "./whisper";
 export * from "./people";
 export * from "./channels";
 
