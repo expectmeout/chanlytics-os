@@ -62,6 +62,7 @@ import { upsertEscalation, type EscalationOutcome } from "../lib/workspace/jobs.
 import { loadTenantRuntime, waCfgFor, type TenantRuntime } from "../lib/tenant-runtime.js";
 import { openingsFor } from "../lib/availability.js";
 import { isVisionMime, photoUserText, toBase64, VISION_MAX_BYTES } from "../lib/vision.js";
+import type { BrainMeta } from "../lib/workspace/contracts.js";
 import { replyPosture, effectiveReplyMode } from "../lib/reply-posture.js";
 import { scheduleJob } from "../lib/workspace/jobs.js";
 import { resolveConsent } from "../lib/consent.js";
@@ -124,6 +125,10 @@ async function queueReply(
   body: string,
   delayMs: number,
   L: ReturnType<typeof logger>,
+  /** Why the draft waits: the hold window, or the confidence dial. */
+  source: "veto_window" | "low_confidence" = "veto_window",
+  /** What the row remembers about the answer (contracts/brain.ts). */
+  brainMeta?: BrainMeta,
 ): Promise<boolean> {
   const token = process.env.QSTASH_TOKEN;
   if (!db || !tenantId || !ing || !token) {
@@ -149,7 +154,7 @@ async function queueReply(
       body,
       externalId: null,
       status: "queued",
-      meta: { source: "veto_window", delay_ms: delayMs },
+      meta: { source, delay_ms: delayMs, ...(brainMeta ?? {}) },
     });
     if (!messageId) return false;
     await scheduleJob(db, {
@@ -333,12 +338,13 @@ function pgSink(
         : Promise.resolve(),
     pause: (iso: string) =>
       on ? pgSafe("pause", () => pauseConversation(db!, tenantId!, ing!.conversation_id, iso)) : Promise.resolve(),
-    outbound: (body: string, wamid: string | null) =>
+    outbound: (body: string, wamid: string | null, brainMeta?: BrainMeta) =>
       on
         ? pgSafe("outbound", () =>
             recordOutbound(db!, {
               tenantId: tenantId!, conversationId: ing!.conversation_id, contactId: ing!.contact_id,
               sender: "ai", body, externalId: wamid,
+              ...(brainMeta ? { meta: brainMeta as unknown as Json } : {}),
             }))
         : Promise.resolve(),
     usage: (u: { input_tokens: number; output_tokens: number }) =>
@@ -798,6 +804,7 @@ async function handleInbound(
   let escalate = false;
   let escalationReason = "human_token";
   let usage: { input_tokens: number; output_tokens: number } | undefined;
+  let brainMeta: BrainMeta | undefined;
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const { generateReply } = await import("../lib/brain.js");
@@ -834,7 +841,7 @@ async function handleInbound(
         `${describeNow(rt?.timezone, new Date(), brainCfg.profile?.closures)}${openings ? `\n\n${openings}` : ""}`,
         photo ?? undefined,
       );
-      replyText = r.text; escalate = r.escalate; usage = r.usage;
+      replyText = r.text; escalate = r.escalate; usage = r.usage; brainMeta = r.meta;
       if (r.reason) escalationReason = r.reason;
       // Layer-2 policy enforcement (Blueprint §6): prompt text is never the
       // only defense. A price in the draft blocks the send outright.
@@ -869,8 +876,25 @@ async function handleInbound(
   //
   // Falls back to sending immediately if the job cannot be scheduled. A late
   // reply is a worse outcome than an un-vetoed one, and silence is the worst.
-  const delayMs = replyDelayMs(replyMode, rt?.policy?.reply?.limits);
-  const queued = delayMs > 0 ? await queueReply(db, tenantId, ing, from, replyText, delayMs, L) : false;
+  // replyLimits is the same row read above for the daily cap and the pause.
+  let delayMs = replyDelayMs(replyMode, replyLimits);
+  // THE CONFIDENCE DIAL.
+  //
+  // Under 'auto' a reply the model itself is not sure enough about waits in
+  // the hold window instead of going straight out: sure enough sends itself,
+  // not sure enough waits for a person. The dial is the workspace's
+  // (limits.min_confidence, set on the Autonomy pane); 0 or absent is off.
+  // Under 'veto' every reply already waits, so the dial adds nothing there.
+  const minConfidence = typeof replyLimits?.min_confidence === "number" ? replyLimits.min_confidence : 0;
+  const heldForConfidence =
+    replyMode === "auto" && minConfidence > 0 && typeof brainMeta?.confidence === "number" && brainMeta.confidence < minConfidence;
+  if (heldForConfidence) {
+    delayMs = replyDelayMs("veto", replyLimits);
+    L.info("wa_held_low_confidence", { confidence: brainMeta?.confidence, min: minConfidence, delay_ms: delayMs });
+  }
+  const queued = delayMs > 0
+    ? await queueReply(db, tenantId, ing, from, replyText, delayMs, L, heldForConfidence ? "low_confidence" : "veto_window", brainMeta)
+    : false;
 
   // A veto window that was CONFIGURED and did not happen must not pass in
   // silence. The fallback below is deliberate — an un-vetoed reply beats no
@@ -894,7 +918,7 @@ async function handleInbound(
       // at this one before the timer runs out, not after.
       thread.pausedUntil = Date.now() + pauseMs;
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
-      post.push(sink.escalate(escalationReason, bodyText));
+      post.push(sink.escalate(escalationReason, brainMeta?.reason ? `${brainMeta.reason} — "${bodyText}"` : bodyText));
       post.push(alertStaff(from, bodyText, replyText, "assistant flagged handoff (reply held for review)", notifyTarget, pauseHours));
     }
     await Promise.all(post);
@@ -910,12 +934,12 @@ async function handleInbound(
     thread.history.push({ role: "user", content: bodyText });
     thread.history.push({ role: "assistant", content: replyText });
     thread.replies.push(Date.now());
-    const post: Promise<unknown>[] = [sink.outbound(replyText, sent.wamid)];
+    const post: Promise<unknown>[] = [sink.outbound(replyText, sent.wamid, brainMeta)];
     if (usage) post.push(sink.usage(usage));
     if (escalate) {
       thread.pausedUntil = Date.now() + pauseMs;
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
-      post.push(sink.escalate(escalationReason, bodyText));
+      post.push(sink.escalate(escalationReason, brainMeta?.reason ? `${brainMeta.reason} — "${bodyText}"` : bodyText));
       post.push(alertStaff(from, bodyText, replyText, "assistant flagged handoff", notifyTarget, pauseHours));
     }
     await Promise.all(post);

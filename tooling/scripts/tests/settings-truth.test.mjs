@@ -88,7 +88,7 @@ test("F50: gates match doors — the business form is owner-only like PUT /setti
   assert.ok(!pane.includes("reply.mode.toLowerCase()"), "REGRESSION: a stale page changing the hold window resent its remembered mode");
   const policies = readCode("apps/dashboard/app/api/v1/policies/route.ts");
   assert.ok(policies.includes("mode = current.mode;"), "the row keeps the mode it has");
-  assert.ok(verbsBridge.includes("export async function setPolicy(cls: string, mode: string | undefined, replyDelayMs?: number)"));
+  assert.ok(verbsBridge.includes("export async function setPolicy(cls: string, mode: string | undefined, replyDelayMs?: number, minConfidence?: number)"));
   assert.ok(verbsBridge.includes("...(mode !== undefined ? { mode } : {})"));
   // Invites.
   assert.ok(pane.includes("...(pending && realRoster ? [] : ["), "an open invitation has no membership row to change the role on");

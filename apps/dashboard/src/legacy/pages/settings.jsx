@@ -1545,6 +1545,9 @@ const PaneAutonomy = ({ flash }) => {
 // but not enforced. Hard limits are the runtime's actual numbers.
 
 const AUT_DELAYS = [["15s", 15000], ["30s", 30000], ["1m", 60000], ["2m", 120000], ["5m", 300000]];
+// The confidence dial. Under Auto, a reply the receptionist is less sure
+// about than this waits in the hold window for a person. Off sends everything.
+const AUT_CONF = [["Off", 0], ["60%", 0.6], ["75%", 0.75], ["90%", 0.9]];
 const AUT_MODE_HINT = {
   Auto: "sends right away",
   Veto: "writes the reply, waits, then sends unless you stop it",
@@ -1580,17 +1583,21 @@ const PaneAutonomyReal = ({ flash }) => {
   const delayLabel = (AUT_DELAYS.find((d) => d[1] === delayMs) || [`${Math.round(delayMs / 1000)}s`])[0];
   const maxDay = Number(limits.max_replies_day) || 20;
   const pauseH = Number(limits.pause_hours) || 24;
+  const minConf = Number(limits.min_confidence) || 0;
+  const confLabel = (AUT_CONF.find((c) => c[1] === minConf) || [`${Math.round(minConf * 100)}%`])[0];
 
-  const put = async (r, mode, replyDelayMs) => {
+  const put = async (r, mode, replyDelayMs, minConfidence) => {
     if (!window.__setPolicy) return;
     setBusy(r.cls);
-    const res = await window.__setPolicy(r.cls, mode, replyDelayMs);
+    const res = await window.__setPolicy(r.cls, mode, replyDelayMs, minConfidence);
     setBusy(null);
     if (!res.ok) { flash({ msg: <><b>Not changed</b> — {res.message}</> }); return; }
     flash({
       msg: replyDelayMs !== undefined
         ? <><b>Hold window</b> → {(AUT_DELAYS.find((d) => d[1] === replyDelayMs) || [`${replyDelayMs / 1000}s`])[0]} — from the next reply</>
-        : <><b>{r.label}</b> → {mode.charAt(0).toUpperCase() + mode.slice(1)} — from the next message</>,
+        : minConfidence !== undefined
+          ? <><b>Confidence dial</b> → {(AUT_CONF.find((c) => c[1] === minConfidence) || [`${Math.round(minConfidence * 100)}%`])[0]} — from the next reply</>
+          : <><b>{r.label}</b> → {mode.charAt(0).toUpperCase() + mode.slice(1)} — from the next message</>,
     });
   };
 
@@ -1639,13 +1646,20 @@ const PaneAutonomyReal = ({ flash }) => {
       <section className="fl-card set-card">
         <div className="fl-card-head">
           <span className="fl-card-title">Reply timing</span>
-          <span className="fl-card-sub">Only matters while Replies is set to Veto</span>
+          <span className="fl-card-sub">The hold window applies under Veto, and under Auto for a reply below the confidence dial</span>
         </div>
         <SetRow label="Hold window" hint="The receptionist writes its reply and waits this long before sending, so you can stop or change it from the Inbox. A booking link a caller asks for on the phone is texted right away — there is nothing to hold.">
           <SetSeg
             value={delayLabel}
             options={AUT_DELAYS.map((d) => d[0])}
             onChange={(v) => { const d = AUT_DELAYS.find((x) => x[0] === v); if (d && reply) put(reply, undefined, d[1]); }}
+          />
+        </SetRow>
+        <SetRow label="Send on its own only when it's sure" hint="Under Auto, a reply the receptionist is less sure about than this waits in the hold window for you instead of going straight out. Off sends everything.">
+          <SetSeg
+            value={confLabel}
+            options={AUT_CONF.map((c) => c[0])}
+            onChange={(v) => { const c = AUT_CONF.find((x) => x[0] === v); if (c && reply) put(reply, undefined, undefined, c[1]); }}
           />
         </SetRow>
       </section>

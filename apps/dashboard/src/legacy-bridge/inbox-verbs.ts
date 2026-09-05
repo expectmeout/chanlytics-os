@@ -360,13 +360,13 @@ declare global {
  * matrix, the approval chips and the cache all agree) and the mockup's own
  * `policy:changed` event fires, which is what every reader listens for.
  */
-export async function setPolicy(cls: string, mode: string | undefined, replyDelayMs?: number): Promise<VerbResult> {
+export async function setPolicy(cls: string, mode: string | undefined, replyDelayMs?: number, minConfidence?: number): Promise<VerbResult> {
   // A delay edit sends no mode. It used to resend the one this page had
   // loaded, so changing the hold window from a stale tab could quietly flip
   // Replies back to whatever that tab remembered.
   const r = await call(
     "/api/v1/policies",
-    { class: cls, ...(mode !== undefined ? { mode } : {}), ...(replyDelayMs !== undefined ? { replyDelayMs } : {}) },
+    { class: cls, ...(mode !== undefined ? { mode } : {}), ...(replyDelayMs !== undefined ? { replyDelayMs } : {}), ...(minConfidence !== undefined ? { minConfidence } : {}) },
     undefined,
     "PUT",
   );

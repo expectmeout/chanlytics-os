@@ -27,7 +27,7 @@ export const PUT = withRoute(async (req, ctx) => {
   requireRole(member, "operator");
   takeRate(ctx.userId, "settings");
   const body = (await req.json().catch(() => null)) as
-    | { class?: string; mode?: string; replyDelayMs?: number }
+    | { class?: string; mode?: string; replyDelayMs?: number; minConfidence?: number }
     | null;
   const cls = body?.class ?? "";
   if (!(POLICY_CLASSES as readonly string[]).includes(cls)) throw new AppError("validation", "Unknown policy class.");
@@ -35,7 +35,7 @@ export const PUT = withRoute(async (req, ctx) => {
   // client to resend it meant a stale page changing the hold window could
   // silently flip Replies to whatever mode that page had loaded.
   let mode = body?.mode ?? "";
-  if (mode === "" && body?.replyDelayMs !== undefined) {
+  if (mode === "" && (body?.replyDelayMs !== undefined || body?.minConfidence !== undefined)) {
     const current = (await listPolicies(ctx.supabase, member.tenantId)).find((p) => p.class === cls);
     if (!current) throw new AppError("not_found", "Policy row not found.", 404);
     mode = current.mode;
@@ -66,6 +66,15 @@ export const PUT = withRoute(async (req, ctx) => {
     }
     if (cls !== "reply") throw new AppError("validation", "A reply delay only applies to the reply policy.");
     limits.reply_delay_ms = Math.round(d);
+  }
+  // The confidence dial, 0 to 1; 0 is off. Same boundary rule as the delay.
+  if (body?.minConfidence !== undefined) {
+    const c = Number(body.minConfidence);
+    if (!Number.isFinite(c) || c < 0 || c > 1) {
+      throw new AppError("validation", "The confidence dial is a number from 0 (off) to 1.");
+    }
+    if (cls !== "reply") throw new AppError("validation", "The confidence dial only applies to the reply policy.");
+    limits.min_confidence = Math.round(c * 100) / 100;
   }
   try {
     const row = await setPolicyMode(ctx.supabase, member.tenantId, cls, mode, limits);

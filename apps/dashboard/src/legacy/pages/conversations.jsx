@@ -388,6 +388,7 @@ const CvViewer = ({ c }) => {
                     <span>{m.channel === "phone" ? "Phone · call note" : CV_LABEL[c.channel]}</span>
                     <span className="tl-msg-time tabular">{m.at}</span>
                     {m.statusLabel && <span className="cv-msg-status">· {m.statusLabel}</span>}
+                    {m.why && <span className="cv-msg-status" title={m.why.reason || ""}>· {m.why.summary}</span>}
                   </div>
                   <div className="tl-msg-body">{m.text}</div>
                   {m.media && <TlMedia media={m.media} />}

@@ -49,6 +49,13 @@ export const PolicyLimitsSchema = z
      * before it speaks, rather than apologising for it afterwards.
      */
     reply_delay_ms: z.number().int().min(5000).max(600000).optional(),
+    /**
+     * The confidence dial. Under 'auto', a reply the model is less sure about
+     * than this waits in the hold window (reply_delay_ms) for a person instead
+     * of going straight out — sure enough sends itself, not sure enough waits.
+     * 0 or absent means off.
+     */
+    min_confidence: z.number().min(0).max(1).optional(),
   })
   .strict();
 export type PolicyLimits = z.infer<typeof PolicyLimitsSchema>;
