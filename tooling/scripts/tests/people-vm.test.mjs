@@ -316,3 +316,18 @@ test("the profile carries the person's own receptionist mode and the workspace's
   const junk = toPersonVM(detail({ receptionist_mode: "sometimes", workspace_reply_mode: undefined }), NOW);
   assert.deepEqual(junk.receptionistMode, { person: null, workspace: null });
 });
+
+test("consent reads with how it was given; the offers list is exactly the opted-in", () => {
+  const yes = toPersonRowVM(row({ consent: "opted_in", consent_source: "in_person", consent_updated_at: iso(2 * D) }), NOW);
+  assert.equal(yes.consent.state, "opted_in");
+  assert.ok(yes.consent.sub.startsWith("In person · "), yes.consent.sub);
+  assert.equal(yes.consent.source, "in_person");
+  assert.equal(list("opted_in").test(yes), true);
+  assert.equal(list("opted_out").test(yes), false);
+  const stop = toPersonRowVM(row({ consent: "opted_out", dnc: true, consent_source: "customer_message", consent_updated_at: iso(D) }), NOW);
+  assert.ok(stop.consent.sub.startsWith("STOP received"), stop.consent.sub);
+  assert.equal(list("opted_in").test(stop), false);
+  const no = toPersonRowVM(row({ consent: "opted_out", dnc: true, consent_source: "phone", consent_updated_at: iso(D) }), NOW);
+  assert.ok(no.consent.sub.startsWith("On the phone · "), no.consent.sub);
+  assert.equal(list("opted_in").test(toPersonRowVM(row(), NOW)), false, "not asked is not a yes");
+});

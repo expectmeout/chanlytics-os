@@ -573,6 +573,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   // messages, media and recordings and cannot be undone.
   const [del, setDel] = useStateP({ open: false, typed: "", busy: false, error: null });
   const [rm, setRm] = useStateP({ busy: false, error: null });
+  const [cs, setCs] = useStateP({ busy: false, error: null, pick: null });
   const load = React.useCallback(() => {
     if (!window.__personDetail) return;
     setSt((s) => ({ ...s, loading: !s.vm, error: null }));
@@ -604,6 +605,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   const p = vm;
   const tone = p.rightNow.tone;
   const isOwner = !!(window.__ME && window.__ME.role === "owner");
+  const canRecord = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
   const digitsOf = (x) => String(x || "").replace(/\D/g, "");
   const typedMatches =
     del.typed.trim() === p.name ||
@@ -626,6 +628,34 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
         : <>Receptionist for <b>{first === "them" ? "this person" : first}</b>: {RM_LABEL[mode]}</>,
     });
     load();
+  };
+  // The customer's answer about offers by WhatsApp, recorded by whoever heard
+  // it. A yes or a no is not written until the page knows how it was given;
+  // "not asked" is a reset and needs no source.
+  const CS_SOURCES = window.__consentSources || [
+    { id: "in_person", label: "In person" }, { id: "phone", label: "On the phone" },
+    { id: "form", label: "Sign-up form" }, { id: "customer_message", label: "Their own message" },
+  ];
+  const recordConsent = async (consent, source) => {
+    if (!window.__setPersonConsent || cs.busy) return;
+    setCs({ busy: true, error: null, pick: null });
+    const r = await window.__setPersonConsent(p.id, source ? { consent, source } : { consent });
+    if (!r.ok) { setCs({ busy: false, error: r.message || "Could not record this.", pick: null }); return; }
+    setCs({ busy: false, error: null, pick: null });
+    const who = first === "them" ? "This person" : first;
+    ppFlash({
+      msg: consent === "opted_in" ? <><b>{who}</b> said yes to offers by WhatsApp</>
+        : consent === "opted_out" ? <><b>{who}</b> said no — nothing but replies to their own messages</>
+        : <><b>{who}</b> is back to "not asked"</>,
+    });
+    load();
+  };
+  const pickConsent = (state) => {
+    if (state === "unknown") {
+      if (p.consent.state !== "unknown") recordConsent("unknown", null);
+      return;
+    }
+    setCs((c) => ({ ...c, pick: c.pick === state ? null : state, error: null }));
   };
   const confirmDelete = async () => {
     if (!window.__deletePerson || !typedMatches) return;
@@ -773,6 +803,44 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
             </button>
           )}
           {rm.error && <div className="cl-prof-aut-hint" style={{ color: "var(--danger)" }}>{rm.error}</div>}
+        </div>
+        <div className="cl-prof-rail-section" data-testid="consent-control">
+          <div className="cl-prof-rail-label">Offers by WhatsApp</div>
+          <div className="cl-prof-autonomy">
+            {[["opted_in", "Yes"], ["unknown", "Not asked"], ["opted_out", "No"]].map(([s, label]) => (
+              <button
+                key={s}
+                className={`cl-prof-aut-seg ${(cs.pick ? cs.pick === s : p.consent.state === s) ? "active" : ""}`}
+                aria-pressed={p.consent.state === s}
+                disabled={!canRecord || cs.busy}
+                onClick={() => pickConsent(s)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {cs.pick && (
+            <div data-testid="consent-how">
+              <div className="cl-prof-aut-hint">How did {first === "them" ? "they" : first} tell you?</div>
+              <div className="cl-prof-autonomy" style={{ flexWrap: "wrap" }}>
+                {CS_SOURCES.map((s) => (
+                  <button key={s.id} className="cl-prof-aut-seg" disabled={cs.busy} onClick={() => recordConsent(cs.pick, s.id)}>{s.label}</button>
+                ))}
+              </div>
+              <button className="cl-bucket-link" disabled={cs.busy} onClick={() => setCs({ busy: false, error: null, pick: null })}>Cancel</button>
+            </div>
+          )}
+          <div className="cl-prof-aut-hint">
+            {p.consent.state === "opted_in"
+              ? `Yes — ${p.consent.sub}. Offers and news may go to them by WhatsApp.`
+              : p.consent.state === "opted_out"
+                ? (p.consent.source === "customer_message"
+                    ? `${p.consent.sub}. Record a yes only if they have asked again themselves.`
+                    : `No — ${p.consent.sub}. Nothing but replies to their own messages.`)
+                : "No answer recorded. Reminders about their own appointments are fine; offers need their yes."}
+            {!canRecord && " Only an owner or operator can change this."}
+          </div>
+          {cs.error && <div className="cl-prof-aut-hint" style={{ color: "var(--danger)" }}>{cs.error}</div>}
         </div>
         {isOwner && (
           <div className="cl-prof-rail-section">

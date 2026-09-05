@@ -1751,6 +1751,15 @@ export type Database = {
         Returns: number
       }
       scrub_call_raw: { Args: { p_raw: Json }; Returns: Json }
+      set_contact_consent: {
+        Args: {
+          p_consent: string
+          p_contact_id: string
+          p_note?: string
+          p_source: string
+        }
+        Returns: Json
+      }
       sweep_health: {
         Args: never
         Returns: {

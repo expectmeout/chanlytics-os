@@ -314,6 +314,30 @@ export interface PersonConsent {
   dnc: boolean;
   label: string;
   sub: string;
+  /** How the answer was given, raw: in_person | phone | form | customer_message | operator | null. */
+  source: string | null;
+}
+
+/**
+ * How a customer's answer about marketing messages was given. The ingest
+ * writes 'customer_message' for STOP and START; a person at the desk picks
+ * one of these four. 'operator' is the reset to "not asked" and is never
+ * offered as a source.
+ */
+export const CONSENT_SOURCES: readonly { id: string; label: string }[] = [
+  { id: "in_person", label: "In person" },
+  { id: "phone", label: "On the phone" },
+  { id: "form", label: "Sign-up form" },
+  { id: "customer_message", label: "Their own message" },
+];
+export const CONSENT_RESET_SOURCE = "operator";
+
+/** The words for a source; the reset has none, an unknown one is shown as itself. */
+export function consentSourceLabel(source: string | null | undefined): string | null {
+  if (!source) return null;
+  const known = CONSENT_SOURCES.find((s) => s.id === source);
+  if (known) return known.label;
+  return source === CONSENT_RESET_SOURCE ? null : source;
 }
 
 function consentOf(r: PersonRowDto, nowMs: number): PersonConsent {
@@ -321,11 +345,21 @@ function consentOf(r: PersonRowDto, nowMs: number): PersonConsent {
   const state: PersonConsent["state"] =
     r.consent === "opted_out" || dnc ? "opted_out" : r.consent === "opted_in" ? "opted_in" : "unknown";
   const when = ts(r.consent_updated_at);
+  const date = when !== null ? fmtDate(when, nowMs) : "recorded";
+  const how = consentSourceLabel(r.consent_source);
   const sub =
-    state === "opted_out" ? `STOP received${when !== null ? ` ${fmtDate(when, nowMs)}` : ""}`
-    : state === "opted_in" ? `${r.consent_source ? `${r.consent_source} · ` : ""}${when !== null ? fmtDate(when, nowMs) : "recorded"}`
+    state === "opted_out"
+      ? (r.consent_source === "customer_message"
+          ? `STOP received${when !== null ? ` ${fmtDate(when, nowMs)}` : ""}`
+          : `${how ? `${how} · ` : ""}${date}`)
+    : state === "opted_in" ? `${how ? `${how} · ` : ""}${date}`
     : "no opt-in recorded";
-  return { state, dnc, label: state === "opted_out" ? "Opted out" : state === "opted_in" ? "Opted in" : "Unknown", sub };
+  return {
+    state, dnc,
+    label: state === "opted_out" ? "Opted out" : state === "opted_in" ? "Opted in" : "Unknown",
+    sub,
+    source: r.consent_source ?? null,
+  };
 }
 
 export type ReceptionistTone = "answering" | "escalated" | "queued" | "snoozed" | "paused" | "silent";
@@ -433,6 +467,8 @@ export const PEOPLE_LISTS: readonly { id: string; label: string; test: (vm: Pers
   { id: "quiet", label: "Quiet 30+ days", test: (v) => v.state === "quiet" },
   { id: "phoned_only", label: "Phoned only", test: (v) => !v.hasChat && v.calls > 0 },
   // A fact, not the state: someone who opted out AND needs you is in both lists.
+  // The only people a broadcast may reach: they said yes, and it is on record.
+  { id: "opted_in", label: "Can receive offers", test: (v) => v.consent.state === "opted_in" },
   { id: "opted_out", label: "Opted out", test: (v) => v.consent.state === "opted_out" },
 ];
 
