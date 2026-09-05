@@ -141,6 +141,7 @@ html.legacy-on #root {
    the workspace name and Sign out stay readable. */
 @media (max-width: 720px) {
   .bridge-pill { left: 12px; right: 12px; bottom: calc(74px + env(safe-area-inset-bottom)); padding: 6px 12px; }
-  .bridge-pill > span { min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bridge-pill > span:not(.dot) { min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bridge-pill .dot { flex: none; }
   .bridge-pill .pill-signout { flex: none; }
 }
