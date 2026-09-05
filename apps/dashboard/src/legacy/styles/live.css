@@ -337,3 +337,8 @@
 .lm-whisper-row { display: flex; gap: 8px; align-items: center; }
 .lm-whisper-row .set-input { flex: 1 1 auto; min-width: 0; }
 .lm-whisper-hint { font-size: 12px; color: var(--ink-dim); }
+
+/* A whisper inside the transcript: the owner's words, where they landed. */
+.lm-whisper-line { display: flex; gap: 8px; align-items: baseline; justify-content: center; margin: 6px 0; padding: 6px 10px; border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); font-size: 12px; color: var(--ink-muted); }
+.lm-whisper-line-label { font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); white-space: nowrap; }
+.lm-whisper-line-text { color: var(--ink); }

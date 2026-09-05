@@ -128,6 +128,7 @@ export interface ConversationVM {
   hasChat: boolean;
 }
 
+import { whisperText } from "./whisper";
 import { formatPhoneDisplay } from "./phone";
 import { isOptedOutContact } from "./consent";
 import { waWindow, isLiveCall } from "./policy";
@@ -708,7 +709,7 @@ export interface CallVM {
   live?: boolean;
   snippet: string;
   summary: { headline: string; bullets: string[] };
-  transcript: Array<{ t: string; speaker: "agent" | "client"; text: string }>;
+  transcript: Array<{ t: string; speaker: "agent" | "client" | "whisper"; text: string }>;
   recordingState: "ready" | "pending" | "failed" | "none";
   recordingUrl?: string;
   threadId?: string;
@@ -768,6 +769,10 @@ export function toCallVM(dto: CallDto, now = new Date()): CallVM {
 
   const transcript = (dto.transcript_object ?? []).map((turn) => {
     const start = turn.words?.[0]?.start;
+    // An injected turn is a whisper: the owner's own words, shown as theirs.
+    if (turn.role === "injected") {
+      return { t: "—", speaker: "whisper" as const, text: whisperText(turn.content) };
+    }
     return {
       t: typeof start === "number" ? `${Math.floor(start / 60)}:${String(Math.floor(start % 60)).padStart(2, "0")}` : "—",
       speaker: (turn.role === "agent" ? "agent" : "client") as "agent" | "client",

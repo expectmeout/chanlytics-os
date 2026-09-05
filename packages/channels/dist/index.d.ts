@@ -239,8 +239,10 @@ interface NormalizedCall {
  * The spoken turns of a LIVE transcript, in the stored turn shape.
  *
  * `transcript_with_tool_calls` interleaves speech with tool invocations and
- * results; the dashboard renders speakers, so everything that is not an
- * agent or user turn is dropped. Null when there is nothing spoken yet, so
+ * results; the dashboard renders speakers, so tool turns are dropped. An
+ * "injected" turn is KEPT: it is a whisper — the owner's words handed to the
+ * agent mid-call — and the transcript should show where it landed and
+ * whether the agent acted on it. Null when there is nothing spoken yet, so
  * the upsert's coalesce keeps whatever the row already holds.
  */
 declare function liveTurns(items: RetellCall["transcript_with_tool_calls"]): RetellTranscriptTurn[] | null;

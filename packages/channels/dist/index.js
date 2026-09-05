@@ -4442,7 +4442,7 @@ function toStatus(s) {
 }
 function liveTurns(items) {
   if (!items?.length) return null;
-  const spoken = items.filter((t) => t.role === "agent" || t.role === "user");
+  const spoken = items.filter((t) => t.role === "agent" || t.role === "user" || t.role === "injected");
   if (!spoken.length) return null;
   return spoken.map(({ role, content, words }) => ({ role, content: content ?? "", ...words ? { words } : {} }));
 }

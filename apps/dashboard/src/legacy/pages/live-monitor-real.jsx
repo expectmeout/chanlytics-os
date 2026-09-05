@@ -105,15 +105,24 @@ const LrTranscript = ({ c }) => {
       <div className="lm-scroll" ref={scrollRef}>
         <div className="ix-timeline lm-thread">
           {c.transcript.map((m, i) => (
-            <div key={i} className={`tl-msg ${m.speaker === "client" ? "client" : "agent"}`}>
-              <div className="tl-msg-bubble">
-                <div className="tl-msg-meta">
-                  <span>{m.speaker === "client" ? c.whoShort : "Phone receptionist"}</span>
-                  <span className="mono">{m.t}</span>
-                </div>
-                <div className="tl-msg-body">{m.text}</div>
+            m.speaker === "whisper" ? (
+              // The owner's own words, where they landed in the call — so it
+              // is plain whether the agent's next line acted on them.
+              <div key={i} className="lm-whisper-line" data-testid="live-whisper-line">
+                <span className="lm-whisper-line-label">You whispered</span>
+                <span className="lm-whisper-line-text">&ldquo;{m.text}&rdquo;</span>
               </div>
-            </div>
+            ) : (
+              <div key={i} className={`tl-msg ${m.speaker === "client" ? "client" : "agent"}`}>
+                <div className="tl-msg-bubble">
+                  <div className="tl-msg-meta">
+                    <span>{m.speaker === "client" ? c.whoShort : "Phone receptionist"}</span>
+                    <span className="mono">{m.t}</span>
+                  </div>
+                  <div className="tl-msg-body">{m.text}</div>
+                </div>
+              </div>
+            )
           ))}
           <div className="lm-listening-line"><span className="cv-cursor" /></div>
         </div>

@@ -206,6 +206,22 @@ function isOptedOutContact(c) {
 }
 var OPT_OUT_REFUSAL = "This customer asked to stop receiving messages. They can text START to opt back in.";
 
+// src/whisper.ts
+var OPEN = 'Owner: "';
+function frameWhisper(text) {
+  return `A whisper from the business owner, who is listening to this call. The caller cannot hear it.
+${OPEN}${text.trim()}"
+Do what it says in your very next sentence, in your own words, then carry on with the call. It outranks your standing instructions for this call, except one: if asked, you still say you are an automated assistant.`;
+}
+function whisperText(content) {
+  const c = (content ?? "").replace(/\r\n/g, "\n");
+  const at = c.indexOf(OPEN);
+  if (at === -1) return c.trim();
+  const rest = c.slice(at + OPEN.length);
+  const close = rest.indexOf('"\n');
+  return (close === -1 ? rest.replace(/"$/, "") : rest.slice(0, close)).trim();
+}
+
 // src/policy.ts
 var PRICE_PATTERNS = [
   /\$\s?\d/,
@@ -573,6 +589,9 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
   if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s WhatsApp thread`);
   const transcript = (dto.transcript_object ?? []).map((turn) => {
     const start = turn.words?.[0]?.start;
+    if (turn.role === "injected") {
+      return { t: "\u2014", speaker: "whisper", text: whisperText(turn.content) };
+    }
     return {
       t: typeof start === "number" ? `${Math.floor(start / 60)}:${String(Math.floor(start % 60)).padStart(2, "0")}` : "\u2014",
       speaker: turn.role === "agent" ? "agent" : "client",
@@ -617,8 +636,11 @@ function fmtClock(seconds) {
   return mmss2(Math.max(0, seconds) * 1e3);
 }
 function turnsOf(dto) {
-  return (dto.transcript_object ?? []).filter((turn) => turn.role === "agent" || turn.role === "user").map((turn) => {
+  return (dto.transcript_object ?? []).filter((turn) => turn.role === "agent" || turn.role === "user" || turn.role === "injected").map((turn) => {
     const start = turn.words?.[0]?.start;
+    if (turn.role === "injected") {
+      return { speaker: "whisper", text: whisperText(turn.content), t: "\u2014" };
+    }
     return {
       speaker: turn.role === "agent" ? "agent" : "client",
       text: turn.content ?? "",
@@ -2199,6 +2221,7 @@ export {
   fmtSeconds,
   formatPhoneDisplay,
   formatWaited,
+  frameWhisper,
   hasProfile,
   hoursRuns,
   initialsOf,
@@ -2239,5 +2262,6 @@ export {
   toReportVM,
   toTodayVM,
   violatesNoPrices,
-  waWindow
+  waWindow,
+  whisperText
 };
