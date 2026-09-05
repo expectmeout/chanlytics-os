@@ -4446,6 +4446,21 @@ function liveTurns(items) {
   if (!spoken.length) return null;
   return spoken.map(({ role, content, words }) => ({ role, content: content ?? "", ...words ? { words } : {} }));
 }
+function parseTranscriptText(text) {
+  if (!text) return null;
+  const turns = [];
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const m = /^(Agent|User):\s*(.*)$/.exec(line);
+    if (!m) {
+      if (turns.length) turns[turns.length - 1].content += ` ${line}`;
+      continue;
+    }
+    turns.push({ role: m[1] === "Agent" ? "agent" : "user", content: m[2] });
+  }
+  return turns.length ? turns : null;
+}
 function normalizeCall(c) {
   const analysis = c.call_analysis ?? {};
   const from = c.from_number ?? null;
@@ -4790,6 +4805,7 @@ export {
   needsHydration,
   normalizeCall,
   normalizeInbound,
+  parseTranscriptText,
   planAgentSettings,
   planVoiceConvergence,
   sendTemplate,
