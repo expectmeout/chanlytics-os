@@ -12,14 +12,21 @@
  * same function /api/diag uses to report drift, so what the dry run prints is
  * exactly what --apply sends.
  *
- * ⚠️ The phone line runs the LATEST agent version, published or not (proved by
- * real calls carrying agent_version 1 while v0 was the published one). An
- * --apply edits the draft the line is answering with: it changes what the
- * NEXT CALLER hears. Run the dry run, read the plan, then apply. Updating a
- * draft edits it in place; updating a published version creates a new draft —
- * the before/after versions are printed either way, and the diagnostic reads
- * the LLM through the agent's own response_engine, so a version the agent
- * does not point at shows as drift, never as done.
+ * ⚠️ Which version the line runs depends on the number's binding: unpinned it
+ * follows the LATEST version, published or not (proved by real calls carrying
+ * agent_version 1 while v0 was the published one); pinned to
+ * latest_published (what --pin sets) it follows the last PUBLISHED one.
+ *
+ * A PUBLISHED version cannot change: Retell answers "Cannot update published
+ * agent other than version title" (422). So when the latest version is
+ * published, --apply first creates a NEW DRAFT from it
+ * (POST /create-agent-version, which clones the LLM with it), lands the
+ * patches on that draft, and — only with --publish — publishes it so a pinned
+ * number follows. Without --publish the line keeps the old version and the
+ * script says so. Updating an unpublished draft edits it in place. The
+ * before/after versions are printed either way, and the diagnostic reads the
+ * LLM through the agent's own response_engine, so a version the agent does
+ * not point at shows as drift, never as done.
  *
  * Env:  RETELL_API_KEY   (never stored anywhere; paste it for the run)
  *       VOICE_AGENT_ID   e.g. agent_242005d0ce9352af2cef792432
@@ -37,6 +44,8 @@
  *   --retention-days N   also ask the provider to delete calls after N days
  *           (1–730). Retention is a product decision, so it is never part of
  *           the drift the script closes on its own.
+ *   --publish   publish the draft the patches landed on (needed for a line
+ *           pinned to latest_published to pick them up).
  *
  * The agent's own settings are planned too (planAgentSettings): the
  * transcript_updated event, a 20 s webhook budget, signed recording links.
@@ -51,6 +60,7 @@ const AGENT_ID = process.env.VOICE_AGENT_ID;
 if (!KEY || !AGENT_ID) { console.error("RETELL_API_KEY and VOICE_AGENT_ID required"); process.exit(2); }
 const apply = process.argv.includes("--apply");
 const pin = process.argv.includes("--pin");
+const publish = process.argv.includes("--publish");
 const retentionArg = process.argv.indexOf("--retention-days");
 const retentionDays = retentionArg >= 0 ? Number(process.argv[retentionArg + 1]) : undefined;
 const BASE = "https://api.retellai.com";
@@ -116,6 +126,9 @@ console.log("\nagent settings:");
 if (!agentPlan.drift.length) console.log("  converged — nothing to change");
 for (const line of agentPlan.drift) console.log(`  - ${line}`);
 if (agentPlan.agentPatch) console.log(`  PATCH /update-agent/${agent.agent_id} with: ${Object.keys(agentPlan.agentPatch).join(", ")}`);
+if ((plan.llmPatch || agentPlan.agentPatch) && agent.is_published) {
+  console.log(`  v${agent.version} is published: the changes go on a NEW DRAFT first${publish ? ", then it is published" : " — add --publish to make them live on a pinned number"}`);
+}
 
 // The pin is a separate decision with its own guard.
 let numberPatch = null;
@@ -135,7 +148,14 @@ if (!apply) {
   process.exit(0);
 }
 
-// 4. Apply exactly the plan.
+// 4. Apply exactly the plan — on a new draft when the latest version is
+//    published, because a published version cannot change.
+let working = agent;
+if ((plan.llmPatch || agentPlan.agentPatch) && agent.is_published) {
+  const draft = await call("POST", `/create-agent-version/${agent.agent_id}`, { base_version: agent.version });
+  console.log(`\ndraft v${draft.version} created from published v${agent.version} (its LLM is cloned with it)`);
+  working = draft;
+}
 if (plan.llmPatch) {
   const after = await call("PATCH", `/update-retell-llm/${llm.llm_id}`, plan.llmPatch);
   console.log(`\nllm updated: version ${llm.version} -> ${after.version}`);
@@ -152,6 +172,14 @@ if (agentPlan.agentPatch) {
   console.log(`agent updated: version ${agent.version} -> ${after.version}`);
 } else {
   console.log("agent: nothing to apply");
+}
+if (working.version !== agent.version) {
+  if (publish) {
+    await call("POST", `/publish-agent-version/${agent.agent_id}`, { version: working.version, version_title: "converged by voice-converge" });
+    console.log(`published v${working.version}; a number pinned to latest_published follows it`);
+  } else {
+    console.log(`\n! v${working.version} is a DRAFT: a pinned line stays on v${agent.version} until it is published (re-run with --publish).`);
+  }
 }
 if (numberPatch) {
   const n = await call("PATCH", `/update-phone-number/${encodeURIComponent(number.phone_number)}`, numberPatch);
