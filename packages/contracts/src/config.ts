@@ -183,6 +183,29 @@ export const NoteSchema = z
   .strict();
 export type Note = z.infer<typeof NoteSchema>;
 
+/**
+ * How bookings may be OFFERED — never made. The receptionist sends the link;
+ * these shape which open times it names first and what it says about them.
+ */
+export const BookingRulesSchema = z
+  .object({
+    /** Least notice for a slot, in hours. Absent = 2. */
+    lead_hours: z.number().int().min(0).max(168).optional(),
+    /** Gap kept around each existing appointment, in minutes. Absent = 0. */
+    buffer_min: z.number().int().min(0).max(120).optional(),
+    /** How far ahead open times are offered, in days. Absent = 14. */
+    max_days_ahead: z.number().int().min(1).max(90).optional(),
+    /** The shortest window worth naming, in minutes. Absent = 30. */
+    slot_min: z.number().int().min(15).max(240).optional(),
+    /** Services that need a consultation before they can be booked. */
+    consult_first: z.array(z.string().min(1).max(80)).max(20).optional(),
+    party_max: z.number().int().min(1).max(20).optional(),
+    /** Anything else about booking, one short line each. */
+    notes: z.array(z.string().min(1).max(200)).max(10).optional(),
+  })
+  .strict();
+export type BookingRules = z.infer<typeof BookingRulesSchema>;
+
 /** E.164: a plus, then 7–15 digits, no leading zero. */
 export const E164 = /^\+[1-9]\d{6,14}$/;
 
@@ -206,6 +229,7 @@ export const BusinessProfileSchema = z
     handoff_number: z.string().regex(E164, "E.164, like +16469325775").optional(),
     website: z.string().url().max(500).optional(),
     notes: z.array(NoteSchema).max(10).optional(),
+    booking_rules: BookingRulesSchema.optional(),
     /**
      * Anything the owner wants said that no field covers.
      *
@@ -320,9 +344,26 @@ export type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
  * inside a section, where a typo means a field the runtime silently would not
  * apply.
  */
+/**
+ * The calendar the receptionist may READ. An iCal address — what any booking
+ * tool that syncs to Google, Apple or Outlook produces — never credentials to
+ * write with. Nothing is ever booked from here; the booking link does that,
+ * whichever tool is behind it.
+ */
+export const CalendarConfigSchema = z
+  .object({
+    ical_url: z
+      .string()
+      .max(2000)
+      .refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address"),
+  })
+  .strict();
+export type CalendarConfig = z.infer<typeof CalendarConfigSchema>;
+
 export const TenantConfigSchema = z.object({
   brain: BrainConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional(),
+  calendar: CalendarConfigSchema.optional(),
 });
 export type TenantConfig = z.infer<typeof TenantConfigSchema>;
 
@@ -827,6 +868,22 @@ export function composeSystemPrompt(
     s.push(`\nOther things to know:\n${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
   }
 
+  const br = profile.booking_rules;
+  if (br && (br.lead_hours !== undefined || br.consult_first?.length || br.party_max || br.notes?.length)) {
+    const lines: string[] = [];
+    if (br.lead_hours !== undefined) {
+      lines.push(
+        br.lead_hours === 0
+          ? "Same-day bookings are fine, right up to the time."
+          : `At least ${br.lead_hours} hour${br.lead_hours === 1 ? "" : "s"}' notice for any appointment.`,
+      );
+    }
+    if (br.consult_first?.length) lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
+    if (br.party_max) lines.push(`Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`);
+    for (const n of br.notes ?? []) lines.push(n);
+    s.push(`\nBooking rules:\n${lines.map((l) => `- ${l}`).join("\n")}`);
+  }
+
   // HOW to hand off, not just when — and unconditionally, because the product
   // promise depends on it.
   //
@@ -928,6 +985,13 @@ export function composeSystemPrompt(
     channel === "voice"
       ? "\nYou are speaking aloud. Keep answers to one or two sentences, never read a URL out character by character, and offer to text the booking link instead."
       : "\nKeep replies short enough to read on a phone. Send the booking link rather than describing how to book.",
+  );
+
+  // Open times, when the workspace has a calendar feed, arrive AFTER these
+  // instructions (with the clock: they change by the minute and must not
+  // evict the cached profile). The receptionist names them; it never books.
+  s.push(
+    "\nIf open times are listed after these instructions, offer up to three that fit what the customer wants, then send the booking link — the calendar decides, never you. If none are listed, do not guess at open times; send the link.",
   );
 
   // LAST, and never optional.

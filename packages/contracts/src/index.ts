@@ -8,6 +8,7 @@ export * from "./policy";
 export * from "./today";
 export * from "./config";
 export * from "./whisper";
+export * from "./availability";
 export * from "./people";
 export * from "./channels";
 

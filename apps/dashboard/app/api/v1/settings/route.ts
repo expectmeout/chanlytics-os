@@ -4,6 +4,10 @@ import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
 import type { Json } from "@chanlytics/db";
 import { takeRate } from "@/server/rate-limit";
 
+function maskFeedUrl(u: string): string {
+  return u.length <= 30 ? "…" : `${u.slice(0, 24)}…${u.slice(-6)}`;
+}
+
 /** GET /api/v1/settings — the tenant's config, with the version the client
  *  must echo back on write. Members read; RLS scopes. */
 export const GET = withRoute(async (req, ctx) => {
@@ -16,7 +20,15 @@ export const GET = withRoute(async (req, ctx) => {
   // deleting whatever it still held. The edge already tells the two apart
   // (tenant-runtime's configBroken); this is the same answer for the pane.
   const parsed = parseTenantConfigResult(row.config);
-  if (parsed.ok) return { config: parsed.config, version: row.version, role: member.role, configBroken: false };
+  if (parsed.ok) {
+    // The calendar feed address grants read access to the owner's calendar;
+    // only an owner sees it whole. Anyone else learns that one is set.
+    const cfg = parsed.config;
+    const visible = member.role === "owner" || !cfg.calendar
+      ? cfg
+      : { ...cfg, calendar: { ical_url: maskFeedUrl(cfg.calendar.ical_url) } };
+    return { config: visible, version: row.version, role: member.role, configBroken: false };
+  }
   return { config: null, version: row.version, role: member.role, configBroken: true, issues: parsed.issues };
 });
 

@@ -539,3 +539,9 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
 .set-note-row { display: grid; grid-template-columns: minmax(120px, 1fr) 2fr auto; gap: 8px; align-items: start; margin-bottom: 8px; }
 .set-note-row .set-textarea { min-height: 0; }
 @media (max-width: 640px) { .set-note-row { grid-template-columns: 1fr; } }
+
+/* Booking rules: four small numbers side by side. */
+.set-br-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin-bottom: 8px; }
+.set-br-field { display: grid; gap: 4px; }
+.set-br-label { font-size: 11px; color: var(--ink-muted); }
+@media (max-width: 640px) { .set-br-grid { grid-template-columns: 1fr; } }

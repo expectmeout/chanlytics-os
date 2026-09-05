@@ -60,6 +60,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../lib/workspace/db.js";
 import { upsertEscalation, type EscalationOutcome } from "../lib/workspace/jobs.js";
 import { loadTenantRuntime, waCfgFor, type TenantRuntime } from "../lib/tenant-runtime.js";
+import { openingsFor } from "../lib/availability.js";
 import { replyPosture, effectiveReplyMode } from "../lib/reply-posture.js";
 import { scheduleJob } from "../lib/workspace/jobs.js";
 import { resolveConsent } from "../lib/consent.js";
@@ -438,6 +439,9 @@ async function handleInbound(
   // The number the handoff email states. It reads the same limit the pause
   // does, so the email and Settings never disagree about it.
   const pauseHours = Math.round(pauseMs / 3600000);
+  // What is open, from the calendar feed, when the workspace has one. Cached
+  // for five minutes on the edge; a feed that cannot be read says nothing.
+  const openings = rt ? await openingsFor(rt) : null;
 
   const allow = (process.env.WHATSAPP_TEST_ALLOWLIST || "").split(",").map((s) => s.trim()).filter(Boolean);
   if (allow.length && !allow.includes(from)) {
@@ -797,7 +801,7 @@ async function handleInbound(
         // "Are you open?" it could already answer. "Are you open RIGHT NOW?"
         // it was answering too, from nothing — it had a table of hours and no
         // idea what day it was.
-        describeNow(rt?.timezone, new Date(), brainCfg.profile?.closures),
+        `${describeNow(rt?.timezone, new Date(), brainCfg.profile?.closures)}${openings ? `\n\n${openings}` : ""}`,
       );
       replyText = r.text; escalate = r.escalate; usage = r.usage;
       if (r.reason) escalationReason = r.reason;

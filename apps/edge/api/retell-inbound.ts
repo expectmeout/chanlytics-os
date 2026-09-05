@@ -21,6 +21,7 @@ import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { resolveChannel, readLeadContext, describeLead } from "../lib/workspace/db.js";
 import { loadTenantRuntime } from "../lib/tenant-runtime.js";
+import { openingsFor } from "../lib/availability.js";
 import { logger } from "../lib/log.js";
 
 /**
@@ -111,7 +112,11 @@ export async function POST(request: Request): Promise<Response> {
         // its own. Substitution happens once, at call start, so there is no
         // cache to protect here — and a second variable would mean asking
         // every owner to edit their Retell prompt again.
-        facts = `${resolveSystemPrompt(rt.brain, "voice", rt.timezone)}\n\n${describeNow(rt.timezone, new Date(), rt.brain.profile?.closures)}`;
+        // The open times ride with the facts at call start: a call is minutes
+        // long, the feed is cached for five, and the agent needs them before
+        // the caller asks "when could I come in?".
+        const openings = await openingsFor(rt);
+        facts = `${resolveSystemPrompt(rt.brain, "voice", rt.timezone)}\n\n${describeNow(rt.timezone, new Date(), rt.brain.profile?.closures)}${openings ? `\n\n${openings}` : ""}`;
         businessName = rt.brain.business_name;
         handoff = rt.brain.profile?.handoff_number ?? null;
       } else {

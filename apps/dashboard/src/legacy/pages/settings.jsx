@@ -520,6 +520,15 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   const [handoff, setHandoff] = useSetState(p0.handoff_number || "");
   const [website, setWebsite] = useSetState(p0.website || "");
   const [notes, setNotes] = useSetState(() => (p0.notes || []).map((x) => ({ ...x })));
+  const br0 = p0.booking_rules || {};
+  const [leadHours, setLeadHours] = useSetState(br0.lead_hours !== undefined ? String(br0.lead_hours) : "");
+  const [bufferMin, setBufferMin] = useSetState(br0.buffer_min !== undefined ? String(br0.buffer_min) : "");
+  const [daysAhead, setDaysAhead] = useSetState(br0.max_days_ahead !== undefined ? String(br0.max_days_ahead) : "");
+  const [partyMax, setPartyMax] = useSetState(br0.party_max !== undefined ? String(br0.party_max) : "");
+  const [consultFirst, setConsultFirst] = useSetState((br0.consult_first || []).join("\n"));
+  const [bookingNotes, setBookingNotes] = useSetState((br0.notes || []).join("\n"));
+  const cal0 = (settings.config && settings.config.calendar) || {};
+  const [icalUrl, setIcalUrl] = useSetState(cal0.ical_url || "");
   const setNote = (i, k, v) => setNotes((l) => l.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
   // Pre-filled with the workspace's existing instructions the first time this
   // is opened, so nothing a business already told its receptionist quietly
@@ -720,6 +729,21 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       return;
     }
     put("notes", noteRows.length ? noteRows : undefined);
+    // Booking rules: a blank field is "no rule", never zero.
+    const num = (v, lo, hi) => { const n = parseInt(String(v).trim(), 10); return Number.isFinite(n) && n >= lo && n <= hi ? n : undefined; };
+    const rules = {};
+    const lead = num(leadHours, 0, 168); if (lead !== undefined) rules.lead_hours = lead;
+    const buf = num(bufferMin, 0, 120); if (buf !== undefined) rules.buffer_min = buf;
+    const ahead = num(daysAhead, 1, 90); if (ahead !== undefined) rules.max_days_ahead = ahead;
+    const party = num(partyMax, 1, 20); if (party !== undefined) rules.party_max = party;
+    const cf = consultFirst.split("\n").map((x) => x.trim()).filter(Boolean); if (cf.length) rules.consult_first = cf;
+    const bn = bookingNotes.split("\n").map((x) => x.trim()).filter(Boolean); if (bn.length) rules.notes = bn;
+    put("booking_rules", Object.keys(rules).length ? rules : undefined);
+    const feed = icalUrl.trim();
+    if (feed && !/^(https?|webcal):\/\/\S+$/i.test(feed)) {
+      flash({ msg: <>The calendar feed needs to be a full address, starting with https:// or webcal://</> });
+      return;
+    }
     const hrs = {};
     SET_DAYS.forEach(([d]) => {
       const x = hours[d];
@@ -802,6 +826,8 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         fallbacks: brain.fallbacks || defaults.fallbacks,
         profile,
       },
+      // A top-level section, read by the edge; an emptied field removes it.
+      ...(feed ? { calendar: { ical_url: feed } } : { calendar: undefined }),
     };
     setSaving(true);
     // saveSettings refreshes every surface on success — several seconds of
@@ -1008,6 +1034,36 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
           </div>
         ))}
         <button type="button" className="btn btn-sm" onClick={() => setServices((l) => [...l, { name: "" }])}><Icon name="plus" size={12} /> Add a service</button>
+      </div>
+
+      <div className="set-sec">
+        <SetSectionHead title="Booking rules" hint="How open times are offered — the receptionist never books; it sends the link" />
+        <div className="set-br-grid">
+          <label className="set-br-field"><span className="set-br-label">Least notice (hours)</span><input className="set-input" inputMode="numeric" value={leadHours} placeholder="2" aria-label="Least notice in hours" onChange={(e) => setLeadHours(e.target.value.replace(/[^0-9]/g, ""))} /></label>
+          <label className="set-br-field"><span className="set-br-label">Gap between appointments (minutes)</span><input className="set-input" inputMode="numeric" value={bufferMin} placeholder="0" aria-label="Gap between appointments in minutes" onChange={(e) => setBufferMin(e.target.value.replace(/[^0-9]/g, ""))} /></label>
+          <label className="set-br-field"><span className="set-br-label">Offer times up to (days ahead)</span><input className="set-input" inputMode="numeric" value={daysAhead} placeholder="14" aria-label="Days ahead" onChange={(e) => setDaysAhead(e.target.value.replace(/[^0-9]/g, ""))} /></label>
+          <label className="set-br-field"><span className="set-br-label">Most people per booking</span><input className="set-input" inputMode="numeric" value={partyMax} placeholder="4" aria-label="Most people per booking" onChange={(e) => setPartyMax(e.target.value.replace(/[^0-9]/g, ""))} /></label>
+        </div>
+        <textarea className="set-input set-textarea" rows={2} value={consultFirst} onChange={(e) => setConsultFirst(e.target.value)} placeholder={"Color correction\nExtensions"} aria-label="Services that need a consultation first" />
+        <div className="set-sec-note">Services that need a consultation before they can be booked, one per line.</div>
+        <textarea className="set-input set-textarea" rows={2} value={bookingNotes} onChange={(e) => setBookingNotes(e.target.value)} placeholder={"No chemical services after 4 PM\nBridal parties are booked by phone"} aria-label="Booking notes" />
+      </div>
+
+      <div className="set-sec">
+        <SetSectionHead title="Calendar it may look at" hint="Read-only — so it can say which times are open before sending the link" />
+        <input
+          className="set-input"
+          value={icalUrl}
+          onChange={(e) => setIcalUrl(e.target.value)}
+          placeholder="https://calendar.google.com/calendar/ical/…/private-…/basic.ics"
+          inputMode="url"
+          autoComplete="off"
+          aria-label="Calendar feed address"
+        />
+        <div className="set-sec-note">
+          The private iCal address of the calendar your appointments land in (Google, Apple or Outlook — Booksy, Calendly and the rest sync into one).
+          It is only ever read. Nothing is booked from here; the booking link does that, whichever tool is behind it.
+        </div>
       </div>
 
       {/* Holidays. Kept next to the hours because that is the question they
