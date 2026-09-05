@@ -43,6 +43,8 @@ export const RATE = {
   create_workspace: { limit: 5, windowMs: 3_600_000, noun: "new workspaces" },
   /** A person's receptionist mode. */
   person_mode: { limit: 60, windowMs: 60_000, noun: "receptionist changes" },
+  /** A whole thread, a whole call, or everyone, as a file. */
+  export: { limit: 10, windowMs: 60_000, noun: "exports" },
 } as const satisfies Record<string, RateRule>;
 
 export type RateBucket = keyof typeof RATE;

@@ -13,9 +13,9 @@ const { useState: useSetState, useEffect: useSetEffect } = React;
 // this literal is the standalone-mockup fallback only. Two hand-kept copies is
 // one edit away from the client offering a control the server refuses.
 const ST_PERMS = window.ROLE_PERMS || {
-  owner:    { approve: true,  autonomy: true,  disconnect: true,  billing: true,  team: true,  settings: true },
-  operator: { approve: true,  autonomy: true,  disconnect: false, billing: false, team: false, settings: false },
-  viewer:   { approve: false, autonomy: false, disconnect: false, billing: false, team: false, settings: false },
+  owner:    { approve: true,  autonomy: true,  disconnect: true,  billing: true,  team: true,  settings: true,  export: true },
+  operator: { approve: true,  autonomy: true,  disconnect: false, billing: false, team: false, settings: false, export: false },
+  viewer:   { approve: false, autonomy: false, disconnect: false, billing: false, team: false, settings: false, export: false },
 };
 const ST_ROLE_META = {
   owner:    { label: "Owner",    tone: "accent", can: "Everything — billing, team, and disconnecting agents" },

@@ -337,6 +337,7 @@ declare global {
     __refreshSettings?: () => Promise<void>;
     __refreshLive?: () => Promise<void>;
     __inboxVerb: typeof inboxVerb;
+    __scoped: typeof scoped;
     __teamInvite: typeof teamInvite;
     __teamSetRole: typeof teamSetRole;
     __teamRemove: typeof teamRemove;
@@ -398,6 +399,9 @@ export async function setReportRange(days: number): Promise<boolean> {
 
 export function installInboxVerbs(): void {
   window.__inboxVerb = inboxVerb;
+  // A download is a plain link to a route, and the route needs the workspace
+  // named like every other request; the page builds the href with this.
+  window.__scoped = scoped;
   window.__setReportDays = setReportRange;
   window.__setPolicy = setPolicy;
   window.__refreshSettings = refreshSettings;

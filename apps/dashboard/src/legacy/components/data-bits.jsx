@@ -184,7 +184,7 @@ window.useHotkey = useHotkey;
 // gate(action) spreads onto a committing control's opening tag AFTER onClick:
 // allowed -> {}, denied -> disabled + reason tooltip + onClick stripped.
 // Engine fns double-guard with canDo(action) so hotkeys/bulk paths respect roles.
-const GATE_VERB = { approve: "approve or send", autonomy: "change agent autonomy", disconnect: "disconnect", billing: "change billing", team: "manage the team", settings: "change the business details" };
+const GATE_VERB = { approve: "approve or send", autonomy: "change agent autonomy", disconnect: "disconnect", billing: "change billing", team: "manage the team", settings: "change the business details", export: "export the customer list" };
 const canDo = (a) => !window.ST_STORE || window.ST_STORE.can(a);
 const gateTitle = (a) => {
   const r = window.ST_STORE ? window.ST_STORE.myRole() : "owner";

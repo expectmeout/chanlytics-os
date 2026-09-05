@@ -257,6 +257,18 @@ const CvViewer = ({ c }) => {
               <Icon name="users" size={12} /> Open client
             </button>
           )}
+          {/* A file from the route that writes it. The menu item that used to
+              offer this opened an overlay that did nothing outside a demo. */}
+          {!window.__DEMO_MODE && window.__scoped && (
+            <a
+              className="btn btn-ghost btn-sm"
+              href={window.__scoped(isCall ? `/api/v1/calls/${c.callId}/export` : `/api/v1/conversations/${c.id}/export`)}
+              download
+              title="Download this transcript as a text file"
+            >
+              <Icon name="external" size={12} /> Export
+            </a>
+          )}
           {c.approval && (
             dec ? (
               <button className="btn btn-sm" onClick={() => window.CHANLY.nav(window.CHANLY.R.thread(c.threadId))}>

@@ -41,7 +41,7 @@ export function withRoute<T>(
     // non-optional signature satisfies the generated ParamCheck for both
     // static and dynamic routes (runtime still guards defensively).
     routeCtx: { params: Promise<Record<string, string | string[] | undefined>> },
-  ): Promise<NextResponse> => {
+  ): Promise<Response> => {
     const started = Date.now();
     const route = new URL(req.url).pathname;
     try {
@@ -85,6 +85,12 @@ export function withRoute<T>(
       }
       const data = await handler(req, { supabase, userId: user.id, email: user.email, params });
       console.log(JSON.stringify({ level: "info", route, user: user.id, ms: Date.now() - started }));
+      // A handler that built its own Response — a file to download — passes
+      // through as it is, under the same no-store rule as every other exit.
+      if (data instanceof Response) {
+        data.headers.set("cache-control", PRIVATE["cache-control"]);
+        return data;
+      }
       return NextResponse.json(ok(data), { headers: PRIVATE });
     } catch (e) {
       if (e instanceof AppError) {
