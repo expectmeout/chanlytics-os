@@ -4397,16 +4397,17 @@ var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
 });
-var DAY_MS = 864e5;
-var WEEK_MS = 7 * DAY_MS;
-var MONTH_MS = 30 * DAY_MS;
-var NEW_WINDOW_MS = 7 * DAY_MS;
-var QUIET_AFTER_MS = 30 * DAY_MS;
+var DAY_MS = 24 * 3600 * 1e3;
+var DAY_MS2 = 864e5;
+var WEEK_MS = 7 * DAY_MS2;
+var MONTH_MS = 30 * DAY_MS2;
+var NEW_WINDOW_MS = 7 * DAY_MS2;
+var QUIET_AFTER_MS = 30 * DAY_MS2;
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_YEAR_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
 var TIME_FMT2 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DAY_MS2 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS2;
+var DAY_MS3 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS3;
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var GRAPH = "https://graph.facebook.com/v25.0";
@@ -8805,16 +8806,17 @@ var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c, n) => checkClosure2(c, n, ctx));
 });
-var DAY_MS3 = 864e5;
-var WEEK_MS2 = 7 * DAY_MS3;
-var MONTH_MS2 = 30 * DAY_MS3;
-var NEW_WINDOW_MS2 = 7 * DAY_MS3;
-var QUIET_AFTER_MS3 = 30 * DAY_MS3;
+var DAY_MS4 = 24 * 3600 * 1e3;
+var DAY_MS22 = 864e5;
+var WEEK_MS2 = 7 * DAY_MS22;
+var MONTH_MS2 = 30 * DAY_MS22;
+var NEW_WINDOW_MS2 = 7 * DAY_MS22;
+var QUIET_AFTER_MS3 = 30 * DAY_MS22;
 var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_YEAR_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
 var TIME_FMT22 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DAY_MS22 = 864e5;
-var QUIET_AFTER_MS22 = 7 * DAY_MS22;
+var DAY_MS32 = 864e5;
+var QUIET_AFTER_MS22 = 7 * DAY_MS32;
 var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_FMT42 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 

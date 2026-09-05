@@ -500,11 +500,13 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
   } else if (page === "today") {
     activeNav = "home";
     crumbs = ["Today"];
-    primaryAction = (
+    // "New task" opens the Ask overlay, which is a no-op outside a demo: a
+    // primary button that did nothing sat in the real chrome. Demo only.
+    primaryAction = window.__DEMO_MODE ? (
       <button className="btn btn-primary btn-sm" onClick={() => window.askAbout({ mode: "compose", prompt: "New task: " })}>
         <Icon name="plus" size={12} /> New task
       </button>
-    );
+    ) : null;
     content = <DashboardA onAsk={openAsk} />;
   } else {
     activeNav = "home";

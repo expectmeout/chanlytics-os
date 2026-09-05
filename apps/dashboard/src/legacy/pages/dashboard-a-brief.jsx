@@ -50,7 +50,7 @@ const HeroBriefReal = ({ vm }) => {
         <span className="brief-eyebrow">{standing.eyebrow}</span>
         <span className="brief-eyebrow-sep">·</span>
         <span className="brief-eyebrow">
-          <span className="live-dot" style={up < total ? { background: "var(--danger)" } : undefined} /> {total > 0 ? `${up} of ${total} agents live` : "no channels connected yet"}
+          <span className="live-dot" style={up < total ? { background: "var(--danger)" } : undefined} /> {total > 0 ? `${up} of ${total} ${total === 1 ? "line" : "lines"} connected` : "no channels connected yet"}
         </span>
         <div className="brief-meta-spacer" />
       </div>

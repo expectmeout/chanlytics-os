@@ -3184,6 +3184,96 @@ declare function frameSteer(text: string): string;
 declare function whisperText(content: string | null | undefined): string;
 
 /**
+ * The bell: what needs the owner, from what the browser already holds.
+ *
+ * The seeded bell promised five things to read that never happened, and a
+ * real session showed nothing. The feed here is built from the rows the
+ * surfaces have already fetched — the Inbox threads, the Live calls, the open
+ * invitations — so it costs no request and is exactly as fresh as the pages
+ * around it. Read state is per device (the bridge keeps it in localStorage):
+ * honest, and enough until a person has more than one phone.
+ *
+ * Pure: the bridge feeds it the globals, the tests feed it fixtures.
+ */
+type NotificationKind = "needs_you" | "held_draft" | "missed_call" | "invite";
+interface NotificationItem {
+    /** Stable across refreshes: the row it stands for. */
+    key: string;
+    kind: NotificationKind;
+    /** When it became true, epoch ms. */
+    at: number;
+    title: string;
+    message: string;
+    /** Hash route, without the leading "#/". */
+    to: string;
+    icon: string;
+    tone: "" | "ok" | "warn";
+    /** The button under it. */
+    action: string;
+}
+/** The slice of the Inbox thread view-model the feed reads. */
+interface FeedThread {
+    id: string;
+    real?: boolean;
+    needsYou?: boolean;
+    who: string;
+    preview?: string;
+    waitingMin?: number;
+    veto?: {
+        window: number;
+        endsAtMs: number;
+        messageId: string;
+        draft: string;
+        why?: {
+            heldFor?: string | null;
+            summary?: string;
+        };
+    };
+}
+/** The slice of the Live call view-model the feed reads. */
+interface FeedCall {
+    callId: string;
+    cvId: string;
+    who: string;
+    number?: string | null;
+    missed: boolean;
+    live: boolean;
+    startedAtMs: number | null;
+}
+interface FeedInvite {
+    id: string;
+    email: string;
+    created_at: string;
+}
+interface FeedInput {
+    threads?: FeedThread[] | null;
+    calls?: FeedCall[] | null;
+    invites?: FeedInvite[] | null;
+    now: number;
+}
+/** Everything that needs the owner right now, newest first. */
+declare function buildNotificationFeed(input: FeedInput): NotificationItem[];
+/** What one device remembers about the bell. */
+interface NotificationReadState {
+    /** "Mark all read" moves this; opening the bell does not, so "New" stays new until the owner says so. */
+    seenAt: number;
+    read: string[];
+    dismissed: string[];
+    /** Device alerts while the app is in the background. */
+    alerts: boolean;
+}
+declare const EMPTY_READ_STATE: NotificationReadState;
+interface NotificationRow extends NotificationItem {
+    unread: boolean;
+}
+/** The feed as a device sees it: dismissed rows gone, unread decided. */
+declare function applyReadState(items: NotificationItem[], state: NotificationReadState): NotificationRow[];
+/** "now", "5m", "2h", "3d" — the bell's clock (the Inbox has its own `ago`). */
+declare function agoLabel(atMs: number, now: number): string;
+/** The kinds a device is woken for; an invitation can wait for the bell. */
+declare const ALERT_KINDS: readonly NotificationKind[];
+
+/**
  * Read-only availability: what is open, from a calendar feed and the rules.
  *
  * The receptionist never books. It may SEE the calendar — the owner's
@@ -3775,4 +3865,4 @@ declare function fmtClock(seconds: number): string;
 declare function toLiveCallVM(dto: CallDto, now?: Date): LiveCallVM;
 declare function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, now?: Date): LiveVM;
 
-export { ACTOR_TYPES, ANALYSIS_GRACE_MS, type ActorType, AppError, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BusinessProfile, BusinessProfileSchema, type BusyBlock, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONFIDENCE_STEPS, CONSENT_STATES, CONVERSATION_STATES, type CalendarConfig, CalendarConfigSchema, type CallDto, type CallVM, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelVM, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, E164, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type FeaturesConfig, FeaturesConfigSchema, type FreeWindowsInput, GuardrailsSchema, type Hours, type HoursRun, HoursSchema, INTENT_LABELS, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MediaVM, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type Note, NoteSchema, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, type Opening, PEOPLE_LISTS, PEOPLE_TABS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_STATE_LABELS, POLICY_CLASSES, POLICY_MODES, type ParseOptions, type ParsedFeed, type PeopleAggregates, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, QUIET_AFTER_MS, RECENT_MAX, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPORT_RANGES, ROLES, ROLE_PERMS, type ReceptionistTone, type ReplyWhyVM, type ReportBarVM, type ReportDayDto, type ReportDto, type ReportPointVM, type ReportTileVM, type ReportVM, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TimelineKind, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, ago, asPersonMode, brainMetaOf, composeSystemPrompt, contactMeta, contactName, dayInZone, deltaOf, describeNow, describeOpenings, draftSendsAtMs, err, filterOpenings, fmtClock, fmtDay, fmtSeconds, formatPhoneDisplay, formatWaited, frameSteer, frameWhisper, freeWindows, hasProfile, hoursRuns, initialsOf, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, localToUtcMs, mediaKind, mediaVM, messageAt, messageStatusLabel, messageText, newReceptionistDefaults, normalizePhone, ok, parseBrainOutput, parseIcs, parseTenantConfig, parseTenantConfigResult, peopleAggregates, personName, personStateFor, pointsDelta, quantile, reachedCustomer, reasonShort, recencyCells, replyDelayMs, replyWhy, resolveSystemPrompt, shortTime, threadStanding, toCallVM, toChannelVM, toConversationVM, toInboxThreadVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, violatesNoPrices, waWindow, whisperText, zoneOffsetMs };
+export { ACTOR_TYPES, ALERT_KINDS, ANALYSIS_GRACE_MS, type ActorType, AppError, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BusinessProfile, BusinessProfileSchema, type BusyBlock, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONFIDENCE_STEPS, CONSENT_STATES, CONVERSATION_STATES, type CalendarConfig, CalendarConfigSchema, type CallDto, type CallVM, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelVM, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, E164, EMPTY_READ_STATE, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type FeaturesConfig, FeaturesConfigSchema, type FeedCall, type FeedInput, type FeedInvite, type FeedThread, type FreeWindowsInput, GuardrailsSchema, type Hours, type HoursRun, HoursSchema, INTENT_LABELS, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MediaVM, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type Note, NoteSchema, type NotificationItem, type NotificationKind, type NotificationReadState, type NotificationRow, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, type Opening, PEOPLE_LISTS, PEOPLE_TABS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_STATE_LABELS, POLICY_CLASSES, POLICY_MODES, type ParseOptions, type ParsedFeed, type PeopleAggregates, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, QUIET_AFTER_MS, RECENT_MAX, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPORT_RANGES, ROLES, ROLE_PERMS, type ReceptionistTone, type ReplyWhyVM, type ReportBarVM, type ReportDayDto, type ReportDto, type ReportPointVM, type ReportTileVM, type ReportVM, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TimelineKind, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, ago, agoLabel, applyReadState, asPersonMode, brainMetaOf, buildNotificationFeed, composeSystemPrompt, contactMeta, contactName, dayInZone, deltaOf, describeNow, describeOpenings, draftSendsAtMs, err, filterOpenings, fmtClock, fmtDay, fmtSeconds, formatPhoneDisplay, formatWaited, frameSteer, frameWhisper, freeWindows, hasProfile, hoursRuns, initialsOf, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, localToUtcMs, mediaKind, mediaVM, messageAt, messageStatusLabel, messageText, newReceptionistDefaults, normalizePhone, ok, parseBrainOutput, parseIcs, parseTenantConfig, parseTenantConfigResult, peopleAggregates, personName, personStateFor, pointsDelta, quantile, reachedCustomer, reasonShort, recencyCells, replyDelayMs, replyWhy, resolveSystemPrompt, shortTime, threadStanding, toCallVM, toChannelVM, toConversationVM, toInboxThreadVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, violatesNoPrices, waWindow, whisperText, zoneOffsetMs };

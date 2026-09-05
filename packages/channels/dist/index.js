@@ -4361,16 +4361,17 @@ var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
 });
-var DAY_MS = 864e5;
-var WEEK_MS = 7 * DAY_MS;
-var MONTH_MS = 30 * DAY_MS;
-var NEW_WINDOW_MS = 7 * DAY_MS;
-var QUIET_AFTER_MS = 30 * DAY_MS;
+var DAY_MS = 24 * 3600 * 1e3;
+var DAY_MS2 = 864e5;
+var WEEK_MS = 7 * DAY_MS2;
+var MONTH_MS = 30 * DAY_MS2;
+var NEW_WINDOW_MS = 7 * DAY_MS2;
+var QUIET_AFTER_MS = 30 * DAY_MS2;
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_YEAR_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
 var TIME_FMT2 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DAY_MS2 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS2;
+var DAY_MS3 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS3;
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 

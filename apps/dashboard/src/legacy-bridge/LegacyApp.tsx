@@ -28,6 +28,7 @@ import { clearSurfaceCache, hydrateSurfaceCache } from "./surface-cache";
 import { installInboxVerbs } from "./inbox-verbs";
 import { installPeopleCourier } from "./people-detail";
 import { installPolicyStore } from "./policy-store";
+import { installNotifications } from "./notifications";
 import CreateWorkspace from "./CreateWorkspace";
 
 installInboxVerbs();
@@ -36,6 +37,11 @@ installPeopleCourier();
 // approval chips and the matrix read the workspace's real modes from the
 // first paint, including from the cache.
 installPolicyStore();
+// The bell: fed by the rows the surfaces already hold, read state on this
+// device, and a system alert when something new needs the owner while the
+// app is in the background. Listens for the surface events, so it must be
+// installed before the first fetch resolves.
+installNotifications();
 // The installable shell's service worker (public/sw.js). It caches nothing
 // and answers nothing — the workspace is live data — and exists so a phone
 // can add the app to its home screen. Production only: a worker on a dev

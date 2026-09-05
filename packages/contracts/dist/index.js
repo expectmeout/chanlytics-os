@@ -1713,6 +1713,90 @@ function resolveSystemPrompt(brain, channel = "whatsapp", tz, now = /* @__PURE__
   return composeSystemPrompt(brain, carried, channel, tz, now);
 }
 
+// src/notifications.ts
+var DAY_MS = 24 * 3600 * 1e3;
+function buildNotificationFeed(input) {
+  const { now } = input;
+  const items = [];
+  for (const t of input.threads ?? []) {
+    if (!t.real) continue;
+    if (t.needsYou) {
+      const at = typeof t.waitingMin === "number" ? now - t.waitingMin * 6e4 : now;
+      items.push({
+        key: `needs:${t.id}`,
+        kind: "needs_you",
+        at,
+        title: `${t.who} needs you`,
+        message: t.preview ? `They wrote: \u201C${t.preview}\u201D` : "Flagged for a person.",
+        to: `inbox/${t.id}`,
+        icon: "inbox",
+        tone: "warn",
+        action: "Open in Inbox"
+      });
+    }
+    if (t.veto && t.veto.endsAtMs > now) {
+      const held = t.veto.why?.heldFor === "low_confidence" ? "Not sure enough to send alone" : "Waiting in the hold window";
+      items.push({
+        key: `draft:${t.veto.messageId}`,
+        kind: "held_draft",
+        at: t.veto.endsAtMs - t.veto.window * 1e3,
+        title: `A reply to ${t.who} is waiting for you`,
+        message: `${held} \xB7 \u201C${t.veto.draft.slice(0, 90)}${t.veto.draft.length > 90 ? "\u2026" : ""}\u201D`,
+        to: `inbox/${t.id}`,
+        icon: "clock",
+        tone: "",
+        action: "Review"
+      });
+    }
+  }
+  for (const c of input.calls ?? []) {
+    if (!c.missed || c.live || typeof c.startedAtMs !== "number") continue;
+    if (now - c.startedAtMs > DAY_MS) continue;
+    items.push({
+      key: `call:${c.callId}`,
+      kind: "missed_call",
+      at: c.startedAtMs,
+      title: `Missed call \xB7 ${c.who}`,
+      message: c.number ? `${c.number} \u2014 the call never connected.` : "The call never connected.",
+      to: `conversations/${c.cvId}`,
+      icon: "phone",
+      tone: "warn",
+      action: "See the call"
+    });
+  }
+  for (const i of input.invites ?? []) {
+    const at = Date.parse(i.created_at);
+    items.push({
+      key: `invite:${i.id}`,
+      kind: "invite",
+      at: Number.isNaN(at) ? now : at,
+      title: `Invitation pending \xB7 ${i.email}`,
+      message: "They have not accepted yet.",
+      to: "admin/workspace",
+      icon: "users",
+      tone: "",
+      action: "Team"
+    });
+  }
+  return items.sort((a, b) => b.at - a.at);
+}
+var EMPTY_READ_STATE = { seenAt: 0, read: [], dismissed: [], alerts: false };
+function applyReadState(items, state) {
+  const read = new Set(state.read);
+  const gone = new Set(state.dismissed);
+  return items.filter((i) => !gone.has(i.key)).map((i) => ({ ...i, unread: i.at > state.seenAt && !read.has(i.key) }));
+}
+function agoLabel(atMs, now) {
+  const s = Math.max(0, Math.round((now - atMs) / 1e3));
+  if (s < 60) return "now";
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.round(h / 24)}d`;
+}
+var ALERT_KINDS = ["needs_you", "held_draft", "missed_call"];
+
 // src/availability.ts
 function zoneParts(tz, at) {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -2062,11 +2146,11 @@ var PEOPLE_TABS = [
   { id: "quiet", label: "Quiet" },
   { id: "active", label: "Active" }
 ];
-var DAY_MS = 864e5;
-var WEEK_MS = 7 * DAY_MS;
-var MONTH_MS = 30 * DAY_MS;
-var NEW_WINDOW_MS = 7 * DAY_MS;
-var QUIET_AFTER_MS = 30 * DAY_MS;
+var DAY_MS2 = 864e5;
+var WEEK_MS = 7 * DAY_MS2;
+var MONTH_MS = 30 * DAY_MS2;
+var NEW_WINDOW_MS = 7 * DAY_MS2;
+var QUIET_AFTER_MS = 30 * DAY_MS2;
 var REASON_SHORT = {
   human_token: "asked for a person",
   non_text: "sent something the receptionist can't read",
@@ -2098,8 +2182,8 @@ function ago(ms, nowMs) {
   const diff = Math.max(0, nowMs - ms);
   if (diff < 6e4) return "just now";
   if (diff < 36e5) return `${Math.round(diff / 6e4)}m ago`;
-  if (diff < DAY_MS) return `${Math.round(diff / 36e5)}h ago`;
-  if (diff < WEEK_MS) return `${Math.round(diff / DAY_MS)}d ago`;
+  if (diff < DAY_MS2) return `${Math.round(diff / 36e5)}h ago`;
+  if (diff < WEEK_MS) return `${Math.round(diff / DAY_MS2)}d ago`;
   return fmtDate(ms, nowMs);
 }
 function dayLabel(ms, nowMs) {
@@ -2107,7 +2191,7 @@ function dayLabel(ms, nowMs) {
   const now = new Date(nowMs);
   const key = d.toDateString();
   if (key === now.toDateString()) return `Today \xB7 ${DATE_FMT2.format(d)}`;
-  if (key === new Date(nowMs - DAY_MS).toDateString()) return `Yesterday \xB7 ${DATE_FMT2.format(d)}`;
+  if (key === new Date(nowMs - DAY_MS2).toDateString()) return `Yesterday \xB7 ${DATE_FMT2.format(d)}`;
   return fmtDate(ms, nowMs);
 }
 function mmss3(ms) {
@@ -2256,7 +2340,7 @@ var RECENCY_BUCKETS = [
 function recencyCells(rows, nowMs) {
   const cells = RECENCY_BUCKETS.map((b) => ({ label: b.label, count: 0 }));
   for (const v of rows) {
-    const days = v.lastContact.ts === null ? Infinity : (nowMs - v.lastContact.ts) / DAY_MS;
+    const days = v.lastContact.ts === null ? Infinity : (nowMs - v.lastContact.ts) / DAY_MS2;
     let i = RECENCY_BUCKETS.findIndex((b) => days < b.max);
     if (i === -1) i = cells.length - 1;
     cells[i].count++;
@@ -2445,15 +2529,15 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
 }
 
 // src/channels.ts
-var DAY_MS2 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS2;
+var DAY_MS3 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS3;
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 function ago2(ms, nowMs) {
   const diff = Math.max(0, nowMs - ms);
   if (diff < 6e4) return "just now";
   if (diff < 36e5) return `${Math.round(diff / 6e4)}m ago`;
-  if (diff < DAY_MS2) return `${Math.round(diff / 36e5)}h ago`;
-  if (diff < QUIET_AFTER_MS2) return `${Math.round(diff / DAY_MS2)}d ago`;
+  if (diff < DAY_MS3) return `${Math.round(diff / 36e5)}h ago`;
+  if (diff < QUIET_AFTER_MS2) return `${Math.round(diff / DAY_MS3)}d ago`;
   return DATE_FMT3.format(new Date(ms));
 }
 var KIND_META = {
@@ -2689,6 +2773,7 @@ function toReportVM(dto) {
 }
 export {
   ACTOR_TYPES,
+  ALERT_KINDS,
   ANALYSIS_GRACE_MS,
   AppError,
   BRAIN_INTENTS,
@@ -2710,6 +2795,7 @@ export {
   DECISION_VERBS,
   DISCONNECTION_LABELS,
   E164,
+  EMPTY_READ_STATE,
   ERROR_CODES,
   ESCALATION_REASONS,
   ESCALATION_REASON_LABELS,
@@ -2761,8 +2847,11 @@ export {
   TenantConfigWriteSchema,
   WA_WINDOW_MS,
   ago,
+  agoLabel,
+  applyReadState,
   asPersonMode,
   brainMetaOf,
+  buildNotificationFeed,
   composeSystemPrompt,
   contactMeta,
   contactName,
