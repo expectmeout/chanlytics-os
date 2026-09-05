@@ -28,6 +28,7 @@ import {
   normalizeCall,
   callSummaryLine,
   verifyRetellSignature,
+  parseTranscriptText,
   type RetellCall,
 } from "../lib/workspace/channels.js";
 import {
@@ -129,6 +130,29 @@ export async function POST(request: Request): Promise<Response> {
   // turn or, forward-only, make every later turn a no-op.
   if (event === "transcript_updated" && !call.call_status) call.call_status = "ongoing";
 
+  // Where the live transcript actually rides. The documentation puts the
+  // per-turn fields "in the payload"; the first real calls proved they are
+  // NOT inside `call` on transcript_updated — every turn arrived with none of
+  // transcript / transcript_object / transcript_with_tool_calls there, while
+  // call_ended carried all three — so the row never held a word until the
+  // call was over. Read them from either place; fall back to the spoken text;
+  // and keep the KEY NAMES (never the words) so the next delivery says which.
+  const top = body as unknown as Record<string, unknown>;
+  const bodyKeys = Object.keys(top).filter((k) => k !== "call");
+  const callKeys = Object.keys(call as unknown as Record<string, unknown>);
+  if (event === "transcript_updated") {
+    if (!call.transcript_with_tool_calls && Array.isArray(top.transcript_with_tool_calls)) {
+      call.transcript_with_tool_calls = top.transcript_with_tool_calls as RetellCall["transcript_with_tool_calls"];
+    }
+    if (!call.transcript_object && Array.isArray(top.transcript_object)) {
+      call.transcript_object = top.transcript_object as RetellCall["transcript_object"];
+    }
+    if (!call.transcript && typeof top.transcript === "string") call.transcript = top.transcript;
+    if (!call.transcript_object && !call.transcript_with_tool_calls && call.transcript) {
+      call.transcript_object = parseTranscriptText(call.transcript) ?? undefined;
+    }
+  }
+
   const n = normalizeCall(call);
   const db = pg();
   // null = no control plane to ask; true = this delivery owns the post-call
@@ -159,6 +183,8 @@ export async function POST(request: Request): Promise<Response> {
           tool_turns: call.transcript_with_tool_calls?.length ?? null,
           transcript_chars: n.transcript?.length ?? null,
           skipped: !!res.skipped,
+          body_keys: bodyKeys,
+          call_keys: callKeys,
         });
 
         // The call belongs in the customer's one thread, not a silo — written

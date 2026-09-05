@@ -114,6 +114,28 @@ export function liveTurns(items: RetellCall["transcript_with_tool_calls"]): Rete
   return spoken.map(({ role, content, words }) => ({ role, content: content ?? "", ...(words ? { words } : {}) }));
 }
 
+/**
+ * Turns from the plain transcript text — "Agent: …" / "User: …", one per
+ * line, the shape of Retell's `transcript` string. A last resort for a
+ * delivery that carries the words and none of the structured fields; a
+ * line that names no speaker continues the turn before it.
+ */
+export function parseTranscriptText(text: string | null | undefined): RetellTranscriptTurn[] | null {
+  if (!text) return null;
+  const turns: RetellTranscriptTurn[] = [];
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const m = /^(Agent|User):\s*(.*)$/.exec(line);
+    if (!m) {
+      if (turns.length) turns[turns.length - 1].content += ` ${line}`;
+      continue;
+    }
+    turns.push({ role: m[1] === "Agent" ? "agent" : "user", content: m[2] });
+  }
+  return turns.length ? turns : null;
+}
+
 export function normalizeCall(c: RetellCall): NormalizedCall {
   const analysis = c.call_analysis ?? {};
   const from = c.from_number ?? null;
