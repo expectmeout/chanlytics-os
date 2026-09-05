@@ -3334,7 +3334,7 @@ declare const ASK_FINISH_JSON_SCHEMA: {
     readonly properties: {
         readonly answer: {
             readonly type: "string";
-            readonly description: "The answer, in the person's language: two or three short sentences, under sixty words, unless they asked for detail (a transcript, a list). Plain text only: no markdown, no headings, and never a tag such as <answer> or <parameter> inside this string. Say what you found; if a read returned nothing, say so plainly.";
+            readonly description: "The answer, in the person's language: two or three short sentences, under sixty words, unless they asked for detail (a transcript, a list). Plain text only: no markdown, no headings, and never a tag such as <answer> or <parameter> inside this string. More than two items go one per line, separated by newlines. Say what you found; if a read returned nothing, say so plainly.";
         };
         readonly citations: {
             readonly type: "array";
@@ -3366,7 +3366,7 @@ declare const ASK_FINISH_JSON_SCHEMA: {
         };
         readonly navigate: {
             readonly type: "object";
-            readonly description: "When the best answer is a page, the route to open (a page route such as inbox, or a row route the tools gave you) and a label. Empty strings when there is nothing to open.";
+            readonly description: "When the best answer is a page, the route to open (a page route such as inbox, or a row route the tools gave you) and a label. Empty strings when there is nothing to open. now: true when the person asked to open, show or see that thing; the app goes there as soon as the answer is read, so keep the answer to one line.";
             readonly properties: {
                 readonly to: {
                     readonly type: "string";
@@ -3374,8 +3374,11 @@ declare const ASK_FINISH_JSON_SCHEMA: {
                 readonly label: {
                     readonly type: "string";
                 };
+                readonly now: {
+                    readonly type: "boolean";
+                };
             };
-            readonly required: readonly ["to", "label"];
+            readonly required: readonly ["to", "label", "now"];
             readonly additionalProperties: false;
         };
         readonly language: {
@@ -3412,15 +3415,19 @@ declare const AskFinishSchema: z.ZodObject<{
     navigate: z.ZodEffects<z.ZodCatch<z.ZodObject<{
         to: z.ZodCatch<z.ZodString>;
         label: z.ZodCatch<z.ZodString>;
+        now: z.ZodCatch<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         label: string;
         to: string;
+        now: boolean;
     }, {
         label?: unknown;
         to?: unknown;
+        now?: unknown;
     }>>, {
         to: string;
         label: string;
+        now: boolean;
     } | null, unknown>;
     language: z.ZodCatch<z.ZodEnum<["en", "es", "other"]>>;
 }, "strip", z.ZodTypeAny, {
@@ -3435,6 +3442,7 @@ declare const AskFinishSchema: z.ZodObject<{
     navigate: {
         to: string;
         label: string;
+        now: boolean;
     } | null;
 }, {
     language?: unknown;
@@ -3541,6 +3549,7 @@ interface AskMessageVM {
     navigate: {
         to: string;
         label: string;
+        now?: boolean;
     } | null;
     proposals: AskProposal[];
     language: AskLanguage;

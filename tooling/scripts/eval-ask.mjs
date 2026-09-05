@@ -112,6 +112,7 @@ export function judge(c, r) {
   if (e.proposals_any && !e.proposals_any.some((k) => kinds.includes(k))) fails.push(`proposals ${JSON.stringify(kinds)} include none of ${e.proposals_any.join("/")}`);
   if (e.proposals_any_or_says && !e.proposals_any_or_says.some((k) => kinds.includes(k)) && !/card|propos|approve|Inbox|thread/i.test(text)) fails.push("neither a card nor a pointer to where to do it");
   if (e.proposals_none && kinds.length) fails.push(`no card expected, got ${JSON.stringify(kinds)}`);
+  if (e.navigate_now && !(m.navigate && m.navigate.now && m.navigate.to)) fails.push(`expected the app to go there; navigate=${JSON.stringify(m.navigate)}`);
   if (e.cites_or_says_nothing && m.citations.length === 0 && !/nobody|no one|nothing|none|nadie|nada|ning[uú]n/i.test(text)) fails.push("no citation and no statement that there was nothing");
   if (m.ungrounded) fails.push("the answer was marked ungrounded (a figure with no read behind it)");
   return { pass: fails.length === 0, fails };

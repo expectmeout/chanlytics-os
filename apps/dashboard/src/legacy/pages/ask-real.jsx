@@ -41,6 +41,10 @@ const AR_TEXT = {
     listening: "Listening…",
     micDenied: "The browser needs microphone permission to talk to Ask.",
     micFailed: "Couldn't hear you — try again or type it.",
+    noVoice: "Voice needs Chrome, Edge or Safari; this browser can't listen. Type instead.",
+    kindThread: "Thread",
+    kindCall: "Call",
+    kindPerson: "Profile",
     approve: "Approve",
     send: "Send",
     notNow: "Not now",
@@ -78,6 +82,10 @@ const AR_TEXT = {
     listening: "Escuchando…",
     micDenied: "El navegador necesita permiso del micrófono para hablar con Ask.",
     micFailed: "No te oí — inténtalo de nuevo o escríbelo.",
+    noVoice: "La voz necesita Chrome, Edge o Safari; este navegador no puede escuchar. Escríbelo.",
+    kindThread: "Hilo",
+    kindCall: "Llamada",
+    kindPerson: "Perfil",
     approve: "Aprobar",
     send: "Enviar",
     notNow: "Ahora no",
@@ -173,6 +181,20 @@ const arScopeLabel = (page, param) => {
   return null;
 };
 
+// A chip names its kind, so a thread and a profile of the same person read
+// apart; two chips to the same place collapse into one.
+const arDedupe = (cites) => {
+  const seen = new Set();
+  return cites.filter((c) => { if (!c || seen.has(c.to)) return false; seen.add(c.to); return true; });
+};
+const arChipLabel = (c, t) => {
+  const label = String(c.label || "").trim();
+  if (c.kind === "thread") return /thread|hilo/i.test(label) ? label : `${t.kindThread} · ${label}`;
+  if (c.kind === "person") return /profile|perfil/i.test(label) ? label : `${t.kindPerson} · ${label}`;
+  if (c.kind === "call") return /call|llamada/i.test(label) ? label : `${t.kindCall} · ${label}`;
+  return label;
+};
+
 // A proposal the assistant made, as a card: the exact change, the door it
 // goes through, Approve (or Edit in the composer), Not now, and the undo the
 // verb has. The commit runs through the verb's own route, which checks the
@@ -261,9 +283,9 @@ const AskTurn = ({ m, streaming, t, onFollow, onNav, canSpeak, onSpeak }) => (
             </button>
           )}
           {m.citations && m.citations.length ? <span className="ask-from">{t.from}</span> : null}
-          {(m.citations || []).map((c, i) => (
+          {arDedupe(m.citations || []).map((c, i) => (
             <button key={i} className="ask-link-chip" onClick={() => onNav(c.to)} title={c.kind}>
-              <Icon name={c.kind === "call" ? "phone" : c.kind === "person" ? "users" : c.kind === "page" ? "arrow-right" : "chat"} size={10} /> {c.label}
+              <Icon name={c.kind === "call" ? "phone" : c.kind === "person" ? "users" : c.kind === "page" ? "arrow-right" : "chat"} size={10} /> {arChipLabel(c, t)}
             </button>
           ))}
         </div>
@@ -326,6 +348,14 @@ const AskReal = ({ open, onClose }) => {
 
   // Closed: nothing typed survives; an open conversation resumes next time.
   useArEffect(() => { if (!open) { setQuery(""); setFast(null); if (A) A.stopSpeaking(); } }, [open]);
+
+  // The input is the way on: focus comes back to it after every turn and
+  // every chip, so typing never lands on the chip that was just clicked.
+  useArEffect(() => {
+    if (!open || live) return;
+    const id = setTimeout(() => { if (inputRef.current) inputRef.current.focus(); }, 30);
+    return () => clearTimeout(id);
+  }, [open, live, active]);
 
   useArEffect(() => {
     if (!open) return;
@@ -418,6 +448,11 @@ const AskReal = ({ open, onClose }) => {
     setLive(null);
     setActive((prev) => (prev ? { ...prev, id: threadId || prev.id, messages: [...prev.messages, final] } : prev));
     if (threadId) A.threads().then(setThreads);
+    // "Open the 3:34 AM call": the app goes there as the answer lands. The
+    // thread stays; ⌘K resumes it.
+    if (final && final.navigate && final.navigate.now && final.navigate.to && !final.failed) {
+      setTimeout(() => nav(final.navigate.to), 250);
+    }
   };
 
   const speak = (m) => {
@@ -487,12 +522,11 @@ const AskReal = ({ open, onClose }) => {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKey}
-            disabled={!!live}
             aria-label="Ask Chanlytics"
             data-testid="ask-input"
             maxLength={1000}
           />
-          {talk.canTalk && (
+          {talk.canTalk ? (
             <button
               type="button"
               className={`btn btn-sm ask-talk ${talk.listening ? "on" : ""}`}
@@ -507,6 +541,10 @@ const AskReal = ({ open, onClose }) => {
               onContextMenu={(e) => e.preventDefault()}
             >
               <Icon name="wave" size={13} /> <span className="ask-talk-label">{talk.listening ? t.listening : t.talk}</span>
+            </button>
+          ) : (
+            <button type="button" className="btn btn-sm ask-talk off" data-testid="ask-talk-off" title={t.noVoice} onClick={() => flash({ msg: <>{t.noVoice}</> })}>
+              <Icon name="wave" size={13} /> <span className="ask-talk-label">{t.talk}</span>
             </button>
           )}
           <span className="kbd">↵</span>
