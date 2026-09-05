@@ -251,7 +251,9 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
           navigate,
           followups: f.followups,
           language: f.language === "other" ? input.language : f.language,
-          ungrounded: isUngrounded(f.answer, reads),
+          // A card's figures are the person's own request, checked against the workspace;
+          // an answer that restates them is not an invention.
+          ungrounded: isUngrounded(f.answer, reads + proposals.length),
           failed: false,
           failure: null,
           rounds: round,
@@ -264,7 +266,7 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
         const text = ordered.filter((b) => b.type === "text").map((b) => b.text).join(" ").trim();
         return done({
           answer: text || (es ? "No encontré nada que leer para esa pregunta." : "I found nothing to read for that question."),
-          ungrounded: isUngrounded(text, reads),
+          ungrounded: isUngrounded(text, reads + proposals.length),
           failed: !text,
           failure: text ? null : "no_tool_no_text",
           rounds: round,
