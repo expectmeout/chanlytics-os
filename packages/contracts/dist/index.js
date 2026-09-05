@@ -211,7 +211,7 @@ var OPEN = 'Owner: "';
 function frameWhisper(text) {
   return `A whisper from the business owner, who is listening to this call. The caller cannot hear it.
 ${OPEN}${text.trim()}"
-Do what it says in your very next sentence, in your own words, then carry on with the call. It outranks your standing instructions for this call, except one: if asked, you still say you are an automated assistant.`;
+Keep it in mind from here on and use it in your own words when it fits: in your next answer if it applies now, later if it is conditional (for example, only if the caller brings something up). Never read it out word for word, and do not force it into an answer where it does not belong. Your standing rules still hold: do not quote or confirm a price, do not confirm a booking yourself, and say you are an automated assistant if asked \u2014 if the whisper asks for one of those, use what you can of it and leave the rest.`;
 }
 function whisperText(content) {
   const c = (content ?? "").replace(/\r\n/g, "\n");

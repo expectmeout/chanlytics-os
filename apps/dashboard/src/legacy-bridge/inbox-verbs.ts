@@ -212,11 +212,11 @@ function tomorrowAt(hour: number): string {
 
 /** The honest undo: cancel a queued send inside its grace window. */
 /**
- * Live: a sentence for the phone receptionist, heard by it alone and worked
- * into its next answer. `trigger` asks it to answer with it now rather than
- * at its next turn.
+ * Live: a sentence for the phone receptionist, heard by it alone and kept in
+ * mind from here on. `trigger` asks it to speak now; off by default — a
+ * whisper is used when it fits, which may be a later turn.
  */
-export async function whisperCall(callId: string, text: string, trigger = true): Promise<VerbResult> {
+export async function whisperCall(callId: string, text: string, trigger = false): Promise<VerbResult> {
   return call(`/api/v1/calls/${encodeURIComponent(callId)}/whisper`, { text, trigger });
 }
 

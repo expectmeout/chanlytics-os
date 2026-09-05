@@ -47,9 +47,17 @@ async function cleanup(tenantId) {
 }
 
 async function both(tenantId) {
-  const m = ok(await db.rpc("metrics_summary", { p_tenant_id: tenantId, p_days: 1 }));
-  const r = ok(await db.rpc("report_series", { p_tenant_id: tenantId, p_days: 1 }));
-  const today = r.series[r.series.length - 1];
+  // Two days, with the series' last two rows summed. A fixture written ten
+  // minutes ago lands on "yesterday" in the tenant's zone once the clock
+  // passes midnight in New York, and a one-day window then hides it — this
+  // file went red at 00:03 ET with nothing changed. The agreement under test
+  // is the same: the period's totals against the series' rows for the same
+  // days.
+  const m = ok(await db.rpc("metrics_summary", { p_tenant_id: tenantId, p_days: 2 }));
+  const r = ok(await db.rpc("report_series", { p_tenant_id: tenantId, p_days: 2 }));
+  const rows = r.series.slice(-2);
+  const sum = (k) => rows.reduce((a, x) => a + Number(x[k] ?? 0), 0);
+  const today = { answered_ai: sum("answered_ai"), answered_you: sum("answered_you"), unanswered: sum("unanswered") };
   return { m, r, today };
 }
 

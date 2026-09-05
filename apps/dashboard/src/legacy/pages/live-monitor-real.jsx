@@ -151,7 +151,10 @@ const LrWhisper = ({ c }) => {
     const t = text.trim();
     if (!t || busy || !window.__whisperCall) return;
     setBusy(true);
-    const r = await window.__whisperCall(c.callId, t, true);
+    // No nudge to speak: a whisper is kept in mind and used when it fits,
+    // which may be the next answer or a later one. Forcing a response now
+    // would make a conditional whisper ("if they mention X…") come out early.
+    const r = await window.__whisperCall(c.callId, t, false);
     setBusy(false);
     if (r.ok) {
       setLast(t);
@@ -182,7 +185,7 @@ const LrWhisper = ({ c }) => {
       <div className="lm-whisper-hint">
         {last
           ? <>Last whispered: &ldquo;{last}&rdquo;</>
-          : "Only the receptionist hears it, and works it into the next thing it says. The caller never hears your words."}
+          : "Only the receptionist hears it. It keeps it in mind and uses it in its own words when it fits — never word for word, and never against its rules: it will not quote a price or confirm a booking because you whispered one. The caller never hears your words."}
       </div>
       {toastNode}
     </div>

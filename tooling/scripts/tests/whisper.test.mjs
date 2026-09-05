@@ -73,8 +73,8 @@ test("the page offers it only on a live call, behind the gate the server enforce
   assert.ok(page.includes("{c.live && <LrWhisper c={c} />}"));
   assert.ok(page.includes('data-testid="live-whisper"'));
   assert.ok(page.includes('{...window.gate("approve")}'), "the same door: operator or owner");
-  assert.ok(page.includes("window.__whisperCall(c.callId, t, true)"));
+  assert.ok(page.includes("window.__whisperCall(c.callId, t, false)"), "no nudge to speak: a whisper is used when it fits");
   const verbs = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
-  assert.ok(verbs.includes("export async function whisperCall(callId: string, text: string, trigger = true)"));
+  assert.ok(verbs.includes("export async function whisperCall(callId: string, text: string, trigger = false)"));
   assert.ok(verbs.includes("window.__whisperCall = whisperCall;"));
 });
