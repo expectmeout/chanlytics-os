@@ -15,6 +15,12 @@ export interface RouteContext {
   supabase: SupabaseClient<Database>;
   userId: string;
   email: string | undefined;
+  /**
+   * Where the request came from inside the app, when it says. The Ask
+   * palette commits through the same routes a button does; the one thing
+   * the ledger should keep is that a card, not a button, was tapped.
+   */
+  via?: "ask";
 }
 
 /**
@@ -83,7 +89,8 @@ export function withRoute<T>(
         }
         return NextResponse.json(err("unauthorized", "Sign in required."), { status: 401, headers: PRIVATE });
       }
-      const data = await handler(req, { supabase, userId: user.id, email: user.email, params });
+      const via = req.headers.get("x-via") === "ask" ? ("ask" as const) : undefined;
+      const data = await handler(req, { supabase, userId: user.id, email: user.email, params, ...(via ? { via } : {}) });
       console.log(JSON.stringify({ level: "info", route, user: user.id, ms: Date.now() - started }));
       // A handler that built its own Response — a file to download — passes
       // through as it is, under the same no-store rule as every other exit.

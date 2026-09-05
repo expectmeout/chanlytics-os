@@ -122,6 +122,15 @@ export const DELETE = withRoute(async (_req, ctx) => {
       .eq("tenant_id", contact.tenant_id).eq("subject_type", "contact").eq("subject_id", id);
     if (polErr) console.error("erase_person_policy_failed", id, polErr.message);
   }
+  // The Ask turns that quoted them, for every member of the workspace: an
+  // assistant's memory of a person is a name that outlives its erasure too.
+  {
+    const { data: scrubbed, error: askErr } = await ctx.supabase.rpc("scrub_ask_for_contact", {
+      p_tenant_id: contact.tenant_id, p_contact_id: id, p_needles: threadIds,
+    });
+    if (askErr) console.error("erase_ask_scrub_failed", id, askErr.message);
+    else console.log(JSON.stringify({ level: "info", event: "erase_ask_scrubbed", contact: id, messages: scrubbed }));
+  }
   // The jobs that carried their number or words. erase_contact cancels what
   // is still scheduled; done, failed and canceled rows kept `to_phone` and
   // `body` in their payload forever.
