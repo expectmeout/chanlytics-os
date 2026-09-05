@@ -4441,6 +4441,12 @@ var AskFinishSchema = external_exports.object({
   navigate: external_exports.object({ to: external_exports.string().catch(""), label: external_exports.string().catch("") }).catch({ to: "", label: "" }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open" } : null),
   language: external_exports.enum(ASK_LANGUAGES).catch("other")
 });
+var AskProposalOutcomeSchema = external_exports.object({
+  state: external_exports.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: external_exports.string().max(300).catch(""),
+  atMs: external_exports.number().catch(0),
+  undo: external_exports.record(external_exports.unknown()).nullable().optional()
+});
 var AskSettingsChangeSchema = external_exports.discriminatedUnion("op", [
   external_exports.object({ op: external_exports.literal("add_closure"), date: external_exports.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: external_exports.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: external_exports.string().max(200).optional() }),
   external_exports.object({ op: external_exports.literal("set_hours"), day: external_exports.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: external_exports.string().regex(/^\d{2}:\d{2}$/).nullable(), close: external_exports.string().regex(/^\d{2}:\d{2}$/).nullable() }),

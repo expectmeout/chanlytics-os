@@ -36,6 +36,16 @@ const AR_TEXT = {
     noCalendar: "No calendar is connected, so I can't see openings. The hours are in Settings.",
     unavailable: "The calendar couldn't be read right now.",
     openings: "Open times",
+    approve: "Approve",
+    send: "Send",
+    notNow: "Not now",
+    working: "Working…",
+    editComposer: "Edit in the composer",
+    openIt: "Open it",
+    tryAgain: "Try again",
+    priceNote: "This looks like a price. The receptionist never quotes one; you may.",
+    windowNote: "Their 24-hour window is closed — only an approved template can be sent. Open the thread to pick one.",
+    kReply: "reply", kSteer: "rewrite", kInbox: "inbox", kPerson: "receptionist", kAutonomy: "autonomy", kSettings: "settings", kWhisper: "whisper", kTeam: "team",
   },
   es: {
     placeholder: "Pregunta, o salta a una página, persona o hilo…",
@@ -58,6 +68,16 @@ const AR_TEXT = {
     noCalendar: "No hay calendario conectado, así que no veo huecos. El horario está en Ajustes.",
     unavailable: "No se pudo leer el calendario ahora.",
     openings: "Horas libres",
+    approve: "Aprobar",
+    send: "Enviar",
+    notNow: "Ahora no",
+    working: "Un momento…",
+    editComposer: "Editar en el redactor",
+    openIt: "Abrirlo",
+    tryAgain: "Reintentar",
+    priceNote: "Parece un precio. La recepcionista nunca los da; tú sí puedes.",
+    windowNote: "Su ventana de 24 horas está cerrada: solo se puede enviar una plantilla aprobada. Abre el hilo para elegir una.",
+    kReply: "respuesta", kSteer: "reescritura", kInbox: "inbox", kPerson: "recepcionista", kAutonomy: "autonomía", kSettings: "ajustes", kWhisper: "susurro", kTeam: "equipo",
   },
 };
 
@@ -89,6 +109,77 @@ const arScopeLabel = (page, param) => {
   return null;
 };
 
+// A proposal the assistant made, as a card: the exact change, the door it
+// goes through, Approve (or Edit in the composer), Not now, and the undo the
+// verb has. The commit runs through the verb's own route, which checks the
+// role and the state again; what happened is kept on the turn, so a thread
+// reads back with "Sent" rather than a fresh Approve.
+const AskCard = ({ p, messageId, t, onNav }) => {
+  const A = window.__ask;
+  const [state, setState] = useArState(p.outcome ? p.outcome.state : "idle");
+  const [receipt, setReceipt] = useArState(p.outcome ? p.outcome.receipt : "");
+  const [undoData, setUndoData] = useArState(p.outcome ? p.outcome.undo || null : null);
+  const [busy, setBusy] = useArState(false);
+  const [err, setErr] = useArState("");
+  const gateKey = (window.PROPOSAL_GATE || {})[p.kind] || "approve";
+  const gated = window.canDo ? !window.canDo(gateKey) : false;
+  const pl = p.payload || {};
+  const record = (o) => { if (A && messageId && /^[0-9a-f-]{36}$/.test(messageId)) A.outcome(messageId, p.id, o); };
+  const approve = async () => {
+    if (busy || !A) return;
+    setBusy(true); setErr("");
+    const r = await A.commit(p);
+    setBusy(false);
+    if (r.ok) {
+      setState("done"); setReceipt(r.receipt); setUndoData(r.undo || null);
+      record({ state: "done", receipt: r.receipt, atMs: Date.now(), undo: r.undo || null });
+    } else {
+      setState("failed"); setErr(r.message);
+      record({ state: "failed", receipt: r.message, atMs: Date.now(), undo: null });
+    }
+  };
+  const dismiss = () => { setState("dismissed"); record({ state: "dismissed", receipt: t.notNow, atMs: Date.now(), undo: null }); };
+  const undo = async () => {
+    if (busy || !A) return;
+    setBusy(true);
+    const r = await A.undo(p, { state: "done", receipt, atMs: 0, undo: undoData });
+    setBusy(false);
+    if (r.ok) { setState("undone"); setReceipt(r.receipt); setUndoData(null); record({ state: "undone", receipt: r.receipt, atMs: Date.now(), undo: null }); }
+    else setErr(r.message);
+  };
+  const KIND = { reply: t.kReply, steer: t.kSteer, thread_verb: t.kInbox, person_mode: t.kPerson, policy: t.kAutonomy, settings: t.kSettings, whisper: t.kWhisper, invite: t.kTeam };
+  return (
+    <div className={`ask-card ${state}`} data-testid="ask-card" data-kind={p.kind}>
+      <div className="ask-card-head"><Icon name={p.kind === "reply" || p.kind === "steer" ? "chat" : p.kind === "whisper" ? "phone" : p.kind === "invite" ? "users" : p.kind === "policy" ? "shield" : p.kind === "settings" || p.kind === "person_mode" ? "settings" : "inbox"} size={12} />{p.title}<span className="ask-card-kind">{KIND[p.kind] || p.kind}</span></div>
+      <div className="ask-card-summary">{p.summary}</div>
+      {p.kind === "reply" && pl.price_warning && state === "idle" && <div className="ask-card-note">{t.priceNote}</div>}
+      {p.kind === "reply" && pl.window_open === false && state === "idle" && <div className="ask-card-note">{t.windowNote}</div>}
+      {state === "idle" && (
+        <div className="ask-card-actions">
+          <button className="btn btn-primary btn-sm" onClick={approve} disabled={busy || gated} title={gated ? window.gateTitle(gateKey) : undefined} data-testid="ask-card-approve">
+            {busy ? t.working : p.kind === "reply" ? t.send : t.approve}
+          </button>
+          {p.kind === "reply" && pl.conversation_id && <button className="btn btn-ghost btn-sm" onClick={() => { onNav(`inbox/th-${pl.conversation_id}`); if (A) A.editReply(p); }}>{t.editComposer}</button>}
+          {p.kind !== "reply" && p.kind !== "steer" && p.kind !== "whisper" && p.kind !== "invite" && (
+            <button className="btn btn-ghost btn-sm" onClick={() => onNav(p.kind === "settings" ? "admin/memory" : p.kind === "policy" ? "admin/autonomy" : p.kind === "person_mode" ? `clients/${pl.contact_id}` : `inbox/th-${pl.conversation_id}`)}>{t.openIt}</button>
+          )}
+          <button className="btn btn-ghost btn-sm" onClick={dismiss} disabled={busy}>{t.notNow}</button>
+          {gated && <span className="ask-card-note">{window.gateTitle(gateKey)}</span>}
+        </div>
+      )}
+      {state !== "idle" && (
+        <div className="ask-card-receipt">
+          <Icon name={state === "done" ? "check" : state === "failed" ? "alert" : "x"} size={11} className={state === "done" ? "ok" : ""} />
+          <span>{state === "failed" ? err || receipt : state === "dismissed" ? t.notNow : receipt}</span>
+          {state === "done" && undoData && p.undo && <button className="btn btn-ghost btn-sm ask-card-undo" onClick={undo} disabled={busy}>{p.undo}</button>}
+          {state === "failed" && <button className="btn btn-ghost btn-sm ask-card-undo" onClick={() => { setState("idle"); setErr(""); }}>{t.tryAgain}</button>}
+        </div>
+      )}
+      {err && state === "done" && <div className="ask-card-note">{err}</div>}
+    </div>
+  );
+};
+
 // One assistant turn as the palette draws it: the words, then the rows it
 // read, then what to ask next. A failed turn says why in the same bubble.
 const AskTurn = ({ m, streaming, t, onFollow, onNav, canSpeak, onSpeak }) => (
@@ -97,6 +188,7 @@ const AskTurn = ({ m, streaming, t, onFollow, onNav, canSpeak, onSpeak }) => (
     <div className="ask-msg-body">
       <p className="ask-msg-text" aria-live="polite">{m.text}{streaming ? <span className="ask-cursor" /> : null}</p>
       {!streaming && m.ungrounded && <div className="ask-unverified"><Icon name="alert" size={11} /> {t.unverified}</div>}
+      {!streaming && m.proposals && m.proposals.length ? m.proposals.map((p) => <AskCard key={p.id} p={p} messageId={m.id} t={t} onNav={onNav} />) : null}
       {!streaming && ((m.citations && m.citations.length) || m.navigate) ? (
         <div className="ask-msg-links">
           {m.navigate && (

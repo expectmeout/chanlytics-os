@@ -1979,6 +1979,22 @@ function partialAnswer(prefix) {
   }
   return out;
 }
+var PROPOSAL_GATE = {
+  reply: "approve",
+  steer: "approve",
+  thread_verb: "approve",
+  whisper: "approve",
+  policy: "autonomy",
+  person_mode: "settings",
+  settings: "settings",
+  invite: "team"
+};
+var AskProposalOutcomeSchema = z3.object({
+  state: z3.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z3.string().max(300).catch(""),
+  atMs: z3.number().catch(0),
+  undo: z3.record(z3.unknown()).nullable().optional()
+});
 function scopeFromRoute(page, param, label) {
   if (!param) return null;
   if (page === "inbox" && param.startsWith("th-")) return { kind: "thread", id: param.slice(3), label: label || "this thread" };
@@ -3206,6 +3222,7 @@ export {
   ASK_TURN_BUDGET_MS,
   AppError,
   AskFinishSchema,
+  AskProposalOutcomeSchema,
   AskSettingsChangeSchema,
   BRAIN_INTENTS,
   BRAIN_LANGUAGES,
@@ -3262,6 +3279,7 @@ export {
   PERSON_STATE_LABELS,
   POLICY_CLASSES,
   POLICY_MODES,
+  PROPOSAL_GATE,
   PolicyLimitsSchema,
   QUIET_AFTER_MS,
   RECENT_MAX,

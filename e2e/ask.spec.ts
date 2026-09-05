@@ -86,6 +86,37 @@ test.describe("Ask on a real workspace", () => {
     expect(del.status()).toBe(200);
   });
 
+  test("a request to act becomes a card with Approve and Not now, and the test never approves it", async ({ page }) => {
+    test.setTimeout(120_000);
+    const res = await page.request.post("/api/v1/ask", {
+      data: { text: "invite ask-e2e-card@example.com as a viewer", thread_id: null, scope: null, surface: "settings" },
+      ...fromTheApp,
+      timeout: 90_000,
+    });
+    expect(res.status()).toBe(200);
+    const lines = (await res.text()).split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    const final = lines.find((l) => l.t === "final");
+    expect(final).toBeTruthy();
+    if (!final.message.failed) {
+      const invite = final.message.proposals.find((p: { kind: string }) => p.kind === "invite");
+      expect(invite, "an invite card").toBeTruthy();
+      expect(invite.needs).toBe("owner");
+      expect(invite.payload.email).toBe("ask-e2e-card@example.com");
+      expect(final.message.text).not.toMatch(/\bI (have )?(sent|invited)\b/i);
+      // Dismissing is recorded on the turn; approving would send a real email.
+      const out = await page.request.post(`/api/v1/ask/messages/${final.message.id}/proposals/${invite.id}`, {
+        data: { state: "dismissed", receipt: "Not now", atMs: Date.now() },
+        ...fromTheApp,
+      });
+      expect(out.status()).toBe(200);
+      const back = await page.request.get(`/api/v1/ask/threads/${lines[0].id}`);
+      const { data } = await back.json();
+      const stored = data.messages[1].proposals.find((p: { id: string }) => p.id === invite.id);
+      expect(stored.outcome.state).toBe("dismissed");
+    }
+    await page.request.delete(`/api/v1/ask/threads/${lines[0].id}`, fromTheApp);
+  });
+
   test("the palette streams a turn and shows citations or a plain failure", async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto("/#/inbox");

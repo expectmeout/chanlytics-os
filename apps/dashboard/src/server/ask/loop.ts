@@ -11,19 +11,23 @@ import {
   type AskFinish,
   type AskLanguage,
   type AskMessageVM,
+  type AskProposal,
   type AskScope,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import { GatewayRefused, featureRejected, streamModel, type GatewayEvent } from "./gateway";
 import { FINISH_TOOL, READ_TOOLS, newToolContext, runTool, toolLabel, type ToolContext } from "./tools";
+import { ACT_TOOLS, ACT_TOOL_NAMES, buildProposal, proposalLabel } from "./proposals";
 import { stableSystem, turnSystem, type WorkspaceFacts } from "./prompt";
 
 /**
  * One turn of the assistant: reads, then the answer.
  *
- * The model is asked with the read tools and the finish tool and must call
- * one or more of them each round. Reads run as the person, in parallel when
- * several were asked for, and their results go back as one message. The
+ * The model is asked with the read tools, the act tools and the finish tool
+ * and must call one or more of them each round. Reads run as the person, in
+ * parallel when several were asked for, and their results go back as one
+ * message. An act tool never acts: it checks what was asked against the
+ * workspace and returns a proposal, which becomes a card on the answer. The
  * finish call is the answer: its input streams as partial JSON, and the
  * answer field is forwarded to the palette as it grows. The last allowed
  * round forces finish, so a turn always ends in an answer or a stated
@@ -65,6 +69,7 @@ export interface TurnResult {
   language: AskLanguage;
   ungrounded: boolean;
   tools: string[];
+  proposals: AskProposal[];
   latencyMs: number;
   failed: boolean;
   /** Why it failed, for the log; the answer text already says it to the person. */
@@ -101,6 +106,7 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
   const es = input.language === "es";
   const tc: ToolContext = newToolContext(input.ctx, input.tenantId, input.role, now);
   const toolsUsed: string[] = [];
+  const proposals: AskProposal[] = [];
   let reads = 0;
 
   const system = [
@@ -121,7 +127,7 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
   }
   if (messages[0]?.role !== "user") messages.shift();
 
-  const baseTools = [...READ_TOOLS, FINISH_TOOL];
+  const baseTools = [...READ_TOOLS, ...(input.role === "viewer" ? [] : ACT_TOOLS), FINISH_TOOL];
   let strict = true;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ASK_TURN_BUDGET_MS);
@@ -136,6 +142,7 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
       language: input.language,
       ungrounded: false,
       tools: toolsUsed,
+      proposals,
       latencyMs: Date.now() - t0,
       ...partial,
     };
@@ -265,12 +272,17 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
       }
 
       // Run the reads, in parallel, and hand every result back at once.
-      for (const b of readCalls) input.emit({ t: "trace", text: toolLabel(b.name) });
+      for (const b of readCalls) input.emit({ t: "trace", text: ACT_TOOL_NAMES.has(b.name) ? proposalLabel(b.name) : toolLabel(b.name) });
       const outcomes = await Promise.all(
         readCalls.map(async (b) => {
           let parsedInput: Record<string, unknown> = {};
           try { parsedInput = b.json ? (JSON.parse(b.json) as Record<string, unknown>) : {}; } catch { /* an empty input */ }
           toolsUsed.push(b.name);
+          if (ACT_TOOL_NAMES.has(b.name)) {
+            const p = await buildProposal(tc, b.name, parsedInput);
+            if (p.proposal) proposals.push(p.proposal);
+            return { block: b, out: { result: p.result, isError: p.isError, label: proposalLabel(b.name) } };
+          }
           const out = await runTool(tc, { name: b.name, input: parsedInput });
           if (!out.isError) reads++;
           return { block: b, out };

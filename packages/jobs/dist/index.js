@@ -4463,6 +4463,12 @@ var AskFinishSchema = external_exports.object({
   navigate: external_exports.object({ to: external_exports.string().catch(""), label: external_exports.string().catch("") }).catch({ to: "", label: "" }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open" } : null),
   language: external_exports.enum(ASK_LANGUAGES).catch("other")
 });
+var AskProposalOutcomeSchema = external_exports.object({
+  state: external_exports.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: external_exports.string().max(300).catch(""),
+  atMs: external_exports.number().catch(0),
+  undo: external_exports.record(external_exports.unknown()).nullable().optional()
+});
 var AskSettingsChangeSchema = external_exports.discriminatedUnion("op", [
   external_exports.object({ op: external_exports.literal("add_closure"), date: external_exports.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: external_exports.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: external_exports.string().max(200).optional() }),
   external_exports.object({ op: external_exports.literal("set_hours"), day: external_exports.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: external_exports.string().regex(/^\d{2}:\d{2}$/).nullable(), close: external_exports.string().regex(/^\d{2}:\d{2}$/).nullable() }),
@@ -8942,6 +8948,12 @@ var AskFinishSchema2 = external_exports2.object({
   followups: external_exports2.array(external_exports2.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS2.followups).map((s) => s.slice(0, 90))),
   navigate: external_exports2.object({ to: external_exports2.string().catch(""), label: external_exports2.string().catch("") }).catch({ to: "", label: "" }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open" } : null),
   language: external_exports2.enum(ASK_LANGUAGES2).catch("other")
+});
+var AskProposalOutcomeSchema2 = external_exports2.object({
+  state: external_exports2.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: external_exports2.string().max(300).catch(""),
+  atMs: external_exports2.number().catch(0),
+  undo: external_exports2.record(external_exports2.unknown()).nullable().optional()
 });
 var AskSettingsChangeSchema2 = external_exports2.discriminatedUnion("op", [
   external_exports2.object({ op: external_exports2.literal("add_closure"), date: external_exports2.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: external_exports2.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: external_exports2.string().max(200).optional() }),
