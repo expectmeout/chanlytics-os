@@ -27,7 +27,7 @@ export const PUT = withRoute(async (req, ctx) => {
   requireRole(member, "operator");
   takeRate(ctx.userId, "settings");
   const body = (await req.json().catch(() => null)) as
-    | { class?: string; mode?: string; replyDelayMs?: number; minConfidence?: number }
+    | { class?: string; mode?: string; replyDelayMs?: number; minConfidence?: number; maxTokensDay?: number }
     | null;
   const cls = body?.class ?? "";
   if (!(POLICY_CLASSES as readonly string[]).includes(cls)) throw new AppError("validation", "Unknown policy class.");
@@ -35,7 +35,7 @@ export const PUT = withRoute(async (req, ctx) => {
   // client to resend it meant a stale page changing the hold window could
   // silently flip Replies to whatever mode that page had loaded.
   let mode = body?.mode ?? "";
-  if (mode === "" && (body?.replyDelayMs !== undefined || body?.minConfidence !== undefined)) {
+  if (mode === "" && (body?.replyDelayMs !== undefined || body?.minConfidence !== undefined || body?.maxTokensDay !== undefined)) {
     const current = (await listPolicies(ctx.supabase, member.tenantId)).find((p) => p.class === cls);
     if (!current) throw new AppError("not_found", "Policy row not found.", 404);
     mode = current.mode;
@@ -75,6 +75,16 @@ export const PUT = withRoute(async (req, ctx) => {
     }
     if (cls !== "reply") throw new AppError("validation", "The confidence dial only applies to the reply policy.");
     limits.min_confidence = Math.round(c * 100) / 100;
+  }
+  // The day's token budget: a whole number of at least a thousand, or 0 to
+  // turn it off. Same boundary rule as the others.
+  if (body?.maxTokensDay !== undefined) {
+    const t = Number(body.maxTokensDay);
+    if (!Number.isFinite(t) || t < 0 || t > 5_000_000 || (t > 0 && t < 1000)) {
+      throw new AppError("validation", "The token budget is a whole number from 1,000 to 5,000,000, or 0 to turn it off.");
+    }
+    if (cls !== "reply") throw new AppError("validation", "The token budget only applies to the reply policy.");
+    limits.max_llm_tokens_day = Math.round(t);
   }
   try {
     const row = await setPolicyMode(ctx.supabase, member.tenantId, cls, mode, limits);

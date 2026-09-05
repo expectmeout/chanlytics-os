@@ -1,0 +1,87 @@
+/**
+ * Run the receptionist on a set of messages, for one workspace, and hand
+ * back what it would have said — nothing is sent, nothing is written.
+ *
+ * The evaluation harness. The model key lives on the edge and nowhere else,
+ * so this is where a prompt or config change is exercised against the real
+ * composed prompt: the runner (tooling/scripts/eval-brain.mjs) posts a case
+ * set, gets the record for each (reply, intent, escalate, confidence, facts,
+ * language, tokens, latency), and judges it locally against the case's
+ * expectations. Internal endpoint — x-diag-key.
+ *
+ * Small on purpose: at most six cases per request, sequential, inside the
+ * function's budget; the runner batches. Body: { tenant_id, cases: [{ id,
+ * text, history? }] } where history is prior turns [{ role, content }].
+ */
+import { json } from "../../lib/http.js";
+import { pg } from "../../lib/pg.js";
+import { loadTenantRuntime } from "../../lib/tenant-runtime.js";
+import { resolveSystemPrompt, describeNow } from "../../lib/workspace/contracts.js";
+import type { RoutedChannel } from "../../lib/workspace/db.js";
+import { generateReply } from "../../lib/brain.js";
+
+const MAX_CASES = 6;
+const MAX_CHARS = 500;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+interface EvalCase { id: string; text: string; history?: Array<{ role: "user" | "assistant"; content: string }> }
+
+export async function POST(request: Request): Promise<Response> {
+  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
+    return json(403, { ok: false });
+  }
+  if (!process.env.ANTHROPIC_API_KEY) return json(503, { ok: false, error: "no_model_key" });
+
+  let body: { tenant_id?: string; cases?: EvalCase[] } = {};
+  try { body = JSON.parse(await request.text()); } catch { /* below */ }
+  const tenantId = String(body.tenant_id || "");
+  const cases = Array.isArray(body.cases) ? body.cases : [];
+  if (!UUID.test(tenantId) || !cases.length || cases.length > MAX_CASES) {
+    return json(400, { ok: false, error: `tenant_id and 1-${MAX_CASES} cases required` });
+  }
+  for (const c of cases) {
+    if (!c || typeof c.id !== "string" || typeof c.text !== "string" || !c.text.trim() || c.text.length > MAX_CHARS) {
+      return json(400, { ok: false, error: `each case needs an id and a text of 1-${MAX_CHARS} chars` });
+    }
+    if (c.history && (!Array.isArray(c.history) || c.history.length > 12 || c.history.some((h) => !h || (h.role !== "user" && h.role !== "assistant") || typeof h.content !== "string"))) {
+      return json(400, { ok: false, error: "history is up to 12 turns of { role, content }" });
+    }
+  }
+
+  const db = pg();
+  if (!db) return json(503, { ok: false, error: "no_database" });
+  // The tenant's WhatsApp channel, as the webhook would route it.
+  const { data: ch, error } = await db
+    .from("tenant_channels")
+    .select("id, tenant_id, kind, status, number_e164, credentials_ref, config")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "whatsapp")
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle();
+  if (error) return json(500, { ok: false, error: "channel_read_failed" });
+  if (!ch) return json(404, { ok: false, error: "no_whatsapp_channel" });
+  const routed: RoutedChannel = {
+    channelId: ch.id, tenantId: ch.tenant_id, kind: ch.kind, numberE164: ch.number_e164, credentialsRef: ch.credentials_ref, config: ch.config,
+  };
+  const rt = await loadTenantRuntime(db, routed);
+  if (!rt.brain) return json(409, { ok: false, error: rt.configBroken ? "config_broken" : "no_persona" });
+
+  const system = resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone);
+  const nowNote = describeNow(rt.timezone, new Date(), rt.brain.profile?.closures);
+  const started = Date.now();
+  const results = [];
+  for (const c of cases) {
+    const t0 = Date.now();
+    try {
+      const r = await generateReply(c.history ?? [], c.text, system, rt.brain.fallbacks.error, undefined, nowNote);
+      results.push({ id: c.id, ok: true, text: r.text, escalate: r.escalate, reason: r.reason ?? null, meta: r.meta ?? null, usage: r.usage ?? null, ms: Date.now() - t0 });
+    } catch (e) {
+      results.push({ id: c.id, ok: false, error: String(e instanceof Error ? e.message : e).slice(0, 200), ms: Date.now() - t0 });
+    }
+  }
+  // The texts are the model's and stay out of the log; the count and the
+  // time are what a search needs.
+  console.log("admin_eval", JSON.stringify({ tenant: tenantId, cases: cases.length, ms: Date.now() - started, prompt_chars: system.length }));
+  return json(200, { ok: true, prompt_chars: system.length, timezone: rt.timezone, results });
+}

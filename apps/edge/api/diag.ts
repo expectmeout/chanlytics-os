@@ -6,6 +6,7 @@ import { getThread, saveThread, storeBackend, threadNamespace } from "../lib/sto
 import { createHash } from "node:crypto";
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
+import { brainSummary } from "../lib/budget.js";
 import type { SweepHealthRow } from "../lib/sweep-health.js";
 import { getAgent, getRetellLlm, voiceShellDrift, agentSettingsDrift } from "../lib/workspace/channels.js";
 
@@ -162,6 +163,15 @@ export async function GET(request: Request): Promise<Response> {
     }
   } else {
     out.voiceAgents = null;
+  }
+
+  // The receptionist's last 24 hours, from the usage events every reply
+  // writes: how many, how sure, how fast, how many held or handed off.
+  try {
+    const db = pg();
+    out.brain = db ? await brainSummary(db) : null;
+  } catch (e) {
+    out.brain = { error: String(e instanceof Error ? e.message : e).slice(0, 200) };
   }
 
   return json(200, out);

@@ -103,6 +103,8 @@ export const ESCALATION_REASONS = [
    *  thread is theirs to answer. A choice about one customer, never a
    *  workspace setting. */
   "person_hold",
+  /** The workspace's day of model tokens is spent (limits.max_llm_tokens_day). */
+  "budget",
 ] as const;
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
 

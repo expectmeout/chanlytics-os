@@ -136,7 +136,9 @@ var ESCALATION_REASONS = [
   /** The owner set the receptionist to Ask or Never for THIS person; the
    *  thread is theirs to answer. A choice about one customer, never a
    *  workspace setting. */
-  "person_hold"
+  "person_hold",
+  /** The workspace's day of model tokens is spent (limits.max_llm_tokens_day). */
+  "budget"
 ];
 var ESCALATION_STATES = ["open", "resolved"];
 var DECISION_VERBS = [
@@ -497,7 +499,8 @@ var ESCALATION_REASON_LABELS = {
   manual: "Flagged manually",
   opt_out: "Asked to stop receiving messages",
   state_unavailable: "The receptionist could not read this thread \u2014 needs a human",
-  stale: "Arrived hours late \u2014 too old to answer automatically"
+  stale: "Arrived hours late \u2014 too old to answer automatically",
+  budget: "The day's model budget is used up \u2014 the receptionist paused itself"
 };
 var ESCALATION_SUMMARIES = {
   human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
@@ -1171,7 +1174,15 @@ var PolicyLimitsSchema = z2.object({
    * of going straight out — sure enough sends itself, not sure enough waits.
    * 0 or absent means off.
    */
-  min_confidence: z2.number().min(0).max(1).optional()
+  min_confidence: z2.number().min(0).max(1).optional(),
+  /**
+   * The day's token budget: model tokens in and out over a rolling 24
+   * hours, read from the usage events every reply writes. Over it the
+   * receptionist stops and files a `budget` escalation, as it does at the
+   * reply cap. 0 or absent is off; a value is at least a thousand, because
+   * a budget of ten would be a mute button with a misleading name.
+   */
+  max_llm_tokens_day: z2.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
 }).strict();
 var TIME = z2.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 var IntervalSchema = z2.object({ open: TIME, close: TIME });

@@ -315,6 +315,7 @@ export const ESCALATION_REASON_LABELS: Record<string, string> = {
   opt_out: "Asked to stop receiving messages",
   state_unavailable: "The receptionist could not read this thread — needs a human",
   stale: "Arrived hours late — too old to answer automatically",
+  budget: "The day's model budget is used up — the receptionist paused itself",
 };
 
 /**

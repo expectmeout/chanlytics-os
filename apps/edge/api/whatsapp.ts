@@ -62,6 +62,7 @@ import { upsertEscalation, type EscalationOutcome } from "../lib/workspace/jobs.
 import { loadTenantRuntime, waCfgFor, type TenantRuntime } from "../lib/tenant-runtime.js";
 import { openingsFor } from "../lib/availability.js";
 import { isVisionMime, photoUserText, toBase64, VISION_MAX_BYTES } from "../lib/vision.js";
+import { tokensLast24h } from "../lib/budget.js";
 import type { BrainMeta } from "../lib/workspace/contracts.js";
 import { replyPosture, effectiveReplyMode } from "../lib/reply-posture.js";
 import { scheduleJob } from "../lib/workspace/jobs.js";
@@ -347,7 +348,9 @@ function pgSink(
               ...(brainMeta ? { meta: brainMeta as unknown as Json } : {}),
             }))
         : Promise.resolve(),
-    usage: (u: { input_tokens: number; output_tokens: number }) =>
+    /** Tokens in and out, and the quality signal beside them (intent,
+     *  confidence, latency, whether it waited or handed off). */
+    usage: (u: Record<string, unknown>) =>
       on
         ? pgSafe("usage", () =>
             emitEvent(db!, tenantId!, "usage.llm_tokens", "usage", "conversation", ing!.conversation_id,
@@ -750,6 +753,26 @@ async function handleInbound(
     ]);
     return;
   }
+  // THE TOKEN BUDGET (limits.max_llm_tokens_day; 0 or absent is off).
+  //
+  // A rolling day of model usage for this workspace, from the usage events
+  // every reply writes. Over it the receptionist stops and says so, exactly
+  // as it does at the reply cap: a margin is a setting, not an accident, and
+  // a customer at the cap is never abandoned to a log line.
+  const tokenCap = typeof replyLimits.max_llm_tokens_day === "number" ? replyLimits.max_llm_tokens_day : 0;
+  if (tokenCap > 0 && db && tenantId) {
+    const used = await tokensLast24h(db, tenantId);
+    if (used >= tokenCap) {
+      await saveThread(ns, from, thread);
+      L.info("wa_skip_budget", { cap: tokenCap, used });
+      await Promise.all([
+        sink.escalate("budget", `The workspace used ${used.toLocaleString("en-US")} of its ${tokenCap.toLocaleString("en-US")} model tokens in the last 24 hours — the receptionist stopped and is waiting for a human.`),
+        alertStaff(from, bodyText, "(no reply sent — the day's model budget is used up)", "budget", notifyTarget, pauseHours),
+        sink.processed(),
+      ]);
+      return;
+    }
+  }
 
   // E3: the reply policy is consulted BEFORE generation. 'ask' is the timid
   // mode — everything escalates, a human answers; a tenant with no persona
@@ -805,6 +828,7 @@ async function handleInbound(
   let escalationReason = "human_token";
   let usage: { input_tokens: number; output_tokens: number } | undefined;
   let brainMeta: BrainMeta | undefined;
+  let brainMs = 0;
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const { generateReply } = await import("../lib/brain.js");
@@ -824,6 +848,7 @@ async function handleInbound(
           L.warn("lead_context_unavailable", { error: errField(e) });
         }
       }
+      const tBrain = Date.now();
       const r = await generateReply(
         thread.history,
         photo ? photoUserText(n.media?.caption) : bodyText,
@@ -842,6 +867,7 @@ async function handleInbound(
         photo ?? undefined,
       );
       replyText = r.text; escalate = r.escalate; usage = r.usage; brainMeta = r.meta;
+      brainMs = Date.now() - tBrain;
       if (r.reason) escalationReason = r.reason;
       // Layer-2 policy enforcement (Blueprint §6): prompt text is never the
       // only defense. A price in the draft blocks the send outright.
@@ -895,6 +921,18 @@ async function handleInbound(
   const queued = delayMs > 0
     ? await queueReply(db, tenantId, ing, from, replyText, delayMs, L, heldForConfidence ? "low_confidence" : "veto_window", brainMeta)
     : false;
+  // The quality signal on this reply's usage event: how sure, how fast,
+  // whether it waited, whether it handed off. The diagnostics read the day
+  // back from these; a Reports tile can, later.
+  const replyQuality = {
+    intent: brainMeta?.intent ?? null,
+    confidence: brainMeta?.confidence ?? null,
+    language: brainMeta?.language ?? null,
+    latency_ms: brainMs,
+    held: heldForConfidence ? "low_confidence" : delayMs > 0 ? "veto_window" : null,
+    escalate,
+    photo: !!photo,
+  };
 
   // A veto window that was CONFIGURED and did not happen must not pass in
   // silence. The fallback below is deliberate — an un-vetoed reply beats no
@@ -912,7 +950,7 @@ async function handleInbound(
     thread.history.push({ role: "assistant", content: replyText });
     thread.replies.push(Date.now());
     const post: Promise<unknown>[] = [];
-    if (usage) post.push(sink.usage(usage));
+    if (usage) post.push(sink.usage({ ...usage, ...replyQuality }));
     if (escalate) {
       // An escalating draft still pauses and alerts — a human should be looking
       // at this one before the timer runs out, not after.
@@ -935,7 +973,7 @@ async function handleInbound(
     thread.history.push({ role: "assistant", content: replyText });
     thread.replies.push(Date.now());
     const post: Promise<unknown>[] = [sink.outbound(replyText, sent.wamid, brainMeta)];
-    if (usage) post.push(sink.usage(usage));
+    if (usage) post.push(sink.usage({ ...usage, ...replyQuality }));
     if (escalate) {
       thread.pausedUntil = Date.now() + pauseMs;
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));

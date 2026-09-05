@@ -84,7 +84,7 @@ declare const OPT_OUT_PATTERN: RegExp;
  * people answer an ordinary question, not how they rejoin a list.
  */
 declare const OPT_IN_PATTERN: RegExp;
-declare const ESCALATION_REASONS: readonly ["human_token", "non_text", "refusal", "rate_cap", "policy_block", "send_failed", "deadman", "brain_error", "manual", "opt_out", "state_unavailable", "stale", "person_hold"];
+declare const ESCALATION_REASONS: readonly ["human_token", "non_text", "refusal", "rate_cap", "policy_block", "send_failed", "deadman", "brain_error", "manual", "opt_out", "state_unavailable", "stale", "person_hold", "budget"];
 type EscalationReason = (typeof ESCALATION_REASONS)[number];
 declare const ESCALATION_STATES: readonly ["open", "resolved"];
 type EscalationState = (typeof ESCALATION_STATES)[number];
@@ -908,16 +908,26 @@ declare const PolicyLimitsSchema: z.ZodObject<{
      * 0 or absent means off.
      */
     min_confidence: z.ZodOptional<z.ZodNumber>;
+    /**
+     * The day's token budget: model tokens in and out over a rolling 24
+     * hours, read from the usage events every reply writes. Over it the
+     * receptionist stops and files a `budget` escalation, as it does at the
+     * reply cap. 0 or absent is off; a value is at least a thousand, because
+     * a budget of ten would be a mute button with a misleading name.
+     */
+    max_llm_tokens_day: z.ZodOptional<z.ZodEffects<z.ZodNumber, number, number>>;
 }, "strict", z.ZodTypeAny, {
     max_replies_day?: number | undefined;
     pause_hours?: number | undefined;
     reply_delay_ms?: number | undefined;
     min_confidence?: number | undefined;
+    max_llm_tokens_day?: number | undefined;
 }, {
     max_replies_day?: number | undefined;
     pause_hours?: number | undefined;
     reply_delay_ms?: number | undefined;
     min_confidence?: number | undefined;
+    max_llm_tokens_day?: number | undefined;
 }>;
 type PolicyLimits = z.infer<typeof PolicyLimitsSchema>;
 interface PolicyRow {
