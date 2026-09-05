@@ -20,6 +20,8 @@ import {
   PROPOSAL_GATE,
   applySettingsChange,
   askJump,
+  cleanAnswer,
+  recoverCitations,
   buildAskSuggestions,
   citationRoute,
   dayFromQuestion,
@@ -421,4 +423,27 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
   assert.ok(mobile.includes(".phone-ask { display: none; }"), "a desktop has the topbar button and ⌘K");
   assert.ok(mobile.includes("position: fixed; right: 14px; bottom: calc(126px + env(safe-area-inset-bottom));"), "above the bridge pill (74px + its height), at the thumb; the pill covered it at 70px");
   assert.ok(mobile.includes("grid-template-columns: repeat(5, 1fr);"), "the five tabs keep their places");
+});
+
+test("an answer never carries tags: the leak seen on production is cut, its citations recovered, and the stream stops at the tag", () => {
+  const leaked = 'The 4:22 AM call ran 5:16 and the receptionist handled it.</answer>\n<parameter name="citations">[{"kind": "call", "id": "' + ID + '", "label": "4:22 AM call"}]';
+  assert.equal(cleanAnswer(leaked), "The 4:22 AM call ran 5:16 and the receptionist handled it.");
+  assert.equal(cleanAnswer("<answer>Hola.</answer>"), "Hola.");
+  assert.equal(cleanAnswer("Plain, with a <b>tag</b> inside."), "Plain, with a tag inside.");
+  assert.equal(cleanAnswer("Two open at 10 < 12 slots."), "Two open at 10 < 12 slots.", "a bare less-than is not a tag");
+  assert.deepEqual(recoverCitations(leaked), [{ kind: "call", id: ID, label: "4:22 AM call" }]);
+  assert.deepEqual(recoverCitations("nothing here"), []);
+  const parsed = parseAskFinish({ answer: leaked, citations: [], followups: ["Who is this caller?"], navigate: { to: "", label: "" }, language: "en" });
+  assert.ok(parsed.ok);
+  assert.equal(parsed.value.answer, "The 4:22 AM call ran 5:16 and the receptionist handled it.");
+  assert.deepEqual(parsed.value.citations, [{ kind: "call", id: ID, label: "4:22 AM call" }], "the citations the model wrote into the wrong field still count");
+  assert.equal(partialAnswer('{"answer":"It handled it.</answer>\\n<parameter name=\\"cit'), "It handled it.", "the stream shows nothing past the tag");
+  assert.equal(partialAnswer('{"answer":"<answer>Hola'), "Hola");
+  const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
+  assert.ok(tools.includes("recent: v.timeline"), "list_threads carries the last exchanges, so one read round answers most questions");
+  const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
+  assert.ok(prompt.includes("under sixty words") && prompt.includes("set navigate to that row"));
+  const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
+  assert.ok(ui.includes('className="ask-from"'), "citations read as sources");
+  assert.ok(readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css").includes(".ask-real .ask-msg-text{white-space:pre-wrap;word-break:break-word}"));
 });

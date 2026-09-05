@@ -64,7 +64,7 @@ export const READ_TOOLS: ToolDef[] = [
   },
   {
     name: "list_threads",
-    description: "WhatsApp threads from the Inbox. filter: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, recent (all, newest first).",
+    description: "WhatsApp threads from the Inbox, each with its last three messages (who wrote, what). filter: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, recent (all, newest first). Call get_thread only when more of one conversation is needed.",
     input_schema: obj({ filter: { type: "string", enum: ["needs_you", "held", "waiting", "snoozed", "recent"] } }, ["filter"]),
   },
   {
@@ -241,6 +241,10 @@ async function listThreads(t: ToolContext, input: Record<string, unknown>): Prom
       state: v.needsYou ? "needs you" : v.takenOver ? "waiting on you" : v.state === "snoozed" ? "snoozed" : v.optedOut ? "opted out" : "answering",
       held_draft: v.veto ? { message_id: v.veto.messageId, text: v.veto.draft.slice(0, 200), why: v.veto.why?.summary ?? null } : v.heldDraft ? { message_id: v.heldDraft.messageId, text: v.heldDraft.body.slice(0, 200) } : null,
       last_message: v.preview.slice(0, 160),
+      recent: v.timeline
+        .filter((x): x is Extract<typeof x, { type: "msg" }> => x.type === "msg")
+        .slice(-3)
+        .map((x) => ({ from: x.from === "client" ? "customer" : x.byYou ? "you" : "receptionist", text: x.body.slice(0, 140) })),
       last_at: v.lastAtFull,
       waiting_min: v.waitingMin ?? null,
       window_open: v.windowOpen,

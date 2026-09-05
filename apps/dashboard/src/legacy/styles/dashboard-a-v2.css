@@ -1819,3 +1819,7 @@ button.dec-policy.pill-warn{border:1px solid transparent}
 .ask-talk{flex:none;gap:6px;touch-action:none;user-select:none;-webkit-user-select:none}
 .ask-talk.on{background:var(--accent-soft);color:var(--accent);border-color:transparent}
 @media (max-width:720px){.ask-talk-label{display:none}.ask-talk{width:40px;padding:0;justify-content:center}}
+
+/* ---- Answers keep their line breaks; citations read as sources ---- */
+.ask-real .ask-msg-text{white-space:pre-wrap;word-break:break-word}
+.ask-from{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);align-self:center;margin-right:2px}

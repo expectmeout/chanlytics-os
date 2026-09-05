@@ -1824,7 +1824,7 @@ var ASK_FINISH_JSON_SCHEMA = {
   properties: {
     answer: {
       type: "string",
-      description: "The answer, in the person's language, two or three short sentences at most. Plain text, no markdown, no headings. Say what you found; if a read returned nothing, say so plainly."
+      description: "The answer, in the person's language: two or three short sentences, under sixty words, unless they asked for detail (a transcript, a list). Plain text only: no markdown, no headings, and never a tag such as <answer> or <parameter> inside this string. Say what you found; if a read returned nothing, say so plainly."
     },
     citations: {
       type: "array",
@@ -1858,8 +1858,41 @@ var ASK_FINISH_JSON_SCHEMA = {
   additionalProperties: false
 };
 var clip = (n) => (s) => s.trim().slice(0, n);
+var TAG_CUT = /<\/answer>|<\/?parameter\b|<\/?invoke\b|<\/?function_calls\b|<\/?tool_call\b/i;
+function cleanAnswer(raw) {
+  let s = raw.replace(/^\s*<answer>\s*/i, "");
+  const cut = s.search(TAG_CUT);
+  if (cut >= 0) s = s.slice(0, cut);
+  return s.replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "").replace(/\s+$/g, "").trim();
+}
+function recoverCitations(raw) {
+  const at = raw.search(/name=["']citations["']/i);
+  if (at < 0) return [];
+  const start = raw.indexOf("[", at);
+  if (start < 0) return [];
+  let depth = 0;
+  let end = -1;
+  for (let i = start; i < raw.length; i++) {
+    if (raw[i] === "[") depth++;
+    else if (raw[i] === "]") {
+      depth--;
+      if (depth === 0) {
+        end = i;
+        break;
+      }
+    }
+  }
+  if (end < 0) return [];
+  try {
+    const arr = JSON.parse(raw.slice(start, end + 1));
+    if (!Array.isArray(arr)) return [];
+    return arr.filter((c) => !!c && typeof c === "object" && typeof c.id === "string" && typeof c.label === "string").map((c) => ({ kind: ASK_CITATION_KINDS.includes(String(c.kind)) ? c.kind : "page", id: c.id.slice(0, 200), label: c.label.slice(0, 80) })).slice(0, ASK_CAPS.citations);
+  } catch {
+    return [];
+  }
+}
 var AskFinishSchema = z3.object({
-  answer: z3.string().catch("").transform(clip(1500)),
+  answer: z3.string().catch("").transform((s) => clip(1500)(cleanAnswer(s))),
   citations: z3.array(
     z3.object({
       kind: z3.enum(ASK_CITATION_KINDS).catch("page"),
@@ -1883,6 +1916,10 @@ function parseAskFinish(raw) {
   const r = AskFinishSchema.safeParse(json);
   if (!r.success) return { ok: false, error: r.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
   if (!r.data.answer) return { ok: false, error: "empty answer" };
+  if (!r.data.citations.length && json && typeof json === "object" && typeof json.answer === "string") {
+    const leaked = recoverCitations(json.answer);
+    if (leaked.length) return { ok: true, value: { ...r.data, citations: leaked } };
+  }
   return { ok: true, value: r.data };
 }
 function emptyReadSet() {
@@ -1953,6 +1990,11 @@ function isUngrounded(answer, reads) {
 function partialAnswer(prefix) {
   const key = prefix.indexOf('"answer"');
   if (key < 0) return "";
+  const raw = partialString(prefix, key);
+  const cut = raw.search(TAG_CUT);
+  return (cut >= 0 ? raw.slice(0, cut) : raw).replace(/^\s*<answer>\s*/i, "");
+}
+function partialString(prefix, key) {
   let i = prefix.indexOf('"', prefix.indexOf(":", key) + 1);
   if (i < 0) return "";
   i++;
@@ -3305,6 +3347,7 @@ export {
   buildAskSuggestions,
   buildNotificationFeed,
   citationRoute,
+  cleanAnswer,
   composeSystemPrompt,
   contactMeta,
   contactName,
@@ -3362,6 +3405,7 @@ export {
   reachedCustomer,
   reasonShort,
   recencyCells,
+  recoverCitations,
   replyDelayMs,
   replyWhy,
   resolveSystemPrompt,
