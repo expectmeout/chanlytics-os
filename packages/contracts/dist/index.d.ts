@@ -94,7 +94,7 @@ declare const DECISION_SUBJECTS: readonly ["conversation", "escalation", "draft"
 type DecisionSubject = (typeof DECISION_SUBJECTS)[number];
 declare const ACTOR_TYPES: readonly ["user", "ai", "system", "owner_phone"];
 type ActorType = (typeof ACTOR_TYPES)[number];
-declare const TEMPLATE_STATUSES: readonly ["approved", "pending", "rejected"];
+declare const TEMPLATE_STATUSES: readonly ["approved", "pending", "rejected", "paused", "disabled"];
 type TemplateStatus = (typeof TEMPLATE_STATUSES)[number];
 
 /**

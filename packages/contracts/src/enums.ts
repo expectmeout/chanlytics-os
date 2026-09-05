@@ -166,5 +166,5 @@ export type DecisionSubject = (typeof DECISION_SUBJECTS)[number];
 export const ACTOR_TYPES = ["user", "ai", "system", "owner_phone"] as const;
 export type ActorType = (typeof ACTOR_TYPES)[number];
 
-export const TEMPLATE_STATUSES = ["approved", "pending", "rejected"] as const;
+export const TEMPLATE_STATUSES = ["approved", "pending", "rejected", "paused", "disabled"] as const;
 export type TemplateStatus = (typeof TEMPLATE_STATUSES)[number];

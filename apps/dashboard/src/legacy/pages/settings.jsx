@@ -1784,6 +1784,94 @@ const ConnectWhatsAppRow = () => {
   );
 };
 
+// Message templates, as Meta holds them. Written in WhatsApp Manager,
+// approved by Meta, read here; "Sync from Meta" is the only verb. A
+// marketing template needs the customer's recorded yes; a utility one does
+// not. Nothing here creates or edits a template — that is Meta's page.
+const TPL_STATUS = {
+  approved: { label: "Approved", cls: "pill-ok" },
+  pending: { label: "In review", cls: "" },
+  rejected: { label: "Rejected", cls: "pill-warn" },
+  paused: { label: "Paused", cls: "pill-warn" },
+  disabled: { label: "Disabled", cls: "pill-warn" },
+};
+const tplAgo = (iso) => {
+  if (!iso) return null;
+  const diff = Math.max(0, Date.now() - new Date(iso).getTime());
+  if (diff < 60000) return "just now";
+  if (diff < 3600000) return `${Math.round(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.round(diff / 3600000)}h ago`;
+  return `${Math.round(diff / 86400000)}d ago`;
+};
+const TemplatesCard = () => {
+  const [, bump] = React.useReducer((n) => n + 1, 0);
+  React.useEffect(() => {
+    window.addEventListener("surface:settings", bump);
+    return () => window.removeEventListener("surface:settings", bump);
+  }, []);
+  const [busy, setBusy] = React.useState(false);
+  const [toastNode, flash] = window.usePPToast();
+  const templates = window.__TEMPLATES_ALL;
+  const canSync = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
+  const hasWhatsApp = (window.__CHANNELS || []).some((c) => c.kind === "whatsapp");
+  const sync = async () => {
+    if (!window.__syncTemplates || busy) return;
+    setBusy(true);
+    const r = await window.__syncTemplates();
+    setBusy(false);
+    flash({
+      msg: r.ok
+        ? <>{r.data.seen} template{r.data.seen === 1 ? "" : "s"} from Meta — {r.data.approved} approved, {r.data.marketing} marketing</>
+        : <>{r.message}</>,
+    });
+  };
+  const list = templates || [];
+  const lastSync = list.reduce((m, t) => (t.synced_at && (!m || t.synced_at > m) ? t.synced_at : m), null);
+  const sub = templates === null
+    ? "Couldn't be loaded right now"
+    : list.length === 0
+      ? "None on file yet"
+      : `${list.length} on file · ${list.filter((t) => t.meta_status === "approved").length} approved${lastSync ? ` · synced ${tplAgo(lastSync)}` : " · never synced"}`;
+  return (
+    <section className="fl-card set-card" data-testid="templates">
+      <div className="fl-card-head">
+        <span className="fl-card-title">Message templates</span>
+        <span className="fl-card-sub">{sub}</span>
+      </div>
+      {list.map((t) => {
+        const st = TPL_STATUS[t.meta_status] || { label: t.meta_status, cls: "" };
+        return (
+          <div key={t.id} className="set-int-row" data-testid="template-row">
+            <span className="st-tile set-int-tile"><Icon name="chat" size={14} /></span>
+            <span className="set-team-body">
+              <span className="set-team-name">{t.name}<span className="dim"> · {t.language}{t.category ? ` · ${t.category}` : ""}</span></span>
+              <span className="set-team-mail">
+                {t.meta_status === "rejected" && t.rejected_reason
+                  ? `Rejected: ${String(t.rejected_reason).toLowerCase().replace(/_/g, " ")}`
+                  : (t.body_preview || "No body on file")}
+              </span>
+            </span>
+            <span className={`pill ${st.cls}`}>{st.label}</span>
+          </div>
+        );
+      })}
+      <div className="set-row">
+        <div className="set-row-info">
+          <span className="set-row-hint">
+            {hasWhatsApp
+              ? "Templates are written and approved in WhatsApp Manager; Chanlytics reads them. A marketing template can only go to people who said yes to offers."
+              : "Connect a WhatsApp number first — templates belong to a number's account."}
+          </span>
+        </div>
+        {hasWhatsApp && canSync && (
+          <button className="btn btn-sm" onClick={sync} disabled={busy} data-testid="sync-templates">{busy ? "Syncing…" : "Sync from Meta"}</button>
+        )}
+      </div>
+      {toastNode}
+    </section>
+  );
+};
+
 const PaneIntegrationsReal = () => {
   const [, tick] = useSetState(0);
   React.useEffect(() => {
@@ -1840,6 +1928,8 @@ const PaneIntegrationsReal = () => {
           </div>
         )}
       </section>
+
+      <TemplatesCard />
 
       <section className="fl-card set-card" data-testid="not-available">
         <div className="fl-card-head">

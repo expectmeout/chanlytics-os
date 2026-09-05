@@ -291,6 +291,15 @@ export interface ApprovedTemplate {
   variables: unknown;
 }
 
+/** Every template with its status, for Settings; the composer keeps ApprovedTemplate. */
+export interface TemplateDto extends ApprovedTemplate {
+  category: string | null;
+  meta_status: string;
+  quality: string | null;
+  rejected_reason: string | null;
+  synced_at: string | null;
+}
+
 export const inboxOverride: SurfaceOverride = {
   key: "inbox",
   globals: ["INBOX_DATA", "__TEMPLATES"],
@@ -493,10 +502,10 @@ export interface WorkspaceSettings {
 
 export const settingsOverride: SurfaceOverride = {
   key: "settings",
-  globals: ["__SETTINGS", "__TEAM", "__TEAM_INVITES", "__POLICIES", "__CHANNELS"],
+  globals: ["__SETTINGS", "__TEAM", "__TEAM_INVITES", "__POLICIES", "__CHANNELS", "__TEMPLATES_ALL"],
   events: ["surface:settings"],
   apply: async () => {
-    const [cfg, team, pol, ch] = await Promise.all([
+    const [cfg, team, pol, ch, tpl] = await Promise.all([
       fetchEnvelope<{ config: WorkspaceSettings | null; version: number; role: string; configBroken?: boolean; issues?: string[] }>("/api/v1/settings"),
       // A team read that fails must not blank the business card beside it.
       fetchEnvelope<{ members: unknown[]; invites?: unknown[] }>("/api/v1/team").catch((e: unknown) => e as Error),
@@ -505,6 +514,8 @@ export const settingsOverride: SurfaceOverride = {
       fetchEnvelope<{ policies: PolicyRecordLike[]; role?: string }>("/api/v1/policies").catch((e: unknown) => e as Error),
       // The numbers the business is reachable on, for Integrations.
       fetchEnvelope<{ channels: ChannelDto[] }>("/api/v1/channels").catch((e: unknown) => e as Error),
+      // Every template with its status, for the Integrations pane's card.
+      fetchEnvelope<{ templates: TemplateDto[] }>("/api/v1/templates?all=1").catch((e: unknown) => e as Error),
     ]);
     const w = window as unknown as {
       __SETTINGS?: { config: WorkspaceSettings | null; version: number; role: string; broken: { issues: string[] } | null };
@@ -512,6 +523,7 @@ export const settingsOverride: SurfaceOverride = {
       __TEAM_INVITES?: unknown[] | null;
       __POLICIES?: PoliciesSurface | null;
       __CHANNELS?: ChannelVM[] | null;
+      __TEMPLATES_ALL?: TemplateDto[] | null;
     };
     // `broken` is its own state, not an empty config: the pane closes its
     // forms on it, because a save from a form that read {} would replace the
@@ -525,6 +537,12 @@ export const settingsOverride: SurfaceOverride = {
     } else {
       const now = new Date();
       w.__CHANNELS = (ch.channels ?? []).map((c) => toChannelVM(c, now));
+    }
+    if (tpl instanceof Error) {
+      w.__TEMPLATES_ALL = null;
+      console.error("settings_templates_fetch_failed", tpl.message);
+    } else {
+      w.__TEMPLATES_ALL = (tpl.templates ?? []).filter((t) => t.channel === "whatsapp");
     }
     if (pol instanceof Error) {
       w.__POLICIES = null;

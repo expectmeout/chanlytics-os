@@ -213,7 +213,7 @@ var DECISION_SUBJECTS = [
   "channel"
 ];
 var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
-var TEMPLATE_STATUSES = ["approved", "pending", "rejected"];
+var TEMPLATE_STATUSES = ["approved", "pending", "rejected", "paused", "disabled"];
 
 // src/consent.ts
 function isOptedOutContact(c) {

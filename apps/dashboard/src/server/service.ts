@@ -539,3 +539,24 @@ export async function connectWhatsApp(
   }
   return { ok: false, reason: j.error ? String(j.error) : `edge ${r.status}`, detail: j.detail };
 }
+
+/* ---- Templates as Meta holds them: the edge reads the number's account ---- */
+
+export type SyncOutcome =
+  | { ok: true; seen: number; approved: number; marketing: number; syncedAt: string }
+  | { ok: false; reason: string; detail?: string };
+
+/** Every template of the workspace's WhatsApp account, upserted; a row Meta does not return is left as it was. */
+export async function syncTemplates(tenantId: string): Promise<SyncOutcome> {
+  if (process.env.VERCEL_ENV !== "production") return { ok: false, reason: "preview" };
+  const r = await fetch(`${EDGE_BASE}/api/admin/whatsapp/templates-sync`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
+    body: JSON.stringify({ tenant_id: tenantId }),
+  });
+  const j = (await r.json().catch(() => ({}))) as { ok?: boolean; seen?: number; approved?: number; marketing?: number; synced_at?: string; error?: string; detail?: string };
+  if (r.ok && j.ok) {
+    return { ok: true, seen: j.seen ?? 0, approved: j.approved ?? 0, marketing: j.marketing ?? 0, syncedAt: j.synced_at ?? new Date().toISOString() };
+  }
+  return { ok: false, reason: j.error ? String(j.error) : `edge ${r.status}`, detail: j.detail };
+}
