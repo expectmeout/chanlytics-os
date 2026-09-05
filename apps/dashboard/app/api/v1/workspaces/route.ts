@@ -1,5 +1,6 @@
 import { withRoute, memberContext } from "@/server/with-route";
 import { acceptOpenInvites } from "@/server/service";
+import { isSameOrigin } from "@/server/request-guards";
 
 /**
  * GET /api/v1/workspaces — the session's tenants, RLS-scoped, plus who is
@@ -32,7 +33,12 @@ export const GET = withRoute(async (_req, ctx) => {
   //
   // It now runs on every workspace read. Migration 00023 adds the partial
   // index that makes that a lookup rather than the sequential scan it was.
-  if ((await acceptOpenInvites(userId, email ?? null)) > 0) {
+  //
+  // A GET is exempt from the cross-site check by design (reads change
+  // nothing), and this one wrote on the way through. Accepting an invitation
+  // is benign and idempotent, but it is a write, so it happens only on the
+  // app's own reads: a cross-site GET gets the list and nothing else (F51).
+  if (isSameOrigin(_req) && (await acceptOpenInvites(userId, email ?? null)) > 0) {
     const retry = await supabase.from("tenants").select("id, slug, name, status, timezone").order("name");
     if (retry.error) throw new Error(retry.error.message);
     data = retry.data;

@@ -588,7 +588,7 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
   }
   if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s WhatsApp thread`);
   const transcript = (dto.transcript_object ?? []).map((turn) => {
-    const start = turn.words?.[0]?.start;
+    const start = turn.start ?? turn.words?.[0]?.start;
     if (turn.role === "injected") {
       return { t: "\u2014", speaker: "whisper", text: whisperText(turn.content) };
     }
@@ -637,7 +637,7 @@ function fmtClock(seconds) {
 }
 function turnsOf(dto) {
   return (dto.transcript_object ?? []).filter((turn) => turn.role === "agent" || turn.role === "user" || turn.role === "injected").map((turn) => {
-    const start = turn.words?.[0]?.start;
+    const start = turn.start ?? turn.words?.[0]?.start;
     if (turn.role === "injected") {
       return { speaker: "whisper", text: whisperText(turn.content), t: "\u2014" };
     }

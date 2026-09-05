@@ -110,7 +110,7 @@ function turnsOf(dto: CallDto): LiveTurnVM[] {
   return (dto.transcript_object ?? [])
     .filter((turn) => turn.role === "agent" || turn.role === "user" || turn.role === "injected")
     .map((turn) => {
-      const start = turn.words?.[0]?.start;
+      const start = turn.start ?? turn.words?.[0]?.start;
       if (turn.role === "injected") {
         // The owner's words, not the frame around them; whispers carry no
         // word timing from the provider.
