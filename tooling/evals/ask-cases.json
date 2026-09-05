@@ -75,10 +75,16 @@
     "id": "hours",
     "text": "what are our hours this week?",
     "expect": {
-      "tools_any": [
-        "get_settings"
-      ],
-      "no_write": true
+      "no_write": true,
+      "includes_any": [
+        "09:30",
+        "9:30",
+        "Monday",
+        "Sunday",
+        "closed",
+        "lunes",
+        "domingo"
+      ]
     }
   },
   {
@@ -106,9 +112,6 @@
     "id": "definition",
     "text": "what does 'held draft' mean?",
     "expect": {
-      "tools_any": [
-        "explain_metric"
-      ],
       "includes_any": [
         "not sure enough",
         "confidence",

@@ -508,7 +508,7 @@ test("context first: the day rides into every turn, its rows can be cited, loade
   assert.ok(loop.includes("...(snapshot ? [{ type: \"text\", text: snapshot, cache_control: { type: \"ephemeral\" } }] : []),"), "the snapshot is the second cache breakpoint: a turn's later rounds and a quick follow-up read it from the cache");
   assert.ok(!snap.includes("now_local"), "no clock inside the snapshot, so it caches across a minute");
   assert.ok(readCode("apps/dashboard/src/server/ask/prompt.ts").includes("Already in this prompt, above: the hours, closures, services"), "what the prompt already holds needs no read");
-  assert.ok(readCode("tooling/scripts/eval-ask.mjs").includes("const fromSnapshot = m.tools.length === 0"), "the eval knows an overview can come from the snapshot");
+  assert.ok(readCode("tooling/scripts/eval-ask.mjs").includes("const fromSnapshot = e.tools_any && e.tools_any.some((t) => OVERVIEW.includes(t)) && !m.tools.some((t) => OVERVIEW.includes(t));"), "the eval knows an overview can come from the snapshot");
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(tools.includes("memo: new Map()") && tools.includes("return memoised(t, `conversations:${limit}`"), "one turn never fetches the same rows twice");
   assert.ok(tools.includes("const CONVERSATIONS = 40;") && tools.includes("const MESSAGES = 600;") && !tools.includes(".limit(2000)"), "the Inbox read no longer moves two thousand messages");
@@ -542,4 +542,14 @@ test("the rail, result titles and the Act group: a desktop conversation has the 
   assert.ok(ui.includes("if (it.compose) { setQuery(it.q);"), "a compose row lands in the input for the person to finish");
   const bridge = readCode("apps/dashboard/src/legacy-bridge/ask.ts");
   assert.ok(bridge.includes('canAct: w.__ME?.role === "owner" || w.__ME?.role === "operator",'));
+});
+
+test("a proposal and the answer share a round; a read beside a finish sets the finish aside", () => {
+  const loop = readCode("apps/dashboard/src/server/ask/loop.ts");
+  assert.ok(loop.includes("if (finish && readCalls.length && readCalls.every((b) => ACT_TOOL_NAMES.has(b.name))) {"), "act tools beside finish run first, then the answer stands");
+  assert.ok(loop.includes('console.warn("ask_finish_beside_read"') && loop.includes("finish = undefined;"), "an answer written before its read is not an answer");
+  assert.ok(readCode("apps/dashboard/src/server/ask/prompt.ts").includes("A proposal needs no second round: call the act tool and finish together"));
+  const cases = JSON.parse(readRaw("tooling/evals/ask-cases.json"));
+  assert.ok(!cases.find((c) => c.id === "hours").expect.tools_any, "hours come from the prompt, no read expected");
+  assert.ok(!cases.find((c) => c.id === "definition").expect.tools_any, "definitions come from the prompt, no read expected");
 });
