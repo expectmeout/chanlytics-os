@@ -4380,7 +4380,7 @@ var ASK_FINISH_JSON_SCHEMA = {
   properties: {
     answer: {
       type: "string",
-      description: "The answer, in the person's language, two or three short sentences at most. Plain text, no markdown, no headings. Say what you found; if a read returned nothing, say so plainly."
+      description: "The answer, in the person's language: two or three short sentences, under sixty words, unless they asked for detail (a transcript, a list). Plain text only: no markdown, no headings, and never a tag such as <answer> or <parameter> inside this string. Say what you found; if a read returned nothing, say so plainly."
     },
     citations: {
       type: "array",
@@ -4414,8 +4414,15 @@ var ASK_FINISH_JSON_SCHEMA = {
   additionalProperties: false
 };
 var clip = (n) => (s) => s.trim().slice(0, n);
+var TAG_CUT = /<\/answer>|<\/?parameter\b|<\/?invoke\b|<\/?function_calls\b|<\/?tool_call\b/i;
+function cleanAnswer(raw) {
+  let s = raw.replace(/^\s*<answer>\s*/i, "");
+  const cut = s.search(TAG_CUT);
+  if (cut >= 0) s = s.slice(0, cut);
+  return s.replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "").replace(/\s+$/g, "").trim();
+}
 var AskFinishSchema = external_exports.object({
-  answer: external_exports.string().catch("").transform(clip(1500)),
+  answer: external_exports.string().catch("").transform((s) => clip(1500)(cleanAnswer(s))),
   citations: external_exports.array(
     external_exports.object({
       kind: external_exports.enum(ASK_CITATION_KINDS).catch("page"),
