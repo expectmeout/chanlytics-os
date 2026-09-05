@@ -501,6 +501,10 @@ interface InboxThreadVM {
     }>;
     lastAt: string;
     lastAtFull: string;
+    /** Absolute times, epoch ms, for anything that must not drift with the
+     *  clock — the bell keys its read state on them. */
+    lastAtMs: number;
+    escalatedAtMs?: number;
     unread: boolean;
     pinned: false;
     value?: number;
@@ -3219,6 +3223,9 @@ interface FeedThread {
     who: string;
     preview?: string;
     waitingMin?: number;
+    /** Absolute times, when the view-model carries them. */
+    lastAtMs?: number;
+    escalatedAtMs?: number;
     veto?: {
         window: number;
         endsAtMs: number;

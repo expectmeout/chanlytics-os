@@ -37,6 +37,9 @@ export interface FeedThread {
   who: string;
   preview?: string;
   waitingMin?: number;
+  /** Absolute times, when the view-model carries them. */
+  lastAtMs?: number;
+  escalatedAtMs?: number;
   veto?: { window: number; endsAtMs: number; messageId: string; draft: string; why?: { heldFor?: string | null; summary?: string } };
 }
 
@@ -74,7 +77,9 @@ export function buildNotificationFeed(input: FeedInput): NotificationItem[] {
   for (const t of input.threads ?? []) {
     if (!t.real) continue;
     if (t.needsYou) {
-      const at = typeof t.waitingMin === "number" ? now - t.waitingMin * 60_000 : now;
+      // An absolute moment, never "minutes ago" from the clock: a time derived
+      // from `now` drifts forward on every read and undoes Mark all read.
+      const at = t.escalatedAtMs ?? (typeof t.waitingMin === "number" ? now - t.waitingMin * 60_000 : t.lastAtMs ?? now);
       items.push({
         key: `needs:${t.id}`,
         kind: "needs_you",

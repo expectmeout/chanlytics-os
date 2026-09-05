@@ -35,7 +35,9 @@ test("the feed: who needs you, a draft still waiting, a missed call today, an op
   assert.deepEqual(items.map((i) => i.key), ["draft:m2", "needs:t1", "call:k1", "invite:i1"], "the seed thread, the expired draft, the old and the answered calls are out");
   assert.equal(items[0].at, NOW + 30_000 - 60_000, "a draft's moment is when it was written");
   assert.ok(items[0].message.startsWith("Not sure enough to send alone · “We open at 10 tomorrow"));
-  assert.equal(items[1].at, NOW - 12 * 60_000, "an escalation's moment is how long they have waited");
+  assert.equal(items[1].at, NOW - 12 * 60_000, "without an absolute time, how long they have waited");
+  const abs = buildNotificationFeed({ threads: [thread({ needsYou: true, waitingMin: 12, escalatedAtMs: NOW - 5 * 60_000 })], now: NOW });
+  assert.equal(abs[0].at, NOW - 5 * 60_000, "the escalation's own moment wins: it never drifts with the clock");
   assert.equal(items[1].title, "Dani needs you");
   assert.equal(items[1].to, "inbox/t1");
   assert.equal(items[2].to, "conversations/cv-k1");
@@ -64,6 +66,7 @@ test("the bridge: reads the globals, keeps state per workspace and device, alert
   const storage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) };
   const handlers = {};
   const fired = [];
+  const base = Date.now();
   class FakeNotification {
     static permission = "granted";
     constructor(title, opts) { fired.push({ title, tag: opts.tag }); this.close = () => {}; }
@@ -75,7 +78,7 @@ test("the bridge: reads the globals, keeps state per workspace and device, alert
     focus: () => {},
     location: { hash: "" },
     Notification: FakeNotification,
-    INBOX_DATA: { THREADS: [thread({ needsYou: true, waitingMin: 1 })] },
+    INBOX_DATA: { THREADS: [thread({ needsYou: true, escalatedAtMs: base - 60_000 })] },
     __LIVE: { now: [], recent: [] },
     __TEAM_INVITES: [],
   };
@@ -88,25 +91,23 @@ test("the bridge: reads the globals, keeps state per workspace and device, alert
   handlers["surface:inbox"]();
   assert.deepEqual(fired, []);
   // Alerts are off until the owner asks.
-  win.INBOX_DATA.THREADS.push(thread({ id: "t2", who: "Rosa", needsYou: true, waitingMin: 0 }));
+  win.INBOX_DATA.THREADS.push(thread({ id: "t2", who: "Rosa", needsYou: true, escalatedAtMs: base - 30_000 }));
   handlers["surface:inbox"]();
   assert.deepEqual(fired, [], "off by default");
   const r = await api.setAlerts(true);
   assert.deepEqual(r, { on: true, permission: "granted" });
   assert.equal(api.alerts().on, true);
-  win.INBOX_DATA.THREADS.push(thread({ id: "t3", who: "Ana", needsYou: true, waitingMin: 0 }));
+  win.INBOX_DATA.THREADS.push(thread({ id: "t3", who: "Ana", needsYou: true, escalatedAtMs: base - 20_000 }));
   handlers["surface:inbox"]();
   assert.deepEqual(fired, [{ title: "Ana needs you", tag: "needs:t3" }], "only the new one, only in the background");
   win.document.visibilityState = "visible";
-  win.INBOX_DATA.THREADS.push(thread({ id: "t4", who: "Bea", needsYou: true, waitingMin: 0 }));
+  win.INBOX_DATA.THREADS.push(thread({ id: "t4", who: "Bea", needsYou: true, escalatedAtMs: base - 10_000 }));
   handlers["surface:inbox"]();
   assert.equal(fired.length, 1, "in view, the bell is enough");
   // Read state lives in this device's storage, keyed by workspace.
   api.read("needs:t1");
   api.dismiss("needs:t2");
-  // t3 and t4 became true in the same moment (waiting 0 min): a stable sort keeps
-  // their list order; t1 has waited a minute longer and sorts after them.
-  assert.deepEqual(api.feed().map((x) => [x.id, x.unread]), [["needs:t3", true], ["needs:t4", true], ["needs:t1", false]]);
+  assert.deepEqual(api.feed().map((x) => [x.id, x.unread]), [["needs:t4", true], ["needs:t3", true], ["needs:t1", false]]);
   api.seenAll();
   assert.equal(api.unread(), 0);
   const saved = JSON.parse(store.get("chanlytics:notifs:default"));
