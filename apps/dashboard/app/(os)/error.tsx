@@ -27,8 +27,7 @@ export default function OsError({ error, reset }: { error: Error; reset: () => v
       <p>The rest of Chanlytics OS is fine. Reloading usually fixes it.</p>
       <button onClick={() => window.location.reload()}>Reload</button>
       <div className="hint">
-        Still stuck? <a href="/foundation" style={{ color: "inherit" }}>Check the diagnostics page</a> or try again in a
-        minute. <button onClick={reset} style={{ background: "none", border: "none", color: "inherit", textDecoration: "underline", cursor: "pointer", padding: 0, font: "inherit" }}>Retry without reloading</button>
+        Still stuck? Try again in a minute. <button onClick={reset} style={{ background: "none", border: "none", color: "inherit", textDecoration: "underline", cursor: "pointer", padding: 0, font: "inherit" }}>Retry without reloading</button>
       </div>
     </main>
   );

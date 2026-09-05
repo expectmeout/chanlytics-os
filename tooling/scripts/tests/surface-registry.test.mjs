@@ -86,7 +86,7 @@ test("the real set is exactly the converted surfaces", () => {
     .filter(([, v]) => v === "real")
     .map(([k]) => k)
     .sort();
-  assert.deepEqual(real, ["admin/autonomy", "admin/integrations", "admin/notifications", "admin/workspace", "clients", "conversations", "inbox", "live", "reports", "today"]);
+  assert.deepEqual(real, ["admin/autonomy", "admin/billing", "admin/integrations", "admin/memory", "admin/notifications", "admin/workspace", "clients", "conversations", "inbox", "live", "reports", "today"]);
 });
 
 test("the shell consults the registry through one interception, not per-route conditionals", () => {
@@ -115,7 +115,7 @@ test("a sub-route is checked BEFORE its page", () => {
   // pane and shipping five invented ones.
   const { surfaceStateFor } = registry;
   assert.equal(surfaceStateFor("admin", "workspace"), "real");
-  assert.equal(surfaceStateFor("admin", "billing"), "demo", "an unlisted pane inherits its page");
+  assert.equal(surfaceStateFor("admin", "nonsense"), "demo", "an unlisted pane inherits its page");
   // No pane named resolves to the one the shell will actually render —
   // see the default-pane test below.
   assert.equal(surfaceStateFor("admin", null), "real");
@@ -124,9 +124,9 @@ test("a sub-route is checked BEFORE its page", () => {
 test("an unclassified pane inherits DEMO, never real", () => {
   // The fallback is what keeps this safe: a pane nobody has classified must not
   // become visible because someone forgot a line.
-  // notifications and autonomy have since been classified real; billing,
-  // integrations and memory are still seeds.
-  for (const pane of ["memory", "billing", "nonsense"]) {
+  // Every pane Settings draws is classified now (billing and memory as honest
+  // "not built" panes); a pane nobody has listed still inherits the page.
+  for (const pane of ["nonsense", "seats"]) {
     assert.equal(registry.surfaceStateFor("admin", pane), "demo", pane);
   }
 });
@@ -214,7 +214,7 @@ test("REGRESSION: a page opens on the pane it actually renders", () => {
   assert.equal(registry.surfaceStateFor("admin", null), "real");
   assert.equal(registry.surfaceStateFor("admin"), "real");
   // A named pane still wins over the default.
-  assert.equal(registry.surfaceStateFor("admin", "billing"), "demo");
+  assert.equal(registry.surfaceStateFor("admin", "nonsense"), "demo");
 });
 
 test("every default pane is one the registry classifies", () => {
@@ -252,7 +252,7 @@ test("REGRESSION: the route gate resolves the PANE, not just the page", () => {
 });
 
 test("a seeded pane is not made to wait for a surface that does not feed it", () => {
-  assert.equal(registry.routeSurfaceFor("admin", "billing"), undefined);
+  assert.equal(registry.routeSurfaceFor("admin", "nonsense"), undefined);
   assert.equal(registry.routeSurfaceFor("leads"), undefined);
 });
 

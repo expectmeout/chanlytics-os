@@ -203,10 +203,18 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
           // clientId is the contact behind the thread, so the item only renders
           // when there is actually somewhere to go (a phone-only caller has none).
           ...(thread.clientId ? [{ label: "Open client", icon: "users", onClick: () => onOpenClient(thread.clientId) }] : []),
-          { label: "Mark as unread", icon: "inbox", onClick: () => onMarkUnread(thread.id) },
+          // On a real thread "Mark as unread" flipped a local flag the next
+          // realtime reseed wiped, and "Block sender" opened the Ask overlay,
+          // a no-op outside a demo: both promised something that did not
+          // happen. The real way to stop the receptionist for one person is
+          // the mode on their profile, so that is where a real session goes.
+          ...(window.__DEMO_MODE ? [{ label: "Mark as unread", icon: "inbox", onClick: () => onMarkUnread(thread.id) }] : []),
           { label: "Snooze", icon: "clock", onClick: () => onSnooze(thread.id) },
-          { divider: true },
-          { label: "Block sender", icon: "x", danger: true, onClick: () => window.askAbout({ mode: "compose", prompt: "Block this sender because " }) },
+          ...(window.__DEMO_MODE
+            ? [{ divider: true }, { label: "Block sender", icon: "x", danger: true, onClick: () => window.askAbout({ mode: "compose", prompt: "Block this sender because " }) }]
+            : thread.clientId
+              ? [{ divider: true }, { label: "Receptionist for this person…", icon: "shield", onClick: () => onOpenClient(thread.clientId) }]
+              : []),
         ]} />
       </div>
     </header>

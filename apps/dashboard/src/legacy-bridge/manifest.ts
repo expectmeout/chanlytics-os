@@ -6,8 +6,9 @@
  * (inbox.jsx reads CHANLY; calendar.jsx calls CHANLY.agents() over FLEET_ROSTER;
  * people-data mutates CLIENT_SEGMENTS from clients-data).
  *
- * Dropped vs the original: tweaks-panel.jsx (replaced by the bridge's
- * localStorage prefs) and design-canvas.jsx (never loaded by Chanlytics.html).
+ * Dropped vs the original, and since deleted from the tree: tweaks-panel.jsx
+ * (replaced by the bridge's localStorage prefs) and design-canvas.jsx (never
+ * loaded by Chanlytics.html).
  */
 import "./seed-globals";
 
