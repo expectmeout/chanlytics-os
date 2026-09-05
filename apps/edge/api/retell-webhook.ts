@@ -42,6 +42,27 @@ import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "../lib/call-recording.js
 
 export const config = { maxDuration: 60 };
 
+const PLATFORM_TENANT = "00000000-0000-0000-0000-000000000000";
+
+/**
+ * Which credential a delivery passed, as a row.
+ *
+ * The log line beside the check lives in Vercel's logs, which nothing here
+ * can read back — and the `?key=` fallback retires on exactly this evidence:
+ * a real delivery whose signature verified against the key this deployment
+ * holds. Platform-scoped, no call content, best-effort; /api/diag lists the
+ * last few.
+ */
+async function recordWebhookAuth(sig: boolean, key: boolean): Promise<void> {
+  try {
+    const db = pg();
+    if (!db) return;
+    await emitEvent(db, PLATFORM_TENANT, "webhook.auth", "ingest", null, null, { provider: "retell", sig, key });
+  } catch (e) {
+    console.error("webhook_auth_event_failed", e instanceof Error ? e.message : e);
+  }
+}
+
 export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
   const sigOk = verifyRetellSignature(raw, request.headers.get("x-retell-signature"), process.env.RETELL_API_KEY);
@@ -54,6 +75,7 @@ export async function POST(request: Request): Promise<Response> {
   // signature verifies against the key this deployment holds.
   const keyOk = new URL(request.url).searchParams.get("key") === process.env.RETELL_FN_SECRET;
   console.log("retell_webhook_auth", JSON.stringify({ sig: sigOk, key: keyOk }));
+  void recordWebhookAuth(sigOk, keyOk);
   if (!sigOk && !keyOk) {
     return json(401, { ok: false, error: "unauthorized" });
   }

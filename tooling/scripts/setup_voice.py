@@ -136,7 +136,6 @@ llm = call("POST", "/create-retell-llm", {
                         "description": "Alternate number to send the link to, digits only with country code. Omit to use the caller's number.",
                     }
                 },
-                "required": [],
             },
         },
     ],
