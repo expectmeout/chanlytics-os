@@ -581,7 +581,7 @@ test("what an answer shows is decided once: the Open button never repeats as a c
   assert.equal(sameQuestion("Who wrote today?", "Who called today?"), false);
   assert.equal(sameQuestion("", ""), false);
   const shell = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
-  assert.ok(shell.includes("const twin = threads.find((th) => A.sameQuestion(th.title, q));"), "a repeated question resumes its thread instead of opening a twin");
+  assert.ok(shell.includes("const list = await (threadsReady.current || Promise.resolve(threads));") && shell.includes("const twin = list.find((th) => A.sameQuestion(th.title, q));"), "a repeated question resumes its thread instead of opening a twin, even before the list has landed");
   const turn = readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx");
   assert.ok(turn.includes('data-testid="ask-copy"') && turn.includes('data-testid="ask-read"'), "a quiet toolbar: copy and read aloud");
   assert.ok(turn.includes("{!streaming && latest && <AskFollowups"), "follow-ups on the latest answer only");

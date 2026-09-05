@@ -83,6 +83,9 @@ const AskReal = ({ open, onClose }) => {
   const inputRef = useArRef(null);
   const bodyRef = useArRef(null);
   const scrollRef = useArRef(null);
+  // The thread list as it is being fetched on open: a question typed before
+  // it lands still finds its twin.
+  const threadsReady = useArRef(null);
   const t = window.askText(lang);
   const route = arRoute();
   const surface = A ? A.surfaceFor(route.page) : "other";
@@ -103,7 +106,7 @@ const AskReal = ({ open, onClose }) => {
     if (!open || !A) return;
     const r = arRoute();
     setScope(A.scopeFor(r.page, r.param, arScopeLabel(r.page, r.param)));
-    A.threads().then(setThreads);
+    threadsReady.current = A.threads().then((list) => { setThreads(list); return list; });
     const bump = () => setTick((n) => n + 1);
     const evs = ["surface:inbox", "surface:live", "surface:clients", "surface:settings"];
     evs.forEach((e) => window.addEventListener(e, bump));
@@ -194,7 +197,8 @@ const AskReal = ({ open, onClose }) => {
     setFast(null);
     let base = active;
     if (!base) {
-      const twin = threads.find((th) => A.sameQuestion(th.title, q));
+      const list = await (threadsReady.current || Promise.resolve(threads));
+      const twin = list.find((th) => A.sameQuestion(th.title, q));
       if (twin) base = await openThread(twin);
     }
     const userMsg = { id: "u-" + Date.now(), role: "user", text: q, atMs: Date.now(), citations: [], followups: [], proposals: [] };
