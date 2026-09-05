@@ -697,7 +697,11 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       flash({ msg: <>The handoff number needs the country code, like +1 646 932 5775.</> });
       return;
     }
-    if (handoffNorm && handoffNorm === "+" + phoneDisplay.replace(/[^0-9]/g, "")) {
+    // The receptionist's OWN line is the voice channel's number, not the
+    // number the business tells customers — that one is usually the line a
+    // person answers, which is exactly where a handoff should go.
+    const ownLine = (((window.__CHANNELS || []).find((c) => c.kind === "voice") || {}).number || "").replace(/[^0-9]/g, "");
+    if (handoffNorm && ownLine && handoffNorm === "+" + ownLine) {
       flash({ msg: <>The handoff number is the receptionist's own line — it would ring itself. Use a line a person answers.</> });
       return;
     }
@@ -1324,7 +1328,7 @@ const PromptPreview = () => {
         <span className="set-prompt-count">{composed.text.length.toLocaleString()} characters</span>
         <span className="set-prompt-sep">·</span>
         <span>{channel === "voice"
-          ? "what the phone line would be told — today it runs its own script and reads none of this"
+          ? "every phone call, composed when the call starts"
           : "every WhatsApp message, word for word"}</span>
       </div>
       {open && (

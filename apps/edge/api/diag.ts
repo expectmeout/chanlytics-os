@@ -3,6 +3,7 @@
  *  Auth: x-diag-key header (DIAG_KEY). Internal endpoint — not part of the
  *  frozen surface. */
 import { getThread, saveThread, storeBackend, threadNamespace } from "../lib/store.js";
+import { createHash } from "node:crypto";
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import type { SweepHealthRow } from "../lib/sweep-health.js";
@@ -141,6 +142,16 @@ export async function GET(request: Request): Promise<Response> {
         );
       }
       out.voiceAgents = agents;
+      // Which credential Retell's deliveries have been passing — the evidence
+      // the webhook's `?key=` fallback retires on. The fingerprint lets the
+      // key this deployment holds be matched against the one Retell badges
+      // as its webhook signer, without printing either.
+      out.retellAuth = {
+        key_fingerprint: createHash("sha256").update(process.env.RETELL_API_KEY).digest("hex").slice(0, 12),
+        recent: db
+          ? ((await db.from("events").select("created_at, data").eq("kind", "webhook.auth").order("created_at", { ascending: false }).limit(5)).data ?? [])
+          : [],
+      };
     } catch (e) {
       out.voiceAgents = { error: String(e instanceof Error ? e.message : e).slice(0, 200) };
     }

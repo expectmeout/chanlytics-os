@@ -4631,6 +4631,8 @@ function voiceShellTools(fnUrl = DEFAULT_FN_URL, bookingHeaders) {
       execution_message_description: "Say you are sending the booking link to their WhatsApp now.",
       speak_after_execution: true,
       ...bookingHeaders ? { headers: bookingHeaders } : {},
+      // No `required` list: the provider drops an empty one on save, and the
+      // plan would then see a difference that is not there.
       parameters: {
         type: "object",
         properties: {
@@ -4638,8 +4640,7 @@ function voiceShellTools(fnUrl = DEFAULT_FN_URL, bookingHeaders) {
             type: "string",
             description: "Alternate number to send the link to, digits only with country code. Omit to use the caller's number."
           }
-        },
-        required: []
+        }
       }
     }
   ];
@@ -4669,10 +4670,15 @@ function stableJson(v) {
   }
   return JSON.stringify(v);
 }
-function pick(live, desired) {
-  const out = {};
-  for (const k of Object.keys(desired)) if (k in live) out[k] = live[k];
-  return out;
+function subsetEqual(live, desired) {
+  if (Array.isArray(desired)) return stableJson(live) === stableJson(desired);
+  if (desired && typeof desired === "object") {
+    if (!live || typeof live !== "object" || Array.isArray(live)) return false;
+    return Object.entries(desired).every(
+      ([k, v]) => subsetEqual(live[k], v)
+    );
+  }
+  return stableJson(live) === stableJson(desired);
 }
 function planVoiceConvergence(live, desired) {
   const drift = [];
@@ -4706,7 +4712,7 @@ function planVoiceConvergence(live, desired) {
       toolsDiffer = true;
       continue;
     }
-    if (stableJson(pick(have, want)) !== stableJson(want)) {
+    if (!subsetEqual(have, want)) {
       const what = want.name === "transfer_to_staff" ? ` (live destination: ${JSON.stringify(have.transfer_destination?.number ?? "?")}, option: ${JSON.stringify(have.transfer_option?.type ?? "?")})` : "";
       drift.push(`tool ${want.name} differs${what}`);
       toolsDiffer = true;

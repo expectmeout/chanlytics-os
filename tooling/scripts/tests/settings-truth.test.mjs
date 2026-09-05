@@ -47,7 +47,7 @@ test("F32: a config the parser refuses is its own state, and no form can save ov
 
 test("F33: the prompt card says which channel reads it", () => {
   assert.ok(pane.includes('"every WhatsApp message, word for word"'));
-  assert.ok(pane.includes("today it runs its own script and reads none of this"), "the phone line does not read the composed prompt yet");
+  assert.ok(pane.includes("every phone call, composed when the call starts"), "the phone line reads the composed prompt at call start");
   assert.ok(!pane.includes("<span>every message, word for word</span>"));
 });
 

@@ -106,6 +106,8 @@ export function voiceShellTools(
       execution_message_description: "Say you are sending the booking link to their WhatsApp now.",
       speak_after_execution: true,
       ...(bookingHeaders ? { headers: bookingHeaders } : {}),
+      // No `required` list: the provider drops an empty one on save, and the
+      // plan would then see a difference that is not there.
       parameters: {
         type: "object",
         properties: {
@@ -115,7 +117,6 @@ export function voiceShellTools(
               "Alternate number to send the link to, digits only with country code. Omit to use the caller's number.",
           },
         },
-        required: [],
       },
     },
   ];
@@ -174,11 +175,24 @@ function stableJson(v: unknown): string {
   return JSON.stringify(v);
 }
 
-/** The live tool, restricted to the keys the desired one defines. */
-function pick(live: Record<string, unknown>, desired: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const k of Object.keys(desired)) if (k in live) out[k] = live[k];
-  return out;
+/**
+ * Every field the desired tool sets is present and equal on the live one.
+ *
+ * Fields the provider adds on save — speak_after_execution on every tool, a
+ * bridge audio cue inside transfer_option — are Retell's defaults, not drift,
+ * and comparing whole objects reported a freshly converged agent as drifting
+ * forever (seen on the first real apply). Objects recurse; arrays and
+ * scalars compare whole.
+ */
+function subsetEqual(live: unknown, desired: unknown): boolean {
+  if (Array.isArray(desired)) return stableJson(live) === stableJson(desired);
+  if (desired && typeof desired === "object") {
+    if (!live || typeof live !== "object" || Array.isArray(live)) return false;
+    return Object.entries(desired as Record<string, unknown>).every(([k, v]) =>
+      subsetEqual((live as Record<string, unknown>)[k], v),
+    );
+  }
+  return stableJson(live) === stableJson(desired);
 }
 
 /**
@@ -226,7 +240,7 @@ export function planVoiceConvergence(live: LiveVoiceLlm, desired: VoiceShellTarg
       toolsDiffer = true;
       continue;
     }
-    if (stableJson(pick(have, want)) !== stableJson(want)) {
+    if (!subsetEqual(have, want)) {
       const what =
         want.name === "transfer_to_staff"
           ? ` (live destination: ${JSON.stringify((have.transfer_destination as { number?: string } | undefined)?.number ?? "?")}, ` +
