@@ -24,9 +24,18 @@ export interface ParsedFeed {
   busy: BusyBlock[];
   /** VEVENTs read, before any were dropped. */
   events: number;
-  /** Recurring events are not expanded (yet); they are counted so the
-   *  diagnostic can say the feed carries some. */
+  /** Recurring events expanded inside the horizon. */
+  recurringExpanded: number;
+  /** Recurring rules this parser does not understand (BYSETPOS, numbered
+   *  BYDAY, hourly…): their first occurrence is kept, the rest is not, and
+   *  they are counted so the diagnostic can say so. */
   skippedRecurring: number;
+}
+
+export interface ParseOptions {
+  /** Occurrences of recurring events are produced inside this window only
+   *  (epoch ms). Default: yesterday to ninety days out. */
+  horizon?: { from: number; to: number };
 }
 
 /* ------------------------------------------------------------- zone math */
@@ -120,6 +129,110 @@ function toMs(value: string, params: Record<string, string>, fallbackTz: string)
   }
 }
 
+/** The wall-clock parts of an iCal date-time in the zone it names (or the
+ *  fallback), so a recurring series can be stepped by calendar days. */
+function localPartsOf(value: string, params: Record<string, string>, fallbackTz: string): { tz: string; y: number; m: number; d: number; hh: number; mm: number; allDay: boolean } | null {
+  const v = value.trim();
+  const date = /^(\d{4})(\d{2})(\d{2})$/.exec(v);
+  if (date || params.VALUE === "DATE") {
+    const m = date ?? /^(\d{4})(\d{2})(\d{2})/.exec(v);
+    if (!m) return null;
+    return { tz: fallbackTz, y: Number(m[1]), m: Number(m[2]), d: Number(m[3]), hh: 0, mm: 0, allDay: true };
+  }
+  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
+  if (!m) return null;
+  if (m[7]) {
+    const p = zoneParts(fallbackTz, new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] ?? 0))));
+    return { tz: fallbackTz, y: p.y, m: p.m, d: p.d, hh: p.hh, mm: p.mm, allDay: false };
+  }
+  return { tz: params.TZID ?? fallbackTz, y: Number(m[1]), m: Number(m[2]), d: Number(m[3]), hh: Number(m[4]), mm: Number(m[5]), allDay: false };
+}
+
+const WEEKDAYS = ["su", "mo", "tu", "we", "th", "fr", "sa"];
+
+interface Rule { freq: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY"; interval: number; count: number | null; until: number | null; byday: number[] | null; bymonthday: number | null }
+
+/** RRULE, in the forms a salon's calendar actually carries. Null = not understood. */
+function parseRule(value: string, fallbackTz: string): Rule | null {
+  const parts: Record<string, string> = {};
+  for (const kv of value.split(";")) { const eq = kv.indexOf("="); if (eq > 0) parts[kv.slice(0, eq).toUpperCase()] = kv.slice(eq + 1); }
+  const freq = parts.FREQ as Rule["freq"] | undefined;
+  if (!freq || !["DAILY", "WEEKLY", "MONTHLY", "YEARLY"].includes(freq)) return null;
+  for (const k of Object.keys(parts)) if (!["FREQ", "INTERVAL", "COUNT", "UNTIL", "BYDAY", "BYMONTHDAY", "WKST"].includes(k)) return null;
+  const interval = Math.max(1, Number(parts.INTERVAL ?? 1) || 1);
+  const count = parts.COUNT ? Number(parts.COUNT) : null;
+  let until: number | null = null;
+  if (parts.UNTIL) {
+    until = toMs(parts.UNTIL, {}, fallbackTz);
+    if (until !== null && /^\d{8}$/.test(parts.UNTIL)) until += 86400000 - 1; // a date UNTIL includes that day
+  }
+  let byday: number[] | null = null;
+  if (parts.BYDAY) {
+    byday = [];
+    for (const d of parts.BYDAY.split(",")) {
+      const i = WEEKDAYS.indexOf(d.trim().toLowerCase());
+      if (i === -1) return null; // "2TU" and friends
+      byday.push(i);
+    }
+    if (freq !== "WEEKLY") return null;
+  }
+  let bymonthday: number | null = null;
+  if (parts.BYMONTHDAY) {
+    if (freq !== "MONTHLY" || parts.BYMONTHDAY.includes(",")) return null;
+    bymonthday = Number(parts.BYMONTHDAY);
+    if (!Number.isInteger(bymonthday) || bymonthday < 1 || bymonthday > 31) return null;
+  }
+  return { freq, interval, count: count && count > 0 ? count : null, until, byday, bymonthday };
+}
+
+/** Days since epoch for a calendar date, for stepping and week arithmetic. */
+const dayNumber = (y: number, m: number, d: number) => Math.floor(Date.UTC(y, m - 1, d) / 86400000);
+
+/**
+ * The occurrences of a recurring event, as [start, end] instants inside the
+ * horizon. Stepped by calendar day in the event's own zone, so a weekly
+ * appointment stays at 2 PM across a DST change.
+ */
+function occurrences(
+  start: { tz: string; y: number; m: number; d: number; hh: number; mm: number },
+  durMs: number,
+  rule: Rule,
+  exdates: Set<number>,
+  horizon: { from: number; to: number },
+): BusyBlock[] {
+  const out: BusyBlock[] = [];
+  const first = dayNumber(start.y, start.m, start.d);
+  const firstDate = new Date(first * 86400000);
+  const firstWeek = Math.floor((first - ((firstDate.getUTCDay() + 6) % 7)) / 7); // Monday-based week index
+  const wanted = rule.byday ?? [firstDate.getUTCDay()];
+  let produced = 0;
+  for (let n = 0; n < 20000; n++) {
+    const day = first + n;
+    const at = new Date(day * 86400000);
+    const y = at.getUTCFullYear(), m = at.getUTCMonth() + 1, d = at.getUTCDate();
+    let hit = false;
+    if (rule.freq === "DAILY") hit = n % rule.interval === 0;
+    else if (rule.freq === "WEEKLY") {
+      const week = Math.floor((day - ((at.getUTCDay() + 6) % 7)) / 7);
+      hit = wanted.includes(at.getUTCDay()) && (week - firstWeek) % rule.interval === 0;
+    } else if (rule.freq === "MONTHLY") {
+      const months = (y - start.y) * 12 + (m - start.m);
+      hit = d === (rule.bymonthday ?? start.d) && months % rule.interval === 0;
+    } else if (rule.freq === "YEARLY") {
+      hit = m === start.m && d === start.d && (y - start.y) % rule.interval === 0;
+    }
+    if (!hit) continue;
+    const s = localToUtcMs(start.tz, y, m, d, start.hh, start.mm);
+    if (rule.until !== null && s > rule.until) break;
+    produced++;
+    if (rule.count !== null && produced > rule.count) break;
+    if (s > horizon.to) break;
+    if (exdates.has(s)) continue;
+    if (s + durMs >= horizon.from) out.push({ start: s, end: s + durMs });
+  }
+  return out;
+}
+
 /** "PT1H30M" / "P1D" → milliseconds. */
 function durationMs(v: string): number | null {
   const m = /^([+-])?P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(v.trim());
@@ -132,20 +245,22 @@ function durationMs(v: string): number | null {
  * The taken time in a feed. Cancelled events and events marked transparent
  * (free) are not taken. Recurring events are counted, not expanded.
  */
-export function parseIcs(text: string, fallbackTz: string): ParsedFeed {
+export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = {}): ParsedFeed {
+  const horizon = opts.horizon ?? { from: Date.now() - 86400000, to: Date.now() + 90 * 86400000 };
   const busy: BusyBlock[] = [];
   let events = 0;
+  let recurringExpanded = 0;
   let skippedRecurring = 0;
   let cur: Record<string, { params: Record<string, string>; value: string }> | null = null;
+  const exdatesOf: Array<{ params: Record<string, string>; value: string }> = [];
   for (const line of unfold(text)) {
-    if (line === "BEGIN:VEVENT") { cur = {}; continue; }
+    if (line === "BEGIN:VEVENT") { cur = {}; exdatesOf.length = 0; continue; }
     if (line === "END:VEVENT") {
       if (cur) {
         events++;
         const status = cur.STATUS?.value.toUpperCase();
         const transp = cur.TRANSP?.value.toUpperCase();
-        if (cur.RRULE || cur.RDATE) skippedRecurring++;
-        else if (status !== "CANCELLED" && transp !== "TRANSPARENT" && cur.DTSTART) {
+        if (status !== "CANCELLED" && transp !== "TRANSPARENT" && cur.DTSTART) {
           const start = toMs(cur.DTSTART.value, cur.DTSTART.params, fallbackTz);
           let end: number | null = null;
           if (cur.DTEND) end = toMs(cur.DTEND.value, cur.DTEND.params, fallbackTz);
@@ -154,7 +269,20 @@ export function parseIcs(text: string, fallbackTz: string): ParsedFeed {
             // No end: an all-day event takes the day; a timed one takes nothing we can name.
             end = cur.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(cur.DTSTART.value.trim()) ? start + 86400000 : start;
           }
-          if (start !== null && end !== null && end > start) busy.push({ start, end });
+          if (start !== null && end !== null && end > start) {
+            const rule = cur.RRULE ? parseRule(cur.RRULE.value, fallbackTz) : null;
+            const local = cur.RRULE ? localPartsOf(cur.DTSTART.value, cur.DTSTART.params, fallbackTz) : null;
+            if (cur.RRULE && rule && local) {
+              const ex = new Set<number>();
+              for (const e of exdatesOf) for (const v of e.value.split(",")) { const ms = toMs(v, e.params, fallbackTz); if (ms !== null) ex.add(ms); }
+              busy.push(...occurrences(local, end - start, rule, ex, horizon));
+              recurringExpanded++;
+            } else {
+              // Understood as a single event; a rule we cannot read keeps its first occurrence.
+              if (cur.RRULE || cur.RDATE) skippedRecurring++;
+              busy.push({ start, end });
+            }
+          }
         }
       }
       cur = null;
@@ -162,10 +290,12 @@ export function parseIcs(text: string, fallbackTz: string): ParsedFeed {
     }
     if (!cur) continue;
     const s = splitLine(line);
-    if (s) cur[s.name] = { params: s.params, value: s.value };
+    if (!s) continue;
+    if (s.name === "EXDATE") { exdatesOf.push({ params: s.params, value: s.value }); continue; }
+    cur[s.name] = { params: s.params, value: s.value };
   }
   busy.sort((a, b) => a.start - b.start);
-  return { busy, events, skippedRecurring };
+  return { busy, events, recurringExpanded, skippedRecurring };
 }
 
 /* ----------------------------------------------------------- the windows */
@@ -179,6 +309,8 @@ export interface BookingRulesLike {
 
 export interface Opening {
   key: string;
+  /** "mon".."sun" in the business's zone. */
+  weekday: string;
   /** "Tuesday, September 9" */
   label: string;
   windows: Array<{ start: number; end: number }>;
@@ -245,12 +377,38 @@ export function freeWindows(input: FreeWindowsInput): Opening[] {
     if (windows.length) {
       out.push({
         key: day.key,
+        weekday: day.weekday,
         label: new Intl.DateTimeFormat("en-US", { timeZone: input.tz, weekday: "long", month: "long", day: "numeric" }).format(new Date(at)),
         windows,
       });
     }
   }
   return out;
+}
+
+const DAY_NAMES: Record<string, string> = {
+  mon: "mon", monday: "mon", tue: "tue", tues: "tue", tuesday: "tue", wed: "wed", wednesday: "wed",
+  thu: "thu", thur: "thu", thurs: "thu", thursday: "thu", fri: "fri", friday: "fri", sat: "sat", saturday: "sat", sun: "sun", sunday: "sun",
+};
+
+/**
+ * The openings a caller actually asked about: one day (a date or a weekday
+ * name), and only windows long enough for the service they want. Days with
+ * nothing left are dropped.
+ */
+export function filterOpenings(
+  openings: Opening[],
+  by: { day?: string | null; minMinutes?: number | null },
+): Opening[] {
+  const day = (by.day ?? "").trim().toLowerCase();
+  const weekday = day ? DAY_NAMES[day] : undefined;
+  const key = /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : undefined;
+  const minMs = by.minMinutes && by.minMinutes > 0 ? by.minMinutes * 60_000 : 0;
+  const picked = openings.filter((o) => (key ? o.key === key : weekday ? o.weekday === weekday : true));
+  const first = weekday && !key ? picked.slice(0, 1) : picked; // "Tuesday" means the next one
+  return first
+    .map((o) => ({ ...o, windows: o.windows.filter((w) => w.end - w.start >= minMs) }))
+    .filter((o) => o.windows.length > 0);
 }
 
 /** "2:00 PM – 4:30 PM" in the business's zone. */

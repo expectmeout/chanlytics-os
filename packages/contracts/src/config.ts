@@ -936,7 +936,8 @@ export function composeSystemPrompt(
         `Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`,
     );
     s.push(
-      "\nBooking: when the caller wants to book, use send_booking_link — it texts the booking link to the number they are calling from, " +
+      "\nOpen times: use check_availability before offering a time — it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.\n" +
+        "Booking: when the caller wants to book, use send_booking_link — it texts the booking link to the number they are calling from, " +
         "so do not ask them for a number unless they want it sent somewhere else. Then confirm it was sent. " +
         "If it fails, give the phone number above and offer to have someone follow up.\n" +
         "Ending: once the caller has said goodbye, use end_call.",

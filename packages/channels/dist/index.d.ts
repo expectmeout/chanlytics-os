@@ -401,6 +401,8 @@ declare const CALLER_UNKNOWN = "New caller - no prior interactions on record.";
 declare const GREETING_DEFAULT = "Thank you for calling! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?";
 /** Where the booking-link tool posts. Overridable for previews. */
 declare const DEFAULT_FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
+/** The availability tool posts beside it, on the same host and secret. */
+declare function availabilityUrl(fnUrl: string): string;
 /** Retell's own tool object, loosely: the fields we set plus whatever it adds. */
 type RetellTool = Record<string, unknown> & {
     type: string;
@@ -494,4 +496,4 @@ declare function agentSettingsDrift(live: LiveAgentSettings): {
     drift: string[];
 };
 
-export { type AgentPlan, CALLER_UNKNOWN, DEFAULT_FN_URL, FACTS_UNAVAILABLE, GREETING_DEFAULT, HANDOFF_VAR, type ListCallsPage, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type SendResult, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, agentSettingsDrift, callSummaryLine, desiredVoiceShell, fetchMediaBytes, fetchRecording, getAgent, getCall, getRetellLlm, listCalls, liveTurns, needsHydration, normalizeCall, normalizeInbound, parseTranscriptText, planAgentSettings, planVoiceConvergence, sendTemplate, sendText, updateLiveCall, verifyRetellSignature, voiceShellDrift, voiceShellTools };
+export { type AgentPlan, CALLER_UNKNOWN, DEFAULT_FN_URL, FACTS_UNAVAILABLE, GREETING_DEFAULT, HANDOFF_VAR, type ListCallsPage, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type SendResult, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, agentSettingsDrift, availabilityUrl, callSummaryLine, desiredVoiceShell, fetchMediaBytes, fetchRecording, getAgent, getCall, getRetellLlm, listCalls, liveTurns, needsHydration, normalizeCall, normalizeInbound, parseTranscriptText, planAgentSettings, planVoiceConvergence, sendTemplate, sendText, updateLiveCall, verifyRetellSignature, voiceShellDrift, voiceShellTools };

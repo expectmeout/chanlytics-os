@@ -110,7 +110,7 @@ test("the shell is only placeholders and tools, and the transfer dials the varia
   assert.ok(VOICE_SHELL_PROMPT.includes("{{business_facts}}") && VOICE_SHELL_PROMPT.includes("{{caller_context}}"));
   assert.equal(VOICE_SHELL_BEGIN, "{{greeting}}");
   const d = desiredVoiceShell();
-  assert.deepEqual(d.general_tools.map((t) => t.name), ["end_call", "transfer_to_staff", "send_booking_link"]);
+  assert.deepEqual(d.general_tools.map((t) => t.name), ["end_call", "transfer_to_staff", "send_booking_link", "check_availability"]);
   const transfer = d.general_tools[1];
   assert.equal(transfer.transfer_destination.number, HANDOFF_VAR, "an E.164 typed here is a fact kept in a second place");
   assert.equal(transfer.transfer_option.type, "warm_transfer");

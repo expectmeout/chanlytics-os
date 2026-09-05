@@ -53,6 +53,11 @@ export const GREETING_DEFAULT =
 /** Where the booking-link tool posts. Overridable for previews. */
 export const DEFAULT_FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
 
+/** The availability tool posts beside it, on the same host and secret. */
+export function availabilityUrl(fnUrl: string): string {
+  return /\/api\/retell-fn$/.test(fnUrl) ? fnUrl.replace(/\/api\/retell-fn$/, "/api/retell-availability") : `${fnUrl}-availability`;
+}
+
 /** Retell's own tool object, loosely: the fields we set plus whatever it adds. */
 export type RetellTool = Record<string, unknown> & { type: string; name: string };
 
@@ -115,6 +120,31 @@ export function voiceShellTools(
             type: "string",
             description:
               "Alternate number to send the link to, digits only with country code. Omit to use the caller's number.",
+          },
+        },
+      },
+    },
+    {
+      type: "custom",
+      name: "check_availability",
+      description:
+        "Check which appointment times are open right now. Use when the caller asks when they could come in, or before offering a time. Returns the open windows; offer up to three that fit, then send the booking link. Never confirm a slot yourself.",
+      url: availabilityUrl(fnUrl),
+      method: "POST",
+      speak_during_execution: true,
+      execution_message_description: "Say you are checking the calendar.",
+      speak_after_execution: true,
+      ...(bookingHeaders ? { headers: bookingHeaders } : {}),
+      parameters: {
+        type: "object",
+        properties: {
+          day: {
+            type: "string",
+            description: "A day the caller asked about, as YYYY-MM-DD or a weekday name. Omit for the next few days.",
+          },
+          service: {
+            type: "string",
+            description: "The service they want, so only windows long enough for it are offered. Omit if unknown.",
           },
         },
       },

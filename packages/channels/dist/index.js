@@ -4636,6 +4636,9 @@ var FACTS_UNAVAILABLE = "The business's details could not be loaded for this cal
 var CALLER_UNKNOWN = "New caller - no prior interactions on record.";
 var GREETING_DEFAULT = "Thank you for calling! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?";
 var DEFAULT_FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
+function availabilityUrl(fnUrl) {
+  return /\/api\/retell-fn$/.test(fnUrl) ? fnUrl.replace(/\/api\/retell-fn$/, "/api/retell-availability") : `${fnUrl}-availability`;
+}
 function voiceShellTools(fnUrl = DEFAULT_FN_URL, bookingHeaders) {
   return [
     {
@@ -4674,6 +4677,30 @@ function voiceShellTools(fnUrl = DEFAULT_FN_URL, bookingHeaders) {
           phone_number: {
             type: "string",
             description: "Alternate number to send the link to, digits only with country code. Omit to use the caller's number."
+          }
+        }
+      }
+    },
+    {
+      type: "custom",
+      name: "check_availability",
+      description: "Check which appointment times are open right now. Use when the caller asks when they could come in, or before offering a time. Returns the open windows; offer up to three that fit, then send the booking link. Never confirm a slot yourself.",
+      url: availabilityUrl(fnUrl),
+      method: "POST",
+      speak_during_execution: true,
+      execution_message_description: "Say you are checking the calendar.",
+      speak_after_execution: true,
+      ...bookingHeaders ? { headers: bookingHeaders } : {},
+      parameters: {
+        type: "object",
+        properties: {
+          day: {
+            type: "string",
+            description: "A day the caller asked about, as YYYY-MM-DD or a weekday name. Omit for the next few days."
+          },
+          service: {
+            type: "string",
+            description: "The service they want, so only windows long enough for it are offered. Omit if unknown."
           }
         }
       }
@@ -4813,6 +4840,7 @@ export {
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
   agentSettingsDrift,
+  availabilityUrl,
   callSummaryLine,
   desiredVoiceShell,
   fetchMediaBytes,

@@ -1481,7 +1481,7 @@ ${staffed}
 Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
     );
     s.push(
-      "\nBooking: when the caller wants to book, use send_booking_link \u2014 it texts the booking link to the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Then confirm it was sent. If it fails, give the phone number above and offer to have someone follow up.\nEnding: once the caller has said goodbye, use end_call."
+      "\nOpen times: use check_availability before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.\nBooking: when the caller wants to book, use send_booking_link \u2014 it texts the booking link to the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Then confirm it was sent. If it fails, give the phone number above and offer to have someone follow up.\nEnding: once the caller has said goodbye, use end_call."
     );
   }
   if (profile.extra_instructions?.trim()) {
@@ -1613,20 +1613,109 @@ function toMs(value, params, fallbackTz) {
     return localToUtcMs(fallbackTz, Number(y), Number(mo), Number(d), Number(hh), Number(mm));
   }
 }
+function localPartsOf(value, params, fallbackTz) {
+  const v = value.trim();
+  const date = /^(\d{4})(\d{2})(\d{2})$/.exec(v);
+  if (date || params.VALUE === "DATE") {
+    const m2 = date ?? /^(\d{4})(\d{2})(\d{2})/.exec(v);
+    if (!m2) return null;
+    return { tz: fallbackTz, y: Number(m2[1]), m: Number(m2[2]), d: Number(m2[3]), hh: 0, mm: 0, allDay: true };
+  }
+  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
+  if (!m) return null;
+  if (m[7]) {
+    const p = zoneParts(fallbackTz, new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] ?? 0))));
+    return { tz: fallbackTz, y: p.y, m: p.m, d: p.d, hh: p.hh, mm: p.mm, allDay: false };
+  }
+  return { tz: params.TZID ?? fallbackTz, y: Number(m[1]), m: Number(m[2]), d: Number(m[3]), hh: Number(m[4]), mm: Number(m[5]), allDay: false };
+}
+var WEEKDAYS = ["su", "mo", "tu", "we", "th", "fr", "sa"];
+function parseRule(value, fallbackTz) {
+  const parts = {};
+  for (const kv of value.split(";")) {
+    const eq = kv.indexOf("=");
+    if (eq > 0) parts[kv.slice(0, eq).toUpperCase()] = kv.slice(eq + 1);
+  }
+  const freq = parts.FREQ;
+  if (!freq || !["DAILY", "WEEKLY", "MONTHLY", "YEARLY"].includes(freq)) return null;
+  for (const k of Object.keys(parts)) if (!["FREQ", "INTERVAL", "COUNT", "UNTIL", "BYDAY", "BYMONTHDAY", "WKST"].includes(k)) return null;
+  const interval = Math.max(1, Number(parts.INTERVAL ?? 1) || 1);
+  const count = parts.COUNT ? Number(parts.COUNT) : null;
+  let until = null;
+  if (parts.UNTIL) {
+    until = toMs(parts.UNTIL, {}, fallbackTz);
+    if (until !== null && /^\d{8}$/.test(parts.UNTIL)) until += 864e5 - 1;
+  }
+  let byday = null;
+  if (parts.BYDAY) {
+    byday = [];
+    for (const d of parts.BYDAY.split(",")) {
+      const i = WEEKDAYS.indexOf(d.trim().toLowerCase());
+      if (i === -1) return null;
+      byday.push(i);
+    }
+    if (freq !== "WEEKLY") return null;
+  }
+  let bymonthday = null;
+  if (parts.BYMONTHDAY) {
+    if (freq !== "MONTHLY" || parts.BYMONTHDAY.includes(",")) return null;
+    bymonthday = Number(parts.BYMONTHDAY);
+    if (!Number.isInteger(bymonthday) || bymonthday < 1 || bymonthday > 31) return null;
+  }
+  return { freq, interval, count: count && count > 0 ? count : null, until, byday, bymonthday };
+}
+var dayNumber = (y, m, d) => Math.floor(Date.UTC(y, m - 1, d) / 864e5);
+function occurrences(start, durMs, rule, exdates, horizon) {
+  const out = [];
+  const first = dayNumber(start.y, start.m, start.d);
+  const firstDate = new Date(first * 864e5);
+  const firstWeek = Math.floor((first - (firstDate.getUTCDay() + 6) % 7) / 7);
+  const wanted = rule.byday ?? [firstDate.getUTCDay()];
+  let produced = 0;
+  for (let n = 0; n < 2e4; n++) {
+    const day = first + n;
+    const at = new Date(day * 864e5);
+    const y = at.getUTCFullYear(), m = at.getUTCMonth() + 1, d = at.getUTCDate();
+    let hit = false;
+    if (rule.freq === "DAILY") hit = n % rule.interval === 0;
+    else if (rule.freq === "WEEKLY") {
+      const week = Math.floor((day - (at.getUTCDay() + 6) % 7) / 7);
+      hit = wanted.includes(at.getUTCDay()) && (week - firstWeek) % rule.interval === 0;
+    } else if (rule.freq === "MONTHLY") {
+      const months = (y - start.y) * 12 + (m - start.m);
+      hit = d === (rule.bymonthday ?? start.d) && months % rule.interval === 0;
+    } else if (rule.freq === "YEARLY") {
+      hit = m === start.m && d === start.d && (y - start.y) % rule.interval === 0;
+    }
+    if (!hit) continue;
+    const s = localToUtcMs(start.tz, y, m, d, start.hh, start.mm);
+    if (rule.until !== null && s > rule.until) break;
+    produced++;
+    if (rule.count !== null && produced > rule.count) break;
+    if (s > horizon.to) break;
+    if (exdates.has(s)) continue;
+    if (s + durMs >= horizon.from) out.push({ start: s, end: s + durMs });
+  }
+  return out;
+}
 function durationMs(v) {
   const m = /^([+-])?P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(v.trim());
   if (!m) return null;
   const sign = m[1] === "-" ? -1 : 1;
   return sign * ((Number(m[2] ?? 0) * 86400 + Number(m[3] ?? 0) * 3600 + Number(m[4] ?? 0) * 60 + Number(m[5] ?? 0)) * 1e3);
 }
-function parseIcs(text, fallbackTz) {
+function parseIcs(text, fallbackTz, opts = {}) {
+  const horizon = opts.horizon ?? { from: Date.now() - 864e5, to: Date.now() + 90 * 864e5 };
   const busy = [];
   let events = 0;
+  let recurringExpanded = 0;
   let skippedRecurring = 0;
   let cur = null;
+  const exdatesOf = [];
   for (const line of unfold(text)) {
     if (line === "BEGIN:VEVENT") {
       cur = {};
+      exdatesOf.length = 0;
       continue;
     }
     if (line === "END:VEVENT") {
@@ -1634,8 +1723,7 @@ function parseIcs(text, fallbackTz) {
         events++;
         const status = cur.STATUS?.value.toUpperCase();
         const transp = cur.TRANSP?.value.toUpperCase();
-        if (cur.RRULE || cur.RDATE) skippedRecurring++;
-        else if (status !== "CANCELLED" && transp !== "TRANSPARENT" && cur.DTSTART) {
+        if (status !== "CANCELLED" && transp !== "TRANSPARENT" && cur.DTSTART) {
           const start = toMs(cur.DTSTART.value, cur.DTSTART.params, fallbackTz);
           let end = null;
           if (cur.DTEND) end = toMs(cur.DTEND.value, cur.DTEND.params, fallbackTz);
@@ -1645,7 +1733,22 @@ function parseIcs(text, fallbackTz) {
           } else if (start !== null) {
             end = cur.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(cur.DTSTART.value.trim()) ? start + 864e5 : start;
           }
-          if (start !== null && end !== null && end > start) busy.push({ start, end });
+          if (start !== null && end !== null && end > start) {
+            const rule = cur.RRULE ? parseRule(cur.RRULE.value, fallbackTz) : null;
+            const local = cur.RRULE ? localPartsOf(cur.DTSTART.value, cur.DTSTART.params, fallbackTz) : null;
+            if (cur.RRULE && rule && local) {
+              const ex = /* @__PURE__ */ new Set();
+              for (const e of exdatesOf) for (const v of e.value.split(",")) {
+                const ms = toMs(v, e.params, fallbackTz);
+                if (ms !== null) ex.add(ms);
+              }
+              busy.push(...occurrences(local, end - start, rule, ex, horizon));
+              recurringExpanded++;
+            } else {
+              if (cur.RRULE || cur.RDATE) skippedRecurring++;
+              busy.push({ start, end });
+            }
+          }
         }
       }
       cur = null;
@@ -1653,10 +1756,15 @@ function parseIcs(text, fallbackTz) {
     }
     if (!cur) continue;
     const s = splitLine(line);
-    if (s) cur[s.name] = { params: s.params, value: s.value };
+    if (!s) continue;
+    if (s.name === "EXDATE") {
+      exdatesOf.push({ params: s.params, value: s.value });
+      continue;
+    }
+    cur[s.name] = { params: s.params, value: s.value };
   }
   busy.sort((a, b) => a.start - b.start);
-  return { busy, events, skippedRecurring };
+  return { busy, events, recurringExpanded, skippedRecurring };
 }
 var DEFAULTS = { lead_hours: 2, buffer_min: 0, max_days_ahead: 14, slot_min: 30 };
 function hhmm(s) {
@@ -1701,12 +1809,41 @@ function freeWindows(input) {
     if (windows.length) {
       out.push({
         key: day.key,
+        weekday: day.weekday,
         label: new Intl.DateTimeFormat("en-US", { timeZone: input.tz, weekday: "long", month: "long", day: "numeric" }).format(new Date(at)),
         windows
       });
     }
   }
   return out;
+}
+var DAY_NAMES = {
+  mon: "mon",
+  monday: "mon",
+  tue: "tue",
+  tues: "tue",
+  tuesday: "tue",
+  wed: "wed",
+  wednesday: "wed",
+  thu: "thu",
+  thur: "thu",
+  thurs: "thu",
+  thursday: "thu",
+  fri: "fri",
+  friday: "fri",
+  sat: "sat",
+  saturday: "sat",
+  sun: "sun",
+  sunday: "sun"
+};
+function filterOpenings(openings, by) {
+  const day = (by.day ?? "").trim().toLowerCase();
+  const weekday = day ? DAY_NAMES[day] : void 0;
+  const key = /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : void 0;
+  const minMs = by.minMinutes && by.minMinutes > 0 ? by.minMinutes * 6e4 : 0;
+  const picked = openings.filter((o) => key ? o.key === key : weekday ? o.weekday === weekday : true);
+  const first = weekday && !key ? picked.slice(0, 1) : picked;
+  return first.map((o) => ({ ...o, windows: o.windows.filter((w) => w.end - w.start >= minMs) })).filter((o) => o.windows.length > 0);
 }
 function span(tz, start, end) {
   const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
@@ -2448,6 +2585,7 @@ export {
   describeOpenings,
   draftSendsAtMs,
   err,
+  filterOpenings,
   fmtClock,
   fmtDay,
   fmtSeconds,
