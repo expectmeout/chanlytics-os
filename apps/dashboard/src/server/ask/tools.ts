@@ -132,6 +132,17 @@ export interface ToolContext {
   role: "owner" | "operator" | "viewer";
   read: AskReadSet;
   now: Date;
+  /** One turn's loads, by key: the same rows are never fetched twice in a turn. */
+  memo: Map<string, Promise<unknown>>;
+}
+
+function memoised<T>(t: ToolContext, key: string, load: () => Promise<T>): Promise<T> {
+  let p = t.memo.get(key) as Promise<T> | undefined;
+  if (!p) {
+    p = load();
+    t.memo.set(key, p);
+  }
+  return p;
 }
 
 export interface ToolOutcome {
@@ -153,7 +164,15 @@ function json(v: unknown): string {
 
 interface EscRow extends EscalationDto { conversation_id: string }
 
-async function loadConversations(t: ToolContext, limit = 100): Promise<{ convs: ConversationDto[]; escalations: EscRow[] }> {
+/** The newest conversations with their messages: enough for the Inbox's rows, not the whole history. */
+const CONVERSATIONS = 40;
+const MESSAGES = 600;
+
+function loadConversations(t: ToolContext, limit = CONVERSATIONS): Promise<{ convs: ConversationDto[]; escalations: EscRow[] }> {
+  return memoised(t, `conversations:${limit}`, () => loadConversationsNow(t, limit));
+}
+
+async function loadConversationsNow(t: ToolContext, limit: number): Promise<{ convs: ConversationDto[]; escalations: EscRow[] }> {
   const { supabase, userId } = t.ctx;
   const [c, e] = await Promise.all([
     supabase.from("conversations").select(CONVERSATION_COLUMNS).eq("tenant_id", t.tenantId).order("last_message_at", { ascending: false, nullsFirst: false }).limit(limit),
@@ -164,7 +183,7 @@ async function loadConversations(t: ToolContext, limit = 100): Promise<{ convs: 
   const ids = (c.data ?? []).map((x) => x.id);
   let byConv = new Map<string, MessageDto[]>();
   if (ids.length) {
-    const m = await supabase.from("messages").select(MESSAGE_COLUMNS).in("conversation_id", ids).order("created_at", { ascending: false }).limit(2000);
+    const m = await supabase.from("messages").select(MESSAGE_COLUMNS).in("conversation_id", ids).order("created_at", { ascending: false }).limit(MESSAGES);
     if (m.error) throw new Error(m.error.message);
     byConv = groupMessages(m.data ?? []);
   }
@@ -174,10 +193,12 @@ async function loadConversations(t: ToolContext, limit = 100): Promise<{ convs: 
   };
 }
 
-async function loadCalls(t: ToolContext, limit = 100): Promise<CallDto[]> {
-  const { data, error } = await t.ctx.supabase.from("calls").select(CALL_COLUMNS).eq("tenant_id", t.tenantId).order("started_at", { ascending: false, nullsFirst: false }).limit(limit);
-  if (error) throw new Error(error.message);
-  return (data ?? []).map(toCallDto);
+function loadCalls(t: ToolContext, limit = 40): Promise<CallDto[]> {
+  return memoised(t, `calls:${limit}`, async () => {
+    const { data, error } = await t.ctx.supabase.from("calls").select(CALL_COLUMNS).eq("tenant_id", t.tenantId).order("started_at", { ascending: false, nullsFirst: false }).limit(limit);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(toCallDto);
+  });
 }
 
 function dayKey(iso: string | null | undefined, tz: string): string | null {
@@ -543,7 +564,7 @@ export function toolLabel(name: string): string {
 }
 
 export function newToolContext(ctx: RouteContext, tenantId: string, role: ToolContext["role"], now = new Date()): ToolContext {
-  return { ctx, tenantId, role, read: emptyReadSet(), now };
+  return { ctx, tenantId, role, read: emptyReadSet(), now, memo: new Map() };
 }
 
 /** Run one read. A tool's own failure is returned to the model as an error result, never thrown. */

@@ -3569,6 +3569,8 @@ interface AskMessageVM {
     /** The tools this turn ran, in order. */
     tools: string[];
     latencyMs: number | null;
+    /** Model rounds the turn took; one means the snapshot was enough. */
+    rounds?: number | null;
     /** Set on a turn that could not be answered; the text says why. */
     failed: boolean;
 }

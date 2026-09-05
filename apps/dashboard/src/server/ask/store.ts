@@ -38,6 +38,7 @@ export function toMessageVM(r: MessageRow): AskMessageVM {
     ungrounded: c.ungrounded === true,
     tools: Array.isArray(c.tools) ? (c.tools as string[]) : [],
     latencyMs: typeof c.latency_ms === "number" ? c.latency_ms : null,
+    rounds: typeof c.rounds === "number" ? c.rounds : null,
     failed: c.failed === true,
   };
 }

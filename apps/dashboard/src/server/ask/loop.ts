@@ -19,6 +19,7 @@ import { GatewayRefused, featureRejected, streamModel, type GatewayEvent } from 
 import { FINISH_TOOL, READ_TOOLS, newToolContext, runTool, toolLabel, type ToolContext } from "./tools";
 import { ACT_TOOLS, ACT_TOOL_NAMES, buildProposal, proposalLabel } from "./proposals";
 import { stableSystem, turnSystem, type WorkspaceFacts } from "./prompt";
+import { buildSnapshot, snapshotBlock } from "./snapshot";
 
 /**
  * One turn of the assistant: reads, then the answer.
@@ -36,6 +37,13 @@ import { stableSystem, turnSystem, type WorkspaceFacts } from "./prompt";
 
 export const ASK_MODEL = "claude-opus-5";
 const MAX_TOKENS = 1200;
+/**
+ * Choosing a tool is not writing an answer. The rounds run at low effort:
+ * the receptionist's replies run there too and hold on the eval set, and a
+ * round is three and a half seconds of a turn. The eval set decides if this
+ * stays.
+ */
+const EFFORT: "low" | "medium" = "low";
 
 export interface TurnEvent {
   t: "trace" | "delta" | "final" | "error";
@@ -109,9 +117,23 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
   const proposals: AskProposal[] = [];
   let reads = 0;
 
+  // The day, before the model is asked: one parallel set of small queries.
+  // Its rows enter the read set, so the answer can cite them; a failure
+  // here costs the snapshot, never the turn.
+  let snapshot = "";
+  const tSnap = Date.now();
+  try {
+    snapshot = snapshotBlock(await buildSnapshot(tc, input.timezone, input.scope));
+    reads++;
+  } catch (e) {
+    console.error("ask_snapshot_failed", JSON.stringify({ error: e instanceof Error ? e.message : String(e), tenant: input.tenantId }));
+  }
+  const snapshotMs = Date.now() - tSnap;
+
   const system = [
     { type: "text", text: stableSystem(input.facts), cache_control: { type: "ephemeral" } },
     { type: "text", text: turnSystem({ role: input.role, personLabel: input.personLabel, scope: input.scope, surface: input.surface, language: input.language, timezone: input.timezone, closures: input.facts.closures, now }) },
+    ...(snapshot ? [{ type: "text", text: snapshot }] : []),
   ];
   const messages: Msg[] = [
     ...input.history.slice(-MAX_HISTORY).map((h) => ({ role: h.role, content: h.text.slice(0, HISTORY_CHARS) })),
@@ -134,6 +156,7 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
 
   const done = (partial: Partial<TurnResult> & { answer: string; failed: boolean; failure: string | null; rounds: number }): TurnResult => {
     clearTimeout(timer);
+    console.log(JSON.stringify({ level: "info", event: "ask_turn_shape", tenant: input.tenantId, snapshot_ms: snapshotMs, snapshot: !!snapshot, rounds: partial.rounds, tools: toolsUsed }));
     return {
       finish: null,
       citations: [],
@@ -159,6 +182,7 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
         messages,
         tools,
         tool_choice: last ? { type: "tool", name: "finish" } : { type: "any" },
+        output_config: { effort: EFFORT },
       };
 
       const blocks = new Map<number, Block>();

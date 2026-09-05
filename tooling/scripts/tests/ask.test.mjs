@@ -492,3 +492,27 @@ test("a place to open is normalised to the app's route, never dropped over its s
   assert.ok(loop.includes("normalizeNavigate(f.navigate.to, tc.read)") && !loop.includes("safeNavigate("));
   assert.ok(loop.includes('console.warn("ask_navigate_dropped"'), "a dropped target is logged so the next spelling can be taught");
 });
+
+test("context first: the day rides into every turn, its rows can be cited, loaders are memoised and lighter, and the rounds run at low effort", () => {
+  const snap = readCode("apps/dashboard/src/server/ask/snapshot.ts");
+  assert.ok(snap.includes("const THREADS = 8;") && snap.includes("const MESSAGES_PER_THREAD = 3;") && snap.includes("const CALLS = 8;"));
+  assert.ok(snap.includes("await Promise.all(["), "one parallel set of small queries");
+  assert.ok(snap.includes("t.read.thread.add(d.id);") && snap.includes("t.read.call.add(c.id);") && snap.includes("t.read.person.add(c.contact_id);"), "every snapshot row can be cited");
+  assert.ok(snap.includes('route: `inbox/th-${d.id}`') && snap.includes('route: `conversations/cv-${c.id}`'), "every row says where it opens");
+  assert.ok(snap.includes('? { name: "get_call", input: { call_id: scope.id } }'), "the scoped row rides along in full");
+  assert.ok(snap.includes("Answer from this when it is enough."));
+  const loop = readCode("apps/dashboard/src/server/ask/loop.ts");
+  assert.ok(loop.includes("snapshot = snapshotBlock(await buildSnapshot(tc, input.timezone, input.scope));"));
+  assert.ok(loop.includes('console.error("ask_snapshot_failed"'), "a failed snapshot costs the snapshot, never the turn");
+  assert.ok(loop.includes("output_config: { effort: EFFORT },") && loop.includes('const EFFORT: "low" | "medium" = "low";'));
+  assert.ok(loop.includes("...(snapshot ? [{ type: \"text\", text: snapshot }] : []),"), "the snapshot is this turn's block, never the cached one");
+  const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
+  assert.ok(tools.includes("memo: new Map()") && tools.includes("return memoised(t, `conversations:${limit}`"), "one turn never fetches the same rows twice");
+  assert.ok(tools.includes("const CONVERSATIONS = 40;") && tools.includes("const MESSAGES = 600;") && !tools.includes(".limit(2000)"), "the Inbox read no longer moves two thousand messages");
+  const gw = readCode("apps/edge/lib/ask-gateway.ts");
+  assert.ok(gw.includes('const EFFORTS = new Set(["low", "medium", "high"]);'), "the gateway passes a known effort through and nothing else");
+  const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
+  assert.ok(prompt.includes("Answer from it when it is enough, in one round."));
+  const ev = readCode("tooling/scripts/eval-ask.mjs");
+  assert.ok(ev.includes("one-round ${oneRound}/${results.length}"), "the eval measures the one-round share");
+});
