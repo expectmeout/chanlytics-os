@@ -165,6 +165,15 @@ export async function GET(request: Request): Promise<Response> {
     out.voiceAgents = null;
   }
 
+  // The two gates that decide whether a customer is answered on a number:
+  // the staging allowlist (a reply skipped is a customer unanswered) and the
+  // environment token a channel without its own credentials rides.
+  out.whatsapp = {
+    allowlist_numbers: (process.env.WHATSAPP_TEST_ALLOWLIST || "").split(",").map((s) => s.trim()).filter(Boolean).length,
+    env_fallback_token: !!process.env.WHATSAPP_ACCESS_TOKEN,
+    signup_ready: !!(process.env.META_APP_ID && process.env.META_APP_SECRET && process.env.META_ES_CONFIG_ID),
+  };
+
   // The receptionist's last 24 hours, from the usage events every reply
   // writes: how many, how sure, how fast, how many held or handed off.
   try {

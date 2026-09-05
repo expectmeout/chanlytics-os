@@ -142,12 +142,18 @@ export const DECISION_VERBS = [
    * changed what a customer was told.
    */
   "whisper",
+  /**
+   * A business connected its own channel (Embedded Signup): subject
+   * 'channel', payload the number, the WABA and the registration outcome.
+   * The one verb whose consequence is a credential in Vault.
+   */
+  "connect_channel",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 
 export const DECISION_SUBJECTS = [
   "conversation", "escalation", "draft", "lead", "message", "agent",
-  "membership", "invitation", "contact", "call",
+  "membership", "invitation", "contact", "call", "channel",
 ] as const;
 export type DecisionSubject = (typeof DECISION_SUBJECTS)[number];
 

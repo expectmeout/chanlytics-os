@@ -1813,6 +1813,13 @@ type Database = {
                 };
                 Returns: number;
             };
+            put_channel_credentials: {
+                Args: {
+                    p_channel_id: string;
+                    p_secret: Json;
+                };
+                Returns: string;
+            };
             report_series: {
                 Args: {
                     p_days?: number;

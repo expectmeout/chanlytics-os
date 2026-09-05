@@ -185,7 +185,13 @@ var DECISION_VERBS = [
    * 'call'. The ledger keeps the words: they are the operator's, and they
    * changed what a customer was told.
    */
-  "whisper"
+  "whisper",
+  /**
+   * A business connected its own channel (Embedded Signup): subject
+   * 'channel', payload the number, the WABA and the registration outcome.
+   * The one verb whose consequence is a credential in Vault.
+   */
+  "connect_channel"
 ];
 var DECISION_SUBJECTS = [
   "conversation",
@@ -197,7 +203,8 @@ var DECISION_SUBJECTS = [
   "membership",
   "invitation",
   "contact",
-  "call"
+  "call",
+  "channel"
 ];
 var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
 var TEMPLATE_STATUSES = ["approved", "pending", "rejected"];
