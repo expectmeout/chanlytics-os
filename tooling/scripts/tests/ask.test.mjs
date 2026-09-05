@@ -419,6 +419,6 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
   assert.ok(shell.includes("{!askOpen && !navOpen && ("), "hidden while the palette or the drawer is open");
   const mobile = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
   assert.ok(mobile.includes(".phone-ask { display: none; }"), "a desktop has the topbar button and ⌘K");
-  assert.ok(mobile.includes("position: fixed; right: 14px; bottom: calc(70px + env(safe-area-inset-bottom));"), "above the tab bar, at the thumb");
+  assert.ok(mobile.includes("position: fixed; right: 14px; bottom: calc(126px + env(safe-area-inset-bottom));"), "above the bridge pill (74px + its height), at the thumb; the pill covered it at 70px");
   assert.ok(mobile.includes("grid-template-columns: repeat(5, 1fr);"), "the five tabs keep their places");
 });
