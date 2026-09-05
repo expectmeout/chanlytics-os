@@ -72,7 +72,9 @@ test.describe("Ask on a real workspace", () => {
     expect(final, "a final message").toBeTruthy();
     expect(final.message.text.length).toBeGreaterThan(0);
     if (!final.message.failed) {
-      expect(final.message.tools.length).toBeGreaterThan(0);
+      // Hours come from the prompt now: a one-round answer with no read is the
+      // intended shape, and it is grounded (the facts are the workspace's).
+      expect(final.message.rounds).toBeGreaterThanOrEqual(1);
       expect(final.message.ungrounded).toBe(false);
     }
     // The thread is the person's own and reads back.
@@ -137,8 +139,12 @@ test.describe("Ask on a real workspace", () => {
 
   test("the same question twice is one thread, not twins", async ({ page }) => {
     test.setTimeout(150_000);
+    // A question of its own, so older threads that also mention today's
+    // writers (the eval set asks about them) are not counted as twins.
+    const nonce = Date.now().toString(36).slice(-5);
+    const question = `who wrote today? check ${nonce}`;
     const ask = async () => {
-      const res = await page.request.post("/api/v1/ask", { data: { text: "who wrote today?", thread_id: null, scope: null, surface: "today" }, ...fromTheApp, timeout: 90_000 });
+      const res = await page.request.post("/api/v1/ask", { data: { text: question, thread_id: null, scope: null, surface: "today" }, ...fromTheApp, timeout: 90_000 });
       expect(res.status()).toBe(200);
       return (await res.text()).split("\n").filter(Boolean).map((l) => JSON.parse(l)).find((l) => l.t === "thread").id as string;
     };
@@ -147,13 +153,13 @@ test.describe("Ask on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     await page.keyboard.press("Control+k");
     const input = page.getByTestId("ask-input");
-    await input.fill("Who wrote today?");
+    await input.fill(`Who wrote today? Check ${nonce}`);
     await input.press("Enter");
     await expect(page.getByTestId("ask-turn").first()).toBeVisible({ timeout: 120_000 });
     await expect(page.locator(".ask-cursor")).toHaveCount(0, { timeout: 120_000 });
     const list = await page.request.get("/api/v1/ask/threads");
     const { data } = await list.json();
-    const twins = data.threads.filter((t: { title: string }) => /who wrote today/i.test(t.title));
+    const twins = data.threads.filter((t: { title: string }) => t.title.includes(nonce));
     expect(twins.length, "one thread for one question").toBe(1);
     expect(twins[0].id).toBe(first);
     await page.request.delete(`/api/v1/ask/threads/${first}`, fromTheApp);
