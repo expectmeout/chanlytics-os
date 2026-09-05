@@ -1718,6 +1718,12 @@ type Database = {
                 };
                 Returns: number;
             };
+            purge_events: {
+                Args: {
+                    p_keep?: string;
+                };
+                Returns: number;
+            };
             report_series: {
                 Args: {
                     p_days?: number;

@@ -1,0 +1,54 @@
+name: Nightly e2e
+
+# The end-to-end suite against the deployed app, every morning.
+#
+# Every user-facing bug this project has shipped was found by loading the page
+# and looking; the suite encodes that class of bug, and until now it ran only
+# when somebody remembered to run it. 09:00 UTC is 05:00 in New York — before
+# the salon opens, after the night's deploys.
+#
+# Two halves. The credential-free specs (the auth gate, no fabricated data)
+# run on every schedule. The signed-in specs need a session minted with a
+# service-role key and skip, with a stated reason, when the four secrets
+# below are absent. ci.yml's rule — no live service secrets in CI — still
+# holds for pull requests; whether this ONE scheduled job may hold them is
+# the owner's decision, made by adding the secrets in the repository
+# settings, and until then the job is honest about what it covered.
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Playwright against production
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm e2e:install
+      - run: pnpm e2e
+        env:
+          CI: "true"
+          E2E_BASE_URL: https://chanlytics-os.vercel.app
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
+          E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
+      # The report can hold a real workspace's data, so it is kept only when
+      # something failed and only for a week.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7

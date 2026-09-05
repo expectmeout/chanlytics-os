@@ -126,7 +126,8 @@ test("the profile's Right now agrees with the mode two inches away", () => {
 });
 
 test("the API attaches the mode in force, and an erasure scrubs the jobs that carried the number", () => {
-  const list = readCode("apps/dashboard/app/api/v1/contacts/route.ts");
+  // The reading moved into one helper the list route and the CSV export share.
+  const list = readCode("apps/dashboard/src/server/people.ts");
   assert.ok(list.includes("effective_reply_mode: personMode.get(r.id) ?? workspaceMode"));
   const detail = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
   assert.ok(detail.includes("effective_reply_mode: personPol.data?.mode ?? wsPol.data?.mode ?? null"));

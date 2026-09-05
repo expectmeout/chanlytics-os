@@ -983,6 +983,13 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null }) => {
               <span className="kbd">/</span>
             </div>
             <div className="cl-controls-right">
+              {/* Everyone as a CSV, from the route: owner only, and the button
+                  says so for anyone else instead of leading to a refusal. */}
+              {window.__scoped && (
+                window.canDo && !window.canDo("export")
+                  ? <button className="btn btn-ghost btn-sm" disabled title={window.gateTitle("export")}><Icon name="external" size={12} /> Export CSV</button>
+                  : <a className="btn btn-ghost btn-sm" href={window.__scoped("/api/v1/contacts/export")} download title="Download everyone as a CSV file"><Icon name="external" size={12} /> Export CSV</a>
+              )}
               <button className="btn btn-ghost btn-sm" onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}>
                 <Icon name="sort" size={12} /> {sortLabel}
               </button>
