@@ -12,6 +12,17 @@
  */
 
 export const GRAPH_VERSION = "v25.0";
+
+/**
+ * The Meta app this deployment speaks for. Its id is public by nature (the
+ * browser hands it to Meta's SDK), and the one live app is the default, so
+ * a deployment without META_APP_ID still introspects tokens and starts a
+ * sign-up. The secret has no default and never will.
+ */
+export const DEFAULT_META_APP_ID = "1823820738182125";
+export function metaAppId(): string {
+  return process.env.META_APP_ID || DEFAULT_META_APP_ID;
+}
 const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 export type GraphResult<T> = { ok: true; data: T } | { ok: false; error: string; code: number | null; status: number };

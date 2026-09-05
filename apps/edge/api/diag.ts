@@ -9,8 +9,9 @@ import { pg } from "../lib/pg.js";
 import { brainSummary } from "../lib/budget.js";
 import type { SweepHealthRow } from "../lib/sweep-health.js";
 import { getAgent, getRetellLlm, voiceShellDrift, agentSettingsDrift } from "../lib/workspace/channels.js";
+import { metaAppId } from "../lib/meta-graph.js";
 
-const META_APP_ID = process.env.META_APP_ID || "1823820738182125";
+const META_APP_ID = metaAppId();
 
 export async function GET(request: Request): Promise<Response> {
   // Header only. The WhatsApp verify token used to open this door from the
@@ -171,7 +172,7 @@ export async function GET(request: Request): Promise<Response> {
   out.whatsapp = {
     allowlist_numbers: (process.env.WHATSAPP_TEST_ALLOWLIST || "").split(",").map((s) => s.trim()).filter(Boolean).length,
     env_fallback_token: !!process.env.WHATSAPP_ACCESS_TOKEN,
-    signup_ready: !!(process.env.META_APP_ID && process.env.META_APP_SECRET && process.env.META_ES_CONFIG_ID),
+    signup_ready: !!(process.env.META_APP_SECRET && process.env.META_ES_CONFIG_ID),
   };
 
   // The receptionist's last 24 hours, from the usage events every reply

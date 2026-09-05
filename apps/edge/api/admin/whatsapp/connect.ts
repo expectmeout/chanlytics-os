@@ -19,7 +19,7 @@ import { json } from "../../../lib/http.js";
 import { pg } from "../../../lib/pg.js";
 import { emitEvent } from "../../../lib/workspace/db.js";
 import type { Json } from "../../../lib/workspace/db.js";
-import { alreadyRegistered, exchangeCode, newPin, phoneNumber, registerNumber, subscribeWaba, toE164, wabaInfo } from "../../../lib/meta-graph.js";
+import { alreadyRegistered, exchangeCode, metaAppId, newPin, phoneNumber, registerNumber, subscribeWaba, toE164, wabaInfo } from "../../../lib/meta-graph.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ID = /^\d{6,32}$/;
@@ -28,7 +28,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
     return json(403, { ok: false });
   }
-  const appId = process.env.META_APP_ID;
+  const appId = metaAppId();
   const appSecret = process.env.META_APP_SECRET;
   if (!appId || !appSecret) return json(503, { ok: false, error: "no_app_credentials" });
 
