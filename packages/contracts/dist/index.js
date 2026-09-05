@@ -2335,6 +2335,36 @@ function describeSettingsChange(change) {
       return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
   }
 }
+function sameQuestion(a, b) {
+  const norm = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim();
+  const x = norm(a);
+  return x.length > 0 && x === norm(b);
+}
+function navigateLabel(nav, language) {
+  if (!nav || !nav.to) return null;
+  const es = language === "es";
+  if (/^conversations\/cv-/.test(nav.to)) return es ? "Abrir la llamada" : "Open the call";
+  if (/^inbox\/th-/.test(nav.to)) return es ? "Abrir el hilo" : "Open the thread";
+  if (/^clients\/[0-9a-f-]{36}$/.test(nav.to)) return es ? "Abrir el perfil" : "Open the profile";
+  return nav.label || (es ? "Abrir" : "Open");
+}
+function citationsToShow(citations, nav) {
+  const seen = new Set(nav && nav.to ? [nav.to] : []);
+  return citations.filter((c) => {
+    if (!c || !c.to || seen.has(c.to)) return false;
+    seen.add(c.to);
+    return true;
+  });
+}
+var FOLLOWUP_ECHO = [
+  [/profile|perfil/i, /^clients\//],
+  [/transcript|recording|grabaci|transcripci|the call|la llamada/i, /^conversations\/cv-/],
+  [/thread|hilo|conversation/i, /^inbox\/th-/]
+];
+function followupsToShow(followups, citations, nav) {
+  const places = [...citations.map((c) => c.to), ...nav && nav.to ? [nav.to] : []];
+  return followups.filter((f) => !FOLLOWUP_ECHO.some(([words, route]) => words.test(f) && places.some((p) => route.test(p)))).slice(0, ASK_CAPS.followups);
+}
 
 // src/availability.ts
 function zoneParts(tz, at) {
@@ -3410,6 +3440,7 @@ export {
   buildAskSuggestions,
   buildNotificationFeed,
   citationRoute,
+  citationsToShow,
   cleanAnswer,
   composeSystemPrompt,
   contactMeta,
@@ -3429,6 +3460,7 @@ export {
   fmtClock,
   fmtDay,
   fmtSeconds,
+  followupsToShow,
   formatPhoneDisplay,
   formatWaited,
   frameSteer,
@@ -3451,6 +3483,7 @@ export {
   messageAt,
   messageStatusLabel,
   messageText,
+  navigateLabel,
   newReceptionistDefaults,
   normalizeNavigate,
   normalizePhone,
@@ -3474,6 +3507,7 @@ export {
   replyWhy,
   resolveSystemPrompt,
   safeNavigate,
+  sameQuestion,
   scopeFromRoute,
   shortTime,
   threadStanding,

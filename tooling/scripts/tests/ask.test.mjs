@@ -17,6 +17,10 @@ import {
   ASK_PAGES,
   ASK_TOKENS_DAY,
   AskProposalOutcomeSchema,
+  citationsToShow,
+  followupsToShow,
+  navigateLabel,
+  sameQuestion,
   PROPOSAL_GATE,
   applySettingsChange,
   askJump,
@@ -256,7 +260,7 @@ test("the loop: read tools plus finish, tool_choice any then finish forced on th
   assert.ok(l.includes("ungrounded: isUngrounded(f.answer, reads + proposals.length),"), "a proposal counts as a read: its figures are the request, checked against the workspace");
   assert.ok(l.includes("featureRejected(e.refusal.message)") && l.includes("strict = false;"), "a strict-tools rejection retries without strict, like the receptionist's format fallback");
   assert.ok(l.includes('cache_control: { type: "ephemeral" }'), "the stable block is cached");
-  assert.ok(l.includes("partialAnswer(b.json)"), "the answer streams out of the finish call");
+  assert.ok(readCode("apps/dashboard/src/server/ask/round.ts").includes("partialAnswer(b.json)"), "the answer streams out of the finish call, in the round module");
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   for (const name of ["get_today", "list_threads", "get_thread", "search_people", "get_person", "list_calls", "get_call", "get_report", "get_settings", "get_openings", "explain_metric"]) {
     assert.ok(tools.includes(`name: "${name}"`), name);
@@ -355,10 +359,13 @@ test("the entry points are real everywhere: no Soon tag, ⌘K and the button ope
   assert.ok(ask.includes("const AskBar = (props) => (!window.__DEMO_MODE && window.AskReal ? <window.AskReal {...props} /> : <AskBarSeed {...props} />);"));
   assert.ok(!ask.includes("if (!window.__DEMO_MODE) return; // Ask is stubbed"));
   const real = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
-  assert.ok(real.includes('data-testid="ask-real"') && real.includes('data-testid="ask-input"') && real.includes('data-testid="ask-fast"'));
+  assert.ok(real.includes('data-testid="ask-real"') && real.includes('data-testid="ask-input"'));
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/ask-home.jsx").includes('data-testid="ask-fast"'));
   assert.ok(real.includes("const fp = A.fast(q);") && real.includes("if (fp) { answerFast(q, fp); return; }"), "a quick answer never spends a model turn");
   assert.ok(!/Aisha|Jordan|Lena|Drifting VIP|revenue pacing/.test(real), "nothing seeded in the real palette");
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/ask-real.jsx";'));
+  const manifest = readCode("apps/dashboard/src/legacy-bridge/manifest.ts");
+  for (const part of ["ask-text", "ask-hooks", "ask-turn", "ask-home", "ask-real"]) assert.ok(manifest.includes(`import "@/legacy/pages/${part}.jsx";`), part);
+  assert.ok(manifest.indexOf("ask-real.jsx") > manifest.indexOf("ask-home.jsx"), "the shell loads after its parts");
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installAsk();"));
   assert.ok(readCode("packages/contracts/src/index.ts").includes('export * from "./ask";'));
   const wr = readCode("apps/dashboard/src/server/with-route.ts");
@@ -381,7 +388,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   assert.ok(pr.includes("that call is not in progress"));
   const loop = readCode("apps/dashboard/src/server/ask/loop.ts");
   assert.ok(loop.includes('const baseTools = [...READ_TOOLS, ...(input.role === "viewer" ? [] : ACT_TOOLS), FINISH_TOOL];'), "a viewer is never offered an act tool");
-  assert.ok(loop.includes("const p = await buildProposal(tc, b.name, parsedInput);"));
+  assert.ok(loop.includes("const p = await buildProposal(tc, b.name, parseInput(b.json));"), "an act tool becomes a proposal, never an action");
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
   assert.ok(prompt.includes("You never act.") && prompt.includes("never say it was sent, changed or done"));
   const store = readCode("apps/dashboard/src/server/ask/store.ts");
@@ -392,12 +399,12 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   assert.ok(m.includes("create policy ask_messages_own_update on public.ask_messages"));
   const route = readCode("apps/dashboard/app/api/v1/ask/messages/[id]/proposals/[pid]/route.ts");
   assert.ok(route.includes("AskProposalOutcomeSchema.safeParse(body)"));
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/ask.ts");
-  assert.ok(bridge.includes('headers: { "content-type": "application/json", "x-via": "ask" },'), "a card's commit is marked in the ledger");
+  const bridge = readCode("apps/dashboard/src/legacy-bridge/ask/commit.ts");
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/ask/api.ts").includes('headers: { "content-type": "application/json", "x-via": "ask" },'), "a card's commit is marked in the ledger");
   for (const path of ["/reply`", "/steer`", 'take_over: "take-over"', "/receptionist`", '"/api/v1/policies"', '"/api/v1/settings"', "/whisper`", '"/api/v1/team/invite"']) assert.ok(bridge.includes(path), path);
   assert.ok(bridge.includes("/cancel-send`"), "a sent reply's undo is the cancel window");
   assert.ok(bridge.includes("applySettingsChange(before"), "a settings card applies the change to the loaded config, with its version");
-  const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
+  const ui = readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx");
   assert.ok(ui.includes('data-testid="ask-card"') && ui.includes('data-testid="ask-card-approve"'));
   assert.ok(ui.includes("const gated = window.canDo ? !window.canDo(gateKey) : false;"), "the card checks the role gate; the route re-checks");
   assert.ok(ui.includes("A.outcome(messageId, p.id, o)"), "what became of the card is kept on the turn");
@@ -408,11 +415,12 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
 
 test("voice and the phone: hold to talk uses the browser's recogniser, the origin may ask for the microphone, the phone's ✦ opens Ask above the tab bar", () => {
   const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
-  assert.ok(ui.includes("const arRecognizer = () => window.SpeechRecognition || window.webkitSpeechRecognition || null;"));
+  const hooks = readCode("apps/dashboard/src/legacy/pages/ask-hooks.jsx");
+  assert.ok(hooks.includes("const ahRecognizer = () => window.SpeechRecognition || window.webkitSpeechRecognition || null;"));
   assert.ok(ui.includes('data-testid="ask-talk"') && ui.includes("onPointerDown={talk.start}") && ui.includes("onPointerUp={talk.stop}"), "press to start, release to stop");
   assert.ok(ui.includes("if (heard) { submit(heard); return; }"), "what was heard is sent on its own");
-  assert.ok(ui.includes('rec.lang = lang === "es" ? "es-ES" : (navigator.language || "en-US");'), "the recogniser listens in the palette's language");
-  assert.ok(ui.includes("A.speak(m.text, m.language)") || ui.includes("onSpeak={speak}"), "read it to me stays");
+  assert.ok(hooks.includes('rec.lang = lang === "es" ? "es-ES" : (navigator.language || "en-US");'), "the recogniser listens in the palette's language");
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx").includes("speech.toggle(m.id, m.text, m.language)"), "read aloud is a toggle on the answer's toolbar");
   const cfg = readCode("apps/dashboard/next.config.ts");
   assert.ok(cfg.includes('microphone=(self)'), "the page may ask for the microphone");
   assert.ok(cfg.includes('camera=()') && cfg.includes('geolocation=()') && cfg.includes('payment=()'), "everything else stays denied");
@@ -420,10 +428,13 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(shell.includes('className="phone-ask"') && shell.includes("onClick={openAsk}") && shell.includes('data-testid="phone-ask"'));
   assert.ok(shell.includes("{!askOpen && !navOpen && ("), "hidden while the palette or the drawer is open");
-  const mobile = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
-  assert.ok(mobile.includes(".phone-ask { display: none; }"), "a desktop has the topbar button and ⌘K");
-  assert.ok(mobile.includes("position: fixed; right: 14px; bottom: calc(126px + env(safe-area-inset-bottom));"), "above the bridge pill (74px + its height), at the thumb; the pill covered it at 70px");
-  assert.ok(mobile.includes("grid-template-columns: repeat(5, 1fr);"), "the five tabs keep their places");
+  const askCss = readRaw("apps/dashboard/src/legacy/styles/ask.css");
+  assert.ok(askCss.includes(".phone-ask { display: none; }"), "a desktop has the topbar button and ⌘K");
+  assert.ok(askCss.includes("position: fixed; right: 14px; bottom: calc(126px + env(safe-area-inset-bottom));"), "above the bridge pill (74px + its height), at the thumb; the pill covered it at 70px");
+  assert.ok(readRaw("apps/dashboard/src/legacy/styles/mobile.css").includes("grid-template-columns: repeat(5, 1fr);"), "the five tabs keep their places");
+  assert.ok(!readRaw("apps/dashboard/src/legacy/styles/mobile.css").includes(".phone-ask") && !readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css").includes(".ask-card"), "the palette's rules live in ask.css alone");
+  const legacyCss = readRaw("apps/dashboard/src/legacy-bridge/legacy.css");
+  assert.ok(legacyCss.indexOf('@import "../legacy/styles/ask.css";') > legacyCss.indexOf('@import "../legacy/styles/mobile.css";'), "imported after mobile.css, so its phone rules win");
 });
 
 test("an answer never carries tags: the leak seen on production is cut, its citations recovered, and the stream stops at the tag", () => {
@@ -444,9 +455,9 @@ test("an answer never carries tags: the leak seen on production is cut, its cita
   assert.ok(tools.includes("recent: v.timeline"), "list_threads carries the last exchanges, so one read round answers most questions");
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
   assert.ok(prompt.includes("under sixty words") && prompt.includes("set navigate.to to that row"));
-  const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
+  const ui = readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx");
   assert.ok(ui.includes('className="ask-from"'), "citations read as sources");
-  assert.ok(readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css").includes(".ask-real .ask-msg-text{white-space:pre-wrap;word-break:break-word}"));
+  assert.ok(readRaw("apps/dashboard/src/legacy/styles/ask.css").includes(".ask-real .ask-msg-text { white-space: pre-wrap; word-break: break-word; }"));
 });
 
 test("the composer is the way on: focus comes back, the mic is always visible, 'open' goes there, lists go one per line", () => {
@@ -456,12 +467,12 @@ test("the composer is the way on: focus comes back, the mic is always visible, '
   const stay = parseAskFinish({ answer: "Two people wrote.", citations: [], followups: [], navigate: { to: "inbox", label: "Inbox" }, language: "en" });
   assert.ok(stay.ok && stay.value.navigate.now === false, "now defaults to false");
   const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
-  assert.ok(ui.includes("}, [open, live, active]);") && ui.includes("inputRef.current.focus(); }, 30);"), "focus returns after every turn and chip");
+  assert.ok(ui.includes("H.useAskFocus(inputRef, open && !live, [open, live, active]);") && readCode("apps/dashboard/src/legacy/pages/ask-hooks.jsx").includes("ref.current.focus(); }, 30);"), "focus returns after every turn and chip");
   assert.ok(!ui.includes('data-testid="ask-input"\n            maxLength={1000}\n          />\n          {talk.canTalk && ('), "the input is never disabled while a turn runs");
   assert.ok(!/disabled=\{!!live\}\s*\n\s*aria-label="Ask Chanlytics"/.test(ui), "the input stays enabled during a turn");
   assert.ok(ui.includes('data-testid="ask-talk-off"'), "where the browser cannot listen, the mic says so instead of vanishing");
-  assert.ok(ui.includes("if (final && final.navigate && final.navigate.now && final.navigate.to && !final.failed) {"), "open/show/see goes there as the answer lands");
-  assert.ok(ui.includes("const arDedupe = (cites) =>") && ui.includes("const arChipLabel = (c, t) =>"), "chips name their kind and never repeat a place");
+  assert.ok(ui.includes("if (final.navigate && final.navigate.now && final.navigate.to && !final.failed) setTimeout(() => nav(final.navigate.to), 250);"), "open/show/see goes there as the answer lands");
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx").includes("A.shape(m, lang)"), "what an answer shows is the contract's decision, not the palette's");
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
   assert.ok(prompt.includes("with now: true, and answer in one line") && prompt.includes("More than two items (calls, threads, people) go one per line."));
   const judge = readCode("tooling/scripts/eval-ask.mjs");
@@ -504,7 +515,7 @@ test("context first: the day rides into every turn, its rows can be cited, loade
   const loop = readCode("apps/dashboard/src/server/ask/loop.ts");
   assert.ok(loop.includes("snapshot = snapshotBlock(await buildSnapshot(tc, input.timezone, input.scope));"));
   assert.ok(loop.includes('console.error("ask_snapshot_failed"'), "a failed snapshot costs the snapshot, never the turn");
-  assert.ok(loop.includes("output_config: { effort: EFFORT },") && loop.includes('const EFFORT: "low" | "medium" = "low";'));
+  assert.ok(loop.includes("output_config: { effort: EFFORT }") && loop.includes('const EFFORT: "low" | "medium" = "low";'));
   assert.ok(loop.includes("...(snapshot ? [{ type: \"text\", text: snapshot, cache_control: { type: \"ephemeral\" } }] : []),"), "the snapshot is the second cache breakpoint: a turn's later rounds and a quick follow-up read it from the cache");
   assert.ok(!snap.includes("now_local"), "no clock inside the snapshot, so it caches across a minute");
   assert.ok(readCode("apps/dashboard/src/server/ask/prompt.ts").includes("Already in this prompt, above: the hours, closures, services"), "what the prompt already holds needs no read");
@@ -536,20 +547,53 @@ test("the rail, result titles and the Act group: a desktop conversation has the 
   assert.ok(route.includes("await retitleThread(ctx, thread.id, resultTitle(text, result.proposals, result.navigate));"), "a new thread is titled by its first answer's result");
   const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
   assert.ok(ui.includes('data-testid="ask-rail"') && ui.includes('className="ask-new-btn"') && ui.includes("const AR_RAIL_CAP = 10;"));
-  assert.ok(ui.includes('window.matchMedia("(min-width: 721px)")'), "the rail is a desktop's; the phone keeps its sheet");
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/ask-hooks.jsx").includes('window.matchMedia("(min-width: 721px)")'), "the rail is a desktop's; the phone keeps its sheet");
   assert.ok(ui.includes("const railOn = wide && !!active;"), "the rail appears beside a conversation, not on the palette at rest");
-  assert.ok(ui.includes('sections.push({ key: "act", label: t.act,'), "Ask and Act are two groups");
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/ask-home.jsx").includes('sections.push({ key: "act", label: t.act,'), "Ask and Act are two groups");
   assert.ok(ui.includes("if (it.compose) { setQuery(it.q);"), "a compose row lands in the input for the person to finish");
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/ask.ts");
-  assert.ok(bridge.includes('canAct: w.__ME?.role === "owner" || w.__ME?.role === "operator",'));
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/ask/palette.ts").includes('canAct: w.__ME?.role === "owner" || w.__ME?.role === "operator",'));
 });
 
 test("a proposal and the answer share a round; a read beside a finish sets the finish aside", () => {
   const loop = readCode("apps/dashboard/src/server/ask/loop.ts");
-  assert.ok(loop.includes("if (finish && readCalls.length && readCalls.every((b) => ACT_TOOL_NAMES.has(b.name))) {"), "act tools beside finish run first, then the answer stands");
+  assert.ok(loop.includes("if (finish && calls.length && calls.every((b) => ACT_TOOL_NAMES.has(b.name))) {"), "act tools beside finish run first, then the answer stands");
   assert.ok(loop.includes('console.warn("ask_finish_beside_read"') && loop.includes("finish = undefined;"), "an answer written before its read is not an answer");
   assert.ok(readCode("apps/dashboard/src/server/ask/prompt.ts").includes("A proposal needs no second round: call the act tool and finish together"));
   const cases = JSON.parse(readRaw("tooling/evals/ask-cases.json"));
   assert.ok(!cases.find((c) => c.id === "hours").expect.tools_any, "hours come from the prompt, no read expected");
   assert.ok(!cases.find((c) => c.id === "definition").expect.tools_any, "definitions come from the prompt, no read expected");
+});
+
+test("what an answer shows is decided once: the Open button never repeats as a chip, a follow-up never echoes a place, a repeated question is the same thread", () => {
+  const nav = { to: `conversations/cv-${ID}`, label: "Call transcript" };
+  assert.equal(navigateLabel(nav, "en"), "Open the call", "the button says where it goes, not what the model called it");
+  assert.equal(navigateLabel({ to: `clients/${ID2}`, label: "Caller profile" }, "es"), "Abrir el perfil");
+  assert.equal(navigateLabel({ to: "reports", label: "Reports" }, "en"), "Reports", "a page keeps its own name");
+  assert.equal(navigateLabel(null, "en"), null);
+  const cites = [
+    { kind: "call", id: ID, label: "4:22 AM call", to: `conversations/cv-${ID}` },
+    { kind: "person", id: ID2, label: "Profile · +1 917", to: `clients/${ID2}` },
+    { kind: "person", id: ID2, label: "again", to: `clients/${ID2}` },
+  ];
+  assert.deepEqual(citationsToShow(cites, nav).map((c) => c.label), ["Profile · +1 917"], "the call is the Open button; the profile appears once");
+  assert.deepEqual(followupsToShow(["Show this caller's profile", "Why did the booking link fail?", "Open the 3:34 AM call transcript"], cites, nav), ["Why did the booking link fail?"], "a follow-up that echoes a place the answer opens is dropped");
+  assert.equal(sameQuestion("Who wrote today?", "who wrote today"), true);
+  assert.equal(sameQuestion("Who wrote today?", "Who called today?"), false);
+  assert.equal(sameQuestion("", ""), false);
+  const shell = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
+  assert.ok(shell.includes("const twin = threads.find((th) => A.sameQuestion(th.title, q));"), "a repeated question resumes its thread instead of opening a twin");
+  const turn = readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx");
+  assert.ok(turn.includes('data-testid="ask-copy"') && turn.includes('data-testid="ask-read"'), "a quiet toolbar: copy and read aloud");
+  assert.ok(turn.includes("{!streaming && latest && <AskFollowups"), "follow-ups on the latest answer only");
+  assert.ok(!turn.includes("Read it") && !shell.includes("Read it"), "no button printed under every answer");
+  const css = readRaw("apps/dashboard/src/legacy/styles/ask.css");
+  assert.ok(css.includes(".ask-msg:hover .ask-tools, .ask-msg:focus-within .ask-tools") && css.includes("@media (hover: none) { .ask-tools { opacity: 1; } }"), "the toolbar shows on hover on a desktop and always on touch");
+  // The bridge is four modules composed into one object; the shell reaches nothing else.
+  for (const f of ["api", "commit", "speech", "palette"]) assert.ok(readCode(`apps/dashboard/src/legacy-bridge/ask/${f}.ts`).length > 200, f);
+  const bridge = readCode("apps/dashboard/src/legacy-bridge/ask.ts");
+  assert.ok(bridge.includes("...palette,") && bridge.includes("...api,") && bridge.includes("...speech,"), "composed, not re-implemented");
+  assert.ok(!bridge.includes("fetch("), "the composer holds no fetch of its own");
+  const loop = readCode("apps/dashboard/src/server/ask/loop.ts");
+  assert.ok(loop.includes("await runRound(") && !loop.includes("for await (const ev of"), "the loop delegates the stream to round.ts");
+  assert.ok(loop.includes("export function foldHistory("), "the history fold is a named rule, not a loop in the middle of a function");
 });

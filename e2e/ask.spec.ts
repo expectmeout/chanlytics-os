@@ -117,6 +117,48 @@ test.describe("Ask on a real workspace", () => {
     await page.request.delete(`/api/v1/ask/threads/${lines[0].id}`, fromTheApp);
   });
 
+  test("opening a call from the palette lands on the call with its transcript pane", async ({ page }) => {
+    test.setTimeout(150_000);
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    await page.keyboard.press("Control+k");
+    const input = page.getByTestId("ask-input");
+    await input.fill("open the transcript of the most recent call");
+    await input.press("Enter");
+    // The answer lands and the app goes there by itself; the palette closes.
+    await page.waitForURL(/#\/conversations\/cv-/, { timeout: 120_000 });
+    await expect(page.getByTestId("ask-real")).toBeHidden();
+    await expect(page.locator(".cv-transcript, .cv-playback").first()).toBeVisible({ timeout: 20_000 });
+    await page.screenshot({ path: "test-results/ask-clickthrough.png" });
+    // ⌘K brings the conversation back where it was.
+    await page.keyboard.press("Control+k");
+    await expect(page.getByTestId("ask-turn").first()).toBeVisible();
+  });
+
+  test("the same question twice is one thread, not twins", async ({ page }) => {
+    test.setTimeout(150_000);
+    const ask = async () => {
+      const res = await page.request.post("/api/v1/ask", { data: { text: "who wrote today?", thread_id: null, scope: null, surface: "today" }, ...fromTheApp, timeout: 90_000 });
+      expect(res.status()).toBe(200);
+      return (await res.text()).split("\n").filter(Boolean).map((l) => JSON.parse(l)).find((l) => l.t === "thread").id as string;
+    };
+    const first = await ask();
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    await page.keyboard.press("Control+k");
+    const input = page.getByTestId("ask-input");
+    await input.fill("Who wrote today?");
+    await input.press("Enter");
+    await expect(page.getByTestId("ask-turn").first()).toBeVisible({ timeout: 120_000 });
+    await expect(page.locator(".ask-cursor")).toHaveCount(0, { timeout: 120_000 });
+    const list = await page.request.get("/api/v1/ask/threads");
+    const { data } = await list.json();
+    const twins = data.threads.filter((t: { title: string }) => /who wrote today/i.test(t.title));
+    expect(twins.length, "one thread for one question").toBe(1);
+    expect(twins[0].id).toBe(first);
+    await page.request.delete(`/api/v1/ask/threads/${first}`, fromTheApp);
+  });
+
   test("the palette streams a turn and shows citations or a plain failure", async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto("/#/inbox");
