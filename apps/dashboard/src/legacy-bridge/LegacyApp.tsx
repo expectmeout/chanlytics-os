@@ -36,6 +36,13 @@ installPeopleCourier();
 // approval chips and the matrix read the workspace's real modes from the
 // first paint, including from the cache.
 installPolicyStore();
+// The installable shell's service worker (public/sw.js). It caches nothing
+// and answers nothing — the workspace is live data — and exists so a phone
+// can add the app to its home screen. Production only: a worker on a dev
+// origin outlives the dev server and confuses the next session.
+if (typeof window !== "undefined" && "serviceWorker" in navigator && process.env.NODE_ENV === "production") {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
 
 // Runs at module scope — AFTER the manifest has installed its seeds, and
 // BEFORE React renders anything. That ordering is the whole point: a refresh

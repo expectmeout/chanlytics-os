@@ -10,14 +10,14 @@
 
 const { useState: useCvtState } = React;
 
-const InboxThread = ({ thread, channelLabels, veto = null, vetoPaused = false, onVetoAct = () => {}, onVerdict = () => {}, stale = null, onReconcile = () => {}, onDismissStale = () => {}, onOpenClient = () => {}, onDecide = () => {}, onSnooze = () => {}, onSend = () => {}, onTakeOver = () => {}, onWake = () => {}, onHandBack = () => {}, onMarkUnread = () => {}, planParam = 0, onPlanParam = () => {}, notice = null }) => {
+const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPaused = false, onVetoAct = () => {}, onVerdict = () => {}, stale = null, onReconcile = () => {}, onDismissStale = () => {}, onOpenClient = () => {}, onDecide = () => {}, onSnooze = () => {}, onSend = () => {}, onTakeOver = () => {}, onWake = () => {}, onHandBack = () => {}, onMarkUnread = () => {}, planParam = 0, onPlanParam = () => {}, notice = null }) => {
   if (!thread) return <InboxEmpty />;
 
   const decided = !!thread.resolution;
 
   return (
     <div className="ix-thread-pane">
-      <ThreadHeader thread={thread} channelLabels={channelLabels} onOpenClient={onOpenClient} onSnooze={onSnooze} onMarkUnread={onMarkUnread} />
+      <ThreadHeader thread={thread} channelLabels={channelLabels} onOpenClient={onOpenClient} onSnooze={onSnooze} onMarkUnread={onMarkUnread} onBack={onBack} />
       <ContextStrip thread={thread} />
       {notice && <div className="ix-notice" role="status">{notice}</div>}
 
@@ -153,13 +153,19 @@ const InboxThread = ({ thread, channelLabels, veto = null, vetoPaused = false, o
 };
 
 // =============== HEADER ===============
-const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze = () => {}, onMarkUnread = () => {} }) => {
+const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze = () => {}, onMarkUnread = () => {}, onBack = null }) => {
   const channelIcon = (c) => c === "phone" ? "phone" : c === "instagram" ? "instagram" : c === "mail" ? "mail" : c === "sms" ? "chat" : "chat";
   const snoozed = thread.state === "snoozed";
 
   return (
     <header className="ix-th-head">
       <div className="ix-th-head-main">
+        {/* Phone only (mobile.css): the list and the thread take turns. */}
+        {onBack && (
+          <button type="button" className="btn btn-ghost btn-sm ix-back" onClick={onBack} aria-label="Back to the list" data-testid="ix-back">
+            <span aria-hidden="true">&larr;</span> Inbox
+          </button>
+        )}
         <div className="ix-th-avatar" data-priority={thread.priority}>{thread.avatar}</div>
         <div className="ix-th-id">
           <div className="ix-th-name">

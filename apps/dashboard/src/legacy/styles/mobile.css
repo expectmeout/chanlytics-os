@@ -272,3 +272,59 @@
   .bc-hist { overflow-x: auto; }
   .bc-hist-row { min-width: 560px; }
 }
+
+/* ====================================================================
+   Phone (≤720px): one pane at a time, a tab bar at the thumb, the live
+   cockpit gets the screen. Desktop is untouched: these controls exist in
+   the markup always and are shown only here.
+   ==================================================================== */
+.ix-back, .cv-back { display: none; }
+.phone-tabs { display: none; }
+
+@media (max-width: 720px) {
+  /* Inbox: the list OR the thread, never both squeezed into one screen */
+  .inbox, .inbox.with-rail { grid-template-rows: minmax(0, 1fr); }
+  .inbox .ix-list { border-bottom: none; }
+  .inbox .ix-thread-pane, .inbox > .ix-empty-state { display: none; }
+  .inbox.phone-thread .ix-list { display: none; }
+  .inbox.phone-thread .ix-thread-pane { display: flex; }
+  .ix-back { display: inline-flex; margin-right: 6px; padding-left: 6px; padding-right: 8px; }
+  .ix-th-head { grid-template-columns: minmax(0, 1fr) auto; }
+
+  /* Conversations: the same pattern */
+  .conversations { grid-template-rows: minmax(0, 1fr); }
+  .conversations .cv-list { border-bottom: none; }
+  .conversations .cv-viewer, .conversations > .ix-empty-state { display: none; }
+  .conversations.phone-detail .cv-list { display: none; }
+  .conversations.phone-detail .cv-viewer { display: flex; }
+  .cv-back { display: inline-flex; margin-right: 6px; padding-left: 6px; padding-right: 8px; }
+
+  /* Live: a short list, the cockpit gets the screen, the whisper at the thumb */
+  .lm-body { grid-template-rows: minmax(0, 26vh) minmax(0, 1fr); }
+  .lm-inject { position: sticky; bottom: 0; background: var(--bg); padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
+  .lm-inject .btn { min-height: 44px; }
+
+  /* The tab bar: real surfaces, two counts, More opens the drawer */
+  .phone-tabs {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    flex: none;
+    background: var(--bg-raised);
+    border-top: 1px solid var(--line);
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+  }
+  .phone-tab {
+    appearance: none; background: none; border: 0; color: var(--ink-dim); font: inherit; font-size: 10.5px;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 4px 2px; min-height: 44px; border-radius: 8px; cursor: pointer;
+  }
+  .phone-tab.active { color: var(--accent); }
+  .phone-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .phone-tab-icon { position: relative; display: inline-flex; }
+  .phone-tab-badge {
+    position: absolute; top: -6px; right: -12px; min-width: 16px; height: 16px; padding: 0 4px;
+    border-radius: 999px; background: var(--accent); color: #fff; font-size: 10px; line-height: 16px; text-align: center;
+  }
+  /* The tab bar's More replaces the hamburger */
+  .tb-menu { display: none; }
+}

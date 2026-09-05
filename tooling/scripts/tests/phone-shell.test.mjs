@@ -1,0 +1,81 @@
+/**
+ * The phone shell: one pane at a time, a tab bar at the thumb, an app on the
+ * home screen.
+ *
+ * The mobile pass stacked the Inbox list above the thread in 42% of a phone
+ * screen, hid the four real places behind a menu button, and the dashboard
+ * was a browser tab. Now the list and the thread take turns with a Back, the
+ * Conversations page does the same, a tab bar carries what needs you and who
+ * is on the line, and a manifest with icons makes it installable.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { ROOT, readCode, readRaw } from "./_source.mjs";
+
+function pngSize(rel) {
+  const b = fs.readFileSync(path.join(ROOT, rel));
+  assert.equal(b.toString("ascii", 1, 4), "PNG", `${rel} is a PNG`);
+  return { w: b.readUInt32BE(16), h: b.readUInt32BE(20), bytes: b.length };
+}
+
+test("the Inbox and Conversations take turns on a phone, with a Back that only a phone sees", () => {
+  const inbox = readRaw("apps/dashboard/src/legacy/pages/inbox.jsx");
+  assert.ok(inbox.includes("const [phoneThreadOpen, setPhoneThreadOpen] = React.useState(!!initialThreadId);"), "a deep link opens onto the thread");
+  assert.ok(inbox.includes("setActiveThreadId(id); setPhoneThreadOpen(true);"), "a tap opens it");
+  assert.ok(inbox.includes('${phoneThreadOpen ? "phone-thread" : ""}'));
+  assert.ok(inbox.includes("onBack={() => setPhoneThreadOpen(false)}"));
+  const thread = readRaw("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
+  assert.ok(thread.includes('data-testid="ix-back"'));
+  assert.ok(thread.includes("{onBack && ("), "no Back on desktop's markup path when nobody asked for one");
+  const cv = readRaw("apps/dashboard/src/legacy/pages/conversations.jsx");
+  assert.ok(cv.includes('${phoneOpen ? "phone-detail" : ""}'));
+  assert.ok(cv.includes("onSelect={(id) => { setSelectedId(id); setPhoneOpen(true); }}"));
+  assert.ok(cv.includes('data-testid="cv-back"'));
+  const css = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
+  assert.ok(css.includes(".ix-back, .cv-back { display: none; }"), "hidden by default");
+  assert.ok(css.includes(".inbox.phone-thread .ix-list { display: none; }"));
+  assert.ok(css.includes(".inbox.phone-thread .ix-thread-pane { display: flex; }"));
+  assert.ok(css.includes(".conversations.phone-detail .cv-viewer { display: flex; }"));
+  assert.ok(css.includes(".lm-inject { position: sticky; bottom: 0;"), "the whisper stays at the thumb on Live");
+});
+
+test("the tab bar carries the real surfaces and the two counts that matter", () => {
+  const shell = readRaw("apps/dashboard/src/legacy/pages/app-shell.jsx");
+  assert.ok(shell.includes('data-testid="phone-tabs"'));
+  for (const route of ['route: "today"', 'route: "inbox"', 'route: "clients"', 'route: "live"']) assert.ok(shell.includes(route), route);
+  assert.ok(!/route: "(fleet|store|studio|calendar|outbound|broadcasts)"/.test(shell), "nothing seeded gets a tab");
+  assert.ok(shell.includes('t.id === "inbox" && inboxNeeds > 0 ? String(inboxNeeds)'), "what needs you");
+  assert.ok(shell.includes("window.__LIVE.now.filter((c) => c.live).length"), "who is on the line, by the heartbeat rule");
+  assert.ok(shell.includes('window.addEventListener("surface:live", on);'), "and it follows the live surface");
+  assert.ok(shell.includes("<PhoneTabs page={page} inboxNeeds={inboxNeeds} onNavigate={navigate} onMenu={() => setNavOpen(true)} />"));
+  const css = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
+  assert.ok(css.includes(".phone-tabs { display: none; }"), "desktop never sees it");
+  assert.ok(css.includes("padding: 6px 4px calc(6px + env(safe-area-inset-bottom));"), "above the home bar");
+  assert.ok(css.includes("min-height: 44px;"), "thumb-sized");
+});
+
+test("the installable shell: a public manifest, real icons, full-screen on iOS, a worker that caches nothing", () => {
+  const m = readCode("apps/dashboard/app/manifest.ts");
+  assert.ok(m.includes('display: "standalone"'));
+  assert.ok(m.includes('purpose: "maskable"'));
+  assert.deepEqual(pngSize("apps/dashboard/public/icons/icon-192.png"), { ...pngSize("apps/dashboard/public/icons/icon-192.png"), w: 192, h: 192 });
+  assert.equal(pngSize("apps/dashboard/public/icons/icon-512.png").w, 512);
+  assert.equal(pngSize("apps/dashboard/public/icons/maskable-512.png").w, 512);
+  assert.equal(pngSize("apps/dashboard/public/icons/apple-touch-icon.png").w, 180);
+  for (const rel of ["icon-192.png", "icon-512.png", "maskable-512.png", "apple-touch-icon.png"]) {
+    assert.ok(pngSize(`apps/dashboard/public/icons/${rel}`).bytes < 60_000, `${rel} is small`);
+  }
+  const layout = readCode("apps/dashboard/app/layout.tsx");
+  assert.ok(layout.includes('manifest: "/manifest.webmanifest"'));
+  assert.ok(layout.includes('appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Chanlytics" }'));
+  assert.ok(layout.includes('viewportFit: "cover"'));
+  assert.ok(readCode("apps/dashboard/middleware.ts").includes('"/manifest.webmanifest"]'), "the installer fetches it without a session");
+  const sw = readRaw("apps/dashboard/public/sw.js");
+  assert.ok(sw.includes("self.skipWaiting()") && sw.includes("self.clients.claim()"));
+  assert.ok(!/caches\.|cache\.put|respondWith/.test(sw), "caches nothing: the workspace is live data");
+  const boot = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
+  assert.ok(boot.includes('process.env.NODE_ENV === "production"'), "no worker on a dev origin");
+  assert.ok(boot.includes('navigator.serviceWorker.register("/sw.js")'));
+});
