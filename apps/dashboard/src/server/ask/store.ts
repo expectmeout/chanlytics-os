@@ -1,5 +1,5 @@
 import "server-only";
-import { AppError, type AskMessageVM, type AskScope, type AskThreadVM, citationRoute } from "@chanlytics/contracts";
+import { AppError, type AskMessageVM, type AskProposal, type AskProposalOutcome, type AskScope, type AskThreadVM, citationRoute } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 
@@ -100,6 +100,39 @@ export async function appendMessage(
 export async function touchThread(ctx: RouteContext, threadId: string): Promise<void> {
   const { error } = await ctx.supabase.from("ask_threads").update({ last_at: new Date().toISOString() }).eq("id", threadId);
   if (error) console.error("ask_thread_touch_failed", error.message);
+}
+
+/**
+ * Record what became of a card. Reads the turn's content, sets the outcome on
+ * that one proposal, writes the content back; RLS limits it to the caller's
+ * own turn, and the column grant (00041) to the content column.
+ */
+export async function setProposalOutcome(
+  ctx: RouteContext,
+  messageId: string,
+  proposalId: string,
+  outcome: AskProposalOutcome,
+): Promise<AskProposal> {
+  const { data: m, error } = await ctx.supabase.from("ask_messages").select("id, content").eq("id", messageId).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!m) throw new AppError("not_found", "That turn is not yours or is already gone.", 404);
+  const content = (m.content ?? {}) as Record<string, unknown>;
+  const proposals = Array.isArray(content.proposals) ? (content.proposals as AskProposal[]) : [];
+  const idx = proposals.findIndex((p) => p.id === proposalId);
+  if (idx < 0) throw new AppError("not_found", "No such card on that turn.", 404);
+  const current = proposals[idx].outcome;
+  if (current && current.state === "done" && outcome.state === "done") {
+    throw new AppError("conflict", "That card was already approved.", 409);
+  }
+  const next = proposals.map((p, i) => (i === idx ? { ...p, outcome } : p));
+  const { data: upd, error: uerr } = await ctx.supabase
+    .from("ask_messages")
+    .update({ content: { ...content, proposals: next } as unknown as Json })
+    .eq("id", messageId)
+    .select("id");
+  if (uerr) throw new Error(uerr.message);
+  if (!upd?.length) throw new AppError("not_found", "That turn is not yours.", 404);
+  return next[idx];
 }
 
 export async function deleteThread(ctx: RouteContext, id: string): Promise<void> {

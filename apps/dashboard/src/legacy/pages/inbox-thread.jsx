@@ -770,7 +770,13 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); doSend(); }
     };
-    const onFocus = () => taRef.current && taRef.current.focus();
+    // A card's "Edit in the composer" arrives with the words; a plain focus
+    // request arrives with none and leaves what is typed alone.
+    const onFocus = (e) => {
+      const words = e && e.detail && typeof e.detail.text === "string" ? e.detail.text : null;
+      if (words) setText(words);
+      if (taRef.current) taRef.current.focus();
+    };
     window.addEventListener("keydown", onKey);
     window.addEventListener("inbox:focus-composer", onFocus);
     return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("inbox:focus-composer", onFocus); };

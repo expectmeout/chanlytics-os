@@ -273,7 +273,38 @@ export interface AskProposal {
   payload: Record<string, unknown>;
   /** What undo looks like, when the verb has one. */
   undo: string | null;
+  /** Set once the person acted on the card. */
+  outcome?: AskProposalOutcome | null;
 }
+
+/** The client gate (data-bits `gate`) a card of this kind checks before Approve; the route re-checks the role. */
+export const PROPOSAL_GATE: Record<AskProposal["kind"], "approve" | "autonomy" | "settings" | "team"> = {
+  reply: "approve",
+  steer: "approve",
+  thread_verb: "approve",
+  whisper: "approve",
+  policy: "autonomy",
+  person_mode: "settings",
+  settings: "settings",
+  invite: "team",
+};
+
+/** What became of a card, kept with the turn that proposed it. */
+export interface AskProposalOutcome {
+  state: "done" | "dismissed" | "failed" | "undone";
+  /** One line: "Sent to Rosa", "Closed on Friday". */
+  receipt: string;
+  atMs: number;
+  /** What Undo needs, when the verb has one: an id, a previous value. */
+  undo?: Record<string, unknown> | null;
+}
+
+export const AskProposalOutcomeSchema = z.object({
+  state: z.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z.string().max(300).catch(""),
+  atMs: z.number().catch(0),
+  undo: z.record(z.unknown()).nullable().optional(),
+});
 
 export interface AskMessageVM {
   id: string;

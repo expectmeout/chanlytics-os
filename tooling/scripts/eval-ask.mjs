@@ -108,6 +108,10 @@ export function judge(c, r) {
   if (e.includes_any && !e.includes_any.some((s) => text.toLowerCase().includes(s.toLowerCase()))) fails.push(`answer lacks all of ${e.includes_any.join("/")}`);
   for (const s of e.excludes ?? []) if (text.toLowerCase().includes(s.toLowerCase())) fails.push(`answer contains “${s}”`);
   if (e.no_invented_citations && m.citations.some((x) => x.kind !== "page" && !/^[0-9a-f-]{36}$/.test(x.id))) fails.push("a citation with an id no tool could have returned");
+  const kinds = (m.proposals ?? []).map((p) => p.kind);
+  if (e.proposals_any && !e.proposals_any.some((k) => kinds.includes(k))) fails.push(`proposals ${JSON.stringify(kinds)} include none of ${e.proposals_any.join("/")}`);
+  if (e.proposals_any_or_says && !e.proposals_any_or_says.some((k) => kinds.includes(k)) && !/card|propos|approve|Inbox|thread/i.test(text)) fails.push("neither a card nor a pointer to where to do it");
+  if (e.proposals_none && kinds.length) fails.push(`no card expected, got ${JSON.stringify(kinds)}`);
   if (e.cites_or_says_nothing && m.citations.length === 0 && !/nobody|no one|nothing|none|nadie|nada|ning[uú]n/i.test(text)) fails.push("no citation and no statement that there was nothing");
   if (m.ungrounded) fails.push("the answer was marked ungrounded (a figure with no read behind it)");
   return { pass: fails.length === 0, fails };
@@ -125,8 +129,8 @@ for (const c of cases) {
     r = { final: null, error: e instanceof Error ? e.message : String(e), ms: 0, deltas: 0 };
   }
   const j = r.final ? judge(c, r) : { pass: false, fails: [r.error ?? "no answer"] };
-  results.push({ id: c.id, text: c.text, answer: r.final?.text ?? null, tools: r.final?.tools ?? [], citations: r.final?.citations ?? [], language: r.final?.language ?? null, latency_ms: r.final?.latencyMs ?? r.ms, deltas: r.deltas, threadId: r.threadId ?? null, ...j });
-  process.stderr.write(`${j.pass ? "PASS" : "FAIL"} ${c.id} (${r.ms} ms, tools ${JSON.stringify(r.final?.tools ?? [])})${j.pass ? "" : "\n     " + j.fails.join("\n     ")}\n`);
+  results.push({ id: c.id, text: c.text, answer: r.final?.text ?? null, tools: r.final?.tools ?? [], proposals: (r.final?.proposals ?? []).map((p) => ({ kind: p.kind, title: p.title, summary: p.summary })), citations: r.final?.citations ?? [], language: r.final?.language ?? null, latency_ms: r.final?.latencyMs ?? r.ms, deltas: r.deltas, threadId: r.threadId ?? null, ...j });
+  process.stderr.write(`${j.pass ? "PASS" : "FAIL"} ${c.id} (${r.ms} ms, tools ${JSON.stringify(r.final?.tools ?? [])}, cards ${JSON.stringify((r.final?.proposals ?? []).map((p) => p.kind))})${j.pass ? "" : "\n     " + j.fails.join("\n     ")}\n`);
 }
 const passed = results.filter((r) => r.pass).length;
 console.log(`\nAsk evals: ${passed}/${results.length} passed`);

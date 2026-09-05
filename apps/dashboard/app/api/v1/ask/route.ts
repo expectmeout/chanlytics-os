@@ -93,7 +93,7 @@ export const POST = withRoute(async (req, ctx) => {
         citations: result.citations,
         followups: result.followups,
         navigate: result.navigate,
-        proposals: [],
+        proposals: result.proposals,
         language: result.language,
         ungrounded: result.ungrounded,
         tools: result.tools,
@@ -119,14 +119,14 @@ export const POST = withRoute(async (req, ctx) => {
         citations: result.citations,
         followups: result.followups,
         navigate: result.navigate,
-        proposals: [],
+        proposals: result.proposals,
         language: result.language,
         ungrounded: result.ungrounded,
         tools: result.tools,
         latencyMs: result.latencyMs,
         failed: result.failed,
       };
-      console.log(JSON.stringify({ level: "info", event: "ask_turn", tenant: tenantId, tools: result.tools, rounds: result.rounds, ms: Date.now() - t0, failed: result.failed, failure: result.failure, ungrounded: result.ungrounded, citations: result.citations.length, language: result.language }));
+      console.log(JSON.stringify({ level: "info", event: "ask_turn", tenant: tenantId, tools: result.tools, proposals: result.proposals.map((p) => p.kind), rounds: result.rounds, ms: Date.now() - t0, failed: result.failed, failure: result.failure, ungrounded: result.ungrounded, citations: result.citations.length, language: result.language }));
       send(line({ t: "final", message }));
       try { controller.close(); } catch { /* already closed */ }
     },
