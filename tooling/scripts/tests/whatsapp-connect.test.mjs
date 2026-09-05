@@ -46,7 +46,14 @@ test("the edge connect endpoint: diagnostic key, the four Graph calls in order, 
   assert.ok(g.includes('export const GRAPH_VERSION = "v25.0";'));
   assert.ok(g.includes("client_secret: appSecret") && !readCode("apps/dashboard/src/server/service.ts").includes("META_APP_SECRET"), "the app secret is spent on the edge and nowhere else");
   const s = readCode("apps/edge/api/admin/whatsapp/signup-config.ts");
-  assert.ok(s.includes('const reason = !appId ? "no_app_id" : !secret ? "no_app_secret" : !configId ? "no_config_id" : null;'), "the answer names what is missing");
+  assert.ok(s.includes('const reason = !secret ? "no_app_secret" : !configId ? "no_config_id" : null;'), "the answer names what is missing");
+  // One place knows which Meta app this deployment speaks for: the sign-up
+  // and the token introspection can never disagree about it.
+  assert.ok(g.includes('export const DEFAULT_META_APP_ID = "1823820738182125";'));
+  for (const f of ["apps/edge/api/diag.ts", "apps/edge/api/admin/whatsapp/connect.ts", "apps/edge/api/admin/whatsapp/signup-config.ts"]) {
+    const code = readCode(f);
+    assert.ok(code.includes("metaAppId()") && !code.includes("1823820738182125") && !code.includes("process.env.META_APP_ID"), f);
+  }
   assert.ok(readRaw("apps/edge/.env.example").includes("META_ES_CONFIG_ID="), "the new name is documented");
 });
 
