@@ -7,7 +7,6 @@ import {
   isUngrounded,
   normalizeNavigate,
   parseAskFinish,
-  partialAnswer,
   type AskFinish,
   type AskLanguage,
   type AskMessageVM,
@@ -15,28 +14,29 @@ import {
   type AskScope,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
-import { GatewayRefused, featureRejected, streamModel, type GatewayEvent } from "./gateway";
+import { GatewayRefused, featureRejected } from "./gateway";
 import { FINISH_TOOL, READ_TOOLS, newToolContext, runTool, toolLabel, type ToolContext } from "./tools";
 import { ACT_TOOLS, ACT_TOOL_NAMES, buildProposal, proposalLabel } from "./proposals";
 import { stableSystem, turnSystem, type WorkspaceFacts } from "./prompt";
 import { buildSnapshot, snapshotBlock } from "./snapshot";
+import { parseInput, runRound, type RoundBlock } from "./round";
 
 /**
- * One turn of the assistant: reads, then the answer.
+ * One turn of the assistant.
  *
- * The model is asked with the read tools, the act tools and the finish tool
- * and must call one or more of them each round. Reads run as the person, in
- * parallel when several were asked for, and their results go back as one
- * message. An act tool never acts: it checks what was asked against the
- * workspace and returns a proposal, which becomes a card on the answer. The
- * finish call is the answer: its input streams as partial JSON, and the
- * answer field is forwarded to the palette as it grows. The last allowed
- * round forces finish, so a turn always ends in an answer or a stated
- * failure, never in silence.
+ * The day rides in first (the snapshot), then the model is asked with the
+ * read tools, the act tools and the finish tool, and must call one or more
+ * each round. Reads run as the person, in parallel, and go back as one
+ * message. An act tool never acts: it checks and proposes, and may share a
+ * round with the finish call. The finish call is the answer, streamed as it
+ * is written; the last allowed round forces it, so a turn always ends in an
+ * answer or a stated failure.
  */
 
 export const ASK_MODEL = "claude-opus-5";
 const MAX_TOKENS = 1200;
+const MAX_HISTORY = 12;
+const HISTORY_CHARS = 1200;
 /**
  * Choosing a tool is not writing an answer. The rounds run at low effort:
  * the receptionist's replies run there too and hold on the eval set, and a
@@ -85,18 +85,7 @@ export interface TurnResult {
   rounds: number;
 }
 
-interface Block {
-  type: "text" | "tool_use";
-  id: string;
-  name: string;
-  text: string;
-  json: string;
-}
-
 type Msg = { role: "user" | "assistant"; content: unknown };
-
-const MAX_HISTORY = 12;
-const HISTORY_CHARS = 1200;
 
 function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
   switch (r.kind) {
@@ -108,6 +97,22 @@ function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
   }
 }
 
+/** The thread's prior turns, folded so no two neighbours share a role, starting with the person. */
+export function foldHistory(history: TurnInput["history"], text: string): Msg[] {
+  const messages: Msg[] = [
+    ...history.slice(-MAX_HISTORY).map((h) => ({ role: h.role, content: h.text.slice(0, HISTORY_CHARS) })),
+    { role: "user", content: text },
+  ];
+  for (let i = messages.length - 2; i >= 0; i--) {
+    if (messages[i].role === messages[i + 1].role) {
+      messages[i] = { role: messages[i].role, content: `${messages[i].content}\n${messages[i + 1].content}` };
+      messages.splice(i + 1, 1);
+    }
+  }
+  if (messages[0]?.role !== "user") messages.shift();
+  return messages;
+}
+
 export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
   const t0 = Date.now();
   const now = input.now ?? new Date();
@@ -117,9 +122,8 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
   const proposals: AskProposal[] = [];
   let reads = 0;
 
-  // The day, before the model is asked: one parallel set of small queries.
-  // Its rows enter the read set, so the answer can cite them; a failure
-  // here costs the snapshot, never the turn.
+  // The day, before the model is asked. Its rows enter the read set, so the
+  // answer can cite them; a failure here costs the snapshot, never the turn.
   let snapshot = "";
   const tSnap = Date.now();
   try {
@@ -130,31 +134,16 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
   }
   const snapshotMs = Date.now() - tSnap;
 
-  // Two cache breakpoints: the stable block (rules, definitions, the business
-  // facts) for every turn in the workspace, and the snapshot for this turn's
-  // later rounds and a quick follow-up. The clock sits between them, so it
-  // is rewritten each turn without touching either cache. The turn block
-  // holds the minute, so a follow-up within the same minute hits the second
-  // breakpoint; a later one pays for the snapshot once more, not the rules.
+  // Two cache breakpoints: the stable block for every turn in the workspace,
+  // and the snapshot for this turn's later rounds and a quick follow-up. The
+  // clock sits between them and is rewritten each turn without touching
+  // either cache.
   const system = [
     { type: "text", text: stableSystem(input.facts), cache_control: { type: "ephemeral" } },
     { type: "text", text: turnSystem({ role: input.role, personLabel: input.personLabel, scope: input.scope, surface: input.surface, language: input.language, timezone: input.timezone, closures: input.facts.closures, now }) },
     ...(snapshot ? [{ type: "text", text: snapshot, cache_control: { type: "ephemeral" } }] : []),
   ];
-  const messages: Msg[] = [
-    ...input.history.slice(-MAX_HISTORY).map((h) => ({ role: h.role, content: h.text.slice(0, HISTORY_CHARS) })),
-    { role: "user", content: input.text },
-  ];
-  // Two consecutive turns of one role are not allowed; a stored history that
-  // ends in a user turn (a failed round) is folded into this question.
-  for (let i = messages.length - 2; i >= 0; i--) {
-    if (messages[i].role === messages[i + 1].role) {
-      messages[i] = { role: messages[i].role, content: `${messages[i].content}\n${messages[i + 1].content}` };
-      messages.splice(i + 1, 1);
-    }
-  }
-  if (messages[0]?.role !== "user") messages.shift();
-
+  const messages = foldHistory(input.history, input.text);
   const baseTools = [...READ_TOOLS, ...(input.role === "viewer" ? [] : ACT_TOOLS), FINISH_TOOL];
   let strict = true;
   const controller = new AbortController();
@@ -163,73 +152,38 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
   const done = (partial: Partial<TurnResult> & { answer: string; failed: boolean; failure: string | null; rounds: number }): TurnResult => {
     clearTimeout(timer);
     console.log(JSON.stringify({ level: "info", event: "ask_turn_shape", tenant: input.tenantId, snapshot_ms: snapshotMs, snapshot: !!snapshot, rounds: partial.rounds, tools: toolsUsed }));
-    return {
-      finish: null,
-      citations: [],
-      navigate: null,
-      followups: [],
-      language: input.language,
-      ungrounded: false,
-      tools: toolsUsed,
-      proposals,
-      latencyMs: Date.now() - t0,
-      ...partial,
-    };
+    return { finish: null, citations: [], navigate: null, followups: [], language: input.language, ungrounded: false, tools: toolsUsed, proposals, latencyMs: Date.now() - t0, ...partial };
+  };
+
+  const propose = async (b: RoundBlock) => {
+    toolsUsed.push(b.name);
+    input.emit({ t: "trace", text: proposalLabel(b.name) });
+    const p = await buildProposal(tc, b.name, parseInput(b.json));
+    if (p.proposal) proposals.push(p.proposal);
+    return { result: p.result, isError: p.isError };
+  };
+
+  const read = async (b: RoundBlock) => {
+    toolsUsed.push(b.name);
+    const out = await runTool(tc, { name: b.name, input: parseInput(b.json) });
+    if (!out.isError) reads++;
+    return { result: out.result, isError: out.isError };
   };
 
   try {
     for (let round = 1; round <= ASK_MAX_ROUNDS; round++) {
       const last = round === ASK_MAX_ROUNDS;
       const tools = baseTools.map((d) => ({ name: d.name, description: d.description, input_schema: d.input_schema, ...(d.strict && strict ? { strict: true } : {}) }));
-      const request = {
-        model: ASK_MODEL,
-        max_tokens: MAX_TOKENS,
-        system,
-        messages,
-        tools,
-        tool_choice: last ? { type: "tool", name: "finish" } : { type: "any" },
-        output_config: { effort: EFFORT },
-      };
+      const request = { model: ASK_MODEL, max_tokens: MAX_TOKENS, system, messages, tools, tool_choice: last ? { type: "tool", name: "finish" } : { type: "any" }, output_config: { effort: EFFORT } };
 
-      const blocks = new Map<number, Block>();
-      let stopReason: string | null = null;
-      let streamError: string | null = null;
-      let answerSoFar = "";
-      let finishIndex = -1;
-
-      let events: AsyncGenerator<GatewayEvent>;
+      let blocks: RoundBlock[];
+      let stopReason: string | null;
+      let streamError: string | null;
       try {
-        events = streamModel({ tenantId: input.tenantId, userId: input.ctx.userId, request, signal: controller.signal });
-        // The generator opens the connection on its first pull.
-        for await (const ev of events) {
-          switch (ev.type) {
-            case "block_start":
-              blocks.set(ev.index, { type: ev.block.type, id: ev.block.type === "tool_use" ? ev.block.id : "", name: ev.block.type === "tool_use" ? ev.block.name : "", text: "", json: "" });
-              if (ev.block.type === "tool_use" && ev.block.name === "finish") finishIndex = ev.index;
-              break;
-            case "text": {
-              const b = blocks.get(ev.index);
-              if (b) b.text += ev.text;
-              break;
-            }
-            case "input_json": {
-              const b = blocks.get(ev.index);
-              if (!b) break;
-              b.json += ev.partial;
-              if (ev.index === finishIndex) {
-                const a = partialAnswer(b.json);
-                if (a.length > answerSoFar.length) {
-                  input.emit({ t: "delta", text: a.slice(answerSoFar.length) });
-                  answerSoFar = a;
-                }
-              }
-              break;
-            }
-            case "stop": stopReason = ev.stopReason; break;
-            case "error": streamError = ev.message; break;
-            default: break;
-          }
-        }
+        ({ blocks, stopReason, streamError } = await runRound(
+          { tenantId: input.tenantId, userId: input.ctx.userId, request, signal: controller.signal },
+          (delta) => input.emit({ t: "delta", text: delta }),
+        ));
       } catch (e) {
         if (e instanceof GatewayRefused) {
           if (e.refusal.kind === "bad_request" && strict && featureRejected(e.refusal.message)) {
@@ -247,63 +201,47 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
         throw e;
       }
 
-      if (streamError && !blocks.size) {
+      if (streamError && !blocks.length) {
         return done({ answer: es ? "Se cortó la conexión con el modelo. Inténtalo de nuevo." : "The connection to the model dropped. Try again.", failed: true, failure: streamError, rounds: round });
       }
       if (stopReason === "refusal") {
         return done({ answer: es ? "No puedo responder a eso aquí." : "I can't answer that here.", failed: true, failure: "refusal", rounds: round });
       }
 
-      const ordered = [...blocks.entries()].sort((a, b) => a[0] - b[0]).map(([, b]) => b);
-      let finish = ordered.find((b) => b.type === "tool_use" && b.name === "finish");
-      const readCalls = ordered.filter((b) => b.type === "tool_use" && b.name !== "finish");
+      let finish = blocks.find((b) => b.type === "tool_use" && b.name === "finish");
+      const calls = blocks.filter((b) => b.type === "tool_use" && b.name !== "finish");
+      const prose = blocks.filter((b) => b.type === "text").map((b) => b.text).join(" ").trim();
 
       // A proposal and the answer in one round: the act tools run first (they
       // only check and propose), then the finish call stands. A read beside a
-      // finish is different: the answer was written before the read, so that
+      // finish is different: that answer was written before its read, so the
       // finish is set aside and the model answers next round with the rows.
-      if (finish && readCalls.length && readCalls.every((b) => ACT_TOOL_NAMES.has(b.name))) {
-        for (const b of readCalls) {
-          let parsedInput: Record<string, unknown> = {};
-          try { parsedInput = b.json ? (JSON.parse(b.json) as Record<string, unknown>) : {}; } catch { /* an empty input */ }
-          toolsUsed.push(b.name);
-          input.emit({ t: "trace", text: proposalLabel(b.name) });
-          const p = await buildProposal(tc, b.name, parsedInput);
-          if (p.proposal) proposals.push(p.proposal);
-        }
-        readCalls.length = 0;
-      } else if (finish && readCalls.length) {
-        console.warn("ask_finish_beside_read", JSON.stringify({ tools: readCalls.map((b) => b.name), tenant: input.tenantId }));
+      if (finish && calls.length && calls.every((b) => ACT_TOOL_NAMES.has(b.name))) {
+        for (const b of calls) await propose(b);
+        calls.length = 0;
+      } else if (finish && calls.length) {
+        console.warn("ask_finish_beside_read", JSON.stringify({ tools: calls.map((b) => b.name), tenant: input.tenantId }));
         finish = undefined;
       }
 
       if (finish) {
         const parsed = parseAskFinish(finish.json || "{}");
         if (!parsed.ok) {
-          const text = ordered.filter((b) => b.type === "text").map((b) => b.text).join(" ").trim();
           console.error("ask_finish_unparsed", JSON.stringify({ error: parsed.error, tenant: input.tenantId }));
-          return done({
-            answer: text || (es ? "No pude dar forma a la respuesta. Pregunta de nuevo." : "I could not shape the answer. Ask again."),
-            failed: !text,
-            failure: `finish: ${parsed.error}`,
-            rounds: round,
-          });
+          return done({ answer: prose || (es ? "No pude dar forma a la respuesta. Pregunta de nuevo." : "I could not shape the answer. Ask again."), failed: !prose, failure: `finish: ${parsed.error}`, rounds: round });
         }
         const f = parsed.value;
         const { kept, dropped } = groundCitations(f.citations, tc.read);
         if (dropped) console.warn("ask_citations_dropped", JSON.stringify({ dropped, tenant: input.tenantId }));
         const navTo = f.navigate ? normalizeNavigate(f.navigate.to, tc.read) : null;
         if (f.navigate && !navTo) console.warn("ask_navigate_dropped", JSON.stringify({ to: f.navigate.to.slice(0, 120), tenant: input.tenantId }));
-        const navigate = f.navigate && navTo ? { ...f.navigate, to: navTo } : null;
         return done({
           finish: f,
           answer: f.answer,
           citations: kept.map((c) => ({ ...c, to: citationRoute(c) })),
-          navigate,
+          navigate: f.navigate && navTo ? { ...f.navigate, to: navTo } : null,
           followups: f.followups,
           language: f.language === "other" ? input.language : f.language,
-          // A card's figures are the person's own request, checked against the workspace;
-          // an answer that restates them is not an invention.
           ungrounded: isUngrounded(f.answer, reads + proposals.length),
           failed: false,
           failure: null,
@@ -311,55 +249,20 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
         });
       }
 
-      if (!readCalls.length) {
-        // The model wrote prose instead of calling a tool (tool_choice any
-        // should prevent it). Take the prose as the answer, unverified.
-        const text = ordered.filter((b) => b.type === "text").map((b) => b.text).join(" ").trim();
-        return done({
-          answer: text || (es ? "No encontré nada que leer para esa pregunta." : "I found nothing to read for that question."),
-          ungrounded: isUngrounded(text, reads + proposals.length),
-          failed: !text,
-          failure: text ? null : "no_tool_no_text",
-          rounds: round,
-        });
+      if (!calls.length) {
+        // Prose instead of a tool call (tool_choice any should prevent it):
+        // taken as the answer, unverified.
+        return done({ answer: prose || (es ? "No encontré nada que leer para esa pregunta." : "I found nothing to read for that question."), ungrounded: isUngrounded(prose, reads + proposals.length), failed: !prose, failure: prose ? null : "no_tool_no_text", rounds: round });
       }
 
-      // Run the reads, in parallel, and hand every result back at once.
-      for (const b of readCalls) input.emit({ t: "trace", text: ACT_TOOL_NAMES.has(b.name) ? proposalLabel(b.name) : toolLabel(b.name) });
-      const outcomes = await Promise.all(
-        readCalls.map(async (b) => {
-          let parsedInput: Record<string, unknown> = {};
-          try { parsedInput = b.json ? (JSON.parse(b.json) as Record<string, unknown>) : {}; } catch { /* an empty input */ }
-          toolsUsed.push(b.name);
-          if (ACT_TOOL_NAMES.has(b.name)) {
-            const p = await buildProposal(tc, b.name, parsedInput);
-            if (p.proposal) proposals.push(p.proposal);
-            return { block: b, out: { result: p.result, isError: p.isError, label: proposalLabel(b.name) } };
-          }
-          const out = await runTool(tc, { name: b.name, input: parsedInput });
-          if (!out.isError) reads++;
-          return { block: b, out };
-        }),
-      );
-      messages.push({
-        role: "assistant",
-        content: ordered.map((b) => b.type === "text"
-          ? { type: "text", text: b.text || " " }
-          : { type: "tool_use", id: b.id, name: b.name, input: safeJson(b.json) }),
-      });
-      messages.push({
-        role: "user",
-        content: outcomes.map(({ block, out }) => ({ type: "tool_result", tool_use_id: block.id, content: out.result, is_error: out.isError })),
-      });
+      // Reads and proposals, in parallel; every result goes back at once.
+      for (const b of calls) input.emit({ t: "trace", text: ACT_TOOL_NAMES.has(b.name) ? proposalLabel(b.name) : toolLabel(b.name) });
+      const outcomes = await Promise.all(calls.map(async (b) => ({ block: b, out: ACT_TOOL_NAMES.has(b.name) ? await propose(b) : await read(b) })));
+      messages.push({ role: "assistant", content: blocks.map((b) => (b.type === "text" ? { type: "text", text: b.text || " " } : { type: "tool_use", id: b.id, name: b.name, input: parseInput(b.json) })) });
+      messages.push({ role: "user", content: outcomes.map(({ block, out }) => ({ type: "tool_result", tool_use_id: block.id, content: out.result, is_error: out.isError })) });
       if (Date.now() - t0 > ASK_TURN_BUDGET_MS - 8_000 && !last) {
         // Not enough time for another read: answer with what there is.
-        messages[messages.length - 1] = {
-          role: "user",
-          content: [
-            ...(messages[messages.length - 1].content as unknown[]),
-            { type: "text", text: "Time is up for reads. Call finish now with what you have." },
-          ],
-        };
+        messages[messages.length - 1] = { role: "user", content: [...(messages[messages.length - 1].content as unknown[]), { type: "text", text: "Time is up for reads. Call finish now with what you have." }] };
         round = ASK_MAX_ROUNDS - 1;
       }
     }
@@ -368,8 +271,4 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
     console.error("ask_turn_failed", JSON.stringify({ error: e instanceof Error ? e.message : String(e), tenant: input.tenantId }));
     return done({ answer: es ? "Algo falló al responder. Inténtalo de nuevo." : "Something went wrong while answering. Try again.", failed: true, failure: e instanceof Error ? e.message : String(e), rounds: 0 });
   }
-}
-
-function safeJson(s: string): unknown {
-  try { return s ? JSON.parse(s) : {}; } catch { return {}; }
 }

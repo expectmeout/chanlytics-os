@@ -1,0 +1,108 @@
+/* Ask on a real workspace: the palette's own rules, in one place.
+   The palette's chrome (.ask-overlay, .ask-modal, .cmd-*, the rail) is the
+   mockup's, in dashboard-a-v2.css; everything the real palette adds — the
+   streamed turn, its toolbar, the links, the cards, the composer's mic, the
+   fast answer, the phone's sheet and ✦ — lives here. Imported last, so its
+   phone rules win over mobile.css. */
+
+/* ---- The turn ---- */
+.ask-real .ask-msg-text { white-space: pre-wrap; word-break: break-word; }
+.ask-real .ask-msg.failed .ask-msg-text { color: var(--ink-dim); }
+.ask-real .ask-msg-body { position: relative; }
+.ask-cursor { display: inline-block; width: 6px; height: 13px; margin-left: 2px; vertical-align: -2px; background: var(--accent); border-radius: 1px; animation: ask-blink 1s steps(2, start) infinite; }
+@keyframes ask-blink { to { visibility: hidden; } }
+.ask-trace { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-dim); padding: 4px 0 2px 32px; }
+.ask-trace-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); opacity: .8; animation: ask-pulse 1.2s ease-in-out infinite; }
+@keyframes ask-pulse { 0%, 100% { transform: scale(.7); opacity: .4; } 50% { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .ask-cursor, .ask-trace-dot { animation: none; } }
+.ask-unverified { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 11px; color: var(--warn); background: var(--warn-soft); border-radius: var(--radius-full); padding: 3px 9px; }
+
+/* Where it opens and what it read: the Open button first, then the sources */
+.ask-real .ask-msg-links { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 8px; }
+.ask-from { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); margin: 0 2px 0 4px; }
+
+/* The quiet toolbar: hover or focus on a desktop, always on touch */
+.ask-tools { display: flex; gap: 2px; margin-top: 6px; opacity: 0; transition: opacity 120ms; }
+.ask-msg:hover .ask-tools, .ask-msg:focus-within .ask-tools, .ask-tools.always, .ask-tools:has(.on) { opacity: 1; }
+@media (hover: none) { .ask-tools { opacity: 1; } }
+.ask-tool { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 7px; border: 0; background: transparent; color: var(--ink-faint); cursor: pointer; }
+.ask-tool:hover, .ask-tool:focus-visible { color: var(--ink); background: var(--bg-hover); outline: none; }
+.ask-tool.on { color: var(--accent); background: var(--accent-soft); }
+
+/* What to ask next: on the latest answer only */
+.ask-follow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.ask-follow-label { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); margin-right: 2px; }
+.ask-follow-chip { font: inherit; font-size: 12px; color: var(--ink); background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-full); padding: 5px 11px; cursor: pointer; text-align: left; }
+.ask-follow-chip:hover { border-color: var(--line-strong); background: var(--bg-hover); }
+
+/* ---- Cards: a proposal the person approves ---- */
+.ask-card { margin-top: 10px; border: 1px solid var(--line); border-left: 2px solid var(--accent); border-radius: var(--radius-md); background: var(--bg-sunken); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.ask-card.done { border-left-color: var(--ok); }
+.ask-card.failed { border-left-color: var(--danger); }
+.ask-card.dismissed, .ask-card.undone { opacity: .6; border-left-color: var(--line-strong); }
+.ask-card-head { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.ask-card-kind { font-size: 9px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); margin-left: auto; }
+.ask-card-summary { font-size: 13px; line-height: 1.45; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
+.ask-card-note { font-size: 11px; color: var(--warn); }
+.ask-card-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.ask-card-receipt { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-dim); }
+.ask-card-receipt .ok { color: var(--ok); }
+.ask-card-undo { margin-left: auto; }
+
+/* ---- The composer: the scope, the mic ---- */
+.ask-scope { max-width: 180px; }
+.ask-scope > :not(button) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ask-real .cmd-input:disabled { opacity: .6; }
+.ask-talk { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--ink-dim); cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; }
+.ask-talk:hover { color: var(--ink); background: var(--bg-hover); }
+.ask-talk.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.ask-talk.off { opacity: .5; }
+.ask-talk:disabled { opacity: .4; cursor: default; }
+.cmd-input-bar.listening .cmd-input::placeholder { color: var(--accent); }
+
+/* ---- The quick answer, no model ---- */
+.ask-fast { margin: 12px 16px 4px; padding: 12px 14px; border: 1px solid var(--line); border-left: 2px solid var(--accent); border-radius: var(--radius-md); background: var(--bg-sunken); }
+.ask-fast-q { font-size: 11px; color: var(--ink-dim); margin-bottom: 4px; }
+.ask-fast-a { font-size: 13.5px; line-height: 1.5; color: var(--ink); white-space: pre-wrap; }
+.ask-fast-days { display: flex; flex-direction: column; gap: 3px; margin-top: 8px; font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.ask-fast-days b { font-weight: 600; margin-right: 4px; }
+.ask-fast .ask-msg-links { margin-top: 8px; }
+.cmd-row.now .cmd-row-ic { background: var(--warn-soft); color: var(--warn); }
+.cmd-row.act .cmd-row-kind { color: var(--accent); }
+
+/* ---- The rail beside a desktop conversation ---- */
+.ask-real .ask-single { display: contents; }
+.ask-real.ask-modal-threads .ask-main { height: 100%; }
+.ask-real .ask-thread { position: relative; cursor: pointer; border: 0; font: inherit; width: 100%; padding-right: 28px; }
+.ask-real .ask-thread-x { position: absolute; right: 6px; top: 8px; display: none; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 5px; border: 0; background: transparent; color: var(--ink-faint); cursor: pointer; }
+.ask-real .ask-thread:hover .ask-thread-x, .ask-real .ask-thread:focus-within .ask-thread-x { display: inline-flex; }
+.ask-real .ask-thread-x:hover { color: var(--danger); background: var(--danger-soft); }
+.ask-real .ask-thread-more .ask-thread-at { color: var(--ink-dim); }
+.ask-real .ask-new-btn { cursor: pointer; font: inherit; font-size: 12px; }
+
+/* ---- A phone: the ✦, the sheet, the composer at the thumb ---- */
+.phone-ask { display: none; }
+@media (max-width: 720px) {
+  .phone-ask {
+    display: grid; place-items: center;
+    position: fixed; right: 14px; bottom: calc(126px + env(safe-area-inset-bottom));
+    width: 48px; height: 48px; border-radius: 50%; border: 0; cursor: pointer;
+    background: var(--accent); color: #fff; z-index: 121;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+  }
+  .phone-ask:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .phone-ask:active { transform: scale(0.96); }
+  .ask-overlay { padding: 0; padding-top: 0; align-items: flex-end; }
+  .ask-modal.cmd-modal.ask-real {
+    max-width: 100%; width: 100%; height: min(78vh, 640px);
+    border-radius: 18px 18px 0 0; border-bottom: 0;
+    display: flex; flex-direction: column-reverse;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .ask-real .cmd-input-bar { border-bottom: 0; border-top: 1px solid var(--line); }
+  .ask-real .cmd-foot { display: none; }
+  .ask-real .cmd-input { font-size: 16px; }
+  .ask-real .ask-msgs { padding: 14px 14px 8px; }
+  .ask-real .ask-fast { margin: 10px 12px 4px; }
+  .ask-talk { width: 40px; height: 40px; }
+}

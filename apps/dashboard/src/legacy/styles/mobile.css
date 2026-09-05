@@ -343,35 +343,3 @@
   .ix-th-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ix-th-actions { flex-wrap: wrap; justify-content: flex-start; }
 }
-
-/* The phone's ✦ exists only on a phone; on a desktop the topbar button and ⌘K are the doors */
-.phone-ask { display: none; }
-
-/* ---- Ask on a phone: a sheet from the bottom, the composer at the thumb ---- */
-@media (max-width: 720px) {
-  .ask-overlay { padding: 0; padding-top: 0; align-items: flex-end; }
-  .ask-modal.cmd-modal.ask-real {
-    max-width: 100%; width: 100%; height: min(78vh, 640px);
-    border-radius: 18px 18px 0 0; border-bottom: 0;
-    display: flex; flex-direction: column-reverse;
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-  .ask-real .cmd-input-bar { border-bottom: 0; border-top: 1px solid var(--line); }
-  .ask-real .cmd-foot { display: none; }
-  .ask-real .cmd-input { font-size: 16px; }
-  .ask-real .ask-msgs { padding: 14px 14px 8px; }
-  .ask-real .ask-fast { margin: 10px 12px 4px; }
-  /* The ✦ above the bridge pill (legacy.css puts the pill full-width at 74px
-     above the bottom on phones), so nothing sits between a thumb and Ask */
-  .phone-ask {
-    display: grid; place-items: center;
-    position: fixed; right: 14px; bottom: calc(126px + env(safe-area-inset-bottom));
-    width: 48px; height: 48px; border-radius: 50%; border: 0; cursor: pointer;
-    background: var(--accent); color: #fff; z-index: 121;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
-  }
-  .phone-ask:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-  .phone-ask:active { transform: scale(0.96); }
-  /* Hold to talk fills the thumb's row on a phone */
-  .ask-real .ask-talk { min-height: 40px; padding: 0 12px; }
-}

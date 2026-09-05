@@ -811,3 +811,48 @@ export function describeSettingsChange(change: AskSettingsChange): string {
     case "add_service": return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
   }
 }
+
+/* ---------------------------------------------------- what an answer shows */
+
+/** Two questions are the same thread when they differ only in case, spacing and punctuation. */
+export function sameQuestion(a: string, b: string): boolean {
+  const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim();
+  const x = norm(a);
+  return x.length > 0 && x === norm(b);
+}
+
+/** The Open button's words, by where it goes; the model's label only for a page. */
+export function navigateLabel(nav: { to: string; label: string } | null, language: AskLanguage): string | null {
+  if (!nav || !nav.to) return null;
+  const es = language === "es";
+  if (/^conversations\/cv-/.test(nav.to)) return es ? "Abrir la llamada" : "Open the call";
+  if (/^inbox\/th-/.test(nav.to)) return es ? "Abrir el hilo" : "Open the thread";
+  if (/^clients\/[0-9a-f-]{36}$/.test(nav.to)) return es ? "Abrir el perfil" : "Open the profile";
+  return nav.label || (es ? "Abrir" : "Open");
+}
+
+/** The source chips, minus the one the Open button already is, minus repeats of a place. */
+export function citationsToShow<C extends { to: string }>(citations: C[], nav: { to: string } | null): C[] {
+  const seen = new Set<string>(nav && nav.to ? [nav.to] : []);
+  return citations.filter((c) => {
+    if (!c || !c.to || seen.has(c.to)) return false;
+    seen.add(c.to);
+    return true;
+  });
+}
+
+const FOLLOWUP_ECHO: Array<[RegExp, RegExp]> = [
+  [/profile|perfil/i, /^clients\//],
+  [/transcript|recording|grabaci|transcripci|the call|la llamada/i, /^conversations\/cv-/],
+  [/thread|hilo|conversation/i, /^inbox\/th-/],
+];
+
+/**
+ * Follow-ups worth a chip: not one that echoes a place the answer already
+ * offers to open. "Show this caller's profile" beside an Open the profile
+ * button is the same thing twice.
+ */
+export function followupsToShow(followups: string[], citations: Array<{ to: string }>, nav: { to: string } | null): string[] {
+  const places = [...citations.map((c) => c.to), ...(nav && nav.to ? [nav.to] : [])];
+  return followups.filter((f) => !FOLLOWUP_ECHO.some(([words, route]) => words.test(f) && places.some((p) => route.test(p)))).slice(0, ASK_CAPS.followups);
+}
