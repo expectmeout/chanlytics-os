@@ -61,6 +61,7 @@ import type { Database, Json } from "../lib/workspace/db.js";
 import { upsertEscalation, type EscalationOutcome } from "../lib/workspace/jobs.js";
 import { loadTenantRuntime, waCfgFor, type TenantRuntime } from "../lib/tenant-runtime.js";
 import { openingsFor } from "../lib/availability.js";
+import { isVisionMime, photoUserText, toBase64, VISION_MAX_BYTES } from "../lib/vision.js";
 import { replyPosture, effectiveReplyMode } from "../lib/reply-posture.js";
 import { scheduleJob } from "../lib/workspace/jobs.js";
 import { resolveConsent } from "../lib/consent.js";
@@ -361,6 +362,9 @@ function pgSink(
         ? pgSafe("escalation", () =>
             upsertEscalation(db!, tenantId!, ing!.conversation_id, reason, details.slice(0, 400)))
         : Promise.resolve(undefined),
+    /** Download from Meta, upload to storage, record where it went. Resolves
+     *  to the bytes when they were fetched — a photo the receptionist looks
+     *  at reads them — and to nothing on failure. */
     media: (n: NormalizedInbound) =>
       on && n.media
         ? pgSafe("media_fetch", async () => {
@@ -382,8 +386,9 @@ function pgSink(
             }
             await db!.from("messages").update({ media: mediaOut as Json })
               .eq("id", ing!.message_id).eq("tenant_id", tenantId!);
+            return got;
           })
-        : Promise.resolve(),
+        : Promise.resolve(null),
   };
 }
 
@@ -616,7 +621,28 @@ async function handleInbound(
     return;
   }
 
-  if (n.type !== "text" || !n.body) {
+  // A photo the receptionist may look at (features.vision, off by default).
+  // Fetched now rather than after the acknowledgement, because the reply
+  // needs the bytes; stored on the way like every attachment. Anything that
+  // is not a small image, or a workspace where the receptionist may not
+  // speak right now, takes the branch below exactly as before.
+  let photo: { mime: string; base64: string } | null = null;
+  let photoTried = false;
+  if (
+    n.type === "media" && n.media && rt?.features?.vision && isVisionMime(n.media.mime_type)
+    && brainCfg && (replyMode === "auto" || replyMode === "veto") && Date.now() > thread.pausedUntil
+  ) {
+    photoTried = true;
+    const got = await sink.media(n);
+    if (got && isVisionMime(got.mime) && got.bytes.byteLength <= VISION_MAX_BYTES) {
+      photo = { mime: got.mime, base64: toBase64(got.bytes) };
+      L.info("wa_photo_seen", { bytes: got.bytes.byteLength, mime: got.mime });
+    } else {
+      L.info("wa_photo_not_seen", { fetched: !!got, bytes: got?.bytes.byteLength ?? null, mime: got?.mime ?? null });
+    }
+  }
+
+  if (!photo && (n.type !== "text" || !n.body)) {
     // genuinely unreadable (voice note, image, sticker): hand to a human.
     //
     // sink.media() downloads the attachment from Meta (an 8s metadata fetch,
@@ -625,7 +651,7 @@ async function handleInbound(
     // through two Graph round trips and a multi-megabyte upload, as much as
     // ~23s of pure timeout, before being told we had seen it. Nothing in the
     // ack depends on those bytes, so it joins the post-reply work below.
-    const media = sink.media(n);
+    const media = photoTried ? Promise.resolve(null) : sink.media(n);
     if (Date.now() > thread.pausedUntil) {
       // The acknowledgement is the receptionist speaking, so it obeys the
       // same rule as every reply: only when the mode in force lets it speak.
@@ -661,7 +687,11 @@ async function handleInbound(
   // Named bodyText, not text: `text` is the HTTP helper imported at the top of
   // this file, and shadowing it here would make a later `return text(200, …)`
   // inside this function fail in a thoroughly confusing way.
-  const bodyText = n.body;
+  //
+  // For a photo the receptionist looks at, the words on record are the
+  // caption, or the fact of the photo; what the MODEL is told is built beside
+  // the image, in vision.ts, and never lands in an alert or the memory.
+  const bodyText: string = photo ? (n.media?.caption?.trim() || "[photo]") : (n.body ?? "");
 
   // Late, but somebody is still waiting.
   //
@@ -789,7 +819,7 @@ async function handleInbound(
       }
       const r = await generateReply(
         thread.history,
-        bodyText,
+        photo ? photoUserText(n.media?.caption) : bodyText,
         // Composed from the workspace's structured facts when it has them,
         // and its hand-written prompt when it does not. retell-inbound.ts
         // composes the SAME thing for the voice agent, which is the point:
@@ -802,6 +832,7 @@ async function handleInbound(
         // it was answering too, from nothing — it had a table of hours and no
         // idea what day it was.
         `${describeNow(rt?.timezone, new Date(), brainCfg.profile?.closures)}${openings ? `\n\n${openings}` : ""}`,
+        photo ?? undefined,
       );
       replyText = r.text; escalate = r.escalate; usage = r.usage;
       if (r.reason) escalationReason = r.reason;

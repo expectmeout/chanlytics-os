@@ -529,6 +529,9 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   const [bookingNotes, setBookingNotes] = useSetState((br0.notes || []).join("\n"));
   const cal0 = (settings.config && settings.config.calendar) || {};
   const [icalUrl, setIcalUrl] = useSetState(cal0.ical_url || "");
+  // Opt-in abilities: off unless the owner turned one on.
+  const feat0 = (settings.config && settings.config.features) || {};
+  const [vision, setVision] = useSetState(feat0.vision === true);
   const setNote = (i, k, v) => setNotes((l) => l.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
   // Pre-filled with the workspace's existing instructions the first time this
   // is opened, so nothing a business already told its receptionist quietly
@@ -828,6 +831,8 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       },
       // A top-level section, read by the edge; an emptied field removes it.
       ...(feed ? { calendar: { ical_url: feed } } : { calendar: undefined }),
+      // Opt-in abilities, written once the owner has touched them.
+      ...(vision || feat0.vision !== undefined ? { features: { ...feat0, vision } } : {}),
     };
     setSaving(true);
     // saveSettings refreshes every surface on success — several seconds of
@@ -1186,6 +1191,22 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
             </span>
           </div>
         ))}
+        {/* Opt-in, unlike the rules above: this gives the receptionist an
+            ability rather than a limit, so it starts off. */}
+        <div className="set-rule" data-testid="rule-vision">
+          <button
+            type="button"
+            className={`set-switch ${vision ? "on" : ""}`}
+            role="switch"
+            aria-checked={vision}
+            aria-label="Look at photos customers send"
+            onClick={() => setVision((v) => !v)}
+          ><span className="set-knob" /></button>
+          <span className="set-rule-body">
+            <span className="set-rule-label">Look at photos customers send</span>
+            <span className="set-rule-hint">It says what it sees and suggests the next step, under the rules above. Off, a photo is acknowledged and passed to a person.</span>
+          </span>
+        </div>
       </div>
 
       <div className="set-sec">

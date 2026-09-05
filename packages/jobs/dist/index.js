@@ -4227,10 +4227,12 @@ var NotificationsConfigSchema = external_exports.object({
 var CalendarConfigSchema = external_exports.object({
   ical_url: external_exports.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
 }).strict();
+var FeaturesConfigSchema = external_exports.object({ vision: external_exports.boolean().optional() }).strict();
 var TenantConfigSchema = external_exports.object({
   brain: BrainConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional(),
-  calendar: CalendarConfigSchema.optional()
+  calendar: CalendarConfigSchema.optional(),
+  features: FeaturesConfigSchema.optional()
 });
 var MAX_INTERVALS_PER_DAY = 4;
 var MAX_CLOSURES = 60;
@@ -8569,10 +8571,12 @@ var NotificationsConfigSchema2 = external_exports2.object({
 var CalendarConfigSchema2 = external_exports2.object({
   ical_url: external_exports2.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
 }).strict();
+var FeaturesConfigSchema2 = external_exports2.object({ vision: external_exports2.boolean().optional() }).strict();
 var TenantConfigSchema2 = external_exports2.object({
   brain: BrainConfigSchema2.optional(),
   notifications: NotificationsConfigSchema2.optional(),
-  calendar: CalendarConfigSchema2.optional()
+  calendar: CalendarConfigSchema2.optional(),
+  features: FeaturesConfigSchema2.optional()
 });
 var MAX_INTERVALS_PER_DAY2 = 4;
 var MAX_CLOSURES2 = 60;

@@ -193,6 +193,32 @@ const gateTitle = (a) => {
 const gate = (a) => canDo(a) ? {} : { disabled: true, onClick: undefined, title: gateTitle(a), "data-gated": "" };
 Object.assign(window, { canDo, gateTitle, gate });
 
+// ---- Attachments in a thread (real sessions) ---------------------------
+// The bytes live in a private bucket; the route answers with a five-minute
+// signed URL by redirect, so an <img>, <audio> or <video> can point straight
+// at it. Without the bridge there is no route, and a seeded thread never
+// carries `media`, so the standalone mockup renders nothing here.
+const TlMedia = ({ media }) => {
+  if (!media || !window.__scoped) return null;
+  if (!media.available) return <div className="tl-media tl-media-missing">Attachment couldn't be saved.</div>;
+  const src = window.__scoped(`/api/v1/messages/${media.messageId}/media`);
+  if (media.kind === "image") {
+    return (
+      <a className="tl-media" href={src} target="_blank" rel="noopener noreferrer" title="Open the photo">
+        <img src={src} alt={media.caption || "Photo the customer sent"} loading="lazy" />
+      </a>
+    );
+  }
+  if (media.kind === "audio") return <audio className="tl-media tl-media-audio" controls preload="none" src={src} />;
+  if (media.kind === "video") return <video className="tl-media tl-media-video" controls preload="metadata" src={src} />;
+  return (
+    <a className="tl-media tl-media-file" href={src} download>
+      <Icon name="external" size={12} /> {media.filename || "Download attachment"}
+    </a>
+  );
+};
+window.TlMedia = TlMedia;
+
 // ---- Presence (Take transfers) — phone agents check this before warm-transferring ----
 window.PR_STORE = window.PR_STORE || {
   away: false,       // manual Away — freezes veto timers, forces the holding line

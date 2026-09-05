@@ -132,7 +132,9 @@ test("the patterns are anchored and case-insensitive", () => {
     // and the owner was emailed. The check must come BEFORE the unreadable
     // branch or it never runs.
     const quiet = edgeSrc.indexOf('n.kind === "reaction"');
-    const unreadable = edgeSrc.indexOf('if (n.type !== "text" || !n.body)');
+    // The condition gained a "not a photo the receptionist looked at" guard
+    // in front of it; the branch itself, and its place, are unchanged.
+    const unreadable = edgeSrc.indexOf('(n.type !== "text" || !n.body)');
     assert.ok(quiet > -1, "reactions must be handled by kind");
     assert.ok(unreadable > -1, "the unreadable branch must still exist");
     assert.ok(quiet < unreadable, "handle the no-request kinds before the unreadable branch");

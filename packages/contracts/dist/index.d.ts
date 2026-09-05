@@ -136,9 +136,13 @@ interface MessageDto {
     sender: "customer" | "ai" | "human" | "system";
     type: string;
     body: string | null;
+    /** The attachment facts a browser may see; the bytes are behind
+     *  /api/v1/messages/:id/media. Absent for words. */
     media: {
         mime_type?: string | null;
         fetch_state?: string;
+        filename?: string | null;
+        caption?: string | null;
     } | null;
     meta: Record<string, unknown> | null;
     status?: string;
@@ -189,6 +193,8 @@ interface ConversationMessageVM {
     channel: "whatsapp" | "phone";
     at: string;
     text: string;
+    /** The attachment, when the message is one. */
+    media?: MediaVM;
     /** "Canceled before sending", "Sending…" — absent when there is nothing to
      *  say, which for an ordinary sent message is the honest answer. */
     statusLabel?: string;
@@ -254,6 +260,20 @@ declare function initialsOf(name: string): string;
 declare function isHeldDraft(m: MessageDto): boolean;
 /** When a held draft is due to send, in epoch ms. */
 declare function draftSendsAtMs(m: MessageDto): number;
+/** An attachment as the thread draws it. */
+interface MediaVM {
+    messageId: string;
+    kind: "image" | "audio" | "video" | "document" | "other";
+    mime: string | null;
+    filename: string | null;
+    caption: string | null;
+    /** Stored and servable; false while it is fetching or after a failed fetch. */
+    available: boolean;
+}
+/** What kind of thing an attachment is: from its mime, else from WhatsApp's own word for it. */
+declare function mediaKind(mime: string | null | undefined, raw?: string | null): MediaVM["kind"];
+/** The attachment on a message, as the thread draws it; null for words. */
+declare function mediaVM(m: MessageDto): MediaVM | null;
 declare function messageText(m: MessageDto): string;
 interface EscalationDto {
     id: string;
@@ -354,6 +374,8 @@ interface InboxThreadVM {
         channel: string;
         at: string;
         body: string;
+        /** The attachment, when the message is one. */
+        media?: MediaVM;
         byYou?: boolean;
         status?: string;
         messageId?: string;
@@ -1639,6 +1661,21 @@ declare const CalendarConfigSchema: z.ZodObject<{
     ical_url: string;
 }>;
 type CalendarConfig = z.infer<typeof CalendarConfigSchema>;
+/**
+ * Opt-in abilities, off unless the workspace turns them on.
+ *
+ * `vision`: the receptionist looks at photos customers send over WhatsApp and
+ * answers them like words, under every rule it already follows. Off, a photo
+ * is acknowledged and handed to a person, as before.
+ */
+declare const FeaturesConfigSchema: z.ZodObject<{
+    vision: z.ZodOptional<z.ZodBoolean>;
+}, "strict", z.ZodTypeAny, {
+    vision?: boolean | undefined;
+}, {
+    vision?: boolean | undefined;
+}>;
+type FeaturesConfig = z.infer<typeof FeaturesConfigSchema>;
 declare const TenantConfigSchema: z.ZodObject<{
     brain: z.ZodOptional<z.ZodObject<{
         business_name: z.ZodString;
@@ -2042,6 +2079,13 @@ declare const TenantConfigSchema: z.ZodObject<{
     }, {
         ical_url: string;
     }>>;
+    features: z.ZodOptional<z.ZodObject<{
+        vision: z.ZodOptional<z.ZodBoolean>;
+    }, "strict", z.ZodTypeAny, {
+        vision?: boolean | undefined;
+    }, {
+        vision?: boolean | undefined;
+    }>>;
 }, "strip", z.ZodTypeAny, {
     brain?: {
         business_name: string;
@@ -2107,6 +2151,9 @@ declare const TenantConfigSchema: z.ZodObject<{
     calendar?: {
         ical_url: string;
     } | undefined;
+    features?: {
+        vision?: boolean | undefined;
+    } | undefined;
 }, {
     brain?: {
         business_name: string;
@@ -2171,6 +2218,9 @@ declare const TenantConfigSchema: z.ZodObject<{
     } | undefined;
     calendar?: {
         ical_url: string;
+    } | undefined;
+    features?: {
+        vision?: boolean | undefined;
     } | undefined;
 }>;
 type TenantConfig = z.infer<typeof TenantConfigSchema>;
@@ -2590,6 +2640,13 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
     }, {
         ical_url: string;
     }>>;
+    features: z.ZodOptional<z.ZodObject<{
+        vision: z.ZodOptional<z.ZodBoolean>;
+    }, "strict", z.ZodTypeAny, {
+        vision?: boolean | undefined;
+    }, {
+        vision?: boolean | undefined;
+    }>>;
 }, "strip", z.ZodTypeAny, {
     brain?: {
         business_name: string;
@@ -2655,6 +2712,9 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
     calendar?: {
         ical_url: string;
     } | undefined;
+    features?: {
+        vision?: boolean | undefined;
+    } | undefined;
 }, {
     brain?: {
         business_name: string;
@@ -2719,6 +2779,9 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
     } | undefined;
     calendar?: {
         ical_url: string;
+    } | undefined;
+    features?: {
+        vision?: boolean | undefined;
     } | undefined;
 }>, {
     brain?: {
@@ -2785,6 +2848,9 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
     calendar?: {
         ical_url: string;
     } | undefined;
+    features?: {
+        vision?: boolean | undefined;
+    } | undefined;
 }, {
     brain?: {
         business_name: string;
@@ -2849,6 +2915,9 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
     } | undefined;
     calendar?: {
         ical_url: string;
+    } | undefined;
+    features?: {
+        vision?: boolean | undefined;
     } | undefined;
 }>;
 type TenantConfigParse = {
@@ -3534,4 +3603,4 @@ declare function fmtClock(seconds: number): string;
 declare function toLiveCallVM(dto: CallDto, now?: Date): LiveCallVM;
 declare function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, now?: Date): LiveVM;
 
-export { ACTOR_TYPES, ANALYSIS_GRACE_MS, type ActorType, AppError, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BrainConfig, BrainConfigSchema, type BusinessProfile, BusinessProfileSchema, type BusyBlock, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CalendarConfig, CalendarConfigSchema, type CallDto, type CallVM, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelVM, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, E164, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type FreeWindowsInput, GuardrailsSchema, type Hours, type HoursRun, HoursSchema, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type Note, NoteSchema, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, type Opening, PEOPLE_LISTS, PEOPLE_TABS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_STATE_LABELS, POLICY_CLASSES, POLICY_MODES, type ParseOptions, type ParsedFeed, type PeopleAggregates, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, QUIET_AFTER_MS, RECENT_MAX, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPORT_RANGES, ROLES, ROLE_PERMS, type ReceptionistTone, type ReportBarVM, type ReportDayDto, type ReportDto, type ReportPointVM, type ReportTileVM, type ReportVM, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TimelineKind, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, ago, asPersonMode, composeSystemPrompt, contactMeta, contactName, dayInZone, deltaOf, describeNow, describeOpenings, draftSendsAtMs, err, filterOpenings, fmtClock, fmtDay, fmtSeconds, formatPhoneDisplay, formatWaited, frameWhisper, freeWindows, hasProfile, hoursRuns, initialsOf, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, localToUtcMs, messageAt, messageStatusLabel, messageText, newReceptionistDefaults, normalizePhone, ok, parseIcs, parseTenantConfig, parseTenantConfigResult, peopleAggregates, personName, personStateFor, pointsDelta, quantile, reachedCustomer, reasonShort, recencyCells, replyDelayMs, resolveSystemPrompt, shortTime, threadStanding, toCallVM, toChannelVM, toConversationVM, toInboxThreadVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, violatesNoPrices, waWindow, whisperText, zoneOffsetMs };
+export { ACTOR_TYPES, ANALYSIS_GRACE_MS, type ActorType, AppError, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BrainConfig, BrainConfigSchema, type BusinessProfile, BusinessProfileSchema, type BusyBlock, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, type CalendarConfig, CalendarConfigSchema, type CallDto, type CallVM, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelVM, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, E164, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type FeaturesConfig, FeaturesConfigSchema, type FreeWindowsInput, GuardrailsSchema, type Hours, type HoursRun, HoursSchema, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MediaVM, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type Note, NoteSchema, type NotificationsConfig, NotificationsConfigSchema, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, type Opening, PEOPLE_LISTS, PEOPLE_TABS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_STATE_LABELS, POLICY_CLASSES, POLICY_MODES, type ParseOptions, type ParsedFeed, type PeopleAggregates, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, QUIET_AFTER_MS, RECENT_MAX, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPORT_RANGES, ROLES, ROLE_PERMS, type ReceptionistTone, type ReportBarVM, type ReportDayDto, type ReportDto, type ReportPointVM, type ReportTileVM, type ReportVM, type Role, type Service, ServiceSchema, TEMPLATE_STATUSES, TENANT_STATUSES, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TimelineKind, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, WA_WINDOW_MS, type WaWindow, ago, asPersonMode, composeSystemPrompt, contactMeta, contactName, dayInZone, deltaOf, describeNow, describeOpenings, draftSendsAtMs, err, filterOpenings, fmtClock, fmtDay, fmtSeconds, formatPhoneDisplay, formatWaited, frameWhisper, freeWindows, hasProfile, hoursRuns, initialsOf, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, localToUtcMs, mediaKind, mediaVM, messageAt, messageStatusLabel, messageText, newReceptionistDefaults, normalizePhone, ok, parseIcs, parseTenantConfig, parseTenantConfigResult, peopleAggregates, personName, personStateFor, pointsDelta, quantile, reachedCustomer, reasonShort, recencyCells, replyDelayMs, resolveSystemPrompt, shortTime, threadStanding, toCallVM, toChannelVM, toConversationVM, toInboxThreadVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, violatesNoPrices, waWindow, whisperText, zoneOffsetMs };

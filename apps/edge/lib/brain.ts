@@ -50,8 +50,20 @@ export async function generateReply(
    * receptionist would pay full price for its own clock.
    */
   nowNote?: string,
+  /**
+   * A photo the customer sent, when the workspace lets the receptionist look
+   * (features.vision). Goes BEFORE the words, as the API prefers; the words
+   * are built in vision.ts and restate the standing rules.
+   */
+  image?: { mime: string; base64: string },
 ): Promise<BrainReply> {
-  const messages = [...history, { role: "user" as const, content: userText }];
+  const userContent = image
+    ? [
+        { type: "image", source: { type: "base64", media_type: image.mime, data: image.base64 } },
+        { type: "text", text: userText },
+      ]
+    : userText;
+  const messages = [...history, { role: "user" as const, content: userContent }];
   // output_config/effort predates this SDK pin's types; the API accepts it (proven in prod).
   const response = (await (client.messages.create as (p: unknown) => Promise<unknown>)({
     model: "claude-opus-5",

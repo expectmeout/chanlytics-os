@@ -2,6 +2,7 @@ import { AppError } from "@chanlytics/contracts";
 import type { ConversationDto, MessageDto } from "@chanlytics/contracts";
 import { withRoute } from "@/server/with-route";
 import { requireUuid } from "@/server/request-guards";
+import { mediaPublic } from "@/server/dto";
 
 /** GET /api/v1/conversations/:id — one thread's transcript, paginated by ?before. */
 export const GET = withRoute(async (req, { supabase, params, userId }) => {
@@ -50,7 +51,7 @@ export const GET = withRoute(async (req, { supabase, params, userId }) => {
     sender: m.sender as MessageDto["sender"],
     type: m.type,
     body: m.body,
-    media: m.media as MessageDto["media"],
+    media: mediaPublic(m.media),
     meta: m.meta as MessageDto["meta"],
     status: m.status,
     created_at: m.created_at,
