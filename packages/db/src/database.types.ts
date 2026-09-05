@@ -122,6 +122,140 @@ export type Database = {
           },
         ]
       }
+      broadcast_recipients: {
+        Row: {
+          broadcast_id: string
+          contact_id: string
+          message_id: string | null
+          reason: string | null
+          sent_at: string | null
+          state: string
+          tenant_id: string
+        }
+        Insert: {
+          broadcast_id: string
+          contact_id: string
+          message_id?: string | null
+          reason?: string | null
+          sent_at?: string | null
+          state?: string
+          tenant_id: string
+        }
+        Update: {
+          broadcast_id?: string
+          contact_id?: string
+          message_id?: string | null
+          reason?: string | null
+          sent_at?: string | null
+          state?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broadcast_recipients_broadcast_id_fkey"
+            columns: ["broadcast_id"]
+            isOneToOne: false
+            referencedRelation: "broadcasts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "broadcast_recipients_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "broadcast_recipients_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "broadcast_recipients_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      broadcasts: {
+        Row: {
+          audience: Json
+          created_at: string
+          created_by: string | null
+          failure: string | null
+          finished_at: string | null
+          id: string
+          name: string
+          params: Json
+          recipient_count: number
+          scheduled_for: string
+          started_at: string | null
+          state: string
+          template_id: string
+          template_language: string
+          template_name: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          audience?: Json
+          created_at?: string
+          created_by?: string | null
+          failure?: string | null
+          finished_at?: string | null
+          id?: string
+          name: string
+          params?: Json
+          recipient_count?: number
+          scheduled_for: string
+          started_at?: string | null
+          state?: string
+          template_id: string
+          template_language: string
+          template_name: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          audience?: Json
+          created_at?: string
+          created_by?: string | null
+          failure?: string | null
+          finished_at?: string | null
+          id?: string
+          name?: string
+          params?: Json
+          recipient_count?: number
+          scheduled_for?: string
+          started_at?: string | null
+          state?: string
+          template_id?: string
+          template_language?: string
+          template_name?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broadcasts_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "broadcasts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calls: {
         Row: {
           agent_id: string | null

@@ -154,12 +154,19 @@ export const DECISION_VERBS = [
    * and what it was before. The record a broadcast stands on.
    */
   "consent_change",
+  /**
+   * A broadcast: one approved template to the people who said yes. The
+   * decision to send (subject 'broadcast', payload the template, the
+   * audience and the count) and the decision to stop one.
+   */
+  "send_broadcast",
+  "cancel_broadcast",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 
 export const DECISION_SUBJECTS = [
   "conversation", "escalation", "draft", "lead", "message", "agent",
-  "membership", "invitation", "contact", "call", "channel",
+  "membership", "invitation", "contact", "call", "channel", "broadcast",
 ] as const;
 export type DecisionSubject = (typeof DECISION_SUBJECTS)[number];
 

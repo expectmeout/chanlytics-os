@@ -393,4 +393,5 @@ const BroadcastsPage = ({ initialSegment = null }) => {
   );
 };
 
-window.BroadcastsPage = BroadcastsPage;
+// A real workspace renders its broadcasts (broadcasts-real.jsx); the seeded page keeps the demo.
+window.BroadcastsSeed = BroadcastsPage;

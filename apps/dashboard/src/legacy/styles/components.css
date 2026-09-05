@@ -1623,3 +1623,30 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 .tbn-alert-dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--line-strong); background: transparent; flex: none; }
 .tbn-alert-switch.on { color: var(--ink); }
 .tbn-alert-switch.on .tbn-alert-dot { background: var(--accent); border-color: var(--accent); }
+
+/* Broadcasts, real: the template's values and the words a person will read. */
+.bc-vars { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin: 8px 0; }
+.bc-var { display: flex; flex-direction: column; gap: 4px; }
+.bc-var-label { font-size: 11px; color: var(--ink-faint); }
+.bc-var input {
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--ink);
+}
+.bc-var input:focus { outline: none; border-color: var(--ink-faint); }
+.bc-preview {
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  margin-bottom: 8px;
+}
+.bc-hist-row .dim { color: var(--ink-faint); font-weight: 400; }
+.bc-actions .bc-subject { margin: 0; }

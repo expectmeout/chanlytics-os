@@ -1,0 +1,156 @@
+/**
+ * Broadcasts: one approved template to the people who said yes.
+ *
+ * The first honest campaign. A broadcast names a template Meta approved,
+ * the values for its variables and an audience crossed with who said yes;
+ * the recipients are enrolled when it is made, the job sends in batches and
+ * re-checks each person at the wire, and its numbers are its messages'
+ * statuses. This file pins the rules by execution (contracts) and by source
+ * (the door, the job, the routes, the page).
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  BROADCAST_CHUNK, DECISION_SUBJECTS, DECISION_VERBS, EVERYONE_LABEL, PEOPLE_LISTS,
+  broadcastName, cleanParam, eligibleFor, mayReceiveOffers, renderTemplate, toBroadcastVM, whenLabel,
+} from "@chanlytics/contracts";
+import { readCode, readRaw } from "./_source.mjs";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+
+const person = (over = {}) => ({
+  id: over.id ?? "p1", state: "active", hasChat: true, calls: 0, phone: "+15551230001",
+  consent: { state: "opted_in", dnc: false, label: "Opted in", sub: "", source: "in_person" },
+  ...over,
+});
+
+test("the tables: the workspace's, members read, acting members enrol, only the state moves by session, nobody deletes; the ledger knows the verbs", () => {
+  const m = readRaw("supabase/migrations/00046_broadcasts.sql");
+  assert.ok(m.includes("create table public.broadcasts (") && m.includes("create table public.broadcast_recipients ("));
+  assert.ok(m.includes("check (state in ('scheduled', 'sending', 'sent', 'canceled', 'failed'))"));
+  assert.ok(m.includes("check (state in ('queued', 'sent', 'skipped', 'failed'))"));
+  assert.ok(m.includes("grant update (state) on public.broadcasts to authenticated;"), "a session client cancels and changes nothing else");
+  assert.ok(!/grant delete|for delete/.test(m), "a sent broadcast is a record");
+  assert.ok(m.includes("and exists (select 1 from public.contacts c where c.id = contact_id and c.tenant_id = broadcast_recipients.tenant_id and c.erased_at is null)"));
+  assert.ok(m.includes("'send_broadcast', 'cancel_broadcast'") && m.includes("'channel', 'broadcast'"));
+  assert.ok(DECISION_VERBS.includes("send_broadcast") && DECISION_VERBS.includes("cancel_broadcast") && DECISION_SUBJECTS.includes("broadcast"));
+});
+
+test("the one predicate: a recorded yes, no do-not-contact, a number", () => {
+  assert.equal(mayReceiveOffers(person()), true);
+  assert.equal(mayReceiveOffers(person({ consent: { state: "unknown", dnc: false } })), false, "not asked is not a yes");
+  assert.equal(mayReceiveOffers(person({ consent: { state: "opted_in", dnc: true } })), false, "the operator's block outranks a yes");
+  assert.equal(mayReceiveOffers(person({ phone: null })), false, "nowhere to send");
+});
+
+test("an audience is a People list, a list kept by hand, or everyone — each crossed with the predicate", () => {
+  const rows = [
+    person({ id: "a" }),
+    person({ id: "b", state: "quiet" }),
+    person({ id: "c", state: "quiet", consent: { state: "unknown", dnc: false } }),
+    person({ id: "d", hasChat: false, calls: 2 }),
+  ];
+  assert.deepEqual(eligibleFor(rows, "everyone", null, null).map((r) => r.id), ["a", "b", "d"]);
+  assert.deepEqual(eligibleFor(rows, "list", "quiet", null).map((r) => r.id), ["b"], "the quiet list, of those who said yes");
+  assert.deepEqual(eligibleFor(rows, "list", "phoned_only", null).map((r) => r.id), ["d"]);
+  assert.deepEqual(eligibleFor(rows, "list", "no_such_list", null), []);
+  assert.deepEqual(eligibleFor(rows, "saved", null, new Set(["c", "d"])).map((r) => r.id), ["d"], "a hand-kept list, of those who said yes");
+  assert.deepEqual(eligibleFor(rows, "saved", null, null), []);
+  assert.ok(PEOPLE_LISTS.some((l) => l.id === "quiet"));
+  assert.equal(EVERYONE_LABEL, "Everyone who said yes");
+});
+
+test("the words a person will read, and the values Meta will accept", () => {
+  assert.equal(renderTemplate("Hi {{1}}, {{2}} is 20% off at {{3}}.", ["Dani", "Balayage", "Melany's"]), "Hi Dani, Balayage is 20% off at Melany's.");
+  assert.equal(renderTemplate("Hi {{1}}, see {{2}}.", ["Dani"]), "Hi Dani, see {{2}}.", "a missing value stays visible, never silently blank");
+  assert.equal(renderTemplate(null, []), "");
+  assert.equal(cleanParam("  Balayage  "), "Balayage");
+  assert.equal(cleanParam("two\nlines"), null);
+  assert.equal(cleanParam("tab\there"), null);
+  assert.equal(cleanParam("four    spaces"), null);
+  assert.equal(cleanParam(""), null);
+  assert.equal(cleanParam("x".repeat(1025)), null);
+  assert.equal(cleanParam(42), null);
+  assert.ok(broadcastName("spring_offer", new Date("2026-09-05T15:00:00")).startsWith("spring offer · Sep 5"));
+});
+
+test("the view model: delivered and read over sent, open while scheduled or sending, progress over enrolled", () => {
+  const base = {
+    id: "b1", name: "Spring", template_id: "t", template_name: "spring_offer", template_language: "en_US", params: [],
+    audience: { kind: "everyone", id: null, label: EVERYONE_LABEL }, state: "sent",
+    scheduled_for: "2026-09-05T13:00:00Z", started_at: "2026-09-05T13:00:00Z", finished_at: "2026-09-05T13:02:00Z",
+    recipient_count: 10, failure: null, created_at: "2026-09-05T12:50:00Z",
+    counts: { queued: 0, sent: 8, skipped: 2, failed: 0, delivered: 6, read: 4, replied: 1 },
+  };
+  const vm = toBroadcastVM(base, new Date("2026-09-06T10:00:00Z"));
+  assert.equal(vm.deliveredPct, 75);
+  assert.equal(vm.readPct, 50);
+  assert.equal(vm.open, false);
+  assert.equal(vm.progress, 1);
+  assert.equal(vm.stateLabel, "Sent");
+  const sending = toBroadcastVM({ ...base, state: "sending", finished_at: null, counts: { ...base.counts, sent: 3, skipped: 1, queued: 6 } });
+  assert.equal(sending.open, true);
+  assert.equal(sending.progress, 0.4);
+  const fresh = toBroadcastVM({ ...base, state: "scheduled", started_at: null, finished_at: null, counts: { queued: 10, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 } });
+  assert.equal(fresh.deliveredPct, null, "nothing to divide by yet");
+  const now = new Date("2026-09-05T09:00:00");
+  assert.ok(whenLabel("2026-09-05T15:30:00", now).startsWith("today "));
+  assert.ok(whenLabel("2026-09-06T15:30:00", now).startsWith("tomorrow "));
+  assert.ok(/^Sep 12 · /.test(whenLabel("2026-09-12T15:30:00", now)));
+});
+
+test("the job: state gates, the template still approved, every person re-checked at the wire, batches that continue themselves, the workspace told", () => {
+  const h = readCode("packages/jobs/src/handlers.ts");
+  assert.ok(h.includes("broadcast_send: broadcastSend,"));
+  assert.ok(h.includes('if (b.state === "canceled" || b.state === "sent" || b.state === "failed") return;'));
+  assert.ok(h.includes('if (!tpl || tpl.meta_status !== "approved") {'), "a template Meta withdrew fails the broadcast before a single send");
+  assert.ok(h.includes(".limit(BROADCAST_CHUNK);") && BROADCAST_CHUNK === 25);
+  assert.ok(h.includes('if (isOptedOutContact(c)) { await mark(r.contact_id, { state: "skipped", reason: "opted_out" }); continue; }'));
+  assert.ok(h.includes('if (c.consent !== "opted_in") { await mark(r.contact_id, { state: "skipped", reason: "not_opted_in" }); continue; }'), "the yes is re-checked at the wire, whatever the route found");
+  assert.ok(h.includes('reason: "human_has_it"'), "a person mid-thread with a human is not interrupted");
+  assert.ok(h.includes('if (cErr) { console.error("broadcast_contact_unreadable", r.contact_id, cErr.message); continue; }'), "fail closed: an unreadable person stays queued");
+  assert.ok(h.includes('meta: { source: "broadcast", broadcast_id: b.id, broadcast_name: b.name'), "every message says which broadcast it came from");
+  assert.ok(h.includes('if (still?.state !== "sending") return;'), "a cancel during a batch stops the next");
+  assert.ok(h.includes('await ctx.schedule("broadcast_send", new Date(), { broadcast_id: b.id });'));
+  assert.ok(h.includes('throw new Error("broadcast_send: this runner cannot schedule the next batch");'), "a runner that cannot continue fails loudly");
+  assert.ok(h.includes('kind: "broadcast.sent"'));
+  const fire = readCode("apps/edge/api/jobs/fire.ts");
+  assert.ok(fire.includes("scheduleJob(db, { tenantId: job.tenant_id, kind, dueAt, payload, qstashToken: process.env.QSTASH_TOKEN! })"), "the runner hands the job its scheduler");
+});
+
+test("the routes: an approved template, values Meta accepts, an audience crossed with who said yes, enrolled now, scheduled, on the ledger; cancel stops what has not finished", () => {
+  const r = readCode("apps/dashboard/app/api/v1/broadcasts/route.ts");
+  assert.ok(r.includes('requireRole(member, "operator");') && r.includes('takeRate(ctx.userId, "broadcast");'));
+  assert.ok(r.includes('if (tpl.meta_status !== "approved") throw new AppError("conflict", "That template is not approved by WhatsApp, so it cannot be sent.", 409);'));
+  assert.ok(r.includes("const v = cleanParam(p);"));
+  assert.ok(r.includes("const eligible = eligibleFor(rows, kind as AudienceKind, audienceId, savedIds);"), "the same predicate the page counts with");
+  assert.ok(r.includes('"Nobody there has said yes to offers yet. Record their answer on their profile first."'));
+  assert.ok(r.includes('await schedule(tenantId, "broadcast_send", when, { broadcast_id: made.id });'));
+  assert.ok(r.includes('recordDecision(ctx, tenantId, "broadcast", made.id, "send_broadcast", {'));
+  const c = readCode("apps/dashboard/app/api/v1/broadcasts/[id]/cancel/route.ts");
+  assert.ok(c.includes('await cancelKindFor(b.tenant_id, "broadcast_send", "broadcast_id", id);'));
+  assert.ok(c.includes('recordDecision(ctx, b.tenant_id, "broadcast", id, "cancel_broadcast", { name: b.name, was: b.state });'));
+  const l = readCode("apps/dashboard/src/server/broadcasts.ts");
+  assert.ok(l.includes('if (status === "delivered" || status === "read") c.delivered += 1;'), "delivered comes from the receipts, never from the send");
+  assert.ok(readCode("apps/dashboard/src/server/rate-limit.ts").includes('broadcast: { limit: 10, windowMs: 60_000, noun: "broadcasts" }'));
+});
+
+test("the surface and the page: Broadcasts is real, fed by the same rules, and the seeded page keeps the demo", async () => {
+  const reg = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/legacy-bridge/surface-registry.ts")).href);
+  assert.equal(reg.SURFACE_STATES.broadcasts, "real");
+  assert.equal(reg.ROUTE_SURFACE.broadcasts, "broadcasts");
+  const s = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  assert.ok(s.includes('key: "broadcasts",') && s.includes('count: eligibleFor(rows, "everyone", null, null).length'));
+  assert.ok(s.includes('.filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")'));
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installBroadcasts();"));
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/broadcasts-real.jsx";'));
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/broadcasts.jsx").includes("window.BroadcastsSeed = BroadcastsPage;"));
+  const p = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
+  for (const id of ["broadcasts-real", "bc-audience", "bc-template", "bc-no-template", "bc-preview", "bc-send", "bc-nobody", "bc-open", "bc-history"]) {
+    assert.ok(p.includes(`data-testid="${id}"`), id);
+  }
+  assert.ok(p.includes("Nobody on “{active.label}” has said yes to offers yet."));
+  assert.ok(!/credits|Booked from broadcasts|\$\d/.test(p), "nothing invented: no credits, no revenue");
+});

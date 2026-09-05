@@ -13,6 +13,7 @@ export * from "./notifications";
 export * from "./ask";
 export * from "./availability";
 export * from "./people";
+export * from "./broadcasts";
 export * from "./channels";
 
 export * from "./reports";

@@ -5,8 +5,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendText, sendTemplate, type WaConfig } from "@chanlytics/channels";
-import { isOptedOutContact } from "@chanlytics/contracts";
-import type { Database } from "@chanlytics/db";
+import { BROADCAST_CHUNK, BROADCAST_GAP_MS, isOptedOutContact, renderTemplate, type JobKind } from "@chanlytics/contracts";
+import { recordOutbound, resolveOutboundTarget, type Database, type Json } from "@chanlytics/db";
 
 export interface JobContext {
   db: SupabaseClient<Database>;
@@ -22,6 +22,13 @@ export interface JobContext {
    * see blobThreadErase.
    */
   eraseThread?: (namespace: string, threadId: string) => Promise<boolean>;
+  /**
+   * Schedule a job of this tenant — how a broadcast continues itself, one
+   * batch after another, through the same door the dashboard uses. Optional
+   * for the same reason eraseThread is; a runner without it must FAIL a
+   * broadcast that has more to send, never end it quietly.
+   */
+  schedule?: (kind: JobKind, dueAt: Date, payload: Json) => Promise<void>;
 }
 
 export interface ClaimedJob {
@@ -336,8 +343,142 @@ export async function upsertEscalation(
   return "failed";
 }
 
+/**
+ * broadcast_send: one batch of a broadcast, then the next.
+ * payload: { broadcast_id }
+ *
+ * The route enrolled the recipients; this sends to up to BROADCAST_CHUNK of
+ * them, re-checking each person at the wire — the one place a miss is
+ * unrecoverable — and records why anyone was held back. Then it schedules
+ * itself again for the rest, or closes the broadcast and tells the
+ * workspace. A canceled broadcast stops at the next batch; a template that
+ * is no longer approved fails it before a single send.
+ */
+async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  const p = job.payload as { broadcast_id: string };
+  const { data: b, error: bErr } = await ctx.db
+    .from("broadcasts")
+    .select("id, state, name, template_name, template_language, params, recipient_count")
+    .eq("id", p.broadcast_id)
+    .eq("tenant_id", job.tenant_id)
+    .maybeSingle();
+  if (bErr) throw new Error(`broadcast_send: cannot read broadcast ${p.broadcast_id}: ${bErr.message}`);
+  if (!b) return;
+  if (b.state === "canceled" || b.state === "sent" || b.state === "failed") return;
+  const startedAt = new Date().toISOString();
+  if (b.state === "scheduled") {
+    await ctx.db.from("broadcasts").update({ state: "sending", started_at: startedAt }).eq("id", b.id).eq("state", "scheduled");
+  }
+
+  // The template must still be what Meta approved.
+  const { data: tpl } = await ctx.db
+    .from("templates")
+    .select("meta_status, body_preview")
+    .eq("tenant_id", job.tenant_id)
+    .eq("channel", "whatsapp")
+    .eq("name", b.template_name)
+    .eq("language", b.template_language)
+    .maybeSingle();
+  if (!tpl || tpl.meta_status !== "approved") {
+    await ctx.db.from("broadcasts").update({ state: "failed", failure: "template_not_approved", finished_at: new Date().toISOString() }).eq("id", b.id);
+    await ctx.alert(`Broadcast “${b.name}” stopped`, `The template “${b.template_name}” is no longer approved by WhatsApp, so nothing was sent.`);
+    return;
+  }
+  const params = Array.isArray(b.params) ? (b.params as unknown[]).map(String) : [];
+  const words = renderTemplate(tpl.body_preview, params);
+
+  const { data: batch, error: qErr } = await ctx.db
+    .from("broadcast_recipients")
+    .select("contact_id")
+    .eq("broadcast_id", b.id)
+    .eq("state", "queued")
+    .limit(BROADCAST_CHUNK);
+  if (qErr) throw new Error(`broadcast_send: cannot read recipients: ${qErr.message}`);
+
+  const mark = (contactId: string, patch: { state: "sent" | "skipped" | "failed"; reason?: string | null; message_id?: string | null }) =>
+    ctx.db
+      .from("broadcast_recipients")
+      .update({ ...patch, sent_at: patch.state === "sent" ? new Date().toISOString() : null })
+      .eq("broadcast_id", b.id)
+      .eq("contact_id", contactId);
+
+  for (const r of batch ?? []) {
+    // FAIL CLOSED per person: a read that fails leaves them queued for the
+    // next batch rather than guessing; "we could not check" is not "yes".
+    const { data: c, error: cErr } = await ctx.db
+      .from("contacts")
+      .select("id, phone_e164, consent, dnc, erased_at")
+      .eq("id", r.contact_id)
+      .eq("tenant_id", job.tenant_id)
+      .maybeSingle();
+    if (cErr) { console.error("broadcast_contact_unreadable", r.contact_id, cErr.message); continue; }
+    if (!c || c.erased_at) { await mark(r.contact_id, { state: "skipped", reason: "erased" }); continue; }
+    if (!c.phone_e164) { await mark(r.contact_id, { state: "skipped", reason: "no_phone" }); continue; }
+    if (isOptedOutContact(c)) { await mark(r.contact_id, { state: "skipped", reason: "opted_out" }); continue; }
+    if (c.consent !== "opted_in") { await mark(r.contact_id, { state: "skipped", reason: "not_opted_in" }); continue; }
+    const target = await resolveOutboundTarget(ctx.db, { tenantId: job.tenant_id, phoneE164: c.phone_e164, create: false });
+    if (!target) { await mark(r.contact_id, { state: "skipped", reason: "no_phone" }); continue; }
+    if (target.pausedUntil && Date.now() < new Date(target.pausedUntil).getTime()) {
+      await mark(r.contact_id, { state: "skipped", reason: "human_has_it" });
+      continue;
+    }
+
+    const sent = await SENDERS.whatsapp(ctx, c.phone_e164, { body: words, template: { name: b.template_name, language: b.template_language, params } });
+    const messageId = await recordOutbound(ctx.db, {
+      tenantId: job.tenant_id,
+      conversationId: target.conversationId,
+      contactId: c.id,
+      sender: "human",
+      type: "template",
+      body: words,
+      externalId: sent.ok ? sent.wamid : null,
+      status: sent.ok ? "sent" : "failed",
+      meta: { source: "broadcast", broadcast_id: b.id, broadcast_name: b.name, ...(sent.ok ? {} : { http_status: sent.status }) },
+    }).catch((e: unknown) => {
+      console.error("broadcast_record_failed", e instanceof Error ? e.message : e);
+      return null;
+    });
+    if (sent.ok) {
+      await mark(r.contact_id, { state: "sent", message_id: messageId });
+      await ctx.db.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", target.conversationId);
+    } else {
+      await mark(r.contact_id, { state: "failed", reason: "send_failed", message_id: messageId });
+    }
+    if (BROADCAST_GAP_MS > 0) await new Promise((res) => setTimeout(res, BROADCAST_GAP_MS));
+  }
+
+  const { count: remaining, error: rErr } = await ctx.db
+    .from("broadcast_recipients")
+    .select("contact_id", { count: "exact", head: true })
+    .eq("broadcast_id", b.id)
+    .eq("state", "queued");
+  if (rErr) throw new Error(`broadcast_send: cannot count the rest: ${rErr.message}`);
+  if ((remaining ?? 0) > 0) {
+    // Still wanted? A cancel during this batch stops here.
+    const { data: still } = await ctx.db.from("broadcasts").select("state").eq("id", b.id).maybeSingle();
+    if (still?.state !== "sending") return;
+    if (!ctx.schedule) throw new Error("broadcast_send: this runner cannot schedule the next batch");
+    await ctx.schedule("broadcast_send", new Date(), { broadcast_id: b.id });
+    return;
+  }
+
+  const { data: tally } = await ctx.db.from("broadcast_recipients").select("state").eq("broadcast_id", b.id);
+  const sentN = (tally ?? []).filter((t) => t.state === "sent").length;
+  const held = (tally ?? []).length - sentN;
+  await ctx.db.from("broadcasts").update({ state: "sent", finished_at: new Date().toISOString() }).eq("id", b.id).eq("state", "sending");
+  await ctx.db.from("events").insert({
+    tenant_id: job.tenant_id, kind: "broadcast.sent", category: "message",
+    subject_type: "broadcast", subject_id: b.id, data: { sent: sentN, held },
+  });
+  await ctx.alert(
+    `Broadcast “${b.name}” sent`,
+    `${sentN} ${sentN === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, or a person had the thread)` : ""}. Replies land in the Inbox.`,
+  );
+}
+
 const HANDLERS: Record<string, (ctx: JobContext, job: ClaimedJob) => Promise<void>> = {
   outbound_send: outboundSend,
+  broadcast_send: broadcastSend,
   pause_expire: pauseExpire,
   snooze_wake: snoozeWake,
 blob_thread_erase: blobThreadErase,

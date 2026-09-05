@@ -197,7 +197,14 @@ var DECISION_VERBS = [
    * who heard it: subject 'contact', payload the answer, how it was given,
    * and what it was before. The record a broadcast stands on.
    */
-  "consent_change"
+  "consent_change",
+  /**
+   * A broadcast: one approved template to the people who said yes. The
+   * decision to send (subject 'broadcast', payload the template, the
+   * audience and the count) and the decision to stop one.
+   */
+  "send_broadcast",
+  "cancel_broadcast"
 ];
 var DECISION_SUBJECTS = [
   "conversation",
@@ -210,7 +217,8 @@ var DECISION_SUBJECTS = [
   "invitation",
   "contact",
   "call",
-  "channel"
+  "channel",
+  "broadcast"
 ];
 var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
 var TEMPLATE_STATUSES = ["approved", "pending", "rejected", "paused", "disabled"];
@@ -3133,6 +3141,87 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
   };
 }
 
+// src/broadcasts.ts
+var BROADCAST_STATES = ["scheduled", "sending", "sent", "canceled", "failed"];
+var RECIPIENT_STATES = ["queued", "sent", "skipped", "failed"];
+var BROADCAST_STATE_LABELS = {
+  scheduled: "Scheduled",
+  sending: "Sending",
+  sent: "Sent",
+  canceled: "Canceled",
+  failed: "Failed"
+};
+var BROADCAST_CHUNK = 25;
+var BROADCAST_GAP_MS = 300;
+var BROADCAST_MAX_RECIPIENTS = 2e3;
+var BROADCAST_PARAM_MAX = 1024;
+var BROADCAST_SCHEDULE_MAX_DAYS = 30;
+var BROADCAST_NAME_MAX = 80;
+var AUDIENCE_KINDS = ["everyone", "list", "saved"];
+var EVERYONE_LABEL = "Everyone who said yes";
+function mayReceiveOffers(r) {
+  return r.consent.state === "opted_in" && !r.consent.dnc && !!r.phone;
+}
+function eligibleFor(rows, kind, id, savedIds) {
+  let pool = rows;
+  if (kind === "list") {
+    const l = PEOPLE_LISTS.find((x) => x.id === id);
+    if (!l) return [];
+    pool = rows.filter(l.test);
+  } else if (kind === "saved") {
+    if (!savedIds) return [];
+    pool = rows.filter((r) => savedIds.has(r.id));
+  }
+  return pool.filter(mayReceiveOffers);
+}
+function renderTemplate(body, params) {
+  return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n) => {
+    const v = params[Number(n) - 1];
+    return typeof v === "string" && v !== "" ? v : m;
+  });
+}
+function cleanParam(raw) {
+  if (typeof raw !== "string") return null;
+  const v = raw.trim();
+  if (!v || v.length > BROADCAST_PARAM_MAX) return null;
+  if (/[\n\r\t]/.test(v) || /\s{4,}/.test(v)) return null;
+  return v;
+}
+function broadcastName(templateName, now = /* @__PURE__ */ new Date()) {
+  const day = now.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return `${templateName.replace(/_/g, " ")} \xB7 ${day}`.slice(0, BROADCAST_NAME_MAX);
+}
+function whenLabel(iso, now = /* @__PURE__ */ new Date()) {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const sameDay = d.toDateString() === now.toDateString();
+  if (sameDay) return `today ${time}`;
+  const tomorrow = new Date(now.getTime() + 864e5);
+  if (d.toDateString() === tomorrow.toDateString()) return `tomorrow ${time}`;
+  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} \xB7 ${time}`;
+}
+function toBroadcastVM(d, now = /* @__PURE__ */ new Date()) {
+  const c = d.counts;
+  const attempted = c.sent + c.skipped + c.failed;
+  return {
+    ...d,
+    stateLabel: BROADCAST_STATE_LABELS[d.state] ?? d.state,
+    when: whenLabel(d.finished_at ?? d.started_at ?? d.scheduled_for, now),
+    deliveredPct: c.sent > 0 ? Math.round(c.delivered / c.sent * 100) : null,
+    readPct: c.sent > 0 ? Math.round(c.read / c.sent * 100) : null,
+    open: d.state === "scheduled" || d.state === "sending",
+    progress: d.recipient_count > 0 ? Math.min(1, attempted / d.recipient_count) : 0
+  };
+}
+var HELD_REASONS = {
+  opted_out: "asked to stop",
+  not_opted_in: "no recorded yes",
+  no_phone: "no number",
+  human_has_it: "a person had the thread",
+  erased: "deleted",
+  send_failed: "WhatsApp refused"
+};
+
 // src/channels.ts
 var DAY_MS3 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS3;
@@ -3391,6 +3480,7 @@ export {
   ASK_RETENTION_DAYS,
   ASK_TOKENS_DAY,
   ASK_TURN_BUDGET_MS,
+  AUDIENCE_KINDS,
   AppError,
   AskFinishSchema,
   AskProposalOutcomeSchema,
@@ -3398,6 +3488,14 @@ export {
   BRAIN_INTENTS,
   BRAIN_LANGUAGES,
   BRAIN_OUTPUT_JSON_SCHEMA,
+  BROADCAST_CHUNK,
+  BROADCAST_GAP_MS,
+  BROADCAST_MAX_RECIPIENTS,
+  BROADCAST_NAME_MAX,
+  BROADCAST_PARAM_MAX,
+  BROADCAST_SCHEDULE_MAX_DAYS,
+  BROADCAST_STATES,
+  BROADCAST_STATE_LABELS,
   BookingRulesSchema,
   BrainConfigSchema,
   BrainOutputSchema,
@@ -3422,8 +3520,10 @@ export {
   ESCALATION_REASON_LABELS,
   ESCALATION_STATES,
   EVENT_KINDS,
+  EVERYONE_LABEL,
   FeaturesConfigSchema,
   GuardrailsSchema,
+  HELD_REASONS,
   HoursSchema,
   INTENT_LABELS,
   IntervalSchema,
@@ -3456,6 +3556,7 @@ export {
   PolicyLimitsSchema,
   QUIET_AFTER_MS,
   RECENT_MAX,
+  RECIPIENT_STATES,
   REPLY_DELAY_DEFAULT_MS,
   REPLY_DELAY_MAX_MS,
   REPLY_DELAY_MIN_MS,
@@ -3475,11 +3576,13 @@ export {
   asPersonMode,
   askJump,
   brainMetaOf,
+  broadcastName,
   buildAskSuggestions,
   buildNotificationFeed,
   citationRoute,
   citationsToShow,
   cleanAnswer,
+  cleanParam,
   composeSystemPrompt,
   consentSourceLabel,
   contactMeta,
@@ -3492,6 +3595,7 @@ export {
   describeSettingsChange,
   detectLanguage,
   draftSendsAtMs,
+  eligibleFor,
   emptyReadSet,
   err,
   fastPath,
@@ -3517,6 +3621,7 @@ export {
   isRealDate,
   isUngrounded,
   localToUtcMs,
+  mayReceiveOffers,
   mediaKind,
   mediaVM,
   messageAt,
@@ -3542,6 +3647,7 @@ export {
   reasonShort,
   recencyCells,
   recoverCitations,
+  renderTemplate,
   replyDelayMs,
   replyWhy,
   resolveSystemPrompt,
@@ -3550,6 +3656,7 @@ export {
   scopeFromRoute,
   shortTime,
   threadStanding,
+  toBroadcastVM,
   toCallVM,
   toChannelVM,
   toConversationVM,
@@ -3562,6 +3669,7 @@ export {
   toTodayVM,
   violatesNoPrices,
   waWindow,
+  whenLabel,
   whisperText,
   zoneOffsetMs
 };

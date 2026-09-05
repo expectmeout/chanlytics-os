@@ -6,7 +6,7 @@
 import { Receiver } from "@upstash/qstash";
 import { json } from "../../lib/http.js";
 import { pg } from "../../lib/pg.js";
-import { dispatchJob, FIRE_URL, type ClaimedJob } from "../../lib/workspace/jobs.js";
+import { dispatchJob, FIRE_URL, scheduleJob, type ClaimedJob } from "../../lib/workspace/jobs.js";
 import { notify } from "../../lib/notify.js";
 import { loadTenantNotifications, waCredentialsForTenant } from "../../lib/tenant-runtime.js";
 import { deleteThread } from "../../lib/store.js";
@@ -96,6 +96,10 @@ export async function POST(request: Request): Promise<Response> {
         // why the erase job is fired here rather than orchestrated from the
         // dashboard that requested it.
         eraseThread: deleteThread,
+        // A job that continues itself (a broadcast's next batch) schedules
+        // through the same door the dashboard uses, as this job's tenant.
+        schedule: (kind, dueAt, payload) =>
+          scheduleJob(db, { tenantId: job.tenant_id, kind, dueAt, payload, qstashToken: process.env.QSTASH_TOKEN! }).then(() => undefined),
       },
       job,
     );

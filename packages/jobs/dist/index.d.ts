@@ -40,6 +40,13 @@ interface JobContext {
      * see blobThreadErase.
      */
     eraseThread?: (namespace: string, threadId: string) => Promise<boolean>;
+    /**
+     * Schedule a job of this tenant — how a broadcast continues itself, one
+     * batch after another, through the same door the dashboard uses. Optional
+     * for the same reason eraseThread is; a runner without it must FAIL a
+     * broadcast that has more to send, never end it quietly.
+     */
+    schedule?: (kind: JobKind, dueAt: Date, payload: Json) => Promise<void>;
 }
 interface ClaimedJob {
     id: string;
