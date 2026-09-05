@@ -10,7 +10,10 @@ import { isRetryableAuthError } from "@/server/auth-errors";
  * already gone; the route does its own same-origin check.
  * /api/version is the deploy probe, and returns only a build sha.
  */
-const PUBLIC_PATHS = new Set(["/login", "/auth/signout", "/api/version"]);
+// The manifest is fetched without credentials by the browser's installer; it
+// names the product and its icons, nothing else, so it is public like the
+// icons themselves (which the matcher already skips by extension).
+const PUBLIC_PATHS = new Set(["/login", "/auth/signout", "/api/version", "/manifest.webmanifest"]);
 
 /**
  * An auth redirect must never be stored. These responses depend entirely on a

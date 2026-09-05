@@ -206,6 +206,53 @@ const RouteSkeleton = ({ pane }) => (
 );
 
 // ---- Shell -------------------------------------------------------------
+// ---- Phone tab bar --------------------------------------------------------
+// On a phone the drawer hid the four places an owner actually goes behind a
+// menu button. A bar at the thumb instead, with the two counts that matter
+// on the salon floor: what needs you, and who is on the line. Real surfaces
+// only; everything else stays behind More. Rendered always, shown only
+// under the phone breakpoint (mobile.css).
+const PHONE_TABS = [
+  { id: "home", route: "today", icon: "home", label: "Today" },
+  { id: "inbox", route: "inbox", icon: "inbox", label: "Inbox" },
+  { id: "people", route: "clients", icon: "users", label: "People" },
+  { id: "live", route: "live", icon: "phone", label: "Live" },
+];
+const liveNow = () => (window.__LIVE && Array.isArray(window.__LIVE.now) ? window.__LIVE.now.filter((c) => c.live).length : 0);
+const PhoneTabs = ({ page, inboxNeeds, onNavigate, onMenu }) => {
+  const [live, setLive] = useShellState(liveNow);
+  useShellEffect(() => {
+    const on = () => setLive(liveNow());
+    window.addEventListener("surface:live", on);
+    return () => window.removeEventListener("surface:live", on);
+  }, []);
+  const activeOf = (t) => page === t.route;
+  const badge = (t) => (t.id === "inbox" && inboxNeeds > 0 ? String(inboxNeeds) : t.id === "live" && live > 0 ? String(live) : null);
+  return (
+    <nav className="phone-tabs" aria-label="Main" data-testid="phone-tabs">
+      {PHONE_TABS.map((t) => (
+        <button
+          key={t.id}
+          type="button"
+          className={`phone-tab ${activeOf(t) ? "active" : ""}`}
+          onClick={() => onNavigate(t.route)}
+          aria-current={activeOf(t) ? "page" : undefined}
+        >
+          <span className="phone-tab-icon">
+            <Icon name={t.icon} size={18} />
+            {badge(t) && <span className="phone-tab-badge tabular">{badge(t)}</span>}
+          </span>
+          <span className="phone-tab-label">{t.label}</span>
+        </button>
+      ))}
+      <button type="button" className="phone-tab" onClick={onMenu} aria-label="Menu">
+        <span className="phone-tab-icon"><Icon name="menu" size={18} /></span>
+        <span className="phone-tab-label">More</span>
+      </button>
+    </nav>
+  );
+};
+
 const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => {
   const [route, setRoute] = useShellState(parseHash());
   const [askOpen, setAskOpen] = useShellState(false);
@@ -565,6 +612,7 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
                 : content}
           </ShellErrorBoundary>
         </div>
+        <PhoneTabs page={page} inboxNeeds={inboxNeeds} onNavigate={navigate} onMenu={() => setNavOpen(true)} />
       </div>
 
       <AskBar open={askOpen} onClose={() => setAskOpen(false)} />

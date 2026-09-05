@@ -191,7 +191,7 @@ const CvPlayback = ({ c }) => {
 };
 
 // ---------- Viewer ----------
-const CvViewer = ({ c }) => {
+const CvViewer = ({ c, onBack = null }) => {
   const dec = cvDecision(c);
   const endedLive = cvEnded(c);
   const isLive = !!c && c.live && !endedLive;
@@ -230,6 +230,11 @@ const CvViewer = ({ c }) => {
     <div className="cv-viewer" key={c.id}>
       {/* Header */}
       <header className="cv-head">
+        {onBack && (
+          <button type="button" className="btn btn-ghost btn-sm cv-back" onClick={onBack} aria-label="Back to the list" data-testid="cv-back">
+            <span aria-hidden="true">&larr;</span> All
+          </button>
+        )}
         <span className="cv-head-avatar">{c.initials.slice(0, 2)}</span>
         <div className="cv-head-titles">
           <div className="cv-head-name">
@@ -407,10 +412,12 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
   const { CONVERSATIONS, CV_CHANNELS } = window.CONVERSATIONS_DATA;
   const [query, setQuery] = useCvState("");
   const [selectedId, setSelectedId] = useCvState(initialId);
+  // Phone: the list and the viewer take turns (mobile.css owns the breakpoint).
+  const [phoneOpen, setPhoneOpen] = useCvState(!!initialId);
   const [tick, setTick] = useCvState(0);
 
   // Deep-link follows later navigations; decisions flip pills live
-  useCvEffect(() => { if (initialId) setSelectedId(initialId); }, [initialId]);
+  useCvEffect(() => { if (initialId) { setSelectedId(initialId); setPhoneOpen(true); } }, [initialId]);
   useCvEffect(() => {
     const bump = () => setTick(n => n + 1);
     window.addEventListener("inbox:decisions", bump);
@@ -455,7 +462,7 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
   }), [tick]); // tick: counts read the swapped global too
 
   return (
-    <div className="conversations">
+    <div className={`conversations ${phoneOpen ? "phone-detail" : ""}`}>
       <aside className="cv-list">
         <div className="cv-list-head">
           <div className="cl-search-wrap">
@@ -479,7 +486,7 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
         </div>
         <div className="cv-rows">
           {visible.map(c => (
-            <CvRow key={c.id} c={c} active={selected?.id === c.id} onSelect={setSelectedId} />
+            <CvRow key={c.id} c={c} active={selected?.id === c.id} onSelect={(id) => { setSelectedId(id); setPhoneOpen(true); }} />
           ))}
           {visible.length === 0 && (
             <div className="cv-empty">
@@ -500,7 +507,7 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
           That conversation isn't among the newest {CONVERSATIONS.length} shown here — open the person in People to find it.
         </div>
       )}
-      {selected ? <CvViewer c={selected} /> : (
+      {selected ? <CvViewer c={selected} onBack={() => setPhoneOpen(false)} /> : (
         <div className="ix-empty-state">
           <div className="ix-empty-glyph"><Icon name="chat" size={28} /></div>
           <div className="ix-empty-title">No conversation selected</div>

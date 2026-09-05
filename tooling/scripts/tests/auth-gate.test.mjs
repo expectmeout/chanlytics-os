@@ -77,13 +77,15 @@ test("the public path list is exact, never a prefix", () => {
   assert.match(middleware, /PUBLIC_PATHS\.has\(path\)/, "the gate must test exact membership");
 });
 
-test("only these three paths are reachable without a session", () => {
+test("only these four paths are reachable without a session", () => {
   const block = /PUBLIC_PATHS\s*=\s*new Set\(\[([^\]]*)\]/.exec(middleware);
   assert.ok(block, "PUBLIC_PATHS must be a literal Set so this test can read it");
   const paths = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]).sort();
   // Pinned BY VALUE: widening the product's unauthenticated surface is a
   // deliberate edit here, reviewed, not a side effect of adding a file.
-  assert.deepEqual(paths, ["/api/version", "/auth/signout", "/login"]);
+  // The manifest joined in the phone-shell slice: a phone's installer fetches
+  // it without credentials, and it names the product and its icons, nothing else.
+  assert.deepEqual(paths, ["/api/version", "/auth/signout", "/login", "/manifest.webmanifest"]);
 });
 
 test("the session is VERIFIED, never read from the cookie", () => {

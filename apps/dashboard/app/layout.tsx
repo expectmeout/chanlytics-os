@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -26,6 +26,19 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Chanlytics OS",
   description: "The business workspace where AI agents do the work and you make the calls.",
+  // The installable shell: a manifest, the icons a phone wants, and the
+  // full-screen mode Safari reads from here rather than from the manifest.
+  manifest: "/manifest.webmanifest",
+  icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Chanlytics" },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // Draw under the notch and the home bar; the shell pads with the safe-area insets.
+  viewportFit: "cover",
+  themeColor: "#0e1512",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

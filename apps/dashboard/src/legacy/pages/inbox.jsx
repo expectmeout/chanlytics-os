@@ -39,6 +39,10 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     initialThreadId || (THREADS.find((x) => x.state === "needs") || THREADS[0] || {}).id || null,
   );
   const [selected, setSelected] = React.useState([]);
+  // On a phone the list and the thread take turns on the screen: a tap opens
+  // the thread, Back returns to the list. A deep link opens straight onto the
+  // thread. Desktop ignores the flag (mobile.css owns the breakpoint).
+  const [phoneThreadOpen, setPhoneThreadOpen] = React.useState(!!initialThreadId);
   const [activeView, setActiveView] = React.useState(null);
   const [stale, setStale] = React.useState(null); // { threadId, update } — concurrent change waiting to merge
   const firedRef = React.useRef({});
@@ -49,7 +53,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   React.useEffect(() => {
     if (!initialThreadId) return;
     const t = threads.find((x) => x.id === initialThreadId);
-    if (t) { setActiveThreadId(initialThreadId); setActiveBucket(t.state); }
+    if (t) { setActiveThreadId(initialThreadId); setActiveBucket(t.state); setPhoneThreadOpen(true); }
   }, [initialThreadId]);
 
   // Real threads carry the answer (viewmodel `needsYou`) rather than having it
@@ -143,7 +147,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   const mutate = (id, fn) => setThreads((ts) => ts.map((t) => (t.id === id ? fn(t) : t)));
 
   // Opening a thread clears its unread dot; Mark as unread sets it back (one honest meaning of "unread").
-  const selectThread = (id) => { setActiveThreadId(id); mutate(id, (x) => (x.unread ? { ...x, unread: false } : x)); };
+  const selectThread = (id) => { setActiveThreadId(id); setPhoneThreadOpen(true); mutate(id, (x) => (x.unread ? { ...x, unread: false } : x)); };
   const markUnread = (id) => { mutate(id, (x) => ({ ...x, unread: true })); ppFlash({ msg: <><b>Marked unread</b> — bumped to the top of your list</> }); };
 
   // ---- Verdict gate: the ONE post-meeting human decision (closed set) ----
@@ -565,7 +569,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   };
 
   return (
-    <div className={`inbox ${showAgentRail ? "with-rail" : ""}`}>
+    <div className={`inbox ${showAgentRail ? "with-rail" : ""} ${phoneThreadOpen ? "phone-thread" : ""}`}>
       <InboxList
         threads={visible}
         allThreads={threads}
@@ -589,6 +593,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
       <InboxThread
         key={activeThread?.id}
         thread={activeThread}
+        onBack={() => setPhoneThreadOpen(false)}
         notice={requestedMissing ? "That conversation isn't among the newest shown here — open the person in People to find it." : null}
         channelLabels={CHANNEL_LABELS}
         stale={stale && activeThread && stale.threadId === activeThread.id ? stale : null}
