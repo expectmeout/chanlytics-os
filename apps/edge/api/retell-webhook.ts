@@ -39,6 +39,7 @@ import {
   emitEvent,
 } from "../lib/workspace/db.js";
 import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "../lib/call-recording.js";
+import type { RoutedChannel } from "../lib/workspace/db.js";
 
 export const config = { maxDuration: 60 };
 
@@ -60,6 +61,42 @@ async function recordWebhookAuth(sig: boolean, key: boolean): Promise<void> {
     await emitEvent(db, PLATFORM_TENANT, "webhook.auth", "ingest", null, null, { provider: "retell", sig, key });
   } catch (e) {
     console.error("webhook_auth_event_failed", e instanceof Error ? e.message : e);
+  }
+}
+
+/**
+ * A delivery that names no agent, routed through the call it belongs to.
+ *
+ * The canonical row was only ever written when the payload carried
+ * agent_id. The provider documents call_started as "basic information" and
+ * transcript_updated as "also includes transcript_with_tool_calls" — neither
+ * promises the agent id on every event — and a per-turn delivery without it
+ * used to be dropped before ingest, silently, leaving a live transcript
+ * frozen on the dashboard while the provider streamed turns.
+ */
+async function routeByKnownCall(db: NonNullable<ReturnType<typeof pg>>, retellCallId: string): Promise<RoutedChannel | null> {
+  const { data } = await db.from("calls").select("agent_id").eq("retell_call_id", retellCallId).limit(1).maybeSingle();
+  const agentId = (data as { agent_id?: string | null } | null)?.agent_id ?? null;
+  return agentId ? resolveChannel(db, "voice", agentId) : null;
+}
+
+/**
+ * What each delivery DID, as a row: the event, the status the payload
+ * carried and the one it normalised to, how many turns it brought, whether
+ * the ingest declined it. The log line beside the ingest lives in Vercel's
+ * logs; this is the version that can be read back, per call, from /api/diag.
+ * No content — counts and flags only.
+ */
+async function recordDelivery(
+  db: NonNullable<ReturnType<typeof pg>>,
+  tenantId: string,
+  callId: string | null,
+  data: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await emitEvent(db, tenantId, "webhook.delivery", "ingest", callId ? "call" : null, callId, { provider: "retell", ...data });
+  } catch (e) {
+    console.error("webhook_delivery_event_failed", e instanceof Error ? e.message : e);
   }
 }
 
@@ -86,6 +123,12 @@ export async function POST(request: Request): Promise<Response> {
   console.log("retell_event", event, call && call.call_id);
   if (!call?.call_id) return json(200, { ok: true });
 
+  // A transcript update is proof the call is IN PROGRESS. The per-turn
+  // payload is not guaranteed to carry call_status, and an absent status
+  // normalises to "ended" — which would mark a live call ended on its first
+  // turn or, forward-only, make every later turn a no-op.
+  if (event === "transcript_updated" && !call.call_status) call.call_status = "ongoing";
+
   const n = normalizeCall(call);
   const db = pg();
   // null = no control plane to ask; true = this delivery owns the post-call
@@ -93,9 +136,9 @@ export async function POST(request: Request): Promise<Response> {
   let notifyClaim: boolean | null = null;
 
   // ---- canonical calls row (additive; never breaks the legacy path) ----
-  if (db && n.agentId) {
+  if (db) {
     try {
-      const routed = await resolveChannel(db, "voice", n.agentId);
+      const routed = n.agentId ? await resolveChannel(db, "voice", n.agentId) : await routeByKnownCall(db, n.retellCallId);
       if (!routed) {
         console.error("retell_unroutable_agent", n.agentId);
         await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", "ingest", null, null,
@@ -107,6 +150,16 @@ export async function POST(request: Request): Promise<Response> {
           // partial transcript after the final one. Nothing was written.
           console.log("retell_event_stale", event, n.retellCallId);
         }
+        void recordDelivery(db, routed.tenantId, res.call_id ?? null, {
+          event: event ?? null,
+          call_status: call.call_status ?? null,
+          status: n.status,
+          agent_id_present: !!call.agent_id,
+          turns: n.transcriptObject?.length ?? null,
+          tool_turns: call.transcript_with_tool_calls?.length ?? null,
+          transcript_chars: n.transcript?.length ?? null,
+          skipped: !!res.skipped,
+        });
 
         // The call belongs in the customer's one thread, not a silo — written
         // once the SUMMARY exists. Message bodies are immutable (P3), and a
