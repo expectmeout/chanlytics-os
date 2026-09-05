@@ -52,6 +52,14 @@ test("the converger, the diagnostic and the provisioning script all read the sam
   assert.ok(converge.includes("/update-agent/${agent.agent_id}"));
   assert.ok(converge.includes('"--retention-days"'));
   assert.ok(converge.indexOf("if (!apply)") < converge.indexOf('await call("PATCH", `/update-agent/'), "the dry run exits before any agent write");
+  // A published version cannot change (422 "Cannot update published agent
+  // other than version title", met on the first retention apply): the patches
+  // go on a new draft, and only --publish makes a pinned line pick them up.
+  const draftAt = converge.indexOf("/create-agent-version/${agent.agent_id}");
+  assert.ok(draftAt > 0 && draftAt < converge.indexOf('await call("PATCH", `/update-retell-llm/'), "the draft is made BEFORE any patch lands");
+  assert.ok(converge.includes("(plan.llmPatch || agentPlan.agentPatch) && agent.is_published"), "only when the latest version is published, and only when there is something to change");
+  assert.ok(converge.includes('const publish = process.argv.includes("--publish");'));
+  assert.ok(converge.includes("is a DRAFT: a pinned line stays on"), "without --publish the script says the line did not change");
   const diag = readCode("apps/edge/api/diag.ts");
   assert.ok(diag.includes("agent: agentSettingsDrift(a),"));
   const adapter = readCode("packages/channels/src/voice-retell.ts");
