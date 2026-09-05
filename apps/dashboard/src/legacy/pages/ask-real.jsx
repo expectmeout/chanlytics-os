@@ -36,6 +36,7 @@ const AR_TEXT = {
     noCalendar: "No calendar is connected, so I can't see openings. The hours are in Settings.",
     unavailable: "The calendar couldn't be read right now.",
     openings: "Open times",
+    from: "From",
     talk: "Hold to talk",
     listening: "Listening…",
     micDenied: "The browser needs microphone permission to talk to Ask.",
@@ -72,6 +73,7 @@ const AR_TEXT = {
     noCalendar: "No hay calendario conectado, así que no veo huecos. El horario está en Ajustes.",
     unavailable: "No se pudo leer el calendario ahora.",
     openings: "Horas libres",
+    from: "De",
     talk: "Mantén para hablar",
     listening: "Escuchando…",
     micDenied: "El navegador necesita permiso del micrófono para hablar con Ask.",
@@ -258,6 +260,7 @@ const AskTurn = ({ m, streaming, t, onFollow, onNav, canSpeak, onSpeak }) => (
               <Icon name="arrow-right" size={11} /> {m.navigate.label || t.open}
             </button>
           )}
+          {m.citations && m.citations.length ? <span className="ask-from">{t.from}</span> : null}
           {(m.citations || []).map((c, i) => (
             <button key={i} className="ask-link-chip" onClick={() => onNav(c.to)} title={c.kind}>
               <Icon name={c.kind === "call" ? "phone" : c.kind === "person" ? "users" : c.kind === "page" ? "arrow-right" : "chat"} size={10} /> {c.label}
