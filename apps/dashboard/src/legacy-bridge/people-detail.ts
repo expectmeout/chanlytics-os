@@ -146,12 +146,45 @@ declare global {
     __setPersonConsent?: (id: string, body: ConsentBody) => Promise<DeleteResult>;
     __consentSources?: readonly { id: string; label: string }[];
     __deletePerson?: (id: string) => Promise<DeleteResult>;
+    __setPersonDetails?: (id: string, body: DetailsBody) => Promise<DeleteResult>;
     __setPersonReceptionist?: (id: string, mode: "auto" | "ask" | "never" | "inherit") => Promise<DeleteResult>;
+  }
+}
+
+/**
+ * A person's name and the owner's notes: `window.__setPersonDetails(id, { name?, notes? })`.
+ *
+ * Owner or operator on the server; an empty string clears. The People list
+ * is re-fetched because names show on every row, and the profile reloads
+ * on the same event.
+ */
+export interface DetailsBody { name?: string; notes?: string }
+
+export async function setPersonDetails(id: string, body: DetailsBody): Promise<DeleteResult> {
+  try {
+    const res = await fetch(scoped(`/api/v1/contacts/${encodeURIComponent(id)}/details`), {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.status === 401) {
+      clearSurfaceCache();
+      window.location.assign("/login");
+      return { ok: false, message: "Signed out." };
+    }
+    const j = (await res.json().catch(() => null)) as { ok: boolean; data?: unknown; error?: { message?: string } } | null;
+    if (!j || !j.ok) return { ok: false, message: j?.error?.message ?? `Request failed (${res.status}).` };
+    invalidateInFlight();
+    await refreshSurfaces([peopleOverride]);
+    return { ok: true, data: j.data };
+  } catch {
+    return { ok: false, message: "Network error — nothing was changed." };
   }
 }
 
 export function installPeopleCourier(): void {
   window.__personDetail = personDetail;
+  window.__setPersonDetails = setPersonDetails;
   window.__deletePerson = deletePerson;
   window.__setPersonReceptionist = setPersonReceptionist;
   window.__setPersonConsent = setPersonConsent;

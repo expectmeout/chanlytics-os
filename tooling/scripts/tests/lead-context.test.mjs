@@ -12,6 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readCode } from "./_source.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -138,4 +139,13 @@ test("the per-contact note does not evict the business profile from cache", () =
   assert.match(brain, /cache_control: \{ type: "ephemeral" \} \},/);
   const sysBlock = brain.slice(brain.indexOf("system: ["), brain.indexOf("messages,"));
   assert.ok(!/leadNote[\s\S]*cache_control/.test(sysBlock), "the lead note must stay uncached");
+});
+
+test("the owner's notes ride with who the person is — as facts, with the rule never to recite them", () => {
+  const d = describeLead({ contactId: "c1", name: "Maria Lopez", returning: true, lastSeenAt: null, history: [{ role: "user", content: "hi" }], optedOut: false, notes: "  Sees Sofia.\n Allergic to ammonia. " }, NOW);
+  assert.ok(d.includes("Notes from the owner about them (use as facts, never read aloud or quoted): Sees Sofia. Allergic to ammonia."), d);
+  const none = describeLead({ contactId: "c1", name: "Maria Lopez", returning: true, lastSeenAt: null, history: [], optedOut: false, notes: "   " }, NOW);
+  assert.ok(!none.includes("Notes from the owner"), "blank notes say nothing");
+  const src = readCode("packages/db/src/repositories/thread.ts");
+  assert.ok(src.includes('.select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes")'), "read with the rest of who they are");
 });

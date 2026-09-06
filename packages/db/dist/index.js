@@ -4809,7 +4809,7 @@ var EMPTY_LEAD = {
   optedOut: false
 };
 async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
-  const { data: contact, error: cErr } = await db.from("contacts").select("id, display_name, wa_profile_name, last_seen_at, consent, dnc").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+  const { data: contact, error: cErr } = await db.from("contacts").select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
   if (cErr) throw new Error(`readLeadContext/contact: ${cErr.message}`);
   if (!contact) return EMPTY_LEAD;
   const { data: conv, error: vErr } = await db.from("conversations").select("id").eq("tenant_id", tenantId).eq("contact_id", contact.id).maybeSingle();
@@ -4831,7 +4831,8 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
     returning: history.length > 0,
     lastSeenAt: contact.last_seen_at ?? null,
     history,
-    optedOut: contact.consent === "opted_out" || contact.dnc === true
+    optedOut: contact.consent === "opted_out" || contact.dnc === true,
+    notes: contact.notes ?? null
   };
 }
 function describeLead(lead, now = /* @__PURE__ */ new Date()) {
@@ -4846,6 +4847,8 @@ function describeLead(lead, now = /* @__PURE__ */ new Date()) {
     bits.push("First time reaching out.");
   }
   if (lead.optedOut) bits.push("They have asked not to receive messages.");
+  const notes = (lead.notes ?? "").replace(/\s+/g, " ").trim();
+  if (notes) bits.push(`Notes from the owner about them (use as facts, never read aloud or quoted): ${notes}`);
   return bits.join(" ");
 }
 

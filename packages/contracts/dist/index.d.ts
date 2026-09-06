@@ -4216,6 +4216,8 @@ interface PersonDetailDto {
         source: string;
         title: string | null;
     };
+    /** The owner's notes on this person — the receptionist reads them. */
+    notes?: string | null;
 }
 /** What an owner may set for one person: answer, ask first, or stay out. */
 type PersonMode = "auto" | "ask" | "never";
@@ -4287,6 +4289,8 @@ interface PersonRowVM {
     id: string;
     real: true;
     name: string;
+    /** The name a human typed, or null — what a rename field starts from. */
+    givenName: string | null;
     initials: string;
     phone: string | null;
     waName: string | null;
@@ -4405,6 +4409,8 @@ interface PersonVM extends PersonRowVM {
         k: string;
         v: string;
     }[];
+    /** The owner's notes, the receptionist's reading material. */
+    notes: string | null;
     /** "inbox/th-…" or null for a phone-only person. */
     openThread: string | null;
     /** The person's own setting (null = following the workspace) and the

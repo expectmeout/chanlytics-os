@@ -468,6 +468,7 @@ export type Database = {
           id: string
           last_seen_at: string
           merged_into_contact_id: string | null
+          notes: string | null
           phone_e164: string | null
           tenant_id: string
           updated_at: string
@@ -485,6 +486,7 @@ export type Database = {
           id?: string
           last_seen_at?: string
           merged_into_contact_id?: string | null
+          notes?: string | null
           phone_e164?: string | null
           tenant_id: string
           updated_at?: string
@@ -502,6 +504,7 @@ export type Database = {
           id?: string
           last_seen_at?: string
           merged_into_contact_id?: string | null
+          notes?: string | null
           phone_e164?: string | null
           tenant_id?: string
           updated_at?: string
@@ -2111,6 +2114,14 @@ export type Database = {
           p_note?: string
           p_source: string
         }
+        Returns: Json
+      }
+      set_person_name: {
+        Args: { p_contact_id: string; p_name: string }
+        Returns: Json
+      }
+      set_person_notes: {
+        Args: { p_contact_id: string; p_notes: string }
         Returns: Json
       }
       set_template_hidden: {

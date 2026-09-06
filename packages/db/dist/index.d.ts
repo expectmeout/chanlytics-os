@@ -463,6 +463,7 @@ type Database = {
                     id: string;
                     last_seen_at: string;
                     merged_into_contact_id: string | null;
+                    notes: string | null;
                     phone_e164: string | null;
                     tenant_id: string;
                     updated_at: string;
@@ -480,6 +481,7 @@ type Database = {
                     id?: string;
                     last_seen_at?: string;
                     merged_into_contact_id?: string | null;
+                    notes?: string | null;
                     phone_e164?: string | null;
                     tenant_id: string;
                     updated_at?: string;
@@ -497,6 +499,7 @@ type Database = {
                     id?: string;
                     last_seen_at?: string;
                     merged_into_contact_id?: string | null;
+                    notes?: string | null;
                     phone_e164?: string | null;
                     tenant_id?: string;
                     updated_at?: string;
@@ -2206,6 +2209,20 @@ type Database = {
                 };
                 Returns: Json;
             };
+            set_person_name: {
+                Args: {
+                    p_contact_id: string;
+                    p_name: string;
+                };
+                Returns: Json;
+            };
+            set_person_notes: {
+                Args: {
+                    p_contact_id: string;
+                    p_notes: string;
+                };
+                Returns: Json;
+            };
             set_template_hidden: {
                 Args: {
                     p_hidden: boolean;
@@ -2609,6 +2626,8 @@ interface LeadContext {
     history: ThreadTurn[];
     /** They asked us to stop. Carried so no caller has to look it up separately. */
     optedOut: boolean;
+    /** The owner's notes on them — facts for the receptionist, never read aloud. */
+    notes?: string | null;
 }
 /**
  * Everything both agents know about one lead, from the one place that knows it.

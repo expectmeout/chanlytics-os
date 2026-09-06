@@ -496,6 +496,100 @@ const ClientProfileSeed = ({ id = "c-aisha", onBack = () => {} }) => {
 };
 
 // ====== Real branch — one person, in full ======
+// The name as the owner gives it. A number is what most people arrive as;
+// a click on the pencil turns it into a name, Enter saves, Escape leaves it.
+const PersonName = ({ p, canEdit, flash }) => {
+  const [editing, setEditing] = React.useState(false);
+  const [value, setValue] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const open = () => { setValue(p.givenName || ""); setEditing(true); };
+  const save = async () => {
+    if (!window.__setPersonDetails || busy) return;
+    const next = value.trim();
+    if (next === (p.givenName || "")) { setEditing(false); return; }
+    setBusy(true);
+    const r = await window.__setPersonDetails(p.id, { name: next });
+    setBusy(false);
+    if (!r.ok) { flash({ msg: <>{r.message || "Could not save the name."}</> }); return; }
+    setEditing(false);
+    flash({ msg: next ? <>Named <b>{next}</b></> : <>Name cleared — the number shows again</> });
+  };
+  if (!editing) {
+    return (
+      <div className="cl-prof-name-row">
+        <div className="cl-prof-name">{p.name}</div>
+        {canEdit && (
+          <button className="cl-prof-rename" title={p.givenName ? "Rename" : "Give them a name"} aria-label="Rename" onClick={open} data-testid="person-rename">
+            <Icon name="edit" size={11} />
+          </button>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="cl-prof-name-row editing">
+      <input
+        className="cl-prof-name-input"
+        autoFocus
+        value={value}
+        placeholder="Their name"
+        maxLength={80}
+        disabled={busy}
+        data-testid="person-name-input"
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
+      />
+      <button className="btn btn-sm btn-primary" disabled={busy} onClick={save} data-testid="person-name-save">{busy ? "Saving…" : "Save"}</button>
+      <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setEditing(false)}>Cancel</button>
+    </div>
+  );
+};
+
+// The owner's notes: facts the receptionist uses when this person writes or
+// calls — who they see, what they like, what not to bring up. Never sent.
+const PersonNotes = ({ p, canEdit, flash }) => {
+  const [value, setValue] = React.useState(p.notes || "");
+  const [busy, setBusy] = React.useState(false);
+  React.useEffect(() => { setValue(p.notes || ""); }, [p.id, p.notes]);
+  const dirty = value.trim() !== (p.notes || "");
+  const save = async () => {
+    if (!window.__setPersonDetails || busy || !dirty) return;
+    setBusy(true);
+    const r = await window.__setPersonDetails(p.id, { notes: value.trim() });
+    setBusy(false);
+    if (!r.ok) { flash({ msg: <>{r.message || "Could not save the notes."}</> }); return; }
+    flash({ msg: value.trim() ? <>Notes saved — the receptionist reads them from now on</> : <>Notes cleared</> });
+  };
+  if (!canEdit) {
+    return p.notes
+      ? <div className="cl-prof-notes-read" data-testid="person-notes">{p.notes}</div>
+      : <div className="cl-prof-aut-hint" data-testid="person-notes">No notes yet. Only an owner or operator can write them.</div>;
+  }
+  return (
+    <div className="cl-prof-notes" data-testid="person-notes">
+      <textarea
+        value={value}
+        rows={4}
+        maxLength={600}
+        disabled={busy}
+        placeholder="Who they see, what they like, what not to bring up…"
+        data-testid="person-notes-input"
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") save(); }}
+      />
+      <div className="cl-prof-notes-foot">
+        <span className="cl-prof-aut-hint">{value.length}/600 · the receptionist uses these as facts and never reads them aloud</span>
+        {dirty && (
+          <span style={{ display: "flex", gap: 6 }}>
+            <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setValue(p.notes || "")}>Cancel</button>
+            <button className="btn btn-sm btn-primary" disabled={busy} onClick={save} data-testid="person-notes-save">{busy ? "Saving…" : "Save"}</button>
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // The person's saved lists, read from the People surface; a change goes
 // through window.__lists and the surface is re-fetched, so the chips are the
 // server's. Owner or operator may change them.
@@ -750,7 +844,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
           <div className="cl-prof-id">
             <div className="cl-prof-avatar">{p.initials}</div>
             <div className="cl-prof-titles">
-              <div className="cl-prof-name">{p.name}</div>
+              <PersonName p={p} canEdit={canRecord} flash={ppFlash} />
               <div className="cl-prof-meta">
                 {p.since && <><span>{p.since}</span><span style={{ color: "var(--ink-faint)" }}>·</span></>}
                 <span>{p.metaLine}</span>
@@ -838,6 +932,10 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
               <div className="cl-prof-attr" key={a.k}><span className="cl-prof-attr-key">{a.k}</span><span className="cl-prof-attr-val">{a.v}</span></div>
             ))}
           </div>
+        </div>
+        <div className="cl-prof-rail-section">
+          <div className="cl-prof-rail-label">Notes · the receptionist reads these</div>
+          <PersonNotes p={p} canEdit={canRecord} flash={ppFlash} />
         </div>
         <div className="cl-prof-rail-section" data-testid="receptionist-mode">
           <div className="cl-prof-rail-label">Receptionist for {first === "them" ? "this person" : first}</div>

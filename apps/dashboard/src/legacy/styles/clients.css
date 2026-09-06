@@ -1527,3 +1527,18 @@
 
 /* ---- Booked: a fact from the calendar beside the state pill ---- */
 .cl-row-booked { display: inline-flex; align-items: center; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 500; letter-spacing: .01em; color: var(--ok); background: var(--ok-soft); white-space: nowrap; }
+
+/* ---- A name the owner gives; notes the receptionist reads ---- */
+.cl-prof-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cl-prof-name-row.editing { gap: 6px; }
+.cl-prof-rename { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
+.cl-prof-id:hover .cl-prof-rename, .cl-prof-rename:focus-visible { opacity: 1; }
+.cl-prof-rename:hover { color: var(--ink); border-color: var(--line); background: var(--bg-raised); }
+.cl-prof-name-input { font: inherit; font-size: 20px; font-weight: 600; letter-spacing: -.01em; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line-strong); border-radius: var(--radius-md); padding: 4px 10px; min-width: 240px; outline: none; }
+.cl-prof-name-input:focus { border-color: var(--accent); }
+.cl-prof-notes { display: flex; flex-direction: column; gap: 6px; }
+.cl-prof-notes textarea { font: inherit; font-size: 12.5px; line-height: 1.45; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 8px 10px; resize: vertical; min-height: 78px; outline: none; }
+.cl-prof-notes textarea:focus { border-color: var(--accent); }
+.cl-prof-notes textarea::placeholder { color: var(--ink-faint); }
+.cl-prof-notes-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; }
+.cl-prof-notes-read { font-size: 12.5px; line-height: 1.45; color: var(--ink); white-space: pre-wrap; }
