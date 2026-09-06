@@ -96,7 +96,7 @@ export async function draftTemplate(
         userId: ctx.userId,
         request: {
           model: DRAFT_MODEL,
-          max_tokens: 700,
+          max_tokens: 900,
           system,
           messages: [{ role: "user", content: `Brief: ${brief}` }],
         },
@@ -111,7 +111,11 @@ export async function draftTemplate(
   }
   const json = extractJson(text);
   const d = DraftSchema.safeParse(json);
-  if (!d.success) return { ok: false, reason: "malformed", message: "The draft did not come out well-formed. Try again, or write it by hand." };
+  if (!d.success) {
+    // What actually came back, so a malformed draft is a diagnosis and not a guess.
+    console.error("draft_malformed", JSON.stringify({ tenant_id: tenantId, blocks: r.blocks.map((b) => b.type), stop: r.stopReason, stream_error: r.streamError, text: text.slice(0, 400), issues: json ? d.error.issues.slice(0, 3) : "no json" }));
+    return { ok: false, reason: "malformed", message: "The draft did not come out well-formed. Try again, or write it by hand." };
+  }
   const check = validateTemplateDraft({ name: d.data.name, language: input.language, category: input.category, body: d.data.body, footer: d.data.footer ?? null, examples: d.data.examples });
   if (!check.ok) return { ok: false, reason: "invalid", message: `The draft broke a WhatsApp rule (${check.error}). Try again, or write it by hand.` };
   const v: TemplateDraft = check.value;
