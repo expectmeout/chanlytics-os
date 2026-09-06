@@ -254,7 +254,7 @@ const CalendarReal = () => {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }); // eslint-disable-line react-hooks/exhaustive-deps
+  });
 
   if (!vm || !cal) return null;
 
