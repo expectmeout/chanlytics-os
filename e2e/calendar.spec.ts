@@ -65,7 +65,8 @@ test.describe("Calendar on a real workspace", () => {
     const seen = await req;
     expect(seen.url()).toContain("workspace=");
     await expect(board.getByTestId("cal-range")).not.toHaveText(before);
-    await board.getByRole("button", { name: "Day" }).click();
+    // exact: once the week moves, a "Today" button appears and "Day" would match it too.
+    await board.getByRole("button", { name: "Day", exact: true }).click();
     await expect(board.getByTestId("cal-col")).toHaveCount(1);
   });
 });
