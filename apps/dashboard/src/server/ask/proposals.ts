@@ -8,9 +8,12 @@ import {
   broadcastName,
   cleanParam,
   eligibleFor,
+  exampleParams,
+  parseParamSpec,
   renderTemplate,
   toPersonRowVM,
   type AudienceKind,
+  type ParamSpec,
   POLICY_CLASSES,
   POLICY_MODES,
   contactName,
@@ -86,7 +89,7 @@ export const ACT_TOOLS: ToolDef[] = [
   },
   {
     name: "propose_broadcast",
-    description: "Propose a broadcast: one approved WhatsApp template to an audience — everyone who said yes, a People list (needs_you, waiting_on_you, new_week, quiet, phoned_only) or a list kept by hand (its audience_id from list_audiences) — with the template's values in order and an optional ISO time. Read list_audiences first. It becomes a card the person approves; nobody without a recorded yes is ever included.",
+    description: "Propose a broadcast: one approved WhatsApp template to an audience — everyone who said yes, a People list (needs_you, waiting_on_you, new_week, quiet, phoned_only) or a list kept by hand (its audience_id from list_audiences) — with the template's values in order (typed text, or @first_name, @business_name, @booking_link to fill per person) and an optional ISO time. Read list_audiences first. It becomes a card the person approves; nobody without a recorded yes is ever included.",
     input_schema: obj({
       template_id: { type: "string" },
       audience_kind: { type: "string", enum: ["everyone", "list", "saved"] },
@@ -325,8 +328,19 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
   if (!(AUDIENCE_KINDS as readonly string[]).includes(kind)) return refuse("audience_kind must be everyone, list or saved");
   if (kind === "list" && !PEOPLE_LISTS.some((l) => l.id === audienceId)) return refuse("audience_id must be a People list id: needs_you, waiting_on_you, new_week, quiet or phoned_only");
   if (kind === "saved" && !(audienceId && UUID.test(audienceId))) return refuse("audience_id must be a saved list id from list_audiences");
-  const params = Array.isArray(input.params) ? (input.params as unknown[]).map((p) => cleanParam(p)) : [];
-  if (params.some((p) => p === null)) return refuse("every value must be plain text under 1024 characters, without line breaks");
+  const specs: ParamSpec[] = [];
+  for (const p of Array.isArray(input.params) ? (input.params as unknown[]) : []) {
+    const spec = parseParamSpec(p);
+    if (!spec) return refuse("each value is text, or @first_name, @business_name or @booking_link");
+    if (spec.kind === "text") {
+      const v = cleanParam(spec.value);
+      if (v === null) return refuse("every typed value must be plain text under 1024 characters, without line breaks");
+      specs.push({ kind: "text", value: v });
+    } else {
+      specs.push(spec);
+    }
+  }
+  const params = specs;
   const { data: tpl } = await t.ctx.supabase
     .from("templates")
     .select("id, name, language, meta_status, variables, body_preview")
@@ -355,8 +369,8 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
   if (count === 0) return refuse(`nobody on "${label}" has said yes to offers yet, so there is nobody to send to; say so and suggest recording their answer on their profile, or the YES OFFERS code on the Broadcasts page`);
   const when = str(input.scheduled_for, 40) || null;
   if (when && Number.isNaN(Date.parse(when))) return refuse("scheduled_for must be an ISO time");
-  const values = params as string[];
-  const words = renderTemplate(tpl.body_preview, values);
+  const values = params;
+  const words = renderTemplate(tpl.body_preview, exampleParams(values, "the business"));
   const name = str(input.name, 80) || broadcastName(tpl.name, t.now);
   const whenWords = when ? new Date(when).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "now";
   return propose({

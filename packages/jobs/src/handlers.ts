@@ -5,7 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendText, sendTemplate, type WaConfig } from "@chanlytics/channels";
-import { BROADCAST_CHUNK, BROADCAST_GAP_MS, isOptedOutContact, renderTemplate, type JobKind } from "@chanlytics/contracts";
+import { BROADCAST_CHUNK, BROADCAST_GAP_MS, firstNameOf, isOptedOutContact, parseParamSpec, parseTenantConfig, renderTemplate, resolveParams, type JobKind, type ParamSpec } from "@chanlytics/contracts";
 import { recordOutbound, resolveOutboundTarget, type Database, type Json } from "@chanlytics/db";
 
 export interface JobContext {
@@ -384,8 +384,18 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     await ctx.alert(`Broadcast “${b.name}” stopped`, `The template “${b.template_name}” is no longer approved by WhatsApp, so nothing was sent.`);
     return;
   }
-  const params = Array.isArray(b.params) ? (b.params as unknown[]).map(String) : [];
-  const words = renderTemplate(tpl.body_preview, params);
+  // What fills each slot: typed text once, the rest per person. The
+  // workspace's own words for the slots that name it are read once.
+  const specs: ParamSpec[] = Array.isArray(b.params)
+    ? (b.params as unknown[]).map((p) => parseParamSpec(p) ?? { kind: "text" as const, value: String(p) })
+    : [];
+  const [{ data: tenantRow }, { data: cfgRow }] = await Promise.all([
+    ctx.db.from("tenants").select("name").eq("id", job.tenant_id).maybeSingle(),
+    ctx.db.from("tenant_config").select("config").eq("tenant_id", job.tenant_id).maybeSingle(),
+  ]);
+  const parsedCfg = parseTenantConfig(cfgRow?.config ?? null);
+  const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";
+  const bookingLink = parsedCfg?.brain?.booking_link ?? null;
 
   const { data: batch, error: qErr } = await ctx.db
     .from("broadcast_recipients")
@@ -407,7 +417,7 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     // next batch rather than guessing; "we could not check" is not "yes".
     const { data: c, error: cErr } = await ctx.db
       .from("contacts")
-      .select("id, phone_e164, consent, dnc, erased_at")
+      .select("id, phone_e164, consent, dnc, erased_at, display_name, wa_profile_name")
       .eq("id", r.contact_id)
       .eq("tenant_id", job.tenant_id)
       .maybeSingle();
@@ -423,6 +433,11 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       continue;
     }
 
+    // Their own words in the slots: a first name nobody has on file reads
+    // "there"; a slot nothing can fill holds the person, never a blank send.
+    const params = resolveParams(specs, { firstName: firstNameOf(c.display_name, c.wa_profile_name), businessName, bookingLink });
+    if (params.some((v) => !v)) { await mark(r.contact_id, { state: "skipped", reason: "missing_value" }); continue; }
+    const words = renderTemplate(tpl.body_preview, params);
     const sent = await SENDERS.whatsapp(ctx, c.phone_e164, { body: words, template: { name: b.template_name, language: b.template_language, params } });
     const messageId = await recordOutbound(ctx.db, {
       tenantId: job.tenant_id,

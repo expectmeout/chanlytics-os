@@ -299,6 +299,8 @@ export interface TemplateDto extends ApprovedTemplate {
   quality: string | null;
   rejected_reason: string | null;
   synced_at: string | null;
+  /** meta: written in WhatsApp Manager. chanlytics: written here. */
+  source?: string | null;
 }
 
 export const inboxOverride: SurfaceOverride = {
@@ -656,6 +658,9 @@ export interface BroadcastsSurface {
    *  opens WhatsApp with it ready, and the QR of that link. Null link without
    *  a number. */
   optIn: { phrase: string; phraseEs: string; link: string | null; qrPath: string | null };
+  /** The business's own words for the slots that name it, and whether a booking link is on file. */
+  businessName: string;
+  bookingLink: boolean;
   fetchedAt: number;
 }
 
@@ -671,14 +676,17 @@ export const broadcastsOverride: SurfaceOverride = {
   events: ["surface:broadcasts"],
   refreshOnMessageInserts: true,
   apply: async () => {
-    const [bc, people, saved, tpl, ch] = await Promise.all([
+    const [bc, people, saved, tpl, ch, cfg] = await Promise.all([
       fetchEnvelope<{ broadcasts: BroadcastDto[] }>("/api/v1/broadcasts"),
       fetchEnvelope<{ people: PersonRowDto[] }>("/api/v1/contacts"),
       fetchEnvelope<{ lists: { id: string; name: string; ids: string[] }[] }>("/api/v1/segments").catch((e: unknown) => e as Error),
       fetchEnvelope<{ templates: TemplateDto[] }>("/api/v1/templates").catch((e: unknown) => e as Error),
       fetchEnvelope<{ channels: ChannelDto[] }>("/api/v1/channels").catch((e: unknown) => e as Error),
+      // The business's name and whether a booking link is on file, for the slots that name them.
+      fetchEnvelope<{ config: { brain?: { business_name?: string; booking_link?: string } } | null }>("/api/v1/settings").catch((e: unknown) => e as Error),
     ]);
     const wa = ch instanceof Error ? null : (ch.channels ?? []).find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
+    const brain = cfg instanceof Error ? null : cfg.config?.brain ?? null;
     if (ch instanceof Error) console.error("broadcasts_channels_fetch_failed", ch.message);
     const now = new Date();
     const rows = people.people.map((r) => toPersonRowVM(r, now));
@@ -703,6 +711,8 @@ export const broadcastsOverride: SurfaceOverride = {
         health: numberHealth({ quality: wa?.quality ?? null, event: wa?.quality_event ?? null, limit: wa?.messaging_limit ?? null }),
       },
       heldReasons: HELD_REASONS,
+      businessName: brain?.business_name || "the business",
+      bookingLink: !!brain?.booking_link,
       optIn: {
         phrase: OFFERS_OPT_IN_PHRASES.en,
         phraseEs: OFFERS_OPT_IN_PHRASES.es,

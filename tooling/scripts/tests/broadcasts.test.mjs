@@ -124,7 +124,7 @@ test("the routes: an approved template, values Meta accepts, an audience crossed
   const r = readCode("apps/dashboard/app/api/v1/broadcasts/route.ts");
   assert.ok(r.includes('requireRole(member, "operator");') && r.includes('takeRate(ctx.userId, "broadcast");'));
   assert.ok(r.includes('if (tpl.meta_status !== "approved") throw new AppError("conflict", "That template is not approved by WhatsApp, so it cannot be sent.", 409);'));
-  assert.ok(r.includes("const v = cleanParam(p);"));
+  assert.ok(r.includes("const v = cleanParam(spec.value);"), "typed text is cleaned; a source is itself");
   assert.ok(r.includes("const eligible = eligibleFor(rows, kind as AudienceKind, audienceId, savedIds);"), "the same predicate the page counts with");
   assert.ok(r.includes('"Nobody there has said yes to offers yet. Record their answer on their profile first."'));
   assert.ok(r.includes('await schedule(tenantId, "broadcast_send", when, { broadcast_id: made.id });'));

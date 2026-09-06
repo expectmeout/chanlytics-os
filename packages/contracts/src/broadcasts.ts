@@ -13,6 +13,7 @@
  * whatever the template is called.
  */
 import { PEOPLE_LISTS, type PersonRowVM } from "./people";
+import type { ParamSpec } from "./templates";
 
 export const BROADCAST_STATES = ["scheduled", "sending", "sent", "canceled", "failed"] as const;
 export type BroadcastState = (typeof BROADCAST_STATES)[number];
@@ -119,7 +120,8 @@ export interface BroadcastDto {
   template_id: string;
   template_name: string;
   template_language: string;
-  params: string[];
+  /** What fills each numbered slot: typed text, or the person's first name, the business's name, its booking link. */
+  params: ParamSpec[];
   audience: Audience;
   state: BroadcastState;
   scheduled_for: string;
@@ -176,6 +178,7 @@ export const HELD_REASONS: Record<string, string> = {
   human_has_it: "a person had the thread",
   erased: "deleted",
   send_failed: "WhatsApp refused",
+  missing_value: "a value was missing",
 };
 
 /* ---- The number's health: what WhatsApp has said about it, and what that permits ---- */

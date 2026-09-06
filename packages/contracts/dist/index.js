@@ -3233,7 +3233,8 @@ var HELD_REASONS = {
   no_phone: "no number",
   human_has_it: "a person had the thread",
   erased: "deleted",
-  send_failed: "WhatsApp refused"
+  send_failed: "WhatsApp refused",
+  missing_value: "a value was missing"
 };
 var LIMIT_TIERS = {
   TIER_50: 50,
@@ -3263,6 +3264,111 @@ function numberHealth(n) {
 function overLimitRefusal(h, audience) {
   if (h.limitPerDay === null || audience <= h.limitPerDay) return null;
   return `This number can start up to ${h.limitPerDay.toLocaleString("en-US")} new conversations a day; this audience is ${audience.toLocaleString("en-US")}. Send to a smaller list or split it.`;
+}
+
+// src/templates.ts
+var TEMPLATE_LANGUAGES = [
+  { id: "en_US", label: "English (US)" },
+  { id: "en", label: "English" },
+  { id: "es", label: "Spanish" },
+  { id: "es_MX", label: "Spanish (Mexico)" },
+  { id: "es_ES", label: "Spanish (Spain)" },
+  { id: "pt_BR", label: "Portuguese (Brazil)" }
+];
+var TEMPLATE_CATEGORIES = ["marketing", "utility"];
+var TEMPLATE_BODY_MAX = 1024;
+var TEMPLATE_FOOTER_MAX = 60;
+var TEMPLATE_EXAMPLE_MAX = 100;
+var TEMPLATE_NAME_MAX = 60;
+var NAME = /^[a-z0-9_]{1,512}$/;
+function templateNameOk(name) {
+  return NAME.test(name);
+}
+function slugTemplateName(raw) {
+  return String(raw ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, TEMPLATE_NAME_MAX).replace(/_+$/g, "");
+}
+function placeholdersOf(body) {
+  const set = /* @__PURE__ */ new Set();
+  for (const m of String(body ?? "").matchAll(/\{\{(\d+)\}\}/g)) set.add(Number(m[1]));
+  return [...set].sort((a, b) => a - b);
+}
+function placeholdersSequential(positions) {
+  return positions.every((n, i) => n === i + 1);
+}
+function validateTemplateDraft(d) {
+  const name = slugTemplateName(d.name);
+  if (!name || !templateNameOk(name)) return { ok: false, error: "The name needs letters, digits or underscores." };
+  if (!TEMPLATE_LANGUAGES.some((l) => l.id === d.language)) return { ok: false, error: "Pick a language from the list." };
+  if (!TEMPLATE_CATEGORIES.includes(d.category)) return { ok: false, error: "A template is marketing or utility." };
+  const body = String(d.body ?? "").replace(/\r\n/g, "\n").trim();
+  if (!body) return { ok: false, error: "Write the message." };
+  if (body.length > TEMPLATE_BODY_MAX) return { ok: false, error: `The message must be under ${TEMPLATE_BODY_MAX} characters.` };
+  const slots = placeholdersOf(body);
+  if (!placeholdersSequential(slots)) return { ok: false, error: "Number the values {{1}}, {{2}}, {{3}} in order, with no gaps." };
+  const examples = (d.examples ?? []).map((e) => String(e ?? "").trim());
+  if (examples.length !== slots.length) return { ok: false, error: slots.length === 0 ? "This message takes no values, so it needs no examples." : `Give one example for each of the ${slots.length} value${slots.length === 1 ? "" : "s"} \u2014 WhatsApp's reviewers read them.` };
+  if (examples.some((e) => !e || e.length > TEMPLATE_EXAMPLE_MAX)) return { ok: false, error: `Every example needs words, under ${TEMPLATE_EXAMPLE_MAX} characters.` };
+  const footer = d.footer ? String(d.footer).trim() : "";
+  if (footer.length > TEMPLATE_FOOTER_MAX) return { ok: false, error: `The footer must be under ${TEMPLATE_FOOTER_MAX} characters.` };
+  if (/\{\{/.test(footer)) return { ok: false, error: "The footer cannot take a value." };
+  const warnings = [];
+  if (/^\s*\{\{\d+\}\}/.test(body) || /\{\{\d+\}\}\s*$/.test(body)) warnings.push("WhatsApp often rejects a message that starts or ends with a value; put words around it.");
+  if (d.category === "marketing" && !/stop/i.test(body + " " + footer)) warnings.push("A marketing message should say how to opt out, such as \u201CReply STOP to opt out\u201D.");
+  if (/\n{3,}/.test(body)) warnings.push("More than one blank line in a row is usually rejected.");
+  return { ok: true, value: { name, language: d.language, category: d.category, body, footer: footer || null, examples }, warnings };
+}
+function templateComponents(v) {
+  const body = { type: "BODY", text: v.body };
+  if (v.examples.length) body.example = { body_text: [v.examples] };
+  const out = [body];
+  if (v.footer) out.push({ type: "FOOTER", text: v.footer });
+  return out;
+}
+var PARAM_SOURCES = ["text", "first_name", "business_name", "booking_link"];
+var PARAM_SOURCE_LABELS = {
+  text: "Type it",
+  first_name: "Their first name",
+  business_name: "The business name",
+  booking_link: "The booking link"
+};
+function parseParamSpec(raw) {
+  if (typeof raw === "string") {
+    const m = /^@(first_name|business_name|booking_link)$/.exec(raw.trim());
+    if (m) return { kind: m[1] };
+    return { kind: "text", value: raw };
+  }
+  if (raw && typeof raw === "object") {
+    const o = raw;
+    if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
+    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link") return { kind: o.kind };
+  }
+  return null;
+}
+function paramLabel(spec) {
+  return spec.kind === "text" ? spec.value : PARAM_SOURCE_LABELS[spec.kind].toLowerCase();
+}
+function firstNameOf(displayName, waProfileName) {
+  const raw = (displayName || waProfileName || "").trim();
+  if (!raw || /^[+\d(]/.test(raw)) return null;
+  const first = raw.split(/\s+/)[0].replace(/[^\p{L}\p{M}'’-]/gu, "");
+  return first ? first.slice(0, 30) : null;
+}
+function resolveParams(specs, f) {
+  return specs.map((s) => {
+    switch (s.kind) {
+      case "text":
+        return s.value;
+      case "first_name":
+        return f.firstName || "there";
+      case "business_name":
+        return f.businessName;
+      case "booking_link":
+        return f.bookingLink ?? "";
+    }
+  });
+}
+function exampleParams(specs, businessName) {
+  return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link" });
 }
 
 // src/channels.ts
@@ -3590,6 +3696,8 @@ export {
   OPT_IN_PATTERN,
   OPT_OUT_PATTERN,
   OPT_OUT_REFUSAL,
+  PARAM_SOURCES,
+  PARAM_SOURCE_LABELS,
   PEOPLE_LISTS,
   PEOPLE_TABS,
   PERSON_MODES,
@@ -3609,6 +3717,12 @@ export {
   ROLES,
   ROLE_PERMS,
   ServiceSchema,
+  TEMPLATE_BODY_MAX,
+  TEMPLATE_CATEGORIES,
+  TEMPLATE_EXAMPLE_MAX,
+  TEMPLATE_FOOTER_MAX,
+  TEMPLATE_LANGUAGES,
+  TEMPLATE_NAME_MAX,
   TEMPLATE_STATUSES,
   TENANT_STATUSES,
   TenantConfigSchema,
@@ -3644,8 +3758,10 @@ export {
   eligibleFor,
   emptyReadSet,
   err,
+  exampleParams,
   fastPath,
   filterOpenings,
+  firstNameOf,
   fmtClock,
   fmtDay,
   fmtSeconds,
@@ -3681,15 +3797,19 @@ export {
   ok,
   optInLink,
   overLimitRefusal,
+  paramLabel,
   parseAskFinish,
   parseBrainOutput,
   parseIcs,
+  parseParamSpec,
   parseTenantConfig,
   parseTenantConfigResult,
   partialAnswer,
   peopleAggregates,
   personName,
   personStateFor,
+  placeholdersOf,
+  placeholdersSequential,
   pointsDelta,
   quantile,
   reachedCustomer,
@@ -3699,11 +3819,15 @@ export {
   renderTemplate,
   replyDelayMs,
   replyWhy,
+  resolveParams,
   resolveSystemPrompt,
   safeNavigate,
   sameQuestion,
   scopeFromRoute,
   shortTime,
+  slugTemplateName,
+  templateComponents,
+  templateNameOk,
   threadStanding,
   toBroadcastVM,
   toCallVM,
@@ -3716,6 +3840,7 @@ export {
   toPersonVM,
   toReportVM,
   toTodayVM,
+  validateTemplateDraft,
   violatesNoPrices,
   waWindow,
   whenLabel,

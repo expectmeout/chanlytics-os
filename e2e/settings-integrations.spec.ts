@@ -52,6 +52,11 @@ test.describe("Settings → Integrations on a real workspace", () => {
     const wa = data.templates.filter((t: { channel: string }) => t.channel === "whatsapp");
     await expect(card.getByTestId("template-row")).toHaveCount(wa.length);
     await expect(card).toContainText(wa.length === 0 ? "None on file yet" : "on file");
+    // A template can be written here when there is a number.
+    if ((await card.getByTestId("template-new").count()) > 0) {
+      await card.getByTestId("template-new").click();
+      await expect(card.getByTestId("tpl-composer")).toBeVisible();
+    }
   });
 
   test("lists the real channels with their state and nothing invented", async ({ page }) => {

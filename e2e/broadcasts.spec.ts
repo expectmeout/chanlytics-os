@@ -70,6 +70,16 @@ test.describe("Broadcasts on a real workspace", () => {
       expect((await qr.text()).startsWith("<svg")).toBe(true);
     }
 
+    // A template can be written here: the composer opens, and nothing is submitted.
+    if (/WhatsApp \+/.test(numberLine)) {
+      await real.getByTestId("bc-new-template").click();
+      await expect(real.getByTestId("tpl-composer")).toBeVisible();
+      await expect(real.getByTestId("tpl-submit")).toBeDisabled();
+      await real.getByTestId("tpl-body").fill("Hi {{1}}, a quick note from {{2}}.");
+      await expect(real.getByTestId("tpl-examples").locator("input")).toHaveCount(2);
+      await expect(real.getByTestId("tpl-preview")).toContainText("{{1}}");
+    }
+
     // A history row opens its people.
     if (broadcasts.length - open > 0) {
       await real.getByTestId("bc-history").first().click();
