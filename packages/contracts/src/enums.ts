@@ -34,15 +34,18 @@ export type MessageStatus = (typeof MESSAGE_STATUSES)[number];
 export const CONSENT_STATES = ["unknown", "opted_in", "opted_out"] as const;
 export type ConsentState = (typeof CONSENT_STATES)[number];
 
+/**
+ * What the queue carries: each kind has a handler in packages/jobs and a
+ * caller that schedules it. Kinds declared ahead of their slice (veto_fire,
+ * media_fetch, rollup_daily, deadman, report_weekly) are gone — a vetoed reply
+ * is an outbound_send with a delay, the deadman is a pg_cron sweep, media is
+ * fetched inline. A new kind arrives with its handler, its caller and the
+ * jobs.kind CHECK, together.
+ */
 export const JOB_KINDS = [
   "outbound_send",
-  "veto_fire",
   "snooze_wake",
   "pause_expire",
-  "media_fetch",
-  "rollup_daily",
-  "deadman",
-  "report_weekly",
   "broadcast_send",
   /**
    * Erase one customer's stored Blob thread. The DASHBOARD orchestrates

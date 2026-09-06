@@ -138,6 +138,7 @@ invitation being sent or any membership changing.
 | Want to | Do |
 |---|---|
 | Silence one business's receptionist | `tenant_channels.status = 'disabled'` — inbound is then recorded as unroutable and a human is emailed |
-| Roll back to Blob memory | `PG_READS=off` in the edge project env, **then redeploy** — a Vercel env change alone does not reach a running deployment. Confirm with `/api/diag`: `memory` reads `blob`. |
+| Roll back to Blob memory | `PG_READS=off` in the edge project env, **then redeploy** — a Vercel env change alone does not reach a running deployment. Confirm with `/api/diag`: `memory` reads `blob`. Not available while `BLOB_SHADOW=off`. |
+| Retire Blob as a memory | `BLOB_SHADOW=off` in the edge project env, then redeploy. Confirm with `/api/diag`: `store` reads `off`, `memory` reads `postgres`, the probe says skipped. Blob is neither read nor written; a Postgres miss hands the thread to a human. Remove the variable and redeploy to bring the shadow back. |
 | Stop a queued reply | The cancel window in the UI, or `messages.status = 'canceled'` while it is still `queued` |
 | See what the system did | `events` (append-only), `decisions` (every operator verb), `escalations` (what needed a human) |

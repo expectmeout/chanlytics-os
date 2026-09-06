@@ -91,9 +91,12 @@ test("a null result from the SDK is treated as NOT FOUND, not as a failure", () 
     /if \(res === null\) return blank\(\);/,
     "getThread must map a null SDK result to blank() before any failure handling",
   );
+  // Within the Blob branch: the retired-store return above it (BLOB_SHADOW=off)
+  // is fail-closed on purpose and is not the failure handling this pins.
+  const blobBranch = src.indexOf("if (BLOB_ON) {", src.indexOf("export async function getThread"));
   const nullCheck = src.indexOf("if (res === null) return blank();");
-  const unreadableReturn = src.indexOf("return unreadable();");
-  assert.ok(nullCheck !== -1 && nullCheck < unreadableReturn, "the not-found check must come first");
+  const unreadableReturn = src.indexOf("return unreadable();", blobBranch);
+  assert.ok(blobBranch !== -1 && nullCheck !== -1 && nullCheck < unreadableReturn, "the not-found check must come first");
 });
 
 test("a read failure is still distinguished from an empty thread", () => {

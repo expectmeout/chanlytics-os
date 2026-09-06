@@ -27,7 +27,7 @@ export async function GET(request: Request): Promise<Response> {
     // Which store the bot's MEMORY comes from. The single most important
     // operational fact about this service after Gate 1b — and the flag to flip
     // back first if the receptionist starts behaving oddly.
-    memory: process.env.PG_READS === "on" ? "postgres" : "blob",
+    memory: process.env.PG_READS === "on" ? "postgres" : storeBackend() === "off" ? "none" : "blob",
     env: {
       pgReads: process.env.PG_READS === "on",
       pgWrites: process.env.PG_WRITES === "on",
@@ -46,7 +46,10 @@ export async function GET(request: Request): Promise<Response> {
     },
   };
 
-  try {
+  // The write/read probe proves the store only while the store is a memory.
+  if (storeBackend() === "off") {
+    out.probe = { skipped: "store retired; memory is Postgres" };
+  } else try {
     const probeId = "diag-probe";
     // The diagnostic probe writes to its own namespace so it can never touch
     // a real tenant's stored conversation.

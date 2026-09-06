@@ -2,6 +2,12 @@
  * Thread state store — dedupe, history, pause flags, rate caps.
  * Backend: Vercel Blob when BLOB_READ_WRITE_TOKEN is present (durable),
  * else per-lambda memory (fine for sandbox testing; resets on cold start).
+ *
+ * RETIRED (BLOB_SHADOW=off): the store is neither read nor written. Postgres
+ * is the receptionist's only memory (PG_READS=on); a read here answers
+ * "unknown" so any caller that forgot to step aside fails closed, a write is
+ * refused, and deletes still reach Blob so erasure keeps working for what is
+ * left in it. The flag is the retirement; the code goes once it has held.
  */
 import { put, get, del, list, BlobNotFoundError } from "@vercel/blob";
 
@@ -48,6 +54,8 @@ export interface ThreadState {
 
 const mem = new Map<string, ThreadState>();
 const BLOB_ON = !!process.env.BLOB_READ_WRITE_TOKEN;
+/** The retirement flag — see the header. Read once, like the token. */
+const STORE_OFF = process.env.BLOB_SHADOW === "off";
 
 const blank = (): ThreadState => ({
   history: [],
@@ -97,6 +105,8 @@ const path = (namespace: string, threadId: string) =>
   `threads/${namespace}/${threadId}.json`;
 
 export async function getThread(namespace: string, threadId: string): Promise<ThreadState> {
+  // Retired: not blank (that re-greets and talks over a human) — unknown.
+  if (STORE_OFF) return unreadable();
   if (BLOB_ON) {
     try {
       // useCache:false is REQUIRED, not an optimisation: an overwritten blob can
@@ -150,6 +160,9 @@ export async function saveThread(
   state: ThreadState,
   opts: SaveOptions = {},
 ): Promise<boolean> {
+  // Retired: nothing is written, and quietly — every caller that must fail
+  // loud on a refused save checks storeBackend() first.
+  if (STORE_OFF) return false;
   // Never persist a state we could not read: writing it would turn a transient
   // read failure into a durable one, blanking a real thread's history and pause.
   if (isThreadUnknown(state)) {
@@ -192,8 +205,9 @@ export async function saveThread(
   return true;
 }
 
-export function storeBackend(): "blob" | "memory" {
-  return BLOB_ON ? "blob" : "memory";
+/** "off" once retired; else which backend holds the copy. */
+export function storeBackend(): "blob" | "memory" | "off" {
+  return STORE_OFF ? "off" : BLOB_ON ? "blob" : "memory";
 }
 
 /**

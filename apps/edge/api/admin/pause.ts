@@ -4,8 +4,12 @@
  * PG pause here or the bot keeps replying under a human's feet (the D10
  * incident). Internal endpoint — x-diag-key auth, retired at the read flip.
  * Body: { phone_digits, paused_until_ms }  (0 clears the pause)
+ *
+ * With the store retired (BLOB_SHADOW=off) it answers ok with nothing to do:
+ * the verb that called already put the pause on the conversation row, which is
+ * the memory the receptionist reads.
  */
-import { getThread, saveThread, threadNamespace } from "../../lib/store.js";
+import { getThread, saveThread, storeBackend, threadNamespace } from "../../lib/store.js";
 import { json } from "../../lib/http.js";
 
 export async function POST(request: Request): Promise<Response> {
@@ -18,6 +22,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!/^\d{8,15}$/.test(phone) || typeof body.paused_until_ms !== "number") {
     return json(400, { ok: false, error: "phone_digits + paused_until_ms required" });
   }
+  if (storeBackend() === "off") return json(200, { ok: true, store: "off" });
   // The dashboard sends the tenant whose conversation this is. Without it we
   // would pause a phone number across every business that has that customer.
   const ns = threadNamespace(body.tenant_id ?? null);

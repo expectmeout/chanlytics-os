@@ -64,7 +64,15 @@ declare const MESSAGE_STATUSES: readonly ["received", "queued", "sent", "deliver
 type MessageStatus = (typeof MESSAGE_STATUSES)[number];
 declare const CONSENT_STATES: readonly ["unknown", "opted_in", "opted_out"];
 type ConsentState = (typeof CONSENT_STATES)[number];
-declare const JOB_KINDS: readonly ["outbound_send", "veto_fire", "snooze_wake", "pause_expire", "media_fetch", "rollup_daily", "deadman", "report_weekly", "broadcast_send", "blob_thread_erase"];
+/**
+ * What the queue carries: each kind has a handler in packages/jobs and a
+ * caller that schedules it. Kinds declared ahead of their slice (veto_fire,
+ * media_fetch, rollup_daily, deadman, report_weekly) are gone — a vetoed reply
+ * is an outbound_send with a delay, the deadman is a pg_cron sweep, media is
+ * fetched inline. A new kind arrives with its handler, its caller and the
+ * jobs.kind CHECK, together.
+ */
+declare const JOB_KINDS: readonly ["outbound_send", "snooze_wake", "pause_expire", "broadcast_send", "blob_thread_erase"];
 type JobKind = (typeof JOB_KINDS)[number];
 declare const JOB_STATES: readonly ["scheduled", "fired", "canceled", "failed"];
 type JobState = (typeof JOB_STATES)[number];
