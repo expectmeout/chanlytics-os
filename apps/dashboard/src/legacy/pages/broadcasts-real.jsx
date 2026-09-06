@@ -100,11 +100,12 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   React.useEffect(() => {
     if (!templates.some((t) => t.id === tplId) && templates[0]) setTplId(templates[0].id);
   }, [templates, tplId]);
+
+  const active = audiences.find((a) => bcKey(a) === aud) || audiences[0] || null;
+  // After `active`: the limit check reads the chosen audience's count.
   const number = data.number || null;
   const numberOk = !!(number && number.present && number.health.canSend);
   const overLimit = !!(active && number && number.health.limitPerDay !== null && active.count > number.health.limitPerDay);
-
-  const active = audiences.find((a) => bcKey(a) === aud) || audiences[0] || null;
   const tpl = templates.find((t) => t.id === tplId) || null;
   const vars = tpl && Array.isArray(tpl.variables) ? tpl.variables : [];
   const filled = vars.map((v, i) => ((params[tplId] || [])[i] || ""));
