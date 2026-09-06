@@ -192,7 +192,7 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
             round--;
             continue;
           }
-          console.error("ask_gateway_refused", JSON.stringify({ kind: e.refusal.kind, tenant: input.tenantId }));
+          console.error("ask_gateway_refused", JSON.stringify({ kind: e.refusal.kind, tenant: input.tenantId, message: "message" in e.refusal ? String(e.refusal.message).slice(0, 300) : undefined }));
           return done({ answer: refusalText(e.refusal, es), failed: true, failure: e.refusal.kind, rounds: round });
         }
         if (controller.signal.aborted) {

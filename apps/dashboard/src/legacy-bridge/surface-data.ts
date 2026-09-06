@@ -873,7 +873,11 @@ export const calendarOverride: SurfaceOverride = {
   events: ["surface:calendar"],
   apply: async () => {
     const from = calendarFrom;
-    const data = await fetchEnvelope<{ calendar: CalendarWeekDto }>(`/api/v1/calendar?from=${from ?? ""}&days=${calendarDays}`);
+    const days = calendarDays;
+    const data = await fetchEnvelope<{ calendar: CalendarWeekDto }>(`/api/v1/calendar?from=${from ?? ""}&days=${days}`);
+    // Two moves in a row: the earlier read may land after the later one. A
+    // read for a span the page has since left is dropped, never painted.
+    if (from !== calendarFrom || days !== calendarDays) return;
     (window as unknown as { __CALENDAR?: CalendarSurface }).__CALENDAR = {
       vm: toCalendarVM(data.calendar, new Date()),
       fetchedAt: Date.now(),

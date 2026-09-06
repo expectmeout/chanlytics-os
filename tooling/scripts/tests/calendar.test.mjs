@@ -167,7 +167,7 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
   assert.ok(svc.includes("const MAX_DAYS = 42;") && svc.includes("consult_first: (profile?.booking_rules?.consult_first ?? []).some("), "the services as Settings keeps them");
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
-  assert.ok(sd.includes("&days=${calendarDays}") && sd.includes("calendarDays = Math.min(42, Math.max(1, Math.round(days) || 7));"));
+  assert.ok(sd.includes("&days=${days}") && sd.includes("if (from !== calendarFrom || days !== calendarDays) return;") && sd.includes("calendarDays = Math.min(42, Math.max(1, Math.round(days) || 7));"));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts").includes("await refreshSurfaces([settingsOverride, todayOverride, calendarOverride]);"), "hours, closures, rules and services saved in Settings reach the board");
   const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
   assert.ok(brief.includes('data-testid="brief-calendar"') && brief.includes('C.vm.feed.state !== "ok") return null;'), "Today says the day on the calendar, and nothing without a feed");

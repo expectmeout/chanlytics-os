@@ -136,7 +136,7 @@ const EFFORTS = new Set(["low", "medium", "high"]);
 export const GATEWAY_MODELS = ["claude-opus-5", "claude-sonnet-5"] as const;
 export const GATEWAY_MAX_TOKENS = 2000;
 export const GATEWAY_MAX_MESSAGES = 60;
-export const GATEWAY_MAX_TOOLS = 24;
+export const GATEWAY_MAX_TOOLS = 40;
 export const GATEWAY_MAX_BODY = 700_000;
 
 export function validateGatewayRequest(raw: unknown): { ok: true; request: GatewayRequest } | { ok: false; error: string } {
