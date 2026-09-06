@@ -257,6 +257,8 @@ import {
   type PersonRowVM,
   type PeopleAggregates,
   recencyCells,
+  attentionRow,
+  type AttentionRowVM,
   PEOPLE_TABS,
   toChannelVM,
   type ChannelDto,
@@ -607,6 +609,8 @@ export interface PeopleSurface {
   aggregates: PeopleAggregates;
   /** Days-since-last-contact histogram per state, for the console strip. */
   recency: Record<string, { label: string; count: number }[]>;
+  /** One row of the attention strip per person: the sentence, the state line, the one button. */
+  attention: Record<string, AttentionRowVM>;
   /** The workspace's calendar: the outcome lists and the Booked cell exist only when it is "ok". */
   calendar: { state: "ok" | "unavailable" | "none"; source: string };
   /** The booking link on file, so a row can offer to text it. */
@@ -658,6 +662,7 @@ export const peopleOverride: SurfaceOverride = {
       recency: Object.fromEntries(
         PEOPLE_TABS.filter((t) => t.id !== "all").map((t) => [t.id, recencyCells(rows.filter((r) => r.state === t.id), now.getTime())]),
       ),
+      attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, now.getTime())])),
       fetchedAt: now.getTime(),
     };
   },

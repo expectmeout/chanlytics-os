@@ -57,6 +57,8 @@ export interface PersonRowDto {
   last_call_at: string | null;
   /** The last call THEY placed — the one that means they reached out. */
   last_inbound_call_at?: string | null;
+  /** What that call was about, in the receptionist's words; null until the call has a summary. */
+  last_inbound_call_summary?: string | null;
   call_count: number | null;
   call_seconds: number | null;
   /** Earliest REAL event time: a dated message or a call. Null when the only
@@ -425,6 +427,8 @@ export interface PersonRowVM {
   consent: PersonConsent;
   /** The customer's last words, verbatim. */
   quote: string | null;
+  /** The last call they placed, summarised by the receptionist; null without one. */
+  callSummary: string | null;
   threads: number;
   calls: number;
   escalations: number;
@@ -501,6 +505,7 @@ export function toPersonRowVM(r: PersonRowDto, now = new Date()): PersonRowVM {
     firstContact: first,
     consent,
     quote: r.last_inbound_text?.trim() || null,
+    callSummary: r.last_inbound_call_summary?.trim() || null,
     threads: r.conversation_count ?? 0,
     calls: r.call_count ?? 0,
     escalations: r.escalation_count ?? 0,
@@ -655,6 +660,70 @@ export function recencyCells(rows: PersonRowVM[], nowMs: number): { label: strin
     cells[i].count++;
   }
   return cells;
+}
+
+/* ------------------------- the attention strip --------------------------- */
+
+export interface AttentionRowVM {
+  /** Where they last reached us: "WhatsApp" or "Phone"; null with no contact. */
+  channel: "WhatsApp" | "Phone" | null;
+  /** "2h ago"; "no contact yet". */
+  when: string;
+  /** What the row says about them: their own words, or the best evidence. */
+  sentence: string;
+  /** True when `sentence` is their words, verbatim. */
+  quoted: boolean;
+  /** "Escalated · asked for a person · since 2:14 PM", as segments. */
+  status: string[];
+  tone: ReceptionistTone;
+  /** The one thing this state asks of you, when it differs from opening the profile. */
+  cta: { label: string; kind: "primary" | "ghost"; to: string } | null;
+}
+
+/** One line, whitespace collapsed, cut with an ellipsis past `max`. */
+function oneLine(text: string, max: number): string {
+  const t = text.replace(/\s+/g, " ").trim();
+  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
+}
+
+/** "2:14 PM" today; "Sep 4 2:14 PM" further back. */
+function clock(ms: number, nowMs: number): string {
+  const time = new Date(ms).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return nowMs - ms < DAY_MS ? time : `${fmtDate(ms, nowMs)} ${time}`;
+}
+
+/**
+ * One row of "where your attention matters": the mockup's grammar — a name,
+ * where and when, one sentence, one state line, one button — filled only
+ * with what is on record. Their words come first; then the last call's
+ * summary; then the calendar; then the plain fact of a call. The button is
+ * the one thing the state asks of you, and it exists only when that differs
+ * from opening the profile, which the row itself does.
+ */
+export function attentionRow(p: PersonRowVM, nowMs: number): AttentionRowVM {
+  const lc = p.lastContact;
+  const channel: AttentionRowVM["channel"] = lc.kind === "call" ? "Phone" : lc.kind === "message" ? "WhatsApp" : null;
+  const when = lc.ts === null ? "no contact yet" : ago(lc.ts, nowMs);
+  let sentence: string;
+  let quoted = false;
+  if (p.quote) { sentence = oneLine(p.quote, 160); quoted = true; }
+  else if (p.callSummary) sentence = oneLine(p.callSummary, 160);
+  else if (p.nextVisit) sentence = `Booked · ${p.nextVisit}`;
+  else if (p.lastVisit) sentence = `Last visit · ${p.lastVisit}`;
+  else if (p.calls > 0) sentence = p.calls === 1 ? "Phoned once; nothing in writing yet" : `Phoned ${p.calls} times; nothing in writing yet`;
+  else sentence = "Nothing written yet";
+  const r = p.receptionist;
+  let status: string[];
+  if (p.state === "waiting_on_you") status = ["You own the thread", "they wrote last"];
+  else if (r.tone === "answering") status = p.hasChat ? ["Receptionist", "answering on WhatsApp"] : ["Receptionist", "takes their calls"];
+  else status = r.label.split(", ");
+  if (p.state === "needs_you" && p.needsYouSinceMs !== null) status = [...status, `since ${clock(p.needsYouSinceMs, nowMs)}`];
+  const cta: AttentionRowVM["cta"] = !p.threadId
+    ? null
+    : p.state === "needs_you" || p.state === "waiting_on_you"
+      ? { label: "Open in Inbox", kind: "primary", to: `inbox/${p.threadId}` }
+      : { label: "Open thread", kind: "ghost", to: `inbox/${p.threadId}` };
+  return { channel, when, sentence, quoted, status, tone: r.tone, cta };
 }
 
 /* -------------------------------- profile -------------------------------- */

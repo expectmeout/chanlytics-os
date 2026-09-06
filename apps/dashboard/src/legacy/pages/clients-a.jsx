@@ -854,75 +854,89 @@ const PeopleRail = ({ lists, groups = PL_DEFAULT_GROUPS, active, onPick, saved =
   </aside>
 );
 
-const PeopleDecisionRow = ({ p, onOpen }) => {
-  const toInbox = p.threadId ? () => window.CHANLY.nav(window.CHANLY.R.thread(p.threadId)) : null;
-  const cta = (p.state === "needs_you" || p.state === "waiting_on_you") && toInbox
-    ? { label: "Open in Inbox", kind: "primary", go: toInbox }
-    : { label: "Profile", kind: "ghost", go: () => onOpen(p.id) };
-  const since = p.needsYouSinceMs ? ` · since ${plAgo(p.needsYouSinceMs)} ago` : "";
+// The tab's own colour on the cells that hold people: red where you are
+// needed, amber where you owe an answer, blue for the rest — the mockup's.
+const PL_TAB_TONE = { needs_you: "var(--accent)", waiting_on_you: "var(--warn)", new: "var(--info)", quiet: "var(--info)", active: "var(--info)" };
+
+// One row of the strip: the name, where and when, one sentence, one state
+// line, one button (contracts/people.ts attentionRow). The row opens the
+// profile; the button is the thread, when there is one.
+const AttentionRow = ({ p, a, onOpen }) => {
+  const numbered = plIsNumber(p.name);
+  const open = () => onOpen(p.id);
+  const toThread = () => window.CHANLY.nav(window.CHANLY.R.thread(p.threadId));
   return (
-    <div className="cl-decision" onClick={() => onOpen(p.id)} role="button">
-      <div className="cl-decision-l"><div className="cl-mini-avatar">{p.initials}</div></div>
-      <div className="cl-decision-body">
-        <div className="cl-decision-name">
-          {p.name}
-          <span className="cl-decision-meta"><span className="dim"> · {p.lastContact.label}</span></span>
+    <div
+      className={`cl-attn-row tone-${a ? a.tone : "answering"}`}
+      role="button"
+      tabIndex={0}
+      onClick={open}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } }}
+      data-testid="attention-row"
+    >
+      <div className={`cl-attn-avatar ${numbered ? "glyph" : ""}`} title={numbered ? "No name yet" : undefined}>
+        {numbered ? <Icon name="phone" size={12} /> : p.initials}
+      </div>
+      <div className="cl-attn-body">
+        <div className="cl-attn-name">
+          <span className="cl-attn-who">{p.name}</span>
+          {a && <span className="cl-attn-meta">{a.channel ? `${a.channel} · ${a.when}` : a.when}</span>}
         </div>
-        <div className="cl-decision-narr">{p.quote ? `\u201c${p.quote}\u201d` : p.calls ? "Phoned — nothing written to quote" : "Nothing written yet"}</div>
-        <div className={`cl-decision-agent ${p.receptionist.tone === "escalated" ? "escalated" : ""}`}>
-          <span className="agent-avatar">W</span>
-          <span className="cl-decision-agent-text">{p.receptionist.label}{since}</span>
+        <div className={`cl-attn-sentence ${a && a.quoted ? "quoted" : ""}`}>{a ? (a.quoted ? `\u201C${a.sentence}\u201D` : a.sentence) : ""}</div>
+        <div className="cl-attn-status">
+          {a && a.status.map((seg, i) => (
+            <span key={i} className={i === 0 ? "lead" : ""}>{i > 0 && <span className="sep"> · </span>}{seg}</span>
+          ))}
         </div>
       </div>
-      <button className={`cl-decision-cta ${cta.kind}`} onClick={(e) => { e.stopPropagation(); cta.go(); }}>{cta.label}</button>
+      {a && a.cta && p.threadId && (
+        <button className={`cl-attn-cta ${a.cta.kind}`} onClick={(e) => { e.stopPropagation(); toThread(); }} data-testid="attention-cta">{a.cta.label}</button>
+      )}
     </div>
   );
 };
 
-const PeopleTriage = ({ rows, recency, attentionTab, setAttentionTab, onOpen, onSeeAll }) => {
+// The strip: five tabs, three rows, a footer that explains the tab and
+// offers the rest. Its height never depends on what a tab holds — three
+// rows, one, none — so switching tabs moves nothing below it.
+const PeopleTriage = ({ rows, recency, attention, attentionTab, setAttentionTab, onOpen, onSeeAll }) => {
   const counts = {};
   PL_TABS.forEach((t) => { counts[t] = rows.filter((r) => r.state === t).length; });
   const active = PL_TABS.includes(attentionTab) ? attentionTab : "needs_you";
   const shown = rows.filter((r) => r.state === active).slice(0, 3);
   return (
-    <section className="cl-triage">
+    <section className="cl-triage cl-attn" data-testid="attention-strip">
       {/* Five states on the seeded four-column strip would wrap the fifth. */}
       <div className="cl-triage-tabs" role="tablist" style={{ gridTemplateColumns: "repeat(5, 1fr)" }}>
         {PL_TABS.map((t) => {
           const cells = (recency && recency[t]) || [];
-          const max = Math.max(1, ...cells.map((c) => c.count));
           return (
-            <button key={t} role="tab" aria-selected={t === active} className={`cl-triage-tab ${t === active ? "active" : ""} ${t === "needs_you" ? "accent" : ""}`} onClick={() => setAttentionTab(t)}>
+            <button key={t} role="tab" aria-selected={t === active} className={`cl-triage-tab ${t === active ? "active" : ""} ${t === "needs_you" ? "accent" : ""}`} onClick={() => setAttentionTab(t)} data-testid={`attention-tab-${t}`}>
               <div className="cl-triage-tab-row">
                 <span className="cl-triage-tab-label">{PL_TAB_LABEL[t]}</span>
                 <span className="cl-triage-tab-count">{counts[t]}</span>
               </div>
               <div className="cl-triage-tab-strip" data-tip="Days since last contact — most recent on the left">
-                {cells.map((c, i) => (
-                  <span key={c.label} className="cl-triage-cell" style={{ background: i < 3 ? "var(--ok)" : i < 5 ? "var(--warn)" : "var(--line-strong)", opacity: c.count ? 0.35 + 0.65 * (c.count / max) : 0.15 }} />
+                {cells.map((c) => (
+                  <span key={c.label} className={`cl-triage-cell ${c.count ? "on" : ""}`} style={c.count ? { background: PL_TAB_TONE[t] } : undefined} />
                 ))}
               </div>
             </button>
           );
         })}
       </div>
-      <div className="cl-triage-body">
-        <div className="cl-triage-body-head">
-          <div className="cl-triage-body-titles">
-            <span className="cl-triage-body-title">{PL_TAB_LABEL[active]}</span>
-            <span className="cl-triage-body-sub">{PL_TAB_SUB[active]}</span>
-          </div>
-          <div className="cl-triage-body-meta">
-            <button className="cl-triage-seeall" onClick={() => onSeeAll(active)}>
-              See all {counts[active]}
-              <Icon name="arrow-right" size={10} />
-            </button>
-          </div>
-        </div>
-        <div className="cl-decision-grid">
-          {shown.map((p) => <PeopleDecisionRow key={p.id} p={p} onOpen={onOpen} />)}
-          {shown.length === 0 && <div className="cl-decision-empty">Nobody here right now.</div>}
-        </div>
+      <div className="cl-attn-list" key={active} data-testid="attention-list">
+        {shown.map((p) => <AttentionRow key={p.id} p={p} a={attention ? attention[p.id] : null} onOpen={onOpen} />)}
+        {shown.length === 0 && <div className="cl-attn-empty">Nobody here right now.</div>}
+      </div>
+      <div className="cl-attn-foot">
+        <span className="cl-attn-foot-sub">{PL_TAB_SUB[active]}</span>
+        {counts[active] > shown.length && (
+          <button className="cl-triage-seeall" onClick={() => onSeeAll(active)} data-testid="attention-see-all">
+            See all {counts[active]}
+            <Icon name="arrow-right" size={10} />
+          </button>
+        )}
       </div>
     </section>
   );
@@ -1191,10 +1205,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const [tab, setTab] = useState(initialState && PL_TABS.includes(initialState) ? initialState : "all");
   React.useEffect(() => { if (initialState && PL_TABS.includes(initialState)) setTab(initialState); }, [initialState]);
   const [attentionTab, setAttentionTab] = useState(PL_TABS.includes(remembered.attentionTab) ? remembered.attentionTab : "needs_you");
-  const [showTriage, setShowTriage] = useState(remembered.showTriage !== false);
   const [sortBy, setSortBy] = useState(PL_SORT_KEYS.includes(remembered.sortBy) ? remembered.sortBy : "last");
   const [sortDir, setSortDir] = useState(remembered.sortDir === "asc" ? "asc" : "desc");
-  React.useEffect(() => { plSaveView({ attentionTab, showTriage, sortBy, sortDir }); }, [attentionTab, showTriage, sortBy, sortDir]);
+  React.useEffect(() => { plSaveView({ attentionTab, sortBy, sortDir }); }, [attentionTab, sortBy, sortDir]);
   // The view in the address, so a list or a state can be sent to someone —
   // the assistant and Today link here. Replaced, never pushed: Back leaves People.
   React.useEffect(() => {
@@ -1311,7 +1324,6 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   });
   const toggleAll = () => setSel((s) => (shownIds.length && shownIds.every((id) => s.has(id)) ? new Set() : new Set(shownIds)));
   const ws = (window.__WORKSPACES || []).find((w) => w.id === window.__ACTIVE_WORKSPACE) || (window.__WORKSPACES || [])[0];
-  const fetched = people.fetchedAt ? new Date(people.fetchedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
 
   return (
     <div className="clients">
@@ -1366,21 +1378,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
             </div>
           </div>
 
-          <div className="cl-buckets">
-            <div className="cl-buckets-head">
-              <div>
-                <span className="cl-buckets-title">Where your attention matters</span>
-                {fetched && <span className="cl-buckets-sub" style={{ marginLeft: 10 }}>Updated {fetched}</span>}
-              </div>
-              <button className="cl-buckets-toggle" onClick={() => setShowTriage((v) => !v)}>
-                <Icon name="eye" size={11} />
-                {showTriage ? "Hide" : "Show"}
-              </button>
-            </div>
-            {showTriage && (
-              <PeopleTriage rows={rows} recency={people.recency} attentionTab={attentionTab} setAttentionTab={(id) => { setAttentionTab(id); setTab(id); }} onOpen={onOpenProfile} onSeeAll={seeAll} />
-            )}
-          </div>
+          <PeopleTriage rows={rows} recency={people.recency} attention={people.attention} attentionTab={attentionTab} setAttentionTab={(id) => { setAttentionTab(id); setTab(id); }} onOpen={onOpenProfile} onSeeAll={seeAll} />
 
           <div className="cl-section" ref={tableRef}>
             <div className="cl-section-head">

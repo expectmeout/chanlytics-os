@@ -219,4 +219,29 @@ test.describe("People on a real workspace", () => {
     await page.keyboard.press("Enter");
     await expect(page.locator(".cl-prof-name")).toBeVisible();
   });
+
+  test("the attention strip keeps its height across every tab, and its rows say something true", async ({ page }) => {
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    const strip = page.getByTestId("attention-strip");
+    await expect(strip).toBeVisible();
+    // No header, no toggle: the strip is the page's hero, as drawn.
+    await expect(page.locator(".cl-buckets-toggle")).toHaveCount(0);
+    const heights: number[] = [];
+    for (const t of ["needs_you", "waiting_on_you", "new", "quiet", "active"]) {
+      await page.getByTestId(`attention-tab-${t}`).click();
+      await expect(page.getByTestId(`attention-tab-${t}`)).toHaveAttribute("aria-selected", "true");
+      heights.push((await strip.boundingBox())!.height);
+    }
+    // Whatever each tab holds — three rows, one, none — the strip does not move the page.
+    for (const h of heights) expect(Math.abs(h - heights[0])).toBeLessThanOrEqual(1);
+    // Every row shown: a sentence that is never the old placeholder, and a state line with words.
+    for (const row of await page.getByTestId("attention-row").all()) {
+      const sentence = (await row.locator(".cl-attn-sentence").innerText()).trim();
+      expect(sentence.length).toBeGreaterThan(0);
+      expect(sentence).not.toMatch(/nothing written to quote/);
+      expect((await row.locator(".cl-attn-status").innerText()).trim().length).toBeGreaterThan(0);
+    }
+    for (const b of await page.getByTestId("attention-cta").allInnerTexts()) expect(["Open in Inbox", "Open thread"]).toContain(b.trim());
+  });
 });

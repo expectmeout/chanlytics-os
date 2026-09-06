@@ -1605,3 +1605,73 @@
   .cl-table td.cl-actions-cell { display: none; }
   .cl-table-keys { display: none; }
 }
+
+/* ---- Where your attention matters, redrawn to the mockup ------------------
+   One list under the tabs, rows of a fixed height, a footer that explains the
+   tab: the strip's height never depends on what a tab holds, so switching
+   tabs moves nothing below it. The cells wear the tab's own colour. */
+.cl-attn { --attn-row: 68px; margin-bottom: 14px; }
+.cl-attn .cl-triage-cell.on { opacity: 0.55; }
+.cl-attn .cl-triage-tab.active .cl-triage-cell.on { opacity: 0.95; }
+.cl-attn .cl-triage-tab:hover .cl-triage-cell.on { opacity: 0.8; }
+.cl-attn .cl-triage-cell:not(.on) { background: var(--line-strong); opacity: 0.3; }
+.cl-attn-list { min-height: calc(3 * var(--attn-row)); animation: cl-attn-in 140ms ease-out; }
+.cl-attn-row {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  box-sizing: border-box;
+  height: var(--attn-row);
+  padding: 0 16px;
+  border-top: 1px solid var(--line);
+  cursor: pointer;
+  transition: background 100ms;
+}
+.cl-attn-row:first-child { border-top: none; }
+.cl-attn-row:hover, .cl-attn-row:focus-visible { background: var(--bg-hover); outline: none; }
+.cl-attn-avatar {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10.5px; font-weight: 500;
+  color: var(--ink-muted);
+  letter-spacing: 0.02em;
+}
+.cl-attn-avatar.glyph { color: var(--ink-faint); }
+.cl-attn-body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.cl-attn-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 12.5px; font-weight: 500; color: var(--ink); line-height: 1.3; }
+.cl-attn-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-attn-meta { flex: none; font-size: 10.5px; font-weight: 400; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.cl-attn-sentence { font-size: 12px; color: var(--ink-muted); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-attn-sentence.quoted { font-style: italic; color: var(--ink); }
+.cl-attn-status { font-size: 10.5px; color: var(--ink-dim); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-attn-status .lead { color: var(--ink-muted); }
+.cl-attn-row.tone-escalated .cl-attn-status .lead { color: var(--warn); }
+.cl-attn-row.tone-queued .cl-attn-status .lead { color: var(--info); }
+.cl-attn-cta {
+  align-self: center;
+  font-size: 11px; font-weight: 500;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 100ms;
+}
+.cl-attn-cta.primary { background: var(--accent); color: var(--accent-fg); }
+.cl-attn-cta.primary:hover { filter: brightness(1.06); }
+.cl-attn-cta.ghost { background: transparent; color: var(--ink-muted); border-color: var(--line); }
+.cl-attn-cta.ghost:hover { color: var(--ink); border-color: var(--ink-faint); }
+.cl-attn-empty { min-height: calc(3 * var(--attn-row)); display: flex; align-items: center; justify-content: center; color: var(--ink-faint); font-size: 12px; }
+.cl-attn-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 34px; padding: 0 16px; border-top: 1px solid var(--line); background: var(--bg-sunken); }
+.cl-attn-foot-sub { font-size: 11px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes cl-attn-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .cl-attn-list { animation: none; } }
+@media (max-width: 720px) {
+  .cl-attn-row { grid-template-columns: 30px 1fr; height: auto; min-height: var(--attn-row); padding: 10px 14px; }
+  .cl-attn-cta { grid-column: 2; justify-self: start; }
+  .cl-attn-list, .cl-attn-empty { min-height: 0; }
+}
