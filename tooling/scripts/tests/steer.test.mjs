@@ -37,7 +37,7 @@ test("one writer for a held draft, used by the handler and the steer", () => {
   assert.ok(q.includes('status: "queued",'));
   assert.ok(q.includes('kind: "outbound_send",'));
   assert.ok(q.includes('.update({ status: "canceled", error: { reason: "scheduling_failed" } })'), "a draft whose job failed to publish is retired, never sent twice");
-  const wa = readCode("apps/edge/api/whatsapp.ts");
+  const wa = readCode("apps/edge/lib/whatsapp/persist.ts");
   assert.ok(wa.includes("const id = await queueDraft("));
   assert.ok(!wa.includes('status: "queued",'), "the handler no longer writes the draft row itself");
 });

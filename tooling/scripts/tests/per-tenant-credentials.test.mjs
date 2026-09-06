@@ -15,7 +15,8 @@ import { readCode } from "./_source.mjs";
 
 const runtime = readCode("apps/edge/lib/tenant-runtime.ts");
 const fire = readCode("apps/edge/api/jobs/fire.ts");
-const wa = readCode("apps/edge/api/whatsapp.ts");
+const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
+const sink = readCode("apps/edge/lib/whatsapp/persist.ts");
 
 test("the runtime resolves WhatsApp credentials by tenant and kind, not by the routed channel", () => {
   // It asked for the ROUTED channel's credentials, which is only ever right
@@ -51,8 +52,8 @@ test("the job runner sends on the job's own tenant credentials", () => {
 test("the inbound media download uses the tenant's runtime", () => {
   // fetchMediaBytes ran on waCfg() with no argument while the runtime holding
   // this tenant's credentials was already in scope at every call site.
-  assert.match(wa, /fetchMediaBytes\(waCfg\(rt\)/);
-  assert.ok(!/fetchMediaBytes\(waCfg\(\)/.test(wa), "no argument means the environment pair");
+  assert.match(sink, /fetchMediaBytes\(waCfg\(rt\)/);
+  assert.ok(!/fetchMediaBytes\(waCfg\(\)/.test(sink), "no argument means the environment pair");
 });
 
 test("the sink carries the runtime, so a future send inside it cannot regress", () => {

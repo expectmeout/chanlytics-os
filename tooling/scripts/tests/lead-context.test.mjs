@@ -116,7 +116,7 @@ test("an opted-out contact is flagged to both agents", () => {
 /* ------------------------------ the wiring -------------------------------- */
 
 const voice = read("apps/edge/api/retell-inbound.ts");
-const wa = read("apps/edge/api/whatsapp.ts");
+const wa = read("apps/edge/lib/whatsapp/inbound.ts");
 const brain = read("apps/edge/lib/brain.ts");
 
 test("REGRESSION: the voice agent no longer reads the Blob mirror", () => {

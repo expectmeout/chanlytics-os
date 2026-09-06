@@ -68,7 +68,8 @@ test("garbage in the config falls back rather than producing NaN", () => {
 
 /* ---------------------- the wiring the rule depends on -------------------- */
 
-const edge = read("apps/edge/api/whatsapp.ts");
+const edge = read("apps/edge/lib/whatsapp/inbound.ts");
+const sink = read("apps/edge/lib/whatsapp/persist.ts");
 const verbs = read("apps/dashboard/src/server/verbs.ts");
 const reply = read("apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts");
 const takeOver = read("apps/dashboard/app/api/v1/conversations/[id]/take-over/route.ts");
@@ -176,12 +177,12 @@ test("a configured veto window that did not happen is RECORDED, not just logged"
   // and instead the customer got them first. A log line nobody reads is how a
   // setting quietly becomes a lie.
   assert.match(edge, /if \(delayMs > 0 && !queued\) \{[\s\S]{0,120}?sink\.vetoFallback\(/);
-  assert.match(edge, /policy\.veto_window_skipped/);
+  assert.match(sink, /policy\.veto_window_skipped/);
 });
 
 test("the event names the usual cause rather than making someone guess", () => {
-  assert.match(edge, /scheduler_not_configured/);
-  assert.match(edge, /scheduling_failed/);
+  assert.match(sink, /scheduler_not_configured/);
+  assert.match(sink, /scheduling_failed/);
 });
 
 test("diag reports whether the edge can hold a reply at all", () => {

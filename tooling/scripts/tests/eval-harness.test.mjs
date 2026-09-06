@@ -73,11 +73,11 @@ test("the endpoint keeps the door, runs the real prompt, sends nothing and write
 });
 
 test("every reply leaves a quality signal on its usage event, and the diagnostics read the day back", () => {
-  const wa = readCode("apps/edge/api/whatsapp.ts");
+  const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
   assert.ok(wa.includes("const tBrain = Date.now();") && wa.includes("brainMs = Date.now() - tBrain;"));
   assert.ok(wa.includes("intent: brainMeta?.intent ?? null,") && wa.includes("confidence: brainMeta?.confidence ?? null,") && wa.includes("latency_ms: brainMs,"));
   assert.equal((wa.match(/sink\.usage\(\{ \.\.\.usage, \.\.\.replyQuality \}\)/g) ?? []).length, 2, "the held path and the sent path");
-  assert.ok(wa.includes("usage: (u: Record<string, unknown>) =>"));
+  assert.ok(readCode("apps/edge/lib/whatsapp/persist.ts").includes("usage: (u: Record<string, unknown>) =>"));
   const diag = readCode("apps/edge/api/diag.ts");
   assert.ok(diag.includes("out.brain = db ? await brainSummary(db) : null;"));
   const b = readCode("apps/edge/lib/budget.ts");
@@ -90,7 +90,7 @@ test("the token budget: a policy limit, a check before the brain, a labelled rea
   assert.ok(!PolicyLimitsSchema.safeParse({ max_llm_tokens_day: 10 }).success, "below a sensible floor");
   assert.ok(ESCALATION_REASONS.includes("budget"));
   assert.ok(ESCALATION_REASON_LABELS.budget.includes("budget"));
-  const wa = readCode("apps/edge/api/whatsapp.ts");
+  const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
   assert.ok(wa.includes("const used = await tokensLast24h(db, tenantId);"));
   assert.ok(wa.includes('sink.escalate("budget",'));
   assert.ok(wa.includes('"(no reply sent — the day\'s model budget is used up)"'));

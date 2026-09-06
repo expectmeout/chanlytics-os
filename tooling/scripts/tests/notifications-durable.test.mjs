@@ -46,8 +46,8 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   const notify = readCode("apps/edge/lib/notify.ts");
   assert.ok(notify.includes("export async function recordNotification(") && notify.includes("await recordNotification(target.tenantId, { kind: msg.kind, title: msg.subject, body: msg.body, route: msg.route, about: msg.about });"), "the row first, addressed or not");
   assert.ok(notify.includes('console.error("notification_record_failed"'), "losing the row never loses the email");
-  const wa = readCode("apps/edge/api/whatsapp.ts");
-  assert.ok(wa.includes('kind: "handoff",') && wa.includes("pauseHours, ing ? `inbox/th-${ing.conversation_id}` : \"inbox\")"), "a handoff points at its thread");
+  const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
+  assert.ok(readCode("apps/edge/lib/whatsapp/alerts.ts").includes('kind: "handoff",') && wa.includes("pauseHours, ing ? `inbox/th-${ing.conversation_id}` : \"inbox\")"), "a handoff points at its thread");
   assert.ok(readCode("apps/edge/api/retell-webhook.ts").includes('kind: "call",'));
   assert.ok(readCode("apps/edge/api/cron/deadman.ts").includes('kind: "deadman",'));
   assert.ok(readCode("apps/edge/api/jobs/fire.ts").includes('kind: "job_failed", route: "inbox",'));

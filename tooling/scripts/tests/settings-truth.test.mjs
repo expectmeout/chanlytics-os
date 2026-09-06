@@ -61,10 +61,12 @@ test("F35: every pause reads the workspace's own pause_hours, not a hard-coded d
     assert.ok(!src.includes("PAUSE_MS"), `${rel}: REGRESSION — Settings said N hours, the verb paused for 24`);
   }
   const wa = readCode("apps/edge/api/whatsapp.ts");
+  const inbound = readCode("apps/edge/lib/whatsapp/inbound.ts");
+  const alerts = readCode("apps/edge/lib/whatsapp/alerts.ts");
   assert.ok(wa.includes("const echoPauseMs = (echoLimits.pause_hours ? echoLimits.pause_hours * 3600 * 1000 : PAUSE_MS);"));
   assert.ok(!wa.includes("t.pausedUntil = Date.now() + PAUSE_MS;"), "the WhatsApp-app echo honoured nothing");
-  assert.ok(wa.includes("the bot is paused on this thread for ${pauseHours}h."), "and the handoff email states the same number");
-  assert.equal((wa.match(/, pauseHours[,)]/g) ?? []).length + (wa.match(/\n\s+pauseHours,\n/g) ?? []).length, 11, "every handoff email carries it — eleven since the token budget's own handoff email; two also carry the thread route");
+  assert.ok(alerts.includes("the bot is paused on this thread for ${pauseHours}h."), "and the handoff email states the same number");
+  assert.equal((inbound.match(/, pauseHours[,)]/g) ?? []).length + (inbound.match(/\n\s+pauseHours,\n/g) ?? []).length, 11, "every handoff email carries it — eleven since the token budget's own handoff email; two also carry the thread route");
 });
 
 test("F36/F37: alerts that go to Chanlytics say so; switching a number off is described as it is", () => {
