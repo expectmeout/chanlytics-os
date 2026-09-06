@@ -700,5 +700,6 @@ const SegmentPulse = () => {
   );
 };
 
-window.SegmentsPage = SegmentsPage;
+// A real workspace renders its lists (segments-real.jsx); the seeded page keeps the demo.
+window.SegmentsSeed = SegmentsPage;
 window.SegmentPulse = SegmentPulse;

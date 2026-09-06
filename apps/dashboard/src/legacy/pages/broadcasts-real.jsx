@@ -88,7 +88,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   const audiences = data.audiences || BC_NONE;
   const templates = data.templates || BC_NONE;
   const [aud, setAud] = React.useState(() => {
-    const first = audiences.find((a) => a.kind === "saved" && a.id === initialSegment) || audiences[0];
+    const first = audiences.find((a) => (a.kind === "saved" || a.kind === "list") && a.id === initialSegment) || audiences[0];
     return first ? bcKey(first) : "everyone:";
   });
   const [tplId, setTplId] = React.useState(() => (templates[0] ? templates[0].id : ""));

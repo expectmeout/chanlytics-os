@@ -50,6 +50,7 @@ import "@/legacy/pages/clients-a.jsx";
 import "@/legacy/pages/client-profile.jsx";
 import "@/legacy/pages/leads.jsx";
 import "@/legacy/pages/segments.jsx";
+import "@/legacy/pages/segments-real.jsx";
 import "@/legacy/pages/agent-store.jsx";
 import "@/legacy/pages/agent-fleet.jsx";
 import "@/legacy/pages/agent-studio.jsx";

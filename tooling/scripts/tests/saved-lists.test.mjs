@@ -10,7 +10,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { readCode, readRaw } from "./_source.mjs";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 test("the tables: the workspace's, members read, acting members write, a person of another workspace or an erased one cannot be put on a list", () => {
   const m = readRaw("supabase/migrations/00044_saved_lists.sql");
@@ -61,4 +65,23 @@ test("the page: the rail's Saved section is real, a name typed there is the only
   assert.ok(prof.includes('data-testid="person-lists"') && prof.includes('data-testid="person-list-chip"'));
   assert.ok(prof.includes("No lists yet — make one on the People rail, then add people here."));
   assert.ok(readRaw("apps/dashboard/src/legacy/styles/clients.css").includes(".cl-rail-newlist input {"));
+});
+
+test("People › Lists is real: the lists kept by hand and the computed ones with their people, fed by the People surface; the seeded page keeps the demo", async () => {
+  const reg = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/legacy-bridge/surface-registry.ts")).href);
+  assert.equal(reg.SURFACE_STATES.segments, "real");
+  assert.equal(reg.ROUTE_SURFACE.segments, "people", "the same facts as People, never a second fetch");
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/segments-real.jsx";'));
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/segments.jsx").includes("window.SegmentsSeed = SegmentsPage;"));
+  const p = readCode("apps/dashboard/src/legacy/pages/segments-real.jsx");
+  for (const id of ["lists-real", "lists-rail-saved", "lists-rail-smart", "lists-members", "lists-use-in-broadcast", "lists-new-name", "lists-delete"]) {
+    assert.ok(p.includes(`data-testid="${id}"`), id);
+  }
+  assert.ok(p.includes('window.addEventListener("segments:new", show);'), "the shell's New list button opens the name box");
+  assert.ok(p.includes("window.CHANLY.nav(`broadcasts/${current.id}`)"), "a list's onward step is a broadcast");
+  assert.ok(p.includes("Delete “{label}”? The people stay."));
+  assert.ok(!/sgParseRules|agent builds|SG_STORE/.test(p), "no list is built from prose by an invented agent");
+  const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
+  assert.ok(shell.includes('{real ? "New list" : "New segment"}'));
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx").includes('(a.kind === "saved" || a.kind === "list") && a.id === initialSegment'), "a broadcast opened from any list preselects it");
 });
