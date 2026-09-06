@@ -89,6 +89,9 @@ export async function draftTemplate(
   const system = draftSystemPrompt(facts, input.category, input.language) + (bookingLink ? "\nThe business has a booking link, so a booking_link slot may be used." : "\nThe business has no booking link on file: do not use a booking_link slot.");
 
   let text = "";
+  let blockTypes: string[] = [];
+  let stopReason: string | null = null;
+  let streamError: string | null = null;
   try {
     const r = await runRound(
       {
@@ -96,7 +99,7 @@ export async function draftTemplate(
         userId: ctx.userId,
         request: {
           model: DRAFT_MODEL,
-          max_tokens: 700,
+          max_tokens: 900,
           system,
           messages: [{ role: "user", content: `Brief: ${brief}` }],
         },
@@ -104,6 +107,9 @@ export async function draftTemplate(
       () => {},
     );
     text = r.blocks.filter((b) => b.type === "text").map((b) => b.text).join("");
+    blockTypes = r.blocks.map((b) => b.type);
+    stopReason = r.stopReason;
+    streamError = r.streamError;
     if (r.streamError && !text) return { ok: false, reason: "refused", message: "The draft could not be written right now. Try again." };
   } catch (e) {
     if (e instanceof GatewayRefused) return { ok: false, reason: "refused", message: "The assistant is not available right now. Try again in a moment." };
@@ -111,7 +117,11 @@ export async function draftTemplate(
   }
   const json = extractJson(text);
   const d = DraftSchema.safeParse(json);
-  if (!d.success) return { ok: false, reason: "malformed", message: "The draft did not come out well-formed. Try again, or write it by hand." };
+  if (!d.success) {
+    // What actually came back, so a malformed draft is a diagnosis and not a guess.
+    console.error("draft_malformed", JSON.stringify({ tenant_id: tenantId, blocks: blockTypes, stop: stopReason, stream_error: streamError, text: text.slice(0, 400), issues: json ? d.error.issues.slice(0, 3) : "no json" }));
+    return { ok: false, reason: "malformed", message: "The draft did not come out well-formed. Try again, or write it by hand." };
+  }
   const check = validateTemplateDraft({ name: d.data.name, language: input.language, category: input.category, body: d.data.body, footer: d.data.footer ?? null, examples: d.data.examples });
   if (!check.ok) return { ok: false, reason: "invalid", message: `The draft broke a WhatsApp rule (${check.error}). Try again, or write it by hand.` };
   const v: TemplateDraft = check.value;
