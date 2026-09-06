@@ -66,16 +66,18 @@ async function parsedFeedFor(tenantId: string, url: string, tz: string, now: Dat
   return { parsed, at: feed.at };
 }
 
-/** The workspace's calendar, as the people surfaces need it: its address (kept here), zone and name. */
-async function calendarOf(ctx: RouteContext, tenantId: string): Promise<{ url: string | null; timezone: string; source: string }> {
+/** The workspace's calendar, as the people surfaces need it: its address (kept here), zone and name — and the booking link, which a row may offer. */
+async function calendarOf(ctx: RouteContext, tenantId: string): Promise<{ url: string | null; timezone: string; source: string; bookingLink: string | null }> {
   const [{ timezone }, { data: row, error }] = await Promise.all([
     tenantFacts(ctx.supabase, tenantId),
     ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
   ]);
   if (error) throw new Error(error.message);
-  const url = parseTenantConfig(row?.config ?? null)?.calendar?.ical_url ?? null;
+  const cfg = parseTenantConfig(row?.config ?? null);
+  const url = cfg?.calendar?.ical_url ?? null;
+  const bookingLink = cfg?.brain?.booking_link?.trim() || null;
   // Server-side only: the address feeds the reads in this module and is never part of a response.
-  return { url, timezone, source: feedSourceLabel(url) };
+  return { url, timezone, source: feedSourceLabel(url), bookingLink };
 }
 
 export function spanFor(from: string | null, days: number, tz: string, now: Date): { from: string; days: number } {
@@ -286,6 +288,7 @@ export interface PeopleVisits {
   calendar: { state: "ok" | "unavailable" | "none"; source: string; timezone: string };
   /** By contact id; absent without a readable calendar. */
   visits: Map<string, PersonVisitsDto>;
+  bookingLink: string | null;
 }
 
 /**
@@ -294,9 +297,9 @@ export interface PeopleVisits {
  * of hundreds costs one read of the calendar, not hundreds.
  */
 export async function peopleVisits(ctx: RouteContext, tenantId: string, rows: PersonRowDto[], now = new Date()): Promise<PeopleVisits> {
-  const { url, timezone, source } = await calendarOf(ctx, tenantId);
+  const { url, timezone, source, bookingLink } = await calendarOf(ctx, tenantId);
   const visits = new Map<string, PersonVisitsDto>();
-  if (!url) return { calendar: { state: "none", source, timezone }, visits };
+  if (!url) return { calendar: { state: "none", source, timezone }, visits, bookingLink };
   let feed;
   try {
     feed = await parsedFeedFor(tenantId, url, timezone, now);
@@ -304,26 +307,27 @@ export async function peopleVisits(ctx: RouteContext, tenantId: string, rows: Pe
     console.error("calendar_parse_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
     feed = null;
   }
-  if (!feed) return { calendar: { state: "unavailable", source, timezone }, visits };
+  if (!feed) return { calendar: { state: "unavailable", source, timezone }, visits, bookingLink };
   const index = indexFeed(feed.parsed.items);
   const nowMs = now.getTime();
   for (const r of rows) {
     const v = visitsIn(index, personLike(r), nowMs);
     visits.set(r.id, { timezone, source, state: "ok", next: toVisitDto(v.next), last: toVisitDto(v.last) });
   }
-  return { calendar: { state: "ok", source, timezone }, visits };
+  return { calendar: { state: "ok", source, timezone }, visits, bookingLink };
 }
 
 /** The rows with their appointments attached, the way the People list and the assistant read them. */
-export async function withVisits(ctx: RouteContext, tenantId: string, rows: PersonRowDto[], now = new Date()): Promise<{ people: PersonRowDto[]; calendar: PeopleVisits["calendar"] }> {
+export async function withVisits(ctx: RouteContext, tenantId: string, rows: PersonRowDto[], now = new Date()): Promise<{ people: PersonRowDto[]; calendar: PeopleVisits["calendar"]; booking_link: string | null }> {
   const pv = await peopleVisits(ctx, tenantId, rows, now).catch((e: unknown) => {
     console.error("people_visits_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
     return null;
   });
-  if (!pv) return { people: rows.map((r) => ({ ...r, visits: null })), calendar: { state: "none", source: "your calendar", timezone: "UTC" } };
+  if (!pv) return { people: rows.map((r) => ({ ...r, visits: null })), calendar: { state: "none", source: "your calendar", timezone: "UTC" }, booking_link: null };
   return {
     people: rows.map((r) => ({ ...r, visits: pv.calendar.state === "ok" ? (pv.visits.get(r.id) ?? null) : pv.calendar.state === "unavailable" ? { timezone: pv.calendar.timezone, source: pv.calendar.source, state: "unavailable", next: null, last: null } : null })),
     calendar: pv.calendar,
+    booking_link: pv.bookingLink,
   };
 }
 

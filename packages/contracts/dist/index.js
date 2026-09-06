@@ -3222,6 +3222,11 @@ function toPersonRowVM(r, now = /* @__PURE__ */ new Date()) {
     nextVisitDay: v?.next ? visitDay(v.next.start, v.timezone, nowMs) : null,
     nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} \xB7 ${v.next.title}` : null,
     lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} \xB7 ${v.last.title}` : null,
+    lastVisitDay: v?.last ? visitDay(v.last.start, v.timezone, nowMs) : null,
+    replyWindow: r.has_chat ? (() => {
+      const w = waWindow(r.latest_wa_inbound_at, now);
+      return { open: w.open, hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 36e5)) : 0 };
+    })() : null,
     askedMs,
     askedNotBooked,
     nextVisitMs,
@@ -3524,10 +3529,6 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
     timeline: items,
     about,
     notes: d.notes?.trim() || null,
-    replyWindow: base.hasChat ? (() => {
-      const w = waWindow(r.latest_wa_inbound_at, now);
-      return { open: w.open, hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 36e5)) : 0 };
-    })() : null,
     bookingLink: d.booking_link?.trim() || null,
     openThread: base.threadId ? `inbox/${base.threadId}` : null,
     receptionistMode: {
