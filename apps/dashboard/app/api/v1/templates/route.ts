@@ -50,7 +50,7 @@ const SAID: Record<string, string> = {
 export const POST = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   requireRole(member, "operator");
-  takeRate(ctx.userId, "settings");
+  await takeRate(ctx.userId, "settings");
   const body = (await jsonBody(req)) as { name?: unknown; language?: unknown; category?: unknown; body?: unknown; footer?: unknown; examples?: unknown; labels?: unknown } | null;
   const check = validateTemplateDraft({
     name: typeof body?.name === "string" ? body.name : "",

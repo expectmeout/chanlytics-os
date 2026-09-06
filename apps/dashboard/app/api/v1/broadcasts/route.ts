@@ -53,7 +53,7 @@ export const GET = withRoute(async (req, ctx) => {
 export const POST = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   requireRole(member, "operator");
-  takeRate(ctx.userId, "broadcast");
+  await takeRate(ctx.userId, "broadcast");
   const tenantId = member.tenantId;
   const body = (await jsonBody(req)) as {
     template_id?: unknown; params?: unknown; audience?: { kind?: unknown; id?: unknown } | null; scheduled_for?: unknown; name?: unknown;

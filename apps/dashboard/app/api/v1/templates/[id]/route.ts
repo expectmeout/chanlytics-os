@@ -38,7 +38,7 @@ export const PUT = withRoute(async (req, ctx) => {
   if (!tpl) throw new AppError("not_found", "Template not found.", 404);
   const member = await memberContext(ctx, tpl.tenant_id);
   requireRole(member, "operator");
-  takeRate(ctx.userId, "settings");
+  await takeRate(ctx.userId, "settings");
   if (hasHidden) {
     const { error: dErr } = await ctx.supabase.rpc("set_template_hidden", { p_template_id: id, p_hidden: body!.hidden as boolean });
     if (dErr) throw new Error(dErr.message);
@@ -57,7 +57,7 @@ export const DELETE = withRoute(async (req, ctx) => {
   if (!tpl) throw new AppError("not_found", "Template not found.", 404);
   const member = await memberContext(ctx, tpl.tenant_id);
   requireRole(member, "operator");
-  takeRate(ctx.userId, "settings");
+  await takeRate(ctx.userId, "settings");
 
   const { count, error: bErr } = await ctx.supabase
     .from("broadcasts")

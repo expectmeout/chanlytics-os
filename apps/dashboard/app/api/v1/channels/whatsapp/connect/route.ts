@@ -33,7 +33,7 @@ const SAID: Record<string, string> = {
 export const POST = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   requireRole(member, "owner");
-  takeRate(ctx.userId, "settings");
+  await takeRate(ctx.userId, "settings");
   const body = (await req.json().catch(() => null)) as { code?: unknown; phone_number_id?: unknown; waba_id?: unknown } | null;
   const code = typeof body?.code === "string" ? body.code.trim() : "";
   const phoneNumberId = typeof body?.phone_number_id === "string" ? body.phone_number_id.trim() : "";

@@ -18,7 +18,7 @@ import { takeRate } from "@/server/rate-limit";
  */
 export const GET = withRoute(async (req, ctx) => {
   const { supabase } = ctx;
-  takeRate(ctx.userId, "aggregate");
+  await takeRate(ctx.userId, "aggregate");
   const url = new URL(req.url);
   const days = Math.min(90, Math.max(1, Number(url.searchParams.get("days") ?? 1) || 1));
 

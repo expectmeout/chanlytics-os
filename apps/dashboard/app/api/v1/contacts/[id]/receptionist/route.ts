@@ -23,7 +23,7 @@ type Mode = (typeof MODES)[number];
  * check here is the door, decided against the contact's OWN tenant.
  */
 export const PUT = withRoute(async (req, ctx) => {
-  takeRate(ctx.userId, "person_mode");
+  await takeRate(ctx.userId, "person_mode");
   const id = requireUuid(ctx.params.id, "contact");
   const body = (await jsonBody(req)) as { mode?: unknown } | null;
   const mode = body?.mode;

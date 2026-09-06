@@ -13,7 +13,7 @@ import { attachment, callText, dateTag, personLabel, safeName } from "@/server/e
  */
 export const GET = withRoute(async (req, ctx) => {
   const { supabase, userId, params } = ctx;
-  takeRate(userId, "export");
+  await takeRate(userId, "export");
   const id = requireUuid(params.id, "call");
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
 

@@ -39,7 +39,7 @@ export const POST = withRoute(async (req, ctx) => {
   const source = typeof body?.source === "string" && /^[a-z_]{1,24}$/.test(body.source) ? body.source : "manual";
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   requireRole(member, "operator");
-  takeRate(ctx.userId, "person_create");
+  await takeRate(ctx.userId, "person_create");
   const { data, error } = await ctx.supabase.rpc("create_person", { p_tenant_id: member.tenantId, p_phone_e164: phone, p_display_name: name, p_source: source });
   if (error) throw new AppError("validation", error.message);
   const out = data as { contact_id: string; existed: boolean };

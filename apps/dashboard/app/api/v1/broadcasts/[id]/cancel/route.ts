@@ -23,7 +23,7 @@ export const POST = withRoute(async (req, ctx) => {
   if (!b) throw new AppError("not_found", "Broadcast not found.", 404);
   const member = await memberContext(ctx, b.tenant_id);
   requireRole(member, "operator");
-  takeRate(ctx.userId, "broadcast");
+  await takeRate(ctx.userId, "broadcast");
 
   if (b.state === "scheduled") {
     await cancelKindFor(b.tenant_id, "broadcast_send", "broadcast_id", id);

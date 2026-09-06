@@ -1,22 +1,25 @@
 /**
- * Request limits, per signed-in user, per serverless instance.
+ * Request limits, per signed-in user, shared across instances.
  *
  * Nothing limited any route (review F45): an operator's session could send
  * a customer thirty templates a minute, mint invitations without end, or
  * hammer the two plpgsql aggregates. These are ceilings a person never
  * reaches in honest use and a script reaches at once.
  *
- * Best-effort, on purpose. The store is this instance's memory: there is no
- * shared counter, so a burst spread across instances is limited per instance
- * rather than in total. That is still the shape abuse takes — one session,
- * one instance, many requests — and it costs nothing per request. When a
- * shared limiter is wanted, the store behind `takeRate` changes and the
- * routes do not: the signature is the contract.
+ * The count lives in Postgres (one row per hit, one door: take_rate), so a
+ * burst spread across serverless instances is limited in total, not per
+ * instance. The database answering slowly or not at all must not refuse
+ * everyone: a failed count falls back to this instance's memory, which is
+ * also the whole limiter where no database is configured (tests, a laptop).
+ * The store behind `takeRate` is the only thing that changed; the routes
+ * did not: the signature is the contract.
  *
  * Refusals are the envelope's own `rate_limited` (429) with a retry hint, so
  * the client shows a sentence, never a raw status.
  */
 import { AppError } from "@chanlytics/contracts";
+import { createServiceClient, type Database } from "@chanlytics/db";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface RateRule {
   limit: number;
@@ -61,9 +64,86 @@ export const RATE = {
 
 export type RateBucket = keyof typeof RATE;
 
-const hits = new Map<string, number[]>();
+export type RateVerdict = { allowed: true } | { allowed: false; retryAfterS: number };
+
+/** Where the count lives. `take` counts the hit or says when to try again. */
+export interface RateStore {
+  take(bucket: RateBucket, actor: string, rule: RateRule, now: number): Promise<RateVerdict>;
+}
+
 /** Past this many live keys the map is swept; a long-lived instance must not grow forever. */
 const SWEEP_AT = 5_000;
+
+/**
+ * This instance's memory: the fallback behind the shared store, and the whole
+ * limiter where no database is configured. A burst that lands on one instance
+ * — the shape abuse takes — is still refused here.
+ */
+export function memoryStore(): RateStore & { reset(): void } {
+  const hits = new Map<string, number[]>();
+  return {
+    async take(bucket, actor, rule, now) {
+      const key = `${bucket}:${actor}`;
+      const recent = (hits.get(key) ?? []).filter((t) => now - t < rule.windowMs);
+      if (recent.length >= rule.limit) {
+        return { allowed: false, retryAfterS: Math.max(1, Math.ceil((recent[0] + rule.windowMs - now) / 1000)) };
+      }
+      recent.push(now);
+      hits.set(key, recent);
+      if (hits.size > SWEEP_AT) {
+        for (const [k, times] of hits) {
+          if (!times.some((t) => now - t < 3_600_000)) hits.delete(k);
+        }
+      }
+      return { allowed: true };
+    },
+    reset() {
+      hits.clear();
+    },
+  };
+}
+
+/**
+ * The shared count: one door in Postgres, exact across instances (take_rate
+ * serialises one actor's one bucket). A database that does not answer falls
+ * back to the instance's memory — a limiter must never be the outage — and
+ * says so once a minute, not once a request.
+ */
+export function postgresStore(db: Pick<SupabaseClient<Database>, "rpc">, fallback: RateStore): RateStore {
+  let warnedAt = Number.NEGATIVE_INFINITY;
+  return {
+    async take(bucket, actor, rule, now) {
+      try {
+        const { data, error } = await db.rpc("take_rate", {
+          p_bucket: bucket, p_actor: actor, p_limit: rule.limit, p_window_ms: rule.windowMs,
+        });
+        if (error) throw new Error(error.message);
+        const v = (data ?? {}) as { allowed?: boolean; retry_after_s?: number };
+        if (v.allowed === true) return { allowed: true };
+        if (v.allowed === false) return { allowed: false, retryAfterS: Math.max(1, Math.ceil(Number(v.retry_after_s ?? 1))) };
+        throw new Error("take_rate answered without a verdict");
+      } catch (e) {
+        if (now - warnedAt > 60_000) {
+          warnedAt = now;
+          console.error("rate_store_failed", JSON.stringify({ bucket, error: e instanceof Error ? e.message : String(e) }));
+        }
+        return fallback.take(bucket, actor, rule, now);
+      }
+    },
+  };
+}
+
+const memory = memoryStore();
+let store: RateStore | null = null;
+
+/** Postgres when the server has its keys, else this instance's memory. Chosen once. */
+function activeStore(): RateStore {
+  if (store) return store;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  store = url && serviceRoleKey ? postgresStore(createServiceClient({ url, serviceRoleKey }), memory) : memory;
+  return store;
+}
 
 function human(seconds: number): string {
   if (seconds < 60) return `${seconds} second${seconds === 1 ? "" : "s"}`;
@@ -77,29 +157,25 @@ function human(seconds: number): string {
  * `actor` is the signed-in user id — the limit follows the person, not the
  * workspace, so a busy team is not throttled by one of its members.
  */
-export function takeRate(actor: string, bucket: RateBucket, now: number = Date.now()): void {
+export async function takeRate(actor: string, bucket: RateBucket, now: number = Date.now()): Promise<void> {
   const rule: RateRule = RATE[bucket];
-  const key = `${bucket}:${actor}`;
-  const recent = (hits.get(key) ?? []).filter((t) => now - t < rule.windowMs);
-  if (recent.length >= rule.limit) {
-    const retryAfterS = Math.max(1, Math.ceil((recent[0] + rule.windowMs - now) / 1000));
+  const verdict = await activeStore().take(bucket, actor, rule, now);
+  if (!verdict.allowed) {
     throw new AppError(
       "rate_limited",
-      `Too many ${rule.noun} in a short time — try again in ${human(retryAfterS)}.`,
+      `Too many ${rule.noun} in a short time — try again in ${human(verdict.retryAfterS)}.`,
       429,
-      { retry_after_s: retryAfterS },
+      { retry_after_s: verdict.retryAfterS },
     );
-  }
-  recent.push(now);
-  hits.set(key, recent);
-  if (hits.size > SWEEP_AT) {
-    for (const [k, times] of hits) {
-      if (!times.some((t) => now - t < 3_600_000)) hits.delete(k);
-    }
   }
 }
 
-/** Tests only: forget every count. */
+/** Tests only: forget every count held in memory. */
 export function resetRates(): void {
-  hits.clear();
+  memory.reset();
+}
+
+/** Tests only: put a store behind takeRate (null = choose again from the env). */
+export function setRateStore(s: RateStore | null): void {
+  store = s;
 }

@@ -23,7 +23,7 @@ const MAX_CHARS = 500;
  */
 export const POST = withRoute(async (req, ctx) => {
   const id = requireUuid(ctx.params.id, "call");
-  takeRate(ctx.userId, "whisper");
+  await takeRate(ctx.userId, "whisper");
   const body = (await req.json().catch(() => null)) as { text?: unknown; trigger?: unknown } | null;
   const text = typeof body?.text === "string" ? body.text.trim() : "";
   if (!text) throw new AppError("validation", "Say something for the receptionist to use.");

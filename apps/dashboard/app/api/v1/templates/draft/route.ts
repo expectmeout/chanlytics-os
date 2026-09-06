@@ -14,7 +14,7 @@ import { draftTemplate } from "@/server/templates";
 export const POST = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   requireRole(member, "operator");
-  takeRate(ctx.userId, "ask");
+  await takeRate(ctx.userId, "ask");
   const body = (await jsonBody(req)) as { brief?: unknown; category?: unknown; language?: unknown } | null;
   const brief = typeof body?.brief === "string" ? body.brief.trim() : "";
   const category = typeof body?.category === "string" ? body.category : "";

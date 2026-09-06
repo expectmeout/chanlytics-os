@@ -21,7 +21,7 @@ export const GET = withRoute(async (req, ctx) => {
     throw new AppError("validation", "This account belongs to more than one workspace — say which one to export.");
   }
   if (member.role !== "owner") throw new AppError("forbidden", "Only an owner can export everyone.", 403);
-  takeRate(ctx.userId, "export");
+  await takeRate(ctx.userId, "export");
 
   const people = await listPeople(ctx, member.tenantId);
   const { name, timezone } = await tenantFacts(ctx.supabase, member.tenantId);

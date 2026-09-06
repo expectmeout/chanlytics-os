@@ -30,7 +30,7 @@ function line(ev: TurnEvent | { t: "thread"; id: string; title: string }): strin
 }
 
 export const POST = withRoute(async (req, ctx) => {
-  takeRate(ctx.userId, "ask");
+  await takeRate(ctx.userId, "ask");
   const url = new URL(req.url);
   const body = (await req.json().catch(() => null)) as
     | { text?: unknown; thread_id?: unknown; scope?: unknown; surface?: unknown }

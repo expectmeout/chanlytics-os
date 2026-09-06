@@ -46,7 +46,7 @@ export const GET = withRoute(async (req, ctx) => {
  * marks are this person's too. Both through definer doors, any member.
  */
 export const PUT = withRoute(async (req, ctx) => {
-  takeRate(ctx.userId, "notify_mark");
+  await takeRate(ctx.userId, "notify_mark");
   const { tenantId } = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   const body = (await jsonBody(req)) as { seen?: unknown; id?: unknown; read?: unknown; dismissed?: unknown } | null;
   if (body?.seen === true) {
