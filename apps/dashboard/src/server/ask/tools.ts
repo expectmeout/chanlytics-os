@@ -42,11 +42,13 @@ import {
   type PersonEscalationDto,
   type PersonRowDto,
   type ReportDto,
+  visitLine,
 } from "@chanlytics/contracts";
 import { listPolicies } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 import { CALL_COLUMNS, CONVERSATION_COLUMNS, MESSAGE_COLUMNS, groupMessages, toCallDto, toConversationDto } from "../dto";
 import { listPeople } from "../people";
+import { withVisits } from "@/server/calendar";
 import { listPlaybooks } from "../playbooks";
 import { calendarWeek } from "../calendar";
 import { tenantFacts } from "../tenant";
@@ -91,8 +93,8 @@ export const READ_TOOLS: ToolDef[] = [
   },
   {
     name: "search_people",
-    description: "Find people (customers and callers) by name or phone digits. Returns their state, last contact and receptionist mode. Empty query lists the most recent people.",
-    input_schema: obj({ query: { type: "string" } }, ["query"]),
+    description: "Find people (customers and callers) by name or phone digits. Returns their state, last contact, receptionist mode and their next appointment when the calendar is connected. Empty query lists the most recent people. list narrows to one of People's smart lists: needs_you, waiting_on_you, new_week, booked, asked_never_booked (wrote or called this month, never on the calendar), quiet, phoned_only, opted_in, opted_out.",
+    input_schema: obj({ query: { type: "string" }, list: { type: "string" } }, ["query"]),
   },
   {
     name: "get_person",
@@ -373,14 +375,23 @@ function personLine(r: PersonRowDto, nowMs: number) {
     consent: r.consent,
     receptionist_mode: r.effective_reply_mode ?? null,
     calls: r.call_count ?? 0,
+    next_visit: r.visits?.next ? `${visitLine(r.visits.next, r.visits.timezone, nowMs)} · ${r.visits.next.title}` : null,
+    last_visit: r.visits?.last ? `${visitLine(r.visits.last, r.visits.timezone, nowMs)} · ${r.visits.last.title}` : null,
   };
 }
 
 async function searchPeople(t: ToolContext, input: Record<string, unknown>): Promise<unknown> {
   const q = str(input.query, 80).toLowerCase();
-  const rows = await listPeople(t.ctx, t.tenantId);
+  const listId = str(input.list, 40);
+  const list = listId ? PEOPLE_LISTS.find((l) => l.id === listId) : null;
+  if (listId && !list) return { error: `list must be one of ${PEOPLE_LISTS.map((l) => l.id).join(", ")}` };
+  // With their appointments, so "who asked but never booked?" and "who is
+  // booked this week?" are answered from the calendar, not guessed.
+  const { people: rows, calendar } = await withVisits(t.ctx, t.tenantId, await listPeople(t.ctx, t.tenantId), t.now);
+  if (list?.needsCalendar && calendar.state !== "ok") return { error: "that list needs the calendar connected under Settings › Workspace", people: [] };
   const digits = q.replace(/\D/g, "");
   const hits = rows.filter((r) => {
+    if (list && !list.test(toPersonRowVM(r, t.now))) return false;
     if (!q) return true;
     const name = personName(r).toLowerCase();
     if (name.includes(q)) return true;
@@ -393,7 +404,7 @@ async function searchPeople(t: ToolContext, input: Record<string, unknown>): Pro
     t.read.person.add(r.id);
     if (r.latest_conversation_id) t.read.thread.add(r.latest_conversation_id);
   }
-  return { query: q, matches: hits.length, people: picked.map((r) => personLine(r, t.now.getTime())) };
+  return { query: q, list: list?.id ?? null, matches: hits.length, people: picked.map((r) => personLine(r, t.now.getTime())) };
 }
 
 async function getPerson(t: ToolContext, input: Record<string, unknown>): Promise<unknown> {

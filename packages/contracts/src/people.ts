@@ -70,6 +70,9 @@ export interface PersonRowDto {
    *  workspace's. Attached by the API from the policies table; people_list
    *  does not carry it. */
   effective_reply_mode?: string | null;
+  /** Their appointments on the owner's calendar, attached by the API when the
+   *  workspace has one connected; null means no calendar. */
+  visits?: PersonVisitsDto | null;
 }
 
 export interface PersonIdentityDto {
@@ -420,6 +423,19 @@ export interface PersonRowVM {
   /** The Inbox route id (`th-<conversation>`); null without a chat. */
   threadId: string | null;
   needsYouSinceMs: number | null;
+  /** The calendar's state for this workspace: the outcome lists exist only when it is "ok". */
+  calendar: "ok" | "unavailable" | "none";
+  /** An appointment ahead on the calendar. */
+  booked: boolean;
+  /** "Tue, Sep 8" — the day of the next appointment, for the chip. */
+  nextVisitDay: string | null;
+  /** "Tue, Sep 8 · 2:00 – 5:00 PM · Balayage" */
+  nextVisit: string | null;
+  lastVisit: string | null;
+  /** When they last wrote or called, whichever is later. */
+  askedMs: number | null;
+  /** Wrote or called in the last 30 days, and the calendar has never had them. */
+  askedNotBooked: boolean;
 }
 
 export function toPersonRowVM(r: PersonRowDto, now = new Date()): PersonRowVM {
@@ -429,6 +445,15 @@ export function toPersonRowVM(r: PersonRowDto, now = new Date()): PersonRowVM {
   const last = lastContactOf(r, nowMs);
   const first = firstContactOf(r, nowMs);
   const consent = consentOf(r, nowMs);
+  // Booked is a fact from the calendar, not a stage: an appointment ahead.
+  // Asked-not-booked is the gap the owner can act on — they reached out
+  // this month and the calendar has never had them.
+  const v = r.visits ?? null;
+  const calendar = v ? v.state : "none";
+  const askedCandidates = [ts(r.last_inbound_at), ts(r.last_call_at)].filter((x): x is number => x !== null);
+  const askedMs = askedCandidates.length ? Math.max(...askedCandidates) : null;
+  const booked = !!v?.next;
+  const askedNotBooked = calendar === "ok" && askedMs !== null && nowMs - askedMs <= MONTH_MS && !v?.next && !v?.last;
   const stateDetail =
     state === "needs_you" ? (r.open_escalation_reason ? reasonShort(r.open_escalation_reason) : "waiting for a person")
     : state === "waiting_on_you" ? "you own the thread and they wrote last"
@@ -459,16 +484,27 @@ export function toPersonRowVM(r: PersonRowDto, now = new Date()): PersonRowVM {
     callSeconds: r.call_seconds ?? 0,
     threadId: r.has_chat && r.latest_conversation_id ? `th-${r.latest_conversation_id}` : null,
     needsYouSinceMs: ts(r.open_escalation_since),
+    calendar,
+    booked,
+    nextVisitDay: v?.next ? visitDay(v.next.start, v.timezone, nowMs) : null,
+    nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} · ${v.next.title}` : null,
+    lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} · ${v.last.title}` : null,
+    askedMs,
+    askedNotBooked,
   };
 }
 
 /* ---------------------------- lists and totals --------------------------- */
 
-/** The rail's smart lists: computed filters over facts, not saved segments. */
-export const PEOPLE_LISTS: readonly { id: string; label: string; test: (vm: PersonRowVM) => boolean }[] = [
+/** The rail's smart lists: computed filters over facts, not saved segments. Two need the calendar and are shown only when it is connected. */
+export const PEOPLE_LISTS: readonly { id: string; label: string; needsCalendar?: boolean; test: (vm: PersonRowVM) => boolean }[] = [
   { id: "needs_you", label: "Needs you", test: (v) => v.state === "needs_you" },
   { id: "waiting_on_you", label: "Waiting on you", test: (v) => v.state === "waiting_on_you" },
   { id: "new_week", label: "New this week", test: (v) => v.state === "new" },
+  // The outcome, from the calendar: the booking is the conversion, and the
+  // people who asked and never booked are the ones an owner can still win.
+  { id: "booked", label: "Booked", needsCalendar: true, test: (v) => v.booked },
+  { id: "asked_never_booked", label: "Asked, never booked", needsCalendar: true, test: (v) => v.askedNotBooked },
   { id: "quiet", label: "Quiet 30+ days", test: (v) => v.state === "quiet" },
   { id: "phoned_only", label: "Phoned only", test: (v) => !v.hasChat && v.calls > 0 },
   // A fact, not the state: someone who opted out AND needs you is in both lists.
@@ -486,6 +522,10 @@ export interface PeopleAggregates {
   /** Any message or call within 7 days. */
   reachedWeek: number;
   reachedWeekNew: number;
+  /** An appointment ahead on the calendar. */
+  booked: number;
+  /** Wrote or called this month; the calendar has never had them. */
+  askedNotBooked: number;
 }
 
 export function peopleAggregates(rows: PersonRowVM[], nowMs: number): PeopleAggregates {
@@ -494,7 +534,11 @@ export function peopleAggregates(rows: PersonRowVM[], nowMs: number): PeopleAggr
   let newThisMonth = 0;
   let reachedWeek = 0;
   let reachedWeekNew = 0;
+  let booked = 0;
+  let askedNotBooked = 0;
   for (const v of rows) {
+    if (v.booked) booked++;
+    if (v.askedNotBooked) askedNotBooked++;
     if (v.state === "needs_you") {
       needsYou++;
       if (v.needsYouSinceMs !== null && (oldest === null || v.needsYouSinceMs < oldest)) oldest = v.needsYouSinceMs;
@@ -505,7 +549,7 @@ export function peopleAggregates(rows: PersonRowVM[], nowMs: number): PeopleAggr
       if (v.state === "new") reachedWeekNew++;
     }
   }
-  return { total: rows.length, needsYou, needsYouOldestMs: oldest, newThisMonth, reachedWeek, reachedWeekNew };
+  return { total: rows.length, needsYou, needsYouOldestMs: oldest, newThisMonth, reachedWeek, reachedWeekNew, booked, askedNotBooked };
 }
 
 const RECENCY_BUCKETS = [
@@ -618,6 +662,7 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
     call_count: d.calls.length ? d.calls.filter((k) => k.status !== "not_connected").length : d.row.call_count,
     call_seconds: d.calls.length ? Math.round(d.calls.filter((k) => k.status !== "not_connected").reduce((a, k) => a + (k.duration_ms ?? 0), 0) / 1000) : d.row.call_seconds,
     escalation_count: d.escalations.length || d.row.escalation_count,
+    visits: d.visits ?? d.row.visits ?? null,
   };
   const base = toPersonRowVM(row, now);
   // A person we know only by number has no first name to shorten to: "+1"

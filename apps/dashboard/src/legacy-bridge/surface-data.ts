@@ -267,6 +267,9 @@ import {
   type CampaignReportVM,
   toCalendarVM,
   windowFor,
+  toBookingReportVM,
+  type BookingReportDto,
+  type BookingReportVM,
   type CalendarWeekDto,
   type CalendarVM,
 } from "@chanlytics/contracts";
@@ -599,6 +602,8 @@ export interface PeopleSurface {
   aggregates: PeopleAggregates;
   /** Days-since-last-contact histogram per state, for the console strip. */
   recency: Record<string, { label: string; count: number }[]>;
+  /** The workspace's calendar: the outcome lists and the Booked cell exist only when it is "ok". */
+  calendar: { state: "ok" | "unavailable" | "none"; source: string };
   fetchedAt: number;
 }
 
@@ -621,18 +626,21 @@ export const peopleOverride: SurfaceOverride = {
   refreshOnMessageInserts: true,
   apply: async () => {
     const [data, savedData] = await Promise.all([
-      fetchEnvelope<{ people: PersonRowDto[] }>("/api/v1/contacts"),
+      fetchEnvelope<{ people: PersonRowDto[]; calendar?: { state: "ok" | "unavailable" | "none"; source: string } }>("/api/v1/contacts"),
       fetchEnvelope<{ lists: { id: string; name: string; ids: string[] }[] }>("/api/v1/segments"),
     ]);
     const now = new Date();
     const rows = data.people.map((r) => toPersonRowVM(r, now));
     const rowIds = new Set(rows.map((r) => r.id));
+    const calendar = data.calendar ?? { state: "none" as const, source: "your calendar" };
     (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE = {
       rows,
-      lists: PEOPLE_LISTS.map((l) => {
+      // The outcome lists only when there is a calendar to read them from.
+      lists: PEOPLE_LISTS.filter((l) => !l.needsCalendar || calendar.state === "ok").map((l) => {
         const ids = rows.filter(l.test).map((r) => r.id);
         return { id: l.id, label: l.label, count: ids.length, ids };
       }),
+      calendar,
       saved: savedData.lists.map((l) => {
         const ids = l.ids.filter((id) => rowIds.has(id));
         return { id: l.id, name: l.name, count: ids.length, ids };
@@ -925,6 +933,8 @@ export interface ReportsSurface {
   vm: ReportVM;
   /** What the offers earned over the same period. */
   campaigns: CampaignReportVM;
+  /** Asked, then booked: the one conversion line, from the calendar. */
+  booking: BookingReportVM;
   days: number;
   fetchedAt: number;
 }
@@ -946,12 +956,13 @@ export const reportsOverride: SurfaceOverride = {
   apply: async () => {
     const days = reportDays;
     const [data, campaigns] = await Promise.all([
-      fetchEnvelope<{ report: ReportDto }>(`/api/v1/reports?days=${days}`),
+      fetchEnvelope<{ report: ReportDto; booking?: BookingReportDto | null }>(`/api/v1/reports?days=${days}`),
       fetchEnvelope<{ report: CampaignReportDto }>(`/api/v1/reports/campaigns?days=${days}`),
     ]);
     (window as unknown as { __REPORTS?: ReportsSurface }).__REPORTS = {
       vm: toReportVM(data.report),
       campaigns: toCampaignReportVM(campaigns.report),
+      booking: toBookingReportVM(data.booking),
       days,
       fetchedAt: Date.now(),
     };

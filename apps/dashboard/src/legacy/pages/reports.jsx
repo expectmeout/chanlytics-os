@@ -631,6 +631,7 @@ const ReportsReal = () => {
   if (!R) return null;
   const vm = R.vm;
   const cm = R.campaigns || null;
+  const bk = R.booking || { present: false, headline: "—", sub: "", pct: null, asked: 0, booked: 0 };
   const pick = async (days) => {
     if (days === R.days || !window.__setReportDays) return;
     setBusy(true);
@@ -730,7 +731,7 @@ const ReportsReal = () => {
         {!vm.empty && (
           <>
             <RpSection label="Calls and people" />
-            <div className="rp2-row">
+            <div className="rp2-row rp2-row-three">
               <RpCard title="Calls" sub={vm.calls.total ? `${vm.calls.total} calls · ${vm.calls.minutes} min · ${vm.calls.voicemail} to voicemail` : "no calls in this period"} testid="chart-calls"
                 table={{ columns: ["Day", "Calls", "Seconds"], rows: vm.calls.points.map((p) => [p.label, p.calls, p.callSeconds]) }}>
                 {vm.calls.total ? (
@@ -747,6 +748,14 @@ const ReportsReal = () => {
                 {vm.people.total
                   ? <RpColumns points={vm.people.points} field="newPeople" max={vm.people.max} days={vm.days} label="new people" />
                   : <div className="rp2-empty">Nobody new wrote or called in this period.</div>}
+              </RpCard>
+              <RpCard title="Asked → booked" sub={bk.present ? "the booking is the conversion" : "needs the calendar"} testid="chart-booking">
+                <div className="rp2-booking">
+                  <div className="rp2-booking-big tabular">{bk.pct !== null ? `${bk.pct}%` : "—"}</div>
+                  <div className="rp2-booking-head">{bk.headline}</div>
+                  {bk.pct !== null && <div className="rp2-booking-bar"><span style={{ width: `${bk.pct}%` }} /></div>}
+                  <div className="rp2-booking-sub">{bk.sub}</div>
+                </div>
               </RpCard>
             </div>
           </>

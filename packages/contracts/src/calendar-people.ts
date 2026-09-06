@@ -78,6 +78,13 @@ export function extractContacts(item: Pick<FeedItem, "title" | "description" | "
 
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** A whole-name matcher: four letters or more, on word edges ("Dani" is not in "Daniela"); null for a name that is none, or only a phone made words. */
+function nameMatcher(name: string): RegExp | null {
+  const n = name.trim();
+  if (n.length < 4 || /^[+\d(]/.test(n)) return null;
+  return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(n)}(?=$|[^\\p{L}\\p{N}])`, "iu");
+}
+
 /**
  * A person whose whole name the text carries: four letters or more, on word
  * edges ("Dani" is not in "Daniela"), the longest match when several fit.
@@ -86,10 +93,8 @@ const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 export function personInText(text: string, people: PersonLike[]): PersonLike | null {
   let best: PersonLike | null = null;
   for (const p of people) {
-    const n = p.name.trim();
-    if (n.length < 4 || /^[+\d(]/.test(n)) continue;
-    const re = new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(n)}(?=$|[^\\p{L}\\p{N}])`, "iu");
-    if (re.test(text) && (!best || n.length > best.name.trim().length)) best = p;
+    const re = nameMatcher(p.name);
+    if (re && re.test(text) && (!best || p.name.trim().length > best.name.trim().length)) best = p;
   }
   return best;
 }
@@ -130,18 +135,44 @@ export interface Visits {
   last: Visit | null;
 }
 
-/** One person's next and last appointment in a parsed feed. */
-export function visitsOf(items: FeedItem[], person: PersonLike, nowMs: number): Visits {
+/** A feed indexed once — every item's phones and words found up front — so many people can be matched against it. */
+export interface FeedIndex {
+  byPhone: Map<string, FeedItem[]>;
+  texts: Array<{ item: FeedItem; text: string }>;
+}
+
+export function indexFeed(items: FeedItem[]): FeedIndex {
+  const byPhone = new Map<string, FeedItem[]>();
+  const texts: FeedIndex["texts"] = [];
+  for (const it of items) {
+    const c = extractContacts(it);
+    for (const ph of c.phones) byPhone.set(ph, [...(byPhone.get(ph) ?? []), it]);
+    texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
+  }
+  return { byPhone, texts };
+}
+
+/** One person's next and last appointment against an indexed feed: their number first, their whole name second. */
+export function visitsIn(index: FeedIndex, person: PersonLike, nowMs: number): Visits {
   let next: Visit | null = null;
   let last: Visit | null = null;
-  for (const it of items) {
-    const m = matchPerson(it, [person]);
-    if (!m) continue;
-    const v: Visit = { id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`, start: it.start, end: it.end, title: it.title || "Busy", allDay: it.allDay, via: m.via };
+  const seen = new Set<FeedItem>();
+  const take = (it: FeedItem, via: "phone" | "name") => {
+    if (seen.has(it)) return;
+    seen.add(it);
+    const v: Visit = { id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`, start: it.start, end: it.end, title: it.title || "Busy", allDay: it.allDay, via };
     if (it.end >= nowMs) { if (!next || v.start < next.start) next = v; }
     else if (!last || v.end > last.end) last = v;
-  }
+  };
+  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
+  const re = nameMatcher(person.name);
+  if (re) for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
   return { next, last };
+}
+
+/** One person's next and last appointment in a parsed feed. */
+export function visitsOf(items: FeedItem[], person: PersonLike, nowMs: number): Visits {
+  return visitsIn(indexFeed(items), person, nowMs);
 }
 
 /** ISO or ms → ms. */
@@ -324,4 +355,51 @@ export function peopleFromItems(items: FeedItem[], services: string[], nowMs: nu
     }
   }
   return [...byPhone.values()].sort((a, b) => a.start - b.start);
+}
+
+/* ------------------------------------------------- asked, then booked */
+
+/** Of the people who wrote or called in the period, how many have an appointment on the calendar. */
+export interface BookingReportDto {
+  calendar: "ok" | "unavailable" | "none";
+  days: number;
+  asked: number;
+  booked: number;
+}
+
+export interface BookingReportVM {
+  /** False without a readable calendar: nothing to count against. */
+  present: boolean;
+  /** "12 of 40 booked" */
+  headline: string;
+  sub: string;
+  pct: number | null;
+  asked: number;
+  booked: number;
+}
+
+/**
+ * Whether someone who reached out has an appointment that answers it: one
+ * upcoming, or one held since they got in touch. The conversion Chanlytics
+ * counts is the booking, not a stage somebody moved a card into.
+ */
+export function bookedAfterAsk(visits: Visits | null | undefined, askedMs: number): boolean {
+  if (!visits) return false;
+  if (visits.next) return true;
+  return !!visits.last && visits.last.start >= askedMs - 86_400_000;
+}
+
+export function toBookingReportVM(dto: BookingReportDto | null | undefined): BookingReportVM {
+  if (!dto || dto.calendar === "none") return { present: false, headline: "—", sub: "Connect your calendar under Settings › Workspace to see who booked.", pct: null, asked: 0, booked: 0 };
+  if (dto.calendar === "unavailable") return { present: false, headline: "—", sub: "Your calendar could not be read.", pct: null, asked: dto.asked, booked: 0 };
+  if (dto.asked === 0) return { present: true, headline: "Nobody asked", sub: `nobody wrote or called in the last ${dto.days} days`, pct: null, asked: 0, booked: 0 };
+  const pct = Math.round((dto.booked / dto.asked) * 100);
+  return {
+    present: true,
+    headline: `${dto.booked} of ${dto.asked} booked`,
+    sub: `${pct}% of the people who wrote or called in the last ${dto.days} days have an appointment on the calendar`,
+    pct,
+    asked: dto.asked,
+    booked: dto.booked,
+  };
 }

@@ -551,6 +551,13 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
     content = <ComingSoon surface={page} onNavigate={navigate} />;
   }
 
+  // Retired surfaces: People took over Leads and the Deal board. A real
+  // workspace lands on People; the standalone mockup keeps its pages.
+  const retiredTo = !window.__DEMO_MODE && window.__surfaceRetired ? window.__surfaceRetired(page) : null;
+  useShellEffect(() => {
+    if (retiredTo) window.location.hash = "/" + retiredTo;
+  }, [retiredTo]);
+
   const routeKey = `${page}/${param || ""}`;
   useShellEffect(() => {
     setNavOpen(false);

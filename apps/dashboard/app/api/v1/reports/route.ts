@@ -1,6 +1,8 @@
 import { withRoute, memberContext } from "@/server/with-route";
 import { AppError, REPORT_RANGES, type ReportDto } from "@chanlytics/contracts";
 import { takeRate } from "@/server/rate-limit";
+import { listPeople } from "@/server/people";
+import { bookingReport } from "@/server/calendar";
 
 /**
  * GET /api/v1/reports?days=7|30|90 — the receptionist's numbers, day by day.
@@ -23,5 +25,10 @@ export const GET = withRoute(async (req, ctx) => {
   if (error) throw new Error(error.message);
   const report = data as unknown as ReportDto;
   if (!report || report.error) throw new AppError("not_found", "No workspace found for this report.", 404);
-  return { report };
+  // Asked, then booked — the one conversion line, from the calendar. Never
+  // fatal: a feed that cannot be read costs this line, not the report.
+  const booking = await listPeople(ctx, tenantId)
+    .then((rows) => bookingReport(ctx, tenantId, rows, days))
+    .catch((e: unknown) => { console.error("booking_report_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) })); return null; });
+  return { report, booking };
 });
