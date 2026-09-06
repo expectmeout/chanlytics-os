@@ -234,7 +234,7 @@ export function toReportVM(dto: ReportDto): ReportVM {
     },
     {
       id: "answered",
-      label: "Answered by the receptionist",
+      label: "Receptionist answered",
       value: aiShare === null ? "—" : `${aiShare}%`,
       meta: answeredTotal ? `${tot.ai} of ${answeredTotal} · ${tot.you} by you · ${tot.none} unanswered` : "nothing to answer",
       // A share compares in POINTS. Against counts, the share could fall from

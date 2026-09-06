@@ -3771,7 +3771,7 @@ function toReportVM(dto) {
     },
     {
       id: "answered",
-      label: "Answered by the receptionist",
+      label: "Receptionist answered",
       value: aiShare === null ? "\u2014" : `${aiShare}%`,
       meta: answeredTotal ? `${tot.ai} of ${answeredTotal} \xB7 ${tot.you} by you \xB7 ${tot.none} unanswered` : "nothing to answer",
       // A share compares in POINTS. Against counts, the share could fall from

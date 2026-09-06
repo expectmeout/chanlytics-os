@@ -395,9 +395,9 @@ const RpSpark = ({ points }) => {
 
 const RpTile = ({ t }) => (
   <div className="rp2-tile" data-tile={t.id}>
-    <div className="rp2-tile-label">{t.label}</div>
+    <div className="rp2-tile-label" title={t.label}>{t.label}</div>
     <div className="rp2-tile-value">{t.value}</div>
-    <div className="rp2-tile-meta">{t.meta}</div>
+    <div className="rp2-tile-meta" title={t.meta}>{t.meta}</div>
     <div className="rp2-tile-foot">
       <span className={`rp2-delta ${t.delta ? t.delta.tone : ""}`}>{t.delta ? t.delta.text : ""}</span>
       <RpSpark points={t.spark} />
