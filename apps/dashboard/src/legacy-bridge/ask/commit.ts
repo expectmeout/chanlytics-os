@@ -107,6 +107,22 @@ export async function commitProposal(win: Window, p: AskProposal): Promise<Commi
       const n = Number(r.data.recipient_count ?? pl.count ?? 0);
       return { ok: true, receipt: `Broadcast “${r.data.name ?? pl.name}” — ${n} ${n === 1 ? "person" : "people"}, ${pl.scheduled_for ? "scheduled" : "sending now"}`, undo: { broadcast_id: r.data.id } };
     }
+    case "playbook": {
+      const r = await viaAsk(win, "/api/v1/playbooks", {
+        name: pl.name ?? null,
+        trigger: pl.trigger,
+        template_id: pl.template_id,
+        params: Array.isArray(pl.params) ? pl.params : [],
+        run_hour: pl.run_hour,
+        cap_per_run: pl.cap_per_run,
+        gap_days: pl.gap_days,
+        cadence_days: pl.cadence_days,
+      });
+      if (!r.ok) return r;
+      const rp = (win as unknown as { __refreshPlaybooks?: () => Promise<void> }).__refreshPlaybooks;
+      if (rp) await rp();
+      return { ok: true, receipt: `Playbook “${r.data.name ?? pl.name}” is running — its next run is on the card in Campaigns › Playbooks`, undo: { playbook_id: r.data.id } };
+    }
     default:
       return { ok: false, message: "This card cannot be approved from here." };
   }
@@ -141,6 +157,13 @@ export async function undoProposal(win: Window, p: AskProposal, outcome: AskProp
       const rb = (win as unknown as { __refreshBroadcasts?: () => Promise<void> }).__refreshBroadcasts;
       if (rb) await rb();
       return { ok: true, receipt: r.data.was === "sending" ? "Stopped — it ends after this batch" : "Canceled — nothing will send", undo: null };
+    }
+    case "playbook": {
+      const r = await viaAsk(win, `/api/v1/playbooks/${u.playbook_id}`, undefined, "DELETE");
+      if (!r.ok) return r;
+      const rp = (win as unknown as { __refreshPlaybooks?: () => Promise<void> }).__refreshPlaybooks;
+      if (rp) await rp();
+      return { ok: true, receipt: "Deleted — nothing will run", undo: null };
     }
     case "policy": {
       const body: Record<string, unknown> = { class: u.class };

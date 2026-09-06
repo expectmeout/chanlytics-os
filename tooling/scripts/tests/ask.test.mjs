@@ -374,7 +374,7 @@ test("the entry points are real everywhere: no Soon tag, ⌘K and the button ope
 });
 
 test("cards: an act tool never acts, a proposal names its door and its undo, the outcome is the one update a turn takes", () => {
-  assert.deepEqual(PROPOSAL_GATE, { reply: "approve", steer: "approve", thread_verb: "approve", whisper: "approve", policy: "autonomy", person_mode: "settings", settings: "settings", invite: "team", broadcast: "approve" });
+  assert.deepEqual(PROPOSAL_GATE, { reply: "approve", steer: "approve", thread_verb: "approve", whisper: "approve", policy: "autonomy", person_mode: "settings", settings: "settings", invite: "team", broadcast: "approve", playbook: "approve" });
   const ok = AskProposalOutcomeSchema.safeParse({ state: "done", receipt: "Sent to Rosa", atMs: 1, undo: { message_id: ID } });
   assert.ok(ok.success);
   assert.equal(AskProposalOutcomeSchema.safeParse({ state: "sent" }).success, false, "only the four states");

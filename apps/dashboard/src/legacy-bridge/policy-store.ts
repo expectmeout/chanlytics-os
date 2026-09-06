@@ -40,8 +40,8 @@ export const UI_ROWS: readonly UiRowMeta[] = [
   { id: "reply", cls: "reply", label: "Replies to customers", note: "every text the receptionist sends", chip: "Replies", enforced: true },
   { id: "faq", cls: "faq", label: "Service & pricing questions", note: "answered from your business profile", chip: "FAQs", enforced: false },
   { id: "book", cls: "booking", label: "Book · reschedule", note: "sends your booking link", chip: "Booking", enforced: false },
-  { id: "reengage", cls: "reengage", label: "Re-engage quiet customers", note: "the win-back and save-our-number playbooks", chip: "Re-engage", enforced: true },
-  { id: "campaign", cls: "campaign", label: "Standing offers", note: "the welcome and month's-offer playbooks", chip: "Campaigns", enforced: true },
+  { id: "reengage", cls: "reengage", label: "Re-engage quiet customers", note: "the win-back and save-our-number playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing", chip: "Re-engage", enforced: true },
+  { id: "campaign", cls: "campaign", label: "Standing offers", note: "the welcome and month's-offer playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing", chip: "Campaigns", enforced: true },
   { id: "money", cls: "money", label: "Refunds · rates · negotiation", note: "always goes to you", chip: "Money", locked: true, enforced: true },
 ];
 

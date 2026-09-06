@@ -21,6 +21,12 @@ import {
   toPersonVM,
   toReportVM,
   toTodayVM,
+  PLAYBOOK_TRIGGERS,
+  eligibleForPlaybook,
+  nextRunLabel,
+  scheduleLine,
+  starterForTrigger,
+  triggerOf,
   type AskReadSet,
   type CallDto,
   type ConversationDto,
@@ -37,6 +43,7 @@ import { listPolicies } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 import { CALL_COLUMNS, CONVERSATION_COLUMNS, MESSAGE_COLUMNS, groupMessages, toCallDto, toConversationDto } from "../dto";
 import { listPeople } from "../people";
+import { listPlaybooks } from "../playbooks";
 import { tenantFacts } from "../tenant";
 import { openingsFor } from "./openings";
 import { ASK_DEFINITIONS, workspaceFacts } from "./prompt";
@@ -118,8 +125,13 @@ export const READ_TOOLS: ToolDef[] = [
     input_schema: obj({}, []),
   },
   {
+    name: "list_playbooks",
+    description: "The playbooks: standing rules that send one approved template to newly eligible people who said yes — each with what starts it, its template, its clock, whether it is running, the autonomy mode its class runs under, its next run, what its runs earned, and a run waiting for a person if there is one — plus the four triggers with how many people said yes on each list right now and each one's starter template. Read this to say what is running, and before proposing a playbook.",
+    input_schema: obj({}, []),
+  },
+  {
     name: "explain_metric",
-    description: "What a word on the pages means: needs you, waiting on you, held draft, answering, snoozed, opted out, 24-hour window, escalation, confidence dial, token budget, veto window, missed call, median reply time.",
+    description: "What a word on the pages means: needs you, waiting on you, held draft, answering, snoozed, opted out, 24-hour window, escalation, confidence dial, token budget, veto window, missed call, median reply time, said yes, broadcast, held back, playbook.",
     input_schema: obj({ term: { type: "string" } }, ["term"]),
   },
 ];
@@ -567,6 +579,7 @@ const LABELS: Record<string, string> = {
   get_settings: "Reading Settings",
   get_openings: "Checking the calendar",
   list_audiences: "Reading the lists and templates",
+  list_playbooks: "Reading the playbooks",
   explain_metric: "Checking a definition",
 };
 
@@ -620,6 +633,65 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   };
 }
 
+/** What a run does under each mode, in the assistant's words. */
+const MODE_WORDS: Record<string, string> = {
+  auto: "a run sends on its own",
+  veto: "a run sends 30 minutes later unless someone stops it",
+  ask: "a run waits for a person on Today",
+  never: "nothing runs",
+};
+
+/**
+ * The playbooks as the page shows them — the same rows, the same totals,
+ * the same next-run words — and the four triggers with the count the
+ * composer's chips carry.
+ */
+async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
+  const [rows, facts, policies, people] = await Promise.all([
+    listPlaybooks(t.ctx, t.tenantId),
+    tenantFacts(t.ctx.supabase, t.tenantId),
+    listPolicies(t.ctx.supabase, t.tenantId).catch(() => []),
+    memoised(t, "people_rows", () => listPeople(t.ctx, t.tenantId)),
+  ]);
+  const modes = new Map(policies.map((r) => [r.class, r.mode]));
+  const modeOf = (cls: string) => modes.get(cls) ?? "ask";
+  const vm = people.map((r) => toPersonRowVM(r, t.now));
+  const untouched = { byThis: new Map<string, number>(), byAny: new Map<string, number>() };
+  const pool = (trigger: string) =>
+    eligibleForPlaybook(vm, { trigger: trigger as (typeof PLAYBOOK_TRIGGERS)[number]["id"], cap_per_run: 100_000, gap_days: 0, cadence_days: 0 }, untouched, t.now.getTime()).length;
+  return {
+    route: "outbound",
+    timezone: facts.timezone,
+    modes: { reengage: modeOf("reengage"), campaign: modeOf("campaign") },
+    mode_words: MODE_WORDS,
+    playbooks: rows.map((p) => ({
+      playbook_id: p.id,
+      name: p.name,
+      trigger: p.trigger,
+      trigger_label: triggerOf(p.trigger)?.label ?? p.trigger,
+      template: p.template_name,
+      state: p.state,
+      policy_class: p.policy_class,
+      mode: modeOf(p.policy_class),
+      schedule: scheduleLine(p),
+      next_run: nextRunLabel(p, facts.timezone, t.now),
+      runs: p.totals.runs,
+      sent: p.totals.sent,
+      replied: p.totals.replied,
+      waiting: p.totals.waiting ? { broadcast_id: p.totals.waiting.id, people: p.totals.waiting.recipient_count } : null,
+    })),
+    triggers: PLAYBOOK_TRIGGERS.map((x) => ({
+      trigger: x.id,
+      label: x.label,
+      when: x.hint,
+      policy_class: x.cls,
+      said_yes_now: pool(x.id),
+      starter_template: starterForTrigger(x.id)?.title ?? null,
+    })),
+    note: "A run reaches only people with a recorded yes, never twice within the playbook's gap, one playbook message per person per week. Nothing here has run because you read it.",
+  };
+}
+
 export async function runTool(t: ToolContext, run: ToolRun): Promise<ToolOutcome> {
   const label = toolLabel(run.name);
   try {
@@ -636,6 +708,7 @@ export async function runTool(t: ToolContext, run: ToolRun): Promise<ToolOutcome
       case "get_settings": out = await getSettings(t); break;
       case "get_openings": out = await getOpenings(t, run.input); break;
       case "list_audiences": out = await listAudiences(t); break;
+      case "list_playbooks": out = await listPlaybooksTool(t); break;
       case "explain_metric": out = explainMetric(run.input); break;
       default: return { result: json({ error: `unknown tool ${run.name}` }), isError: true, label };
     }

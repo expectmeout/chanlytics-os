@@ -30,6 +30,7 @@ export const ASK_DEFINITIONS: Record<string, string> = {
   "said yes": "A recorded answer that the person wants offers and news by WhatsApp: the desk recorded it on their profile, or they sent YES OFFERS or START themselves. Only these people can be on a broadcast.",
   "broadcast": "One approved WhatsApp template sent to the people on a list who said yes — everyone, a People list, or a list kept by hand. Sent now or at a time, 25 at a time; replies land in the Inbox, where the receptionist answers them.",
   "held back": "A person on a broadcast the send skipped at the wire: no recorded yes, asked to stop, no number, or a person had their thread.",
+  "playbook": "A standing rule that sends one approved WhatsApp template to newly eligible people who said yes: win-back (quiet 30 days), welcome (new this week), save our number (only ever phoned) or the month's offer (everyone who said yes, on a cadence). It runs at its hour by the business's clock, reaches a person once within its gap, one playbook message per person per week, under its class's autonomy mode — auto sends the run, veto sends it 30 minutes later unless stopped, ask leaves it waiting for a person on Today, never runs nothing.",
 };
 
 export const ASK_RULES = [

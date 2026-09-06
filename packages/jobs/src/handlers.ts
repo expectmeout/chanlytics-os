@@ -358,7 +358,7 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const p = job.payload as { broadcast_id: string };
   const { data: b, error: bErr } = await ctx.db
     .from("broadcasts")
-    .select("id, state, name, template_name, template_language, params, recipient_count")
+    .select("id, state, name, template_name, template_language, params, recipient_count, playbook_id, audience")
     .eq("id", p.broadcast_id)
     .eq("tenant_id", job.tenant_id)
     .maybeSingle();
@@ -450,7 +450,12 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       body: words,
       externalId: sent.ok ? sent.wamid : null,
       status: sent.ok ? "sent" : "failed",
-      meta: { source: "broadcast", broadcast_id: b.id, broadcast_name: b.name, ...(sent.ok ? {} : { http_status: sent.status }) },
+      // A run's message names its playbook, so a thread reads "by the Win-back playbook".
+      meta: {
+        source: "broadcast", broadcast_id: b.id, broadcast_name: b.name,
+        ...(b.playbook_id ? { playbook_id: b.playbook_id, playbook_name: String((b.audience as { label?: unknown } | null)?.label ?? b.name) } : {}),
+        ...(sent.ok ? {} : { http_status: sent.status }),
+      },
     }).catch((e: unknown) => {
       console.error("broadcast_record_failed", e instanceof Error ? e.message : e);
       return null;

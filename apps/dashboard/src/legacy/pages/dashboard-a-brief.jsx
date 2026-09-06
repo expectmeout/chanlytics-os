@@ -22,7 +22,12 @@ const RunsWaiting = ({ nav, flash }) => {
   // playbook's, scheduled, not yet sending — with a Stop while there is time.
   const waiting = all.filter((r) => r.state === "pending_approval");
   const soon = all.filter((r) => r.state === "scheduled" && r.playbook_id && Date.parse(r.scheduled_for) > Date.now());
-  const rows = [...waiting, ...soon].slice(0, 2);
+  // What went out today — a playbook's run or a broadcast — with what it has earned so far.
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  const done = all.filter((r) => (r.state === "sent" || r.state === "sending") && r.started_at && Date.parse(r.started_at) >= dayStart.getTime());
+  const rows = [...waiting, ...soon, ...done].slice(0, 3);
+  const timeOf = (iso) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   const stop = async (r) => {
     if (!(window.canDo && window.canDo("approve")) || !window.__broadcasts) return;
     const res = await window.__broadcasts.cancel(r.id);
@@ -39,7 +44,15 @@ const RunsWaiting = ({ nav, flash }) => {
       : { msg: <>{res.message}</> });
   };
   const people = (r) => `${r.recipient_count} ${r.recipient_count === 1 ? "person" : "people"}`;
-  return rows.map((r) => (r.state === "pending_approval" ? (
+  return rows.map((r) => (r.state === "sent" || r.state === "sending" ? (
+    <div key={`run-${r.id}`} className="brief-beat" data-testid="brief-run-done">
+      <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
+      <span className="brief-beat-text">
+        <b>{r.playbook_id ? r.audience.label : r.name}</b> {r.playbook_id ? "ran" : "went out"} at {timeOf(r.started_at)} — {r.counts.sent} sent{r.counts.replied ? `, ${r.counts.replied} replied` : ""}{r.state === "sending" ? " · still sending" : ""}
+      </span>
+      <button className="brief-chip" onClick={() => nav("broadcasts")}>Open <Icon name="arrow-right" size={10} /></button>
+    </div>
+  ) : r.state === "pending_approval" ? (
     <div key={`run-${r.id}`} className="brief-beat" data-testid="brief-run-row">
       <span className="brief-beat-dot" style={{ background: "var(--accent)" }} />
       <span className="brief-beat-text">
