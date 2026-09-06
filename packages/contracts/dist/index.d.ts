@@ -3532,7 +3532,7 @@ type AskRole = "user" | "assistant";
 /** A proposal the model made; a card the person may approve. Executed by the client through the verbs. */
 interface AskProposal {
     id: string;
-    kind: "reply" | "steer" | "thread_verb" | "person_mode" | "policy" | "settings" | "whisper" | "invite";
+    kind: "reply" | "steer" | "thread_verb" | "person_mode" | "policy" | "settings" | "whisper" | "invite" | "broadcast";
     /** The lowest role that may commit it; the route re-checks on Approve. */
     needs: "operator" | "owner";
     title: string;

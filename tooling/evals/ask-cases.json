@@ -296,5 +296,25 @@
       "navigate_now": true,
       "no_write": true
     }
+  },
+  {
+    "id": "offer_to_quiet",
+    "text": "send an offer to the quiet clients",
+    "expect": {
+      "tools_any": [
+        "list_audiences"
+      ],
+      "no_write": true
+    }
+  },
+  {
+    "id": "who_said_yes",
+    "text": "how many people can I send offers to?",
+    "expect": {
+      "tools_any": [
+        "list_audiences"
+      ],
+      "no_write": true
+    }
   }
 ]

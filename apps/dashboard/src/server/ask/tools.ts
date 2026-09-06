@@ -2,6 +2,11 @@ import "server-only";
 import {
   ASK_CAPS,
   ASK_FINISH_JSON_SCHEMA,
+  EVERYONE_LABEL,
+  PEOPLE_LISTS,
+  eligibleFor,
+  numberHealth,
+  toPersonRowVM,
   ESCALATION_REASON_LABELS,
   PERSON_STATE_LABELS,
   REPORT_RANGES,
@@ -106,6 +111,11 @@ export const READ_TOOLS: ToolDef[] = [
     name: "get_openings",
     description: "Open times from the connected calendar against the business hours, closures and booking rules. day: a weekday (mon..sun) or a date (YYYY-MM-DD), or empty for the next days. service: the service name to size the slot, or empty.",
     input_schema: obj({ day: { type: "string" }, service: { type: "string" } }, ["day", "service"]),
+  },
+  {
+    name: "list_audiences",
+    description: "The audiences a broadcast may go to — everyone who said yes, every People list, every list kept by hand — each with how many said yes to offers and have a number; the approved WhatsApp templates with their values; and whether the number may send. Read this before proposing a broadcast.",
+    input_schema: obj({}, []),
   },
   {
     name: "explain_metric",
@@ -556,6 +566,7 @@ const LABELS: Record<string, string> = {
   get_report: "Reading Reports",
   get_settings: "Reading Settings",
   get_openings: "Checking the calendar",
+  list_audiences: "Reading the lists and templates",
   explain_metric: "Checking a definition",
 };
 
@@ -568,6 +579,47 @@ export function newToolContext(ctx: RouteContext, tenantId: string, role: ToolCo
 }
 
 /** Run one read. A tool's own failure is returned to the model as an error result, never thrown. */
+/**
+ * The audiences a broadcast may go to, counted by the same contracts
+ * predicate the route enrols with and the page shows — so the number the
+ * assistant says is the number the card will carry.
+ */
+async function listAudiences(t: ToolContext): Promise<unknown> {
+  const [people, segs, members, tpls, ch] = await Promise.all([
+    memoised(t, "people_rows", () => listPeople(t.ctx, t.tenantId)),
+    t.ctx.supabase.from("segments").select("id, name").eq("tenant_id", t.tenantId).order("name"),
+    t.ctx.supabase.from("segment_members").select("segment_id, contact_id").eq("tenant_id", t.tenantId),
+    t.ctx.supabase.from("templates").select("id, name, language, category, variables, body_preview").eq("tenant_id", t.tenantId).eq("channel", "whatsapp").eq("meta_status", "approved").order("name"),
+    t.ctx.supabase.from("tenant_channels").select("number_e164, config").eq("tenant_id", t.tenantId).eq("kind", "whatsapp").eq("status", "active").limit(1).maybeSingle(),
+  ]);
+  const rows = people.map((r) => toPersonRowVM(r, t.now));
+  const byList = new Map<string, Set<string>>();
+  for (const m of members.data ?? []) {
+    const s = byList.get(m.segment_id) ?? new Set<string>();
+    s.add(m.contact_id);
+    byList.set(m.segment_id, s);
+  }
+  const audiences = [
+    { kind: "everyone", audience_id: null, label: EVERYONE_LABEL, said_yes: eligibleFor(rows, "everyone", null, null).length },
+    ...PEOPLE_LISTS.filter((l) => l.id !== "opted_in" && l.id !== "opted_out").map((l) => ({ kind: "list", audience_id: l.id, label: l.label, said_yes: eligibleFor(rows, "list", l.id, null).length })),
+    ...(segs.data ?? []).map((s) => ({ kind: "saved", audience_id: s.id, label: s.name, said_yes: eligibleFor(rows, "saved", null, byList.get(s.id) ?? new Set<string>()).length })),
+  ];
+  const cfg = (ch.data?.config && typeof ch.data.config === "object" && !Array.isArray(ch.data.config) ? ch.data.config : {}) as Record<string, unknown>;
+  const s = (k: string) => (typeof cfg[k] === "string" ? (cfg[k] as string) : null);
+  const health = numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") });
+  return {
+    route: "broadcasts",
+    audiences,
+    templates: (tpls.data ?? []).map((x) => ({
+      template_id: x.id, name: x.name, language: x.language, category: x.category,
+      values: Array.isArray(x.variables) ? (x.variables as { position?: number; label?: string; example?: string | null }[]).map((v) => ({ position: v.position, label: v.label, example: v.example ?? null })) : [],
+      body: x.body_preview,
+    })),
+    number: { present: !!ch.data, health: health.label, can_send: health.canSend, limit_per_day: health.limitPerDay === Number.POSITIVE_INFINITY ? null : health.limitPerDay },
+    note: "Only people who said yes can be on a broadcast; the counts are exactly them.",
+  };
+}
+
 export async function runTool(t: ToolContext, run: ToolRun): Promise<ToolOutcome> {
   const label = toolLabel(run.name);
   try {
@@ -583,6 +635,7 @@ export async function runTool(t: ToolContext, run: ToolRun): Promise<ToolOutcome
       case "get_report": out = await getReport(t, run.input); break;
       case "get_settings": out = await getSettings(t); break;
       case "get_openings": out = await getOpenings(t, run.input); break;
+      case "list_audiences": out = await listAudiences(t); break;
       case "explain_metric": out = explainMetric(run.input); break;
       default: return { result: json({ error: `unknown tool ${run.name}` }), isError: true, label };
     }
