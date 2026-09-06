@@ -13,6 +13,7 @@
  */
 import { formatPhoneDisplay } from "./phone";
 import { waWindow } from "./policy";
+import { tidyCallSummary } from "./call-words";
 import { visitDay, visitLine, visitTime, type PersonVisitsDto } from "./calendar-people";
 import {
   initialsOf,
@@ -57,7 +58,8 @@ export interface PersonRowDto {
   last_call_at: string | null;
   /** The last call THEY placed — the one that means they reached out. */
   last_inbound_call_at?: string | null;
-  /** What that call was about, in the receptionist's words; null until the call has a summary. */
+  /** What they wanted from that call in the analysis's plain words, else the
+   *  provider's summary; null until the call is analysed. */
   last_inbound_call_summary?: string | null;
   call_count: number | null;
   call_seconds: number | null;
@@ -707,7 +709,7 @@ export function attentionRow(p: PersonRowVM, nowMs: number): AttentionRowVM {
   let sentence: string;
   let quoted = false;
   if (p.quote) { sentence = oneLine(p.quote, 160); quoted = true; }
-  else if (p.callSummary) sentence = oneLine(p.callSummary, 160);
+  else if (p.callSummary) sentence = oneLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
   else if (p.nextVisit) sentence = `Booked · ${p.nextVisit}`;
   else if (p.lastVisit) sentence = `Last visit · ${p.lastVisit}`;
   else if (p.calls > 0) sentence = p.calls === 1 ? "Phoned once; nothing in writing yet" : `Phoned ${p.calls} times; nothing in writing yet`;
@@ -844,9 +846,10 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
     const t = ts(k.started_at);
     if (t === null) continue;
     const dur = mmss(k.duration_ms);
-    const summary = (k.summary || "").trim();
+    const wanted = (k.wanted || "").trim();
+    const summary = tidyCallSummary(k.summary) ?? "";
     const missed = k.status === "not_connected";
-    const sentence = missed ? "The call never connected." : summary ? (summary.split(/(?<=[.!?])\s/)[0] ?? summary) : k.in_voicemail ? "Reached voicemail." : "No summary from this call.";
+    const sentence = missed ? "The call never connected." : wanted || (summary ? (summary.split(/(?<=[.!?])\s/)[0] ?? summary) : k.in_voicemail ? "Reached voicemail." : "No summary from this call.");
     items.push({
       id: `k-${k.id}`,
       ts: t,

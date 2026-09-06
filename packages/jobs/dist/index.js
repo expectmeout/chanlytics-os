@@ -4135,6 +4135,7 @@ var BrainOutputSchema = external_exports.object({
 });
 var WA_WINDOW_MS = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
+var CALL_OUTCOMES = ["answered", "booking_link_sent", "callback_needed", "voicemail", "no_request", "other"];
 var TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LIVE_STALE_MS = 5 * 60 * 1e3;
@@ -4550,6 +4551,32 @@ async function sendTemplate(cfg, to, template) {
   });
 }
 var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
+var CALL_ANALYSIS_FIELDS = [
+  {
+    type: "string",
+    name: "caller_wanted",
+    description: "What the caller wanted, in one short sentence in plain words, the way the salon owner would say it. Start with the request itself, never with 'The user' or 'The caller'. Leave empty if they asked for nothing.",
+    examples: ["Asked for a gel manicure this Saturday around 10.", "Wanted Tuesday's hours and the price of highlights.", "Rescheduled Friday's blowout to next week."]
+  },
+  {
+    type: "enum",
+    name: "outcome",
+    description: "How the call ended for the caller. answered: their question was answered. booking_link_sent: the receptionist sent them the booking link. callback_needed: a person at the salon has to call them back or follow up. voicemail: the call reached voicemail. no_request: they hung up, tested the line or asked for nothing. other: none of these.",
+    choices: [...CALL_OUTCOMES]
+  },
+  {
+    type: "string",
+    name: "follow_up",
+    description: "What a person at the salon should do next for this caller, in one short sentence. Leave empty when nothing is needed.",
+    examples: ["Call back to confirm a Saturday 10:00 gel manicure.", "Text the price list for highlights."]
+  },
+  {
+    type: "string",
+    name: "caller_name",
+    description: "The caller's name exactly as they gave it. Leave empty if they did not say one.",
+    examples: ["Ana", "Daniela R."]
+  }
+];
 
 // ../../node_modules/zod/v3/external.js
 var external_exports2 = {};

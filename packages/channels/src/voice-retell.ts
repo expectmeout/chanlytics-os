@@ -7,6 +7,7 @@
  * Field names verified against the LIVE Retell account (2026-08-27).
  */
 import crypto from "node:crypto";
+import { callOutcomeWords } from "@chanlytics/contracts";
 
 const API = "https://api.retellai.com";
 
@@ -85,9 +86,16 @@ export interface NormalizedCall {
   publicLogUrl: string | null;
   cost: unknown;
   latency: unknown;
+  /** The agent's post-call analysis answers (custom_analysis_data), when the
+   *  provider sent an object: caller_wanted, outcome, follow_up, caller_name. */
+  analysis: Record<string, unknown> | null;
 }
 
 const E164 = /^\+[1-9]\d{6,14}$/;
+
+function plainObject(v: unknown): Record<string, unknown> | null {
+  return v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+}
 
 function toStatus(s: string | undefined): NormalizedCall["status"] {
   switch (s) {
@@ -167,6 +175,7 @@ export function normalizeCall(c: RetellCall): NormalizedCall {
     publicLogUrl: c.public_log_url ?? null,
     cost: c.call_cost ?? null,
     latency: c.latency ?? null,
+    analysis: plainObject(analysis.custom_analysis_data),
   };
 }
 
@@ -175,8 +184,12 @@ export function callSummaryLine(n: NormalizedCall): string {
   const mins = n.durationMs ? Math.max(1, Math.round(n.durationMs / 60000)) : null;
   const head = n.direction === "inbound" ? "Inbound call" : "Outbound call";
   const dur = mins ? ` · ${mins} min` : "";
-  const body = n.summary?.trim() || (n.inVoicemail ? "Reached voicemail." : "No summary available.");
-  return `${head}${dur} — ${body}`;
+  // What the caller wanted, in the analysis's plain words, is the note the
+  // WhatsApp receptionist reads back; the provider's summary is the fallback.
+  const wanted = typeof n.analysis?.caller_wanted === "string" ? n.analysis.caller_wanted.trim() : "";
+  const outcome = wanted ? callOutcomeWords(n.analysis?.outcome) : null;
+  const body = wanted || n.summary?.trim() || (n.inVoicemail ? "Reached voicemail." : "No summary available.");
+  return `${head}${dur} — ${body}${outcome ? ` (${outcome.toLowerCase()})` : ""}`;
 }
 
 /* -------------------------------- provider I/O ------------------------------- */
