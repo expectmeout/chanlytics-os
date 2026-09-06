@@ -44,7 +44,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   studio: "demo",
   outbound: "demo",
   content: "demo",
-  broadcasts: "demo",
+  broadcasts: "real",  // one approved template to the people who said yes; SMS and email stay not available
   admin: "demo",    // the page itself: every pane below is classified, and a
                     // pane nobody has listed inherits this honest default
   "admin/workspace": "real",
@@ -71,6 +71,7 @@ export const ROUTE_SURFACE: Record<string, string> = {
   clients: "people",
   reports: "reports",
   live: "live",
+  broadcasts: "broadcasts",
   // The pane is fed by settingsOverride, so the route gate waits for it the
   // same way the other real routes do — otherwise it paints the mockup's
   // fabricated business for a frame before the truth arrives.

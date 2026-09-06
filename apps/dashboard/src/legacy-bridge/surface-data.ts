@@ -263,6 +263,7 @@ import {
   type ReportDto,
   type ReportVM,
 } from "@chanlytics/contracts";
+import { EVERYONE_LABEL, eligibleFor, toBroadcastVM, type AudienceKind, type BroadcastDto, type BroadcastVM } from "@chanlytics/contracts";
 
 /**
  * Slice 2: the Inbox flips to the real escalations queue. Open escalations +
@@ -626,6 +627,65 @@ export const peopleOverride: SurfaceOverride = {
       recency: Object.fromEntries(
         PEOPLE_TABS.filter((t) => t.id !== "all").map((t) => [t.id, recencyCells(rows.filter((r) => r.state === t.id), now.getTime())]),
       ),
+      fetchedAt: now.getTime(),
+    };
+  },
+};
+
+/* ------------------------------ Broadcasts ------------------------------- */
+
+export interface AudienceOption {
+  kind: AudienceKind;
+  id: string | null;
+  label: string;
+  /** How many of them may receive an offer: a recorded yes and a number. */
+  count: number;
+  hint: string;
+}
+
+export interface BroadcastsSurface {
+  rows: BroadcastVM[];
+  /** The approved WhatsApp templates, with their variables. */
+  templates: TemplateDto[];
+  audiences: AudienceOption[];
+  fetchedAt: number;
+}
+
+/**
+ * Broadcasts: the rows with the numbers their messages earned, the approved
+ * templates, and every audience with the count of people who may receive an
+ * offer — computed here by the same contracts predicate the route enrols
+ * with, so the number on the chip is the number the route will find.
+ */
+export const broadcastsOverride: SurfaceOverride = {
+  key: "broadcasts",
+  globals: ["__BROADCASTS"],
+  events: ["surface:broadcasts"],
+  refreshOnMessageInserts: true,
+  apply: async () => {
+    const [bc, people, saved, tpl] = await Promise.all([
+      fetchEnvelope<{ broadcasts: BroadcastDto[] }>("/api/v1/broadcasts"),
+      fetchEnvelope<{ people: PersonRowDto[] }>("/api/v1/contacts"),
+      fetchEnvelope<{ lists: { id: string; name: string; ids: string[] }[] }>("/api/v1/segments").catch((e: unknown) => e as Error),
+      fetchEnvelope<{ templates: TemplateDto[] }>("/api/v1/templates").catch((e: unknown) => e as Error),
+    ]);
+    const now = new Date();
+    const rows = people.people.map((r) => toPersonRowVM(r, now));
+    const audiences: AudienceOption[] = [
+      { kind: "everyone", id: null, label: EVERYONE_LABEL, count: eligibleFor(rows, "everyone", null, null).length, hint: "Every person with a recorded yes and a number" },
+      ...PEOPLE_LISTS.filter((l) => l.id !== "opted_in" && l.id !== "opted_out").map((l) => ({
+        kind: "list" as const, id: l.id, label: l.label, count: eligibleFor(rows, "list", l.id, null).length, hint: `${l.label} — of those who said yes`,
+      })),
+      ...(saved instanceof Error ? [] : saved.lists.map((s) => ({
+        kind: "saved" as const, id: s.id, label: s.name, count: eligibleFor(rows, "saved", null, new Set(s.ids)).length, hint: "A list kept by hand — of those who said yes",
+      }))),
+    ];
+    if (saved instanceof Error) console.error("broadcasts_lists_fetch_failed", saved.message);
+    if (tpl instanceof Error) console.error("broadcasts_templates_fetch_failed", tpl.message);
+    (window as unknown as { __BROADCASTS?: BroadcastsSurface }).__BROADCASTS = {
+      rows: bc.broadcasts.map((b) => toBroadcastVM(b, now)),
+      templates: tpl instanceof Error ? [] : (tpl.templates ?? []).filter((t) => t.channel === "whatsapp" && t.meta_status === "approved"),
+      audiences,
       fetchedAt: now.getTime(),
     };
   },

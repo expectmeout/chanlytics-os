@@ -15,7 +15,7 @@ import "./manifest";
 // legacy.css is NOT imported here: it lives in app/(os)/layout.tsx so the
 // 254KB design system ships as document <link>s and downloads in parallel
 // with this chunk, rather than serially behind it.
-import { workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, reportsOverride, liveOverride, switchWorkspace, type Workspace } from "./surface-data";
+import { workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, reportsOverride, liveOverride, switchWorkspace, type Workspace, broadcastsOverride } from "./surface-data";
 import {
   getSurfaceStatuses,
   isSurfaceFailed,
@@ -33,6 +33,7 @@ import { installNotifications } from "./notifications";
 import { installAsk } from "./ask";
 import { installWhatsAppConnect } from "./whatsapp-connect";
 import { installTemplates } from "./templates";
+import { installBroadcasts } from "./broadcast-verbs";
 import CreateWorkspace from "./CreateWorkspace";
 
 installInboxVerbs();
@@ -50,6 +51,7 @@ installNotifications();
 installAsk();
 installWhatsAppConnect();
 installTemplates();
+installBroadcasts();
 // The installable shell's service worker (public/sw.js). It caches nothing
 // and answers nothing — the workspace is live data — and exists so a phone
 // can add the app to its home screen. Production only: a worker on a dev
@@ -67,7 +69,7 @@ markHydrated(hydrateSurfaceCache());
 // The mockup's own data-before-mount contract (boot gate).
 const REQUIRED = ["CHANLY", "INBOX_DATA", "CLIENTS", "FLEET_DATA", "CHANLY_DATA", "POLICY", "ChanlyticsApp"] as const;
 
-const SURFACES = [workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, reportsOverride, liveOverride];
+const SURFACES = [workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, reportsOverride, liveOverride, broadcastsOverride];
 const SURFACE_LABELS: Record<string, string> = { conversations: "Conversations", inbox: "Inbox", today: "Today", people: "People", reports: "Reports", live: "Calls" };
 
 // Which flipped surface backs each route, and which routes are real at all —
