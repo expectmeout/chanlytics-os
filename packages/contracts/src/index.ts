@@ -18,6 +18,7 @@ export * from "./templates";
 export * from "./playbooks";
 export * from "./template-library";
 export * from "./campaign-report";
+export * from "./calendar";
 export * from "./channels";
 
 export * from "./reports";

@@ -85,7 +85,7 @@ const NAV_ROUTE = {
 // ---- In-design landings ------------------------------------------------
 const SOON_META = {
   pipeline:   { icon: "deal",        title: "Pipeline",   blurb: "Deals kanban with agent attribution — who advanced what, and why." },
-  calendar:   { icon: "calendar",    title: "Calendar",   blurb: "Appointments with prep status and no-show risk, agent-managed." },
+  calendar:   { icon: "calendar",    title: "Calendar",   blurb: "Your calendar as the receptionist reads it — taken, open, closed." },
   calls:      { icon: "phone",       title: "Calls",      blurb: "Live transcription and call review with agent summaries." },
   chats:      { icon: "chat",        title: "Chats",      blurb: "Every DM and SMS conversation, threaded by client." },
   email:      { icon: "mail",        title: "Email",      blurb: "Agent-drafted email, sequences, and review queues." },
@@ -423,7 +423,13 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
     activeNav = "calendar";
     crumbs = apptWho ? [{ label: "Calendar", to: "calendar" }, apptWho] : ["Calendar"];
     pane = true;
-    primaryAction = (
+    // A real workspace books through its own link, whichever tool is behind
+    // it; the seeded page keeps the demo's Ask detour.
+    primaryAction = window.__CALENDAR ? (window.__CALENDAR.vm.bookingLink ? (
+      <a className="btn btn-primary btn-sm" href={window.__CALENDAR.vm.bookingLink} target="_blank" rel="noreferrer" data-testid="cal-booking-link">
+        <Icon name="calendar" size={12} /> Booking link
+      </a>
+    ) : null) : (
       <button className="btn btn-primary btn-sm" onClick={openAsk}>
         <Icon name="plus" size={12} /> Book
       </button>

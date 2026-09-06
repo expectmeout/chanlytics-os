@@ -157,7 +157,7 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
   const surface = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(surface.includes("cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, untouched, now.getTime()).length"), "the chip counts the pool with the runner's own predicate");
   assert.ok(readCode("apps/dashboard/src/legacy/components/surface-tabs.jsx").includes('{ id: "outbound", label: "Playbooks", to: "outbound" }'));
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("broadcastsOverride, playbooksOverride]"), "booted with the rest");
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("broadcastsOverride, playbooksOverride"), "booted with the rest");
 });
 
 test("Ask knows playbooks: read as the page shows them, proposed as a card, committed through the app's route, undone by deleting; Today says what ran; a run's thread names its playbook", async () => {

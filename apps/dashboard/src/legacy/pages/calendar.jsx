@@ -646,4 +646,5 @@ const CalendarPage = ({ initialApptId = null }) => {
   );
 };
 
-window.CalendarPage = CalendarPage;
+// A real workspace renders its own calendar (calendar-real.jsx); the seeded page keeps the demo.
+window.CalendarSeed = CalendarPage;
