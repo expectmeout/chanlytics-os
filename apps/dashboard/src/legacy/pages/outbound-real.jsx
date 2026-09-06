@@ -36,13 +36,18 @@ const pbRender = (body, values) => String(body || "").replace(/\{\{(\d+)\}\}/g, 
 const pbHour = (h) => `${String(h).padStart(2, "0")}:00`;
 const pbPeople = (n) => `${n} ${n === 1 ? "person" : "people"}`;
 const pbStatus = (p) => (p.totals && p.totals.waiting ? "approval" : p.state);
+// Words for people: a starter's title, or the name with its underscores made spaces.
+const pbTitle = (name) => (window.__starters ? window.__starters.title(name) : String(name || "").replace(/_/g, " "));
+const pbIsStarter = (name) => !!(window.__starters && window.__starters.byName(name));
+const pbOrder = (a, b) => (Number(pbIsStarter(b.name)) - Number(pbIsStarter(a.name))) || String(a.category || "").localeCompare(String(b.category || "")) || String(a.name).localeCompare(String(b.name));
+const pbFooter = (t) => { const s = t && window.__starters ? window.__starters.byName(t.name) : null; return s ? (window.__starters.text(s, t.language).footer || null) : null; };
 
 // The composer: a new playbook, or one being changed. Checked here the way
 // the route checks it — a template chosen, every slot filled — so an
 // enabled Save is a Save that succeeds unless the server knows something
 // newer (a template no longer approved, a booking link gone).
 const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
-  const templates = data.templates || PB_NONE;
+  const templates = React.useMemo(() => (data.templates || PB_NONE).slice().sort(pbOrder), [data.templates]);
   const triggers = data.triggers || PB_NONE;
   const SRC = window.TC_SOURCES || { text: "Type it", first_name: "Their first name", business_name: "The business name", booking_link: "The booking link" };
   const [trigger, setTrigger] = React.useState(editing ? editing.trigger : (triggers[0] ? triggers[0].id : "quiet_30"));
@@ -59,14 +64,38 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
     ? { [editing.template_id]: editing.params.map((p) => (p && p.kind === "text" ? p.value : "")) } : {}));
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState(null);
+  const [picked, setPicked] = React.useState(!!editing);
+  const [adding, setAdding] = React.useState(false);
+  const canEdit = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
   React.useEffect(() => {
     if (!templates.some((t) => t.id === tplId) && templates[0]) setTplId(templates[0].id);
   }, [templates, tplId]);
+  // The trigger's starter, if the workspace holds it: approved and picked
+  // for you, in review at WhatsApp, or not added yet — one click adds it.
+  const starter = window.__starters ? window.__starters.forTrigger(trigger) : null;
+  const starterRow = starter ? templates.find((t) => t.name === starter.name) || null : null;
+  const starterAny = starter ? (window.__TEMPLATES_ALL || PB_NONE).find((t) => t.name === starter.name) || null : null;
+  React.useEffect(() => {
+    if (picked) return;
+    if (starterRow) setTplId(starterRow.id);
+  }, [picked, starterRow]);
+  const addStarter = async () => {
+    if (!window.__templates || !window.__templates.addStarters || !starter || adding) return;
+    setAdding(true);
+    setError(null);
+    const r = await window.__templates.addStarters({ keys: [starter.key], languages: ["en_US"] });
+    setAdding(false);
+    if (!r.ok) setError(r.message || "It could not be added.");
+  };
 
   const trig = triggers.find((t) => t.id === trigger) || null;
   const tpl = templates.find((t) => t.id === tplId) || null;
   const vars = tpl && Array.isArray(tpl.variables) ? tpl.variables : [];
-  const srcOf = (i) => ((sources[tplId] || [])[i] || "text");
+  // A starter's slots come filled in; a template written elsewhere gets a
+  // guess from its labels. A booking link the workspace has not set falls
+  // back to typed text.
+  const defaults = tpl && window.__starters ? window.__starters.slotKinds(tpl).map((k) => (k === "booking_link" && !data.bookingLink ? "text" : k)) : PB_NONE;
+  const srcOf = (i) => ((sources[tplId] || defaults)[i] || "text");
   const textOf = (i) => ((typed[tplId] || [])[i] || "");
   const exampleOf = (kind) => (kind === "first_name" ? "Dani" : kind === "business_name" ? (data.businessName || "the business") : kind === "booking_link" ? "your booking link" : "");
   const filled = vars.map((v, i) => (srcOf(i) === "text" ? textOf(i) : exampleOf(srcOf(i))));
@@ -114,12 +143,26 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
             <span className="bc-excl-hint" data-testid="pb-no-template">No approved template yet — write one on Broadcasts, or in WhatsApp Manager and sync it in Settings › Integrations.</span>
           )}
           {templates.map((t) => (
-            <button key={t.id} className={"bc-chip" + (t.id === tplId ? " active" : "")} onClick={() => setTplId(t.id)} title={t.body_preview || ""} data-testid="pb-template">
-              {t.name}{t.category ? <span className="bc-chip-count">{t.category}</span> : null}
+            <button key={t.id} className={"bc-chip" + (t.id === tplId ? " active" : "")} onClick={() => { setPicked(true); setTplId(t.id); }} title={t.body_preview || ""} data-testid="pb-template">
+              {pbTitle(t.name)}<span className="bc-chip-count">{pbIsStarter(t.name) ? "starter" : (t.category || "")}</span>
             </button>
           ))}
         </div>
       </div>
+      {starter && (
+        <div className="cl-prof-aut-hint" data-testid="pb-starter">
+          {starterRow
+            ? <>Written for this moment: <b>{starter.title}</b>{tplId === starterRow.id ? " — picked for you; change it above if you like" : ""}</>
+            : starterAny
+              ? <><b>{starter.title}</b> is {starterAny.meta_status === "pending" ? "in review at WhatsApp — it appears here once approved, usually within minutes" : `${starterAny.meta_status} at WhatsApp — see Settings › Integrations`}</>
+              : <>
+                  The <b>{starter.title}</b> starter is written for this moment.{" "}
+                  {canEdit && window.__templates && window.__templates.addStarters
+                    ? <button className="cl-bucket-link" disabled={adding} onClick={addStarter} data-testid="pb-add-starter">{adding ? "Adding…" : "Add it — WhatsApp reviews it, usually within minutes"}</button>
+                    : null}
+                </>}
+        </div>
+      )}
       {tpl && vars.length > 0 && (
         <div className="bc-vars" data-testid="pb-vars">
           {vars.map((v, i) => (
@@ -145,7 +188,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
           ))}
         </div>
       )}
-      {tpl && <div className="bc-preview" data-testid="pb-preview">{preview}</div>}
+      {tpl && <div className="bc-preview-wrap" data-testid="pb-preview"><window.WaBubble from={data.businessName} body={preview} footer={pbFooter(tpl)} /></div>}
       <div className="bc-row">
         <span className="bc-row-label">Clock</span>
         <div className="bc-chips" style={{ flexWrap: "wrap", alignItems: "center", gap: 10 }}>
@@ -243,7 +286,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
         </button>
         <span className="ob-audience ob-audience-event" data-tip={`WhatsApp template · ${p.template_language}`}>
           <Icon name="chat" size={12} />
-          {String(p.template_name).replace(/_/g, " ")}
+          {pbTitle(p.template_name)}
         </span>
         <PolicyChip cls={p.policy_class} />
         <span className="ob-note">next run {p.next}{p.last_run_for ? ` · last ran ${p.last_run_for}` : " · has not run yet"}</span>
