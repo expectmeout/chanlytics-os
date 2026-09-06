@@ -168,17 +168,18 @@ test("the profile: a Next visit fact and About rows when the calendar is connect
   const last = { id: "b0:1", start: "2026-08-20T14:00:00.000Z", end: "2026-08-20T16:00:00.000Z", title: "Colour", all_day: false, via: "name" };
   const vm = toPersonVM(detail({ timezone: TZ, source: "Google Calendar", state: "ok", next, last }), now);
   const fact = vm.facts.find((f) => f.label === "Next visit");
-  assert.deepEqual(fact, { label: "Next visit", value: "Tue, Sep 8", meta: "2:00 – 5:00 PM · Maria Lopez - Balayage" });
+  assert.deepEqual(fact, { label: "Next visit", value: "Tue, Sep 8", meta: "2:00 – 5:00 PM" }, "the cell is narrow: the time here, the service in About");
   assert.deepEqual(vm.about.filter((a) => a.k === "Next visit" || a.k === "Last visit"), [
     { k: "Next visit", v: "Tue, Sep 8 · 2:00 – 5:00 PM · Maria Lopez - Balayage" },
     { k: "Last visit", v: "Thu, Aug 20 · 10:00 AM – 12:00 PM · Colour" },
   ]);
   const empty = toPersonVM(detail({ timezone: TZ, source: "Google Calendar", state: "ok", next: null, last: null }), now);
-  assert.deepEqual(empty.facts.find((f) => f.label === "Next visit"), { label: "Next visit", value: "—", meta: "nothing on the calendar" });
+  assert.deepEqual(empty.facts.find((f) => f.label === "Next visit"), { label: "Next visit", value: "—", meta: "none booked" });
   const down = toPersonVM(detail({ timezone: TZ, source: "Google Calendar", state: "unavailable", next: null, last: null }), now);
   assert.equal(down.about.find((a) => a.k === "Next visit").v, "Calendar could not be read");
   const byName = toPersonVM(detail({ timezone: TZ, source: "Google Calendar", state: "ok", next: { ...next, via: "name" }, last: null }), now);
-  assert.ok(byName.facts.find((f) => f.label === "Next visit").meta.endsWith("· matched by name"));
+  assert.ok(byName.facts.find((f) => f.label === "Next visit").meta.endsWith("· by name"));
+  assert.equal(down.facts.find((f) => f.label === "Next visit").meta, "could not be read");
 });
 
 test("the wiring: the board and the profile read one match; both receptionists are told; the panel says who it is for and where it comes from", () => {

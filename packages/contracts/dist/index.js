@@ -3328,7 +3328,8 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
     facts.push({
       label: "Next visit",
       value: v.next ? visitDay(v.next.start, v.timezone, nowMs) : "\u2014",
-      meta: v.next ? `${visitTime(v.next, v.timezone)} \xB7 ${v.next.title}${v.next.via === "name" ? " \xB7 matched by name" : ""}` : nextLine.toLowerCase()
+      // The cell is narrow: the time here, the service in About.
+      meta: v.next ? `${visitTime(v.next, v.timezone)}${v.next.via === "name" ? " \xB7 by name" : ""}` : v.state === "ok" ? "none booked" : "could not be read"
     });
     about.push({ k: "Next visit", v: nextLine });
     if (v.last) about.push({ k: "Last visit", v: `${visitLine(v.last, v.timezone, nowMs)} \xB7 ${v.last.title}` });

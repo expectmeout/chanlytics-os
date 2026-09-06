@@ -14,7 +14,7 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
  */
 
 /** Words that only ever described invented numbers. */
-const INVENTED_VOCABULARY = ["LTV", "Health index", "Total book", "Active touches", "therapist", "Sessions left", "Next visit", "Cadence", "Temperature"];
+const INVENTED_VOCABULARY = ["LTV", "Health index", "Total book", "Active touches", "therapist", "Sessions left", "Cadence", "Temperature"];
 /** People who exist only in the design seeds. */
 const INVENTED_PEOPLE = ["Aisha Khan", "David Chen", "@thewellness.co", "Maya Rodriguez", "Gabby Moreno", "Jordan Patel"];
 
@@ -76,7 +76,10 @@ test.describe("People on a real workspace", () => {
     await expect(page.locator(".cl-prof-section-title", { hasText: "Timeline" })).toBeVisible();
 
     const facts = await page.locator(".cl-prof-money .stat-cell-label").allInnerTexts();
-    expect(facts.map((f) => f.trim().toLowerCase())).toEqual(["first contact", "last contact", "conversations", "calls", "consent", "receptionist"]);
+    const labels = facts.map((f) => f.trim().toLowerCase());
+    // A seventh cell, Next visit, appears once the workspace has a calendar connected.
+    expect(labels.slice(0, 6)).toEqual(["first contact", "last contact", "conversations", "calls", "consent", "receptionist"]);
+    expect(labels.slice(6)).toEqual(labels.length > 6 ? ["next visit"] : []);
 
     // Back returns to the list, not to a "client not found" page.
     await page.locator(".cl-prof-back").click();

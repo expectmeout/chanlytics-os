@@ -11,7 +11,7 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
  * windows the receptionist would offer. Read-only: moving weeks only
  * issues a GET.
  */
-const INVENTED = ["Two-way sync", "Google Calendar", "Apple iCal", "Utilization", "Lena", "Jay", "Swedish", "Hot stone", "At risk", "double-booking"];
+const INVENTED = ["Two-way sync", "Apple iCal", "Utilization", "Lena", "Jay", "Swedish", "Hot stone", "At risk", "double-booking"];
 
 test.describe("Calendar on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
