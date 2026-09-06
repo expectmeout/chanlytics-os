@@ -3171,7 +3171,7 @@ function toPersonRowVM(r, now = /* @__PURE__ */ new Date()) {
   const consent = consentOf(r, nowMs);
   const v = r.visits ?? null;
   const calendar = v ? v.state : "none";
-  const askedCandidates = [ts(r.last_inbound_at), ts(r.last_call_at)].filter((x) => x !== null);
+  const askedCandidates = [ts(r.last_inbound_at), ts(r.last_inbound_call_at ?? null)].filter((x) => x !== null);
   const askedMs = askedCandidates.length ? Math.max(...askedCandidates) : null;
   const booked = !!v?.next;
   const nextVisitMs = v?.next ? Date.parse(v.next.start) : null;

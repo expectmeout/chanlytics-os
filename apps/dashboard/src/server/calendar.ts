@@ -335,7 +335,8 @@ export async function bookingReport(ctx: RouteContext, tenantId: string, rows: P
   let asked = 0;
   let booked = 0;
   for (const r of rows) {
-    const cands = [r.last_inbound_at, r.last_call_at].map((x) => (x ? Date.parse(x) : NaN)).filter((x) => Number.isFinite(x));
+    // Their message, or the call they placed — never a call the owner made.
+    const cands = [r.last_inbound_at, r.last_inbound_call_at ?? null].map((x) => (x ? Date.parse(x) : NaN)).filter((x) => Number.isFinite(x));
     if (!cands.length) continue;
     const askedMs = Math.max(...cands);
     if (askedMs < since) continue;

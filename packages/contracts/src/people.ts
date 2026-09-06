@@ -55,6 +55,8 @@ export interface PersonRowDto {
   last_inbound_text: string | null;
   last_inbound_at: string | null;
   last_call_at: string | null;
+  /** The last call THEY placed — the one that means they reached out. */
+  last_inbound_call_at?: string | null;
   call_count: number | null;
   call_seconds: number | null;
   /** Earliest REAL event time: a dated message or a call. Null when the only
@@ -460,7 +462,8 @@ export function toPersonRowVM(r: PersonRowDto, now = new Date()): PersonRowVM {
   // this month and the calendar has never had them.
   const v = r.visits ?? null;
   const calendar = v ? v.state : "none";
-  const askedCandidates = [ts(r.last_inbound_at), ts(r.last_call_at)].filter((x): x is number => x !== null);
+  // Their message, or the call they placed. A call the owner made is not them asking.
+  const askedCandidates = [ts(r.last_inbound_at), ts(r.last_inbound_call_at ?? null)].filter((x): x is number => x !== null);
   const askedMs = askedCandidates.length ? Math.max(...askedCandidates) : null;
   const booked = !!v?.next;
   const nextVisitMs = v?.next ? Date.parse(v.next.start) : null;

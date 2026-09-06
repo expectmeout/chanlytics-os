@@ -4153,6 +4153,8 @@ interface PersonRowDto {
     last_inbound_text: string | null;
     last_inbound_at: string | null;
     last_call_at: string | null;
+    /** The last call THEY placed — the one that means they reached out. */
+    last_inbound_call_at?: string | null;
     call_count: number | null;
     call_seconds: number | null;
     /** Earliest REAL event time: a dated message or a call. Null when the only

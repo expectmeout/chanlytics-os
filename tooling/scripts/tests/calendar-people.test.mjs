@@ -155,7 +155,7 @@ const ROW = {
   id: "p-maria", display_name: "Maria Lopez", wa_profile_name: null, phone_e164: "+13055550134", consent: "unknown", consent_source: null, consent_updated_at: null,
   dnc: false, channels: ["whatsapp"], conversation_count: 0, escalation_count: 0, needs_human: false, open_escalation_reason: null, open_escalation_since: null,
   latest_conversation_id: null, latest_state: null, latest_paused_until: null, latest_assignee_user_id: null, latest_snooze_until: null, latest_wa_inbound_at: null,
-  last_message_at: null, last_message_direction: null, last_message_sender: null, last_inbound_text: null, last_inbound_at: null, last_call_at: null, call_count: 0, call_seconds: 0,
+  last_message_at: null, last_message_direction: null, last_message_sender: null, last_inbound_text: null, last_inbound_at: null, last_call_at: null, last_inbound_call_at: null, call_count: 0, call_seconds: 0,
   first_contact_at: null, earliest_row_at: null, has_backfill: false, has_chat: false, queued_reply_at: null,
 };
 const detail = (visits) => ({ row: ROW, identities: [], conversations: [], calls: [], escalations: [], decisions: [], receptionist_mode: null, workspace_reply_mode: "auto", ...(visits ? { visits } : {}) });
@@ -438,4 +438,21 @@ test("the list page: Next visit takes the receptionist's column with a calendar,
   assert.ok(sd.includes("action: peopleListAction(l.id, members)") && sd.includes("groups: PEOPLE_LIST_GROUPS.map("));
   assert.ok(sd.includes('(!l.needsCalendar || people.calendar?.state === "ok")'), "a calendar list is an audience only with a calendar");
   assert.ok(readCode("apps/dashboard/app/api/v1/broadcasts/route.ts").includes("withVisits(ctx, tenantId, await listPeople(ctx, tenantId), now)"), "the enrol path counts what the page counted");
+});
+
+test("asked means they reached out: the call they placed counts, a call the owner made does not", async () => {
+  const { toPersonRowVM } = await import("@chanlytics/contracts");
+  const now = new Date(NOW);
+  const cal = { timezone: TZ, source: "Google Calendar", state: "ok", next: null, last: null };
+  const theyCalled = toPersonRowVM({ ...ROW, id: "t", last_call_at: "2026-09-05T12:00:00.000Z", last_inbound_call_at: "2026-09-05T12:00:00.000Z", visits: cal }, now);
+  assert.equal(theyCalled.askedMs, Date.parse("2026-09-05T12:00:00.000Z"));
+  assert.equal(theyCalled.askedNotBooked, true);
+  const weCalled = toPersonRowVM({ ...ROW, id: "w", last_call_at: "2026-09-05T12:00:00.000Z", last_inbound_call_at: null, visits: cal }, now);
+  assert.equal(weCalled.askedMs, null, "an outbound call is not them asking");
+  assert.equal(weCalled.askedNotBooked, false);
+  assert.equal(weCalled.lastContact.label.startsWith("Phoned"), true, "but it is still the last contact");
+  const mig = readCode("supabase/migrations/00055_people_list_inbound_call.sql");
+  assert.ok(mig.includes("drop function if exists public.people_list(uuid, uuid);") && mig.includes("max(k.started_at) filter (where k.direction = 'inbound') as last_inbound_at,") && mig.includes("last_inbound_call_at    timestamptz,"));
+  assert.ok(mig.includes("grant execute on function public.people_list(uuid, uuid) to authenticated, service_role;"), "a drop loses the grants; they are re-stated");
+  assert.ok(readCode("apps/dashboard/src/server/calendar.ts").includes("const cands = [r.last_inbound_at, r.last_inbound_call_at ?? null]"), "the report counts the same way");
 });
