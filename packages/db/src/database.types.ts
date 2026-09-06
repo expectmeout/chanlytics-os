@@ -1748,6 +1748,7 @@ export type Database = {
           source: string
           synced_at: string | null
           tenant_id: string
+          title: string | null
           updated_at: string
           variables: Json
         }
@@ -1769,6 +1770,7 @@ export type Database = {
           source?: string
           synced_at?: string | null
           tenant_id: string
+          title?: string | null
           updated_at?: string
           variables?: Json
         }
@@ -1790,6 +1792,7 @@ export type Database = {
           source?: string
           synced_at?: string | null
           tenant_id?: string
+          title?: string | null
           updated_at?: string
           variables?: Json
         }
@@ -2098,6 +2101,10 @@ export type Database = {
       }
       set_template_hidden: {
         Args: { p_hidden: boolean; p_template_id: string }
+        Returns: Json
+      }
+      set_template_title: {
+        Args: { p_template_id: string; p_title: string }
         Returns: Json
       }
       sweep_health: {

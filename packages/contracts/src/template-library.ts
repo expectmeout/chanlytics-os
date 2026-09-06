@@ -193,11 +193,18 @@ export function starterPreview(s: StarterTemplate, language: string, businessNam
   return fill(t.body, t.slots.map((x) => (x.kind === "business_name" && businessName ? businessName : x.example)));
 }
 
-/** Words for people: the starter's title, or the name with its underscores made spaces. */
-export function templateTitle(name: string | null | undefined): string {
+export const TEMPLATE_TITLE_MAX = 60;
+
+/**
+ * Words for people: the title the workspace gave it, else the starter's,
+ * else the name made words — a trailing version (_v1) is not a word.
+ */
+export function templateTitle(name: string | null | undefined, title?: string | null): string {
+  const given = typeof title === "string" ? title.replace(/\s+/g, " ").trim() : "";
+  if (given) return given.slice(0, TEMPLATE_TITLE_MAX);
   const s = starterByName(name);
   if (s) return s.title;
-  const words = String(name ?? "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  const words = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
   return words ? words[0].toUpperCase() + words.slice(1) : String(name ?? "");
 }
 

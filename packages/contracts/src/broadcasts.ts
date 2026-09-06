@@ -102,9 +102,9 @@ export function cleanParam(raw: unknown): string | null {
 }
 
 /** A name when the owner gave none: the template and the day. */
-export function broadcastName(templateName: string, now = new Date()): string {
+export function broadcastName(templateName: string, now = new Date(), title?: string | null): string {
   const day = now.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  return `${templateTitle(templateName)} · ${day}`.slice(0, BROADCAST_NAME_MAX);
+  return `${templateTitle(templateName, title)} · ${day}`.slice(0, BROADCAST_NAME_MAX);
 }
 
 export interface BroadcastCounts {

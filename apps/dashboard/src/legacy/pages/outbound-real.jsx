@@ -158,7 +158,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
       {starter && (
         <div className="cl-prof-aut-hint" data-testid="pb-starter">
           {starterRow
-            ? <>Written for this moment: <b>{starter.title}</b>{tplId === starterRow.id ? " — picked for you; change it above if you like" : ""}</>
+            ? <>Written for this moment: <b>{starter.title}</b>{tplId === starterRow.id ? " — picked for you; change it above if you like" : " — it's above if you'd rather use it"}</>
             : starterAny
               ? <><b>{starter.title}</b> is {starterAny.meta_status === "pending" ? "in review at WhatsApp — it appears here once approved, usually within minutes" : `${starterAny.meta_status} at WhatsApp — see Settings › Integrations`}</>
               : <>

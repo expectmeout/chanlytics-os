@@ -304,6 +304,8 @@ export interface TemplateDto extends ApprovedTemplate {
   source?: string | null;
   /** Hidden from the composers by the workspace; Settings still lists it. */
   hidden_at?: string | null;
+  /** The workspace's own words for it; null means its name, made words. */
+  title?: string | null;
 }
 
 export const inboxOverride: SurfaceOverride = {

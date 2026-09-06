@@ -1,13 +1,14 @@
-import { AppError } from "@chanlytics/contracts";
+import { AppError, TEMPLATE_TITLE_MAX } from "@chanlytics/contracts";
 import { withRoute, memberContext, requireRole } from "@/server/with-route";
 import { jsonBody, requireUuid } from "@/server/request-guards";
 import { takeRate } from "@/server/rate-limit";
 import { deleteTemplate } from "@/server/service";
 
 /**
- * PUT /api/v1/templates/:id — { hidden: boolean }. Hidden from the composers
- * or shown again; the row stays, syncs keep it, the wire may still send it
- * by name. Owner or operator, through the definer door.
+ * PUT /api/v1/templates/:id — { hidden?: boolean, title?: string | null }.
+ * Hidden from the composers or shown again (the row stays, syncs keep it,
+ * the wire may still send it by name); named in the workspace's own words,
+ * or the name cleared. Owner or operator, through the definer doors.
  *
  * DELETE /api/v1/templates/:id — a template gone from Meta and from here.
  *
@@ -27,17 +28,26 @@ const SAID: Record<string, string> = {
 
 export const PUT = withRoute(async (req, ctx) => {
   const id = requireUuid(ctx.params.id, "template");
-  const body = (await jsonBody(req)) as { hidden?: unknown } | null;
-  if (typeof body?.hidden !== "boolean") throw new AppError("validation", "Say whether the template is hidden.");
+  const body = (await jsonBody(req)) as { hidden?: unknown; title?: unknown } | null;
+  const hasHidden = typeof body?.hidden === "boolean";
+  const hasTitle = !!body && "title" in body && (body.title === null || typeof body.title === "string");
+  if (!hasHidden && !hasTitle) throw new AppError("validation", "Say what changes: whether it is hidden, or its title.");
+  const title = hasTitle ? String(body!.title ?? "").replace(/\s+/g, " ").trim().slice(0, TEMPLATE_TITLE_MAX) : undefined;
   const { data: tpl, error } = await ctx.supabase.from("templates").select("id, tenant_id, name").eq("id", id).maybeSingle();
   if (error) throw new Error(error.message);
   if (!tpl) throw new AppError("not_found", "Template not found.", 404);
   const member = await memberContext(ctx, tpl.tenant_id);
   requireRole(member, "operator");
   takeRate(ctx.userId, "settings");
-  const { error: dErr } = await ctx.supabase.rpc("set_template_hidden", { p_template_id: id, p_hidden: body.hidden });
-  if (dErr) throw new Error(dErr.message);
-  return { id, name: tpl.name, hidden: body.hidden };
+  if (hasHidden) {
+    const { error: dErr } = await ctx.supabase.rpc("set_template_hidden", { p_template_id: id, p_hidden: body!.hidden as boolean });
+    if (dErr) throw new Error(dErr.message);
+  }
+  if (hasTitle) {
+    const { error: tErr } = await ctx.supabase.rpc("set_template_title", { p_template_id: id, p_title: title || "" });
+    if (tErr) throw new Error(tErr.message);
+  }
+  return { id, name: tpl.name, ...(hasHidden ? { hidden: body!.hidden as boolean } : {}), ...(hasTitle ? { title: title || null } : {}) };
 });
 
 export const DELETE = withRoute(async (req, ctx) => {

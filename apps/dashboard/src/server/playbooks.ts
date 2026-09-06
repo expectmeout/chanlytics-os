@@ -102,7 +102,7 @@ export async function checkPlaybookInput(ctx: RouteContext, tenantId: string, bo
   if (!UUID.test(templateId)) throw new AppError("validation", "Pick a template.");
   const { data: tpl, error } = await ctx.supabase
     .from("templates")
-    .select("id, name, language, meta_status, variables")
+    .select("id, name, language, meta_status, variables, title")
     .eq("id", templateId)
     .eq("tenant_id", tenantId)
     .eq("channel", "whatsapp")
@@ -135,7 +135,7 @@ export async function checkPlaybookInput(ctx: RouteContext, tenantId: string, bo
   }
   return {
     // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title.
-    name: name || (starterForTrigger(trig.id)?.name === tpl.name ? trig.label : `${trig.label} · ${templateTitle(tpl.name)}`).slice(0, PLAYBOOK_NAME_MAX),
+    name: name || (starterForTrigger(trig.id)?.name === tpl.name ? trig.label : `${trig.label} · ${templateTitle(tpl.name, tpl.title)}`).slice(0, PLAYBOOK_NAME_MAX),
     trigger: trig.id,
     template_id: tpl.id,
     template_name: tpl.name,

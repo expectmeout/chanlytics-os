@@ -47,7 +47,9 @@ test("one starter per playbook trigger, one for any broadcast; titles for people
   assert.equal(starterByName("nope"), null);
   assert.equal(templateTitle("winback_offer"), "Win-back");
   assert.equal(templateTitle("approval_confirmation"), "Approval confirmation");
-  assert.equal(templateTitle("booking_link_v1"), "Booking link v1");
+  assert.equal(templateTitle("booking_link_v1"), "Booking link", "a version suffix is not a word");
+  assert.equal(templateTitle("booking_link_v1", "Thanks for reaching out"), "Thanks for reaching out", "the workspace's own words win");
+  assert.equal(templateTitle("winback_offer", "   "), "Win-back", "an empty title is no title");
   assert.equal(templateTitle(""), "");
   assert.equal(starterPreview(starterByKey("winback_offer"), "en_US", "Melany's Beauty Salon"), "Hi Dani, it's been a while since we last saw you at Melany's Beauty Salon. We'd love to have you back — pick a time that suits you here: https://booksy.com/luna-studio and we'll take care of the rest.");
   assert.ok(starterPreview(starterByKey("quick_note"), "es").startsWith("Hola Dani, una nota rápida de Luna Studio:"));
@@ -78,7 +80,7 @@ test("the door: idempotent, one language at a time, synced in when the number's 
   assert.ok(r.includes("Pick at least one starter template, in English or Spanish."));
   const b = readCode("apps/dashboard/src/legacy-bridge/templates.ts");
   assert.ok(b.includes('addStarters: (body: StarterBody) => call<StarterData>("/api/v1/templates/starter", "POST", body, true)'), "the verb refreshes every surface that shows templates");
-  assert.ok(b.includes("window.__starters = {") && b.includes("title: templateTitle") && b.includes("slotKinds: defaultSlotKinds"), "the library reaches the pages");
+  assert.ok(b.includes("window.__starters = {") && b.includes("title: titleOf") && b.includes("slotKinds: defaultSlotKinds"), "the library reaches the pages");
   assert.ok(b.includes("__refreshPlaybooks"), "the playbook composer learns of a newly added starter");
 });
 
@@ -146,4 +148,22 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   const top = readCode("apps/dashboard/src/legacy/components/topbar.jsx");
   assert.ok(top.includes('className="btn btn-ghost btn-icon btn-sm tb-theme"'), "presence, the bell and the theme are one group");
   assert.ok(readCode("apps/dashboard/src/legacy/styles/components.css").includes(".tbn-wrap { position: relative; display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }"));
+});
+
+test("a template's title: the workspace's own words, set through its door, shown everywhere a template is named", () => {
+  const m = readRaw("supabase/migrations/00050_template_title.sql");
+  assert.ok(m.includes("alter table public.templates add column if not exists title text;"));
+  assert.ok(m.includes("check (title is null or char_length(title) between 1 and 60);"));
+  assert.ok(m.includes("if v_tenant is null or not public.is_acting_member(v_tenant) then"), "owner or operator, never a viewer");
+  assert.ok(m.includes("grant execute on function public.set_template_title(uuid, text) to authenticated;"));
+  const one = readCode("apps/dashboard/app/api/v1/templates/[id]/route.ts");
+  assert.ok(one.includes('ctx.supabase.rpc("set_template_title", { p_template_id: id, p_title: title || "" })'), "empty is no title — the door clears it");
+  assert.ok(one.includes('"Say what changes: whether it is hidden, or its title."'));
+  const b = readCode("apps/dashboard/src/legacy-bridge/templates.ts");
+  assert.ok(b.includes('"PUT", { title }, true)') && b.includes("return templateTitle(t, row?.title ?? null);"), "a name is looked up among the workspace's rows");
+  const s = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  for (const id of ["template-rename", "template-title", "template-title-save"]) assert.ok(s.includes(`data-testid="${id}"`), id);
+  assert.ok(readCode("apps/dashboard/app/api/v1/broadcasts/route.ts").includes("broadcastName(tpl.name, now, tpl.title)"), "a broadcast's default name uses the title");
+  assert.ok(readCode("apps/dashboard/src/server/playbooks.ts").includes("templateTitle(tpl.name, tpl.title)"), "a playbook's default name uses the title");
+  assert.ok(readCode("apps/dashboard/app/api/v1/templates/route.ts").includes("source, hidden_at, title"), "the composers read it");
 });
