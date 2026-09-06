@@ -1076,7 +1076,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null }) => {
               <StatCell label="Needs you" value={agg.needsYou} meta={agg.needsYouOldestMs ? `oldest ${plAgo(agg.needsYouOldestMs)}` : "nobody waiting"} metaTone={agg.needsYou ? "neg" : ""} />
               <StatCell label="Reached this week" value={agg.reachedWeek} meta={`${agg.reachedWeekNew} new`} />
               {people.calendar && people.calendar.state === "ok" && (
-                <StatCell label="Booked" tip="An appointment ahead on your calendar. The booking is the conversion Chanlytics counts" value={agg.booked} meta={agg.askedNotBooked ? `${agg.askedNotBooked} asked, never booked` : "nobody asked without booking"} metaTone={agg.askedNotBooked ? "neg" : ""} />
+                <StatCell label="Booked" tip="An appointment ahead on your calendar. The booking is the conversion Chanlytics counts" value={agg.booked} meta={agg.askedNotBooked ? `${agg.askedNotBooked} never booked` : "everyone who asked"} metaTone={agg.askedNotBooked ? "neg" : ""} />
               )}
             </StatStrip>
           </div>
