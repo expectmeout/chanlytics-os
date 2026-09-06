@@ -303,9 +303,30 @@ interface RetellAgentConfig {
     /** Days the provider keeps a call; null = forever. */
     data_storage_retention_days: number | null;
     opt_in_signed_url: boolean | null;
+    /** The post-call analysis schema on the agent, as stored; the planner
+     *  checks ours are on it (voice-shell.ts CALL_ANALYSIS_FIELDS). */
+    post_call_analysis_data: unknown[] | null;
 }
 /** GET /get-agent — the fields above, read-only. Null when the provider says no. */
 declare function getAgent(cfg: RetellConfig, agentId: string): Promise<RetellAgentConfig | null>;
+/**
+ * GET /get-agent, the whole object — for the converge endpoint, which must
+ * carry every field back to the provider. Never printed by a diagnostic:
+ * the webhook URL may carry a secret in its query string.
+ */
+declare function getAgentRaw(cfg: RetellConfig, agentId: string): Promise<Record<string, unknown> | null>;
+/** What a provider write answered: the status and the body, never an exception in a route. */
+interface RetellWrite {
+    ok: boolean;
+    status: number;
+    body: Record<string, unknown> | null;
+}
+/** POST /create-agent-version — a new draft from a version; a published version cannot change. */
+declare function createAgentVersion(cfg: RetellConfig, agentId: string, baseVersion: number): Promise<RetellWrite>;
+/** PATCH /update-agent — the latest (draft) version takes the patch. */
+declare function updateAgent(cfg: RetellConfig, agentId: string, patch: Record<string, unknown>): Promise<RetellWrite>;
+/** POST /publish-agent-version — a number pinned to latest_published follows it. */
+declare function publishAgentVersion(cfg: RetellConfig, agentId: string, version: number, title: string): Promise<RetellWrite>;
 /** What an operator says to the agent mid-call, heard by the agent alone. */
 interface LiveCallControl {
     /** Free text, injected into the transcript as "injected" and worked into the next answer. */
@@ -529,4 +550,4 @@ declare function agentSettingsDrift(live: LiveAgentSettings): {
     drift: string[];
 };
 
-export { type AgentPlan, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, DEFAULT_FN_URL, FACTS_UNAVAILABLE, GREETING_DEFAULT, HANDOFF_VAR, type ListCallsPage, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type SendResult, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, agentSettingsDrift, availabilityUrl, callSummaryLine, desiredVoiceShell, fetchMediaBytes, fetchRecording, getAgent, getCall, getRetellLlm, listCalls, liveTurns, needsHydration, normalizeCall, normalizeInbound, parseTranscriptText, planAgentSettings, planVoiceConvergence, sendTemplate, sendText, updateLiveCall, verifyRetellSignature, voiceShellDrift, voiceShellTools };
+export { type AgentPlan, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, DEFAULT_FN_URL, FACTS_UNAVAILABLE, GREETING_DEFAULT, HANDOFF_VAR, type ListCallsPage, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type SendResult, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, agentSettingsDrift, availabilityUrl, callSummaryLine, createAgentVersion, desiredVoiceShell, fetchMediaBytes, fetchRecording, getAgent, getAgentRaw, getCall, getRetellLlm, listCalls, liveTurns, needsHydration, normalizeCall, normalizeInbound, parseTranscriptText, planAgentSettings, planVoiceConvergence, publishAgentVersion, sendTemplate, sendText, updateAgent, updateLiveCall, verifyRetellSignature, voiceShellDrift, voiceShellTools };
