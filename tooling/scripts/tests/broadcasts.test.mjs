@@ -111,7 +111,7 @@ test("the job: state gates, the template still approved, every person re-checked
   assert.ok(h.includes('if (c.consent !== "opted_in") { await mark(r.contact_id, { state: "skipped", reason: "not_opted_in" }); continue; }'), "the yes is re-checked at the wire, whatever the route found");
   assert.ok(h.includes('reason: "human_has_it"'), "a person mid-thread with a human is not interrupted");
   assert.ok(h.includes('if (cErr) { console.error("broadcast_contact_unreadable", r.contact_id, cErr.message); continue; }'), "fail closed: an unreadable person stays queued");
-  assert.ok(h.includes('meta: { source: "broadcast", broadcast_id: b.id, broadcast_name: b.name'), "every message says which broadcast it came from");
+  assert.ok(h.includes('source: "broadcast", broadcast_id: b.id, broadcast_name: b.name,') && h.includes("playbook_name: String((b.audience as { label?: unknown } | null)?.label ?? b.name)"), "every message says which broadcast it came from, and a run's names its playbook");
   assert.ok(h.includes('if (still?.state !== "sending") return;'), "a cancel during a batch stops the next");
   assert.ok(h.includes('await ctx.schedule("broadcast_send", new Date(), { broadcast_id: b.id });'));
   assert.ok(h.includes('throw new Error("broadcast_send: this runner cannot schedule the next batch");'), "a runner that cannot continue fails loudly");
@@ -198,8 +198,8 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   for (const id of ["bc-number", "bc-number-refusal", "bc-over-limit", "bc-detail", "bc-person", "bc-open-who"]) assert.ok(p.includes(`data-testid="${id}"`), id);
   assert.ok(p.includes("&& numberOk && !overLimit;"), "the button follows the number too");
   const vm = readCode("packages/contracts/src/viewmodels.ts");
-  assert.ok(vm.includes('...(m.meta?.source === "broadcast" ? { via: { kind: "broadcast" as const, name: String(m.meta.broadcast_name ?? "broadcast") } } : {}),'));
-  assert.ok(readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx").includes("by {entry.via ? `a broadcast (${entry.via.name})` : \"you\"} · {entry.at}"));
+  assert.ok(vm.includes('{ kind: "broadcast" as const, name: String(m.meta.broadcast_name ?? "broadcast") }') && vm.includes('{ kind: "playbook" as const, name: String(m.meta.playbook_name) }'));
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx").includes("`a broadcast (${entry.via.name})`") && readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx").includes("`the ${entry.via.name} playbook`"), "the thread says which broadcast, or which playbook");
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/broadcast-verbs.ts").includes("window.__refreshBroadcasts = refreshBroadcasts;"));
 });
 

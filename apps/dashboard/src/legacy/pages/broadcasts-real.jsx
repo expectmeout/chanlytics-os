@@ -216,14 +216,6 @@ const BroadcastsReal = ({ initialSegment = null }) => {
           </div>
         </div>
         <div className="bc-row">
-          <span className="bc-row-label">Via</span>
-          <div className="bc-chips">
-            <button className="bc-chip active"><Icon name="chat" size={11} /> WhatsApp</button>
-            <button className="bc-chip" disabled title="Not available yet"><Icon name="mail" size={11} /> Email</button>
-            <button className="bc-chip" disabled title="Not available yet">SMS</button>
-          </div>
-        </div>
-        <div className="bc-row">
           <span className="bc-row-label">Send</span>
           <div className="bc-chips" style={{ flexWrap: "wrap" }}>
             {templates.length === 0 && (

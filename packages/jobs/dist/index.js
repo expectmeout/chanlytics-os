@@ -13791,7 +13791,7 @@ async function upsertEscalation(db, tenantId, conversationId, reason, details) {
 }
 async function broadcastSend(ctx, job) {
   const p = job.payload;
-  const { data: b, error: bErr } = await ctx.db.from("broadcasts").select("id, state, name, template_name, template_language, params, recipient_count").eq("id", p.broadcast_id).eq("tenant_id", job.tenant_id).maybeSingle();
+  const { data: b, error: bErr } = await ctx.db.from("broadcasts").select("id, state, name, template_name, template_language, params, recipient_count, playbook_id, audience").eq("id", p.broadcast_id).eq("tenant_id", job.tenant_id).maybeSingle();
   if (bErr) throw new Error(`broadcast_send: cannot read broadcast ${p.broadcast_id}: ${bErr.message}`);
   if (!b) return;
   if (b.state !== "scheduled" && b.state !== "sending") return;
@@ -13863,7 +13863,14 @@ async function broadcastSend(ctx, job) {
       body: words,
       externalId: sent.ok ? sent.wamid : null,
       status: sent.ok ? "sent" : "failed",
-      meta: { source: "broadcast", broadcast_id: b.id, broadcast_name: b.name, ...sent.ok ? {} : { http_status: sent.status } }
+      // A run's message names its playbook, so a thread reads "by the Win-back playbook".
+      meta: {
+        source: "broadcast",
+        broadcast_id: b.id,
+        broadcast_name: b.name,
+        ...b.playbook_id ? { playbook_id: b.playbook_id, playbook_name: String(b.audience?.label ?? b.name) } : {},
+        ...sent.ok ? {} : { http_status: sent.status }
+      }
     }).catch((e) => {
       console.error("broadcast_record_failed", e instanceof Error ? e.message : e);
       return null;

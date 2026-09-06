@@ -316,5 +316,29 @@
       ],
       "no_write": true
     }
+  },
+  {
+    "id": "whats_running",
+    "text": "what playbooks are running right now?",
+    "expect": {
+      "tools_any": [
+        "list_playbooks"
+      ],
+      "no_write": true
+    }
+  },
+  {
+    "id": "start_winback",
+    "text": "start a win-back playbook for the quiet clients",
+    "expect": {
+      "tools_any": [
+        "list_playbooks",
+        "propose_playbook"
+      ],
+      "proposals_any_or_says": [
+        "playbook"
+      ],
+      "no_write": true
+    }
   }
 ]

@@ -127,7 +127,7 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   assert.ok(r.includes('? (mode === "never" ? { kind: "off" } : { kind: "send", state: "scheduled", at: now })'), "a person who asks has decided: it sends now unless the class is never");
   assert.ok(r.includes('.in("state", ["sent", "queued"])') && r.includes('const runs = (pastRuns ?? []).filter((b) => b.state !== "canceled" && b.state !== "failed");'), "a message on its way is a touch too, so two playbooks never both pick the same person in a week");
   assert.ok(readCode("apps/edge/api/admin/playbooks-run.ts").includes('runPlaybook(ctx, p as PlaybookRow, { by: { kind: "user", userId } })'));
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/policy-store.ts").includes('note: "the win-back and save-our-number playbooks", chip: "Re-engage", enforced: true'), "the Autonomy rows say what they do now");
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/policy-store.ts").includes('note: "the win-back and save-our-number playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing", chip: "Re-engage", enforced: true'), "the Autonomy rows say what they do now");
 });
 
 test("the page and its doors: Outbound is Playbooks, real; make, change, pause, resume, run now, delete through the app's routes; a waiting run on Today", () => {
@@ -158,4 +158,33 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
   assert.ok(surface.includes("cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, untouched, now.getTime()).length"), "the chip counts the pool with the runner's own predicate");
   assert.ok(readCode("apps/dashboard/src/legacy/components/surface-tabs.jsx").includes('{ id: "outbound", label: "Playbooks", to: "outbound" }'));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("broadcastsOverride, playbooksOverride]"), "booted with the rest");
+});
+
+test("Ask knows playbooks: read as the page shows them, proposed as a card, committed through the app's route, undone by deleting; Today says what ran; a run's thread names its playbook", async () => {
+  const { PROPOSAL_GATE, buildAskSuggestions } = await import("@chanlytics/contracts");
+  assert.equal(PROPOSAL_GATE.playbook, "approve");
+  const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
+  assert.ok(tools.includes('name: "list_playbooks"') && tools.includes('case "list_playbooks": out = await listPlaybooksTool(t); break;'));
+  assert.ok(tools.includes("listPlaybooks(t.ctx, t.tenantId)") && tools.includes("nextRunLabel(p, facts.timezone, t.now)"), "the same rows and words as the page");
+  assert.ok(tools.includes("Nothing here has run because you read it."));
+  const pr = readCode("apps/dashboard/src/server/ask/proposals.ts");
+  assert.ok(pr.includes('name: "propose_playbook"') && pr.includes('case "propose_playbook": return await proposePlaybook(t, input);'));
+  assert.ok(pr.includes("checked = await checkPlaybookInput(t.ctx, t.tenantId, {"), "checked the way the route checks it");
+  assert.ok(pr.includes("starter is not approved on this workspace yet"), "no template and no starter is an honest refusal");
+  assert.ok(pr.includes("ask the person what to say there, then propose again with params"), "a typed slot is a question, never invented words");
+  assert.ok(pr.includes('kind: "playbook",') && pr.includes('undo: "Delete it — nothing will run",'));
+  const c = readCode("apps/dashboard/src/legacy-bridge/ask/commit.ts");
+  assert.ok(c.includes('case "playbook": {') && c.includes('viaAsk(win, "/api/v1/playbooks", {') && c.includes('viaAsk(win, `/api/v1/playbooks/${u.playbook_id}`, undefined, "DELETE")'));
+  const turn = readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx");
+  assert.ok(turn.includes("playbook: t.kPlaybook") && turn.includes('playbook: "bolt"') && turn.includes('p.kind === "playbook" ? "outbound"'));
+  assert.ok(readCode("apps/dashboard/src/server/ask/prompt.ts").includes('"playbook": "A standing rule'));
+  const sug = buildAskSuggestions({ surface: "people", language: "en", needsYou: 0, heldDrafts: 0, missedToday: 0, liveNow: 0, hasCalendar: false, canAct: true });
+  assert.ok(sug.some((x) => x.kind === "act" && x.q === "Start a win-back playbook for the quiet clients"), "an Act suggestion on People");
+  const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
+  assert.ok(brief.includes('data-testid="brief-run-done"') && brief.includes('{r.playbook_id ? "ran" : "went out"}'), "Today says what went out today");
+  const h = readCode("packages/jobs/src/handlers.ts");
+  assert.ok(h.includes("playbook_name: String((b.audience as { label?: unknown } | null)?.label ?? b.name)"), "a run's message names its playbook");
+  assert.ok(readCode("packages/contracts/src/viewmodels.ts").includes('{ kind: "playbook" as const, name: String(m.meta.playbook_name) }'));
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx").includes("`the ${entry.via.name} playbook`"));
+  assert.ok(!readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx").includes("Not available yet"), "no disabled channel chips until a second channel is real");
 });

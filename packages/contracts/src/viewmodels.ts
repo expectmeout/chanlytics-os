@@ -439,7 +439,7 @@ export interface InboxThreadVM {
         why?: ReplyWhyVM;
         byYou?: boolean;
         /** Sent by a broadcast, not typed: the name the owner gave it. */
-        via?: { kind: "broadcast"; name: string };
+        via?: { kind: "broadcast" | "playbook"; name: string };
         status?: string;
         messageId?: string;
         /** Written but NOT sent — sitting out its veto window. */
@@ -538,7 +538,11 @@ export function toInboxThreadVM(
         ? { agentName: onPhone ? "Phone Receptionist" : AGENT.name, agentGlyph: onPhone ? "P" : AGENT.glyph }
         : {}),
       ...(m.sender === "human" ? { byYou: true } : {}),
-      ...(m.meta?.source === "broadcast" ? { via: { kind: "broadcast" as const, name: String(m.meta.broadcast_name ?? "broadcast") } } : {}),
+      ...(m.meta?.source === "broadcast"
+        ? { via: m.meta.playbook_name
+            ? { kind: "playbook" as const, name: String(m.meta.playbook_name) }
+            : { kind: "broadcast" as const, name: String(m.meta.broadcast_name ?? "broadcast") } }
+        : {}),
       ...(m.sender !== "customer" && m.status
         ? {
             status: m.status,

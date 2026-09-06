@@ -22,9 +22,18 @@ import {
   violatesNoPrices,
   waWindow,
   type AskProposal,
+  PLAYBOOK_CLASS_LABEL,
+  defaultParamSpecs,
+  eligibleForPlaybook,
+  scheduleLine,
+  slotLabels,
+  starterForTrigger,
+  triggerOf,
 } from "@chanlytics/contracts";
+import { listPolicies } from "@chanlytics/db";
 import type { ToolContext, ToolDef } from "./tools";
 import { listPeople } from "../people";
+import { checkPlaybookInput } from "../playbooks";
 
 /**
  * What the assistant may propose, and how a proposal is checked.
@@ -98,6 +107,18 @@ export const ACT_TOOLS: ToolDef[] = [
       scheduled_for: { type: "string" },
       name: { type: "string" },
     }, ["template_id", "audience_kind"]),
+  },
+  {
+    name: "propose_playbook",
+    description: "Propose a playbook: a standing rule that sends one approved WhatsApp template to newly eligible people who said yes. trigger: quiet_30 (win-back), new_week (welcome), phoned_only (save our number) or everyone_monthly (the month's offer). template_id: an approved template, or omit it for the trigger's starter when the workspace holds it. params: the template's values in order (typed text, or @first_name, @business_name, @booking_link); a starter's are filled in, except a typed one such as the month's offer. run_hour 9–20 by the business's clock (default 10), cap_per_run (default 25). Read list_playbooks first. It becomes a card the person approves; it then runs under its class's autonomy mode.",
+    input_schema: obj({
+      trigger: { type: "string", enum: ["quiet_30", "new_week", "phoned_only", "everyone_monthly"] },
+      template_id: { type: "string" },
+      params: { type: "array", items: { type: "string" } },
+      run_hour: { type: "number" },
+      cap_per_run: { type: "number" },
+      name: { type: "string" },
+    }, ["trigger"]),
   },
   {
     name: "propose_invite",
@@ -383,6 +404,104 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
   });
 }
 
+/** What a run does under each mode, in the card's words. */
+const MODE_WORDS: Record<string, string> = {
+  auto: "each run sends on its own",
+  veto: "each run sends 30 minutes later unless you stop it",
+  ask: "each run waits for you on Today",
+  never: "nothing runs until the class is changed",
+};
+
+async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): Promise<ProposalOutcome> {
+  const trig = triggerOf(str(input.trigger, 30));
+  if (!trig) return refuse("trigger must be quiet_30, new_week, phoned_only or everyone_monthly");
+  let templateId = str(input.template_id, 40);
+  if (templateId && !UUID.test(templateId)) return refuse("template_id must be an id list_audiences returned, or omitted for the trigger's starter");
+  if (!templateId) {
+    const s = starterForTrigger(trig.id);
+    const { data: starter } = await t.ctx.supabase
+      .from("templates")
+      .select("id")
+      .eq("tenant_id", t.tenantId)
+      .eq("channel", "whatsapp")
+      .eq("name", s?.name ?? "")
+      .eq("meta_status", "approved")
+      .is("hidden_at", null)
+      .order("language")
+      .limit(1)
+      .maybeSingle();
+    if (!starter) return refuse(`the “${s?.title ?? trig.label}” starter is not approved on this workspace yet; say so and suggest adding the starter set in Settings › Message templates, or name an approved template from list_audiences`);
+    templateId = starter.id;
+  }
+  const { data: tpl } = await t.ctx.supabase
+    .from("templates")
+    .select("id, name, language, meta_status, variables, body_preview, hidden_at")
+    .eq("id", templateId)
+    .eq("tenant_id", t.tenantId)
+    .eq("channel", "whatsapp")
+    .maybeSingle();
+  if (!tpl || tpl.meta_status !== "approved" || tpl.hidden_at) return refuse("that template is not approved by WhatsApp, or the workspace keeps it out of the composers; list_audiences names the ones that may send");
+
+  // The values: the model's, or the template's own defaults — a starter's
+  // slots are known; a typed slot with no words is a question for the person.
+  let specs: ParamSpec[];
+  const given = Array.isArray(input.params) ? (input.params as unknown[]) : [];
+  if (given.length) {
+    specs = [];
+    for (const p of given) {
+      const spec = parseParamSpec(p);
+      if (!spec) return refuse("each value is text, or @first_name, @business_name or @booking_link");
+      if (spec.kind === "text") {
+        const v = cleanParam(spec.value);
+        if (v === null) return refuse("every typed value must be plain text under 1024 characters, without line breaks");
+        specs.push({ kind: "text", value: v });
+      } else {
+        specs.push(spec);
+      }
+    }
+  } else {
+    specs = defaultParamSpecs({ name: tpl.name, variables: tpl.variables });
+    const labels = slotLabels({ name: tpl.name, language: tpl.language, variables: tpl.variables });
+    const blank = specs.findIndex((s) => s.kind === "text" && !s.value);
+    if (blank >= 0) return refuse(`this template takes typed words for “${labels[blank] ?? `value ${blank + 1}`}”; ask the person what to say there, then propose again with params`);
+  }
+
+  let checked;
+  try {
+    checked = await checkPlaybookInput(t.ctx, t.tenantId, {
+      name: str(input.name, 80) || undefined,
+      trigger: trig.id,
+      template_id: tpl.id,
+      params: specs,
+      run_hour: typeof input.run_hour === "number" ? input.run_hour : undefined,
+      cap_per_run: typeof input.cap_per_run === "number" ? input.cap_per_run : undefined,
+    });
+  } catch (e) {
+    return refuse(e instanceof Error ? e.message : String(e));
+  }
+
+  const [rows, policies] = await Promise.all([
+    listPeople(t.ctx, t.tenantId).then((people) => people.map((r) => toPersonRowVM(r, t.now))),
+    listPolicies(t.ctx.supabase, t.tenantId).catch(() => []),
+  ]);
+  const untouched = { byThis: new Map<string, number>(), byAny: new Map<string, number>() };
+  const candidates = eligibleForPlaybook(rows, { trigger: trig.id, cap_per_run: 100_000, gap_days: 0, cadence_days: 0 }, untouched, t.now.getTime()).length;
+  const mode = policies.find((r) => r.class === trig.cls)?.mode ?? "ask";
+  const words = renderTemplate(tpl.body_preview, exampleParams(specs, "the business"));
+  return propose({
+    kind: "playbook",
+    needs: "operator",
+    title: `Playbook: ${checked.name}`,
+    summary: `${trig.label} — ${trig.hint.toLowerCase()} · ${scheduleLine(checked)} · ${candidates} on the list said yes now · under “${PLAYBOOK_CLASS_LABEL[trig.cls]}” (${mode}): ${MODE_WORDS[mode] ?? mode}. Says: ${words.slice(0, 140)}${words.length > 140 ? "…" : ""}`,
+    payload: {
+      trigger: trig.id, trigger_label: trig.label, template_id: tpl.id, template_name: tpl.name, params: specs,
+      run_hour: checked.run_hour, cap_per_run: checked.cap_per_run, gap_days: checked.gap_days, cadence_days: checked.cadence_days,
+      name: checked.name, candidates, policy_class: trig.cls, mode,
+    },
+    undo: "Delete it — nothing will run",
+  });
+}
+
 export async function buildProposal(t: ToolContext, name: string, input: Record<string, unknown>): Promise<ProposalOutcome> {
   try {
     switch (name) {
@@ -395,6 +514,7 @@ export async function buildProposal(t: ToolContext, name: string, input: Record<
       case "propose_whisper": return await proposeWhisper(t, input);
       case "propose_invite": return await proposeInvite(t, input);
       case "propose_broadcast": return await proposeBroadcast(t, input);
+      case "propose_playbook": return await proposePlaybook(t, input);
       default: return refuse(`unknown tool ${name}`);
     }
   } catch (e) {
@@ -413,6 +533,7 @@ const PROPOSAL_LABELS: Record<string, string> = {
   propose_whisper: "Preparing a whisper",
   propose_invite: "Preparing an invitation",
   propose_broadcast: "Preparing a broadcast",
+  propose_playbook: "Preparing a playbook",
 };
 
 export function proposalLabel(name: string): string {

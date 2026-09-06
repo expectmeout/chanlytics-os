@@ -604,7 +604,7 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
       // work it did not do. The bubble already knows its own channel.
       ...m.sender !== "customer" ? { agentName: onPhone ? "Phone Receptionist" : AGENT.name, agentGlyph: onPhone ? "P" : AGENT.glyph } : {},
       ...m.sender === "human" ? { byYou: true } : {},
-      ...m.meta?.source === "broadcast" ? { via: { kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") } } : {},
+      ...m.meta?.source === "broadcast" ? { via: m.meta.playbook_name ? { kind: "playbook", name: String(m.meta.playbook_name) } : { kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") } } : {},
       ...m.sender !== "customer" && m.status ? {
         status: m.status,
         messageId: m.id,
@@ -2083,7 +2083,8 @@ var PROPOSAL_GATE = {
   person_mode: "settings",
   settings: "settings",
   invite: "team",
-  broadcast: "approve"
+  broadcast: "approve",
+  playbook: "approve"
 };
 var AskProposalOutcomeSchema = z3.object({
   state: z3.enum(["done", "dismissed", "failed", "undone"]),
@@ -2165,6 +2166,8 @@ var T = {
     actInviteQ: "Invite ",
     actOffer: "Send an offer to a list",
     actOfferQ: "Send the ",
+    actPlaybook: "Start a win-back playbook",
+    actPlaybookQ: "Start a win-back playbook for the quiet clients",
     actHold: "Hold every reply for my review",
     actHoldQ: "Hold every reply for my review before it sends"
   },
@@ -2196,6 +2199,8 @@ var T = {
     actInviteQ: "Invita a ",
     actOffer: "Enviar una oferta a una lista",
     actOfferQ: "Env\xEDa la ",
+    actPlaybook: "Iniciar un playbook de recuperaci\xF3n",
+    actPlaybookQ: "Inicia un playbook de recuperaci\xF3n para los clientes inactivos",
     actHold: "Retener cada respuesta para revisarla",
     actHoldQ: "Ret\xE9n cada respuesta para mi revisi\xF3n antes de enviarla"
   }
@@ -2262,6 +2267,7 @@ function buildAskSuggestions(input) {
   if (input.surface === "settings") act(t.actInvite, t.actInviteQ, "users", true);
   if (input.surface === "inbox" || input.heldDrafts > 0) act(t.actHold, t.actHoldQ, "shield");
   if (input.surface === "people" || input.surface === "other") act(t.actOffer, t.actOfferQ, "wave", true);
+  if (input.surface === "people" || input.surface === "other") act(t.actPlaybook, t.actPlaybookQ, "bolt");
   return [...asks, ...acts.slice(0, 4)];
 }
 var NEEDS_RE = /\b(who needs me|who needs my|needs? (my|me)\b|what('s| is| do i have)? waiting|waiting (on|for) me|anyone waiting|qui[eé]n me necesita|qu[eé] (me )?espera|qu[eé] (hay )?pendiente|pendientes?)\b/i;
