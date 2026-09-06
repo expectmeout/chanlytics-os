@@ -202,3 +202,20 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   assert.ok(readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx").includes("by {entry.via ? `a broadcast (${entry.via.name})` : \"you\"} · {entry.at}"));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/broadcast-verbs.ts").includes("window.__refreshBroadcasts = refreshBroadcasts;"));
 });
+
+test("getting their yes: an unambiguous phrase the ingest records, a link that opens WhatsApp with it, a QR of that link, and a receptionist that thanks them", async () => {
+  const { OPT_IN_PATTERN, OFFERS_OPT_IN_PHRASES, optInLink } = await import("@chanlytics/contracts");
+  assert.equal(OFFERS_OPT_IN_PHRASES.en, "YES OFFERS");
+  for (const w of ["YES OFFERS", "yes offers", "Sí ofertas!", "si ofertas", "START"]) assert.ok(OPT_IN_PATTERN.test(w), w);
+  for (const w of ["yes", "offers", "yes offers please", "yes to offers"]) assert.ok(!OPT_IN_PATTERN.test(w), `"${w}" must not opt in`);
+  assert.equal(optInLink("+1 (917) 772-4072"), "https://wa.me/19177724072?text=YES%20OFFERS");
+  assert.equal(optInLink("+19177724072", OFFERS_OPT_IN_PHRASES.es), "https://wa.me/19177724072?text=SI%20OFERTAS");
+  assert.equal(optInLink(null), null);
+  assert.equal(optInLink("12"), null);
+  assert.ok(readCode("packages/contracts/src/config.ts").includes('If a message is only the words YES OFFERS or SI OFERTAS'), "the receptionist thanks them and asks nothing else");
+  const q = readCode("apps/dashboard/app/api/v1/consent/qr/route.ts");
+  assert.ok(q.includes("const link = optInLink(ch?.number_e164);") && q.includes('"content-type": "image/svg+xml; charset=utf-8"'), "the code encodes one link and nothing a caller chooses");
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes('qrPath: optInLink(wa?.number_e164) ? scoped("/api/v1/consent/qr") : null,'));
+  const p = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
+  assert.ok(p.includes('data-testid="bc-optin"') && p.includes('data-testid="bc-optin-copy"') && p.includes('download="say-yes-to-offers.svg"'));
+});

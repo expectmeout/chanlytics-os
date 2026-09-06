@@ -90,7 +90,22 @@ export const OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
  * having one — and "sí"/"yes" is deliberately excluded because it is how
  * people answer an ordinary question, not how they rejoin a list.
  */
-export const OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta)\s*[.!]?\s*$/i;
+export const OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
+
+/**
+ * The phrase a customer sends to say yes to offers. Unambiguous on purpose,
+ * so it can ride a wa.me link or a QR at the desk without "yes" to an
+ * ordinary question ever counting; the ingest records it as their own
+ * message, the strongest consent there is.
+ */
+export const OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" } as const;
+
+/** WhatsApp opened on the workspace's number with the phrase ready to send; null without a usable number. */
+export function optInLink(numberE164: string | null | undefined, phrase: string = OFFERS_OPT_IN_PHRASES.en): string | null {
+  const digits = String(numberE164 ?? "").replace(/\D/g, "");
+  if (digits.length < 8) return null;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(phrase)}`;
+}
 
 /* ---- Slice 2: Inbox ---- */
 

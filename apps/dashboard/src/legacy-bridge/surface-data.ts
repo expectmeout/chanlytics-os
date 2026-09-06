@@ -263,7 +263,7 @@ import {
   type ReportDto,
   type ReportVM,
 } from "@chanlytics/contracts";
-import { EVERYONE_LABEL, HELD_REASONS, eligibleFor, formatPhoneDisplay, numberHealth, toBroadcastVM, type AudienceKind, type BroadcastDto, type BroadcastVM, type NumberHealth } from "@chanlytics/contracts";
+import { EVERYONE_LABEL, HELD_REASONS, OFFERS_OPT_IN_PHRASES, eligibleFor, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, type AudienceKind, type BroadcastDto, type BroadcastVM, type NumberHealth } from "@chanlytics/contracts";
 
 /**
  * Slice 2: the Inbox flips to the real escalations queue. Open escalations +
@@ -652,6 +652,10 @@ export interface BroadcastsSurface {
   number: { present: boolean; display: string | null; health: NumberHealth };
   /** The words for a held-back reason, for the detail view. */
   heldReasons: Record<string, string>;
+  /** How a customer says yes in their own words: the phrase, the link that
+   *  opens WhatsApp with it ready, and the QR of that link. Null link without
+   *  a number. */
+  optIn: { phrase: string; phraseEs: string; link: string | null; qrPath: string | null };
   fetchedAt: number;
 }
 
@@ -699,6 +703,12 @@ export const broadcastsOverride: SurfaceOverride = {
         health: numberHealth({ quality: wa?.quality ?? null, event: wa?.quality_event ?? null, limit: wa?.messaging_limit ?? null }),
       },
       heldReasons: HELD_REASONS,
+      optIn: {
+        phrase: OFFERS_OPT_IN_PHRASES.en,
+        phraseEs: OFFERS_OPT_IN_PHRASES.es,
+        link: optInLink(wa?.number_e164),
+        qrPath: optInLink(wa?.number_e164) ? scoped("/api/v1/consent/qr") : null,
+      },
       fetchedAt: now.getTime(),
     };
   },
