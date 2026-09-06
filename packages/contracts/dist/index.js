@@ -2445,10 +2445,17 @@ function localToUtcMs(tz, y, m, d, hh, mm) {
   const second = guess - zoneOffsetMs(tz, first);
   return second;
 }
+function clockInZone(tz, atMs) {
+  const p = zoneParts(tz, new Date(atMs));
+  return { hh: p.hh, mm: p.mm, ss: p.ss };
+}
 function dayInZone(tz, atMs) {
   const p = zoneParts(tz, new Date(atMs));
   const pad = (n) => String(n).padStart(2, "0");
   return { key: `${p.y}-${pad(p.m)}-${pad(p.d)}`, weekday: p.weekday, y: p.y, m: p.m, d: p.d };
+}
+function unescapeText(v) {
+  return v.replace(/\\([\\;,nN])/g, (_, c) => c === "n" || c === "N" ? "\n" : c).trim();
 }
 function unfold(text) {
   const out = [];
@@ -2584,6 +2591,7 @@ function durationMs(v) {
 function parseIcs(text, fallbackTz, opts = {}) {
   const horizon = opts.horizon ?? { from: Date.now() - 864e5, to: Date.now() + 90 * 864e5 };
   const busy = [];
+  const items = [];
   let events = 0;
   let recurringExpanded = 0;
   let skippedRecurring = 0;
@@ -2611,6 +2619,9 @@ function parseIcs(text, fallbackTz, opts = {}) {
             end = cur.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(cur.DTSTART.value.trim()) ? start + 864e5 : start;
           }
           if (start !== null && end !== null && end > start) {
+            const title = unescapeText(cur.SUMMARY?.value ?? "");
+            const allDay = cur.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(cur.DTSTART.value.trim());
+            const uid = cur.UID?.value.trim() || null;
             const rule = cur.RRULE ? parseRule(cur.RRULE.value, fallbackTz) : null;
             const local = cur.RRULE ? localPartsOf(cur.DTSTART.value, cur.DTSTART.params, fallbackTz) : null;
             if (cur.RRULE && rule && local) {
@@ -2619,11 +2630,14 @@ function parseIcs(text, fallbackTz, opts = {}) {
                 const ms = toMs(v, e.params, fallbackTz);
                 if (ms !== null) ex.add(ms);
               }
-              busy.push(...occurrences(local, end - start, rule, ex, horizon));
+              const occ = occurrences(local, end - start, rule, ex, horizon);
+              busy.push(...occ);
+              for (const o of occ) items.push({ ...o, title, allDay, uid });
               recurringExpanded++;
             } else {
               if (cur.RRULE || cur.RDATE) skippedRecurring++;
               busy.push({ start, end });
+              items.push({ start, end, title, allDay, uid });
             }
           }
         }
@@ -2641,9 +2655,10 @@ function parseIcs(text, fallbackTz, opts = {}) {
     cur[s.name] = { params: s.params, value: s.value };
   }
   busy.sort((a, b) => a.start - b.start);
-  return { busy, events, recurringExpanded, skippedRecurring };
+  items.sort((a, b) => a.start - b.start);
+  return { busy, items, events, recurringExpanded, skippedRecurring };
 }
-var DEFAULTS = { lead_hours: 2, buffer_min: 0, max_days_ahead: 14, slot_min: 30 };
+var BOOKING_DEFAULTS = { lead_hours: 2, buffer_min: 0, max_days_ahead: 14, slot_min: 30 };
 function hhmm(s) {
   const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());
   return m ? [Number(m[1]), Number(m[2])] : null;
@@ -2657,7 +2672,7 @@ function closedOn(closures, key) {
   return !!closures?.some((c) => c.date <= key && key <= (c.until && c.until >= c.date ? c.until : c.date));
 }
 function freeWindows(input) {
-  const rules = { ...DEFAULTS, ...input.rules ?? {} };
+  const rules = { ...BOOKING_DEFAULTS, ...input.rules ?? {} };
   const leadMs = rules.lead_hours * 36e5;
   const bufferMs = rules.buffer_min * 6e4;
   const slotMs = rules.slot_min * 6e4;
@@ -2728,7 +2743,7 @@ function span(tz, start, end) {
 }
 function describeOpenings(openings, tz, opts = {}) {
   const maxDays = opts.maxDays ?? 5;
-  const ahead = opts.daysAhead ?? DEFAULTS.max_days_ahead;
+  const ahead = opts.daysAhead ?? BOOKING_DEFAULTS.max_days_ahead;
   if (!openings.length) {
     return `Open times (from the calendar): nothing is open in the next ${ahead} days. Offer to have someone call back, and send the booking link so they are told when a slot frees up.`;
   }
@@ -3966,16 +3981,212 @@ function toCampaignReportVM(dto) {
 }
 var CAMPAIGN_REPORT_RANGES = REPORT_RANGES;
 
-// src/channels.ts
+// src/calendar.ts
 var DAY_MS4 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS4;
+var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+function keyParts(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  return { y, m: m ?? 1, d: d ?? 1 };
+}
+function shiftKey(key, n) {
+  const { y, m, d } = keyParts(key);
+  const at = new Date(Date.UTC(y, m - 1, d + n));
+  return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, "0")}-${String(at.getUTCDate()).padStart(2, "0")}`;
+}
+function mondayOf(key) {
+  const { y, m, d } = keyParts(key);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return shiftKey(key, -((dow + 6) % 7));
+}
+function isDayKey(s) {
+  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
+}
+function clockLabel(t) {
+  const h = Math.floor(t);
+  const m = Math.round((t - h) * 60);
+  const ap = h >= 12 && h < 24 ? "PM" : "AM";
+  const hh = (h + 11) % 12 + 1;
+  return `${hh}${m ? `:${String(m).padStart(2, "0")}` : ""} ${ap}`;
+}
+var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+function shortDate(key) {
+  const { y, m, d } = keyParts(key);
+  return SHORT.format(new Date(Date.UTC(y, m - 1, d, 12)));
+}
+function longDate(key) {
+  const { y, m, d } = keyParts(key);
+  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(new Date(Date.UTC(y, m - 1, d, 12)));
+}
+function readAgoLabel(iso, now) {
+  if (!iso) return null;
+  const diff = Math.max(0, now.getTime() - Date.parse(iso));
+  if (diff < 6e4) return "just now";
+  if (diff < 36e5) return `${Math.round(diff / 6e4)} min ago`;
+  if (diff < DAY_MS4) return `${Math.round(diff / 36e5)}h ago`;
+  return `${Math.round(diff / DAY_MS4)}d ago`;
+}
+function rulesLine(rules) {
+  const r = { ...BOOKING_DEFAULTS, ...rules ?? {} };
+  const parts2 = [`at least ${r.lead_hours}h ahead`];
+  if (r.buffer_min > 0) parts2.push(`${r.buffer_min} min between appointments`);
+  parts2.push(`up to ${r.max_days_ahead} days out`, `${r.slot_min}-min slots`);
+  return `Offers times ${parts2.join(" \xB7 ")}`;
+}
+function hoursOf(tz, ms) {
+  const c = clockInZone(tz, ms);
+  return c.hh + c.mm / 60;
+}
+function spanLabel(t1, t2) {
+  const a = clockLabel(t1);
+  const b = clockLabel(t2);
+  const sameHalf = a.slice(-2) === b.slice(-2);
+  return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
+}
+function toBlock(item, tz, dayStartMs, dayEndMs) {
+  const s = Math.max(Date.parse(item.start), dayStartMs);
+  const e = Math.min(Date.parse(item.end), dayEndMs);
+  const t = s === dayStartMs ? 0 : hoursOf(tz, s);
+  const tEnd = e === dayEndMs ? 24 : hoursOf(tz, e);
+  return {
+    id: item.id,
+    t,
+    dur: Math.max(15, Math.round((tEnd - t) * 60)),
+    title: item.title || "Busy",
+    time: spanLabel(t, tEnd),
+    person: item.person,
+    start: item.start,
+    end: item.end
+  };
+}
+function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
+  const tz = dto.timezone;
+  const todayKey = dayInZone(tz, now.getTime()).key;
+  const nowMs = now.getTime();
+  let start = 24;
+  let end = 0;
+  for (const h of Object.values(dto.hours ?? {})) {
+    for (const [o, c] of dayIntervals2(h)) {
+      const oh = Number(o.split(":")[0]);
+      const ch = Number(c.split(":")[0]) + (Number(c.split(":")[1]) > 0 ? 1 : 0);
+      if (Number.isFinite(oh)) start = Math.min(start, oh);
+      if (Number.isFinite(ch)) end = Math.max(end, ch);
+    }
+  }
+  if (start >= end) {
+    start = 8;
+    end = 20;
+  }
+  start = Math.max(0, start - 1);
+  end = Math.min(24, end + 1);
+  const days = dto.days.map((d) => {
+    const { y, m, d: dd } = keyParts(d.key);
+    const dayStartMs = Date.UTC(y, m - 1, dd) + 0;
+    void dayStartMs;
+    const weekday = DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()].toLowerCase();
+    const closure = dto.closures.find((c) => c.date <= d.key && d.key <= (c.until && c.until >= c.date ? c.until : c.date)) ?? null;
+    const intervals = dayIntervals2(dto.hours?.[weekday]);
+    const closedDay = closedOn(dto.closures, d.key) || intervals.length === 0;
+    const bands = [];
+    if (closedDay) {
+      bands.push({ from: start, to: end, label: closure?.note ? `Closed \xB7 ${closure.note}` : "Closed" });
+    } else {
+      let cursor = start;
+      for (const [o, c] of intervals) {
+        const oh = Number(o.split(":")[0]) + Number(o.split(":")[1]) / 60;
+        const ch = Number(c.split(":")[0]) + Number(c.split(":")[1]) / 60;
+        if (oh > cursor) bands.push({ from: cursor, to: oh, label: null });
+        cursor = Math.max(cursor, ch);
+      }
+      if (cursor < end) bands.push({ from: cursor, to: end, label: null });
+    }
+    const zoneDayStart = zoneMidnight(tz, d.key);
+    const zoneDayEnd = zoneMidnight(tz, shiftKey(d.key, 1));
+    const timed = [];
+    const allDay = [];
+    for (const item of d.items) {
+      const s = Date.parse(item.start);
+      const e = Date.parse(item.end);
+      if (!(e > zoneDayStart && s < zoneDayEnd)) continue;
+      const block = toBlock(item, tz, zoneDayStart, zoneDayEnd);
+      if (item.all_day || s <= zoneDayStart && e >= zoneDayEnd) allDay.push({ ...block, t: 0, dur: 24 * 60, time: "All day" });
+      else timed.push(block);
+    }
+    timed.sort((a, b) => a.t - b.t);
+    const windows = d.windows.map((w) => {
+      const t = hoursOf(tz, Date.parse(w.start));
+      const tEnd = hoursOf(tz, Date.parse(w.end));
+      return { t, dur: Math.round((tEnd - t) * 60), label: spanLabel(t, tEnd) };
+    });
+    return {
+      key: d.key,
+      dow: DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()],
+      date: shortDate(d.key),
+      long: longDate(d.key),
+      today: d.key === todayKey,
+      past: d.key < todayKey,
+      closed: { yes: closedDay, note: closure?.note ?? null },
+      bands,
+      blocks: timed,
+      allDay,
+      windows
+    };
+  });
+  const events = days.reduce((a, d) => a + d.blocks.length + d.allDay.length, 0);
+  const windowCount = days.reduce((a, d) => a + d.windows.length, 0);
+  let next = "\u2014";
+  outer: for (const d of days) {
+    for (const w of d.windows) {
+      const at = zoneMidnight(tz, d.key) + w.t * 36e5;
+      if (at >= nowMs) {
+        next = `${d.today ? "today" : d.dow} ${clockLabel(w.t)}`;
+        break outer;
+      }
+    }
+  }
+  const ago3 = readAgoLabel(dto.feed.read_at, now);
+  const feedLine = dto.feed.state === "ok" ? `From your calendar \xB7 read ${ago3 ?? "just now"} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}${dto.feed.skipped_recurring ? ` \xB7 ${dto.feed.skipped_recurring} repeating rule${dto.feed.skipped_recurring === 1 ? "" : "s"} read once` : ""}` : dto.feed.state === "unavailable" ? `Your calendar could not be read${ago3 ? ` \xB7 last read ${ago3}` : ""}` : "No calendar connected";
+  const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
+  const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
+  const sameMonth = dto.from.slice(0, 7) === last.slice(0, 7);
+  return {
+    timezone: tz,
+    from: dto.from,
+    to: last,
+    rangeLabel: `${shortDate(dto.from)} \u2013 ${sameMonth ? shortDate(last).replace(/^[A-Za-z]+ /, "") : shortDate(last)}`,
+    hours: { start, end },
+    days,
+    today: todayKey,
+    now: nowIn,
+    feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events },
+    stats: { events, windows: windowCount, next },
+    rules: rulesLine(dto.rules),
+    bookingLink: dto.booking_link
+  };
+}
+function zoneMidnight(tz, key) {
+  const { y, m, d } = keyParts(key);
+  const guess = Date.UTC(y, m - 1, d);
+  const off1 = zoneOffsetOf(tz, guess);
+  const first = guess - off1;
+  const off2 = zoneOffsetOf(tz, first);
+  return guess - off2;
+}
+function zoneOffsetOf(tz, atMs) {
+  const c = clockInZone(tz, atMs);
+  const day = dayInZone(tz, atMs);
+  return Date.UTC(day.y, day.m - 1, day.d, c.hh, c.mm, c.ss) - Math.floor(atMs / 1e3) * 1e3;
+}
+
+// src/channels.ts
+var DAY_MS5 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS5;
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 function ago2(ms, nowMs) {
   const diff = Math.max(0, nowMs - ms);
   if (diff < 6e4) return "just now";
   if (diff < 36e5) return `${Math.round(diff / 6e4)}m ago`;
-  if (diff < DAY_MS4) return `${Math.round(diff / 36e5)}h ago`;
-  if (diff < QUIET_AFTER_MS2) return `${Math.round(diff / DAY_MS4)}d ago`;
+  if (diff < DAY_MS5) return `${Math.round(diff / 36e5)}h ago`;
+  if (diff < QUIET_AFTER_MS2) return `${Math.round(diff / DAY_MS5)}d ago`;
   return DATE_FMT4.format(new Date(ms));
 }
 var KIND_META = {
@@ -4038,6 +4249,7 @@ export {
   AskFinishSchema,
   AskProposalOutcomeSchema,
   AskSettingsChangeSchema,
+  BOOKING_DEFAULTS,
   BRAIN_INTENTS,
   BRAIN_LANGUAGES,
   BRAIN_OUTPUT_JSON_SCHEMA,
@@ -4158,6 +4370,9 @@ export {
   citationsToShow,
   cleanAnswer,
   cleanParam,
+  clockInZone,
+  clockLabel,
+  closedOn,
   compareTemplates,
   composeSystemPrompt,
   consentSourceLabel,
@@ -4167,6 +4382,7 @@ export {
   dayDate,
   dayFromQuestion,
   dayInZone,
+  dayIntervals2 as dayIntervals,
   defaultParamSpecs,
   defaultSlotKinds,
   defaultTemplate,
@@ -4198,6 +4414,7 @@ export {
   hasProfile,
   hoursRuns,
   initialsOf,
+  isDayKey,
   isHeldDraft,
   isLiveCall,
   isOptedOut,
@@ -4214,6 +4431,7 @@ export {
   messageAt,
   messageStatusLabel,
   messageText,
+  mondayOf,
   navigateLabel,
   newReceptionistDefaults,
   nextRunLabel,
@@ -4240,6 +4458,7 @@ export {
   pointsDelta,
   quantile,
   reachedCustomer,
+  readAgoLabel,
   reasonShort,
   recencyCells,
   recoverCitations,
@@ -4248,11 +4467,13 @@ export {
   replyWhy,
   resolveParams,
   resolveSystemPrompt,
+  rulesLine,
   runDueNow,
   safeNavigate,
   sameQuestion,
   scheduleLine,
   scopeFromRoute,
+  shiftKey,
   shortTime,
   slotLabels,
   slugTemplateName,
@@ -4268,6 +4489,7 @@ export {
   templateTitle,
   threadStanding,
   toBroadcastVM,
+  toCalendarVM,
   toCallVM,
   toCampaignReportVM,
   toChannelVM,
@@ -4285,5 +4507,6 @@ export {
   waWindow,
   whenLabel,
   whisperText,
+  zoneMidnight,
   zoneOffsetMs
 };

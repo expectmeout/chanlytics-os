@@ -22,20 +22,27 @@ const FEED_TTL_MS = 5 * 60 * 1000;
 const FEED_MAX_BYTES = 2_000_000;
 const feeds = new Map<string, { at: number; text: string }>();
 
-async function fetchFeed(tenantId: string, url: string): Promise<string | null> {
+/** The feed's text and when it was read: fresh within the cache, else the last good read. */
+export async function loadFeed(tenantId: string, url: string): Promise<{ text: string; at: number } | null> {
   const hit = feeds.get(tenantId);
-  if (hit && Date.now() - hit.at < FEED_TTL_MS) return hit.text;
+  if (hit && Date.now() - hit.at < FEED_TTL_MS) return hit;
   try {
     const res = await fetch(url.replace(/^webcal:\/\//i, "https://"), { signal: AbortSignal.timeout(8_000), headers: { accept: "text/calendar, */*" } });
     if (!res.ok) throw new Error(`feed ${res.status}`);
     const text = await res.text();
     if (text.length > FEED_MAX_BYTES) throw new Error("feed too large");
-    feeds.set(tenantId, { at: Date.now(), text });
-    return text;
+    const fresh = { at: Date.now(), text };
+    feeds.set(tenantId, fresh);
+    return fresh;
   } catch (e) {
     console.error("ask_feed_fetch_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
-    return hit?.text ?? null;
+    return hit ?? null;
   }
+}
+
+async function fetchFeed(tenantId: string, url: string): Promise<string | null> {
+  const got = await loadFeed(tenantId, url);
+  return got ? got.text : null;
 }
 
 export interface OpeningsResult {

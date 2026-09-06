@@ -20,8 +20,17 @@ export interface BusyBlock {
   end: number;
 }
 
+/** One taken block with the words the owner's calendar gave it. */
+export interface FeedItem extends BusyBlock {
+  title: string;
+  allDay: boolean;
+  uid: string | null;
+}
+
 export interface ParsedFeed {
   busy: BusyBlock[];
+  /** The same blocks as `busy`, with their titles — for the board. */
+  items: FeedItem[];
   /** VEVENTs read, before any were dropped. */
   events: number;
   /** Recurring events expanded inside the horizon. */
@@ -69,6 +78,12 @@ export function localToUtcMs(tz: string, y: number, m: number, d: number, hh: nu
   return second;
 }
 
+/** The wall clock of an instant in `tz`. */
+export function clockInZone(tz: string, atMs: number): { hh: number; mm: number; ss: number } {
+  const p = zoneParts(tz, new Date(atMs));
+  return { hh: p.hh, mm: p.mm, ss: p.ss };
+}
+
 /** "YYYY-MM-DD" and the weekday key ("mon".."sun") of an instant in `tz`. */
 export function dayInZone(tz: string, atMs: number): { key: string; weekday: string; y: number; m: number; d: number } {
   const p = zoneParts(tz, new Date(atMs));
@@ -77,6 +92,11 @@ export function dayInZone(tz: string, atMs: number): { key: string; weekday: str
 }
 
 /* ------------------------------------------------------------ the feed */
+
+/** iCal TEXT escapes: \, \; \n and \\. */
+function unescapeText(v: string): string {
+  return v.replace(/\\([\\;,nN])/g, (_, c: string) => (c === "n" || c === "N" ? "\n" : c)).trim();
+}
 
 /** RFC 5545 folds long lines; a continuation starts with a space or tab. */
 function unfold(text: string): string[] {
@@ -248,6 +268,7 @@ function durationMs(v: string): number | null {
 export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = {}): ParsedFeed {
   const horizon = opts.horizon ?? { from: Date.now() - 86400000, to: Date.now() + 90 * 86400000 };
   const busy: BusyBlock[] = [];
+  const items: FeedItem[] = [];
   let events = 0;
   let recurringExpanded = 0;
   let skippedRecurring = 0;
@@ -270,17 +291,23 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
             end = cur.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(cur.DTSTART.value.trim()) ? start + 86400000 : start;
           }
           if (start !== null && end !== null && end > start) {
+            const title = unescapeText(cur.SUMMARY?.value ?? "");
+            const allDay = cur.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(cur.DTSTART.value.trim());
+            const uid = cur.UID?.value.trim() || null;
             const rule = cur.RRULE ? parseRule(cur.RRULE.value, fallbackTz) : null;
             const local = cur.RRULE ? localPartsOf(cur.DTSTART.value, cur.DTSTART.params, fallbackTz) : null;
             if (cur.RRULE && rule && local) {
               const ex = new Set<number>();
               for (const e of exdatesOf) for (const v of e.value.split(",")) { const ms = toMs(v, e.params, fallbackTz); if (ms !== null) ex.add(ms); }
-              busy.push(...occurrences(local, end - start, rule, ex, horizon));
+              const occ = occurrences(local, end - start, rule, ex, horizon);
+              busy.push(...occ);
+              for (const o of occ) items.push({ ...o, title, allDay, uid });
               recurringExpanded++;
             } else {
               // Understood as a single event; a rule we cannot read keeps its first occurrence.
               if (cur.RRULE || cur.RDATE) skippedRecurring++;
               busy.push({ start, end });
+              items.push({ start, end, title, allDay, uid });
             }
           }
         }
@@ -295,7 +322,8 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
     cur[s.name] = { params: s.params, value: s.value };
   }
   busy.sort((a, b) => a.start - b.start);
-  return { busy, events, recurringExpanded, skippedRecurring };
+  items.sort((a, b) => a.start - b.start);
+  return { busy, items, events, recurringExpanded, skippedRecurring };
 }
 
 /* ----------------------------------------------------------- the windows */
@@ -325,20 +353,21 @@ export interface FreeWindowsInput {
   now: Date;
 }
 
-const DEFAULTS = { lead_hours: 2, buffer_min: 0, max_days_ahead: 14, slot_min: 30 };
+/** The booking rules a workspace has until it sets its own. */
+export const BOOKING_DEFAULTS = { lead_hours: 2, buffer_min: 0, max_days_ahead: 14, slot_min: 30 };
 
 function hhmm(s: string): [number, number] | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());
   return m ? [Number(m[1]), Number(m[2])] : null;
 }
 
-function dayIntervals(h: Hours | undefined): Array<[string, string]> {
+export function dayIntervals(h: Hours | undefined): Array<[string, string]> {
   if (!h) return [];
   if (h.intervals?.length) return h.intervals.filter((i) => i.open && i.close).map((i) => [i.open, i.close] as [string, string]);
   return h.open && h.close ? [[h.open, h.close]] : [];
 }
 
-function closedOn(closures: Closure[] | undefined, key: string): boolean {
+export function closedOn(closures: Closure[] | undefined, key: string): boolean {
   return !!closures?.some((c) => c.date <= key && key <= (c.until && c.until >= c.date ? c.until : c.date));
 }
 
@@ -348,7 +377,7 @@ function closedOn(closures: Closure[] | undefined, key: string): boolean {
  * time, never shorter than one slot, never on a closed date.
  */
 export function freeWindows(input: FreeWindowsInput): Opening[] {
-  const rules = { ...DEFAULTS, ...(input.rules ?? {}) };
+  const rules = { ...BOOKING_DEFAULTS, ...(input.rules ?? {}) };
   const leadMs = rules.lead_hours * 3600_000;
   const bufferMs = rules.buffer_min * 60_000;
   const slotMs = rules.slot_min * 60_000;
@@ -424,7 +453,7 @@ function span(tz: string, start: number, end: number): string {
  */
 export function describeOpenings(openings: Opening[], tz: string, opts: { maxDays?: number; daysAhead?: number } = {}): string {
   const maxDays = opts.maxDays ?? 5;
-  const ahead = opts.daysAhead ?? DEFAULTS.max_days_ahead;
+  const ahead = opts.daysAhead ?? BOOKING_DEFAULTS.max_days_ahead;
   if (!openings.length) {
     return `Open times (from the calendar): nothing is open in the next ${ahead} days. Offer to have someone call back, and send the booking link so they are told when a slot frees up.`;
   }

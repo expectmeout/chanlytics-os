@@ -4509,8 +4509,9 @@ var PLAYBOOK_BREATH_MS = 7 * DAY_MS3;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DAY_MS4 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS4;
+var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DAY_MS5 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS5;
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
@@ -8920,7 +8921,7 @@ function parseTenantConfig(raw) {
   const r = parseTenantConfigResult(raw);
   return r.ok ? r.config : null;
 }
-var DAY_MS5 = 24 * 3600 * 1e3;
+var DAY_MS4 = 24 * 3600 * 1e3;
 var ASK_CAPS2 = {
   threads: 20,
   messages: 30,
@@ -9073,8 +9074,9 @@ var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS32;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
 var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DAY_MS42 = 864e5;
-var QUIET_AFTER_MS22 = 7 * DAY_MS42;
+var SHORT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DAY_MS52 = 864e5;
+var QUIET_AFTER_MS22 = 7 * DAY_MS52;
 var DATE_FMT42 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 
 // ../db/dist/index.js
@@ -13541,8 +13543,9 @@ var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS33;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
 var DATE_FMT33 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DAY_MS43 = 864e5;
-var QUIET_AFTER_MS23 = 7 * DAY_MS43;
+var SHORT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DAY_MS53 = 864e5;
+var QUIET_AFTER_MS23 = 7 * DAY_MS53;
 var DATE_FMT43 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 async function recordOutbound(db, p) {
   const { data, error } = await db.from("messages").insert({
@@ -13616,7 +13619,7 @@ async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, d
 }
 var POS_TTL_MS = 5 * 60 * 1e3;
 var NEG_TTL_MS = 60 * 1e3;
-var DAY_MS52 = 24 * 3600 * 1e3;
+var DAY_MS42 = 24 * 3600 * 1e3;
 
 // src/handlers.ts
 var SENDERS = {

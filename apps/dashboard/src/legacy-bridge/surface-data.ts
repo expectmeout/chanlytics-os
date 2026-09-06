@@ -265,6 +265,9 @@ import {
   toCampaignReportVM,
   type CampaignReportDto,
   type CampaignReportVM,
+  toCalendarVM,
+  type CalendarWeekDto,
+  type CalendarVM,
 } from "@chanlytics/contracts";
 import { EVERYONE_LABEL, HELD_REASONS, OFFERS_OPT_IN_PHRASES, eligibleFor, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, type AudienceKind, type BroadcastDto, type BroadcastVM, type NumberHealth } from "@chanlytics/contracts";
 import { PLAYBOOK_TRIGGERS, eligibleForPlaybook, nextRunLabel, scheduleLine, triggerOf, type PlaybookDto } from "@chanlytics/contracts";
@@ -834,6 +837,44 @@ export const playbooksOverride: SurfaceOverride = {
       businessName: brain?.business_name || "the business",
       bookingLink: !!brain?.booking_link,
       fetchedAt: now.getTime(),
+    };
+  },
+};
+
+/* ------------------------------- Calendar -------------------------------- */
+
+/** The span shown: a Monday's key, or null for the week of today. Not persisted — a reload opens on this week. */
+let calendarFrom: string | null = null;
+
+export function getCalendarFrom(): string | null {
+  return calendarFrom;
+}
+
+export function setCalendarFrom(from: string | null): void {
+  calendarFrom = from && /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : null;
+}
+
+export interface CalendarSurface {
+  vm: CalendarVM;
+  fetchedAt: number;
+}
+
+/**
+ * Calendar: the owner's calendar as the receptionist reads it — what the
+ * feed says is taken, the hours and closures, and the windows a caller
+ * would be offered — one span of days by the business's clock. The feed's
+ * address never reaches the browser; the route reads it.
+ */
+export const calendarOverride: SurfaceOverride = {
+  key: "calendar",
+  globals: ["__CALENDAR"],
+  events: ["surface:calendar"],
+  apply: async () => {
+    const from = calendarFrom;
+    const data = await fetchEnvelope<{ calendar: CalendarWeekDto }>(`/api/v1/calendar?from=${from ?? ""}&days=7`);
+    (window as unknown as { __CALENDAR?: CalendarSurface }).__CALENDAR = {
+      vm: toCalendarVM(data.calendar, new Date()),
+      fetchedAt: Date.now(),
     };
   },
 };

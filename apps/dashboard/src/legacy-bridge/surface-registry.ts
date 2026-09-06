@@ -36,7 +36,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   leads: "demo",
   segments: "real",  // People › Lists: the lists kept by hand and the computed ones, with their people
   pipeline: "demo",
-  calendar: "demo",
+  calendar: "real",  // the owner's calendar as the receptionist reads it: taken, open, closed — a viewer, never a scheduler
   shared: "demo",   // the read-only report viewer — a share link over invented numbers
   tasks: "demo",
   fleet: "demo",
@@ -74,6 +74,7 @@ export const ROUTE_SURFACE: Record<string, string> = {
   live: "live",
   broadcasts: "broadcasts",
   outbound: "playbooks",
+  calendar: "calendar",
   // The pane is fed by settingsOverride, so the route gate waits for it the
   // same way the other real routes do — otherwise it paints the mockup's
   // fabricated business for a frame before the truth arrives.

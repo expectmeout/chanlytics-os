@@ -529,6 +529,8 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   const [bookingNotes, setBookingNotes] = useSetState((br0.notes || []).join("\n"));
   const cal0 = (settings.config && settings.config.calendar) || {};
   const [icalUrl, setIcalUrl] = useSetState(cal0.ical_url || "");
+  const [calChecking, setCalChecking] = useSetState(false);
+  const [calCheck, setCalCheck] = useSetState(null);
   // Opt-in abilities: off unless the owner turned one on.
   const feat0 = (settings.config && settings.config.features) || {};
   const [vision, setVision] = useSetState(feat0.vision === true);
@@ -1068,6 +1070,24 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         <div className="set-sec-note">
           The private iCal address of the calendar your appointments land in (Google, Apple or Outlook — Booksy, Calendly and the rest sync into one).
           It is only ever read. Nothing is booked from here; the booking link does that, whichever tool is behind it.
+        </div>
+        <div className="set-cal-check">
+          <button className="btn btn-sm" disabled={!icalUrl.trim() || calChecking || !window.__calendar} onClick={async () => {
+            if (!window.__calendar) return;
+            setCalChecking(true);
+            setCalCheck(null);
+            const r = await window.__calendar.previewFeed(icalUrl.trim());
+            setCalChecking(false);
+            setCalCheck(r.ok ? { ok: true, ...r.data } : { ok: false, message: r.message });
+          }} data-testid="cal-check">{calChecking ? "Reading…" : "Check the link"}</button>
+          {calCheck && (
+            <span className={`set-row-hint ${calCheck.ok ? "" : "warn"}`} data-testid="cal-check-result">
+              {calCheck.ok
+                ? <>Read it: <b>{calCheck.events}</b> event{calCheck.events === 1 ? "" : "s"}{calCheck.recurring_expanded ? `, ${calCheck.recurring_expanded} repeating` : ""}{calCheck.skipped_recurring ? `, ${calCheck.skipped_recurring} repeating rule${calCheck.skipped_recurring === 1 ? "" : "s"} read once` : ""}.{calCheck.next.length ? <> Next: {calCheck.next.map((n) => `${n.title} · ${n.start}`).join(" · ")}.</> : " Nothing taken in the next 30 days."} Save to let the receptionist read it.</>
+                : calCheck.message}
+            </span>
+          )}
+          {cal0.ical_url && <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("calendar")}>Open the calendar</button>}
         </div>
       </div>
 
