@@ -89,7 +89,7 @@ const SOON_META = {
   calls:      { icon: "phone",       title: "Calls",      blurb: "Live transcription and call review with agent summaries." },
   chats:      { icon: "chat",        title: "Chats",      blurb: "Every DM and SMS conversation, threaded by client." },
   email:      { icon: "mail",        title: "Email",      blurb: "Agent-drafted email, sequences, and review queues." },
-  outbound:   { icon: "bolt",        title: "Outbound",   blurb: "Campaigns your agents run — offers, win-backs, nudges." },
+  outbound:   { icon: "bolt",        title: "Playbooks",  blurb: "Standing rules your receptionist runs — win-back, welcome, save our number, the month's offer." },
   content:    { icon: "content",     title: "Content",    blurb: "Content calendar with agent-drafted posts." },
   broadcasts: { icon: "wave",        title: "Broadcasts", blurb: "One-to-many sends with per-segment targeting." },
   fleet:      { icon: "agents",      title: "Agent Fleet", blurb: "Deep management for every agent: autonomy, playbooks, performance." },
@@ -470,9 +470,15 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
     content = <AgentFleetPage id={param} onSelect={(id) => navigate(`fleet/${id}`)} />;
   } else if (page === "outbound") {
     activeNav = "outbound";
-    crumbs = ["Campaigns", "Outbound"];
+    crumbs = ["Campaigns", "Playbooks"];
     pane = true;
-    primaryAction = (
+    // A real workspace's button opens the composer on the page; the seeded
+    // page keeps the demo's Ask detour.
+    primaryAction = window.__PLAYBOOKS ? (
+      <button className="btn btn-primary btn-sm" onClick={() => window.dispatchEvent(new CustomEvent("playbooks:new"))} data-testid="pb-new" {...window.gate("approve")}>
+        <Icon name="plus" size={12} /> New playbook
+      </button>
+    ) : (
       <button className="btn btn-primary btn-sm" onClick={openAsk}>
         <Icon name="plus" size={12} /> New campaign
       </button>
