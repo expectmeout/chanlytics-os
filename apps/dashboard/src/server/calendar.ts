@@ -30,8 +30,8 @@ import { loadFeed } from "@/server/ask/openings";
  * the windows a caller is offered. Titles are the owner's own calendar
  * words; a title that carries a person's name links to their profile.
  */
-/** Six weeks: a month view, whatever week it starts on. */
-const MAX_DAYS = 42;
+/** Nine weeks: the window a page loads around the day it looks at. */
+const MAX_DAYS = 63;
 
 export function spanFor(from: string | null, days: number, tz: string, now: Date): { from: string; days: number } {
   const todayKey = ((): string => {

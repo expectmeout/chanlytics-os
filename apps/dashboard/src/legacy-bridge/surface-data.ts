@@ -266,6 +266,7 @@ import {
   type CampaignReportDto,
   type CampaignReportVM,
   toCalendarVM,
+  windowFor,
   type CalendarWeekDto,
   type CalendarVM,
 } from "@chanlytics/contracts";
@@ -843,17 +844,23 @@ export const playbooksOverride: SurfaceOverride = {
 
 /* ------------------------------- Calendar -------------------------------- */
 
-/** The span shown: a day key and a length in days (7 a week, 42 a month, 14 the agenda); null is the week of today. Not persisted — a reload opens on this week. */
+/** The window loaded: a day key and a length in days; null is the window around today. Not persisted — a reload opens on today. */
 let calendarFrom: string | null = null;
-let calendarDays = 7;
+let calendarDays = 63;
+
+/** Today by the browser's clock — the business's zone may differ by a day at midnight, and the window has a week of margin. */
+function localDayKey(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 export function getCalendarSpan(): { from: string | null; days: number } {
   return { from: calendarFrom, days: calendarDays };
 }
 
-export function setCalendarSpan(from: string | null, days = 7): void {
+export function setCalendarSpan(from: string | null, days = 63): void {
   calendarFrom = from && /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : null;
-  calendarDays = Math.min(42, Math.max(1, Math.round(days) || 7));
+  calendarDays = Math.min(63, Math.max(1, Math.round(days) || 63));
 }
 
 export interface CalendarSurface {
@@ -874,7 +881,8 @@ export const calendarOverride: SurfaceOverride = {
   apply: async () => {
     const from = calendarFrom;
     const days = calendarDays;
-    const data = await fetchEnvelope<{ calendar: CalendarWeekDto }>(`/api/v1/calendar?from=${from ?? ""}&days=${days}`);
+    const w = from ? { from, days } : windowFor(localDayKey());
+    const data = await fetchEnvelope<{ calendar: CalendarWeekDto }>(`/api/v1/calendar?from=${w.from}&days=${w.days}`);
     // Two moves in a row: the earlier read may land after the later one. A
     // read for a span the page has since left is dropped, never painted.
     if (from !== calendarFrom || days !== calendarDays) return;

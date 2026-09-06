@@ -1,12 +1,18 @@
 /**
- * Calendar, the verbs: `window.__calendar` — move the shown span (a week, a
- * day's week, six weeks for a month, two weeks for the agenda), and check a
- * feed address before it is saved.
+ * Calendar, the verbs and the arithmetic: `window.__calendar`.
  *
- * Moving the span re-reads through the runner, so the cache and the pill
- * agree with what is on screen (the way Reports' period does). The preview
- * is a read of a feed the workspace has not saved yet; it changes nothing.
+ * The page keeps one loaded WINDOW of days (nine weeks around the day it
+ * looks at) and derives every view from it — a week, a day, six weeks for
+ * a month, two weeks for the agenda — so switching views is a slice, never
+ * a fetch. Only a move outside the window reads again, through the runner,
+ * so the cache and the pill agree with what is on screen. The span
+ * arithmetic lives in contracts and is exposed here, so the page (a classic
+ * script that cannot import) and the tests use one implementation.
+ *
+ * The preview is a read of a feed the workspace has not saved yet; it
+ * changes nothing.
  */
+import { coversSpan, frameOf, spanForView, windowFor, type CalendarView } from "@chanlytics/contracts";
 import { calendarOverride, getCalendarSpan, invalidateInFlight, scoped, setCalendarSpan } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 import { clearSurfaceCache } from "./surface-cache";
@@ -17,8 +23,8 @@ export interface CalendarPreviewResult {
   data?: { events: number; recurring_expanded: number; skipped_recurring: number; next: Array<{ start: string; end: string; title: string }> };
 }
 
-/** Show `days` days starting on `from` (a day key); a null `from` is the week of today. */
-export async function goTo(from: string | null, days = 7): Promise<boolean> {
+/** Load `days` days starting on `from` (a day key); a null `from` is the window around today. */
+export async function goTo(from: string | null, days = 63): Promise<boolean> {
   const prev = getCalendarSpan();
   setCalendarSpan(from, days);
   invalidateInFlight();
@@ -31,7 +37,14 @@ export async function goTo(from: string | null, days = 7): Promise<boolean> {
   return true;
 }
 
-export const goToWeek = (from: string | null): Promise<boolean> => goTo(from, 7);
+/** Make sure the window covers what a view needs from its anchor; reads only when it does not. */
+export async function ensure(view: CalendarView, anchor: string): Promise<boolean> {
+  const need = spanForView(view, anchor);
+  const have = (window as unknown as { __CALENDAR?: { vm?: { days?: Array<{ key: string }> } } }).__CALENDAR?.vm?.days ?? [];
+  if (coversSpan(have, need.from, need.days)) return true;
+  const w = windowFor(anchor);
+  return goTo(w.from, w.days);
+}
 
 export async function previewFeed(url: string): Promise<CalendarPreviewResult> {
   try {
@@ -49,7 +62,7 @@ export async function previewFeed(url: string): Promise<CalendarPreviewResult> {
   }
 }
 
-export const calendar = { goTo, goToWeek, previewFeed };
+export const calendar = { goTo, ensure, previewFeed, spanFor: spanForView, windowFor, covers: coversSpan, frameOf };
 
 declare global {
   interface Window {
