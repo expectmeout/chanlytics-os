@@ -87,7 +87,7 @@ test("the door: idempotent, one language at a time, synced in when the number's 
 test("the pages: titles not names, the starter set in Settings, one click on Broadcasts, the trigger's starter picked for a playbook, the message as the customer sees it", () => {
   const s = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
   for (const id of ["starters", "starter-row", "starter-add", "starter-add-all"]) assert.ok(s.includes(`data-testid="${id}"`), id);
-  assert.ok(s.includes("{tplTitle(t.name)}") && s.includes('" · made here"'), "a title, with the raw name beside it");
+  assert.ok(s.includes("{tplTitle(t)}") && s.includes('" · made here"'), "a title, with the raw name beside it");
   const b = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
   assert.ok(b.includes('data-testid="bc-add-starters"') && b.includes("{bcTitle(t.name)}"));
   assert.ok(b.includes("const srcOf = (i) => ((sources[tplId] || defaults)[i] || \"text\");"), "a starter's slots come filled in");
@@ -133,7 +133,7 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   const r = readCode("apps/dashboard/app/api/v1/templates/route.ts");
   assert.ok(r.includes('if (!all) q = q.eq("meta_status", "approved").is("hidden_at", null);'), "the composers never see a hidden template; Settings sees everything");
   const one = readCode("apps/dashboard/app/api/v1/templates/[id]/route.ts");
-  assert.ok(one.includes('ctx.supabase.rpc("set_template_hidden", { p_template_id: id, p_hidden: body.hidden })') && one.includes('requireRole(member, "operator")'));
+  assert.ok(one.includes('ctx.supabase.rpc("set_template_hidden", { p_template_id: id, p_hidden: body!.hidden as boolean })') && one.includes('requireRole(member, "operator")'));
   const sync = readCode("apps/edge/api/admin/whatsapp/templates-sync.ts");
   assert.ok(sync.includes('const SAMPLE_TEMPLATES = new Set(["hello_world"]);') && sync.includes("hidden_at: now.toISOString()"), "the sample is hidden on first sight");
   assert.ok(sync.includes("const fresh = rows.filter((r) => !keep.has(`${r.name}|${r.language}`) && SAMPLE_TEMPLATES.has(r.name));"), "and only on first sight — a row on file keeps what the workspace decided");
