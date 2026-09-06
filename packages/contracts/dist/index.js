@@ -83,13 +83,8 @@ var MESSAGE_STATUSES = ["received", "queued", "sent", "delivered", "read", "fail
 var CONSENT_STATES = ["unknown", "opted_in", "opted_out"];
 var JOB_KINDS = [
   "outbound_send",
-  "veto_fire",
   "snooze_wake",
   "pause_expire",
-  "media_fetch",
-  "rollup_daily",
-  "deadman",
-  "report_weekly",
   "broadcast_send",
   /**
    * Erase one customer's stored Blob thread. The DASHBOARD orchestrates

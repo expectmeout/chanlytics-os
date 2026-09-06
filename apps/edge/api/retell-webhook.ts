@@ -19,7 +19,7 @@
  * many agents (432 calls across 8 in the live account) — an unrouted call is
  * dead-lettered, never guessed into a tenant.
  */
-import { getThread, saveThread, threadNamespace } from "../lib/store.js";
+import { getThread, saveThread, storeBackend, threadNamespace } from "../lib/store.js";
 import { notify } from "../lib/notify.js";
 import { loadTenantNotifications } from "../lib/tenant-runtime.js";
 import { json } from "../lib/http.js";
@@ -275,8 +275,9 @@ export async function POST(request: Request): Promise<Response> {
     const db2 = pg();
     const routedForCall = db2 && n.agentId ? await resolveChannel(db2, "voice", n.agentId) : null;
 
-    // cross-channel memory for the pre-Gate-1b bot (Blob is still its context)
-    if (from) {
+    // cross-channel memory for the pre-Gate-1b bot (Blob is still its context);
+    // with the store retired, the call_summary row above is the note.
+    if (from && storeBackend() !== "off") {
       try {
         // Resolved from the SAME agent routing the call row used, so a voice
         // note lands in the right business's thread rather than a shared one.

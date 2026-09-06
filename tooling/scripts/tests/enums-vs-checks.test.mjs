@@ -45,7 +45,7 @@ test("job kinds match jobs.kind", () => {
   // the current enum and failed for a reason that had nothing to do with the
   // change under test — exactly the trap already fixed below for
   // decisions.subject_type.
-  const jobs = all.filter((set) => set.includes("media_fetch")).at(-1);
+  const jobs = all.filter((set) => set.includes("blob_thread_erase")).at(-1);
   const channels = all.find((set) => set.includes("whatsapp") && set.includes("voice"));
   assert.deepEqual(jobs, [...JOB_KINDS].sort());
   assert.deepEqual(channels, [...CHANNEL_KINDS].sort());

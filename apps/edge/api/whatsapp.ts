@@ -23,11 +23,17 @@
  * implies PG dedupe: PG-sourced memory has no `seen` list, and ingest_inbound's
  * atomic is_new claim is a stronger gate than that array ever was.
  *
+ * RETIRED STORE (BLOB_SHADOW=off): Blob is neither read nor written. Postgres
+ * is the only memory; a Postgres miss has nowhere to fall back to, so the
+ * thread is handed to a human (state_unavailable) rather than answered from an
+ * invented empty history. Under it, PG_READS=off is no longer a rollback.
+ *
  * Env: WHATSAPP_VERIFY_TOKEN, META_APP_SECRET, WHATSAPP_ACCESS_TOKEN,
  *      WHATSAPP_PHONE_ID, WHATSAPP_TEST_ALLOWLIST (optional, comma list),
  *      ANTHROPIC_API_KEY, RESEND_API_KEY + LEAD_TO/LEAD_FROM,
  *      BLOB_READ_WRITE_TOKEN, PG_WRITES + SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY,
- *      PG_READS (Gate 1b), PG_DEDUPE (optional, implied by PG_READS).
+ *      PG_READS (Gate 1b), PG_DEDUPE (optional, implied by PG_READS),
+ *      BLOB_SHADOW ('off' retires Blob; Postgres is the only memory).
  */
 import crypto from "node:crypto";
 import { WABA_FIELDS, handleWabaChange, notificationsFor } from "../lib/waba-events.js";
@@ -444,6 +450,8 @@ async function handleInbound(
     ing = await pgIngest(tenantId, n);
     thread = await pgThread(db, tenantId, ing);
     memory = thread === PG_MISS ? "blob" : "pg";
+    // With the store retired this read answers "unknown", and the thread goes
+    // to a human below instead of to a second copy of its memory.
     if (memory === "blob") thread = await getThread(ns, from);
   } else {
     // The Blob read is side-effect-free, so it runs alongside the write.
@@ -1109,14 +1117,17 @@ export async function POST(request: Request): Promise<Response> {
               if (to) {
                 // Same isolation rule: the echo belongs to the tenant whose
                 // channel it arrived on, not to a global phone-number bucket.
-                const echoNs = threadNamespace(tenantId);
-                const t = await getThread(echoNs, to);
-                t.pausedUntil = Date.now() + echoPauseMs;
-                // A refused save means the Blob pause did NOT land, so the bot
-                // could answer over the human who just replied. Postgres below
-                // still records it, which under PG_READS=on is the source of
-                // truth — but this must not pass silently.
-                if (!(await saveThread(echoNs, to, t))) console.error("echo_pause_not_persisted", to);
+                if (storeBackend() !== "off") {
+                  const echoNs = threadNamespace(tenantId);
+                  const t = await getThread(echoNs, to);
+                  t.pausedUntil = Date.now() + echoPauseMs;
+                  // A refused save means the Blob pause did NOT land, so the bot
+                  // could answer over the human who just replied. Postgres below
+                  // still records it, which under PG_READS=on is the source of
+                  // truth — but this must not pass silently. Retired, there is
+                  // no mirror to land: the Postgres row is the memory.
+                  if (!(await saveThread(echoNs, to, t))) console.error("echo_pause_not_persisted", to);
+                }
                 if (db && tenantId) {
                   await pgSafe("echo", () =>
                     recordEchoAndPause(db, {
