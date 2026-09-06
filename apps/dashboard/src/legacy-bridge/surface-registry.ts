@@ -42,7 +42,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   fleet: "demo",
   store: "demo",
   studio: "demo",
-  outbound: "demo",
+  outbound: "real",   // Campaigns › Playbooks: standing rules over the people who said yes, under the two Autonomy rows
   content: "demo",
   broadcasts: "real",  // one approved template to the people who said yes; SMS and email stay not available
   admin: "demo",    // the page itself: every pane below is classified, and a
@@ -73,6 +73,7 @@ export const ROUTE_SURFACE: Record<string, string> = {
   reports: "reports",
   live: "live",
   broadcasts: "broadcasts",
+  outbound: "playbooks",
   // The pane is fed by settingsOverride, so the route gate waits for it the
   // same way the other real routes do — otherwise it paints the mockup's
   // fabricated business for a frame before the truth arrives.

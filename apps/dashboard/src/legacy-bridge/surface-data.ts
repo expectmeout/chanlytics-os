@@ -264,6 +264,7 @@ import {
   type ReportVM,
 } from "@chanlytics/contracts";
 import { EVERYONE_LABEL, HELD_REASONS, OFFERS_OPT_IN_PHRASES, eligibleFor, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, type AudienceKind, type BroadcastDto, type BroadcastVM, type NumberHealth } from "@chanlytics/contracts";
+import { PLAYBOOK_TRIGGERS, eligibleForPlaybook, nextRunLabel, scheduleLine, triggerOf, type PlaybookDto } from "@chanlytics/contracts";
 
 /**
  * Slice 2: the Inbox flips to the real escalations queue. Open escalations +
@@ -719,6 +720,112 @@ export const broadcastsOverride: SurfaceOverride = {
         link: optInLink(wa?.number_e164),
         qrPath: optInLink(wa?.number_e164) ? scoped("/api/v1/consent/qr") : null,
       },
+      fetchedAt: now.getTime(),
+    };
+  },
+};
+
+/* ------------------------------- Playbooks ------------------------------- */
+
+export interface PlaybookTotalsVM {
+  runs: number;
+  sent: number;
+  delivered: number;
+  replied: number;
+  held: number;
+  lastRun: { id: string; state: string; run_for: string | null; recipient_count: number } | null;
+  /** A run waiting for a person: the broadcast to approve or skip. */
+  waiting: { id: string; recipient_count: number; name: string } | null;
+}
+
+export interface PlaybookCardVM extends PlaybookDto {
+  totals: PlaybookTotalsVM;
+  /** The trigger's words: "Win-back", "Nothing heard in 30 days". */
+  triggerLabel: string;
+  triggerHint: string;
+  /** "Daily 10:00 · up to 25 · once per person, again after 90 days". */
+  schedule: string;
+  /** "today 10:00", "tomorrow 10:00" or "paused", by the business's clock. */
+  next: string;
+  /** How many are on the trigger's list with a recorded yes right now —
+   *  before the gap and the week's breath, which only the run applies. */
+  candidates: number;
+}
+
+export interface PlaybookTriggerOption {
+  id: string;
+  label: string;
+  hint: string;
+  cls: string;
+  list: string | null;
+  candidates: number;
+}
+
+export interface PlaybooksSurface {
+  rows: PlaybookCardVM[];
+  timezone: string;
+  triggers: PlaybookTriggerOption[];
+  /** The approved WhatsApp templates, with their variables. */
+  templates: TemplateDto[];
+  number: { present: boolean; health: NumberHealth };
+  businessName: string;
+  bookingLink: boolean;
+  fetchedAt: number;
+}
+
+/** Count the whole pool, not one run's cap. */
+const PLAYBOOK_POOL = 100_000;
+
+/**
+ * Playbooks: the rows with what their runs earned, the four triggers with
+ * the count of people on each list who said yes — computed here by the same
+ * contracts predicate the runner uses, so the number on the chip is the
+ * number a run starts from — and the approved templates a playbook may send.
+ */
+export const playbooksOverride: SurfaceOverride = {
+  key: "playbooks",
+  globals: ["__PLAYBOOKS"],
+  events: ["surface:playbooks"],
+  refreshOnMessageInserts: true,
+  apply: async () => {
+    const [pb, people, tpl, ch, cfg] = await Promise.all([
+      fetchEnvelope<{ playbooks: Array<PlaybookDto & { totals: PlaybookTotalsVM }>; timezone: string }>("/api/v1/playbooks"),
+      fetchEnvelope<{ people: PersonRowDto[] }>("/api/v1/contacts"),
+      fetchEnvelope<{ templates: TemplateDto[] }>("/api/v1/templates").catch((e: unknown) => e as Error),
+      fetchEnvelope<{ channels: ChannelDto[] }>("/api/v1/channels").catch((e: unknown) => e as Error),
+      fetchEnvelope<{ config: { brain?: { business_name?: string; booking_link?: string } } | null }>("/api/v1/settings").catch((e: unknown) => e as Error),
+    ]);
+    const now = new Date();
+    const rows = people.people.map((r) => toPersonRowVM(r, now));
+    const untouched = { byThis: new Map<string, number>(), byAny: new Map<string, number>() };
+    const pool = (trigger: string) =>
+      eligibleForPlaybook(rows, { trigger: trigger as PlaybookDto["trigger"], cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, untouched, now.getTime()).length;
+    const wa = ch instanceof Error ? null : (ch.channels ?? []).find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
+    const brain = cfg instanceof Error ? null : cfg.config?.brain ?? null;
+    if (tpl instanceof Error) console.error("playbooks_templates_fetch_failed", tpl.message);
+    if (ch instanceof Error) console.error("playbooks_channels_fetch_failed", ch.message);
+    const tz = pb.timezone || "America/New_York";
+    (window as unknown as { __PLAYBOOKS?: PlaybooksSurface }).__PLAYBOOKS = {
+      rows: pb.playbooks.map((p) => {
+        const t = triggerOf(p.trigger);
+        return {
+          ...p,
+          triggerLabel: t?.label ?? p.trigger,
+          triggerHint: t?.hint ?? "",
+          schedule: scheduleLine(p),
+          next: nextRunLabel(p, tz, now),
+          candidates: pool(p.trigger),
+        };
+      }),
+      timezone: tz,
+      triggers: PLAYBOOK_TRIGGERS.map((t) => ({ id: t.id, label: t.label, hint: t.hint, cls: t.cls, list: t.list, candidates: pool(t.id) })),
+      templates: tpl instanceof Error ? [] : (tpl.templates ?? []).filter((t) => t.channel === "whatsapp" && t.meta_status === "approved"),
+      number: {
+        present: !!wa,
+        health: numberHealth({ quality: wa?.quality ?? null, event: wa?.quality_event ?? null, limit: wa?.messaging_limit ?? null }),
+      },
+      businessName: brain?.business_name || "the business",
+      bookingLink: !!brain?.booking_link,
       fetchedAt: now.getTime(),
     };
   },

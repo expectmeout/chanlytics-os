@@ -594,3 +594,27 @@ export async function deleteTemplate(tenantId: string, templateId: string): Prom
   if (r.ok && j.ok) return { ok: true, atMeta: !!j.at_meta };
   return { ok: false, reason: j.error ? String(j.error) : `edge ${r.status}`, detail: j.detail };
 }
+
+/* ---- Playbooks: one run now, the same implementation the hourly sweep uses ---- */
+
+export type RunPlaybookOutcome =
+  | { ok: true; outcome: "sent" | "held" | "empty" | "off"; eligible?: number; broadcastId?: string; skipped?: string }
+  | { ok: false; reason: string; detail?: string };
+
+/**
+ * The edge runs it (lib/playbooks.ts) as this person's decision: it sends
+ * now unless the class is set to never, one run per local day.
+ */
+export async function runPlaybookNow(tenantId: string, playbookId: string, userId: string): Promise<RunPlaybookOutcome> {
+  if (process.env.VERCEL_ENV !== "production") return { ok: false, reason: "preview" };
+  const r = await fetch(`${EDGE_BASE}/api/admin/playbooks-run`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
+    body: JSON.stringify({ tenant_id: tenantId, playbook_id: playbookId, user_id: userId }),
+  });
+  const j = (await r.json().catch(() => ({}))) as { ok?: boolean; outcome?: string; eligible?: number; broadcast_id?: string; skipped?: string; error?: string; detail?: string };
+  if (r.ok && j.ok && (j.outcome === "sent" || j.outcome === "held" || j.outcome === "empty" || j.outcome === "off")) {
+    return { ok: true, outcome: j.outcome, eligible: j.eligible, broadcastId: j.broadcast_id, skipped: j.skipped };
+  }
+  return { ok: false, reason: j.error ? String(j.error) : `edge ${r.status}`, detail: j.detail };
+}

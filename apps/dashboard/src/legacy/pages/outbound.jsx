@@ -263,4 +263,5 @@ const OutboundPage = () => {
   );
 };
 
-window.OutboundPage = OutboundPage;
+// A real workspace renders its playbooks (outbound-real.jsx); the seeded page keeps the demo.
+window.OutboundSeed = OutboundPage;

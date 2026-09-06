@@ -37,7 +37,7 @@ const ST_GROUPS = {
   campaigns: {
     match: ["outbound", "broadcasts", "content"],
     tabs: [
-      { id: "outbound", label: "Outbound", to: "outbound" },
+      { id: "outbound", label: "Playbooks", to: "outbound" },
       { id: "broadcasts", label: "Broadcasts", to: "broadcasts" },
       { id: "content", label: "Content", to: "content" },
     ],

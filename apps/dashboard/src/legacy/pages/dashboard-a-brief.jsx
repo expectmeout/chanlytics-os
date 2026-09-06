@@ -8,6 +8,39 @@
 // brief), the SAME hero renders real numbers; otherwise the seeded mockup
 // stands, exactly like every other unflipped surface. Design is shared —
 // only the data source branches.
+// A playbook's run that waited for a person: the sweep found people and the
+// class is set to ask. Read from the Broadcasts surface, which boots with the
+// rest, so Today needs no fetch of its own. Approve here, or open Playbooks.
+const RunsWaiting = ({ nav, flash }) => {
+  const [, bump] = React.useReducer((n) => n + 1, 0);
+  React.useEffect(() => {
+    window.addEventListener("surface:broadcasts", bump);
+    return () => window.removeEventListener("surface:broadcasts", bump);
+  }, []);
+  const rows = ((window.__BROADCASTS && window.__BROADCASTS.rows) || []).filter((r) => r.state === "pending_approval").slice(0, 2);
+  const approve = async (r) => {
+    if (!(window.canDo && window.canDo("approve")) || !window.__broadcasts) return;
+    const res = await window.__broadcasts.approve(r.id);
+    if (res.ok && window.__refreshPlaybooks) window.__refreshPlaybooks();
+    const n = res.ok ? (res.data.recipient_count || r.recipient_count) : 0;
+    flash(res.ok
+      ? { msg: <><b>{r.audience.label}</b> approved — {n} {n === 1 ? "person" : "people"}, sending now</> }
+      : { msg: <>{res.message}</> });
+  };
+  return rows.map((r) => (
+    <div key={`run-${r.id}`} className="brief-beat" data-testid="brief-run-row">
+      <span className="brief-beat-dot" style={{ background: "var(--accent)" }} />
+      <span className="brief-beat-text">
+        <b>{r.audience.label}</b> is ready — {r.recipient_count} {r.recipient_count === 1 ? "person" : "people"} · nothing sends until you say so
+      </span>
+      <span className="brief-beat-acts">
+        <button className="brief-chip primary" onClick={() => approve(r)} {...window.gate("approve")}>Approve</button>
+        <button className="brief-chip" onClick={() => nav("outbound")}>Open Playbooks <Icon name="arrow-right" size={10} /></button>
+      </span>
+    </div>
+  ));
+};
+
 const HeroBrief = () => {
   const [, force] = React.useState(0);
   React.useEffect(() => {
@@ -124,6 +157,7 @@ const HeroBriefReal = ({ vm }) => {
                 <button className="brief-chip" onClick={() => nav(r.to)}>Open thread <Icon name="arrow-right" size={10} /></button>
               </div>
             ))}
+            <RunsWaiting nav={nav} flash={ppFlash} />
             {(recap ? recap.receipts.slice(0, 1) : []).map((r, i) => (
               <div key={i} className="brief-beat">
                 <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />

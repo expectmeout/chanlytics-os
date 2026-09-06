@@ -112,12 +112,46 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   const s = readCode("apps/edge/api/cron/playbooks.ts");
   assert.ok(s.includes('request.headers.get("x-cron-key")') && s.includes('db.rpc("get_cron_sweep_key")'));
   assert.ok(s.includes("runDueNow(p as unknown as PlaybookDto, tz, now)"), "by the business's clock");
-  assert.ok(s.includes('const mode = policies.find((r) => r.class === p.policy_class)?.mode ?? "ask";'), "no row means ask — the safest");
-  assert.ok(s.includes('if (!tpl || tpl.meta_status !== "approved") { await record({ mode, skipped: "template_not_approved" });'));
-  assert.ok(s.includes('if (!health.canSend) { await record({ mode, skipped: "number_flagged" });'));
-  assert.ok(s.includes("if (eligible.length === 0) { await record({ mode, eligible: 0 });"), "a run that finds nobody is recorded, honestly");
-  assert.ok(s.includes('audience: { kind: "playbook", id: p.id, label: p.name }'));
-  assert.ok(s.includes('verb: "send_broadcast", actor_type: "system"'), "a run that sends on its own is the system's decision");
-  assert.ok(s.includes("Approve or skip the run on Today or in Campaigns › Playbooks. Nothing is sent until you do."));
+  assert.ok(s.includes('await runPlaybook(ctx, p, { runFor, by: { kind: "system" } })'), "the sweep runs the one implementation");
+  const r = readCode("apps/edge/lib/playbooks.ts");
+  assert.ok(r.includes('const mode = ctx.modes.get(p.policy_class) ?? "ask";'), "no row means ask — the safest");
+  assert.ok(r.includes('if (!tpl || tpl.meta_status !== "approved") { await record({ mode, skipped: "template_not_approved" });'));
+  assert.ok(r.includes('if (!ctx.health.canSend) { await record({ mode, skipped: "number_flagged" });'));
+  assert.ok(r.includes("if (eligible.length === 0) { await record({ mode, eligible: 0 });"), "a run that finds nobody is recorded, honestly");
+  assert.ok(r.includes('audience: { kind: "playbook", id: p.id, label: p.name }'));
+  assert.ok(r.includes('actor_type: req.by.kind === "user" ? "user" : "system"'), "a run that sends on its own is the system's decision; one a person asked for is theirs");
+  assert.ok(r.includes("Approve or skip the run on Today or in Campaigns › Playbooks. Nothing is sent until you do."));
+  assert.ok(r.includes('? (mode === "never" ? { kind: "off" } : { kind: "send", state: "scheduled", at: now })'), "a person who asks has decided: it sends now unless the class is never");
+  assert.ok(readCode("apps/edge/api/admin/playbooks-run.ts").includes('runPlaybook(ctx, p as PlaybookRow, { by: { kind: "user", userId } })'));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/policy-store.ts").includes('note: "the win-back and save-our-number playbooks", chip: "Re-engage", enforced: true'), "the Autonomy rows say what they do now");
+});
+
+test("the page and its doors: Outbound is Playbooks, real; make, change, pause, resume, run now, delete through the app's routes; a waiting run on Today", () => {
+  const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  assert.ok(reg.includes('outbound: "real"') && reg.includes('outbound: "playbooks"'), "flipped, and the gate waits on its surface");
+  const page = readCode("apps/dashboard/src/legacy/pages/outbound-real.jsx");
+  for (const id of ["playbooks-real", "pb-card", "pb-composer", "pb-trigger", "pb-template", "pb-save", "pb-cancel", "pb-run-now", "pb-pause", "pb-approve", "pb-skip", "pb-edit", "pb-delete", "pb-empty"]) {
+    assert.ok(page.includes(`data-testid="${id}"`), id);
+  }
+  assert.ok(page.includes("window.OutboundPage = (props) =>") && readCode("apps/dashboard/src/legacy/pages/outbound.jsx").includes("window.OutboundSeed = OutboundPage;"));
+  assert.ok(!/\$[\d,]+|revenue|Attributed|booked/.test(page.replace(/\/\/[^\n]*/g, "")), "no number the schema has no column for");
+  assert.ok(page.includes("<PolicyChip cls={p.policy_class} />"), "the mode chip is the workspace's, and opens Settings › Autonomy");
+  const routes = readCode("apps/dashboard/app/api/v1/playbooks/route.ts");
+  assert.ok(routes.includes('requireRole(member, "operator")') && routes.includes('takeRate(ctx.userId, "playbook")') && routes.includes('"start_playbook", {'));
+  const one = readCode("apps/dashboard/app/api/v1/playbooks/[id]/route.ts");
+  assert.ok(one.includes('state === "running" ? "start_playbook" : "pause_playbook"') && one.includes('"pause_playbook", { name: p.name, deleted: true }'), "pause, resume and delete are recorded");
+  const run = readCode("apps/dashboard/app/api/v1/playbooks/[id]/run/route.ts");
+  assert.ok(run.includes("runPlaybookNow(p.tenant_id, id, ctx.userId)") && run.includes("never: "), "run now says why nothing ran");
+  const svc = readCode("apps/dashboard/src/server/service.ts");
+  assert.ok(svc.includes("/api/admin/playbooks-run") && svc.includes("export async function runPlaybookNow("), "through the edge, production only");
+  const check = readCode("apps/dashboard/src/server/playbooks.ts");
+  assert.ok(check.includes('if (tpl.meta_status !== "approved") throw new AppError("conflict"') && check.includes("This message takes the booking link, and none is on file."), "checked the way a broadcast is");
+  const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
+  assert.ok(brief.includes('data-testid="brief-run-row"') && brief.includes('r.state === "pending_approval"'), "Today shows a run that waits, from the surface it already has");
+  const bridge = readCode("apps/dashboard/src/legacy-bridge/playbooks.ts");
+  assert.ok(bridge.includes("refreshSurfaces([playbooksOverride, broadcastsOverride])"), "every write re-fetches both surfaces");
+  const surface = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  assert.ok(surface.includes("cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, untouched, now.getTime()).length"), "the chip counts the pool with the runner's own predicate");
+  assert.ok(readCode("apps/dashboard/src/legacy/components/surface-tabs.jsx").includes('{ id: "outbound", label: "Playbooks", to: "outbound" }'));
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("broadcastsOverride, playbooksOverride]"), "booted with the rest");
 });
