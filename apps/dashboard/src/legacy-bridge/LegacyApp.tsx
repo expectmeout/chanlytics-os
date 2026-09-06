@@ -15,13 +15,14 @@ import "./manifest";
 // legacy.css is NOT imported here: it lives in app/(os)/layout.tsx so the
 // 254KB design system ships as document <link>s and downloads in parallel
 // with this chunk, rather than serially behind it.
-import { workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, reportsOverride, liveOverride, switchWorkspace, type Workspace, broadcastsOverride, playbooksOverride, calendarOverride } from "./surface-data";
+import { workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, reportsOverride, liveOverride, switchWorkspace, type Workspace, broadcastsOverride, playbooksOverride, calendarOverride, notificationsOverride } from "./surface-data";
 import {
   getSurfaceStatuses,
   isSurfaceFailed,
   isSurfaceReady,
   markHydrated,
   onSurfaceStatusChange,
+  refreshSurfaces,
   startSurfaces,
 } from "./surface-runner";
 import { clearSurfaceCache, hydrateSurfaceCache } from "./surface-cache";
@@ -49,7 +50,7 @@ installPolicyStore();
 // device, and a system alert when something new needs the owner while the
 // app is in the background. Listens for the surface events, so it must be
 // installed before the first fetch resolves.
-installNotifications();
+installNotifications(undefined, undefined, () => refreshSurfaces([notificationsOverride]));
 installAsk();
 installWhatsAppConnect();
 installTemplates();
@@ -73,7 +74,7 @@ markHydrated(hydrateSurfaceCache());
 // The mockup's own data-before-mount contract (boot gate).
 const REQUIRED = ["CHANLY", "INBOX_DATA", "CLIENTS", "FLEET_DATA", "CHANLY_DATA", "POLICY", "ChanlyticsApp"] as const;
 
-const SURFACES = [workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, reportsOverride, liveOverride, broadcastsOverride, playbooksOverride, calendarOverride];
+const SURFACES = [workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, reportsOverride, liveOverride, broadcastsOverride, playbooksOverride, calendarOverride, notificationsOverride];
 const SURFACE_LABELS: Record<string, string> = { conversations: "Conversations", inbox: "Inbox", today: "Today", people: "People", reports: "Reports", live: "Calls", calendar: "Calendar" };
 
 // Which flipped surface backs each route, and which routes are real at all —

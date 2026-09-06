@@ -301,6 +301,8 @@ export async function POST(request: Request): Promise<Response> {
     await notify(
       { tenantId: routedForCall?.tenantId ?? null, ...addressing },
       {
+        kind: "call",
+        route: "conversations/phone",
         subject: `Voice call: ${call.from_number || "unknown"} (${durationS}s, ${sentiment})`,
         body:
           `AI phone agent handled a call on ${call.to_number || "the business line"}.\n\n` +

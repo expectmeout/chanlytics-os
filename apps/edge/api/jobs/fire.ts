@@ -27,7 +27,7 @@ function alertFor(db: ReturnType<typeof pg>, job: ClaimedJob) {
       : { notifications: null, isEnvDefault: false };
     await notify(
       { tenantId: job.tenant_id, ...addressing },
-      { subject, body, redactedBody: `A background job failed for a workspace (kind: ${job.kind}).` },
+      { kind: "job_failed", route: "inbox", subject, body, redactedBody: `A background job failed for a workspace (kind: ${job.kind}).` },
     );
   };
 }

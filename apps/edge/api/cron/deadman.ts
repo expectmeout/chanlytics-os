@@ -92,6 +92,8 @@ export async function POST(request: Request): Promise<Response> {
       const delivered = await notify(
         { tenantId: c.tenant_id, ...addressing.get(c.tenant_id)! },
         {
+          kind: "deadman",
+          route: "inbox",
           subject: `Still waiting: a customer has had no answer for ${waited}`,
           body:
             `A conversation was handed to a human ${waited} ago and is still open.\n\n` +

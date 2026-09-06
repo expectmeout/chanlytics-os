@@ -25,12 +25,19 @@ test.describe("The bell on a real workspace", () => {
     if ((await items.count()) === 0) {
       await expect(pop.getByText("All caught up")).toBeVisible();
     } else {
-      // Every row is one of the four real kinds and leads somewhere real.
+      // Every row has a title and leads somewhere: the four derived kinds, or a
+      // row the workspace kept — an alert the edge raised.
       for (const row of await items.all()) {
-        const t = await row.innerText();
-        expect(t).toMatch(/needs you|is waiting for you|Missed call|Invitation pending/);
+        await expect(row.locator(".tbn-item-title")).not.toBeEmpty();
+        await expect(row.getByRole("button", { name: /Open|Review|See|Team|Accept/ }).first()).toBeVisible();
       }
     }
+    // The kept rows come from the route, with this person's marks on each.
+    const res = await page.request.get("/api/v1/notifications");
+    expect(res.status()).toBe(200);
+    const data = (await res.json()).data as { notifications: Array<{ id: string; kind: string; title: string; read: boolean; dismissed: boolean }>; seen_at: string | null };
+    expect(Array.isArray(data.notifications)).toBe(true);
+    for (const n of data.notifications) expect(typeof n.title).toBe("string");
     await expect(page.getByTestId("notif-alerts")).toBeVisible();
     await page.screenshot({ path: "test-results/bell.png" });
   });

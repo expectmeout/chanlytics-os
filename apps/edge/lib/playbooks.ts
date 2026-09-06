@@ -202,6 +202,8 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
   await notify(
     { tenantId, notifications: target.notifications, isEnvDefault: target.isEnvDefault },
     {
+      kind: "playbook",
+      route: "outbound",
       subject: `Playbook “${p.name}” is ready: ${eligible.length} ${eligible.length === 1 ? "person" : "people"}`,
       body: `${eligible.length} ${eligible.length === 1 ? "person has" : "people have"} become eligible for “${p.name}”. Approve or skip the run on Today or in Campaigns › Playbooks. Nothing is sent until you do.`,
     },

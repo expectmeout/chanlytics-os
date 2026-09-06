@@ -11,7 +11,7 @@
  * Pure: the bridge feeds it the globals, the tests feed it fixtures.
  */
 
-export type NotificationKind = "needs_you" | "held_draft" | "missed_call" | "invite";
+export type NotificationKind = "needs_you" | "held_draft" | "missed_call" | "invite" | ServerNotificationKind;
 
 export interface NotificationItem {
   /** Stable across refreshes: the row it stands for. */
@@ -180,3 +180,73 @@ export function agoLabel(atMs: number, now: number): string {
 
 /** The kinds a device is woken for; an invitation can wait for the bell. */
 export const ALERT_KINDS: readonly NotificationKind[] = ["needs_you", "held_draft", "missed_call"];
+
+/* ------------------------------------------------- rows the workspace keeps */
+
+/** What the edge writes when it raises an alert: the same kinds it emails. */
+export const SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert"] as const;
+export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
+
+export interface NotificationDto {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  /** A hash route without the leading "#/", or null. */
+  route: string | null;
+  subject_type: string | null;
+  subject_id: string | null;
+  created_at: string;
+  /** This person's marks. */
+  read: boolean;
+  dismissed: boolean;
+}
+
+/** What `GET /api/v1/notifications` returns: the month's rows and this person's "seen everything" moment. */
+export interface NotificationsDto {
+  notifications: NotificationDto[];
+  seen_at: string | null;
+}
+
+const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; action: string; to: string }> = {
+  handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
+  deadman: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
+  call: { icon: "phone", tone: "", action: "Open the calls", to: "conversations/phone" },
+  number: { icon: "shield", tone: "warn", action: "Open Integrations", to: "admin/integrations" },
+  sweep: { icon: "alert", tone: "warn", action: "Open Integrations", to: "admin/integrations" },
+  job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
+  playbook: { icon: "bolt", tone: "ok", action: "Open Playbooks", to: "outbound" },
+  calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
+  alert: { icon: "bell", tone: "", action: "Open Today", to: "today" },
+};
+
+/** A kept row's key on the bell, so the bridge can tell it from a derived one. */
+export const SERVER_KEY_PREFIX = "n:";
+
+/**
+ * The kept rows as the bell shows them: dismissed ones gone, unread decided
+ * by the person's seen moment and their own read mark — the same on every
+ * device, because both live on the server.
+ */
+export function serverNotificationRows(dto: NotificationsDto | null | undefined): NotificationRow[] {
+  if (!dto) return [];
+  const seen = dto.seen_at ? Date.parse(dto.seen_at) : 0;
+  return dto.notifications
+    .filter((n) => !n.dismissed)
+    .map((n) => {
+      const look = SERVER_LOOK[n.kind] ?? SERVER_LOOK.alert;
+      const at = Date.parse(n.created_at);
+      return {
+        key: `${SERVER_KEY_PREFIX}${n.id}`,
+        kind: (SERVER_NOTIFICATION_KINDS as readonly string[]).includes(n.kind) ? (n.kind as NotificationKind) : "alert",
+        at,
+        title: n.title,
+        message: n.body.split("\n").find((l) => l.trim())?.trim().slice(0, 160) ?? "",
+        to: n.route ?? look.to,
+        icon: look.icon,
+        tone: look.tone,
+        action: look.action,
+        unread: at > seen && !n.read,
+      };
+    });
+}

@@ -51,6 +51,8 @@ export const RATE = {
   person_create: { limit: 60, windowMs: 3_600_000, noun: "people added" },
   /** A person's name or the notes the receptionist reads. */
   person_edit: { limit: 60, windowMs: 60_000, noun: "profile edits" },
+  /** Read and dismiss marks on the bell. */
+  notify_mark: { limit: 120, windowMs: 60_000, noun: "notification marks" },
   /** A whole thread, a whole call, or everyone, as a file. */
   export: { limit: 10, windowMs: 60_000, noun: "exports" },
   /** A question to the workspace assistant: a model turn, tools and all. */

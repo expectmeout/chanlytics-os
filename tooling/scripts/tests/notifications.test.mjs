@@ -124,6 +124,6 @@ test("the top bar shows the real feed outside a demo, with the device-alert swit
   assert.ok(tb.includes("if (real) { real.seenAll();"), "Mark all read is this device's line");
   assert.ok(tb.includes('data-testid="notif-alerts"'), "the switch is addressable");
   assert.ok(tb.includes("Alerts are blocked in your browser settings"), "a denied permission is said, not hidden");
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installNotifications();"));
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installNotifications(undefined, undefined, () => refreshSurfaces([notificationsOverride]));"), "the app hands the bell the runner's refresh; the bridge never imports the runner");
   assert.ok(readCode("packages/contracts/src/index.ts").includes('export * from "./notifications";'));
 });
