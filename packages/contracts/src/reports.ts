@@ -103,7 +103,7 @@ const DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" })
 
 /** A calendar day ("2026-09-04") as a local date, without the UTC shift that
  *  `new Date("2026-09-04")` would apply. */
-function dayDate(day: string): Date {
+export function dayDate(day: string): Date {
   const [y, m, d] = day.split("-").map(Number);
   return new Date(y, (m ?? 1) - 1, d ?? 1);
 }

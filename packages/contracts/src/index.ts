@@ -17,6 +17,7 @@ export * from "./broadcasts";
 export * from "./templates";
 export * from "./playbooks";
 export * from "./template-library";
+export * from "./campaign-report";
 export * from "./channels";
 
 export * from "./reports";

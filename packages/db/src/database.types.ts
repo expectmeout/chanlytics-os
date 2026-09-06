@@ -1924,6 +1924,10 @@ export type Database = {
     }
     Functions: {
       call_status_rank: { Args: { p_status: string }; Returns: number }
+      campaign_series: {
+        Args: { p_days?: number; p_tenant_id: string }
+        Returns: Json
+      }
       claim_job: { Args: { p_job_id: string }; Returns: Json }
       create_workspace: {
         Args: { p_name: string; p_timezone?: string }
