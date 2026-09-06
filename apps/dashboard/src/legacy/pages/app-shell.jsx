@@ -388,13 +388,17 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
     );
     content = <LeadsPage initialSrc={srcMeta ? srcParam : null} initialLead={leadParam} onOpenClient={(id) => navigate(`clients/${id}`)} />;
   } else if (page === "segments") {
-    const segMeta = param && (window.CLIENT_SEGMENTS || []).find(s => s.id === param);
+    // A real workspace's list by its own name; the seeded page keeps its segments.
+    const real = !!window.__PEOPLE;
+    const savedMeta = real && param ? ((window.__PEOPLE.saved || []).find((s) => s.id === param) || (window.__PEOPLE.lists || []).find((l) => l.id === param)) : null;
+    const segMeta = !real && param ? (window.CLIENT_SEGMENTS || []).find(s => s.id === param) : null;
+    const name = savedMeta ? (savedMeta.name || savedMeta.label) : segMeta ? segMeta.label : null;
     activeNav = "segments";
-    crumbs = segMeta ? ["People", { label: "Segments", to: "segments" }, segMeta.label] : ["People", "Segments"];
+    crumbs = name ? ["People", { label: real ? "Lists" : "Segments", to: "segments" }, name] : ["People", real ? "Lists" : "Segments"];
     pane = true;
     primaryAction = (
       <button className="btn btn-primary btn-sm" onClick={() => window.dispatchEvent(new CustomEvent("segments:new"))}>
-        <Icon name="plus" size={12} /> New segment
+        <Icon name="plus" size={12} /> {real ? "New list" : "New segment"}
       </button>
     );
     content = <SegmentsPage initialId={param} />;

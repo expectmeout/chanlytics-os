@@ -50,6 +50,21 @@ test.describe("Saved lists on People", () => {
     expect(seen[0].body).toEqual({ name: "Regulars" });
   });
 
+  test("People › Lists is the real page: the workspace's lists, their people, and a broadcast as the onward step", async ({ page }) => {
+    await page.goto("/#/segments");
+    await page.waitForLoadState("networkidle");
+    const real = page.getByTestId("lists-real");
+    await expect(real).toBeVisible();
+    await expect(page.getByTestId("lists-rail-smart")).toContainText("Needs you");
+    const res = await page.request.get("/api/v1/segments");
+    const { data } = await res.json();
+    await expect(page.getByTestId("lists-rail-saved").locator(".cl-rail-row")).toHaveCount(data.lists.length);
+    // A computed list opens with its people, never a Coming Soon card.
+    await page.getByTestId("lists-rail-smart").locator(".cl-rail-row").first().click();
+    await expect(page.getByTestId("lists-members")).toBeVisible();
+    await expect(page.locator("text=Coming soon")).toHaveCount(0);
+  });
+
   test("a profile shows the person's lists and offers the rest", async ({ page }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");

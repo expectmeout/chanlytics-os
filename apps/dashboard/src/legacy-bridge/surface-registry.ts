@@ -34,7 +34,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   // Render entirely from seed data. Each becomes one edited line here the day
   // its slice ships.
   leads: "demo",
-  segments: "demo",
+  segments: "real",  // People › Lists: the lists kept by hand and the computed ones, with their people
   pipeline: "demo",
   calendar: "demo",
   shared: "demo",   // the read-only report viewer — a share link over invented numbers
@@ -69,6 +69,7 @@ export const ROUTE_SURFACE: Record<string, string> = {
   inbox: "inbox",
   conversations: "conversations",
   clients: "people",
+  segments: "people",
   reports: "reports",
   live: "live",
   broadcasts: "broadcasts",
