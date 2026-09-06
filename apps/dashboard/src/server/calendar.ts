@@ -16,7 +16,6 @@ import {
   peopleFromItems,
   shiftKey,
   toVisitDto,
-  visitsOf,
   zoneMidnight,
   type BookingRulesLike,
   type CalendarDayDto,
