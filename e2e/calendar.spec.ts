@@ -54,42 +54,45 @@ test.describe("Calendar on a real workspace", () => {
     if (!cal.feed.present) await expect(board.getByTestId("cal-feed-card")).toContainText("No calendar connected");
   });
 
-  test("moving the week asks the API for that span and keeps the board; Day view shows one column", async ({ page }) => {
-    await page.goto("/#/calendar");
-    await page.waitForLoadState("networkidle");
-    const board = page.getByTestId("calendar-real");
-    await expect(board).toBeVisible();
-    const before = await board.getByTestId("cal-range").innerText();
-    const req = page.waitForRequest((r) => r.url().includes("/api/v1/calendar") && r.url().includes("from=") && r.method() === "GET");
-    await board.getByTestId("cal-next").click();
-    const seen = await req;
-    expect(seen.url()).toContain("workspace=");
-    await expect(board.getByTestId("cal-range")).not.toHaveText(before);
-    // exact: once the week moves, a "Today" button appears and "Day" would match it too.
-    await board.getByRole("button", { name: "Day", exact: true }).click();
-    await expect(board.getByTestId("cal-col")).toHaveCount(1);
-  });
-
-  test("a month of counts and an agenda, each read for its own span; the rules bar carries Settings' words", async ({ page }) => {
+  test("switching views is instant — no read — and Today, the arrows and a date move the anchor; only a far move reads again", async ({ page }) => {
     await page.goto("/#/calendar");
     await page.waitForLoadState("networkidle");
     const board = page.getByTestId("calendar-real");
     await expect(board).toBeVisible();
     await expect(board.getByTestId("cal-rules")).toContainText(/Hours|Closed|Rules/);
 
-    const month = page.waitForRequest((r) => r.url().includes("/api/v1/calendar") && r.url().includes("days=42") && r.method() === "GET");
+    // The window around today is loaded once; every view is a slice of it.
+    const reads: string[] = [];
+    page.on("request", (r) => { if (r.url().includes("/api/v1/calendar?") && r.method() === "GET") reads.push(r.url()); });
     await board.getByTestId("cal-view-month").click();
-    await month;
     await expect(board.getByTestId("cal-month")).toBeVisible();
-    // The request was only sent; the six weeks paint when it lands — let the count wait.
     await expect(board.getByTestId("cal-month-cell")).toHaveCount(42);
     await expect(board.getByTestId("cal-range")).toContainText(/\d{4}/);
-
-    const agenda = page.waitForRequest((r) => r.url().includes("/api/v1/calendar") && r.url().includes("days=14") && r.method() === "GET");
     await board.getByTestId("cal-view-agenda").click();
-    await agenda;
     await expect(board.getByTestId("cal-agenda")).toBeVisible();
     await expect(board.getByTestId("cal-agenda-day")).toHaveCount(14);
+    await board.getByTestId("cal-view-day").click();
+    await expect(board.getByTestId("cal-col")).toHaveCount(1);
+    await board.getByTestId("cal-view-week").click();
+    await expect(board.getByTestId("cal-col")).toHaveCount(7);
+    const before = await board.getByTestId("cal-range").innerText();
+    await board.getByTestId("cal-next").click();
+    await expect(board.getByTestId("cal-range")).not.toHaveText(before);
+    await expect(board.getByTestId("cal-today")).toBeEnabled();
+    await board.getByTestId("cal-today").click();
+    await expect(board.getByTestId("cal-range")).toHaveText(before);
+    await expect(board.getByTestId("cal-today")).toBeDisabled();
+    expect(reads, "no read for a view switch, a week, or Today inside the window").toEqual([]);
+
+    // Three months out is outside the window: one read, for a window around that day.
+    const far = new Date();
+    far.setDate(far.getDate() + 95);
+    const key = `${far.getFullYear()}-${String(far.getMonth() + 1).padStart(2, "0")}-${String(far.getDate()).padStart(2, "0")}`;
+    const req = page.waitForRequest((r) => r.url().includes("/api/v1/calendar?") && r.url().includes("days=63") && r.method() === "GET");
+    await board.getByTestId("cal-jump").fill(key);
+    const seen = await req;
+    expect(seen.url()).toContain("from=");
+    await expect(board.getByTestId("cal-col")).toHaveCount(7);
     await expect(board.getByTestId("cal-jump")).toBeVisible();
   });
 });

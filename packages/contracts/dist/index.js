@@ -4209,6 +4209,30 @@ function zoneOffsetOf(tz, atMs) {
   const day = dayInZone(tz, atMs);
   return Date.UTC(day.y, day.m - 1, day.d, c.hh, c.mm, c.ss) - Math.floor(atMs / 1e3) * 1e3;
 }
+function spanForView(view, anchor) {
+  if (view === "month") return monthSpan(anchor);
+  if (view === "agenda") return { from: anchor, days: 14 };
+  return { from: mondayOf(anchor), days: 7 };
+}
+function windowFor(anchor) {
+  return { from: shiftKey(mondayOf(`${anchor.slice(0, 7)}-01`), -7), days: 63 };
+}
+function coversSpan(days, from, count) {
+  if (!days.length || count < 1) return false;
+  return days[0].key <= from && days[days.length - 1].key >= shiftKey(from, count - 1);
+}
+function frameOf(key, todayKey) {
+  const { y, m, d } = keyParts(key);
+  return {
+    key,
+    dow: DOW[new Date(Date.UTC(y, m - 1, d)).getUTCDay()],
+    date: shortDate(key),
+    long: longDate(key),
+    dayNum: String(d),
+    today: key === todayKey,
+    past: key < todayKey
+  };
+}
 
 // src/channels.ts
 var DAY_MS5 = 864e5;
@@ -4411,6 +4435,7 @@ export {
   consentSourceLabel,
   contactMeta,
   contactName,
+  coversSpan,
   dailyLimit,
   dayDate,
   dayFromQuestion,
@@ -4439,6 +4464,7 @@ export {
   followupsToShow,
   formatPhoneDisplay,
   formatWaited,
+  frameOf,
   frameSteer,
   frameWhisper,
   freeWindows,
@@ -4514,6 +4540,7 @@ export {
   shortTime,
   slotLabels,
   slugTemplateName,
+  spanForView,
   starterByKey,
   starterByName,
   starterDraft,
@@ -4544,6 +4571,7 @@ export {
   waWindow,
   whenLabel,
   whisperText,
+  windowFor,
   zoneMidnight,
   zoneOffsetMs
 };

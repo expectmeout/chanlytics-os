@@ -1,13 +1,18 @@
 /* global React, Icon, StatStrip, StatCell */
-// Calendar, real: the owner's calendar as the receptionist reads it. Four
-// ways to look at the same truth — a week and a day on the seeded page's
-// board (hours down, days across), a month of counts, and an agenda — where
-// every block is the feed's, every band is the business's own hours and
-// closures, and every dashed window is a time the receptionist would offer
-// a caller, computed by the same function the phone tool uses. Settings
-// speaks here too: the hours, the closures ahead, the booking rules, the
-// services and how long they take, each a click from where it is edited.
-// Nothing is booked, moved or cancelled here: the booking link does that.
+// Calendar, real: the owner's calendar as the receptionist reads it.
+//
+// One loaded window of days, four views sliced from it. The page keeps two
+// things: the view and the day it looks at (the anchor). Everything else is
+// derived — the span a view needs, the frames it draws, the numbers in the
+// strip — and a view's SHAPE comes from dates alone (seven columns, forty-two
+// cells, fourteen rows) while its CONTENT comes from the window, so a switch
+// is instant and a read that is still landing changes nothing but the words
+// inside. Only a move outside the window reads again.
+//
+// Every block is the feed's, every band is the business's hours and
+// closures, every dashed window is a time the receptionist would offer a
+// caller — the same function the phone tool uses. Nothing is booked, moved
+// or cancelled here: the booking link does that.
 
 const useCalendar = () => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
@@ -26,23 +31,21 @@ const crHour = (t) => {
   const ap = h >= 12 && h < 24 ? "PM" : "AM";
   return `${((h + 11) % 12) + 1}${m ? ":" + String(m).padStart(2, "0") : ""} ${ap}`;
 };
-// Day keys, in the browser: the same arithmetic the contracts use.
 const crShift = (key, n) => {
   const [y, m, d] = key.split("-").map(Number);
   const at = new Date(Date.UTC(y, m - 1, d + n));
   return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, "0")}-${String(at.getUTCDate()).padStart(2, "0")}`;
 };
-const crMonday = (key) => {
-  const [y, m, d] = key.split("-").map(Number);
-  return crShift(key, -((new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7));
+const crMonthLabel = (key) => {
+  const [y, m] = key.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(new Date(Date.UTC(y, m - 1, 1, 12)));
 };
-const crMonthSpan = (key) => ({ from: crMonday(`${key.slice(0, 7)}-01`), days: 42 });
 const crShiftMonth = (key, n) => {
   const [y, m] = key.split("-").map(Number);
   const at = new Date(Date.UTC(y, m - 1 + n, 1));
   return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, "0")}-01`;
 };
-const crPeople = (n) => `${n} ${n === 1 ? "appointment" : "appointments"}`;
+const crTyping = () => { const el = document.activeElement; return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable); };
 
 // One taken block from the feed. Neutral, never an agent's colour: the
 // calendar did not say who booked it, only that the time is taken.
@@ -92,11 +95,55 @@ const CrPanel = ({ b, day, feedLine, onClose }) => (
   </div>
 );
 
+// The board: hours down, days across. Seven columns in Week, one in Day.
+const CrBoard = ({ frames, hours, now, wide, fit, onDay, onOpen }) => {
+  const gridH = (hours.end - hours.start) * CR_HOUR_PX;
+  const ticks = [];
+  for (let h = hours.start; h < hours.end; h++) ticks.push(h);
+  return (
+    <div className="cal-scroll">
+      <div className={`cal-grid ${wide ? "cal-grid-day" : ""}`}>
+        <div className="cal-corner" />
+        {frames.map((d) => (
+          <div key={d.key} className={`cal-dayhead ${d.today ? "today" : ""} ${!wide ? "clickable" : ""}`} title={!wide ? `Open ${d.dow} in Day view` : undefined} onClick={() => { if (!wide) onDay(d.key); }} data-testid="cal-dayhead">
+            <span className="cal-dow">{d.dow}</span>
+            <span className="cal-date tabular">{d.date}</span>
+            {d.today && <span className="cal-today-chip">Today</span>}
+            {d.closed.yes && <span className="cal-closed-chip" title={d.closed.note || ""}>Closed{d.closed.note ? ` · ${d.closed.note}` : ""}</span>}
+            {d.allDay.map((b) => (
+              <button key={b.id} className="cal-allday" onClick={() => onOpen(b)} title={b.title}>{b.title}</button>
+            ))}
+          </div>
+        ))}
+        <div className="cal-gutter" style={{ height: gridH }}>
+          {ticks.map((h) => (
+            <span key={h} className="cal-hour tabular" style={{ top: (h - hours.start) * CR_HOUR_PX }}>{crHour(h).replace(":00", "")}</span>
+          ))}
+        </div>
+        {frames.map((d) => (
+          <div key={d.key} className={`cal-col ${d.today ? "today" : ""} ${d.past ? "past" : ""} ${d.loading ? "loading" : ""}`} style={{ height: gridH }} data-testid="cal-col">
+            {d.bands.map((b, i) => (
+              <div key={i} className={`cal-unavail ${b.from <= hours.start && b.to >= hours.end ? "full" : ""}`} style={{ top: (b.from - hours.start) * CR_HOUR_PX, height: (b.to - b.from) * CR_HOUR_PX }}>
+                {b.label && <span>{b.label}</span>}
+              </div>
+            ))}
+            {d.windows.filter(fit).map((w, i) => <CrWindow key={i} w={w} hours={hours} />)}
+            {d.blocks.map((b) => <CrBlock key={b.id} b={b} hours={hours} onOpen={onOpen} wide={wide} />)}
+            {d.today && now !== null && now >= hours.start && now <= hours.end && (
+              <div className="cal-nowline" style={{ top: (now - hours.start) * CR_HOUR_PX }}><span className="cal-nowdot" /></div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 // The month: six weeks of counts. A day says how much is taken and how
 // many windows are open; closed days say why. Click a day to see it.
-const CrMonth = ({ vm, monthKey, feedOk, fit, onDay }) => {
+const CrMonth = ({ frames, monthKey, feedOk, fit, onDay }) => {
   const rows = [];
-  for (let i = 0; i < vm.days.length; i += 7) rows.push(vm.days.slice(i, i + 7));
+  for (let i = 0; i < frames.length; i += 7) rows.push(frames.slice(i, i + 7));
   return (
     <div className="cal-month" data-testid="cal-month">
       <div className="cal-month-head">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => <span key={d}>{d}</span>)}</div>
@@ -107,10 +154,10 @@ const CrMonth = ({ vm, monthKey, feedOk, fit, onDay }) => {
             const open = d.windows.filter(fit).length;
             const inMonth = d.key.slice(0, 7) === monthKey;
             return (
-              <button key={d.key} className={`cal-month-cell ${inMonth ? "" : "muted"} ${d.today ? "today" : ""} ${d.past ? "past" : ""} ${d.closed.yes ? "closed" : ""}`} onClick={() => onDay(d.key)} title={d.long} data-testid="cal-month-cell">
+              <button key={d.key} className={`cal-month-cell ${inMonth ? "" : "muted"} ${d.today ? "today" : ""} ${d.past ? "past" : ""} ${d.closed.yes ? "closed" : ""} ${d.loading ? "loading" : ""}`} onClick={() => onDay(d.key)} title={d.long} data-testid="cal-month-cell">
                 <span className="cal-month-num tabular">{d.dayNum}</span>
                 {d.closed.yes && <span className="cal-month-closed">{d.closed.note ? `Closed · ${d.closed.note}` : "Closed"}</span>}
-                {!d.closed.yes && feedOk && (
+                {!d.closed.yes && !d.loading && feedOk && (
                   <span className="cal-month-counts">
                     {taken > 0 && <span className="cal-month-taken">{taken} taken</span>}
                     {open > 0 && !d.past && <span className="cal-month-open">{open} open</span>}
@@ -127,15 +174,15 @@ const CrMonth = ({ vm, monthKey, feedOk, fit, onDay }) => {
   );
 };
 
-// The agenda: the next days as a list — what is taken, then what the
-// receptionist would offer — the way a phone-first owner reads a day.
-const CrAgenda = ({ vm, feedOk, fit, service, onOpen }) => (
+// The agenda: days as a list — what is taken, then what the receptionist
+// would offer — the way a phone-first owner reads a day.
+const CrAgenda = ({ frames, feedOk, fit, service, onOpen }) => (
   <div className="cal-agenda" data-testid="cal-agenda">
-    {vm.days.filter((d) => !d.past).slice(0, 14).map((d) => {
+    {frames.map((d) => {
       const windows = d.windows.filter(fit);
       const items = [...d.allDay, ...d.blocks];
       return (
-        <div key={d.key} className={`cal-agenda-day ${d.today ? "today" : ""} ${d.past ? "past" : ""}`} data-testid="cal-agenda-day">
+        <div key={d.key} className={`cal-agenda-day ${d.today ? "today" : ""} ${d.past ? "past" : ""} ${d.loading ? "loading" : ""}`} data-testid="cal-agenda-day">
           <div className="cal-agenda-head">
             <span className="cal-dow">{d.dow}</span>
             <span className="cal-date tabular">{d.date}</span>
@@ -145,7 +192,7 @@ const CrAgenda = ({ vm, feedOk, fit, service, onOpen }) => (
           {items.length > 0 && (
             <div className="cal-agenda-items">
               {items.map((b) => (
-                <button key={b.id} className="cal-agenda-item" onClick={() => onOpen(b, d)}>
+                <button key={b.id} className="cal-agenda-item" onClick={() => onOpen(b)}>
                   <span className="cal-agenda-time tabular">{b.time}</span>
                   <span className="cal-agenda-title">{b.title}</span>
                   {b.person && <span className="cal-agenda-person">{b.person.name}</span>}
@@ -153,8 +200,8 @@ const CrAgenda = ({ vm, feedOk, fit, service, onOpen }) => (
               ))}
             </div>
           )}
-          {!d.closed.yes && feedOk && items.length === 0 && <div className="cal-agenda-empty">Nothing on the calendar.</div>}
-          {!d.closed.yes && feedOk && !d.past && (
+          {!d.loading && !d.closed.yes && feedOk && items.length === 0 && <div className="cal-agenda-empty">Nothing on the calendar.</div>}
+          {!d.loading && !d.closed.yes && feedOk && !d.past && (
             <div className="cal-agenda-open">
               <span className="cal-agenda-open-label">Open{service ? ` for ${service.name}` : ""}:</span>
               {windows.length ? windows.map((w) => <span key={w.label} className="cal-agenda-window">{w.label}</span>) : <span className="cal-agenda-none">{service && service.consultFirst ? "the receptionist books a consultation for this, not the service" : "nothing the receptionist would offer"}</span>}
@@ -169,66 +216,75 @@ const CrAgenda = ({ vm, feedOk, fit, service, onOpen }) => (
 const CalendarReal = () => {
   const C = useCalendar();
   const [view, setView] = React.useState("week");
-  const [dayKey, setDayKey] = React.useState(null);
+  const [anchorKey, setAnchorKey] = React.useState(null);
   const [openId, setOpenId] = React.useState(null);
-  const [busy, setBusy] = React.useState(false);
+  const [pending, setPending] = React.useState(false);
   const [serviceName, setServiceName] = React.useState("");
   const [toastNode, flash] = window.usePPToast();
-  const fetchedAt = C ? C.fetchedAt : 0;
-  React.useEffect(() => { setBusy(false); }, [fetchedAt]);
-  if (!C) return null;
-  const vm = C.vm;
+  const vm = C ? C.vm : null;
+  const cal = window.__calendar;
+  const anchor = anchorKey || (vm ? vm.today : null);
+
+  // What the view needs, from the anchor alone; whether the window has it.
+  const span = vm && cal ? cal.spanFor(view, anchor) : null;
+  const covered = !!(vm && cal && span && cal.covers(vm.days, span.from, span.days));
+
+  // Read only when the window does not cover the view. The frames below
+  // already have their shape, so nothing jumps when the read lands.
+  React.useEffect(() => {
+    if (!vm || !cal) return undefined;
+    if (covered) { setPending(false); return undefined; }
+    let on = true;
+    setPending(true);
+    cal.ensure(view, anchor).then((ok) => {
+      if (!on) return;
+      setPending(false);
+      if (!ok) flash({ msg: <>Those days could not be read right now.</> });
+    });
+    return () => { on = false; };
+  }, [view, anchor, covered]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ← → move, T is today — unless the person is typing.
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (!vm || e.metaKey || e.ctrlKey || e.altKey || crTyping()) return;
+      if (e.key === "ArrowLeft") { e.preventDefault(); move(-1); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); move(1); }
+      else if (e.key === "t" || e.key === "T") { e.preventDefault(); setAnchorKey(null); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  if (!vm || !cal) return null;
+
+  const byKey = new Map(vm.days.map((d) => [d.key, d]));
+  const frames = [];
+  for (let i = 0; i < span.days; i++) {
+    const k = crShift(span.from, i);
+    frames.push(byKey.get(k) || { ...cal.frameOf(k, vm.today), loading: true, closed: { yes: false, note: null }, bands: [], blocks: [], allDay: [], windows: [] });
+  }
+  const shown = view === "day" ? frames.filter((f) => f.key === anchor) : frames;
   const feedOk = vm.feed.state === "ok";
-  const hours = vm.hours;
-  const gridH = (hours.end - hours.start) * CR_HOUR_PX;
-  const ticks = [];
-  for (let h = hours.start; h < hours.end; h++) ticks.push(h);
-  const spanDays = vm.days.length;
-  const anchor = dayKey && vm.days.some((d) => d.key === dayKey) ? dayKey : (vm.days.find((d) => d.today) || vm.days[0] || { key: vm.from }).key;
-  const monthKey = (spanDays >= 28 ? crShift(vm.from, 7) : vm.from).slice(0, 7);
   const service = vm.services.find((s) => s.name === serviceName) || null;
-  // Windows that fit the service asked for — the same rule the assistant applies for "for a balayage".
   const fit = (w) => !service || !service.duration || w.dur >= service.duration;
+  const monthKey = view === "month" ? anchor.slice(0, 7) : null;
 
-  const go = async (from, days) => {
-    if (!window.__calendar) return;
-    setBusy(true);
-    const ok = await window.__calendar.goTo(from, days);
-    if (!ok) { setBusy(false); flash({ msg: <>That span could not be read — still showing {vm.rangeLabel}.</> }); }
+  const move = (n) => {
+    if (view === "month") setAnchorKey(crShiftMonth(anchor, n));
+    else if (view === "agenda") setAnchorKey(crShift(anchor, 14 * n));
+    else setAnchorKey(crShift(anchor, 7 * n));
   };
-  const pick = (v) => {
-    setView(v);
-    if (v === "month" && spanDays < 28) go(crMonthSpan(anchor).from, 42);
-    else if ((v === "week" || v === "day") && spanDays !== 7) go(crMonday(anchor), 7);
-    else if (v === "agenda" && (vm.from !== vm.today || spanDays !== 14)) go(vm.today, 14);
-  };
-  const shift = (n) => {
-    if (view === "month") go(crMonthSpan(crShiftMonth(`${monthKey}-01`, n)).from, 42);
-    else if (view === "agenda") go(crShift(vm.from, 14 * n), 14);
-    else go(crShift(vm.from, 7 * n), 7);
-  };
-  const today = () => {
-    setDayKey(vm.today);
-    if (view === "month") go(crMonthSpan(vm.today).from, 42);
-    else if (view === "agenda") go(vm.today, 14);
-    else go(null, 7);
-  };
-  const jump = (key) => {
-    if (!key) return;
-    setDayKey(key);
-    if (view === "month") go(crMonthSpan(key).from, 42);
-    else if (view === "agenda") go(key, 14);
-    else go(crMonday(key), 7);
-  };
-  const openDay = (key) => { setDayKey(key); setView("day"); if (spanDays !== 7 || !vm.days.some((d) => d.key === key)) go(crMonday(key), 7); };
-
-  const shown = view === "day" ? vm.days.filter((d) => d.key === anchor).slice(0, 1) : vm.days.slice(0, 7);
-  const label = view === "day" && shown[0] ? `${shown[0].dow} · ${shown[0].date}` : view === "month" ? vm.monthLabel : vm.rangeLabel;
+  const openDay = (key) => { setAnchorKey(key); setView("day"); };
+  const first = frames[0];
+  const last = frames[frames.length - 1];
+  const label = view === "day" && shown[0] ? `${shown[0].dow} · ${shown[0].date}` : view === "month" ? crMonthLabel(anchor) : `${first.date} – ${last.key.slice(0, 7) === first.key.slice(0, 7) ? last.date.replace(/^[A-Za-z]+ /, "") : last.date}`;
   const statLabel = view === "day" && shown[0] ? shown[0].dow : view === "month" ? "This month" : view === "agenda" ? "Next 14 days" : "This week";
-  const statEvents = view === "day" && shown[0] ? shown[0].blocks.length + shown[0].allDay.length : vm.stats.events;
-  const statWindows = view === "day" && shown[0] ? shown[0].windows.filter(fit).length : vm.days.reduce((a, d) => a + d.windows.filter(fit).length, 0);
+  const scope = view === "month" ? frames.filter((f) => f.key.slice(0, 7) === monthKey) : shown;
+  const statEvents = scope.reduce((a, d) => a + d.blocks.length + d.allDay.length, 0);
+  const statWindows = scope.reduce((a, d) => a + d.windows.filter(fit).length, 0);
   const openBlock = openId ? vm.days.flatMap((d) => [...d.blocks, ...d.allDay].map((b) => ({ b, d }))).find((x) => x.b.id === openId) : null;
-  const todayInSpan = vm.days.some((d) => d.today);
+  const onToday = view === "month" ? anchor.slice(0, 7) === vm.today.slice(0, 7) : view === "week" ? shown.some((d) => d.today) : anchor === vm.today;
 
   return (
     <div className="calendar" data-testid="calendar-real">
@@ -246,13 +302,13 @@ const CalendarReal = () => {
 
       <div className="cl-controls">
         <div className="cal-weeklabel">
-          <button className="btn btn-ghost btn-icon btn-sm cal-nav" title="Previous" aria-label="Previous" onClick={() => shift(-1)} disabled={busy} data-testid="cal-prev">‹</button>
+          <button className="btn btn-ghost btn-icon btn-sm cal-nav" title="Previous (←)" aria-label="Previous" onClick={() => move(-1)} data-testid="cal-prev">‹</button>
           <span className="cal-week-range" data-testid="cal-range">{label}</span>
-          <button className="btn btn-ghost btn-icon btn-sm cal-nav" title="Next" aria-label="Next" onClick={() => shift(1)} disabled={busy} data-testid="cal-next">›</button>
-          {!todayInSpan && <button className="btn btn-ghost btn-sm" onClick={today} disabled={busy}>Today</button>}
-          <input className="cal-jump" type="date" aria-label="Go to a date" onChange={(e) => jump(e.target.value)} disabled={busy} data-testid="cal-jump" />
+          <button className="btn btn-ghost btn-icon btn-sm cal-nav" title="Next (→)" aria-label="Next" onClick={() => move(1)} data-testid="cal-next">›</button>
+          <button className="btn btn-ghost btn-sm cal-today-btn" title="Today (T)" onClick={() => setAnchorKey(null)} disabled={onToday} data-testid="cal-today">Today</button>
+          <input className="cal-jump" type="date" aria-label="Go to a date" onChange={(e) => { if (e.target.value) setAnchorKey(e.target.value); }} data-testid="cal-jump" />
           <div className="cl-tabs">
-            {CR_VIEWS.map(([id, l]) => <button key={id} className={`cl-tab ${view === id ? "active" : ""}`} onClick={() => pick(id)} data-testid={`cal-view-${id}`}>{l}</button>)}
+            {CR_VIEWS.map(([id, l]) => <button key={id} className={`cl-tab ${view === id ? "active" : ""}`} aria-pressed={view === id} onClick={() => setView(id)} data-testid={`cal-view-${id}`}>{l}</button>)}
           </div>
         </div>
         <div className="cl-controls-right">
@@ -290,7 +346,6 @@ const CalendarReal = () => {
           <span><b>{service.name} needs a consultation first.</b> The receptionist does not offer times for it; it offers the consultation and sends the booking link.</span>
         </div>
       )}
-
       {vm.feed.state !== "ok" && (
         <div className="cal-feed-card" data-testid="cal-feed-card">
           <Icon name="calendar" size={14} />
@@ -306,52 +361,17 @@ const CalendarReal = () => {
         </div>
       )}
 
-      {view === "month" && <CrMonth vm={vm} monthKey={monthKey} feedOk={feedOk} fit={fit} onDay={openDay} />}
-      {view === "agenda" && <CrAgenda vm={vm} feedOk={feedOk} fit={fit} service={service} onOpen={(b) => setOpenId(b.id)} />}
-
-      {(view === "week" || view === "day") && (
-        <div className="cal-scroll">
-          <div className={`cal-grid ${view === "day" ? "cal-grid-day" : ""}`}>
-            <div className="cal-corner" />
-            {shown.map((d) => (
-              <div key={d.key} className={`cal-dayhead ${d.today ? "today" : ""} ${view === "week" ? "clickable" : ""}`} title={view === "week" ? `Open ${d.dow} in Day view` : undefined} onClick={() => { if (view === "week") openDay(d.key); }} data-testid="cal-dayhead">
-                <span className="cal-dow">{d.dow}</span>
-                <span className="cal-date tabular">{d.date}</span>
-                {d.today && <span className="cal-today-chip">Today</span>}
-                {d.closed.yes && <span className="cal-closed-chip" title={d.closed.note || ""}>Closed{d.closed.note ? ` · ${d.closed.note}` : ""}</span>}
-                {d.allDay.map((b) => (
-                  <button key={b.id} className="cal-allday" onClick={() => setOpenId(b.id)} title={b.title}>{b.title}</button>
-                ))}
-              </div>
-            ))}
-            <div className="cal-gutter" style={{ height: gridH }}>
-              {ticks.map((h) => (
-                <span key={h} className="cal-hour tabular" style={{ top: (h - hours.start) * CR_HOUR_PX }}>{crHour(h).replace(":00", "")}</span>
-              ))}
-            </div>
-            {shown.map((d) => (
-              <div key={d.key} className={`cal-col ${d.today ? "today" : ""} ${d.past ? "past" : ""}`} style={{ height: gridH }} data-testid="cal-col">
-                {d.bands.map((b, i) => (
-                  <div key={i} className={`cal-unavail ${b.from <= hours.start && b.to >= hours.end ? "full" : ""}`} style={{ top: (b.from - hours.start) * CR_HOUR_PX, height: (b.to - b.from) * CR_HOUR_PX }}>
-                    {b.label && <span>{b.label}</span>}
-                  </div>
-                ))}
-                {d.windows.filter(fit).map((w, i) => <CrWindow key={i} w={w} hours={hours} />)}
-                {d.blocks.map((b) => <CrBlock key={b.id} b={b} hours={hours} onOpen={(x) => setOpenId(x.id)} wide={view === "day"} />)}
-                {d.today && vm.now !== null && vm.now >= hours.start && vm.now <= hours.end && (
-                  <div className="cal-nowline" style={{ top: (vm.now - hours.start) * CR_HOUR_PX }}><span className="cal-nowdot" /></div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <div key={view} className={`cal-body ${pending ? "is-loading" : ""}`} aria-busy={pending ? "true" : "false"} data-testid="cal-body">
+        {view === "month" && <CrMonth frames={frames} monthKey={monthKey} feedOk={feedOk} fit={fit} onDay={openDay} />}
+        {view === "agenda" && <CrAgenda frames={frames} feedOk={feedOk} fit={fit} service={service} onOpen={(b) => setOpenId(b.id)} />}
+        {(view === "week" || view === "day") && <CrBoard frames={shown} hours={vm.hours} now={vm.now} wide={view === "day"} fit={fit} onDay={openDay} onOpen={(b) => setOpenId(b.id)} />}
+      </div>
 
       <div className="cal-legend" data-testid="cal-legend">
         <span><i className="cal-legend-swatch taken" /> Taken, from your calendar</span>
         <span><i className="cal-legend-swatch open" /> Open — the receptionist would offer it{service ? ` for ${service.name}` : ""}</span>
         <span><i className="cal-legend-swatch closed" /> Outside your hours, or closed</span>
-        <span className="cal-legend-rules">times in {vm.timezone}</span>
+        <span className="cal-legend-rules">← → move · T today · times in {vm.timezone}</span>
       </div>
 
       {openBlock && <CrPanel b={openBlock.b} day={openBlock.d} feedLine={vm.feed.line} onClose={() => setOpenId(null)} />}

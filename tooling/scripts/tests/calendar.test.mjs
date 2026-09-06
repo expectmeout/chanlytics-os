@@ -163,11 +163,11 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
   for (const id of ["cal-month", "cal-month-cell", "cal-agenda", "cal-agenda-day", "cal-jump", "cal-service", "cal-rules", "cal-consult-note"]) assert.ok(page.includes(`data-testid="${id}"`), id);
   assert.ok(page.includes('data-testid={`cal-view-${id}`}') && page.includes('["month", "Month"], ["agenda", "Agenda"]'), "four views, one tab each");
   assert.ok(page.includes("const fit = (w) => !service || !service.duration || w.dur >= service.duration;"), "the same rule the assistant applies for a service");
-  assert.ok(page.includes('go(crMonthSpan(anchor).from, 42)') && page.includes('go(vm.today, 14)'), "a month is six weeks, the agenda two");
+  assert.ok(page.includes('if (view === "month") setAnchorKey(crShiftMonth(anchor, n));') && page.includes('else if (view === "agenda") setAnchorKey(crShift(anchor, 14 * n));'), "a month moves by a month, the agenda by two weeks");
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
-  assert.ok(svc.includes("const MAX_DAYS = 42;") && svc.includes("consult_first: (profile?.booking_rules?.consult_first ?? []).some("), "the services as Settings keeps them");
+  assert.ok(svc.includes("const MAX_DAYS = 63;") && svc.includes("consult_first: (profile?.booking_rules?.consult_first ?? []).some("), "the services as Settings keeps them");
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
-  assert.ok(sd.includes("&days=${days}") && sd.includes("if (from !== calendarFrom || days !== calendarDays) return;") && sd.includes("calendarDays = Math.min(42, Math.max(1, Math.round(days) || 7));"));
+  assert.ok(sd.includes("&days=${w.days}") && sd.includes("if (from !== calendarFrom || days !== calendarDays) return;") && sd.includes("calendarDays = Math.min(63, Math.max(1, Math.round(days) || 63));"));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts").includes("await refreshSurfaces([settingsOverride, todayOverride, calendarOverride]);"), "hours, closures, rules and services saved in Settings reach the board");
   const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
   assert.ok(brief.includes('data-testid="brief-calendar"') && brief.includes('C.vm.feed.state !== "ok") return null;'), "Today says the day on the calendar, and nothing without a feed");
@@ -175,4 +175,44 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
   assert.ok(tools.includes('name: "get_calendar"') && tools.includes('case "get_calendar": out = await getCalendar(t, run.input); break;'));
   assert.ok(tools.includes("Nothing is booked from here — the booking link does that."));
   assert.ok(readCode("apps/dashboard/src/server/ask/prompt.ts").includes('"calendar": "The owner\'s calendar as the receptionist reads it'));
+});
+
+test("instant views: the span a view needs, the window loaded around a day, whether it is covered, and a day's frame from its key alone", async () => {
+  const { spanForView, windowFor, coversSpan, frameOf } = await import("@chanlytics/contracts");
+  assert.deepEqual(spanForView("week", "2026-09-10"), { from: "2026-09-07", days: 7 });
+  assert.deepEqual(spanForView("day", "2026-09-10"), { from: "2026-09-07", days: 7 }, "a day is drawn from its week");
+  assert.deepEqual(spanForView("month", "2026-09-10"), { from: "2026-08-31", days: 42 });
+  assert.deepEqual(spanForView("agenda", "2026-09-10"), { from: "2026-09-10", days: 14 });
+  const w = windowFor("2026-09-10");
+  assert.deepEqual(w, { from: "2026-08-24", days: 63 }, "nine weeks from a week before the month's first Monday");
+  const days = Array.from({ length: w.days }, (_, i) => ({ key: shiftKey(w.from, i) }));
+  for (const view of ["week", "day", "month", "agenda"]) {
+    const s = spanForView(view, "2026-09-10");
+    assert.equal(coversSpan(days, s.from, s.days), true, `${view} is a slice of the window`);
+  }
+  assert.equal(coversSpan(days, spanForView("week", "2026-09-03").from, 7), true, "the week before too");
+  assert.equal(coversSpan(days, spanForView("agenda", "2026-09-30").from, 14), true, "two weeks from the last day of the month");
+  assert.equal(coversSpan(days, "2026-11-01", 7), false, "a move outside the window reads again");
+  assert.equal(coversSpan([], "2026-09-07", 7), false);
+  assert.deepEqual(frameOf("2026-09-08", "2026-09-08"), { key: "2026-09-08", dow: "Tue", date: "Sep 8", long: "Tuesday, September 8", dayNum: "8", today: true, past: false });
+  assert.equal(frameOf("2026-09-01", "2026-09-08").past, true);
+});
+
+test("the page keeps a view and a day, derives the rest, and reads only when the window does not cover the view", () => {
+  const page = readCode("apps/dashboard/src/legacy/pages/calendar-real.jsx");
+  assert.ok(page.includes("const span = vm && cal ? cal.spanFor(view, anchor) : null;") && page.includes("cal.covers(vm.days, span.from, span.days)"), "one arithmetic, from contracts through the bridge");
+  assert.ok(page.includes("cal.ensure(view, anchor).then((ok) => {"), "a read only when needed");
+  assert.ok(page.includes("frames.push(byKey.get(k) || { ...cal.frameOf(k, vm.today), loading: true,"), "the shape from dates, the content from data");
+  assert.ok(page.includes('<div key={view} className={`cal-body ${pending ? "is-loading" : ""}`}'), "a body that arrives");
+  assert.ok(page.includes('data-testid="cal-today"') && page.includes("disabled={onToday}"), "Today is always there, never shifting the row");
+  assert.ok(page.includes('if (e.key === "ArrowLeft")') && page.includes("crTyping()"), "arrows move, unless the person is typing");
+  assert.ok(!page.includes("const [busy, setBusy]"), "no click is ever dropped for being early");
+  const bridge = readCode("apps/dashboard/src/legacy-bridge/calendar.ts");
+  assert.ok(bridge.includes("export async function ensure(view: CalendarView, anchor: string)") && bridge.includes("if (coversSpan(have, need.from, need.days)) return true;"));
+  assert.ok(bridge.includes("spanFor: spanForView, windowFor, covers: coversSpan, frameOf"), "the arithmetic reaches the page");
+  const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  assert.ok(sd.includes("const w = from ? { from, days } : windowFor(localDayKey());"), "the first read is the window around today");
+  assert.ok(readCode("apps/dashboard/src/server/calendar.ts").includes("const MAX_DAYS = 63;"));
+  const css = readCode("apps/dashboard/src/legacy/styles/calendar.css");
+  assert.ok(css.includes("@keyframes cal-in") && css.includes("prefers-reduced-motion"), "a quiet arrival, none for those who asked for none");
 });
