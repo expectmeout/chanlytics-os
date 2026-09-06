@@ -56,6 +56,7 @@ import "@/legacy/pages/agent-fleet.jsx";
 import "@/legacy/pages/agent-studio.jsx";
 import "@/legacy/pages/outbound.jsx";
 import "@/legacy/pages/content-cal.jsx";
+import "@/legacy/pages/templates-real.jsx";
 import "@/legacy/pages/broadcasts.jsx";
 import "@/legacy/pages/broadcasts-real.jsx";
 import "@/legacy/pages/pipeline.jsx";

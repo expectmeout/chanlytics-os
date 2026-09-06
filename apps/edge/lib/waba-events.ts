@@ -72,7 +72,7 @@ export function describeWabaChange(c: WabaChange, number: string | null): { subj
       const event = String(v.event ?? "");
       if (event === "REJECTED") return { subject: `Template “${name}” rejected`, body: `WhatsApp rejected the template “${name}”${typeof v.reason === "string" && v.reason !== "NONE" ? ` (${v.reason.toLowerCase().replace(/_/g, " ")})` : ""}. It cannot be sent until it is revised and approved.`, alert: true };
       if (event === "PAUSED" || event === "DISABLED") return { subject: `Template “${name}” ${event.toLowerCase()}`, body: `WhatsApp ${event.toLowerCase()} the template “${name}”. Sends that use it will fail until it is restored.`, alert: true };
-      if (event === "APPROVED") return { subject: `Template “${name}” approved`, body: `WhatsApp approved the template “${name}”. It can be sent outside the 24-hour window now.`, alert: false };
+      if (event === "APPROVED") return { subject: `Template “${name}” approved`, body: `WhatsApp approved the template “${name}”. It can be sent now — from a broadcast, or from the Inbox outside the 24-hour window.`, alert: true };
       return null;
     }
     case "template_category_update": {

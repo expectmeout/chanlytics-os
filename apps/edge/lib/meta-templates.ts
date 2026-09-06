@@ -157,3 +157,53 @@ export function templateRow(t: MetaTemplate, tenantId: string, keepLabels: Templ
     synced_at: now.toISOString(),
   };
 }
+
+/* ---- Templates written here ---- */
+
+/** A template written here, submitted to Meta for review. Meta's own words come back when it says no. */
+export async function createTemplate(
+  token: string,
+  wabaId: string,
+  t: { name: string; language: string; category: string; components: MetaTemplateComponent[] },
+): Promise<{ ok: true; data: { id: string; status: string; category?: string } } | { ok: false; error: string; status: number }> {
+  let res: Response;
+  try {
+    res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(wabaId)}/message_templates`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ name: t.name, language: t.language, category: t.category, components: t.components, allow_category_change: true }),
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e), status: 0 };
+  }
+  const body = (await res.json().catch(() => null)) as
+    | { id?: string; status?: string; category?: string; error?: { message?: string; error_user_msg?: string } }
+    | null;
+  if (!res.ok || !body?.id) return { ok: false, error: body?.error?.error_user_msg ?? body?.error?.message ?? `HTTP ${res.status}`, status: res.status };
+  return { ok: true, data: { id: body.id, status: body.status ?? "PENDING", category: body.category } };
+}
+
+/** Gone from Meta: by name and the template's own id, so one language goes and not every language of that name. */
+export async function deleteTemplate(
+  token: string,
+  wabaId: string,
+  name: string,
+  hsmId?: string | null,
+): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+  const qs = new URLSearchParams({ name });
+  if (hsmId) qs.set("hsm_id", hsmId);
+  let res: Response;
+  try {
+    res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(wabaId)}/message_templates?${qs.toString()}`, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e), status: 0 };
+  }
+  const body = (await res.json().catch(() => null)) as { success?: boolean; error?: { message?: string } } | null;
+  if (!res.ok || !body?.success) return { ok: false, error: body?.error?.message ?? `HTTP ${res.status}`, status: res.status };
+  return { ok: true };
+}

@@ -1676,3 +1676,35 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 .bc-optin-body { display: flex; gap: 14px; align-items: flex-start; }
 .bc-optin-qr { flex: 0 0 auto; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: #fff; padding: 4px; }
 .bc-optin-text p { margin: 0 0 8px; font-size: 13px; line-height: 1.5; }
+
+/* Templates written here, and the slots' sources. */
+.tpl-composer { margin-top: 10px; }
+.tpl-row { display: flex; gap: 12px; align-items: flex-start; margin: 6px 0; }
+.tpl-row .bc-row-label { padding-top: 7px; }
+.tpl-brief {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--ink);
+  resize: vertical;
+}
+.tpl-select {
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--ink);
+}
+.tpl-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin: 8px 0; }
+.tpl-fields .tpl-body { grid-column: 1 / -1; }
+.tpl-fields textarea { font: inherit; font-size: 13px; padding: 7px 9px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--bg); color: var(--ink); resize: vertical; }
+.bc-var-row { display: flex; gap: 6px; }
+.bc-var-row input { flex: 1; min-width: 0; }
+.bc-var-row input:disabled { color: var(--ink-faint); }

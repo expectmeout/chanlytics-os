@@ -1810,8 +1810,18 @@ const TemplatesCard = () => {
     return () => window.removeEventListener("surface:settings", bump);
   }, []);
   const [busy, setBusy] = React.useState(false);
+  const [composing, setComposing] = React.useState(false);
+  const [arm, setArm] = React.useState(null);
   const [toastNode, flash] = window.usePPToast();
   const templates = window.__TEMPLATES_ALL;
+  const remove = async (t) => {
+    if (!window.__templates || busy) return;
+    setBusy(true);
+    const r = await window.__templates.remove(t.id);
+    setBusy(false);
+    setArm(null);
+    flash({ msg: r.ok ? <><b>{t.name}</b> deleted — sends that named it fail from now on</> : <>{r.message}</> });
+  };
   const canSync = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
   const hasWhatsApp = (window.__CHANNELS || []).some((c) => c.kind === "whatsapp");
   const sync = async () => {
@@ -1844,7 +1854,7 @@ const TemplatesCard = () => {
           <div key={t.id} className="set-int-row" data-testid="template-row">
             <span className="st-tile set-int-tile"><Icon name="chat" size={14} /></span>
             <span className="set-team-body">
-              <span className="set-team-name">{t.name}<span className="dim"> · {t.language}{t.category ? ` · ${t.category}` : ""}</span></span>
+              <span className="set-team-name">{t.name}<span className="dim"> · {t.language}{t.category ? ` · ${t.category}` : ""}{t.source === "chanlytics" ? " · made here" : ""}</span></span>
               <span className="set-team-mail">
                 {t.meta_status === "rejected" && t.rejected_reason
                   ? `Rejected: ${String(t.rejected_reason).toLowerCase().replace(/_/g, " ")}`
@@ -1852,19 +1862,34 @@ const TemplatesCard = () => {
               </span>
             </span>
             <span className={`pill ${st.cls}`}>{st.label}</span>
+            {canSync && arm !== t.id && (
+              <button className="cl-seg-filter-x" title={`Delete ${t.name}`} disabled={busy} onClick={() => setArm(t.id)} data-testid="template-delete"><Icon name="x" size={9} /></button>
+            )}
+            {arm === t.id && (
+              <span className="set-row-hint">Delete “{t.name}”? Sends that use it fail from now on. <button className="cl-bucket-link" disabled={busy} onClick={() => remove(t)}>Yes, delete</button> <button className="cl-bucket-link" onClick={() => setArm(null)}>No</button></span>
+            )}
           </div>
         );
       })}
+      {composing && window.TemplateComposer && (
+        <window.TemplateComposer
+          onCancel={() => setComposing(false)}
+          onDone={(made) => { setComposing(false); flash({ msg: <><b>{made.name}</b> submitted — WhatsApp reviews it; its status shows here</> }); }}
+        />
+      )}
       <div className="set-row">
         <div className="set-row-info">
           <span className="set-row-hint">
             {hasWhatsApp
-              ? "Templates are written and approved in WhatsApp Manager; Chanlytics reads them. A marketing template can only go to people who said yes to offers."
+              ? "Write a template here or in WhatsApp Manager; WhatsApp approves it either way. A marketing template can only go to people who said yes to offers."
               : "Connect a WhatsApp number first — templates belong to a number's account."}
           </span>
         </div>
         {hasWhatsApp && canSync && (
-          <button className="btn btn-sm" onClick={sync} disabled={busy} data-testid="sync-templates">{busy ? "Syncing…" : "Sync from Meta"}</button>
+          <span className="bc-chips">
+            <button className="btn btn-sm btn-primary" onClick={() => setComposing((c) => !c)} data-testid="template-new">New template</button>
+            <button className="btn btn-sm" onClick={sync} disabled={busy} data-testid="sync-templates">{busy ? "Syncing…" : "Sync from Meta"}</button>
+          </span>
         )}
       </div>
       {toastNode}

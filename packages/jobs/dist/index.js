@@ -8898,6 +8898,18 @@ var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c, n) => checkClosure2(c, n, ctx));
 });
+function parseTenantConfigResult(raw) {
+  const r = TenantConfigSchema2.safeParse(raw ?? {});
+  if (r.success) return { ok: true, config: r.data };
+  return {
+    ok: false,
+    issues: r.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+  };
+}
+function parseTenantConfig(raw) {
+  const r = parseTenantConfigResult(raw);
+  return r.ok ? r.config : null;
+}
 var DAY_MS4 = 24 * 3600 * 1e3;
 var ASK_CAPS2 = {
   threads: 20,
@@ -9007,6 +9019,39 @@ var LIMIT_TIERS2 = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
+function parseParamSpec(raw) {
+  if (typeof raw === "string") {
+    const m = /^@(first_name|business_name|booking_link)$/.exec(raw.trim());
+    if (m) return { kind: m[1] };
+    return { kind: "text", value: raw };
+  }
+  if (raw && typeof raw === "object") {
+    const o = raw;
+    if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
+    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link") return { kind: o.kind };
+  }
+  return null;
+}
+function firstNameOf(displayName, waProfileName) {
+  const raw = (displayName || waProfileName || "").trim();
+  if (!raw || /^[+\d(]/.test(raw)) return null;
+  const first = raw.split(/\s+/)[0].replace(/[^\p{L}\p{M}'’-]/gu, "");
+  return first ? first.slice(0, 30) : null;
+}
+function resolveParams(specs, f) {
+  return specs.map((s) => {
+    switch (s.kind) {
+      case "text":
+        return s.value;
+      case "first_name":
+        return f.firstName || "there";
+      case "business_name":
+        return f.businessName;
+      case "booking_link":
+        return f.bookingLink ?? "";
+    }
+  });
+}
 var DAY_MS32 = 864e5;
 var QUIET_AFTER_MS22 = 7 * DAY_MS32;
 var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -13730,13 +13775,19 @@ async function broadcastSend(ctx, job) {
     await ctx.alert(`Broadcast \u201C${b.name}\u201D stopped`, `The template \u201C${b.template_name}\u201D is no longer approved by WhatsApp, so nothing was sent.`);
     return;
   }
-  const params = Array.isArray(b.params) ? b.params.map(String) : [];
-  const words = renderTemplate(tpl.body_preview, params);
+  const specs = Array.isArray(b.params) ? b.params.map((p2) => parseParamSpec(p2) ?? { kind: "text", value: String(p2) }) : [];
+  const [{ data: tenantRow }, { data: cfgRow }] = await Promise.all([
+    ctx.db.from("tenants").select("name").eq("id", job.tenant_id).maybeSingle(),
+    ctx.db.from("tenant_config").select("config").eq("tenant_id", job.tenant_id).maybeSingle()
+  ]);
+  const parsedCfg = parseTenantConfig(cfgRow?.config ?? null);
+  const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";
+  const bookingLink = parsedCfg?.brain?.booking_link ?? null;
   const { data: batch, error: qErr } = await ctx.db.from("broadcast_recipients").select("contact_id").eq("broadcast_id", b.id).eq("state", "queued").limit(BROADCAST_CHUNK);
   if (qErr) throw new Error(`broadcast_send: cannot read recipients: ${qErr.message}`);
   const mark = (contactId, patch) => ctx.db.from("broadcast_recipients").update({ ...patch, sent_at: patch.state === "sent" ? (/* @__PURE__ */ new Date()).toISOString() : null }).eq("broadcast_id", b.id).eq("contact_id", contactId);
   for (const r of batch ?? []) {
-    const { data: c, error: cErr } = await ctx.db.from("contacts").select("id, phone_e164, consent, dnc, erased_at").eq("id", r.contact_id).eq("tenant_id", job.tenant_id).maybeSingle();
+    const { data: c, error: cErr } = await ctx.db.from("contacts").select("id, phone_e164, consent, dnc, erased_at, display_name, wa_profile_name").eq("id", r.contact_id).eq("tenant_id", job.tenant_id).maybeSingle();
     if (cErr) {
       console.error("broadcast_contact_unreadable", r.contact_id, cErr.message);
       continue;
@@ -13766,6 +13817,12 @@ async function broadcastSend(ctx, job) {
       await mark(r.contact_id, { state: "skipped", reason: "human_has_it" });
       continue;
     }
+    const params = resolveParams(specs, { firstName: firstNameOf(c.display_name, c.wa_profile_name), businessName, bookingLink });
+    if (params.some((v) => !v)) {
+      await mark(r.contact_id, { state: "skipped", reason: "missing_value" });
+      continue;
+    }
+    const words = renderTemplate(tpl.body_preview, params);
     const sent = await SENDERS.whatsapp(ctx, c.phone_e164, { body: words, template: { name: b.template_name, language: b.template_language, params } });
     const messageId = await recordOutbound(ctx.db, {
       tenantId: job.tenant_id,

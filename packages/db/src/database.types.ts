@@ -1642,6 +1642,7 @@ export type Database = {
           channel: string
           components: Json | null
           created_at: string
+          created_by: string | null
           id: string
           language: string
           meta_id: string | null
@@ -1649,6 +1650,7 @@ export type Database = {
           name: string
           quality: string | null
           rejected_reason: string | null
+          source: string
           synced_at: string | null
           tenant_id: string
           updated_at: string
@@ -1660,6 +1662,7 @@ export type Database = {
           channel: string
           components?: Json | null
           created_at?: string
+          created_by?: string | null
           id?: string
           language: string
           meta_id?: string | null
@@ -1667,6 +1670,7 @@ export type Database = {
           name: string
           quality?: string | null
           rejected_reason?: string | null
+          source?: string
           synced_at?: string | null
           tenant_id: string
           updated_at?: string
@@ -1678,6 +1682,7 @@ export type Database = {
           channel?: string
           components?: Json | null
           created_at?: string
+          created_by?: string | null
           id?: string
           language?: string
           meta_id?: string | null
@@ -1685,6 +1690,7 @@ export type Database = {
           name?: string
           quality?: string | null
           rejected_reason?: string | null
+          source?: string
           synced_at?: string | null
           tenant_id?: string
           updated_at?: string

@@ -58,7 +58,7 @@ const BroadcastDetail = ({ id, heldReasons, onClose }) => {
         <span className="ct-sec-meta">{d.broadcast.audience.label} · {d.recipients.length} enrolled · {d.broadcast.template_name}</span>
         <button className="cl-bucket-link" onClick={onClose}>Close</button>
       </div>
-      {d.broadcast.params.length > 0 && <div className="cl-prof-aut-hint">Values: {d.broadcast.params.join(" · ")}</div>}
+      {d.broadcast.params.length > 0 && <div className="cl-prof-aut-hint">Values: {d.broadcast.params.map((p) => (p && p.kind && p.kind !== "text" ? ((window.TC_SOURCES || {})[p.kind] || p.kind).toLowerCase() : (p && p.value) || String(p))).join(" · ")}</div>}
       <div className="bc-detail-groups">
         <div className="bc-detail-group">
           <div className="cl-prof-rail-label">Got it · {got.length}</div>
@@ -93,6 +93,8 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   });
   const [tplId, setTplId] = React.useState(() => (templates[0] ? templates[0].id : ""));
   const [params, setParams] = React.useState({});
+  const [sources, setSources] = React.useState({});
+  const [composing, setComposing] = React.useState(false);
   const [name, setName] = React.useState("");
   const [when, setWhen] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -108,9 +110,14 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   const overLimit = !!(active && number && number.health.limitPerDay !== null && active.count > number.health.limitPerDay);
   const tpl = templates.find((t) => t.id === tplId) || null;
   const vars = tpl && Array.isArray(tpl.variables) ? tpl.variables : [];
-  const filled = vars.map((v, i) => ((params[tplId] || [])[i] || ""));
-  const ready = !!tpl && !!active && active.count > 0 && filled.every((v) => v.trim()) && !busy && numberOk && !overLimit;
-  const preview = tpl ? bcRender(tpl.body_preview, filled.map((v) => v.trim())) : "";
+  const SRC = window.TC_SOURCES || { text: "Type it", first_name: "Their first name", business_name: "The business name", booking_link: "The booking link" };
+  const srcOf = (i) => ((sources[tplId] || [])[i] || "text");
+  const exampleOf = (kind) => (kind === "first_name" ? "Dani" : kind === "business_name" ? (data.businessName || "the business") : kind === "booking_link" ? "your booking link" : "");
+  const typed = vars.map((v, i) => ((params[tplId] || [])[i] || ""));
+  const filled = vars.map((v, i) => (srcOf(i) === "text" ? typed[i] : exampleOf(srcOf(i))));
+  const specs = vars.map((v, i) => (srcOf(i) === "text" ? typed[i].trim() : { kind: srcOf(i) }));
+  const ready = !!tpl && !!active && active.count > 0 && filled.every((v) => String(v).trim()) && !busy && numberOk && !overLimit;
+  const preview = tpl ? bcRender(tpl.body_preview, filled.map((v) => String(v).trim())) : "";
 
   const rows = data.rows || [];
   const open = rows.filter((r) => r.open);
@@ -129,7 +136,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
     setBusy(true);
     const r = await window.__broadcasts.send({
       template_id: tpl.id,
-      params: filled.map((v) => v.trim()),
+      params: specs,
       audience: { kind: active.kind, id: active.id },
       scheduled_for: scheduled && when ? new Date(when).toISOString() : null,
       name: name.trim() || null,
@@ -186,31 +193,48 @@ const BroadcastsReal = ({ initialSegment = null }) => {
         </div>
         <div className="bc-row">
           <span className="bc-row-label">Template</span>
-          {templates.length === 0 ? (
-            <span className="bc-excl-hint" data-testid="bc-no-template">
-              No approved template yet — write one in WhatsApp Manager, then sync it in{" "}
-              <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(window.CHANLY.R.admin("integrations"))}>Settings › Integrations</button>.
-            </span>
-          ) : (
-            <div className="bc-chips" style={{ flexWrap: "wrap" }}>
-              {templates.map((t) => (
-                <button key={t.id} className={"bc-chip" + (t.id === tplId ? " active" : "")} onClick={() => setTplId(t.id)} title={t.body_preview || ""} data-testid="bc-template">
-                  {t.name}{t.category ? <span className="bc-chip-count">{t.category}</span> : null}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="bc-chips" style={{ flexWrap: "wrap" }}>
+            {templates.length === 0 && (
+              <span className="bc-excl-hint" data-testid="bc-no-template">No approved template yet — write one here, or in WhatsApp Manager and sync it in Settings › Integrations.</span>
+            )}
+            {templates.map((t) => (
+              <button key={t.id} className={"bc-chip" + (t.id === tplId ? " active" : "")} onClick={() => setTplId(t.id)} title={t.body_preview || ""} data-testid="bc-template">
+                {t.name}{t.category ? <span className="bc-chip-count">{t.category}</span> : null}
+              </button>
+            ))}
+            {canSend && window.TemplateComposer && (
+              <button className="bc-chip" onClick={() => setComposing((c) => !c)} data-testid="bc-new-template"><Icon name="plus" size={10} /> New template</button>
+            )}
+          </div>
         </div>
+        {composing && window.TemplateComposer && (
+          <window.TemplateComposer
+            businessName={data.businessName}
+            onCancel={() => setComposing(false)}
+            onDone={(made) => { setComposing(false); flash({ msg: <><b>{made.name}</b> submitted — WhatsApp reviews it; it appears here once approved</> }); }}
+          />
+        )}
         {tpl && vars.length > 0 && (
           <div className="bc-vars" data-testid="bc-vars">
             {vars.map((v, i) => (
               <label key={v.position || i} className="bc-var">
                 <span className="bc-var-label">{v.label || `Value ${v.position || i + 1}`}</span>
-                <input
-                  value={filled[i]}
-                  placeholder={v.example || ""}
-                  onChange={(e) => setParams((p) => { const next = [...(p[tplId] || [])]; next[i] = e.target.value; return { ...p, [tplId]: next }; })}
-                />
+                <span className="bc-var-row">
+                  <select
+                    className="tpl-select"
+                    value={srcOf(i)}
+                    data-testid="bc-var-source"
+                    onChange={(e) => setSources((s) => { const next = [...(s[tplId] || [])]; next[i] = e.target.value; return { ...s, [tplId]: next }; })}
+                  >
+                    {Object.keys(SRC).filter((k) => k !== "booking_link" || data.bookingLink).map((k) => <option key={k} value={k}>{SRC[k]}</option>)}
+                  </select>
+                  <input
+                    value={srcOf(i) === "text" ? typed[i] : exampleOf(srcOf(i))}
+                    disabled={srcOf(i) !== "text"}
+                    placeholder={v.example || ""}
+                    onChange={(e) => setParams((p) => { const next = [...(p[tplId] || [])]; next[i] = e.target.value; return { ...p, [tplId]: next }; })}
+                  />
+                </span>
               </label>
             ))}
           </div>

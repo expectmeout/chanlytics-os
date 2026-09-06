@@ -560,3 +560,37 @@ export async function syncTemplates(tenantId: string): Promise<SyncOutcome> {
   }
   return { ok: false, reason: j.error ? String(j.error) : `edge ${r.status}`, detail: j.detail };
 }
+
+/* ---- Templates written here: the edge submits to Meta and keeps the row ---- */
+
+export type TemplateCreateOutcome = { ok: true; id: string; metaStatus: string } | { ok: false; reason: string; detail?: string };
+
+export async function createTemplate(
+  tenantId: string,
+  userId: string,
+  t: { name: string; language: string; category: string; components: unknown[]; body: string; examples: string[] },
+): Promise<TemplateCreateOutcome> {
+  if (process.env.VERCEL_ENV !== "production") return { ok: false, reason: "preview" };
+  const r = await fetch(`${EDGE_BASE}/api/admin/whatsapp/templates-create`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
+    body: JSON.stringify({ tenant_id: tenantId, user_id: userId, ...t }),
+  });
+  const j = (await r.json().catch(() => ({}))) as { ok?: boolean; id?: string; meta_status?: string; error?: string; detail?: string };
+  if (r.ok && j.ok && j.id) return { ok: true, id: j.id, metaStatus: j.meta_status ?? "pending" };
+  return { ok: false, reason: j.error ? String(j.error) : `edge ${r.status}`, detail: j.detail };
+}
+
+export type TemplateDeleteOutcome = { ok: true; atMeta: boolean } | { ok: false; reason: string; detail?: string };
+
+export async function deleteTemplate(tenantId: string, templateId: string): Promise<TemplateDeleteOutcome> {
+  if (process.env.VERCEL_ENV !== "production") return { ok: false, reason: "preview" };
+  const r = await fetch(`${EDGE_BASE}/api/admin/whatsapp/templates-delete`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
+    body: JSON.stringify({ tenant_id: tenantId, template_id: templateId }),
+  });
+  const j = (await r.json().catch(() => ({}))) as { ok?: boolean; at_meta?: boolean; error?: string; detail?: string };
+  if (r.ok && j.ok) return { ok: true, atMeta: !!j.at_meta };
+  return { ok: false, reason: j.error ? String(j.error) : `edge ${r.status}`, detail: j.detail };
+}

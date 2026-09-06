@@ -11,10 +11,15 @@ import {
   eligibleFor,
   numberHealth,
   overLimitRefusal,
+  paramLabel,
+  parseParamSpec,
+  parseTenantConfig,
   toPersonRowVM,
+  type ParamSpec,
   type Audience,
   type AudienceKind,
 } from "@chanlytics/contracts";
+import type { Json } from "@chanlytics/db";
 import { withRoute, memberContext, requireRole } from "@/server/with-route";
 import { jsonBody } from "@/server/request-guards";
 import { recordDecision } from "@/server/verbs";
@@ -81,11 +86,24 @@ export const POST = withRoute(async (req, ctx) => {
   if (rawParams.length !== expected) {
     throw new AppError("validation", expected === 0 ? "This template takes no values." : `This template takes ${expected} value${expected === 1 ? "" : "s"}.`);
   }
-  const params: string[] = [];
+  // Each slot: typed text once, or a value the job fills per person.
+  const specs: ParamSpec[] = [];
   for (const p of rawParams) {
-    const v = cleanParam(p);
-    if (v === null) throw new AppError("validation", "Every value is needed, without line breaks or tabs, and under 1024 characters.");
-    params.push(v);
+    const spec = parseParamSpec(p);
+    if (!spec) throw new AppError("validation", "Each value is typed text, their first name, the business name, or the booking link.");
+    if (spec.kind === "text") {
+      const v = cleanParam(spec.value);
+      if (v === null) throw new AppError("validation", "Every value is needed, without line breaks or tabs, and under 1024 characters.");
+      specs.push({ kind: "text", value: v });
+    } else {
+      specs.push(spec);
+    }
+  }
+  if (specs.some((s) => s.kind === "booking_link")) {
+    const { data: cfgRow } = await ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle();
+    if (!parseTenantConfig(cfgRow?.config ?? null)?.brain?.booking_link) {
+      throw new AppError("conflict", "This message takes the booking link, and none is on file. Add it in Settings › Workspace first.", 409);
+    }
   }
 
   // 3. The audience, crossed with who said yes.
@@ -145,7 +163,7 @@ export const POST = withRoute(async (req, ctx) => {
     .from("broadcasts")
     .insert({
       tenant_id: tenantId, name, template_id: tpl.id, template_name: tpl.name, template_language: tpl.language,
-      params, audience: audienceJson, state: "scheduled", scheduled_for: when.toISOString(),
+      params: specs as unknown as Json, audience: audienceJson, state: "scheduled", scheduled_for: when.toISOString(),
       recipient_count: eligible.length, created_by: ctx.userId,
     })
     .select("id")
@@ -166,7 +184,7 @@ export const POST = withRoute(async (req, ctx) => {
     throw new AppError("upstream_meta", "The send could not be scheduled. Nothing was sent; try again.", 502, e instanceof Error ? e.message : undefined);
   }
   const decisionId = await recordDecision(ctx, tenantId, "broadcast", made.id, "send_broadcast", {
-    name, template: `${tpl.name}/${tpl.language}`, category: tpl.category, audience: audienceJson, recipients: eligible.length, scheduled_for: when.toISOString(),
+    name, template: `${tpl.name}/${tpl.language}`, category: tpl.category, audience: audienceJson, values: specs.map(paramLabel), recipients: eligible.length, scheduled_for: when.toISOString(),
   });
   return { id: made.id, name, state: "scheduled", recipient_count: eligible.length, scheduled_for: when.toISOString(), decision_id: decisionId };
 });
