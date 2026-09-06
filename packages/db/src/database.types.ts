@@ -1490,6 +1490,105 @@ export type Database = {
           },
         ]
       }
+      notification_marks: {
+        Row: {
+          dismissed_at: string | null
+          notification_id: string
+          read_at: string | null
+          user_id: string
+        }
+        Insert: {
+          dismissed_at?: string | null
+          notification_id: string
+          read_at?: string | null
+          user_id: string
+        }
+        Update: {
+          dismissed_at?: string | null
+          notification_id?: string
+          read_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_marks_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_reads: {
+        Row: {
+          seen_at: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          seen_at?: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          seen_at?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_reads_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          kind: string
+          route: string | null
+          subject_id: string | null
+          subject_type: string | null
+          tenant_id: string
+          title: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          kind: string
+          route?: string | null
+          subject_id?: string | null
+          subject_type?: string | null
+          tenant_id: string
+          title: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          route?: string | null
+          subject_id?: string | null
+          subject_type?: string | null
+          tenant_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_admins: {
         Row: {
           created_at: string
@@ -2049,6 +2148,11 @@ export type Database = {
         Args: { p_days?: number; p_tenant_id: string }
         Returns: Json
       }
+      notification_mark: {
+        Args: { p_dismissed?: boolean; p_id: string; p_read?: boolean }
+        Returns: Json
+      }
+      notifications_seen: { Args: { p_tenant_id: string }; Returns: Json }
       people_list: {
         Args: { p_contact_id?: string; p_tenant_id: string }
         Returns: {
@@ -2095,6 +2199,7 @@ export type Database = {
         Returns: number
       }
       purge_events: { Args: { p_keep?: string }; Returns: number }
+      purge_notifications: { Args: { p_keep?: string }; Returns: number }
       put_channel_credentials: {
         Args: { p_channel_id: string; p_secret: Json }
         Returns: string

@@ -167,8 +167,12 @@ async function alertStaff(
   reason: string,
   target: NotifyTarget,
   pauseHours = 24,
+  /** Where the bell sends the reader: the thread when it is known, else the Inbox. */
+  route = "inbox",
 ): Promise<void> {
   await notify(target, {
+    kind: "handoff",
+    route,
     subject: `WhatsApp handoff needed: +${threadId}`,
     body:
       `The WhatsApp assistant flagged a conversation for a human (${reason}).\n\n` +
@@ -939,7 +943,7 @@ async function handleInbound(
       thread.pausedUntil = Date.now() + pauseMs;
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
       post.push(sink.escalate(escalationReason, brainMeta?.reason ? `${brainMeta.reason} — "${bodyText}"` : bodyText));
-      post.push(alertStaff(from, bodyText, replyText, "assistant flagged handoff (reply held for review)", notifyTarget, pauseHours));
+      post.push(alertStaff(from, bodyText, replyText, "assistant flagged handoff (reply held for review)", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox"));
     }
     await Promise.all(post);
     await saveThread(ns, from, thread);
@@ -960,7 +964,7 @@ async function handleInbound(
       thread.pausedUntil = Date.now() + pauseMs;
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
       post.push(sink.escalate(escalationReason, brainMeta?.reason ? `${brainMeta.reason} — "${bodyText}"` : bodyText));
-      post.push(alertStaff(from, bodyText, replyText, "assistant flagged handoff", notifyTarget, pauseHours));
+      post.push(alertStaff(from, bodyText, replyText, "assistant flagged handoff", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox"));
     }
     await Promise.all(post);
     await saveThread(ns, from, thread);

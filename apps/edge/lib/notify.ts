@@ -23,6 +23,7 @@
  * needs configuring without the customer's words travelling to a stranger.
  */
 import type { NotificationsConfig } from "./workspace/contracts.js";
+import { pg } from "./pg.js";
 
 const RESEND = "https://api.resend.com/emails";
 const TIMEOUT_MS = 10_000;
@@ -38,6 +39,12 @@ export interface NotifyTarget {
 }
 
 export interface NotifyMessage {
+  /** The kept row's kind (contracts/notifications.ts); "alert" when not said. */
+  kind?: string;
+  /** Where the bell sends the reader — a hash route without "#/". */
+  route?: string | null;
+  /** What the row is about, when it is about one thing. */
+  about?: { type: string; id: string } | null;
   subject: string;
   /** The full message, which may quote a customer. Sent only to an address we
    *  know belongs to this tenant. */
@@ -116,7 +123,37 @@ export function chooseAddressing(
  * Deliver to the tenant this concerns, or tell the platform operator that we
  * could not. Returns whether anything was delivered.
  */
+/** The kinds the table accepts; anything else is kept as a plain alert. */
+const KEPT_KINDS = new Set(["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert"]);
+
+/**
+ * Keep the alert as a row the workspace can read on its bell, whether or not
+ * an email goes out — a workspace with no recipients configured still owns
+ * its own alerts (members read; the row is theirs under RLS). Never throws:
+ * losing the row must not lose the email.
+ */
+export async function recordNotification(
+  tenantId: string | null,
+  n: { kind?: string; title: string; body: string; route?: string | null; about?: { type: string; id: string } | null },
+): Promise<void> {
+  if (!tenantId) return;
+  const db = pg();
+  if (!db) return;
+  const kind = n.kind && KEPT_KINDS.has(n.kind) ? n.kind : "alert";
+  try {
+    const { error } = await db.from("notifications").insert({
+      tenant_id: tenantId, kind, title: n.title.slice(0, 200), body: n.body.slice(0, 4000),
+      route: n.route ?? null, subject_type: n.about?.type ?? null, subject_id: n.about?.id ?? null,
+    });
+    if (error) console.error("notification_record_failed", JSON.stringify({ tenant: tenantId, kind, error: error.message }));
+  } catch (e) {
+    console.error("notification_record_failed", JSON.stringify({ tenant: tenantId, kind, error: e instanceof Error ? e.message : String(e) }));
+  }
+}
+
 export async function notify(target: NotifyTarget, msg: NotifyMessage): Promise<boolean> {
+  // The row first: it is the workspace's own record, addressed or not.
+  await recordNotification(target.tenantId, { kind: msg.kind, title: msg.subject, body: msg.body, route: msg.route, about: msg.about });
   const addressing = chooseAddressing(target, { to: platformTo(), from: platformFrom() });
 
   switch (addressing.kind) {

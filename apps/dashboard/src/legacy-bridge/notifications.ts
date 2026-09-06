@@ -21,10 +21,13 @@ import {
   type FeedThread,
   type NotificationReadState,
   type NotificationRow,
+  type NotificationsDto,
+  SERVER_KEY_PREFIX,
+  serverNotificationRows,
 } from "@chanlytics/contracts";
-import { getActiveWorkspace } from "./surface-data";
+import { getActiveWorkspace, scoped } from "./surface-data";
 
-export const FEED_EVENTS = ["surface:inbox", "surface:live", "surface:settings", "surface:workspace"] as const;
+export const FEED_EVENTS = ["surface:inbox", "surface:live", "surface:settings", "surface:workspace", "surface:notifications"] as const;
 
 interface StorageLike {
   getItem(key: string): string | null;
@@ -35,6 +38,8 @@ interface Globals {
   INBOX_DATA?: { THREADS?: FeedThread[] };
   __LIVE?: { now?: FeedCall[]; recent?: FeedCall[] };
   __TEAM_INVITES?: FeedInvite[] | null;
+  /** The kept rows, from the notifications surface. */
+  __NOTIFICATIONS?: { dto: NotificationsDto } | null;
 }
 
 /** The row the popover draws: the mockup's own shape. */
@@ -124,6 +129,8 @@ export interface BellApi {
 export function installNotifications(
   win: Window & Globals = window as unknown as Window & Globals,
   storage: StorageLike | null = safeStorage(),
+  /** Re-reads the notifications surface after a mark lands; the app passes the runner's. */
+  refresh: () => Promise<void> = async () => {},
 ): BellApi {
   const listeners = new Set<() => void>();
   const emit = () => listeners.forEach((cb) => cb());
@@ -133,7 +140,19 @@ export function installNotifications(
     writeState(storage, ws(), { ...state(), ...patch });
     emit();
   };
-  const rows = () => applyReadState(feedFromGlobals(win, Date.now()), state());
+  // What the surfaces derive (read state on this device) beside what the
+  // workspace keeps (read state on the server), newest first.
+  const rows = () => [...applyReadState(feedFromGlobals(win, Date.now()), state()), ...serverNotificationRows(win.__NOTIFICATIONS?.dto)].sort((a, b) => b.at - a.at);
+  const isKept = (key: string) => key.startsWith(SERVER_KEY_PREFIX);
+  // A kept row's marks go to the server and the surface is re-read, so every
+  // device agrees; a failure here loses a mark, never a notification.
+  const mark = async (body: Record<string, unknown>) => {
+    try {
+      const res = await fetch(scoped("/api/v1/notifications"), { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      if (res.ok) await refresh();
+    } catch { /* the next read re-syncs */ }
+    emit();
+  };
 
   // Device alerts. The keys seen at the first computation are the backlog
   // and never alert; only what appears AFTER, while the app is not in view.
@@ -173,10 +192,10 @@ export function installNotifications(
   const api: BellApi = {
     feed: () => toRows(rows(), Date.now()),
     unread: () => rows().filter((r) => r.unread).length,
-    seenAll: () => save({ seenAt: Date.now() }),
-    read: (key) => save({ read: [...new Set([...state().read, key])] }),
-    dismiss: (key) => save({ dismissed: [...new Set([...state().dismissed, key])] }),
-    restore: (key) => save({ dismissed: state().dismissed.filter((k) => k !== key) }),
+    seenAll: () => { save({ seenAt: Date.now() }); void mark({ seen: true }); },
+    read: (key) => { if (isKept(key)) { void mark({ id: key.slice(SERVER_KEY_PREFIX.length), read: true }); return; } save({ read: [...new Set([...state().read, key])] }); },
+    dismiss: (key) => { if (isKept(key)) { void mark({ id: key.slice(SERVER_KEY_PREFIX.length), dismissed: true }); return; } save({ dismissed: [...new Set([...state().dismissed, key])] }); },
+    restore: (key) => { if (isKept(key)) { void mark({ id: key.slice(SERVER_KEY_PREFIX.length), dismissed: false }); return; } save({ dismissed: state().dismissed.filter((k) => k !== key) }); },
     alerts: () => {
       const N = (win as unknown as { Notification?: typeof Notification }).Notification;
       return { on: state().alerts && !!N && N.permission === "granted", can: !!N, permission: N ? N.permission : "unsupported" };

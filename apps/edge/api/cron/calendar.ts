@@ -16,6 +16,7 @@ import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
 import { feedItemsFor } from "../../lib/availability.js";
 import { addPeopleFromCalendar } from "../../lib/calendar-people.js";
+import { recordNotification } from "../../lib/notify.js";
 import { parseTenantConfig, peopleFromItems } from "../../lib/workspace/contracts.js";
 
 export const config = { maxDuration: 60 };
@@ -57,6 +58,8 @@ export async function POST(request: Request): Promise<Response> {
       const r = await addPeopleFromCalendar(db, row.tenant_id, people);
       out.seen += r.seen; out.added += r.added; out.named += r.named;
       if (r.added || r.named) L.info("calendar_people_added", { tenant_id: row.tenant_id, ...r });
+      // A row on the bell, not an email: people arriving is good news, not an alarm.
+      if (r.added) await recordNotification(row.tenant_id, { kind: "calendar_people", title: `${r.added} ${r.added === 1 ? "person" : "people"} added from your calendar`, body: `${r.added === 1 ? "An appointment" : "Appointments"} on your calendar carried a phone number nobody in People had. ${r.added === 1 ? "They are" : "They are all"} in People now, with consent unknown.`, route: "clients" });
     } catch (e) {
       out.failed += 1;
       L.error("calendar_sweep_failed", { tenant_id: row.tenant_id, error: e instanceof Error ? e.message : String(e) });

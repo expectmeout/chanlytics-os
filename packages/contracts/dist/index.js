@@ -1876,6 +1876,39 @@ function agoLabel(atMs, now) {
   return `${Math.round(h / 24)}d`;
 }
 var ALERT_KINDS = ["needs_you", "held_draft", "missed_call"];
+var SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert"];
+var SERVER_LOOK = {
+  handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
+  deadman: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
+  call: { icon: "phone", tone: "", action: "Open the calls", to: "conversations/phone" },
+  number: { icon: "shield", tone: "warn", action: "Open Integrations", to: "admin/integrations" },
+  sweep: { icon: "alert", tone: "warn", action: "Open Integrations", to: "admin/integrations" },
+  job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
+  playbook: { icon: "bolt", tone: "ok", action: "Open Playbooks", to: "outbound" },
+  calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
+  alert: { icon: "bell", tone: "", action: "Open Today", to: "today" }
+};
+var SERVER_KEY_PREFIX = "n:";
+function serverNotificationRows(dto) {
+  if (!dto) return [];
+  const seen = dto.seen_at ? Date.parse(dto.seen_at) : 0;
+  return dto.notifications.filter((n) => !n.dismissed).map((n) => {
+    const look = SERVER_LOOK[n.kind] ?? SERVER_LOOK.alert;
+    const at = Date.parse(n.created_at);
+    return {
+      key: `${SERVER_KEY_PREFIX}${n.id}`,
+      kind: SERVER_NOTIFICATION_KINDS.includes(n.kind) ? n.kind : "alert",
+      at,
+      title: n.title,
+      message: n.body.split("\n").find((l) => l.trim())?.trim().slice(0, 160) ?? "",
+      to: n.route ?? look.to,
+      icon: look.icon,
+      tone: look.tone,
+      action: look.action,
+      unread: at > seen && !n.read
+    };
+  });
+}
 
 // src/ask.ts
 import { z as z3 } from "zod";
@@ -4808,6 +4841,8 @@ export {
   REPORT_RANGES,
   ROLES,
   ROLE_PERMS,
+  SERVER_KEY_PREFIX,
+  SERVER_NOTIFICATION_KINDS,
   STARTER_LANGUAGES,
   STARTER_TEMPLATES,
   ServiceSchema,
@@ -4960,6 +4995,7 @@ export {
   sameQuestion,
   scheduleLine,
   scopeFromRoute,
+  serverNotificationRows,
   shiftKey,
   shiftMonth,
   shortTime,

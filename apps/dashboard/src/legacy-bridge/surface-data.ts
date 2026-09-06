@@ -12,6 +12,7 @@
 
 import { clearSurfaceCache } from "./surface-cache";
 import { DEFAULT_REFRESH_TABLES, type RealtimeChange } from "./surface-realtime";
+import type { NotificationsDto } from "@chanlytics/contracts";
 import type { PoliciesSurface, PolicyRecordLike } from "./policy-store";
 
 export interface SurfaceOverride {
@@ -975,6 +976,29 @@ export const reportsOverride: SurfaceOverride = {
       days,
       fetchedAt: Date.now(),
     };
+  },
+};
+
+/* ---------------------------- Notifications ------------------------------ */
+
+export interface NotificationsSurface {
+  dto: NotificationsDto;
+  fetchedAt: number;
+}
+
+/**
+ * Notifications: the month's kept rows and this person's seen moment. The
+ * bell reads them beside what it derives from the surfaces around it, and
+ * repaints as the edge writes a row.
+ */
+export const notificationsOverride: SurfaceOverride = {
+  key: "notifications",
+  globals: ["__NOTIFICATIONS"],
+  events: ["surface:notifications"],
+  refreshOnTables: ["notifications"],
+  apply: async () => {
+    const dto = await fetchEnvelope<NotificationsDto>("/api/v1/notifications");
+    (window as unknown as { __NOTIFICATIONS?: NotificationsSurface }).__NOTIFICATIONS = { dto, fetchedAt: Date.now() };
   },
 };
 

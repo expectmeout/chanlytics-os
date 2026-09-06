@@ -143,6 +143,6 @@ export async function handleWabaChange(
   }
   if (!described || !described.alert) return "kept";
   const target: NotifyTarget = { tenantId: routed.tenantId, notifications: await loadNotifications(routed.tenantId), isEnvDefault: false };
-  await notify(target, { subject: described.subject, body: described.body });
+  await notify(target, { kind: "number", route: "admin/integrations", subject: described.subject, body: described.body });
   return "alerted";
 }

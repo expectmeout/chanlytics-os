@@ -370,7 +370,7 @@ const Topbar = ({
   };
 
   const readAll = () => {
-    if (real) { real.seenAll(); flash({ msg: <>All caught up on this device</> }); return; }
+    if (real) { real.seenAll(); flash({ msg: <>All caught up</> }); return; }
     const prev = notifs;
     setNotifs(list => list.map(n => ({ ...n, unread: false })));
     flash({ msg: <>All notifications marked read</>, undo: () => setNotifs(prev) });
