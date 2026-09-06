@@ -597,3 +597,13 @@ test("what an answer shows is decided once: the Open button never repeats as a c
   assert.ok(loop.includes("await runRound(") && !loop.includes("for await (const ev of"), "the loop delegates the stream to round.ts");
   assert.ok(loop.includes("export function foldHistory("), "the history fold is a named rule, not a loop in the middle of a function");
 });
+
+test("REGRESSION: the assistant's tools fit under the edge gateway's cap — one tool too many refused every turn on production", () => {
+  const cap = Number(/GATEWAY_MAX_TOOLS = (\d+);/.exec(readCode("apps/edge/lib/ask-gateway.ts"))[1]);
+  const count = (src) => (src.match(/^\s+name: "[a-z_]+",$/gm) ?? []).length;
+  const reads = count(readCode("apps/dashboard/src/server/ask/tools.ts"));
+  const acts = count(readCode("apps/dashboard/src/server/ask/proposals.ts"));
+  const total = reads + acts; // the finish tool is counted among the reads' file
+  assert.ok(reads >= 14 && acts >= 10, `found ${reads} read and ${acts} act tools — the count regex no longer matches the files`);
+  assert.ok(total <= cap - 4, `${total} tools against a cap of ${cap}: leave room, or raise GATEWAY_MAX_TOOLS on the edge first`);
+});

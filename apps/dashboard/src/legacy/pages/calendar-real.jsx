@@ -131,7 +131,7 @@ const CrMonth = ({ vm, monthKey, feedOk, fit, onDay }) => {
 // receptionist would offer — the way a phone-first owner reads a day.
 const CrAgenda = ({ vm, feedOk, fit, service, onOpen }) => (
   <div className="cal-agenda" data-testid="cal-agenda">
-    {vm.days.map((d) => {
+    {vm.days.filter((d) => !d.past).slice(0, 14).map((d) => {
       const windows = d.windows.filter(fit);
       const items = [...d.allDay, ...d.blocks];
       return (
@@ -191,7 +191,7 @@ const CalendarReal = () => {
   const fit = (w) => !service || !service.duration || w.dur >= service.duration;
 
   const go = async (from, days) => {
-    if (!window.__calendar || busy) return;
+    if (!window.__calendar) return;
     setBusy(true);
     const ok = await window.__calendar.goTo(from, days);
     if (!ok) { setBusy(false); flash({ msg: <>That span could not be read — still showing {vm.rangeLabel}.</> }); }
