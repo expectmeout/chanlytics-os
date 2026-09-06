@@ -184,7 +184,7 @@ test("the profile: a Next visit fact and About rows when the calendar is connect
 
 test("the wiring: the board and the profile read one match; both receptionists are told; the panel says who it is for and where it comes from", () => {
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
-  assert.ok(svc.includes("export async function personVisits(") && svc.includes("const v = visitsOf(parsed.items, person, now.getTime());"), "the profile's visits, from the same feed and match");
+  assert.ok(svc.includes("export async function personVisits(") && svc.includes("const v = visitsOf(feed.parsed.items, person, now.getTime());"), "the profile's visits, from the same feed and match");
   assert.ok(svc.includes("source: feedSourceLabel(url)"), "the calendar's name, never its address");
   assert.ok(!svc.includes("personInTitle"), "the old name-only match is gone");
   const route = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
@@ -278,4 +278,86 @@ test("the profile: Added from your calendar, with the appointment that named the
   assert.equal(fromCal.about.find((a) => a.k === "Added").v, "Sep 6, 2026 · from your calendar (Maria Lopez - Balayage)");
   const byHand = toPersonVM({ ...detail(null), added: { at: "2026-09-06T14:00:00.000Z", source: "manual", title: null } }, now);
   assert.equal(byHand.about.find((a) => a.k === "Added").v, "Sep 6, 2026 · by hand");
+});
+
+test("a feed indexed once matches many people the same way the per-item matcher does: number first, whole name second", async () => {
+  const { indexFeed, visitsIn } = await import("@chanlytics/contracts");
+  const f = feed();
+  const index = indexFeed(f.items);
+  for (const p of PEOPLE) {
+    const a = visitsOf(f.items, p, NOW);
+    const b = visitsIn(index, p, NOW);
+    assert.deepEqual(b, a, p.id);
+  }
+  assert.equal(index.byPhone.get("+13055550134").length, 1);
+  assert.equal(index.texts.length, f.items.length);
+});
+
+test("Booked and Asked-never-booked are facts from the calendar on the row: the chip's day, the two lists, the two counts; without a calendar the lists do not exist", async () => {
+  const { toPersonRowVM, PEOPLE_LISTS, peopleAggregates } = await import("@chanlytics/contracts");
+  const now = new Date(NOW);
+  const next = { id: "b1:1", start: "2026-09-08T18:00:00.000Z", end: "2026-09-08T21:00:00.000Z", title: "Balayage", all_day: false, via: "phone" };
+  const last = { id: "b0:1", start: "2026-08-20T14:00:00.000Z", end: "2026-08-20T16:00:00.000Z", title: "Colour", all_day: false, via: "phone" };
+  const cal = (v) => ({ timezone: TZ, source: "Google Calendar", state: "ok", next: null, last: null, ...v });
+  const asked = { ...ROW, id: "a", last_inbound_at: "2026-09-04T12:00:00.000Z", last_call_at: null };
+  const booked = toPersonRowVM({ ...asked, id: "b", visits: cal({ next }) }, now);
+  assert.equal(booked.booked, true);
+  assert.equal(booked.nextVisitDay, "Tue, Sep 8");
+  assert.equal(booked.nextVisit, "Tue, Sep 8 · 2:00 – 5:00 PM · Balayage");
+  assert.equal(booked.askedNotBooked, false, "booked is not asked-never-booked");
+  const gap = toPersonRowVM({ ...asked, visits: cal({}) }, now);
+  assert.equal(gap.askedNotBooked, true, "wrote this month, the calendar never had them");
+  assert.equal(gap.askedMs, Date.parse("2026-09-04T12:00:00.000Z"));
+  const visited = toPersonRowVM({ ...asked, id: "v", visits: cal({ last }) }, now);
+  assert.equal(visited.askedNotBooked, false, "they have been on the calendar before");
+  assert.equal(visited.lastVisit, "Thu, Aug 20 · 10:00 AM – 12:00 PM · Colour");
+  const stale = toPersonRowVM({ ...asked, id: "s", last_inbound_at: "2026-07-01T12:00:00.000Z", visits: cal({}) }, now);
+  assert.equal(stale.askedNotBooked, false, "asked more than a month ago is not this list");
+  const noCal = toPersonRowVM({ ...asked, id: "n", visits: null }, now);
+  assert.equal(noCal.calendar, "none");
+  assert.equal(noCal.askedNotBooked, false, "no calendar: nothing to say");
+  const bookedList = PEOPLE_LISTS.find((l) => l.id === "booked");
+  const askedList = PEOPLE_LISTS.find((l) => l.id === "asked_never_booked");
+  assert.ok(bookedList.needsCalendar && askedList.needsCalendar, "shown only when the calendar is connected");
+  assert.ok(bookedList.test(booked) && !bookedList.test(gap));
+  assert.ok(askedList.test(gap) && !askedList.test(booked) && !askedList.test(visited));
+  assert.deepEqual([...PEOPLE_LISTS].map((l) => l.id).slice(0, 5), ["needs_you", "waiting_on_you", "new_week", "booked", "asked_never_booked"], "after the states, the outcome");
+  const agg = peopleAggregates([booked, gap, visited, stale, noCal], NOW);
+  assert.equal(agg.booked, 1);
+  assert.equal(agg.askedNotBooked, 1);
+});
+
+test("asked, then booked: the report's one conversion line, in words that say what was counted", async () => {
+  const { bookedAfterAsk, toBookingReportVM } = await import("@chanlytics/contracts");
+  const askedMs = Date.parse("2026-09-01T12:00:00.000Z");
+  const up = { id: "x", start: NOW + 86_400_000, end: NOW + 2 * 86_400_000, title: "Cut", allDay: false, via: "phone" };
+  assert.equal(bookedAfterAsk({ next: up, last: null }, askedMs), true, "an appointment ahead");
+  assert.equal(bookedAfterAsk({ next: null, last: { ...up, start: askedMs + 86_400_000, end: askedMs + 90_000_000 } }, askedMs), true, "held since they reached out");
+  assert.equal(bookedAfterAsk({ next: null, last: { ...up, start: askedMs - 30 * 86_400_000, end: askedMs - 29 * 86_400_000 } }, askedMs), false, "a visit before they asked does not answer the ask");
+  assert.equal(bookedAfterAsk(null, askedMs), false);
+  assert.deepEqual(toBookingReportVM({ calendar: "ok", days: 30, asked: 40, booked: 12 }), { present: true, headline: "12 of 40 booked", sub: "30% of the people who wrote or called in the last 30 days have an appointment on the calendar", pct: 30, asked: 40, booked: 12 });
+  assert.equal(toBookingReportVM({ calendar: "ok", days: 7, asked: 0, booked: 0 }).headline, "Nobody asked");
+  assert.equal(toBookingReportVM({ calendar: "none", days: 30, asked: 0, booked: 0 }).present, false);
+  assert.equal(toBookingReportVM(null).sub, "Connect your calendar under Settings › Workspace to see who booked.");
+  assert.equal(toBookingReportVM({ calendar: "unavailable", days: 30, asked: 5, booked: 0 }).sub, "Your calendar could not be read.");
+});
+
+test("the wiring: the list and the assistant carry appointments from one parsed feed; the report carries the line; Leads and the Deal board retire into People", () => {
+  const svc = readCode("apps/dashboard/src/server/calendar.ts");
+  assert.ok(svc.includes("const parsedFeeds = new Map<string, { text: string; tz: string; parsed: ParsedFeed }>();") && svc.includes("export async function peopleVisits(") && svc.includes("const index = indexFeed(feed.parsed.items);"), "one parse, indexed once, for everyone");
+  assert.ok(svc.includes("export async function bookingReport(") && svc.includes("bookedAfterAsk("));
+  assert.ok(readCode("apps/dashboard/app/api/v1/contacts/route.ts").includes("return withVisits(ctx, tenantId, await listPeople(ctx, tenantId));"), "the list carries visits and the calendar's state");
+  const rep = readCode("apps/dashboard/app/api/v1/reports/route.ts");
+  assert.ok(rep.includes(".then((rows) => bookingReport(ctx, tenantId, rows, days))") && rep.includes("return { report, booking };"), "never fatal to the report");
+  const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
+  assert.ok(tools.includes('list: { type: "string" }') && tools.includes("if (list && !list.test(toPersonRowVM(r, t.now))) return false;") && tools.includes("next_visit: r.visits?.next"), "the assistant answers who booked and who never did");
+  const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  assert.ok(sd.includes("lists: PEOPLE_LISTS.filter((l) => !l.needsCalendar || calendar.state === \"ok\")") && sd.includes("booking: toBookingReportVM(data.booking),"));
+  const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  assert.ok(reg.includes('leads: "clients",') && reg.includes('pipeline: "clients",') && reg.includes("w.__surfaceRetired = surfaceRetiredTo;"), "retired, and where to");
+  const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
+  assert.ok(shell.includes('if (retiredTo) window.location.hash = "/" + retiredTo;'), "a real workspace lands on People");
+  const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
+  assert.ok(page.includes('data-testid="row-booked">Booked · {p.nextVisitDay}') && page.includes('<StatCell label="Booked"') && page.includes("asked_never_booked:"), "the chip, the cell, the tips");
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/reports.jsx").includes('testid="chart-booking"'));
 });

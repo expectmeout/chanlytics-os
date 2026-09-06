@@ -1,6 +1,7 @@
 import { AppError, normalizePhone } from "@chanlytics/contracts";
 import { withRoute, memberContext, requireRole } from "@/server/with-route";
 import { listPeople } from "@/server/people";
+import { withVisits } from "@/server/calendar";
 import { takeRate } from "@/server/rate-limit";
 
 /**
@@ -16,7 +17,9 @@ import { takeRate } from "@/server/rate-limit";
  */
 export const GET = withRoute(async (req, ctx) => {
   const { tenantId } = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
-  return { people: await listPeople(ctx, tenantId) };
+  // Each person with their appointments from the owner's calendar, when one
+  // is connected: Booked is a fact here, not a stage. Never fatal to the list.
+  return withVisits(ctx, tenantId, await listPeople(ctx, tenantId));
 });
 
 /**

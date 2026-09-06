@@ -672,6 +672,8 @@ const PL_LIST_TIP = {
   phoned_only: "Only ever phoned — no WhatsApp thread",
   opted_in: "Said yes to offers by WhatsApp — the only people a broadcast may reach",
   opted_out: "Asked to stop; the receptionist stays silent",
+  booked: "An appointment ahead on your calendar — the booking is the conversion",
+  asked_never_booked: "Wrote or called in the last 30 days, and your calendar has never had them — the people you can still win",
 };
 
 const plAgo = (ms) => {
@@ -927,7 +929,10 @@ const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, o
                 </div>
               </div>
             </td>
-            <td className="shrink"><PeopleStatePill state={p.state} label={p.stateLabel} /></td>
+            <td className="shrink">
+              <PeopleStatePill state={p.state} label={p.stateLabel} />
+              {p.booked && <span className="cl-row-booked" title={p.nextVisit || ""} data-testid="row-booked">Booked · {p.nextVisitDay}</span>}
+            </td>
             <td className="shrink dim">{p.lastContact.label}</td>
             <td><PeopleReceptionist r={p.receptionist} /></td>
             <td className="shrink dim">{p.firstContact.label}</td>
@@ -1070,6 +1075,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null }) => {
               <StatCell label="People" value={agg.total} meta={agg.newThisMonth ? `+${agg.newThisMonth} this month` : "none new this month"} metaTone={agg.newThisMonth ? "pos" : ""} />
               <StatCell label="Needs you" value={agg.needsYou} meta={agg.needsYouOldestMs ? `oldest ${plAgo(agg.needsYouOldestMs)}` : "nobody waiting"} metaTone={agg.needsYou ? "neg" : ""} />
               <StatCell label="Reached this week" value={agg.reachedWeek} meta={`${agg.reachedWeekNew} new`} />
+              {people.calendar && people.calendar.state === "ok" && (
+                <StatCell label="Booked" tip="An appointment ahead on your calendar. The booking is the conversion Chanlytics counts" value={agg.booked} meta={agg.askedNotBooked ? `${agg.askedNotBooked} asked, never booked` : "nobody asked without booking"} metaTone={agg.askedNotBooked ? "neg" : ""} />
+              )}
             </StatStrip>
           </div>
 

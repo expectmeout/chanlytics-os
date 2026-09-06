@@ -92,4 +92,31 @@ test.describe("People on a real workspace", () => {
     await expect(page.getByText("This person is not in your workspace")).toBeVisible();
     await assertMeasuredOnly(page, "a missing profile");
   });
+
+  test("Booked and Asked-never-booked exist only with a calendar, as facts; Leads and the Deal board land on People", async ({ page }) => {
+    const list = await page.request.get("/api/v1/contacts");
+    const body = (await list.json()).data as { people: Array<{ visits?: unknown }>; calendar?: { state: string } };
+    expect(body.calendar).toBeTruthy();
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    const smart = await page.locator(".cl-rail-row.smart").allInnerTexts();
+    const has = (label: string) => smart.some((t) => t.includes(label));
+    if (body.calendar?.state === "ok") {
+      expect(has("Booked"), "a connected calendar shows the outcome lists").toBe(true);
+      expect(has("Asked, never booked")).toBe(true);
+      await expect(page.locator(".cl-head-stats .stat-cell", { hasText: "Booked" })).toHaveCount(1);
+      // Every Booked chip belongs to a person the route says has an appointment ahead.
+      const chips = await page.getByTestId("row-booked").count();
+      const ahead = body.people.filter((p) => (p.visits as { next?: unknown } | null)?.next).length;
+      expect(chips).toBe(ahead);
+    } else {
+      expect(has("Booked")).toBe(false);
+      expect(has("Asked, never booked")).toBe(false);
+    }
+    for (const gone of ["leads", "pipeline"]) {
+      await page.goto(`/#/${gone}`);
+      await expect.poll(() => new URL(page.url()).hash, { message: `${gone} retires into People` }).toBe("#/clients");
+      await expect(page.locator(".cl-page-title")).toHaveText("Clients");
+    }
+  });
 });

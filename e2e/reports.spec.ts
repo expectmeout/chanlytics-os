@@ -77,4 +77,17 @@ test.describe("Reports on a real workspace", () => {
     await expect(report.locator(".rp2-range .cl-tab", { hasText: "7 days" })).toHaveClass(/active/);
     await expect(report.getByText(/last 7 days|7 days/i).first()).toBeVisible();
   });
+
+  test("asked, then booked: one conversion line, from the calendar or honest about needing it", async ({ page }) => {
+    await page.goto("/#/reports");
+    await page.waitForLoadState("networkidle");
+    const card = page.getByTestId("chart-booking");
+    if (await card.count()) {
+      await expect(card).toContainText(/booked|Nobody asked|needs the calendar|could not be read/);
+    } else {
+      // An empty period hides the section; the route still carries the line.
+      const res = await page.request.get("/api/v1/reports?days=30");
+      expect((await res.json()).data).toHaveProperty("booking");
+    }
+  });
 });

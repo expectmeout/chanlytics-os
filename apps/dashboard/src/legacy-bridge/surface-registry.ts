@@ -33,9 +33,9 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
 
   // Render entirely from seed data. Each becomes one edited line here the day
   // its slice ships.
-  leads: "demo",
+  leads: "demo",     // retired into People: the booking is the conversion, and People shows who booked (SURFACE_RETIRED)
   segments: "real",  // People › Lists: the lists kept by hand and the computed ones, with their people
-  pipeline: "demo",
+  pipeline: "demo",  // retired into People, like leads
   calendar: "real",  // the owner's calendar as the receptionist reads it: taken, open, closed — a viewer, never a scheduler
   shared: "demo",   // the read-only report viewer — a share link over invented numbers
   tasks: "demo",
@@ -152,8 +152,27 @@ export function surfaceStateFor(page: string, param?: string | null): SurfaceSta
   return SURFACE_STATES[page];
 }
 
+/**
+ * Mockup surfaces a real workspace no longer has, and where they went. Leads
+ * and the Deal board assumed a sales team moving cards; Chanlytics counts the
+ * booked appointment as the conversion, and People now shows who booked and
+ * who asked and never did. A real workspace lands on People; the standalone
+ * mockup keeps its pages.
+ */
+export const SURFACE_RETIRED: Record<string, string> = {
+  leads: "clients",
+  pipeline: "clients",
+};
+
+export function surfaceRetiredTo(page: string): string | undefined {
+  return SURFACE_RETIRED[page];
+}
+
 export function installSurfaceRegistry(): void {
-  (window as unknown as {
+  const w = window as unknown as {
     __surfaceState?: (page: string, param?: string | null) => SurfaceState | undefined;
-  }).__surfaceState = surfaceStateFor;
+    __surfaceRetired?: (page: string) => string | undefined;
+  };
+  w.__surfaceState = surfaceStateFor;
+  w.__surfaceRetired = surfaceRetiredTo;
 }

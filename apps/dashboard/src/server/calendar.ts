@@ -4,8 +4,10 @@ import {
   eventText,
   extractContacts,
   feedSourceLabel,
+  bookedAfterAsk,
   freeWindows,
   guessName,
+  indexFeed,
   isDayKey,
   matchPerson,
   mondayOf,
@@ -24,6 +26,9 @@ import {
   type PersonLike,
   type PersonRowDto,
   type PersonVisitsDto,
+  type BookingReportDto,
+  type ParsedFeed,
+  visitsIn,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
 import { tenantFacts } from "@/server/tenant";
@@ -42,6 +47,35 @@ import { loadFeed } from "@/server/ask/openings";
  */
 /** Nine weeks: the window a page loads around the day it looks at. */
 const MAX_DAYS = 63;
+
+/**
+ * The feed parsed once per fetch. The board, a profile, the People list and
+ * the report all read it; `loadFeed` caches the text for a few minutes and
+ * this caches its parse for as long as the text is the same one.
+ */
+const parsedFeeds = new Map<string, { text: string; tz: string; parsed: ParsedFeed }>();
+
+async function parsedFeedFor(tenantId: string, url: string, tz: string, now: Date): Promise<{ parsed: ParsedFeed; at: number } | null> {
+  const feed = await loadFeed(tenantId, url);
+  if (!feed) return null;
+  const hit = parsedFeeds.get(tenantId);
+  if (hit && hit.text === feed.text && hit.tz === tz) return { parsed: hit.parsed, at: feed.at };
+  const parsed = parseIcs(feed.text, tz, { horizon: { from: now.getTime() - 90 * 86_400_000, to: now.getTime() + 90 * 86_400_000 } });
+  parsedFeeds.set(tenantId, { text: feed.text, tz, parsed });
+  return { parsed, at: feed.at };
+}
+
+/** The workspace's calendar, as the people surfaces need it: its address (kept here), zone and name. */
+async function calendarOf(ctx: RouteContext, tenantId: string): Promise<{ url: string | null; timezone: string; source: string }> {
+  const [{ timezone }, { data: row, error }] = await Promise.all([
+    tenantFacts(ctx.supabase, tenantId),
+    ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+  ]);
+  if (error) throw new Error(error.message);
+  const url = parseTenantConfig(row?.config ?? null)?.calendar?.ical_url ?? null;
+  // Server-side only: the address feeds the reads in this module and is never part of a response.
+  return { url, timezone, source: feedSourceLabel(url) };
+}
 
 export function spanFor(from: string | null, days: number, tz: string, now: Date): { from: string; days: number } {
   const todayKey = ((): string => {
@@ -142,23 +176,19 @@ export async function calendarWeek(ctx: RouteContext, tenantId: string, by: { fr
   };
   if (!url) return base;
 
-  const feed = await loadFeed(tenantId, url);
-  if (!feed) return base;
-
-  // The horizon covers the span AND the openings' reach from now, so the
-  // windows are the receptionist's own — never computed from a feed cut
-  // short of what it would see.
-  const daysAhead = rules?.max_days_ahead ?? 14;
-  const spanStart = zoneMidnight(timezone, span.from);
-  const spanEnd = zoneMidnight(timezone, shiftKey(to, 1));
-  const horizon = { from: Math.min(spanStart, now.getTime()) - 86_400_000, to: Math.max(spanEnd, now.getTime() + (daysAhead + 1) * 86_400_000) };
-  let parsed;
+  // One parse per fetch, shared with the profile, the People list and the
+  // report. Its horizon — ninety days either side — covers any span the page
+  // asks for and the openings' reach from now, so the windows are the
+  // receptionist's own, never computed from a feed cut short.
+  let feed;
   try {
-    parsed = parseIcs(feed.text, timezone, { horizon });
+    feed = await parsedFeedFor(tenantId, url, timezone, now);
   } catch (e) {
     console.error("calendar_parse_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
-    return { ...base, feed: { ...base.feed, read_at: new Date(feed.at).toISOString() } };
+    feed = null;
   }
+  if (!feed) return base;
+  const parsed = feed.parsed;
   const serviceNames = (profile?.services ?? []).map((s) => s.name);
   const people = (await listPeople(ctx, tenantId).catch(() => [])).map(personLike);
   // The people this feed names are put in People here, so the board an
@@ -232,21 +262,86 @@ export async function previewFeed(url: string, tz: string, now = new Date()): Pr
  * booked past the receptionist's own offering window.
  */
 export async function personVisits(ctx: RouteContext, tenantId: string, person: PersonLike, now = new Date()): Promise<PersonVisitsDto | null> {
-  const { data: row, error } = await ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle();
-  if (error) throw new Error(error.message);
-  const url = parseTenantConfig(row?.config ?? null)?.calendar?.ical_url ?? null;
+  const { url, timezone, source } = await calendarOf(ctx, tenantId);
   if (!url) return null;
-  const { timezone } = await tenantFacts(ctx.supabase, tenantId);
-  const source = feedSourceLabel(url);
-  const feed = await loadFeed(tenantId, url);
-  if (!feed) return { timezone, source, state: "unavailable", next: null, last: null };
-  let parsed;
+  let feed;
   try {
-    parsed = parseIcs(feed.text, timezone, { horizon: { from: now.getTime() - 90 * 86_400_000, to: now.getTime() + 60 * 86_400_000 } });
+    feed = await parsedFeedFor(tenantId, url, timezone, now);
   } catch (e) {
     console.error("calendar_parse_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
-    return { timezone, source, state: "unavailable", next: null, last: null };
+    feed = null;
   }
-  const v = visitsOf(parsed.items, person, now.getTime());
+  if (!feed) return { timezone, source, state: "unavailable", next: null, last: null };
+  const v = visitsOf(feed.parsed.items, person, now.getTime());
   return { timezone, source, state: "ok", next: toVisitDto(v.next), last: toVisitDto(v.last) };
+}
+
+/* ---- Everyone's appointments, for the list and the report ---- */
+
+export interface PeopleVisits {
+  calendar: { state: "ok" | "unavailable" | "none"; source: string; timezone: string };
+  /** By contact id; absent without a readable calendar. */
+  visits: Map<string, PersonVisitsDto>;
+}
+
+/**
+ * The next and last appointment of everyone on the list, from one parsed
+ * feed indexed once — the number first, the whole name second — so a list
+ * of hundreds costs one read of the calendar, not hundreds.
+ */
+export async function peopleVisits(ctx: RouteContext, tenantId: string, rows: PersonRowDto[], now = new Date()): Promise<PeopleVisits> {
+  const { url, timezone, source } = await calendarOf(ctx, tenantId);
+  const visits = new Map<string, PersonVisitsDto>();
+  if (!url) return { calendar: { state: "none", source, timezone }, visits };
+  let feed;
+  try {
+    feed = await parsedFeedFor(tenantId, url, timezone, now);
+  } catch (e) {
+    console.error("calendar_parse_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
+    feed = null;
+  }
+  if (!feed) return { calendar: { state: "unavailable", source, timezone }, visits };
+  const index = indexFeed(feed.parsed.items);
+  const nowMs = now.getTime();
+  for (const r of rows) {
+    const v = visitsIn(index, personLike(r), nowMs);
+    visits.set(r.id, { timezone, source, state: "ok", next: toVisitDto(v.next), last: toVisitDto(v.last) });
+  }
+  return { calendar: { state: "ok", source, timezone }, visits };
+}
+
+/** The rows with their appointments attached, the way the People list and the assistant read them. */
+export async function withVisits(ctx: RouteContext, tenantId: string, rows: PersonRowDto[], now = new Date()): Promise<{ people: PersonRowDto[]; calendar: PeopleVisits["calendar"] }> {
+  const pv = await peopleVisits(ctx, tenantId, rows, now).catch((e: unknown) => {
+    console.error("people_visits_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
+    return null;
+  });
+  if (!pv) return { people: rows.map((r) => ({ ...r, visits: null })), calendar: { state: "none", source: "your calendar", timezone: "UTC" } };
+  return {
+    people: rows.map((r) => ({ ...r, visits: pv.calendar.state === "ok" ? (pv.visits.get(r.id) ?? null) : pv.calendar.state === "unavailable" ? { timezone: pv.calendar.timezone, source: pv.calendar.source, state: "unavailable", next: null, last: null } : null })),
+    calendar: pv.calendar,
+  };
+}
+
+/**
+ * Asked, then booked: of the people who wrote or called in the period, how
+ * many have an appointment on the calendar — upcoming, or held since they
+ * reached out. The one conversion line Reports carries.
+ */
+export async function bookingReport(ctx: RouteContext, tenantId: string, rows: PersonRowDto[], days: number, now = new Date()): Promise<BookingReportDto> {
+  const pv = await peopleVisits(ctx, tenantId, rows, now);
+  const nowMs = now.getTime();
+  const since = nowMs - days * 86_400_000;
+  let asked = 0;
+  let booked = 0;
+  for (const r of rows) {
+    const cands = [r.last_inbound_at, r.last_call_at].map((x) => (x ? Date.parse(x) : NaN)).filter((x) => Number.isFinite(x));
+    if (!cands.length) continue;
+    const askedMs = Math.max(...cands);
+    if (askedMs < since) continue;
+    asked += 1;
+    const v = pv.visits.get(r.id);
+    if (v && bookedAfterAsk({ next: v.next ? { ...v.next, start: Date.parse(v.next.start), end: Date.parse(v.next.end), allDay: v.next.all_day } : null, last: v.last ? { ...v.last, start: Date.parse(v.last.start), end: Date.parse(v.last.end), allDay: v.last.all_day } : null }, askedMs)) booked += 1;
+  }
+  return { calendar: pv.calendar.state, days, asked, booked };
 }

@@ -2820,13 +2820,16 @@ function extractContacts(item) {
   return { phones: [...phones], emails: [...emails], names: [...names] };
 }
 var escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function nameMatcher(name) {
+  const n = name.trim();
+  if (n.length < 4 || /^[+\d(]/.test(n)) return null;
+  return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(n)}(?=$|[^\\p{L}\\p{N}])`, "iu");
+}
 function personInText(text, people) {
   let best = null;
   for (const p of people) {
-    const n = p.name.trim();
-    if (n.length < 4 || /^[+\d(]/.test(n)) continue;
-    const re = new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(n)}(?=$|[^\\p{L}\\p{N}])`, "iu");
-    if (re.test(text) && (!best || n.length > best.name.trim().length)) best = p;
+    const re = nameMatcher(p.name);
+    if (re && re.test(text) && (!best || p.name.trim().length > best.name.trim().length)) best = p;
   }
   return best;
 }
@@ -2844,18 +2847,37 @@ function matchPerson(item, people) {
   const p = personInText([item.title, ...c.names, item.description ?? ""].join("\n"), people);
   return p ? { id: p.id, name: labelOf(p), via: "name" } : null;
 }
-function visitsOf(items, person, nowMs) {
+function indexFeed(items) {
+  const byPhone = /* @__PURE__ */ new Map();
+  const texts = [];
+  for (const it of items) {
+    const c = extractContacts(it);
+    for (const ph of c.phones) byPhone.set(ph, [...byPhone.get(ph) ?? [], it]);
+    texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
+  }
+  return { byPhone, texts };
+}
+function visitsIn(index, person, nowMs) {
   let next = null;
   let last = null;
-  for (const it of items) {
-    const m = matchPerson(it, [person]);
-    if (!m) continue;
-    const v = { id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`, start: it.start, end: it.end, title: it.title || "Busy", allDay: it.allDay, via: m.via };
+  const seen = /* @__PURE__ */ new Set();
+  const take = (it, via) => {
+    if (seen.has(it)) return;
+    seen.add(it);
+    const v = { id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`, start: it.start, end: it.end, title: it.title || "Busy", allDay: it.allDay, via };
     if (it.end >= nowMs) {
       if (!next || v.start < next.start) next = v;
     } else if (!last || v.end > last.end) last = v;
+  };
+  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
+  const re = nameMatcher(person.name);
+  if (re) {
+    for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
   }
   return { next, last };
+}
+function visitsOf(items, person, nowMs) {
+  return visitsIn(indexFeed(items), person, nowMs);
 }
 var ms = (t) => typeof t === "number" ? t : Date.parse(t);
 function visitDay(start, tz, nowMs) {
@@ -2956,6 +2978,25 @@ function peopleFromItems(items, services, nowMs, window = {}) {
     }
   }
   return [...byPhone.values()].sort((a, b) => a.start - b.start);
+}
+function bookedAfterAsk(visits, askedMs) {
+  if (!visits) return false;
+  if (visits.next) return true;
+  return !!visits.last && visits.last.start >= askedMs - 864e5;
+}
+function toBookingReportVM(dto) {
+  if (!dto || dto.calendar === "none") return { present: false, headline: "\u2014", sub: "Connect your calendar under Settings \u203A Workspace to see who booked.", pct: null, asked: 0, booked: 0 };
+  if (dto.calendar === "unavailable") return { present: false, headline: "\u2014", sub: "Your calendar could not be read.", pct: null, asked: dto.asked, booked: 0 };
+  if (dto.asked === 0) return { present: true, headline: "Nobody asked", sub: `nobody wrote or called in the last ${dto.days} days`, pct: null, asked: 0, booked: 0 };
+  const pct2 = Math.round(dto.booked / dto.asked * 100);
+  return {
+    present: true,
+    headline: `${dto.booked} of ${dto.asked} booked`,
+    sub: `${pct2}% of the people who wrote or called in the last ${dto.days} days have an appointment on the calendar`,
+    pct: pct2,
+    asked: dto.asked,
+    booked: dto.booked
+  };
 }
 
 // src/people.ts
@@ -3128,6 +3169,12 @@ function toPersonRowVM(r, now = /* @__PURE__ */ new Date()) {
   const last = lastContactOf(r, nowMs);
   const first = firstContactOf(r, nowMs);
   const consent = consentOf(r, nowMs);
+  const v = r.visits ?? null;
+  const calendar = v ? v.state : "none";
+  const askedCandidates = [ts(r.last_inbound_at), ts(r.last_call_at)].filter((x) => x !== null);
+  const askedMs = askedCandidates.length ? Math.max(...askedCandidates) : null;
+  const booked = !!v?.next;
+  const askedNotBooked = calendar === "ok" && askedMs !== null && nowMs - askedMs <= MONTH_MS && !v?.next && !v?.last;
   const stateDetail = state === "needs_you" ? r.open_escalation_reason ? reasonShort(r.open_escalation_reason) : "waiting for a person" : state === "waiting_on_you" ? "you own the thread and they wrote last" : state === "opted_out" ? consent.sub : state === "new" ? `first contact ${first.label}` : state === "quiet" ? last.ts === null ? "no contact recorded" : `last contact ${ago(last.ts, nowMs)}` : "";
   return {
     id: r.id,
@@ -3151,13 +3198,24 @@ function toPersonRowVM(r, now = /* @__PURE__ */ new Date()) {
     escalations: r.escalation_count ?? 0,
     callSeconds: r.call_seconds ?? 0,
     threadId: r.has_chat && r.latest_conversation_id ? `th-${r.latest_conversation_id}` : null,
-    needsYouSinceMs: ts(r.open_escalation_since)
+    needsYouSinceMs: ts(r.open_escalation_since),
+    calendar,
+    booked,
+    nextVisitDay: v?.next ? visitDay(v.next.start, v.timezone, nowMs) : null,
+    nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} \xB7 ${v.next.title}` : null,
+    lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} \xB7 ${v.last.title}` : null,
+    askedMs,
+    askedNotBooked
   };
 }
 var PEOPLE_LISTS = [
   { id: "needs_you", label: "Needs you", test: (v) => v.state === "needs_you" },
   { id: "waiting_on_you", label: "Waiting on you", test: (v) => v.state === "waiting_on_you" },
   { id: "new_week", label: "New this week", test: (v) => v.state === "new" },
+  // The outcome, from the calendar: the booking is the conversion, and the
+  // people who asked and never booked are the ones an owner can still win.
+  { id: "booked", label: "Booked", needsCalendar: true, test: (v) => v.booked },
+  { id: "asked_never_booked", label: "Asked, never booked", needsCalendar: true, test: (v) => v.askedNotBooked },
   { id: "quiet", label: "Quiet 30+ days", test: (v) => v.state === "quiet" },
   { id: "phoned_only", label: "Phoned only", test: (v) => !v.hasChat && v.calls > 0 },
   // A fact, not the state: someone who opted out AND needs you is in both lists.
@@ -3171,7 +3229,11 @@ function peopleAggregates(rows, nowMs) {
   let newThisMonth = 0;
   let reachedWeek = 0;
   let reachedWeekNew = 0;
+  let booked = 0;
+  let askedNotBooked = 0;
   for (const v of rows) {
+    if (v.booked) booked++;
+    if (v.askedNotBooked) askedNotBooked++;
     if (v.state === "needs_you") {
       needsYou++;
       if (v.needsYouSinceMs !== null && (oldest === null || v.needsYouSinceMs < oldest)) oldest = v.needsYouSinceMs;
@@ -3182,7 +3244,7 @@ function peopleAggregates(rows, nowMs) {
       if (v.state === "new") reachedWeekNew++;
     }
   }
-  return { total: rows.length, needsYou, needsYouOldestMs: oldest, newThisMonth, reachedWeek, reachedWeekNew };
+  return { total: rows.length, needsYou, needsYouOldestMs: oldest, newThisMonth, reachedWeek, reachedWeekNew, booked, askedNotBooked };
 }
 var RECENCY_BUCKETS = [
   { label: "today", max: 1 },
@@ -3230,7 +3292,8 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
     // profile used to count one more than the list.
     call_count: d.calls.length ? d.calls.filter((k) => k.status !== "not_connected").length : d.row.call_count,
     call_seconds: d.calls.length ? Math.round(d.calls.filter((k) => k.status !== "not_connected").reduce((a, k) => a + (k.duration_ms ?? 0), 0) / 1e3) : d.row.call_seconds,
-    escalation_count: d.escalations.length || d.row.escalation_count
+    escalation_count: d.escalations.length || d.row.escalation_count,
+    visits: d.visits ?? d.row.visits ?? null
   };
   const base = toPersonRowVM(row, now);
   const first = /^[+\d(]/.test(base.name) ? base.name : base.name.split(" ")[0] || base.name;
@@ -4644,6 +4707,7 @@ export {
   applySettingsChange,
   asPersonMode,
   askJump,
+  bookedAfterAsk,
   brainMetaOf,
   broadcastName,
   buildAskSuggestions,
@@ -4703,6 +4767,7 @@ export {
   hasProfile,
   hoursLines2 as hoursLines,
   hoursRuns,
+  indexFeed,
   initialsOf,
   isDayKey,
   isHeldDraft,
@@ -4785,6 +4850,7 @@ export {
   templateNameOk,
   templateTitle,
   threadStanding,
+  toBookingReportVM,
   toBroadcastVM,
   toCalendarVM,
   toCallVM,
@@ -4805,6 +4871,7 @@ export {
   visitDay,
   visitLine,
   visitTime,
+  visitsIn,
   visitsOf,
   waWindow,
   whenLabel,
