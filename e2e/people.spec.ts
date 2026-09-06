@@ -14,7 +14,7 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
  */
 
 /** Words that only ever described invented numbers. */
-const INVENTED_VOCABULARY = ["LTV", "Health index", "Total book", "Active touches", "therapist", "Sessions left", "Next visit", "Cadence", "Temperature"];
+const INVENTED_VOCABULARY = ["LTV", "Health index", "Total book", "Active touches", "therapist", "Sessions left", "Cadence", "Temperature"];
 /** People who exist only in the design seeds. */
 const INVENTED_PEOPLE = ["Aisha Khan", "David Chen", "@thewellness.co", "Maya Rodriguez", "Gabby Moreno", "Jordan Patel"];
 
