@@ -81,14 +81,15 @@ test.describe("Calendar on a real workspace", () => {
     await board.getByTestId("cal-view-month").click();
     await month;
     await expect(board.getByTestId("cal-month")).toBeVisible();
-    expect(await board.getByTestId("cal-month-cell").count()).toBe(42);
+    // The request was only sent; the six weeks paint when it lands — let the count wait.
+    await expect(board.getByTestId("cal-month-cell")).toHaveCount(42);
     await expect(board.getByTestId("cal-range")).toContainText(/\d{4}/);
 
     const agenda = page.waitForRequest((r) => r.url().includes("/api/v1/calendar") && r.url().includes("days=14") && r.method() === "GET");
     await board.getByTestId("cal-view-agenda").click();
     await agenda;
     await expect(board.getByTestId("cal-agenda")).toBeVisible();
-    expect(await board.getByTestId("cal-agenda-day").count()).toBe(14);
+    await expect(board.getByTestId("cal-agenda-day")).toHaveCount(14);
     await expect(board.getByTestId("cal-jump")).toBeVisible();
   });
 });
