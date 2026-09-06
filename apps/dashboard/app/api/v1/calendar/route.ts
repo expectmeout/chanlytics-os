@@ -12,8 +12,11 @@ import { calendarWeek } from "@/server/calendar";
 export const GET = withRoute(async (req, ctx) => {
   takeRate(ctx.userId, "aggregate");
   const url = new URL(req.url);
-  const { tenantId } = await memberContext(ctx, url.searchParams.get("workspace"));
+  const member = await memberContext(ctx, url.searchParams.get("workspace"));
   const from = url.searchParams.get("from");
   const days = Number(url.searchParams.get("days") ?? 7);
-  return { calendar: await calendarWeek(ctx, tenantId, { from, days }) };
+  // An owner or operator opening the board puts the people its appointments
+  // name in People; a viewer's read changes nothing.
+  const canAct = member.role === "owner" || member.role === "operator";
+  return { calendar: await calendarWeek(ctx, member.tenantId, { from, days }, new Date(), { canAct }) };
 });

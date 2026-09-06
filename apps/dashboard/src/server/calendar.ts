@@ -11,6 +11,7 @@ import {
   mondayOf,
   parseIcs,
   parseTenantConfig,
+  peopleFromItems,
   shiftKey,
   toVisitDto,
   visitsOf,
@@ -84,7 +85,31 @@ export function itemsToDays(items: FeedItem[], from: string, days: number, tz: s
   return out;
 }
 
-export async function calendarWeek(ctx: RouteContext, tenantId: string, by: { from: string | null; days: number }, now = new Date()): Promise<CalendarWeekDto> {
+/**
+ * The people the feed names by phone who are not in People yet, added
+ * through the `create_person` door — owner or operator only, which is what
+ * `canAct` says; a viewer's read changes nothing. Capped per read: the
+ * hourly sweep on the edge takes the rest. Never fatal to the board.
+ */
+async function addPeopleSeen(ctx: RouteContext, tenantId: string, items: FeedItem[], services: string[], people: PersonLike[], now: Date): Promise<PersonLike[]> {
+  const have = new Set(people.map((p) => p.phone).filter(Boolean));
+  const rows = peopleFromItems(items, services, now.getTime()).filter((r) => !have.has(r.phone)).slice(0, 40);
+  const added: PersonLike[] = [];
+  for (const r of rows) {
+    // The door records the `contact.added` event itself (members cannot
+    // insert events), with the appointment that named them.
+    const { data, error } = await ctx.supabase.rpc("create_person", { p_tenant_id: tenantId, p_phone_e164: r.phone, p_display_name: r.name ?? "", p_source: "calendar", p_title: r.title });
+    if (error) {
+      console.error("calendar_person_add_failed", JSON.stringify({ tenant: tenantId, error: error.message }));
+      break;
+    }
+    const out = data as { contact_id: string; existed: boolean };
+    added.push({ id: out.contact_id, name: r.name ?? "", phone: r.phone });
+  }
+  return added;
+}
+
+export async function calendarWeek(ctx: RouteContext, tenantId: string, by: { from: string | null; days: number }, now = new Date(), opts: { canAct?: boolean } = {}): Promise<CalendarWeekDto> {
   const { timezone } = await tenantFacts(ctx.supabase, tenantId);
   const span = spanFor(by.from, by.days, timezone, now);
   const { data: row, error } = await ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle();
@@ -134,8 +159,13 @@ export async function calendarWeek(ctx: RouteContext, tenantId: string, by: { fr
     console.error("calendar_parse_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
     return { ...base, feed: { ...base.feed, read_at: new Date(feed.at).toISOString() } };
   }
+  const serviceNames = (profile?.services ?? []).map((s) => s.name);
   const people = (await listPeople(ctx, tenantId).catch(() => [])).map(personLike);
-  const days = itemsToDays(parsed.items, span.from, span.days, timezone, people, (profile?.services ?? []).map((s) => s.name));
+  // The people this feed names are put in People here, so the board an
+  // owner is looking at already links to them; the hourly sweep does the
+  // same for everyone else, and for a feed nobody opens.
+  if (opts.canAct) people.push(...await addPeopleSeen(ctx, tenantId, parsed.items, serviceNames, people, now).catch((e: unknown) => { console.error("calendar_people_seen_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) })); return []; }));
+  const days = itemsToDays(parsed.items, span.from, span.days, timezone, people, serviceNames);
   const openings = profile ? freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy: parsed.busy, rules, now }) : [];
   const windowsOf = new Map(openings.map((o) => [o.key, o.windows]));
   return {

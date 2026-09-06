@@ -2929,6 +2929,34 @@ function guessName(item, services = []) {
   }
   return null;
 }
+function peopleFromItems(items, services, nowMs, window = {}) {
+  const from = nowMs - (window.backDays ?? 30) * 864e5;
+  const to = nowMs + (window.aheadDays ?? 90) * 864e5;
+  const byPhone = /* @__PURE__ */ new Map();
+  const better = (a, b) => {
+    const aUp = a.start >= nowMs;
+    const bUp = b.start >= nowMs;
+    if (aUp !== bUp) return aUp;
+    return aUp ? a.start < b.start : a.start > b.start;
+  };
+  for (const it of items) {
+    if (it.end < from || it.start > to) continue;
+    const phones = extractContacts(it).phones;
+    if (!phones.length) continue;
+    const name = guessName(it, services);
+    for (const phone of phones) {
+      const row = { phone, name, title: it.title || "Busy", uid: it.uid, start: it.start };
+      const have = byPhone.get(phone);
+      if (!have) {
+        byPhone.set(phone, row);
+        continue;
+      }
+      if (better(row, have)) byPhone.set(phone, { ...row, name: row.name ?? have.name });
+      else if (!have.name && row.name) byPhone.set(phone, { ...have, name: row.name });
+    }
+  }
+  return [...byPhone.values()].sort((a, b) => a.start - b.start);
+}
 
 // src/people.ts
 var PERSON_MODES = ["auto", "ask", "never"];
@@ -3351,6 +3379,10 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
     });
     about.push({ k: "Next visit", v: nextLine });
     if (v.last) about.push({ k: "Last visit", v: `${visitLine(v.last, v.timezone, nowMs)} \xB7 ${v.last.title}` });
+  }
+  if (d.added) {
+    const at = ts(d.added.at);
+    about.push({ k: "Added", v: `${at !== null ? DATE_YEAR_FMT.format(new Date(at)) : "\u2014"} \xB7 ${d.added.source === "calendar" ? `from your calendar${d.added.title ? ` (${d.added.title})` : ""}` : "by hand"}` });
   }
   return {
     ...base,
@@ -4711,6 +4743,7 @@ export {
   parseTenantConfigResult,
   partialAnswer,
   peopleAggregates,
+  peopleFromItems,
   personInText,
   personName,
   personStateFor,

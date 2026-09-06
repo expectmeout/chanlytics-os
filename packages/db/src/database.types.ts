@@ -1935,6 +1935,7 @@ export type Database = {
           p_phone_e164: string
           p_source: string
           p_tenant_id: string
+          p_title?: string
         }
         Returns: Json
       }
@@ -2165,6 +2166,7 @@ export type Database = {
           role: string
         }[]
       }
+      trigger_calendar_sweep: { Args: never; Returns: number }
       trigger_call_reconcile: { Args: never; Returns: number }
       trigger_deadman_sweep: { Args: never; Returns: number }
       trigger_playbooks_sweep: { Args: never; Returns: number }

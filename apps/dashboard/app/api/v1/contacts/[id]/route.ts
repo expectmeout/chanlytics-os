@@ -193,7 +193,7 @@ export const GET = withRoute(async (req, ctx) => {
   if (!row) throw new AppError("not_found", "This person is not in your workspace.", 404);
 
   const sb = ctx.supabase;
-  const [idents, convs, calls, personPol, wsPol] = await Promise.all([
+  const [idents, convs, calls, personPol, wsPol, added] = await Promise.all([
     sb.from("contact_identities").select("channel, external_id, created_at").eq("contact_id", id).order("created_at"),
     sb.from("conversations").select(CONVERSATION_COLUMNS).eq("tenant_id", tenantId).eq("contact_id", id)
       .order("last_message_at", { ascending: false, nullsFirst: false }),
@@ -204,6 +204,10 @@ export const GET = withRoute(async (req, ctx) => {
       .eq("subject_type", "contact").eq("subject_id", id).maybeSingle(),
     sb.from("policies").select("mode").eq("tenant_id", tenantId).eq("class", "reply")
       .is("subject_type", null).maybeSingle(),
+    // Where they came from, when it was not a message or a call: the
+    // calendar sweep records the appointment that named them.
+    sb.from("events").select("data, created_at").eq("tenant_id", tenantId).eq("kind", "contact.added")
+      .eq("subject_type", "contact").eq("subject_id", id).order("created_at").limit(1).maybeSingle(),
   ]);
   if (idents.error) throw new Error(idents.error.message);
   if (personPol.error) throw new Error(personPol.error.message);
@@ -251,6 +255,9 @@ export const GET = withRoute(async (req, ctx) => {
     receptionist_mode: personPol.data?.mode ?? null,
     workspace_reply_mode: wsPol.data?.mode ?? null,
     visits: visits ?? undefined,
+    added: added.data
+      ? { at: added.data.created_at, source: String((added.data.data as { source?: unknown } | null)?.source ?? "manual"), title: typeof (added.data.data as { title?: unknown } | null)?.title === "string" ? String((added.data.data as { title: string }).title) : null }
+      : undefined,
   };
   return { person };
 });
