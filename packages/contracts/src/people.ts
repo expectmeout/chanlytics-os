@@ -440,6 +440,12 @@ export interface PersonRowVM {
   askedMs: number | null;
   /** Wrote or called in the last 30 days, and the calendar has never had them. */
   askedNotBooked: boolean;
+  nextVisitMs: number | null;
+  lastVisitMs: number | null;
+  /** Days until the next appointment (0 = today); null without one. */
+  nextVisitDays: number | null;
+  /** Days since the last visit; null without one. */
+  lastVisitDays: number | null;
 }
 
 export function toPersonRowVM(r: PersonRowDto, now = new Date()): PersonRowVM {
@@ -457,6 +463,8 @@ export function toPersonRowVM(r: PersonRowDto, now = new Date()): PersonRowVM {
   const askedCandidates = [ts(r.last_inbound_at), ts(r.last_call_at)].filter((x): x is number => x !== null);
   const askedMs = askedCandidates.length ? Math.max(...askedCandidates) : null;
   const booked = !!v?.next;
+  const nextVisitMs = v?.next ? Date.parse(v.next.start) : null;
+  const lastVisitMs = v?.last ? Date.parse(v.last.start) : null;
   const askedNotBooked = calendar === "ok" && askedMs !== null && nowMs - askedMs <= MONTH_MS && !v?.next && !v?.last;
   const stateDetail =
     state === "needs_you" ? (r.open_escalation_reason ? reasonShort(r.open_escalation_reason) : "waiting for a person")
@@ -496,27 +504,81 @@ export function toPersonRowVM(r: PersonRowDto, now = new Date()): PersonRowVM {
     lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} · ${v.last.title}` : null,
     askedMs,
     askedNotBooked,
+    nextVisitMs,
+    lastVisitMs,
+    nextVisitDays: nextVisitMs !== null ? Math.max(0, Math.ceil((nextVisitMs - nowMs) / DAY_MS)) : null,
+    lastVisitDays: lastVisitMs !== null ? Math.max(0, Math.floor((nowMs - lastVisitMs) / DAY_MS)) : null,
   };
 }
 
 /* ---------------------------- lists and totals --------------------------- */
 
-/** The rail's smart lists: computed filters over facts, not saved segments. Two need the calendar and are shown only when it is connected. */
-export const PEOPLE_LISTS: readonly { id: string; label: string; needsCalendar?: boolean; test: (vm: PersonRowVM) => boolean }[] = [
-  { id: "needs_you", label: "Needs you", test: (v) => v.state === "needs_you" },
-  { id: "waiting_on_you", label: "Waiting on you", test: (v) => v.state === "waiting_on_you" },
-  { id: "new_week", label: "New this week", test: (v) => v.state === "new" },
-  // The outcome, from the calendar: the booking is the conversion, and the
-  // people who asked and never booked are the ones an owner can still win.
-  { id: "booked", label: "Booked", needsCalendar: true, test: (v) => v.booked },
-  { id: "asked_never_booked", label: "Asked, never booked", needsCalendar: true, test: (v) => v.askedNotBooked },
-  { id: "quiet", label: "Quiet 30+ days", test: (v) => v.state === "quiet" },
-  { id: "phoned_only", label: "Phoned only", test: (v) => !v.hasChat && v.calls > 0 },
+export type PeopleListGroup = "attention" | "journey" | "reach";
+
+/** The rail's three quiet labels: what needs a person, where each person is on the way to a booking, who can be reached. */
+export const PEOPLE_LIST_GROUPS: readonly { id: PeopleListGroup; label: string }[] = [
+  { id: "attention", label: "Attention" },
+  { id: "journey", label: "Journey" },
+  { id: "reach", label: "Reach" },
+];
+
+/**
+ * The rail's smart lists: computed filters over facts, not saved segments,
+ * in three groups. The journey lists that read the calendar exist only when
+ * one is connected; the booking is the conversion, and a visit is the fact
+ * a salon cares about — a regular who never texts is not quiet.
+ */
+export const PEOPLE_LISTS: readonly { id: string; label: string; group: PeopleListGroup; needsCalendar?: boolean; test: (vm: PersonRowVM) => boolean }[] = [
+  { id: "needs_you", label: "Needs you", group: "attention", test: (v) => v.state === "needs_you" },
+  { id: "waiting_on_you", label: "Waiting on you", group: "attention", test: (v) => v.state === "waiting_on_you" },
+  { id: "new_week", label: "New this week", group: "journey", test: (v) => v.state === "new" },
+  { id: "booked_week", label: "Booked this week", group: "journey", needsCalendar: true, test: (v) => v.nextVisitDays !== null && v.nextVisitDays <= 7 },
+  { id: "booked", label: "Booked", group: "journey", needsCalendar: true, test: (v) => v.booked },
+  { id: "asked_never_booked", label: "Asked, never booked", group: "journey", needsCalendar: true, test: (v) => v.askedNotBooked },
+  // Forty-five days since the chair, nothing ahead: the win-back list, from visits rather than silence.
+  { id: "lapsed", label: "Lapsed", group: "journey", needsCalendar: true, test: (v) => !v.booked && v.lastVisitDays !== null && v.lastVisitDays >= 45 },
+  { id: "quiet", label: "Quiet 30+ days", group: "reach", test: (v) => v.state === "quiet" },
+  { id: "phoned_only", label: "Phoned only", group: "reach", test: (v) => !v.hasChat && v.calls > 0 },
   // A fact, not the state: someone who opted out AND needs you is in both lists.
   // The only people a broadcast may reach: they said yes, and it is on record.
-  { id: "opted_in", label: "Can receive offers", test: (v) => v.consent.state === "opted_in" },
-  { id: "opted_out", label: "Opted out", test: (v) => v.consent.state === "opted_out" },
+  { id: "opted_in", label: "Can receive offers", group: "reach", test: (v) => v.consent.state === "opted_in" },
+  { id: "opted_out", label: "Opted out", group: "reach", test: (v) => v.consent.state === "opted_out" },
 ];
+
+export interface PeopleListAction {
+  /** The sentence under the list: what the step reaches, or why it cannot yet. */
+  text: string;
+  /** The button's words. */
+  cta: string;
+  /** A route. */
+  to: string;
+  enabled: boolean;
+}
+
+const LIST_STEPS: Record<string, { cta: string; to: string; broadcast?: boolean; text?: string }> = {
+  needs_you: { cta: "Open the Inbox", to: "inbox", text: "Each of them is waiting for a person." },
+  waiting_on_you: { cta: "Open the Inbox", to: "inbox", text: "You own these threads, and they wrote last." },
+  new_week: { cta: "Get their yes", to: "broadcasts", text: "Their yes to offers is the phrase and the QR on Broadcasts." },
+  booked_week: { cta: "See the week", to: "calendar", text: "Their appointments are on the Calendar." },
+  asked_never_booked: { cta: "Text the booking link", to: "broadcasts/asked_never_booked", broadcast: true },
+  lapsed: { cta: "Win them back", to: "broadcasts/lapsed", broadcast: true },
+  quiet: { cta: "Reach out", to: "broadcasts/quiet", broadcast: true },
+  opted_in: { cta: "New broadcast", to: "broadcasts", broadcast: true },
+};
+
+/**
+ * The obvious next step for a list, when it has one. A broadcast reaches
+ * only a recorded yes, so the sentence says how many of the list said it,
+ * and the button waits until someone has.
+ */
+export function peopleListAction(id: string, members: PersonRowVM[]): PeopleListAction | null {
+  const step = LIST_STEPS[id];
+  if (!step) return null;
+  if (!step.broadcast) return { text: step.text ?? "", cta: step.cta, to: step.to, enabled: members.length > 0 };
+  const yes = members.filter((m) => m.consent.state === "opted_in").length;
+  if (yes === 0) return { text: members.length ? "Nobody on this list has said yes yet — a broadcast reaches only a recorded yes." : "Nobody here right now.", cta: step.cta, to: step.to, enabled: false };
+  return { text: `${yes} of ${members.length} on this list said yes — a broadcast reaches them.`, cta: step.cta, to: step.to, enabled: true };
+}
 
 export interface PeopleAggregates {
   total: number;

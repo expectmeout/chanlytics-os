@@ -26,6 +26,7 @@ import { recordDecision } from "@/server/verbs";
 import { takeRate } from "@/server/rate-limit";
 import { schedule } from "@/server/service";
 import { listPeople } from "@/server/people";
+import { withVisits } from "@/server/calendar";
 import { listBroadcasts } from "@/server/broadcasts";
 
 /**
@@ -108,7 +109,9 @@ export const POST = withRoute(async (req, ctx) => {
 
   // 3. The audience, crossed with who said yes.
   const now = new Date();
-  const rows = (await listPeople(ctx, tenantId)).map((r) => toPersonRowVM(r, now));
+  // With their appointments, so a calendar list (Lapsed, Asked never booked)
+  // enrols exactly the people the page counted.
+  const rows = (await withVisits(ctx, tenantId, await listPeople(ctx, tenantId), now)).people.map((r) => toPersonRowVM(r, now));
   let savedIds: Set<string> | null = null;
   let label = EVERYONE_LABEL;
   if (kind === "saved") {

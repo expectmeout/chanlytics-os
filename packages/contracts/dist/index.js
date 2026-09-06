@@ -3174,6 +3174,8 @@ function toPersonRowVM(r, now = /* @__PURE__ */ new Date()) {
   const askedCandidates = [ts(r.last_inbound_at), ts(r.last_call_at)].filter((x) => x !== null);
   const askedMs = askedCandidates.length ? Math.max(...askedCandidates) : null;
   const booked = !!v?.next;
+  const nextVisitMs = v?.next ? Date.parse(v.next.start) : null;
+  const lastVisitMs = v?.last ? Date.parse(v.last.start) : null;
   const askedNotBooked = calendar === "ok" && askedMs !== null && nowMs - askedMs <= MONTH_MS && !v?.next && !v?.last;
   const stateDetail = state === "needs_you" ? r.open_escalation_reason ? reasonShort(r.open_escalation_reason) : "waiting for a person" : state === "waiting_on_you" ? "you own the thread and they wrote last" : state === "opted_out" ? consent.sub : state === "new" ? `first contact ${first.label}` : state === "quiet" ? last.ts === null ? "no contact recorded" : `last contact ${ago(last.ts, nowMs)}` : "";
   return {
@@ -3206,24 +3208,52 @@ function toPersonRowVM(r, now = /* @__PURE__ */ new Date()) {
     nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} \xB7 ${v.next.title}` : null,
     lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} \xB7 ${v.last.title}` : null,
     askedMs,
-    askedNotBooked
+    askedNotBooked,
+    nextVisitMs,
+    lastVisitMs,
+    nextVisitDays: nextVisitMs !== null ? Math.max(0, Math.ceil((nextVisitMs - nowMs) / DAY_MS2)) : null,
+    lastVisitDays: lastVisitMs !== null ? Math.max(0, Math.floor((nowMs - lastVisitMs) / DAY_MS2)) : null
   };
 }
+var PEOPLE_LIST_GROUPS = [
+  { id: "attention", label: "Attention" },
+  { id: "journey", label: "Journey" },
+  { id: "reach", label: "Reach" }
+];
 var PEOPLE_LISTS = [
-  { id: "needs_you", label: "Needs you", test: (v) => v.state === "needs_you" },
-  { id: "waiting_on_you", label: "Waiting on you", test: (v) => v.state === "waiting_on_you" },
-  { id: "new_week", label: "New this week", test: (v) => v.state === "new" },
-  // The outcome, from the calendar: the booking is the conversion, and the
-  // people who asked and never booked are the ones an owner can still win.
-  { id: "booked", label: "Booked", needsCalendar: true, test: (v) => v.booked },
-  { id: "asked_never_booked", label: "Asked, never booked", needsCalendar: true, test: (v) => v.askedNotBooked },
-  { id: "quiet", label: "Quiet 30+ days", test: (v) => v.state === "quiet" },
-  { id: "phoned_only", label: "Phoned only", test: (v) => !v.hasChat && v.calls > 0 },
+  { id: "needs_you", label: "Needs you", group: "attention", test: (v) => v.state === "needs_you" },
+  { id: "waiting_on_you", label: "Waiting on you", group: "attention", test: (v) => v.state === "waiting_on_you" },
+  { id: "new_week", label: "New this week", group: "journey", test: (v) => v.state === "new" },
+  { id: "booked_week", label: "Booked this week", group: "journey", needsCalendar: true, test: (v) => v.nextVisitDays !== null && v.nextVisitDays <= 7 },
+  { id: "booked", label: "Booked", group: "journey", needsCalendar: true, test: (v) => v.booked },
+  { id: "asked_never_booked", label: "Asked, never booked", group: "journey", needsCalendar: true, test: (v) => v.askedNotBooked },
+  // Forty-five days since the chair, nothing ahead: the win-back list, from visits rather than silence.
+  { id: "lapsed", label: "Lapsed", group: "journey", needsCalendar: true, test: (v) => !v.booked && v.lastVisitDays !== null && v.lastVisitDays >= 45 },
+  { id: "quiet", label: "Quiet 30+ days", group: "reach", test: (v) => v.state === "quiet" },
+  { id: "phoned_only", label: "Phoned only", group: "reach", test: (v) => !v.hasChat && v.calls > 0 },
   // A fact, not the state: someone who opted out AND needs you is in both lists.
   // The only people a broadcast may reach: they said yes, and it is on record.
-  { id: "opted_in", label: "Can receive offers", test: (v) => v.consent.state === "opted_in" },
-  { id: "opted_out", label: "Opted out", test: (v) => v.consent.state === "opted_out" }
+  { id: "opted_in", label: "Can receive offers", group: "reach", test: (v) => v.consent.state === "opted_in" },
+  { id: "opted_out", label: "Opted out", group: "reach", test: (v) => v.consent.state === "opted_out" }
 ];
+var LIST_STEPS = {
+  needs_you: { cta: "Open the Inbox", to: "inbox", text: "Each of them is waiting for a person." },
+  waiting_on_you: { cta: "Open the Inbox", to: "inbox", text: "You own these threads, and they wrote last." },
+  new_week: { cta: "Get their yes", to: "broadcasts", text: "Their yes to offers is the phrase and the QR on Broadcasts." },
+  booked_week: { cta: "See the week", to: "calendar", text: "Their appointments are on the Calendar." },
+  asked_never_booked: { cta: "Text the booking link", to: "broadcasts/asked_never_booked", broadcast: true },
+  lapsed: { cta: "Win them back", to: "broadcasts/lapsed", broadcast: true },
+  quiet: { cta: "Reach out", to: "broadcasts/quiet", broadcast: true },
+  opted_in: { cta: "New broadcast", to: "broadcasts", broadcast: true }
+};
+function peopleListAction(id, members) {
+  const step = LIST_STEPS[id];
+  if (!step) return null;
+  if (!step.broadcast) return { text: step.text ?? "", cta: step.cta, to: step.to, enabled: members.length > 0 };
+  const yes = members.filter((m) => m.consent.state === "opted_in").length;
+  if (yes === 0) return { text: members.length ? "Nobody on this list has said yes yet \u2014 a broadcast reaches only a recorded yes." : "Nobody here right now.", cta: step.cta, to: step.to, enabled: false };
+  return { text: `${yes} of ${members.length} on this list said yes \u2014 a broadcast reaches them.`, cta: step.cta, to: step.to, enabled: true };
+}
 function peopleAggregates(rows, nowMs) {
   let needsYou = 0;
   let oldest = null;
@@ -4663,6 +4693,7 @@ export {
   PARAM_SOURCES,
   PARAM_SOURCE_LABELS,
   PEOPLE_LISTS,
+  PEOPLE_LIST_GROUPS,
   PEOPLE_TABS,
   PERSON_MODES,
   PERSON_MODE_LABELS,
@@ -4811,6 +4842,7 @@ export {
   partialAnswer,
   peopleAggregates,
   peopleFromItems,
+  peopleListAction,
   personInText,
   personName,
   personStateFor,
