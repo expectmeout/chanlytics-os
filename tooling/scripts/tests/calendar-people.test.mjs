@@ -159,6 +159,7 @@ const ROW = {
   first_contact_at: null, earliest_row_at: null, has_backfill: false, has_chat: false, queued_reply_at: null,
 };
 const detail = (visits) => ({ row: ROW, identities: [], conversations: [], calls: [], escalations: [], decisions: [], receptionist_mode: null, workspace_reply_mode: "auto", ...(visits ? { visits } : {}) });
+const detail_ = (over = {}) => ({ row: { ...ROW, ...over }, identities: [], conversations: [], calls: [], escalations: [], decisions: [], receptionist_mode: null, workspace_reply_mode: "auto" });
 
 test("the profile: a Next visit fact and About rows when the calendar is connected; nothing invented when it is not", () => {
   const now = new Date(NOW);
@@ -360,4 +361,30 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
   assert.ok(page.includes('data-testid="row-booked">Booked · {p.nextVisitDay}') && page.includes('<StatCell label="Booked"') && page.includes("asked_never_booked:"), "the chip, the cell, the tips");
   assert.ok(readCode("apps/dashboard/src/legacy/pages/reports.jsx").includes('testid="chart-booking"'));
+});
+
+test("a name the owner gives and notes the receptionist reads: two doors, one route, the profile's rename and Notes, the VM's givenName", () => {
+  const mig = readCode("supabase/migrations/00054_person_details.sql");
+  assert.ok(mig.includes("create or replace function public.set_person_name(p_contact_id uuid, p_name text)") && mig.includes("create or replace function public.set_person_notes(p_contact_id uuid, p_notes text)"));
+  assert.ok(mig.includes("check (notes is null or char_length(notes) between 1 and 600)") && mig.includes("grant select (notes) on public.contacts to authenticated;"));
+  assert.ok(mig.includes("'contact.named'") && mig.includes("'contact.noted'"), "each door records who changed what");
+  assert.ok(mig.split("not public.is_acting_member(v_tenant)").length === 3, "owner or operator, both doors");
+  const route = readCode("apps/dashboard/app/api/v1/contacts/[id]/details/route.ts");
+  assert.ok(route.includes('takeRate(ctx.userId, "person_edit");') && route.includes('requireRole(member, "operator");'));
+  assert.ok(route.includes('rpc("set_person_name", { p_contact_id: id, p_name: name ?? "" })') && route.includes('rpc("set_person_notes", { p_contact_id: id, p_notes: notes ?? "" })'));
+  assert.ok(route.includes('throw new AppError("validation", "Send a name, notes, or both.");'));
+  const detail = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
+  assert.ok(detail.includes('sb.from("contacts").select("notes").eq("id", id).maybeSingle()') && detail.includes("notes: own.data?.notes ?? null,"));
+  const bridge = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");
+  assert.ok(bridge.includes("window.__setPersonDetails = setPersonDetails;") && bridge.includes("/details`)"));
+  const page = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
+  for (const id of ["person-rename", "person-name-input", "person-name-save", "person-notes", "person-notes-input", "person-notes-save"]) assert.ok(page.includes(`data-testid="${id}"`), id);
+  assert.ok(page.includes("Notes · the receptionist reads these") && page.includes("the receptionist uses these as facts and never reads them aloud"));
+  assert.ok(page.includes("<PersonName p={p} canEdit={canRecord} flash={ppFlash} />"), "the hero name is the editable one");
+  const vm = toPersonVM({ ...detail_(), notes: "  Sees Sofia  " }, new Date(NOW));
+  assert.equal(vm.notes, "Sees Sofia");
+  assert.equal(vm.givenName, "Maria Lopez");
+  const numbered = toPersonVM(detail_({ display_name: null }), new Date(NOW));
+  assert.equal(numbered.givenName, null, "a number is not a given name");
+  assert.equal(numbered.notes, null);
 });

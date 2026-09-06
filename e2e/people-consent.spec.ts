@@ -64,4 +64,39 @@ test.describe("Consent for one person", () => {
     await page.waitForLoadState("networkidle");
     await expect(page.locator(".cl-rail-row", { hasText: "Can receive offers" })).toBeVisible();
   });
+
+  test("a name the owner gives and notes the receptionist reads issue a workspace-scoped PUT — intercepted", async ({ page }) => {
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    const rows = page.locator(".cl-table tbody tr:not(:has(.cl-table-empty))");
+    test.skip((await rows.count()) === 0, "this workspace has nobody to open");
+    await rows.first().click();
+    await expect(page.locator(".cl-prof-name")).toBeVisible();
+
+    const seen: { method: string; url: string; body: unknown }[] = [];
+    await page.route("**/api/v1/contacts/*/details*", async (route) => {
+      const req = route.request();
+      seen.push({ method: req.method(), url: req.url(), body: req.postDataJSON() });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, data: { contact_id: "intercepted", name: "Test Name" } }) });
+    });
+
+    await page.locator(".cl-prof-id").hover();
+    await page.getByTestId("person-rename").click();
+    const input = page.getByTestId("person-name-input");
+    await expect(input).toBeVisible();
+    await input.fill("Test Name");
+    await input.press("Enter");
+    await expect.poll(() => seen.length).toBe(1);
+    expect(seen[0].method).toBe("PUT");
+    expect(seen[0].url).toContain("workspace=");
+    expect(seen[0].body).toEqual({ name: "Test Name" });
+
+    const notes = page.getByTestId("person-notes-input");
+    await expect(notes).toBeVisible();
+    await notes.fill("Sees Sofia. Prefers mornings.");
+    await page.getByTestId("person-notes-save").click();
+    await expect.poll(() => seen.length).toBe(2);
+    expect(seen[1].body).toEqual({ notes: "Sees Sofia. Prefers mornings." });
+    await expect(page.getByText("Notes · the receptionist reads these")).toBeVisible();
+  });
 });

@@ -3180,6 +3180,7 @@ function toPersonRowVM(r, now = /* @__PURE__ */ new Date()) {
     id: r.id,
     real: true,
     name,
+    givenName: r.display_name?.trim() || null,
     initials: initialsOf(name),
     phone: formatPhoneDisplay(r.phone_e164),
     waName: r.wa_profile_name,
@@ -3456,6 +3457,7 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
     rightNow,
     timeline: items,
     about,
+    notes: d.notes?.trim() || null,
     openThread: base.threadId ? `inbox/${base.threadId}` : null,
     receptionistMode: {
       person: asPersonMode(d.receptionist_mode),

@@ -118,6 +118,8 @@ export interface PersonDetailDto {
   visits?: PersonVisitsDto;
   /** How they came to be in People when it was not by writing or calling: the calendar sweep, or a hand. */
   added?: { at: string; source: string; title: string | null };
+  /** The owner's notes on this person — the receptionist reads them. */
+  notes?: string | null;
 }
 
 /** What an owner may set for one person: answer, ask first, or stay out. */
@@ -401,6 +403,8 @@ export interface PersonRowVM {
   id: string;
   real: true;
   name: string;
+  /** The name a human typed, or null — what a rename field starts from. */
+  givenName: string | null;
   initials: string;
   phone: string | null;
   waName: string | null;
@@ -465,6 +469,7 @@ export function toPersonRowVM(r: PersonRowDto, now = new Date()): PersonRowVM {
     id: r.id,
     real: true,
     name,
+    givenName: r.display_name?.trim() || null,
     initials: initialsOf(name),
     phone: formatPhoneDisplay(r.phone_e164),
     waName: r.wa_profile_name,
@@ -619,6 +624,8 @@ export interface PersonVM extends PersonRowVM {
   rightNow: PersonRightNow;
   timeline: PersonTimelineItemVM[];
   about: { k: string; v: string }[];
+  /** The owner's notes, the receptionist's reading material. */
+  notes: string | null;
   /** "inbox/th-…" or null for a phone-only person. */
   openThread: string | null;
   /** The person's own setting (null = following the workspace) and the
@@ -851,6 +858,7 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
     rightNow,
     timeline: items,
     about,
+    notes: d.notes?.trim() || null,
     openThread: base.threadId ? `inbox/${base.threadId}` : null,
     receptionistMode: {
       person: asPersonMode(d.receptionist_mode),

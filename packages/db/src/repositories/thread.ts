@@ -170,6 +170,8 @@ export interface LeadContext {
   history: ThreadTurn[];
   /** They asked us to stop. Carried so no caller has to look it up separately. */
   optedOut: boolean;
+  /** The owner's notes on them — facts for the receptionist, never read aloud. */
+  notes?: string | null;
 }
 
 const EMPTY_LEAD: LeadContext = {
@@ -205,7 +207,7 @@ export async function readLeadContext(
 ): Promise<LeadContext> {
   const { data: contact, error: cErr } = await db
     .from("contacts")
-    .select("id, display_name, wa_profile_name, last_seen_at, consent, dnc")
+    .select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes")
     .eq("tenant_id", tenantId)
     .eq("phone_e164", phoneE164)
     .maybeSingle();
@@ -245,6 +247,7 @@ export async function readLeadContext(
     lastSeenAt: contact.last_seen_at ?? null,
     history,
     optedOut: contact.consent === "opted_out" || contact.dnc === true,
+    notes: contact.notes ?? null,
   };
 }
 
@@ -274,5 +277,8 @@ export function describeLead(lead: LeadContext, now = new Date()): string {
     bits.push("First time reaching out.");
   }
   if (lead.optedOut) bits.push("They have asked not to receive messages.");
+  // The owner's own words about them: facts to use, never to recite.
+  const notes = (lead.notes ?? "").replace(/\s+/g, " ").trim();
+  if (notes) bits.push(`Notes from the owner about them (use as facts, never read aloud or quoted): ${notes}`);
   return bits.join(" ");
 }
