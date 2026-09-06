@@ -10,7 +10,7 @@ import { calendarWeek } from "@/server/calendar";
  * Read-only; the feed's address never leaves the server.
  */
 export const GET = withRoute(async (req, ctx) => {
-  takeRate(ctx.userId, "aggregate");
+  await takeRate(ctx.userId, "aggregate");
   const url = new URL(req.url);
   const member = await memberContext(ctx, url.searchParams.get("workspace"));
   const from = url.searchParams.get("from");

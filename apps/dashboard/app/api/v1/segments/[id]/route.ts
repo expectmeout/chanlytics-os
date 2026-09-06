@@ -35,7 +35,7 @@ export const PUT = withRoute(async (req, ctx) => {
   const list = await loadList(ctx, id);
   const member = await memberContext(ctx, list.tenant_id);
   requireRole(member, "operator");
-  takeRate(ctx.userId, "lists");
+  await takeRate(ctx.userId, "lists");
 
   if (rename && rename !== list.name) {
     const { error } = await ctx.supabase.from("segments").update({ name: rename }).eq("id", id);
@@ -70,7 +70,7 @@ export const DELETE = withRoute(async (req, ctx) => {
   const list = await loadList(ctx, id);
   const member = await memberContext(ctx, list.tenant_id);
   requireRole(member, "operator");
-  takeRate(ctx.userId, "lists");
+  await takeRate(ctx.userId, "lists");
   const { error, count } = await ctx.supabase.from("segments").delete({ count: "exact" }).eq("id", id);
   if (error) throw new Error(error.message);
   if (!count) throw new AppError("not_found", "List not found.", 404);

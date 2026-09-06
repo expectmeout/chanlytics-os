@@ -1726,6 +1726,24 @@ export type Database = {
           },
         ]
       }
+      rate_hits: {
+        Row: {
+          actor: string
+          at: string
+          bucket: string
+        }
+        Insert: {
+          actor: string
+          at?: string
+          bucket: string
+        }
+        Update: {
+          actor?: string
+          at?: string
+          bucket?: string
+        }
+        Relationships: []
+      }
       segment_members: {
         Row: {
           added_at: string
@@ -2208,6 +2226,7 @@ export type Database = {
         Args: { p_days?: number; p_tenant_id: string }
         Returns: Json
       }
+      runtime_stamp: { Args: { p_tenant_id: string }; Returns: string }
       scrub_ask_for_contact: {
         Args: { p_contact_id: string; p_needles: string[]; p_tenant_id: string }
         Returns: number
@@ -2272,6 +2291,15 @@ export type Database = {
           last_status: string
           schedule: string
         }[]
+      }
+      take_rate: {
+        Args: {
+          p_actor: string
+          p_bucket: string
+          p_limit: number
+          p_window_ms: number
+        }
+        Returns: Json
       }
       team_roster: {
         Args: { p_tenant_id: string }

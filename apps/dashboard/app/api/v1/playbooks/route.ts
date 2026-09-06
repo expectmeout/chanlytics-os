@@ -26,7 +26,7 @@ export const GET = withRoute(async (req, ctx) => {
 export const POST = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   requireRole(member, "operator");
-  takeRate(ctx.userId, "playbook");
+  await takeRate(ctx.userId, "playbook");
   const body = (await jsonBody(req)) as Record<string, unknown> | null;
   const v = await checkPlaybookInput(ctx, member.tenantId, body);
   const { data: made, error } = await ctx.supabase

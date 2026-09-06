@@ -21,7 +21,7 @@ export const POST = withRoute(async (req, ctx) => {
   if (!b) throw new AppError("not_found", "Broadcast not found.", 404);
   const member = await memberContext(ctx, b.tenant_id);
   requireRole(member, "operator");
-  takeRate(ctx.userId, "broadcast");
+  await takeRate(ctx.userId, "broadcast");
   if (b.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);
 
   const now = new Date();

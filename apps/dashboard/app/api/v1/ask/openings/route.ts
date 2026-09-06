@@ -10,7 +10,7 @@ import { openingsFor } from "@/server/ask/openings";
  * connected calendar in the business's own zone.
  */
 export const GET = withRoute(async (req, ctx) => {
-  takeRate(ctx.userId, "aggregate");
+  await takeRate(ctx.userId, "aggregate");
   const url = new URL(req.url);
   const { tenantId } = await memberContext(ctx, url.searchParams.get("workspace"));
   const day = (url.searchParams.get("day") ?? "").trim().slice(0, 20) || null;

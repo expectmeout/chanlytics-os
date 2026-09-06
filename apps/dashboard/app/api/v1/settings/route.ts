@@ -41,7 +41,7 @@ export const GET = withRoute(async (req, ctx) => {
 export const PUT = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   requireRole(member, "owner");
-  takeRate(ctx.userId, "settings");
+  await takeRate(ctx.userId, "settings");
   const body = (await req.json().catch(() => null)) as { config?: unknown; version?: number } | null;
   if (!body || typeof body.version !== "number") {
     throw new AppError("validation", "Body must be { config, version }.");

@@ -2,9 +2,11 @@
  * The one door between the runtime and the control plane (PRD §03).
  *
  * Everything the bot needs to act for a tenant — persona, policy, credentials,
- * alert recipients — loads here, in one batched round trip, cached briefly per
- * lambda instance. The edge never queries the control-plane tables anywhere
- * else, so "what does the runtime consult?" has exactly one answer.
+ * alert recipients — loads here, in one batched round trip, cached per lambda
+ * instance and re-checked against one freshness stamp per message, so a
+ * setting saved on the dashboard reaches the receptionist on the very next
+ * message. The edge never queries the control-plane tables anywhere else, so
+ * "what does the runtime consult?" has exactly one answer.
  */
 import type { CalendarConfig, FeaturesConfig } from "./workspace/contracts.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -48,8 +50,24 @@ export interface TenantRuntime {
   configBroken?: boolean;
 }
 
-const TTL_MS = 60 * 1000;
-const cache = new Map<string, { v: TenantRuntime; exp: number }>();
+/** The backstop for what the stamp does not see: credentials in Vault, a channel row. */
+const TTL_MS = 10 * 60 * 1000;
+const cache = new Map<string, { v: TenantRuntime; exp: number; stamp: string | null }>();
+
+/**
+ * "Did anything the runtime is built from change?" — the config's version,
+ * the newest policy row, the tenant row, as one text from one door. null when
+ * the door did not answer: the caller keeps what it has rather than reloading
+ * on every blip.
+ */
+async function runtimeStamp(db: SupabaseClient<Database>, tenantId: string): Promise<string | null> {
+  const { data, error } = await db.rpc("runtime_stamp", { p_tenant_id: tenantId });
+  if (error) {
+    console.error("runtime_stamp_failed", JSON.stringify({ tenant: tenantId, error: error.message }));
+    return null;
+  }
+  return typeof data === "string" ? data : "";
+}
 
 /**
  * This tenant's WhatsApp credentials, whichever channel is asking.
@@ -104,10 +122,15 @@ export async function loadTenantRuntime(
   routed: RoutedChannel,
 ): Promise<TenantRuntime> {
   const hit = cache.get(routed.tenantId);
-  if (hit && hit.exp > Date.now()) return hit.v;
+  if (hit && hit.exp > Date.now()) {
+    // Fresh while the stamp agrees. A setting saved on the dashboard is a new
+    // stamp, so it reaches the receptionist on this message, not in a minute.
+    const stamp = await runtimeStamp(db, routed.tenantId);
+    if (stamp === null || stamp === hit.stamp) return hit.v;
+  }
 
   try {
-    const [cfgQ, polQ, credsQ, tzQ] = await Promise.all([
+    const [cfgQ, polQ, credsQ, tzQ, stamp] = await Promise.all([
       db.from("tenant_config").select("config").eq("tenant_id", routed.tenantId).maybeSingle(),
       db
         .from("policies")
@@ -129,6 +152,8 @@ export async function loadTenantRuntime(
       // construction and closes the voice path in the same change.
       resolveWaCredentials(db, routed),
       db.from("tenants").select("timezone").eq("id", routed.tenantId).maybeSingle(),
+      // Taken with the load, so the first re-check compares like with like.
+      runtimeStamp(db, routed.tenantId),
     ]);
     if (cfgQ.error) throw new Error(cfgQ.error.message);
     if (polQ.error) throw new Error(polQ.error.message);
@@ -169,7 +194,7 @@ export async function loadTenantRuntime(
       configBroken: !parseResult.ok,
       loadFailed: false,
     };
-    cache.set(routed.tenantId, { v: rt, exp: Date.now() + TTL_MS });
+    cache.set(routed.tenantId, { v: rt, exp: Date.now() + TTL_MS, stamp });
     return rt;
   } catch (e) {
     console.error("tenant_runtime_load_failed", e instanceof Error ? e.message : e);

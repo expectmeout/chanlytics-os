@@ -30,7 +30,7 @@ export const PUT = withRoute(async (req, ctx) => {
   const p = await load(ctx, id);
   const member = await memberContext(ctx, p.tenant_id);
   requireRole(member, "operator");
-  takeRate(ctx.userId, "playbook");
+  await takeRate(ctx.userId, "playbook");
 
   const onlyState = body && Object.keys(body).length === 1 && typeof body.state === "string";
   if (onlyState) {
@@ -60,7 +60,7 @@ export const DELETE = withRoute(async (req, ctx) => {
   const p = await load(ctx, id);
   const member = await memberContext(ctx, p.tenant_id);
   requireRole(member, "operator");
-  takeRate(ctx.userId, "playbook");
+  await takeRate(ctx.userId, "playbook");
   const { error, count } = await ctx.supabase.from("playbooks").delete({ count: "exact" }).eq("id", id);
   if (error) throw new Error(error.message);
   if (!count) throw new AppError("not_found", "Playbook not found.", 404);

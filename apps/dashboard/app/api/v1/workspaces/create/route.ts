@@ -36,7 +36,7 @@ const RAISED: Record<string, { code: "validation" | "forbidden" | "conflict"; st
 };
 
 export const POST = withRoute(async (req, ctx) => {
-  takeRate(ctx.userId, "create_workspace");
+  await takeRate(ctx.userId, "create_workspace");
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     throw new AppError("validation", parsed.error.issues[0]?.message ?? "Give the workspace a name.");

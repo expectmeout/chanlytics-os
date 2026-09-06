@@ -13,7 +13,7 @@ import { takeRate } from "@/server/rate-limit";
  * Nothing here is ever sent to the customer.
  */
 export const PUT = withRoute(async (req, ctx) => {
-  takeRate(ctx.userId, "person_edit");
+  await takeRate(ctx.userId, "person_edit");
   const id = requireUuid(ctx.params.id, "contact");
   const body = (await jsonBody(req)) as { name?: unknown; notes?: unknown } | null;
   const hasName = typeof body?.name === "string";

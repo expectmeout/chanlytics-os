@@ -24,7 +24,7 @@ const SAID: Record<string, string> = {
 export const POST = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   requireRole(member, "operator");
-  takeRate(ctx.userId, "settings");
+  await takeRate(ctx.userId, "settings");
   const r = await syncTemplates(member.tenantId);
   if (!r.ok) {
     const said = SAID[r.reason] ?? `The sync did not complete (${r.reason}).`;

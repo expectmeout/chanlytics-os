@@ -15,7 +15,7 @@ import { previewFeed } from "@/server/calendar";
 export const POST = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   requireRole(member, "operator");
-  takeRate(ctx.userId, "settings");
+  await takeRate(ctx.userId, "settings");
   const body = (await jsonBody(req)) as { url?: unknown } | null;
   const url = typeof body?.url === "string" ? body.url.trim() : "";
   if (!url) throw new AppError("validation", "Paste the calendar's iCal address first.");

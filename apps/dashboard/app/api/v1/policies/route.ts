@@ -28,7 +28,7 @@ export const GET = withRoute(async (req, ctx) => {
 export const PUT = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   requireRole(member, "operator");
-  takeRate(ctx.userId, "settings");
+  await takeRate(ctx.userId, "settings");
   const body = (await req.json().catch(() => null)) as
     | { class?: string; mode?: string; replyDelayMs?: number; minConfidence?: number; maxTokensDay?: number }
     | null;

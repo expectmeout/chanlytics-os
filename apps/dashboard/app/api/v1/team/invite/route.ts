@@ -12,7 +12,7 @@ import { takeRate } from "@/server/rate-limit";
 export const POST = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   requireRole(member, "owner");
-  takeRate(ctx.userId, "invite");
+  await takeRate(ctx.userId, "invite");
   const body = (await req.json().catch(() => null)) as { email?: string; role?: string } | null;
   const email = (body?.email ?? "").trim().toLowerCase();
   const role = body?.role ?? "";

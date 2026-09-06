@@ -28,7 +28,7 @@ export const POST = withRoute(async (req, ctx) => {
   if (!p) throw new AppError("not_found", "Playbook not found.", 404);
   const member = await memberContext(ctx, p.tenant_id);
   requireRole(member, "operator");
-  takeRate(ctx.userId, "playbook");
+  await takeRate(ctx.userId, "playbook");
 
   const r = await runPlaybookNow(p.tenant_id, id, ctx.userId);
   if (!r.ok) {

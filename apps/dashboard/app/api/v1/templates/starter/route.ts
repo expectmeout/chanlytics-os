@@ -37,7 +37,7 @@ const ALREADY_AT_META = /already exist|already in use|duplicate|name.*exists/i;
 export const POST = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   requireRole(member, "operator");
-  takeRate(ctx.userId, "settings");
+  await takeRate(ctx.userId, "settings");
   const body = (await jsonBody(req)) as { keys?: unknown; languages?: unknown } | null;
   const keys = Array.isArray(body?.keys) ? body.keys.filter((k): k is string => typeof k === "string") : STARTER_TEMPLATES.map((s) => s.key);
   const languages = Array.isArray(body?.languages) ? body.languages.filter((l): l is string => typeof l === "string") : ["en_US"];

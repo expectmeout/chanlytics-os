@@ -17,22 +17,22 @@ import { readCode } from "./_source.mjs";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { takeRate, resetRates, RATE } = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/rate-limit.ts")).href);
 
-test("the limit is per person per bucket, refuses with 429 and a retry hint, and forgets after the window", () => {
+test("the limit is per person per bucket, refuses with 429 and a retry hint, and forgets after the window", async () => {
   resetRates();
   const t0 = 1_000_000;
-  for (let i = 0; i < RATE.whisper.limit; i++) takeRate("u1", "whisper", t0 + i);
+  for (let i = 0; i < RATE.whisper.limit; i++) await takeRate("u1", "whisper", t0 + i);
   let refused = null;
-  try { takeRate("u1", "whisper", t0 + 100); } catch (e) { refused = e; }
+  try { await takeRate("u1", "whisper", t0 + 100); } catch (e) { refused = e; }
   assert.ok(refused, "the request past the limit is refused");
   assert.equal(refused.code, "rate_limited");
   assert.equal(refused.status, 429);
   assert.match(refused.message, /Too many whispers/);
   assert.ok(refused.details.retry_after_s >= 1, "the client is told when to try again");
   // Another person, and another bucket for the same person, are untouched.
-  assert.doesNotThrow(() => takeRate("u2", "whisper", t0 + 100));
-  assert.doesNotThrow(() => takeRate("u1", "reply", t0 + 100));
+  await assert.doesNotReject(() => takeRate("u2", "whisper", t0 + 100));
+  await assert.doesNotReject(() => takeRate("u1", "reply", t0 + 100));
   // After the window the same person may whisper again.
-  assert.doesNotThrow(() => takeRate("u1", "whisper", t0 + RATE.whisper.windowMs + 1));
+  await assert.doesNotReject(() => takeRate("u1", "whisper", t0 + RATE.whisper.windowMs + 1));
   resetRates();
 });
 

@@ -18,7 +18,7 @@ const STATES = ["opted_in", "opted_out", "unknown"] as const;
  * event; the ledger row here says who recorded it and how.
  */
 export const PUT = withRoute(async (req, ctx) => {
-  takeRate(ctx.userId, "consent");
+  await takeRate(ctx.userId, "consent");
   const id = requireUuid(ctx.params.id, "contact");
   const body = (await jsonBody(req)) as { consent?: unknown; source?: unknown; note?: unknown } | null;
   const consent = body?.consent;
