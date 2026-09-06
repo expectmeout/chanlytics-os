@@ -784,7 +784,8 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
     facts.push({
       label: "Next visit",
       value: v.next ? visitDay(v.next.start, v.timezone, nowMs) : "—",
-      meta: v.next ? `${visitTime(v.next, v.timezone)} · ${v.next.title}${v.next.via === "name" ? " · matched by name" : ""}` : nextLine.toLowerCase(),
+      // The cell is narrow: the time here, the service in About.
+      meta: v.next ? `${visitTime(v.next, v.timezone)}${v.next.via === "name" ? " · by name" : ""}` : v.state === "ok" ? "none booked" : "could not be read",
     });
     about.push({ k: "Next visit", v: nextLine });
     if (v.last) about.push({ k: "Last visit", v: `${visitLine(v.last, v.timezone, nowMs)} · ${v.last.title}` });
