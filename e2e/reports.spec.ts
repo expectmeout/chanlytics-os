@@ -30,7 +30,7 @@ test.describe("Reports on a real workspace", () => {
     const tiles = report.locator(".rp2-strip-reception .rp2-tile");
     await expect(tiles).toHaveCount(6);
     const labels = (await tiles.locator(".rp2-tile-label").allInnerTexts()).map((l) => l.trim().toLowerCase());
-    expect(labels).toEqual(["customer messages", "answered by the receptionist", "median reply time", "needed you", "calls", "new people"]);
+    expect(labels).toEqual(["customer messages", "receptionist answered", "median reply time", "needed you", "calls", "new people"]);
     // A tile value is a count, a percentage or a duration — never a dash-free invention.
     for (const v of await tiles.locator(".rp2-tile-value").allInnerTexts()) expect(v.trim()).toMatch(/^(\d+|\d+%|—|\d+s|\d+m( \d{2}s)?|\d+h \d{2}m)$/);
 
