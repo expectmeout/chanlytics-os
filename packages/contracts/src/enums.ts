@@ -120,6 +120,8 @@ export const ESCALATION_REASONS = [
   "person_hold",
   /** The workspace's day of model tokens is spent (limits.max_llm_tokens_day). */
   "budget",
+  /** A booking or a service/pricing question, with that class set to Ask me first on the Autonomy pane: a person answers. */
+  "policy_ask",
 ] as const;
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
 

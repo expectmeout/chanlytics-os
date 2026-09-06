@@ -36,6 +36,61 @@ export type PolicyClass = (typeof POLICY_CLASSES)[number];
 export const POLICY_MODES = ["auto", "veto", "ask", "never"] as const;
 export type PolicyMode = (typeof POLICY_MODES)[number];
 
+/**
+ * The modes each class can honour — a switch nothing enforces is a switch
+ * that lies. Replies can wait (veto), wait for a person (ask) or stay silent
+ * (never). Booking and service questions are answered by the receptionist
+ * or by a person: there is no "never" for a salon that takes bookings, and
+ * no draft to hold for review. The playbook classes run, wait, wait for a
+ * person, or do not run. Money is the charter's.
+ */
+export const POLICY_CLASS_MODES: Record<PolicyClass, readonly PolicyMode[]> = {
+  reply: ["auto", "veto", "ask", "never"],
+  booking: ["auto", "ask"],
+  faq: ["auto", "ask"],
+  reengage: ["auto", "veto", "ask", "never"],
+  campaign: ["auto", "veto", "ask", "never"],
+  money: ["never"],
+};
+
+/** The class a customer's intent falls under, when the Autonomy pane has a row for it. */
+export function policyClassOfIntent(intent: string | null | undefined): "booking" | "faq" | null {
+  if (intent === "booking") return "booking";
+  if (intent === "pricing" || intent === "services") return "faq";
+  return null;
+}
+
+/** The class that is set to "ask" and that this intent falls under, or null. An unknown mode counts as ask, fail safe. */
+export function policyAskClass(policy: Record<string, { mode: string }> | null | undefined, intent: string | null | undefined): "booking" | "faq" | null {
+  const cls = policyClassOfIntent(intent);
+  if (!cls) return null;
+  const mode = policy?.[cls]?.mode ?? "auto";
+  return mode === "auto" ? null : cls;
+}
+
+/**
+ * What the Booking and FAQ rows say in the prompt, per channel. "auto" says
+ * nothing — the profile already tells the receptionist how to book and what
+ * it offers. "ask" hands the matter to a person, in words the customer can
+ * hear on the phone and read on WhatsApp.
+ */
+export function policyRules(policy: Record<string, { mode: string }> | null | undefined, channel: "whatsapp" | "voice"): string[] {
+  const out: string[] = [];
+  const modeOf = (cls: string): string => policy?.[cls]?.mode ?? "auto";
+  const voice = channel === "voice";
+  if (modeOf("booking") !== "auto") {
+    out.push(voice
+      ? "Booking: when someone wants to book, reschedule or cancel, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name."
+      : "Booking: when someone wants to book, reschedule or cancel, do not send the booking link. Say a member of the team will confirm with them shortly, and set escalate to true.");
+  }
+  if (modeOf("faq") !== "auto") {
+    out.push(voice
+      ? "Service and pricing questions: do not answer them yourself. Say a member of the team will call them back with the details, and take their name."
+      : "Service and pricing questions: do not answer them yourself. Say a member of the team will get back to them with the details, and set escalate to true.");
+  }
+  return out;
+}
+
 export const PolicyLimitsSchema = z
   .object({
     max_replies_day: z.number().int().min(1).max(200).optional(),
@@ -846,6 +901,19 @@ export function composeSystemPrompt(
    * Rows that have passed stay in the config and simply stop being said.
    */
   now: Date = new Date(),
+  /** The workspace's Autonomy rows (class → mode): Booking and FAQ under "ask" become rules here. */
+  policy?: Record<string, { mode: string }> | null,
+): string {
+  return composeSystemPromptWith(base, profile, channel, tz, now, policy);
+}
+
+function composeSystemPromptWith(
+  base: { business_name: string; phone_display: string; booking_link: string },
+  profile: BusinessProfile,
+  channel: "whatsapp" | "voice",
+  tz: string | null | undefined,
+  now: Date,
+  policy: Record<string, { mode: string }> | null | undefined,
 ): string {
   const s: string[] = [];
   const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
@@ -1045,6 +1113,9 @@ export function composeSystemPrompt(
   if (g.no_health_advice === true) {
     rules.push("Never give medical or health advice — for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment and offer the booking link.");
   }
+  // The Autonomy pane's Booking and FAQ rows, as rules — the same words on
+  // both channels' prompts, so a switch flipped once changes both.
+  rules.push(...policyRules(policy, channel));
   if (rules.length) s.push(`\nRules you must follow:\n${rules.map((r) => `- ${r}`).join("\n")}`);
 
   return s.join("\n");
@@ -1069,8 +1140,13 @@ export function resolveSystemPrompt(
   tz?: string | null,
   /** Only used to drop closures that have already passed. */
   now: Date = new Date(),
+  /** The workspace's Autonomy rows, so Booking and FAQ under "ask" reach a hand-written prompt too. */
+  policy?: Record<string, { mode: string }> | null,
 ): string {
-  if (!hasProfile(brain.profile)) return brain.system_prompt;
+  if (!hasProfile(brain.profile)) {
+    const rules = policyRules(policy, channel);
+    return rules.length ? `${brain.system_prompt}\n\nRules you must follow:\n${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
+  }
   const profile = brain.profile as BusinessProfile;
   // NOTHING a workspace already had may be lost by filling in a form.
   //
@@ -1086,5 +1162,5 @@ export function resolveSystemPrompt(
   const carried = profile.extra_instructions?.trim()
     ? profile
     : { ...profile, extra_instructions: brain.system_prompt };
-  return composeSystemPrompt(brain, carried, channel, tz, now);
+  return composeSystemPrompt(brain, carried, channel, tz, now, policy);
 }

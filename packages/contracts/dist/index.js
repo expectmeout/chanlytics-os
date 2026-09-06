@@ -144,7 +144,9 @@ var ESCALATION_REASONS = [
    *  workspace setting. */
   "person_hold",
   /** The workspace's day of model tokens is spent (limits.max_llm_tokens_day). */
-  "budget"
+  "budget",
+  /** A booking or a service/pricing question, with that class set to Ask me first on the Autonomy pane: a person answers. */
+  "policy_ask"
 ];
 var ESCALATION_STATES = ["open", "resolved"];
 var DECISION_VERBS = [
@@ -529,6 +531,7 @@ var ESCALATION_REASON_LABELS = {
   non_text: "Sent a voice note / photo",
   send_failed: "Reply failed to deliver",
   policy_block: "Held by your reply setting \u2014 nothing was sent",
+  policy_ask: "Set to Ask me first \u2014 a person answers this one",
   person_hold: "You handle this person \u2014 the receptionist stays out",
   rate_cap: "Too many replies too fast \u2014 the receptionist paused itself",
   deadman: "Nobody picked this up \u2014 flagged after silence",
@@ -545,6 +548,7 @@ var ESCALATION_SUMMARIES = {
   non_text: "They sent a voice note or photo the receptionist can't read. Open it and reply yourself.",
   send_failed: "The reply never reached them \u2014 as far as the customer knows, nobody answered.",
   policy_block: "Your reply setting holds every message for a person. Nothing was sent \u2014 answer them yourself.",
+  policy_ask: "Your Autonomy setting hands bookings or service questions to a person. The receptionist told them someone will follow up \u2014 that someone is you.",
   person_hold: "You set the receptionist to stay out of this person's thread. Nothing was sent \u2014 answer them yourself.",
   rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent \u2014 they're waiting in silence.",
   deadman: "This sat unanswered long enough to flag. Nobody has replied.",
@@ -1195,6 +1199,37 @@ var ROLE_PERMS = {
 };
 var POLICY_CLASSES = ["reply", "booking", "faq", "reengage", "campaign", "money"];
 var POLICY_MODES = ["auto", "veto", "ask", "never"];
+var POLICY_CLASS_MODES = {
+  reply: ["auto", "veto", "ask", "never"],
+  booking: ["auto", "ask"],
+  faq: ["auto", "ask"],
+  reengage: ["auto", "veto", "ask", "never"],
+  campaign: ["auto", "veto", "ask", "never"],
+  money: ["never"]
+};
+function policyClassOfIntent(intent) {
+  if (intent === "booking") return "booking";
+  if (intent === "pricing" || intent === "services") return "faq";
+  return null;
+}
+function policyAskClass(policy, intent) {
+  const cls = policyClassOfIntent(intent);
+  if (!cls) return null;
+  const mode = policy?.[cls]?.mode ?? "auto";
+  return mode === "auto" ? null : cls;
+}
+function policyRules(policy, channel) {
+  const out = [];
+  const modeOf = (cls) => policy?.[cls]?.mode ?? "auto";
+  const voice = channel === "voice";
+  if (modeOf("booking") !== "auto") {
+    out.push(voice ? "Booking: when someone wants to book, reschedule or cancel, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name." : "Booking: when someone wants to book, reschedule or cancel, do not send the booking link. Say a member of the team will confirm with them shortly, and set escalate to true.");
+  }
+  if (modeOf("faq") !== "auto") {
+    out.push(voice ? "Service and pricing questions: do not answer them yourself. Say a member of the team will call them back with the details, and take their name." : "Service and pricing questions: do not answer them yourself. Say a member of the team will get back to them with the details, and set escalate to true.");
+  }
+  return out;
+}
 var PolicyLimitsSchema = z2.object({
   max_replies_day: z2.number().int().min(1).max(200).optional(),
   pause_hours: z2.number().int().min(1).max(168).optional(),
@@ -1610,7 +1645,10 @@ function describeNow(tz, now = /* @__PURE__ */ new Date(), closures) {
     return NO_CLOCK;
   }
 }
-function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date()) {
+function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy) {
+  return composeSystemPromptWith(base, profile, channel, tz, now, policy);
+}
+function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
   const s = [];
   const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
@@ -1736,16 +1774,23 @@ ${text}`);
   if (g.no_health_advice === true) {
     rules.push("Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment and offer the booking link.");
   }
+  rules.push(...policyRules(policy, channel));
   if (rules.length) s.push(`
 Rules you must follow:
 ${rules.map((r) => `- ${r}`).join("\n")}`);
   return s.join("\n");
 }
-function resolveSystemPrompt(brain, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date()) {
-  if (!hasProfile(brain.profile)) return brain.system_prompt;
+function resolveSystemPrompt(brain, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy) {
+  if (!hasProfile(brain.profile)) {
+    const rules = policyRules(policy, channel);
+    return rules.length ? `${brain.system_prompt}
+
+Rules you must follow:
+${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
+  }
   const profile = brain.profile;
   const carried = profile.extra_instructions?.trim() ? profile : { ...profile, extra_instructions: brain.system_prompt };
-  return composeSystemPrompt(brain, carried, channel, tz, now);
+  return composeSystemPrompt(brain, carried, channel, tz, now, policy);
 }
 
 // src/notifications.ts
@@ -3047,6 +3092,7 @@ var REASON_SHORT = {
   refusal: "the receptionist declined to answer",
   rate_cap: "reply limit reached",
   policy_block: "held by your reply setting",
+  policy_ask: "a booking or a question set to Ask me first",
   person_hold: "held for you",
   send_failed: "a reply failed to send",
   deadman: "no answer in time",
@@ -4749,6 +4795,7 @@ export {
   PLAYBOOK_TRIGGERS,
   PLAYBOOK_VETO_DELAY_MS,
   POLICY_CLASSES,
+  POLICY_CLASS_MODES,
   POLICY_MODES,
   PROPOSAL_GATE,
   PolicyLimitsSchema,
@@ -4893,6 +4940,9 @@ export {
   placeholdersSequential,
   planRun,
   pointsDelta,
+  policyAskClass,
+  policyClassOfIntent,
+  policyRules,
   quantile,
   reachedCustomer,
   readAgoLabel,

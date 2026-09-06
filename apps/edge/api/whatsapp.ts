@@ -73,7 +73,7 @@ import { notify, type NotifyTarget } from "../lib/notify.js";
 import { FALLBACK_BRAIN, FALLBACK_NOTIFICATIONS } from "../lib/tenant-fallback.js";
 import type { BrainConfig, NotificationsConfig } from "../lib/workspace/contracts.js";
 import type { RoutedChannel } from "../lib/workspace/db.js";
-import { violatesNoPrices, isOptedOutContact, replyDelayMs, resolveSystemPrompt, describeNow } from "../lib/workspace/contracts.js";
+import { violatesNoPrices, isOptedOutContact, replyDelayMs, resolveSystemPrompt, describeNow, policyAskClass } from "../lib/workspace/contracts.js";
 
 export const config = { maxDuration: 60 };
 
@@ -820,7 +820,7 @@ async function handleInbound(
         // composes the SAME thing for the voice agent, which is the point:
         // two copies of the hours is how two channels start disagreeing
         // about when the business opens.
-        resolveSystemPrompt(brainCfg, "whatsapp", rt?.timezone),
+        resolveSystemPrompt(brainCfg, "whatsapp", rt?.timezone, new Date(), rt?.policy),
         brainCfg.fallbacks.error,
         leadNote,
         // "Are you open?" it could already answer. "Are you open RIGHT NOW?"
@@ -839,6 +839,25 @@ async function handleInbound(
         replyText = `Great question! Pricing is quoted at your consult — a member of our team will follow up here shortly. For anything urgent, call ${brainCfg.phone_display}.`;
         escalate = true;
         escalationReason = "policy_block";
+      }
+      // Layer-2 for the two classes the Autonomy pane controls now: under
+      // "ask", a booking or a service/pricing question is a person's to
+      // answer. The prompt already says so; this is the check that does not
+      // depend on the model having listened. A reply that still carries the
+      // booking link, or still answers, is replaced with the handoff line;
+      // one that complied keeps its words. Either way the thread is a
+      // person's now, and the Inbox says why.
+      const askClass = policyAskClass(rt?.policy, brainMeta?.intent ?? null);
+      if (askClass) {
+        const carriesLink = !!brainCfg.booking_link && replyText.includes(brainCfg.booking_link);
+        if (askClass === "booking" && carriesLink) {
+          replyText = `A member of our team will confirm your booking with you shortly. For anything urgent, call ${brainCfg.phone_display}.`;
+        } else if (askClass === "faq" && !escalate) {
+          replyText = `A member of our team will get back to you with the details shortly. For anything urgent, call ${brainCfg.phone_display}.`;
+        }
+        escalate = true;
+        escalationReason = "policy_ask";
+        L.info("wa_policy_ask", { class: askClass, intent: brainMeta?.intent ?? null, complied: !(askClass === "booking" ? carriesLink : !escalate) });
       }
     } catch (e) {
       L.error("brain_failed", { error: errField(e) });
