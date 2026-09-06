@@ -41,9 +41,17 @@ test.describe("Settings → Autonomy on a real workspace", () => {
     await expect(money).toHaveClass(/pol-locked/);
     await expect(money.getByText("Locked by charter")).toBeVisible();
     // Stored-but-unenforced classes say so, and their dots are disabled.
+    // Since the playbooks shipped, the two campaign rows are enforced: FAQs
+    // and booking are the ones still waiting on a runtime.
     const notEnforced = rows.filter({ hasText: "not enforced yet" });
-    await expect(notEnforced).toHaveCount(4);
+    await expect(notEnforced).toHaveCount(2);
     for (const dot of await notEnforced.locator(".pol-dot").all()) await expect(dot).toBeDisabled();
+    // The rows that run playbooks say what each mode does to a run, and their dots are live.
+    for (const label of ["Re-engage quiet customers", "Standing offers"]) {
+      const row = rows.filter({ hasText: label });
+      await expect(row).toContainText("ask leaves it waiting on Today");
+      await expect(row.locator(".pol-dot").first()).toBeEnabled();
+    }
 
     // Hard limits are numbers the runtime actually uses.
     await expect(page.getByText(/Stops after \d+ automatic replies/)).toBeVisible();
