@@ -4713,7 +4713,8 @@ async function ingestCall(db, tenantId, n, raw) {
     p_public_log_url: n.publicLogUrl,
     p_cost: n.cost ?? null,
     p_latency: n.latency ?? null,
-    p_raw: raw ?? {}
+    p_raw: raw ?? {},
+    p_analysis: n.analysis ?? null
   });
   if (error) throw new Error(`ingest_call: ${error.message}`);
   return data;

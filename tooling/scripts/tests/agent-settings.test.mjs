@@ -11,12 +11,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { planAgentSettings, agentSettingsDrift, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS } from "@chanlytics/channels";
+import { planAgentSettings, agentSettingsDrift, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, CALL_ANALYSIS_FIELDS } from "@chanlytics/channels";
 import { readCode, readRaw } from "./_source.mjs";
 
 test("a fresh agent (provider defaults) is planned onto the pipeline's settings", () => {
   const plan = planAgentSettings({ webhook_events: null, webhook_timeout_ms: null, opt_in_signed_url: null, data_storage_retention_days: null });
-  assert.deepEqual(Object.keys(plan.agentPatch).sort(), ["opt_in_signed_url", "webhook_events", "webhook_timeout_ms"]);
+  assert.deepEqual(Object.keys(plan.agentPatch).sort(), ["opt_in_signed_url", "post_call_analysis_data", "webhook_events", "webhook_timeout_ms"]);
+  assert.deepEqual(plan.agentPatch.post_call_analysis_data.map((f) => f.name), CALL_ANALYSIS_FIELDS.map((f) => f.name), "an agent with no analysis gets ours");
   assert.deepEqual([...plan.agentPatch.webhook_events].sort(), [...VOICE_WEBHOOK_EVENTS].sort(), "the provider's default trio plus the live transcript");
   assert.equal(plan.agentPatch.webhook_timeout_ms, VOICE_WEBHOOK_TIMEOUT_MS);
   assert.equal(plan.agentPatch.opt_in_signed_url, true);
@@ -25,7 +26,7 @@ test("a fresh agent (provider defaults) is planned onto the pipeline's settings"
 });
 
 test("a converged agent plans nothing, and extra events are kept", () => {
-  const live = { webhook_events: [...VOICE_WEBHOOK_EVENTS, "transfer_started"], webhook_timeout_ms: 20000, opt_in_signed_url: true, data_storage_retention_days: null };
+  const live = { webhook_events: [...VOICE_WEBHOOK_EVENTS, "transfer_started"], webhook_timeout_ms: 20000, opt_in_signed_url: true, data_storage_retention_days: null, post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })) };
   const plan = planAgentSettings(live);
   assert.equal(plan.agentPatch, null);
   assert.deepEqual(plan.drift, []);
@@ -35,7 +36,7 @@ test("a converged agent plans nothing, and extra events are kept", () => {
 });
 
 test("retention is planned only when asked, and refused outside the provider's range", () => {
-  const live = { webhook_events: [...VOICE_WEBHOOK_EVENTS], webhook_timeout_ms: 20000, opt_in_signed_url: true, data_storage_retention_days: null };
+  const live = { webhook_events: [...VOICE_WEBHOOK_EVENTS], webhook_timeout_ms: 20000, opt_in_signed_url: true, data_storage_retention_days: null, post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })) };
   const asked = planAgentSettings(live, { retentionDays: 365 });
   assert.deepEqual(asked.agentPatch, { data_storage_retention_days: 365 });
   assert.ok(asked.drift[0].includes("unset (kept forever)"));

@@ -20,6 +20,7 @@ export * from "./template-library";
 export * from "./campaign-report";
 export * from "./calendar";
 export * from "./calendar-people";
+export * from "./call-words";
 export * from "./channels";
 
 export * from "./reports";

@@ -26,6 +26,8 @@
  * sending "".
  */
 
+import { CALL_OUTCOMES } from "@chanlytics/contracts";
+
 /** The prompt body. Both placeholders are mandatory; a test pins them. */
 export const VOICE_SHELL_PROMPT =
   "{{business_facts}}\n\nWho you are speaking with:\n{{caller_context}}";
@@ -311,12 +313,58 @@ export const VOICE_WEBHOOK_TIMEOUT_MS = 20000;
 /** What Retell applies when webhook_events is absent. */
 const RETELL_DEFAULT_EVENTS = ["call_started", "call_ended", "call_analyzed"];
 
+/**
+ * What the agent's post-call analysis fills in after every call, in the
+ * caller's own terms: what they wanted, how it ended, what a person should
+ * do next, the name they gave. The provider's default summary ("The user
+ * called Melany's Beauty Salon to inquire about…") is kept beside it; these
+ * are what the strip, the profile and the call card say. The webhook files
+ * them through ingest_call (migration 00061).
+ */
+export const CALL_ANALYSIS_FIELDS = [
+  {
+    type: "string",
+    name: "caller_wanted",
+    description: "What the caller wanted, in one short sentence in plain words, the way the salon owner would say it. Start with the request itself, never with 'The user' or 'The caller'. Leave empty if they asked for nothing.",
+    examples: ["Asked for a gel manicure this Saturday around 10.", "Wanted Tuesday's hours and the price of highlights.", "Rescheduled Friday's blowout to next week."],
+  },
+  {
+    type: "enum",
+    name: "outcome",
+    description: "How the call ended for the caller. answered: their question was answered. booking_link_sent: the receptionist sent them the booking link. callback_needed: a person at the salon has to call them back or follow up. voicemail: the call reached voicemail. no_request: they hung up, tested the line or asked for nothing. other: none of these.",
+    choices: [...CALL_OUTCOMES],
+  },
+  {
+    type: "string",
+    name: "follow_up",
+    description: "What a person at the salon should do next for this caller, in one short sentence. Leave empty when nothing is needed.",
+    examples: ["Call back to confirm a Saturday 10:00 gel manicure.", "Text the price list for highlights."],
+  },
+  {
+    type: "string",
+    name: "caller_name",
+    description: "The caller's name exactly as they gave it. Leave empty if they did not say one.",
+    examples: ["Ana", "Daniela R."],
+  },
+] as const;
+
+type AnalysisField = (typeof CALL_ANALYSIS_FIELDS)[number];
+
+/** The live field is ours, unchanged: same name, type, description, choices and examples. */
+function sameAnalysisField(live: Record<string, unknown>, want: AnalysisField): boolean {
+  const w = want as unknown as Record<string, unknown>;
+  return live.name === w.name && live.type === w.type && live.description === w.description
+    && JSON.stringify(live.choices ?? null) === JSON.stringify(w.choices ?? null)
+    && JSON.stringify(live.examples ?? null) === JSON.stringify(w.examples ?? null);
+}
+
 /** The agent-level fields the plan reads, as get-agent returns them. */
 export interface LiveAgentSettings {
   webhook_events?: string[] | null;
   webhook_timeout_ms?: number | null;
   opt_in_signed_url?: boolean | null;
   data_storage_retention_days?: number | null;
+  post_call_analysis_data?: unknown[] | null;
 }
 
 export interface AgentPlan {
@@ -354,6 +402,19 @@ export function planAgentSettings(live: LiveAgentSettings, opts: { retentionDays
   if (live.opt_in_signed_url !== true) {
     drift.push("recording URLs are public and permanent (opt_in_signed_url off); the pipeline copies audio within seconds and refetches a fresh link when it must");
     patch.opt_in_signed_url = true;
+  }
+  // The analysis fields: ours present and unchanged; anything else on the
+  // agent (a preset, a field added by hand) is kept beside them.
+  const liveFields = Array.isArray(live.post_call_analysis_data)
+    ? (live.post_call_analysis_data.filter((f) => f !== null && typeof f === "object") as Record<string, unknown>[])
+    : [];
+  const missingFields = CALL_ANALYSIS_FIELDS.filter((f) => !liveFields.some((l) => sameAnalysisField(l, f)));
+  if (missingFields.length) {
+    drift.push(`post_call_analysis_data lacks ${missingFields.map((f) => f.name).join(", ")} (the strip, the profile and the call card read what the caller wanted)`);
+    patch.post_call_analysis_data = [
+      ...liveFields.filter((l) => !CALL_ANALYSIS_FIELDS.some((f) => f.name === l.name)),
+      ...CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
+    ];
   }
   if (opts.retentionDays !== undefined && live.data_storage_retention_days !== opts.retentionDays) {
     if (!Number.isInteger(opts.retentionDays) || opts.retentionDays < 1 || opts.retentionDays > 730) {

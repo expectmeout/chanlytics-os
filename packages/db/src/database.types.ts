@@ -272,8 +272,10 @@ export type Database = {
       calls: {
         Row: {
           agent_id: string | null
+          analysis: Json | null
           call_successful: boolean | null
           call_type: string | null
+          caller_name: string | null
           channel_id: string | null
           contact_id: string | null
           conversation_id: string | null
@@ -283,6 +285,7 @@ export type Database = {
           disconnection_reason: string | null
           duration_ms: number | null
           ended_at: string | null
+          follow_up: string | null
           from_e164: string | null
           from_raw: string | null
           id: string
@@ -290,6 +293,7 @@ export type Database = {
           latency: Json | null
           message_id: string | null
           notified_at: string | null
+          outcome: string | null
           public_log_url: string | null
           raw: Json
           recording: Json | null
@@ -303,11 +307,14 @@ export type Database = {
           transcript: string | null
           transcript_object: Json | null
           updated_at: string
+          wanted: string | null
         }
         Insert: {
           agent_id?: string | null
+          analysis?: Json | null
           call_successful?: boolean | null
           call_type?: string | null
+          caller_name?: string | null
           channel_id?: string | null
           contact_id?: string | null
           conversation_id?: string | null
@@ -317,6 +324,7 @@ export type Database = {
           disconnection_reason?: string | null
           duration_ms?: number | null
           ended_at?: string | null
+          follow_up?: string | null
           from_e164?: string | null
           from_raw?: string | null
           id?: string
@@ -324,6 +332,7 @@ export type Database = {
           latency?: Json | null
           message_id?: string | null
           notified_at?: string | null
+          outcome?: string | null
           public_log_url?: string | null
           raw?: Json
           recording?: Json | null
@@ -337,11 +346,14 @@ export type Database = {
           transcript?: string | null
           transcript_object?: Json | null
           updated_at?: string
+          wanted?: string | null
         }
         Update: {
           agent_id?: string | null
+          analysis?: Json | null
           call_successful?: boolean | null
           call_type?: string | null
+          caller_name?: string | null
           channel_id?: string | null
           contact_id?: string | null
           conversation_id?: string | null
@@ -351,6 +363,7 @@ export type Database = {
           disconnection_reason?: string | null
           duration_ms?: number | null
           ended_at?: string | null
+          follow_up?: string | null
           from_e164?: string | null
           from_raw?: string | null
           id?: string
@@ -358,6 +371,7 @@ export type Database = {
           latency?: Json | null
           message_id?: string | null
           notified_at?: string | null
+          outcome?: string | null
           public_log_url?: string | null
           raw?: Json
           recording?: Json | null
@@ -371,6 +385,7 @@ export type Database = {
           transcript?: string | null
           transcript_object?: Json | null
           updated_at?: string
+          wanted?: string | null
         }
         Relationships: [
           {
@@ -2109,6 +2124,7 @@ export type Database = {
       ingest_call: {
         Args: {
           p_agent_id: string
+          p_analysis?: Json
           p_call_type: string
           p_cost: Json
           p_direction: string

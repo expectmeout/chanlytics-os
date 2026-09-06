@@ -32,6 +32,8 @@ export interface NormalizedCallInput {
   publicLogUrl: string | null;
   cost: unknown;
   latency: unknown;
+  /** The agent's post-call analysis answers; the door files them as columns. */
+  analysis: unknown;
 }
 
 export interface IngestCallResult {
@@ -84,6 +86,7 @@ export async function ingestCall(
     p_cost: (n.cost ?? null) as Json,
     p_latency: (n.latency ?? null) as Json,
     p_raw: ((raw ?? {}) as Json),
+    p_analysis: ((n.analysis ?? null) as Json),
   } as never);
   if (error) throw new Error(`ingest_call: ${error.message}`);
   return data as unknown as IngestCallResult;

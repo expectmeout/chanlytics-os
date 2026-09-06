@@ -139,6 +139,7 @@ import { replyWhy, type ReplyWhyVM } from "./brain";
 import { formatPhoneDisplay } from "./phone";
 import { isOptedOutContact } from "./consent";
 import { waWindow, isLiveCall } from "./policy";
+import { callOutcomeWords, tidyCallSummary } from "./call-words";
 
 const AGENT = { glyph: "W", name: "WhatsApp Receptionist" };
 const CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the salon line\.\s*)?(Summary:\s*)?/;
@@ -746,6 +747,13 @@ export interface CallDto {
   call_successful: boolean | null;
   in_voicemail: boolean | null;
   summary: string | null;
+  /** From the post-call analysis (calls.wanted …): what the caller wanted in
+   *  plain words, how it ended, what to do next, the name they gave. Absent
+   *  on calls analysed before the schema existed. */
+  wanted?: string | null;
+  outcome?: string | null;
+  follow_up?: string | null;
+  caller_name?: string | null;
   /** Turns. `start` (seconds) is the turn's first word; `words` is the raw
    *  provider shape and is stripped by the list route (F15). */
   transcript_object: Array<{ role?: string; content?: string; start?: number; words?: Array<{ start?: number }> }> | null;
@@ -825,7 +833,10 @@ export function toCallVM(dto: CallDto, now = new Date()): CallVM {
   const live = isLiveCall(dto, now);
   // Retell's not_connected: the dial never connected. An attempt, not a call.
   const missed = dto.status === "not_connected";
-  const headSummary = (dto.summary || "").trim();
+  // What the caller wanted, in the analysis's plain words, leads; the
+  // provider's own summary is the fallback, its opening folded.
+  const wanted = (dto.wanted || "").trim();
+  const headSummary = tidyCallSummary(dto.summary) ?? "";
   const firstSentence = headSummary ? (headSummary.split(/(?<=[.!?])\s/)[0] ?? headSummary) : "";
 
   const bullets: string[] = [
@@ -837,6 +848,10 @@ export function toCallVM(dto: CallDto, now = new Date()): CallVM {
   if (dto.sentiment) {
     bullets.push(`Caller sentiment: ${dto.sentiment} — the voice provider's own read`);
   }
+  const outcomeWords = callOutcomeWords(dto.outcome);
+  if (outcomeWords) bullets.push(outcomeWords);
+  if (dto.follow_up?.trim()) bullets.push(`To do: ${dto.follow_up.trim()}`);
+  if (dto.caller_name?.trim()) bullets.push(`Gave their name as ${dto.caller_name.trim()}`);
   const recState: CallVM["recordingState"] =
     dto.recording?.fetch_state === "stored" ? "ready" :
     dto.recording?.fetch_state === "failed" ? "failed" :
@@ -866,7 +881,7 @@ export function toCallVM(dto: CallDto, now = new Date()): CallVM {
 
   const snippetBody = missed
     ? "The call never connected."
-    : firstSentence || (dto.in_voicemail ? "Reached voicemail." : "No summary from this call.");
+    : wanted || firstSentence || (dto.in_voicemail ? "Reached voicemail." : "No summary from this call.");
   return {
     id: `cv-${dto.id}`,
     real: true,
@@ -885,7 +900,7 @@ export function toCallVM(dto: CallDto, now = new Date()): CallVM {
     snippet: withheld
       ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""} — caller ID withheld, so this call isn't linked to a customer.`
       : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""} — ${snippetBody}`,
-    summary: { headline: firstSentence || snippetBody, bullets },
+    summary: { headline: wanted || firstSentence || snippetBody, bullets },
     transcript,
     recordingState: recState,
     ...(recState === "ready" ? { recordingUrl: `/api/v1/calls/${dto.id}/recording` } : {}),

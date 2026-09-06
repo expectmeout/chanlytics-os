@@ -396,6 +396,33 @@ function replyDelayMs(mode, limits) {
   return Math.min(REPLY_DELAY_MAX_MS, Math.max(REPLY_DELAY_MIN_MS, Math.round(raw)));
 }
 
+// src/call-words.ts
+var CALL_OUTCOMES = ["answered", "booking_link_sent", "callback_needed", "voicemail", "no_request", "other"];
+var CALL_OUTCOME_WORDS = {
+  answered: "Question answered",
+  booking_link_sent: "Booking link sent",
+  callback_needed: "Needs a call back",
+  voicemail: "Reached voicemail",
+  no_request: "No request made",
+  other: "Handled"
+};
+function callOutcomeOf(v) {
+  return typeof v === "string" && CALL_OUTCOMES.includes(v) ? v : null;
+}
+function callOutcomeWords(v) {
+  const o = callOutcomeOf(v);
+  return o ? CALL_OUTCOME_WORDS[o] : null;
+}
+function tidyCallSummary(text) {
+  const t = (text ?? "").replace(/\s+/g, " ").trim();
+  if (!t) return null;
+  const folded = t.replace(
+    /^The (?:user|caller|customer) (?:called|phoned|contacted|reached out to) [^.,;]*? (to|and) /i,
+    (_m, joiner) => joiner.toLowerCase() === "to" ? "Called to " : "Called and "
+  );
+  return folded.charAt(0).toUpperCase() + folded.slice(1);
+}
+
 // src/viewmodels.ts
 function messageAt(m) {
   return m.channel_ts ?? m.created_at;
@@ -762,7 +789,8 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
   const dur = mmss(dto.duration_ms);
   const live = isLiveCall(dto, now);
   const missed = dto.status === "not_connected";
-  const headSummary = (dto.summary || "").trim();
+  const wanted = (dto.wanted || "").trim();
+  const headSummary = tidyCallSummary(dto.summary) ?? "";
   const firstSentence = headSummary ? headSummary.split(/(?<=[.!?])\s/)[0] ?? headSummary : "";
   const bullets = [
     `${dto.direction === "inbound" ? "Inbound" : "Outbound"} \xB7 ${missed ? "never connected" : spokenDuration(dto.duration_ms)}`
@@ -773,6 +801,10 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
   if (dto.sentiment) {
     bullets.push(`Caller sentiment: ${dto.sentiment} \u2014 the voice provider's own read`);
   }
+  const outcomeWords = callOutcomeWords(dto.outcome);
+  if (outcomeWords) bullets.push(outcomeWords);
+  if (dto.follow_up?.trim()) bullets.push(`To do: ${dto.follow_up.trim()}`);
+  if (dto.caller_name?.trim()) bullets.push(`Gave their name as ${dto.caller_name.trim()}`);
   const recState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording?.fetch_state === "failed" ? "failed" : dto.recording ? "pending" : "none";
   if (!missed) {
     bullets.push(
@@ -791,7 +823,7 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
       text: turn.content ?? ""
     };
   });
-  const snippetBody = missed ? "The call never connected." : firstSentence || (dto.in_voicemail ? "Reached voicemail." : "No summary from this call.");
+  const snippetBody = missed ? "The call never connected." : wanted || firstSentence || (dto.in_voicemail ? "Reached voicemail." : "No summary from this call.");
   return {
     id: `cv-${dto.id}`,
     real: true,
@@ -808,7 +840,7 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
     outcome: live ? "live" : missed ? "missed" : "handled",
     ...live ? { live: true } : {},
     snippet: withheld ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 caller ID withheld, so this call isn't linked to a customer.` : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 ${snippetBody}`,
-    summary: { headline: firstSentence || snippetBody, bullets },
+    summary: { headline: wanted || firstSentence || snippetBody, bullets },
     transcript,
     recordingState: recState,
     ...recState === "ready" ? { recordingUrl: `/api/v1/calls/${dto.id}/recording` } : {},
@@ -3409,7 +3441,7 @@ function attentionRow(p, nowMs) {
   if (p.quote) {
     sentence = oneLine(p.quote, 160);
     quoted = true;
-  } else if (p.callSummary) sentence = oneLine(p.callSummary, 160);
+  } else if (p.callSummary) sentence = oneLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
   else if (p.nextVisit) sentence = `Booked \xB7 ${p.nextVisit}`;
   else if (p.lastVisit) sentence = `Last visit \xB7 ${p.lastVisit}`;
   else if (p.calls > 0) sentence = p.calls === 1 ? "Phoned once; nothing in writing yet" : `Phoned ${p.calls} times; nothing in writing yet`;
@@ -3473,9 +3505,10 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
     const t = ts(k.started_at);
     if (t === null) continue;
     const dur = mmss3(k.duration_ms);
-    const summary = (k.summary || "").trim();
+    const wanted = (k.wanted || "").trim();
+    const summary = tidyCallSummary(k.summary) ?? "";
     const missed = k.status === "not_connected";
-    const sentence = missed ? "The call never connected." : summary ? summary.split(/(?<=[.!?])\s/)[0] ?? summary : k.in_voicemail ? "Reached voicemail." : "No summary from this call.";
+    const sentence = missed ? "The call never connected." : wanted || (summary ? summary.split(/(?<=[.!?])\s/)[0] ?? summary : k.in_voicemail ? "Reached voicemail." : "No summary from this call.");
     items.push({
       id: `k-${k.id}`,
       ts: t,
@@ -4791,6 +4824,8 @@ export {
   BrainOutputSchema,
   BusinessProfileSchema,
   CALL_HEARTBEAT_MS,
+  CALL_OUTCOMES,
+  CALL_OUTCOME_WORDS,
   CAMPAIGN_REPORT_RANGES,
   CHANNEL_KINDS,
   CONFIDENCE_STEPS,
@@ -4898,6 +4933,8 @@ export {
   broadcastName,
   buildAskSuggestions,
   buildNotificationFeed,
+  callOutcomeOf,
+  callOutcomeWords,
   citationRoute,
   citationsToShow,
   cleanAnswer,
@@ -5041,6 +5078,7 @@ export {
   templateNameOk,
   templateTitle,
   threadStanding,
+  tidyCallSummary,
   toBookingReportVM,
   toBroadcastVM,
   toCalendarVM,

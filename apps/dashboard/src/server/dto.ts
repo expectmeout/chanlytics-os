@@ -19,7 +19,7 @@ export const MESSAGE_COLUMNS =
   "id, conversation_id, direction, sender, type, body, media, meta, status, created_at, channel_ts";
 
 export const CALL_COLUMNS =
-  "id, retell_call_id, direction, call_type, status, from_e164, from_raw, to_e164, started_at, ended_at, duration_ms, disconnection_reason, sentiment, call_successful, in_voicemail, summary, transcript_object, recording, conversation_id, contact_id, message_id, updated_at, contacts (display_name, wa_profile_name, phone_e164)";
+  "id, retell_call_id, direction, call_type, status, from_e164, from_raw, to_e164, started_at, ended_at, duration_ms, disconnection_reason, sentiment, call_successful, in_voicemail, summary, wanted, outcome, follow_up, caller_name, transcript_object, recording, conversation_id, contact_id, message_id, updated_at, contacts (display_name, wa_profile_name, phone_e164)";
 
 export interface ConversationRow {
   id: string;
@@ -71,6 +71,10 @@ export interface CallRow {
   call_successful: boolean | null;
   in_voicemail: boolean | null;
   summary: string | null;
+  wanted?: string | null;
+  outcome?: string | null;
+  follow_up?: string | null;
+  caller_name?: string | null;
   transcript_object: unknown;
   recording: unknown;
   conversation_id: string | null;
@@ -191,6 +195,10 @@ export function toCallDto(c: CallRow): CallDto {
     call_successful: c.call_successful,
     in_voicemail: c.in_voicemail,
     summary: c.summary,
+    wanted: c.wanted ?? null,
+    outcome: c.outcome ?? null,
+    follow_up: c.follow_up ?? null,
+    caller_name: c.caller_name ?? null,
     transcript_object: stripWordTimings(c.transcript_object),
     // storage_path and provider_url never leave the server: audio is reachable
     // only through the signed-URL route.

@@ -234,6 +234,9 @@ interface NormalizedCall {
     publicLogUrl: string | null;
     cost: unknown;
     latency: unknown;
+    /** The agent's post-call analysis answers (custom_analysis_data), when the
+     *  provider sent an object: caller_wanted, outcome, follow_up, caller_name. */
+    analysis: Record<string, unknown> | null;
 }
 /**
  * The spoken turns of a LIVE transcript, in the stored turn shape.
@@ -463,12 +466,42 @@ declare function voiceShellDrift(live: LiveVoiceLlm): {
 declare const VOICE_WEBHOOK_EVENTS: readonly ["call_started", "call_ended", "call_analyzed", "transcript_updated"];
 /** The webhook copies the recording inside its budget; Retell's default 10 s is too short for it. */
 declare const VOICE_WEBHOOK_TIMEOUT_MS = 20000;
+/**
+ * What the agent's post-call analysis fills in after every call, in the
+ * caller's own terms: what they wanted, how it ended, what a person should
+ * do next, the name they gave. The provider's default summary ("The user
+ * called Melany's Beauty Salon to inquire about…") is kept beside it; these
+ * are what the strip, the profile and the call card say. The webhook files
+ * them through ingest_call (migration 00061).
+ */
+declare const CALL_ANALYSIS_FIELDS: readonly [{
+    readonly type: "string";
+    readonly name: "caller_wanted";
+    readonly description: "What the caller wanted, in one short sentence in plain words, the way the salon owner would say it. Start with the request itself, never with 'The user' or 'The caller'. Leave empty if they asked for nothing.";
+    readonly examples: readonly ["Asked for a gel manicure this Saturday around 10.", "Wanted Tuesday's hours and the price of highlights.", "Rescheduled Friday's blowout to next week."];
+}, {
+    readonly type: "enum";
+    readonly name: "outcome";
+    readonly description: "How the call ended for the caller. answered: their question was answered. booking_link_sent: the receptionist sent them the booking link. callback_needed: a person at the salon has to call them back or follow up. voicemail: the call reached voicemail. no_request: they hung up, tested the line or asked for nothing. other: none of these.";
+    readonly choices: readonly ["answered", "booking_link_sent", "callback_needed", "voicemail", "no_request", "other"];
+}, {
+    readonly type: "string";
+    readonly name: "follow_up";
+    readonly description: "What a person at the salon should do next for this caller, in one short sentence. Leave empty when nothing is needed.";
+    readonly examples: readonly ["Call back to confirm a Saturday 10:00 gel manicure.", "Text the price list for highlights."];
+}, {
+    readonly type: "string";
+    readonly name: "caller_name";
+    readonly description: "The caller's name exactly as they gave it. Leave empty if they did not say one.";
+    readonly examples: readonly ["Ana", "Daniela R."];
+}];
 /** The agent-level fields the plan reads, as get-agent returns them. */
 interface LiveAgentSettings {
     webhook_events?: string[] | null;
     webhook_timeout_ms?: number | null;
     opt_in_signed_url?: boolean | null;
     data_storage_retention_days?: number | null;
+    post_call_analysis_data?: unknown[] | null;
 }
 interface AgentPlan {
     drift: string[];
@@ -496,4 +529,4 @@ declare function agentSettingsDrift(live: LiveAgentSettings): {
     drift: string[];
 };
 
-export { type AgentPlan, CALLER_UNKNOWN, DEFAULT_FN_URL, FACTS_UNAVAILABLE, GREETING_DEFAULT, HANDOFF_VAR, type ListCallsPage, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type SendResult, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, agentSettingsDrift, availabilityUrl, callSummaryLine, desiredVoiceShell, fetchMediaBytes, fetchRecording, getAgent, getCall, getRetellLlm, listCalls, liveTurns, needsHydration, normalizeCall, normalizeInbound, parseTranscriptText, planAgentSettings, planVoiceConvergence, sendTemplate, sendText, updateLiveCall, verifyRetellSignature, voiceShellDrift, voiceShellTools };
+export { type AgentPlan, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, DEFAULT_FN_URL, FACTS_UNAVAILABLE, GREETING_DEFAULT, HANDOFF_VAR, type ListCallsPage, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type SendResult, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, agentSettingsDrift, availabilityUrl, callSummaryLine, desiredVoiceShell, fetchMediaBytes, fetchRecording, getAgent, getCall, getRetellLlm, listCalls, liveTurns, needsHydration, normalizeCall, normalizeInbound, parseTranscriptText, planAgentSettings, planVoiceConvergence, sendTemplate, sendText, updateLiveCall, verifyRetellSignature, voiceShellDrift, voiceShellTools };
