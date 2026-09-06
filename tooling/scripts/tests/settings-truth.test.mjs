@@ -23,7 +23,7 @@ test("F4: a save re-reads the settings surface, so the next save carries the new
   const start = verbsBridge.indexOf("export async function saveSettings");
   const end = verbsBridge.indexOf("\nexport ", start + 10);
   const fn = verbsBridge.slice(start, end === -1 ? undefined : end);
-  assert.ok(fn.includes("await refreshSurfaces([settingsOverride, todayOverride]);"), "REGRESSION: the second save in a row was a 409");
+  assert.ok(fn.includes("await refreshSurfaces([settingsOverride, todayOverride, calendarOverride]);"), "REGRESSION: the second save in a row was a 409");
   assert.ok(!fn.includes("await refresh();"), "the generic refresh never re-read this pane");
 });
 

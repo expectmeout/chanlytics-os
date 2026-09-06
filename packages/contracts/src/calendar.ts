@@ -7,12 +7,15 @@
  * (availability.ts), so the page shows what callers are told. Nothing is
  * booked here; the booking link does that, whichever tool stands behind it.
  *
- * The DTO is what the route returns; the view model is what the page draws:
- * a week of day columns with the mockup's own geometry (hours down, days
- * across), bands where the business is closed, blocks where the calendar is
- * taken, dashed windows where it is open. Pure; tests feed fixtures.
+ * The DTO is what the route returns for one span of days; the view model is
+ * what the page draws — a week or a day on the mockup's own geometry (hours
+ * down, days across), a month of counts, or an agenda — with bands where
+ * the business is closed, blocks where the calendar is taken, dashed
+ * windows where it is open, and the words Settings gave it: the hours, the
+ * closures ahead, the booking rules, the services and how long they take.
+ * Pure; tests feed fixtures.
  */
-import type { Closure, Hours } from "./config";
+import { DAYS, hoursRuns, type Closure, type Hours } from "./config";
 import { BOOKING_DEFAULTS, clockInZone, closedOn, dayInZone, dayIntervals, type BookingRulesLike } from "./availability";
 
 export interface CalendarItemDto {
@@ -43,6 +46,13 @@ export interface CalendarFeedDto {
   skipped_recurring: number;
 }
 
+export interface CalendarServiceDto {
+  name: string;
+  duration_min: number | null;
+  /** Needs a consultation first: the receptionist books the consult, never the service. */
+  consult_first: boolean;
+}
+
 /** What `GET /api/v1/calendar?from=&days=` returns. */
 export interface CalendarWeekDto {
   timezone: string;
@@ -52,6 +62,7 @@ export interface CalendarWeekDto {
   hours: Record<string, Hours | undefined> | null;
   closures: Closure[];
   rules: BookingRulesLike | null;
+  services: CalendarServiceDto[];
   booking_link: string | null;
   days: CalendarDayDto[];
   error?: string;
@@ -61,6 +72,7 @@ export interface CalendarWeekDto {
 
 const DAY_MS = 86_400_000;
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAY_SHORT: Record<string, string> = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
 
 function keyParts(key: string): { y: number; m: number; d: number } {
   const [y, m, d] = key.split("-").map(Number);
@@ -83,6 +95,24 @@ export function mondayOf(key: string): string {
 
 export function isDayKey(s: unknown): s is string {
   return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
+}
+
+/** The span a month view shows: six weeks from the Monday on or before the first. */
+export function monthSpan(key: string): { from: string; days: number } {
+  return { from: mondayOf(`${key.slice(0, 7)}-01`), days: 42 };
+}
+
+/** The first of the month `n` months away from `key`'s month. */
+export function shiftMonth(key: string, n: number): string {
+  const { y, m } = keyParts(key);
+  const at = new Date(Date.UTC(y, m - 1 + n, 1));
+  return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, "0")}-01`;
+}
+
+/** "September 2026" */
+export function monthLabelOf(key: string): string {
+  const { y, m } = keyParts(key);
+  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(new Date(Date.UTC(y, m - 1, 1, 12)));
 }
 
 /* ----------------------------------------------------------- the words */
@@ -126,6 +156,14 @@ export function rulesLine(rules: BookingRulesLike | null | undefined): string {
   return `Offers times ${parts.join(" · ")}`;
 }
 
+/** "Mon–Fri 10:00–19:00", "Sat 10:00–16:00", "Sun closed" — one line per run of days with the same hours. */
+export function hoursLines(hours: Record<string, Hours | undefined> | null | undefined): string[] {
+  if (!hours) return [];
+  const clean: Record<string, Hours> = {};
+  for (const d of DAYS) if (hours[d]) clean[d] = hours[d] as Hours;
+  return hoursRuns(clean).map((r) => `${DAY_SHORT[r.from] ?? r.from}${r.to !== r.from ? `–${DAY_SHORT[r.to] ?? r.to}` : ""} ${r.text.toLowerCase() === "closed" ? "closed" : r.text}`);
+}
+
 /* ------------------------------------------------------------ the view */
 
 export interface CalendarBlockVM {
@@ -135,16 +173,14 @@ export interface CalendarBlockVM {
   /** Minutes. */
   dur: number;
   title: string;
-  /** "2:00 – 3:00 PM" */
+  /** "2 – 3:30 PM" */
   time: string;
   person: { id: string; name: string } | null;
-  /** The instants, for the panel. */
   start: string;
   end: string;
 }
 
 export interface CalendarBandVM {
-  /** Hours from midnight. */
   from: number;
   to: number;
   label: string | null;
@@ -153,7 +189,7 @@ export interface CalendarBandVM {
 export interface CalendarWindowVM {
   t: number;
   dur: number;
-  /** "2:30 – 4:00 PM" */
+  /** "2:30 – 4 PM" */
   label: string;
 }
 
@@ -162,14 +198,30 @@ export interface CalendarDayVM {
   dow: string;
   date: string;
   long: string;
+  /** "8" — the day of the month, for the month grid. */
+  dayNum: string;
   today: boolean;
   past: boolean;
   closed: { yes: boolean; note: string | null };
-  /** The bands where the business is closed, in hours from midnight. */
   bands: CalendarBandVM[];
   blocks: CalendarBlockVM[];
   allDay: CalendarBlockVM[];
   windows: CalendarWindowVM[];
+}
+
+export interface CalendarServiceVM {
+  name: string;
+  duration: number | null;
+  consultFirst: boolean;
+  /** "Balayage · 90 min" */
+  label: string;
+}
+
+export interface CalendarClosureVM {
+  key: string;
+  /** "Sep 12" or "Sep 12 – 14" */
+  label: string;
+  note: string | null;
 }
 
 export interface CalendarVM {
@@ -178,15 +230,20 @@ export interface CalendarVM {
   to: string;
   /** "Sep 7 – 13" */
   rangeLabel: string;
+  /** "September 2026" — the month a six-week span shows, else the month of `from`. */
+  monthLabel: string;
   /** The hours the grid draws, whole hours. */
   hours: { start: number; end: number };
   days: CalendarDayVM[];
   today: string;
-  /** Where the now line sits, hours from midnight, when today is in the week. */
+  /** Where the now line sits, hours from midnight, when today is in the span. */
   now: number | null;
   feed: { present: boolean; state: "ok" | "unavailable" | "none"; line: string; events: number };
   stats: { events: number; windows: number; next: string };
   rules: string;
+  hoursLines: string[];
+  closuresAhead: CalendarClosureVM[];
+  services: CalendarServiceVM[];
   bookingLink: string | null;
 }
 
@@ -220,16 +277,15 @@ function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs
 }
 
 /**
- * The week as the page draws it. `now` decides today, the now line, which
- * days are past, and the next opening.
+ * The span as the page draws it. `now` decides today, the now line, which
+ * days are past, the next opening and the closures ahead.
  */
 export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM {
   const tz = dto.timezone;
   const todayKey = dayInZone(tz, now.getTime()).key;
   const nowMs = now.getTime();
 
-  // The grid's hours: the business's own, an hour of air on each side, and
-  // stretched to hold anything the calendar puts outside them.
+  // The grid's hours: the business's own, an hour of air on each side.
   let start = 24;
   let end = 0;
   for (const h of Object.values(dto.hours ?? {})) {
@@ -246,8 +302,6 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
 
   const days: CalendarDayVM[] = dto.days.map((d) => {
     const { y, m, d: dd } = keyParts(d.key);
-    const dayStartMs = Date.UTC(y, m - 1, dd) + 0; // placeholder, replaced below via zone math
-    void dayStartMs;
     const weekday = DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()].toLowerCase();
     const closure = dto.closures.find((c) => c.date <= d.key && d.key <= (c.until && c.until >= c.date ? c.until : c.date)) ?? null;
     const intervals = dayIntervals(dto.hours?.[weekday]);
@@ -265,7 +319,6 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
       }
       if (cursor < end) bands.push({ from: cursor, to: end, label: null });
     }
-    // The day's instants in the business's zone, for clipping multi-day items.
     const zoneDayStart = zoneMidnight(tz, d.key);
     const zoneDayEnd = zoneMidnight(tz, shiftKey(d.key, 1));
     const timed: CalendarBlockVM[] = [];
@@ -289,6 +342,7 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
       dow: DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()],
       date: shortDate(d.key),
       long: longDate(d.key),
+      dayNum: String(dd),
       today: d.key === todayKey,
       past: d.key < todayKey,
       closed: { yes: closedDay, note: closure?.note ?? null },
@@ -318,11 +372,27 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
   const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
   const sameMonth = dto.from.slice(0, 7) === last.slice(0, 7);
+  const closuresAhead: CalendarClosureVM[] = dto.closures
+    .filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 6)
+    .map((c) => ({
+      key: c.date,
+      label: c.until && c.until > c.date ? `${shortDate(c.date)} – ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}` : shortDate(c.date),
+      note: c.note ?? null,
+    }));
+  const services: CalendarServiceVM[] = (dto.services ?? []).map((s) => ({
+    name: s.name,
+    duration: s.duration_min,
+    consultFirst: s.consult_first,
+    label: `${s.name}${s.duration_min ? ` · ${s.duration_min} min` : ""}${s.consult_first ? " · consult first" : ""}`,
+  }));
   return {
     timezone: tz,
     from: dto.from,
     to: last,
     rangeLabel: `${shortDate(dto.from)} – ${sameMonth ? shortDate(last).replace(/^[A-Za-z]+ /, "") : shortDate(last)}`,
+    monthLabel: monthLabelOf(dto.days.length >= 28 ? shiftKey(dto.from, 7) : dto.from),
     hours: { start, end },
     days,
     today: todayKey,
@@ -330,6 +400,9 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
     feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events },
     stats: { events, windows: windowCount, next },
     rules: rulesLine(dto.rules),
+    hoursLines: hoursLines(dto.hours),
+    closuresAhead,
+    services,
     bookingLink: dto.booking_link,
   };
 }
@@ -337,7 +410,6 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
 /** Midnight of a day key in `tz`, as an instant. */
 export function zoneMidnight(tz: string, key: string): number {
   const { y, m, d } = keyParts(key);
-  // Two passes over the zone offset cover a DST edge, as localToUtcMs does.
   const guess = Date.UTC(y, m - 1, d);
   const off1 = zoneOffsetOf(tz, guess);
   const first = guess - off1;

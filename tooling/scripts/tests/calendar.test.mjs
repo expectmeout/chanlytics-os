@@ -140,3 +140,39 @@ test("the doors and the page: read-only, the feed's address never in the browser
   const s = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
   assert.ok(s.includes('data-testid="cal-check"') && s.includes("window.__calendar.previewFeed(icalUrl.trim())"), "the feed is checked before it is saved");
 });
+
+test("the words from Settings on the board: hours as runs, closures ahead, services with their length and consult-first; a month's label and span", async () => {
+  const { monthSpan, monthLabelOf, shiftMonth, hoursLines } = await import("@chanlytics/contracts");
+  const now = new Date("2026-09-08T16:00:00.000Z");
+  const vm = toCalendarVM(dto({ services: [{ name: "Balayage", duration_min: 90, consult_first: false }, { name: "Color correction", duration_min: null, consult_first: true }] }), now);
+  assert.deepEqual(vm.hoursLines, ["Mon–Tue 09:00–18:00", "Wed 09:00–13:00 and 15:00–19:00 (closed 13:00–15:00)", "Thu–Fri 09:00–18:00", "Sat 10:00–16:00", "Sun closed"], "the same runs Settings and the prompt use");
+  assert.deepEqual(vm.closuresAhead, [{ key: "2026-09-12", label: "Sep 12", note: "Wedding" }]);
+  assert.deepEqual(vm.services.map((s) => s.label), ["Balayage · 90 min", "Color correction · consult first"]);
+  assert.equal(vm.monthLabel, "September 2026");
+  assert.deepEqual(monthSpan("2026-09-17"), { from: "2026-08-31", days: 42 }, "six weeks from the Monday on or before the first");
+  assert.equal(shiftMonth("2026-09-17", 1), "2026-10-01");
+  assert.equal(shiftMonth("2026-01-05", -1), "2025-12-01");
+  assert.equal(monthLabelOf("2026-10-01"), "October 2026");
+  assert.deepEqual(hoursLines(null), []);
+  const past = toCalendarVM(dto({ closures: [{ date: "2026-08-01", note: "gone" }, { date: "2026-09-20", until: "2026-09-22" }] }), now);
+  assert.deepEqual(past.closuresAhead, [{ key: "2026-09-20", label: "Sep 20 – 22", note: null }], "a closure already past is not ahead");
+});
+
+test("full-fledged: month and agenda views, a date to jump to, windows that fit a service, the rules bar, Today's line, the assistant's read, and Settings saves that reach the board", () => {
+  const page = readCode("apps/dashboard/src/legacy/pages/calendar-real.jsx");
+  for (const id of ["cal-month", "cal-month-cell", "cal-agenda", "cal-agenda-day", "cal-jump", "cal-service", "cal-rules", "cal-consult-note"]) assert.ok(page.includes(`data-testid="${id}"`), id);
+  assert.ok(page.includes('data-testid={`cal-view-${id}`}') && page.includes('["month", "Month"], ["agenda", "Agenda"]'), "four views, one tab each");
+  assert.ok(page.includes("const fit = (w) => !service || !service.duration || w.dur >= service.duration;"), "the same rule the assistant applies for a service");
+  assert.ok(page.includes('go(crMonthSpan(anchor).from, 42)') && page.includes('go(vm.today, 14)'), "a month is six weeks, the agenda two");
+  const svc = readCode("apps/dashboard/src/server/calendar.ts");
+  assert.ok(svc.includes("const MAX_DAYS = 42;") && svc.includes("consult_first: (profile?.booking_rules?.consult_first ?? []).some("), "the services as Settings keeps them");
+  const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  assert.ok(sd.includes("&days=${calendarDays}") && sd.includes("calendarDays = Math.min(42, Math.max(1, Math.round(days) || 7));"));
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts").includes("await refreshSurfaces([settingsOverride, todayOverride, calendarOverride]);"), "hours, closures, rules and services saved in Settings reach the board");
+  const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
+  assert.ok(brief.includes('data-testid="brief-calendar"') && brief.includes('C.vm.feed.state !== "ok") return null;'), "Today says the day on the calendar, and nothing without a feed");
+  const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
+  assert.ok(tools.includes('name: "get_calendar"') && tools.includes('case "get_calendar": out = await getCalendar(t, run.input); break;'));
+  assert.ok(tools.includes("Nothing is booked from here — the booking link does that."));
+  assert.ok(readCode("apps/dashboard/src/server/ask/prompt.ts").includes('"calendar": "The owner\'s calendar as the receptionist reads it'));
+});
