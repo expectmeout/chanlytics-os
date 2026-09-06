@@ -451,3 +451,8 @@
 .set-cal-check { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
 .set-cal-check .set-row-hint.warn { color: var(--warn); }
 .cal-nav { font-size: 16px; line-height: 1; padding-bottom: 2px; }
+/* A day head holds the day, the date, and at most a Today chip on one line;
+   a closure or an all-day event takes its own line under them. */
+.cal-dayhead { flex-wrap: wrap; row-gap: 3px; align-items: center; }
+.cal-dayhead .cal-date { white-space: nowrap; }
+.cal-dayhead .cal-closed-chip, .cal-dayhead .cal-allday { flex-basis: 100%; }
