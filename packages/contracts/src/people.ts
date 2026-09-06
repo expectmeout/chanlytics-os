@@ -440,6 +440,10 @@ export interface PersonRowVM {
   /** "Tue, Sep 8 · 2:00 – 5:00 PM · Balayage" */
   nextVisit: string | null;
   lastVisit: string | null;
+  /** "Thu, Aug 20" — the day of the last visit, for the row when nothing is ahead. */
+  lastVisitDay: string | null;
+  /** WhatsApp's 24-hour window for a free reply: open, and how long is left. Null without a chat. */
+  replyWindow: { open: boolean; hoursLeft: number } | null;
   /** When they last wrote or called, whichever is later. */
   askedMs: number | null;
   /** Wrote or called in the last 30 days, and the calendar has never had them. */
@@ -507,6 +511,10 @@ export function toPersonRowVM(r: PersonRowDto, now = new Date()): PersonRowVM {
     nextVisitDay: v?.next ? visitDay(v.next.start, v.timezone, nowMs) : null,
     nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} · ${v.next.title}` : null,
     lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} · ${v.last.title}` : null,
+    lastVisitDay: v?.last ? visitDay(v.last.start, v.timezone, nowMs) : null,
+    replyWindow: r.has_chat
+      ? (() => { const w = waWindow(r.latest_wa_inbound_at, now); return { open: w.open, hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 3_600_000)) : 0 }; })()
+      : null,
     askedMs,
     askedNotBooked,
     nextVisitMs,
@@ -693,8 +701,6 @@ export interface PersonVM extends PersonRowVM {
   about: { k: string; v: string }[];
   /** The owner's notes, the receptionist's reading material. */
   notes: string | null;
-  /** WhatsApp's 24-hour window for a free reply: open, and how long is left. Null without a chat. */
-  replyWindow: { open: boolean; hoursLeft: number } | null;
   /** The workspace's booking link, or null when none is on file. */
   bookingLink: string | null;
   /** "inbox/th-…" or null for a phone-only person. */
@@ -950,9 +956,6 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
     timeline: items,
     about,
     notes: d.notes?.trim() || null,
-    replyWindow: base.hasChat
-      ? (() => { const w = waWindow(r.latest_wa_inbound_at, now); return { open: w.open, hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 3_600_000)) : 0 }; })()
-      : null,
     bookingLink: d.booking_link?.trim() || null,
     openThread: base.threadId ? `inbox/${base.threadId}` : null,
     receptionistMode: {

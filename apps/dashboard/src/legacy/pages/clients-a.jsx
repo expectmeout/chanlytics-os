@@ -930,15 +930,49 @@ const PeopleTriage = ({ rows, recency, attentionTab, setAttentionTab, onOpen, on
 
 // With a calendar connected the outcome takes the column the receptionist's
 // state held: "Answering" on every row said nothing, the next visit does.
+// The columns answer the three questions an owner brings to the page — who
+// needs me, who is booked, who can I message. With a calendar connected the
+// outcome takes the column the receptionist's state held ("Answering" on
+// every row said nothing). Offers is the fact that gates every campaign.
+// First contact lives in the identity cell now; the last column is the
+// row's own actions, shown on hover.
 const plCols = (withCalendar) => [
   { key: "name", label: "Client", sortable: true },
   { key: "state", label: "State", sortable: true },
   { key: "last", label: "Last contact", sortable: true },
-  withCalendar ? { key: "next", label: "Next visit", sortable: true } : { key: "receptionist", label: "Receptionist", sortable: false },
-  { key: "first", label: "First contact", sortable: true },
+  withCalendar ? { key: "visits", label: "Visits", sortable: true } : { key: "receptionist", label: "Receptionist", sortable: false },
+  { key: "offers", label: "Offers", sortable: true },
+  { key: "actions", label: "", sortable: false },
 ];
+const PL_SORT_KEYS = ["last", "name", "state", "visits", "offers"];
 
-const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, withCalendar = false, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {} }) => (
+const plIsNumber = (name) => /^[+\d(]/.test(name || "");
+const plWhen = (iso) => { if (!iso) return undefined; const d = new Date(iso); return Number.isNaN(d.getTime()) ? undefined : d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" }); };
+const PL_OFFERS = { opted_in: ["Yes", "yes"], opted_out: ["No", "no"], unknown: ["Not asked", "unasked"] };
+
+// The row's own next steps, on hover: the thread, and the booking link when
+// there is one — a reply carried in inside the 24-hour window, the template
+// outside it. Nothing is sent from the row.
+const PeopleRowActions = ({ p, bookingLink }) => {
+  if (!p.threadId) return null;
+  const open = () => window.CHANLY.nav(window.CHANLY.R.thread(p.threadId));
+  const link = () => {
+    if (p.replyWindow && p.replyWindow.open) {
+      try { sessionStorage.setItem("chanlytics-compose", JSON.stringify({ threadId: p.threadId, text: `Here's the link to book your appointment: ${bookingLink}` })); } catch { /* nothing to carry */ }
+    }
+    open();
+  };
+  return (
+    <span className="cl-row-actions" onClick={(e) => e.stopPropagation()}>
+      <button className="cl-row-act" title="Open the thread" aria-label="Open the thread" onClick={open} data-testid="row-open-thread"><Icon name="chat" size={12} /></button>
+      {bookingLink && (
+        <button className="cl-row-act" title={p.replyWindow && p.replyWindow.open ? `Text the booking link · ${p.replyWindow.hoursLeft}h left in their reply window` : "Send the booking-link template — their reply window is closed"} aria-label="Booking link" onClick={link} data-testid="row-booking-link"><Icon name="calendar" size={12} /></button>
+      )}
+    </span>
+  );
+};
+
+const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, withCalendar = false, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, bookingLink = null }) => (
   <div className={`cl-table-wrap ${sel.size ? "selecting" : ""}`}>
     <table className="cl-table">
       <thead>
@@ -949,7 +983,7 @@ const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, o
             </th>
           )}
           {plCols(withCalendar).map((c) => (
-            <th key={c.key} className={c.sortable ? "sortable" : ""} onClick={() => c.sortable && onSort(c.key)}>
+            <th key={c.key} className={`${c.sortable ? "sortable" : ""} ${c.key === "actions" ? "cl-actions-head" : ""}`} onClick={() => c.sortable && onSort(c.key)} aria-sort={sortBy === c.key ? (sortDir === "asc" ? "ascending" : "descending") : undefined}>
               {c.label}
               {sortBy === c.key && <span className="sort-arr">{sortDir === "asc" ? "▲" : "▼"}</span>}
             </th>
@@ -957,41 +991,61 @@ const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, o
         </tr>
       </thead>
       <tbody>
-        {rows.map((p) => (
-          <tr key={p.id} className={sel.has(p.id) ? "selected" : ""} onClick={() => onOpen(p.id)}>
-            {selectable && (
-              <td className="cl-sel" onClick={(e) => e.stopPropagation()}>
-                <input type="checkbox" className="cl-check" checked={sel.has(p.id)} onChange={() => onToggle(p.id)} aria-label={`Select ${p.name}`} data-testid="row-select" />
-              </td>
-            )}
-            <td>
-              <div className="cl-row-name">
-                <div className="ix-thread-avatar">{p.initials}</div>
-                <div className="cl-row-name-block">
-                  <div className="cl-row-fullname">{p.name}</div>
-                  <div className="cl-row-meta">
-                    <PeopleChannels channels={p.channels} />
-                    {p.phone && p.phone !== p.name && <><span className="dot" /><span>{p.phone}</span></>}
-                    <span className="dot" />
-                    <span>{p.threads} thread{p.threads === 1 ? "" : "s"}{p.calls ? ` · ${p.calls} call${p.calls === 1 ? "" : "s"}` : ""}</span>
+        {rows.map((p) => {
+          const numbered = plIsNumber(p.name);
+          const offers = PL_OFFERS[p.consent.state] || PL_OFFERS.unknown;
+          return (
+            <tr key={p.id} id={`person-${p.id}`} className={`${sel.has(p.id) ? "selected" : ""} ${cursor === p.id ? "focused" : ""}`} onClick={() => onOpen(p.id)}>
+              {selectable && (
+                <td className="cl-sel" onClick={(e) => e.stopPropagation()}>
+                  <input type="checkbox" className="cl-check" checked={sel.has(p.id)} onChange={() => onToggle(p.id)} aria-label={`Select ${p.name}`} data-testid="row-select" />
+                </td>
+              )}
+              <td className="cl-name-cell">
+                <div className="cl-row-name">
+                  {numbered
+                    ? <div className="ix-thread-avatar cl-row-avatar-glyph" title="No name yet"><Icon name="phone" size={12} /></div>
+                    : <div className="ix-thread-avatar">{p.initials}</div>}
+                  <div className="cl-row-name-block">
+                    <div className="cl-row-fullname">
+                      <span className={numbered ? "tabular" : ""}>{p.name}</span>
+                      {numbered && <button className="cl-row-name-them" onClick={(e) => { e.stopPropagation(); onOpen(p.id); }} title="Give them a name on their profile" data-testid="row-name-them">Name them <Icon name="arrow-right" size={9} /></button>}
+                    </div>
+                    <div className="cl-row-meta">
+                      <PeopleChannels channels={p.channels} />
+                      {!numbered && p.phone && <><span className="dot" /><span className="tabular">{p.phone}</span></>}
+                      {!numbered && p.waName && p.waName !== p.name && <><span className="dot" /><span title="Their name on WhatsApp">{p.waName} on WhatsApp</span></>}
+                      <span className="dot" />
+                      <span>{p.threads === 0 && p.calls === 0 ? "no messages yet" : `${p.threads} thread${p.threads === 1 ? "" : "s"}${p.calls ? ` · ${p.calls} call${p.calls === 1 ? "" : "s"}` : ""}`}</span>
+                      {p.firstContact.label !== "—" && <><span className="dot" /><span title={p.firstContact.estimate ? "The earliest row we hold; the true first contact is earlier" : "First contact"}>since {p.firstContact.label.replace(/^Before /, "before ")}</span></>}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </td>
-            <td className="shrink">
-              <PeopleStatePill state={p.state} label={p.stateLabel} />
-              {withCalendar && p.receptionist.tone !== "answering" && <span className="cl-row-recept-mark" title={p.receptionist.label}>{PL_RECEPT_MARK[p.receptionist.tone] || p.receptionist.tone}</span>}
-            </td>
-            <td className="shrink dim">{p.lastContact.label}</td>
-            {withCalendar
-              ? <td className="shrink" title={p.nextVisit || ""} data-testid="row-next-visit">{p.nextVisitDay ? <><span className="cl-row-next">{p.nextVisitDay}</span><span className="dim"> · {(p.nextVisit || "").split(" · ")[1] || ""}</span></> : <span className="dim">—</span>}</td>
-              : <td><PeopleReceptionist r={p.receptionist} /></td>}
-            <td className="shrink dim">{p.firstContact.label}</td>
-          </tr>
-        ))}
+              </td>
+              <td className="shrink cl-state-cell">
+                <PeopleStatePill state={p.state} label={p.stateLabel} />
+                {withCalendar && p.receptionist.tone !== "answering" && <span className="cl-row-recept-mark" title={p.receptionist.label}>{PL_RECEPT_MARK[p.receptionist.tone] || p.receptionist.tone}</span>}
+              </td>
+              <td className="shrink dim cl-last-cell" title={plWhen(p.lastContact.at)}>{p.lastContact.label}</td>
+              {withCalendar
+                ? (
+                  <td className="shrink cl-visits-cell" title={p.nextVisit || p.lastVisit || "Never on the calendar"} data-testid="row-next-visit">
+                    {p.nextVisitDay
+                      ? <><span className="cl-row-next">{p.nextVisitDay}</span><span className="dim"> · {(p.nextVisit || "").split(" · ")[1] || ""}</span></>
+                      : p.lastVisitDay
+                        ? <span className="cl-row-last-visit">Last · {p.lastVisitDay}</span>
+                        : <span className="dim">—</span>}
+                  </td>
+                )
+                : <td className="cl-recept-cell"><PeopleReceptionist r={p.receptionist} /></td>}
+              <td className="shrink cl-offers-cell" title={p.consent.sub} data-testid="row-offers"><span className={`cl-row-offers ${offers[1]}`}>{offers[0]}</span></td>
+              <td className="shrink cl-actions-cell"><PeopleRowActions p={p} bookingLink={bookingLink} /></td>
+            </tr>
+          );
+        })}
         {rows.length === 0 && (
           <tr>
-            <td colSpan={selectable ? 6 : 5}>
+            <td colSpan={selectable ? 7 : 6}>
               <div className="cl-table-empty">
                 <Icon name="search" size={15} />
                 <span>{total === 0 ? "Nobody has written or phoned yet." : "No one matches this view."}</span>
@@ -1007,8 +1061,8 @@ const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, o
       </tbody>
     </table>
     <div className="cl-table-foot">
-      <span>Showing {rows.length} of {total}</span>
-      <span>Sort any column · press / to search</span>
+      <span>{filtered ? `Showing ${rows.length} of ${total}` : `${total} ${total === 1 ? "person" : "people"}`}</span>
+      <span className="cl-table-keys"><kbd>↑</kbd><kbd>↓</kbd> move · <kbd>↵</kbd> opens · <kbd>space</kbd> selects · <kbd>/</kbd> searches</span>
     </div>
   </div>
 );
@@ -1138,7 +1192,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   React.useEffect(() => { if (initialState && PL_TABS.includes(initialState)) setTab(initialState); }, [initialState]);
   const [attentionTab, setAttentionTab] = useState(PL_TABS.includes(remembered.attentionTab) ? remembered.attentionTab : "needs_you");
   const [showTriage, setShowTriage] = useState(remembered.showTriage !== false);
-  const [sortBy, setSortBy] = useState(["last", "first", "name", "state", "next"].includes(remembered.sortBy) ? remembered.sortBy : "last");
+  const [sortBy, setSortBy] = useState(PL_SORT_KEYS.includes(remembered.sortBy) ? remembered.sortBy : "last");
   const [sortDir, setSortDir] = useState(remembered.sortDir === "asc" ? "asc" : "desc");
   React.useEffect(() => { plSaveView({ attentionTab, showTriage, sortBy, sortDir }); }, [attentionTab, showTriage, sortBy, sortDir]);
   // The view in the address, so a list or a state can be sent to someone —
@@ -1169,7 +1223,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   };
   const onSort = (key) => {
     if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortBy(key); setSortDir(key === "name" || key === "next" ? "asc" : "desc"); }
+    else { setSortBy(key); setSortDir(key === "name" || key === "visits" ? "asc" : "desc"); }
   };
 
   const shown = useMemo(() => {
@@ -1188,10 +1242,15 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     const needle = q.trim().toLowerCase();
     const digits = needle.replace(/\D/g, "");
     if (needle) {
+      // The name, the number, their name on WhatsApp — and the words on the
+      // row: their last message and their visits, so "balayage" finds people.
       list = list.filter((p) =>
         p.name.toLowerCase().includes(needle) ||
         (p.waName || "").toLowerCase().includes(needle) ||
-        (digits.length >= 3 && (p.phone || "").replace(/\D/g, "").includes(digits))
+        (digits.length >= 3 && (p.phone || "").replace(/\D/g, "").includes(digits)) ||
+        (p.quote || "").toLowerCase().includes(needle) ||
+        (p.nextVisit || "").toLowerCase().includes(needle) ||
+        (p.lastVisit || "").toLowerCase().includes(needle)
       );
     }
     const order = { needs_you: 0, waiting_on_you: 1, opted_out: 2, new: 3, quiet: 4, active: 5 };
@@ -1200,9 +1259,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
       switch (sortBy) {
         case "name": av = a.name.toLowerCase(); bv = b.name.toLowerCase(); break;
         case "state": av = order[a.state]; bv = order[b.state]; break;
-        case "first": av = a.firstContact.ts ?? -Infinity; bv = b.firstContact.ts ?? -Infinity; break;
-        // Nobody booked sorts last either way.
-        case "next": { const none = sortDir === "asc" ? Infinity : -Infinity; av = a.nextVisitMs ?? none; bv = b.nextVisitMs ?? none; break; }
+        // Ahead first (soonest), then the most recent visit, then never.
+        case "visits": { const none = sortDir === "asc" ? Infinity : -Infinity; av = a.nextVisitMs ?? (a.lastVisitMs !== null ? 1e15 + (1e15 - a.lastVisitMs) : none); bv = b.nextVisitMs ?? (b.lastVisitMs !== null ? 1e15 + (1e15 - b.lastVisitMs) : none); break; }
+        case "offers": { const rank = { opted_in: 0, unknown: 1, opted_out: 2 }; av = rank[a.consent.state] ?? 1; bv = rank[b.consent.state] ?? 1; if (av === bv) { av = a.lastContact.ts ?? -Infinity; bv = b.lastContact.ts ?? -Infinity; } break; }
         default: av = a.lastContact.ts ?? -Infinity; bv = b.lastContact.ts ?? -Infinity;
       }
       if (av < bv) return sortDir === "asc" ? -1 : 1;
@@ -1216,7 +1275,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     first: ["Newest people first", "Oldest people first"],
     name: ["Z → A", "A → Z"],
     state: ["By state", "By state · reversed"],
-    next: ["Latest visit first", "Soonest visit first"],
+    visits: ["Latest visit first", "Soonest visit first"],
+    offers: ["Said no first", "Said yes first"],
   };
   const sortLabel = (sortLabels[sortBy] || ["Sorted", "Sorted"])[sortDir === "desc" ? 0 : 1];
   const activeList = listId && lists.find((l) => l.id === listId);
@@ -1224,6 +1284,31 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const filtered = tab !== "all" || !!listId || !!savedId || !!q.trim();
   React.useEffect(() => { setSel(new Set()); }, [tab, listId, savedId, q]);
   const shownIds = shown.map((p) => p.id);
+  // A keyboard walks the rows like the Inbox walks threads: ↑ ↓ move, Enter
+  // opens, Space selects. Never while typing, never with a modifier.
+  const [cursor, setCursor] = useState(null);
+  React.useEffect(() => { setCursor((c) => (c && shownIds.includes(c) ? c : null)); }, [shownIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => {
+    const onKey = (e) => {
+      const el = document.activeElement;
+      const typing = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
+      if (typing || e.metaKey || e.ctrlKey || e.altKey || !shownIds.length) return;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setCursor((c) => {
+          const i = c ? shownIds.indexOf(c) : -1;
+          const next = e.key === "ArrowDown" ? Math.min(shownIds.length - 1, i + 1) : Math.max(0, i - 1);
+          const id = shownIds[next];
+          const row = document.getElementById(`person-${id}`);
+          if (row && row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
+          return id;
+        });
+      } else if (e.key === "Enter" && cursor) { e.preventDefault(); onOpenProfile(cursor); }
+      else if (e.key === " " && cursor && (canEditLists || canExport)) { e.preventDefault(); toggleSel(cursor); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }); // eslint-disable-line react-hooks/exhaustive-deps
   const toggleAll = () => setSel((s) => (shownIds.length && shownIds.every((id) => s.has(id)) ? new Set() : new Set(shownIds)));
   const ws = (window.__WORKSPACES || []).find((w) => w.id === window.__ACTIVE_WORKSPACE) || (window.__WORKSPACES || [])[0];
   const fetched = people.fetchedAt ? new Date(people.fetchedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
@@ -1353,6 +1438,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
             sel={sel}
             onToggle={toggleSel}
             onToggleAll={toggleAll}
+            cursor={cursor}
+            bookingLink={people.bookingLink || null}
             rows={shown}
             total={rows.length}
             sortBy={sortBy}

@@ -4330,6 +4330,13 @@ interface PersonRowVM {
     /** "Tue, Sep 8 · 2:00 – 5:00 PM · Balayage" */
     nextVisit: string | null;
     lastVisit: string | null;
+    /** "Thu, Aug 20" — the day of the last visit, for the row when nothing is ahead. */
+    lastVisitDay: string | null;
+    /** WhatsApp's 24-hour window for a free reply: open, and how long is left. Null without a chat. */
+    replyWindow: {
+        open: boolean;
+        hoursLeft: number;
+    } | null;
     /** When they last wrote or called, whichever is later. */
     askedMs: number | null;
     /** Wrote or called in the last 30 days, and the calendar has never had them. */
@@ -4452,11 +4459,6 @@ interface PersonVM extends PersonRowVM {
     }[];
     /** The owner's notes, the receptionist's reading material. */
     notes: string | null;
-    /** WhatsApp's 24-hour window for a free reply: open, and how long is left. Null without a chat. */
-    replyWindow: {
-        open: boolean;
-        hoursLeft: number;
-    } | null;
     /** The workspace's booking link, or null when none is on file. */
     bookingLink: string | null;
     /** "inbox/th-…" or null for a phone-only person. */

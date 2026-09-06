@@ -608,6 +608,8 @@ export interface PeopleSurface {
   recency: Record<string, { label: string; count: number }[]>;
   /** The workspace's calendar: the outcome lists and the Booked cell exist only when it is "ok". */
   calendar: { state: "ok" | "unavailable" | "none"; source: string };
+  /** The booking link on file, so a row can offer to text it. */
+  bookingLink: string | null;
   fetchedAt: number;
 }
 
@@ -630,7 +632,7 @@ export const peopleOverride: SurfaceOverride = {
   refreshOnMessageInserts: true,
   apply: async () => {
     const [data, savedData] = await Promise.all([
-      fetchEnvelope<{ people: PersonRowDto[]; calendar?: { state: "ok" | "unavailable" | "none"; source: string } }>("/api/v1/contacts"),
+      fetchEnvelope<{ people: PersonRowDto[]; calendar?: { state: "ok" | "unavailable" | "none"; source: string }; booking_link?: string | null }>("/api/v1/contacts"),
       fetchEnvelope<{ lists: { id: string; name: string; ids: string[] }[] }>("/api/v1/segments"),
     ]);
     const now = new Date();
@@ -646,6 +648,7 @@ export const peopleOverride: SurfaceOverride = {
       }),
       groups: PEOPLE_LIST_GROUPS.map((g) => ({ id: g.id, label: g.label })),
       calendar,
+      bookingLink: data.booking_link ?? null,
       saved: savedData.lists.map((l) => {
         const ids = l.ids.filter((id) => rowIds.has(id));
         return { id: l.id, name: l.name, count: ids.length, ids };
