@@ -959,7 +959,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   const localNow = new Date(m.window.now_local);
   const valid = !Number.isNaN(localNow.getTime());
   const hour = valid ? localNow.getHours() : now.getHours();
-  const clock = valid ? localNow.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
+  const clock2 = valid ? localNow.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
   const datePart = valid ? `${localNow.toLocaleDateString("en-US", { weekday: "long" })} \xB7 ${localNow.toLocaleDateString("en-US", { month: "long", day: "numeric" })}` : "";
   const greeting = hour < 12 ? "Good morning." : hour < 17 ? "Good afternoon." : "Good evening.";
   const chips = m.channels.map((c) => ({
@@ -1031,7 +1031,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     const sub = m.channels.length === 0 ? "No phone line or WhatsApp number is connected yet, so nothing can come in." : lastIn ? `${names} ${plural2} connected. The last message arrived ${lastIn}${gap !== null && gap > 0 && gap < 3600 ? `, and the receptionist answered ${secondsPhrase(gap)} later.` : "."}` : `${names} ${plural2} connected. No messages have arrived yet.`;
     return {
       standing: {
-        eyebrow: `${datePart} \xB7 ${clock} \xB7 ${m.workspace.name}`,
+        eyebrow: `${datePart} \xB7 ${clock2} \xB7 ${m.workspace.name}`,
         chips,
         alert: null,
         greeting,
@@ -1045,7 +1045,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       pulse: null,
       calls: null,
       launchpad: [{ label: "Conversations", to: "conversations" }],
-      updatedAt: clock,
+      updatedAt: clock2,
       quiet: {
         headline: "Nothing has come in yet today.",
         sub,
@@ -1144,7 +1144,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   });
   return {
     standing: {
-      eyebrow: `${datePart} \xB7 ${clock} \xB7 ${m.workspace.name}`,
+      eyebrow: `${datePart} \xB7 ${clock2} \xB7 ${m.workspace.name}`,
       chips,
       alert,
       greeting,
@@ -1174,7 +1174,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       { label: "Conversations", to: "conversations" },
       ...p.calls ? [{ label: `Calls \u2014 ${p.calls} today`, to: "conversations/phone" }] : []
     ],
-    updatedAt: clock,
+    updatedAt: clock2,
     quiet: null
   };
 }
@@ -3285,6 +3285,7 @@ function toPersonRowVM(r, now = /* @__PURE__ */ new Date()) {
     firstContact: first,
     consent,
     quote: r.last_inbound_text?.trim() || null,
+    callSummary: r.last_inbound_call_summary?.trim() || null,
     threads: r.conversation_count ?? 0,
     calls: r.call_count ?? 0,
     escalations: r.escalation_count ?? 0,
@@ -3390,6 +3391,37 @@ function recencyCells(rows, nowMs) {
     cells[i].count++;
   }
   return cells;
+}
+function oneLine(text, max) {
+  const t = text.replace(/\s+/g, " ").trim();
+  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}\u2026` : t;
+}
+function clock(ms2, nowMs) {
+  const time = new Date(ms2).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return nowMs - ms2 < DAY_MS2 ? time : `${fmtDate(ms2, nowMs)} ${time}`;
+}
+function attentionRow(p, nowMs) {
+  const lc = p.lastContact;
+  const channel = lc.kind === "call" ? "Phone" : lc.kind === "message" ? "WhatsApp" : null;
+  const when = lc.ts === null ? "no contact yet" : ago(lc.ts, nowMs);
+  let sentence;
+  let quoted = false;
+  if (p.quote) {
+    sentence = oneLine(p.quote, 160);
+    quoted = true;
+  } else if (p.callSummary) sentence = oneLine(p.callSummary, 160);
+  else if (p.nextVisit) sentence = `Booked \xB7 ${p.nextVisit}`;
+  else if (p.lastVisit) sentence = `Last visit \xB7 ${p.lastVisit}`;
+  else if (p.calls > 0) sentence = p.calls === 1 ? "Phoned once; nothing in writing yet" : `Phoned ${p.calls} times; nothing in writing yet`;
+  else sentence = "Nothing written yet";
+  const r = p.receptionist;
+  let status;
+  if (p.state === "waiting_on_you") status = ["You own the thread", "they wrote last"];
+  else if (r.tone === "answering") status = p.hasChat ? ["Receptionist", "answering on WhatsApp"] : ["Receptionist", "takes their calls"];
+  else status = r.label.split(", ");
+  if (p.state === "needs_you" && p.needsYouSinceMs !== null) status = [...status, `since ${clock(p.needsYouSinceMs, nowMs)}`];
+  const cta = !p.threadId ? null : p.state === "needs_you" || p.state === "waiting_on_you" ? { label: "Open in Inbox", kind: "primary", to: `inbox/${p.threadId}` } : { label: "Open thread", kind: "ghost", to: `inbox/${p.threadId}` };
+  return { channel, when, sentence, quoted, status, tone: r.tone, cta };
 }
 var DECISION_LABELS = {
   take_over: { who: "Took over", text: "You paused the receptionist on this thread" },
@@ -4860,6 +4892,7 @@ export {
   applySettingsChange,
   asPersonMode,
   askJump,
+  attentionRow,
   bookedAfterAsk,
   brainMetaOf,
   broadcastName,
