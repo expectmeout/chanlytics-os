@@ -221,22 +221,61 @@ test("the client's name as the event gives it: a guest first, then the title's n
   assert.equal(t("Haircut", [{ name: null, email: "ana@example.com" }]), null, "an email is not a name");
 });
 
-test("Add to People: a definer door that gets-or-creates by phone, an operator route, a bridge verb that re-reads the board, and one button with the name in it", () => {
+test("people from a feed: one row per phone inside the window, the soonest upcoming appointment keys it, a name fills in from another", async () => {
+  const { peopleFromItems } = await import("@chanlytics/contracts");
+  const f = feed();
+  const rows = peopleFromItems(f.items, ["Balayage", "Haircut"], NOW);
+  assert.deepEqual(rows.map((r) => [r.phone, r.name, r.title]), [["+13055550134", "Maria Lopez", "Maria Lopez - Balayage"]], "only the appointment with a number; lunch's order number is not one");
+  const mk = (uid, title, start, description = null) => ({ start, end: start + 3_600_000, title, allDay: false, uid, description, location: null, attendees: [] });
+  const many = [
+    mk("p1", "Balayage", NOW + 5 * 86_400_000, "305-555-0199"),
+    mk("p2", "Ana Ruiz - Haircut", NOW + 2 * 86_400_000, "305-555-0199"),
+    mk("p3", "Haircut", NOW - 3 * 86_400_000, "305-555-0199"),
+    mk("p4", "Old one", NOW - 60 * 86_400_000, "305-555-0177"),
+    mk("p5", "Far one", NOW + 120 * 86_400_000, "305-555-0166"),
+  ];
+  const out = peopleFromItems(many, ["Balayage", "Haircut"], NOW);
+  assert.deepEqual(out.map((r) => [r.phone, r.name, r.uid]), [["+13055550199", "Ana Ruiz", "p2"]], "the soonest upcoming keys the row; outside the window is left alone");
+  const named = peopleFromItems([mk("q1", "Balayage", NOW + 86_400_000, "305-555-0155"), mk("q2", "Lola Diaz - Haircut", NOW + 3 * 86_400_000, "305-555-0155")], ["Balayage", "Haircut"], NOW);
+  assert.deepEqual(named.map((r) => [r.name, r.uid]), [["Lola Diaz", "q1"]], "a later appointment with a name fills in for the one without");
+});
+
+test("automatically: an hourly sweep on the edge and the owner's own read both put the feed's people in People through one extraction; the profile says where they came from; no button", () => {
   const mig = readCode("supabase/migrations/00052_create_person.sql");
   assert.ok(mig.includes("create or replace function public.create_person(p_tenant_id uuid, p_phone_e164 text, p_display_name text, p_source text)"));
   assert.ok(mig.includes("security definer") && mig.includes("if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then"), "owner or operator");
   assert.ok(mig.includes("insert into contacts (tenant_id, phone_e164, display_name)") && !/insert into contacts \([^)]*consent|set consent/.test(mig), "consent is not touched: a booking is not a yes");
   assert.ok(mig.includes("where id = v_id and display_name is null;"), "a name fills only an empty one");
-  assert.ok(mig.includes("exception when unique_violation then"), "a race creates nothing twice");
-  const route = readCode("apps/dashboard/app/api/v1/contacts/route.ts");
-  assert.ok(route.includes('requireRole(member, "operator");') && route.includes('takeRate(ctx.userId, "person_create");') && route.includes('ctx.supabase.rpc("create_person", { p_tenant_id: member.tenantId, p_phone_e164: phone, p_display_name: name, p_source: source })'));
-  assert.ok(route.includes('throw new AppError("validation", "A phone number is needed to add a person.");'), "a bad number is refused before any door");
-  assert.ok(readCode("apps/dashboard/src/server/rate-limit.ts").includes("person_create: { limit: 60, windowMs: 3_600_000, noun: \"people added\" },"));
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");
-  assert.ok(bridge.includes("window.__addPerson = addPerson;") && bridge.includes("await refreshSurfaces([peopleOverride, calendarOverride]);"), "the board re-reads, so the panel shows the person");
-  const page = readCode("apps/dashboard/src/legacy/pages/calendar-real.jsx");
-  assert.ok(page.includes('data-testid="cal-panel-add"') && page.includes('source: "calendar"') && page.includes("`Add ${b.guess || contacts.phones[0]} to People`"), "the name is in the button, seen before it is saved");
-  assert.ok(page.includes("{canEdit && e164.length > 0 && ("), "operators and owners, and only with a number");
+  const sweep = readCode("supabase/migrations/00053_calendar_people_sweep.sql");
+  assert.ok(sweep.includes("url     := v_url || '/api/cron/calendar',") && sweep.includes("select cron.schedule('calendar-people-sweep',"), "pg_cron calls the edge every hour, like the other sweeps");
+  const cron = readCode("apps/edge/api/cron/calendar.ts");
+  assert.ok(cron.includes('request.headers.get("x-cron-key")') && cron.includes('db.rpc("get_cron_sweep_key")'), "the sweep key");
+  assert.ok(cron.includes("const people = peopleFromItems(items, (cfg?.brain?.profile?.services ?? []).map((s) => s.name), now.getTime());") && cron.includes("await addPeopleFromCalendar(db, row.tenant_id, people)"));
+  const lib = readCode("apps/edge/lib/calendar-people.ts");
+  assert.ok(lib.includes('.insert({ tenant_id: tenantId, phone_e164: r.phone, display_name: r.name })') && lib.includes('if (iErr.code !== "23505") throw') && lib.includes('kind: "contact.added", category: "contact"'), "get-or-create with the service role, an event for each person created");
+  assert.ok(lib.includes('.is("display_name", null)'), "a name fills only an empty one");
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
-  assert.ok(svc.includes("guess: guessName(it, services),") && svc.includes("(profile?.services ?? []).map((s) => s.name)"), "the services keep a service from being read as a name");
+  assert.ok(svc.includes("if (opts.canAct) people.push(...await addPeopleSeen(") && svc.includes('ctx.supabase.rpc("create_person", { p_tenant_id: tenantId, p_phone_e164: r.phone, p_display_name: r.name ?? "", p_source: "calendar", p_title: r.title })'), "an owner's read adds through the door, before the board is matched");
+  assert.ok(sweep.includes("insert into events (tenant_id, kind, category, subject_type, subject_id, data)") && sweep.includes("'contact.added'"), "the door records where a person came from; members cannot write events themselves");
+  assert.ok(readCode("apps/dashboard/app/api/v1/calendar/route.ts").includes('const canAct = member.role === "owner" || member.role === "operator";'), "a viewer's read changes nothing");
+  const route = readCode("apps/dashboard/app/api/v1/contacts/route.ts");
+  assert.ok(route.includes('requireRole(member, "operator");') && route.includes('ctx.supabase.rpc("create_person"'), "the door's own route stays, for a hand");
+  const detail = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
+  assert.ok(detail.includes('.eq("kind", "contact.added")') && detail.includes("added: added.data"), "the profile reads where they came from");
+  const page = readCode("apps/dashboard/src/legacy/pages/calendar-real.jsx");
+  assert.ok(!page.includes("cal-panel-add") && !page.includes("__addPerson"), "no button: added on its own, deleted from the profile if unwanted");
+  assert.ok(page.includes('"Not in People yet — added within the hour"'));
+  assert.ok(!readCode("apps/dashboard/src/legacy-bridge/people-detail.ts").includes("addPerson"), "no bridge verb either");
+  const edgeAv = readCode("apps/edge/lib/availability.ts");
+  assert.ok(edgeAv.includes("export async function feedItemsFor(tenantId: string, url: string, tz: string, now = new Date(), daysAhead = 14)"), "the sweep reads the feed through the same cache");
+});
+
+test("the profile: Added from your calendar, with the appointment that named them", () => {
+  const now = new Date(NOW);
+  const vm = toPersonVM(detail(null), now);
+  assert.ok(!vm.about.some((a) => a.k === "Added"));
+  const fromCal = toPersonVM({ ...detail(null), added: { at: "2026-09-06T14:00:00.000Z", source: "calendar", title: "Maria Lopez - Balayage" } }, now);
+  assert.equal(fromCal.about.find((a) => a.k === "Added").v, "Sep 6, 2026 · from your calendar (Maria Lopez - Balayage)");
+  const byHand = toPersonVM({ ...detail(null), added: { at: "2026-09-06T14:00:00.000Z", source: "manual", title: null } }, now);
+  assert.equal(byHand.about.find((a) => a.k === "Added").v, "Sep 6, 2026 · by hand");
 });

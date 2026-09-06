@@ -126,7 +126,7 @@ test("the doors and the page: read-only, the feed's address never in the browser
   assert.ok(!/ical_url[^\n]*\n[^\n]*return \{/.test(svc), "the address is read, never returned");
   assert.ok(svc.includes("if (PRIVATE_HOST.test(u.hostname)") && svc.includes('throw new AppError("validation", "That address is not an iCal feed.'), "a preview reaches only the public internet and only iCal");
   const r = readCode("apps/dashboard/app/api/v1/calendar/route.ts");
-  assert.ok(r.includes('takeRate(ctx.userId, "aggregate")') && r.includes("calendarWeek(ctx, tenantId, { from, days })"));
+  assert.ok(r.includes('takeRate(ctx.userId, "aggregate")') && r.includes("calendarWeek(ctx, member.tenantId, { from, days }, new Date(), { canAct })"), "one read; an owner's adds the people it sees");
   const pv = readCode("apps/dashboard/app/api/v1/calendar/preview/route.ts");
   assert.ok(pv.includes('requireRole(member, "operator")') && pv.includes("previewFeed(url, timezone)"));
   const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");

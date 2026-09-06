@@ -279,3 +279,49 @@ export function guessName(item: Pick<FeedItem, "title" | "attendees">, services:
   }
   return null;
 }
+
+/* ---------------------------------------------------- people from a feed */
+
+/** One person an appointment names: the phone that keys them, the name as the event gives it, and the appointment it came from. */
+export interface CalendarPerson {
+  /** E.164. */
+  phone: string;
+  name: string | null;
+  title: string;
+  uid: string | null;
+  /** Epoch ms of the appointment that named them — the soonest upcoming, else the latest past. */
+  start: number;
+}
+
+/**
+ * Everyone the feed names by phone inside the window — a month back, three
+ * months ahead — one row per number, so the sweep and the page create each
+ * person once. A name is taken from the appointment that keys the row; a
+ * later appointment with a name fills in for one without.
+ */
+export function peopleFromItems(items: FeedItem[], services: string[], nowMs: number, window: { backDays?: number; aheadDays?: number } = {}): CalendarPerson[] {
+  const from = nowMs - (window.backDays ?? 30) * 86_400_000;
+  const to = nowMs + (window.aheadDays ?? 90) * 86_400_000;
+  const byPhone = new Map<string, CalendarPerson>();
+  const better = (a: CalendarPerson, b: CalendarPerson): boolean => {
+    // Upcoming beats past; among upcoming the soonest; among past the latest.
+    const aUp = a.start >= nowMs;
+    const bUp = b.start >= nowMs;
+    if (aUp !== bUp) return aUp;
+    return aUp ? a.start < b.start : a.start > b.start;
+  };
+  for (const it of items) {
+    if (it.end < from || it.start > to) continue;
+    const phones = extractContacts(it).phones;
+    if (!phones.length) continue;
+    const name = guessName(it, services);
+    for (const phone of phones) {
+      const row: CalendarPerson = { phone, name, title: it.title || "Busy", uid: it.uid, start: it.start };
+      const have = byPhone.get(phone);
+      if (!have) { byPhone.set(phone, row); continue; }
+      if (better(row, have)) byPhone.set(phone, { ...row, name: row.name ?? have.name });
+      else if (!have.name && row.name) byPhone.set(phone, { ...have, name: row.name });
+    }
+  }
+  return [...byPhone.values()].sort((a, b) => a.start - b.start);
+}

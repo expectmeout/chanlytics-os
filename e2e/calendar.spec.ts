@@ -112,4 +112,9 @@ test.describe("Calendar on a real workspace", () => {
       expect(after.length, "an existing number adds nobody").toBe(before.length);
     }
   });
+
+  test("the calendar sweep on the edge refuses a call without the sweep key", async ({ request }) => {
+    const res = await request.post("https://chanlytics-messaging.vercel.app/api/cron/calendar", { data: {} });
+    expect([401, 503]).toContain(res.status());
+  });
 });

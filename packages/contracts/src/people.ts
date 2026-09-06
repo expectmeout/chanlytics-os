@@ -113,6 +113,8 @@ export interface PersonDetailDto {
   workspace_reply_mode?: string | null;
   /** Their appointments on the owner's calendar, when the workspace has one connected. */
   visits?: PersonVisitsDto;
+  /** How they came to be in People when it was not by writing or calling: the calendar sweep, or a hand. */
+  added?: { at: string; source: string; title: string | null };
 }
 
 /** What an owner may set for one person: answer, ask first, or stay out. */
@@ -789,6 +791,10 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
     });
     about.push({ k: "Next visit", v: nextLine });
     if (v.last) about.push({ k: "Last visit", v: `${visitLine(v.last, v.timezone, nowMs)} · ${v.last.title}` });
+  }
+  if (d.added) {
+    const at = ts(d.added.at);
+    about.push({ k: "Added", v: `${at !== null ? DATE_YEAR_FMT.format(new Date(at)) : "—"} · ${d.added.source === "calendar" ? `from your calendar${d.added.title ? ` (${d.added.title})` : ""}` : "by hand"}` });
   }
 
   return {

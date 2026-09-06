@@ -516,4 +516,3 @@
 .cal-ev-detail { display: flex; gap: 8px; margin-top: 8px; font-size: 12.5px; color: var(--ink); }
 .cal-ev-detail-key { color: var(--ink-faint); font-size: 10px; letter-spacing: .05em; text-transform: uppercase; padding-top: 2px; }
 .cal-ev-desc { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); font-size: 12px; line-height: 1.45; color: var(--ink-dim); white-space: pre-wrap; max-height: 160px; overflow: auto; }
-.cal-ev-add { margin-left: auto; }

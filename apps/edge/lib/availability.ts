@@ -13,7 +13,7 @@
  * the receptionist says nothing about open times (the link still works),
  * and the failure is logged where the diagnostic can find it.
  */
-import { parseIcs, freeWindows, describeOpenings, describeVisits, visitsOf, type Opening, type ParsedFeed } from "./workspace/contracts.js";
+import { parseIcs, freeWindows, describeOpenings, describeVisits, visitsOf, type FeedItem, type Opening, type ParsedFeed } from "./workspace/contracts.js";
 import type { TenantRuntime } from "./tenant-runtime.js";
 
 const CACHE_MS = 5 * 60 * 1000;
@@ -51,25 +51,34 @@ async function fetchFeed(tenantId: string, url: string): Promise<string | null> 
   return text;
 }
 
-/** Ninety days back for a last visit; sixty ahead, or the offering window if longer, for a next one. */
-function horizonFor(rt: TenantRuntime, now: Date): { from: number; to: number } {
-  const daysAhead = rt.brain?.profile?.booking_rules?.max_days_ahead ?? 14;
-  return { from: now.getTime() - 90 * 86_400_000, to: now.getTime() + Math.max(daysAhead + 1, 60) * 86_400_000 };
+/** Ninety days back for a last visit; ninety ahead, or the offering window if longer, for a next one and the people a sweep adds. */
+function horizonFor(daysAhead: number, now: Date): { from: number; to: number } {
+  return { from: now.getTime() - 90 * 86_400_000, to: now.getTime() + Math.max(daysAhead + 1, 90) * 86_400_000 };
 }
 
 /**
- * The feed parsed once per fetch. The openings and a caller's visits are
- * both read on every message, and parsing a season of appointments each
- * time is the work the five-minute cache exists to avoid.
+ * The feed parsed once per fetch. The openings, a caller's visits and the
+ * hourly sweep all read it, and parsing a season of appointments each time
+ * is the work the five-minute cache exists to avoid.
  */
-async function parsedFeed(rt: TenantRuntime, url: string, now: Date): Promise<ParsedFeed | null> {
-  const text = await fetchFeed(rt.tenantId, url);
-  if (text === null || !rt.timezone) return null;
-  const hit = feeds.get(rt.tenantId);
+async function parsedFeedOf(tenantId: string, url: string, tz: string, daysAhead: number, now: Date): Promise<ParsedFeed | null> {
+  const text = await fetchFeed(tenantId, url);
+  if (text === null || !tz) return null;
+  const hit = feeds.get(tenantId);
   if (hit?.parsed && hit.text === text) return hit.parsed;
-  const parsed = parseIcs(text, rt.timezone, { horizon: horizonFor(rt, now) });
+  const parsed = parseIcs(text, tz, { horizon: horizonFor(daysAhead, now) });
   if (hit && hit.text === text) hit.parsed = parsed;
   return parsed;
+}
+
+async function parsedFeed(rt: TenantRuntime, url: string, now: Date): Promise<ParsedFeed | null> {
+  return parsedFeedOf(rt.tenantId, url, rt.timezone ?? "", rt.brain?.profile?.booking_rules?.max_days_ahead ?? 14, now);
+}
+
+/** The feed's appointments for one workspace, for the sweep that puts the people they name in People. Null when the feed cannot be read. */
+export async function feedItemsFor(tenantId: string, url: string, tz: string, now = new Date(), daysAhead = 14): Promise<FeedItem[] | null> {
+  const parsed = await parsedFeedOf(tenantId, url, tz, daysAhead, now);
+  return parsed ? parsed.items : null;
 }
 
 /** The openings as data, for the phone tool that answers about one day. */

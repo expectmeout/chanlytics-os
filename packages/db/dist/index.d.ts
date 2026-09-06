@@ -1943,6 +1943,7 @@ type Database = {
                     p_phone_e164: string;
                     p_source: string;
                     p_tenant_id: string;
+                    p_title?: string;
                 };
                 Returns: Json;
             };
@@ -2270,6 +2271,10 @@ type Database = {
                     membership_id: string;
                     role: string;
                 }[];
+            };
+            trigger_calendar_sweep: {
+                Args: never;
+                Returns: number;
             };
             trigger_call_reconcile: {
                 Args: never;
