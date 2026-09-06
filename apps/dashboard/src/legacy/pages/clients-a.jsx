@@ -684,6 +684,21 @@ const plLoadView = () => {
   try { return { ...JSON.parse(localStorage.getItem(PL_VIEW_KEY) || "{}") }; } catch { return {}; }
 };
 const plSaveView = (v) => { try { localStorage.setItem(PL_VIEW_KEY, JSON.stringify(v)); } catch { /* private mode */ } };
+// A selection as a CSV, in the columns the page shows — nothing the schema does not hold.
+const plCsv = (rows) => {
+  const esc = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+  const head = ["Name", "Phone", "State", "Last contact", "Consent", "Next visit", "First contact"];
+  const lines = rows.map((p) => [p.name, p.phone || "", p.stateLabel, p.lastContact.label, p.consent.label, p.nextVisit || "", p.firstContact.label].map(esc).join(","));
+  return [head.map(esc).join(","), ...lines].join("\r\n");
+};
+const plDownload = (name, text) => {
+  const blob = new Blob(["\ufeff" + text], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
 // The receptionist, in one word beside the state, only when it is not simply answering.
 const PL_RECEPT_MARK = { escalated: "escalated", queued: "reply queued", snoozed: "snoozed", paused: "held for you", silent: "silent" };
 
@@ -923,11 +938,16 @@ const plCols = (withCalendar) => [
   { key: "first", label: "First contact", sortable: true },
 ];
 
-const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, withCalendar = false }) => (
-  <div className="cl-table-wrap">
+const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, withCalendar = false, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {} }) => (
+  <div className={`cl-table-wrap ${sel.size ? "selecting" : ""}`}>
     <table className="cl-table">
       <thead>
         <tr>
+          {selectable && (
+            <th className="cl-sel">
+              <input type="checkbox" className="cl-check" checked={rows.length > 0 && rows.every((p) => sel.has(p.id))} onChange={onToggleAll} aria-label="Select everyone shown" title="Select everyone shown" data-testid="select-all" />
+            </th>
+          )}
           {plCols(withCalendar).map((c) => (
             <th key={c.key} className={c.sortable ? "sortable" : ""} onClick={() => c.sortable && onSort(c.key)}>
               {c.label}
@@ -938,7 +958,12 @@ const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, o
       </thead>
       <tbody>
         {rows.map((p) => (
-          <tr key={p.id} onClick={() => onOpen(p.id)}>
+          <tr key={p.id} className={sel.has(p.id) ? "selected" : ""} onClick={() => onOpen(p.id)}>
+            {selectable && (
+              <td className="cl-sel" onClick={(e) => e.stopPropagation()}>
+                <input type="checkbox" className="cl-check" checked={sel.has(p.id)} onChange={() => onToggle(p.id)} aria-label={`Select ${p.name}`} data-testid="row-select" />
+              </td>
+            )}
             <td>
               <div className="cl-row-name">
                 <div className="ix-thread-avatar">{p.initials}</div>
@@ -966,7 +991,7 @@ const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, o
         ))}
         {rows.length === 0 && (
           <tr>
-            <td colSpan={5}>
+            <td colSpan={selectable ? 6 : 5}>
               <div className="cl-table-empty">
                 <Icon name="search" size={15} />
                 <span>{total === 0 ? "Nobody has written or phoned yet." : "No one matches this view."}</span>
@@ -988,6 +1013,105 @@ const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, o
   </div>
 );
 
+const PL_NO_SEL = new Set();
+
+// What a selection can become: people on a list, a yes on record, a file.
+// Adding to a list and recording a yes are owner-or-operator on the server;
+// the bar shows what the role allows and says why when it does not.
+const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash }) => {
+  const [busy, setBusy] = React.useState(false);
+  const [naming, setNaming] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const ids = [...sel];
+  const picked = rows.filter((p) => sel.has(p.id));
+  const run = async (fn, done) => {
+    if (busy) return;
+    setBusy(true);
+    const r = await fn();
+    setBusy(false);
+    if (!r.ok) { flash({ msg: <>{r.message || "That did not go through."}</> }); return; }
+    flash({ msg: done(r) });
+  };
+  const addTo = (list) => run(() => window.__lists.add(list.id, ids), () => <>{ids.length} added to <b>{list.name}</b></>);
+  const createAndAdd = async () => {
+    const n = name.trim();
+    if (!n || busy || !window.__lists) return;
+    setBusy(true);
+    const c = await window.__lists.create(n);
+    if (!c.ok) { setBusy(false); flash({ msg: <>{c.message || "Could not make the list."}</> }); return; }
+    const made = ((window.__PEOPLE && window.__PEOPLE.saved) || []).find((s) => s.name === n);
+    const a = made ? await window.__lists.add(made.id, ids) : { ok: false, message: "The list was made but not found again." };
+    setBusy(false); setNaming(false); setName("");
+    flash({ msg: a.ok ? <>{ids.length} on the new list <b>{n}</b></> : <>{a.message}</> });
+  };
+  const yes = (source) => run(
+    () => window.__setPersonConsentMany(ids, { consent: "opted_in", source: source.id }),
+    (r) => <>A yes on record for <b>{r.done}</b>{r.failed ? ` · ${r.failed} not recorded` : ""} · {source.label.toLowerCase()}</>,
+  );
+  const exportCsv = () => { plDownload(`people-${new Date().toISOString().slice(0, 10)}.csv`, plCsv(picked)); flash({ msg: <>{picked.length} exported as a CSV</> }); };
+  const sources = (window.__consentSources || []).filter((s) => s.id !== "customer_message");
+  return (
+    <div className="cl-bulk" role="toolbar" aria-label="Selected people" data-testid="bulk-bar">
+      <span className="cl-bulk-count"><b>{sel.size}</b> selected</span>
+      {canEdit && window.__lists && !naming && (
+        <MoreMenu
+          btnClass="btn btn-sm"
+          label="Add to list"
+          title="Add to a list"
+          items={[
+            { header: "Add to" },
+            ...saved.map((s) => ({ label: s.name, icon: "filter", onClick: () => addTo(s) })),
+            { label: "New list…", icon: "plus", onClick: () => setNaming(true) },
+          ]}
+        />
+      )}
+      {canEdit && naming && (
+        <span className="cl-bulk-naming">
+          <input autoFocus value={name} placeholder="Name the list" maxLength={60} disabled={busy} data-testid="bulk-list-name" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") createAndAdd(); if (e.key === "Escape") { setNaming(false); setName(""); } }} />
+          <button className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={createAndAdd}>Make it</button>
+        </span>
+      )}
+      {canEdit && window.__setPersonConsentMany && sources.length > 0 && (
+        <MoreMenu
+          btnClass="btn btn-sm"
+          label="Record a yes"
+          title="A yes to offers by WhatsApp — say how it was given"
+          items={[{ header: "They said yes…" }, ...sources.map((s) => ({ label: s.label, icon: "check", onClick: () => yes(s) }))]}
+        />
+      )}
+      {canExport && <button className="btn btn-sm" onClick={exportCsv} data-testid="bulk-export"><Icon name="external" size={12} /> Export CSV</button>}
+      {!canEdit && <span className="cl-prof-aut-hint">Only an owner or operator can add to lists or record a yes.</span>}
+      <button className="btn btn-ghost btn-sm" onClick={onClear} data-testid="bulk-clear"><Icon name="x" size={11} /> Clear</button>
+    </div>
+  );
+};
+
+// Everyone shown, kept as a list by hand — a filter frozen into something a broadcast can reach later.
+const SaveShownAsList = ({ ids, suggested, flash }) => {
+  const [open, setOpen] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const submit = async () => {
+    const n = name.trim();
+    if (!n || busy || !window.__lists) return;
+    setBusy(true);
+    const c = await window.__lists.create(n);
+    if (!c.ok) { setBusy(false); flash({ msg: <>{c.message || "Could not make the list."}</> }); return; }
+    const made = ((window.__PEOPLE && window.__PEOPLE.saved) || []).find((s) => s.name === n);
+    const a = made ? await window.__lists.add(made.id, ids) : { ok: false, message: "The list was made but not found again." };
+    setBusy(false); setOpen(false); setName("");
+    flash({ msg: a.ok ? <>{ids.length} kept as <b>{n}</b></> : <>{a.message}</> });
+  };
+  if (!open) return <button className="cl-bucket-link" onClick={() => { setName(suggested || ""); setOpen(true); }} data-testid="save-shown">Save these {ids.length} as a list <Icon name="arrow-right" size={10} /></button>;
+  return (
+    <span className="cl-bulk-naming">
+      <input autoFocus value={name} placeholder="Name the list" maxLength={60} disabled={busy} data-testid="save-shown-name" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") setOpen(false); }} />
+      <button className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={submit}>Keep it</button>
+      <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setOpen(false)}>Cancel</button>
+    </span>
+  );
+};
+
 const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSaved = null, initialState = null }) => {
   const people = usePeople();
   const rows = people.rows;
@@ -1001,6 +1125,12 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const [savedId, setSavedId] = useState(initialSaved);
   React.useEffect(() => { setSavedId(initialSaved); }, [initialSaved]);
   const canEditLists = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
+  const canExport = !!(window.__scoped && (!window.canDo || window.canDo("export")));
+  const [toastNode, plFlash] = window.usePPToast();
+  // The selection, by id. Cleared when the view changes: a bar counting people
+  // that are no longer on screen is the kind of bug bulk actions are made of.
+  const [sel, setSel] = useState(() => new Set());
+  const toggleSel = (id) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const remembered = React.useMemo(plLoadView, []);
   const [tab, setTab] = useState(initialState && PL_TABS.includes(initialState) ? initialState : "all");
   React.useEffect(() => { if (initialState && PL_TABS.includes(initialState)) setTab(initialState); }, [initialState]);
@@ -1090,6 +1220,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const activeList = listId && lists.find((l) => l.id === listId);
   const activeSaved = savedId && saved.find((s) => s.id === savedId);
   const filtered = tab !== "all" || !!listId || !!savedId || !!q.trim();
+  React.useEffect(() => { setSel(new Set()); }, [tab, listId, savedId, q]);
+  const shownIds = shown.map((p) => p.id);
+  const toggleAll = () => setSel((s) => (shownIds.length && shownIds.every((id) => s.has(id)) ? new Set() : new Set(shownIds)));
   const ws = (window.__WORKSPACES || []).find((w) => w.id === window.__ACTIVE_WORKSPACE) || (window.__WORKSPACES || [])[0];
   const fetched = people.fetchedAt ? new Date(people.fetchedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
 
@@ -1196,7 +1329,11 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
                   </span>
                 )}
               </div>
-              <span className="cl-section-sub">{filtered ? "Filtered from the rail and the strip above" : "The rail and the strip above narrow this"}</span>
+              <span className="cl-section-sub">
+                {filtered && shown.length > 0 && canEditLists && window.__lists
+                  ? <SaveShownAsList ids={shownIds} suggested={activeList ? activeList.label : activeSaved ? `${activeSaved.name} copy` : tab !== "all" ? PL_TAB_LABEL[tab] : ""} flash={plFlash} />
+                  : (filtered ? "Filtered from the rail and the strip above" : "The rail and the strip above narrow this")}
+              </span>
             </div>
             {activeList && activeList.action && (
               <div className="cl-list-action" data-testid="list-action">
@@ -1210,6 +1347,10 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
 
           <PeopleTable
             withCalendar={withCalendar}
+            selectable={canEditLists || canExport}
+            sel={sel}
+            onToggle={toggleSel}
+            onToggleAll={toggleAll}
             rows={shown}
             total={rows.length}
             sortBy={sortBy}
@@ -1220,6 +1361,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
             onClearFilters={() => { setQ(""); setTab("all"); setListId(null); setSavedId(null); }}
           />
         </div>
+        {sel.size > 0 && <PeopleBulkBar sel={sel} rows={rows} saved={saved} canEdit={canEditLists} canExport={canExport} onClear={() => setSel(new Set())} flash={plFlash} />}
+        {toastNode}
       </div>
     </div>
   );

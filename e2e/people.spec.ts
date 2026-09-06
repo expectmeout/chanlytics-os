@@ -47,10 +47,10 @@ test.describe("People on a real workspace", () => {
 
     // The table's columns are the measured ones.
     // innerText follows the CSS text-transform, so compare case-insensitively.
-    const headers = await page.locator(".cl-table thead th").allInnerTexts();
+    const headers = (await page.locator(".cl-table thead th").allInnerTexts()).map((h) => h.replace(/[▲▼]/g, "").trim().toLowerCase()).filter(Boolean);
     const cal = ((await (await page.request.get("/api/v1/contacts")).json()).data as { calendar?: { state: string } }).calendar;
-    // With a calendar connected the outcome takes the receptionist's column.
-    expect(headers.map((h) => h.replace(/[▲▼]/g, "").trim().toLowerCase())).toEqual(["client", "state", "last contact", cal?.state === "ok" ? "next visit" : "receptionist", "first contact"]);
+    // With a calendar connected the outcome takes the receptionist's column; the first header is the checkbox and has no words.
+    expect(headers).toEqual(["client", "state", "last contact", cal?.state === "ok" ? "next visit" : "receptionist", "first contact"]);
     // One state switcher: the strip above; the tab row is gone.
     await expect(page.locator(".cl-section-head .cl-tabs")).toHaveCount(0);
 
@@ -143,6 +143,49 @@ test.describe("People on a real workspace", () => {
       await page.goto(`/#/clients/list:${saved[0].id}`);
       await page.waitForLoadState("networkidle");
       await expect(page.getByTestId("saved-filter")).toContainText(saved[0].name);
+    }
+  });
+
+  test("a selection becomes a list or a yes on record — the requests are the real ones, intercepted", async ({ page }) => {
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    const boxes = page.getByTestId("row-select");
+    test.skip((await boxes.count()) < 2, "this workspace has fewer than two people");
+    await boxes.nth(0).check();
+    await boxes.nth(1).check();
+    const bar = page.getByTestId("bulk-bar");
+    await expect(bar).toContainText("2 selected");
+
+    const seen: { method: string; url: string; body: unknown }[] = [];
+    await page.route("**/api/v1/segments*", async (route) => {
+      const req = route.request();
+      if (req.method() === "GET") { await route.continue(); return; }
+      seen.push({ method: req.method(), url: req.url(), body: req.postDataJSON() });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, data: { lists: [] } }) });
+    });
+    await page.route("**/api/v1/contacts/*/consent*", async (route) => {
+      const req = route.request();
+      seen.push({ method: req.method(), url: req.url(), body: req.postDataJSON() });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, data: { contact_id: "intercepted", consent: "opted_in", dnc: false, source: "in_person" } }) });
+    });
+
+    // A new list from the bar: one POST with the name.
+    await bar.getByRole("button", { name: "Add to list" }).click();
+    await page.getByText("New list…").click();
+    await page.getByTestId("bulk-list-name").fill("E2E bulk list");
+    await page.getByTestId("bulk-list-name").press("Enter");
+    await expect.poll(() => seen.filter((r) => r.method === "POST").length).toBe(1);
+    expect(seen.find((r) => r.method === "POST")?.body).toEqual({ name: "E2E bulk list" });
+
+    // A yes for both: one PUT each, saying how it was given.
+    await boxes.nth(0).check();
+    await boxes.nth(1).check();
+    await bar.getByRole("button", { name: "Record a yes" }).click();
+    await page.getByText("In person", { exact: true }).click();
+    await expect.poll(() => seen.filter((r) => r.url.includes("/consent")).length).toBe(2);
+    for (const r of seen.filter((x) => x.url.includes("/consent"))) {
+      expect(r.method).toBe("PUT");
+      expect(r.body).toEqual({ consent: "opted_in", source: "in_person" });
     }
   });
 });

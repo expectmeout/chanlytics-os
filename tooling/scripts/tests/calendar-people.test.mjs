@@ -456,3 +456,17 @@ test("asked means they reached out: the call they placed counts, a call the owne
   assert.ok(mig.includes("grant execute on function public.people_list(uuid, uuid) to authenticated, service_role;"), "a drop loses the grants; they are re-stated");
   assert.ok(readCode("apps/dashboard/src/server/calendar.ts").includes("const cands = [r.last_inbound_at, r.last_inbound_call_at ?? null]"), "the report counts the same way");
 });
+
+test("bulk actions: a selection becomes people on a list, a yes on record (one request each, fifty at most, one refresh), or a file; everyone shown can be kept as a list", () => {
+  const bridge = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");
+  assert.ok(bridge.includes("export async function setPersonConsentMany(ids: string[], body: ConsentBody): Promise<ManyResult>") && bridge.includes("const take = [...new Set(ids)].slice(0, 50);"));
+  assert.ok(bridge.includes("window.__setPersonConsentMany = setPersonConsentMany;"));
+  assert.ok(bridge.split("await refreshSurfaces([peopleOverride]);").length >= 3, "the single and the many both refresh, the many once");
+  const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
+  for (const id of ["select-all", "row-select", "bulk-bar", "bulk-list-name", "bulk-export", "bulk-clear", "save-shown", "save-shown-name"]) assert.ok(page.includes(`data-testid="${id}"`), id);
+  assert.ok(page.includes("window.__setPersonConsentMany(ids, { consent: \"opted_in\", source: source.id })"), "a yes says how it was given");
+  assert.ok(page.includes('.filter((s) => s.id !== "customer_message")'), "their own message is not something a desk records for them");
+  assert.ok(page.includes("React.useEffect(() => { setSel(new Set()); }, [tab, listId, savedId, q]);"), "a selection never outlives its view");
+  assert.ok(page.includes('const head = ["Name", "Phone", "State", "Last contact", "Consent", "Next visit", "First contact"];'), "the file holds the columns the page shows, nothing invented");
+  assert.ok(page.includes("selectable={canEditLists || canExport}"));
+});

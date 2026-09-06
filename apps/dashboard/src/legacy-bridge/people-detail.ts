@@ -116,7 +116,7 @@ export interface ConsentBody {
   note?: string;
 }
 
-export async function setPersonConsent(id: string, body: ConsentBody): Promise<DeleteResult> {
+async function putConsent(id: string, body: ConsentBody): Promise<DeleteResult> {
   try {
     const res = await fetch(scoped(`/api/v1/contacts/${encodeURIComponent(id)}/consent`), {
       method: "PUT",
@@ -132,18 +132,48 @@ export async function setPersonConsent(id: string, body: ConsentBody): Promise<D
       | { ok: boolean; data?: unknown; error?: { message?: string } }
       | null;
     if (!j || !j.ok) return { ok: false, message: j?.error?.message ?? `Request failed (${res.status}).` };
-    invalidateInFlight();
-    await refreshSurfaces([peopleOverride]);
     return { ok: true, data: j.data };
   } catch {
     return { ok: false, message: "Network error — nothing was changed." };
   }
 }
 
+export async function setPersonConsent(id: string, body: ConsentBody): Promise<DeleteResult> {
+  const r = await putConsent(id, body);
+  if (!r.ok) return r;
+  invalidateInFlight();
+  await refreshSurfaces([peopleOverride]);
+  return r;
+}
+
+/**
+ * The same answer for many at once — a yes given at the desk by a whole
+ * class, say: `window.__setPersonConsentMany(ids, body)`. One request per
+ * person (the door is per person and the ledger says who), fifty at most
+ * in one go, one refresh at the end.
+ */
+export interface ManyResult { ok: boolean; done: number; failed: number; message?: string }
+
+export async function setPersonConsentMany(ids: string[], body: ConsentBody): Promise<ManyResult> {
+  const take = [...new Set(ids)].slice(0, 50);
+  let done = 0;
+  let failed = 0;
+  let message: string | undefined;
+  for (const id of take) {
+    const r = await putConsent(id, body);
+    if (r.ok) done += 1;
+    else { failed += 1; message = message ?? r.message; }
+  }
+  invalidateInFlight();
+  await refreshSurfaces([peopleOverride]);
+  return { ok: failed === 0, done, failed, message: failed ? `${failed} could not be recorded${message ? ` — ${message}` : ""}` : undefined };
+}
+
 declare global {
   interface Window {
     __personDetail?: (id: string) => Promise<PersonVM | null>;
     __setPersonConsent?: (id: string, body: ConsentBody) => Promise<DeleteResult>;
+    __setPersonConsentMany?: (ids: string[], body: ConsentBody) => Promise<ManyResult>;
     __consentSources?: readonly { id: string; label: string }[];
     __deletePerson?: (id: string) => Promise<DeleteResult>;
     __setPersonDetails?: (id: string, body: DetailsBody) => Promise<DeleteResult>;
@@ -184,6 +214,7 @@ export async function setPersonDetails(id: string, body: DetailsBody): Promise<D
 
 export function installPeopleCourier(): void {
   window.__personDetail = personDetail;
+  window.__setPersonConsentMany = setPersonConsentMany;
   window.__setPersonDetails = setPersonDetails;
   window.__deletePerson = deletePerson;
   window.__setPersonReceptionist = setPersonReceptionist;
