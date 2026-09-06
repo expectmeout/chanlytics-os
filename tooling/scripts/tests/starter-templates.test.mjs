@@ -9,9 +9,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   PLAYBOOK_TRIGGERS, STARTER_LANGUAGES, STARTER_TEMPLATES,
-  defaultParamSpecs, defaultSlotKinds, guessSlotKind, starterByKey, starterByName, starterDraft, starterForTrigger, starterPreview, templateTitle, validateTemplateDraft,
+  compareTemplates, defaultParamSpecs, defaultSlotKinds, defaultTemplate, guessSlotKind, slotLabels, starterByKey, starterByName, starterDraft, starterForTrigger, starterIndex, starterPreview, templateTitle, validateTemplateDraft,
 } from "@chanlytics/contracts";
-import { readCode } from "./_source.mjs";
+import { readCode, readRaw } from "./_source.mjs";
 
 test("five starters, each in English and Spanish, each passing the hand-written check with no warnings", () => {
   assert.deepEqual(STARTER_TEMPLATES.map((s) => s.key), ["winback_offer", "welcome_new", "save_our_number", "monthly_offer", "quick_note"]);
@@ -99,4 +99,51 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
   assert.ok(t.includes('data-testid="tpl-start-from"') && t.includes("window.WaBubble = WaBubble;") && t.includes("window.starterWords = starterWords;"));
   const css = readCode("apps/dashboard/src/legacy/styles/components.css");
   assert.ok(css.includes(".wa-bubble {") && css.includes(".tpl-starter-row {"));
+});
+
+test("the library's order, what a composer opens on, and each slot's words", () => {
+  const rows = [
+    { name: "hello_world", category: "utility", source: "meta" },
+    { name: "booking_link_v1", category: "marketing", source: "meta" },
+    { name: "quick_note", category: "marketing", source: "chanlytics" },
+    { name: "approval_request", category: "marketing", source: "meta" },
+    { name: "spring_offer", category: "marketing", source: "chanlytics" },
+    { name: "winback_offer", category: "marketing", source: "chanlytics" },
+  ];
+  assert.deepEqual(rows.slice().sort(compareTemplates).map((r) => r.name), ["winback_offer", "quick_note", "spring_offer", "approval_request", "booking_link_v1", "hello_world"], "starters in the library's order, then written here, then the rest — marketing before utility");
+  assert.equal(defaultTemplate(rows, null).name, "quick_note", "a broadcast opens on the quick note");
+  assert.equal(defaultTemplate(rows, "quiet_30").name, "winback_offer", "a playbook opens on its trigger's starter");
+  assert.equal(defaultTemplate(rows, "new_week").name, "winback_offer", "without the trigger's starter, the first in order");
+  assert.equal(defaultTemplate([], null), null);
+  assert.deepEqual(slotLabels({ name: "monthly_offer", language: "en_US", variables: [{ position: 1 }, { position: 2 }, { position: 3 }, { position: 4 }] }), ["First name", "Business name", "The offer", "Booking link"]);
+  assert.deepEqual(slotLabels({ name: "monthly_offer", language: "es", variables: [] }), ["Nombre", "Nombre del negocio", "La oferta", "Enlace de reservas"]);
+  assert.deepEqual(slotLabels({ name: "booking_link_v1", variables: [{ position: 1, label: "Business name" }, { position: 2, label: "Value 2" }] }), ["Business name", "Value 2"]);
+  assert.equal(starterIndex("welcome_new"), 1);
+  assert.equal(starterIndex("nope"), 5);
+});
+
+test("hidden from the composers: the door, the routes, the sync's first sight, the card", () => {
+  const m = readRaw("supabase/migrations/00049_template_hidden.sql");
+  assert.ok(m.includes("alter table public.templates add column if not exists hidden_at timestamptz;"));
+  assert.ok(m.includes("update public.templates set hidden_at = now() where name = 'hello_world' and hidden_at is null;"), "Meta's sample is hidden on the day");
+  assert.ok(m.includes("if v_tenant is null or not public.is_acting_member(v_tenant) then"), "owner or operator, never a viewer, and a stranger reads not found");
+  assert.ok(m.includes("grant execute on function public.set_template_hidden(uuid, boolean) to authenticated;"));
+  const r = readCode("apps/dashboard/app/api/v1/templates/route.ts");
+  assert.ok(r.includes('if (!all) q = q.eq("meta_status", "approved").is("hidden_at", null);'), "the composers never see a hidden template; Settings sees everything");
+  const one = readCode("apps/dashboard/app/api/v1/templates/[id]/route.ts");
+  assert.ok(one.includes('ctx.supabase.rpc("set_template_hidden", { p_template_id: id, p_hidden: body.hidden })') && one.includes('requireRole(member, "operator")'));
+  const sync = readCode("apps/edge/api/admin/whatsapp/templates-sync.ts");
+  assert.ok(sync.includes('const SAMPLE_TEMPLATES = new Set(["hello_world"]);') && sync.includes("hidden_at: now.toISOString()"), "the sample is hidden on first sight");
+  assert.ok(sync.includes("const fresh = rows.filter((r) => !keep.has(`${r.name}|${r.language}`) && SAMPLE_TEMPLATES.has(r.name));"), "and only on first sight — a row on file keeps what the workspace decided");
+  const create = readCode("apps/edge/api/admin/whatsapp/templates-create.ts");
+  assert.ok(create.includes("label: labels[n - 1] || `Value ${n}`"), "the words a person gave each slot are kept");
+  const s = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  assert.ok(s.includes('data-testid="template-hide"') && s.includes('data-testid="templates-hidden"'));
+  const b = readCode("apps/dashboard/src/legacy-bridge/templates.ts");
+  assert.ok(b.includes('"PUT", { hidden: true }, true)') && b.includes('"PUT", { hidden: false }, true)'));
+  const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
+  assert.ok(brief.includes('data-testid="brief-run-soon"') && brief.includes("Date.parse(r.scheduled_for) > Date.now()"), "a run under the veto window is on Today with a Stop");
+  const top = readCode("apps/dashboard/src/legacy/components/topbar.jsx");
+  assert.ok(top.includes('className="btn btn-ghost btn-icon btn-sm tb-theme"'), "presence, the bell and the theme are one group");
+  assert.ok(readCode("apps/dashboard/src/legacy/styles/components.css").includes(".tbn-wrap { position: relative; display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }"));
 });

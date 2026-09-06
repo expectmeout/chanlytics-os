@@ -17,7 +17,18 @@ const RunsWaiting = ({ nav, flash }) => {
     window.addEventListener("surface:broadcasts", bump);
     return () => window.removeEventListener("surface:broadcasts", bump);
   }, []);
-  const rows = ((window.__BROADCASTS && window.__BROADCASTS.rows) || []).filter((r) => r.state === "pending_approval").slice(0, 2);
+  const all = (window.__BROADCASTS && window.__BROADCASTS.rows) || [];
+  // A run that waits for a person, and a run under the veto window — a
+  // playbook's, scheduled, not yet sending — with a Stop while there is time.
+  const waiting = all.filter((r) => r.state === "pending_approval");
+  const soon = all.filter((r) => r.state === "scheduled" && r.playbook_id && Date.parse(r.scheduled_for) > Date.now());
+  const rows = [...waiting, ...soon].slice(0, 2);
+  const stop = async (r) => {
+    if (!(window.canDo && window.canDo("approve")) || !window.__broadcasts) return;
+    const res = await window.__broadcasts.cancel(r.id);
+    if (res.ok && window.__refreshPlaybooks) window.__refreshPlaybooks();
+    flash(res.ok ? { msg: <><b>{r.audience.label}</b> stopped — nothing sends</> } : { msg: <>{res.message}</> });
+  };
   const approve = async (r) => {
     if (!(window.canDo && window.canDo("approve")) || !window.__broadcasts) return;
     const res = await window.__broadcasts.approve(r.id);
@@ -27,18 +38,30 @@ const RunsWaiting = ({ nav, flash }) => {
       ? { msg: <><b>{r.audience.label}</b> approved — {n} {n === 1 ? "person" : "people"}, sending now</> }
       : { msg: <>{res.message}</> });
   };
-  return rows.map((r) => (
+  const people = (r) => `${r.recipient_count} ${r.recipient_count === 1 ? "person" : "people"}`;
+  return rows.map((r) => (r.state === "pending_approval" ? (
     <div key={`run-${r.id}`} className="brief-beat" data-testid="brief-run-row">
       <span className="brief-beat-dot" style={{ background: "var(--accent)" }} />
       <span className="brief-beat-text">
-        <b>{r.audience.label}</b> is ready — {r.recipient_count} {r.recipient_count === 1 ? "person" : "people"} · nothing sends until you say so
+        <b>{r.audience.label}</b> is ready — {people(r)} · nothing sends until you say so
       </span>
       <span className="brief-beat-acts">
         <button className="brief-chip primary" onClick={() => approve(r)} {...window.gate("approve")}>Approve</button>
         <button className="brief-chip" onClick={() => nav("outbound")}>Open Playbooks <Icon name="arrow-right" size={10} /></button>
       </span>
     </div>
-  ));
+  ) : (
+    <div key={`run-${r.id}`} className="brief-beat" data-testid="brief-run-soon">
+      <span className="brief-beat-dot" style={{ background: "var(--warn)" }} />
+      <span className="brief-beat-text">
+        <b>{r.audience.label}</b> sends {r.when} — {people(r)} · stop it if you'd rather not
+      </span>
+      <span className="brief-beat-acts">
+        <button className="brief-chip" onClick={() => stop(r)} {...window.gate("approve")}>Stop</button>
+        <button className="brief-chip" onClick={() => nav("broadcasts")}>Open <Icon name="arrow-right" size={10} /></button>
+      </span>
+    </div>
+  )));
 };
 
 const HeroBrief = () => {

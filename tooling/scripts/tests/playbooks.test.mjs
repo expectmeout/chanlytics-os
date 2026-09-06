@@ -77,11 +77,14 @@ test("when a run is due: the hour the owner picked, by the business's clock, onc
   assert.equal(localHour("Asia/Tokyo", now), 23);
   assert.equal(runDueNow({ state: "running", run_hour: 10, last_run_for: null }, "America/New_York", now), true);
   assert.equal(runDueNow({ state: "running", run_hour: 10, last_run_for: "2026-09-06" }, "America/New_York", now), false, "once per local day");
-  assert.equal(runDueNow({ state: "running", run_hour: 11, last_run_for: null }, "America/New_York", now), false, "not its hour");
+  assert.equal(runDueNow({ state: "running", run_hour: 11, last_run_for: null }, "America/New_York", now), false, "not its hour yet");
+  assert.equal(runDueNow({ state: "running", run_hour: 9, last_run_for: null }, "America/New_York", now), true, "an hour the sweep missed, or a playbook started after its hour, runs later the same day");
+  assert.equal(runDueNow({ state: "running", run_hour: 9, last_run_for: null }, "America/New_York", new Date("2026-09-07T01:30:00Z")), false, "never past the last hour a message may go out (21:30 in New York)");
   assert.equal(runDueNow({ state: "paused", run_hour: 10, last_run_for: null }, "America/New_York", now), false);
   assert.equal(scheduleLine({ trigger: "quiet_30", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }), "Daily 10:00 · up to 25 · once per person, again after 90 days");
   assert.equal(scheduleLine({ trigger: "everyone_monthly", run_hour: 9, cap_per_run: 50, gap_days: 90, cadence_days: 30 }), "Every 30 days at 09:00 · up to 50 a day");
-  assert.equal(nextRunLabel({ state: "running", run_hour: 10, last_run_for: null }, "America/New_York", now), "today 10:00");
+  assert.equal(nextRunLabel({ state: "running", run_hour: 11, last_run_for: null }, "America/New_York", now), "today 11:00");
+  assert.equal(nextRunLabel({ state: "running", run_hour: 10, last_run_for: null }, "America/New_York", now), "today, within the hour");
   assert.equal(nextRunLabel({ state: "running", run_hour: 10, last_run_for: "2026-09-06" }, "America/New_York", now), "tomorrow 10:00");
   assert.equal(nextRunLabel({ state: "paused", run_hour: 10, last_run_for: null }, "America/New_York", now), "paused");
 });
@@ -122,6 +125,7 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   assert.ok(r.includes('actor_type: req.by.kind === "user" ? "user" : "system"'), "a run that sends on its own is the system's decision; one a person asked for is theirs");
   assert.ok(r.includes("Approve or skip the run on Today or in Campaigns › Playbooks. Nothing is sent until you do."));
   assert.ok(r.includes('? (mode === "never" ? { kind: "off" } : { kind: "send", state: "scheduled", at: now })'), "a person who asks has decided: it sends now unless the class is never");
+  assert.ok(r.includes('.in("state", ["sent", "queued"])') && r.includes('const runs = (pastRuns ?? []).filter((b) => b.state !== "canceled" && b.state !== "failed");'), "a message on its way is a touch too, so two playbooks never both pick the same person in a week");
   assert.ok(readCode("apps/edge/api/admin/playbooks-run.ts").includes('runPlaybook(ctx, p as PlaybookRow, { by: { kind: "user", userId } })'));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/policy-store.ts").includes('note: "the win-back and save-our-number playbooks", chip: "Re-engage", enforced: true'), "the Autonomy rows say what they do now");
 });

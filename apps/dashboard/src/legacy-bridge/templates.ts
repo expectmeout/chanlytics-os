@@ -11,7 +11,7 @@
 import { inboxOverride, invalidateInFlight, scoped, settingsOverride } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 import { clearSurfaceCache } from "./surface-cache";
-import { STARTER_LANGUAGES, STARTER_TEMPLATES, defaultSlotKinds, starterByName, starterForTrigger, starterPreview, starterText, templateTitle } from "@chanlytics/contracts";
+import { STARTER_LANGUAGES, STARTER_TEMPLATES, compareTemplates, defaultSlotKinds, defaultTemplate, slotLabels, starterByName, starterForTrigger, starterPreview, starterText, templateTitle } from "@chanlytics/contracts";
 
 export interface TemplateResult<T = unknown> {
   ok: boolean;
@@ -19,7 +19,7 @@ export interface TemplateResult<T = unknown> {
   data?: T;
 }
 
-async function call<T>(path: string, method: "POST" | "DELETE", body: unknown, refresh: boolean): Promise<TemplateResult<T>> {
+async function call<T>(path: string, method: "POST" | "PUT" | "DELETE", body: unknown, refresh: boolean): Promise<TemplateResult<T>> {
   try {
     const res = await fetch(scoped(path), {
       method,
@@ -51,7 +51,7 @@ async function call<T>(path: string, method: "POST" | "DELETE", body: unknown, r
 export interface SyncData { seen: number; approved: number; marketing: number; synced_at: string }
 export interface DraftBody { brief: string; category: "marketing" | "utility"; language: string }
 export interface DraftData { draft: { name: string; body: string; footer: string | null; examples: string[]; variables: { position: number; label: string; source: string }[]; warnings: string[] } }
-export interface CreateBody { name: string; language: string; category: string; body: string; footer: string | null; examples: string[] }
+export interface CreateBody { name: string; language: string; category: string; body: string; footer: string | null; examples: string[]; labels?: string[] }
 export interface CreateData { id: string; name: string; language: string; category: string; meta_status: string; warnings: string[] }
 export interface StarterBody { keys?: string[]; languages?: string[] }
 export interface StarterResult { key: string; title: string; language: string; status: "submitted" | "exists" | "synced" | "failed"; meta_status: string | null; detail?: string }
@@ -64,6 +64,9 @@ export const templates = {
   draft: (body: DraftBody) => call<DraftData>("/api/v1/templates/draft", "POST", body, false),
   create: (body: CreateBody) => call<CreateData>("/api/v1/templates", "POST", body, true),
   remove: (id: string) => call<{ deleted: true; id: string; name: string }>(`/api/v1/templates/${encodeURIComponent(id)}`, "DELETE", undefined, true),
+  /** Out of the composers, or back in. The row stays; syncs keep it. */
+  hide: (id: string) => call<{ id: string; name: string; hidden: boolean }>(`/api/v1/templates/${encodeURIComponent(id)}`, "PUT", { hidden: true }, true),
+  show: (id: string) => call<{ id: string; name: string; hidden: boolean }>(`/api/v1/templates/${encodeURIComponent(id)}`, "PUT", { hidden: false }, true),
   /** The starter set, or some of it, in the languages asked: idempotent, submitted to Meta where new. */
   addStarters: (body: StarterBody) => call<StarterData>("/api/v1/templates/starter", "POST", body, true),
 };
@@ -78,6 +81,9 @@ export interface StarterLibrary {
   preview: typeof starterPreview;
   title: typeof templateTitle;
   slotKinds: typeof defaultSlotKinds;
+  slotLabels: typeof slotLabels;
+  compare: typeof compareTemplates;
+  defaultFor: typeof defaultTemplate;
 }
 
 declare global {
@@ -100,5 +106,8 @@ export function installTemplates(): void {
     preview: starterPreview,
     title: templateTitle,
     slotKinds: defaultSlotKinds,
+    slotLabels,
+    compare: compareTemplates,
+    defaultFor: defaultTemplate,
   };
 }

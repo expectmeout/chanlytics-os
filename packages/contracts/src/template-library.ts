@@ -236,3 +236,48 @@ export function defaultSlotKinds(t: { name: string; variables: unknown }): Start
 export function defaultParamSpecs(t: { name: string; variables: unknown }): ParamSpec[] {
   return defaultSlotKinds(t).map((k) => (k === "text" ? { kind: "text", value: "" } : { kind: k }));
 }
+
+/* ---- Where a template sits, what a composer opens on, what a slot is called ---- */
+
+/** A starter's place in the library's order; everything else after. */
+export function starterIndex(name: string | null | undefined): number {
+  const i = STARTER_TEMPLATES.findIndex((s) => s.name === name);
+  return i === -1 ? STARTER_TEMPLATES.length : i;
+}
+
+/**
+ * Starters in the library's order, then templates written here, then the
+ * rest — marketing before utility, then by name. What a composer most
+ * often needs is nearest.
+ */
+export function compareTemplates(
+  a: { name: string; category?: string | null; source?: string | null },
+  b: { name: string; category?: string | null; source?: string | null },
+): number {
+  const ai = starterIndex(a.name);
+  const bi = starterIndex(b.name);
+  if (ai !== bi) return ai - bi;
+  const rank = (t: { category?: string | null; source?: string | null }) => (t.source === "chanlytics" ? 0 : 2) + (t.category === "utility" ? 1 : 0);
+  return rank(a) - rank(b) || a.name.localeCompare(b.name);
+}
+
+/** The template a composer opens on: the trigger's starter, the quick note for a broadcast, else the first. */
+export function defaultTemplate<T extends { name: string; category?: string | null; source?: string | null }>(list: readonly T[], trigger: string | null): T | null {
+  const s = trigger ? starterForTrigger(trigger) : starterByKey("quick_note");
+  return (s ? list.find((t) => t.name === s.name) : undefined) ?? list.slice().sort(compareTemplates)[0] ?? null;
+}
+
+/** Each slot's words for a person: a starter's own labels, else the labels the row carries, else "Value n". */
+export function slotLabels(t: { name: string; language?: string | null; variables: unknown }): string[] {
+  const vars = Array.isArray(t.variables) ? (t.variables as VariableLike[]) : [];
+  const s = starterByName(t.name);
+  if (s) {
+    const labels = starterText(s, t.language ?? "en_US").slots.map((x) => x.label);
+    if (vars.length === 0 || vars.length === labels.length) return labels;
+  }
+  return vars.map((v, i) => {
+    const label = typeof v?.label === "string" ? v.label.trim() : "";
+    const n = typeof v?.position === "number" ? v.position : i + 1;
+    return label && !/^Value \d+$/.test(label) ? label : `Value ${n}`;
+  });
+}

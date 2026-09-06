@@ -34,6 +34,8 @@ export async function POST(request: Request): Promise<Response> {
   const components = Array.isArray(body?.components) ? (body.components as MetaTemplateComponent[]) : null;
   const text = typeof body?.body === "string" ? body.body : null;
   const examples = Array.isArray(body?.examples) ? (body.examples as unknown[]).map(String) : [];
+  // The words a person gave each slot, kept on the row so the composers can say them.
+  const labels = Array.isArray((body as { labels?: unknown })?.labels) ? ((body as { labels: unknown[] }).labels).map((l) => String(l ?? "").trim().slice(0, 40)) : [];
   if (!UUID.test(tenantId)) return json(400, { ok: false, error: "bad_tenant" });
   if (!NAME.test(name) || !language || !["MARKETING", "UTILITY"].includes(category) || !components || !text) {
     return json(400, { ok: false, error: "bad_template" });
@@ -62,7 +64,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const status = mapStatus(made.data.status);
   const positions = [...new Set([...text.matchAll(/\{\{(\d+)\}\}/g)].map((m) => Number(m[1])))].sort((a, b) => a - b);
-  const variables = positions.map((n) => ({ position: n, label: `Value ${n}`, example: examples[n - 1] ?? null }));
+  const variables = positions.map((n) => ({ position: n, label: labels[n - 1] || `Value ${n}`, example: examples[n - 1] ?? null }));
   const row = {
     tenant_id: tenantId,
     channel: "whatsapp",

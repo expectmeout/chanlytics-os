@@ -1732,6 +1732,7 @@ type Database = {
                     components: Json | null;
                     created_at: string;
                     created_by: string | null;
+                    hidden_at: string | null;
                     id: string;
                     language: string;
                     meta_id: string | null;
@@ -1752,6 +1753,7 @@ type Database = {
                     components?: Json | null;
                     created_at?: string;
                     created_by?: string | null;
+                    hidden_at?: string | null;
                     id?: string;
                     language: string;
                     meta_id?: string | null;
@@ -1772,6 +1774,7 @@ type Database = {
                     components?: Json | null;
                     created_at?: string;
                     created_by?: string | null;
+                    hidden_at?: string | null;
                     id?: string;
                     language?: string;
                     meta_id?: string | null;
@@ -2180,6 +2183,13 @@ type Database = {
                     p_contact_id: string;
                     p_note?: string;
                     p_source: string;
+                };
+                Returns: Json;
+            };
+            set_template_hidden: {
+                Args: {
+                    p_hidden: boolean;
+                    p_template_id: string;
                 };
                 Returns: Json;
             };

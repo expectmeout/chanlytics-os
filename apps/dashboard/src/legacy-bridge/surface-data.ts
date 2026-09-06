@@ -302,6 +302,8 @@ export interface TemplateDto extends ApprovedTemplate {
   synced_at: string | null;
   /** meta: written in WhatsApp Manager. chanlytics: written here. */
   source?: string | null;
+  /** Hidden from the composers by the workspace; Settings still lists it. */
+  hidden_at?: string | null;
 }
 
 export const inboxOverride: SurfaceOverride = {

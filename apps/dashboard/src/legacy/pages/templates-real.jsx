@@ -71,7 +71,7 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
   const submit = async () => {
     if (!window.__templates || !ready) return;
     setSubmitting(true); setError(null);
-    const r = await window.__templates.create({ name: name.trim(), language, category, body, footer: footer.trim() || null, examples: slots.map((n, i) => exampleFor(i).trim()) });
+    const r = await window.__templates.create({ name: name.trim(), language, category, body, footer: footer.trim() || null, examples: slots.map((n, i) => exampleFor(i).trim()), labels: slots.map((n, i) => (labels[i] || "").trim()) });
     setSubmitting(false);
     if (!r.ok) { setError(r.message || "WhatsApp did not accept it."); return; }
     if (onDone) onDone(r.data);

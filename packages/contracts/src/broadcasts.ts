@@ -12,6 +12,7 @@
  * rules, never ours — a proactive message needs the customer's recorded yes
  * whatever the template is called.
  */
+import { templateTitle } from "./template-library";
 import { PEOPLE_LISTS, type PersonRowVM } from "./people";
 import type { ParamSpec } from "./templates";
 
@@ -103,7 +104,7 @@ export function cleanParam(raw: unknown): string | null {
 /** A name when the owner gave none: the template and the day. */
 export function broadcastName(templateName: string, now = new Date()): string {
   const day = now.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  return `${templateName.replace(/_/g, " ")} · ${day}`.slice(0, BROADCAST_NAME_MAX);
+  return `${templateTitle(templateName)} · ${day}`.slice(0, BROADCAST_NAME_MAX);
 }
 
 export interface BroadcastCounts {

@@ -125,11 +125,15 @@ export function localHour(tz: string, now: Date): number {
   return parts(tz, now).hour;
 }
 
-/** A running playbook runs once in the hour the owner picked, once per local day. */
+/**
+ * A running playbook runs once per local day: at its hour, or later that day
+ * when the sweep missed the hour or the playbook was started or resumed
+ * after it — never past the last hour a message may go out.
+ */
 export function runDueNow(p: Pick<PlaybookDto, "state" | "run_hour" | "last_run_for">, tz: string, now: Date): boolean {
   if (p.state !== "running") return false;
   const { date, hour } = parts(tz, now);
-  return hour === p.run_hour && p.last_run_for !== date;
+  return hour >= p.run_hour && hour <= PLAYBOOK_HOURS.max && p.last_run_for !== date;
 }
 
 const two = (n: number) => String(n).padStart(2, "0");
@@ -141,12 +145,15 @@ export function scheduleLine(p: Pick<PlaybookDto, "trigger" | "run_hour" | "cap_
   return `Daily ${at} · up to ${p.cap_per_run} · once per person, again after ${p.gap_days} days`;
 }
 
-/** "today 10:00" or "tomorrow 10:00", by the business's clock; "paused" when it is. */
+/** "today 10:00", "today, within the hour" or "tomorrow 10:00", by the business's clock; "paused" when it is. */
 export function nextRunLabel(p: Pick<PlaybookDto, "state" | "run_hour" | "last_run_for">, tz: string, now: Date): string {
   if (p.state !== "running") return "paused";
   const { date, hour } = parts(tz, now);
   const at = `${two(p.run_hour)}:00`;
-  if (p.last_run_for !== date && hour <= p.run_hour) return `today ${at}`;
+  if (p.last_run_for !== date) {
+    if (hour < p.run_hour) return `today ${at}`;
+    if (hour <= PLAYBOOK_HOURS.max) return "today, within the hour";
+  }
   return `tomorrow ${at}`;
 }
 

@@ -468,17 +468,16 @@ const Topbar = ({
             onAlerts={onAlerts}
           />
         )}
+        <button
+          className="btn btn-ghost btn-icon btn-sm tb-theme"
+          title={theme === "light" ? "Switch to dark" : "Switch to light"}
+          onClick={() => onTheme(theme === "light" ? "dark" : "light")}
+        >
+          <Icon name={theme === "light" ? "moon" : "sun"} />
+        </button>
       </div>
 
       {toastNode}
-
-      <button
-        className="btn btn-ghost btn-icon btn-sm"
-        title={theme === "light" ? "Switch to dark" : "Switch to light"}
-        onClick={() => onTheme(theme === "light" ? "dark" : "light")}
-      >
-        <Icon name={theme === "light" ? "moon" : "sun"} />
-      </button>
     </div>
   );
 };

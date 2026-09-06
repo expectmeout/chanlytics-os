@@ -1,10 +1,14 @@
 import { AppError } from "@chanlytics/contracts";
 import { withRoute, memberContext, requireRole } from "@/server/with-route";
-import { requireUuid } from "@/server/request-guards";
+import { jsonBody, requireUuid } from "@/server/request-guards";
 import { takeRate } from "@/server/rate-limit";
 import { deleteTemplate } from "@/server/service";
 
 /**
+ * PUT /api/v1/templates/:id — { hidden: boolean }. Hidden from the composers
+ * or shown again; the row stays, syncs keep it, the wire may still send it
+ * by name. Owner or operator, through the definer door.
+ *
  * DELETE /api/v1/templates/:id — a template gone from Meta and from here.
  *
  * Owner or operator. A template a broadcast is still using is refused: the
@@ -20,6 +24,21 @@ const SAID: Record<string, string> = {
   meta_refused: "WhatsApp did not let the template be deleted. Try again in a moment.",
   write_failed: "The template could not be removed here. Sync from Meta and try again.",
 };
+
+export const PUT = withRoute(async (req, ctx) => {
+  const id = requireUuid(ctx.params.id, "template");
+  const body = (await jsonBody(req)) as { hidden?: unknown } | null;
+  if (typeof body?.hidden !== "boolean") throw new AppError("validation", "Say whether the template is hidden.");
+  const { data: tpl, error } = await ctx.supabase.from("templates").select("id, tenant_id, name").eq("id", id).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!tpl) throw new AppError("not_found", "Template not found.", 404);
+  const member = await memberContext(ctx, tpl.tenant_id);
+  requireRole(member, "operator");
+  takeRate(ctx.userId, "settings");
+  const { error: dErr } = await ctx.supabase.rpc("set_template_hidden", { p_template_id: id, p_hidden: body.hidden });
+  if (dErr) throw new Error(dErr.message);
+  return { id, name: tpl.name, hidden: body.hidden };
+});
 
 export const DELETE = withRoute(async (req, ctx) => {
   const id = requireUuid(ctx.params.id, "template");

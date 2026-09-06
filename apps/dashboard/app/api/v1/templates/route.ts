@@ -25,14 +25,15 @@ import { createTemplate } from "@/server/service";
  * words; what Meta then says (pending, approved, rejected with a reason) is
  * the row's status, kept current by the webhook.
  */
-const COLUMNS = "id, channel, name, language, body_preview, variables, category, meta_status, quality, rejected_reason, synced_at, source";
+const COLUMNS = "id, channel, name, language, body_preview, variables, category, meta_status, quality, rejected_reason, synced_at, source, hidden_at";
 
 export const GET = withRoute(async (req, ctx) => {
   const url = new URL(req.url);
   const { tenantId } = await memberContext(ctx, url.searchParams.get("workspace"));
   const all = url.searchParams.get("all") === "1";
   let q = ctx.supabase.from("templates").select(COLUMNS).eq("tenant_id", tenantId);
-  if (!all) q = q.eq("meta_status", "approved");
+  // The composers: approved, and not hidden by the workspace. Settings sees everything.
+  if (!all) q = q.eq("meta_status", "approved").is("hidden_at", null);
   const { data, error } = await q.order("name");
   if (error) throw new Error(error.message);
   return { templates: data ?? [] };
@@ -50,7 +51,7 @@ export const POST = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   requireRole(member, "operator");
   takeRate(ctx.userId, "settings");
-  const body = (await jsonBody(req)) as { name?: unknown; language?: unknown; category?: unknown; body?: unknown; footer?: unknown; examples?: unknown } | null;
+  const body = (await jsonBody(req)) as { name?: unknown; language?: unknown; category?: unknown; body?: unknown; footer?: unknown; examples?: unknown; labels?: unknown } | null;
   const check = validateTemplateDraft({
     name: typeof body?.name === "string" ? body.name : "",
     language: typeof body?.language === "string" ? body.language : "",
@@ -73,8 +74,10 @@ export const POST = withRoute(async (req, ctx) => {
   if (dErr) throw new Error(dErr.message);
   if (dup) throw new AppError("conflict", "A template with that name and language already exists. Pick another name.", 409);
 
+  const labels = Array.isArray(body?.labels) ? (body.labels as unknown[]).map((l) => String(l ?? "").trim().slice(0, 40)) : [];
   const r = await createTemplate(member.tenantId, ctx.userId, {
     name: v.name, language: v.language, category: v.category, components: templateComponents(v), body: v.body, examples: v.examples,
+    labels: labels.length === v.examples.length ? labels : [],
   });
   if (!r.ok) {
     if (r.reason === "meta_refused") throw new AppError("validation", `WhatsApp did not accept it: ${r.detail ?? "no reason given"}. Change the message and try again.`);

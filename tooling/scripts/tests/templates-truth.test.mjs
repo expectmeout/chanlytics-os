@@ -82,7 +82,7 @@ test("the dashboard: the route proves the operator, the service reaches the edge
   const svc = readCode("apps/dashboard/src/server/service.ts");
   assert.ok(svc.includes("`${EDGE_BASE}/api/admin/whatsapp/templates-sync`"));
   const g = readCode("apps/dashboard/app/api/v1/templates/route.ts");
-  assert.ok(g.includes('const all = url.searchParams.get("all") === "1";') && g.includes('if (!all) q = q.eq("meta_status", "approved");'));
+  assert.ok(g.includes('const all = url.searchParams.get("all") === "1";') && g.includes('if (!all) q = q.eq("meta_status", "approved").is("hidden_at", null);'));
   assert.ok(g.includes("category, meta_status, quality, rejected_reason, synced_at"), "the picker can tell marketing from utility");
 });
 
