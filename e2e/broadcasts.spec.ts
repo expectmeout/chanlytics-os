@@ -54,6 +54,17 @@ test.describe("Broadcasts on a real workspace", () => {
 
     const text = await real.innerText();
     for (const s of INVENTED) expect(text, `invented: "${s}"`).not.toContain(s);
+
+    // The number a broadcast goes out on, and what WhatsApp has said about it.
+    await expect(real.getByTestId("bc-number")).toBeVisible();
+    await expect(real.getByTestId("bc-number")).toContainText(/quality|No WhatsApp number/);
+
+    // A history row opens its people.
+    if (broadcasts.length - open > 0) {
+      await real.getByTestId("bc-history").first().click();
+      await expect(real.getByTestId("bc-detail")).toBeVisible();
+      await expect(real.getByTestId("bc-detail")).toContainText(/Got it|Held back|Reading/);
+    }
   });
 
   test("the send button is disabled whenever nobody on the chosen audience has said yes", async ({ page }) => {

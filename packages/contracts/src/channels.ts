@@ -17,6 +17,13 @@ export interface ChannelDto {
   /** Newest inbound on this channel: a WhatsApp message's channel_ts, or a
    *  call's started_at. Null when nobody has used it yet. */
   last_inbound_at: string | null;
+  /** What WhatsApp has said about the number, from the channel row's config:
+   *  the quality rating read at connection, the newest quality and limit
+   *  webhooks, and when. All null until Meta has said something. */
+  quality?: string | null;
+  quality_event?: string | null;
+  messaging_limit?: string | null;
+  quality_at?: string | null;
 }
 
 export type ChannelHealth = "receiving" | "quiet" | "off" | "unused";

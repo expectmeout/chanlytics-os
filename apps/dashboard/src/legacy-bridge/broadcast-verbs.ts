@@ -7,6 +7,7 @@
  * Broadcasts surface, so the Scheduled and History rows are the server's —
  * never a row the page invented while it waited.
  */
+import type { BroadcastDetailDto } from "@chanlytics/contracts";
 import { broadcastsOverride, invalidateInFlight, scoped } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 import { clearSurfaceCache } from "./surface-cache";
@@ -49,17 +50,38 @@ async function call(path: string, body?: unknown): Promise<BroadcastResult> {
   }
 }
 
+/** One broadcast and every person on it. A read: nothing refreshes. */
+async function detail(id: string): Promise<{ ok: boolean; message?: string; data?: BroadcastDetailDto }> {
+  try {
+    const res = await fetch(scoped(`/api/v1/broadcasts/${encodeURIComponent(id)}`));
+    const j = (await res.json().catch(() => null)) as { ok: boolean; data?: BroadcastDetailDto; error?: { message?: string } } | null;
+    if (!j || !j.ok) return { ok: false, message: j?.error?.message ?? `Request failed (${res.status}).` };
+    return { ok: true, data: j.data };
+  } catch {
+    return { ok: false, message: "Network error." };
+  }
+}
+
+/** Re-read the surface: for Ask's cards and anything else that changes a broadcast elsewhere. */
+export async function refreshBroadcasts(): Promise<void> {
+  invalidateInFlight();
+  await refreshSurfaces([broadcastsOverride]);
+}
+
 export const broadcasts = {
   send: (body: SendBody) => call("/api/v1/broadcasts", body),
   cancel: (id: string) => call(`/api/v1/broadcasts/${encodeURIComponent(id)}/cancel`),
+  detail,
 };
 
 declare global {
   interface Window {
     __broadcasts?: typeof broadcasts;
+    __refreshBroadcasts?: () => Promise<void>;
   }
 }
 
 export function installBroadcasts(): void {
   window.__broadcasts = broadcasts;
+  window.__refreshBroadcasts = refreshBroadcasts;
 }

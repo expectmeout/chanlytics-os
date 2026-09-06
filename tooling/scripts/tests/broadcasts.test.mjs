@@ -154,3 +154,51 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   assert.ok(p.includes("Nobody on “{active.label}” has said yes to offers yet."));
   assert.ok(!/credits|Booked from broadcasts|\$\d/.test(p), "nothing invented: no credits, no revenue");
 });
+
+test("the number's health: what WhatsApp said decides what may be sent; nothing reported is said so", async () => {
+  const { numberHealth, overLimitRefusal, dailyLimit } = await import("@chanlytics/contracts");
+  assert.equal(dailyLimit("TIER_1K"), 1000);
+  assert.equal(dailyLimit("tier_250"), 250);
+  assert.equal(dailyLimit(null), null);
+  assert.equal(dailyLimit("weird"), null);
+  const flagged = numberHealth({ quality: "GREEN", event: "FLAGGED", limit: "TIER_1K" });
+  assert.equal(flagged.canSend, false);
+  assert.equal(flagged.tone, "danger");
+  assert.ok(flagged.refusal.includes("flagged"));
+  assert.equal(numberHealth({ quality: "RED", event: null, limit: null }).canSend, false);
+  const good = numberHealth({ quality: "GREEN", event: null, limit: "TIER_250" });
+  assert.equal(good.canSend, true);
+  assert.equal(good.tone, "ok");
+  assert.ok(good.label.includes("up to 250 new conversations a day"));
+  assert.equal(numberHealth({ quality: "YELLOW", event: null, limit: null }).tone, "warn");
+  const unknown = numberHealth({ quality: null, event: null, limit: null });
+  assert.equal(unknown.canSend, true);
+  assert.equal(unknown.tone, "unknown");
+  assert.ok(unknown.label.includes("not reported yet"), "nothing reported is said so, never assumed");
+  assert.equal(overLimitRefusal(good, 250), null);
+  assert.ok(overLimitRefusal(good, 251).includes("up to 250"));
+  assert.equal(overLimitRefusal(unknown, 5000), null, "no limit reported means no refusal on the limit");
+  assert.equal(numberHealth({ quality: null, event: null, limit: "TIER_UNLIMITED" }).limitPerDay, Infinity);
+});
+
+test("the detail: every person on a broadcast, with what happened to them; the send route refuses what the number cannot carry; the thread says which broadcast", () => {
+  const d = readCode("apps/dashboard/app/api/v1/broadcasts/[id]/route.ts");
+  assert.ok(d.includes("return await getBroadcast(ctx, tenantId, id);"));
+  const s = readCode("apps/dashboard/src/server/broadcasts.ts");
+  assert.ok(s.includes("contacts(display_name, wa_profile_name, phone_e164)"), "names come with the rows");
+  assert.ok(s.includes("replied: !!(r.messages?.conversation_id && replied.has(r.messages.conversation_id)),"));
+  const r = readCode("apps/dashboard/app/api/v1/broadcasts/route.ts");
+  assert.ok(r.includes("if (!health.canSend) throw new AppError(\"conflict\", health.refusal!, 409);"), "a flagged number does not broadcast");
+  assert.ok(r.includes("const over = overLimitRefusal(health, eligible.length);"), "an audience past the day's limit is split, not silently cut");
+  assert.ok(readCode("apps/dashboard/app/api/v1/channels/route.ts").includes("quality: s(\"quality_rating\"),"));
+  const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  assert.ok(sd.includes("health: numberHealth({ quality: wa?.quality ?? null, event: wa?.quality_event ?? null, limit: wa?.messaging_limit ?? null }),"));
+  assert.ok(sd.includes("heldReasons: HELD_REASONS,"));
+  const p = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
+  for (const id of ["bc-number", "bc-number-refusal", "bc-over-limit", "bc-detail", "bc-person", "bc-open-who"]) assert.ok(p.includes(`data-testid="${id}"`), id);
+  assert.ok(p.includes("&& numberOk && !overLimit;"), "the button follows the number too");
+  const vm = readCode("packages/contracts/src/viewmodels.ts");
+  assert.ok(vm.includes('...(m.meta?.source === "broadcast" ? { via: { kind: "broadcast" as const, name: String(m.meta.broadcast_name ?? "broadcast") } } : {}),'));
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx").includes("by {entry.via ? `a broadcast (${entry.via.name})` : \"you\"} · {entry.at}"));
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/broadcast-verbs.ts").includes("window.__refreshBroadcasts = refreshBroadcasts;"));
+});
