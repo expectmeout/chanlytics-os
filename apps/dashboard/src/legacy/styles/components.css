@@ -1671,3 +1671,8 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 .bc-person .dim { color: var(--ink-faint); }
 .bc-hist-row.clickable { cursor: pointer; }
 .bc-hist-row.is-open { background: var(--bg); }
+
+/* Broadcasts: how a customer says yes. */
+.bc-optin-body { display: flex; gap: 14px; align-items: flex-start; }
+.bc-optin-qr { flex: 0 0 auto; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: #fff; padding: 4px; }
+.bc-optin-text p { margin: 0 0 8px; font-size: 13px; line-height: 1.5; }

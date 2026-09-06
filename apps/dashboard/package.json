@@ -11,17 +11,19 @@
   "dependencies": {
     "@chanlytics/contracts": "workspace:*",
     "@chanlytics/db": "workspace:*",
+    "@chanlytics/jobs": "workspace:*",
     "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.49.0",
     "next": "^15.5.0",
+    "qrcode": "1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@chanlytics/jobs": "workspace:*",
     "server-only": "^0.0.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^22",
+    "@types/qrcode": "1.5.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "typescript": "^5.7.0"

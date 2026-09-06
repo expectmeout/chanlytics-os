@@ -41,9 +41,9 @@ test("an ordinary message is not an opt-out", () => {
 });
 
 test("only an explicit word opts back in", () => {
-  for (const w of ["START", "start", "alta", "unstop"]) assert.equal(wa(w).optIn, true, w);
+  for (const w of ["START", "start", "alta", "unstop", "YES OFFERS", "yes offers", "Sí ofertas!", "si ofertas"]) assert.equal(wa(w).optIn, true, w);
   // If any message lifted the block, the block would not exist.
-  for (const w of ["hi", "sí", "yes", "start my appointment at 3"]) {
+  for (const w of ["hi", "sí", "yes", "start my appointment at 3", "yes offers please", "offers"]) {
     assert.equal(wa(w).optIn, false, `"${w}" must NOT opt back in`);
   }
 });

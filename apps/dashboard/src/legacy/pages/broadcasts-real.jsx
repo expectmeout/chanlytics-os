@@ -245,6 +245,29 @@ const BroadcastsReal = ({ initialSegment = null }) => {
         )}
       </section>
 
+      {data.optIn && data.optIn.link && (
+        <section className="ct-section bc-optin" data-testid="bc-optin">
+          <div className="ct-sec-head">
+            <span className="ct-sec-title">Get their yes</span>
+            <span className="ct-sec-meta">the only way onto a broadcast</span>
+          </div>
+          <div className="bc-optin-body">
+            <img className="bc-optin-qr" src={data.optIn.qrPath} alt={`QR code that opens WhatsApp with “${data.optIn.phrase}” ready to send`} width={120} height={120} />
+            <div className="bc-optin-text">
+              <p>
+                Put this where customers look — a QR at the desk, the link in your bio. It opens WhatsApp with <b>{data.optIn.phrase}</b> ready to send;
+                sending it records their yes by their own message, and the receptionist thanks them. In Spanish, <b>{data.optIn.phraseEs}</b> works too. Reply STOP undoes it.
+              </p>
+              <div className="bc-chips">
+                <button className="btn btn-sm" data-testid="bc-optin-copy" onClick={() => { if (navigator.clipboard) navigator.clipboard.writeText(data.optIn.link).then(() => flash({ msg: <>Link copied</> })); }}>Copy link</button>
+                <a className="btn btn-sm" href={data.optIn.qrPath} download="say-yes-to-offers.svg">Download QR</a>
+                <a className="cl-bucket-link" href={data.optIn.link} target="_blank" rel="noreferrer">Open the link</a>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="ct-section">
         <div className="ct-sec-head">
           <span className="ct-sec-title">Scheduled</span>

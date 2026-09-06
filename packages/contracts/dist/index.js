@@ -118,7 +118,13 @@ var EVENT_KINDS = [
   "contact.blob_erased"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
-var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta)\s*[.!]?\s*$/i;
+var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
+var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
+function optInLink(numberE164, phrase = OFFERS_OPT_IN_PHRASES.en) {
+  const digits = String(numberE164 ?? "").replace(/\D/g, "");
+  if (digits.length < 8) return null;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(phrase)}`;
+}
 var ESCALATION_REASONS = [
   "human_token",
   "non_text",
@@ -1722,6 +1728,7 @@ ${text}`);
   if (g.disclose_ai !== false) {
     rules.push("If asked whether you are a bot, a person, or AI, say plainly that you are the business's automated assistant and offer to bring in a person.");
   }
+  rules.push("If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else.");
   if (g.no_health_advice === true) {
     rules.push("Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment and offer the booking link.");
   }
@@ -3573,6 +3580,7 @@ export {
   NEW_WINDOW_MS,
   NoteSchema,
   NotificationsConfigSchema,
+  OFFERS_OPT_IN_PHRASES,
   OPT_IN_PATTERN,
   OPT_OUT_PATTERN,
   OPT_OUT_REFUSAL,
@@ -3665,6 +3673,7 @@ export {
   normalizePhone,
   numberHealth,
   ok,
+  optInLink,
   overLimitRefusal,
   parseAskFinish,
   parseBrainOutput,

@@ -59,6 +59,17 @@ test.describe("Broadcasts on a real workspace", () => {
     await expect(real.getByTestId("bc-number")).toBeVisible();
     await expect(real.getByTestId("bc-number")).toContainText(/quality|No WhatsApp number/);
 
+    // How a customer says yes: the card and the code, whenever there is a number.
+    const numberLine = await real.getByTestId("bc-number").innerText();
+    if (/WhatsApp \+/.test(numberLine)) {
+      await expect(real.getByTestId("bc-optin")).toBeVisible();
+      await expect(real.getByTestId("bc-optin")).toContainText("YES OFFERS");
+      const qr = await page.request.get("/api/v1/consent/qr");
+      expect(qr.status()).toBe(200);
+      expect(qr.headers()["content-type"]).toContain("image/svg+xml");
+      expect((await qr.text()).startsWith("<svg")).toBe(true);
+    }
+
     // A history row opens its people.
     if (broadcasts.length - open > 0) {
       await real.getByTestId("bc-history").first().click();
