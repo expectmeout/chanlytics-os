@@ -213,7 +213,7 @@ test.describe("People on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const rows = page.locator(".cl-table tbody tr:not(:has(.cl-table-empty))");
     test.skip((await rows.count()) === 0, "this workspace has nobody to walk");
-    await page.locator("body").click({ position: { x: 5, y: 5 } });
+    await page.evaluate(() => { const el = document.activeElement as HTMLElement | null; if (el && el.blur) el.blur(); });
     await page.keyboard.press("ArrowDown");
     await expect(page.locator(".cl-table tbody tr.focused")).toHaveCount(1);
     await page.keyboard.press("Enter");
