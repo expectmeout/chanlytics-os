@@ -56,6 +56,9 @@ test.describe("Settings → Integrations on a real workspace", () => {
     if ((await card.getByTestId("template-new").count()) > 0) {
       await card.getByTestId("template-new").click();
       await expect(card.getByTestId("tpl-composer")).toBeVisible();
+      // The starter set: five, each with its English and Spanish state.
+      await expect(card.getByTestId("starter-row")).toHaveCount(5);
+      await expect(card.getByTestId("starters")).toContainText("Win-back");
     }
   });
 

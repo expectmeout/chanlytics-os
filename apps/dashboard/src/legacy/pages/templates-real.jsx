@@ -13,6 +13,28 @@ const TC_SOURCES = { text: "Type it", first_name: "Their first name", business_n
 const tcSlots = (body) => { const s = new Set(); for (const m of String(body || "").matchAll(/\{\{(\d+)\}\}/g)) s.add(Number(m[1])); return [...s].sort((a, b) => a - b); };
 const tcRender = (body, values) => String(body || "").replace(/\{\{(\d+)\}\}/g, (m, n) => (values[Number(n) - 1] || m));
 
+// The message as the customer will see it: the business's name above, the
+// words, the footer under — the way WhatsApp draws a template. One
+// component for the Broadcasts composer, the playbook composer and here.
+const WaBubble = ({ from, body, footer }) => (
+  <div className="wa-bubble" data-testid="wa-bubble">
+    {from ? <div className="wa-bubble-from">{from}</div> : null}
+    <div className="wa-bubble-body">{body}</div>
+    {footer ? <div className="wa-bubble-foot">{footer}</div> : null}
+    <div className="wa-bubble-time">now</div>
+  </div>
+);
+
+// What happened to the starter set, in one line.
+const starterWords = (d) => {
+  const parts = [];
+  if (d.submitted) parts.push(`${d.submitted} submitted to WhatsApp for review — usually approved within minutes`);
+  if (d.synced) parts.push(`${d.synced} already on your number's account, now here`);
+  if (d.existing) parts.push(`${d.existing} already on file`);
+  if (d.failed) parts.push(`${d.failed} could not be added${d.results ? ": " + d.results.filter((r) => r.status === "failed").map((r) => `${r.title} (${r.detail || "no reason given"})`).join("; ") : ""}`);
+  return parts.length ? parts.join(" · ") : "Nothing to add";
+};
+
 const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
   const [brief, setBrief] = React.useState("");
   const [category, setCategory] = React.useState("marketing");
@@ -54,6 +76,18 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
     if (!r.ok) { setError(r.message || "WhatsApp did not accept it."); return; }
     if (onDone) onDone(r.data);
   };
+  // A starter's words in the chosen language, to change or submit as they are.
+  const startFrom = (s) => {
+    const t = s.texts[language] || s.texts.en_US;
+    setCategory(s.category);
+    setName(s.name);
+    setBody(t.body);
+    setFooter(t.footer || "");
+    setExamples(t.slots.map((x) => x.example));
+    setLabels(t.slots.map((x) => x.label));
+    setWarnings([]);
+    setError(null);
+  };
 
   return (
     <section className="ct-section tpl-composer" data-testid="tpl-composer">
@@ -62,6 +96,17 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
         <span className="ct-sec-meta">WhatsApp reviews it before it can be sent — usually minutes, sometimes a day</span>
         {onCancel && <button className="cl-bucket-link" onClick={onCancel}>Close</button>}
       </div>
+      {window.__starters && (
+        <div className="tpl-row">
+          <span className="bc-row-label">From</span>
+          <div className="bc-chips" style={{ alignItems: "center" }}>
+            {window.__starters.list.map((s) => (
+              <button key={s.key} className="bc-chip" title={`${s.title} — ${s.purpose}`} onClick={() => startFrom(s)} data-testid="tpl-start-from">{s.title}</button>
+            ))}
+            <span className="bc-excl-hint">a starter to change — or say what you want to tell customers below</span>
+          </div>
+        </div>
+      )}
       <div className="tpl-row">
         <span className="bc-row-label">Say</span>
         <textarea className="tpl-brief" rows={2} value={brief} placeholder="What do you want to tell customers? e.g. 20% off balayage this week for regulars, book by Friday" onChange={(e) => setBrief(e.target.value)} data-testid="tpl-brief" />
@@ -94,7 +139,7 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
           </div>
         )}
       </div>
-      {body && <div className="bc-preview" data-testid="tpl-preview">{preview}{footer ? <span className="dim">{"\n" + footer}</span> : null}</div>}
+      {body && <div className="bc-preview-wrap" data-testid="tpl-preview"><WaBubble from={businessName} body={preview} footer={footer} /></div>}
       {warnings.length > 0 && <div className="bc-excl-hint" data-testid="tpl-warnings">{warnings.join(" ")}</div>}
       {error && <div className="bc-excl-hint" style={{ color: "var(--danger)" }} data-testid="tpl-error">{error}</div>}
       <div className="bc-actions">
@@ -109,3 +154,5 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
 
 window.TemplateComposer = TemplateComposer;
 window.TC_SOURCES = TC_SOURCES;
+window.WaBubble = WaBubble;
+window.starterWords = starterWords;

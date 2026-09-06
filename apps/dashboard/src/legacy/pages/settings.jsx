@@ -1803,6 +1803,9 @@ const tplAgo = (iso) => {
   if (diff < 86400000) return `${Math.round(diff / 3600000)}h ago`;
   return `${Math.round(diff / 86400000)}d ago`;
 };
+// Words for people: a starter's title, or the name with its underscores made spaces.
+const tplTitle = (name) => (window.__starters ? window.__starters.title(name) : name);
+const tplIsStarter = (name) => !!(window.__starters && window.__starters.byName(name));
 const TemplatesCard = () => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
   React.useEffect(() => {
@@ -1824,6 +1827,14 @@ const TemplatesCard = () => {
   };
   const canSync = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
   const hasWhatsApp = (window.__CHANNELS || []).some((c) => c.kind === "whatsapp");
+  const bizName = (window.__SETTINGS && window.__SETTINGS.config && window.__SETTINGS.config.brain && window.__SETTINGS.config.brain.business_name) || null;
+  const addStarters = async (keys, languages) => {
+    if (!window.__templates || !window.__templates.addStarters || busy) return;
+    setBusy(true);
+    const r = await window.__templates.addStarters({ ...(keys ? { keys } : {}), languages });
+    setBusy(false);
+    flash({ msg: r.ok ? <>{window.starterWords ? window.starterWords(r.data) : "Added"}</> : <>{r.message}</> });
+  };
   const sync = async () => {
     if (!window.__syncTemplates || busy) return;
     setBusy(true);
@@ -1854,7 +1865,7 @@ const TemplatesCard = () => {
           <div key={t.id} className="set-int-row" data-testid="template-row">
             <span className="st-tile set-int-tile"><Icon name="chat" size={14} /></span>
             <span className="set-team-body">
-              <span className="set-team-name">{t.name}<span className="dim"> · {t.language}{t.category ? ` · ${t.category}` : ""}{t.source === "chanlytics" ? " · made here" : ""}</span></span>
+              <span className="set-team-name">{tplTitle(t.name)}<span className="dim"> · {t.name} · {t.language}{t.category ? ` · ${t.category}` : ""}{tplIsStarter(t.name) ? " · starter" : ""}{t.source === "chanlytics" ? " · made here" : ""}</span></span>
               <span className="set-team-mail">
                 {t.meta_status === "rejected" && t.rejected_reason
                   ? `Rejected: ${String(t.rejected_reason).toLowerCase().replace(/_/g, " ")}`
@@ -1876,6 +1887,39 @@ const TemplatesCard = () => {
           onCancel={() => setComposing(false)}
           onDone={(made) => { setComposing(false); flash({ msg: <><b>{made.name}</b> submitted — WhatsApp reviews it; its status shows here</> }); }}
         />
+      )}
+      {hasWhatsApp && window.__starters && (
+        <div className="tpl-starters" data-testid="starters">
+          <div className="ct-sec-head">
+            <span className="ct-sec-title">Starter set</span>
+            <span className="ct-sec-meta">five messages written for the moments Chanlytics acts on, in English and Spanish — WhatsApp reviews each, usually within minutes</span>
+          </div>
+          {window.__starters.list.map((s) => (
+            <div key={s.key} className="tpl-starter-row" data-testid="starter-row">
+              <span className="tpl-starter-main">
+                <span className="tpl-starter-title">{s.title}<span className="dim"> · {s.purpose}</span></span>
+                <span className="tpl-starter-body" title={window.__starters.preview(s, "en_US", bizName)}>{window.__starters.preview(s, "en_US", bizName)}</span>
+              </span>
+              {window.__starters.languages.map((l) => {
+                const row = list.find((t) => t.name === s.name && t.language === l.id);
+                const st = row ? (TPL_STATUS[row.meta_status] || { label: row.meta_status, cls: "" }) : null;
+                if (row) return <span key={l.id} className={`pill ${st.cls}`} title={row.meta_status === "rejected" && row.rejected_reason ? String(row.rejected_reason) : ""}>{l.label} · {st.label}</span>;
+                if (!canSync) return <span key={l.id} className="set-row-hint">{l.label} · not added</span>;
+                return <button key={l.id} className="btn btn-sm" disabled={busy} onClick={() => addStarters([s.key], [l.id])} data-testid="starter-add">Add {l.label}</button>;
+              })}
+            </div>
+          ))}
+          {canSync && (
+            <div className="bc-chips" style={{ alignItems: "center", gap: 8 }}>
+              {window.__starters.languages.map((l) => {
+                const missing = window.__starters.list.filter((s) => !list.some((t) => t.name === s.name && t.language === l.id)).length;
+                return missing > 0
+                  ? <button key={l.id} className="btn btn-sm btn-primary" disabled={busy} onClick={() => addStarters(null, [l.id])} data-testid="starter-add-all">{busy ? "Adding…" : `Add all ${missing} in ${l.label}`}</button>
+                  : <span key={l.id} className="set-row-hint">Every {l.label} starter is on file</span>;
+              })}
+            </div>
+          )}
+        </div>
       )}
       <div className="set-row">
         <div className="set-row-info">

@@ -16,6 +16,7 @@ export * from "./people";
 export * from "./broadcasts";
 export * from "./templates";
 export * from "./playbooks";
+export * from "./template-library";
 export * from "./channels";
 
 export * from "./reports";

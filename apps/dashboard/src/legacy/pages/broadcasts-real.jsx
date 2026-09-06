@@ -22,6 +22,12 @@ const useBroadcasts = () => {
 
 const bcRender = (body, params) => String(body || "").replace(/\{\{(\d+)\}\}/g, (m, n) => (params[Number(n) - 1] || m));
 const bcKey = (a) => `${a.kind}:${a.id || ""}`;
+// Words for people: a starter's title, or the name with its underscores made spaces.
+const bcTitle = (name) => (window.__starters ? window.__starters.title(name) : String(name || "").replace(/_/g, " "));
+const bcIsStarter = (name) => !!(window.__starters && window.__starters.byName(name));
+// Starters first, then marketing, then utility: what a broadcast most often needs is nearest.
+const bcOrder = (a, b) => (Number(bcIsStarter(b.name)) - Number(bcIsStarter(a.name))) || String(a.category || "").localeCompare(String(b.category || "")) || String(a.name).localeCompare(String(b.name));
+const bcFooter = (t) => { const s = t && window.__starters ? window.__starters.byName(t.name) : null; return s ? (window.__starters.text(s, t.language).footer || null) : null; };
 // Stable empties, so a workspace without lists or templates does not re-run
 // the effects on every render.
 const BC_NONE = [];
@@ -55,7 +61,7 @@ const BroadcastDetail = ({ id, heldReasons, onClose }) => {
     <div className="bc-detail" data-testid="bc-detail">
       <div className="ct-sec-head">
         <span className="ct-sec-title">{d.broadcast.name}</span>
-        <span className="ct-sec-meta">{d.broadcast.audience.label} · {d.recipients.length} enrolled · {d.broadcast.template_name}</span>
+        <span className="ct-sec-meta">{d.broadcast.audience.label} · {d.recipients.length} enrolled · {bcTitle(d.broadcast.template_name)}</span>
         <button className="cl-bucket-link" onClick={onClose}>Close</button>
       </div>
       {d.broadcast.params.length > 0 && <div className="cl-prof-aut-hint">Values: {d.broadcast.params.map((p) => (p && p.kind && p.kind !== "text" ? ((window.TC_SOURCES || {})[p.kind] || p.kind).toLowerCase() : (p && p.value) || String(p))).join(" · ")}</div>}
@@ -86,7 +92,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   const [toastNode, flash] = window.usePPToast();
   const canSend = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
   const audiences = data.audiences || BC_NONE;
-  const templates = data.templates || BC_NONE;
+  const templates = React.useMemo(() => (data.templates || BC_NONE).slice().sort(bcOrder), [data.templates]);
   const [aud, setAud] = React.useState(() => {
     const first = audiences.find((a) => (a.kind === "saved" || a.kind === "list") && a.id === initialSegment) || audiences[0];
     return first ? bcKey(first) : "everyone:";
@@ -99,6 +105,9 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   const [when, setWhen] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [openId, setOpenId] = React.useState(null);
+  const [addingStarters, setAddingStarters] = React.useState(false);
+  // Starters in review at WhatsApp: the honest line while nothing is approved yet.
+  const starterPending = (window.__TEMPLATES_ALL || BC_NONE).filter((t) => bcIsStarter(t.name) && t.meta_status === "pending").length;
   React.useEffect(() => {
     if (!templates.some((t) => t.id === tplId) && templates[0]) setTplId(templates[0].id);
   }, [templates, tplId]);
@@ -111,7 +120,11 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   const tpl = templates.find((t) => t.id === tplId) || null;
   const vars = tpl && Array.isArray(tpl.variables) ? tpl.variables : [];
   const SRC = window.TC_SOURCES || { text: "Type it", first_name: "Their first name", business_name: "The business name", booking_link: "The booking link" };
-  const srcOf = (i) => ((sources[tplId] || [])[i] || "text");
+  // A starter's slots come filled in; a template written elsewhere gets a
+  // guess from its labels. A booking link the workspace has not set falls
+  // back to typed text, so nothing is offered that cannot be sent.
+  const defaults = tpl && window.__starters ? window.__starters.slotKinds(tpl).map((k) => (k === "booking_link" && !data.bookingLink ? "text" : k)) : BC_NONE;
+  const srcOf = (i) => ((sources[tplId] || defaults)[i] || "text");
   const exampleOf = (kind) => (kind === "first_name" ? "Dani" : kind === "business_name" ? (data.businessName || "the business") : kind === "booking_link" ? "your booking link" : "");
   const typed = vars.map((v, i) => ((params[tplId] || [])[i] || ""));
   const filled = vars.map((v, i) => (srcOf(i) === "text" ? typed[i] : exampleOf(srcOf(i))));
@@ -147,6 +160,13 @@ const BroadcastsReal = ({ initialSegment = null }) => {
     setWhen("");
     const n = r.data.recipient_count;
     flash({ msg: <><b>{r.data.name || "Broadcast"}</b> · {n} {n === 1 ? "person" : "people"} — {scheduled && when ? "scheduled" : "sending now, 25 at a time"}</> });
+  };
+  const addStarters = async () => {
+    if (!window.__templates || !window.__templates.addStarters || addingStarters) return;
+    setAddingStarters(true);
+    const r = await window.__templates.addStarters({ languages: ["en_US"] });
+    setAddingStarters(false);
+    flash({ msg: r.ok ? <>{window.starterWords ? window.starterWords(r.data) : "Added"}</> : <>{r.message}</> });
   };
   const cancel = async (row) => {
     if (!window.__broadcasts) return;
@@ -197,14 +217,21 @@ const BroadcastsReal = ({ initialSegment = null }) => {
           </div>
         </div>
         <div className="bc-row">
-          <span className="bc-row-label">Template</span>
+          <span className="bc-row-label">Send</span>
           <div className="bc-chips" style={{ flexWrap: "wrap" }}>
             {templates.length === 0 && (
-              <span className="bc-excl-hint" data-testid="bc-no-template">No approved template yet — write one here, or in WhatsApp Manager and sync it in Settings › Integrations.</span>
+              <span className="bc-excl-hint" data-testid="bc-no-template">
+                {starterPending > 0
+                  ? `Your starter templates are in review at WhatsApp (${starterPending}) — they appear here once approved, usually within minutes.`
+                  : "No approved template yet — add the starter set, write one here, or sync one from WhatsApp Manager in Settings › Integrations."}
+              </span>
+            )}
+            {templates.length === 0 && canSend && starterPending === 0 && window.__templates && window.__templates.addStarters && (
+              <button className="bc-chip" disabled={addingStarters} onClick={addStarters} data-testid="bc-add-starters"><Icon name="sparkle" size={10} /> {addingStarters ? "Adding…" : "Add the starter set"}</button>
             )}
             {templates.map((t) => (
               <button key={t.id} className={"bc-chip" + (t.id === tplId ? " active" : "")} onClick={() => setTplId(t.id)} title={t.body_preview || ""} data-testid="bc-template">
-                {t.name}{t.category ? <span className="bc-chip-count">{t.category}</span> : null}
+                {bcTitle(t.name)}<span className="bc-chip-count">{bcIsStarter(t.name) ? "starter" : (t.category || "")}</span>
               </button>
             ))}
             {canSend && window.TemplateComposer && (
@@ -244,7 +271,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
             ))}
           </div>
         )}
-        {tpl && <div className="bc-preview" data-testid="bc-preview">{preview}</div>}
+        {tpl && <div className="bc-preview-wrap" data-testid="bc-preview"><window.WaBubble from={data.businessName} body={preview} footer={bcFooter(tpl)} /></div>}
         <div className="bc-meta">
           <Icon name="shield" size={11} />
           <span>
