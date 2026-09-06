@@ -11,8 +11,10 @@ import { cancelKindFor } from "@/server/service";
  *
  * Scheduled: the job is withdrawn and nothing is sent. Sending: the job
  * stops at its next batch — the messages already on their way are on their
- * way, and the row says how many. Anything else has already ended and says
- * so. Owner or operator; the ledger records the decision.
+ * way, and the row says how many. Waiting for approval (a playbook's run
+ * under the ask mode): skipped, nothing was ever scheduled. Anything else
+ * has already ended and says so. Owner or operator; the ledger records the
+ * decision.
  */
 export const POST = withRoute(async (req, ctx) => {
   const id = requireUuid(ctx.params.id, "broadcast");
@@ -25,7 +27,7 @@ export const POST = withRoute(async (req, ctx) => {
 
   if (b.state === "scheduled") {
     await cancelKindFor(b.tenant_id, "broadcast_send", "broadcast_id", id);
-  } else if (b.state !== "sending") {
+  } else if (b.state !== "sending" && b.state !== "pending_approval") {
     const said = b.state === "sent" ? "already been sent" : b.state === "canceled" ? "already been canceled" : "already failed";
     throw new AppError("conflict", `This broadcast has ${said}.`, 409);
   }

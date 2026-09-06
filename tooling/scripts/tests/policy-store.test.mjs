@@ -37,7 +37,7 @@ test("modes round-trip between the database's spelling and the mockup's, and unk
 
 test("only the classes the runtime consults are offered as switches", () => {
   const enforced = UI_ROWS.filter((r) => r.enforced).map((r) => r.id).sort();
-  assert.deepEqual(enforced, ["money", "reply"], "reply is consulted by the handlers; money is locked in the database");
+  assert.deepEqual(enforced, ["campaign", "money", "reengage", "reply"], "reply is consulted by the handlers; reengage and campaign by the playbooks sweep; money is locked in the database");
   assert.equal(UI_ROWS.find((r) => r.id === "money").locked, true);
   assert.equal(UI_ROWS.find((r) => r.id === "book").cls, "booking", "the mockup says 'book', the table says 'booking'");
 });

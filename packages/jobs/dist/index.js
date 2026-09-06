@@ -4499,7 +4499,10 @@ var LIMIT_TIERS = {
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
 var DAY_MS3 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS3;
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS3;
+var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
+var DAY_MS4 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS4;
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var GRAPH = "https://graph.facebook.com/v25.0";
@@ -8910,7 +8913,7 @@ function parseTenantConfig(raw) {
   const r = parseTenantConfigResult(raw);
   return r.ok ? r.config : null;
 }
-var DAY_MS4 = 24 * 3600 * 1e3;
+var DAY_MS5 = 24 * 3600 * 1e3;
 var ASK_CAPS2 = {
   threads: 20,
   messages: 30,
@@ -9053,7 +9056,10 @@ function resolveParams(specs, f) {
   });
 }
 var DAY_MS32 = 864e5;
-var QUIET_AFTER_MS22 = 7 * DAY_MS32;
+var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS32;
+var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
+var DAY_MS42 = 864e5;
+var QUIET_AFTER_MS22 = 7 * DAY_MS42;
 var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_FMT42 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 
@@ -13409,7 +13415,7 @@ var TenantConfigWriteSchema3 = TenantConfigSchema3.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c, n) => checkClosure3(c, n, ctx));
 });
-var DAY_MS5 = 24 * 3600 * 1e3;
+var DAY_MS6 = 24 * 3600 * 1e3;
 var ASK_CAPS3 = {
   threads: 20,
   messages: 30,
@@ -13511,7 +13517,10 @@ var LIMIT_TIERS3 = {
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
 var DAY_MS33 = 864e5;
-var QUIET_AFTER_MS23 = 7 * DAY_MS33;
+var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS33;
+var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
+var DAY_MS43 = 864e5;
+var QUIET_AFTER_MS23 = 7 * DAY_MS43;
 var DATE_FMT33 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_FMT43 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 async function recordOutbound(db, p) {
@@ -13586,7 +13595,7 @@ async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, d
 }
 var POS_TTL_MS = 5 * 60 * 1e3;
 var NEG_TTL_MS = 60 * 1e3;
-var DAY_MS42 = 24 * 3600 * 1e3;
+var DAY_MS52 = 24 * 3600 * 1e3;
 
 // src/handlers.ts
 var SENDERS = {
@@ -13764,7 +13773,7 @@ async function broadcastSend(ctx, job) {
   const { data: b, error: bErr } = await ctx.db.from("broadcasts").select("id, state, name, template_name, template_language, params, recipient_count").eq("id", p.broadcast_id).eq("tenant_id", job.tenant_id).maybeSingle();
   if (bErr) throw new Error(`broadcast_send: cannot read broadcast ${p.broadcast_id}: ${bErr.message}`);
   if (!b) return;
-  if (b.state === "canceled" || b.state === "sent" || b.state === "failed") return;
+  if (b.state !== "scheduled" && b.state !== "sending") return;
   const startedAt = (/* @__PURE__ */ new Date()).toISOString();
   if (b.state === "scheduled") {
     await ctx.db.from("broadcasts").update({ state: "sending", started_at: startedAt }).eq("id", b.id).eq("state", "scheduled");

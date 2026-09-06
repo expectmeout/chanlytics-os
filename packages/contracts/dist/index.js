@@ -210,7 +210,10 @@ var DECISION_VERBS = [
    * audience and the count) and the decision to stop one.
    */
   "send_broadcast",
-  "cancel_broadcast"
+  "cancel_broadcast",
+  /** A playbook started or paused: subject 'playbook'. Its runs are send_broadcast rows. */
+  "start_playbook",
+  "pause_playbook"
 ];
 var DECISION_SUBJECTS = [
   "conversation",
@@ -224,7 +227,8 @@ var DECISION_SUBJECTS = [
   "contact",
   "call",
   "channel",
-  "broadcast"
+  "broadcast",
+  "playbook"
 ];
 var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
 var TEMPLATE_STATUSES = ["approved", "pending", "rejected", "paused", "disabled"];
@@ -455,9 +459,9 @@ function contactMeta(dto) {
 function initialsOf(name) {
   const digits = name.replace(/[^\d]/g, "");
   if (digits.length >= 7 && /^[+\d\s()-]+$/.test(name)) return digits.slice(-2);
-  const parts = name.replace(/[^\p{L}\p{N} ]/gu, "").trim().split(/\s+/);
-  if (parts.length >= 2 && parts[0] && parts[1]) return (parts[0][0] + parts[1][0]).toUpperCase();
-  const p = parts[0] || "?";
+  const parts2 = name.replace(/[^\p{L}\p{N} ]/gu, "").trim().split(/\s+/);
+  if (parts2.length >= 2 && parts2[0] && parts2[1]) return (parts2[0][0] + parts2[1][0]).toUpperCase();
+  const p = parts2[0] || "?";
   return p.slice(0, 2).toUpperCase();
 }
 function isHeldDraft(m) {
@@ -1501,9 +1505,9 @@ function dayIntervals(h) {
   }
   return merged;
 }
-function joinList(parts) {
-  if (parts.length < 3) return parts.join(" and ");
-  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+function joinList(parts2) {
+  if (parts2.length < 3) return parts2.join(" and ");
+  return `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
 }
 function dayText(h) {
   const spans = dayIntervals(h);
@@ -1541,13 +1545,13 @@ function hasProfile(p) {
 }
 function dateKeyInZone(tz, at) {
   try {
-    const parts = new Intl.DateTimeFormat("en-US", {
+    const parts2 = new Intl.DateTimeFormat("en-US", {
       timeZone: tz,
       year: "numeric",
       month: "2-digit",
       day: "2-digit"
     }).formatToParts(at);
-    const get = (t) => parts.find((p) => p.type === t)?.value ?? "";
+    const get = (t) => parts2.find((p) => p.type === t)?.value ?? "";
     const y = get("year"), m = get("month"), d = get("day");
     return y && m && d ? `${y}-${m}-${d}` : null;
   } catch {
@@ -2403,7 +2407,7 @@ function followupsToShow(followups, citations, nav) {
 
 // src/availability.ts
 function zoneParts(tz, at) {
-  const parts = new Intl.DateTimeFormat("en-US", {
+  const parts2 = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
     hourCycle: "h23",
     weekday: "short",
@@ -2414,7 +2418,7 @@ function zoneParts(tz, at) {
     minute: "2-digit",
     second: "2-digit"
   }).formatToParts(at);
-  const get = (t) => parts.find((p) => p.type === t)?.value ?? "";
+  const get = (t) => parts2.find((p) => p.type === t)?.value ?? "";
   return {
     y: Number(get("year")),
     m: Number(get("month")),
@@ -2498,25 +2502,25 @@ function localPartsOf(value, params, fallbackTz) {
 }
 var WEEKDAYS = ["su", "mo", "tu", "we", "th", "fr", "sa"];
 function parseRule(value, fallbackTz) {
-  const parts = {};
+  const parts2 = {};
   for (const kv of value.split(";")) {
     const eq = kv.indexOf("=");
-    if (eq > 0) parts[kv.slice(0, eq).toUpperCase()] = kv.slice(eq + 1);
+    if (eq > 0) parts2[kv.slice(0, eq).toUpperCase()] = kv.slice(eq + 1);
   }
-  const freq = parts.FREQ;
+  const freq = parts2.FREQ;
   if (!freq || !["DAILY", "WEEKLY", "MONTHLY", "YEARLY"].includes(freq)) return null;
-  for (const k of Object.keys(parts)) if (!["FREQ", "INTERVAL", "COUNT", "UNTIL", "BYDAY", "BYMONTHDAY", "WKST"].includes(k)) return null;
-  const interval = Math.max(1, Number(parts.INTERVAL ?? 1) || 1);
-  const count = parts.COUNT ? Number(parts.COUNT) : null;
+  for (const k of Object.keys(parts2)) if (!["FREQ", "INTERVAL", "COUNT", "UNTIL", "BYDAY", "BYMONTHDAY", "WKST"].includes(k)) return null;
+  const interval = Math.max(1, Number(parts2.INTERVAL ?? 1) || 1);
+  const count = parts2.COUNT ? Number(parts2.COUNT) : null;
   let until = null;
-  if (parts.UNTIL) {
-    until = toMs(parts.UNTIL, {}, fallbackTz);
-    if (until !== null && /^\d{8}$/.test(parts.UNTIL)) until += 864e5 - 1;
+  if (parts2.UNTIL) {
+    until = toMs(parts2.UNTIL, {}, fallbackTz);
+    if (until !== null && /^\d{8}$/.test(parts2.UNTIL)) until += 864e5 - 1;
   }
   let byday = null;
-  if (parts.BYDAY) {
+  if (parts2.BYDAY) {
     byday = [];
-    for (const d of parts.BYDAY.split(",")) {
+    for (const d of parts2.BYDAY.split(",")) {
       const i = WEEKDAYS.indexOf(d.trim().toLowerCase());
       if (i === -1) return null;
       byday.push(i);
@@ -2524,9 +2528,9 @@ function parseRule(value, fallbackTz) {
     if (freq !== "WEEKLY") return null;
   }
   let bymonthday = null;
-  if (parts.BYMONTHDAY) {
-    if (freq !== "MONTHLY" || parts.BYMONTHDAY.includes(",")) return null;
-    bymonthday = Number(parts.BYMONTHDAY);
+  if (parts2.BYMONTHDAY) {
+    if (freq !== "MONTHLY" || parts2.BYMONTHDAY.includes(",")) return null;
+    bymonthday = Number(parts2.BYMONTHDAY);
     if (!Number.isInteger(bymonthday) || bymonthday < 1 || bymonthday > 31) return null;
   }
   return { freq, interval, count: count && count > 0 ? count : null, until, byday, bymonthday };
@@ -3156,9 +3160,10 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
 }
 
 // src/broadcasts.ts
-var BROADCAST_STATES = ["scheduled", "sending", "sent", "canceled", "failed"];
+var BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"];
 var RECIPIENT_STATES = ["queued", "sent", "skipped", "failed"];
 var BROADCAST_STATE_LABELS = {
+  pending_approval: "Needs you",
   scheduled: "Scheduled",
   sending: "Sending",
   sent: "Sent",
@@ -3223,7 +3228,7 @@ function toBroadcastVM(d, now = /* @__PURE__ */ new Date()) {
     when: whenLabel(d.finished_at ?? d.started_at ?? d.scheduled_for, now),
     deliveredPct: c.sent > 0 ? Math.round(c.delivered / c.sent * 100) : null,
     readPct: c.sent > 0 ? Math.round(c.read / c.sent * 100) : null,
-    open: d.state === "scheduled" || d.state === "sending",
+    open: d.state === "scheduled" || d.state === "sending" || d.state === "pending_approval",
     progress: d.recipient_count > 0 ? Math.min(1, attempted / d.recipient_count) : 0
   };
 }
@@ -3371,16 +3376,96 @@ function exampleParams(specs, businessName) {
   return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link" });
 }
 
-// src/channels.ts
+// src/playbooks.ts
 var DAY_MS3 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS3;
+var PLAYBOOK_TRIGGERS = [
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", hint: "Nothing heard in 30 days" },
+  { id: "new_week", label: "Welcome", list: "new_week", cls: "campaign", hint: "First contact in the last 7 days" },
+  { id: "phoned_only", label: "Save our number", list: "phoned_only", cls: "reengage", hint: "Only ever phoned, never texted" },
+  { id: "everyone_monthly", label: "The month's offer", list: null, cls: "campaign", hint: "Everyone who said yes, on a cadence" }
+];
+var PLAYBOOK_STATES = ["running", "paused"];
+var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
+var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS3;
+var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
+var PLAYBOOK_NAME_MAX = 80;
+function triggerOf(id) {
+  return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
+}
+function eligibleForPlaybook(rows, p, touches, nowMs) {
+  const t = triggerOf(p.trigger);
+  if (!t) return [];
+  const pool = t.list ? eligibleFor(rows, "list", t.list, null) : eligibleFor(rows, "everyone", null, null);
+  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS3;
+  const picked = pool.filter((r) => {
+    const mine = touches.byThis.get(r.id);
+    if (mine !== void 0 && nowMs - mine < gapMs) return false;
+    const any = touches.byAny.get(r.id);
+    if (any !== void 0 && nowMs - any < PLAYBOOK_BREATH_MS) return false;
+    return true;
+  });
+  picked.sort((a, b) => (a.lastContact.ts ?? 0) - (b.lastContact.ts ?? 0));
+  return picked.slice(0, Math.max(1, p.cap_per_run));
+}
+function planRun(mode, now) {
+  switch (mode) {
+    case "auto":
+      return { kind: "send", state: "scheduled", at: now };
+    case "veto":
+      return { kind: "send", state: "scheduled", at: new Date(now.getTime() + PLAYBOOK_VETO_DELAY_MS) };
+    case "ask":
+      return { kind: "hold", state: "pending_approval" };
+    default:
+      return { kind: "off" };
+  }
+}
+function parts(tz, now) {
+  try {
+    const f = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false });
+    const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
+    const hour = Number(p.hour) % 24;
+    return { date: `${p.year}-${p.month}-${p.day}`, hour };
+  } catch {
+    return { date: now.toISOString().slice(0, 10), hour: now.getUTCHours() };
+  }
+}
+function localDate(tz, now) {
+  return parts(tz, now).date;
+}
+function localHour(tz, now) {
+  return parts(tz, now).hour;
+}
+function runDueNow(p, tz, now) {
+  if (p.state !== "running") return false;
+  const { date, hour } = parts(tz, now);
+  return hour === p.run_hour && p.last_run_for !== date;
+}
+var two = (n) => String(n).padStart(2, "0");
+function scheduleLine(p) {
+  const at = `${two(p.run_hour)}:00`;
+  if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at} \xB7 up to ${p.cap_per_run} a day`;
+  return `Daily ${at} \xB7 up to ${p.cap_per_run} \xB7 once per person, again after ${p.gap_days} days`;
+}
+function nextRunLabel(p, tz, now) {
+  if (p.state !== "running") return "paused";
+  const { date, hour } = parts(tz, now);
+  const at = `${two(p.run_hour)}:00`;
+  if (p.last_run_for !== date && hour <= p.run_hour) return `today ${at}`;
+  return `tomorrow ${at}`;
+}
+var PLAYBOOK_CLASS_LABEL = { reengage: "Re-engage", campaign: "Campaigns" };
+
+// src/channels.ts
+var DAY_MS4 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS4;
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 function ago2(ms, nowMs) {
   const diff = Math.max(0, nowMs - ms);
   if (diff < 6e4) return "just now";
   if (diff < 36e5) return `${Math.round(diff / 6e4)}m ago`;
-  if (diff < DAY_MS3) return `${Math.round(diff / 36e5)}h ago`;
-  if (diff < QUIET_AFTER_MS2) return `${Math.round(diff / DAY_MS3)}d ago`;
+  if (diff < DAY_MS4) return `${Math.round(diff / 36e5)}h ago`;
+  if (diff < QUIET_AFTER_MS2) return `${Math.round(diff / DAY_MS4)}d ago`;
   return DATE_FMT3.format(new Date(ms));
 }
 var KIND_META = {
@@ -3703,6 +3788,14 @@ export {
   PERSON_MODES,
   PERSON_MODE_LABELS,
   PERSON_STATE_LABELS,
+  PLAYBOOK_BREATH_MS,
+  PLAYBOOK_CLASS_LABEL,
+  PLAYBOOK_DEFAULTS,
+  PLAYBOOK_HOURS,
+  PLAYBOOK_NAME_MAX,
+  PLAYBOOK_STATES,
+  PLAYBOOK_TRIGGERS,
+  PLAYBOOK_VETO_DELAY_MS,
   POLICY_CLASSES,
   POLICY_MODES,
   PROPOSAL_GATE,
@@ -3756,6 +3849,7 @@ export {
   detectLanguage,
   draftSendsAtMs,
   eligibleFor,
+  eligibleForPlaybook,
   emptyReadSet,
   err,
   exampleParams,
@@ -3782,6 +3876,8 @@ export {
   isOwned,
   isRealDate,
   isUngrounded,
+  localDate,
+  localHour,
   localToUtcMs,
   mayReceiveOffers,
   mediaKind,
@@ -3791,6 +3887,7 @@ export {
   messageText,
   navigateLabel,
   newReceptionistDefaults,
+  nextRunLabel,
   normalizeNavigate,
   normalizePhone,
   numberHealth,
@@ -3810,6 +3907,7 @@ export {
   personStateFor,
   placeholdersOf,
   placeholdersSequential,
+  planRun,
   pointsDelta,
   quantile,
   reachedCustomer,
@@ -3821,8 +3919,10 @@ export {
   replyWhy,
   resolveParams,
   resolveSystemPrompt,
+  runDueNow,
   safeNavigate,
   sameQuestion,
+  scheduleLine,
   scopeFromRoute,
   shortTime,
   slugTemplateName,
@@ -3840,6 +3940,7 @@ export {
   toPersonVM,
   toReportVM,
   toTodayVM,
+  triggerOf,
   validateTemplateDraft,
   violatesNoPrices,
   waWindow,

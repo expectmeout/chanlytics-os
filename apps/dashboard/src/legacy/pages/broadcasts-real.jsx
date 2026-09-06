@@ -151,7 +151,12 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   const cancel = async (row) => {
     if (!window.__broadcasts) return;
     const r = await window.__broadcasts.cancel(row.id);
-    flash({ msg: r.ok ? <><b>{row.name}</b> {r.data.was === "sending" ? "stops after this batch" : "canceled — nothing will send"}</> : <>{r.message}</> });
+    flash({ msg: r.ok ? <><b>{row.name}</b> {r.data.was === "sending" ? "stops after this batch" : r.data.was === "pending_approval" ? "skipped — nothing will send" : "canceled — nothing will send"}</> : <>{r.message}</> });
+  };
+  const approve = async (row) => {
+    if (!window.__broadcasts) return;
+    const r = await window.__broadcasts.approve(row.id);
+    flash({ msg: r.ok ? <><b>{row.name}</b> approved — {r.data.recipient_count} {r.data.recipient_count === 1 ? "person" : "people"}, sending now</> : <>{r.message}</> });
   };
 
   return (
@@ -310,8 +315,9 @@ const BroadcastsReal = ({ initialSegment = null }) => {
                 {row.state === "sending" ? ` · ${row.counts.sent + row.counts.skipped + row.counts.failed} of ${row.recipient_count} done` : ""}
               </span>
             </div>
-            <span className={"pill " + (row.state === "sending" ? "pill-info" : "")}>{row.stateLabel}</span>
-            {canSend && <button className="btn btn-sm" onClick={() => cancel(row)}>{row.state === "sending" ? "Stop" : "Cancel"}</button>}
+            <span className={"pill " + (row.state === "sending" ? "pill-info" : row.state === "pending_approval" ? "pill-warn" : "")}>{row.stateLabel}</span>
+            {canSend && row.state === "pending_approval" && <button className="btn btn-primary btn-sm" onClick={() => approve(row)} data-testid="bc-approve">Approve</button>}
+            {canSend && <button className="btn btn-sm" onClick={() => cancel(row)}>{row.state === "sending" ? "Stop" : row.state === "pending_approval" ? "Skip" : "Cancel"}</button>}
           </div>
           {openId === row.id && <BroadcastDetail id={row.id} heldReasons={data.heldReasons} onClose={() => setOpenId(null)} />}
           </React.Fragment>

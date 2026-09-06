@@ -15,13 +15,14 @@
 import { PEOPLE_LISTS, type PersonRowVM } from "./people";
 import type { ParamSpec } from "./templates";
 
-export const BROADCAST_STATES = ["scheduled", "sending", "sent", "canceled", "failed"] as const;
+export const BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"] as const;
 export type BroadcastState = (typeof BROADCAST_STATES)[number];
 
 export const RECIPIENT_STATES = ["queued", "sent", "skipped", "failed"] as const;
 export type RecipientState = (typeof RECIPIENT_STATES)[number];
 
 export const BROADCAST_STATE_LABELS: Record<BroadcastState, string> = {
+  pending_approval: "Needs you",
   scheduled: "Scheduled",
   sending: "Sending",
   sent: "Sent",
@@ -39,7 +40,8 @@ export const BROADCAST_PARAM_MAX = 1024;
 export const BROADCAST_SCHEDULE_MAX_DAYS = 30;
 export const BROADCAST_NAME_MAX = 80;
 
-export type AudienceKind = "everyone" | "list" | "saved";
+export type AudienceKind = "everyone" | "list" | "saved" | "playbook";
+/** The kinds a person may pick; "playbook" is the sweep's own. */
 export const AUDIENCE_KINDS: readonly AudienceKind[] = ["everyone", "list", "saved"];
 
 export interface Audience {
@@ -130,6 +132,9 @@ export interface BroadcastDto {
   recipient_count: number;
   failure: string | null;
   created_at: string;
+  /** A playbook's run: which one, and which local day it ran for. */
+  playbook_id: string | null;
+  run_for: string | null;
   counts: BroadcastCounts;
 }
 
@@ -165,7 +170,7 @@ export function toBroadcastVM(d: BroadcastDto, now = new Date()): BroadcastVM {
     when: whenLabel(d.finished_at ?? d.started_at ?? d.scheduled_for, now),
     deliveredPct: c.sent > 0 ? Math.round((c.delivered / c.sent) * 100) : null,
     readPct: c.sent > 0 ? Math.round((c.read / c.sent) * 100) : null,
-    open: d.state === "scheduled" || d.state === "sending",
+    open: d.state === "scheduled" || d.state === "sending" || d.state === "pending_approval",
     progress: d.recipient_count > 0 ? Math.min(1, attempted / d.recipient_count) : 0,
   };
 }

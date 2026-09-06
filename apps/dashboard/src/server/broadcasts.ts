@@ -14,7 +14,7 @@ import type { RouteContext } from "@/server/with-route";
 const RECENT = 50;
 const IN_CHUNK = 200;
 
-const ROW_COLUMNS = "id, name, template_id, template_name, template_language, params, audience, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_at";
+const ROW_COLUMNS = "id, name, template_id, template_name, template_language, params, audience, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_at, playbook_id, run_for";
 
 interface BroadcastRow {
   id: string;
@@ -31,6 +31,8 @@ interface BroadcastRow {
   recipient_count: number;
   failure: string | null;
   created_at: string;
+  playbook_id: string | null;
+  run_for: string | null;
 }
 
 interface RecipientRow {
@@ -108,6 +110,8 @@ function toDto(r: BroadcastRow, counts: BroadcastCounts): BroadcastDto {
     recipient_count: r.recipient_count,
     failure: r.failure,
     created_at: r.created_at,
+    playbook_id: r.playbook_id,
+    run_for: r.run_for,
     counts,
   };
 }
