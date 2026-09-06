@@ -250,6 +250,8 @@ import {
   toPersonRowVM,
   peopleAggregates,
   PEOPLE_LISTS,
+  PEOPLE_LIST_GROUPS,
+  peopleListAction,
   type PersonRowDto,
   type PersonRowVM,
   type PeopleAggregates,
@@ -594,8 +596,10 @@ export const settingsOverride: SurfaceOverride = {
 export interface PeopleSurface {
   rows: PersonRowVM[];
   /** The rail's smart lists with their members — the predicates stay in
-   *  contracts; the mockup only needs the ids. */
-  lists: { id: string; label: string; count: number; ids: string[] }[];
+   *  contracts; the mockup only needs the ids. Each carries its group and,
+   *  when it has one, the obvious next step. */
+  lists: { id: string; label: string; group: string; count: number; ids: string[]; action: { text: string; cta: string; to: string; enabled: boolean } | null }[];
+  groups: { id: string; label: string }[];
   /** The lists kept by hand (segments), counted over the rows on the page so
    *  an erased person never counts. */
   saved: { id: string; name: string; count: number; ids: string[] }[];
@@ -637,9 +641,10 @@ export const peopleOverride: SurfaceOverride = {
       rows,
       // The outcome lists only when there is a calendar to read them from.
       lists: PEOPLE_LISTS.filter((l) => !l.needsCalendar || calendar.state === "ok").map((l) => {
-        const ids = rows.filter(l.test).map((r) => r.id);
-        return { id: l.id, label: l.label, count: ids.length, ids };
+        const members = rows.filter(l.test);
+        return { id: l.id, label: l.label, group: l.group, count: members.length, ids: members.map((r) => r.id), action: peopleListAction(l.id, members) };
       }),
+      groups: PEOPLE_LIST_GROUPS.map((g) => ({ id: g.id, label: g.label })),
       calendar,
       saved: savedData.lists.map((l) => {
         const ids = l.ids.filter((id) => rowIds.has(id));
@@ -698,7 +703,7 @@ export const broadcastsOverride: SurfaceOverride = {
   apply: async () => {
     const [bc, people, saved, tpl, ch, cfg] = await Promise.all([
       fetchEnvelope<{ broadcasts: BroadcastDto[] }>("/api/v1/broadcasts"),
-      fetchEnvelope<{ people: PersonRowDto[] }>("/api/v1/contacts"),
+      fetchEnvelope<{ people: PersonRowDto[]; calendar?: { state: string } }>("/api/v1/contacts"),
       fetchEnvelope<{ lists: { id: string; name: string; ids: string[] }[] }>("/api/v1/segments").catch((e: unknown) => e as Error),
       fetchEnvelope<{ templates: TemplateDto[] }>("/api/v1/templates").catch((e: unknown) => e as Error),
       fetchEnvelope<{ channels: ChannelDto[] }>("/api/v1/channels").catch((e: unknown) => e as Error),
@@ -712,7 +717,8 @@ export const broadcastsOverride: SurfaceOverride = {
     const rows = people.people.map((r) => toPersonRowVM(r, now));
     const audiences: AudienceOption[] = [
       { kind: "everyone", id: null, label: EVERYONE_LABEL, count: eligibleFor(rows, "everyone", null, null).length, hint: "Every person with a recorded yes and a number" },
-      ...PEOPLE_LISTS.filter((l) => l.id !== "opted_in" && l.id !== "opted_out").map((l) => ({
+      // The calendar lists are audiences only when there is a calendar to read them from.
+      ...PEOPLE_LISTS.filter((l) => l.id !== "opted_in" && l.id !== "opted_out" && (!l.needsCalendar || people.calendar?.state === "ok")).map((l) => ({
         kind: "list" as const, id: l.id, label: l.label, count: eligibleFor(rows, "list", l.id, null).length, hint: `${l.label} — of those who said yes`,
       })),
       ...(saved instanceof Error ? [] : saved.lists.map((s) => ({

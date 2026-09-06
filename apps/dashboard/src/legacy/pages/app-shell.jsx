@@ -341,13 +341,20 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
         onOpenClient={(clientId) => navigate(clientId ? `clients/${clientId}` : "clients")}
       />
     );
-  } else if (page === "clients" && param && param.startsWith("seg:")) {
-    const segId = param.slice(4);
-    const segMeta = (window.CLIENT_SEGMENTS || []).find(s => s.id === segId);
+  } else if (page === "clients" && param && /^(seg|list|state):/.test(param)) {
+    // One view of People, linkable: a smart list (seg:), a list kept by hand
+    // (list:) or a state (state:) — what the assistant and Today point at.
+    const kind = param.slice(0, param.indexOf(":"));
+    const segId = kind === "seg" ? param.slice(4) : null;
+    const savedId = kind === "list" ? param.slice(5) : null;
+    const stateId = kind === "state" ? param.slice(6) : null;
+    const segMeta = segId && (window.CLIENT_SEGMENTS || []).find(s => s.id === segId);
+    const surfaceList = segId && window.__PEOPLE && (window.__PEOPLE.lists || []).find(l => l.id === segId);
+    const savedMeta = savedId && window.__PEOPLE && (window.__PEOPLE.saved || []).find(l => l.id === savedId);
     activeNav = "clients";
-    crumbs = ["People", { label: "Clients", to: "clients" }, segMeta ? segMeta.label : "Segment"];
+    crumbs = ["People", { label: "Clients", to: "clients" }, surfaceList ? surfaceList.label : segMeta ? segMeta.label : savedMeta ? savedMeta.name : stateId ? stateId.replace(/_/g, " ") : "Segment"];
     pane = true;
-    content = <ClientsA initialSegment={segId} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
+    content = <ClientsA initialSegment={segId} initialSaved={savedId} initialState={stateId} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
   } else if (page === "clients" && param) {
     // A real workspace resolves the person from the People surface; the
     // profile fetches in full and says so itself when the id is not here.

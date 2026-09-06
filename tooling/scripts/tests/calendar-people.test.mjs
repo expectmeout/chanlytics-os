@@ -322,7 +322,7 @@ test("Booked and Asked-never-booked are facts from the calendar on the row: the 
   assert.ok(bookedList.needsCalendar && askedList.needsCalendar, "shown only when the calendar is connected");
   assert.ok(bookedList.test(booked) && !bookedList.test(gap));
   assert.ok(askedList.test(gap) && !askedList.test(booked) && !askedList.test(visited));
-  assert.deepEqual([...PEOPLE_LISTS].map((l) => l.id).slice(0, 5), ["needs_you", "waiting_on_you", "new_week", "booked", "asked_never_booked"], "after the states, the outcome");
+  assert.deepEqual([...PEOPLE_LISTS].map((l) => l.id).slice(0, 7), ["needs_you", "waiting_on_you", "new_week", "booked_week", "booked", "asked_never_booked", "lapsed"], "attention, then the journey");
   const agg = peopleAggregates([booked, gap, visited, stale, noCal], NOW);
   assert.equal(agg.booked, 1);
   assert.equal(agg.askedNotBooked, 1);
@@ -359,7 +359,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(shell.includes('if (retiredTo) window.location.hash = "/" + retiredTo;'), "a real workspace lands on People");
   const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
-  assert.ok(page.includes('data-testid="row-booked">Booked · {p.nextVisitDay}') && page.includes('<StatCell label="Booked"') && page.includes("asked_never_booked:"), "the chip, the cell, the tips");
+  assert.ok(page.includes('data-testid="row-next-visit"') && page.includes('<StatCell label="Booked"') && page.includes("asked_never_booked:"), "the column, the cell, the tips");
   assert.ok(readCode("apps/dashboard/src/legacy/pages/reports.jsx").includes('testid="chart-booking"'));
 });
 
@@ -387,4 +387,55 @@ test("a name the owner gives and notes the receptionist reads: two doors, one ro
   const numbered = toPersonVM(detail_({ display_name: null }), new Date(NOW));
   assert.equal(numbered.givenName, null, "a number is not a given name");
   assert.equal(numbered.notes, null);
+});
+
+test("the journey from visits: Booked this week and Lapsed, in three groups; each list's next step waits for a recorded yes", async () => {
+  const { toPersonRowVM, PEOPLE_LISTS, PEOPLE_LIST_GROUPS, peopleListAction } = await import("@chanlytics/contracts");
+  const now = new Date(NOW);
+  const cal = (v) => ({ timezone: TZ, source: "Google Calendar", state: "ok", next: null, last: null, ...v });
+  const soon = { id: "n", start: new Date(NOW + 3 * 86_400_000).toISOString(), end: new Date(NOW + 3 * 86_400_000 + 3_600_000).toISOString(), title: "Cut", all_day: false, via: "phone" };
+  const far = { ...soon, start: new Date(NOW + 20 * 86_400_000).toISOString(), end: new Date(NOW + 20 * 86_400_000 + 3_600_000).toISOString() };
+  const old = { ...soon, id: "o", start: new Date(NOW - 60 * 86_400_000).toISOString(), end: new Date(NOW - 60 * 86_400_000 + 3_600_000).toISOString() };
+  const recent = { ...old, start: new Date(NOW - 10 * 86_400_000).toISOString(), end: new Date(NOW - 10 * 86_400_000 + 3_600_000).toISOString() };
+  const week = toPersonRowVM({ ...ROW, id: "w", visits: cal({ next: soon }) }, now);
+  const later = toPersonRowVM({ ...ROW, id: "l", visits: cal({ next: far }) }, now);
+  const lapsed = toPersonRowVM({ ...ROW, id: "x", visits: cal({ last: old }) }, now);
+  const regular = toPersonRowVM({ ...ROW, id: "r", visits: cal({ last: recent }) }, now);
+  const back = toPersonRowVM({ ...ROW, id: "b", visits: cal({ last: old, next: far }) }, now);
+  assert.equal(week.nextVisitDays, 3);
+  assert.equal(lapsed.lastVisitDays, 60);
+  const L = (id) => PEOPLE_LISTS.find((l) => l.id === id);
+  assert.ok(L("booked_week").test(week) && !L("booked_week").test(later), "seven days");
+  assert.ok(L("booked").test(week) && L("booked").test(later));
+  assert.ok(L("lapsed").test(lapsed) && !L("lapsed").test(regular) && !L("lapsed").test(back), "forty-five days since the chair and nothing ahead");
+  assert.ok(L("booked_week").needsCalendar && L("lapsed").needsCalendar);
+  assert.deepEqual(PEOPLE_LIST_GROUPS.map((g) => g.id), ["attention", "journey", "reach"]);
+  assert.deepEqual(PEOPLE_LISTS.filter((l) => l.group === "journey").map((l) => l.id), ["new_week", "booked_week", "booked", "asked_never_booked", "lapsed"]);
+  assert.deepEqual(PEOPLE_LISTS.filter((l) => l.group === "attention").map((l) => l.id), ["needs_you", "waiting_on_you"]);
+  assert.ok(PEOPLE_LISTS.every((l) => ["attention", "journey", "reach"].includes(l.group)));
+  const yes = { ...lapsed, consent: { ...lapsed.consent, state: "opted_in" } };
+  assert.deepEqual(peopleListAction("lapsed", [lapsed, yes]), { text: "1 of 2 on this list said yes — a broadcast reaches them.", cta: "Win them back", to: "broadcasts/lapsed", enabled: true });
+  assert.deepEqual(peopleListAction("lapsed", [lapsed]), { text: "Nobody on this list has said yes yet — a broadcast reaches only a recorded yes.", cta: "Win them back", to: "broadcasts/lapsed", enabled: false });
+  assert.equal(peopleListAction("lapsed", []).text, "Nobody here right now.");
+  assert.deepEqual(peopleListAction("booked_week", [week]), { text: "Their appointments are on the Calendar.", cta: "See the week", to: "calendar", enabled: true });
+  assert.equal(peopleListAction("asked_never_booked", [yes]).to, "broadcasts/asked_never_booked");
+  assert.equal(peopleListAction("booked", [week]), null, "no step for a fact that needs none");
+  assert.equal(peopleListAction("opted_out", [week]), null);
+});
+
+test("the list page: Next visit takes the receptionist's column with a calendar, the rail is grouped, a state is a chip, a list has its step, the view is linkable and remembered", () => {
+  const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
+  assert.ok(page.includes('withCalendar ? { key: "next", label: "Next visit", sortable: true } : { key: "receptionist", label: "Receptionist", sortable: false }'));
+  assert.ok(page.includes('data-testid="row-next-visit"') && !page.includes("row-booked"), "the column carries the outcome; the chip is gone");
+  assert.ok(page.includes('data-testid={`rail-group-${g.id}`}') && page.includes("cl-rail-group-label"));
+  assert.ok(page.includes('data-testid="state-filter"') && !page.includes('{["all", ...PL_TABS].map((t) => ('), "one state switcher: the strip, echoed as a chip");
+  assert.ok(page.includes('data-testid="list-action"') && page.includes("window.CHANLY.nav(activeList.action.to)"));
+  assert.ok(page.includes('window.history.replaceState(null, "", next)') && page.includes("`seg:${listId}` : savedId ? `list:${savedId}` : tab !== \"all\" ? `state:${tab}`"), "linkable");
+  assert.ok(page.includes('const PL_VIEW_KEY = "chanlytics-people-view";') && page.includes("plSaveView({ attentionTab, showTriage, sortBy, sortDir })"), "remembered");
+  const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
+  assert.ok(shell.includes('/^(seg|list|state):/.test(param)') && shell.includes("initialSaved={savedId} initialState={stateId}"));
+  const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  assert.ok(sd.includes("action: peopleListAction(l.id, members)") && sd.includes("groups: PEOPLE_LIST_GROUPS.map("));
+  assert.ok(sd.includes('(!l.needsCalendar || people.calendar?.state === "ok")'), "a calendar list is an audience only with a calendar");
+  assert.ok(readCode("apps/dashboard/app/api/v1/broadcasts/route.ts").includes("withVisits(ctx, tenantId, await listPeople(ctx, tenantId), now)"), "the enrol path counts what the page counted");
 });

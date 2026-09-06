@@ -673,8 +673,19 @@ const PL_LIST_TIP = {
   opted_in: "Said yes to offers by WhatsApp — the only people a broadcast may reach",
   opted_out: "Asked to stop; the receptionist stays silent",
   booked: "An appointment ahead on your calendar — the booking is the conversion",
+  booked_week: "An appointment in the next seven days",
   asked_never_booked: "Wrote or called in the last 30 days, and your calendar has never had them — the people you can still win",
+  lapsed: "Forty-five days or more since their last visit, nothing ahead — the win-back list, from visits rather than silence",
 };
+
+// What the page remembers between visits: the sort, the attention tab, the strip.
+const PL_VIEW_KEY = "chanlytics-people-view";
+const plLoadView = () => {
+  try { return { ...JSON.parse(localStorage.getItem(PL_VIEW_KEY) || "{}") }; } catch { return {}; }
+};
+const plSaveView = (v) => { try { localStorage.setItem(PL_VIEW_KEY, JSON.stringify(v)); } catch { /* private mode */ } };
+// The receptionist, in one word beside the state, only when it is not simply answering.
+const PL_RECEPT_MARK = { escalated: "escalated", queued: "reply queued", snoozed: "snoozed", paused: "held for you", silent: "silent" };
 
 const plAgo = (ms) => {
   const diff = Math.max(0, Date.now() - ms);
@@ -787,19 +798,30 @@ const DeleteListButton = ({ list, onDeleted }) => {
   );
 };
 
-const PeopleRail = ({ lists, active, onPick, saved = [], activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null }) => (
+const PL_DEFAULT_GROUPS = [{ id: "attention", label: "Attention" }, { id: "journey", label: "Journey" }, { id: "reach", label: "Reach" }];
+
+const PeopleRail = ({ lists, groups = PL_DEFAULT_GROUPS, active, onPick, saved = [], activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null }) => (
   <aside className="cl-rail">
     <div className="cl-rail-section">
       <div className="cl-rail-label">
         <Icon name="sparkle" size={11} />
         Smart lists
       </div>
-      {lists.map((l) => (
-        <button key={l.id} className={`cl-rail-row smart ${active === l.id ? "active" : ""}`} onClick={() => onPick(l.id)} data-tip={PL_LIST_TIP[l.id] || null}>
-          <span className="label">{l.label}</span>
-          <span className="count">{l.count}</span>
-        </button>
-      ))}
+      {groups.map((g) => {
+        const own = lists.filter((l) => (l.group || "reach") === g.id);
+        if (own.length === 0) return null;
+        return (
+          <div key={g.id} className="cl-rail-group" data-testid={`rail-group-${g.id}`}>
+            <div className="cl-rail-group-label">{g.label}</div>
+            {own.map((l) => (
+              <button key={l.id} className={`cl-rail-row smart ${active === l.id ? "active" : ""}`} onClick={() => onPick(l.id)} data-tip={PL_LIST_TIP[l.id] || null}>
+                <span className="label">{l.label}</span>
+                <span className="count">{l.count}</span>
+              </button>
+            ))}
+          </div>
+        );
+      })}
     </div>
     <div className="cl-rail-section" data-testid="saved-lists">
       <div className="cl-rail-label">Saved</div>
@@ -891,20 +913,22 @@ const PeopleTriage = ({ rows, recency, attentionTab, setAttentionTab, onOpen, on
   );
 };
 
-const PL_COLS = [
+// With a calendar connected the outcome takes the column the receptionist's
+// state held: "Answering" on every row said nothing, the next visit does.
+const plCols = (withCalendar) => [
   { key: "name", label: "Client", sortable: true },
   { key: "state", label: "State", sortable: true },
   { key: "last", label: "Last contact", sortable: true },
-  { key: "receptionist", label: "Receptionist", sortable: false },
+  withCalendar ? { key: "next", label: "Next visit", sortable: true } : { key: "receptionist", label: "Receptionist", sortable: false },
   { key: "first", label: "First contact", sortable: true },
 ];
 
-const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters }) => (
+const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, withCalendar = false }) => (
   <div className="cl-table-wrap">
     <table className="cl-table">
       <thead>
         <tr>
-          {PL_COLS.map((c) => (
+          {plCols(withCalendar).map((c) => (
             <th key={c.key} className={c.sortable ? "sortable" : ""} onClick={() => c.sortable && onSort(c.key)}>
               {c.label}
               {sortBy === c.key && <span className="sort-arr">{sortDir === "asc" ? "▲" : "▼"}</span>}
@@ -931,10 +955,12 @@ const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, o
             </td>
             <td className="shrink">
               <PeopleStatePill state={p.state} label={p.stateLabel} />
-              {p.booked && <span className="cl-row-booked" title={p.nextVisit || ""} data-testid="row-booked">Booked · {p.nextVisitDay}</span>}
+              {withCalendar && p.receptionist.tone !== "answering" && <span className="cl-row-recept-mark" title={p.receptionist.label}>{PL_RECEPT_MARK[p.receptionist.tone] || p.receptionist.tone}</span>}
             </td>
             <td className="shrink dim">{p.lastContact.label}</td>
-            <td><PeopleReceptionist r={p.receptionist} /></td>
+            {withCalendar
+              ? <td className="shrink" title={p.nextVisit || ""} data-testid="row-next-visit">{p.nextVisitDay ? <><span className="cl-row-next">{p.nextVisitDay}</span><span className="dim"> · {(p.nextVisit || "").split(" · ")[1] || ""}</span></> : <span className="dim">—</span>}</td>
+              : <td><PeopleReceptionist r={p.receptionist} /></td>}
             <td className="shrink dim">{p.firstContact.label}</td>
           </tr>
         ))}
@@ -962,22 +988,37 @@ const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, o
   </div>
 );
 
-const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null }) => {
+const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSaved = null, initialState = null }) => {
   const people = usePeople();
   const rows = people.rows;
   const lists = people.lists;
   const agg = people.aggregates;
+  const withCalendar = !!(people.calendar && people.calendar.state === "ok");
   const listFor = (id) => (id && lists.some((l) => l.id === id) ? id : null);
   const [listId, setListId] = useState(listFor(initialSegment));
   React.useEffect(() => { setListId(listFor(initialSegment)); }, [initialSegment]); // eslint-disable-line react-hooks/exhaustive-deps
   const saved = people.saved || PL_NO_LISTS;
-  const [savedId, setSavedId] = useState(null);
+  const [savedId, setSavedId] = useState(initialSaved);
+  React.useEffect(() => { setSavedId(initialSaved); }, [initialSaved]);
   const canEditLists = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
-  const [tab, setTab] = useState("all");
-  const [attentionTab, setAttentionTab] = useState("needs_you");
-  const [showTriage, setShowTriage] = useState(true);
-  const [sortBy, setSortBy] = useState("last");
-  const [sortDir, setSortDir] = useState("desc");
+  const remembered = React.useMemo(plLoadView, []);
+  const [tab, setTab] = useState(initialState && PL_TABS.includes(initialState) ? initialState : "all");
+  React.useEffect(() => { if (initialState && PL_TABS.includes(initialState)) setTab(initialState); }, [initialState]);
+  const [attentionTab, setAttentionTab] = useState(PL_TABS.includes(remembered.attentionTab) ? remembered.attentionTab : "needs_you");
+  const [showTriage, setShowTriage] = useState(remembered.showTriage !== false);
+  const [sortBy, setSortBy] = useState(["last", "first", "name", "state", "next"].includes(remembered.sortBy) ? remembered.sortBy : "last");
+  const [sortDir, setSortDir] = useState(remembered.sortDir === "asc" ? "asc" : "desc");
+  React.useEffect(() => { plSaveView({ attentionTab, showTriage, sortBy, sortDir }); }, [attentionTab, showTriage, sortBy, sortDir]);
+  // The view in the address, so a list or a state can be sent to someone —
+  // the assistant and Today link here. Replaced, never pushed: Back leaves People.
+  React.useEffect(() => {
+    const cur = (window.location.hash || "").replace(/^#\/?/, "");
+    if (!cur.startsWith("clients")) return;
+    if (/^clients\/(?!seg:|list:|state:)./.test(cur)) return;
+    const want = listId ? `seg:${listId}` : savedId ? `list:${savedId}` : tab !== "all" ? `state:${tab}` : "";
+    const next = want ? `#/clients/${want}` : "#/clients";
+    if (window.location.hash !== next) window.history.replaceState(null, "", next);
+  }, [listId, savedId, tab]);
   const [q, setQ] = useState("");
   const searchRef = React.useRef(null);
   const scrollRef = React.useRef(null);
@@ -996,7 +1037,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null }) => {
   };
   const onSort = (key) => {
     if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortBy(key); setSortDir(key === "name" ? "asc" : "desc"); }
+    else { setSortBy(key); setSortDir(key === "name" || key === "next" ? "asc" : "desc"); }
   };
 
   const shown = useMemo(() => {
@@ -1028,6 +1069,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null }) => {
         case "name": av = a.name.toLowerCase(); bv = b.name.toLowerCase(); break;
         case "state": av = order[a.state]; bv = order[b.state]; break;
         case "first": av = a.firstContact.ts ?? -Infinity; bv = b.firstContact.ts ?? -Infinity; break;
+        // Nobody booked sorts last either way.
+        case "next": { const none = sortDir === "asc" ? Infinity : -Infinity; av = a.nextVisitMs ?? none; bv = b.nextVisitMs ?? none; break; }
         default: av = a.lastContact.ts ?? -Infinity; bv = b.lastContact.ts ?? -Infinity;
       }
       if (av < bv) return sortDir === "asc" ? -1 : 1;
@@ -1041,6 +1084,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null }) => {
     first: ["Newest people first", "Oldest people first"],
     name: ["Z → A", "A → Z"],
     state: ["By state", "By state · reversed"],
+    next: ["Latest visit first", "Soonest visit first"],
   };
   const sortLabel = (sortLabels[sortBy] || ["Sorted", "Sorted"])[sortDir === "desc" ? 0 : 1];
   const activeList = listId && lists.find((l) => l.id === listId);
@@ -1053,6 +1097,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null }) => {
     <div className="clients">
       <PeopleRail
         lists={lists}
+        groups={people.groups || PL_DEFAULT_GROUPS}
         active={listId}
         onPick={(id) => setListId((cur) => (cur === id ? null : id))}
         saved={saved}
@@ -1141,16 +1186,30 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null }) => {
                   </span>
                 )}
                 {activeSaved && canEditLists && <DeleteListButton list={activeSaved} onDeleted={() => setSavedId(null)} />}
+                {tab !== "all" && (
+                  <span className="cl-seg-filter" data-testid="state-filter">
+                    <Icon name="filter" size={10} />
+                    {PL_TAB_LABEL[tab]}
+                    <button className="cl-seg-filter-x" title="Show everyone" onClick={() => setTab("all")}>
+                      <Icon name="x" size={9} />
+                    </button>
+                  </span>
+                )}
               </div>
-              <div className="cl-tabs">
-                {["all", ...PL_TABS].map((t) => (
-                  <button key={t} className={`cl-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>{PL_TAB_LABEL[t]}</button>
-                ))}
-              </div>
+              <span className="cl-section-sub">{filtered ? "Filtered from the rail and the strip above" : "The rail and the strip above narrow this"}</span>
             </div>
+            {activeList && activeList.action && (
+              <div className="cl-list-action" data-testid="list-action">
+                <span className="cl-list-action-text">{activeList.action.text}</span>
+                <button className={`btn btn-sm ${activeList.action.enabled ? "btn-primary" : ""}`} disabled={!activeList.action.enabled} onClick={() => window.CHANLY.nav(activeList.action.to)}>
+                  {activeList.action.cta} <Icon name="arrow-right" size={10} />
+                </button>
+              </div>
+            )}
           </div>
 
           <PeopleTable
+            withCalendar={withCalendar}
             rows={shown}
             total={rows.length}
             sortBy={sortBy}

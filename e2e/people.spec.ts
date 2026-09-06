@@ -48,7 +48,11 @@ test.describe("People on a real workspace", () => {
     // The table's columns are the measured ones.
     // innerText follows the CSS text-transform, so compare case-insensitively.
     const headers = await page.locator(".cl-table thead th").allInnerTexts();
-    expect(headers.map((h) => h.replace(/[▲▼]/g, "").trim().toLowerCase())).toEqual(["client", "state", "last contact", "receptionist", "first contact"]);
+    const cal = ((await (await page.request.get("/api/v1/contacts")).json()).data as { calendar?: { state: string } }).calendar;
+    // With a calendar connected the outcome takes the receptionist's column.
+    expect(headers.map((h) => h.replace(/[▲▼]/g, "").trim().toLowerCase())).toEqual(["client", "state", "last contact", cal?.state === "ok" ? "next visit" : "receptionist", "first contact"]);
+    // One state switcher: the strip above; the tab row is gone.
+    await expect(page.locator(".cl-section-head .cl-tabs")).toHaveCount(0);
 
     // Every state pill is one of the six.
     const pills = await page.locator(".cl-row-bucket-pill").allInnerTexts();
@@ -105,10 +109,18 @@ test.describe("People on a real workspace", () => {
       expect(has("Booked"), "a connected calendar shows the outcome lists").toBe(true);
       expect(has("Asked, never booked")).toBe(true);
       await expect(page.locator(".cl-head-stats .stat-cell", { hasText: "Booked" })).toHaveCount(1);
-      // Every Booked chip belongs to a person the route says has an appointment ahead.
-      const chips = await page.getByTestId("row-booked").count();
+      // Every Next visit cell with a day belongs to a person the route says has an appointment ahead.
+      const cells = await page.getByTestId("row-next-visit").allInnerTexts();
       const ahead = body.people.filter((p) => (p.visits as { next?: unknown } | null)?.next).length;
-      expect(chips).toBe(ahead);
+      expect(cells.filter((t) => t.trim() !== "—").length).toBe(ahead);
+      // The rail is grouped, and Booked this week and Lapsed exist.
+      await expect(page.getByTestId("rail-group-journey")).toBeVisible();
+      expect(has("Booked this week") && has("Lapsed")).toBe(true);
+      // A list's next step waits for a recorded yes.
+      await page.locator(".cl-rail-row.smart", { hasText: "Asked, never booked" }).click();
+      await expect(page.getByTestId("list-action")).toBeVisible();
+      await expect(page.getByTestId("list-action")).toContainText(/said yes|Nobody/);
+      await expect.poll(() => new URL(page.url()).hash).toBe("#/clients/seg:asked_never_booked");
     } else {
       expect(has("Booked")).toBe(false);
       expect(has("Asked, never booked")).toBe(false);
@@ -117,6 +129,20 @@ test.describe("People on a real workspace", () => {
       await page.goto(`/#/${gone}`);
       await expect.poll(() => new URL(page.url()).hash, { message: `${gone} retires into People` }).toBe("#/clients");
       await expect(page.locator(".cl-page-title")).toHaveText("Clients");
+    }
+  });
+
+  test("a state and a saved list are linkable: the address opens the view, and the view writes the address", async ({ page }) => {
+    await page.goto("/#/clients/state:quiet");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByTestId("state-filter")).toContainText("Quiet");
+    await page.getByTestId("state-filter").locator("button").click();
+    await expect.poll(() => new URL(page.url()).hash).toBe("#/clients");
+    const saved = ((await (await page.request.get("/api/v1/segments")).json()).data as { lists: Array<{ id: string; name: string }> }).lists;
+    if (saved.length) {
+      await page.goto(`/#/clients/list:${saved[0].id}`);
+      await page.waitForLoadState("networkidle");
+      await expect(page.getByTestId("saved-filter")).toContainText(saved[0].name);
     }
   });
 });
