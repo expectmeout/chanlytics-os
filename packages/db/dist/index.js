@@ -4477,7 +4477,10 @@ var LIMIT_TIERS = {
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
 var DAY_MS3 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS3;
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS3;
+var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
+var DAY_MS4 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS4;
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 
@@ -4747,7 +4750,7 @@ async function claimCallNotification(db, tenantId, callId) {
 
 // src/repositories/thread.ts
 var DELIVERED = ["sent", "delivered", "read"];
-var DAY_MS4 = 24 * 3600 * 1e3;
+var DAY_MS5 = 24 * 3600 * 1e3;
 var BLOB_CALL_NOTE = /^\[voice call note /;
 var isBackfill = (m) => !!m.meta && typeof m.meta === "object" && m.meta.backfill === true;
 var effectiveAt = (m) => new Date(m.channel_ts ?? m.created_at).getTime();
@@ -4769,7 +4772,7 @@ function assembleHistory(rows, limit) {
 }
 var HISTORY_COLUMNS = "body, sender, direction, type, status, created_at, channel_ts, meta";
 async function readThreadState(db, tenantId, conversationId, pausedUntilIso, historyLimit = 16) {
-  const since = new Date(Date.now() - DAY_MS4).toISOString();
+  const since = new Date(Date.now() - DAY_MS5).toISOString();
   const [recent, replies] = await Promise.all([
     db.from("messages").select(HISTORY_COLUMNS).eq("tenant_id", tenantId).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(historyLimit * 3),
     // headroom: duplicates and blanks drop out below

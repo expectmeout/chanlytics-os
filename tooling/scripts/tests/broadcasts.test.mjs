@@ -104,7 +104,7 @@ test("the view model: delivered and read over sent, open while scheduled or send
 test("the job: state gates, the template still approved, every person re-checked at the wire, batches that continue themselves, the workspace told", () => {
   const h = readCode("packages/jobs/src/handlers.ts");
   assert.ok(h.includes("broadcast_send: broadcastSend,"));
-  assert.ok(h.includes('if (b.state === "canceled" || b.state === "sent" || b.state === "failed") return;'));
+  assert.ok(h.includes('if (b.state !== "scheduled" && b.state !== "sending") return;'), "only a scheduled or sending broadcast goes out; a run waiting for a person has no job");
   assert.ok(h.includes('if (!tpl || tpl.meta_status !== "approved") {'), "a template Meta withdrew fails the broadcast before a single send");
   assert.ok(h.includes(".limit(BROADCAST_CHUNK);") && BROADCAST_CHUNK === 25);
   assert.ok(h.includes('if (isOptedOutContact(c)) { await mark(r.contact_id, { state: "skipped", reason: "opted_out" }); continue; }'));

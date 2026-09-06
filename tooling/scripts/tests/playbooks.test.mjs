@@ -1,0 +1,123 @@
+/**
+ * Playbooks: a standing rule that sends one approved template to newly
+ * eligible people who said yes, under the workspace's autonomy mode.
+ *
+ * The rules by execution: who a run may reach (the trigger's list crossed
+ * with who said yes, minus the gap, minus the week's breath, the
+ * longest-unheard first, at most the cap), what a run does under each mode,
+ * and when it is due by the business's clock. The doors by source: the
+ * migration, the sweep, the job's gate, approve and skip.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import {
+  BROADCAST_STATES, DECISION_SUBJECTS, DECISION_VERBS, PLAYBOOK_BREATH_MS, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS,
+  eligibleForPlaybook, localDate, localHour, nextRunLabel, planRun, runDueNow, scheduleLine, toBroadcastVM, triggerOf,
+} from "@chanlytics/contracts";
+import { readCode, readRaw } from "./_source.mjs";
+
+const DAY = 86_400_000;
+const NOW = Date.parse("2026-09-06T15:00:00Z");
+const person = (id, over = {}) => ({
+  id, state: "active", hasChat: true, calls: 0, phone: "+15551230001",
+  consent: { state: "opted_in", dnc: false, label: "Opted in", sub: "", source: "in_person" },
+  lastContact: { ts: NOW - 40 * DAY, label: "" },
+  ...over,
+});
+const base = { trigger: "quiet_30", cap_per_run: 25, gap_days: 90, cadence_days: 30 };
+const noTouch = { byThis: new Map(), byAny: new Map() };
+
+test("four triggers, each a list that keeps itself current, each under one of the two autonomy rows", () => {
+  assert.deepEqual(PLAYBOOK_TRIGGERS.map((t) => t.id), ["quiet_30", "new_week", "phoned_only", "everyone_monthly"]);
+  assert.equal(triggerOf("quiet_30").list, "quiet");
+  assert.equal(triggerOf("everyone_monthly").list, null);
+  assert.equal(triggerOf("quiet_30").cls, "reengage");
+  assert.equal(triggerOf("new_week").cls, "campaign");
+  assert.equal(triggerOf("birthday"), null);
+});
+
+test("who a run may reach: the list crossed with who said yes, minus the gap, minus the week's breath, the longest-unheard first, at most the cap", () => {
+  const rows = [
+    person("a", { state: "quiet", lastContact: { ts: NOW - 45 * DAY, label: "" } }),
+    person("b", { state: "quiet", lastContact: { ts: NOW - 90 * DAY, label: "" } }),
+    person("c", { state: "quiet", consent: { state: "unknown", dnc: false } }),
+    person("d", { state: "active" }),
+    person("e", { state: "quiet", lastContact: { ts: NOW - 60 * DAY, label: "" } }),
+  ];
+  assert.deepEqual(eligibleForPlaybook(rows, base, noTouch, NOW).map((r) => r.id), ["b", "e", "a"], "quiet, said yes, longest-unheard first");
+  assert.deepEqual(eligibleForPlaybook(rows, { ...base, cap_per_run: 2 }, noTouch, NOW).map((r) => r.id), ["b", "e"], "the cap");
+  const heardFromThis = { byThis: new Map([["b", NOW - 10 * DAY]]), byAny: new Map([["b", NOW - 10 * DAY]]) };
+  assert.deepEqual(eligibleForPlaybook(rows, base, heardFromThis, NOW).map((r) => r.id), ["e", "a"], "heard from this playbook within the gap");
+  const heardLongAgo = { byThis: new Map([["b", NOW - 100 * DAY]]), byAny: new Map([["b", NOW - 100 * DAY]]) };
+  assert.deepEqual(eligibleForPlaybook(rows, base, heardLongAgo, NOW).map((r) => r.id), ["b", "e", "a"], "past the gap they are eligible again");
+  const heardFromAnother = { byThis: new Map(), byAny: new Map([["e", NOW - 3 * DAY]]) };
+  assert.deepEqual(eligibleForPlaybook(rows, base, heardFromAnother, NOW).map((r) => r.id), ["b", "a"], "one playbook message per person per week, across playbooks");
+  assert.equal(PLAYBOOK_BREATH_MS, 7 * DAY);
+  const monthly = eligibleForPlaybook(rows, { ...base, trigger: "everyone_monthly", cadence_days: 30 }, { byThis: new Map([["a", NOW - 20 * DAY]]), byAny: new Map([["a", NOW - 20 * DAY]]) }, NOW);
+  assert.deepEqual(monthly.map((r) => r.id).sort(), ["b", "d", "e"], "everyone who said yes, on the cadence");
+  assert.deepEqual(eligibleForPlaybook(rows, { ...base, trigger: "nope" }, noTouch, NOW), []);
+});
+
+test("what a run does under each mode: auto sends now, veto sends after a stop window, ask waits for a person, never does nothing", () => {
+  const now = new Date(NOW);
+  assert.deepEqual(planRun("auto", now), { kind: "send", state: "scheduled", at: now });
+  const veto = planRun("veto", now);
+  assert.equal(veto.kind, "send");
+  assert.equal(veto.at.getTime() - now.getTime(), PLAYBOOK_VETO_DELAY_MS);
+  assert.deepEqual(planRun("ask", now), { kind: "hold", state: "pending_approval" });
+  assert.deepEqual(planRun("never", now), { kind: "off" });
+  assert.deepEqual(planRun(null, now), { kind: "off" }, "no row, nothing runs on its own");
+});
+
+test("when a run is due: the hour the owner picked, by the business's clock, once per local day", () => {
+  const now = new Date("2026-09-06T14:30:00Z"); // 10:30 in New York
+  assert.equal(localHour("America/New_York", now), 10);
+  assert.equal(localDate("America/New_York", now), "2026-09-06");
+  assert.equal(localDate("Asia/Tokyo", now), "2026-09-06");
+  assert.equal(localHour("Asia/Tokyo", now), 23);
+  assert.equal(runDueNow({ state: "running", run_hour: 10, last_run_for: null }, "America/New_York", now), true);
+  assert.equal(runDueNow({ state: "running", run_hour: 10, last_run_for: "2026-09-06" }, "America/New_York", now), false, "once per local day");
+  assert.equal(runDueNow({ state: "running", run_hour: 11, last_run_for: null }, "America/New_York", now), false, "not its hour");
+  assert.equal(runDueNow({ state: "paused", run_hour: 10, last_run_for: null }, "America/New_York", now), false);
+  assert.equal(scheduleLine({ trigger: "quiet_30", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }), "Daily 10:00 · up to 25 · once per person, again after 90 days");
+  assert.equal(scheduleLine({ trigger: "everyone_monthly", run_hour: 9, cap_per_run: 50, gap_days: 90, cadence_days: 30 }), "Every 30 days at 09:00 · up to 50 a day");
+  assert.equal(nextRunLabel({ state: "running", run_hour: 10, last_run_for: null }, "America/New_York", now), "today 10:00");
+  assert.equal(nextRunLabel({ state: "running", run_hour: 10, last_run_for: "2026-09-06" }, "America/New_York", now), "tomorrow 10:00");
+  assert.equal(nextRunLabel({ state: "paused", run_hour: 10, last_run_for: null }, "America/New_York", now), "paused");
+});
+
+test("a run that waits for a person is open, never sent by the job, approved through its own door, skipped through cancel", () => {
+  assert.ok(BROADCAST_STATES.includes("pending_approval"));
+  const vm = toBroadcastVM({ id: "b", name: "n", template_id: "t", template_name: "x", template_language: "en", params: [], audience: { kind: "playbook", id: "p", label: "Win-back" }, state: "pending_approval", scheduled_for: "2026-09-06T15:00:00Z", started_at: null, finished_at: null, recipient_count: 3, failure: null, created_at: "2026-09-06T15:00:00Z", playbook_id: "p", run_for: "2026-09-06", counts: { queued: 3, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 } });
+  assert.equal(vm.open, true);
+  assert.equal(vm.stateLabel, "Needs you");
+  const h = readCode("packages/jobs/src/handlers.ts");
+  assert.ok(h.includes('if (b.state !== "scheduled" && b.state !== "sending") return;'), "only a scheduled or sending broadcast goes out");
+  const a = readCode("apps/dashboard/app/api/v1/broadcasts/[id]/approve/route.ts");
+  assert.ok(a.includes('if (b.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);'));
+  assert.ok(a.includes('await schedule(b.tenant_id, "broadcast_send", now, { broadcast_id: id });') && a.includes('"send_broadcast", {'), "approving schedules the send and records the approver's decision");
+  const c = readCode("apps/dashboard/app/api/v1/broadcasts/[id]/cancel/route.ts");
+  assert.ok(c.includes('} else if (b.state !== "sending" && b.state !== "pending_approval") {'), "skip is the cancel of a waiting run");
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx").includes('data-testid="bc-approve"'));
+  assert.ok(DECISION_VERBS.includes("start_playbook") && DECISION_VERBS.includes("pause_playbook") && DECISION_SUBJECTS.includes("playbook"));
+});
+
+test("the migration and the sweep: one run per playbook per local day, touches never stored twice, the same door the other sweeps use, every run recorded", () => {
+  const m = readRaw("supabase/migrations/00048_playbooks.sql");
+  assert.ok(m.includes("create unique index broadcasts_playbook_run on public.broadcasts (playbook_id, run_for) where playbook_id is not null;"));
+  assert.ok(m.includes("check (state in ('pending_approval', 'scheduled', 'sending', 'sent', 'canceled', 'failed'))"));
+  assert.ok(m.includes("url     := v_url || '/api/cron/playbooks',") && m.includes("select cron.schedule('playbooks-sweep', '5 * * * *'"));
+  assert.ok(m.includes("'start_playbook', 'pause_playbook'") && m.includes("'broadcast', 'playbook'"));
+  assert.ok(!/create table public.playbook_touches/.test(m), "touches are derived from the runs' recipient rows");
+  const s = readCode("apps/edge/api/cron/playbooks.ts");
+  assert.ok(s.includes('request.headers.get("x-cron-key")') && s.includes('db.rpc("get_cron_sweep_key")'));
+  assert.ok(s.includes("runDueNow(p as unknown as PlaybookDto, tz, now)"), "by the business's clock");
+  assert.ok(s.includes('const mode = policies.find((r) => r.class === p.policy_class)?.mode ?? "ask";'), "no row means ask — the safest");
+  assert.ok(s.includes('if (!tpl || tpl.meta_status !== "approved") { await record({ mode, skipped: "template_not_approved" });'));
+  assert.ok(s.includes('if (!health.canSend) { await record({ mode, skipped: "number_flagged" });'));
+  assert.ok(s.includes("if (eligible.length === 0) { await record({ mode, eligible: 0 });"), "a run that finds nobody is recorded, honestly");
+  assert.ok(s.includes('audience: { kind: "playbook", id: p.id, label: p.name }'));
+  assert.ok(s.includes('verb: "send_broadcast", actor_type: "system"'), "a run that sends on its own is the system's decision");
+  assert.ok(s.includes("Approve or skip the run on Today or in Campaigns › Playbooks. Nothing is sent until you do."));
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/policy-store.ts").includes('note: "the win-back and save-our-number playbooks", chip: "Re-engage", enforced: true'), "the Autonomy rows say what they do now");
+});

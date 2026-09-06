@@ -191,7 +191,9 @@ export type Database = {
           id: string
           name: string
           params: Json
+          playbook_id: string | null
           recipient_count: number
+          run_for: string | null
           scheduled_for: string
           started_at: string | null
           state: string
@@ -210,7 +212,9 @@ export type Database = {
           id?: string
           name: string
           params?: Json
+          playbook_id?: string | null
           recipient_count?: number
+          run_for?: string | null
           scheduled_for: string
           started_at?: string | null
           state?: string
@@ -229,7 +233,9 @@ export type Database = {
           id?: string
           name?: string
           params?: Json
+          playbook_id?: string | null
           recipient_count?: number
+          run_for?: string | null
           scheduled_for?: string
           started_at?: string | null
           state?: string
@@ -240,6 +246,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "broadcasts_playbook_id_fkey"
+            columns: ["playbook_id"]
+            isOneToOne: false
+            referencedRelation: "playbooks"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "broadcasts_template_id_fkey"
             columns: ["template_id"]
@@ -1489,6 +1502,87 @@ export type Database = {
         }
         Relationships: []
       }
+      playbooks: {
+        Row: {
+          cadence_days: number
+          cap_per_run: number
+          created_at: string
+          created_by: string | null
+          gap_days: number
+          id: string
+          last_run_at: string | null
+          last_run_for: string | null
+          name: string
+          params: Json
+          policy_class: string
+          run_hour: number
+          state: string
+          template_id: string
+          template_language: string
+          template_name: string
+          tenant_id: string
+          trigger: string
+          updated_at: string
+        }
+        Insert: {
+          cadence_days?: number
+          cap_per_run?: number
+          created_at?: string
+          created_by?: string | null
+          gap_days?: number
+          id?: string
+          last_run_at?: string | null
+          last_run_for?: string | null
+          name: string
+          params?: Json
+          policy_class: string
+          run_hour?: number
+          state?: string
+          template_id: string
+          template_language: string
+          template_name: string
+          tenant_id: string
+          trigger: string
+          updated_at?: string
+        }
+        Update: {
+          cadence_days?: number
+          cap_per_run?: number
+          created_at?: string
+          created_by?: string | null
+          gap_days?: number
+          id?: string
+          last_run_at?: string | null
+          last_run_for?: string | null
+          name?: string
+          params?: Json
+          policy_class?: string
+          run_hour?: number
+          state?: string
+          template_id?: string
+          template_language?: string
+          template_name?: string
+          tenant_id?: string
+          trigger?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "playbooks_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "playbooks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       policies: {
         Row: {
           class: string
@@ -2046,6 +2140,7 @@ export type Database = {
       }
       trigger_call_reconcile: { Args: never; Returns: number }
       trigger_deadman_sweep: { Args: never; Returns: number }
+      trigger_playbooks_sweep: { Args: never; Returns: number }
       trigger_sweep_health: { Args: never; Returns: number }
     }
     Enums: {

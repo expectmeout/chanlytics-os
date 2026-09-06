@@ -71,6 +71,8 @@ export async function refreshBroadcasts(): Promise<void> {
 export const broadcasts = {
   send: (body: SendBody) => call("/api/v1/broadcasts", body),
   cancel: (id: string) => call(`/api/v1/broadcasts/${encodeURIComponent(id)}/cancel`),
+  /** A playbook's run that waited for a person goes out now. */
+  approve: (id: string) => call(`/api/v1/broadcasts/${encodeURIComponent(id)}/approve`),
   detail,
 };
 

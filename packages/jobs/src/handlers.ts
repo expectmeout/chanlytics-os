@@ -364,7 +364,9 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     .maybeSingle();
   if (bErr) throw new Error(`broadcast_send: cannot read broadcast ${p.broadcast_id}: ${bErr.message}`);
   if (!b) return;
-  if (b.state === "canceled" || b.state === "sent" || b.state === "failed") return;
+  // Only a scheduled or sending broadcast goes out: a run waiting for a
+  // person (pending_approval) has no job, and one that ended stays ended.
+  if (b.state !== "scheduled" && b.state !== "sending") return;
   const startedAt = new Date().toISOString();
   if (b.state === "scheduled") {
     await ctx.db.from("broadcasts").update({ state: "sending", started_at: startedAt }).eq("id", b.id).eq("state", "scheduled");

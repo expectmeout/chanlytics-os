@@ -176,12 +176,15 @@ export const DECISION_VERBS = [
    */
   "send_broadcast",
   "cancel_broadcast",
+  /** A playbook started or paused: subject 'playbook'. Its runs are send_broadcast rows. */
+  "start_playbook",
+  "pause_playbook",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 
 export const DECISION_SUBJECTS = [
   "conversation", "escalation", "draft", "lead", "message", "agent",
-  "membership", "invitation", "contact", "call", "channel", "broadcast",
+  "membership", "invitation", "contact", "call", "channel", "broadcast", "playbook",
 ] as const;
 export type DecisionSubject = (typeof DECISION_SUBJECTS)[number];
 
