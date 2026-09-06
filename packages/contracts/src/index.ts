@@ -19,6 +19,7 @@ export * from "./playbooks";
 export * from "./template-library";
 export * from "./campaign-report";
 export * from "./calendar";
+export * from "./calendar-people";
 export * from "./channels";
 
 export * from "./reports";

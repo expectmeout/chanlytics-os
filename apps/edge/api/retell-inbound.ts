@@ -21,7 +21,7 @@ import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { resolveChannel, readLeadContext, describeLead } from "../lib/workspace/db.js";
 import { loadTenantRuntime } from "../lib/tenant-runtime.js";
-import { openingsFor } from "../lib/availability.js";
+import { openingsFor, visitsFor } from "../lib/availability.js";
 import { logger } from "../lib/log.js";
 
 /**
@@ -128,6 +128,10 @@ export async function POST(request: Request): Promise<Response> {
           (h) => `${h.role === "user" ? "Customer" : "Business"}: ${String(h.content).slice(0, 160)}`,
         );
         const parts = [describeLead(lead)];
+        // The caller's appointments ride with who they are, so "when am I
+        // booked?" is answered from the calendar, not guessed.
+        const visits = await visitsFor(rt, { phone, name: lead.name });
+        if (visits) parts.push(visits);
         if (lines.length) {
           parts.push("Recent interactions on this number (calls and messages):");
           parts.push(lines.join("\n"));

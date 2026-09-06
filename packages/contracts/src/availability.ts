@@ -20,11 +20,21 @@ export interface BusyBlock {
   end: number;
 }
 
+/** A guest on the event, as the calendar carried them. */
+export interface FeedAttendee {
+  name: string | null;
+  email: string | null;
+}
+
 /** One taken block with the words the owner's calendar gave it. */
 export interface FeedItem extends BusyBlock {
   title: string;
   allDay: boolean;
   uid: string | null;
+  /** The event's description and place, unescaped, as the owner or their booking tool wrote them. */
+  description: string | null;
+  location: string | null;
+  attendees: FeedAttendee[];
 }
 
 export interface ParsedFeed {
@@ -108,13 +118,32 @@ function unfold(text: string): string[] {
   return out;
 }
 
-/** "DTSTART;TZID=America/New_York:20260909T140000" → { name, params, value }. */
+/**
+ * "DTSTART;TZID=America/New_York:20260909T140000" → { name, params, value }.
+ * A quoted parameter may hold ":" or ";" (CN="Lopez, Maria: stylist"), so
+ * the split respects quotes and drops them.
+ */
 function splitLine(line: string): { name: string; params: Record<string, string>; value: string } | null {
-  const colon = line.indexOf(":");
+  let colon = -1;
+  let q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === "\"") q = !q;
+    else if (ch === ":" && !q) { colon = i; break; }
+  }
   if (colon === -1) return null;
   const head = line.slice(0, colon);
   const value = line.slice(colon + 1);
-  const [name, ...rest] = head.split(";");
+  const parts: string[] = [];
+  let cur = "";
+  q = false;
+  for (const ch of head) {
+    if (ch === "\"") { q = !q; continue; }
+    if (ch === ";" && !q) { parts.push(cur); cur = ""; continue; }
+    cur += ch;
+  }
+  parts.push(cur);
+  const [name, ...rest] = parts;
   const params: Record<string, string> = {};
   for (const p of rest) {
     const eq = p.indexOf("=");
@@ -274,8 +303,9 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
   let skippedRecurring = 0;
   let cur: Record<string, { params: Record<string, string>; value: string }> | null = null;
   const exdatesOf: Array<{ params: Record<string, string>; value: string }> = [];
+  const attendees: FeedAttendee[] = [];
   for (const line of unfold(text)) {
-    if (line === "BEGIN:VEVENT") { cur = {}; exdatesOf.length = 0; continue; }
+    if (line === "BEGIN:VEVENT") { cur = {}; exdatesOf.length = 0; attendees.length = 0; continue; }
     if (line === "END:VEVENT") {
       if (cur) {
         events++;
@@ -292,6 +322,9 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
           }
           if (start !== null && end !== null && end > start) {
             const title = unescapeText(cur.SUMMARY?.value ?? "");
+            const description = unescapeText(cur.DESCRIPTION?.value ?? "") || null;
+            const location = unescapeText(cur.LOCATION?.value ?? "") || null;
+            const guests = attendees.slice();
             const allDay = cur.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(cur.DTSTART.value.trim());
             const uid = cur.UID?.value.trim() || null;
             const rule = cur.RRULE ? parseRule(cur.RRULE.value, fallbackTz) : null;
@@ -301,13 +334,13 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
               for (const e of exdatesOf) for (const v of e.value.split(",")) { const ms = toMs(v, e.params, fallbackTz); if (ms !== null) ex.add(ms); }
               const occ = occurrences(local, end - start, rule, ex, horizon);
               busy.push(...occ);
-              for (const o of occ) items.push({ ...o, title, allDay, uid });
+              for (const o of occ) items.push({ ...o, title, allDay, uid, description, location, attendees: guests });
               recurringExpanded++;
             } else {
               // Understood as a single event; a rule we cannot read keeps its first occurrence.
               if (cur.RRULE || cur.RDATE) skippedRecurring++;
               busy.push({ start, end });
-              items.push({ start, end, title, allDay, uid });
+              items.push({ start, end, title, allDay, uid, description, location, attendees: guests });
             }
           }
         }
@@ -319,6 +352,11 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
     const s = splitLine(line);
     if (!s) continue;
     if (s.name === "EXDATE") { exdatesOf.push({ params: s.params, value: s.value }); continue; }
+    if (s.name === "ATTENDEE") {
+      const v = s.value.trim();
+      attendees.push({ name: s.params.CN?.trim() || null, email: /^mailto:/i.test(v) ? v.slice(7).toLowerCase() : null });
+      continue;
+    }
     cur[s.name] = { params: s.params, value: s.value };
   }
   busy.sort((a, b) => a.start - b.start);

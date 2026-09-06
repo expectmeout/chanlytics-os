@@ -13,6 +13,7 @@
  */
 import { formatPhoneDisplay } from "./phone";
 import { waWindow } from "./policy";
+import { visitDay, visitLine, visitTime, type PersonVisitsDto } from "./calendar-people";
 import {
   initialsOf,
   messageAt,
@@ -110,6 +111,8 @@ export interface PersonDetailDto {
   receptionist_mode?: string | null;
   /** The workspace's reply policy mode, for the "following …" hint. */
   workspace_reply_mode?: string | null;
+  /** Their appointments on the owner's calendar, when the workspace has one connected. */
+  visits?: PersonVisitsDto;
 }
 
 /** What an owner may set for one person: answer, ask first, or stay out. */
@@ -770,6 +773,21 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
     const w = waWindow(r.latest_wa_inbound_at, now);
     const hours = w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 3_600_000)) : 0;
     about.push({ k: "Reply window", v: w.open ? `Open · ${hours}h left` : "Closed · template only" });
+  }
+
+  // Their appointments, when the workspace's calendar is connected: the next
+  // one is the fact an owner asks for first, and the one the receptionist
+  // is given when they call.
+  if (d.visits) {
+    const v = d.visits;
+    const nextLine = v.next ? `${visitLine(v.next, v.timezone, nowMs)} · ${v.next.title}` : v.state === "ok" ? "Nothing on the calendar" : "Calendar could not be read";
+    facts.push({
+      label: "Next visit",
+      value: v.next ? visitDay(v.next.start, v.timezone, nowMs) : "—",
+      meta: v.next ? `${visitTime(v.next, v.timezone)} · ${v.next.title}${v.next.via === "name" ? " · matched by name" : ""}` : nextLine.toLowerCase(),
+    });
+    about.push({ k: "Next visit", v: nextLine });
+    if (v.last) about.push({ k: "Last visit", v: `${visitLine(v.last, v.timezone, nowMs)} · ${v.last.title}` });
   }
 
   return {

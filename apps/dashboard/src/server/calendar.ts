@@ -1,19 +1,27 @@
 import "server-only";
 import {
   AppError,
+  eventText,
+  extractContacts,
+  feedSourceLabel,
   freeWindows,
   isDayKey,
+  matchPerson,
   mondayOf,
   parseIcs,
   parseTenantConfig,
-  personName,
   shiftKey,
+  toVisitDto,
+  visitsOf,
   zoneMidnight,
   type BookingRulesLike,
   type CalendarDayDto,
   type CalendarItemDto,
   type CalendarWeekDto,
   type FeedItem,
+  type PersonLike,
+  type PersonRowDto,
+  type PersonVisitsDto,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
 import { tenantFacts } from "@/server/tenant";
@@ -42,18 +50,9 @@ export function spanFor(from: string | null, days: number, tz: string, now: Date
   return { from: start, days: Math.min(MAX_DAYS, Math.max(1, Math.round(days) || 7)) };
 }
 
-interface PersonLike { id: string; name: string }
-
-/** A person whose name the title carries — the longest match wins; never a bare number. */
-export function personInTitle(title: string, people: PersonLike[]): PersonLike | null {
-  const t = title.toLowerCase();
-  let best: PersonLike | null = null;
-  for (const p of people) {
-    const n = p.name.trim().toLowerCase();
-    if (n.length < 4 || /^[+\d(]/.test(n)) continue;
-    if (t.includes(n) && (!best || n.length > best.name.length)) best = p;
-  }
-  return best;
+/** People as the matcher wants them: a human-given name (never a phone made words) and the E.164. */
+export function personLike(p: Pick<PersonRowDto, "id" | "display_name" | "wa_profile_name" | "phone_e164">): PersonLike {
+  return { id: p.id, name: p.display_name || p.wa_profile_name || "", phone: p.phone_e164 };
 }
 
 export function itemsToDays(items: FeedItem[], from: string, days: number, tz: string, people: PersonLike[]): Array<Pick<CalendarDayDto, "key" | "items">> {
@@ -64,14 +63,20 @@ export function itemsToDays(items: FeedItem[], from: string, days: number, tz: s
     const dayEnd = zoneMidnight(tz, shiftKey(key, 1));
     const rows: CalendarItemDto[] = items
       .filter((it) => it.end > dayStart && it.start < dayEnd)
-      .map((it, n) => ({
-        id: `${it.uid ?? "ev"}:${it.start}:${n}`,
-        start: new Date(it.start).toISOString(),
-        end: new Date(it.end).toISOString(),
-        title: it.title,
-        all_day: it.allDay,
-        person: personInTitle(it.title, people),
-      }));
+      .map((it, n) => {
+        const c = extractContacts(it);
+        return {
+          id: `${it.uid ?? "ev"}:${it.start}:${n}`,
+          start: new Date(it.start).toISOString(),
+          end: new Date(it.end).toISOString(),
+          title: it.title,
+          all_day: it.allDay,
+          person: matchPerson(it, people),
+          description: eventText(it.description),
+          location: it.location,
+          contacts: { phones: c.phones, emails: c.emails },
+        };
+      });
     out.push({ key, items: rows });
   }
   return out;
@@ -94,7 +99,7 @@ export async function calendarWeek(ctx: RouteContext, tenantId: string, by: { fr
     timezone,
     from: span.from,
     to,
-    feed: { present: !!url, state: url ? "unavailable" : "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 },
+    feed: { present: !!url, source: feedSourceLabel(url), state: url ? "unavailable" : "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 },
     hours,
     closures,
     rules,
@@ -127,13 +132,13 @@ export async function calendarWeek(ctx: RouteContext, tenantId: string, by: { fr
     console.error("calendar_parse_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
     return { ...base, feed: { ...base.feed, read_at: new Date(feed.at).toISOString() } };
   }
-  const people = (await listPeople(ctx, tenantId).catch(() => [])).map((p) => ({ id: p.id, name: personName(p) }));
+  const people = (await listPeople(ctx, tenantId).catch(() => [])).map(personLike);
   const days = itemsToDays(parsed.items, span.from, span.days, timezone, people);
   const openings = profile ? freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy: parsed.busy, rules, now }) : [];
   const windowsOf = new Map(openings.map((o) => [o.key, o.windows]));
   return {
     ...base,
-    feed: { present: true, state: "ok", read_at: new Date(feed.at).toISOString(), events: parsed.events, recurring_expanded: parsed.recurringExpanded, skipped_recurring: parsed.skippedRecurring },
+    feed: { present: true, source: feedSourceLabel(url), state: "ok", read_at: new Date(feed.at).toISOString(), events: parsed.events, recurring_expanded: parsed.recurringExpanded, skipped_recurring: parsed.skippedRecurring },
     days: days.map((d) => ({ ...d, windows: (windowsOf.get(d.key) ?? []).map((w) => ({ start: new Date(w.start).toISOString(), end: new Date(w.end).toISOString() })) })),
   };
 }
@@ -183,4 +188,33 @@ export async function previewFeed(url: string, tz: string, now = new Date()): Pr
     .slice(0, 3)
     .map((it) => ({ start: f.format(new Date(it.start)), end: new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(it.end)), title: it.title || "Busy" }));
   return { ok: true, events: parsed.events, recurring_expanded: parsed.recurringExpanded, skipped_recurring: parsed.skippedRecurring, next };
+}
+
+/* ---- One person's appointments, for their profile ---- */
+
+/**
+ * The next and last appointment for one person, read from the same feed
+ * with the same match the board uses. Null when the workspace has no
+ * calendar; "unavailable" when it has one that could not be read. Ninety
+ * days back and sixty ahead: a last visit worth naming, and a next one
+ * booked past the receptionist's own offering window.
+ */
+export async function personVisits(ctx: RouteContext, tenantId: string, person: PersonLike, now = new Date()): Promise<PersonVisitsDto | null> {
+  const { data: row, error } = await ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle();
+  if (error) throw new Error(error.message);
+  const url = parseTenantConfig(row?.config ?? null)?.calendar?.ical_url ?? null;
+  if (!url) return null;
+  const { timezone } = await tenantFacts(ctx.supabase, tenantId);
+  const source = feedSourceLabel(url);
+  const feed = await loadFeed(tenantId, url);
+  if (!feed) return { timezone, source, state: "unavailable", next: null, last: null };
+  let parsed;
+  try {
+    parsed = parseIcs(feed.text, timezone, { horizon: { from: now.getTime() - 90 * 86_400_000, to: now.getTime() + 60 * 86_400_000 } });
+  } catch (e) {
+    console.error("calendar_parse_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
+    return { timezone, source, state: "unavailable", next: null, last: null };
+  }
+  const v = visitsOf(parsed.items, person, now.getTime());
+  return { timezone, source, state: "ok", next: toVisitDto(v.next), last: toVisitDto(v.last) };
 }

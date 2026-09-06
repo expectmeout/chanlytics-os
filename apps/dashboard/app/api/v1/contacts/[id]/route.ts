@@ -7,6 +7,7 @@ import { requireUuid } from "@/server/request-guards";
 import { CALL_COLUMNS, CONVERSATION_COLUMNS, MESSAGE_COLUMNS, groupMessages, toCallDto, toConversationDto } from "@/server/dto";
 import type { MessageDto, PersonDecisionDto, PersonDetailDto, PersonEscalationDto, PersonRowDto } from "@chanlytics/contracts";
 import { takeRate } from "@/server/rate-limit";
+import { personLike, personVisits } from "@/server/calendar";
 
 const digits = (s: string) => s.replace(/\D/g, "");
 
@@ -233,6 +234,13 @@ export const GET = withRoute(async (req, ctx) => {
     decisions = (decs.data ?? []).map((d) => ({ ...d, payload: d.payload as Record<string, unknown> | null }));
   }
 
+  // Their appointments on the owner's calendar, when one is connected.
+  // Never fatal: a feed that cannot be read costs this line, not the profile.
+  const visits = await personVisits(ctx, tenantId, personLike(row)).catch((e: unknown) => {
+    console.error("person_visits_failed", JSON.stringify({ contact: id, error: e instanceof Error ? e.message : String(e) }));
+    return null;
+  });
+
   const person: PersonDetailDto = {
     row: { ...row, effective_reply_mode: personPol.data?.mode ?? wsPol.data?.mode ?? null },
     identities: idents.data ?? [],
@@ -242,6 +250,7 @@ export const GET = withRoute(async (req, ctx) => {
     decisions,
     receptionist_mode: personPol.data?.mode ?? null,
     workspace_reply_mode: wsPol.data?.mode ?? null,
+    visits: visits ?? undefined,
   };
   return { person };
 });
