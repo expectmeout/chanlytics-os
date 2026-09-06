@@ -340,5 +340,16 @@
       ],
       "no_write": true
     }
+  },
+  {
+    "id": "whats_on_tomorrow",
+    "text": "what's on the calendar tomorrow?",
+    "expect": {
+      "tools_any": [
+        "get_calendar",
+        "get_openings"
+      ],
+      "no_write": true
+    }
   }
 ]

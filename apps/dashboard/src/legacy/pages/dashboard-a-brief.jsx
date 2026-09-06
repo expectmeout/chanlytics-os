@@ -77,6 +77,31 @@ const RunsWaiting = ({ nav, flash }) => {
   )));
 };
 
+// The day on the calendar, from the Calendar surface that boots with the
+// rest: how much is taken today and the next opening the receptionist
+// would offer. Silent without a feed — that is the Calendar page's card.
+const CalendarLine = ({ nav }) => {
+  const [, bump] = React.useReducer((n) => n + 1, 0);
+  React.useEffect(() => {
+    window.addEventListener("surface:calendar", bump);
+    return () => window.removeEventListener("surface:calendar", bump);
+  }, []);
+  const C = window.__CALENDAR;
+  if (!C || !C.vm || C.vm.feed.state !== "ok") return null;
+  const today = C.vm.days.find((d) => d.today);
+  if (!today) return null;
+  const n = today.blocks.length + today.allDay.length;
+  return (
+    <div className="brief-beat" data-testid="brief-calendar">
+      <span className="brief-beat-dot" style={{ background: "var(--ink-faint)" }} />
+      <span className="brief-beat-text">
+        <b>Calendar</b> — {today.closed.yes ? `closed today${today.closed.note ? ` · ${today.closed.note}` : ""}` : `${n} ${n === 1 ? "appointment" : "appointments"} today`}{C.vm.stats.next !== "—" ? ` · next opening ${C.vm.stats.next}` : ""}
+      </span>
+      <button className="brief-chip" onClick={() => nav("calendar")}>Open <Icon name="arrow-right" size={10} /></button>
+    </div>
+  );
+};
+
 const HeroBrief = () => {
   const [, force] = React.useState(0);
   React.useEffect(() => {
@@ -194,6 +219,7 @@ const HeroBriefReal = ({ vm }) => {
               </div>
             ))}
             <RunsWaiting nav={nav} flash={ppFlash} />
+            <CalendarLine nav={nav} />
             {(recap ? recap.receipts.slice(0, 1) : []).map((r, i) => (
               <div key={i} className="brief-beat">
                 <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />

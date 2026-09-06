@@ -30,7 +30,8 @@ import { loadFeed } from "@/server/ask/openings";
  * the windows a caller is offered. Titles are the owner's own calendar
  * words; a title that carries a person's name links to their profile.
  */
-const MAX_DAYS = 14;
+/** Six weeks: a month view, whatever week it starts on. */
+const MAX_DAYS = 42;
 
 export function spanFor(from: string | null, days: number, tz: string, now: Date): { from: string; days: number } {
   const todayKey = ((): string => {
@@ -97,6 +98,13 @@ export async function calendarWeek(ctx: RouteContext, tenantId: string, by: { fr
     hours,
     closures,
     rules,
+    // The services as Settings keeps them: how long each takes (the assistant
+    // sizes windows by it) and which need a consultation first.
+    services: (profile?.services ?? []).map((s) => ({
+      name: s.name,
+      duration_min: typeof s.duration_min === "number" ? s.duration_min : null,
+      consult_first: (profile?.booking_rules?.consult_first ?? []).some((c: string) => c.trim().toLowerCase() === s.name.trim().toLowerCase()),
+    })),
     booking_link: cfg?.brain?.booking_link ?? null,
     days: Array.from({ length: span.days }, (_, i) => ({ key: shiftKey(span.from, i), items: [], windows: [] })),
   };

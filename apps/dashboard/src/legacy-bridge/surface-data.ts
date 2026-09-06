@@ -843,15 +843,17 @@ export const playbooksOverride: SurfaceOverride = {
 
 /* ------------------------------- Calendar -------------------------------- */
 
-/** The span shown: a Monday's key, or null for the week of today. Not persisted — a reload opens on this week. */
+/** The span shown: a day key and a length in days (7 a week, 42 a month, 14 the agenda); null is the week of today. Not persisted — a reload opens on this week. */
 let calendarFrom: string | null = null;
+let calendarDays = 7;
 
-export function getCalendarFrom(): string | null {
-  return calendarFrom;
+export function getCalendarSpan(): { from: string | null; days: number } {
+  return { from: calendarFrom, days: calendarDays };
 }
 
-export function setCalendarFrom(from: string | null): void {
+export function setCalendarSpan(from: string | null, days = 7): void {
   calendarFrom = from && /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : null;
+  calendarDays = Math.min(42, Math.max(1, Math.round(days) || 7));
 }
 
 export interface CalendarSurface {
@@ -871,7 +873,7 @@ export const calendarOverride: SurfaceOverride = {
   events: ["surface:calendar"],
   apply: async () => {
     const from = calendarFrom;
-    const data = await fetchEnvelope<{ calendar: CalendarWeekDto }>(`/api/v1/calendar?from=${from ?? ""}&days=7`);
+    const data = await fetchEnvelope<{ calendar: CalendarWeekDto }>(`/api/v1/calendar?from=${from ?? ""}&days=${calendarDays}`);
     (window as unknown as { __CALENDAR?: CalendarSurface }).__CALENDAR = {
       vm: toCalendarVM(data.calendar, new Date()),
       fetchedAt: Date.now(),

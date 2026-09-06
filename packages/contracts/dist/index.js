@@ -3984,6 +3984,7 @@ var CAMPAIGN_REPORT_RANGES = REPORT_RANGES;
 // src/calendar.ts
 var DAY_MS4 = 864e5;
 var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+var DAY_SHORT = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
 function keyParts(key) {
   const [y, m, d] = key.split("-").map(Number);
   return { y, m: m ?? 1, d: d ?? 1 };
@@ -4000,6 +4001,18 @@ function mondayOf(key) {
 }
 function isDayKey(s) {
   return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
+}
+function monthSpan(key) {
+  return { from: mondayOf(`${key.slice(0, 7)}-01`), days: 42 };
+}
+function shiftMonth(key, n) {
+  const { y, m } = keyParts(key);
+  const at = new Date(Date.UTC(y, m - 1 + n, 1));
+  return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, "0")}-01`;
+}
+function monthLabelOf(key) {
+  const { y, m } = keyParts(key);
+  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(new Date(Date.UTC(y, m - 1, 1, 12)));
 }
 function clockLabel(t) {
   const h = Math.floor(t);
@@ -4031,6 +4044,12 @@ function rulesLine(rules) {
   if (r.buffer_min > 0) parts2.push(`${r.buffer_min} min between appointments`);
   parts2.push(`up to ${r.max_days_ahead} days out`, `${r.slot_min}-min slots`);
   return `Offers times ${parts2.join(" \xB7 ")}`;
+}
+function hoursLines2(hours) {
+  if (!hours) return [];
+  const clean = {};
+  for (const d of DAYS) if (hours[d]) clean[d] = hours[d];
+  return hoursRuns(clean).map((r) => `${DAY_SHORT[r.from] ?? r.from}${r.to !== r.from ? `\u2013${DAY_SHORT[r.to] ?? r.to}` : ""} ${r.text.toLowerCase() === "closed" ? "closed" : r.text}`);
 }
 function hoursOf(tz, ms) {
   const c = clockInZone(tz, ms);
@@ -4080,8 +4099,6 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   end = Math.min(24, end + 1);
   const days = dto.days.map((d) => {
     const { y, m, d: dd } = keyParts(d.key);
-    const dayStartMs = Date.UTC(y, m - 1, dd) + 0;
-    void dayStartMs;
     const weekday = DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()].toLowerCase();
     const closure = dto.closures.find((c) => c.date <= d.key && d.key <= (c.until && c.until >= c.date ? c.until : c.date)) ?? null;
     const intervals = dayIntervals2(dto.hours?.[weekday]);
@@ -4122,6 +4139,7 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
       dow: DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()],
       date: shortDate(d.key),
       long: longDate(d.key),
+      dayNum: String(dd),
       today: d.key === todayKey,
       past: d.key < todayKey,
       closed: { yes: closedDay, note: closure?.note ?? null },
@@ -4148,11 +4166,23 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
   const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
   const sameMonth = dto.from.slice(0, 7) === last.slice(0, 7);
+  const closuresAhead = dto.closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6).map((c) => ({
+    key: c.date,
+    label: c.until && c.until > c.date ? `${shortDate(c.date)} \u2013 ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}` : shortDate(c.date),
+    note: c.note ?? null
+  }));
+  const services = (dto.services ?? []).map((s) => ({
+    name: s.name,
+    duration: s.duration_min,
+    consultFirst: s.consult_first,
+    label: `${s.name}${s.duration_min ? ` \xB7 ${s.duration_min} min` : ""}${s.consult_first ? " \xB7 consult first" : ""}`
+  }));
   return {
     timezone: tz,
     from: dto.from,
     to: last,
     rangeLabel: `${shortDate(dto.from)} \u2013 ${sameMonth ? shortDate(last).replace(/^[A-Za-z]+ /, "") : shortDate(last)}`,
+    monthLabel: monthLabelOf(dto.days.length >= 28 ? shiftKey(dto.from, 7) : dto.from),
     hours: { start, end },
     days,
     today: todayKey,
@@ -4160,6 +4190,9 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
     feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events },
     stats: { events, windows: windowCount, next },
     rules: rulesLine(dto.rules),
+    hoursLines: hoursLines2(dto.hours),
+    closuresAhead,
+    services,
     bookingLink: dto.booking_link
   };
 }
@@ -4412,6 +4445,7 @@ export {
   groundCitations,
   guessSlotKind,
   hasProfile,
+  hoursLines2 as hoursLines,
   hoursRuns,
   initialsOf,
   isDayKey,
@@ -4432,6 +4466,8 @@ export {
   messageStatusLabel,
   messageText,
   mondayOf,
+  monthLabelOf,
+  monthSpan,
   navigateLabel,
   newReceptionistDefaults,
   nextRunLabel,
@@ -4474,6 +4510,7 @@ export {
   scheduleLine,
   scopeFromRoute,
   shiftKey,
+  shiftMonth,
   shortTime,
   slotLabels,
   slugTemplateName,

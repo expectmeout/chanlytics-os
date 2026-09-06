@@ -10,7 +10,7 @@ import {
   liveOverride,
   invalidateInFlight,
   scoped,
-  settingsOverride,
+  settingsOverride, calendarOverride,
   todayOverride,
   type SurfaceOverride,
   reportsOverride,
@@ -466,6 +466,7 @@ export async function saveSettings(
   // this pane, so the second save in a row went out with the version from
   // before the first and came back as "someone else saved settings after you
   // loaded them". Today follows because it states the workspace's facts.
-  await refreshSurfaces([settingsOverride, todayOverride]);
+  // Hours, closures, rules and services are the Calendar's too.
+  await refreshSurfaces([settingsOverride, todayOverride, calendarOverride]);
   return r;
 }

@@ -22,6 +22,10 @@ import {
   toReportVM,
   toTodayVM,
   PLAYBOOK_TRIGGERS,
+  dayInZone,
+  isDayKey,
+  shiftKey,
+  toCalendarVM,
   eligibleForPlaybook,
   nextRunLabel,
   scheduleLine,
@@ -44,6 +48,7 @@ import type { RouteContext } from "../with-route";
 import { CALL_COLUMNS, CONVERSATION_COLUMNS, MESSAGE_COLUMNS, groupMessages, toCallDto, toConversationDto } from "../dto";
 import { listPeople } from "../people";
 import { listPlaybooks } from "../playbooks";
+import { calendarWeek } from "../calendar";
 import { tenantFacts } from "../tenant";
 import { openingsFor } from "./openings";
 import { ASK_DEFINITIONS, workspaceFacts } from "./prompt";
@@ -128,6 +133,11 @@ export const READ_TOOLS: ToolDef[] = [
     name: "list_playbooks",
     description: "The playbooks: standing rules that send one approved template to newly eligible people who said yes — each with what starts it, its template, its clock, whether it is running, the autonomy mode its class runs under, its next run, what its runs earned, and a run waiting for a person if there is one — plus the four triggers with how many people said yes on each list right now and each one's starter template. Read this to say what is running, and before proposing a playbook.",
     input_schema: obj({}, []),
+  },
+  {
+    name: "get_calendar",
+    description: "The owner's calendar as the receptionist reads it, for a day or a few: what is taken (the calendar's own words, with the person in People when the title names one), whether the business is closed, and the windows the receptionist would offer. day: today, tomorrow, a weekday (mon..sun), a date (YYYY-MM-DD), or empty for today. days: how many from there, at most 14. Nothing is booked from here.",
+    input_schema: obj({ day: { type: "string" }, days: { type: "number" } }, ["day"]),
   },
   {
     name: "explain_metric",
@@ -580,6 +590,7 @@ const LABELS: Record<string, string> = {
   get_openings: "Checking the calendar",
   list_audiences: "Reading the lists and templates",
   list_playbooks: "Reading the playbooks",
+  get_calendar: "Reading the calendar",
   explain_metric: "Checking a definition",
 };
 
@@ -692,6 +703,38 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
   };
 }
 
+const WEEKDAY_KEYS: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+
+/** The calendar for a day or a few, in the words the page uses. */
+async function getCalendar(t: ToolContext, input: Record<string, unknown>): Promise<unknown> {
+  const facts = await tenantFacts(t.ctx.supabase, t.tenantId);
+  const todayKey = dayInZone(facts.timezone, t.now.getTime()).key;
+  const asked = str(input.day, 20).trim().toLowerCase();
+  const askedKey = isDayKey(asked) ? asked : null;
+  let from = todayKey;
+  if (asked === "tomorrow") from = shiftKey(todayKey, 1);
+  else if (askedKey) from = askedKey;
+  else if (asked.slice(0, 3) in WEEKDAY_KEYS) {
+    const want = WEEKDAY_KEYS[asked.slice(0, 3)];
+    for (let i = 0; i < 7; i++) { const k = shiftKey(todayKey, i); if (new Date(`${k}T12:00:00Z`).getUTCDay() === want) { from = k; break; } }
+  }
+  const days = Math.min(14, Math.max(1, Math.round(Number(input.days)) || 1));
+  const vm = toCalendarVM(await calendarWeek(t.ctx, t.tenantId, { from, days }, t.now), t.now);
+  return {
+    route: "calendar",
+    feed: vm.feed.line,
+    timezone: vm.timezone,
+    days: vm.days.map((d) => ({
+      day: d.key,
+      label: d.long,
+      closed: d.closed.yes ? (d.closed.note ? `closed · ${d.closed.note}` : "closed") : null,
+      taken: [...d.allDay, ...d.blocks].map((b) => ({ time: b.time, title: b.title, person: b.person ? { contact_id: b.person.id, name: b.person.name } : null })),
+      open: d.windows.map((w) => w.label),
+    })),
+    note: "Taken is the owner's own calendar; open is what the receptionist would offer a caller. Nothing is booked from here — the booking link does that.",
+  };
+}
+
 export async function runTool(t: ToolContext, run: ToolRun): Promise<ToolOutcome> {
   const label = toolLabel(run.name);
   try {
@@ -709,6 +752,7 @@ export async function runTool(t: ToolContext, run: ToolRun): Promise<ToolOutcome
       case "get_openings": out = await getOpenings(t, run.input); break;
       case "list_audiences": out = await listAudiences(t); break;
       case "list_playbooks": out = await listPlaybooksTool(t); break;
+      case "get_calendar": out = await getCalendar(t, run.input); break;
       case "explain_metric": out = explainMetric(run.input); break;
       default: return { result: json({ error: `unknown tool ${run.name}` }), isError: true, label };
     }
