@@ -4485,9 +4485,10 @@ var LIMIT_TIERS = {
 var DAY_MS3 = 864e5;
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS3;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
+var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WHEN = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DAY_MS4 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS4;
-var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 
 // src/repositories/ingest.ts

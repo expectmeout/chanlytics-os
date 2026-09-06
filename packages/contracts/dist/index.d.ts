@@ -4624,41 +4624,6 @@ declare function slotLabels(t: {
     variables: unknown;
 }): string[];
 
-interface ChannelDto {
-    id: string;
-    kind: string;
-    number_e164: string | null;
-    status: string;
-    created_at: string;
-    /** Newest inbound on this channel: a WhatsApp message's channel_ts, or a
-     *  call's started_at. Null when nobody has used it yet. */
-    last_inbound_at: string | null;
-    /** What WhatsApp has said about the number, from the channel row's config:
-     *  the quality rating read at connection, the newest quality and limit
-     *  webhooks, and when. All null until Meta has said something. */
-    quality?: string | null;
-    quality_event?: string | null;
-    messaging_limit?: string | null;
-    quality_at?: string | null;
-}
-type ChannelHealth = "receiving" | "quiet" | "off" | "unused";
-interface ChannelVM {
-    id: string;
-    kind: string;
-    /** "WhatsApp Business" / "Phone line" / the kind, capitalised. */
-    name: string;
-    /** What it does, in one line. */
-    what: string;
-    icon: "chat" | "phone" | "mail" | "instagram";
-    number: string | null;
-    on: boolean;
-    health: ChannelHealth;
-    /** "Receiving · last message 2h ago" and the like. */
-    healthLabel: string;
-    lastInboundMs: number | null;
-}
-declare function toChannelVM(dto: ChannelDto, now?: Date): ChannelVM;
-
 interface ReportDayDto {
     day: string;
     messages_in: number;
@@ -4774,6 +4739,9 @@ interface ReportVM {
         rows: (string | number)[][];
     };
 }
+/** A calendar day ("2026-09-04") as a local date, without the UTC shift that
+ *  `new Date("2026-09-04")` would apply. */
+declare function dayDate(day: string): Date;
 declare function fmtDay(day: string): string;
 /** "12s", "1m 05s", "14m", "2h 10m". */
 declare function fmtSeconds(s: number | null | undefined): string;
@@ -4791,6 +4759,142 @@ declare function deltaOf(current: number, previous: number, upIsGood: boolean, n
  */
 declare function pointsDelta(current: number | null, previous: number | null, noun: string): ReportTileVM["delta"];
 declare function toReportVM(dto: ReportDto): ReportVM;
+
+/**
+ * Reports › Campaigns — what the offers earned, as facts.
+ *
+ * Messages sent by broadcasts and playbook runs, WhatsApp's own delivered
+ * and read receipts, who wrote back afterwards, and the people who said
+ * yes or asked to stop — over the period and the one before it, and the
+ * current period by source. Every number is a count over columns; the
+ * shares are counts over counts; nothing is scored or estimated. Colors are
+ * the page's.
+ */
+
+interface CampaignDayDto {
+    day: string;
+    sent: number;
+    delivered: number;
+    read: number;
+    replied: number;
+    opt_ins: number;
+    opt_outs: number;
+}
+interface CampaignSourceDto {
+    id: string;
+    kind: "playbook" | "broadcast";
+    name: string;
+    template_name: string | null;
+    runs: number;
+    sent: number;
+    delivered: number;
+    read: number;
+    replied: number;
+    last_at: string | null;
+}
+/** What `campaign_series(tenant, days)` returns. `series` spans TWO periods, newest last; `sources` is the current one. */
+interface CampaignReportDto {
+    timezone: string;
+    days: number;
+    span_days: number;
+    today: string;
+    series: CampaignDayDto[];
+    sources: CampaignSourceDto[];
+    error?: string;
+}
+interface CampaignPointVM {
+    day: string;
+    label: string;
+    short: string;
+    sent: number;
+    delivered: number;
+    replied: number;
+    optIns: number;
+    optOuts: number;
+}
+interface CampaignSourceVM {
+    id: string;
+    kind: "playbook" | "broadcast";
+    kindLabel: string;
+    name: string;
+    templateName: string | null;
+    /** The template's words for people; the page may swap in the workspace's own title. */
+    template: string;
+    runs: number;
+    sent: number;
+    delivered: number;
+    read: number;
+    replied: number;
+    deliveredPct: number | null;
+    readPct: number | null;
+    repliedPct: number | null;
+    lastLabel: string;
+    /** 0..1 of the source that sent the most. */
+    share: number;
+}
+interface CampaignTotals {
+    sent: number;
+    delivered: number;
+    replied: number;
+    sends: number;
+    optIns: number;
+    optOuts: number;
+}
+interface CampaignReportVM {
+    days: number;
+    tiles: ReportTileVM[];
+    points: CampaignPointVM[];
+    totals: CampaignTotals;
+    sources: CampaignSourceVM[];
+    /** Nothing went out and nobody answered about offers: no send, no yes, no stop. */
+    empty: boolean;
+    max: number;
+    table: {
+        columns: string[];
+        rows: (string | number)[][];
+    };
+}
+declare function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM;
+declare const CAMPAIGN_REPORT_RANGES: readonly {
+    days: number;
+    id: string;
+    label: string;
+}[];
+
+interface ChannelDto {
+    id: string;
+    kind: string;
+    number_e164: string | null;
+    status: string;
+    created_at: string;
+    /** Newest inbound on this channel: a WhatsApp message's channel_ts, or a
+     *  call's started_at. Null when nobody has used it yet. */
+    last_inbound_at: string | null;
+    /** What WhatsApp has said about the number, from the channel row's config:
+     *  the quality rating read at connection, the newest quality and limit
+     *  webhooks, and when. All null until Meta has said something. */
+    quality?: string | null;
+    quality_event?: string | null;
+    messaging_limit?: string | null;
+    quality_at?: string | null;
+}
+type ChannelHealth = "receiving" | "quiet" | "off" | "unused";
+interface ChannelVM {
+    id: string;
+    kind: string;
+    /** "WhatsApp Business" / "Phone line" / the kind, capitalised. */
+    name: string;
+    /** What it does, in one line. */
+    what: string;
+    icon: "chat" | "phone" | "mail" | "instagram";
+    number: string | null;
+    on: boolean;
+    health: ChannelHealth;
+    /** "Receiving · last message 2h ago" and the like. */
+    healthLabel: string;
+    lastInboundMs: number | null;
+}
+declare function toChannelVM(dto: ChannelDto, now?: Date): ChannelVM;
 
 /** A live call whose heartbeat is older than this is "still marked live · checking". */
 declare const LIVE_STALE_MS: number;
@@ -4868,4 +4972,4 @@ declare function fmtClock(seconds: number): string;
 declare function toLiveCallVM(dto: CallDto, now?: Date): LiveCallVM;
 declare function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, now?: Date): LiveVM;
 
-export { ACTOR_TYPES, ALERT_KINDS, ANALYSIS_GRACE_MS, ASK_CAPS, ASK_CITATION_KINDS, ASK_FINISH_JSON_SCHEMA, ASK_LANGUAGES, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_PAGES, ASK_PAGE_ROUTES, ASK_RETENTION_DAYS, ASK_TOKENS_DAY, ASK_TURN_BUDGET_MS, AUDIENCE_KINDS, type ActorType, AppError, type AskCitation, type AskCitationKind, type AskFinish, AskFinishSchema, type AskLanguage, type AskMessageVM, type AskProposal, type AskProposalOutcome, AskProposalOutcomeSchema, type AskReadSet, type AskRole, type AskScope, type AskSettingsChange, AskSettingsChangeSchema, type AskSuggestion, type AskSurface, type AskThreadVM, type Audience, type AudienceKind, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, BROADCAST_CHUNK, BROADCAST_GAP_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_STATES, BROADCAST_STATE_LABELS, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastRecipientDto, type BroadcastState, type BroadcastVM, type BusinessProfile, BusinessProfileSchema, type BusyBlock, CALL_HEARTBEAT_MS, CHANNEL_KINDS, CONFIDENCE_STEPS, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, CONVERSATION_STATES, type CalendarConfig, CalendarConfigSchema, type CallDto, type CallVM, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelVM, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, E164, EMPTY_READ_STATE, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, EVERYONE_LABEL, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type FastCall, type FastContext, type FastPath, type FeaturesConfig, FeaturesConfigSchema, type FeedCall, type FeedInput, type FeedInvite, type FeedThread, type FreeWindowsInput, GuardrailsSchema, HELD_REASONS, type Hours, type HoursRun, HoursSchema, INTENT_LABELS, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, type JumpEntry, LIMIT_TIERS, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MediaVM, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type Note, NoteSchema, type NotificationItem, type NotificationKind, type NotificationReadState, type NotificationRow, type NotificationsConfig, NotificationsConfigSchema, type NumberHealth, type NumberHealthInput, OFFERS_OPT_IN_PHRASES, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, type Opening, PARAM_SOURCES, PARAM_SOURCE_LABELS, PEOPLE_LISTS, PEOPLE_TABS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_STATE_LABELS, PLAYBOOK_BREATH_MS, PLAYBOOK_CLASS_LABEL, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_NAME_MAX, PLAYBOOK_STATES, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, POLICY_CLASSES, POLICY_MODES, PROPOSAL_GATE, type ParamFacts, type ParamSourceKind, type ParamSpec, type ParseOptions, type ParsedFeed, type PeopleAggregates, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PlaybookDto, type PlaybookPolicyClass, type PlaybookState, type PlaybookTrigger, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, QUIET_AFTER_MS, RECENT_MAX, RECIPIENT_STATES, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPORT_RANGES, ROLES, ROLE_PERMS, type ReceptionistTone, type RecipientState, type ReplyWhyVM, type ReportBarVM, type ReportDayDto, type ReportDto, type ReportPointVM, type ReportTileVM, type ReportVM, type Role, type RunPlan, STARTER_LANGUAGES, STARTER_TEMPLATES, type Service, ServiceSchema, type StarterSlot, type StarterSlotKind, type StarterTemplate, type StarterText, type SuggestionInput, TEMPLATE_BODY_MAX, TEMPLATE_CATEGORIES, TEMPLATE_EXAMPLE_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_LANGUAGES, TEMPLATE_NAME_MAX, TEMPLATE_STATUSES, TEMPLATE_TITLE_MAX, TENANT_STATUSES, type TemplateCategoryChoice, type TemplateDraft, type TemplateDraftCheck, type TemplateDraftInput, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TimelineKind, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, type Touches, WA_WINDOW_MS, type WaWindow, ago, agoLabel, applyReadState, applySettingsChange, asPersonMode, askJump, brainMetaOf, broadcastName, buildAskSuggestions, buildNotificationFeed, citationRoute, citationsToShow, cleanAnswer, cleanParam, compareTemplates, composeSystemPrompt, consentSourceLabel, contactMeta, contactName, dailyLimit, dayFromQuestion, dayInZone, defaultParamSpecs, defaultSlotKinds, defaultTemplate, deltaOf, describeNow, describeOpenings, describeSettingsChange, detectLanguage, draftSendsAtMs, eligibleFor, eligibleForPlaybook, emptyReadSet, err, exampleParams, fastPath, filterOpenings, firstNameOf, fmtClock, fmtDay, fmtSeconds, followupsToShow, formatPhoneDisplay, formatWaited, frameSteer, frameWhisper, freeWindows, groundCitations, guessSlotKind, hasProfile, hoursRuns, initialsOf, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, isUngrounded, localDate, localHour, localToUtcMs, mayReceiveOffers, mediaKind, mediaVM, messageAt, messageStatusLabel, messageText, navigateLabel, newReceptionistDefaults, nextRunLabel, normalizeNavigate, normalizePhone, numberHealth, ok, optInLink, overLimitRefusal, paramLabel, parseAskFinish, parseBrainOutput, parseIcs, parseParamSpec, parseTenantConfig, parseTenantConfigResult, partialAnswer, peopleAggregates, personName, personStateFor, placeholdersOf, placeholdersSequential, planRun, pointsDelta, quantile, reachedCustomer, reasonShort, recencyCells, recoverCitations, renderTemplate, replyDelayMs, replyWhy, resolveParams, resolveSystemPrompt, runDueNow, safeNavigate, sameQuestion, scheduleLine, scopeFromRoute, shortTime, slotLabels, slugTemplateName, starterByKey, starterByName, starterDraft, starterForTrigger, starterIndex, starterPreview, starterText, templateComponents, templateNameOk, templateTitle, threadStanding, toBroadcastVM, toCallVM, toChannelVM, toConversationVM, toInboxThreadVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, triggerOf, validateTemplateDraft, violatesNoPrices, waWindow, whenLabel, whisperText, zoneOffsetMs };
+export { ACTOR_TYPES, ALERT_KINDS, ANALYSIS_GRACE_MS, ASK_CAPS, ASK_CITATION_KINDS, ASK_FINISH_JSON_SCHEMA, ASK_LANGUAGES, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_PAGES, ASK_PAGE_ROUTES, ASK_RETENTION_DAYS, ASK_TOKENS_DAY, ASK_TURN_BUDGET_MS, AUDIENCE_KINDS, type ActorType, AppError, type AskCitation, type AskCitationKind, type AskFinish, AskFinishSchema, type AskLanguage, type AskMessageVM, type AskProposal, type AskProposalOutcome, AskProposalOutcomeSchema, type AskReadSet, type AskRole, type AskScope, type AskSettingsChange, AskSettingsChangeSchema, type AskSuggestion, type AskSurface, type AskThreadVM, type Audience, type AudienceKind, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, BROADCAST_CHUNK, BROADCAST_GAP_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_STATES, BROADCAST_STATE_LABELS, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastRecipientDto, type BroadcastState, type BroadcastVM, type BusinessProfile, BusinessProfileSchema, type BusyBlock, CALL_HEARTBEAT_MS, CAMPAIGN_REPORT_RANGES, CHANNEL_KINDS, CONFIDENCE_STEPS, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, CONVERSATION_STATES, type CalendarConfig, CalendarConfigSchema, type CallDto, type CallVM, type CampaignDayDto, type CampaignPointVM, type CampaignReportDto, type CampaignReportVM, type CampaignSourceDto, type CampaignSourceVM, type CampaignTotals, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelVM, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, type DecisionSubject, type DecisionVerb, E164, EMPTY_READ_STATE, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, EVERYONE_LABEL, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventKind, type FastCall, type FastContext, type FastPath, type FeaturesConfig, FeaturesConfigSchema, type FeedCall, type FeedInput, type FeedInvite, type FeedThread, type FreeWindowsInput, GuardrailsSchema, HELD_REASONS, type Hours, type HoursRun, HoursSchema, INTENT_LABELS, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, type JumpEntry, LIMIT_TIERS, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, type MediaVM, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type Note, NoteSchema, type NotificationItem, type NotificationKind, type NotificationReadState, type NotificationRow, type NotificationsConfig, NotificationsConfigSchema, type NumberHealth, type NumberHealthInput, OFFERS_OPT_IN_PHRASES, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, type Opening, PARAM_SOURCES, PARAM_SOURCE_LABELS, PEOPLE_LISTS, PEOPLE_TABS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_STATE_LABELS, PLAYBOOK_BREATH_MS, PLAYBOOK_CLASS_LABEL, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_NAME_MAX, PLAYBOOK_STATES, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, POLICY_CLASSES, POLICY_MODES, PROPOSAL_GATE, type ParamFacts, type ParamSourceKind, type ParamSpec, type ParseOptions, type ParsedFeed, type PeopleAggregates, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PlaybookDto, type PlaybookPolicyClass, type PlaybookState, type PlaybookTrigger, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, QUIET_AFTER_MS, RECENT_MAX, RECIPIENT_STATES, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPORT_RANGES, ROLES, ROLE_PERMS, type ReceptionistTone, type RecipientState, type ReplyWhyVM, type ReportBarVM, type ReportDayDto, type ReportDto, type ReportPointVM, type ReportTileVM, type ReportVM, type Role, type RunPlan, STARTER_LANGUAGES, STARTER_TEMPLATES, type Service, ServiceSchema, type StarterSlot, type StarterSlotKind, type StarterTemplate, type StarterText, type SuggestionInput, TEMPLATE_BODY_MAX, TEMPLATE_CATEGORIES, TEMPLATE_EXAMPLE_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_LANGUAGES, TEMPLATE_NAME_MAX, TEMPLATE_STATUSES, TEMPLATE_TITLE_MAX, TENANT_STATUSES, type TemplateCategoryChoice, type TemplateDraft, type TemplateDraftCheck, type TemplateDraftInput, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TimelineKind, type TodayCallRowVM, type TodayFactVM, type TodayNeedsRowVM, type TodaySentenceVM, type TodayVM, type Touches, WA_WINDOW_MS, type WaWindow, ago, agoLabel, applyReadState, applySettingsChange, asPersonMode, askJump, brainMetaOf, broadcastName, buildAskSuggestions, buildNotificationFeed, citationRoute, citationsToShow, cleanAnswer, cleanParam, compareTemplates, composeSystemPrompt, consentSourceLabel, contactMeta, contactName, dailyLimit, dayDate, dayFromQuestion, dayInZone, defaultParamSpecs, defaultSlotKinds, defaultTemplate, deltaOf, describeNow, describeOpenings, describeSettingsChange, detectLanguage, draftSendsAtMs, eligibleFor, eligibleForPlaybook, emptyReadSet, err, exampleParams, fastPath, filterOpenings, firstNameOf, fmtClock, fmtDay, fmtSeconds, followupsToShow, formatPhoneDisplay, formatWaited, frameSteer, frameWhisper, freeWindows, groundCitations, guessSlotKind, hasProfile, hoursRuns, initialsOf, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, isUngrounded, localDate, localHour, localToUtcMs, mayReceiveOffers, mediaKind, mediaVM, messageAt, messageStatusLabel, messageText, navigateLabel, newReceptionistDefaults, nextRunLabel, normalizeNavigate, normalizePhone, numberHealth, ok, optInLink, overLimitRefusal, paramLabel, parseAskFinish, parseBrainOutput, parseIcs, parseParamSpec, parseTenantConfig, parseTenantConfigResult, partialAnswer, peopleAggregates, personName, personStateFor, placeholdersOf, placeholdersSequential, planRun, pointsDelta, quantile, reachedCustomer, reasonShort, recencyCells, recoverCitations, renderTemplate, replyDelayMs, replyWhy, resolveParams, resolveSystemPrompt, runDueNow, safeNavigate, sameQuestion, scheduleLine, scopeFromRoute, shortTime, slotLabels, slugTemplateName, starterByKey, starterByName, starterDraft, starterForTrigger, starterIndex, starterPreview, starterText, templateComponents, templateNameOk, templateTitle, threadStanding, toBroadcastVM, toCallVM, toCampaignReportVM, toChannelVM, toConversationVM, toInboxThreadVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, triggerOf, validateTemplateDraft, violatesNoPrices, waWindow, whenLabel, whisperText, zoneOffsetMs };

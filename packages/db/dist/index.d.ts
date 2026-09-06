@@ -1924,6 +1924,13 @@ type Database = {
                 };
                 Returns: number;
             };
+            campaign_series: {
+                Args: {
+                    p_days?: number;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
             claim_job: {
                 Args: {
                     p_job_id: string;

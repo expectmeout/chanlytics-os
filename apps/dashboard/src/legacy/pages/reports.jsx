@@ -378,7 +378,7 @@ const rpTopRound = (x, y, w, h, r) => {
 
 const RpSpark = ({ points }) => {
   if (!points || points.length < 2) return null;
-  const w = 120, h = 32, pad = 3;
+  const w = 88, h = 24, pad = 3;
   const max = Math.max(1, ...points);
   const step = (w - pad * 2) / (points.length - 1);
   const xy = points.map((v, i) => [pad + i * step, pad + (h - pad * 2) * (1 - v / max)]);
@@ -572,6 +572,52 @@ const RpBuckets = ({ rt }) => {
   );
 };
 
+// A section: one line of small capitals and a hairline, the way the rest of
+// the OS labels its rails — the page reads as three questions, not a grid
+// of cards.
+const RpSection = ({ label, meta }) => (
+  <div className="rp2-section" role="separator" aria-label={label}>
+    <span className="rp2-section-label">{label}</span>
+    {meta ? <span className="rp2-section-meta">{meta}</span> : null}
+  </div>
+);
+
+// A share in a table cell: the number, with a thin bar behind it.
+const RpShare = ({ pct, n, of }) => (
+  <span className="rp2-share" title={pct === null ? "nothing sent" : `${n} of ${of}`}>
+    <span className="rp2-share-track"><span className="rp2-share-fill" style={{ width: `${pct === null ? 0 : Math.max(pct ? 2 : 0, pct)}%` }} /></span>
+    <span className="rp2-share-num tabular">{pct === null ? "—" : `${pct}%`}</span>
+  </span>
+);
+
+// The current period by source: a playbook's runs together, a one-off
+// broadcast alone; the shares are of that source's own sent.
+const RpSources = ({ rows }) => {
+  if (!rows.length) return <div className="rp2-empty">No broadcast or playbook run reached anyone in this period.</div>;
+  const title = (s) => (window.__starters && s.templateName ? window.__starters.title(s.templateName) : s.template);
+  return (
+    <div className="rp2-tablewrap">
+      <table className="rp2-table rp2-sources">
+        <thead><tr><th>Source</th><th className="num">Sent</th><th>Delivered</th><th>Replied</th><th>Last</th></tr></thead>
+        <tbody>
+          {rows.map((s) => (
+            <tr key={s.id} data-testid="source-row">
+              <td>
+                <span className="rp2-src-name">{s.name}</span>
+                <span className="rp2-src-meta">{s.kindLabel}{s.kind === "playbook" ? ` · ${s.runs} run${s.runs === 1 ? "" : "s"}` : ""}{title(s) ? ` · ${title(s)}` : ""}</span>
+              </td>
+              <td className="num">{s.sent}</td>
+              <td><RpShare pct={s.deliveredPct} n={s.delivered} of={s.sent} /></td>
+              <td><RpShare pct={s.repliedPct} n={s.replied} of={s.sent} /></td>
+              <td className="rp2-src-last">{s.lastLabel}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 const RP2_RANGES = [[7, "7 days"], [30, "30 days"], [90, "90 days"]];
 
 const ReportsReal = () => {
@@ -584,6 +630,7 @@ const ReportsReal = () => {
   React.useEffect(() => { setBusy(false); }, [fetchedAt]);
   if (!R) return null;
   const vm = R.vm;
+  const cm = R.campaigns || null;
   const pick = async (days) => {
     if (days === R.days || !window.__setReportDays) return;
     setBusy(true);
@@ -599,7 +646,7 @@ const ReportsReal = () => {
       <div className="cl-head">
         <div className="cl-head-titles">
           <div className="cl-page-title">Reports</div>
-          <div className="cl-page-sub" title={`Days follow ${vm.timezone}`}>What the receptionist handled, day by day · {vm.since} – {vm.until}</div>
+          <div className="cl-page-sub" title={`Days follow ${vm.timezone}`}>What the receptionist handled and what the offers earned · {vm.since} – {vm.until}</div>
         </div>
         <div className="rp2-range cl-tabs" role="group" aria-label="Period">
           {RP2_RANGES.map(([d, l]) => (
@@ -614,16 +661,17 @@ const ReportsReal = () => {
       </div>
 
       <div className={`rp-body rp2-body ${busy ? "rp2-loading" : ""}`} aria-busy={busy ? "true" : "false"}>
-        <div className="rp2-tiles">{vm.tiles.map((t) => <RpTile key={t.id} t={t} />)}</div>
+        <RpSection label="The receptionist" meta={`last ${vm.rangeLabel}`} />
+        <div className="rp2-tiles rp2-strip-reception">{vm.tiles.map((t) => <RpTile key={t.id} t={t} />)}</div>
 
         {vm.empty ? (
           <section className="fl-card rp2-card">
             <div className="fl-card-head"><span className="fl-card-title">Nothing came in</span></div>
-            <div className="rp2-empty">Nobody wrote or called between {vm.since} and {vm.until}, so there is nothing to chart. The tiles above are real zeros.</div>
+            <div className="rp2-empty">Nobody wrote or called between {vm.since} and {vm.until}, so there is nothing to chart. The numbers above are real zeros.</div>
           </section>
         ) : (
           <>
-            <RpCard title="Who answered, day by day" sub={`${vm.answered.totals.in} customer messages · last ${vm.rangeLabel}`} testid="chart-answered" table={vm.table} className="rp2-main">
+            <RpCard title="Who answered, day by day" sub={`${vm.answered.totals.in} customer messages`} testid="chart-answered" table={vm.table} className="rp2-main">
               <div className="rp2-legend">
                 <span className="rp2-key"><i className="rp2-swatch ai" />Receptionist <b>{vm.answered.totals.ai}</b></span>
                 <span className="rp2-key"><i className="rp2-swatch you" />You <b>{vm.answered.totals.you}</b></span>
@@ -646,7 +694,42 @@ const ReportsReal = () => {
                 <RpBuckets rt={vm.replyTime} />
               </RpCard>
             </div>
+          </>
+        )}
 
+        <RpSection label="Campaigns" meta="what the offers earned" />
+        {cm ? (
+          <>
+            <div className="rp2-tiles rp2-strip-campaigns five" data-testid="campaign-tiles">{cm.tiles.map((t) => <RpTile key={t.id} t={t} />)}</div>
+            {cm.empty ? (
+              <section className="fl-card rp2-card" data-testid="chart-campaigns">
+                <div className="fl-card-head"><span className="fl-card-title">Nothing went out</span></div>
+                <div className="rp2-empty">
+                  No broadcast or playbook run reached anyone between {vm.since} and {vm.until}, and nobody said yes or asked to stop.{" "}
+                  <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("broadcasts")}>Open Broadcasts</button>
+                </div>
+              </section>
+            ) : (
+              <div className="rp2-row rp2-row-wide">
+                <RpCard title="Sent, day by day" sub={cm.totals.sent ? `${cm.totals.sent} messages · ${cm.totals.replied} wrote back` : "nothing sent"} testid="chart-campaigns" table={cm.table}>
+                  {cm.totals.sent
+                    ? <RpColumns points={cm.points} field="sent" max={cm.max} days={vm.days} label="messages sent" />
+                    : <div className="rp2-empty">No message went out in this period; the yeses and stops above are the people's own.</div>}
+                </RpCard>
+                <RpCard title="By playbook and broadcast" sub={cm.sources.length ? `${cm.sources.length} source${cm.sources.length === 1 ? "" : "s"} · shares of each one's own sent` : ""} testid="chart-sources"
+                  table={{ columns: ["Source", "Kind", "Sends", "Sent", "Delivered", "Replied"], rows: cm.sources.map((x) => [x.name, x.kindLabel, x.runs, x.sent, x.delivered, x.replied]) }}>
+                  <RpSources rows={cm.sources} />
+                </RpCard>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="rp2-empty" data-testid="chart-campaigns">Campaign numbers could not be read right now.</div>
+        )}
+
+        {!vm.empty && (
+          <>
+            <RpSection label="Calls and people" />
             <div className="rp2-row">
               <RpCard title="Calls" sub={vm.calls.total ? `${vm.calls.total} calls · ${vm.calls.minutes} min · ${vm.calls.voicemail} to voicemail` : "no calls in this period"} testid="chart-calls"
                 table={{ columns: ["Day", "Calls", "Seconds"], rows: vm.calls.points.map((p) => [p.label, p.calls, p.callSeconds]) }}>
@@ -654,7 +737,7 @@ const ReportsReal = () => {
                   <>
                     <RpColumns points={vm.calls.points} field="calls" max={vm.calls.max} days={vm.days} label="calls" />
                     {vm.calls.sentiments.length > 0 && (
-                      <div className="rp2-foot">Caller mood, the voice provider's own read: {vm.calls.sentiments.map((s) => `${s.label} ${s.value}`).join(" · ")}</div>
+                      <div className="rp2-foot">Caller mood, the voice provider's own read: {vm.calls.sentiments.map((x) => `${x.label} ${x.value}`).join(" · ")}</div>
                     )}
                   </>
                 ) : <div className="rp2-empty">Nobody phoned in this period.</div>}

@@ -262,6 +262,9 @@ import {
   REPORT_RANGES,
   type ReportDto,
   type ReportVM,
+  toCampaignReportVM,
+  type CampaignReportDto,
+  type CampaignReportVM,
 } from "@chanlytics/contracts";
 import { EVERYONE_LABEL, HELD_REASONS, OFFERS_OPT_IN_PHRASES, eligibleFor, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, type AudienceKind, type BroadcastDto, type BroadcastVM, type NumberHealth } from "@chanlytics/contracts";
 import { PLAYBOOK_TRIGGERS, eligibleForPlaybook, nextRunLabel, scheduleLine, triggerOf, type PlaybookDto } from "@chanlytics/contracts";
@@ -865,6 +868,8 @@ export function setReportDays(days: number): void {
 
 export interface ReportsSurface {
   vm: ReportVM;
+  /** What the offers earned over the same period. */
+  campaigns: CampaignReportVM;
   days: number;
   fetchedAt: number;
 }
@@ -885,9 +890,13 @@ export const reportsOverride: SurfaceOverride = {
   debounceMs: 800,
   apply: async () => {
     const days = reportDays;
-    const data = await fetchEnvelope<{ report: ReportDto }>(`/api/v1/reports?days=${days}`);
+    const [data, campaigns] = await Promise.all([
+      fetchEnvelope<{ report: ReportDto }>(`/api/v1/reports?days=${days}`),
+      fetchEnvelope<{ report: CampaignReportDto }>(`/api/v1/reports/campaigns?days=${days}`),
+    ]);
     (window as unknown as { __REPORTS?: ReportsSurface }).__REPORTS = {
       vm: toReportVM(data.report),
+      campaigns: toCampaignReportVM(campaigns.report),
       days,
       fetchedAt: Date.now(),
     };

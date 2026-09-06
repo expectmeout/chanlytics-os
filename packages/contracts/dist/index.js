@@ -3656,72 +3656,19 @@ function nextRunLabel(p, tz, now) {
 }
 var PLAYBOOK_CLASS_LABEL = { reengage: "Re-engage", campaign: "Campaigns" };
 
-// src/channels.ts
-var DAY_MS4 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS4;
-var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-function ago2(ms, nowMs) {
-  const diff = Math.max(0, nowMs - ms);
-  if (diff < 6e4) return "just now";
-  if (diff < 36e5) return `${Math.round(diff / 6e4)}m ago`;
-  if (diff < DAY_MS4) return `${Math.round(diff / 36e5)}h ago`;
-  if (diff < QUIET_AFTER_MS2) return `${Math.round(diff / DAY_MS4)}d ago`;
-  return DATE_FMT3.format(new Date(ms));
-}
-var KIND_META = {
-  whatsapp: { name: "WhatsApp Business", what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
-  voice: { name: "Phone line", what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
-  sms: { name: "SMS", what: "Text messages", icon: "chat", noun: "message" },
-  email: { name: "Email", what: "Email", icon: "mail", noun: "email" },
-  instagram: { name: "Instagram", what: "Direct messages", icon: "instagram", noun: "message" }
-};
-function toChannelVM(dto, now = /* @__PURE__ */ new Date()) {
-  const nowMs = now.getTime();
-  const meta = KIND_META[dto.kind] ?? { name: dto.kind.charAt(0).toUpperCase() + dto.kind.slice(1), what: "", icon: "chat", noun: "message" };
-  const last = dto.last_inbound_at ? new Date(dto.last_inbound_at).getTime() : null;
-  const on = dto.status === "active";
-  let health;
-  let healthLabel;
-  if (!on) {
-    health = "off";
-    healthLabel = "Switched off \u2014 messages are recorded and you are emailed; the receptionist stays silent";
-  } else if (last === null) {
-    health = "unused";
-    healthLabel = `On \u2014 no ${meta.noun} has arrived yet`;
-  } else if (nowMs - last <= QUIET_AFTER_MS2) {
-    health = "receiving";
-    healthLabel = `Receiving \xB7 last ${meta.noun} ${ago2(last, nowMs)}`;
-  } else {
-    health = "quiet";
-    healthLabel = `Quiet \xB7 last ${meta.noun} ${ago2(last, nowMs)}`;
-  }
-  return {
-    id: dto.id,
-    kind: dto.kind,
-    name: meta.name,
-    what: meta.what,
-    icon: meta.icon,
-    number: formatPhoneDisplay(dto.number_e164),
-    on,
-    health,
-    healthLabel,
-    lastInboundMs: last
-  };
-}
-
 // src/reports.ts
 var REPORT_RANGES = [
   { days: 7, id: "7d", label: "7 days" },
   { days: 30, id: "30d", label: "30 days" },
   { days: 90, id: "90d", label: "90 days" }
 ];
-var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 function dayDate(day) {
   const [y, m, d] = day.split("-").map(Number);
   return new Date(y, (m ?? 1) - 1, d ?? 1);
 }
 function fmtDay(day) {
-  return DATE_FMT4.format(dayDate(day));
+  return DATE_FMT3.format(dayDate(day));
 }
 function fmtSeconds(s) {
   if (s == null || !Number.isFinite(s)) return "\u2014";
@@ -3740,10 +3687,10 @@ function quantile(sorted, q) {
 }
 function deltaOf(current, previous, upIsGood, noun) {
   if (!previous) return null;
-  const pct = Math.round((current - previous) / previous * 100);
-  if (pct === 0) return { text: `same as the prior ${noun}`, tone: "" };
-  const up = pct > 0;
-  return { text: `${up ? "+" : ""}${pct}% vs prior ${noun}`, tone: up === upIsGood ? "pos" : "neg" };
+  const pct2 = Math.round((current - previous) / previous * 100);
+  if (pct2 === 0) return { text: `same as the prior ${noun}`, tone: "" };
+  const up = pct2 > 0;
+  return { text: `${up ? "+" : ""}${pct2}% vs prior ${noun}`, tone: up === upIsGood ? "pos" : "neg" };
 }
 function pointsDelta(current, previous, noun) {
   if (current === null || previous === null) return null;
@@ -3899,6 +3846,172 @@ function toReportVM(dto) {
     }
   };
 }
+
+// src/campaign-report.ts
+var sum2 = (xs) => xs.reduce((a, b) => a + b, 0);
+var pct = (n, d) => d ? Math.round(n / d * 100) : null;
+var WHEN = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+function toCampaignReportVM(dto) {
+  const days = dto.days;
+  const series = dto.series ?? [];
+  const current = series.slice(-days);
+  const previous = series.slice(0, Math.max(0, series.length - days));
+  const points = current.map((d) => ({
+    day: d.day,
+    label: fmtDay(d.day),
+    short: String(dayDate(d.day).getDate()),
+    sent: d.sent,
+    delivered: d.delivered,
+    replied: d.replied,
+    optIns: d.opt_ins,
+    optOuts: d.opt_outs
+  }));
+  const tot = {
+    sent: sum2(current.map((d) => d.sent)),
+    delivered: sum2(current.map((d) => d.delivered)),
+    replied: sum2(current.map((d) => d.replied)),
+    optIns: sum2(current.map((d) => d.opt_ins)),
+    optOuts: sum2(current.map((d) => d.opt_outs))
+  };
+  const prev = {
+    sent: sum2(previous.map((d) => d.sent)),
+    delivered: sum2(previous.map((d) => d.delivered)),
+    replied: sum2(previous.map((d) => d.replied)),
+    optIns: sum2(previous.map((d) => d.opt_ins)),
+    optOuts: sum2(previous.map((d) => d.opt_outs))
+  };
+  const noun = `${days} days`;
+  const rawSources = dto.sources ?? [];
+  const sends = sum2(rawSources.map((s) => s.runs));
+  const maxSent = Math.max(1, ...rawSources.map((s) => s.sent));
+  const sources = rawSources.map((s) => ({
+    id: s.id,
+    kind: s.kind,
+    kindLabel: s.kind === "playbook" ? "Playbook" : "Broadcast",
+    name: s.name,
+    templateName: s.template_name,
+    template: s.template_name ? templateTitle(s.template_name) : "",
+    runs: s.runs,
+    sent: s.sent,
+    delivered: s.delivered,
+    read: s.read,
+    replied: s.replied,
+    deliveredPct: pct(s.delivered, s.sent),
+    readPct: pct(s.read, s.sent),
+    repliedPct: pct(s.replied, s.sent),
+    lastLabel: s.last_at ? WHEN.format(new Date(s.last_at)) : "",
+    share: s.sent / maxSent
+  }));
+  const tiles = [
+    {
+      id: "sent",
+      label: "Messages sent",
+      value: String(tot.sent),
+      meta: tot.sent ? `over ${sends} ${sends === 1 ? "send" : "sends"}` : "none in this period",
+      delta: deltaOf(tot.sent, prev.sent, true, noun),
+      spark: points.map((p) => p.sent)
+    },
+    {
+      id: "delivered",
+      label: "Delivered",
+      value: pct(tot.delivered, tot.sent) === null ? "\u2014" : `${pct(tot.delivered, tot.sent)}%`,
+      meta: tot.sent ? `${tot.delivered} of ${tot.sent} \xB7 WhatsApp's receipts` : "nothing sent",
+      delta: pointsDelta(pct(tot.delivered, tot.sent), pct(prev.delivered, prev.sent), noun),
+      spark: points.map((p) => p.delivered)
+    },
+    {
+      id: "replied",
+      label: "Replied",
+      value: pct(tot.replied, tot.sent) === null ? "\u2014" : `${pct(tot.replied, tot.sent)}%`,
+      meta: tot.sent ? `${tot.replied} wrote back` : "nothing sent",
+      delta: pointsDelta(pct(tot.replied, tot.sent), pct(prev.replied, prev.sent), noun),
+      spark: points.map((p) => p.replied)
+    },
+    {
+      id: "optins",
+      label: "Said yes",
+      value: String(tot.optIns),
+      meta: tot.optIns ? "at the desk, or in their own words" : "nobody in this period",
+      delta: deltaOf(tot.optIns, prev.optIns, true, noun),
+      spark: points.map((p) => p.optIns)
+    },
+    {
+      id: "optouts",
+      label: "Asked to stop",
+      value: String(tot.optOuts),
+      meta: tot.optOuts ? "STOP, or recorded at the desk" : "nobody in this period",
+      delta: deltaOf(tot.optOuts, prev.optOuts, false, noun),
+      spark: points.map((p) => p.optOuts)
+    }
+  ];
+  return {
+    days,
+    tiles,
+    points,
+    totals: { ...tot, sends },
+    sources,
+    empty: tot.sent === 0 && tot.optIns === 0 && tot.optOuts === 0,
+    max: Math.max(1, ...points.map((p) => p.sent)),
+    table: {
+      columns: ["Day", "Sent", "Delivered", "Replied", "Said yes", "Asked to stop"],
+      rows: points.map((p) => [p.label, p.sent, p.delivered, p.replied, p.optIns, p.optOuts])
+    }
+  };
+}
+var CAMPAIGN_REPORT_RANGES = REPORT_RANGES;
+
+// src/channels.ts
+var DAY_MS4 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS4;
+var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+function ago2(ms, nowMs) {
+  const diff = Math.max(0, nowMs - ms);
+  if (diff < 6e4) return "just now";
+  if (diff < 36e5) return `${Math.round(diff / 6e4)}m ago`;
+  if (diff < DAY_MS4) return `${Math.round(diff / 36e5)}h ago`;
+  if (diff < QUIET_AFTER_MS2) return `${Math.round(diff / DAY_MS4)}d ago`;
+  return DATE_FMT4.format(new Date(ms));
+}
+var KIND_META = {
+  whatsapp: { name: "WhatsApp Business", what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
+  voice: { name: "Phone line", what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  sms: { name: "SMS", what: "Text messages", icon: "chat", noun: "message" },
+  email: { name: "Email", what: "Email", icon: "mail", noun: "email" },
+  instagram: { name: "Instagram", what: "Direct messages", icon: "instagram", noun: "message" }
+};
+function toChannelVM(dto, now = /* @__PURE__ */ new Date()) {
+  const nowMs = now.getTime();
+  const meta = KIND_META[dto.kind] ?? { name: dto.kind.charAt(0).toUpperCase() + dto.kind.slice(1), what: "", icon: "chat", noun: "message" };
+  const last = dto.last_inbound_at ? new Date(dto.last_inbound_at).getTime() : null;
+  const on = dto.status === "active";
+  let health;
+  let healthLabel;
+  if (!on) {
+    health = "off";
+    healthLabel = "Switched off \u2014 messages are recorded and you are emailed; the receptionist stays silent";
+  } else if (last === null) {
+    health = "unused";
+    healthLabel = `On \u2014 no ${meta.noun} has arrived yet`;
+  } else if (nowMs - last <= QUIET_AFTER_MS2) {
+    health = "receiving";
+    healthLabel = `Receiving \xB7 last ${meta.noun} ${ago2(last, nowMs)}`;
+  } else {
+    health = "quiet";
+    healthLabel = `Quiet \xB7 last ${meta.noun} ${ago2(last, nowMs)}`;
+  }
+  return {
+    id: dto.id,
+    kind: dto.kind,
+    name: meta.name,
+    what: meta.what,
+    icon: meta.icon,
+    number: formatPhoneDisplay(dto.number_e164),
+    on,
+    health,
+    healthLabel,
+    lastInboundMs: last
+  };
+}
 export {
   ACTOR_TYPES,
   ALERT_KINDS,
@@ -3935,6 +4048,7 @@ export {
   BrainOutputSchema,
   BusinessProfileSchema,
   CALL_HEARTBEAT_MS,
+  CAMPAIGN_REPORT_RANGES,
   CHANNEL_KINDS,
   CONFIDENCE_STEPS,
   CONSENT_RESET_SOURCE,
@@ -4044,6 +4158,7 @@ export {
   contactMeta,
   contactName,
   dailyLimit,
+  dayDate,
   dayFromQuestion,
   dayInZone,
   defaultParamSpecs,
@@ -4148,6 +4263,7 @@ export {
   threadStanding,
   toBroadcastVM,
   toCallVM,
+  toCampaignReportVM,
   toChannelVM,
   toConversationVM,
   toInboxThreadVM,
