@@ -277,6 +277,9 @@ export interface RetellAgentConfig {
   /** Days the provider keeps a call; null = forever. */
   data_storage_retention_days: number | null;
   opt_in_signed_url: boolean | null;
+  /** The post-call analysis schema on the agent, as stored; the planner
+   *  checks ours are on it (voice-shell.ts CALL_ANALYSIS_FIELDS). */
+  post_call_analysis_data: unknown[] | null;
 }
 
 /** GET /get-agent — the fields above, read-only. Null when the provider says no. */
@@ -305,7 +308,58 @@ export async function getAgent(cfg: RetellConfig, agentId: string): Promise<Rete
     data_storage_setting: str("data_storage_setting"),
     data_storage_retention_days: num("data_storage_retention_days"),
     opt_in_signed_url: bool("opt_in_signed_url"),
+    post_call_analysis_data: Array.isArray(a.post_call_analysis_data) ? (a.post_call_analysis_data as unknown[]) : null,
   };
+}
+
+/**
+ * GET /get-agent, the whole object — for the converge endpoint, which must
+ * carry every field back to the provider. Never printed by a diagnostic:
+ * the webhook URL may carry a secret in its query string.
+ */
+export async function getAgentRaw(cfg: RetellConfig, agentId: string): Promise<Record<string, unknown> | null> {
+  const r = await fetch(`${API}/get-agent/${agentId}`, {
+    headers: { Authorization: `Bearer ${cfg.apiKey}` },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!r.ok) return null;
+  const a = (await r.json()) as unknown;
+  return a !== null && typeof a === "object" && !Array.isArray(a) ? (a as Record<string, unknown>) : null;
+}
+
+/** What a provider write answered: the status and the body, never an exception in a route. */
+export interface RetellWrite {
+  ok: boolean;
+  status: number;
+  body: Record<string, unknown> | null;
+}
+
+async function writeAgent(cfg: RetellConfig, method: "POST" | "PATCH", path: string, payload: unknown): Promise<RetellWrite> {
+  const r = await fetch(`${API}${path}`, {
+    method,
+    headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(8000),
+  });
+  const text = await r.text();
+  let body: Record<string, unknown> | null = null;
+  try { const parsed = JSON.parse(text) as unknown; body = parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null; } catch { body = text ? { text: text.slice(0, 300) } : null; }
+  return { ok: r.ok, status: r.status, body };
+}
+
+/** POST /create-agent-version — a new draft from a version; a published version cannot change. */
+export function createAgentVersion(cfg: RetellConfig, agentId: string, baseVersion: number): Promise<RetellWrite> {
+  return writeAgent(cfg, "POST", `/create-agent-version/${agentId}`, { base_version: baseVersion });
+}
+
+/** PATCH /update-agent — the latest (draft) version takes the patch. */
+export function updateAgent(cfg: RetellConfig, agentId: string, patch: Record<string, unknown>): Promise<RetellWrite> {
+  return writeAgent(cfg, "PATCH", `/update-agent/${agentId}`, patch);
+}
+
+/** POST /publish-agent-version — a number pinned to latest_published follows it. */
+export function publishAgentVersion(cfg: RetellConfig, agentId: string, version: number, title: string): Promise<RetellWrite> {
+  return writeAgent(cfg, "POST", `/publish-agent-version/${agentId}`, { version, version_title: title });
 }
 
 /** What an operator says to the agent mid-call, heard by the agent alone. */

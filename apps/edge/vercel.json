@@ -5,6 +5,9 @@
     },
     "api/admin/llm.ts": {
       "maxDuration": 60
+    },
+    "api/admin/voice-converge.ts": {
+      "maxDuration": 30
     }
   }
 }

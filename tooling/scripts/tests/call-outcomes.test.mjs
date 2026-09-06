@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { CALL_OUTCOMES, CALL_OUTCOME_WORDS, callOutcomeWords, tidyCallSummary, toCallVM, attentionRow, toPersonRowVM } from "@chanlytics/contracts";
-import { normalizeCall, callSummaryLine, planAgentSettings, CALL_ANALYSIS_FIELDS, VOICE_WEBHOOK_EVENTS } from "@chanlytics/channels";
+import { normalizeCall, callSummaryLine, planAgentSettings, CALL_ANALYSIS_FIELDS, VOICE_WEBHOOK_EVENTS, getAgent } from "@chanlytics/channels";
 import { readCode, readRaw } from "./_source.mjs";
 
 const NOW = new Date("2026-09-06T16:00:00Z");
@@ -121,4 +121,29 @@ test("the wiring: the door files the four columns and keeps them across retries,
   const dto = readCode("apps/dashboard/src/server/dto.ts");
   assert.ok(dto.includes("summary, wanted, outcome, follow_up, caller_name, transcript_object") && dto.includes("wanted: c.wanted ?? null,"));
   assert.ok(readCode("apps/edge/api/retell-webhook.ts").includes("const res = await ingestCall(db, routed.tenantId, n, call);"), "the webhook needs no change: the analysis rides the normalised call");
+});
+
+test("the agent reader carries the analysis schema, so the diagnostic's drift is true", async () => {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ agent_id: "agent_x", agent_name: "Melany's", version: 3, is_published: true, response_engine: { type: "retell-llm", llm_id: "llm_1", version: 2 }, webhook_url: "https://edge/api/retell-webhook?key=SECRET", webhook_events: ["call_started"], post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })) }), { status: 200 });
+  try {
+    const a = await getAgent({ apiKey: "k" }, "agent_x");
+    assert.equal(a.webhook_url, "https://edge/api/retell-webhook", "the query string never comes out");
+    assert.deepEqual(a.post_call_analysis_data.map((f) => f.name), CALL_ANALYSIS_FIELDS.map((f) => f.name));
+    assert.ok(!planAgentSettings(a).drift.some((d) => d.includes("post_call_analysis_data")), "an agent that has the fields is not told it lacks them");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test("the converge endpoint: the edge's key, a dry run by default, a draft for a published version, publish only when asked, the LLM never touched", () => {
+  const src = readCode("apps/edge/api/admin/voice-converge.ts");
+  assert.ok(src.includes('request.headers.get("x-diag-key") !== process.env.DIAG_KEY'), "diagnostic-key only");
+  assert.ok(src.includes("const apply = body.apply === true;") && src.includes("const publish = body.publish === true;"), "nothing moves unless asked, in two steps");
+  assert.ok(src.includes("planAgentSettings(before as unknown as LiveAgentSettings)"), "the same plan the script and the diagnostic use");
+  assert.ok(src.includes("if (before.is_published === true && working !== null) {") && src.includes("createAgentVersion(cfg, agentId, working)"), "a published version cannot change: a draft first");
+  assert.ok(src.includes("if (publish && working !== null && working !== before.version) {") && src.includes('publishAgentVersion(cfg, agentId, working, "converged from the edge")'));
+  assert.ok(!src.includes("update-retell-llm") && !src.includes("getRetellLlm"), "the shell and its secret header stay the script's");
+  assert.ok(src.includes("before: forRecord(before)") && src.includes('a.webhook_url.split("?")[0]'), "the backup rides in the response, its secret stripped");
+  assert.ok(readRaw("apps/edge/vercel.json").includes('"api/admin/voice-converge.ts"'), "several provider calls need more than the default budget");
 });

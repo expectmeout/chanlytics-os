@@ -4764,8 +4764,44 @@ async function getAgent(cfg, agentId) {
     webhook_timeout_ms: num("webhook_timeout_ms"),
     data_storage_setting: str("data_storage_setting"),
     data_storage_retention_days: num("data_storage_retention_days"),
-    opt_in_signed_url: bool("opt_in_signed_url")
+    opt_in_signed_url: bool("opt_in_signed_url"),
+    post_call_analysis_data: Array.isArray(a.post_call_analysis_data) ? a.post_call_analysis_data : null
   };
+}
+async function getAgentRaw(cfg, agentId) {
+  const r = await fetch(`${API}/get-agent/${agentId}`, {
+    headers: { Authorization: `Bearer ${cfg.apiKey}` },
+    signal: AbortSignal.timeout(8e3)
+  });
+  if (!r.ok) return null;
+  const a = await r.json();
+  return a !== null && typeof a === "object" && !Array.isArray(a) ? a : null;
+}
+async function writeAgent(cfg, method, path, payload) {
+  const r = await fetch(`${API}${path}`, {
+    method,
+    headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(8e3)
+  });
+  const text = await r.text();
+  let body = null;
+  try {
+    const parsed = JSON.parse(text);
+    body = parsed !== null && typeof parsed === "object" ? parsed : null;
+  } catch {
+    body = text ? { text: text.slice(0, 300) } : null;
+  }
+  return { ok: r.ok, status: r.status, body };
+}
+function createAgentVersion(cfg, agentId, baseVersion) {
+  return writeAgent(cfg, "POST", `/create-agent-version/${agentId}`, { base_version: baseVersion });
+}
+function updateAgent(cfg, agentId, patch) {
+  return writeAgent(cfg, "PATCH", `/update-agent/${agentId}`, patch);
+}
+function publishAgentVersion(cfg, agentId, version, title) {
+  return writeAgent(cfg, "POST", `/publish-agent-version/${agentId}`, { version, version_title: title });
 }
 async function updateLiveCall(cfg, callId, control) {
   const r = await fetch(`${API}/v2/update-live-call/${encodeURIComponent(callId)}`, {
@@ -5074,10 +5110,12 @@ export {
   agentSettingsDrift,
   availabilityUrl,
   callSummaryLine,
+  createAgentVersion,
   desiredVoiceShell,
   fetchMediaBytes,
   fetchRecording,
   getAgent,
+  getAgentRaw,
   getCall,
   getRetellLlm,
   listCalls,
@@ -5088,8 +5126,10 @@ export {
   parseTranscriptText,
   planAgentSettings,
   planVoiceConvergence,
+  publishAgentVersion,
   sendTemplate,
   sendText,
+  updateAgent,
   updateLiveCall,
   verifyRetellSignature,
   voiceShellDrift,
