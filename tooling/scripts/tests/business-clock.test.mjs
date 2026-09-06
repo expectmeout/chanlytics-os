@@ -105,7 +105,7 @@ test("the clock is sent as its OWN system block, uncached", () => {
 });
 
 test("both channels read the tenant's zone, and neither invents one", () => {
-  const wa = readCode("apps/edge/api/whatsapp.ts");
+  const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
   assert.ok(wa.includes('resolveSystemPrompt(brainCfg, "whatsapp", rt?.timezone, new Date(), rt?.policy)'));
   // The clock also carries the closures, so it can state a shut day in the
   // block the model reads LAST — where the weekly grid cannot outrank it.

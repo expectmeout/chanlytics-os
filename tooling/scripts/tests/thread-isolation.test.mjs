@@ -110,7 +110,7 @@ test("every store call site passes a namespace", () => {
   // form would compile against a string threadId and quietly write to a
   // namespace named after a phone number.
   const files = [
-    "api/whatsapp.ts", "api/retell-webhook.ts", "api/retell-inbound.ts",
+    "api/whatsapp.ts", "lib/whatsapp/inbound.ts", "api/retell-webhook.ts", "api/retell-inbound.ts",
     "api/admin/pause.ts", "api/diag.ts",
   ];
   /** Top-level arguments of a call, respecting nested parentheses —

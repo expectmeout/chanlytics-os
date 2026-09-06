@@ -104,14 +104,15 @@ test("the brain asks for the record, reads it through the parse, and keeps the o
 });
 
 test("the handler keeps the record on the row, holds a reply below the dial, and tells the escalation why", () => {
-  const wa = readCode("apps/edge/api/whatsapp.ts");
+  const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
+  const steps = readCode("apps/edge/lib/whatsapp/steps.ts");
   assert.ok(wa.includes("let brainMeta: BrainMeta | undefined;"));
   assert.ok(wa.includes("brainMeta = r.meta;"));
   assert.ok(readCode("apps/edge/lib/draft-queue.ts").includes("meta: { source: a.source, delay_ms: a.delayMs, ...(a.brainMeta ?? {}), ...(a.extra ?? {}) } as Json,"), "the draft row remembers");
-  assert.ok(wa.includes("...(brainMeta ? { meta: brainMeta as unknown as Json } : {}),"), "so does the sent row");
-  assert.ok(wa.includes('replyMode === "auto" && minConfidence > 0 && typeof brainMeta?.confidence === "number" && brainMeta.confidence < minConfidence;'));
-  assert.ok(wa.includes('delayMs = replyDelayMs("veto", replyLimits);'), "held in the configured window, not a made-up one");
-  assert.ok(wa.includes('heldForConfidence ? "low_confidence" : "veto_window", brainMeta)'));
+  assert.ok(readCode("apps/edge/lib/whatsapp/persist.ts").includes("...(brainMeta ? { meta: brainMeta as unknown as Json } : {}),"), "so does the sent row");
+  assert.ok(steps.includes('replyMode === "auto" && minConfidence > 0 && typeof brainMeta?.confidence === "number" && brainMeta.confidence < minConfidence;'));
+  assert.ok(steps.includes('delayMs = replyDelayMs("veto", replyLimits);'), "held in the configured window, not a made-up one");
+  assert.ok(steps.includes('source: heldForConfidence ? "low_confidence" : "veto_window"') && wa.includes("plan.source, brainMeta)"), "the draft remembers why it waited");
   assert.equal((wa.match(/brainMeta\?\.reason \? `\$\{brainMeta\.reason\} — "\$\{bodyText\}"` : bodyText/g) ?? []).length, 2, "both escalation paths carry the reason");
 });
 

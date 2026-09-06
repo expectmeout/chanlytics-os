@@ -23,7 +23,8 @@ import { readCode, readRaw } from "./_source.mjs";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { outboundGate } = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/outbound-gate.ts")).href);
 
-const wa = readCode("apps/edge/api/whatsapp.ts");
+const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
+const steps = readCode("apps/edge/lib/whatsapp/steps.ts");
 const fn = readCode("apps/edge/api/retell-fn.ts");
 
 test("WhatsApp: the person's mode is looked up before the first branch that can speak", () => {
@@ -43,11 +44,11 @@ test("WhatsApp: the non-text acknowledgement obeys the mode in force", () => {
 });
 
 test("WhatsApp: a person's hold is its own reason, alerted once per open hold", () => {
-  assert.ok(wa.includes('personHold ? "person_hold" : "policy_block"'));
-  assert.ok(wa.includes('const alertNeeded = !personHold || outcome !== "refreshed";'));
+  assert.ok(steps.includes('personHold ? "person_hold" : "policy_block"'));
+  assert.ok(wa.includes('const alertNeeded = !hold.personHold || outcome !== "refreshed";'));
   // The workspace-level hold keeps its per-message alert: that behaviour is
   // unchanged here on purpose.
-  assert.ok(wa.includes("const personHold = !!brainCfg && !!personMode;"));
+  assert.ok(steps.includes("const personHold = !!x.brainCfg && !!x.personMode;"));
 });
 
 test("voice: the booking-link send reads the person's mode, before the gate", () => {

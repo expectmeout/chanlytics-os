@@ -98,7 +98,8 @@ test("the message path's event names are unchanged by the conversion", () => {
   // customers. A late message is now answered (`wa_late_but_answering`) or
   // escalated (`wa_stale_escalated`), so an event meaning "silently dropped"
   // would have nothing to describe.
-  const src = fs.readFileSync(path.join(EDGE, "api/whatsapp.ts"), "utf8");
+  // The message path and the webhook: the names span both files now.
+  const src = fs.readFileSync(path.join(EDGE, "lib/whatsapp/inbound.ts"), "utf8") + fs.readFileSync(path.join(EDGE, "api/whatsapp.ts"), "utf8");
   const required = [
     "wa_replied", "wa_skip_dupe", "wa_skip_pg_dupe", "wa_skip_paused",
     "wa_skip_ratecap", "wa_skip_opt_out", "wa_held_by_policy", "wa_state_unavailable",
@@ -113,7 +114,7 @@ test("the message path's event names are unchanged by the conversion", () => {
 test("the converted message-path lines carry the tenant", () => {
   // The logger is bound once in handleInbound; if that binding is removed or
   // the calls revert to bare console, the tenant silently stops appearing.
-  const src = fs.readFileSync(path.join(EDGE, "api/whatsapp.ts"), "utf8");
+  const src = fs.readFileSync(path.join(EDGE, "lib/whatsapp/inbound.ts"), "utf8");
   assert.match(
     src,
     /const L = logger\(\{ tenant_id: tenantId, wamid: m\.id, from, type: m\.type \}\)/,

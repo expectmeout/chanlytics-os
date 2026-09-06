@@ -124,7 +124,7 @@ test("the patterns are anchored and case-insensitive", () => {
 /* ---- the edge routes on KIND, not on the storage column ---- */
 {
   const { readCode } = await import("./_source.mjs");
-  const edgeSrc = readCode("apps/edge/api/whatsapp.ts");
+  const edgeSrc = readCode("apps/edge/lib/whatsapp/inbound.ts");
 
   test("a reaction or a system notice ends the request without an ack", () => {
     // The bug this pins: a customer tapping a thumbs-up got "sorry, I can't
@@ -159,8 +159,8 @@ test("the patterns are anchored and case-insensitive", () => {
   test("a late message is answered or escalated, never dropped in silence", () => {
     // Meta redelivers for days, so any outage longer than the guard turned its
     // whole backlog into customers who wrote and were never answered.
-    assert.ok(edgeSrc.includes("STALE_REPLY_MS"), "there must be a horizon past which a person answers");
-    const at = edgeSrc.indexOf("ageMs > STALE_REPLY_MS");
+    assert.ok(readCode("apps/edge/lib/whatsapp/steps.ts").includes("STALE_REPLY_MS"), "there must be a horizon past which a person answers");
+    const at = edgeSrc.indexOf('age === "stale"');
     assert.ok(at > -1);
     const branch = edgeSrc.slice(at, at + 700);
     assert.ok(branch.includes('sink.escalate("stale"'), "escalate rather than return quietly");

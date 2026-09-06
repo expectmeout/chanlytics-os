@@ -109,7 +109,7 @@ test("vision: only small real images, and the words beside the picture restate t
 });
 
 test("the handler looks only when the workspace, the mode and the moment allow, and never fetches twice", () => {
-  const wa = readCode("apps/edge/api/whatsapp.ts");
+  const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
   assert.ok(wa.includes('n.type === "media" && n.media && rt?.features?.vision && isVisionMime(n.media.mime_type)'));
   assert.ok(wa.includes('&& brainCfg && (replyMode === "auto" || replyMode === "veto") && Date.now() > thread.pausedUntil'), "a held workspace or person gets the old path");
   assert.ok(wa.includes("got.bytes.byteLength <= VISION_MAX_BYTES"));
@@ -118,7 +118,7 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
   assert.ok(wa.includes('const bodyText: string = photo ? (n.media?.caption?.trim() || "[photo]") : (n.body ?? "");'), "the record keeps the caption, not the instruction");
   assert.ok(wa.includes("photo ? photoUserText(n.media?.caption) : bodyText,"));
   assert.ok(wa.includes("photo ?? undefined,\n      );"), "the image reaches the brain");
-  assert.ok(wa.includes("return got;"), "sink.media hands the bytes back");
+  assert.ok(readCode("apps/edge/lib/whatsapp/persist.ts").includes("return got;"), "sink.media hands the bytes back");
   const brain = readCode("apps/edge/lib/brain.ts");
   assert.ok(brain.includes('{ type: "image", source: { type: "base64", media_type: image.mime, data: image.base64 } },'));
   assert.ok(brain.includes('{ type: "text", text: userText },'), "image first, then the words");
