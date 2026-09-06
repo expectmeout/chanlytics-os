@@ -1828,6 +1828,13 @@ const TemplatesCard = () => {
   const canSync = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
   const hasWhatsApp = (window.__CHANNELS || []).some((c) => c.kind === "whatsapp");
   const bizName = (window.__SETTINGS && window.__SETTINGS.config && window.__SETTINGS.config.brain && window.__SETTINGS.config.brain.business_name) || null;
+  const toggleHidden = async (t) => {
+    if (!window.__templates || !window.__templates.hide || busy) return;
+    setBusy(true);
+    const r = await (t.hidden_at ? window.__templates.show(t.id) : window.__templates.hide(t.id));
+    setBusy(false);
+    flash({ msg: r.ok ? <><b>{tplTitle(t.name)}</b> {t.hidden_at ? "is back in the composers" : "is out of the composers — still on file"}</> : <>{r.message}</> });
+  };
   const addStarters = async (keys, languages) => {
     if (!window.__templates || !window.__templates.addStarters || busy) return;
     setBusy(true);
@@ -1859,29 +1866,46 @@ const TemplatesCard = () => {
         <span className="fl-card-title">Message templates</span>
         <span className="fl-card-sub">{sub}</span>
       </div>
-      {list.map((t) => {
-        const st = TPL_STATUS[t.meta_status] || { label: t.meta_status, cls: "" };
-        return (
-          <div key={t.id} className="set-int-row" data-testid="template-row">
-            <span className="st-tile set-int-tile"><Icon name="chat" size={14} /></span>
-            <span className="set-team-body">
-              <span className="set-team-name">{tplTitle(t.name)}<span className="dim"> · {t.name} · {t.language}{t.category ? ` · ${t.category}` : ""}{tplIsStarter(t.name) ? " · starter" : ""}{t.source === "chanlytics" ? " · made here" : ""}</span></span>
-              <span className="set-team-mail">
-                {t.meta_status === "rejected" && t.rejected_reason
-                  ? `Rejected: ${String(t.rejected_reason).toLowerCase().replace(/_/g, " ")}`
-                  : (t.body_preview || "No body on file")}
+      {(() => {
+        // The library's order; what the workspace hid sits under the rest,
+        // dimmed, still on file — one click shows it again.
+        const sorted = list.slice().sort((a, b) => (window.__starters ? window.__starters.compare(a, b) : 0));
+        const shown = sorted.filter((t) => !t.hidden_at);
+        const hidden = sorted.filter((t) => !!t.hidden_at);
+        const row = (t) => {
+          const st = TPL_STATUS[t.meta_status] || { label: t.meta_status, cls: "" };
+          return (
+            <div key={t.id} className={"set-int-row" + (t.hidden_at ? " is-hidden" : "")} data-testid="template-row">
+              <span className="st-tile set-int-tile"><Icon name="chat" size={14} /></span>
+              <span className="set-team-body">
+                <span className="set-team-name">{tplTitle(t.name)}<span className="dim"> · {t.name} · {t.language}{t.category ? ` · ${t.category}` : ""}{tplIsStarter(t.name) ? " · starter" : ""}{t.source === "chanlytics" ? " · made here" : ""}</span></span>
+                <span className="set-team-mail">
+                  {t.meta_status === "rejected" && t.rejected_reason
+                    ? `Rejected: ${String(t.rejected_reason).toLowerCase().replace(/_/g, " ")}`
+                    : (t.body_preview || "No body on file")}
+                </span>
               </span>
-            </span>
-            <span className={`pill ${st.cls}`}>{st.label}</span>
-            {canSync && arm !== t.id && (
-              <button className="cl-seg-filter-x" title={`Delete ${t.name}`} disabled={busy} onClick={() => setArm(t.id)} data-testid="template-delete"><Icon name="x" size={9} /></button>
-            )}
-            {arm === t.id && (
-              <span className="set-row-hint">Delete “{t.name}”? Sends that use it fail from now on. <button className="cl-bucket-link" disabled={busy} onClick={() => remove(t)}>Yes, delete</button> <button className="cl-bucket-link" onClick={() => setArm(null)}>No</button></span>
-            )}
-          </div>
+              <span className={`pill ${st.cls}`}>{st.label}</span>
+              {canSync && arm !== t.id && (
+                <button className="cl-bucket-link" disabled={busy} onClick={() => toggleHidden(t)} title={t.hidden_at ? "Offer it in the composers again" : "Keep it on file, out of the composers"} data-testid="template-hide">{t.hidden_at ? "Show" : "Hide"}</button>
+              )}
+              {canSync && arm !== t.id && (
+                <button className="cl-seg-filter-x" title={`Delete ${t.name}`} disabled={busy} onClick={() => setArm(t.id)} data-testid="template-delete"><Icon name="x" size={9} /></button>
+              )}
+              {arm === t.id && (
+                <span className="set-row-hint">Delete “{t.name}”? Sends that use it fail from now on. <button className="cl-bucket-link" disabled={busy} onClick={() => remove(t)}>Yes, delete</button> <button className="cl-bucket-link" onClick={() => setArm(null)}>No</button></span>
+              )}
+            </div>
+          );
+        };
+        return (
+          <>
+            {shown.map(row)}
+            {hidden.length > 0 && <div className="tpl-hidden-head" data-testid="templates-hidden">Hidden from the composers · {hidden.length} · still on file, still synced</div>}
+            {hidden.map(row)}
+          </>
         );
-      })}
+      })()}
       {composing && window.TemplateComposer && (
         <window.TemplateComposer
           onCancel={() => setComposing(false)}

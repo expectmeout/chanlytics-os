@@ -1,4 +1,4 @@
-import { AppError, STARTER_TEMPLATES, starterDraft, templateComponents, validateTemplateDraft } from "@chanlytics/contracts";
+import { AppError, STARTER_TEMPLATES, starterDraft, starterText, templateComponents, validateTemplateDraft } from "@chanlytics/contracts";
 import { withRoute, memberContext, requireRole } from "@/server/with-route";
 import { jsonBody } from "@/server/request-guards";
 import { takeRate } from "@/server/rate-limit";
@@ -72,6 +72,7 @@ export const POST = withRoute(async (req, ctx) => {
     const v = check.value;
     const r = await createTemplate(member.tenantId, ctx.userId, {
       name: v.name, language: v.language, category: v.category, components: templateComponents(v), body: v.body, examples: v.examples,
+      labels: starterText(s, l).slots.map((x) => x.label),
     });
     if (r.ok) {
       results.push({ ...base, status: "submitted", meta_status: r.metaStatus });

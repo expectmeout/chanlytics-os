@@ -7,6 +7,8 @@ import {
   cleanParam,
   parseParamSpec,
   parseTenantConfig,
+  starterForTrigger,
+  templateTitle,
   triggerOf,
   type ParamSpec,
   type PlaybookDto,
@@ -132,7 +134,8 @@ export async function checkPlaybookInput(ctx: RouteContext, tenantId: string, bo
     }
   }
   return {
-    name: name || `${trig.label} · ${tpl.name.replace(/_/g, " ")}`.slice(0, PLAYBOOK_NAME_MAX),
+    // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title.
+    name: name || (starterForTrigger(trig.id)?.name === tpl.name ? trig.label : `${trig.label} · ${templateTitle(tpl.name)}`).slice(0, PLAYBOOK_NAME_MAX),
     trigger: trig.id,
     template_id: tpl.id,
     template_name: tpl.name,

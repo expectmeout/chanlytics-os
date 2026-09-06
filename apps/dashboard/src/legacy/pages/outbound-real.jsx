@@ -39,7 +39,7 @@ const pbStatus = (p) => (p.totals && p.totals.waiting ? "approval" : p.state);
 // Words for people: a starter's title, or the name with its underscores made spaces.
 const pbTitle = (name) => (window.__starters ? window.__starters.title(name) : String(name || "").replace(/_/g, " "));
 const pbIsStarter = (name) => !!(window.__starters && window.__starters.byName(name));
-const pbOrder = (a, b) => (Number(pbIsStarter(b.name)) - Number(pbIsStarter(a.name))) || String(a.category || "").localeCompare(String(b.category || "")) || String(a.name).localeCompare(String(b.name));
+const pbOrder = (a, b) => (window.__starters ? window.__starters.compare(a, b) : 0);
 const pbFooter = (t) => { const s = t && window.__starters ? window.__starters.byName(t.name) : null; return s ? (window.__starters.text(s, t.language).footer || null) : null; };
 
 // The composer: a new playbook, or one being changed. Checked here the way
@@ -51,7 +51,11 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
   const triggers = data.triggers || PB_NONE;
   const SRC = window.TC_SOURCES || { text: "Type it", first_name: "Their first name", business_name: "The business name", booking_link: "The booking link" };
   const [trigger, setTrigger] = React.useState(editing ? editing.trigger : (triggers[0] ? triggers[0].id : "quiet_30"));
-  const [tplId, setTplId] = React.useState(editing ? editing.template_id : (templates[0] ? templates[0].id : ""));
+  const [tplId, setTplId] = React.useState(() => {
+    if (editing) return editing.template_id;
+    const d = window.__starters ? window.__starters.defaultFor(templates, trigger) : templates[0];
+    return d ? d.id : "";
+  });
   const [name, setName] = React.useState(editing ? editing.name : "");
   const [hour, setHour] = React.useState(editing ? editing.run_hour : 10);
   const [cap, setCap] = React.useState(editing ? editing.cap_per_run : 25);
@@ -98,11 +102,13 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
   const srcOf = (i) => ((sources[tplId] || defaults)[i] || "text");
   const textOf = (i) => ((typed[tplId] || [])[i] || "");
   const exampleOf = (kind) => (kind === "first_name" ? "Dani" : kind === "business_name" ? (data.businessName || "the business") : kind === "booking_link" ? "your booking link" : "");
+  const labels = tpl && window.__starters ? window.__starters.slotLabels(tpl) : vars.map((v, i) => v.label || `Value ${v.position || i + 1}`);
   const filled = vars.map((v, i) => (srcOf(i) === "text" ? textOf(i) : exampleOf(srcOf(i))));
+  const previewValues = vars.map((v, i) => (srcOf(i) === "text" ? (textOf(i).trim() || `[${labels[i]}]`) : exampleOf(srcOf(i))));
   const specs = vars.map((v, i) => (srcOf(i) === "text" ? textOf(i).trim() : { kind: srcOf(i) }));
   const monthly = trigger === "everyone_monthly";
   const ready = !!trig && !!tpl && filled.every((v) => String(v).trim()) && !busy;
-  const preview = tpl ? pbRender(tpl.body_preview, filled.map((v) => String(v).trim())) : "";
+  const preview = tpl ? pbRender(tpl.body_preview, previewValues.map((v) => String(v).trim())) : "";
 
   const save = async () => {
     if (!window.__playbooks || !ready) return;
@@ -167,7 +173,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
         <div className="bc-vars" data-testid="pb-vars">
           {vars.map((v, i) => (
             <label key={v.position || i} className="bc-var">
-              <span className="bc-var-label">{v.label || `Value ${v.position || i + 1}`}</span>
+              <span className="bc-var-label">{labels[i]}</span>
               <span className="bc-var-row">
                 <select
                   className="tpl-select"
@@ -396,7 +402,7 @@ const PlaybooksReal = () => {
             onCancel={closeComposer}
             onDone={(d, changed) => {
               closeComposer();
-              flash({ msg: changed ? <><b>{d.name}</b> changed</> : <><b>{d.name}</b> is running — its first run is at its hour, by your clock</> });
+              flash({ msg: changed ? <><b>{d.name}</b> changed</> : <><b>{d.name}</b> is running — its next run is on the card, by your clock</> });
             }}
           />
         )}

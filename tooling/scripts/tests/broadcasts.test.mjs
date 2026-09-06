@@ -73,7 +73,7 @@ test("the words a person will read, and the values Meta will accept", () => {
   assert.equal(cleanParam(""), null);
   assert.equal(cleanParam("x".repeat(1025)), null);
   assert.equal(cleanParam(42), null);
-  assert.ok(broadcastName("spring_offer", new Date("2026-09-05T15:00:00")).startsWith("spring offer · Sep 5"));
+  assert.ok(broadcastName("spring_offer", new Date("2026-09-05T15:00:00")).startsWith("Spring offer · Sep 5"));
 });
 
 test("the view model: delivered and read over sent, open while scheduled or sending, progress over enrolled", () => {

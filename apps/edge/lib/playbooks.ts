@@ -71,20 +71,27 @@ export async function loadTenantRunContext(db: Db, tenantId: string, now: Date):
     db.rpc("people_list", { p_tenant_id: tenantId }),
     listPolicies(db, tenantId).catch(() => []),
     db.from("tenant_channels").select("config").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").limit(1).maybeSingle(),
-    db.from("broadcasts").select("id, playbook_id").eq("tenant_id", tenantId).not("playbook_id", "is", null),
+    db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at").eq("tenant_id", tenantId).not("playbook_id", "is", null),
   ]);
   if (pErr) return { error: pErr.message };
   const cfg = (ch?.config && typeof ch.config === "object" && !Array.isArray(ch.config) ? ch.config : {}) as Record<string, unknown>;
   const s = (k: string) => (typeof cfg[k] === "string" ? (cfg[k] as string) : null);
   const byThis = new Map<string, Map<string, number>>();
   const byAny = new Map<string, number>();
-  const runIds = (pastRuns ?? []).map((b) => b.id);
-  const ofRun = new Map((pastRuns ?? []).map((b) => [b.id, b.playbook_id as string]));
+  // A touch is a message sent, or one on its way: a run scheduled, waiting
+  // for a person or sending counts from the moment it is due, so two
+  // playbooks due the same hour never both pick the same person. A run that
+  // was canceled or failed touched nobody.
+  const runs = (pastRuns ?? []).filter((b) => b.state !== "canceled" && b.state !== "failed");
+  const runIds = runs.map((b) => b.id);
+  const ofRun = new Map(runs.map((b) => [b.id, b]));
   if (runIds.length) {
-    const { data: sent } = await db.from("broadcast_recipients").select("broadcast_id, contact_id, sent_at").in("broadcast_id", runIds).eq("state", "sent");
-    for (const r of sent ?? []) {
-      const at = r.sent_at ? Date.parse(r.sent_at) : 0;
-      const pid = ofRun.get(r.broadcast_id);
+    const { data: touched } = await db.from("broadcast_recipients").select("broadcast_id, contact_id, state, sent_at").in("broadcast_id", runIds).in("state", ["sent", "queued"]);
+    for (const r of touched ?? []) {
+      const run = ofRun.get(r.broadcast_id);
+      if (!run) continue;
+      const at = r.sent_at ? Date.parse(r.sent_at) : Date.parse(run.scheduled_for ?? run.created_at);
+      const pid = run.playbook_id as string;
       if (pid) {
         const m = byThis.get(pid) ?? new Map<string, number>();
         m.set(r.contact_id, Math.max(m.get(r.contact_id) ?? 0, at));

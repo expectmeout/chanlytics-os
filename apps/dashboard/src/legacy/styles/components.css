@@ -1146,7 +1146,9 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 
 
 /* ---------- Notifications popover (typed, actionable) ---------- */
-.tbn-wrap { position: relative; }
+/* Presence, the bell and the theme: one group, one gap, never wrapped —
+   as a block it shrank to its narrowest word and stacked its buttons. */
+.tbn-wrap { position: relative; display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .tbn-backdrop { position: fixed; inset: 0; z-index: 240; }
 .tbn-pop {
   position: absolute;
@@ -1727,3 +1729,8 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 .bc-composer .bc-meta { display: flex; align-items: flex-start; flex-wrap: nowrap; }
 .bc-composer .bc-meta .icon { flex-shrink: 0; margin-top: 3px; }
 .bc-composer .bc-meta > span { min-width: 0; }
+
+/* ---- Templates hidden from the composers: still listed, under the rest ---- */
+.set-int-row.is-hidden { opacity: 0.55; }
+.set-int-row.is-hidden:hover { opacity: 0.85; }
+.tpl-hidden-head { font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); padding: 10px 0 4px; border-top: 1px solid var(--line); margin-top: 6px; }

@@ -14,6 +14,9 @@ import { json } from "../../../lib/http.js";
 import { pg } from "../../../lib/pg.js";
 import { waCredentialsForTenant } from "../../../lib/tenant-runtime.js";
 import { labelsOf, listTemplates, templateRow } from "../../../lib/meta-templates.js";
+
+/** Meta's own samples: on file, never offered. */
+const SAMPLE_TEMPLATES = new Set(["hello_world"]);
 import type { Json } from "../../../lib/workspace/db.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -57,10 +60,21 @@ export async function POST(request: Request): Promise<Response> {
   const keep = new Map((existing ?? []).map((r) => [`${r.name}|${r.language}`, labelsOf(r.variables)]));
   const now = new Date();
   const rows = listed.templates.map((t) => templateRow(t, tenantId, keep.get(`${t.name}|${t.language}`) ?? [], now));
-  if (rows.length) {
+  // Meta's sample lives in every new account and is nobody's message: hidden
+  // from the composers on first sight. Rows already on file keep whatever
+  // the workspace decided — hidden_at is not in the upsert.
+  const fresh = rows.filter((r) => !keep.has(`${r.name}|${r.language}`) && SAMPLE_TEMPLATES.has(r.name));
+  const known = rows.filter((r) => !fresh.includes(r));
+  if (known.length) {
     const { error } = await db
       .from("templates")
-      .upsert(rows.map((r) => ({ ...r, components: r.components as unknown as Json, variables: r.variables as unknown as Json })), { onConflict: "tenant_id,channel,name,language" });
+      .upsert(known.map((r) => ({ ...r, components: r.components as unknown as Json, variables: r.variables as unknown as Json })), { onConflict: "tenant_id,channel,name,language" });
+    if (error) return json(500, { ok: false, error: "write_failed", detail: error.message });
+  }
+  if (fresh.length) {
+    const { error } = await db
+      .from("templates")
+      .upsert(fresh.map((r) => ({ ...r, components: r.components as unknown as Json, variables: r.variables as unknown as Json, hidden_at: now.toISOString() })), { onConflict: "tenant_id,channel,name,language" });
     if (error) return json(500, { ok: false, error: "write_failed", detail: error.message });
   }
   const approved = rows.filter((r) => r.meta_status === "approved").length;

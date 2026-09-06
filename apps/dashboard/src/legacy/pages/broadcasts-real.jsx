@@ -25,8 +25,10 @@ const bcKey = (a) => `${a.kind}:${a.id || ""}`;
 // Words for people: a starter's title, or the name with its underscores made spaces.
 const bcTitle = (name) => (window.__starters ? window.__starters.title(name) : String(name || "").replace(/_/g, " "));
 const bcIsStarter = (name) => !!(window.__starters && window.__starters.byName(name));
-// Starters first, then marketing, then utility: what a broadcast most often needs is nearest.
-const bcOrder = (a, b) => (Number(bcIsStarter(b.name)) - Number(bcIsStarter(a.name))) || String(a.category || "").localeCompare(String(b.category || "")) || String(a.name).localeCompare(String(b.name));
+// The library's order: starters first, then templates written here, then the rest.
+const bcOrder = (a, b) => (window.__starters ? window.__starters.compare(a, b) : 0);
+// What a broadcast opens on: the quick note when the workspace holds it, else the first.
+const bcDefault = (list) => ((window.__starters ? window.__starters.defaultFor(list, null) : list[0]) || null);
 const bcFooter = (t) => { const s = t && window.__starters ? window.__starters.byName(t.name) : null; return s ? (window.__starters.text(s, t.language).footer || null) : null; };
 // Stable empties, so a workspace without lists or templates does not re-run
 // the effects on every render.
@@ -97,7 +99,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
     const first = audiences.find((a) => (a.kind === "saved" || a.kind === "list") && a.id === initialSegment) || audiences[0];
     return first ? bcKey(first) : "everyone:";
   });
-  const [tplId, setTplId] = React.useState(() => (templates[0] ? templates[0].id : ""));
+  const [tplId, setTplId] = React.useState(() => { const d = bcDefault(templates); return d ? d.id : ""; });
   const [params, setParams] = React.useState({});
   const [sources, setSources] = React.useState({});
   const [composing, setComposing] = React.useState(false);
@@ -109,7 +111,8 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   // Starters in review at WhatsApp: the honest line while nothing is approved yet.
   const starterPending = (window.__TEMPLATES_ALL || BC_NONE).filter((t) => bcIsStarter(t.name) && t.meta_status === "pending").length;
   React.useEffect(() => {
-    if (!templates.some((t) => t.id === tplId) && templates[0]) setTplId(templates[0].id);
+    const d = bcDefault(templates);
+    if (!templates.some((t) => t.id === tplId) && d) setTplId(d.id);
   }, [templates, tplId]);
 
   const active = audiences.find((a) => bcKey(a) === aud) || audiences[0] || null;
@@ -126,11 +129,15 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   const defaults = tpl && window.__starters ? window.__starters.slotKinds(tpl).map((k) => (k === "booking_link" && !data.bookingLink ? "text" : k)) : BC_NONE;
   const srcOf = (i) => ((sources[tplId] || defaults)[i] || "text");
   const exampleOf = (kind) => (kind === "first_name" ? "Dani" : kind === "business_name" ? (data.businessName || "the business") : kind === "booking_link" ? "your booking link" : "");
+  // Each slot's words: a starter's own, else the labels the row carries.
+  const labels = tpl && window.__starters ? window.__starters.slotLabels(tpl) : vars.map((v, i) => v.label || `Value ${v.position || i + 1}`);
   const typed = vars.map((v, i) => ((params[tplId] || [])[i] || ""));
   const filled = vars.map((v, i) => (srcOf(i) === "text" ? typed[i] : exampleOf(srcOf(i))));
+  // The preview shows an unfilled slot by its name, never as {{n}}.
+  const previewValues = vars.map((v, i) => (srcOf(i) === "text" ? (typed[i].trim() || `[${labels[i]}]`) : exampleOf(srcOf(i))));
   const specs = vars.map((v, i) => (srcOf(i) === "text" ? typed[i].trim() : { kind: srcOf(i) }));
   const ready = !!tpl && !!active && active.count > 0 && filled.every((v) => String(v).trim()) && !busy && numberOk && !overLimit;
-  const preview = tpl ? bcRender(tpl.body_preview, filled.map((v) => String(v).trim())) : "";
+  const preview = tpl ? bcRender(tpl.body_preview, previewValues.map((v) => String(v).trim())) : "";
 
   const rows = data.rows || [];
   const open = rows.filter((r) => r.open);
@@ -250,7 +257,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
           <div className="bc-vars" data-testid="bc-vars">
             {vars.map((v, i) => (
               <label key={v.position || i} className="bc-var">
-                <span className="bc-var-label">{v.label || `Value ${v.position || i + 1}`}</span>
+                <span className="bc-var-label">{labels[i]}</span>
                 <span className="bc-var-row">
                   <select
                     className="tpl-select"

@@ -3159,6 +3159,200 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
   };
 }
 
+// src/template-library.ts
+var STARTER_LANGUAGES = [
+  { id: "en_US", label: "English" },
+  { id: "es", label: "Spanish" }
+];
+var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
+var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
+var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
+var FIRST_ES = { ...FIRST, label: "Nombre" };
+var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
+var LINK_ES = { ...LINK, label: "Enlace de reservas" };
+var STOP_EN = "Reply STOP to opt out";
+var STOP_ES = "Responde STOP para darte de baja";
+var STARTER_TEMPLATES = [
+  {
+    key: "winback_offer",
+    name: "winback_offer",
+    title: "Win-back",
+    purpose: "for anyone quiet 30 days",
+    category: "marketing",
+    trigger: "quiet_30",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, it's been a while since we last saw you at {{2}}. We'd love to have you back \u2014 pick a time that suits you here: {{3}} and we'll take care of the rest.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, hace tiempo que no te vemos en {{2}}. Nos encantar\xEDa volver a atenderte \u2014 elige la hora que mejor te venga aqu\xED: {{3}} y nosotros nos ocupamos del resto.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    }
+  },
+  {
+    key: "welcome_new",
+    name: "welcome_new",
+    title: "Welcome",
+    purpose: "for anyone new this week",
+    category: "marketing",
+    trigger: "new_week",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, welcome to {{2}}! This is our WhatsApp \u2014 message us here any time to book, move or ask about an appointment. Book whenever you're ready: {{3}} and we'll take it from there.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, \xA1bienvenido/a a {{2}}! Este es nuestro WhatsApp \u2014 escr\xEDbenos aqu\xED cuando quieras para reservar, cambiar o preguntar por una cita. Reserva cuando quieras: {{3}} y nosotros nos encargamos del resto.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    }
+  },
+  {
+    key: "save_our_number",
+    name: "save_our_number",
+    title: "Save our number",
+    purpose: "for anyone who only ever phoned",
+    category: "marketing",
+    trigger: "phoned_only",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thanks for calling {{2}}. Save this number \u2014 on WhatsApp you can book, reschedule or ask us anything in a message, and we answer fast. Book any time: {{3}} or just write to us here.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, gracias por llamar a {{2}}. Guarda este n\xFAmero \u2014 por WhatsApp puedes reservar, cambiar tu cita o preguntarnos lo que quieras, y respondemos r\xE1pido. Reserva cuando quieras: {{3}} o escr\xEDbenos aqu\xED.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    }
+  },
+  {
+    key: "monthly_offer",
+    name: "monthly_offer",
+    title: "This month's offer",
+    purpose: "for everyone who said yes, once a month",
+    category: "marketing",
+    trigger: "everyone_monthly",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, this month at {{2}}: {{3}} Book here: {{4}} \u2014 spaces are limited.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, { kind: "text", label: "The offer", example: "20% off balayage for regulars, book by Friday." }, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, este mes en {{2}}: {{3}} Reserva aqu\xED: {{4}} \u2014 las plazas son limitadas.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, { kind: "text", label: "La oferta", example: "20% de descuento en balayage para clientas habituales, reserva antes del viernes." }, LINK_ES]
+      }
+    }
+  },
+  {
+    key: "quick_note",
+    name: "quick_note",
+    title: "A quick note",
+    purpose: "for any broadcast: news, hours, a heads-up",
+    category: "marketing",
+    trigger: null,
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, a quick note from {{2}}: {{3}} Write back here if you have any questions.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, { kind: "text", label: "The note", example: "we're open late on Thursdays this month." }]
+      },
+      es: {
+        body: "Hola {{1}}, una nota r\xE1pida de {{2}}: {{3}} Escr\xEDbenos aqu\xED si tienes alguna pregunta.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, { kind: "text", label: "La nota", example: "este mes abrimos hasta tarde los jueves." }]
+      }
+    }
+  }
+];
+function starterByName(name) {
+  return STARTER_TEMPLATES.find((s) => s.name === name) ?? null;
+}
+function starterByKey(key) {
+  return STARTER_TEMPLATES.find((s) => s.key === key) ?? null;
+}
+function starterForTrigger(trigger) {
+  if (!trigger) return null;
+  return STARTER_TEMPLATES.find((s) => s.trigger === trigger) ?? null;
+}
+function starterText(s, language) {
+  return s.texts[language] ?? s.texts.en_US;
+}
+function starterDraft(s, language) {
+  const t = starterText(s, language);
+  return { name: s.name, language, category: s.category, body: t.body, footer: t.footer, examples: t.slots.map((x) => x.example) };
+}
+function fill(body, values) {
+  return body.replace(/\{\{(\d+)\}\}/g, (m, n) => values[Number(n) - 1] ?? m);
+}
+function starterPreview(s, language, businessName) {
+  const t = starterText(s, language);
+  return fill(t.body, t.slots.map((x) => x.kind === "business_name" && businessName ? businessName : x.example));
+}
+function templateTitle(name) {
+  const s = starterByName(name);
+  if (s) return s.title;
+  const words = String(name ?? "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  return words ? words[0].toUpperCase() + words.slice(1) : String(name ?? "");
+}
+function guessSlotKind(label, example) {
+  const l = String(label ?? "").toLowerCase();
+  const e = String(example ?? "").toLowerCase();
+  if (/link|url|book/.test(l) || /^https?:\/\//.test(e) || /booksy|calendly|square|fresha|\.com\//.test(e)) return "booking_link";
+  if (/business|salon|company|shop|studio|clinic|brand|negocio/.test(l)) return "business_name";
+  if (/first name|^name$|nombre|customer|client/.test(l)) return "first_name";
+  return "text";
+}
+function defaultSlotKinds(t) {
+  const vars = Array.isArray(t.variables) ? t.variables : [];
+  const s = starterByName(t.name);
+  if (s) {
+    const kinds = starterText(s, "en_US").slots.map((x) => x.kind);
+    return vars.length === kinds.length || vars.length === 0 ? kinds : vars.map((_, i) => kinds[i] ?? "text");
+  }
+  return vars.map((v) => guessSlotKind(typeof v?.label === "string" ? v.label : null, typeof v?.example === "string" ? v.example : null));
+}
+function defaultParamSpecs(t) {
+  return defaultSlotKinds(t).map((k) => k === "text" ? { kind: "text", value: "" } : { kind: k });
+}
+function starterIndex(name) {
+  const i = STARTER_TEMPLATES.findIndex((s) => s.name === name);
+  return i === -1 ? STARTER_TEMPLATES.length : i;
+}
+function compareTemplates(a, b) {
+  const ai = starterIndex(a.name);
+  const bi = starterIndex(b.name);
+  if (ai !== bi) return ai - bi;
+  const rank = (t) => (t.source === "chanlytics" ? 0 : 2) + (t.category === "utility" ? 1 : 0);
+  return rank(a) - rank(b) || a.name.localeCompare(b.name);
+}
+function defaultTemplate(list, trigger) {
+  const s = trigger ? starterForTrigger(trigger) : starterByKey("quick_note");
+  return (s ? list.find((t) => t.name === s.name) : void 0) ?? list.slice().sort(compareTemplates)[0] ?? null;
+}
+function slotLabels(t) {
+  const vars = Array.isArray(t.variables) ? t.variables : [];
+  const s = starterByName(t.name);
+  if (s) {
+    const labels = starterText(s, t.language ?? "en_US").slots.map((x) => x.label);
+    if (vars.length === 0 || vars.length === labels.length) return labels;
+  }
+  return vars.map((v, i) => {
+    const label = typeof v?.label === "string" ? v.label.trim() : "";
+    const n = typeof v?.position === "number" ? v.position : i + 1;
+    return label && !/^Value \d+$/.test(label) ? label : `Value ${n}`;
+  });
+}
+
 // src/broadcasts.ts
 var BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"];
 var RECIPIENT_STATES = ["queued", "sent", "skipped", "failed"];
@@ -3208,7 +3402,7 @@ function cleanParam(raw) {
 }
 function broadcastName(templateName, now = /* @__PURE__ */ new Date()) {
   const day = now.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  return `${templateName.replace(/_/g, " ")} \xB7 ${day}`.slice(0, BROADCAST_NAME_MAX);
+  return `${templateTitle(templateName)} \xB7 ${day}`.slice(0, BROADCAST_NAME_MAX);
 }
 function whenLabel(iso, now = /* @__PURE__ */ new Date()) {
   const d = new Date(iso);
@@ -3439,7 +3633,7 @@ function localHour(tz, now) {
 function runDueNow(p, tz, now) {
   if (p.state !== "running") return false;
   const { date, hour } = parts(tz, now);
-  return hour === p.run_hour && p.last_run_for !== date;
+  return hour >= p.run_hour && hour <= PLAYBOOK_HOURS.max && p.last_run_for !== date;
 }
 var two = (n) => String(n).padStart(2, "0");
 function scheduleLine(p) {
@@ -3451,176 +3645,13 @@ function nextRunLabel(p, tz, now) {
   if (p.state !== "running") return "paused";
   const { date, hour } = parts(tz, now);
   const at = `${two(p.run_hour)}:00`;
-  if (p.last_run_for !== date && hour <= p.run_hour) return `today ${at}`;
+  if (p.last_run_for !== date) {
+    if (hour < p.run_hour) return `today ${at}`;
+    if (hour <= PLAYBOOK_HOURS.max) return "today, within the hour";
+  }
   return `tomorrow ${at}`;
 }
 var PLAYBOOK_CLASS_LABEL = { reengage: "Re-engage", campaign: "Campaigns" };
-
-// src/template-library.ts
-var STARTER_LANGUAGES = [
-  { id: "en_US", label: "English" },
-  { id: "es", label: "Spanish" }
-];
-var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
-var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
-var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
-var FIRST_ES = { ...FIRST, label: "Nombre" };
-var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
-var LINK_ES = { ...LINK, label: "Enlace de reservas" };
-var STOP_EN = "Reply STOP to opt out";
-var STOP_ES = "Responde STOP para darte de baja";
-var STARTER_TEMPLATES = [
-  {
-    key: "winback_offer",
-    name: "winback_offer",
-    title: "Win-back",
-    purpose: "for anyone quiet 30 days",
-    category: "marketing",
-    trigger: "quiet_30",
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, it's been a while since we last saw you at {{2}}. We'd love to have you back \u2014 pick a time that suits you here: {{3}} and we'll take care of the rest.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, LINK]
-      },
-      es: {
-        body: "Hola {{1}}, hace tiempo que no te vemos en {{2}}. Nos encantar\xEDa volver a atenderte \u2014 elige la hora que mejor te venga aqu\xED: {{3}} y nosotros nos ocupamos del resto.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
-      }
-    }
-  },
-  {
-    key: "welcome_new",
-    name: "welcome_new",
-    title: "Welcome",
-    purpose: "for anyone new this week",
-    category: "marketing",
-    trigger: "new_week",
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, welcome to {{2}}! This is our WhatsApp \u2014 message us here any time to book, move or ask about an appointment. Book whenever you're ready: {{3}} and we'll take it from there.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, LINK]
-      },
-      es: {
-        body: "Hola {{1}}, \xA1bienvenido/a a {{2}}! Este es nuestro WhatsApp \u2014 escr\xEDbenos aqu\xED cuando quieras para reservar, cambiar o preguntar por una cita. Reserva cuando quieras: {{3}} y nosotros nos encargamos del resto.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
-      }
-    }
-  },
-  {
-    key: "save_our_number",
-    name: "save_our_number",
-    title: "Save our number",
-    purpose: "for anyone who only ever phoned",
-    category: "marketing",
-    trigger: "phoned_only",
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, thanks for calling {{2}}. Save this number \u2014 on WhatsApp you can book, reschedule or ask us anything in a message, and we answer fast. Book any time: {{3}} or just write to us here.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, LINK]
-      },
-      es: {
-        body: "Hola {{1}}, gracias por llamar a {{2}}. Guarda este n\xFAmero \u2014 por WhatsApp puedes reservar, cambiar tu cita o preguntarnos lo que quieras, y respondemos r\xE1pido. Reserva cuando quieras: {{3}} o escr\xEDbenos aqu\xED.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
-      }
-    }
-  },
-  {
-    key: "monthly_offer",
-    name: "monthly_offer",
-    title: "This month's offer",
-    purpose: "for everyone who said yes, once a month",
-    category: "marketing",
-    trigger: "everyone_monthly",
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, this month at {{2}}: {{3}} Book here: {{4}} \u2014 spaces are limited.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, { kind: "text", label: "The offer", example: "20% off balayage for regulars, book by Friday." }, LINK]
-      },
-      es: {
-        body: "Hola {{1}}, este mes en {{2}}: {{3}} Reserva aqu\xED: {{4}} \u2014 las plazas son limitadas.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, { kind: "text", label: "La oferta", example: "20% de descuento en balayage para clientas habituales, reserva antes del viernes." }, LINK_ES]
-      }
-    }
-  },
-  {
-    key: "quick_note",
-    name: "quick_note",
-    title: "A quick note",
-    purpose: "for any broadcast: news, hours, a heads-up",
-    category: "marketing",
-    trigger: null,
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, a quick note from {{2}}: {{3}} Write back here if you have any questions.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, { kind: "text", label: "The note", example: "we're open late on Thursdays this month." }]
-      },
-      es: {
-        body: "Hola {{1}}, una nota r\xE1pida de {{2}}: {{3}} Escr\xEDbenos aqu\xED si tienes alguna pregunta.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, { kind: "text", label: "La nota", example: "este mes abrimos hasta tarde los jueves." }]
-      }
-    }
-  }
-];
-function starterByName(name) {
-  return STARTER_TEMPLATES.find((s) => s.name === name) ?? null;
-}
-function starterByKey(key) {
-  return STARTER_TEMPLATES.find((s) => s.key === key) ?? null;
-}
-function starterForTrigger(trigger) {
-  if (!trigger) return null;
-  return STARTER_TEMPLATES.find((s) => s.trigger === trigger) ?? null;
-}
-function starterText(s, language) {
-  return s.texts[language] ?? s.texts.en_US;
-}
-function starterDraft(s, language) {
-  const t = starterText(s, language);
-  return { name: s.name, language, category: s.category, body: t.body, footer: t.footer, examples: t.slots.map((x) => x.example) };
-}
-function fill(body, values) {
-  return body.replace(/\{\{(\d+)\}\}/g, (m, n) => values[Number(n) - 1] ?? m);
-}
-function starterPreview(s, language, businessName) {
-  const t = starterText(s, language);
-  return fill(t.body, t.slots.map((x) => x.kind === "business_name" && businessName ? businessName : x.example));
-}
-function templateTitle(name) {
-  const s = starterByName(name);
-  if (s) return s.title;
-  const words = String(name ?? "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
-  return words ? words[0].toUpperCase() + words.slice(1) : String(name ?? "");
-}
-function guessSlotKind(label, example) {
-  const l = String(label ?? "").toLowerCase();
-  const e = String(example ?? "").toLowerCase();
-  if (/link|url|book/.test(l) || /^https?:\/\//.test(e) || /booksy|calendly|square|fresha|\.com\//.test(e)) return "booking_link";
-  if (/business|salon|company|shop|studio|clinic|brand|negocio/.test(l)) return "business_name";
-  if (/first name|^name$|nombre|customer|client/.test(l)) return "first_name";
-  return "text";
-}
-function defaultSlotKinds(t) {
-  const vars = Array.isArray(t.variables) ? t.variables : [];
-  const s = starterByName(t.name);
-  if (s) {
-    const kinds = starterText(s, "en_US").slots.map((x) => x.kind);
-    return vars.length === kinds.length || vars.length === 0 ? kinds : vars.map((_, i) => kinds[i] ?? "text");
-  }
-  return vars.map((v) => guessSlotKind(typeof v?.label === "string" ? v.label : null, typeof v?.example === "string" ? v.example : null));
-}
-function defaultParamSpecs(t) {
-  return defaultSlotKinds(t).map((k) => k === "text" ? { kind: "text", value: "" } : { kind: k });
-}
 
 // src/channels.ts
 var DAY_MS4 = 864e5;
@@ -4003,6 +4034,7 @@ export {
   citationsToShow,
   cleanAnswer,
   cleanParam,
+  compareTemplates,
   composeSystemPrompt,
   consentSourceLabel,
   contactMeta,
@@ -4012,6 +4044,7 @@ export {
   dayInZone,
   defaultParamSpecs,
   defaultSlotKinds,
+  defaultTemplate,
   deltaOf,
   describeNow,
   describeOpenings,
@@ -4096,11 +4129,13 @@ export {
   scheduleLine,
   scopeFromRoute,
   shortTime,
+  slotLabels,
   slugTemplateName,
   starterByKey,
   starterByName,
   starterDraft,
   starterForTrigger,
+  starterIndex,
   starterPreview,
   starterText,
   templateComponents,

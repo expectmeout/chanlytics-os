@@ -568,7 +568,7 @@ export type TemplateCreateOutcome = { ok: true; id: string; metaStatus: string }
 export async function createTemplate(
   tenantId: string,
   userId: string,
-  t: { name: string; language: string; category: string; components: unknown[]; body: string; examples: string[] },
+  t: { name: string; language: string; category: string; components: unknown[]; body: string; examples: string[]; labels?: string[] },
 ): Promise<TemplateCreateOutcome> {
   if (process.env.VERCEL_ENV !== "production") return { ok: false, reason: "preview" };
   const r = await fetch(`${EDGE_BASE}/api/admin/whatsapp/templates-create`, {
