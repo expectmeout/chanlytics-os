@@ -26,6 +26,8 @@ import {
   type PersonLike,
   type PersonRowDto,
   type PersonVisitsDto,
+  type VisitDto,
+  allVisitsIn,
   type BookingReportDto,
   type ParsedFeed,
   visitsIn,
@@ -272,8 +274,11 @@ export async function personVisits(ctx: RouteContext, tenantId: string, person: 
     feed = null;
   }
   if (!feed) return { timezone, source, state: "unavailable", next: null, last: null };
-  const v = visitsOf(feed.parsed.items, person, now.getTime());
-  return { timezone, source, state: "ok", next: toVisitDto(v.next), last: toVisitDto(v.last) };
+  const index = indexFeed(feed.parsed.items);
+  const v = visitsIn(index, person, now.getTime());
+  // The timeline wants them all; a season either side is what the parse holds.
+  const all = allVisitsIn(index, person).map((x) => toVisitDto(x) as VisitDto).slice(-60);
+  return { timezone, source, state: "ok", next: toVisitDto(v.next), last: toVisitDto(v.last), all };
 }
 
 /* ---- Everyone's appointments, for the list and the report ---- */

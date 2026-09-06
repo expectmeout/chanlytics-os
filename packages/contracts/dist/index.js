@@ -2857,6 +2857,21 @@ function indexFeed(items) {
   }
   return { byPhone, texts };
 }
+function allVisitsIn(index, person) {
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  const take = (it, via) => {
+    if (seen.has(it)) return;
+    seen.add(it);
+    out.push({ id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`, start: it.start, end: it.end, title: it.title || "Busy", allDay: it.allDay, via });
+  };
+  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
+  const re = nameMatcher(person.name);
+  if (re) {
+    for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
+  }
+  return out.sort((a, b) => a.start - b.start);
+}
 function visitsIn(index, person, nowMs) {
   let next = null;
   let last = null;
@@ -3383,6 +3398,27 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
     if (t === null) continue;
     items.push({ id: `d-${dec.id}`, ts: t, ...stamp(t), kind: "decision", who: label.who, text: label.text });
   }
+  if (d.visits?.all?.length) {
+    const tz = d.visits.timezone;
+    for (const v of d.visits.all) {
+      const t = Date.parse(v.start);
+      if (!Number.isFinite(t)) continue;
+      const ahead = Date.parse(v.end) >= nowMs;
+      items.push({
+        id: `v-${v.id}`,
+        ts: t,
+        ...stamp(t),
+        kind: "visit",
+        who: "Calendar",
+        text: `${ahead ? "Booked" : "Visited"} \xB7 ${v.title}`,
+        sub: `${visitTime(v, tz)} \xB7 from ${d.visits.source}${v.via === "name" ? " \xB7 matched by name" : ""}`
+      });
+    }
+  }
+  if (d.added) {
+    const t = ts(d.added.at);
+    if (t !== null) items.push({ id: "added", ts: t, ...stamp(t), kind: "system", who: "Calendar", text: d.added.source === "calendar" ? `Added from your calendar${d.added.title ? ` (${d.added.title})` : ""}` : "Added by hand" });
+  }
   items.sort((a, b) => b.ts - a.ts);
   const latestConv = [...d.conversations].sort((a, b) => (ts(b.last_message_at) ?? 0) - (ts(a.last_message_at) ?? 0))[0];
   let customer = null;
@@ -3488,6 +3524,11 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
     timeline: items,
     about,
     notes: d.notes?.trim() || null,
+    replyWindow: base.hasChat ? (() => {
+      const w = waWindow(r.latest_wa_inbound_at, now);
+      return { open: w.open, hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 36e5)) : 0 };
+    })() : null,
+    bookingLink: d.booking_link?.trim() || null,
     openThread: base.threadId ? `inbox/${base.threadId}` : null,
     receptionistMode: {
       person: asPersonMode(d.receptionist_mode),
@@ -4736,6 +4777,7 @@ export {
   WA_WINDOW_MS,
   ago,
   agoLabel,
+  allVisitsIn,
   applyReadState,
   applySettingsChange,
   asPersonMode,

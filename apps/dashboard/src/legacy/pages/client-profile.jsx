@@ -670,12 +670,13 @@ const PersonTimeline = ({ items, initials }) => {
       {items.map((e) => {
         const dayHead = e.day !== lastDay ? <div className="cl-rail-label" style={{ margin: "10px 0 4px" }}>{e.day}</div> : null;
         lastDay = e.day;
-        const markClass = e.kind === "customer" ? "client" : e.kind === "receptionist" || e.kind === "you" ? "agent" : e.kind === "call" ? "session" : "event";
+        const markClass = e.kind === "customer" ? "client" : e.kind === "receptionist" || e.kind === "you" ? "agent" : e.kind === "call" || e.kind === "visit" ? "session" : "event";
         const mark =
           e.kind === "customer" ? initials
           : e.kind === "receptionist" ? "W"
           : e.kind === "you" ? "You"
           : e.kind === "call" ? <Icon name="phone" size={12} />
+          : e.kind === "visit" ? <Icon name="calendar" size={12} />
           : e.kind === "escalation" ? <Icon name="alert" size={11} />
           : <Icon name="dot" size={10} />;
         return (
@@ -862,6 +863,24 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
               {p.openThread && (
                 <button className="btn btn-sm btn-primary" onClick={() => window.CHANLY.nav(p.openThread)}>
                   <Icon name="chat" size={12} /> Open thread
+                </button>
+              )}
+              {p.openThread && p.bookingLink && canRecord && (
+                <button
+                  className="btn btn-sm"
+                  data-testid="text-booking-link"
+                  title={p.replyWindow && p.replyWindow.open ? `Opens the thread with the link ready to send · ${p.replyWindow.hoursLeft}h left in their reply window` : "Their reply window is closed — the thread offers the approved booking-link template, the one thing WhatsApp delivers outside it"}
+                  onClick={() => {
+                    // Inside the 24-hour window a plain reply is allowed: the
+                    // composer opens with the link ready. Outside it the thread
+                    // offers the approved template; nothing is sent from here.
+                    if (p.replyWindow && p.replyWindow.open) {
+                      try { sessionStorage.setItem("chanlytics-compose", JSON.stringify({ threadId: p.openThread.replace(/^inbox\//, ""), text: `Here's the link to book your appointment: ${p.bookingLink}` })); } catch { /* nothing to carry */ }
+                    }
+                    window.CHANLY.nav(p.openThread);
+                  }}
+                >
+                  <Icon name="calendar" size={12} /> {p.replyWindow && p.replyWindow.open ? "Text the booking link" : "Send the booking-link template"}
                 </button>
               )}
               {window.__DEMO_MODE && <button className="btn btn-sm"><Icon name="phone" size={12} /> Call</button>}

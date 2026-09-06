@@ -152,6 +152,21 @@ export function indexFeed(items: FeedItem[]): FeedIndex {
   return { byPhone, texts };
 }
 
+/** Every appointment of one person against an indexed feed, oldest first: their number first, their whole name second. */
+export function allVisitsIn(index: FeedIndex, person: PersonLike): Visit[] {
+  const out: Visit[] = [];
+  const seen = new Set<FeedItem>();
+  const take = (it: FeedItem, via: "phone" | "name") => {
+    if (seen.has(it)) return;
+    seen.add(it);
+    out.push({ id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`, start: it.start, end: it.end, title: it.title || "Busy", allDay: it.allDay, via });
+  };
+  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
+  const re = nameMatcher(person.name);
+  if (re) for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
+  return out.sort((a, b) => a.start - b.start);
+}
+
 /** One person's next and last appointment against an indexed feed: their number first, their whole name second. */
 export function visitsIn(index: FeedIndex, person: PersonLike, nowMs: number): Visits {
   let next: Visit | null = null;
@@ -275,6 +290,8 @@ export interface PersonVisitsDto {
   state: "ok" | "unavailable";
   next: VisitDto | null;
   last: VisitDto | null;
+  /** Every visit the feed holds for them, oldest first — the profile's timeline. Absent on the list. */
+  all?: VisitDto[];
 }
 
 export function toVisitDto(v: Visit | null): VisitDto | null {

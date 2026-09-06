@@ -188,4 +188,19 @@ test.describe("People on a real workspace", () => {
       expect(r.body).toEqual({ consent: "opted_in", source: "in_person" });
     }
   });
+
+  test("the booking link is one step from a profile with a thread: the button lands on the thread", async ({ page }) => {
+    const people = ((await (await page.request.get("/api/v1/contacts")).json()).data as { people: Array<{ id: string; has_chat: boolean | null; latest_conversation_id: string | null }> }).people;
+    const withChat = people.find((p) => p.has_chat && p.latest_conversation_id);
+    test.skip(!withChat, "nobody here has a WhatsApp thread");
+    const detail = (await (await page.request.get(`/api/v1/contacts/${withChat!.id}`)).json()).data.person as { booking_link?: string | null; visits?: { all?: unknown[] } | null };
+    test.skip(!detail.booking_link, "no booking link on file");
+    await page.goto(`/#/clients/${withChat!.id}`);
+    await expect(page.locator(".cl-prof-name")).toBeVisible();
+    const btn = page.getByTestId("text-booking-link");
+    await expect(btn).toBeVisible();
+    await expect(btn).toHaveText(/Text the booking link|Send the booking-link template/);
+    await btn.click();
+    await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/inbox\//);
+  });
 });

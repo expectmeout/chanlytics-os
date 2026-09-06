@@ -122,6 +122,8 @@ export interface PersonDetailDto {
   added?: { at: string; source: string; title: string | null };
   /** The owner's notes on this person — the receptionist reads them. */
   notes?: string | null;
+  /** The workspace's booking link, for the profile's one-step send. */
+  booking_link?: string | null;
 }
 
 /** What an owner may set for one person: answer, ask first, or stay out. */
@@ -648,7 +650,7 @@ export function recencyCells(rows: PersonRowVM[], nowMs: number): { label: strin
 
 /* -------------------------------- profile -------------------------------- */
 
-export type TimelineKind = "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision";
+export type TimelineKind = "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision" | "visit";
 
 export interface PersonTimelineItemVM {
   id: string;
@@ -691,6 +693,10 @@ export interface PersonVM extends PersonRowVM {
   about: { k: string; v: string }[];
   /** The owner's notes, the receptionist's reading material. */
   notes: string | null;
+  /** WhatsApp's 24-hour window for a free reply: open, and how long is left. Null without a chat. */
+  replyWindow: { open: boolean; hoursLeft: number } | null;
+  /** The workspace's booking link, or null when none is on file. */
+  bookingLink: string | null;
   /** "inbox/th-…" or null for a phone-only person. */
   openThread: string | null;
   /** The person's own setting (null = following the workspace) and the
@@ -799,6 +805,26 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
     const t = ts(dec.created_at);
     if (t === null) continue;
     items.push({ id: `d-${dec.id}`, ts: t, ...stamp(t), kind: "decision", who: label.who, text: label.text });
+  }
+
+  // Their visits, from the calendar: what happened in the chair belongs on
+  // the same line as what was said. A visit ahead reads as booked.
+  if (d.visits?.all?.length) {
+    const tz = d.visits.timezone;
+    for (const v of d.visits.all) {
+      const t = Date.parse(v.start);
+      if (!Number.isFinite(t)) continue;
+      const ahead = Date.parse(v.end) >= nowMs;
+      items.push({
+        id: `v-${v.id}`, ts: t, ...stamp(t), kind: "visit", who: "Calendar",
+        text: `${ahead ? "Booked" : "Visited"} · ${v.title}`,
+        sub: `${visitTime(v, tz)} · from ${d.visits.source}${v.via === "name" ? " · matched by name" : ""}`,
+      });
+    }
+  }
+  if (d.added) {
+    const t = ts(d.added.at);
+    if (t !== null) items.push({ id: "added", ts: t, ...stamp(t), kind: "system", who: "Calendar", text: d.added.source === "calendar" ? `Added from your calendar${d.added.title ? ` (${d.added.title})` : ""}` : "Added by hand" });
   }
 
   items.sort((a, b) => b.ts - a.ts);
@@ -924,6 +950,10 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
     timeline: items,
     about,
     notes: d.notes?.trim() || null,
+    replyWindow: base.hasChat
+      ? (() => { const w = waWindow(r.latest_wa_inbound_at, now); return { open: w.open, hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 3_600_000)) : 0 }; })()
+      : null,
+    bookingLink: d.booking_link?.trim() || null,
     openThread: base.threadId ? `inbox/${base.threadId}` : null,
     receptionistMode: {
       person: asPersonMode(d.receptionist_mode),
