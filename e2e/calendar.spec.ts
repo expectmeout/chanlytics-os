@@ -11,6 +11,8 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
  * windows the receptionist would offer. Read-only: moving weeks only
  * issues a GET.
  */
+/** A write is refused unless it comes from the app: the same-origin guard every mutating route applies. */
+const fromTheApp = { headers: { origin: new URL(process.env.E2E_BASE_URL ?? "https://chanlytics-os.vercel.app").origin } };
 const INVENTED = ["Two-way sync", "Apple iCal", "Utilization", "Lena", "Jay", "Swedish", "Hot stone", "At risk", "double-booking"];
 
 test.describe("Calendar on a real workspace", () => {
@@ -98,12 +100,12 @@ test.describe("Calendar on a real workspace", () => {
 
   test("adding a person from an appointment is get-or-create: an existing number returns them, a bad one is refused, nothing is duplicated", async ({ page }) => {
     const before = (await (await page.request.get("/api/v1/contacts")).json()).data.people as Array<{ id: string; phone_e164: string | null }>;
-    const bad = await page.request.post("/api/v1/contacts", { data: { phone: "not a number", source: "calendar" } });
+    const bad = await page.request.post("/api/v1/contacts", { data: { phone: "not a number", source: "calendar" }, ...fromTheApp });
     expect(bad.status()).toBe(400);
     expect(((await bad.json()).error?.message ?? "") as string).toContain("phone");
     const known = before.find((p) => p.phone_e164);
     if (known) {
-      const again = await page.request.post("/api/v1/contacts", { data: { phone: known.phone_e164, source: "calendar" } });
+      const again = await page.request.post("/api/v1/contacts", { data: { phone: known.phone_e164, source: "calendar" }, ...fromTheApp });
       expect(again.status()).toBe(200);
       expect((await again.json()).data).toEqual({ contact_id: known.id, existed: true });
       const after = (await (await page.request.get("/api/v1/contacts")).json()).data.people as unknown[];
