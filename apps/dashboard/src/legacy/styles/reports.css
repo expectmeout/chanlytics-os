@@ -339,3 +339,5 @@
 .rp2-share-num { text-align: right; color: var(--ink); font-size: 12px; }
 /* The meaning line may take two lines before it clips. */
 .rp2-tile-meta { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* Twenty-one small capitals must fit a strip cell beside a sidebar. */
+.rp2-tile-label { font-size: 9px; letter-spacing: 0.05em; }
