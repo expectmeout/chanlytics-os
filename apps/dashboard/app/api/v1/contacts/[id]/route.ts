@@ -193,7 +193,7 @@ export const GET = withRoute(async (req, ctx) => {
   if (!row) throw new AppError("not_found", "This person is not in your workspace.", 404);
 
   const sb = ctx.supabase;
-  const [idents, convs, calls, personPol, wsPol, added, own] = await Promise.all([
+  const [idents, convs, calls, personPol, wsPol, added, own, cfgRow] = await Promise.all([
     sb.from("contact_identities").select("channel, external_id, created_at").eq("contact_id", id).order("created_at"),
     sb.from("conversations").select(CONVERSATION_COLUMNS).eq("tenant_id", tenantId).eq("contact_id", id)
       .order("last_message_at", { ascending: false, nullsFirst: false }),
@@ -210,8 +210,11 @@ export const GET = withRoute(async (req, ctx) => {
       .eq("subject_type", "contact").eq("subject_id", id).order("created_at").limit(1).maybeSingle(),
     // The owner's notes: the one column people_list does not carry.
     sb.from("contacts").select("notes").eq("id", id).maybeSingle(),
+    // The booking link, so the profile can text it in one step.
+    sb.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
   ]);
   if (own.error) throw new Error(own.error.message);
+  const bookingLink = ((cfgRow.data?.config as { brain?: { booking_link?: unknown } } | null)?.brain?.booking_link);
   if (idents.error) throw new Error(idents.error.message);
   if (personPol.error) throw new Error(personPol.error.message);
   if (wsPol.error) throw new Error(wsPol.error.message);
@@ -259,6 +262,7 @@ export const GET = withRoute(async (req, ctx) => {
     workspace_reply_mode: wsPol.data?.mode ?? null,
     visits: visits ?? undefined,
     notes: own.data?.notes ?? null,
+    booking_link: typeof bookingLink === "string" && bookingLink.trim() ? bookingLink.trim() : null,
     added: added.data
       ? { at: added.data.created_at, source: String((added.data.data as { source?: unknown } | null)?.source ?? "manual"), title: typeof (added.data.data as { title?: unknown } | null)?.title === "string" ? String((added.data.data as { title: string }).title) : null }
       : undefined,

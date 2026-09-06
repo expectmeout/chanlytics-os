@@ -750,6 +750,21 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
     setText((cur) => (cur && cur.trim() ? cur : reply));
   }, [reply]);
 
+  // A reply carried in from a profile ("Text the booking link"): only into
+  // an empty composer, only for this thread, and only once.
+  React.useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("chanlytics-compose");
+      if (!raw) return;
+      const carried = JSON.parse(raw);
+      const mine = carried && typeof carried.text === "string" && (carried.threadId === thread.id || carried.threadId === `th-${thread.id}` || `th-${carried.threadId}` === thread.id);
+      if (!mine) return;
+      sessionStorage.removeItem("chanlytics-compose");
+      setText((cur) => (cur && cur.trim() ? cur : carried.text));
+      window.setTimeout(() => { if (taRef.current) taRef.current.focus(); }, 60);
+    } catch { /* nothing carried */ }
+  }, [thread.id]);
+
   const [sending, setSending] = useCvtState(false);
   const doSend = () => {
     if (sending || !text.trim() || !window.canDo("approve")) return;

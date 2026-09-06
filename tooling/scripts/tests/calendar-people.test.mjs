@@ -185,7 +185,7 @@ test("the profile: a Next visit fact and About rows when the calendar is connect
 
 test("the wiring: the board and the profile read one match; both receptionists are told; the panel says who it is for and where it comes from", () => {
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
-  assert.ok(svc.includes("export async function personVisits(") && svc.includes("const v = visitsOf(feed.parsed.items, person, now.getTime());"), "the profile's visits, from the same feed and match");
+  assert.ok(svc.includes("export async function personVisits(") && svc.includes("const v = visitsIn(index, person, now.getTime());"), "the profile's visits, from the same feed and match");
   assert.ok(svc.includes("source: feedSourceLabel(url)"), "the calendar's name, never its address");
   assert.ok(!svc.includes("personInTitle"), "the old name-only match is gone");
   const route = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
@@ -469,4 +469,36 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
   assert.ok(page.includes("React.useEffect(() => { setSel(new Set()); }, [tab, listId, savedId, q]);"), "a selection never outlives its view");
   assert.ok(page.includes('const head = ["Name", "Phone", "State", "Last contact", "Consent", "Next visit", "First contact"];'), "the file holds the columns the page shows, nothing invented");
   assert.ok(page.includes("selectable={canEditLists || canExport}"));
+});
+
+test("every visit, oldest first, for the timeline; the profile reads them as Visited and Booked, and the booking link is one step away", async () => {
+  const { allVisitsIn, indexFeed } = await import("@chanlytics/contracts");
+  const f = feed();
+  const index = indexFeed(f.items);
+  const all = allVisitsIn(index, { id: "p", name: "Maria Lopez", phone: "+13055550134" });
+  assert.deepEqual(all.map((v) => v.title), ["Maria Lopez - Balayage"]);
+  const both = allVisitsIn(index, { id: "q", name: "Daniela Ruiz", phone: null });
+  assert.deepEqual(both.map((v) => [v.title, v.via]), [["Daniela Ruiz · Colour", "name"]]);
+  const now = new Date(NOW);
+  const past = { id: "a", start: "2026-08-20T14:00:00.000Z", end: "2026-08-20T16:00:00.000Z", title: "Colour", all_day: false, via: "phone" };
+  const ahead = { id: "b", start: "2026-09-08T18:00:00.000Z", end: "2026-09-08T21:00:00.000Z", title: "Balayage", all_day: false, via: "phone" };
+  const vm = toPersonVM({ ...detail_(), booking_link: " https://booksy.com/melanys ", visits: { timezone: TZ, source: "Google Calendar", state: "ok", next: ahead, last: past, all: [past, ahead] }, added: { at: "2026-09-01T12:00:00.000Z", source: "calendar", title: "Colour" } }, now);
+  const visits = vm.timeline.filter((i) => i.kind === "visit");
+  assert.deepEqual(visits.map((i) => [i.text, i.who]), [["Booked · Balayage", "Calendar"], ["Visited · Colour", "Calendar"]], "newest first, ahead reads as booked");
+  assert.equal(visits[1].sub, "10:00 AM – 12:00 PM · from Google Calendar");
+  assert.equal(vm.timeline.find((i) => i.id === "added").text, "Added from your calendar (Colour)");
+  assert.equal(vm.bookingLink, "https://booksy.com/melanys");
+  assert.equal(vm.replyWindow, null, "no chat, no window");
+  const chat = toPersonVM(detail_({ has_chat: true, latest_wa_inbound_at: new Date(NOW - 2 * 3_600_000).toISOString() }), now);
+  assert.deepEqual(chat.replyWindow, { open: true, hoursLeft: 22 });
+  const closed = toPersonVM(detail_({ has_chat: true, latest_wa_inbound_at: new Date(NOW - 30 * 3_600_000).toISOString() }), now);
+  assert.deepEqual(closed.replyWindow, { open: false, hoursLeft: 0 });
+  const page = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
+  assert.ok(page.includes('data-testid="text-booking-link"') && page.includes('sessionStorage.setItem("chanlytics-compose"') && page.includes("Send the booking-link template"), "inside the window a reply is carried in; outside it the thread offers the template");
+  assert.ok(page.includes(': e.kind === "visit" ? <Icon name="calendar" size={12} />'));
+  const composer = readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
+  assert.ok(composer.includes('sessionStorage.getItem("chanlytics-compose")') && composer.includes('sessionStorage.removeItem("chanlytics-compose")') && composer.includes("setText((cur) => (cur && cur.trim() ? cur : carried.text));"), "only into an empty composer, only once");
+  const route = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
+  assert.ok(route.includes('sb.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle()') && route.includes("booking_link: typeof bookingLink === \"string\""));
+  assert.ok(readCode("apps/dashboard/src/server/calendar.ts").includes("const all = allVisitsIn(index, person).map((x) => toVisitDto(x) as VisitDto).slice(-60);"));
 });
