@@ -17,6 +17,7 @@
  */
 import { DAYS, hoursRuns, type Closure, type Hours } from "./config";
 import { BOOKING_DEFAULTS, clockInZone, closedOn, dayInZone, dayIntervals, type BookingRulesLike } from "./availability";
+import { formatPhoneDisplay } from "./phone";
 
 export interface CalendarItemDto {
   id: string;
@@ -25,8 +26,13 @@ export interface CalendarItemDto {
   end: string;
   title: string;
   all_day: boolean;
-  /** A person in People whose name the title carries, when one does. */
-  person: { id: string; name: string } | null;
+  /** The person in People this appointment is for — by a phone in the event, else a whole name in its words. */
+  person: { id: string; name: string; via?: "phone" | "name" } | null;
+  /** The event's own words, plain text. */
+  description?: string | null;
+  location?: string | null;
+  /** Phones (E.164) and emails found in the event, for the panel. */
+  contacts?: { phones: string[]; emails: string[] };
 }
 
 export interface CalendarDayDto {
@@ -39,6 +45,8 @@ export interface CalendarDayDto {
 
 export interface CalendarFeedDto {
   present: boolean;
+  /** "Google Calendar", "Apple Calendar", "Outlook" or "your calendar" — from the address, which stays on the server. */
+  source?: string;
   state: "ok" | "unavailable" | "none";
   read_at: string | null;
   events: number;
@@ -175,7 +183,11 @@ export interface CalendarBlockVM {
   title: string;
   /** "2 – 3:30 PM" */
   time: string;
-  person: { id: string; name: string } | null;
+  person: { id: string; name: string; via: "phone" | "name" | null } | null;
+  description: string | null;
+  location: string | null;
+  /** Display-formatted phones and the emails the event carried. */
+  contacts: { phones: string[]; emails: string[] };
   start: string;
   end: string;
 }
@@ -238,7 +250,7 @@ export interface CalendarVM {
   today: string;
   /** Where the now line sits, hours from midnight, when today is in the span. */
   now: number | null;
-  feed: { present: boolean; state: "ok" | "unavailable" | "none"; line: string; events: number };
+  feed: { present: boolean; state: "ok" | "unavailable" | "none"; line: string; events: number; source: string };
   stats: { events: number; windows: number; next: string };
   rules: string;
   hoursLines: string[];
@@ -270,7 +282,10 @@ function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs
     dur: Math.max(15, Math.round((tEnd - t) * 60)),
     title: item.title || "Busy",
     time: spanLabel(t, tEnd),
-    person: item.person,
+    person: item.person ? { id: item.person.id, name: item.person.name, via: item.person.via ?? null } : null,
+    description: item.description ?? null,
+    location: item.location ?? null,
+    contacts: { phones: (item.contacts?.phones ?? []).map((p) => formatPhoneDisplay(p) ?? p), emails: item.contacts?.emails ?? [] },
     start: item.start,
     end: item.end,
   };
@@ -364,7 +379,7 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
   }
   const ago = readAgoLabel(dto.feed.read_at, now);
   const feedLine = dto.feed.state === "ok"
-    ? `From your calendar · read ${ago ?? "just now"} · ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}${dto.feed.skipped_recurring ? ` · ${dto.feed.skipped_recurring} repeating rule${dto.feed.skipped_recurring === 1 ? "" : "s"} read once` : ""}`
+    ? `From ${dto.feed.source ?? "your calendar"} · read ${ago ?? "just now"} · ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}${dto.feed.skipped_recurring ? ` · ${dto.feed.skipped_recurring} repeating rule${dto.feed.skipped_recurring === 1 ? "" : "s"} read once` : ""}`
     : dto.feed.state === "unavailable"
       ? `Your calendar could not be read${ago ? ` · last read ${ago}` : ""}`
       : "No calendar connected";
@@ -397,7 +412,7 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
     days,
     today: todayKey,
     now: nowIn,
-    feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events },
+    feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events, source: dto.feed.source ?? "your calendar" },
     stats: { events, windows: windowCount, next },
     rules: rulesLine(dto.rules),
     hoursLines: hoursLines(dto.hours),

@@ -61,7 +61,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../lib/workspace/db.js";
 import { upsertEscalation, type EscalationOutcome } from "../lib/workspace/jobs.js";
 import { loadTenantRuntime, waCfgFor, type TenantRuntime } from "../lib/tenant-runtime.js";
-import { openingsFor } from "../lib/availability.js";
+import { openingsFor, visitsFor } from "../lib/availability.js";
 import { isVisionMime, photoUserText, toBase64, VISION_MAX_BYTES } from "../lib/vision.js";
 import { tokensLast24h } from "../lib/budget.js";
 import { queueDraft } from "../lib/draft-queue.js";
@@ -803,6 +803,10 @@ async function handleInbound(
           const e164 = from.startsWith("+") ? from : `+${from}`;
           const lead = await readLeadContext(db, tenantId, e164, 1);
           leadNote = describeLead(lead);
+          // Their appointments, from the same feed the openings come from:
+          // "when is my appointment?" is answered from the calendar, never guessed.
+          const visits = rt ? await visitsFor(rt, { phone: e164, name: lead.name }) : null;
+          if (visits) leadNote = `${leadNote}\n${visits}`;
         } catch (e) {
           L.warn("lead_context_unavailable", { error: errField(e) });
         }

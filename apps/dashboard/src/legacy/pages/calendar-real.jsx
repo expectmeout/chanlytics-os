@@ -71,29 +71,48 @@ const CrWindow = ({ w, hours }) => {
   );
 };
 
-const CrPanel = ({ b, day, feedLine, onClose }) => (
-  <div className="ask-overlay" onClick={onClose}>
-    <div className="ask-modal cal-ev" onClick={(e) => e.stopPropagation()} data-testid="cal-panel">
-      <section className="st-modal-section">
-        <div className="st-modal-name">{b.title}</div>
-        <div className="cal-ev-cancel-hint" style={{ marginTop: 4 }}>{day.long} · {b.time}</div>
-        <div className="cal-ev-note">{feedLine}. The receptionist treats this time as taken; changing it happens in your calendar, not here.</div>
-      </section>
-      <footer className="st-modal-foot">
-        <div className="cal-ev-foot-left">
-          {b.person && (
-            <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav(`clients/${b.person.id}`)}>
-              <Icon name="users" size={12} /> {b.person.name} in People
-            </button>
-          )}
-        </div>
-        <div className="st-modal-foot-actions">
-          <button className="btn btn-sm" onClick={onClose}>Close</button>
-        </div>
-      </footer>
+// One appointment: who it is for (by a phone in the event, else a whole
+// name), what the calendar wrote, and the one rule — nothing changes here.
+const CrPanel = ({ b, day, source, onClose }) => {
+  const contacts = b.contacts || { phones: [], emails: [] };
+  const found = [...contacts.phones, ...contacts.emails];
+  return (
+    <div className="ask-overlay" onClick={onClose}>
+      <div className="ask-modal cal-ev" onClick={(e) => e.stopPropagation()} data-testid="cal-panel">
+        <section className="st-modal-section">
+          <div className="st-modal-name">{b.title}</div>
+          <div className="cal-ev-cancel-hint" style={{ marginTop: 4 }}>{day.long} · {b.time}</div>
+          {b.person ? (
+            <div className="cal-ev-who" data-testid="cal-panel-person">
+              <Icon name="users" size={12} /> <b>{b.person.name}</b> is in People
+              {b.person.via && <span className="cal-ev-via">matched by {b.person.via}</span>}
+            </div>
+          ) : found.length > 0 ? (
+            <div className="cal-ev-who" data-testid="cal-panel-contact">
+              <Icon name="users" size={12} /> Not in People yet
+              <span className="cal-ev-via">{found.join(" · ")}</span>
+            </div>
+          ) : null}
+          {b.location && <div className="cal-ev-detail" data-testid="cal-panel-where"><span className="cal-ev-detail-key">Where</span><span>{b.location}</span></div>}
+          {b.description && <div className="cal-ev-desc" data-testid="cal-panel-desc">{b.description}</div>}
+          <div className="cal-ev-note">From {source}. The receptionist treats this time as taken; to change or cancel it, edit it there.</div>
+        </section>
+        <footer className="st-modal-foot">
+          <div className="cal-ev-foot-left">
+            {b.person && (
+              <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav(`clients/${b.person.id}`)}>
+                Open in People <Icon name="arrow-right" size={10} />
+              </button>
+            )}
+          </div>
+          <div className="st-modal-foot-actions">
+            <button className="btn btn-sm" onClick={onClose}>Close</button>
+          </div>
+        </footer>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // The board: hours down, days across. Seven columns in Week, one in Day.
 const CrBoard = ({ frames, hours, now, wide, fit, onDay, onOpen }) => {
@@ -374,7 +393,7 @@ const CalendarReal = () => {
         <span className="cal-legend-rules">← → move · T today · times in {vm.timezone}</span>
       </div>
 
-      {openBlock && <CrPanel b={openBlock.b} day={openBlock.d} feedLine={vm.feed.line} onClose={() => setOpenId(null)} />}
+      {openBlock && <CrPanel b={openBlock.b} day={openBlock.d} source={vm.feed.source || "your calendar"} onClose={() => setOpenId(null)} />}
       {toastNode}
     </div>
   );

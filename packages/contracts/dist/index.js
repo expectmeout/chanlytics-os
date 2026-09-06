@@ -553,8 +553,8 @@ var ESCALATION_SUMMARIES = {
   state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
   stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since."
 };
-function formatWaited(ms) {
-  const min = Math.max(1, Math.round(ms / 6e4));
+function formatWaited(ms2) {
+  const min = Math.max(1, Math.round(ms2 / 6e4));
   if (min < 60) return `${min}m`;
   const hr = Math.round(min / 60);
   if (hr < 24) return `${hr}h`;
@@ -742,14 +742,14 @@ var DISCONNECTION_LABELS = {
   user_declined: "Customer declined the call",
   marked_as_spam: "Flagged as spam by the carrier"
 };
-function mmss(ms) {
-  if (!ms || ms < 0) return void 0;
-  const total = Math.round(ms / 1e3);
+function mmss(ms2) {
+  if (!ms2 || ms2 < 0) return void 0;
+  const total = Math.round(ms2 / 1e3);
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
-function spokenDuration(ms) {
-  if (!ms) return "Duration not recorded";
-  const total = Math.round(ms / 1e3);
+function spokenDuration(ms2) {
+  if (!ms2) return "Duration not recorded";
+  const total = Math.round(ms2 / 1e3);
   const m = Math.floor(total / 60);
   const sec = total % 60;
   return m ? `${m} min ${sec} sec` : `${sec} sec`;
@@ -822,8 +822,8 @@ var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
 var RECENT_MAX = 8;
-var mmss2 = (ms) => {
-  const total = Math.max(0, Math.round(ms / 1e3));
+var mmss2 = (ms2) => {
+  const total = Math.max(0, Math.round(ms2 / 1e3));
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 };
 function fmtClock(seconds) {
@@ -2466,11 +2466,36 @@ function unfold(text) {
   return out;
 }
 function splitLine(line) {
-  const colon = line.indexOf(":");
+  let colon = -1;
+  let q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') q = !q;
+    else if (ch === ":" && !q) {
+      colon = i;
+      break;
+    }
+  }
   if (colon === -1) return null;
   const head = line.slice(0, colon);
   const value = line.slice(colon + 1);
-  const [name, ...rest] = head.split(";");
+  const parts2 = [];
+  let cur = "";
+  q = false;
+  for (const ch of head) {
+    if (ch === '"') {
+      q = !q;
+      continue;
+    }
+    if (ch === ";" && !q) {
+      parts2.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += ch;
+  }
+  parts2.push(cur);
+  const [name, ...rest] = parts2;
   const params = {};
   for (const p of rest) {
     const eq = p.indexOf("=");
@@ -2597,10 +2622,12 @@ function parseIcs(text, fallbackTz, opts = {}) {
   let skippedRecurring = 0;
   let cur = null;
   const exdatesOf = [];
+  const attendees = [];
   for (const line of unfold(text)) {
     if (line === "BEGIN:VEVENT") {
       cur = {};
       exdatesOf.length = 0;
+      attendees.length = 0;
       continue;
     }
     if (line === "END:VEVENT") {
@@ -2620,6 +2647,9 @@ function parseIcs(text, fallbackTz, opts = {}) {
           }
           if (start !== null && end !== null && end > start) {
             const title = unescapeText(cur.SUMMARY?.value ?? "");
+            const description = unescapeText(cur.DESCRIPTION?.value ?? "") || null;
+            const location = unescapeText(cur.LOCATION?.value ?? "") || null;
+            const guests = attendees.slice();
             const allDay = cur.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(cur.DTSTART.value.trim());
             const uid = cur.UID?.value.trim() || null;
             const rule = cur.RRULE ? parseRule(cur.RRULE.value, fallbackTz) : null;
@@ -2627,17 +2657,17 @@ function parseIcs(text, fallbackTz, opts = {}) {
             if (cur.RRULE && rule && local) {
               const ex = /* @__PURE__ */ new Set();
               for (const e of exdatesOf) for (const v of e.value.split(",")) {
-                const ms = toMs(v, e.params, fallbackTz);
-                if (ms !== null) ex.add(ms);
+                const ms2 = toMs(v, e.params, fallbackTz);
+                if (ms2 !== null) ex.add(ms2);
               }
               const occ = occurrences(local, end - start, rule, ex, horizon);
               busy.push(...occ);
-              for (const o of occ) items.push({ ...o, title, allDay, uid });
+              for (const o of occ) items.push({ ...o, title, allDay, uid, description, location, attendees: guests });
               recurringExpanded++;
             } else {
               if (cur.RRULE || cur.RDATE) skippedRecurring++;
               busy.push({ start, end });
-              items.push({ start, end, title, allDay, uid });
+              items.push({ start, end, title, allDay, uid, description, location, attendees: guests });
             }
           }
         }
@@ -2650,6 +2680,11 @@ function parseIcs(text, fallbackTz, opts = {}) {
     if (!s) continue;
     if (s.name === "EXDATE") {
       exdatesOf.push({ params: s.params, value: s.value });
+      continue;
+    }
+    if (s.name === "ATTENDEE") {
+      const v = s.value.trim();
+      attendees.push({ name: s.params.CN?.trim() || null, email: /^mailto:/i.test(v) ? v.slice(7).toLowerCase() : null });
       continue;
     }
     cur[s.name] = { params: s.params, value: s.value };
@@ -2753,6 +2788,130 @@ ${lines.join("\n")}
 Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides.`;
 }
 
+// src/calendar-people.ts
+var EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+var PHONE_RE = /\+?\(?\d{1,4}\)?(?:[\s.-]?\(?\d{2,4}\)?){2,5}/g;
+var ISO_DATE_RE = /^\d{4}[-./]\d{2}[-./]\d{2}/;
+function phoneFrom(raw) {
+  const s = raw.trim();
+  if (ISO_DATE_RE.test(s)) return null;
+  const digits = s.replace(/\D/g, "");
+  if (digits.length < 10 || digits.length > 15) return null;
+  const bare = /^\+?\d+$/.test(s);
+  if (bare && !s.startsWith("+") && !(digits.length === 10 || digits.length === 11 && digits.startsWith("1"))) return null;
+  return normalizePhone(s.startsWith("+") ? `+${digits}` : digits);
+}
+function extractContacts(item) {
+  const text = [item.title, item.description ?? "", item.location ?? ""].join("\n");
+  const emails = /* @__PURE__ */ new Set();
+  for (const m of text.match(EMAIL_RE) ?? []) emails.add(m.toLowerCase());
+  for (const a of item.attendees ?? []) if (a.email) emails.add(a.email.toLowerCase());
+  const phones = /* @__PURE__ */ new Set();
+  for (const m of text.replace(EMAIL_RE, " ").match(PHONE_RE) ?? []) {
+    const p = phoneFrom(m);
+    if (p) phones.add(p);
+  }
+  const names = /* @__PURE__ */ new Set();
+  for (const a of item.attendees ?? []) {
+    const n = (a.name ?? "").trim();
+    if (n && !EMAIL_RE.test(n)) names.add(n);
+    EMAIL_RE.lastIndex = 0;
+  }
+  return { phones: [...phones], emails: [...emails], names: [...names] };
+}
+var escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function personInText(text, people) {
+  let best = null;
+  for (const p of people) {
+    const n = p.name.trim();
+    if (n.length < 4 || /^[+\d(]/.test(n)) continue;
+    const re = new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(n)}(?=$|[^\\p{L}\\p{N}])`, "iu");
+    if (re.test(text) && (!best || n.length > best.name.trim().length)) best = p;
+  }
+  return best;
+}
+var labelOf = (p) => p.name.trim() || formatPhoneDisplay(p.phone) || "Unknown";
+function matchPerson(item, people) {
+  const c = extractContacts(item);
+  if (c.phones.length) {
+    const byPhone = /* @__PURE__ */ new Map();
+    for (const p2 of people) if (p2.phone) byPhone.set(p2.phone, p2);
+    for (const ph of c.phones) {
+      const p2 = byPhone.get(ph);
+      if (p2) return { id: p2.id, name: labelOf(p2), via: "phone" };
+    }
+  }
+  const p = personInText([item.title, ...c.names, item.description ?? ""].join("\n"), people);
+  return p ? { id: p.id, name: labelOf(p), via: "name" } : null;
+}
+function visitsOf(items, person, nowMs) {
+  let next = null;
+  let last = null;
+  for (const it of items) {
+    const m = matchPerson(it, [person]);
+    if (!m) continue;
+    const v = { id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`, start: it.start, end: it.end, title: it.title || "Busy", allDay: it.allDay, via: m.via };
+    if (it.end >= nowMs) {
+      if (!next || v.start < next.start) next = v;
+    } else if (!last || v.end > last.end) last = v;
+  }
+  return { next, last };
+}
+var ms = (t) => typeof t === "number" ? t : Date.parse(t);
+function visitDay(start, tz, nowMs) {
+  const key = dayInZone(tz, ms(start)).key;
+  const today = dayInZone(tz, nowMs).key;
+  const tomorrow = dayInZone(tz, nowMs + 864e5).key;
+  if (key === today) return "Today";
+  if (key === tomorrow) return "Tomorrow";
+  return new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" }).format(new Date(ms(start)));
+}
+function visitTime(v, tz) {
+  if (v.allDay || v.all_day) return "all day";
+  const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+  const a = f.format(new Date(ms(v.start)));
+  const b = f.format(new Date(ms(v.end)));
+  const sameHalf = a.slice(-2) === b.slice(-2);
+  return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
+}
+function visitLine(v, tz, nowMs) {
+  return `${visitDay(v.start, tz, nowMs)} \xB7 ${visitTime(v, tz)}`;
+}
+function describeVisits(visits, tz, nowMs) {
+  const out = [];
+  if (visits.next) {
+    const n = visits.next;
+    out.push(`Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only \u2014 make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, send the booking link \u2014 nothing is changed from here.`);
+  }
+  if (visits.last) {
+    const l = visits.last;
+    out.push(`Their last visit on the calendar: ${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(l.start))} (${l.title}).`);
+  }
+  return out.length ? out.join(" ") : null;
+}
+function feedSourceLabel(url) {
+  if (!url) return "your calendar";
+  let host = "";
+  try {
+    host = new URL(url.replace(/^webcal:\/\//i, "https://")).hostname.toLowerCase();
+  } catch {
+    return "your calendar";
+  }
+  if (host.includes("google")) return "Google Calendar";
+  if (host.includes("icloud")) return "Apple Calendar";
+  if (host.includes("office365") || host.includes("outlook") || host.includes("live.com")) return "Outlook";
+  return "your calendar";
+}
+function eventText(raw, max = 1500) {
+  if (!raw) return null;
+  const text = raw.replace(/<br\s*\/?>/gi, "\n").replace(/<\/?(p|div|li|tr|h[1-6])\b[^>]*>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (!text) return null;
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}\u2026` : text;
+}
+function toVisitDto(v) {
+  return v ? { id: v.id, start: new Date(v.start).toISOString(), end: new Date(v.end).toISOString(), title: v.title, all_day: v.allDay, via: v.via } : null;
+}
+
 // src/people.ts
 var PERSON_MODES = ["auto", "ask", "never"];
 var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
@@ -2803,29 +2962,29 @@ var ts = (iso) => iso ? new Date(iso).getTime() : null;
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_YEAR_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
 var TIME_FMT2 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-function fmtDate(ms, nowMs) {
-  const d = new Date(ms);
+function fmtDate(ms2, nowMs) {
+  const d = new Date(ms2);
   return d.getFullYear() === new Date(nowMs).getFullYear() ? DATE_FMT2.format(d) : DATE_YEAR_FMT.format(d);
 }
-function ago(ms, nowMs) {
-  const diff = Math.max(0, nowMs - ms);
+function ago(ms2, nowMs) {
+  const diff = Math.max(0, nowMs - ms2);
   if (diff < 6e4) return "just now";
   if (diff < 36e5) return `${Math.round(diff / 6e4)}m ago`;
   if (diff < DAY_MS2) return `${Math.round(diff / 36e5)}h ago`;
   if (diff < WEEK_MS) return `${Math.round(diff / DAY_MS2)}d ago`;
-  return fmtDate(ms, nowMs);
+  return fmtDate(ms2, nowMs);
 }
-function dayLabel(ms, nowMs) {
-  const d = new Date(ms);
+function dayLabel(ms2, nowMs) {
+  const d = new Date(ms2);
   const now = new Date(nowMs);
   const key = d.toDateString();
   if (key === now.toDateString()) return `Today \xB7 ${DATE_FMT2.format(d)}`;
   if (key === new Date(nowMs - DAY_MS2).toDateString()) return `Yesterday \xB7 ${DATE_FMT2.format(d)}`;
-  return fmtDate(ms, nowMs);
+  return fmtDate(ms2, nowMs);
 }
-function mmss3(ms) {
-  if (ms == null || ms <= 0) return void 0;
-  const s = Math.round(ms / 1e3);
+function mmss3(ms2) {
+  if (ms2 == null || ms2 <= 0) return void 0;
+  const s = Math.round(ms2 / 1e3);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 var capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
@@ -3162,6 +3321,17 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
     const w = waWindow(r.latest_wa_inbound_at, now);
     const hours = w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 36e5)) : 0;
     about.push({ k: "Reply window", v: w.open ? `Open \xB7 ${hours}h left` : "Closed \xB7 template only" });
+  }
+  if (d.visits) {
+    const v = d.visits;
+    const nextLine = v.next ? `${visitLine(v.next, v.timezone, nowMs)} \xB7 ${v.next.title}` : v.state === "ok" ? "Nothing on the calendar" : "Calendar could not be read";
+    facts.push({
+      label: "Next visit",
+      value: v.next ? visitDay(v.next.start, v.timezone, nowMs) : "\u2014",
+      meta: v.next ? `${visitTime(v.next, v.timezone)} \xB7 ${v.next.title}${v.next.via === "name" ? " \xB7 matched by name" : ""}` : nextLine.toLowerCase()
+    });
+    about.push({ k: "Next visit", v: nextLine });
+    if (v.last) about.push({ k: "Last visit", v: `${visitLine(v.last, v.timezone, nowMs)} \xB7 ${v.last.title}` });
   }
   return {
     ...base,
@@ -4051,8 +4221,8 @@ function hoursLines2(hours) {
   for (const d of DAYS) if (hours[d]) clean[d] = hours[d];
   return hoursRuns(clean).map((r) => `${DAY_SHORT[r.from] ?? r.from}${r.to !== r.from ? `\u2013${DAY_SHORT[r.to] ?? r.to}` : ""} ${r.text.toLowerCase() === "closed" ? "closed" : r.text}`);
 }
-function hoursOf(tz, ms) {
-  const c = clockInZone(tz, ms);
+function hoursOf(tz, ms2) {
+  const c = clockInZone(tz, ms2);
   return c.hh + c.mm / 60;
 }
 function spanLabel(t1, t2) {
@@ -4072,7 +4242,10 @@ function toBlock(item, tz, dayStartMs, dayEndMs) {
     dur: Math.max(15, Math.round((tEnd - t) * 60)),
     title: item.title || "Busy",
     time: spanLabel(t, tEnd),
-    person: item.person,
+    person: item.person ? { id: item.person.id, name: item.person.name, via: item.person.via ?? null } : null,
+    description: item.description ?? null,
+    location: item.location ?? null,
+    contacts: { phones: (item.contacts?.phones ?? []).map((p) => formatPhoneDisplay(p) ?? p), emails: item.contacts?.emails ?? [] },
     start: item.start,
     end: item.end
   };
@@ -4162,7 +4335,7 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
     }
   }
   const ago3 = readAgoLabel(dto.feed.read_at, now);
-  const feedLine = dto.feed.state === "ok" ? `From your calendar \xB7 read ${ago3 ?? "just now"} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}${dto.feed.skipped_recurring ? ` \xB7 ${dto.feed.skipped_recurring} repeating rule${dto.feed.skipped_recurring === 1 ? "" : "s"} read once` : ""}` : dto.feed.state === "unavailable" ? `Your calendar could not be read${ago3 ? ` \xB7 last read ${ago3}` : ""}` : "No calendar connected";
+  const feedLine = dto.feed.state === "ok" ? `From ${dto.feed.source ?? "your calendar"} \xB7 read ${ago3 ?? "just now"} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}${dto.feed.skipped_recurring ? ` \xB7 ${dto.feed.skipped_recurring} repeating rule${dto.feed.skipped_recurring === 1 ? "" : "s"} read once` : ""}` : dto.feed.state === "unavailable" ? `Your calendar could not be read${ago3 ? ` \xB7 last read ${ago3}` : ""}` : "No calendar connected";
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
   const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
   const sameMonth = dto.from.slice(0, 7) === last.slice(0, 7);
@@ -4187,7 +4360,7 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
     days,
     today: todayKey,
     now: nowIn,
-    feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events },
+    feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events, source: dto.feed.source ?? "your calendar" },
     stats: { events, windows: windowCount, next },
     rules: rulesLine(dto.rules),
     hoursLines: hoursLines2(dto.hours),
@@ -4238,13 +4411,13 @@ function frameOf(key, todayKey) {
 var DAY_MS5 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS5;
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-function ago2(ms, nowMs) {
-  const diff = Math.max(0, nowMs - ms);
+function ago2(ms2, nowMs) {
+  const diff = Math.max(0, nowMs - ms2);
   if (diff < 6e4) return "just now";
   if (diff < 36e5) return `${Math.round(diff / 6e4)}m ago`;
   if (diff < DAY_MS5) return `${Math.round(diff / 36e5)}h ago`;
   if (diff < QUIET_AFTER_MS2) return `${Math.round(diff / DAY_MS5)}d ago`;
-  return DATE_FMT4.format(new Date(ms));
+  return DATE_FMT4.format(new Date(ms2));
 }
 var KIND_META = {
   whatsapp: { name: "WhatsApp Business", what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
@@ -4448,14 +4621,18 @@ export {
   describeNow,
   describeOpenings,
   describeSettingsChange,
+  describeVisits,
   detectLanguage,
   draftSendsAtMs,
   eligibleFor,
   eligibleForPlaybook,
   emptyReadSet,
   err,
+  eventText,
   exampleParams,
+  extractContacts,
   fastPath,
+  feedSourceLabel,
   filterOpenings,
   firstNameOf,
   fmtClock,
@@ -4485,6 +4662,7 @@ export {
   localDate,
   localHour,
   localToUtcMs,
+  matchPerson,
   mayReceiveOffers,
   mediaKind,
   mediaVM,
@@ -4512,6 +4690,7 @@ export {
   parseTenantConfigResult,
   partialAnswer,
   peopleAggregates,
+  personInText,
   personName,
   personStateFor,
   placeholdersOf,
@@ -4565,9 +4744,14 @@ export {
   toPersonVM,
   toReportVM,
   toTodayVM,
+  toVisitDto,
   triggerOf,
   validateTemplateDraft,
   violatesNoPrices,
+  visitDay,
+  visitLine,
+  visitTime,
+  visitsOf,
   waWindow,
   whenLabel,
   whisperText,

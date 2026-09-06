@@ -122,7 +122,7 @@ test("the doors and the page: read-only, the feed's address never in the browser
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
   assert.ok(svc.includes("const feed = await loadFeed(tenantId, url);"), "the same cache the assistant's openings use");
   assert.ok(svc.includes("freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy: parsed.busy, rules, now })"), "the windows are the receptionist's own");
-  assert.ok(svc.includes("person: personInTitle(it.title, people),"));
+  assert.ok(svc.includes("person: matchPerson(it, people),") && svc.includes("contacts: { phones: c.phones, emails: c.emails },"), "who it is for — by a phone in the event first, then a whole name");
   assert.ok(!/ical_url[^\n]*\n[^\n]*return \{/.test(svc), "the address is read, never returned");
   assert.ok(svc.includes("if (PRIVATE_HOST.test(u.hostname)") && svc.includes('throw new AppError("validation", "That address is not an iCal feed.'), "a preview reaches only the public internet and only iCal");
   const r = readCode("apps/dashboard/app/api/v1/calendar/route.ts");

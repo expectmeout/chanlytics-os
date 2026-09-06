@@ -136,7 +136,8 @@ test("the edge reads the feed once per five minutes and tells both receptionists
   assert.ok(lib.includes("const CACHE_MS = 5 * 60 * 1000;"));
   assert.ok(lib.includes("AbortSignal.timeout(FETCH_TIMEOUT_MS)"));
   assert.ok(lib.includes('u.replace(/^webcal:\\/\\//i, "https://")'));
-  assert.ok(lib.includes("feeds.set(tenantId, { text, at: Date.now() });"), "a failure is cached briefly too");
+  assert.ok(lib.includes("feeds.set(tenantId, { text, at: Date.now(), parsed: null });"), "a failure is cached briefly too");
+  assert.ok(lib.includes("if (hit?.parsed && hit.text === text) return hit.parsed;"), "parsed once per fetch");
   const rt = readCode("apps/edge/lib/tenant-runtime.ts");
   assert.ok(rt.includes("calendar: parsed?.calendar ?? null,"));
   const wa = readCode("apps/edge/api/whatsapp.ts");
