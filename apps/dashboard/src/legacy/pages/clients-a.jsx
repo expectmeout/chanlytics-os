@@ -1308,7 +1308,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }); // eslint-disable-line react-hooks/exhaustive-deps
+  });
   const toggleAll = () => setSel((s) => (shownIds.length && shownIds.every((id) => s.has(id)) ? new Set() : new Set(shownIds)));
   const ws = (window.__WORKSPACES || []).find((w) => w.id === window.__ACTIVE_WORKSPACE) || (window.__WORKSPACES || [])[0];
   const fetched = people.fetchedAt ? new Date(people.fetchedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
