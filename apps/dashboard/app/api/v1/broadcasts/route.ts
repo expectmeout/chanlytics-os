@@ -71,7 +71,7 @@ export const POST = withRoute(async (req, ctx) => {
   // 1. The template, as Meta holds it.
   const { data: tpl, error: tErr } = await ctx.supabase
     .from("templates")
-    .select("id, name, language, meta_status, category, variables, body_preview")
+    .select("id, name, language, meta_status, category, variables, body_preview, title")
     .eq("id", templateId)
     .eq("tenant_id", tenantId)
     .eq("channel", "whatsapp")
@@ -153,7 +153,7 @@ export const POST = withRoute(async (req, ctx) => {
     if (t.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * 86_400_000) throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
     when = t.getTime() > now.getTime() ? t : now;
   }
-  const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim().slice(0, BROADCAST_NAME_MAX) : broadcastName(tpl.name, now);
+  const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim().slice(0, BROADCAST_NAME_MAX) : broadcastName(tpl.name, now, tpl.title);
   const audience: Audience = { kind: kind as AudienceKind, id: audienceId, label };
   // The row and the ledger both take JSON; an interface has no index signature.
   const audienceJson = { kind: audience.kind, id: audience.id, label: audience.label };

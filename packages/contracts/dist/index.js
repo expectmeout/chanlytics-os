@@ -3298,10 +3298,13 @@ function starterPreview(s, language, businessName) {
   const t = starterText(s, language);
   return fill(t.body, t.slots.map((x) => x.kind === "business_name" && businessName ? businessName : x.example));
 }
-function templateTitle(name) {
+var TEMPLATE_TITLE_MAX = 60;
+function templateTitle(name, title) {
+  const given = typeof title === "string" ? title.replace(/\s+/g, " ").trim() : "";
+  if (given) return given.slice(0, TEMPLATE_TITLE_MAX);
   const s = starterByName(name);
   if (s) return s.title;
-  const words = String(name ?? "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  const words = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
   return words ? words[0].toUpperCase() + words.slice(1) : String(name ?? "");
 }
 function guessSlotKind(label, example) {
@@ -3400,9 +3403,9 @@ function cleanParam(raw) {
   if (/[\n\r\t]/.test(v) || /\s{4,}/.test(v)) return null;
   return v;
 }
-function broadcastName(templateName, now = /* @__PURE__ */ new Date()) {
+function broadcastName(templateName, now = /* @__PURE__ */ new Date(), title) {
   const day = now.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  return `${templateTitle(templateName)} \xB7 ${day}`.slice(0, BROADCAST_NAME_MAX);
+  return `${templateTitle(templateName, title)} \xB7 ${day}`.slice(0, BROADCAST_NAME_MAX);
 }
 function whenLabel(iso, now = /* @__PURE__ */ new Date()) {
   const d = new Date(iso);
@@ -4016,6 +4019,7 @@ export {
   TEMPLATE_LANGUAGES,
   TEMPLATE_NAME_MAX,
   TEMPLATE_STATUSES,
+  TEMPLATE_TITLE_MAX,
   TENANT_STATUSES,
   TenantConfigSchema,
   TenantConfigWriteSchema,

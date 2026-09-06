@@ -25,7 +25,7 @@ import { createTemplate } from "@/server/service";
  * words; what Meta then says (pending, approved, rejected with a reason) is
  * the row's status, kept current by the webhook.
  */
-const COLUMNS = "id, channel, name, language, body_preview, variables, category, meta_status, quality, rejected_reason, synced_at, source, hidden_at";
+const COLUMNS = "id, channel, name, language, body_preview, variables, category, meta_status, quality, rejected_reason, synced_at, source, hidden_at, title";
 
 export const GET = withRoute(async (req, ctx) => {
   const url = new URL(req.url);

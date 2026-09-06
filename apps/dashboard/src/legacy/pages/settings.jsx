@@ -1804,7 +1804,7 @@ const tplAgo = (iso) => {
   return `${Math.round(diff / 86400000)}d ago`;
 };
 // Words for people: a starter's title, or the name with its underscores made spaces.
-const tplTitle = (name) => (window.__starters ? window.__starters.title(name) : name);
+const tplTitle = (t) => (window.__starters ? window.__starters.title(t) : (t && t.name) || "");
 const tplIsStarter = (name) => !!(window.__starters && window.__starters.byName(name));
 const TemplatesCard = () => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
@@ -1833,7 +1833,18 @@ const TemplatesCard = () => {
     setBusy(true);
     const r = await (t.hidden_at ? window.__templates.show(t.id) : window.__templates.hide(t.id));
     setBusy(false);
-    flash({ msg: r.ok ? <><b>{tplTitle(t.name)}</b> {t.hidden_at ? "is back in the composers" : "is out of the composers — still on file"}</> : <>{r.message}</> });
+    flash({ msg: r.ok ? <><b>{tplTitle(t)}</b> {t.hidden_at ? "is back in the composers" : "is out of the composers — still on file"}</> : <>{r.message}</> });
+  };
+  const [renaming, setRenaming] = React.useState(null);
+  const [draftTitle, setDraftTitle] = React.useState("");
+  const rename = async (t) => {
+    if (!window.__templates || !window.__templates.rename || busy) return;
+    setBusy(true);
+    const title = draftTitle.replace(/\s+/g, " ").trim() || null;
+    const r = await window.__templates.rename(t.id, title);
+    setBusy(false);
+    if (r.ok) setRenaming(null);
+    flash({ msg: r.ok ? (title ? <>Now called <b>{title}</b> — WhatsApp still knows it as {t.name}</> : <><b>{t.name}</b> goes by its name again</>) : <>{r.message}</> });
   };
   const addStarters = async (keys, languages) => {
     if (!window.__templates || !window.__templates.addStarters || busy) return;
@@ -1878,7 +1889,24 @@ const TemplatesCard = () => {
             <div key={t.id} className={"set-int-row" + (t.hidden_at ? " is-hidden" : "")} data-testid="template-row">
               <span className="st-tile set-int-tile"><Icon name="chat" size={14} /></span>
               <span className="set-team-body">
-                <span className="set-team-name">{tplTitle(t.name)}<span className="dim"> · {t.name} · {t.language}{t.category ? ` · ${t.category}` : ""}{tplIsStarter(t.name) ? " · starter" : ""}{t.source === "chanlytics" ? " · made here" : ""}</span></span>
+                {renaming === t.id ? (
+                  <span className="tpl-rename" data-testid="template-rename-form">
+                    <input
+                      className="bc-subject"
+                      value={draftTitle}
+                      maxLength={60}
+                      autoFocus
+                      placeholder={tplTitle({ name: t.name })}
+                      onChange={(e) => setDraftTitle(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") rename(t); if (e.key === "Escape") setRenaming(null); }}
+                      data-testid="template-title"
+                    />
+                    <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => rename(t)} data-testid="template-title-save">Save</button>
+                    <button className="cl-bucket-link" onClick={() => setRenaming(null)}>Cancel</button>
+                  </span>
+                ) : (
+                  <span className="set-team-name">{tplTitle(t)}<span className="dim"> · {t.name} · {t.language}{t.category ? ` · ${t.category}` : ""}{tplIsStarter(t.name) ? " · starter" : ""}{t.source === "chanlytics" ? " · made here" : ""}</span></span>
+                )}
                 <span className="set-team-mail">
                   {t.meta_status === "rejected" && t.rejected_reason
                     ? `Rejected: ${String(t.rejected_reason).toLowerCase().replace(/_/g, " ")}`
@@ -1886,7 +1914,10 @@ const TemplatesCard = () => {
                 </span>
               </span>
               <span className={`pill ${st.cls}`}>{st.label}</span>
-              {canSync && arm !== t.id && (
+              {canSync && arm !== t.id && renaming !== t.id && (
+                <button className="cl-bucket-link" disabled={busy} onClick={() => { setRenaming(t.id); setDraftTitle(t.title || ""); }} title="Call it something in your own words — WhatsApp keeps its name" data-testid="template-rename">Rename</button>
+              )}
+              {canSync && arm !== t.id && renaming !== t.id && (
                 <button className="cl-bucket-link" disabled={busy} onClick={() => toggleHidden(t)} title={t.hidden_at ? "Offer it in the composers again" : "Keep it on file, out of the composers"} data-testid="template-hide">{t.hidden_at ? "Show" : "Hide"}</button>
               )}
               {canSync && arm !== t.id && (

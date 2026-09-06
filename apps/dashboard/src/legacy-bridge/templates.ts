@@ -66,10 +66,27 @@ export const templates = {
   remove: (id: string) => call<{ deleted: true; id: string; name: string }>(`/api/v1/templates/${encodeURIComponent(id)}`, "DELETE", undefined, true),
   /** Out of the composers, or back in. The row stays; syncs keep it. */
   hide: (id: string) => call<{ id: string; name: string; hidden: boolean }>(`/api/v1/templates/${encodeURIComponent(id)}`, "PUT", { hidden: true }, true),
+  /** The workspace's own words for it; null goes back to the name. Meta's name is untouched. */
+  rename: (id: string, title: string | null) => call<{ id: string; name: string; title: string | null }>(`/api/v1/templates/${encodeURIComponent(id)}`, "PUT", { title }, true),
   show: (id: string) => call<{ id: string; name: string; hidden: boolean }>(`/api/v1/templates/${encodeURIComponent(id)}`, "PUT", { hidden: false }, true),
   /** The starter set, or some of it, in the languages asked: idempotent, submitted to Meta where new. */
   addStarters: (body: StarterBody) => call<StarterData>("/api/v1/templates/starter", "POST", body, true),
 };
+
+/**
+ * The words for a template: the title the workspace gave it, a starter's,
+ * else the name made words. Takes a row, or a name looked up among the
+ * workspace's templates (Settings' list, which boots with the app).
+ */
+export function titleOf(t: string | { name: string; title?: string | null } | null | undefined): string {
+  if (!t) return "";
+  if (typeof t === "string") {
+    const all = (window as unknown as { __TEMPLATES_ALL?: Array<{ name: string; title?: string | null }> | null }).__TEMPLATES_ALL;
+    const row = Array.isArray(all) ? all.find((x) => x.name === t) : undefined;
+    return templateTitle(t, row?.title ?? null);
+  }
+  return templateTitle(t.name, t.title ?? null);
+}
 
 /** The starter set as the pages read it: the library, and the words and slots for any template. */
 export interface StarterLibrary {
@@ -79,7 +96,7 @@ export interface StarterLibrary {
   forTrigger: typeof starterForTrigger;
   text: typeof starterText;
   preview: typeof starterPreview;
-  title: typeof templateTitle;
+  title: typeof titleOf;
   slotKinds: typeof defaultSlotKinds;
   slotLabels: typeof slotLabels;
   compare: typeof compareTemplates;
@@ -104,7 +121,7 @@ export function installTemplates(): void {
     forTrigger: starterForTrigger,
     text: starterText,
     preview: starterPreview,
-    title: templateTitle,
+    title: titleOf,
     slotKinds: defaultSlotKinds,
     slotLabels,
     compare: compareTemplates,
