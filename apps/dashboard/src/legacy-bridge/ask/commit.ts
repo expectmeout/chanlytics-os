@@ -93,6 +93,20 @@ export async function commitProposal(win: Window, p: AskProposal): Promise<Commi
       await refresh(win, "settings");
       return { ok: true, receipt: `Invited ${pl.email} as ${pl.role}`, undo: null };
     }
+    case "broadcast": {
+      const r = await viaAsk(win, "/api/v1/broadcasts", {
+        template_id: pl.template_id,
+        params: Array.isArray(pl.params) ? pl.params : [],
+        audience: { kind: pl.audience_kind, id: pl.audience_id ?? null },
+        scheduled_for: pl.scheduled_for ?? null,
+        name: pl.name ?? null,
+      });
+      if (!r.ok) return r;
+      const rb = (win as unknown as { __refreshBroadcasts?: () => Promise<void> }).__refreshBroadcasts;
+      if (rb) await rb();
+      const n = Number(r.data.recipient_count ?? pl.count ?? 0);
+      return { ok: true, receipt: `Broadcast “${r.data.name ?? pl.name}” — ${n} ${n === 1 ? "person" : "people"}, ${pl.scheduled_for ? "scheduled" : "sending now"}`, undo: { broadcast_id: r.data.id } };
+    }
     default:
       return { ok: false, message: "This card cannot be approved from here." };
   }
@@ -120,6 +134,13 @@ export async function undoProposal(win: Window, p: AskProposal, outcome: AskProp
       if (!r.ok) return r;
       win.dispatchEvent(new CustomEvent("surface:clients"));
       return { ok: true, receipt: "Set back", undo: null };
+    }
+    case "broadcast": {
+      const r = await viaAsk(win, `/api/v1/broadcasts/${u.broadcast_id}/cancel`);
+      if (!r.ok) return r;
+      const rb = (win as unknown as { __refreshBroadcasts?: () => Promise<void> }).__refreshBroadcasts;
+      if (rb) await rb();
+      return { ok: true, receipt: r.data.was === "sending" ? "Stopped — it ends after this batch" : "Canceled — nothing will send", undo: null };
     }
     case "policy": {
       const body: Record<string, unknown> = { class: u.class };

@@ -356,7 +356,7 @@ export type AskRole = "user" | "assistant";
 /** A proposal the model made; a card the person may approve. Executed by the client through the verbs. */
 export interface AskProposal {
   id: string;
-  kind: "reply" | "steer" | "thread_verb" | "person_mode" | "policy" | "settings" | "whisper" | "invite";
+  kind: "reply" | "steer" | "thread_verb" | "person_mode" | "policy" | "settings" | "whisper" | "invite" | "broadcast";
   /** The lowest role that may commit it; the route re-checks on Approve. */
   needs: "operator" | "owner";
   title: string;
@@ -379,6 +379,7 @@ export const PROPOSAL_GATE: Record<AskProposal["kind"], "approve" | "autonomy" |
   person_mode: "settings",
   settings: "settings",
   invite: "team",
+  broadcast: "approve",
 };
 
 /** What became of a card, kept with the turn that proposed it. */
@@ -560,6 +561,8 @@ const T = {
     actHoursQ: "Change Saturday's hours to ",
     actInvite: "Invite a teammate",
     actInviteQ: "Invite ",
+    actOffer: "Send an offer to a list",
+    actOfferQ: "Send the ",
     actHold: "Hold every reply for my review",
     actHoldQ: "Hold every reply for my review before it sends",
   },
@@ -589,6 +592,8 @@ const T = {
     actHoursQ: "Cambia el horario del sábado a ",
     actInvite: "Invitar a alguien del equipo",
     actInviteQ: "Invita a ",
+    actOffer: "Enviar una oferta a una lista",
+    actOfferQ: "Envía la ",
     actHold: "Retener cada respuesta para revisarla",
     actHoldQ: "Retén cada respuesta para mi revisión antes de enviarla",
   },
@@ -646,6 +651,7 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
   if (input.surface === "settings") act(t.actHours, t.actHoursQ, "clock", true);
   if (input.surface === "settings") act(t.actInvite, t.actInviteQ, "users", true);
   if (input.surface === "inbox" || input.heldDrafts > 0) act(t.actHold, t.actHoldQ, "shield");
+  if (input.surface === "people" || input.surface === "other") act(t.actOffer, t.actOfferQ, "wave", true);
   return [...asks, ...acts.slice(0, 4)];
 }
 

@@ -262,7 +262,7 @@ test("the loop: read tools plus finish, tool_choice any then finish forced on th
   assert.ok(l.includes('cache_control: { type: "ephemeral" }'), "the stable block is cached");
   assert.ok(readCode("apps/dashboard/src/server/ask/round.ts").includes("partialAnswer(b.json)"), "the answer streams out of the finish call, in the round module");
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
-  for (const name of ["get_today", "list_threads", "get_thread", "search_people", "get_person", "list_calls", "get_call", "get_report", "get_settings", "get_openings", "explain_metric"]) {
+  for (const name of ["get_today", "list_threads", "get_thread", "search_people", "get_person", "list_calls", "get_call", "get_report", "get_settings", "get_openings", "list_audiences", "explain_metric"]) {
     assert.ok(tools.includes(`name: "${name}"`), name);
   }
   assert.ok(tools.includes("strict: true,"), "finish is strict");
@@ -374,12 +374,12 @@ test("the entry points are real everywhere: no Soon tag, ⌘K and the button ope
 });
 
 test("cards: an act tool never acts, a proposal names its door and its undo, the outcome is the one update a turn takes", () => {
-  assert.deepEqual(PROPOSAL_GATE, { reply: "approve", steer: "approve", thread_verb: "approve", whisper: "approve", policy: "autonomy", person_mode: "settings", settings: "settings", invite: "team" });
+  assert.deepEqual(PROPOSAL_GATE, { reply: "approve", steer: "approve", thread_verb: "approve", whisper: "approve", policy: "autonomy", person_mode: "settings", settings: "settings", invite: "team", broadcast: "approve" });
   const ok = AskProposalOutcomeSchema.safeParse({ state: "done", receipt: "Sent to Rosa", atMs: 1, undo: { message_id: ID } });
   assert.ok(ok.success);
   assert.equal(AskProposalOutcomeSchema.safeParse({ state: "sent" }).success, false, "only the four states");
   const pr = readCode("apps/dashboard/src/server/ask/proposals.ts");
-  for (const name of ["draft_reply", "propose_steer", "propose_thread_verb", "propose_person_mode", "propose_policy", "propose_settings", "propose_whisper", "propose_invite"]) assert.ok(pr.includes(`name: "${name}"`), name);
+  for (const name of ["draft_reply", "propose_steer", "propose_thread_verb", "propose_person_mode", "propose_policy", "propose_settings", "propose_whisper", "propose_invite", "propose_broadcast"]) assert.ok(pr.includes(`name: "${name}"`), name);
   assert.ok(pr.includes("Nothing has happened yet. This is a card the person can approve, edit or dismiss."), "the model is told nothing happened");
   assert.ok(!/\.insert\(|\.update\(|\.delete\(|\.rpc\(/.test(pr), "a proposal reads; it never writes");
   assert.ok(pr.includes("money stays owner-only by charter"), "the locked row is refused before it becomes a card");

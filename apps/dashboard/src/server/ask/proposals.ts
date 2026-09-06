@@ -1,7 +1,16 @@
 import "server-only";
 import {
+  AUDIENCE_KINDS,
   AskSettingsChangeSchema,
+  EVERYONE_LABEL,
+  PEOPLE_LISTS,
   PERSON_MODES,
+  broadcastName,
+  cleanParam,
+  eligibleFor,
+  renderTemplate,
+  toPersonRowVM,
+  type AudienceKind,
   POLICY_CLASSES,
   POLICY_MODES,
   contactName,
@@ -12,6 +21,7 @@ import {
   type AskProposal,
 } from "@chanlytics/contracts";
 import type { ToolContext, ToolDef } from "./tools";
+import { listPeople } from "../people";
 
 /**
  * What the assistant may propose, and how a proposal is checked.
@@ -73,6 +83,18 @@ export const ACT_TOOLS: ToolDef[] = [
     name: "propose_whisper",
     description: "Propose a sentence only the phone receptionist hears on a live call, worked into its next answer. Use a call id from list_calls with filter live.",
     input_schema: obj({ call_id: { type: "string" }, text: { type: "string" } }, ["call_id", "text"]),
+  },
+  {
+    name: "propose_broadcast",
+    description: "Propose a broadcast: one approved WhatsApp template to an audience — everyone who said yes, a People list (needs_you, waiting_on_you, new_week, quiet, phoned_only) or a list kept by hand (its audience_id from list_audiences) — with the template's values in order and an optional ISO time. Read list_audiences first. It becomes a card the person approves; nobody without a recorded yes is ever included.",
+    input_schema: obj({
+      template_id: { type: "string" },
+      audience_kind: { type: "string", enum: ["everyone", "list", "saved"] },
+      audience_id: { type: "string" },
+      params: { type: "array", items: { type: "string" } },
+      scheduled_for: { type: "string" },
+      name: { type: "string" },
+    }, ["template_id", "audience_kind"]),
   },
   {
     name: "propose_invite",
@@ -295,6 +317,58 @@ async function proposeInvite(_t: ToolContext, input: Record<string, unknown>): P
   });
 }
 
+async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>): Promise<ProposalOutcome> {
+  const templateId = str(input.template_id, 40);
+  const kind = str(input.audience_kind, 10);
+  const audienceId = str(input.audience_id, 60) || null;
+  if (!UUID.test(templateId)) return refuse("template_id must be an id list_audiences returned");
+  if (!(AUDIENCE_KINDS as readonly string[]).includes(kind)) return refuse("audience_kind must be everyone, list or saved");
+  if (kind === "list" && !PEOPLE_LISTS.some((l) => l.id === audienceId)) return refuse("audience_id must be a People list id: needs_you, waiting_on_you, new_week, quiet or phoned_only");
+  if (kind === "saved" && !(audienceId && UUID.test(audienceId))) return refuse("audience_id must be a saved list id from list_audiences");
+  const params = Array.isArray(input.params) ? (input.params as unknown[]).map((p) => cleanParam(p)) : [];
+  if (params.some((p) => p === null)) return refuse("every value must be plain text under 1024 characters, without line breaks");
+  const { data: tpl } = await t.ctx.supabase
+    .from("templates")
+    .select("id, name, language, meta_status, variables, body_preview")
+    .eq("id", templateId)
+    .eq("tenant_id", t.tenantId)
+    .eq("channel", "whatsapp")
+    .maybeSingle();
+  if (!tpl || tpl.meta_status !== "approved") return refuse("that template is not approved by WhatsApp; list_audiences names the approved ones");
+  const expected = Array.isArray(tpl.variables) ? tpl.variables.length : 0;
+  if (params.length !== expected) return refuse(`this template takes ${expected} value${expected === 1 ? "" : "s"}, in order`);
+
+  // The audience, counted the way the route will count it.
+  const rows = (await listPeople(t.ctx, t.tenantId)).map((r) => toPersonRowVM(r, t.now));
+  let savedIds: Set<string> | null = null;
+  let label = EVERYONE_LABEL;
+  if (kind === "saved") {
+    const { data: seg } = await t.ctx.supabase.from("segments").select("id, name").eq("id", audienceId!).eq("tenant_id", t.tenantId).maybeSingle();
+    if (!seg) return refuse("no such list; list_audiences names them");
+    const { data: members } = await t.ctx.supabase.from("segment_members").select("contact_id").eq("segment_id", seg.id);
+    savedIds = new Set((members ?? []).map((m) => m.contact_id));
+    label = seg.name;
+  } else if (kind === "list") {
+    label = PEOPLE_LISTS.find((l) => l.id === audienceId)!.label;
+  }
+  const count = eligibleFor(rows, kind as AudienceKind, audienceId, savedIds).length;
+  if (count === 0) return refuse(`nobody on "${label}" has said yes to offers yet, so there is nobody to send to; say so and suggest recording their answer on their profile, or the YES OFFERS code on the Broadcasts page`);
+  const when = str(input.scheduled_for, 40) || null;
+  if (when && Number.isNaN(Date.parse(when))) return refuse("scheduled_for must be an ISO time");
+  const values = params as string[];
+  const words = renderTemplate(tpl.body_preview, values);
+  const name = str(input.name, 80) || broadcastName(tpl.name, t.now);
+  const whenWords = when ? new Date(when).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "now";
+  return propose({
+    kind: "broadcast",
+    needs: "operator",
+    title: `Broadcast to ${label}`,
+    summary: `${count} ${count === 1 ? "person" : "people"} who said yes · “${tpl.name}” · ${whenWords}: ${words.slice(0, 160)}${words.length > 160 ? "…" : ""}`,
+    payload: { template_id: tpl.id, template_name: tpl.name, audience_kind: kind, audience_id: audienceId, audience_label: label, params: values, scheduled_for: when, name, count },
+    undo: "Cancel it, if it has not finished",
+  });
+}
+
 export async function buildProposal(t: ToolContext, name: string, input: Record<string, unknown>): Promise<ProposalOutcome> {
   try {
     switch (name) {
@@ -306,6 +380,7 @@ export async function buildProposal(t: ToolContext, name: string, input: Record<
       case "propose_settings": return await proposeSettings(t, input);
       case "propose_whisper": return await proposeWhisper(t, input);
       case "propose_invite": return await proposeInvite(t, input);
+      case "propose_broadcast": return await proposeBroadcast(t, input);
       default: return refuse(`unknown tool ${name}`);
     }
   } catch (e) {
@@ -323,6 +398,7 @@ const PROPOSAL_LABELS: Record<string, string> = {
   propose_settings: "Preparing a settings change",
   propose_whisper: "Preparing a whisper",
   propose_invite: "Preparing an invitation",
+  propose_broadcast: "Preparing a broadcast",
 };
 
 export function proposalLabel(name: string): string {

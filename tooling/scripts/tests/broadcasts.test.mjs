@@ -219,3 +219,27 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
   const p = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
   assert.ok(p.includes('data-testid="bc-optin"') && p.includes('data-testid="bc-optin-copy"') && p.includes('download="say-yes-to-offers.svg"'));
 });
+
+test("Ask: a broadcast is read (list_audiences) and proposed (propose_broadcast) as a card, never sent; nobody without a yes is ever included", async () => {
+  const { PROPOSAL_GATE, buildAskSuggestions } = await import("@chanlytics/contracts");
+  assert.equal(PROPOSAL_GATE.broadcast, "approve");
+  const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
+  assert.ok(tools.includes('name: "list_audiences"') && tools.includes('case "list_audiences": out = await listAudiences(t); break;'));
+  assert.ok(tools.includes("said_yes: eligibleFor(rows, \"everyone\", null, null).length"), "the same predicate the route enrols with");
+  assert.ok(tools.includes('note: "Only people who said yes can be on a broadcast; the counts are exactly them."'));
+  const pr = readCode("apps/dashboard/src/server/ask/proposals.ts");
+  assert.ok(pr.includes('name: "propose_broadcast"') && pr.includes('case "propose_broadcast": return await proposeBroadcast(t, input);'));
+  assert.ok(pr.includes("if (count === 0) return refuse(`nobody on \"${label}\" has said yes to offers yet"), "a broadcast to nobody is refused, not proposed");
+  assert.ok(pr.includes('if (!tpl || tpl.meta_status !== "approved") return refuse('), "only an approved template");
+  assert.ok(pr.includes('kind: "broadcast",') && pr.includes('needs: "operator",'));
+  const c = readCode("apps/dashboard/src/legacy-bridge/ask/commit.ts");
+  assert.ok(c.includes('const r = await viaAsk(win, "/api/v1/broadcasts", {'), "the card commits through the broadcast route, the same door the page uses");
+  assert.ok(c.includes("const r = await viaAsk(win, `/api/v1/broadcasts/${u.broadcast_id}/cancel`);"), "undo is the cancel route");
+  const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
+  assert.ok(prompt.includes('"said yes":') && prompt.includes('"broadcast":') && prompt.includes('"held back":'));
+  assert.ok(prompt.includes("never propose a broadcast to nobody"));
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx").includes('broadcast: "wave"'));
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/ask-text.jsx").includes('kBroadcast: "broadcast"'));
+  const s = buildAskSuggestions({ lang: "en", surface: "other", scope: null, canAct: true, heldDrafts: 0, needsYou: 0 });
+  assert.ok(s.some((x) => x.kind === "act" && x.label === "Send an offer to a list"), "the Act group offers it where broadcasts live");
+});

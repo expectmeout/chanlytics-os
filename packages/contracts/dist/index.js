@@ -2078,7 +2078,8 @@ var PROPOSAL_GATE = {
   policy: "autonomy",
   person_mode: "settings",
   settings: "settings",
-  invite: "team"
+  invite: "team",
+  broadcast: "approve"
 };
 var AskProposalOutcomeSchema = z3.object({
   state: z3.enum(["done", "dismissed", "failed", "undone"]),
@@ -2158,6 +2159,8 @@ var T = {
     actHoursQ: "Change Saturday's hours to ",
     actInvite: "Invite a teammate",
     actInviteQ: "Invite ",
+    actOffer: "Send an offer to a list",
+    actOfferQ: "Send the ",
     actHold: "Hold every reply for my review",
     actHoldQ: "Hold every reply for my review before it sends"
   },
@@ -2187,6 +2190,8 @@ var T = {
     actHoursQ: "Cambia el horario del s\xE1bado a ",
     actInvite: "Invitar a alguien del equipo",
     actInviteQ: "Invita a ",
+    actOffer: "Enviar una oferta a una lista",
+    actOfferQ: "Env\xEDa la ",
     actHold: "Retener cada respuesta para revisarla",
     actHoldQ: "Ret\xE9n cada respuesta para mi revisi\xF3n antes de enviarla"
   }
@@ -2252,6 +2257,7 @@ function buildAskSuggestions(input) {
   if (input.surface === "settings") act(t.actHours, t.actHoursQ, "clock", true);
   if (input.surface === "settings") act(t.actInvite, t.actInviteQ, "users", true);
   if (input.surface === "inbox" || input.heldDrafts > 0) act(t.actHold, t.actHoldQ, "shield");
+  if (input.surface === "people" || input.surface === "other") act(t.actOffer, t.actOfferQ, "wave", true);
   return [...asks, ...acts.slice(0, 4)];
 }
 var NEEDS_RE = /\b(who needs me|who needs my|needs? (my|me)\b|what('s| is| do i have)? waiting|waiting (on|for) me|anyone waiting|qui[eé]n me necesita|qu[eé] (me )?espera|qu[eé] (hay )?pendiente|pendientes?)\b/i;
