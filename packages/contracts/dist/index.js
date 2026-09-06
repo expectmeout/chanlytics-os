@@ -2911,6 +2911,24 @@ function eventText(raw, max = 1500) {
 function toVisitDto(v) {
   return v ? { id: v.id, start: new Date(v.start).toISOString(), end: new Date(v.end).toISOString(), title: v.title, all_day: v.allDay, via: v.via } : null;
 }
+var NAME_WORD = /^[\p{L}][\p{L}'’.-]*$/u;
+var CAPITAL = /^\p{Lu}/u;
+function guessName(item, services = []) {
+  const svc = new Set(services.map((s) => s.trim().toLowerCase()).filter(Boolean));
+  const guest = (item.attendees ?? []).map((a) => (a.name ?? "").trim()).find((n) => n && !n.includes("@"));
+  if (guest) return guest.slice(0, 80);
+  const title = item.title.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ");
+  const parts2 = title.split(/\s+(?:-|–|—|·|\||:|\/)\s+|\s+(?:with|for|w\/)\s+|:\s+/i).map((p) => p.trim()).filter(Boolean);
+  for (const part of parts2) {
+    if (svc.has(part.toLowerCase())) continue;
+    const words = part.split(/\s+/);
+    if (words.length < 2 || words.length > 4) continue;
+    if (!words.every((w) => NAME_WORD.test(w) && CAPITAL.test(w))) continue;
+    if (words.some((w) => svc.has(w.toLowerCase()))) continue;
+    return part;
+  }
+  return null;
+}
 
 // src/people.ts
 var PERSON_MODES = ["auto", "ask", "never"];
@@ -4246,7 +4264,8 @@ function toBlock(item, tz, dayStartMs, dayEndMs) {
     person: item.person ? { id: item.person.id, name: item.person.name, via: item.person.via ?? null } : null,
     description: item.description ?? null,
     location: item.location ?? null,
-    contacts: { phones: (item.contacts?.phones ?? []).map((p) => formatPhoneDisplay(p) ?? p), emails: item.contacts?.emails ?? [] },
+    contacts: { phones: (item.contacts?.phones ?? []).map((p) => formatPhoneDisplay(p) ?? p), e164: item.contacts?.phones ?? [], emails: item.contacts?.emails ?? [] },
+    guess: item.guess ?? null,
     start: item.start,
     end: item.end
   };
@@ -4647,6 +4666,7 @@ export {
   frameWhisper,
   freeWindows,
   groundCitations,
+  guessName,
   guessSlotKind,
   hasProfile,
   hoursLines2 as hoursLines,

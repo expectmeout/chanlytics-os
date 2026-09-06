@@ -5,6 +5,7 @@ import {
   extractContacts,
   feedSourceLabel,
   freeWindows,
+  guessName,
   isDayKey,
   matchPerson,
   mondayOf,
@@ -55,7 +56,7 @@ export function personLike(p: Pick<PersonRowDto, "id" | "display_name" | "wa_pro
   return { id: p.id, name: p.display_name || p.wa_profile_name || "", phone: p.phone_e164 };
 }
 
-export function itemsToDays(items: FeedItem[], from: string, days: number, tz: string, people: PersonLike[]): Array<Pick<CalendarDayDto, "key" | "items">> {
+export function itemsToDays(items: FeedItem[], from: string, days: number, tz: string, people: PersonLike[], services: string[] = []): Array<Pick<CalendarDayDto, "key" | "items">> {
   const out: Array<Pick<CalendarDayDto, "key" | "items">> = [];
   for (let i = 0; i < days; i++) {
     const key = shiftKey(from, i);
@@ -75,6 +76,7 @@ export function itemsToDays(items: FeedItem[], from: string, days: number, tz: s
           description: eventText(it.description),
           location: it.location,
           contacts: { phones: c.phones, emails: c.emails },
+          guess: guessName(it, services),
         };
       });
     out.push({ key, items: rows });
@@ -133,7 +135,7 @@ export async function calendarWeek(ctx: RouteContext, tenantId: string, by: { fr
     return { ...base, feed: { ...base.feed, read_at: new Date(feed.at).toISOString() } };
   }
   const people = (await listPeople(ctx, tenantId).catch(() => [])).map(personLike);
-  const days = itemsToDays(parsed.items, span.from, span.days, timezone, people);
+  const days = itemsToDays(parsed.items, span.from, span.days, timezone, people, (profile?.services ?? []).map((s) => s.name));
   const openings = profile ? freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy: parsed.busy, rules, now }) : [];
   const windowsOf = new Map(openings.map((o) => [o.key, o.windows]));
   return {

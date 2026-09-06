@@ -203,3 +203,40 @@ test("the wiring: the board and the profile read one match; both receptionists a
   const dto = readCode("packages/contracts/src/calendar.ts");
   assert.ok(dto.includes("source: dto.feed.source ?? \"your calendar\"") && dto.includes("From ${dto.feed.source ?? \"your calendar\"} · read"), "the chip names the calendar");
 });
+
+test("the client's name as the event gives it: a guest first, then the title's name-like part, never a service or a plain description", async () => {
+  const { guessName } = await import("@chanlytics/contracts");
+  const svcs = ["Balayage", "Haircut", "Hair coloring"];
+  const t = (title, attendees = []) => guessName({ title, attendees }, svcs);
+  assert.equal(t("Maria Lopez - Balayage"), "Maria Lopez");
+  assert.equal(t("Balayage · Maria Lopez"), "Maria Lopez");
+  assert.equal(t("Haircut with Maria Lopez"), "Maria Lopez");
+  assert.equal(t("Booksy: Maria Lopez (Balayage)"), "Maria Lopez");
+  assert.equal(t("Ana Ruiz — Haircut"), "Ana Ruiz");
+  assert.equal(t("Salon Appointment Hair coloring"), null, "no name in it");
+  assert.equal(t("Team training"), null);
+  assert.equal(t("Lunch, every day"), null);
+  assert.equal(t("Balayage"), null, "a service alone");
+  assert.equal(t("Haircut", [{ name: "Ruiz, Ana: VIP", email: "ana@example.com" }]), "Ruiz, Ana: VIP", "a guest's name wins");
+  assert.equal(t("Haircut", [{ name: null, email: "ana@example.com" }]), null, "an email is not a name");
+});
+
+test("Add to People: a definer door that gets-or-creates by phone, an operator route, a bridge verb that re-reads the board, and one button with the name in it", () => {
+  const mig = readCode("supabase/migrations/00052_create_person.sql");
+  assert.ok(mig.includes("create or replace function public.create_person(p_tenant_id uuid, p_phone_e164 text, p_display_name text, p_source text)"));
+  assert.ok(mig.includes("security definer") && mig.includes("if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then"), "owner or operator");
+  assert.ok(mig.includes("insert into contacts (tenant_id, phone_e164, display_name)") && !/insert into contacts \([^)]*consent|set consent/.test(mig), "consent is not touched: a booking is not a yes");
+  assert.ok(mig.includes("where id = v_id and display_name is null;"), "a name fills only an empty one");
+  assert.ok(mig.includes("exception when unique_violation then"), "a race creates nothing twice");
+  const route = readCode("apps/dashboard/app/api/v1/contacts/route.ts");
+  assert.ok(route.includes('requireRole(member, "operator");') && route.includes('takeRate(ctx.userId, "person_create");') && route.includes('ctx.supabase.rpc("create_person", { p_tenant_id: member.tenantId, p_phone_e164: phone, p_display_name: name, p_source: source })'));
+  assert.ok(route.includes('throw new AppError("validation", "A phone number is needed to add a person.");'), "a bad number is refused before any door");
+  assert.ok(readCode("apps/dashboard/src/server/rate-limit.ts").includes("person_create: { limit: 60, windowMs: 3_600_000, noun: \"people added\" },"));
+  const bridge = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");
+  assert.ok(bridge.includes("window.__addPerson = addPerson;") && bridge.includes("await refreshSurfaces([peopleOverride, calendarOverride]);"), "the board re-reads, so the panel shows the person");
+  const page = readCode("apps/dashboard/src/legacy/pages/calendar-real.jsx");
+  assert.ok(page.includes('data-testid="cal-panel-add"') && page.includes('source: "calendar"') && page.includes("`Add ${b.guess || contacts.phones[0]} to People`"), "the name is in the button, seen before it is saved");
+  assert.ok(page.includes("{canEdit && e164.length > 0 && ("), "operators and owners, and only with a number");
+  const svc = readCode("apps/dashboard/src/server/calendar.ts");
+  assert.ok(svc.includes("guess: guessName(it, services),") && svc.includes("(profile?.services ?? []).map((s) => s.name)"), "the services keep a service from being read as a name");
+});

@@ -95,4 +95,19 @@ test.describe("Calendar on a real workspace", () => {
     await expect(board.getByTestId("cal-col")).toHaveCount(7);
     await expect(board.getByTestId("cal-jump")).toBeVisible();
   });
+
+  test("adding a person from an appointment is get-or-create: an existing number returns them, a bad one is refused, nothing is duplicated", async ({ page }) => {
+    const before = (await (await page.request.get("/api/v1/contacts")).json()).data.people as Array<{ id: string; phone_e164: string | null }>;
+    const bad = await page.request.post("/api/v1/contacts", { data: { phone: "not a number", source: "calendar" } });
+    expect(bad.status()).toBe(400);
+    expect(((await bad.json()).error?.message ?? "") as string).toContain("phone");
+    const known = before.find((p) => p.phone_e164);
+    if (known) {
+      const again = await page.request.post("/api/v1/contacts", { data: { phone: known.phone_e164, source: "calendar" } });
+      expect(again.status()).toBe(200);
+      expect((await again.json()).data).toEqual({ contact_id: known.id, existed: true });
+      const after = (await (await page.request.get("/api/v1/contacts")).json()).data.people as unknown[];
+      expect(after.length, "an existing number adds nobody").toBe(before.length);
+    }
+  });
 });

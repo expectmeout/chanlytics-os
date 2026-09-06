@@ -1,5 +1,6 @@
 import { CONSENT_SOURCES, toPersonVM, type PersonDetailDto, type PersonVM } from "@chanlytics/contracts";
 import {
+  calendarOverride,
   conversationsOverride,
   fetchEnvelope,
   inboxOverride,
@@ -146,12 +147,42 @@ declare global {
     __setPersonConsent?: (id: string, body: ConsentBody) => Promise<DeleteResult>;
     __consentSources?: readonly { id: string; label: string }[];
     __deletePerson?: (id: string) => Promise<DeleteResult>;
+    __addPerson?: (body: AddPersonBody) => Promise<AddPersonResult>;
     __setPersonReceptionist?: (id: string, mode: "auto" | "ask" | "never" | "inherit") => Promise<DeleteResult>;
+  }
+}
+
+export interface AddPersonBody { phone: string; name?: string | null; source?: string }
+export interface AddPersonResult { ok: boolean; message?: string; id?: string; existed?: boolean }
+
+/**
+ * Add a person by phone: `window.__addPerson({ phone, name, source })`.
+ *
+ * Get-or-create on the server, owner or operator. The People list and the
+ * Calendar are re-read afterwards, so the appointment that carried the
+ * number now links to the person it is for.
+ */
+export async function addPerson(body: AddPersonBody): Promise<AddPersonResult> {
+  try {
+    const res = await fetch(scoped("/api/v1/contacts"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    if (res.status === 401) {
+      clearSurfaceCache();
+      window.location.assign("/login");
+      return { ok: false, message: "Signed out." };
+    }
+    const j = (await res.json().catch(() => null)) as { ok: boolean; data?: { contact_id: string; existed: boolean }; error?: { message?: string } } | null;
+    if (!j || !j.ok || !j.data) return { ok: false, message: j?.error?.message ?? `Request failed (${res.status}).` };
+    invalidateInFlight();
+    await refreshSurfaces([peopleOverride, calendarOverride]);
+    return { ok: true, id: j.data.contact_id, existed: j.data.existed };
+  } catch {
+    return { ok: false, message: "Network error — nothing was added." };
   }
 }
 
 export function installPeopleCourier(): void {
   window.__personDetail = personDetail;
+  window.__addPerson = addPerson;
   window.__deletePerson = deletePerson;
   window.__setPersonReceptionist = setPersonReceptionist;
   window.__setPersonConsent = setPersonConsent;

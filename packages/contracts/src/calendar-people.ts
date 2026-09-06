@@ -249,3 +249,33 @@ export interface PersonVisitsDto {
 export function toVisitDto(v: Visit | null): VisitDto | null {
   return v ? { id: v.id, start: new Date(v.start).toISOString(), end: new Date(v.end).toISOString(), title: v.title, all_day: v.allDay, via: v.via } : null;
 }
+
+/* ------------------------------------------------------------ the name */
+
+const NAME_WORD = /^[\p{L}][\p{L}'’.-]*$/u;
+const CAPITAL = /^\p{Lu}/u;
+
+/**
+ * The client's name as the title or the guests give it — "Maria Lopez -
+ * Balayage", "Balayage · Maria Lopez", "Haircut with Maria Lopez" — or
+ * null. A guest's name first; else the first part of the title, split on
+ * the separators booking tools use, that is two to four capitalised words
+ * of letters and not a service the workspace lists. Shown in the button
+ * before anything is added, so a wrong guess is seen, not saved unread.
+ */
+export function guessName(item: Pick<FeedItem, "title" | "attendees">, services: string[] = []): string | null {
+  const svc = new Set(services.map((s) => s.trim().toLowerCase()).filter(Boolean));
+  const guest = (item.attendees ?? []).map((a) => (a.name ?? "").trim()).find((n) => n && !n.includes("@"));
+  if (guest) return guest.slice(0, 80);
+  const title = item.title.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ");
+  const parts = title.split(/\s+(?:-|–|—|·|\||:|\/)\s+|\s+(?:with|for|w\/)\s+|:\s+/i).map((p) => p.trim()).filter(Boolean);
+  for (const part of parts) {
+    if (svc.has(part.toLowerCase())) continue;
+    const words = part.split(/\s+/);
+    if (words.length < 2 || words.length > 4) continue;
+    if (!words.every((w) => NAME_WORD.test(w) && CAPITAL.test(w))) continue;
+    if (words.some((w) => svc.has(w.toLowerCase()))) continue;
+    return part;
+  }
+  return null;
+}

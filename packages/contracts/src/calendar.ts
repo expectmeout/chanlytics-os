@@ -33,6 +33,8 @@ export interface CalendarItemDto {
   location?: string | null;
   /** Phones (E.164) and emails found in the event, for the panel. */
   contacts?: { phones: string[]; emails: string[] };
+  /** The client's name as the event gives it, for "Add … to People"; null when the title says nothing name-like. */
+  guess?: string | null;
 }
 
 export interface CalendarDayDto {
@@ -186,8 +188,10 @@ export interface CalendarBlockVM {
   person: { id: string; name: string; via: "phone" | "name" | null } | null;
   description: string | null;
   location: string | null;
-  /** Display-formatted phones and the emails the event carried. */
-  contacts: { phones: string[]; emails: string[] };
+  /** Display-formatted phones (and the same in E.164, for the add), and the emails the event carried. */
+  contacts: { phones: string[]; e164: string[]; emails: string[] };
+  /** The client's name as the event gives it, or null. */
+  guess: string | null;
   start: string;
   end: string;
 }
@@ -285,7 +289,8 @@ function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs
     person: item.person ? { id: item.person.id, name: item.person.name, via: item.person.via ?? null } : null,
     description: item.description ?? null,
     location: item.location ?? null,
-    contacts: { phones: (item.contacts?.phones ?? []).map((p) => formatPhoneDisplay(p) ?? p), emails: item.contacts?.emails ?? [] },
+    contacts: { phones: (item.contacts?.phones ?? []).map((p) => formatPhoneDisplay(p) ?? p), e164: item.contacts?.phones ?? [], emails: item.contacts?.emails ?? [] },
+    guess: item.guess ?? null,
     start: item.start,
     end: item.end,
   };

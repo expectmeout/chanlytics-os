@@ -73,9 +73,22 @@ const CrWindow = ({ w, hours }) => {
 
 // One appointment: who it is for (by a phone in the event, else a whole
 // name), what the calendar wrote, and the one rule — nothing changes here.
-const CrPanel = ({ b, day, source, onClose }) => {
+const CrPanel = ({ b, day, source, onFlash, onClose }) => {
   const contacts = b.contacts || { phones: [], emails: [] };
+  const e164 = contacts.e164 || [];
   const found = [...contacts.phones, ...contacts.emails];
+  const [adding, setAdding] = React.useState(false);
+  const canEdit = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
+  // Get-or-create by phone, with the name the calendar gave; consent untouched.
+  // The board is re-read afterwards, so this same panel then shows the person.
+  const add = async () => {
+    if (!window.__addPerson || adding || !e164.length) return;
+    setAdding(true);
+    const r = await window.__addPerson({ phone: e164[0], name: b.guess || null, source: "calendar" });
+    setAdding(false);
+    if (!r.ok) { onFlash({ msg: <>Could not add them — {r.message}</> }); return; }
+    onFlash({ msg: <>{r.existed ? "Already in People" : "Added to People"}: <b>{b.guess || contacts.phones[0]}</b></> });
+  };
   return (
     <div className="ask-overlay" onClick={onClose}>
       <div className="ask-modal cal-ev" onClick={(e) => e.stopPropagation()} data-testid="cal-panel">
@@ -91,6 +104,11 @@ const CrPanel = ({ b, day, source, onClose }) => {
             <div className="cal-ev-who" data-testid="cal-panel-contact">
               <Icon name="users" size={12} /> Not in People yet
               <span className="cal-ev-via">{found.join(" · ")}</span>
+              {canEdit && e164.length > 0 && (
+                <button className="btn btn-primary btn-sm cal-ev-add" disabled={adding} onClick={add} data-testid="cal-panel-add">
+                  {adding ? "Adding…" : `Add ${b.guess || contacts.phones[0]} to People`}
+                </button>
+              )}
             </div>
           ) : null}
           {b.location && <div className="cal-ev-detail" data-testid="cal-panel-where"><span className="cal-ev-detail-key">Where</span><span>{b.location}</span></div>}
@@ -393,7 +411,7 @@ const CalendarReal = () => {
         <span className="cal-legend-rules">← → move · T today · times in {vm.timezone}</span>
       </div>
 
-      {openBlock && <CrPanel b={openBlock.b} day={openBlock.d} source={vm.feed.source || "your calendar"} onClose={() => setOpenId(null)} />}
+      {openBlock && <CrPanel b={openBlock.b} day={openBlock.d} source={vm.feed.source || "your calendar"} onFlash={flash} onClose={() => setOpenId(null)} />}
       {toastNode}
     </div>
   );

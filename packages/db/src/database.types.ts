@@ -1929,6 +1929,15 @@ export type Database = {
         Returns: Json
       }
       claim_job: { Args: { p_job_id: string }; Returns: Json }
+      create_person: {
+        Args: {
+          p_display_name: string
+          p_phone_e164: string
+          p_source: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       create_workspace: {
         Args: { p_name: string; p_timezone?: string }
         Returns: {
