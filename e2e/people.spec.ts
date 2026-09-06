@@ -176,6 +176,9 @@ test.describe("People on a real workspace", () => {
     await page.getByTestId("bulk-list-name").press("Enter");
     await expect.poll(() => seen.filter((r) => r.method === "POST").length).toBe(1);
     expect(seen.find((r) => r.method === "POST")?.body).toEqual({ name: "E2E bulk list" });
+    // The bar is busy until the create settles (the intercepted list is never found again, and it says so).
+    await expect(page.getByTestId("bulk-list-name")).toHaveCount(0);
+    await expect(bar.getByRole("button", { name: "Record a yes" })).toBeEnabled();
 
     // A yes for both: one PUT each, saying how it was given.
     await boxes.nth(0).check();

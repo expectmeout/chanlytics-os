@@ -1058,6 +1058,7 @@ const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash })
           btnClass="btn btn-sm"
           label="Add to list"
           title="Add to a list"
+          gated={busy ? "One moment — the last change is still saving" : null}
           items={[
             { header: "Add to" },
             ...saved.map((s) => ({ label: s.name, icon: "filter", onClick: () => addTo(s) })),
@@ -1076,10 +1077,11 @@ const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash })
           btnClass="btn btn-sm"
           label="Record a yes"
           title="A yes to offers by WhatsApp — say how it was given"
+          gated={busy ? "One moment — the last change is still saving" : null}
           items={[{ header: "They said yes…" }, ...sources.map((s) => ({ label: s.label, icon: "check", onClick: () => yes(s) }))]}
         />
       )}
-      {canExport && <button className="btn btn-sm" onClick={exportCsv} data-testid="bulk-export"><Icon name="external" size={12} /> Export CSV</button>}
+      {canExport && <button className="btn btn-sm" disabled={busy} onClick={exportCsv} data-testid="bulk-export"><Icon name="external" size={12} /> Export CSV</button>}
       {!canEdit && <span className="cl-prof-aut-hint">Only an owner or operator can add to lists or record a yes.</span>}
       <button className="btn btn-ghost btn-sm" onClick={onClear} data-testid="bulk-clear"><Icon name="x" size={11} /> Clear</button>
     </div>
