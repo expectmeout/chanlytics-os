@@ -515,7 +515,7 @@ const TimelineEntry = ({ entry, thread, channelLabels }) => {
           <div className="tl-msg-by">
             {entry.byYou ? (
               <span>
-                by you · {entry.at}
+                by {entry.via ? `a broadcast (${entry.via.name})` : "you"} · {entry.at}
                 {/* One vocabulary, computed in the viewmodel. This ternary was
                     the only place these words existed, so the Conversations
                     pane — which shows the same messages — said nothing at all

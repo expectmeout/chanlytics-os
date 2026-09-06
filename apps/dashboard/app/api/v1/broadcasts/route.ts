@@ -9,6 +9,8 @@ import {
   broadcastName,
   cleanParam,
   eligibleFor,
+  numberHealth,
+  overLimitRefusal,
   toPersonRowVM,
   type Audience,
   type AudienceKind,
@@ -105,6 +107,25 @@ export const POST = withRoute(async (req, ctx) => {
   const eligible = eligibleFor(rows, kind as AudienceKind, audienceId, savedIds);
   if (eligible.length === 0) throw new AppError("conflict", "Nobody there has said yes to offers yet. Record their answer on their profile first.", 409);
   if (eligible.length > BROADCAST_MAX_RECIPIENTS) throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
+
+  // 3b. The number, as WhatsApp has rated it. A flagged number does not
+  // broadcast; an audience past the day's limit is split, not silently cut.
+  const { data: ch, error: chErr } = await ctx.supabase
+    .from("tenant_channels")
+    .select("config")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "whatsapp")
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle();
+  if (chErr) throw new Error(chErr.message);
+  if (!ch) throw new AppError("conflict", "Connect a WhatsApp number first — a broadcast goes out on one.", 409);
+  const cfg = (ch.config && typeof ch.config === "object" && !Array.isArray(ch.config) ? ch.config : {}) as Record<string, unknown>;
+  const str = (k: string) => (typeof cfg[k] === "string" ? (cfg[k] as string) : null);
+  const health = numberHealth({ quality: str("quality_rating"), event: str("quality_event"), limit: str("messaging_limit") });
+  if (!health.canSend) throw new AppError("conflict", health.refusal!, 409);
+  const over = overLimitRefusal(health, eligible.length);
+  if (over) throw new AppError("validation", over);
 
   // 4. When.
   let when = now;

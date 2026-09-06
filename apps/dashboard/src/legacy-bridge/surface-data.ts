@@ -263,7 +263,7 @@ import {
   type ReportDto,
   type ReportVM,
 } from "@chanlytics/contracts";
-import { EVERYONE_LABEL, eligibleFor, toBroadcastVM, type AudienceKind, type BroadcastDto, type BroadcastVM } from "@chanlytics/contracts";
+import { EVERYONE_LABEL, HELD_REASONS, eligibleFor, formatPhoneDisplay, numberHealth, toBroadcastVM, type AudienceKind, type BroadcastDto, type BroadcastVM, type NumberHealth } from "@chanlytics/contracts";
 
 /**
  * Slice 2: the Inbox flips to the real escalations queue. Open escalations +
@@ -648,6 +648,10 @@ export interface BroadcastsSurface {
   /** The approved WhatsApp templates, with their variables. */
   templates: TemplateDto[];
   audiences: AudienceOption[];
+  /** The WhatsApp number a broadcast goes out on, and what WhatsApp has said about it. */
+  number: { present: boolean; display: string | null; health: NumberHealth };
+  /** The words for a held-back reason, for the detail view. */
+  heldReasons: Record<string, string>;
   fetchedAt: number;
 }
 
@@ -663,12 +667,15 @@ export const broadcastsOverride: SurfaceOverride = {
   events: ["surface:broadcasts"],
   refreshOnMessageInserts: true,
   apply: async () => {
-    const [bc, people, saved, tpl] = await Promise.all([
+    const [bc, people, saved, tpl, ch] = await Promise.all([
       fetchEnvelope<{ broadcasts: BroadcastDto[] }>("/api/v1/broadcasts"),
       fetchEnvelope<{ people: PersonRowDto[] }>("/api/v1/contacts"),
       fetchEnvelope<{ lists: { id: string; name: string; ids: string[] }[] }>("/api/v1/segments").catch((e: unknown) => e as Error),
       fetchEnvelope<{ templates: TemplateDto[] }>("/api/v1/templates").catch((e: unknown) => e as Error),
+      fetchEnvelope<{ channels: ChannelDto[] }>("/api/v1/channels").catch((e: unknown) => e as Error),
     ]);
+    const wa = ch instanceof Error ? null : (ch.channels ?? []).find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
+    if (ch instanceof Error) console.error("broadcasts_channels_fetch_failed", ch.message);
     const now = new Date();
     const rows = people.people.map((r) => toPersonRowVM(r, now));
     const audiences: AudienceOption[] = [
@@ -686,6 +693,12 @@ export const broadcastsOverride: SurfaceOverride = {
       rows: bc.broadcasts.map((b) => toBroadcastVM(b, now)),
       templates: tpl instanceof Error ? [] : (tpl.templates ?? []).filter((t) => t.channel === "whatsapp" && t.meta_status === "approved"),
       audiences,
+      number: {
+        present: !!wa,
+        display: wa?.number_e164 ? formatPhoneDisplay(wa.number_e164) : null,
+        health: numberHealth({ quality: wa?.quality ?? null, event: wa?.quality_event ?? null, limit: wa?.messaging_limit ?? null }),
+      },
+      heldReasons: HELD_REASONS,
       fetchedAt: now.getTime(),
     };
   },

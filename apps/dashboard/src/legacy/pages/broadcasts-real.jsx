@@ -26,6 +26,61 @@ const bcKey = (a) => `${a.kind}:${a.id || ""}`;
 // the effects on every render.
 const BC_NONE = [];
 
+// One broadcast's people: who got it (and whether WhatsApp says delivered
+// or read), who was held back and why, who it could not reach. Fetched when
+// a row is opened; every line is a recipient row.
+const BC_STATUS_WORDS = { sent: "sent", delivered: "delivered", read: "read", failed: "not delivered", queued: "sending", canceled: "canceled" };
+const BroadcastDetail = ({ id, heldReasons, onClose }) => {
+  const [d, setD] = React.useState(undefined);
+  React.useEffect(() => {
+    let on = true;
+    setD(undefined);
+    if (!window.__broadcasts) return undefined;
+    window.__broadcasts.detail(id).then((r) => { if (on) setD(r.ok ? r.data : null); });
+    return () => { on = false; };
+  }, [id]);
+  if (d === undefined) return <div className="bc-detail" data-testid="bc-detail"><span className="cl-prof-aut-hint">Reading who got it…</span></div>;
+  if (!d) return <div className="bc-detail" data-testid="bc-detail"><span className="cl-prof-aut-hint">Couldn't be read right now.</span></div>;
+  const got = d.recipients.filter((r) => r.state === "sent");
+  const heldBack = d.recipients.filter((r) => r.state === "skipped");
+  const rest = d.recipients.filter((r) => r.state === "failed" || r.state === "queued");
+  const Person = ({ r, words }) => (
+    <div className="bc-person" data-testid="bc-person">
+      <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(`clients/${r.contact_id}`)}>{r.name}</button>
+      <span className="dim">{words}</span>
+      {r.conversation_id && <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(`inbox/th-${r.conversation_id}`)}>Open thread</button>}
+    </div>
+  );
+  return (
+    <div className="bc-detail" data-testid="bc-detail">
+      <div className="ct-sec-head">
+        <span className="ct-sec-title">{d.broadcast.name}</span>
+        <span className="ct-sec-meta">{d.broadcast.audience.label} · {d.recipients.length} enrolled · {d.broadcast.template_name}</span>
+        <button className="cl-bucket-link" onClick={onClose}>Close</button>
+      </div>
+      {d.broadcast.params.length > 0 && <div className="cl-prof-aut-hint">Values: {d.broadcast.params.join(" · ")}</div>}
+      <div className="bc-detail-groups">
+        <div className="bc-detail-group">
+          <div className="cl-prof-rail-label">Got it · {got.length}</div>
+          {got.map((r) => <Person key={r.contact_id} r={r} words={`${BC_STATUS_WORDS[r.message_status] || r.message_status || "sent"}${r.replied ? " · replied" : ""}`} />)}
+          {got.length === 0 && <span className="cl-prof-aut-hint">Nobody yet.</span>}
+        </div>
+        <div className="bc-detail-group">
+          <div className="cl-prof-rail-label">Held back · {heldBack.length}</div>
+          {heldBack.map((r) => <Person key={r.contact_id} r={r} words={(heldReasons || {})[r.reason] || r.reason || "held"} />)}
+          {heldBack.length === 0 && <span className="cl-prof-aut-hint">Nobody.</span>}
+        </div>
+        {rest.length > 0 && (
+          <div className="bc-detail-group">
+            <div className="cl-prof-rail-label">Not there yet · {rest.length}</div>
+            {rest.map((r) => <Person key={r.contact_id} r={r} words={r.state === "failed" ? ((heldReasons || {}).send_failed || "WhatsApp refused") : "queued"} />)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const BroadcastsReal = ({ initialSegment = null }) => {
   const data = useBroadcasts();
   const [toastNode, flash] = window.usePPToast();
@@ -41,15 +96,19 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   const [name, setName] = React.useState("");
   const [when, setWhen] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const [openId, setOpenId] = React.useState(null);
   React.useEffect(() => {
     if (!templates.some((t) => t.id === tplId) && templates[0]) setTplId(templates[0].id);
   }, [templates, tplId]);
+  const number = data.number || null;
+  const numberOk = !!(number && number.present && number.health.canSend);
+  const overLimit = !!(active && number && number.health.limitPerDay !== null && active.count > number.health.limitPerDay);
 
   const active = audiences.find((a) => bcKey(a) === aud) || audiences[0] || null;
   const tpl = templates.find((t) => t.id === tplId) || null;
   const vars = tpl && Array.isArray(tpl.variables) ? tpl.variables : [];
   const filled = vars.map((v, i) => ((params[tplId] || [])[i] || ""));
-  const ready = !!tpl && !!active && active.count > 0 && filled.every((v) => v.trim()) && !busy;
+  const ready = !!tpl && !!active && active.count > 0 && filled.every((v) => v.trim()) && !busy && numberOk && !overLimit;
   const preview = tpl ? bcRender(tpl.body_preview, filled.map((v) => v.trim())) : "";
 
   const rows = data.rows || [];
@@ -163,6 +222,16 @@ const BroadcastsReal = ({ initialSegment = null }) => {
             {" · "}people who asked to stop, have no number, or are mid-thread with a person are held back at the wire · sent 25 at a time
           </span>
         </div>
+        {number && (
+          <div className={`bc-number bc-number-${number.health.tone}`} data-testid="bc-number">
+            <Icon name="chat" size={11} />
+            <span>{number.present ? `WhatsApp ${number.display || ""} · ${number.health.label}` : "No WhatsApp number connected — connect one in Settings › Integrations."}</span>
+          </div>
+        )}
+        {number && number.present && !number.health.canSend && <div className="bc-excl-hint" data-testid="bc-number-refusal">{number.health.refusal}</div>}
+        {overLimit && active && number && (
+          <div className="bc-excl-hint" data-testid="bc-over-limit">This number can start up to {number.health.limitPerDay.toLocaleString()} new conversations a day; “{active.label}” is {active.count.toLocaleString()}. Send to a smaller list or split it.</div>
+        )}
         <div className="bc-actions">
           <input className="bc-subject" type="text" placeholder="Name this broadcast (optional)" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} style={{ flex: 1 }} />
           <input className="bc-subject" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} data-testid="bc-when" />
@@ -184,9 +253,10 @@ const BroadcastsReal = ({ initialSegment = null }) => {
           <div className="cv-empty">Nothing queued — pick a template above and choose a time, or send now.</div>
         )}
         {open.map((row) => (
-          <div key={row.id} className="bc-sched" data-testid="bc-open">
+          <React.Fragment key={row.id}>
+          <div className="bc-sched" data-testid="bc-open">
             <div className="bc-sched-main">
-              <span className="bc-sched-name">{row.name}</span>
+              <span className="bc-sched-name"><button className="cl-bucket-link" onClick={() => setOpenId(openId === row.id ? null : row.id)} data-testid="bc-open-who">{row.name}</button></span>
               <span className="bc-sched-meta">
                 {row.when} · {row.audience.label} · {row.recipient_count}
                 {row.state === "sending" ? ` · ${row.counts.sent + row.counts.skipped + row.counts.failed} of ${row.recipient_count} done` : ""}
@@ -195,6 +265,8 @@ const BroadcastsReal = ({ initialSegment = null }) => {
             <span className={"pill " + (row.state === "sending" ? "pill-info" : "")}>{row.stateLabel}</span>
             {canSend && <button className="btn btn-sm" onClick={() => cancel(row)}>{row.state === "sending" ? "Stop" : "Cancel"}</button>}
           </div>
+          {openId === row.id && <BroadcastDetail id={row.id} heldReasons={data.heldReasons} onClose={() => setOpenId(null)} />}
+          </React.Fragment>
         ))}
       </section>
 
@@ -209,7 +281,10 @@ const BroadcastsReal = ({ initialSegment = null }) => {
           </div>
           {history.length === 0 && <div className="cv-empty">No broadcast sent yet.</div>}
           {history.map((h) => (
-            <div key={h.id} className="bc-hist-row" data-testid="bc-history">
+            <React.Fragment key={h.id}>
+            <div className={"bc-hist-row clickable" + (openId === h.id ? " is-open" : "")} data-testid="bc-history" role="button" tabIndex={0}
+              onClick={() => setOpenId(openId === h.id ? null : h.id)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenId(openId === h.id ? null : h.id); } }}>
               <span className="bc-hist-name">
                 {h.name}<span className="bc-hist-date">{h.when}{h.state !== "sent" ? ` · ${h.stateLabel.toLowerCase()}` : ""}</span>
               </span>
@@ -219,6 +294,8 @@ const BroadcastsReal = ({ initialSegment = null }) => {
               <span className="num tabular">{h.readPct === null ? "—" : `${h.readPct}%`}</span>
               <span className="num tabular">{h.counts.replied}</span>
             </div>
+            {openId === h.id && <BroadcastDetail id={h.id} heldReasons={data.heldReasons} onClose={() => setOpenId(null)} />}
+            </React.Fragment>
           ))}
         </div>
         <div className="ct-week-foot"><Icon name="chat" size={11} /> Replies never sit — the receptionist answers, books, or escalates to your Inbox.</div>

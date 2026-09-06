@@ -15,7 +15,7 @@ export const GET = withRoute(async (req, ctx) => {
   const { tenantId } = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
 
   const [rows, lastMsg, lastCall] = await Promise.all([
-    supabase.from("tenant_channels").select("id, kind, number_e164, status, created_at").eq("tenant_id", tenantId).order("kind"),
+    supabase.from("tenant_channels").select("id, kind, number_e164, status, created_at, config").eq("tenant_id", tenantId).order("kind"),
     // Newest inbound WhatsApp message, by the channel's own clock.
     supabase.from("messages").select("channel_ts, created_at").eq("tenant_id", tenantId).eq("direction", "inbound").eq("channel", "whatsapp")
       .order("channel_ts", { ascending: false, nullsFirst: false }).limit(1).maybeSingle(),
@@ -30,13 +30,23 @@ export const GET = withRoute(async (req, ctx) => {
     whatsapp: lastMsg.data?.channel_ts ?? lastMsg.data?.created_at ?? null,
     voice: lastCall.data?.started_at ?? null,
   };
-  const channels: ChannelDto[] = (rows.data ?? []).map((c) => ({
-    id: c.id,
-    kind: c.kind,
-    number_e164: c.number_e164,
-    status: c.status,
-    created_at: c.created_at,
-    last_inbound_at: lastByKind[c.kind] ?? null,
-  }));
+  const channels: ChannelDto[] = (rows.data ?? []).map((c) => {
+    const cfg = (c.config && typeof c.config === "object" && !Array.isArray(c.config) ? c.config : {}) as Record<string, unknown>;
+    const s = (k: string) => (typeof cfg[k] === "string" ? (cfg[k] as string) : null);
+    return {
+      id: c.id,
+      kind: c.kind,
+      number_e164: c.number_e164,
+      status: c.status,
+      created_at: c.created_at,
+      last_inbound_at: lastByKind[c.kind] ?? null,
+      // What WhatsApp has said about the number (the connect flow and the
+      // quality webhooks write these); the Broadcasts page reads them.
+      quality: s("quality_rating"),
+      quality_event: s("quality_event"),
+      messaging_limit: s("messaging_limit"),
+      quality_at: s("quality_at"),
+    };
+  });
   return { channels };
 });
