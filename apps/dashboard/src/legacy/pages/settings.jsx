@@ -1626,7 +1626,7 @@ const PaneAutonomyReal = ({ flash }) => {
       <section className="fl-card set-card">
         <div className="fl-card-head">
           <span className="fl-card-title">Policy matrix</span>
-          <span className="fl-card-sub">What the receptionist may do without you — Replies is the row it consults today</span>
+          <span className="fl-card-sub">What the receptionist may do without you — every row here is one the receptionist consults</span>
         </div>
         <table className="pol-table">
           <thead><tr><th>Action class</th>{MODES.map((m) => <th key={m} className="pol-mode" title={AUT_MODE_HINT[m]}>{m}</th>)}</tr></thead>
@@ -1643,10 +1643,10 @@ const PaneAutonomyReal = ({ flash }) => {
                   </td>
                   {MODES.map((m) => (
                     <td key={m} className="pol-cell">
-                      {r.locked && m !== "Never" ? <span className="pol-dash">—</span> : (
+                      {(r.locked && m !== "Never") || (r.modes && !r.modes.includes(m)) ? <span className="pol-dash" title={r.locked ? "Charter — fixed" : m === "Veto" ? "Nothing to hold for review here" : "Answered by the receptionist or by you — there is no never"}>—</span> : (
                         <button
                           className={`pol-dot ${r.mode === m ? "on" : ""}`}
-                          title={r.locked ? "Charter — fixed" : live ? AUT_MODE_HINT[m] : "Not enforced yet"}
+                          title={r.locked ? "Charter — fixed" : live ? (r.hints && r.hints[m]) || AUT_MODE_HINT[m] : "Not enforced yet"}
                           disabled={r.locked || !live || busy === r.cls}
                           onClick={() => put(r, m.toLowerCase())}
                           {...window.gate("autonomy")}

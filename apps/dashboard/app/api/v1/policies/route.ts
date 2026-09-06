@@ -5,6 +5,9 @@ import {
   POLICY_MODES,
   REPLY_DELAY_MIN_MS,
   REPLY_DELAY_MAX_MS,
+  POLICY_CLASS_MODES,
+  type PolicyClass,
+  type PolicyMode,
 } from "@chanlytics/contracts";
 import { listPolicies, setPolicyMode } from "@chanlytics/db";
 import { takeRate } from "@/server/rate-limit";
@@ -50,6 +53,14 @@ export const PUT = withRoute(async (req, ctx) => {
   // Only the REPLY class can be vetoed. The others have no draft to hold.
   if (mode === "veto" && cls !== "reply") {
     throw new AppError("validation", "Only replies can be held for review — the other classes have no draft to hold.");
+  }
+  // A switch nothing enforces is a switch that lies: each class offers only
+  // the modes the runtime honours for it. Booking and service questions are
+  // answered by the receptionist or by a person; there is no "never".
+  if (!POLICY_CLASS_MODES[cls as PolicyClass].includes(mode as PolicyMode)) {
+    throw new AppError("validation", cls === "booking" || cls === "faq"
+      ? "Bookings and service questions are answered by the receptionist or by you — there is no \"never\"."
+      : `The ${cls} row cannot be set to ${mode}.`);
   }
 
   // The wait, in ms. Clamped at the boundary as well as in the reader: a value

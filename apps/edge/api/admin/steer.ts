@@ -104,7 +104,7 @@ export async function POST(request: Request): Promise<Response> {
     r = await generateReply(
       thread.history,
       lastUser.content,
-      resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone),
+      resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, new Date(), rt.policy),
       rt.brain.fallbacks.error,
       leadNote,
       describeNow(rt.timezone, new Date(), rt.brain.profile?.closures),

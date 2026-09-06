@@ -177,6 +177,7 @@ const REASON_SHORT: Record<string, string> = {
   refusal: "the receptionist declined to answer",
   rate_cap: "reply limit reached",
   policy_block: "held by your reply setting",
+  policy_ask: "a booking or a question set to Ask me first",
   person_hold: "held for you",
   send_failed: "a reply failed to send",
   deadman: "no answer in time",

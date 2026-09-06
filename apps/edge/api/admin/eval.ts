@@ -67,7 +67,7 @@ export async function POST(request: Request): Promise<Response> {
   const rt = await loadTenantRuntime(db, routed);
   if (!rt.brain) return json(409, { ok: false, error: rt.configBroken ? "config_broken" : "no_persona" });
 
-  const system = resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone);
+  const system = resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, new Date(), rt.policy);
   const nowNote = describeNow(rt.timezone, new Date(), rt.brain.profile?.closures);
   const started = Date.now();
   const results = [];

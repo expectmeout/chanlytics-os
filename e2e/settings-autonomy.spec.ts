@@ -40,12 +40,16 @@ test.describe("Settings → Autonomy on a real workspace", () => {
     const money = rows.filter({ hasText: "Refunds" });
     await expect(money).toHaveClass(/pol-locked/);
     await expect(money.getByText("Locked by charter")).toBeVisible();
-    // Stored-but-unenforced classes say so, and their dots are disabled.
-    // Since the playbooks shipped, the two campaign rows are enforced: FAQs
-    // and booking are the ones still waiting on a runtime.
-    const notEnforced = rows.filter({ hasText: "not enforced yet" });
-    await expect(notEnforced).toHaveCount(2);
-    for (const dot of await notEnforced.locator(".pol-dot").all()) await expect(dot).toBeDisabled();
+    // Every row is one the receptionist consults now: nothing says "not enforced".
+    await expect(rows.filter({ hasText: "not enforced yet" })).toHaveCount(0);
+    // Booking and FAQ offer Auto and Ask; Veto and Never are dashes that say why.
+    for (const label of ["Service & pricing questions", "Book · reschedule"]) {
+      const row = rows.filter({ hasText: label });
+      await expect(row.locator(".pol-dash")).toHaveCount(2);
+      await expect(row.locator(".pol-dot")).toHaveCount(2);
+      await expect(row.locator(".pol-dot").first()).toBeEnabled();
+      await expect(row).toContainText("on WhatsApp and on the phone");
+    }
     // The rows that run playbooks say what each mode does to a run, and their dots are live.
     for (const label of ["Re-engage quiet customers", "Standing offers"]) {
       const row = rows.filter({ hasText: label });

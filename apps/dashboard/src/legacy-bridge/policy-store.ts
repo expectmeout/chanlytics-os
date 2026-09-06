@@ -34,12 +34,16 @@ export interface UiRowMeta {
   locked?: boolean;
   /** True only where the runtime actually consults the class. */
   enforced: boolean;
+  /** The modes the runtime honours for this class; absent means all four. */
+  modes?: readonly UiMode[];
+  /** What each mode means for THIS class, when the general hint would mislead. */
+  hints?: Partial<Record<UiMode, string>>;
 }
 
 export const UI_ROWS: readonly UiRowMeta[] = [
   { id: "reply", cls: "reply", label: "Replies to customers", note: "every text the receptionist sends", chip: "Replies", enforced: true },
-  { id: "faq", cls: "faq", label: "Service & pricing questions", note: "answered from your business profile", chip: "FAQs", enforced: false },
-  { id: "book", cls: "booking", label: "Book · reschedule", note: "sends your booking link", chip: "Booking", enforced: false },
+  { id: "faq", cls: "faq", label: "Service & pricing questions", note: "auto answers from your business profile · ask hands every service or pricing question to you, on WhatsApp and on the phone", chip: "FAQs", enforced: true, modes: ["Auto", "Ask"], hints: { Auto: "answers from your business profile — never a price", Ask: "tells them a person will get back with the details, and lands the thread in Needs you" } },
+  { id: "book", cls: "booking", label: "Book · reschedule", note: "auto sends your booking link · ask has a person confirm instead, on WhatsApp and on the phone", chip: "Booking", enforced: true, modes: ["Auto", "Ask"], hints: { Auto: "sends your booking link when they want to book, move or cancel", Ask: "tells them a person will confirm, never sends the link, and lands the thread in Needs you" } },
   { id: "reengage", cls: "reengage", label: "Re-engage quiet customers", note: "the win-back and save-our-number playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing", chip: "Re-engage", enforced: true },
   { id: "campaign", cls: "campaign", label: "Standing offers", note: "the welcome and month's-offer playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing", chip: "Campaigns", enforced: true },
   { id: "money", cls: "money", label: "Refunds · rates · negotiation", note: "always goes to you", chip: "Money", locked: true, enforced: true },
@@ -141,6 +145,8 @@ export function installPolicyStore(win: PolicyWindow = window as unknown as Poli
       const r = UI_ROWS.find((x) => x.id === id);
       const mode = dbMode(m);
       if (!r || r.locked || !r.enforced || !mode || !win.__setPolicy) return;
+      // A mode the class cannot honour is not written: the pane shows a dash there.
+      if (r.modes && !r.modes.includes(LABELS[mode])) return;
       void win.__setPolicy(r.cls, mode);
     },
     /** True when the store answers from the workspace's real rows. */
