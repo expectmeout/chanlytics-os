@@ -47,6 +47,8 @@ export const RATE = {
   lists: { limit: 60, windowMs: 60_000, noun: "list changes" },
   broadcast: { limit: 10, windowMs: 60_000, noun: "broadcasts" },
   playbook: { limit: 30, windowMs: 60_000, noun: "playbook changes" },
+  /** A person added by hand — from an appointment, before they ever write. */
+  person_create: { limit: 60, windowMs: 3_600_000, noun: "people added" },
   /** A whole thread, a whole call, or everyone, as a file. */
   export: { limit: 10, windowMs: 60_000, noun: "exports" },
   /** A question to the workspace assistant: a model turn, tools and all. */
