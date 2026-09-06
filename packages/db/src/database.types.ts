@@ -2069,6 +2069,7 @@ export type Database = {
           id: string
           last_call_at: string
           last_inbound_at: string
+          last_inbound_call_at: string
           last_inbound_text: string
           last_message_at: string
           last_message_direction: string
