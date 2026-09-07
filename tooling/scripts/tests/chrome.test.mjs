@@ -73,6 +73,10 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
   const bridge = readCode("apps/dashboard/src/legacy-bridge/shell.ts");
   assert.ok(bridge.indexOf("clearSurfaceCache();") < bridge.indexOf('form.action = "/auth/signout";'), "the cache is cleared before the server ends the session");
   assert.ok(bridge.includes("form.submit();") && bridge.includes("switchWorkspace(id);"));
+  assert.ok(bridge.includes('win.dispatchEvent(new CustomEvent("shell:create-workspace"));'), "another workspace is one door in the menu");
+  assert.ok(app.includes('window.addEventListener("shell:create-workspace", on);') && app.includes("onCancel={() => setCreating(false)}"));
+  const create = readCode("apps/dashboard/src/legacy-bridge/CreateWorkspace.tsx");
+  assert.ok(create.includes('{another ? "New workspace" : "Create your workspace"}') && create.includes('data-testid="create-workspace-back"'));
   assert.ok(bridge.includes("statusLine: shellStatusLine,") && bridge.includes("themes: THEME_OPTIONS,"));
 
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
@@ -88,6 +92,7 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
     "window.__shell.signOut();", "window.__shell.switchWorkspace(w.id)", "window.__identity.words(me)",
     'data-tip={collapsed ? (badge ? `${item.label} · ${badge}` : item.label) : undefined}',
     'window.dispatchEvent(new CustomEvent("shortcuts:open"))',
+    "window.__shell.createWorkspace();",
   ]) assert.ok(sidebar.includes(pin), pin);
   assert.ok(!sidebar.includes('onClick={() => onNavigate("admin")}>\n          <div className="avatar">'), "the chip opens a menu, not Settings");
 

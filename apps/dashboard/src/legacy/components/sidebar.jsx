@@ -225,6 +225,11 @@ const WorkspaceMenu = ({ onNavigate, close }) => {
         );
       })}
       <div className="more-divider" />
+      {!window.__DEMO_MODE && window.__shell && (
+        <button className="more-item" role="menuitem" onClick={() => { close(); window.__shell.createWorkspace(); }} data-testid="sb-ws-new">
+          <Icon name="plus" size={13} /><span className="more-item-label">New workspace</span>
+        </button>
+      )}
       <button className="more-item" role="menuitem" onClick={() => { close(); onNavigate("admin"); }}>
         <Icon name="settings" size={13} /><span className="more-item-label">Workspace settings</span>
       </button>

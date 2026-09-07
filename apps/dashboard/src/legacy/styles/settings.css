@@ -606,3 +606,7 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
 .set-you { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 0 12px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
 .set-you-label { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-muted); }
 .set-you-input { flex: 1; min-width: 180px; max-width: 320px; }
+
+/* Back, when the create screen was opened from the workspace menu. */
+.cw-back { margin-top: 8px; align-self: center; font: inherit; font-size: 13px; color: var(--ink-muted); text-decoration: underline; text-underline-offset: 3px; }
+.cw-back:hover { color: var(--ink); }
