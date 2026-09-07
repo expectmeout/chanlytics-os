@@ -107,7 +107,7 @@ test("the job fills the slots per person and holds anyone a slot cannot be fille
   const p = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
   assert.ok(p.includes('data-testid="bc-var-source"') && p.includes('data-testid="bc-new-template"'));
   assert.ok(p.includes("<window.TemplateComposer"), "one composer, mounted where a template is needed");
-  const s = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  const s = readCode("apps/dashboard/src/legacy/pages/messages.jsx");
   assert.ok(s.includes('data-testid="template-new"') && s.includes('data-testid="template-delete"') && s.includes('" · made here"'));
   const tc = readCode("apps/dashboard/src/legacy/pages/templates-real.jsx");
   for (const id of ["tpl-composer", "tpl-brief", "tpl-draft", "tpl-name", "tpl-body", "tpl-examples", "tpl-preview", "tpl-submit"]) assert.ok(tc.includes(`data-testid="${id}"`), id);

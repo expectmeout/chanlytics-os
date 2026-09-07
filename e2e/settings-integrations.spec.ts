@@ -41,34 +41,16 @@ test.describe("Settings → Integrations on a real workspace", () => {
     await expect(row).toContainText(/Connect WhatsApp|isn't set up to connect|connected by an owner|Checking/);
   });
 
-  test("the templates card shows what Meta holds, or says none yet, and never invents one", async ({ page }) => {
+  test("Integrations lists no template: the WhatsApp row points at Campaigns › Messages", async ({ page }) => {
     await page.goto("/#/admin/integrations");
     await page.waitForLoadState("networkidle");
-    const card = page.getByTestId("templates");
-    await expect(card).toBeVisible();
-    const res = await page.request.get("/api/v1/templates?all=1");
-    expect(res.status()).toBe(200);
-    const { data } = await res.json();
-    const wa = data.templates.filter((t: { channel: string; name: string }) => t.channel === "whatsapp" && t.name !== "hello_world");
-    // One pill per message on file and in the composers; the hidden ones sit under a fold; Meta's sample never shows.
-    const shown = wa.filter((t: { hidden_at: string | null }) => !t.hidden_at);
-    await expect(card.getByTestId("template-lang")).toHaveCount(shown.length);
-    await expect(card).toContainText(wa.length === 0 ? "None on file yet" : /approved|in review|never synced/);
-    await expect(card).not.toContainText("hello_world");
-    const hidden = wa.length - shown.length;
-    await expect(card.getByTestId("templates-hidden")).toHaveCount(hidden > 0 ? 1 : 0);
-    // A message opens on its words; a template can be written here when there is a number.
-    if ((await card.getByTestId("template-new").count()) > 0) {
-      const starters = await page.evaluate(() => (window as unknown as { __starters?: { list: unknown[] } }).__starters?.list.length ?? 0);
-      expect(starters).toBeGreaterThanOrEqual(5);
-      await expect(card.getByTestId("starter-row")).toHaveCount(starters);
-      await expect(card.getByTestId("starters")).toContainText("starter set");
-      const first = card.getByTestId("starter-row").first();
-      await expect(first).toContainText("Win-back");
-      await first.getByTestId("message-row").click();
-      await expect(first.locator(".msg-detail")).toBeVisible();
-      await card.getByTestId("template-new").click();
-      await expect(card.getByTestId("tpl-composer")).toBeVisible();
+    await expect(page.getByTestId("channels")).toBeVisible();
+    await expect(page.getByTestId("templates")).toHaveCount(0);
+    const link = page.getByTestId("channel-messages");
+    if (await link.count()) {
+      await link.click();
+      await expect(page).toHaveURL(/#\/messages/);
+      await expect(page.getByTestId("messages-real")).toBeVisible();
     }
   });
 

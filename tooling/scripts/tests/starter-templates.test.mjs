@@ -87,10 +87,14 @@ test("the door: idempotent, one language at a time, synced in when the number's 
 });
 
 test("the pages: titles not names, the starter set in Settings, one click on Broadcasts, the trigger's starter picked for a playbook, the message as the customer sees it", () => {
-  const s = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
-  for (const id of ["starters", "starter-add", "starter-add-all", "template-lang", "message-row"]) assert.ok(s.includes(`data-testid="${id}"`), id);
-  assert.ok(s.includes('group(g, "starter-row")') && s.includes('group(g, "custom-row")'), "one row per message: the starters, then what the workspace wrote");
+  const s = readCode("apps/dashboard/src/legacy/pages/messages.jsx");
+  for (const id of ["starters", "starter-add", "starter-add-all", "template-lang", "template-menu"]) assert.ok(s.includes(`data-testid="${id}"`), id);
+  assert.ok(s.includes('data-testid={g.starter ? "starter-row" : "custom-row"}'), "one card per message: the starters, then what the workspace wrote");
   assert.ok(s.includes('const TPL_SAMPLES = new Set(["hello_world"]);') && s.includes("!TPL_SAMPLES.has(t.name)"), "Meta's sample is never shown");
+  assert.ok(s.includes("<window.WaBubble from={bizName || \"Your business\"} body={body} footer={footer} />"), "the card is the message as the customer sees it");
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/app-shell.jsx").includes('page === "messages"') && readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/messages.jsx";'));
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/settings.jsx").includes('data-testid="channel-messages"') && !readCode("apps/dashboard/src/legacy/pages/settings.jsx").includes("TemplatesCard"), "Integrations points at Messages and lists no template");
+  for (const f of ["outbound-real", "broadcasts-real"]) assert.ok(readCode(`apps/dashboard/src/legacy/pages/${f}.jsx`).includes("<window.CampaignsTabs active="), f);
   assert.ok(s.includes("{tplTitle(t)}") && s.includes('" · made here"'), "a title, with the raw name beside it");
   const b = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
   assert.ok(b.includes('data-testid="bc-add-starters"') && b.includes("{bcTitle(t.name)}"));
@@ -143,7 +147,7 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   assert.ok(sync.includes("const fresh = rows.filter((r) => !keep.has(`${r.name}|${r.language}`) && SAMPLE_TEMPLATES.has(r.name));"), "and only on first sight — a row on file keeps what the workspace decided");
   const create = readCode("apps/edge/api/admin/whatsapp/templates-create.ts");
   assert.ok(create.includes("label: labels[n - 1] || `Value ${n}`"), "the words a person gave each slot are kept");
-  const s = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  const s = readCode("apps/dashboard/src/legacy/pages/messages.jsx");
   assert.ok(s.includes('data-testid="template-hide"') && s.includes('data-testid="templates-hidden"'));
   const b = readCode("apps/dashboard/src/legacy-bridge/templates.ts");
   assert.ok(b.includes('"PUT", { hidden: true }, true)') && b.includes('"PUT", { hidden: false }, true)'));
@@ -165,7 +169,7 @@ test("a template's title: the workspace's own words, set through its door, shown
   assert.ok(one.includes('"Say what changes: whether it is hidden, or its title."'));
   const b = readCode("apps/dashboard/src/legacy-bridge/templates.ts");
   assert.ok(b.includes('"PUT", { title }, true)') && b.includes("return templateTitle(t, row?.title ?? null);"), "a name is looked up among the workspace's rows");
-  const s = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  const s = readCode("apps/dashboard/src/legacy/pages/messages.jsx");
   for (const id of ["template-rename", "template-title", "template-title-save"]) assert.ok(s.includes(`data-testid="${id}"`), id);
   assert.ok(readCode("apps/dashboard/app/api/v1/broadcasts/route.ts").includes("broadcastName(tpl.name, now, tpl.title)"), "a broadcast's default name uses the title");
   assert.ok(readCode("apps/dashboard/src/server/playbooks.ts").includes("templateTitle(tpl.name, tpl.title)"), "a playbook's default name uses the title");

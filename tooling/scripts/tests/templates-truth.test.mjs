@@ -92,7 +92,7 @@ test("the webhook writes the row Meta changed; Settings shows every template wit
   assert.ok(w.includes('.from("templates").update({ meta_status: mapStatus(event), rejected_reason: reason })'));
   assert.ok(w.includes('.from("templates").update({ category: mapCategory('));
   assert.ok(w.includes('const TEMPLATE_STATUS_EVENTS = new Set(["APPROVED", "REJECTED", "PAUSED", "DISABLED", "PENDING_DELETION", "IN_APPEAL"]);'), "a quality flag leaves an approved template approved");
-  const s = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  const s = readCode("apps/dashboard/src/legacy/pages/messages.jsx");
   assert.ok(s.includes('data-testid="templates"') && s.includes('data-testid="template-row"') && s.includes('data-testid="sync-templates"'));
   assert.ok(s.includes("A marketing template can only go to people who said yes to offers."));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes('fetchEnvelope<{ templates: TemplateDto[] }>("/api/v1/templates?all=1")'));

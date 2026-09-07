@@ -389,7 +389,7 @@ const Sidebar = ({
   const groupMap = {
     people: ["clients", "leads", "segments", "pipeline"],
     conversations: ["conversations", "live", "calls", "chats", "email"],
-    campaigns: ["outbound", "content", "broadcasts"],
+    campaigns: ["outbound", "content", "broadcasts", "messages"],
     agents: ["fleet", "store", "studio", "tasks"],
   };
   const effActive = (() => {

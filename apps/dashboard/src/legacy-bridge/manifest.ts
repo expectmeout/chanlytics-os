@@ -62,6 +62,7 @@ import "@/legacy/pages/outbound.jsx";
 import "@/legacy/pages/outbound-real.jsx";
 import "@/legacy/pages/content-cal.jsx";
 import "@/legacy/pages/templates-real.jsx";
+import "@/legacy/pages/messages.jsx";
 import "@/legacy/pages/broadcasts.jsx";
 import "@/legacy/pages/broadcasts-real.jsx";
 import "@/legacy/pages/pipeline.jsx";
