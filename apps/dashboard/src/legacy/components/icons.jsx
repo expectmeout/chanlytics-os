@@ -61,6 +61,12 @@ const Icon = ({ name, size = 16, className = "", style = {} }) => {
     case "sort":     return <svg {...props}><path d="M4 3v10M2 11l2 2 2-2 M12 13V3M14 5l-2-2-2 2"/></svg>;
     case "refresh":  return <svg {...props}><path d="M2 8a6 6 0 0110-4.5L13 5M14 8a6 6 0 01-10 4.5L3 11"/><path d="M13 2v3h-3M3 14v-3h3"/></svg>;
     case "menu":     return <svg {...props}><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/></svg>;
+    case "logout":   return <svg {...props}><path d="M6 2.5H3.5a1 1 0 00-1 1v9a1 1 0 001 1H6M10 11l3-3-3-3M13 8H6"/></svg>;
+    case "keyboard": return <svg {...props}><rect x="1.5" y="4" width="13" height="8" rx="1.5"/><path d="M4 7h1M6.5 7h1M9 7h1M11.5 7h1M4 9.5h8"/></svg>;
+    case "chevrons": return <svg {...props}><path d="M5 6l3-3 3 3M5 10l3 3 3-3"/></svg>;
+    case "monitor":  return <svg {...props}><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.5"/><path d="M6 13.5h4M8 11v2.5"/></svg>;
+    case "user":     return <svg {...props}><circle cx="8" cy="5.5" r="2.5"/><path d="M2.5 14a5.5 5.5 0 0111 0"/></svg>;
+    case "sidebar":  return <svg {...props}><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><path d="M6 2.5v11"/></svg>;
     default: return <svg {...props}><circle cx="8" cy="8" r="3"/></svg>;
   }
 };

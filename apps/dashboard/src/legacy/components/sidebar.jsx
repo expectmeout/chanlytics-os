@@ -1,6 +1,10 @@
 /* global React, Icon */
-// Chanlytics — Sidebar v2
-// Team switcher (top) → New Chat → My Intelligence Hub nav → Active Agents → User chip
+// Chanlytics — Sidebar v3
+// Workspace menu (top) → New Chat → nav → (demo agents) → the shell's one
+// status line → account menu (foot). Two popovers and a rail. Every word
+// about a person comes from contracts/identity.ts through the bridge, and
+// everything the menus can do — switch, sign out, theme — goes through the
+// shell (window.__shell) rather than a second copy of it here.
 
 const NAV_PRIMARY = [
   { id: "home",     icon: "home",     label: "Today",       hint: "Live brief" },
@@ -70,20 +74,26 @@ const sbCredits = () => {
   return (b.creditsTotal + b.topup - b.creditsUsed).toLocaleString();
 };
 
-const SidebarRow = ({ item, active, parentActive, onNavigate, depth = 0, expanded, onToggle, badges = {} }) => {
+const SidebarRow = ({ item, active, parentActive, onNavigate, depth = 0, expanded, onToggle, badges = {}, collapsed = false }) => {
   const badge = badges[item.id] !== undefined ? badges[item.id] : item.badge;
+  const tip = item.id === "inbox" ? "Decisions waiting on you — agents hold until you call it" : item.id === "people" ? "Leads ready for you to call" : null;
   return (
   <>
     <div
       className={`nav-item ${active === item.id ? "active" : ""} ${parentActive === item.id ? "parent-active" : ""} ${item.urgent ? "urgent" : ""}`}
-      style={{ paddingLeft: 10 + depth * 16 }}
+      style={collapsed ? undefined : { paddingLeft: 10 + depth * 16 }}
       onClick={(e) => { if (item.expandable) { onToggle(item.id); } else { onNavigate(item.id); } }}
+      data-tip={collapsed ? (badge ? `${item.label} · ${badge}` : item.label) : undefined}
+      data-tip-side="right"
+      aria-current={active === item.id ? "page" : undefined}
     >
       {item.icon && <Icon name={item.icon} />}
-      <span>{item.label}</span>
-      {item.hint && <span className="nav-hint">{item.hint}</span>}
-      {badge ? <span className={`nav-badge ${item.urgent ? "urgent" : ""} tabular`} data-tip={item.id === "inbox" ? "Decisions waiting on you — agents hold until you call it" : item.id === "people" ? "Leads scored ready — your call to make" : null}>{badge}</span> : null}
-      {item.expandable && (
+      {!collapsed && <span>{item.label}</span>}
+      {!collapsed && item.hint && <span className="nav-hint">{item.hint}</span>}
+      {badge ? (collapsed
+        ? <span className={`nav-dot ${item.urgent ? "urgent" : ""}`} aria-label={`${badge} ${item.label}`} />
+        : <span className={`nav-badge ${item.urgent ? "urgent" : ""} tabular`} data-tip={tip || undefined}>{badge}</span>) : null}
+      {!collapsed && item.expandable && (
         <Icon name="chevron" size={11} style={{
           marginLeft: badge ? 4 : "auto",
           transform: expanded ? "rotate(90deg)" : "none",
@@ -92,7 +102,7 @@ const SidebarRow = ({ item, active, parentActive, onNavigate, depth = 0, expande
         }} />
       )}
     </div>
-    {item.expandable && expanded && item.children?.map((c) => (
+    {!collapsed && item.expandable && expanded && item.children?.map((c) => (
       <div
         key={c.id}
         className={`nav-item nav-sub ${active === c.id ? "active" : ""}`}
@@ -113,13 +123,11 @@ const SidebarRow = ({ item, active, parentActive, onNavigate, depth = 0, expande
 const sbMe = () => window.__ME || null;
 // The workspace being VIEWED, not the first one alphabetically.
 //
-// Every data surface, the bridge pill and Settings resolve by
-// __ACTIVE_WORKSPACE; only the chrome still read [0]. Membership order and
-// name order diverge the moment anyone belongs to two workspaces, and the
-// result is one business's name standing over another's conversations — which
-// the seam's own switchWorkspace comment calls the single worst thing this app
-// can do. [0] survives only as the fallback for a boot that has not resolved
-// an active workspace yet.
+// Every data surface and Settings resolve by __ACTIVE_WORKSPACE; membership
+// order and name order diverge the moment anyone belongs to two workspaces,
+// and the result is one business's name standing over another's
+// conversations. [0] survives only as the fallback for a boot that has not
+// resolved an active workspace yet.
 const sbWorkspace = () => {
   const all = window.__WORKSPACES || [];
   return all.find((w) => w.id === window.__ACTIVE_WORKSPACE) || all[0] || null;
@@ -129,26 +137,206 @@ const sbWorkspaceName = () => {
   if (ws && ws.name) return ws.name;
   return window.__DEMO_MODE ? "Chanlytics Sales" : "Workspace";
 };
-const sbWorkspaceMark = () => {
-  const n = sbWorkspaceName();
-  const w = n.split(/[\s@._-]+/).filter(Boolean);
+const sbMarkOf = (n) => {
+  const w = String(n || "").split(/[\s@._-]+/).filter(Boolean);
   return ((w[0]?.[0] ?? "") + (w[1]?.[0] ?? "")).toUpperCase() || "—";
 };
+const sbWorkspaceMark = () => sbMarkOf(sbWorkspaceName());
 // The person, in the words contracts/identity.ts gives: the name they gave,
 // else "Your account" — never a name invented from the email. The demo keeps
 // its persona; signed in with no identity yet, we say so.
 const sbWho = () => {
   const me = sbMe();
-  if (!me) return window.__DEMO_MODE ? { name: "Sarah Chen", email: "sales@chanlytics.com", initials: "SC" } : { name: "Your account", email: "Signed in", initials: "—" };
+  if (!me) return window.__DEMO_MODE ? { name: "Sarah Chen", email: "sales@chanlytics.com", initials: "SC", role: "Owner", named: true } : { name: "Your account", email: "Signed in", initials: "—", role: "", named: false };
   const w = window.__identity.words(me);
-  return { name: w.name, email: w.email, initials: w.initials };
+  return { name: w.name, email: w.email, initials: w.initials, role: w.role, named: w.named };
 };
 
-const Sidebar = ({ active = "home", onNavigate = () => {}, onNewChat = () => {}, onClose = null, agents = ACTIVE_AGENTS_DEFAULT, badges = {} }) => {
+// ---- Menus ---------------------------------------------------------------
+// A menu anchored to its trigger but drawn on the page, not inside the
+// sidebar (which clips), so the rail can open one as well. Escape and the
+// backdrop close it; the position is taken when it opens.
+const useSbMenu = () => {
+  const [open, setOpen] = React.useState(false);
+  const [rect, setRect] = React.useState(null);
+  const ref = React.useRef(null);
+  const toggle = () => {
+    if (!open && ref.current) {
+      const r = ref.current.getBoundingClientRect();
+      setRect({ left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width });
+    }
+    setOpen((v) => !v);
+  };
+  const close = () => setOpen(false);
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+  return { open, rect, ref, toggle, close };
+};
+
+const sbMenuStyle = (rect, { collapsed, side }) => {
+  if (!rect) return {};
+  const width = collapsed ? 240 : Math.max(220, Math.round(rect.width));
+  const left = collapsed ? Math.round(rect.right) + 6 : Math.round(rect.left);
+  return side === "up"
+    ? { left, bottom: Math.round(window.innerHeight - rect.top) + 6, width }
+    : { left, top: Math.round(rect.bottom) + 6, width };
+};
+
+const SbMenu = ({ menu, side = "down", collapsed, label, testid, children }) => menu.open ? (
+  <>
+    <div className="more-backdrop" onClick={(e) => { e.stopPropagation(); menu.close(); }} />
+    <div className="more-menu sb-menu" role="menu" aria-label={label} style={sbMenuStyle(menu.rect, { collapsed, side })} onClick={(e) => e.stopPropagation()} data-testid={testid}>
+      {children}
+    </div>
+  </>
+) : null;
+
+// The workspaces this account belongs to, the one being viewed checked, the
+// caller's role beside it, ⌘1–9 when there is a choice, and the door to its
+// settings. Switching goes through the shell, which re-runs every surface.
+const WorkspaceMenu = ({ onNavigate, close }) => {
+  const all = window.__WORKSPACES || (window.__DEMO_MODE ? [{ id: "demo", name: sbWorkspaceName() }] : []);
+  const active = sbWorkspace() || all[0] || null;
+  const role = sbWho().role;
+  const hotkey = (i) => (all.length > 1 && window.__chrome ? window.__chrome.workspaceHotkey(i) : null);
+  return (
+    <>
+      <div className="more-header">{all.length > 1 ? "Workspaces" : "Workspace"}</div>
+      {all.map((w, i) => {
+        const current = !!active && w.id === active.id;
+        return (
+          <button
+            key={w.id}
+            className={`more-item sb-ws ${current ? "active" : ""}`}
+            role="menuitemradio"
+            aria-checked={current}
+            data-testid="sb-ws-item"
+            onClick={() => { close(); if (!current && window.__shell) window.__shell.switchWorkspace(w.id); }}
+          >
+            <span className="sb-ws-mark">{sbMarkOf(w.name)}</span>
+            <span className="more-item-label">{w.name}{current && role ? <span className="sb-ws-role">{role}</span> : null}</span>
+            {hotkey(i) && <span className="more-item-meta kbd">{hotkey(i)}</span>}
+            {current && <Icon name="check" size={12} />}
+          </button>
+        );
+      })}
+      <div className="more-divider" />
+      <button className="more-item" role="menuitem" onClick={() => { close(); onNavigate("admin"); }}>
+        <Icon name="settings" size={13} /><span className="more-item-label">Workspace settings</span>
+      </button>
+    </>
+  );
+};
+
+// The account: who you are, the doors to your name and your alerts, the
+// theme, the shortcuts sheet, and sign out. Alerts on this device reuse the
+// bell's own switch (the notifications bridge), not a second one.
+const UserMenu = ({ who, themePref, onTheme, onNavigate, close, flash }) => {
+  const real = !window.__DEMO_MODE && window.__notifs ? window.__notifs : null;
+  const [alerts, setAlerts] = React.useState(() => (real ? real.alerts() : null));
+  const themes = window.__chrome ? window.__chrome.themes : [];
+  const toggleAlerts = async () => {
+    if (!real) return;
+    await real.setAlerts(!alerts.on);
+    const next = real.alerts();
+    setAlerts(next);
+    flash({ msg: next.on ? <>This device will be alerted when something needs you</> : next.permission === "denied" ? <>Alerts are blocked in your browser settings</> : <>Alerts off on this device</> });
+  };
+  const signOut = () => {
+    close();
+    if (window.__DEMO_MODE || !window.__shell) { flash({ msg: <>Nothing to sign out of in the demo.</> }); return; }
+    window.__shell.signOut();
+  };
+  return (
+    <>
+      <div className="sb-menu-head" data-testid="sb-me">
+        <div className="avatar">{who.initials}</div>
+        <div className="who">
+          <div className="name">{who.name}</div>
+          <div className="email">{who.email}</div>
+        </div>
+        {who.role && <span className="pill sb-role" data-testid="sb-me-role">{who.role}</span>}
+      </div>
+      <div className="more-divider" />
+      <button className="more-item" role="menuitem" onClick={() => { close(); onNavigate("admin/workspace"); }} data-testid="sb-me-name">
+        <Icon name="user" size={13} /><span className="more-item-label">Your name</span>{!who.named && <span className="more-item-meta">Not set</span>}
+      </button>
+      <button className="more-item" role="menuitem" onClick={() => { close(); onNavigate("admin/notifications"); }}>
+        <Icon name="bell" size={13} /><span className="more-item-label">Notification settings</span>
+      </button>
+      {alerts && alerts.can && alerts.permission !== "denied" && (
+        <button className="more-item" role="menuitemcheckbox" aria-checked={!!alerts.on} onClick={toggleAlerts} data-testid="sb-me-alerts">
+          <Icon name={alerts.on ? "check" : "dot"} size={13} /><span className="more-item-label">Alert this device</span><span className="more-item-meta">{alerts.on ? "On" : "Off"}</span>
+        </button>
+      )}
+      <div className="more-divider" />
+      <div className="more-header">Theme</div>
+      <div className="sb-theme-seg" role="radiogroup" aria-label="Theme">
+        {themes.map((t) => (
+          <button key={t.id} role="radio" aria-checked={themePref === t.id} className={`sb-theme-opt ${themePref === t.id ? "active" : ""}`} onClick={() => onTheme(t.id)} data-testid={`sb-theme-${t.id}`}>
+            <Icon name={t.icon} size={12} />{t.label}
+          </button>
+        ))}
+      </div>
+      <div className="more-divider" />
+      <button className="more-item" role="menuitem" onClick={() => { close(); window.dispatchEvent(new CustomEvent("shortcuts:open")); }} data-testid="sb-me-shortcuts">
+        <Icon name="keyboard" size={13} /><span className="more-item-label">Keyboard shortcuts</span><span className="more-item-meta kbd">?</span>
+      </button>
+      <button className="more-item danger" role="menuitem" onClick={signOut} data-testid="sb-signout">
+        <Icon name="logout" size={13} /><span className="more-item-label">Sign out</span>
+      </button>
+    </>
+  );
+};
+
+// The one line the shell owes the person: a newer build (refresh fixes
+// everything), or surfaces that stopped refreshing. Read from the shell's
+// status (legacy-bridge/shell.ts), which used to be the floating pill.
+const SbStatus = ({ collapsed }) => {
+  const [, bump] = React.useReducer((n) => n + 1, 0);
+  React.useEffect(() => {
+    window.addEventListener("shell:status", bump);
+    return () => window.removeEventListener("shell:status", bump);
+  }, []);
+  const line = window.__chrome ? window.__chrome.statusLine(window.__SHELL_STATUS) : null;
+  if (!line) return null;
+  if (line.action === "reload") {
+    return (
+      <button type="button" className="sb-attn sb-attn-act" onClick={() => window.location.reload()} data-tip={collapsed ? `${line.text} — refresh` : undefined} data-tip-side="right" data-testid="sb-status">
+        <Icon name="refresh" size={12} /><span>{line.text}</span><span className="sb-attn-cta">Refresh</span>
+      </button>
+    );
+  }
+  return (
+    <div className="sb-attn" data-tip={collapsed ? line.text : undefined} data-tip-side="right" data-testid="sb-status">
+      <Icon name="alert" size={12} /><span>{line.text}</span>
+    </div>
+  );
+};
+
+const Sidebar = ({
+  active = "home",
+  onNavigate = () => {},
+  onNewChat = () => {},
+  onClose = null,
+  agents = ACTIVE_AGENTS_DEFAULT,
+  badges = {},
+  collapsed = false,
+  onToggleCollapse = () => {},
+  themePref = "dark",
+  onTheme = () => {},
+}) => {
   const [, setTick] = React.useState(0);
   const [needs, setNeeds] = React.useState(sbNeedsCount);
+  const [toastNode, flash] = window.usePPToast();
+  const wsMenu = useSbMenu();
+  const meMenu = useSbMenu();
 
-  // Live session overlays: fleet pauses, ended calls, decisions, inbox counts, billing
+  // Live session overlays: fleet pauses, ended calls, decisions, inbox counts, billing, identity
   React.useEffect(() => {
     const bump = () => setTick(n => n + 1);
     const onCounts = (e) => setNeeds(e.detail && typeof e.detail.needs === "number" ? e.detail.needs : sbNeedsCount());
@@ -159,8 +347,10 @@ const Sidebar = ({ active = "home", onNavigate = () => {}, onNewChat = () => {},
     window.addEventListener("inbox:counts", onCounts);
     window.addEventListener("inbox:decisions", onDecisions);
     window.addEventListener("me:changed", bump);
+    window.addEventListener("surface:workspace", bump);
     return () => {
       window.removeEventListener("me:changed", bump);
+      window.removeEventListener("surface:workspace", bump);
       window.removeEventListener("fleet:status", bump);
       window.removeEventListener("live:ended", bump);
       window.removeEventListener("billing:changed", bump);
@@ -205,7 +395,7 @@ const Sidebar = ({ active = "home", onNavigate = () => {}, onNewChat = () => {},
 
   const renderGroup = (items, label) => (
     <div className="sidebar-section">
-      {label && <div className="sidebar-label">{label}</div>}
+      {label && !collapsed && <div className="sidebar-label">{label}</div>}
       {items.map((it) => (
         <SidebarRow
           key={it.id}
@@ -216,13 +406,16 @@ const Sidebar = ({ active = "home", onNavigate = () => {}, onNewChat = () => {},
           expanded={expanded[it.id]}
           onToggle={toggle}
           badges={computedBadges}
+          collapsed={collapsed}
         />
       ))}
     </div>
   );
 
+  const workspaceCount = (window.__WORKSPACES || []).length;
+
   return (
-    <aside className="sidebar" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+    <aside className={`sidebar ${collapsed ? "collapsed" : ""}`} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} data-testid="sidebar">
       {/* Mobile drawer header — hidden on desktop */}
       <div className="sb-mobile-head">
         <span className="sidebar-brand-mark">C</span>
@@ -232,35 +425,42 @@ const Sidebar = ({ active = "home", onNavigate = () => {}, onNewChat = () => {},
         </button>
       </div>
 
-      {/* Team switcher */}
-      <div className="sb-team" onClick={() => onNavigate("admin")}>
+      {/* Workspace — the menu's trigger */}
+      <button
+        type="button"
+        className="sb-team"
+        ref={wsMenu.ref}
+        onClick={wsMenu.toggle}
+        aria-haspopup="menu"
+        aria-expanded={wsMenu.open}
+        data-tip={collapsed ? sbWorkspaceName() : undefined}
+        data-tip-side="right"
+        data-testid="sb-workspace"
+      >
         <div className="sb-team-mark">{sbWorkspaceMark()}</div>
         <div className="sb-team-body">
           <div className="sb-team-name">{sbWorkspaceName()}</div>
-          {window.__DEMO_MODE && <div className="sb-team-plan">Professional</div>}
+          {window.__DEMO_MODE ? <div className="sb-team-plan">Professional</div> : who.role ? <div className="sb-team-plan">{who.role}{workspaceCount > 1 ? ` · ${workspaceCount} workspaces` : ""}</div> : null}
         </div>
-        <Icon name="chevron-down" size={14} style={{ color: "var(--ink-dim)" }} />
-      </div>
+        <Icon name="chevrons" size={14} style={{ color: "var(--ink-dim)" }} />
+      </button>
+      <SbMenu menu={wsMenu} side="down" collapsed={collapsed} label="Workspaces" testid="sb-workspace-menu">
+        <WorkspaceMenu onNavigate={onNavigate} close={wsMenu.close} />
+      </SbMenu>
 
-      {/* New Chat — primary CTA.
-          Opens the Ask assistant, which answers from seed data: invented
-          revenue, invented waiting decisions, a refund dispute for a customer
-          who does not exist. The other three entry points (window.appAsk, ⌘K,
-          the topbar button) were all gated when Ask was stubbed; the most
-          prominent control in the chrome was not, so the fabrication the
-          registry and the pill exist to prevent was one click away on every
-          real workspace. Gated the same way the topbar is, and worded the
-          same. */}
+      {/* New Chat — primary CTA. Opens Ask, gated the same way the topbar is. */}
       <div className="sb-newchat">
         <button
           className="btn btn-primary"
           style={{ width: "100%", height: 32, justifyContent: "center" }}
           onClick={onNewChat}
           title="Start a new Ask thread"
+          data-tip={collapsed ? "New Chat" : undefined}
+          data-tip-side="right"
           data-testid="sb-newchat"
         >
           <Icon name="plus" size={13} />
-          New Chat
+          {!collapsed && "New Chat"}
         </button>
       </div>
 
@@ -273,11 +473,9 @@ const Sidebar = ({ active = "home", onNavigate = () => {}, onNewChat = () => {},
       </div>
 
       {/* Active Agents — demo only. The seeded roster claims eight agents doing
-          live work ("Phone Rep · On call · Selena Cho · 0:42"); the real
-          product runs two, and the Fleet surface that would show them honestly
-          is a later slice. An invented roster next to real conversation data
-          costs more credibility than the shortcut is worth. */}
-      {window.__DEMO_MODE && <div className="sb-agents">
+          live work; the real product runs two, and the Fleet surface that would
+          show them honestly is a later slice. */}
+      {window.__DEMO_MODE && !collapsed && <div className="sb-agents">
         <div className="sb-agents-head">
           <span className="sidebar-label" style={{ padding: 0 }}>Agents</span>
           <span className="sb-agents-count">
@@ -313,20 +511,45 @@ const Sidebar = ({ active = "home", onNavigate = () => {}, onNewChat = () => {},
         </button>
       </div>}
 
-      {/* User chip — the REAL signed-in account when the bridge has it.
-          "Sarah Chen · sales@chanlytics.com" was a fabricated person rendered
-          as you, on every page. Credits are demo-only: there is no billing
-          meter behind that number. */}
+      {/* The foot: the shell's status, the rail toggle, the account. */}
       <div className="sidebar-foot">
-        <div className="user-chip" onClick={() => onNavigate("admin")}>
+        <SbStatus collapsed={collapsed} />
+        <button
+          type="button"
+          className="sb-collapse"
+          onClick={onToggleCollapse}
+          data-tip={collapsed ? "Expand the sidebar (⌘B)" : undefined}
+          data-tip-side="right"
+          aria-label={collapsed ? "Expand the sidebar" : "Collapse the sidebar"}
+          data-testid="sb-collapse"
+        >
+          <Icon name="sidebar" size={14} />
+          <span className="sb-collapse-label">Collapse</span>
+          <span className="kbd sb-collapse-label">⌘B</span>
+        </button>
+        <button
+          type="button"
+          className="user-chip"
+          ref={meMenu.ref}
+          onClick={meMenu.toggle}
+          aria-haspopup="menu"
+          aria-expanded={meMenu.open}
+          data-tip={collapsed ? who.name : undefined}
+          data-tip-side="right"
+          data-testid="sb-account"
+        >
           <div className="avatar">{who.initials}</div>
           <div className="who">
             <div className="name">{who.name}</div>
             <div className="email">{who.email}</div>
           </div>
-          {window.__DEMO_MODE && <div className="user-credits mono tabular">{sbCredits()}</div>}
-        </div>
+          {window.__DEMO_MODE && !collapsed && <div className="user-credits mono tabular">{sbCredits()}</div>}
+        </button>
+        <SbMenu menu={meMenu} side="up" collapsed={collapsed} label="Account" testid="sb-account-menu">
+          <UserMenu who={who} themePref={themePref} onTheme={onTheme} onNavigate={onNavigate} close={meMenu.close} flash={flash} />
+        </SbMenu>
       </div>
+      {toastNode}
     </aside>
   );
 };

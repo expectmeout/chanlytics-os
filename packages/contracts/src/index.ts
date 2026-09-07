@@ -30,3 +30,4 @@ export * from "./live";
 export * from "./setup";
 export * from "./forwarding";
 export * from "./identity";
+export * from "./chrome";

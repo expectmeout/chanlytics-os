@@ -55,10 +55,10 @@ test("the tab bar carries the real surfaces and the two counts that matter", () 
   assert.ok(css.includes("padding: 6px 4px calc(6px + env(safe-area-inset-bottom));"), "above the home bar");
   assert.ok(css.includes("min-height: 44px;"), "thumb-sized");
   assert.ok(css.includes("position: fixed;") && css.includes("left: 0; right: 0; bottom: 0;"), "fixed to the viewport: flowed, it lived below the fold");
-  // The bridge's status pill is fixed at the bottom too; on a phone it moves
-  // above the bar — it covered the bar and swallowed its taps on production.
-  const pill = readRaw("apps/dashboard/src/legacy-bridge/legacy.css");
-  assert.ok(pill.includes(".bridge-pill { left: 12px; right: 12px; bottom: calc(74px + env(safe-area-inset-bottom));"));
+  // The status the bridge's floating pill used to carry lives in the
+  // sidebar's foot now (SbStatus); nothing fixed sits over the tab bar.
+  assert.ok(!readRaw("apps/dashboard/src/legacy-bridge/legacy.css").includes(".bridge-pill"), "the pill is gone");
+  assert.ok(readCode("apps/dashboard/src/legacy/components/sidebar.jsx").includes("const SbStatus = "));
 });
 
 test("the installable shell: a public manifest, real icons, full-screen on iOS, a worker that caches nothing", () => {

@@ -9,7 +9,8 @@
  * SurfaceData runner; the pill reports live/degraded per surface, carries
  * sign-out, and flags stale deployments (version heartbeat).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { resolveTheme, isThemePref, isSidebarPref, type ThemePref, type SidebarPref } from "@chanlytics/contracts";
 import "./seed-globals"; // must evaluate before the manifest
 import "./manifest";
 // legacy.css is NOT imported here: it lives in app/(os)/layout.tsx so the
@@ -25,7 +26,7 @@ import {
   refreshSurfaces,
   startSurfaces,
 } from "./surface-runner";
-import { clearSurfaceCache, hydrateSurfaceCache } from "./surface-cache";
+import { hydrateSurfaceCache } from "./surface-cache";
 import { installInboxVerbs } from "./inbox-verbs";
 import { installPeopleCourier } from "./people-detail";
 import { installLists } from "./people-lists";
@@ -40,6 +41,7 @@ import { installCalendar } from "./calendar";
 import { installToday } from "./today";
 import { installSetup, setupOverride } from "./setup";
 import { installIdentity } from "./identity";
+import { installShell, publishShellStatus } from "./shell";
 import CreateWorkspace from "./CreateWorkspace";
 
 installInboxVerbs();
@@ -63,6 +65,7 @@ installCalendar();
 installToday();
 installSetup();
 installIdentity();
+installShell();
 // The installable shell's service worker (public/sw.js). It caches nothing
 // and answers nothing — the workspace is live data — and exists so a phone
 // can add the app to its home screen. Production only: a worker on a dev
@@ -129,36 +132,67 @@ installRouteGate();
 installSurfaceRegistry();
 
 interface Prefs {
-  theme: "light" | "dark";
+  theme: ThemePref;
+  sidebar: SidebarPref;
   inboxDensity: "compact" | "medium" | "rich";
   showInboxAgentRail: boolean;
 }
-const PREF_DEFAULTS: Prefs = { theme: "dark", inboxDensity: "medium", showInboxAgentRail: false };
+const PREF_DEFAULTS: Prefs = { theme: "dark", sidebar: "open", inboxDensity: "medium", showInboxAgentRail: false };
 const PREFS_KEY = "chanlytics-os-prefs";
 
+/** This device's preferences, with anything unknown or stale replaced by the default. */
 function loadPrefs(): Prefs {
   try {
-    return { ...PREF_DEFAULTS, ...JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") };
+    const stored = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") as Partial<Prefs>;
+    const p = { ...PREF_DEFAULTS, ...stored };
+    return { ...p, theme: isThemePref(p.theme) ? p.theme : PREF_DEFAULTS.theme, sidebar: isSidebarPref(p.sidebar) ? p.sidebar : PREF_DEFAULTS.sidebar };
   } catch {
     return PREF_DEFAULTS;
   }
 }
 
+/** Whether the device prefers dark, kept current while the app is open. */
+function useSystemDark(): boolean {
+  const [dark, setDark] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-color-scheme: dark)").matches);
+  useEffect(() => {
+    const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!mq) return undefined;
+    const on = () => setDark(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return dark;
+}
+
 type ChanlyticsAppComponent = React.ComponentType<{
   theme: string;
+  themePref: string;
   onTheme: (v: string) => void;
+  sidebar: string;
+  onSidebar: (v: string) => void;
   inboxDensity: string;
   showInboxAgentRail: boolean;
 }>;
 
 export default function LegacyApp() {
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
-  const [workspace, setWorkspace] = useState<Workspace | null>(() => workspaceOverride.current());
+  const systemDark = useSystemDark();
+  const theme = resolveTheme(prefs.theme, systemDark);
   const [allWorkspaces, setAllWorkspaces] = useState<Workspace[]>(
     () => (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES ?? [],
   );
   const [, setStatusTick] = useState(0);
-  const [staleBuild, setStaleBuild] = useState(false);
+  // What the shell alone knows — a newer build, surfaces that stopped
+  // refreshing — goes to the sidebar's foot through the shell bridge, which
+  // is where the floating pill used to say it.
+  const staleRef = useRef(false);
+  const publishStatus = useCallback(() => {
+    const statuses = getSurfaceStatuses();
+    const degraded = Object.entries(SURFACE_LABELS)
+      .filter(([key]) => statuses.get(key) === "degraded")
+      .map(([, label]) => label);
+    publishShellStatus({ stale: staleRef.current, degraded });
+  }, []);
 
   const missing = useMemo(
     () => REQUIRED.filter((k) => !(window as unknown as Record<string, unknown>)[k]),
@@ -177,8 +211,8 @@ export default function LegacyApp() {
 
   // Theme stamp + viewport scoping, exactly what the inline boot script did.
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", prefs.theme);
-  }, [prefs.theme]);
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
   useEffect(() => {
     document.documentElement.classList.add("legacy-on");
     return () => document.documentElement.classList.remove("legacy-on");
@@ -189,14 +223,14 @@ export default function LegacyApp() {
     const stop = startSurfaces(SURFACES);
     const off = onSurfaceStatusChange(() => {
       setStatusTick((n) => n + 1);
-      setWorkspace(workspaceOverride.current());
       setAllWorkspaces((window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES ?? []);
+      publishStatus();
     });
     return () => {
       stop();
       off();
     };
-  }, []);
+  }, [publishStatus]);
 
   // Version heartbeat: a hash-routed tab lives for days; flag stale deploys
   // instead of letting a dead chunk reference white-screen the operator.
@@ -208,7 +242,7 @@ export default function LegacyApp() {
         const j = (await r.json()) as { sha?: string };
         if (!j.sha) return;
         if (initial === null) initial = j.sha;
-        else if (j.sha !== initial) setStaleBuild(true);
+        else if (j.sha !== initial && !staleRef.current) { staleRef.current = true; publishStatus(); }
       } catch { /* offline — ignore */ }
     };
     void check();
@@ -219,7 +253,7 @@ export default function LegacyApp() {
       document.removeEventListener("visibilitychange", onVisible);
       clearInterval(t);
     };
-  }, []);
+  }, [publishStatus]);
 
   if (missing.length) {
     return (
@@ -256,55 +290,18 @@ export default function LegacyApp() {
   }
 
   const ChanlyticsApp = (window as unknown as { ChanlyticsApp: ChanlyticsAppComponent }).ChanlyticsApp;
-  const statuses = getSurfaceStatuses();
-  const degradedLabels = Object.entries(SURFACE_LABELS)
-    .filter(([key]) => statuses.get(key) === "degraded")
-    .map(([, label]) => label);
 
   return (
     <div id="root">
       <ChanlyticsApp
-        theme={prefs.theme}
-        onTheme={(v) => setPref("theme", v as Prefs["theme"])}
+        theme={theme}
+        themePref={prefs.theme}
+        onTheme={(v) => setPref("theme", isThemePref(v) ? v : PREF_DEFAULTS.theme)}
+        sidebar={prefs.sidebar}
+        onSidebar={(v) => setPref("sidebar", isSidebarPref(v) ? v : PREF_DEFAULTS.sidebar)}
         inboxDensity={prefs.inboxDensity}
         showInboxAgentRail={prefs.showInboxAgentRail}
       />
-      <div className="bridge-pill" role="status">
-        <span className={workspace ? "dot live" : "dot"} />
-        {staleBuild ? (
-          <button className="pill-action" onClick={() => window.location.reload()}>
-            New version available — refresh
-          </button>
-        ) : workspace ? (
-          <span>
-            {/* A member of two workspaces had no way to say which one they
-                meant, and every surface silently answered for a default they
-                never chose. Rendered only when there is a real choice — a
-                one-workspace account keeps the plain name it has always had. */}
-            {allWorkspaces.length > 1 ? (
-              <select
-                className="pill-workspace"
-                value={workspace.id}
-                aria-label="Active workspace"
-                onChange={(e) => switchWorkspace(e.target.value)}
-              >
-                {allWorkspaces.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-            ) : (
-              <b>{workspace.name}</b>
-            )}
-            {/* A customer's footer names the workspace and warns when a surface is stale; which surfaces are real is the registry's business, not theirs. */}
-            {degradedLabels.length ? ` · ${degradedLabels.join(", ")} stale` : ""}
-          </span>
-        ) : (
-          <span>Connecting to your workspace…</span>
-        )}
-        <form action="/auth/signout" method="post" className="pill-signout" onSubmit={clearSurfaceCache}>
-          <button type="submit" title="Sign out">Sign out</button>
-        </form>
-      </div>
     </div>
   );
 }

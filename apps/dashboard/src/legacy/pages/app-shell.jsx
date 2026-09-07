@@ -253,7 +253,7 @@ const PhoneTabs = ({ page, inboxNeeds, onNavigate, onMenu }) => {
   );
 };
 
-const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => {
+const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", onSidebar = () => {}, inboxDensity, showInboxAgentRail }) => {
   const [route, setRoute] = useShellState(parseHash());
   const [askOpen, setAskOpen] = useShellState(false);
   const [inboxNeeds, setInboxNeeds] = useShellState(() => {
@@ -305,6 +305,27 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
+
+  // ⌘B folds the sidebar to a rail on a desk (the phone has a drawer);
+  // ⌘1–9 switch workspaces when there is more than one. Neither fires
+  // while typing in a field.
+  useShellEffect(() => {
+    const handler = (e) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+      if (window.__chrome && window.__chrome.typing(e.target)) return;
+      if (e.key === "b") {
+        if (window.innerWidth > 900) { e.preventDefault(); onSidebar(sidebar === "rail" ? "open" : "rail"); }
+        return;
+      }
+      const n = Number(e.key);
+      if (n >= 1 && n <= 9) {
+        const all = window.__WORKSPACES || [];
+        if (all.length > 1 && all[n - 1] && window.__shell) { e.preventDefault(); window.__shell.switchWorkspace(all[n - 1].id); }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [sidebar, onSidebar]);
 
   // Mobile drawer flows: Escape closes, body scroll locks while open,
   // and a resize past the breakpoint clears the drawer state.
@@ -614,13 +635,17 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
 
   return (
     <div className="app-root" data-theme={theme}>
-      <div className={`side-wrap ${navOpen ? "open" : ""}`}>
+      <div className={`side-wrap ${navOpen ? "open" : ""} ${sidebar === "rail" ? "rail" : ""}`}>
         <Sidebar
           active={activeNav}
           badges={{ inbox: inboxNeeds > 0 ? String(inboxNeeds) : null }}
-          onNavigate={(id) => navigate(NAV_ROUTE[id] || (id.includes("/") ? id : `soon/${id}`))}
+          onNavigate={(id) => { setNavOpen(false); navigate(NAV_ROUTE[id] || (id.includes("/") ? id : `soon/${id}`)); }}
           onNewChat={() => { setNavOpen(false); window.dispatchEvent(new CustomEvent("ask:new")); openAsk(); }}
           onClose={() => setNavOpen(false)}
+          collapsed={sidebar === "rail"}
+          onToggleCollapse={() => onSidebar(sidebar === "rail" ? "open" : "rail")}
+          themePref={themePref}
+          onTheme={onTheme}
         />
       </div>
       {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} />}
@@ -652,6 +677,7 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
       </div>
 
       <AskBar open={askOpen} onClose={() => setAskOpen(false)} />
+      <ShortcutsSheet />
     </div>
   );
 };

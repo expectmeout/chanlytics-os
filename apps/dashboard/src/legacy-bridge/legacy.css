@@ -29,70 +29,6 @@ html.legacy-on #root {
   height: 100vh;
 }
 
-/* Bridge status pill — fixed overlay, zero layout impact on the 100vh shell. */
-.bridge-pill {
-  position: fixed;
-  right: 14px;
-  bottom: 14px;
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--bg-raised);
-  color: var(--ink-muted);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 6px 14px;
-  font-size: 12px;
-  font-family: var(--font-sans);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-}
-.bridge-pill b { color: var(--ink); font-weight: 500; }
-.bridge-pill .pill-action {
-  background: none; border: none; color: var(--warn); font: inherit;
-  cursor: pointer; padding: 0; font-weight: 600;
-}
-.bridge-pill .pill-signout { display: inline; margin-left: 4px; }
-.bridge-pill .pill-signout button {
-  background: none; border: none; color: var(--ink-muted);
-  font: inherit; font-size: 11px; cursor: pointer; padding: 0;
-  text-decoration: underline; text-underline-offset: 2px;
-}
-/* Reads as the workspace NAME first and a control second — it sits where a
-   plain <b>name</b> sits for single-workspace accounts, so the pill must not
-   change shape just because someone belongs to two businesses. */
-.bridge-pill .pill-workspace {
-  background: none;
-  border: none;
-  color: inherit;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-  padding: 0 14px 0 0;
-  margin: 0;
-  appearance: none;
-  -webkit-appearance: none;
-  /* caret, drawn rather than fetched (the CSP admits no image hosts) */
-  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
-                    linear-gradient(135deg, currentColor 50%, transparent 50%);
-  background-position: right 4px center, right 0 center;
-  background-size: 4px 4px, 4px 4px;
-  background-repeat: no-repeat;
-}
-.bridge-pill .pill-workspace:focus-visible {
-  outline: 2px solid var(--ok);
-  outline-offset: 2px;
-  border-radius: 2px;
-}
-
-.bridge-pill .dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--warn);
-}
-.bridge-pill .dot.live { background: var(--ok); }
-
 /* Touch ergonomics (P3 from the surface review): 48 interactive targets sat
    under 44px on a phone, many at 26px — and Today is explicitly the check-it-
    at-9am surface, which is a phone surface. Scoped to coarse pointers so the
@@ -137,12 +73,3 @@ html.legacy-on #root {
   color: var(--warn, #9a5b00);
 }
 
-/* Phone: the pill sits above the tab bar (it covered it and swallowed its
-   taps), spans the width on one line, and the surfaces list truncates so
-   the workspace name and Sign out stay readable. */
-@media (max-width: 720px) {
-  .bridge-pill { left: 12px; right: 12px; bottom: calc(74px + env(safe-area-inset-bottom)); padding: 6px 12px; }
-  .bridge-pill > span:not(.dot) { min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .bridge-pill .dot { flex: none; }
-  .bridge-pill .pill-signout { flex: none; }
-}
