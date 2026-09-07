@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setupSteps, setupRoute, shouldLandOnSetup, SETUP_STATE_WORDS, formatPhoneDisplay, agoWords, EVENT_KINDS, serverNotificationRows, verbForRoute } from "@chanlytics/contracts";
+import { setupSteps, setupRoute, shouldLandOnSetup, SETUP_STATE_WORDS, formatPhoneDisplay, agoWords, EVENT_KINDS, serverNotificationRows, verbForRoute, LINE_STEP_WORDS } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
@@ -208,6 +208,53 @@ test("the primary verb belongs to the next row alone; mobile tabs keep their lab
   const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
   assert.ok(page.includes('kind: vm.next && vm.next.row === r.id ? "primary" : "ghost"'));
   assert.ok(readRaw("apps/dashboard/src/legacy/styles/mobile.css").includes(".set-nav-row { grid-template-columns: auto auto; white-space: nowrap; flex: 0 0 auto; }"));
+});
+
+const lineRow = (over = {}) => ({ id: "0f3c2a1e-1111-4222-8333-444455556666", e164: "+13055550100", kind: "chanlytics", provider: "twilio", area_code: 305, voice_state: "provisioning", sms_state: "none", whatsapp_state: "none", port_state: "none", forwarding_state: "none", step: "trunk", last_error: null, state_since: "2026-09-07T14:58:00Z", created_at: "2026-09-07T14:57:00Z", ...over });
+const withLines = (rows, ready = true) => ({ rows, ready, provider: ready ? "twilio" : null, costs: { local_number_month_usd: 1.15 } });
+
+test("the line row over the product's own line: get one when this deployment can, watch it being set up, retry when it stopped", () => {
+  const can = setupSteps(empty({ lines: withLines([]) }), NOW);
+  assert.equal(row(can, "line").state, "waiting_you");
+  assert.equal(row(can, "line").sentence, "Get a number for calls, or keep the one you have.");
+  assert.deepEqual(row(can, "line").details, ["A local number is about $1.15 a month · your receptionist answers it · texting arrives when the carriers register it"]);
+  assert.deepEqual(row(can, "line").verb, { label: "Get a line", to: "verb:choose-line" });
+  const cannot = setupSteps(empty({ lines: withLines([], false) }), NOW);
+  assert.deepEqual(row(cannot, "line").verb, { label: "Ask for a line", to: "verb:request-line" }, "no provider here: a person at Chanlytics");
+  const busy = setupSteps(empty({ lines: withLines([lineRow()]) }), NOW);
+  assert.equal(row(busy, "line").state, "waiting_them");
+  assert.equal(row(busy, "line").sentence, `Setting up ${formatPhoneDisplay("+13055550100")} — ${LINE_STEP_WORDS.trunk}, since ${agoWords(Date.parse("2026-09-07T14:58:00Z"), NOW)}.`);
+  assert.equal(row(busy, "line").verb, null);
+  assert.equal(row(busy, "receptionist").sentence, "Being created with your line — it answers the moment the line does.");
+  const failed = setupSteps(empty({ lines: withLines([lineRow({ voice_state: "failed", step: "import", last_error: "Retell import: HTTP 422" })]) }), NOW);
+  assert.equal(row(failed, "line").state, "waiting_them");
+  assert.equal(row(failed, "line").sentence, `Setting up ${formatPhoneDisplay("+13055550100")} stopped while ${LINE_STEP_WORDS.import}. A person at Chanlytics has it.`);
+  assert.deepEqual(row(failed, "line").verb, { label: "Retry", to: "verb:retry-line:0f3c2a1e-1111-4222-8333-444455556666" });
+  assert.ok(!JSON.stringify(failed).includes("HTTP 422"), "the provider's words stay off the page");
+  const own = setupSteps(live({ lines: withLines([lineRow({ voice_state: "answering", step: null })]) }), NOW);
+  assert.equal(row(own, "line").state, "ready");
+  assert.ok(row(own, "line").details.includes("Your own number through Chanlytics"));
+  assert.equal(setupSteps(empty({ lines: withLines([lineRow({ voice_state: "failed" })], false) }), NOW).next.row, "facts", "a stopped line is ours to fix, not the next thing to press");
+});
+
+test("the wiring for lines: routes owner-only and rate-limited, the setup route carries them, the bridge repaints on a step, the page has the chooser", () => {
+  for (const [file, bucket] of [["search", "lines_search"], ["buy", "lines_buy"], ["retry", "lines_retry"]]) {
+    const src = readCode(`apps/dashboard/app/api/v1/lines/${file}/route.ts`);
+    assert.ok(src.includes('requireRole(member, "owner")'), `${file}: owners only`);
+    assert.ok(src.includes(`takeRate(ctx.userId, "${bucket}")`), `${file}: ${bucket}`);
+    assert.ok(src.includes('op: "' + file + '"'), `${file}: the edge op`);
+  }
+  assert.ok(readCode("apps/dashboard/app/api/v1/lines/route.ts").includes("linesFor(ctx.supabase, member.tenantId), linesStatus()"));
+  const server = readCode("apps/dashboard/src/server/lines.ts");
+  assert.ok(server.includes('"x-diag-key": process.env.DIAG_KEY') && server.includes("${EDGE_BASE}/api/admin/lines"));
+  assert.ok(!/_sid/.test(server.slice(server.indexOf("LINE_COLUMNS"), server.indexOf("export async function linesFor"))), "no provider id is selected for the page");
+  assert.ok(readCode("apps/dashboard/app/api/v1/setup/route.ts").includes("lines: { rows: lineRows, ready: lineStatus.ready, provider: lineStatus.provider, costs: { local_number_month_usd: lineStatus.costs.local_number_month_usd } },"));
+  const bridge = readCode("apps/dashboard/src/legacy-bridge/setup.ts");
+  assert.ok(bridge.includes('refreshOnTables: ["lines", "notifications"]'));
+  for (const pin of ['"/api/v1/lines/search"', '"/api/v1/lines/buy"', '"/api/v1/lines/retry"']) assert.ok(bridge.includes(pin), pin);
+  const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
+  for (const pin of ['verb.to === "verb:choose-line"', 'verb.to.startsWith("verb:retry-line:")', 'data-testid="setup-chooser"', 'data-testid="setup-buy"', "Get this number", 'window.canDo("team")']) assert.ok(page.includes(pin), pin);
+  assert.ok(readCode("apps/edge/lib/lines.ts").includes('export { LINE_STEP_WORDS } from "./workspace/contracts.js";'), "one list of step words");
 });
 
 test("the landing rule: an owner whose receptionist answers nowhere lands on Setup once, from Today or nothing", () => {

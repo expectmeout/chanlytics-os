@@ -147,12 +147,5 @@ export function linePorts(
   };
 }
 
-/** The step, in the owner's words, for the bell and the platform. */
-export const LINE_STEP_WORDS: Record<string, string> = {
-  subaccount: "opening your account with the carrier",
-  number: "buying the number",
-  trunk: "connecting the number to the receptionist",
-  agent: "creating the receptionist",
-  import: "handing the number to the receptionist",
-  channel: "recording the line",
-};
+/** The step, in the owner's words — one list, shared with the page (contracts/setup.ts). */
+export { LINE_STEP_WORDS } from "./workspace/contracts.js";

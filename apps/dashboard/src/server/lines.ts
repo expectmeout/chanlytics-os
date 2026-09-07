@@ -1,0 +1,90 @@
+/**
+ * Lines for the dashboard: the rows a member may read (RLS, no provider
+ * ids), and the edge's verbs — status, search, buy, retry — behind the
+ * diagnostic key the dashboard already holds. The provider and every
+ * credential live on the edge; nothing here knows a SID.
+ */
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@chanlytics/db";
+import type { LineDto } from "@chanlytics/contracts";
+
+const EDGE_BASE = "https://chanlytics-messaging.vercel.app";
+
+/** The columns the page may see — the lines_member_select policy scopes the rows. */
+export const LINE_COLUMNS = "id, e164, kind, provider, area_code, voice_state, sms_state, whatsapp_state, port_state, forwarding_state, step, last_error, state_since, created_at";
+
+export async function linesFor(db: SupabaseClient<Database>, tenantId: string): Promise<LineDto[]> {
+  const { data, error } = await db.from("lines").select(LINE_COLUMNS).eq("tenant_id", tenantId).order("created_at");
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    e164: r.e164,
+    kind: r.kind,
+    provider: r.provider,
+    area_code: r.area_code,
+    voice_state: r.voice_state as LineDto["voice_state"],
+    sms_state: r.sms_state,
+    whatsapp_state: r.whatsapp_state,
+    port_state: r.port_state,
+    forwarding_state: r.forwarding_state,
+    step: r.step,
+    last_error: r.last_error,
+    state_since: r.state_since,
+    created_at: r.created_at,
+  }));
+}
+
+export interface EdgeAnswer {
+  status: number;
+  body: Record<string, unknown> | null;
+}
+
+/** One call to the edge's lines endpoint. Never throws: a failure is a status the caller reads. */
+export async function edgeLines(body: Record<string, unknown>, timeoutMs = 60_000): Promise<EdgeAnswer> {
+  if (!process.env.DIAG_KEY) return { status: 503, body: { ok: false, error: "no_diag_key" } };
+  try {
+    const r = await fetch(`${EDGE_BASE}/api/admin/lines`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    const parsed = (await r.json().catch(() => null)) as unknown;
+    return { status: r.status, body: parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null };
+  } catch (e) {
+    return { status: 503, body: { ok: false, error: e instanceof Error ? e.message : String(e) } };
+  }
+}
+
+export interface LinesStatus {
+  ready: boolean;
+  provider: string | null;
+  costs: { local_number_month_usd: number; toll_free_month_usd: number };
+}
+
+const DEFAULT_COSTS = { local_number_month_usd: 1.15, toll_free_month_usd: 2.15 };
+let statusCache: { at: number; value: LinesStatus } | null = null;
+const STATUS_TTL_MS = 5 * 60_000;
+
+/**
+ * May this deployment get lines, and with which provider. Cached for five
+ * minutes per lambda: the answer changes when an operator sets a credential,
+ * not between two page loads. Unreachable edge → not ready, so the page keeps
+ * "we set it up with you" rather than a verb that cannot work.
+ */
+export async function linesStatus(now = Date.now()): Promise<LinesStatus> {
+  if (statusCache && now - statusCache.at < STATUS_TTL_MS) return statusCache.value;
+  const a = await edgeLines({ op: "status" }, 4_000);
+  const b = a.body ?? {};
+  const costs = b.costs && typeof b.costs === "object" ? { ...DEFAULT_COSTS, ...(b.costs as Partial<typeof DEFAULT_COSTS>) } : DEFAULT_COSTS;
+  const value: LinesStatus = a.status === 200 && b.ok === true
+    ? { ready: b.ready === true, provider: typeof b.provider === "string" ? b.provider : null, costs }
+    : { ready: false, provider: null, costs };
+  statusCache = { at: now, value };
+  return value;
+}
+
+/** For tests and for a route that must not read a stale answer. */
+export function forgetLinesStatus(): void {
+  statusCache = null;
+}
