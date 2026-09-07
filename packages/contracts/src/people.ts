@@ -1,3 +1,4 @@
+import { agoWords } from "./time";
 import { standingOf, type StandingVerdict } from "./standing";
 /**
  * People — the relationship record for a business whose receptionist is an AI.
@@ -214,13 +215,9 @@ function fmtDate(ms: number, nowMs: number): string {
 }
 
 /** "2h ago" inside a week; the date beyond it. */
+/** "just now" · "5m ago" · "3h ago" · "2d ago", a date past a week — the one family (time.ts). */
 export function ago(ms: number, nowMs: number): string {
-  const diff = Math.max(0, nowMs - ms);
-  if (diff < 60_000) return "just now";
-  if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`;
-  if (diff < DAY_MS) return `${Math.round(diff / 3_600_000)}h ago`;
-  if (diff < WEEK_MS) return `${Math.round(diff / DAY_MS)}d ago`;
-  return fmtDate(ms, nowMs);
+  return agoWords(ms, nowMs, { dateAfterMs: WEEK_MS, date: (at) => fmtDate(at, nowMs) });
 }
 
 function dayLabel(ms: number, nowMs: number): string {

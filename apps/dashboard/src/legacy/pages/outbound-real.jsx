@@ -31,7 +31,8 @@ const PB_FILTERS = [
   { id: "approval", label: "Needs you" },
   { id: "paused", label: "Paused" },
 ];
-const PB_ROW_LABEL = { reengage: "Re-engage quiet customers", campaign: "Standing offers", booking: "Bookings" };
+// The Autonomy row a class runs under, in the matrix's own words (the playbooks surface carries them).
+const pbRowLabel = (cls) => ((window.__PLAYBOOKS && window.__PLAYBOOKS.classWords && window.__PLAYBOOKS.classWords[cls]) || {}).name || cls;
 const pbRender = (body, values) => String(body || "").replace(/\{\{(\d+)\}\}/g, (m, n) => (values[Number(n) - 1] || m));
 const pbHour = (h) => `${String(h).padStart(2, "0")}:00`;
 const pbPeople = (n) => `${n} ${n === 1 ? "person" : "people"}`;
@@ -140,7 +141,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
       </div>
       {trig && (
         <div className="cl-prof-aut-hint" data-testid="pb-trigger-hint">
-          {trig.hint} · {pbPeople(trig.candidates)} {trig.kind === "visit" ? "with a recorded yes on that day right now" : "on that list said yes right now"} · runs under “{PB_ROW_LABEL[trig.cls] || trig.cls}” in Settings › Autonomy{trig.kind === "visit" ? " · one message per visit" : ""}{trig.kind === "visit" && data.calendar !== "ok" ? " · needs the calendar connected in Settings › Workspace" : ""}
+          {trig.hint} · {pbPeople(trig.candidates)} {trig.kind === "visit" ? "with a recorded yes on that day right now" : "on that list said yes right now"} · runs under “{pbRowLabel(trig.cls)}” in Settings › Autonomy{trig.kind === "visit" ? " · one message per visit" : ""}{trig.kind === "visit" && data.calendar !== "ok" ? " · needs the calendar connected in Settings › Workspace" : ""}
         </div>
       )}
       <div className="bc-row">

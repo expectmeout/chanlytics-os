@@ -238,6 +238,39 @@ function isOptedOutContact(c) {
 }
 var OPT_OUT_REFUSAL = "This customer asked to stop receiving messages. They can text START to opt back in.";
 
+// src/time.ts
+var MIN_MS = 6e4;
+var HOUR_MS = 36e5;
+var DAY_MS = 864e5;
+var WEEK_MS = 7 * DAY_MS;
+function spanUnits(ms2) {
+  const gap = Math.max(0, ms2);
+  if (gap < MIN_MS) return { n: Math.round(gap / 1e3), unit: "s" };
+  const minutes = Math.round(gap / MIN_MS);
+  if (minutes < 60) return { n: minutes, unit: "m" };
+  const hours = Math.round(gap / HOUR_MS);
+  if (hours < 24) return { n: hours, unit: "h" };
+  return { n: Math.round(gap / DAY_MS), unit: "d" };
+}
+function spanLabel(ms2) {
+  const u = spanUnits(ms2);
+  return u.unit === "s" ? "now" : `${u.n}${u.unit}`;
+}
+function waitedLabel(ms2) {
+  const u = spanUnits(ms2);
+  return u.unit === "s" ? "1m" : `${u.n}${u.unit}`;
+}
+function agoShort(atMs, nowMs) {
+  return spanLabel(nowMs - atMs);
+}
+function agoWords(atMs, nowMs, opts = {}) {
+  const gap = Math.max(0, nowMs - atMs);
+  const dateAfter = opts.dateAfterMs ?? WEEK_MS;
+  if (gap >= dateAfter && opts.date) return opts.date(atMs);
+  const u = spanUnits(gap);
+  return u.unit === "s" ? "just now" : `${u.n}${u.unit} ago`;
+}
+
 // src/standing.ts
 function standingOf(i, nowMs) {
   const paused = !!i.paused_until && new Date(i.paused_until).getTime() > nowMs;
@@ -594,11 +627,7 @@ var ESCALATION_SUMMARIES = {
   callback: "They phoned, and the receptionist could not finish it. Call them back \u2014 the details say what they wanted."
 };
 function formatWaited(ms2) {
-  const min = Math.max(1, Math.round(ms2 / 6e4));
-  if (min < 60) return `${min}m`;
-  const hr = Math.round(min / 60);
-  if (hr < 24) return `${hr}h`;
-  return `${Math.round(hr / 24)}d`;
+  return waitedLabel(ms2);
 }
 function threadStanding(dto, escalation, now = /* @__PURE__ */ new Date()) {
   const v = standingOf({
@@ -1591,11 +1620,11 @@ var PEOPLE_TABS = [
   { id: "quiet", label: "Quiet" },
   { id: "active", label: "Active" }
 ];
-var DAY_MS = 864e5;
-var WEEK_MS = 7 * DAY_MS;
-var MONTH_MS = 30 * DAY_MS;
-var NEW_WINDOW_MS = 7 * DAY_MS;
-var QUIET_AFTER_MS = 30 * DAY_MS;
+var DAY_MS2 = 864e5;
+var WEEK_MS2 = 7 * DAY_MS2;
+var MONTH_MS = 30 * DAY_MS2;
+var NEW_WINDOW_MS = 7 * DAY_MS2;
+var QUIET_AFTER_MS = 30 * DAY_MS2;
 var REASON_SHORT = {
   human_token: "asked for a person",
   non_text: "sent something the receptionist can't read",
@@ -1626,19 +1655,14 @@ function fmtDate(ms2, nowMs) {
   return d.getFullYear() === new Date(nowMs).getFullYear() ? DATE_FMT2.format(d) : DATE_YEAR_FMT.format(d);
 }
 function ago(ms2, nowMs) {
-  const diff = Math.max(0, nowMs - ms2);
-  if (diff < 6e4) return "just now";
-  if (diff < 36e5) return `${Math.round(diff / 6e4)}m ago`;
-  if (diff < DAY_MS) return `${Math.round(diff / 36e5)}h ago`;
-  if (diff < WEEK_MS) return `${Math.round(diff / DAY_MS)}d ago`;
-  return fmtDate(ms2, nowMs);
+  return agoWords(ms2, nowMs, { dateAfterMs: WEEK_MS2, date: (at) => fmtDate(at, nowMs) });
 }
 function dayLabel(ms2, nowMs) {
   const d = new Date(ms2);
   const now = new Date(nowMs);
   const key = d.toDateString();
   if (key === now.toDateString()) return `Today \xB7 ${DATE_FMT2.format(d)}`;
-  if (key === new Date(nowMs - DAY_MS).toDateString()) return `Yesterday \xB7 ${DATE_FMT2.format(d)}`;
+  if (key === new Date(nowMs - DAY_MS2).toDateString()) return `Yesterday \xB7 ${DATE_FMT2.format(d)}`;
   return fmtDate(ms2, nowMs);
 }
 function mmss3(ms2) {
@@ -1796,8 +1820,8 @@ function toPersonRowVM(r, now = /* @__PURE__ */ new Date()) {
     askedNotBooked,
     nextVisitMs,
     lastVisitMs,
-    nextVisitDays: nextVisitMs !== null ? Math.max(0, Math.ceil((nextVisitMs - nowMs) / DAY_MS)) : null,
-    lastVisitDays: lastVisitMs !== null ? Math.max(0, Math.floor((nowMs - lastVisitMs) / DAY_MS)) : null,
+    nextVisitDays: nextVisitMs !== null ? Math.max(0, Math.ceil((nextVisitMs - nowMs) / DAY_MS2)) : null,
+    lastVisitDays: lastVisitMs !== null ? Math.max(0, Math.floor((nowMs - lastVisitMs) / DAY_MS2)) : null,
     nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
     lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
     calendarTz: v?.timezone ?? null
@@ -1858,7 +1882,7 @@ function peopleAggregates(rows, nowMs) {
       if (v.needsYouSinceMs !== null && (oldest === null || v.needsYouSinceMs < oldest)) oldest = v.needsYouSinceMs;
     }
     if (v.firstContact.evidence && v.firstContact.ts !== null && nowMs - v.firstContact.ts <= MONTH_MS) newThisMonth++;
-    if (v.lastContact.ts !== null && nowMs - v.lastContact.ts <= WEEK_MS) {
+    if (v.lastContact.ts !== null && nowMs - v.lastContact.ts <= WEEK_MS2) {
       reachedWeek++;
       if (v.state === "new") reachedWeekNew++;
     }
@@ -1878,7 +1902,7 @@ var RECENCY_BUCKETS = [
 function recencyCells(rows, nowMs) {
   const cells = RECENCY_BUCKETS.map((b) => ({ label: b.label, count: 0 }));
   for (const v of rows) {
-    const days = v.lastContact.ts === null ? Infinity : (nowMs - v.lastContact.ts) / DAY_MS;
+    const days = v.lastContact.ts === null ? Infinity : (nowMs - v.lastContact.ts) / DAY_MS2;
     let i = RECENCY_BUCKETS.findIndex((b) => days < b.max);
     if (i === -1) i = cells.length - 1;
     cells[i].count++;
@@ -1891,7 +1915,7 @@ function oneLine(text, max) {
 }
 function clock(ms2, nowMs) {
   const time = new Date(ms2).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  return nowMs - ms2 < DAY_MS ? time : `${fmtDate(ms2, nowMs)} ${time}`;
+  return nowMs - ms2 < DAY_MS2 ? time : `${fmtDate(ms2, nowMs)} ${time}`;
 }
 function attentionRow(p, nowMs) {
   const lc = p.lastContact;
@@ -2605,6 +2629,14 @@ var ROLE_PERMS = {
   viewer: { approve: false, autonomy: false, disconnect: false, billing: false, team: false, settings: false, export: false }
 };
 var POLICY_CLASSES = ["reply", "booking", "faq", "reengage", "campaign", "money"];
+var POLICY_CLASS_WORDS = {
+  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
+  faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
+  booking: { name: "Book \xB7 reschedule", short: "Bookings", note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone" },
+  reengage: { name: "Re-engage quiet customers", short: "Re-engage", note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
+  campaign: { name: "Standing offers", short: "Offers", note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
+};
 var POLICY_MODES = ["auto", "veto", "ask", "never"];
 var POLICY_CLASS_MODES = {
   reply: ["auto", "veto", "ask", "never"],
@@ -3201,7 +3233,7 @@ ${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
 }
 
 // src/notifications.ts
-var DAY_MS2 = 24 * 3600 * 1e3;
+var DAY_MS3 = 24 * 3600 * 1e3;
 function buildNotificationFeed(input) {
   const { now } = input;
   const items = [];
@@ -3238,7 +3270,7 @@ function buildNotificationFeed(input) {
   }
   for (const c of input.calls ?? []) {
     if (!c.missed || c.live || typeof c.startedAtMs !== "number") continue;
-    if (now - c.startedAtMs > DAY_MS2) continue;
+    if (now - c.startedAtMs > DAY_MS3) continue;
     items.push({
       key: `call:${c.callId}`,
       kind: "missed_call",
@@ -3274,13 +3306,7 @@ function applyReadState(items, state) {
   return items.filter((i) => !gone.has(i.key)).map((i) => ({ ...i, unread: i.at > state.seenAt && !read.has(i.key) }));
 }
 function agoLabel(atMs, now) {
-  const s = Math.max(0, Math.round((now - atMs) / 1e3));
-  if (s < 60) return "now";
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m}m`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h}h`;
-  return `${Math.round(h / 24)}d`;
+  return agoShort(atMs, now);
 }
 var ALERT_KINDS = ["needs_you", "held_draft", "missed_call"];
 var SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert"];
@@ -4361,7 +4387,7 @@ function exampleParams(specs, businessName) {
 }
 
 // src/playbooks.ts
-var DAY_MS3 = 864e5;
+var DAY_MS4 = 864e5;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
   { id: "new_week", label: "Welcome", list: "new_week", cls: "campaign", kind: "list", hint: "First contact in the last 7 days" },
@@ -4373,7 +4399,7 @@ var PLAYBOOK_TRIGGERS = [
 var PLAYBOOK_STATES = ["running", "paused"];
 var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS3;
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS4;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var PLAYBOOK_NAME_MAX = 80;
 function triggerOf(id) {
@@ -4385,14 +4411,14 @@ function eligibleForPlaybook(rows, p, touches, nowMs) {
   if (t.kind === "visit") {
     const pool2 = eligibleFor(rows, "everyone", null, null).filter((r) => {
       if (!r.calendarTz) return false;
-      if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS3));
-      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS3)) && !r.booked;
+      if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS4));
+      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS4)) && !r.booked;
     });
     pool2.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
     return pool2.slice(0, Math.max(1, p.cap_per_run));
   }
   const pool = t.list ? eligibleFor(rows, "list", t.list, null) : eligibleFor(rows, "everyone", null, null);
-  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS3;
+  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS4;
   const picked = pool.filter((r) => {
     const mine = touches.byThis.get(r.id);
     if (mine !== void 0 && nowMs - mine < gapMs) return false;
@@ -4453,7 +4479,11 @@ function nextRunLabel(p, tz, now) {
   }
   return `tomorrow ${at}`;
 }
-var PLAYBOOK_CLASS_LABEL = { reengage: "Re-engage", campaign: "Campaigns", booking: "Booking" };
+var PLAYBOOK_CLASS_LABEL = {
+  reengage: POLICY_CLASS_WORDS.reengage.short,
+  campaign: POLICY_CLASS_WORDS.campaign.short,
+  booking: POLICY_CLASS_WORDS.booking.short
+};
 function visitFactsFor(trigger, visit, tz) {
   const t = triggerOf(trigger);
   if (!t || t.kind !== "visit" || !visit) return null;
@@ -4768,7 +4798,6 @@ function toCampaignReportVM(dto) {
 var CAMPAIGN_REPORT_RANGES = REPORT_RANGES;
 
 // src/calendar.ts
-var DAY_MS4 = 864e5;
 var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 var DAY_SHORT = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
 function keyParts(key) {
@@ -4818,11 +4847,7 @@ function longDate(key) {
 }
 function readAgoLabel(iso, now) {
   if (!iso) return null;
-  const diff = Math.max(0, now.getTime() - Date.parse(iso));
-  if (diff < 6e4) return "just now";
-  if (diff < 36e5) return `${Math.round(diff / 6e4)} min ago`;
-  if (diff < DAY_MS4) return `${Math.round(diff / 36e5)}h ago`;
-  return `${Math.round(diff / DAY_MS4)}d ago`;
+  return agoWords(Date.parse(iso), now.getTime(), { dateAfterMs: Number.POSITIVE_INFINITY });
 }
 function rulesLine(rules) {
   const r = { ...BOOKING_DEFAULTS, ...rules ?? {} };
@@ -4841,7 +4866,7 @@ function hoursOf(tz, ms2) {
   const c = clockInZone(tz, ms2);
   return c.hh + c.mm / 60;
 }
-function spanLabel(t1, t2) {
+function spanLabel2(t1, t2) {
   const a = clockLabel(t1);
   const b = clockLabel(t2);
   const sameHalf = a.slice(-2) === b.slice(-2);
@@ -4857,7 +4882,7 @@ function toBlock(item, tz, dayStartMs, dayEndMs) {
     t,
     dur: Math.max(15, Math.round((tEnd - t) * 60)),
     title: item.title || "Busy",
-    time: spanLabel(t, tEnd),
+    time: spanLabel2(t, tEnd),
     person: item.person ? { id: item.person.id, name: item.person.name, via: item.person.via ?? null } : null,
     description: item.description ?? null,
     location: item.location ?? null,
@@ -4922,7 +4947,7 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
     const windows = d.windows.map((w) => {
       const t = hoursOf(tz, Date.parse(w.start));
       const tEnd = hoursOf(tz, Date.parse(w.end));
-      return { t, dur: Math.round((tEnd - t) * 60), label: spanLabel(t, tEnd) };
+      return { t, dur: Math.round((tEnd - t) * 60), label: spanLabel2(t, tEnd) };
     });
     return {
       key: d.key,
@@ -5029,12 +5054,7 @@ var DAY_MS5 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS5;
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 function ago2(ms2, nowMs) {
-  const diff = Math.max(0, nowMs - ms2);
-  if (diff < 6e4) return "just now";
-  if (diff < 36e5) return `${Math.round(diff / 6e4)}m ago`;
-  if (diff < DAY_MS5) return `${Math.round(diff / 36e5)}h ago`;
-  if (diff < QUIET_AFTER_MS2) return `${Math.round(diff / DAY_MS5)}d ago`;
-  return DATE_FMT4.format(new Date(ms2));
+  return agoWords(ms2, nowMs, { dateAfterMs: QUIET_AFTER_MS2, date: (at) => DATE_FMT4.format(new Date(at)) });
 }
 var KIND_META = {
   whatsapp: { name: "WhatsApp Business", what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
@@ -5180,6 +5200,7 @@ export {
   PLAYBOOK_VETO_DELAY_MS,
   POLICY_CLASSES,
   POLICY_CLASS_MODES,
+  POLICY_CLASS_WORDS,
   POLICY_MODES,
   PROPOSAL_GATE,
   PolicyLimitsSchema,
@@ -5212,6 +5233,8 @@ export {
   WA_WINDOW_MS,
   ago,
   agoLabel,
+  agoShort,
+  agoWords,
   allVisitsIn,
   applyReadState,
   applySettingsChange,
@@ -5358,6 +5381,8 @@ export {
   slotLabels,
   slugTemplateName,
   spanForView,
+  spanLabel,
+  spanUnits,
   standingOf,
   starterByKey,
   starterByName,
@@ -5403,6 +5428,7 @@ export {
   visitsIn,
   visitsOf,
   waWindow,
+  waitedLabel,
   whenLabel,
   whisperText,
   windowFor,

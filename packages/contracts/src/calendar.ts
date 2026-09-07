@@ -1,3 +1,4 @@
+import { agoWords } from "./time";
 /**
  * Calendar — the owner's calendar as the receptionist reads it.
  *
@@ -80,7 +81,6 @@ export interface CalendarWeekDto {
 
 /* ------------------------------------------------------------ day keys */
 
-const DAY_MS = 86_400_000;
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_SHORT: Record<string, string> = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
 
@@ -150,11 +150,7 @@ function longDate(key: string): string {
 
 export function readAgoLabel(iso: string | null, now: Date): string | null {
   if (!iso) return null;
-  const diff = Math.max(0, now.getTime() - Date.parse(iso));
-  if (diff < 60_000) return "just now";
-  if (diff < 3_600_000) return `${Math.round(diff / 60_000)} min ago`;
-  if (diff < DAY_MS) return `${Math.round(diff / 3_600_000)}h ago`;
-  return `${Math.round(diff / DAY_MS)}d ago`;
+  return agoWords(Date.parse(iso), now.getTime(), { dateAfterMs: Number.POSITIVE_INFINITY });
 }
 
 /** "Offers times at least 2h ahead · 15 min between appointments · up to 14 days out · 30-min slots". */

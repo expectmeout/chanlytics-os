@@ -1,3 +1,4 @@
+import { agoWords } from "./time";
 /**
  * Channels — the numbers a business is reachable on, as facts.
  *
@@ -49,12 +50,7 @@ const QUIET_AFTER_MS = 7 * DAY_MS;
 const DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 
 function ago(ms: number, nowMs: number): string {
-  const diff = Math.max(0, nowMs - ms);
-  if (diff < 60_000) return "just now";
-  if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`;
-  if (diff < DAY_MS) return `${Math.round(diff / 3_600_000)}h ago`;
-  if (diff < QUIET_AFTER_MS) return `${Math.round(diff / DAY_MS)}d ago`;
-  return DATE_FMT.format(new Date(ms));
+  return agoWords(ms, nowMs, { dateAfterMs: QUIET_AFTER_MS, date: (at) => DATE_FMT.format(new Date(at)) });
 }
 
 const KIND_META: Record<string, { name: string; what: string; icon: ChannelVM["icon"]; noun: string }> = {

@@ -26,7 +26,8 @@ async function assertMeasuredOnly(page: Page, where: string) {
   for (const who of INVENTED_PEOPLE) {
     expect(text, `${where} shows an invented person: "${who}"`).not.toContain(who);
   }
-  expect(text, `${where} shows a dollar amount, and revenue has no column`).not.toMatch(/\$\d/);
+  // A customer's own words may name a price ("can you do it for $150?"); the facts and cells may not.
+  for (const cell of await page.locator(".stat-cell, td, .cl-attn-status").allInnerTexts()) expect(cell, `${where} shows a dollar amount, and revenue has no column`).not.toMatch(/\$\d/);
 }
 
 test.describe("People on a real workspace", () => {
