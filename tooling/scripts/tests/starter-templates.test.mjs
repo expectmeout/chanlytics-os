@@ -88,7 +88,9 @@ test("the door: idempotent, one language at a time, synced in when the number's 
 
 test("the pages: titles not names, the starter set in Settings, one click on Broadcasts, the trigger's starter picked for a playbook, the message as the customer sees it", () => {
   const s = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
-  for (const id of ["starters", "starter-row", "starter-add", "starter-add-all"]) assert.ok(s.includes(`data-testid="${id}"`), id);
+  for (const id of ["starters", "starter-add", "starter-add-all", "template-lang", "message-row"]) assert.ok(s.includes(`data-testid="${id}"`), id);
+  assert.ok(s.includes('group(g, "starter-row")') && s.includes('group(g, "custom-row")'), "one row per message: the starters, then what the workspace wrote");
+  assert.ok(s.includes('const TPL_SAMPLES = new Set(["hello_world"]);') && s.includes("!TPL_SAMPLES.has(t.name)"), "Meta's sample is never shown");
   assert.ok(s.includes("{tplTitle(t)}") && s.includes('" · made here"'), "a title, with the raw name beside it");
   const b = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
   assert.ok(b.includes('data-testid="bc-add-starters"') && b.includes("{bcTitle(t.name)}"));
