@@ -64,6 +64,26 @@ test.describe("Settings → Integrations on a real workspace", () => {
     }
   });
 
+  test("on a phone, every card keeps its height and the Google card sits above the templates", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/#/admin/integrations");
+    await page.waitForLoadState("networkidle");
+    const channels = page.getByTestId("channels");
+    await expect(channels).toBeVisible();
+    // A collapsed card is its head alone: about 64px. A whole one carries its rows.
+    const rows = await channels.locator(".set-int-row, .set-row").count();
+    const box = await channels.boundingBox();
+    expect(box).not.toBeNull();
+    if (rows > 0) expect(box!.height).toBeGreaterThan(100);
+    const google = page.getByTestId("google-card");
+    if (await google.count()) {
+      const gb = await google.boundingBox();
+      const tb = await page.getByTestId("templates").boundingBox();
+      expect(gb!.height).toBeGreaterThan(100);
+      if (tb) expect(gb!.y).toBeLessThan(tb.y);
+    }
+  });
+
   test("lists the real channels with their state and nothing invented", async ({ page }) => {
     await page.goto("/#/admin/integrations");
     await page.waitForLoadState("networkidle");

@@ -210,7 +210,10 @@ test("a first ask reaches the platform mailbox through the edge; a repeat does n
 test("the primary verb belongs to the next row alone; mobile tabs keep their labels", () => {
   const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
   assert.ok(page.includes('kind: vm.next && vm.next.row === r.id ? "primary" : "ghost"'));
-  assert.ok(readRaw("apps/dashboard/src/legacy/styles/mobile.css").includes(".set-nav-row { grid-template-columns: auto auto; white-space: nowrap; flex: 0 0 auto; }"));
+  const mobile = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
+  assert.ok(mobile.includes(".set-nav-row { grid-template-columns: auto auto; white-space: nowrap; flex: 0 0 auto; }"));
+  assert.ok(mobile.includes(".set-pane > * { flex: 0 0 auto; }"), "a Settings card never shrinks to fit the pane on a phone");
+  assert.ok(mobile.includes(".setup-rows .cl-attn-sentence { white-space: normal; }"), "a row's sentence wraps on a phone");
 });
 
 const lineRow = (over = {}) => ({ id: "0f3c2a1e-1111-4222-8333-444455556666", e164: "+13055550100", kind: "chanlytics", provider: "twilio", area_code: 305, voice_state: "provisioning", sms_state: "none", whatsapp_state: "none", port_state: "none", forwarding_state: "none", step: "trunk", last_error: null, state_since: "2026-09-07T14:58:00Z", created_at: "2026-09-07T14:57:00Z", ...over });
