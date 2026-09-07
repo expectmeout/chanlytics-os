@@ -1786,11 +1786,11 @@ const PaneIntegrations = ({ flash }) => {
 // the webhooks route by, and names the rest as not available yet.
 
 const INT_NOT_AVAILABLE = [
-  { name: "Instagram", desc: "Direct messages", icon: "instagram" },
-  { name: "Google Calendar", desc: "Two-way sync — for now, paste its iCal feed in Workspace and the receptionist reads it", icon: "calendar" },
-  { name: "Stripe", desc: "Deposits and payments", icon: "money" },
-  { name: "Email", desc: "An address the receptionist answers", icon: "mail" },
-  { name: "SMS", desc: "Plain text messages", icon: "chat" },
+  { name: "Instagram", desc: "direct messages" },
+  { name: "Google Calendar", desc: "two-way sync; for now the receptionist reads the iCal feed pasted in Workspace" },
+  { name: "Stripe", desc: "deposits and payments" },
+  { name: "Email", desc: "an address the receptionist answers" },
+  { name: "SMS", desc: "plain text messages" },
 ];
 
 // Connect your WhatsApp number: Meta's own sign-up window, then the app's
@@ -1837,10 +1837,12 @@ const ConnectWhatsAppRow = () => {
   );
 };
 
-// Message templates, as Meta holds them. Written in WhatsApp Manager,
-// approved by Meta, read here; "Sync from Meta" is the only verb. A
-// marketing template needs the customer's recorded yes; a utility one does
-// not. Nothing here creates or edits a template — that is Meta's page.
+// WhatsApp messages: the starter set and what the workspace wrote, one row
+// per message with its languages beside it — approved, in review, or one tap
+// to add — and the words on expand. Meta's own sample is never shown; a
+// template from another era sits under a fold, still on file, until it is
+// deleted for good. Written here or in WhatsApp Manager, WhatsApp approves
+// either way; a marketing template can only go to people who said yes.
 const TPL_STATUS = {
   approved: { label: "Approved", cls: "pill-ok" },
   pending: { label: "In review", cls: "" },
@@ -1856,9 +1858,54 @@ const tplAgo = (iso) => {
   if (diff < 86400000) return `${Math.round(diff / 3600000)}h ago`;
   return `${Math.round(diff / 86400000)}d ago`;
 };
-// Words for people: a starter's title, or the name with its underscores made spaces.
+// Words for people: a starter's title, the workspace's own, or the name with its underscores made spaces.
 const tplTitle = (t) => (window.__starters ? window.__starters.title(t) : (t && t.name) || "");
-const tplIsStarter = (name) => !!(window.__starters && window.__starters.byName(name));
+const tplStatus = (t) => TPL_STATUS[t.meta_status] || { label: t.meta_status, cls: "" };
+// Meta's own sample lives in every account and is nobody's message: never shown, whatever the sync keeps.
+const TPL_SAMPLES = new Set(["hello_world"]);
+
+// One template inside an expanded message: its language and state, the
+// words as WhatsApp holds them, the technical name, and the verbs an
+// operator has — rename, hide or show, delete. The fold of other templates
+// shows the title too, since nothing above it names them.
+const TemplateLine = ({ t, busy, canAct, withTitle, onRename, onHide, onDelete }) => {
+  const st = tplStatus(t);
+  const lang = (window.__starters && window.__starters.languages.find((l) => l.id === t.language)) || null;
+  const [renaming, setRenaming] = React.useState(false);
+  const [draft, setDraft] = React.useState(t.title || "");
+  const [arm, setArm] = React.useState(false);
+  const save = () => { onRename(t, draft); setRenaming(false); };
+  return (
+    <div className={"msg-line" + (t.hidden_at ? " is-hidden" : "")} data-testid="template-row">
+      <div className="msg-line-head">
+        {withTitle && <span className="msg-line-title">{tplTitle(t)}</span>}
+        <span className="msg-line-lang">{lang ? lang.label : t.language}</span>
+        <span className={`pill ${st.cls}`}>{st.label}</span>
+        <span className="msg-line-name dim">{t.name}{t.category ? ` · ${t.category}` : ""}{t.source === "chanlytics" ? " · made here" : ""}</span>
+        {canAct && !arm && !renaming && (
+          <span className="msg-line-acts">
+            <button className="cl-bucket-link" disabled={busy} onClick={() => { setDraft(t.title || ""); setRenaming(true); }} title="Call it something in your own words — WhatsApp keeps its name" data-testid="template-rename">Rename</button>
+            <button className="cl-bucket-link" disabled={busy} onClick={() => onHide(t)} title={t.hidden_at ? "Offer it in the composers again" : "Keep it on file, out of the composers"} data-testid="template-hide">{t.hidden_at ? "Show" : "Hide"}</button>
+            <button className="cl-bucket-link danger" disabled={busy} onClick={() => setArm(true)} data-testid="template-delete">Delete</button>
+          </span>
+        )}
+      </div>
+      {renaming ? (
+        <span className="tpl-rename" data-testid="template-rename-form">
+          <input className="bc-subject" value={draft} maxLength={60} autoFocus placeholder={tplTitle({ name: t.name })} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setRenaming(false); }} data-testid="template-title" />
+          <button className="btn btn-sm btn-primary" disabled={busy} onClick={save} data-testid="template-title-save">Save</button>
+          <button className="cl-bucket-link" onClick={() => setRenaming(false)}>Cancel</button>
+        </span>
+      ) : (
+        <p className="msg-line-body">{t.meta_status === "rejected" && t.rejected_reason ? `Rejected: ${String(t.rejected_reason).toLowerCase().replace(/_/g, " ")}` : (t.body_preview || "No words on file")}</p>
+      )}
+      {arm && (
+        <span className="set-row-hint">Delete “{tplTitle(t)}” from WhatsApp? Sends that use it fail from now on. <button className="cl-bucket-link" disabled={busy} onClick={() => { setArm(false); onDelete(t); }}>Yes, delete</button> <button className="cl-bucket-link" onClick={() => setArm(false)}>No</button></span>
+      )}
+    </div>
+  );
+};
+
 const TemplatesCard = () => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
   React.useEffect(() => {
@@ -1867,183 +1914,154 @@ const TemplatesCard = () => {
   }, []);
   const [busy, setBusy] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
-  const [arm, setArm] = React.useState(null);
+  const [open, setOpen] = React.useState(null);
+  const [showOther, setShowOther] = React.useState(false);
   const [toastNode, flash] = window.usePPToast();
   const templates = window.__TEMPLATES_ALL;
-  const remove = async (t) => {
-    if (!window.__templates || busy) return;
-    setBusy(true);
-    const r = await window.__templates.remove(t.id);
-    setBusy(false);
-    setArm(null);
-    flash({ msg: r.ok ? <><b>{t.name}</b> deleted — sends that named it fail from now on</> : <>{r.message}</> });
-  };
-  const canSync = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
+  const S = window.__starters;
+  const canAct = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
   const hasWhatsApp = (window.__CHANNELS || []).some((c) => c.kind === "whatsapp");
   const bizName = (window.__SETTINGS && window.__SETTINGS.config && window.__SETTINGS.config.brain && window.__SETTINGS.config.brain.business_name) || null;
-  const toggleHidden = async (t) => {
-    if (!window.__templates || !window.__templates.hide || busy) return;
-    setBusy(true);
-    const r = await (t.hidden_at ? window.__templates.show(t.id) : window.__templates.hide(t.id));
-    setBusy(false);
-    flash({ msg: r.ok ? <><b>{tplTitle(t)}</b> {t.hidden_at ? "is back in the composers" : "is out of the composers — still on file"}</> : <>{r.message}</> });
-  };
-  const [renaming, setRenaming] = React.useState(null);
-  const [draftTitle, setDraftTitle] = React.useState("");
-  const rename = async (t) => {
-    if (!window.__templates || !window.__templates.rename || busy) return;
-    setBusy(true);
-    const title = draftTitle.replace(/\s+/g, " ").trim() || null;
-    const r = await window.__templates.rename(t.id, title);
-    setBusy(false);
-    if (r.ok) setRenaming(null);
-    flash({ msg: r.ok ? (title ? <>Now called <b>{title}</b> — WhatsApp still knows it as {t.name}</> : <><b>{t.name}</b> goes by its name again</>) : <>{r.message}</> });
-  };
-  const addStarters = async (keys, languages) => {
-    if (!window.__templates || !window.__templates.addStarters || busy) return;
-    setBusy(true);
-    const r = await window.__templates.addStarters({ ...(keys ? { keys } : {}), languages });
-    setBusy(false);
-    flash({ msg: r.ok ? <>{window.starterWords ? window.starterWords(r.data) : "Added"}</> : <>{r.message}</> });
-  };
-  const sync = async () => {
-    if (!window.__syncTemplates || busy) return;
-    setBusy(true);
-    const r = await window.__syncTemplates();
-    setBusy(false);
-    flash({
-      msg: r.ok
-        ? <>{r.data.seen} template{r.data.seen === 1 ? "" : "s"} from Meta — {r.data.approved} approved, {r.data.marketing} marketing</>
-        : <>{r.message}</>,
-    });
-  };
-  const list = templates || [];
+  const langs = S ? S.languages : [];
+  const list = (templates || []).filter((t) => !TPL_SAMPLES.has(t.name));
+  const rowFor = (name, lang) => list.find((t) => t.name === name && t.language === lang) || null;
+  const langOf = (id) => langs.find((l) => l.id === id) || { id, label: id };
+
+  // The starters in the library's order, each with a slot per language;
+  // then what the workspace wrote or synced, by name; then a fold for what it hid.
+  const starters = S ? S.list.map((s) => ({ key: s.key, title: s.title, purpose: s.purpose, starter: s, rows: langs.map((l) => ({ lang: l, row: rowFor(s.name, l.id) })) })) : [];
+  const starterNames = new Set(starters.map((g) => g.starter.name));
+  const rest = list.filter((t) => !starterNames.has(t.name));
+  const hiddenRows = rest.filter((t) => !!t.hidden_at);
+  const custom = rest.filter((t) => !t.hidden_at);
+  const customGroups = [...new Set(custom.map((t) => t.name))].map((name) => {
+    const rows = custom.filter((x) => x.name === name);
+    const t = rows[0];
+    return { key: `c:${name}`, title: tplTitle(t), purpose: t.source === "chanlytics" ? "written here" : "from WhatsApp Manager", starter: null, rows: rows.map((x) => ({ lang: langOf(x.language), row: x })) };
+  });
+  const missing = langs.map((l) => ({ lang: l, n: starters.filter((g) => !g.rows.find((r) => r.lang.id === l.id).row).length }));
+  const shown = list.filter((t) => !t.hidden_at);
+  const approved = shown.filter((t) => t.meta_status === "approved").length;
+  const pending = shown.filter((t) => t.meta_status === "pending").length;
   const lastSync = list.reduce((m, t) => (t.synced_at && (!m || t.synced_at > m) ? t.synced_at : m), null);
   const sub = templates === null
     ? "Couldn't be loaded right now"
     : list.length === 0
       ? "None on file yet"
-      : `${list.length} on file · ${list.filter((t) => t.meta_status === "approved").length} approved${lastSync ? ` · synced ${tplAgo(lastSync)}` : " · never synced"}`;
+      : `${approved} approved${pending ? ` · ${pending} in review` : ""}${lastSync ? ` · synced ${tplAgo(lastSync)}` : " · never synced"}`;
+
+  const run = async (fn, said) => {
+    if (!window.__templates || busy) return;
+    setBusy(true);
+    const r = await fn();
+    setBusy(false);
+    flash({ msg: r.ok ? said(r) : <>{r.message}</> });
+  };
+  const rename = (t, draft) => {
+    const title = draft.replace(/\s+/g, " ").trim() || null;
+    run(() => window.__templates.rename(t.id, title), () => (title ? <>Now called <b>{title}</b> — WhatsApp still knows it as {t.name}</> : <><b>{t.name}</b> goes by its name again</>));
+  };
+  const toggleHidden = (t) => run(() => (t.hidden_at ? window.__templates.show(t.id) : window.__templates.hide(t.id)), () => <><b>{tplTitle(t)}</b> {t.hidden_at ? "is back in the composers" : "is out of the composers — still on file"}</>);
+  const remove = (t) => run(() => window.__templates.remove(t.id), () => <><b>{tplTitle(t)}</b> deleted — sends that named it fail from now on</>);
+  const addStarters = (keys, languages) => run(() => window.__templates.addStarters({ ...(keys ? { keys } : {}), languages }), (r) => <>{window.starterWords ? window.starterWords(r.data) : "Added"}</>);
+  const sync = () => run(() => window.__syncTemplates(), (r) => <>{r.data.seen} template{r.data.seen === 1 ? "" : "s"} from WhatsApp — {r.data.approved} approved, {r.data.marketing} marketing</>);
+  const lineProps = { busy, canAct, onRename: rename, onHide: toggleHidden, onDelete: remove };
+
+  const group = (g, testid) => {
+    const isOpen = open === g.key;
+    const first = g.rows.find((r) => r.row);
+    const preview = first ? first.row.body_preview : g.starter && S ? S.preview(g.starter, langs[0] ? langs[0].id : "en_US", bizName) : "";
+    return (
+      <div key={g.key} className={"tpl-starter-row msg-group" + (isOpen ? " open" : "")} data-testid={testid}>
+        <button className="msg-group-main" onClick={() => setOpen(isOpen ? null : g.key)} aria-expanded={isOpen} data-testid="message-row">
+          <span className={"st-tile set-int-tile" + (first ? " installed" : "")}><Icon name="chat" size={14} /></span>
+          <span className="tpl-starter-main">
+            <span className="tpl-starter-title">{g.title}<span className="dim"> · {g.purpose}</span></span>
+            {!isOpen && <span className="tpl-starter-body" title={preview}>{preview}</span>}
+          </span>
+          <Icon name={isOpen ? "chevron-up" : "chevron-down"} size={12} className="msg-chev" />
+        </button>
+        <span className="msg-langs">
+          {g.rows.map(({ lang, row }) => {
+            if (row) {
+              const st = tplStatus(row);
+              return <span key={lang.id} className={`pill ${st.cls}`} title={row.meta_status === "rejected" && row.rejected_reason ? String(row.rejected_reason) : ""} data-testid="template-lang">{lang.label} · {st.label}</span>;
+            }
+            if (!g.starter) return null;
+            return canAct
+              ? <button key={lang.id} className="btn btn-sm" disabled={busy} onClick={() => addStarters([g.starter.key], [lang.id])} data-testid="starter-add">Add {lang.label}</button>
+              : <span key={lang.id} className="msg-lang-missing">{lang.label} · not added</span>;
+          })}
+        </span>
+        {isOpen && (
+          <div className="msg-detail">
+            {g.rows.filter((r) => r.row).map((r) => <TemplateLine key={r.row.id} t={r.row} {...lineProps} />)}
+            {g.starter && S && g.rows.filter((r) => !r.row).map((r) => (
+              <div key={r.lang.id} className="msg-line">
+                <div className="msg-line-head"><span className="msg-line-lang">{r.lang.label}</span><span className="pill">Not added</span><span className="msg-line-name dim">what WhatsApp would review</span></div>
+                <p className="msg-line-body">{S.preview(g.starter, r.lang.id, bizName)}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <section className="fl-card set-card" data-testid="templates">
       <div className="fl-card-head">
-        <span className="fl-card-title">Message templates</span>
+        <span className="fl-card-title">WhatsApp messages</span>
         <span className="fl-card-sub">{sub}</span>
       </div>
-      {(() => {
-        // The library's order; what the workspace hid sits under the rest,
-        // dimmed, still on file — one click shows it again.
-        const sorted = list.slice().sort((a, b) => (window.__starters ? window.__starters.compare(a, b) : 0));
-        const shown = sorted.filter((t) => !t.hidden_at);
-        const hidden = sorted.filter((t) => !!t.hidden_at);
-        const row = (t) => {
-          const st = TPL_STATUS[t.meta_status] || { label: t.meta_status, cls: "" };
-          return (
-            <div key={t.id} className={"set-int-row" + (t.hidden_at ? " is-hidden" : "")} data-testid="template-row">
-              <span className="st-tile set-int-tile"><Icon name="chat" size={14} /></span>
-              <span className="set-team-body">
-                {renaming === t.id ? (
-                  <span className="tpl-rename" data-testid="template-rename-form">
-                    <input
-                      className="bc-subject"
-                      value={draftTitle}
-                      maxLength={60}
-                      autoFocus
-                      placeholder={tplTitle({ name: t.name })}
-                      onChange={(e) => setDraftTitle(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") rename(t); if (e.key === "Escape") setRenaming(null); }}
-                      data-testid="template-title"
-                    />
-                    <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => rename(t)} data-testid="template-title-save">Save</button>
-                    <button className="cl-bucket-link" onClick={() => setRenaming(null)}>Cancel</button>
-                  </span>
-                ) : (
-                  <span className="set-team-name">{tplTitle(t)}<span className="dim"> · {t.name} · {t.language}{t.category ? ` · ${t.category}` : ""}{tplIsStarter(t.name) ? " · starter" : ""}{t.source === "chanlytics" ? " · made here" : ""}</span></span>
-                )}
-                <span className="set-team-mail">
-                  {t.meta_status === "rejected" && t.rejected_reason
-                    ? `Rejected: ${String(t.rejected_reason).toLowerCase().replace(/_/g, " ")}`
-                    : (t.body_preview || "No body on file")}
-                </span>
-              </span>
-              <span className={`pill ${st.cls}`}>{st.label}</span>
-              {canSync && arm !== t.id && renaming !== t.id && (
-                <button className="cl-bucket-link" disabled={busy} onClick={() => { setRenaming(t.id); setDraftTitle(t.title || ""); }} title="Call it something in your own words — WhatsApp keeps its name" data-testid="template-rename">Rename</button>
-              )}
-              {canSync && arm !== t.id && renaming !== t.id && (
-                <button className="cl-bucket-link" disabled={busy} onClick={() => toggleHidden(t)} title={t.hidden_at ? "Offer it in the composers again" : "Keep it on file, out of the composers"} data-testid="template-hide">{t.hidden_at ? "Show" : "Hide"}</button>
-              )}
-              {canSync && arm !== t.id && (
-                <button className="cl-seg-filter-x" title={`Delete ${t.name}`} disabled={busy} onClick={() => setArm(t.id)} data-testid="template-delete"><Icon name="x" size={9} /></button>
-              )}
-              {arm === t.id && (
-                <span className="set-row-hint">Delete “{t.name}”? Sends that use it fail from now on. <button className="cl-bucket-link" disabled={busy} onClick={() => remove(t)}>Yes, delete</button> <button className="cl-bucket-link" onClick={() => setArm(null)}>No</button></span>
-              )}
-            </div>
-          );
-        };
-        return (
-          <>
-            {shown.map(row)}
-            {hidden.length > 0 && <div className="tpl-hidden-head" data-testid="templates-hidden">Hidden from the composers · {hidden.length} · still on file, still synced</div>}
-            {hidden.map(row)}
-          </>
-        );
-      })()}
+      {hasWhatsApp && S && (
+        <div className="msg-intro" data-testid="starters">
+          <span className="set-row-hint">The starter set: {S.list.length} messages for the moments Chanlytics acts on, in English and Spanish — WhatsApp reviews each, usually within minutes. A marketing template can only go to people who said yes to offers.</span>
+          {canAct && missing.some((m) => m.n > 0) && (
+            <span className="bc-chips">
+              {missing.filter((m) => m.n > 0).map((m) => (
+                <button key={m.lang.id} className="btn btn-sm" disabled={busy} onClick={() => addStarters(null, [m.lang.id])} data-testid="starter-add-all">{busy ? "Adding…" : `Add ${m.n === S.list.length ? "all " : "the "}${m.n} in ${m.lang.label}`}</button>
+              ))}
+            </span>
+          )}
+        </div>
+      )}
+      {!hasWhatsApp && (
+        <div className="set-row"><div className="set-row-info"><span className="set-row-hint">Connect a WhatsApp number first — messages belong to a number's account.</span></div></div>
+      )}
+      {(starters.length > 0 || customGroups.length > 0) && (
+        <div className="msg-list">
+          {hasWhatsApp && starters.map((g) => group(g, "starter-row"))}
+          {customGroups.map((g) => group(g, "custom-row"))}
+        </div>
+      )}
+      {hiddenRows.length > 0 && (
+        <div className="msg-other">
+          <button className="tpl-hidden-head msg-other-toggle" onClick={() => setShowOther((v) => !v)} aria-expanded={showOther} data-testid="templates-hidden">
+            Other templates on this number · {hiddenRows.length} · hidden from the composers, still on file <Icon name={showOther ? "chevron-up" : "chevron-down"} size={10} />
+          </button>
+          {showOther && hiddenRows.map((t) => <TemplateLine key={t.id} t={t} withTitle {...lineProps} />)}
+        </div>
+      )}
       {composing && window.TemplateComposer && (
         <window.TemplateComposer
           onCancel={() => setComposing(false)}
           onDone={(made) => { setComposing(false); flash({ msg: <><b>{made.name}</b> submitted — WhatsApp reviews it; its status shows here</> }); }}
         />
       )}
-      {hasWhatsApp && window.__starters && (
-        <div className="tpl-starters" data-testid="starters">
-          <div className="ct-sec-head">
-            <span className="ct-sec-title">Starter set</span>
-            <span className="ct-sec-meta">five messages written for the moments Chanlytics acts on, in English and Spanish — WhatsApp reviews each, usually within minutes</span>
+      {hasWhatsApp && (
+        <div className="set-row">
+          <div className="set-row-info">
+            <span className="set-row-hint">Write a message here or in WhatsApp Manager; WhatsApp approves it either way.</span>
           </div>
-          {window.__starters.list.map((s) => (
-            <div key={s.key} className="tpl-starter-row" data-testid="starter-row">
-              <span className="tpl-starter-main">
-                <span className="tpl-starter-title">{s.title}<span className="dim"> · {s.purpose}</span></span>
-                <span className="tpl-starter-body" title={window.__starters.preview(s, "en_US", bizName)}>{window.__starters.preview(s, "en_US", bizName)}</span>
-              </span>
-              {window.__starters.languages.map((l) => {
-                const row = list.find((t) => t.name === s.name && t.language === l.id);
-                const st = row ? (TPL_STATUS[row.meta_status] || { label: row.meta_status, cls: "" }) : null;
-                if (row) return <span key={l.id} className={`pill ${st.cls}`} title={row.meta_status === "rejected" && row.rejected_reason ? String(row.rejected_reason) : ""}>{l.label} · {st.label}</span>;
-                if (!canSync) return <span key={l.id} className="set-row-hint">{l.label} · not added</span>;
-                return <button key={l.id} className="btn btn-sm" disabled={busy} onClick={() => addStarters([s.key], [l.id])} data-testid="starter-add">Add {l.label}</button>;
-              })}
-            </div>
-          ))}
-          {canSync && (
-            <div className="bc-chips" style={{ alignItems: "center", gap: 8 }}>
-              {window.__starters.languages.map((l) => {
-                const missing = window.__starters.list.filter((s) => !list.some((t) => t.name === s.name && t.language === l.id)).length;
-                return missing > 0
-                  ? <button key={l.id} className="btn btn-sm btn-primary" disabled={busy} onClick={() => addStarters(null, [l.id])} data-testid="starter-add-all">{busy ? "Adding…" : `Add all ${missing} in ${l.label}`}</button>
-                  : <span key={l.id} className="set-row-hint">Every {l.label} starter is on file</span>;
-              })}
-            </div>
+          {canAct && (
+            <span className="bc-chips">
+              <button className="btn btn-sm btn-primary" onClick={() => setComposing((c) => !c)} data-testid="template-new">New message</button>
+              <button className="btn btn-sm" onClick={sync} disabled={busy} data-testid="sync-templates">{busy ? "Syncing…" : "Sync from WhatsApp"}</button>
+            </span>
           )}
         </div>
       )}
-      <div className="set-row">
-        <div className="set-row-info">
-          <span className="set-row-hint">
-            {hasWhatsApp
-              ? "Write a template here or in WhatsApp Manager; WhatsApp approves it either way. A marketing template can only go to people who said yes to offers."
-              : "Connect a WhatsApp number first — templates belong to a number's account."}
-          </span>
-        </div>
-        {hasWhatsApp && canSync && (
-          <span className="bc-chips">
-            <button className="btn btn-sm btn-primary" onClick={() => setComposing((c) => !c)} data-testid="template-new">New template</button>
-            <button className="btn btn-sm" onClick={sync} disabled={busy} data-testid="sync-templates">{busy ? "Syncing…" : "Sync from Meta"}</button>
-          </span>
-        )}
-      </div>
       {toastNode}
     </section>
   );
@@ -2280,19 +2298,16 @@ const PaneIntegrationsReal = () => {
 
       <section className="fl-card set-card" data-testid="not-available">
         <div className="fl-card-head">
-          <span className="fl-card-title">Not available yet</span>
-          <span className="fl-card-sub">Chanlytics doesn't connect to these — nothing here pretends to</span>
+          <span className="fl-card-title">Not yet</span>
+          <span className="fl-card-sub">nothing here pretends to be connected</span>
         </div>
-        {INT_NOT_AVAILABLE.map((it) => (
-          <div key={it.name} className="set-int-row">
-            <span className="st-tile set-int-tile"><Icon name={it.icon} size={14} /></span>
-            <span className="set-team-body">
-              <span className="set-team-name">{it.name}</span>
-              <span className="set-team-mail">{it.desc}</span>
+        <div className="set-row">
+          <div className="set-row-info">
+            <span className="set-row-hint int-soon-list">
+              {INT_NOT_AVAILABLE.map((it, i) => <React.Fragment key={it.name}>{i ? " · " : ""}<b>{it.name}</b> ({it.desc})</React.Fragment>)}
             </span>
-            <span className="pill">Not available</span>
           </div>
-        ))}
+        </div>
       </section>
     </>
   );
