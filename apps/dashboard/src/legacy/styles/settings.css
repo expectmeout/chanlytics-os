@@ -557,4 +557,6 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
 .setup-try-rows { display: grid; gap: 8px; }
 .setup-try-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
 .setup-try-num { font-variant-numeric: tabular-nums; font-weight: 600; }
+.setup-rows { --attn-row: 68px; }
+.setup-rows .tq-list > div + div > .cl-attn-row { border-top: 1px solid var(--line); }
 .setup-later { opacity: .55; }

@@ -22,7 +22,7 @@ test.describe("Setup on a real workspace", () => {
     const rows = page.getByTestId("setup-rows").locator(".cl-attn-row");
     await expect(rows).toHaveCount(8);
     for (const row of await rows.all()) {
-      await expect(row.locator(".cl-attn-meta")).toHaveText(/^(Not started|Waiting on you|Waiting on us|Waiting on Meta|Ready)$/);
+      await expect(row.locator(".cl-attn-status .lead")).toHaveText(/^(Not started|Waiting on you|Waiting on us|Waiting on Meta|Ready)$/);
       expect((await row.locator(".cl-attn-sentence").innerText()).trim().length).toBeGreaterThan(0);
       expect((await row.locator(".cl-attn-status").innerText()).trim().length).toBeGreaterThan(0);
       expect(await row.getByTestId("setup-verb").count()).toBeLessThanOrEqual(1);

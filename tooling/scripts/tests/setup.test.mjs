@@ -205,7 +205,7 @@ test("wiring: Settings tab, manifest, bridge, routes, registry, rate bucket, eve
   const mig = readRaw("supabase/migrations/00065_setup_request.sql");
   for (const pin of ["create or replace function public.setup_request(p_tenant_id uuid, p_what text)", "security definer", "public.is_acting_member(p_tenant_id)", "kind = 'setup.requested'", "interval '1 day'", "'admin/setup', 'setup'", "grant execute on function public.setup_request(uuid, text) to authenticated"]) assert.ok(mig.includes(pin), pin);
   const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
-  for (const pin of ["<window.AttnRow", 'testid={`setup-row-${r.id}`}', 'ctaTestid="setup-verb"', "testid: `setup-later-${r.id}`", 'data-testid="setup-next"', 'window.canDo("approve")', "window.PaneSetup = PaneSetup;"]) assert.ok(page.includes(pin), pin);
+  for (const pin of ["<window.AttnRow", "status={[r.stateWords, ...r.details]}", 'testid={`setup-row-${r.id}`}', 'ctaTestid="setup-verb"', "testid: `setup-later-${r.id}`", 'data-testid="setup-next"', 'window.canDo("approve")', "window.PaneSetup = PaneSetup;"]) assert.ok(page.includes(pin), pin);
   const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
   assert.ok(brief.includes('data-testid="brief-setup"') && brief.includes("<SetupLine nav={nav} />"), "Today carries the one line");
   assert.ok(readCode("packages/contracts/src/index.ts").includes('export * from "./setup";'));
