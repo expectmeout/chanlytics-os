@@ -343,3 +343,18 @@
   .ix-th-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ix-th-actions { flex-wrap: wrap; justify-content: flex-start; }
 }
+
+/* The drawer is never a rail: on a phone the sidebar shows everything. */
+@media (max-width: 900px) {
+  .side-wrap .sidebar.collapsed { width: min(300px, 84vw); }
+  .side-wrap .sidebar.collapsed .sidebar-label,
+  .side-wrap .sidebar.collapsed .nav-hint,
+  .side-wrap .sidebar.collapsed .sb-team-body,
+  .side-wrap .sidebar.collapsed .sb-team > .icon,
+  .side-wrap .sidebar.collapsed .user-chip .who,
+  .side-wrap .sidebar.collapsed .sb-attn span { display: revert; }
+  .side-wrap .sidebar.collapsed .nav-item { justify-content: flex-start; padding: 11px 10px; }
+  .side-wrap .sidebar.collapsed .sb-team { justify-content: flex-start; padding: 16px 14px 12px; }
+  .side-wrap .sidebar.collapsed .user-chip { justify-content: flex-start; padding: 11px 10px; }
+  .side-wrap .sb-collapse { display: none; }
+}

@@ -15,6 +15,7 @@ import "./seed-globals";
 import "@/legacy/components/icons.jsx";
 import "@/legacy/components/surface-tabs.jsx";
 import "@/legacy/components/sidebar.jsx";
+import "@/legacy/components/shortcuts.jsx";
 import "@/legacy/components/topbar.jsx";
 import "@/legacy/components/data-bits.jsx";
 import "@/legacy/data/constants.jsx";

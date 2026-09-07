@@ -5453,6 +5453,54 @@ function cleanDisplayName(raw) {
   if (name.length > DISPLAY_NAME_MAX) return { ok: false, reason: `A name is at most ${DISPLAY_NAME_MAX} characters.` };
   return { ok: true, name };
 }
+
+// src/chrome.ts
+var THEME_OPTIONS = [
+  { id: "light", label: "Light", icon: "sun" },
+  { id: "dark", label: "Dark", icon: "moon" },
+  { id: "system", label: "System", icon: "monitor" }
+];
+var isThemePref = (v) => v === "light" || v === "dark" || v === "system";
+function resolveTheme(pref, systemDark) {
+  if (pref === "light" || pref === "dark") return pref;
+  return systemDark ? "dark" : "light";
+}
+var isSidebarPref = (v) => v === "open" || v === "rail";
+function workspaceHotkey(index) {
+  return Number.isInteger(index) && index >= 0 && index < 9 ? `\u2318${index + 1}` : null;
+}
+function isTypingTarget(tagName, contentEditable) {
+  const t = (tagName ?? "").toUpperCase();
+  return contentEditable || t === "INPUT" || t === "TEXTAREA" || t === "SELECT";
+}
+function shellStatusLine(s) {
+  if (!s) return null;
+  if (s.stale) return { text: "A newer version is ready", action: "reload" };
+  if (s.degraded.length) return { text: `${s.degraded.join(", ")} not refreshing`, action: null };
+  return null;
+}
+var SHORTCUTS = [
+  { group: "Everywhere", keys: ["\u2318K"], does: "Ask Chanlytics" },
+  { group: "Everywhere", keys: ["\u2318B"], does: "Collapse or expand the sidebar" },
+  { group: "Everywhere", keys: ["\u23181", "\u23189"], does: "Switch to the first to ninth workspace" },
+  { group: "Everywhere", keys: ["?"], does: "This sheet" },
+  { group: "Everywhere", keys: ["Esc"], does: "Close what is open" },
+  { group: "Lists", keys: ["/"], does: "Search the page" },
+  { group: "Lists", keys: ["J", "K"], does: "Next and previous item" },
+  { group: "Inbox", keys: ["A"], does: "Approve the draft" },
+  { group: "Inbox", keys: ["D"], does: "Decline it" },
+  { group: "Inbox", keys: ["E"], does: "Edit it first" },
+  { group: "Inbox", keys: ["\u2318\u21B5"], does: "Send" }
+];
+function shortcutGroups(list = SHORTCUTS) {
+  const out = [];
+  for (const s of list) {
+    const g = out.find((x) => x.group === s.group);
+    if (g) g.items.push(s);
+    else out.push({ group: s.group, items: [s] });
+  }
+  return out;
+}
 export {
   ACTOR_TYPES,
   ALERT_KINDS,
@@ -5581,6 +5629,7 @@ export {
   SERVER_KEY_PREFIX,
   SERVER_NOTIFICATION_KINDS,
   SETUP_STATE_WORDS,
+  SHORTCUTS,
   STARTER_LANGUAGES,
   STARTER_TEMPLATES,
   ServiceSchema,
@@ -5593,6 +5642,7 @@ export {
   TEMPLATE_STATUSES,
   TEMPLATE_TITLE_MAX,
   TENANT_STATUSES,
+  THEME_OPTIONS,
   TODAY_QUEUE_MAX,
   TenantConfigSchema,
   TenantConfigWriteSchema,
@@ -5687,6 +5737,9 @@ export {
   isOptedOutContact,
   isOwned,
   isRealDate,
+  isSidebarPref,
+  isThemePref,
+  isTypingTarget,
   isUngrounded,
   localDate,
   localHour,
@@ -5745,6 +5798,7 @@ export {
   replyWhy,
   resolveParams,
   resolveSystemPrompt,
+  resolveTheme,
   rulesLine,
   runDueNow,
   safeNavigate,
@@ -5754,9 +5808,11 @@ export {
   serverNotificationRows,
   setupRoute,
   setupSteps,
+  shellStatusLine,
   shiftKey,
   shiftMonth,
   shortTime,
+  shortcutGroups,
   shouldLandOnSetup,
   slotLabels,
   slugTemplateName,
@@ -5815,6 +5871,7 @@ export {
   whenLabel,
   whisperText,
   windowFor,
+  workspaceHotkey,
   zoneMidnight,
   zoneOffsetMs
 };
