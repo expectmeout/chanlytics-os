@@ -5417,6 +5417,42 @@ function shouldLandOnSetup(role, answering, route, landed) {
   if (landed || role !== "owner" || answering) return false;
   return route === "" || route === "today";
 }
+
+// src/identity.ts
+var ROLE_WORDS = {
+  owner: "Owner",
+  operator: "Operator",
+  viewer: "Viewer"
+};
+function personInitials(name, email) {
+  const n = (name ?? "").trim();
+  if (n) return initialsOf(n);
+  const e = (email ?? "").trim();
+  return e ? e[0].toUpperCase() : "?";
+}
+function identityWords(me) {
+  if (!me) return { name: "Your account", email: "", initials: "?", role: "", named: false };
+  const name = (me.display_name ?? "").trim();
+  return {
+    name: name || "Your account",
+    email: me.email ?? "",
+    initials: personInitials(name, me.email),
+    role: ROLE_WORDS[me.role ?? ""] ?? "",
+    named: name.length > 0
+  };
+}
+function memberWords(m) {
+  const name = (m.display_name ?? "").trim();
+  if (name) return { name, sub: m.email };
+  return { name: m.email ?? "Someone", sub: null };
+}
+var DISPLAY_NAME_MAX = 80;
+function cleanDisplayName(raw) {
+  if (typeof raw !== "string") return { ok: false, reason: "Give a name, or leave it empty to clear it." };
+  const name = raw.trim().replace(/\s+/g, " ");
+  if (name.length > DISPLAY_NAME_MAX) return { ok: false, reason: `A name is at most ${DISPLAY_NAME_MAX} characters.` };
+  return { ok: true, name };
+}
 export {
   ACTOR_TYPES,
   ALERT_KINDS,
@@ -5471,6 +5507,7 @@ export {
   DECISION_SUBJECTS,
   DECISION_VERBS,
   DISCONNECTION_LABELS,
+  DISPLAY_NAME_MAX,
   E164,
   EMPTY_READ_STATE,
   ERROR_CODES,
@@ -5540,6 +5577,7 @@ export {
   REPORT_RANGES,
   ROLES,
   ROLE_PERMS,
+  ROLE_WORDS,
   SERVER_KEY_PREFIX,
   SERVER_NOTIFICATION_KINDS,
   SETUP_STATE_WORDS,
@@ -5579,6 +5617,7 @@ export {
   citationRoute,
   citationsToShow,
   cleanAnswer,
+  cleanDisplayName,
   cleanParam,
   clockInZone,
   clockLabel,
@@ -5636,6 +5675,7 @@ export {
   hasProfile,
   hoursLines2 as hoursLines,
   hoursRuns,
+  identityWords,
   indexFeed,
   initialsOf,
   isCarrier,
@@ -5655,6 +5695,7 @@ export {
   mayReceiveOffers,
   mediaKind,
   mediaVM,
+  memberWords,
   messageAt,
   messageStatusLabel,
   messageText,
@@ -5682,6 +5723,7 @@ export {
   peopleFromItems,
   peopleListAction,
   personInText,
+  personInitials,
   personName,
   personStanding,
   personStateFor,
