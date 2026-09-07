@@ -103,4 +103,5 @@ test("the wiring: the door carries the summary, the surface carries the rows, th
   assert.ok(css.includes(".cl-attn-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 34px;"), "the footer is always there, at one height");
   assert.ok(css.includes("@media (prefers-reduced-motion: reduce) { .cl-attn-list { animation: none; } }"));
   assert.ok(css.includes(".cl-attn-cta.primary { background: var(--accent); color: var(--accent-fg); }"), "the one primary button is the mockup's coral");
+  assert.ok(css.includes(".cl-attn { --attn-row: 68px; margin: 16px 28px 4px; }"), "inset like the search row and the table, never touching the rail");
 });

@@ -1610,7 +1610,9 @@
    One list under the tabs, rows of a fixed height, a footer that explains the
    tab: the strip's height never depends on what a tab holds, so switching
    tabs moves nothing below it. The cells wear the tab's own colour. */
-.cl-attn { --attn-row: 68px; margin-bottom: 14px; }
+/* Inset like every section (the head, the search row, the table): the old
+   wrapper carried these 28px; the strip carries them itself now. */
+.cl-attn { --attn-row: 68px; margin: 16px 28px 4px; }
 .cl-attn .cl-triage-cell.on { opacity: 0.55; }
 .cl-attn .cl-triage-tab.active .cl-triage-cell.on { opacity: 0.95; }
 .cl-attn .cl-triage-tab:hover .cl-triage-cell.on { opacity: 0.8; }
