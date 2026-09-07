@@ -33,7 +33,14 @@ import { parseInput, runRound, type RoundBlock } from "./round";
  * answer or a stated failure.
  */
 
-export const ASK_MODEL = "claude-opus-5";
+/**
+ * The model for the turn: choosing a tool and writing sixty words. On the
+ * eval set (2026-09-07, 28 cases, all passing either way) Opus 5 answered in
+ * a 7.2 s median with a one-round turn at 4.7–8 s; the answer's length, not
+ * its difficulty, was the cost. Sonnet 5 writes it faster at the same
+ * grounding. The eval set decides if this stays.
+ */
+export const ASK_MODEL = "claude-sonnet-5";
 const MAX_TOKENS = 1200;
 const MAX_HISTORY = 12;
 const HISTORY_CHARS = 1200;

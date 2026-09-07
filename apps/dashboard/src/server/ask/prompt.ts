@@ -1,5 +1,5 @@
 import "server-only";
-import { DAYS, describeNow, hoursRuns, parseTenantConfig, type TenantConfig } from "@chanlytics/contracts";
+import { DAYS, POLICY_CLASSES, POLICY_CLASS_WORDS, describeNow, hoursRuns, parseTenantConfig, type TenantConfig } from "@chanlytics/contracts";
 import type { AskScope } from "@chanlytics/contracts";
 
 /**
@@ -40,7 +40,7 @@ export const ASK_RULES = [
   "Keep answers to two or three short sentences, under sixty words, in the person's language (Spanish if they wrote Spanish); go longer only when they asked for detail. Plain text: no markdown, no lists, no headings, no emoji. Each finish field is a plain JSON value: never write a tag such as <answer> or <parameter> inside one.",
   "When they ask to open, show or see a transcript, a call, a thread or a profile, set navigate.to to that row's `route` field exactly as a tool returned it, with now: true, and answer in one line; the app goes there and the page has the rest (the call page has the transcript and the recording). When a page merely helps, set navigate with now: false.",
   "More than two items (calls, threads, people) go one per line.",
-  "Already in this prompt, above: the hours, closures, services, notes, guardrails and booking notes, and the definitions of the pages' words. Answer questions about those from here, without a read; get_settings is for the reply policy and its dials, the channels and the notifications, and explain_metric only for a term not defined above.",
+  "Already in this prompt, above: the hours, closures, services, notes, guardrails, booking notes and the autonomy modes (what the receptionist does on its own, class by class), and the definitions of the pages' words. Answer questions about those from here, without a read; get_settings is for the reply policy's dials, the channels and the notifications, and explain_metric only for a term not defined above.",
   "The workspace right now is given to you at the start of every turn: who needs a person, the held drafts, the newest threads with their last messages, today's calls, the counts. Answer from it when it is enough, in one round. Read only for what it does not hold: a whole conversation or transcript (get_thread, get_call), a person's profile (get_person), a report, openings, settings, or threads and calls older than it shows (list_threads, list_calls). Name people by their name when there is one; a number is the name only when nothing else is on file.",
   "Cite what you read: every citation must use the exact id a tool returned this turn, with the kind the tool named. Do not cite what you did not read.",
   "You never act. When the person asks for something to happen (a reply, a rewrite, an Inbox action, a setting, an invitation, a whisper, a broadcast), propose it with the matching tool: it becomes a card they approve, edit or dismiss. Read first when the proposal needs an id. Then say what you proposed in one sentence; never say it was sent, changed or done.",
@@ -66,10 +66,12 @@ export interface WorkspaceFacts {
   bookingNotes: string[];
   hasCalendar: boolean;
   visionOn: boolean;
+  /** The Autonomy rows, "Replies: auto" each, in the matrix's order; empty when the rows could not be read. */
+  autonomy: string[];
 }
 
 /** The facts the receptionist itself runs on, in a few lines. */
-export function workspaceFacts(name: string, timezone: string, rawConfig: unknown): WorkspaceFacts {
+export function workspaceFacts(name: string, timezone: string, rawConfig: unknown, policies: ReadonlyArray<{ class: string; mode: string }> = []): WorkspaceFacts {
   const cfg: TenantConfig | null = parseTenantConfig(rawConfig);
   const profile = cfg?.brain?.profile;
   const guardrails: string[] = [];
@@ -90,6 +92,10 @@ export function workspaceFacts(name: string, timezone: string, rawConfig: unknow
     bookingNotes: profile?.booking_rules?.notes ?? [],
     hasCalendar: !!cfg?.calendar?.ical_url,
     visionOn: !!cfg?.features?.vision,
+    autonomy: POLICY_CLASSES.flatMap((cls) => {
+      const mode = policies.find((p) => p.class === cls)?.mode;
+      return mode ? [`${POLICY_CLASS_WORDS[cls].short}: ${mode}`] : [];
+    }),
   };
 }
 
@@ -101,6 +107,7 @@ export function factsBlock(f: WorkspaceFacts): string {
   if (f.services.length) lines.push(`Services: ${f.services.map((s) => `${s.name}${s.duration_min ? ` ${s.duration_min}min` : ""}${s.price_note ? ` (${s.price_note})` : ""}`).join(", ")}.`);
   if (f.languages.length) lines.push(`Languages the receptionist answers in: ${f.languages.join(", ")}.`);
   if (f.guardrails.length) lines.push(`The receptionist ${f.guardrails.join(", ")}.`);
+  if (f.autonomy.length) lines.push(`Autonomy, class by class (auto: on its own · veto: after a short hold unless someone stops it · ask: waits for a person · never: not at all): ${f.autonomy.join("; ")}. Money is always never, by charter.`);
   if (f.notes.length) lines.push(`Notes the receptionist follows: ${f.notes.map((n) => `${n.title}: ${n.text}`).join(" | ")}.`);
   if (f.bookingNotes.length) lines.push(`Booking notes: ${f.bookingNotes.join("; ")}.`);
   lines.push(f.hasCalendar ? "A calendar feed is connected: openings can be read with get_openings." : "No calendar feed is connected, so openings cannot be read; the business's hours are the only availability fact.");

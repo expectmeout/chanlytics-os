@@ -24,6 +24,14 @@ import {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const API = "https://api.anthropic.com/v1/messages";
+/**
+ * The day's count per workspace, kept a minute per instance. A turn is two
+ * rounds and each was a database read before the model was even asked; a
+ * spent budget is still refused within the minute, and the count itself is
+ * written on every round regardless.
+ */
+const budgetSeen = new Map<string, { at: number; used: number }>();
+const BUDGET_TTL_MS = 60_000;
 const VERSION = "2023-06-01";
 
 export async function POST(request: Request): Promise<Response> {
@@ -47,7 +55,13 @@ export async function POST(request: Request): Promise<Response> {
 
   const db = pg();
   if (!db) return json(503, { ok: false, error: "no_database" });
-  const used = await askTokensLast24h(db, tenantId);
+  const seen = budgetSeen.get(tenantId);
+  let used: number;
+  if (seen && Date.now() - seen.at < BUDGET_TTL_MS) used = seen.used;
+  else {
+    used = await askTokensLast24h(db, tenantId);
+    budgetSeen.set(tenantId, { at: Date.now(), used });
+  }
   if (used >= ASK_TOKENS_DAY) {
     console.warn("ask_budget_spent", JSON.stringify({ tenant: tenantId, used, cap: ASK_TOKENS_DAY }));
     return json(429, { ok: false, error: "ask_budget", used, cap: ASK_TOKENS_DAY });
