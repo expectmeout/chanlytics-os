@@ -110,7 +110,8 @@ var EVENT_KINDS = [
   "conversation.reopened",
   "conversation.pause_expired",
   "contact.erased",
-  "contact.blob_erased"
+  "contact.blob_erased",
+  "setup.requested"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
@@ -3187,8 +3188,8 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       (new Date(live.last_outbound_at).getTime() - new Date(live.last_inbound_at).getTime()) / 1e3
     ) : null;
     const names = m.channels.map((c) => CHANNEL_LABEL[c.kind] ?? c.kind).join(" and ");
-    const plural2 = m.channels.length > 1 ? "are" : "is";
-    const sub = m.channels.length === 0 ? "No phone line or WhatsApp number is connected yet, so nothing can come in." : lastIn ? `${names} ${plural2} connected. The last message arrived ${lastIn}${gap !== null && gap > 0 && gap < 3600 ? `, and the receptionist answered ${secondsPhrase(gap)} later.` : "."}` : `${names} ${plural2} connected. No messages have arrived yet.`;
+    const plural3 = m.channels.length > 1 ? "are" : "is";
+    const sub = m.channels.length === 0 ? "No phone line or WhatsApp number is connected yet, so nothing can come in." : lastIn ? `${names} ${plural3} connected. The last message arrived ${lastIn}${gap !== null && gap > 0 && gap < 3600 ? `, and the receptionist answered ${secondsPhrase(gap)} later.` : "."}` : `${names} ${plural3} connected. No messages have arrived yet.`;
     return {
       standing: {
         eyebrow: `${datePart} \xB7 ${clock2} \xB7 ${m.workspace.name}`,
@@ -5164,6 +5165,111 @@ function toChannelVM(dto, now = /* @__PURE__ */ new Date()) {
     lastInboundMs: last
   };
 }
+
+// src/setup.ts
+var SETUP_STATE_WORDS = {
+  not_started: "Not started",
+  waiting_you: "Waiting on you",
+  waiting_them: "Waiting on us",
+  ready: "Ready"
+};
+var display = (e164) => e164 ? formatPhoneDisplay(e164) : null;
+var plural2 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+function setupSteps(i, nowMs = Date.now()) {
+  const later = new Set(i.later ?? []);
+  const wa = i.channels.whatsapp;
+  const voice = i.channels.voice;
+  const waReady = wa.present && wa.active;
+  const voiceReady = voice.present && voice.active;
+  const answering = waReady || voiceReady;
+  const waNum = display(wa.number);
+  const voiceNum = display(voice.number);
+  const handoffNum = display(i.business.handoff);
+  const rows = [];
+  const row = (r) => rows.push({ ...r, stateWords: r.stateWords ?? SETUP_STATE_WORDS[r.state], later: !r.required && later.has(r.id) });
+  {
+    const b = i.business;
+    const missing = [!b.name ? "a name" : "", !b.hours ? "hours" : "", b.services === 0 ? "services" : ""].filter(Boolean);
+    if (b.broken) {
+      row({ id: "facts", icon: "home", title: "Business facts", state: "waiting_you", required: true, sentence: "Your settings could not be read. Open Workspace to repair them before anything else.", details: [], verb: { label: "Open Workspace", to: "admin/workspace" } });
+    } else if (missing.length === 0) {
+      row({ id: "facts", icon: "home", title: "Business facts", state: "ready", required: true, sentence: `${b.name} \xB7 hours set \xB7 ${plural2(b.services, "service")} on record`, details: [b.bookingLink ? "Booking link on record" : "No booking link \u2014 the receptionist answers, but cannot send one", b.address ? "Address on record" : "No address yet"], verb: { label: "Edit in Workspace", to: "admin/workspace" } });
+    } else {
+      const none = missing.length === 3;
+      row({ id: "facts", icon: "home", title: "Business facts", state: none ? "not_started" : "waiting_you", required: true, sentence: none ? "Name, hours and services are what the receptionist answers with." : `Still missing: ${missing.join(" and ")}.`, details: [], verb: { label: none ? "Start in Workspace" : "Finish in Workspace", to: "admin/workspace" } });
+    }
+  }
+  row(handoffNum ? { id: "handoff", icon: "phone", title: "A person to hand off to", state: "ready", required: false, sentence: `Callers who insist on a person are transferred to ${handoffNum}.`, details: [], verb: { label: "Change it", to: "admin/workspace" } } : { id: "handoff", icon: "phone", title: "A person to hand off to", state: "waiting_you", required: false, sentence: "Give the receptionist a number to hand callers to when they insist on a person.", details: [], verb: { label: "Add a number", to: "admin/workspace" } });
+  if (voiceReady) {
+    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "ready", required: !answering, sentence: `Calls are answered on ${voiceNum}. Texting is not available yet.`, details: ["Texting arrives with lines that register with the carriers; this page will say when"], verb: { label: "Open Integrations", to: "admin/integrations" } });
+  } else if (voice.present) {
+    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Your line ${voiceNum ? `${voiceNum} ` : ""}is set up but not active \u2014 a person at Chanlytics is on it.`, details: [], verb: null });
+  } else if (i.requests.line) {
+    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Requested ${agoWords(Date.parse(i.requests.line), nowMs)} \u2014 a person at Chanlytics will set up your line with you and reach you by email.`, details: [], verb: null });
+  } else {
+    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: "We set up your phone line with you: a number, the receptionist answering it, and forwarding from the number you have.", details: [], verb: { label: "Ask for a line", to: "verb:request-line" } });
+  }
+  if (voiceReady) {
+    const last = voice.lastInboundAt ? `Last call ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}` : "No calls yet";
+    row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "ready", required: !answering, sentence: `Answering on ${voiceNum}.`, details: [handoffNum ? `Transfers to ${handoffNum} when a caller insists on a person` : "No hand-off number yet \u2014 callers who insist on a person are told someone will call back", last], verb: voice.number ? { label: "Call it", to: `tel:${voice.number}` } : null });
+  } else {
+    row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "waiting_them", required: !answering, sentence: "The phone receptionist arrives with your line.", details: [], verb: null });
+  }
+  if (waReady) {
+    const t = i.templates;
+    const metaWaits = t.approved === 0 && t.pending > 0;
+    const details = [
+      wa.quality ? `Quality ${wa.quality.toLowerCase()}` : "",
+      t.approved ? `${plural2(t.approved, "approved message")}` : t.pending ? `${plural2(t.pending, "message")} with Meta for approval` : "No approved messages yet",
+      t.startersApproved < 5 ? "Add the starter messages: welcome, win-back, the month's offer" : "",
+      wa.lastInboundAt ? `Last message ${agoWords(Date.parse(wa.lastInboundAt), nowMs)}` : ""
+    ].filter(Boolean);
+    row({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: metaWaits ? "waiting_them" : "ready", stateWords: metaWaits ? "Waiting on Meta" : void 0, required: !answering, sentence: metaWaits ? `Connected on ${waNum} \u2014 your first messages are with Meta for approval.` : `Connected on ${waNum}.`, details, verb: t.startersApproved < 5 && !metaWaits ? { label: "Add the starters", to: "outbound" } : { label: "Open the Inbox", to: "inbox" } });
+  } else if (wa.present) {
+    row({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: "waiting_them", stateWords: "Waiting on Meta", required: !answering, sentence: `${waNum ?? "Your number"} is connected but not active yet.`, details: [], verb: { label: "Open Integrations", to: "admin/integrations" } });
+  } else {
+    row({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: "waiting_you", required: !answering, sentence: "Connect the WhatsApp number customers write to.", details: ["A new number, or the WhatsApp Business app you already use"], verb: { label: "Connect", to: "admin/integrations" } });
+  }
+  row(i.calendar.state === "ok" ? { id: "calendar", icon: "calendar", title: "Calendar", state: "ready", required: false, sentence: "Readable \u2014 the receptionist offers times from it.", details: [], verb: { label: "Open Calendar", to: "calendar" } } : i.calendar.state === "unavailable" ? { id: "calendar", icon: "calendar", title: "Calendar", state: "waiting_you", required: false, sentence: "Your calendar could not be read. Check the address in Workspace.", details: [], verb: { label: "Check the feed", to: "admin/workspace" } } : { id: "calendar", icon: "calendar", title: "Calendar", state: "not_started", required: false, sentence: "Paste your calendar's iCal address so the receptionist knows what is taken.", details: [], verb: { label: "Paste the feed", to: "admin/workspace" } });
+  {
+    const t = i.team;
+    const people = t.members > 1 || t.invitesOpen > 0;
+    const who = `${plural2(t.members, "person", "people")}${t.invitesOpen ? ` \xB7 ${plural2(t.invitesOpen, "invite")} open` : ""}`;
+    const alerts = t.alertEmails ? `alerts go to ${plural2(t.alertEmails, "address", "addresses")}` : "no alert address yet";
+    row({
+      id: "team",
+      icon: "users",
+      title: "Team and alerts",
+      state: people && t.alertEmails ? "ready" : !people && !t.alertEmails ? "not_started" : "waiting_you",
+      required: false,
+      sentence: people ? `${who} \xB7 ${alerts}.` : `Only you so far \xB7 ${alerts}.`,
+      details: people ? [] : ["Invite someone who answers when you can't"],
+      verb: !t.alertEmails ? { label: "Set alerts", to: "admin/notifications" } : !people ? { label: "Invite", to: "admin/workspace" } : { label: "Open Team", to: "admin/workspace" }
+    });
+  }
+  row(i.consent.yes > 0 ? { id: "yes", icon: "tag", title: "The first yes", state: "ready", required: false, sentence: `${plural2(i.consent.yes, "person", "people")} said yes to offers.`, details: [], verb: { label: "Open Broadcasts", to: "broadcasts" } } : { id: "yes", icon: "tag", title: "The first yes", state: "not_started", required: false, sentence: "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.", details: [], verb: { label: "Get their yes", to: "broadcasts" } });
+  const open = rows.filter((r) => r.state !== "ready" && !r.later);
+  const nextRow = open.find((r) => r.verb) ?? null;
+  const next = nextRow && nextRow.verb ? { label: nextRow.verb.label, to: nextRow.verb.to, row: nextRow.id, title: nextRow.title } : null;
+  const done = rows.filter((r) => r.state === "ready").length;
+  const sentence = waReady && voiceReady ? `Your receptionist answers calls on ${voiceNum} and WhatsApp on ${waNum}. Texting is not available yet.` : voiceReady ? `Your receptionist answers calls on ${voiceNum}. WhatsApp is not connected. Texting is not available yet.` : waReady ? `Your receptionist answers WhatsApp on ${waNum}. No phone line yet.` : "Your receptionist is not answering yet.";
+  return {
+    rows,
+    readiness: { answering, sentence },
+    next,
+    done,
+    total: rows.length,
+    line: next ? `Setup \xB7 ${done} of ${rows.length} \xB7 ${next.title}: ${next.label.toLowerCase()}` : null,
+    tryIt: answering ? { voice: voiceReady ? voice.number : null, voiceLabel: voiceReady ? voiceNum : null, whatsapp: waReady ? wa.number : null, whatsappLabel: waReady ? waNum : null } : null
+  };
+}
+function setupRoute(hash) {
+  return (hash || "#/today").replace(/^#\/?/, "");
+}
+function shouldLandOnSetup(role, answering, route, landed) {
+  if (landed || role !== "owner" || answering) return false;
+  return route === "" || route === "today";
+}
 export {
   ACTOR_TYPES,
   ALERT_KINDS,
@@ -5283,6 +5389,7 @@ export {
   ROLE_PERMS,
   SERVER_KEY_PREFIX,
   SERVER_NOTIFICATION_KINDS,
+  SETUP_STATE_WORDS,
   STARTER_LANGUAGES,
   STARTER_TEMPLATES,
   ServiceSchema,
@@ -5445,9 +5552,12 @@ export {
   scheduleLine,
   scopeFromRoute,
   serverNotificationRows,
+  setupRoute,
+  setupSteps,
   shiftKey,
   shiftMonth,
   shortTime,
+  shouldLandOnSetup,
   slotLabels,
   slugTemplateName,
   spanForView,

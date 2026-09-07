@@ -38,6 +38,7 @@ import { installBroadcasts } from "./broadcast-verbs";
 import { installPlaybooks } from "./playbooks";
 import { installCalendar } from "./calendar";
 import { installToday } from "./today";
+import { installSetup, setupOverride } from "./setup";
 import CreateWorkspace from "./CreateWorkspace";
 
 installInboxVerbs();
@@ -59,6 +60,7 @@ installBroadcasts();
 installPlaybooks();
 installCalendar();
 installToday();
+installSetup();
 // The installable shell's service worker (public/sw.js). It caches nothing
 // and answers nothing — the workspace is live data — and exists so a phone
 // can add the app to its home screen. Production only: a worker on a dev
@@ -76,7 +78,7 @@ markHydrated(hydrateSurfaceCache());
 // The mockup's own data-before-mount contract (boot gate).
 const REQUIRED = ["CHANLY", "INBOX_DATA", "CLIENTS", "FLEET_DATA", "CHANLY_DATA", "POLICY", "ChanlyticsApp"] as const;
 
-const SURFACES = [workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, reportsOverride, liveOverride, broadcastsOverride, playbooksOverride, calendarOverride, notificationsOverride];
+const SURFACES = [workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, reportsOverride, liveOverride, broadcastsOverride, playbooksOverride, calendarOverride, notificationsOverride, setupOverride];
 const SURFACE_LABELS: Record<string, string> = { conversations: "Conversations", inbox: "Inbox", today: "Today", people: "People", reports: "Reports", live: "Calls", calendar: "Calendar" };
 
 // Which flipped surface backs each route, and which routes are real at all —

@@ -27,3 +27,4 @@ export * from "./channels";
 
 export * from "./reports";
 export * from "./live";
+export * from "./setup";

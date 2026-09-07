@@ -47,6 +47,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   broadcasts: "real",  // one approved template to the people who said yes; SMS and email stay not available
   admin: "demo",    // the page itself: every pane below is classified, and a
                     // pane nobody has listed inherits this honest default
+  "admin/setup": "real",      // read from the workspace: contracts/setup.ts over /api/v1/setup
   "admin/workspace": "real",
   "admin/autonomy": "real",   // the policies table, live for the reply row
   "admin/notifications": "real",  // who is alerted, from tenant_config
@@ -78,6 +79,7 @@ export const ROUTE_SURFACE: Record<string, string> = {
   // The pane is fed by settingsOverride, so the route gate waits for it the
   // same way the other real routes do — otherwise it paints the mockup's
   // fabricated business for a frame before the truth arrives.
+  "admin/setup": "setup",
   "admin/workspace": "settings",
   "admin/autonomy": "settings",
   "admin/notifications": "settings",

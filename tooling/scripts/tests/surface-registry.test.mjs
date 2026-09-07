@@ -86,7 +86,7 @@ test("the real set is exactly the converted surfaces", () => {
     .filter(([, v]) => v === "real")
     .map(([k]) => k)
     .sort();
-  assert.deepEqual(real, ["admin/autonomy", "admin/billing", "admin/integrations", "admin/memory", "admin/notifications", "admin/workspace", "broadcasts", "calendar", "clients", "conversations", "inbox", "live", "outbound", "reports", "segments", "today"]);
+  assert.deepEqual(real, ["admin/autonomy", "admin/billing", "admin/integrations", "admin/memory", "admin/notifications", "admin/setup", "admin/workspace", "broadcasts", "calendar", "clients", "conversations", "inbox", "live", "outbound", "reports", "segments", "today"]);
 });
 
 test("the shell consults the registry through one interception, not per-route conditionals", () => {

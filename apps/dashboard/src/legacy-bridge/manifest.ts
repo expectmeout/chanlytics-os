@@ -72,6 +72,7 @@ import "@/legacy/pages/calendar.jsx";
 import "@/legacy/pages/calendar-real.jsx";
 import "@/legacy/pages/reports.jsx";
 import "@/legacy/pages/tasks.jsx";
+import "@/legacy/pages/setup.jsx";
 import "@/legacy/pages/settings.jsx";
 import "@/legacy/pages/app-shell.jsx";
 

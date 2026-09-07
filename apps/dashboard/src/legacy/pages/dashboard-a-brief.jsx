@@ -54,6 +54,26 @@ const DayFacts = () => {
   return facts.map((f, i) => <StatCell key={`day-${i}`} label={f.label} value={f.value} valueSize={22} meta={f.hint} />);
 };
 
+// Setup's one line while something on the Setup page is open — the count and
+// the next verb, from the Setup surface (contracts/setup.ts). Rows the owner
+// put off for later are not counted. Gone the moment everything is ready.
+const SetupLine = ({ nav }) => {
+  const [, bump] = React.useReducer((n) => n + 1, 0);
+  React.useEffect(() => {
+    window.addEventListener("surface:setup", bump);
+    return () => window.removeEventListener("surface:setup", bump);
+  }, []);
+  const S = window.__SETUP;
+  if (!S || !S.vm.line) return null;
+  return (
+    <div className="brief-beat" data-testid="brief-setup">
+      <span className="brief-beat-dot" style={S.vm.readiness.answering ? undefined : { background: "var(--accent)" }} />
+      <span className="brief-beat-text">{S.vm.line}</span>
+      <button className="brief-chip" onClick={() => nav("admin/setup")}>Open Setup <Icon name="arrow-right" size={10} /></button>
+    </div>
+  );
+};
+
 const HeroBrief = () => {
   const [, force] = React.useState(0);
   React.useEffect(() => {
@@ -101,6 +121,7 @@ const HeroBriefReal = ({ vm }) => {
                 <span className="brief-beat-text">{standing.detail}</span>
               </div>
             )}
+            <SetupLine nav={nav} />
             {quiet && (
               <div className="brief-beat">
                 <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
