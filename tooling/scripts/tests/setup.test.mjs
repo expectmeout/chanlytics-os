@@ -47,29 +47,32 @@ test("an empty workspace: nothing answers, every row reads its true state, the f
   const vm = setupSteps(empty(), NOW);
   assert.equal(vm.readiness.answering, false);
   assert.equal(vm.readiness.sentence, "Your receptionist is not answering yet.");
-  assert.deepEqual(vm.rows.map((r) => r.id), ["facts", "handoff", "line", "receptionist", "whatsapp", "calendar", "team", "yes"]);
-  assert.deepEqual(vm.rows.map((r) => r.state), ["not_started", "waiting_you", "waiting_you", "waiting_them", "waiting_you", "not_started", "not_started", "not_started"], "the ask is the owner's move; the receptionist is ours");
+  assert.deepEqual(vm.rows.map((r) => r.id), ["facts", "handoff", "line", "receptionist", "keep", "whatsapp", "calendar", "team", "yes"]);
+  assert.deepEqual(vm.rows.map((r) => r.state), ["not_started", "waiting_you", "waiting_you", "waiting_them", "not_started", "waiting_you", "not_started", "not_started", "not_started"], "the ask is the owner's move; the receptionist is ours");
   assert.equal(row(vm, "line").sentence, "We set up your phone line with you.");
   assert.deepEqual(row(vm, "line").details, ["A number, the receptionist answering it, and forwarding from the number you have"]);
-  assert.deepEqual(vm.rows.map((r) => r.required), [true, false, true, true, true, false, false, false], "the channel rows count until something answers");
+  assert.deepEqual(vm.rows.map((r) => r.required), [true, false, true, true, false, true, false, false, false], "the channel rows count until something answers");
   assert.deepEqual(row(vm, "line").verb, { label: "Ask for a line", to: "verb:request-line" }, "until lines provision themselves, the line is asked for");
   assert.equal(row(vm, "receptionist").verb, null, "the receptionist arrives with the line — nothing to press");
   assert.deepEqual(row(vm, "whatsapp").verb, { label: "Connect", to: "admin/integrations" });
   assert.equal(vm.done, 0);
-  assert.equal(vm.total, 8);
+  assert.equal(vm.total, 9);
   assert.deepEqual(vm.next, { label: "Start in Workspace", to: "admin/workspace", row: "facts", title: "Business facts" });
-  assert.equal(vm.line, "Setup · 0 of 8 · Business facts: start in workspace");
+  assert.equal(vm.line, "Setup · 0 of 9 · Business facts: start in workspace");
   assert.equal(vm.tryIt, null);
   for (const r of vm.rows) assert.equal(r.stateWords, SETUP_STATE_WORDS[r.state]);
 });
 
-test("a workspace that answers everywhere: eight of eight, no next, no line on Today, both numbers to try", () => {
+test("a workspace that answers everywhere: eight of nine — the kept number is the one thing left to offer — both numbers to try", () => {
   const vm = setupSteps(live(), NOW);
   assert.equal(vm.readiness.answering, true);
   assert.equal(vm.readiness.sentence, `Your receptionist answers calls on ${formatPhoneDisplay(VOICE)} and WhatsApp on ${formatPhoneDisplay(WA)}. Texting is not available yet.`);
   assert.equal(vm.done, 8);
-  assert.equal(vm.next, null);
-  assert.equal(vm.line, null);
+  assert.deepEqual(vm.next, { label: "Set up forwarding", to: "verb:forwarding", row: "keep", title: "The number you already have" });
+  assert.equal(vm.line, "Setup · 8 of 9 · The number you already have: set up forwarding");
+  const kept = setupSteps({ ...live(), later: ["keep"] }, NOW);
+  assert.equal(kept.next, null, "put off for later: nothing is left to press");
+  assert.equal(kept.line, null);
   assert.deepEqual(vm.tryIt, { voice: VOICE, voiceLabel: formatPhoneDisplay(VOICE), whatsapp: WA, whatsappLabel: formatPhoneDisplay(WA) });
   assert.equal(row(vm, "facts").sentence, "Northside Movers · hours set · 4 services on record");
   assert.equal(row(vm, "handoff").sentence, `Callers who insist on a person are transferred to ${formatPhoneDisplay(HANDOFF)}.`);
@@ -83,14 +86,14 @@ test("a workspace that answers everywhere: eight of eight, no next, no line on T
 });
 
 test("calls only: the sentence says what is missing, and WhatsApp can now wait for later", () => {
-  const dto = live({ channels: { ...live().channels, whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null } } });
+  const dto = live({ channels: { ...live().channels, whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null } }, later: ["keep"] });
   const vm = setupSteps(dto, NOW);
   assert.equal(vm.readiness.sentence, `Your receptionist answers calls on ${formatPhoneDisplay(VOICE)}. WhatsApp is not connected. Texting is not available yet.`);
   assert.equal(row(vm, "whatsapp").required, false, "once something answers, a channel is optional");
   assert.deepEqual(vm.next, { label: "Connect", to: "admin/integrations", row: "whatsapp", title: "WhatsApp" });
-  const later = setupSteps({ ...dto, later: ["whatsapp"] }, NOW);
+  const later = setupSteps({ ...dto, later: ["whatsapp", "keep"] }, NOW);
   assert.equal(row(later, "whatsapp").later, true);
-  assert.equal(later.next, null, "a row put off for later leaves nothing to press");
+  assert.equal(later.next, null, "rows put off for later leave nothing to press");
   assert.equal(later.line, null);
   assert.equal(later.done, 7);
 });
@@ -108,7 +111,7 @@ test("later is a preference for optional rows only; a required row ignores it", 
   assert.equal(row(vm, "whatsapp").later, false, "required until something answers");
   assert.equal(row(vm, "calendar").later, true);
   assert.deepEqual(vm.next, { label: "Ask for a line", to: "verb:request-line", row: "line", title: "A line for calls and texts" });
-  assert.equal(vm.line, "Setup · 2 of 8 · A line for calls and texts: ask for a line");
+  assert.equal(vm.line, "Setup · 2 of 9 · A line for calls and texts: ask for a line");
 });
 
 test("a line that was asked for waits on us and says when; one that exists but is not active says so", () => {

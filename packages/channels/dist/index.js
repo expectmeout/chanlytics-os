@@ -4512,6 +4512,7 @@ var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DAY_MS5 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS5;
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
 
 // src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";

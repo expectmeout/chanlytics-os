@@ -4533,6 +4533,7 @@ var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DAY_MS5 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS5;
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -9162,6 +9163,7 @@ var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DAY_MS52 = 864e5;
 var QUIET_AFTER_MS22 = 7 * DAY_MS52;
 var DATE_FMT42 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
 
 // ../db/dist/index.js
 var __defProp3 = Object.defineProperty;
@@ -13650,6 +13652,7 @@ var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DAY_MS53 = 864e5;
 var QUIET_AFTER_MS23 = 7 * DAY_MS53;
 var DATE_FMT43 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
 async function recordOutbound(db, p) {
   const { data, error } = await db.from("messages").insert({
     tenant_id: p.tenantId,

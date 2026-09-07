@@ -20,7 +20,7 @@ const money = (usd) => (typeof usd === "number" ? `about $${usd.toFixed(2)} a mo
 // The chooser under the line row: a new number in an area code, the number
 // you have (forwarding arrives next), or bringing it over (we file the port).
 // A line costs money, so only an owner gets one.
-const LineChooser = ({ S, flash, onDone }) => {
+const LineChooser = ({ S, flash, onDone, onKeep }) => {
   const [path, setPath] = React.useState("new");
   const [area, setArea] = React.useState("");
   const [numbers, setNumbers] = React.useState(null);
@@ -67,7 +67,7 @@ const LineChooser = ({ S, flash, onDone }) => {
         </button>
         <button className={`setup-path ${path === "keep" ? "active" : ""}`} onClick={() => setPath("keep")} data-testid="setup-path-keep">
           <b>Keep my number</b>
-          <span>Forward calls from the number you have. Arrives with the next update — for now, ask us and we set it up with you.</span>
+          <span>Keep the number your customers know: forward the calls you don&rsquo;t answer to the receptionist. You keep your phone, your carrier and your texts.</span>
         </button>
         <button className={`setup-path ${path === "bring" ? "active" : ""}`} onClick={() => setPath("bring")} data-testid="setup-path-bring">
           <b>Bring my number</b>
@@ -108,10 +108,97 @@ const LineChooser = ({ S, flash, onDone }) => {
             </div>
           )}
         </div>
+      ) : path === "keep" ? (
+        <div className="setup-ask">
+          <span className="setup-ask-text">
+            {S.dto.channels.voice.active
+              ? `Your receptionist answers on ${S.vm.tryIt && S.vm.tryIt.voiceLabel ? S.vm.tryIt.voiceLabel : "its line"}. Forward the number you have to it from the row "The number you already have" below.`
+              : "First, a line for the receptionist to answer on — get a new number here. Then forward the number you have to it from the row below."}
+          </span>
+          {S.dto.channels.voice.active && <button className="btn btn-sm" onClick={() => { onDone(); onKeep(); }} data-testid="setup-keep-go">Set up forwarding</button>}
+        </div>
       ) : (
         <div className="setup-ask">
-          <span className="setup-ask-text">{path === "keep" ? "Forwarding from your current number is not here yet." : "A port is filed by a person at Chanlytics."} Ask, and we set it up with you.</span>
+          <span className="setup-ask-text">A port is filed by a person at Chanlytics. Ask, and we set it up with you.</span>
           <button className="btn btn-sm" onClick={ask} data-testid="setup-ask-us">Ask us</button>
+        </div>
+      )}
+    </section>
+  );
+};
+
+// Keep the number you have: the carrier's code to dial on the phone that has
+// it, then a test window — a call to the kept number that reaches the
+// receptionist inside it marks the row verified, and the page repaints.
+const ForwardingCard = ({ S, flash, onDone }) => {
+  const W = window.__forwarding;
+  const fw = ((S.dto.lines && S.dto.lines.rows) || []).find((l) => l.kind === "forwarded") || null;
+  const f = fw && fw.forwarding ? fw.forwarding : null;
+  const dest = S.dto.channels.voice.active ? S.dto.channels.voice.number : null;
+  const [number, setNumber] = React.useState(fw && fw.e164 ? fw.e164 : "");
+  const [carrier, setCarrier] = React.useState(f && f.carrier ? f.carrier : "verizon");
+  const [mode, setMode] = React.useState(f && f.mode ? f.mode : "unanswered");
+  const [testFrom, setTestFrom] = React.useState(f && f.test_from ? f.test_from : "");
+  const [busy, setBusy] = React.useState(false);
+  const owner = window.canDo ? window.canDo("team") : true;
+  const save = async () => {
+    if (!owner) { flash({ msg: <>Only an owner can set up forwarding.</> }); return; }
+    setBusy(true);
+    const r = await window.__setup.forwarding.set({ number, carrier, mode, test_from: testFrom });
+    setBusy(false);
+    flash({ msg: r.ok ? <>Saved. Dial the code on the phone with {number}, then test it.</> : <>{r.message}</> });
+  };
+  const test = async () => {
+    if (!owner) { flash({ msg: <>Only an owner can test forwarding.</> }); return; }
+    setBusy(true);
+    const r = await window.__setup.forwarding.test(fw.id);
+    setBusy(false);
+    flash({ msg: r.ok ? <>The window is open for 30 minutes — call {W.display(fw.e164)} from another phone.</> : <>{r.message}</> });
+  };
+  const codes = fw && f && (f.destination_e164 || dest) ? W.codes(f.carrier, f.mode, f.destination_e164 || dest) : null;
+  const testing = !!(f && W.testOpen(f));
+  return (
+    <section className="setup-chooser setup-fw" data-testid="setup-forwarding">
+      {!dest && <p className="setup-fw-note">Your receptionist needs a line first — get a new number from the row above.</p>}
+      <div className="setup-fw-form">
+        <label className="setup-fw-field">
+          <span className="setup-find-label">The number you keep</span>
+          <input className="setup-area setup-fw-input" inputMode="tel" placeholder="(305) 555-0100" value={number} onChange={(e) => setNumber(e.target.value)} data-testid="setup-fw-number" />
+        </label>
+        <div className="setup-fw-field">
+          <span className="setup-find-label">Carrier</span>
+          <div className="setup-fw-seg">
+            {W.carriers.map((c) => <button key={c} className={"setup-seg " + (carrier === c ? "active" : "")} onClick={() => setCarrier(c)} data-testid={`setup-fw-carrier-${c}`}>{W.carrierWords[c]}</button>)}
+          </div>
+        </div>
+        <div className="setup-fw-field">
+          <span className="setup-find-label">Which calls</span>
+          <div className="setup-fw-seg">
+            {W.modes.map((m) => <button key={m} className={"setup-seg " + (mode === m ? "active" : "")} onClick={() => setMode(m)} data-testid={`setup-fw-mode-${m}`}>{W.modeWords[m]}</button>)}
+          </div>
+        </div>
+        <label className="setup-fw-field">
+          <span className="setup-find-label">The phone you&rsquo;ll test from (optional)</span>
+          <input className="setup-area setup-fw-input" inputMode="tel" placeholder="your mobile" value={testFrom} onChange={(e) => setTestFrom(e.target.value)} data-testid="setup-fw-from" />
+        </label>
+        <div className="setup-fw-actions">
+          <button className="btn btn-primary btn-sm" onClick={save} disabled={busy || !dest} data-testid="setup-fw-save">{fw ? "Save changes" : "Save and show the code"}</button>
+          <button className="btn btn-ghost btn-sm" onClick={onDone}>Close</button>
+        </div>
+      </div>
+      {codes && (
+        <div className="setup-fw-code" data-testid="setup-fw-code">
+          <span className="setup-find-label">Dial on the phone with {W.display(fw.e164)}</span>
+          <a className="setup-fw-dial tabular" href={codes.on.tel} data-testid="setup-fw-dial">{codes.on.code}</a>
+          <ul className="setup-fw-notes">{codes.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>
+          <div className="setup-fw-actions">
+            {fw.forwarding_state === "verified"
+              ? <span className="setup-fw-ok">Verified {f.verified_at ? W.ago(f.verified_at) : ""} · to switch it off, dial <b className="tabular">{codes.off.code}</b></span>
+              : testing
+                ? <span className="setup-fw-ok">The window is open — call {W.display(fw.e164)} from another phone. This page updates by itself.</span>
+                : <button className="btn btn-sm" onClick={test} disabled={busy} data-testid="setup-fw-test">Test it</button>}
+            {fw.forwarding_state !== "verified" && <span className="setup-fw-off">Off again: <b className="tabular">{codes.off.code}</b></span>}
+          </div>
         </div>
       )}
     </section>
@@ -122,6 +209,7 @@ const PaneSetup = () => {
   useSetupTick();
   const [toastNode, flash] = window.usePPToast();
   const [chooser, setChooser] = React.useState(false);
+  const [forwarding, setForwarding] = React.useState(false);
   const S = window.__SETUP;
   if (!S) {
     return (
@@ -143,6 +231,14 @@ const PaneSetup = () => {
       return;
     }
     if (verb.to === "verb:choose-line") { setChooser((v) => !v); return; }
+    if (verb.to === "verb:forwarding") { setForwarding((v) => !v); return; }
+    if (verb.to.startsWith("verb:forwarding-test:")) {
+      if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can test forwarding.</> }); return; }
+      const r = await window.__setup.forwarding.test(verb.to.slice("verb:forwarding-test:".length));
+      flash({ msg: r.ok ? <>The window is open for 30 minutes — call the number you keep from another phone.</> : <>{r.message}</> });
+      setForwarding(true);
+      return;
+    }
     if (verb.to.startsWith("verb:retry-line:")) {
       if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can retry a line.</> }); return; }
       flash({ msg: <>Retrying — usually a minute or two.</> });
@@ -210,7 +306,8 @@ const PaneSetup = () => {
                 testid={`setup-row-${r.id}`}
                 ctaTestid="setup-verb"
               />
-              {r.id === "line" && chooser && <LineChooser S={S} flash={flash} onDone={() => setChooser(false)} />}
+              {r.id === "line" && chooser && <LineChooser S={S} flash={flash} onDone={() => setChooser(false)} onKeep={() => setForwarding(true)} />}
+              {r.id === "keep" && forwarding && <ForwardingCard S={S} flash={flash} onDone={() => setForwarding(false)} />}
             </div>
           ))}
         </div>

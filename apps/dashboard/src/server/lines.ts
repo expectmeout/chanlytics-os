@@ -11,7 +11,15 @@ import type { LineDto } from "@chanlytics/contracts";
 const EDGE_BASE = "https://chanlytics-messaging.vercel.app";
 
 /** The columns the page may see — the lines_member_select policy scopes the rows. */
-export const LINE_COLUMNS = "id, e164, kind, provider, area_code, voice_state, sms_state, whatsapp_state, port_state, forwarding_state, step, last_error, state_since, created_at";
+export const LINE_COLUMNS = "id, e164, kind, provider, area_code, voice_state, sms_state, whatsapp_state, port_state, forwarding_state, step, last_error, state_since, created_at, facts";
+
+/** A forwarded line's facts, in words only — never a provider id from a provisioned line's facts. */
+function forwardingOf(kind: string, facts: unknown): LineDto["forwarding"] {
+  if (kind !== "forwarded" || !facts || typeof facts !== "object" || Array.isArray(facts)) return null;
+  const f = facts as Record<string, unknown>;
+  const str = (k: string) => (typeof f[k] === "string" ? (f[k] as string) : null);
+  return { carrier: str("carrier") ?? "other", mode: str("mode") ?? "unanswered", destination_e164: str("destination_e164"), test_from: str("test_from"), test_until: str("test_until"), verified_at: str("verified_at") };
+}
 
 export async function linesFor(db: SupabaseClient<Database>, tenantId: string): Promise<LineDto[]> {
   const { data, error } = await db.from("lines").select(LINE_COLUMNS).eq("tenant_id", tenantId).order("created_at");
@@ -31,6 +39,7 @@ export async function linesFor(db: SupabaseClient<Database>, tenantId: string): 
     last_error: r.last_error,
     state_since: r.state_since,
     created_at: r.created_at,
+    forwarding: r.kind === "forwarded" ? forwardingOf(r.kind, r.facts) : null,
   }));
 }
 

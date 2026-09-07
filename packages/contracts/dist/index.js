@@ -1,8 +1,8 @@
 // src/envelope.ts
 var ok = (data) => ({ ok: true, data });
-var err = (code, message, details) => ({
+var err = (code2, message, details) => ({
   ok: false,
-  error: details === void 0 ? { code, message } : { code, message, details }
+  error: details === void 0 ? { code: code2, message } : { code: code2, message, details }
 });
 
 // src/errors.ts
@@ -27,11 +27,11 @@ var AppError = class extends Error {
   code;
   status;
   details;
-  constructor(code, message, status, details) {
+  constructor(code2, message, status, details) {
     super(message);
     this.name = "AppError";
-    this.code = code;
-    this.status = status ?? DEFAULT_STATUS[code];
+    this.code = code2;
+    this.status = status ?? DEFAULT_STATUS[code2];
     this.details = details;
   }
 };
@@ -115,7 +115,8 @@ var EVENT_KINDS = [
   "voice.provisioned",
   "line.answering",
   "line.failed",
-  "line.released"
+  "line.released",
+  "line.forwarding_verified"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
@@ -5189,6 +5190,87 @@ function toChannelVM(dto, now = /* @__PURE__ */ new Date()) {
   };
 }
 
+// src/forwarding.ts
+var CARRIERS = ["verizon", "att", "tmobile", "other"];
+var FORWARDING_MODES = ["unanswered", "always"];
+var CARRIER_WORDS = {
+  verizon: "Verizon",
+  att: "AT&T",
+  tmobile: "T-Mobile",
+  other: "Another carrier or a landline"
+};
+var MODE_WORDS = {
+  unanswered: "Only calls you don't answer",
+  always: "Every call"
+};
+var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
+function telHref(code2) {
+  return `tel:${code2.replace(/\+/g, "%2B").replace(/#/g, "%23")}`;
+}
+function national(e164) {
+  const d = e164.replace(/[^\d]/g, "");
+  return d.length === 11 && d.startsWith("1") ? d.slice(1) : d;
+}
+var code = (c) => ({ code: c, tel: telHref(c) });
+var UNANSWERED_NOTE = "Your phone rings first. After your carrier's timer, usually 15 to 30 seconds, the call comes to the receptionist. If voicemail picks up first, calls never arrive: ask your carrier to lengthen the ring time, or forward every call.";
+var DIAL_NOTE = "Dial it on the phone that has the number you keep, wait for the tone or the message, then hang up.";
+function forwardingCodes(carrier, mode, destinationE164) {
+  const n10 = national(destinationE164);
+  const full = normalizePhone(destinationE164) ?? destinationE164;
+  const conditional = mode === "unanswered";
+  switch (carrier) {
+    case "verizon":
+      return {
+        on: code(conditional ? `*71${n10}` : `*72${n10}`),
+        off: code("*73"),
+        notes: [DIAL_NOTE, ...conditional ? [UNANSWERED_NOTE] : [], "Verizon forwards calls only, never texts."]
+      };
+    case "att":
+      return {
+        on: code(conditional ? `*61*${n10}#` : `*21*${n10}#`),
+        off: code(conditional ? "#61#" : "#21#"),
+        notes: [
+          DIAL_NOTE,
+          ...conditional ? [UNANSWERED_NOTE, `Busy too: dial *67*${n10}#. If AT&T refuses these codes, dial *92 then the number for no answer and *90 then the number for busy, or ask AT&T for your plan's codes.`] : []
+        ]
+      };
+    case "tmobile":
+      return {
+        on: code(conditional ? `**004*${full}#` : `**21*${full}#`),
+        off: code(conditional ? "##004#" : "##21#"),
+        notes: [DIAL_NOTE, ...conditional ? [UNANSWERED_NOTE] : [], "T-Mobile takes the number with +1 in front."]
+      };
+    default:
+      return {
+        on: code(conditional ? `*92${n10}` : `*72${n10}`),
+        off: code(conditional ? "*93" : "*73"),
+        notes: [
+          DIAL_NOTE,
+          ...conditional ? [UNANSWERED_NOTE] : [],
+          "Codes vary by carrier. If these are refused, ask your carrier for its call-forwarding codes: most landlines use *72 for every call and *92 or *71 for calls you don't answer."
+        ]
+      };
+  }
+}
+var isCarrier = (v) => typeof v === "string" && CARRIERS.includes(v);
+var isForwardingMode = (v) => typeof v === "string" && FORWARDING_MODES.includes(v);
+function forwardingMatch(facts, call, nowMs = Date.now()) {
+  const started = call.startedAtIso ? Date.parse(call.startedAtIso) : nowMs;
+  const from = typeof facts.test_started_at === "string" ? Date.parse(facts.test_started_at) : NaN;
+  const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
+  if (Number.isNaN(started) || Number.isNaN(from) || Number.isNaN(until)) return false;
+  if (started < from - 6e4 || started > until) return false;
+  const dest = typeof facts.destination_e164 === "string" ? normalizePhone(facts.destination_e164) : null;
+  if (dest && call.toE164 && normalizePhone(call.toE164) !== dest) return false;
+  const testFrom = typeof facts.test_from === "string" && facts.test_from ? normalizePhone(facts.test_from) : null;
+  if (testFrom && (!call.fromE164 || normalizePhone(call.fromE164) !== testFrom)) return false;
+  return true;
+}
+function forwardingTestOpen(facts, nowMs = Date.now()) {
+  const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
+  return !Number.isNaN(until) && until > nowMs;
+}
+
 // src/setup.ts
 var LINE_STEP_WORDS = {
   subaccount: "opening your account with the carrier",
@@ -5260,6 +5342,25 @@ function setupSteps(i, nowMs = Date.now()) {
     row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "waiting_them", required: !answering, sentence: "Being created with your line \u2014 it answers the moment the line does.", details: [], verb: null });
   } else {
     row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "waiting_them", required: !answering, sentence: "The phone receptionist arrives with your line.", details: [], verb: null });
+  }
+  {
+    const fw = lines.rows.find((l) => l.kind === "forwarded") ?? null;
+    const f = fw?.forwarding ?? null;
+    const kept = fw?.e164 ? display(fw.e164) ?? fw.e164 : "your number";
+    const dest = voiceReady && voice.number ? voiceNum : null;
+    const how = f ? `${MODE_WORDS[f.mode] ?? "Forwarded"} \xB7 ${CARRIER_WORDS[f.carrier] ?? "your carrier"}` : "";
+    const title = "The number you already have";
+    if (fw && f && fw.forwarding_state === "verified") {
+      row({ id: "keep", icon: "refresh", title, state: "ready", required: false, sentence: `Calls to ${kept} reach your receptionist.`, details: [f.verified_at ? `Verified ${agoWords(Date.parse(f.verified_at), nowMs)}` : "Verified", how], verb: { label: "Change it", to: "verb:forwarding" } });
+    } else if (fw && f && forwardingTestOpen(f, nowMs)) {
+      row({ id: "keep", icon: "refresh", title, state: "waiting_you", required: false, sentence: `Testing \u2014 call ${kept} from another phone. This page updates by itself.`, details: [`Window open for ${spanLabel(Date.parse(f.test_until ?? "") - nowMs)}`], verb: { label: "Show the code", to: "verb:forwarding" } });
+    } else if (fw && f) {
+      row({ id: "keep", icon: "refresh", title, state: "waiting_you", required: false, sentence: `Dial the code on the phone with ${kept}, then test it.`, details: [how], verb: { label: "Test it", to: `verb:forwarding-test:${fw.id}` } });
+    } else if (!dest) {
+      row({ id: "keep", icon: "refresh", title, state: "not_started", required: false, sentence: "Once your receptionist has a line, keep the number customers know by forwarding its calls to it.", details: [], verb: null });
+    } else {
+      row({ id: "keep", icon: "refresh", title, state: "not_started", required: false, sentence: `Keep the number your customers know: forward its calls to ${dest}.`, details: ["You keep your phone, your carrier and your texts"], verb: { label: "Set up forwarding", to: "verb:forwarding" } });
+    }
   }
   if (waReady) {
     const t = i.templates;
@@ -5356,6 +5457,8 @@ export {
   CALL_OUTCOMES,
   CALL_OUTCOME_WORDS,
   CAMPAIGN_REPORT_RANGES,
+  CARRIERS,
+  CARRIER_WORDS,
   CHANNEL_KINDS,
   CONFIDENCE_STEPS,
   CONSENT_RESET_SOURCE,
@@ -5376,6 +5479,8 @@ export {
   ESCALATION_STATES,
   EVENT_KINDS,
   EVERYONE_LABEL,
+  FORWARDING_MODES,
+  FORWARDING_TEST_WINDOW_MS,
   FeaturesConfigSchema,
   GuardrailsSchema,
   HELD_REASONS,
@@ -5396,6 +5501,7 @@ export {
   MESSAGE_SENDERS,
   MESSAGE_STATUSES,
   MESSAGE_TYPES,
+  MODE_WORDS,
   NEW_WINDOW_MS,
   NoteSchema,
   NotificationsConfigSchema,
@@ -5517,6 +5623,9 @@ export {
   followupsToShow,
   formatPhoneDisplay,
   formatWaited,
+  forwardingCodes,
+  forwardingMatch,
+  forwardingTestOpen,
   frameOf,
   frameSteer,
   frameWhisper,
@@ -5529,7 +5638,9 @@ export {
   hoursRuns,
   indexFeed,
   initialsOf,
+  isCarrier,
   isDayKey,
+  isForwardingMode,
   isHeldDraft,
   isLiveCall,
   isOptedOut,
@@ -5618,6 +5729,7 @@ export {
   starterIndex,
   starterPreview,
   starterText,
+  telHref,
   templateComponents,
   templateNameOk,
   templateTitle,

@@ -13,7 +13,8 @@
  * Chanlytics until lines provision themselves (plan, step 3).
  */
 import { formatPhoneDisplay } from "./phone";
-import { agoWords } from "./time";
+import { agoWords, spanLabel } from "./time";
+import { CARRIER_WORDS, MODE_WORDS, forwardingTestOpen, type Carrier, type ForwardingMode } from "./forwarding";
 
 export interface SetupDto {
   business: {
@@ -57,6 +58,8 @@ export interface LineDto {
   last_error: string | null;
   state_since: string;
   created_at: string;
+  /** A forwarded line's facts, in words: the carrier, the mode, where the calls go, the test window. */
+  forwarding?: { carrier: string; mode: string; destination_e164: string | null; test_from: string | null; test_until: string | null; verified_at: string | null } | null;
 }
 
 /** The saga's step, in the owner's words — the row, the bell and the platform email say the same thing. */
@@ -188,6 +191,27 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
     row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "waiting_them", required: !answering, sentence: "Being created with your line — it answers the moment the line does.", details: [], verb: null });
   } else {
     row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "waiting_them", required: !answering, sentence: "The phone receptionist arrives with your line.", details: [], verb: null });
+  }
+
+  // 4b. The number you already have — forwarded to the receptionist's line, proven by a test call.
+  {
+    const fw = lines.rows.find((l) => l.kind === "forwarded") ?? null;
+    const f = fw?.forwarding ?? null;
+    const kept = fw?.e164 ? display(fw.e164) ?? fw.e164 : "your number";
+    const dest = voiceReady && voice.number ? voiceNum : null;
+    const how = f ? `${MODE_WORDS[f.mode as ForwardingMode] ?? "Forwarded"} · ${CARRIER_WORDS[f.carrier as Carrier] ?? "your carrier"}` : "";
+    const title = "The number you already have";
+    if (fw && f && fw.forwarding_state === "verified") {
+      row({ id: "keep", icon: "refresh", title, state: "ready", required: false, sentence: `Calls to ${kept} reach your receptionist.`, details: [f.verified_at ? `Verified ${agoWords(Date.parse(f.verified_at), nowMs)}` : "Verified", how], verb: { label: "Change it", to: "verb:forwarding" } });
+    } else if (fw && f && forwardingTestOpen(f, nowMs)) {
+      row({ id: "keep", icon: "refresh", title, state: "waiting_you", required: false, sentence: `Testing — call ${kept} from another phone. This page updates by itself.`, details: [`Window open for ${spanLabel(Date.parse(f.test_until ?? "") - nowMs)}`], verb: { label: "Show the code", to: "verb:forwarding" } });
+    } else if (fw && f) {
+      row({ id: "keep", icon: "refresh", title, state: "waiting_you", required: false, sentence: `Dial the code on the phone with ${kept}, then test it.`, details: [how], verb: { label: "Test it", to: `verb:forwarding-test:${fw.id}` } });
+    } else if (!dest) {
+      row({ id: "keep", icon: "refresh", title, state: "not_started", required: false, sentence: "Once your receptionist has a line, keep the number customers know by forwarding its calls to it.", details: [], verb: null });
+    } else {
+      row({ id: "keep", icon: "refresh", title, state: "not_started", required: false, sentence: `Keep the number your customers know: forward its calls to ${dest}.`, details: ["You keep your phone, your carrier and your texts"], verb: { label: "Set up forwarding", to: "verb:forwarding" } });
+    }
   }
 
   // 5. WhatsApp — the number customers write to, and the messages Meta approved.

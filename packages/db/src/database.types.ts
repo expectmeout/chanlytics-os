@@ -2266,6 +2266,20 @@ export type Database = {
         Returns: Json
       }
       is_acting_member: { Args: { p_tenant: string }; Returns: boolean }
+      line_forwarding_set: {
+        Args: {
+          p_carrier: string
+          p_mode: string
+          p_number: string
+          p_tenant_id: string
+          p_test_from: string
+        }
+        Returns: string
+      }
+      line_forwarding_test: {
+        Args: { p_line_id: string; p_tenant_id: string }
+        Returns: Json
+      }
       lookup_user_for_invite: {
         Args: { p_email: string; p_tenant_id: string }
         Returns: string

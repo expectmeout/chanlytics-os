@@ -60,6 +60,7 @@ export const RATE = {
   lines_search: { limit: 20, windowMs: 3_600_000, noun: "number searches" },
   lines_buy: { limit: 3, windowMs: 3_600_000, noun: "lines" },
   lines_retry: { limit: 10, windowMs: 3_600_000, noun: "line retries" },
+  lines_forwarding: { limit: 10, windowMs: 3_600_000, noun: "forwarding changes" },
   /** A whole thread, a whole call, or everyone, as a file. */
   export: { limit: 10, windowMs: 60_000, noun: "exports" },
   /** A question to the workspace assistant: a model turn, tools and all. */
