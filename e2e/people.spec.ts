@@ -51,7 +51,7 @@ test.describe("People on a real workspace", () => {
     const headers = (await page.locator(".cl-table thead th").allInnerTexts()).map((h) => h.replace(/[▲▼]/g, "").trim().toLowerCase()).filter(Boolean);
     const cal = ((await (await page.request.get("/api/v1/contacts")).json()).data as { calendar?: { state: string } }).calendar;
     // With a calendar connected the outcome takes the receptionist's column; the checkbox and the actions columns have no words. First contact lives in the identity cell.
-    expect(headers).toEqual(["client", "state", "last contact", cal?.state === "ok" ? "visits" : "receptionist", "offers"]);
+    expect(headers).toEqual(["customer", "state", "last contact", cal?.state === "ok" ? "visits" : "receptionist", "offers"]);
     // Every Offers cell is one of the three answers.
     for (const t of await page.getByTestId("row-offers").allInnerTexts()) expect(["Yes", "No", "Not asked"]).toContain(t.trim());
     // One state switcher: the strip above; the tab row is gone.
