@@ -11,17 +11,28 @@
 import { eligibleFor } from "./broadcasts";
 import type { PersonRowVM } from "./people";
 import type { ParamSpec } from "./templates";
+import { visitStartTime, type VisitDto } from "./calendar-people";
 
 const DAY_MS = 86_400_000;
 
+/**
+ * What starts a playbook. A list trigger sends to a list that keeps itself
+ * current; the cadence trigger to everyone, on a rhythm; a visit trigger to
+ * the people the calendar names for one day — the day before an appointment,
+ * the day after a visit. The reminder runs under the Booking row of the
+ * Autonomy pane: the setting that governs bookings governs their reminders.
+ */
 export const PLAYBOOK_TRIGGERS = [
-  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", hint: "Nothing heard in 30 days" },
-  { id: "new_week", label: "Welcome", list: "new_week", cls: "campaign", hint: "First contact in the last 7 days" },
-  { id: "phoned_only", label: "Save our number", list: "phoned_only", cls: "reengage", hint: "Only ever phoned, never texted" },
-  { id: "everyone_monthly", label: "The month's offer", list: null, cls: "campaign", hint: "Everyone who said yes, on a cadence" },
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
+  { id: "new_week", label: "Welcome", list: "new_week", cls: "campaign", kind: "list", hint: "First contact in the last 7 days" },
+  { id: "phoned_only", label: "Save our number", list: "phoned_only", cls: "reengage", kind: "list", hint: "Only ever phoned, never texted" },
+  { id: "everyone_monthly", label: "The month's offer", list: null, cls: "campaign", kind: "cadence", hint: "Everyone who said yes, on a cadence" },
+  { id: "visit_tomorrow", label: "Visit reminder", list: null, cls: "booking", kind: "visit", hint: "The day before an appointment on the calendar" },
+  { id: "visited", label: "After the visit", list: null, cls: "reengage", kind: "visit", hint: "The day after a visit, when nothing is booked next" },
 ] as const;
 export type PlaybookTrigger = (typeof PLAYBOOK_TRIGGERS)[number]["id"];
-export type PlaybookPolicyClass = "reengage" | "campaign";
+export type PlaybookTriggerKind = (typeof PLAYBOOK_TRIGGERS)[number]["kind"];
+export type PlaybookPolicyClass = "reengage" | "campaign" | "booking";
 
 export const PLAYBOOK_STATES = ["running", "paused"] as const;
 export type PlaybookState = (typeof PLAYBOOK_STATES)[number];
@@ -77,6 +88,20 @@ export function eligibleForPlaybook(
 ): PersonRowVM[] {
   const t = triggerOf(p.trigger);
   if (!t) return [];
+  if (t.kind === "visit") {
+    // The calendar decides, one message per visit: the run is daily and a
+    // visit is on one day, so the gap and the week's breath do not apply —
+    // a reminder must go whatever else the person heard this week, and the
+    // thank-you two days after it must go too. Day-keyed by the calendar's
+    // own clock, never by hours: eleven at night tomorrow is still tomorrow.
+    const pool = eligibleFor(rows, "everyone", null, null).filter((r) => {
+      if (!r.calendarTz) return false;
+      if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS));
+      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS)) && !r.booked;
+    });
+    pool.sort((a, b) => (p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0)));
+    return pool.slice(0, Math.max(1, p.cap_per_run));
+  }
   const pool = t.list ? eligibleFor(rows, "list", t.list, null) : eligibleFor(rows, "everyone", null, null);
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS;
   const picked = pool.filter((r) => {
@@ -141,6 +166,7 @@ const two = (n: number) => String(n).padStart(2, "0");
 /** "Daily 10:00 · up to 25 · once per person, again after 90 days". */
 export function scheduleLine(p: Pick<PlaybookDto, "trigger" | "run_hour" | "cap_per_run" | "gap_days" | "cadence_days">): string {
   const at = `${two(p.run_hour)}:00`;
+  if (triggerOf(p.trigger)?.kind === "visit") return `Daily ${at} · ${p.trigger === "visit_tomorrow" ? "everyone with a visit tomorrow" : "everyone who visited yesterday"} · up to ${p.cap_per_run}`;
   if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at} · up to ${p.cap_per_run} a day`;
   return `Daily ${at} · up to ${p.cap_per_run} · once per person, again after ${p.gap_days} days`;
 }
@@ -157,4 +183,22 @@ export function nextRunLabel(p: Pick<PlaybookDto, "state" | "run_hour" | "last_r
   return `tomorrow ${at}`;
 }
 
-export const PLAYBOOK_CLASS_LABEL: Record<PlaybookPolicyClass, string> = { reengage: "Re-engage", campaign: "Campaigns" };
+export const PLAYBOOK_CLASS_LABEL: Record<PlaybookPolicyClass, string> = { reengage: "Re-engage", campaign: "Campaigns", booking: "Booking" };
+
+/**
+ * The words a visit playbook's slots take for one person — when, and what
+ * for — from the visit the run read. Resolved when the run is made and kept
+ * on the recipient row, so the send says what the calendar said then.
+ */
+export function visitFactsFor(
+  trigger: string,
+  visit: Pick<VisitDto, "start" | "title" | "all_day"> | null,
+  tz: string,
+): { visit_when: string; visit_service: string } | null {
+  const t = triggerOf(trigger);
+  if (!t || t.kind !== "visit" || !visit) return null;
+  return {
+    visit_when: trigger === "visit_tomorrow" ? `tomorrow at ${visitStartTime(visit, tz)}` : "yesterday",
+    visit_service: visit.title.trim() || "your appointment",
+  };
+}

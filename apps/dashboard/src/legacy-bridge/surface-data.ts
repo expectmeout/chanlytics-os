@@ -792,12 +792,16 @@ export interface PlaybookTriggerOption {
   hint: string;
   cls: string;
   list: string | null;
+  /** list, cadence or visit — a visit trigger needs the calendar and has no gap. */
+  kind: string;
   candidates: number;
 }
 
 export interface PlaybooksSurface {
   rows: PlaybookCardVM[];
   timezone: string;
+  /** Whether a visit trigger can run: the workspace's calendar state. */
+  calendar: "ok" | "unavailable" | "none";
   triggers: PlaybookTriggerOption[];
   /** The approved WhatsApp templates, with their variables. */
   templates: TemplateDto[];
@@ -824,7 +828,7 @@ export const playbooksOverride: SurfaceOverride = {
   apply: async () => {
     const [pb, people, tpl, ch, cfg] = await Promise.all([
       fetchEnvelope<{ playbooks: Array<PlaybookDto & { totals: PlaybookTotalsVM }>; timezone: string }>("/api/v1/playbooks"),
-      fetchEnvelope<{ people: PersonRowDto[] }>("/api/v1/contacts"),
+      fetchEnvelope<{ people: PersonRowDto[]; calendar?: { state: "ok" | "unavailable" | "none" } }>("/api/v1/contacts"),
       fetchEnvelope<{ templates: TemplateDto[] }>("/api/v1/templates").catch((e: unknown) => e as Error),
       fetchEnvelope<{ channels: ChannelDto[] }>("/api/v1/channels").catch((e: unknown) => e as Error),
       fetchEnvelope<{ config: { brain?: { business_name?: string; booking_link?: string } } | null }>("/api/v1/settings").catch((e: unknown) => e as Error),
@@ -852,7 +856,8 @@ export const playbooksOverride: SurfaceOverride = {
         };
       }),
       timezone: tz,
-      triggers: PLAYBOOK_TRIGGERS.map((t) => ({ id: t.id, label: t.label, hint: t.hint, cls: t.cls, list: t.list, candidates: pool(t.id) })),
+      calendar: people.calendar?.state ?? "none",
+      triggers: PLAYBOOK_TRIGGERS.map((t) => ({ id: t.id, label: t.label, hint: t.hint, cls: t.cls, list: t.list, kind: t.kind, candidates: pool(t.id) })),
       templates: tpl instanceof Error ? [] : (tpl.templates ?? []).filter((t) => t.channel === "whatsapp" && t.meta_status === "approved"),
       number: {
         present: !!wa,

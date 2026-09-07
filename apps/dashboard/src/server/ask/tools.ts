@@ -677,14 +677,16 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
   ]);
   const modes = new Map(policies.map((r) => [r.class, r.mode]));
   const modeOf = (cls: string) => modes.get(cls) ?? "ask";
-  const vm = people.map((r) => toPersonRowVM(r, t.now));
+  // With their appointments: the visit triggers count from the calendar.
+  const withV = await withVisits(t.ctx, t.tenantId, people, t.now);
+  const vm = withV.people.map((r) => toPersonRowVM(r, t.now));
   const untouched = { byThis: new Map<string, number>(), byAny: new Map<string, number>() };
   const pool = (trigger: string) =>
     eligibleForPlaybook(vm, { trigger: trigger as (typeof PLAYBOOK_TRIGGERS)[number]["id"], cap_per_run: 100_000, gap_days: 0, cadence_days: 0 }, untouched, t.now.getTime()).length;
   return {
     route: "outbound",
     timezone: facts.timezone,
-    modes: { reengage: modeOf("reengage"), campaign: modeOf("campaign") },
+    modes: { reengage: modeOf("reengage"), campaign: modeOf("campaign"), booking: modeOf("booking") },
     mode_words: MODE_WORDS,
     playbooks: rows.map((p) => ({
       playbook_id: p.id,

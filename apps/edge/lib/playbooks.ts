@@ -20,17 +20,25 @@ import { notify } from "./notify.js";
 import { loadTenantNotifications } from "./tenant-runtime.js";
 import {
   eligibleForPlaybook,
+  indexFeed,
   localDate,
   numberHealth,
+  parseTenantConfig,
   planRun,
   toPersonRowVM,
+  toVisitDto,
+  triggerOf,
+  visitFactsFor,
+  visitsIn,
   type NumberHealth,
   type ParamSpec,
   type PersonRowDto,
   type PersonRowVM,
+  type PersonVisitsDto,
   type PlaybookDto,
   type RunPlan,
 } from "./workspace/contracts.js";
+import { feedItemsFor } from "./availability.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -62,16 +70,21 @@ export interface TenantRunContext {
   modes: Map<string, string>;
   health: NumberHealth;
   touches: { byThis: Map<string, Map<string, number>>; byAny: Map<string, number> };
+  /** The workspace's calendar: a visit playbook runs only when it is "ok". */
+  calendar: "ok" | "unavailable" | "none";
+  /** Each person's next and last visit from that calendar, for the words a visit run keeps. */
+  visits: Map<string, PersonVisitsDto>;
 }
 
 /** Read once per tenant: the people, the modes, the number, the touches. */
 export async function loadTenantRunContext(db: Db, tenantId: string, now: Date): Promise<TenantRunContext | { error: string }> {
-  const [{ data: tenant }, { data: people, error: pErr }, policies, { data: ch }, { data: pastRuns }] = await Promise.all([
+  const [{ data: tenant }, { data: people, error: pErr }, policies, { data: ch }, { data: pastRuns }, { data: cfgRow }] = await Promise.all([
     db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle(),
     db.rpc("people_list", { p_tenant_id: tenantId }),
     listPolicies(db, tenantId).catch(() => []),
     db.from("tenant_channels").select("config").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").limit(1).maybeSingle(),
     db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at").eq("tenant_id", tenantId).not("playbook_id", "is", null),
+    db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
   ]);
   if (pErr) return { error: pErr.message };
   const cfg = (ch?.config && typeof ch.config === "object" && !Array.isArray(ch.config) ? ch.config : {}) as Record<string, unknown>;
@@ -100,12 +113,35 @@ export async function loadTenantRunContext(db: Db, tenantId: string, now: Date):
       byAny.set(r.contact_id, Math.max(byAny.get(r.contact_id) ?? 0, at));
     }
   }
+  // The calendar's appointments on every person, the way the People page
+  // reads them: a visit playbook keys on the day, and its words come from
+  // the visit itself. Read once per tenant per run.
+  const tz = tenant?.timezone || "America/New_York";
+  const rows = (people ?? []) as unknown as PersonRowDto[];
+  const url = parseTenantConfig(cfgRow?.config ?? null)?.calendar?.ical_url ?? null;
+  let calendar: TenantRunContext["calendar"] = "none";
+  const visits = new Map<string, PersonVisitsDto>();
+  if (url) {
+    const items = await feedItemsFor(tenantId, url, tz, now);
+    if (items) {
+      calendar = "ok";
+      const index = indexFeed(items);
+      for (const r of rows) {
+        const v = visitsIn(index, { id: r.id, name: r.display_name || r.wa_profile_name || "", phone: r.phone_e164 }, now.getTime());
+        visits.set(r.id, { timezone: tz, source: "calendar", state: "ok", next: toVisitDto(v.next), last: toVisitDto(v.last) });
+      }
+    } else {
+      calendar = "unavailable";
+    }
+  }
   return {
     db,
     tenantId,
-    tz: tenant?.timezone || "America/New_York",
+    tz,
     now,
-    people: ((people ?? []) as unknown as PersonRowDto[]).map((r) => toPersonRowVM(r, now)),
+    people: rows.map((r) => toPersonRowVM({ ...r, visits: visits.get(r.id) ?? null }, now)),
+    calendar,
+    visits,
     modes: new Map(policies.map((r) => [r.class, r.mode])),
     health: numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") }),
     touches: { byThis, byAny },
@@ -115,7 +151,7 @@ export async function loadTenantRunContext(db: Db, tenantId: string, now: Date):
 export type RunOutcome =
   | { outcome: "sent" | "held"; broadcast_id: string; eligible: number; mode: string; state: string }
   | { outcome: "empty"; eligible: 0; mode: string }
-  | { outcome: "off"; mode: string; skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" }
+  | { outcome: "off"; mode: string; skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar" }
   | { outcome: "failed"; error: string };
 
 export interface RunRequest {
@@ -144,6 +180,8 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
 
   const { data: already } = await db.from("broadcasts").select("id").eq("playbook_id", p.id).eq("run_for", runFor).maybeSingle();
   if (already) return { outcome: "off", mode, skipped: "already_ran_today" };
+  // A visit playbook without a calendar has nothing to read: off, and the run says so.
+  if (triggerOf(p.trigger)?.kind === "visit" && ctx.calendar !== "ok") { await record({ mode, skipped: "no_calendar" }); return { outcome: "off", mode, skipped: "no_calendar" }; }
 
   let eligible = eligibleForPlaybook(ctx.people, p as unknown as PlaybookDto, { byThis: ctx.touches.byThis.get(p.id) ?? new Map(), byAny: ctx.touches.byAny }, now.getTime());
   if (ctx.health.limitPerDay !== null && eligible.length > ctx.health.limitPerDay) eligible = eligible.slice(0, Math.max(0, Math.floor(ctx.health.limitPerDay)));
@@ -170,7 +208,17 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
     .select("id")
     .single();
   if (bErr || !made) return { outcome: "failed", error: bErr?.message ?? "run not created" };
-  const { error: rErr } = await db.from("broadcast_recipients").insert(eligible.map((r) => ({ broadcast_id: made.id, contact_id: r.id, tenant_id: tenantId })));
+  // A visit run keeps each person's words on their row — the visit's time
+  // and service as the calendar said them now — so the send fills the slots
+  // without reading the calendar again.
+  const factsOf = (r: PersonRowVM) => {
+    const v = ctx.visits.get(r.id);
+    return visitFactsFor(p.trigger, p.trigger === "visit_tomorrow" ? (v?.next ?? null) : (v?.last ?? null), ctx.tz);
+  };
+  const { error: rErr } = await db.from("broadcast_recipients").insert(eligible.map((r) => {
+    const facts = factsOf(r);
+    return { broadcast_id: made.id, contact_id: r.id, tenant_id: tenantId, ...(facts ? { facts: facts as unknown as Json } : {}) };
+  }));
   if (rErr) {
     await db.from("broadcasts").update({ state: "failed", failure: "recipients_write_failed" }).eq("id", made.id);
     return { outcome: "failed", error: rErr.message };

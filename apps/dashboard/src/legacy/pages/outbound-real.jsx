@@ -31,7 +31,7 @@ const PB_FILTERS = [
   { id: "approval", label: "Needs you" },
   { id: "paused", label: "Paused" },
 ];
-const PB_ROW_LABEL = { reengage: "Re-engage quiet customers", campaign: "Standing offers" };
+const PB_ROW_LABEL = { reengage: "Re-engage quiet customers", campaign: "Standing offers", booking: "Bookings" };
 const pbRender = (body, values) => String(body || "").replace(/\{\{(\d+)\}\}/g, (m, n) => (values[Number(n) - 1] || m));
 const pbHour = (h) => `${String(h).padStart(2, "0")}:00`;
 const pbPeople = (n) => `${n} ${n === 1 ? "person" : "people"}`;
@@ -49,7 +49,7 @@ const pbFooter = (t) => { const s = t && window.__starters ? window.__starters.b
 const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
   const templates = React.useMemo(() => (data.templates || PB_NONE).slice().sort(pbOrder), [data.templates]);
   const triggers = data.triggers || PB_NONE;
-  const SRC = window.TC_SOURCES || { text: "Type it", first_name: "Their first name", business_name: "The business name", booking_link: "The booking link" };
+  const SRC = window.TC_SOURCES || { text: "Type it", first_name: "Their first name", business_name: "The business name", booking_link: "The booking link", visit_when: "Their visit's time", visit_service: "Their visit's service" };
   const [trigger, setTrigger] = React.useState(editing ? editing.trigger : (triggers[0] ? triggers[0].id : "quiet_30"));
   const [tplId, setTplId] = React.useState(() => {
     if (editing) return editing.template_id;
@@ -101,7 +101,8 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
   const defaults = tpl && window.__starters ? window.__starters.slotKinds(tpl).map((k) => (k === "booking_link" && !data.bookingLink ? "text" : k)) : PB_NONE;
   const srcOf = (i) => ((sources[tplId] || defaults)[i] || "text");
   const textOf = (i) => ((typed[tplId] || [])[i] || "");
-  const exampleOf = (kind) => (kind === "first_name" ? "Dani" : kind === "business_name" ? (data.businessName || "the business") : kind === "booking_link" ? "your booking link" : "");
+  const PB_EXAMPLES = { visit_when: "tomorrow at 2:00 PM", visit_service: "a balayage" };
+  const exampleOf = (kind) => (kind === "first_name" ? "Dani" : kind === "business_name" ? (data.businessName || "the business") : kind === "booking_link" ? "your booking link" : (PB_EXAMPLES[kind] || ""));
   const labels = tpl && window.__starters ? window.__starters.slotLabels(tpl) : vars.map((v, i) => v.label || `Value ${v.position || i + 1}`);
   const filled = vars.map((v, i) => (srcOf(i) === "text" ? textOf(i) : exampleOf(srcOf(i))));
   const previewValues = vars.map((v, i) => (srcOf(i) === "text" ? (textOf(i).trim() || `[${labels[i]}]`) : exampleOf(srcOf(i))));
@@ -139,7 +140,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
       </div>
       {trig && (
         <div className="cl-prof-aut-hint" data-testid="pb-trigger-hint">
-          {trig.hint} · {pbPeople(trig.candidates)} on that list said yes right now · runs under “{PB_ROW_LABEL[trig.cls] || trig.cls}” in Settings › Autonomy
+          {trig.hint} · {pbPeople(trig.candidates)} {trig.kind === "visit" ? "with a recorded yes on that day right now" : "on that list said yes right now"} · runs under “{PB_ROW_LABEL[trig.cls] || trig.cls}” in Settings › Autonomy{trig.kind === "visit" ? " · one message per visit" : ""}{trig.kind === "visit" && data.calendar !== "ok" ? " · needs the calendar connected in Settings › Workspace" : ""}
         </div>
       )}
       <div className="bc-row">
@@ -181,7 +182,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
                   data-testid="pb-var-source"
                   onChange={(e) => setSources((s) => { const next = [...(s[tplId] || [])]; next[i] = e.target.value; return { ...s, [tplId]: next }; })}
                 >
-                  {Object.keys(SRC).filter((k) => k !== "booking_link" || data.bookingLink).map((k) => <option key={k} value={k}>{SRC[k]}</option>)}
+                  {Object.keys(SRC).filter((k) => (k !== "booking_link" || data.bookingLink) && (!k.startsWith("visit_") || (trig && trig.kind === "visit"))).map((k) => <option key={k} value={k}>{SRC[k]}</option>)}
                 </select>
                 <input
                   value={srcOf(i) === "text" ? textOf(i) : exampleOf(srcOf(i))}
@@ -210,7 +211,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
             <label className="bc-var-label">
               Every <input className="bc-subject" type="number" min={1} max={90} value={cadence} onChange={(e) => setCadence(e.target.value)} style={{ width: 64 }} /> days
             </label>
-          ) : (
+          ) : trig && trig.kind === "visit" ? null : (
             <label className="bc-var-label">
               Once per person, again after <input className="bc-subject" type="number" min={7} max={365} value={gap} onChange={(e) => setGap(e.target.value)} style={{ width: 64 }} /> days
             </label>

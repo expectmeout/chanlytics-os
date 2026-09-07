@@ -13,8 +13,8 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
-test("five starters, each in English and Spanish, each passing the hand-written check with no warnings", () => {
-  assert.deepEqual(STARTER_TEMPLATES.map((s) => s.key), ["winback_offer", "welcome_new", "save_our_number", "monthly_offer", "quick_note"]);
+test("seven starters, each in English and Spanish, each passing the hand-written check with no warnings", () => {
+  assert.deepEqual(STARTER_TEMPLATES.map((s) => s.key), ["winback_offer", "welcome_new", "save_our_number", "monthly_offer", "visit_reminder", "after_visit", "quick_note"]);
   assert.deepEqual(STARTER_LANGUAGES.map((l) => l.id), ["en_US", "es"]);
   for (const s of STARTER_TEMPLATES) {
     assert.equal(s.name, s.key, "the name is the key");
@@ -24,7 +24,9 @@ test("five starters, each in English and Spanish, each passing the hand-written 
       assert.equal(check.ok, true, `${s.key}/${l.id}: ${check.ok ? "" : check.error}`);
       assert.deepEqual(check.warnings, [], `${s.key}/${l.id} warns: ${check.warnings.join(" | ")}`);
       assert.equal(check.value.name, s.name);
-      assert.ok(check.value.footer && /STOP/.test(check.value.footer), "every starter says how to stop");
+      // A marketing starter says how to stop; a utility one (a reminder of their own appointment) carries no offer to stop.
+      if (s.category === "marketing") assert.ok(check.value.footer && /STOP/.test(check.value.footer), "every marketing starter says how to stop");
+      else assert.equal(check.value.footer, null, "a utility starter has no opt-out line");
       const t = s.texts[l.id];
       assert.equal(t.slots.length, check.value.examples.length);
       assert.ok(t.slots.some((x) => x.kind === "first_name") && t.slots.some((x) => x.kind === "business_name"), "a first name and the business's name, every time");
@@ -121,7 +123,7 @@ test("the library's order, what a composer opens on, and each slot's words", () 
   assert.deepEqual(slotLabels({ name: "monthly_offer", language: "es", variables: [] }), ["Nombre", "Nombre del negocio", "La oferta", "Enlace de reservas"]);
   assert.deepEqual(slotLabels({ name: "booking_link_v1", variables: [{ position: 1, label: "Business name" }, { position: 2, label: "Value 2" }] }), ["Business name", "Value 2"]);
   assert.equal(starterIndex("welcome_new"), 1);
-  assert.equal(starterIndex("nope"), 5);
+  assert.equal(starterIndex("nope"), 7);
 });
 
 test("hidden from the composers: the door, the routes, the sync's first sight, the card", () => {

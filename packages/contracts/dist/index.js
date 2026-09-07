@@ -3020,6 +3020,13 @@ function visitTime(v, tz) {
   const sameHalf = a.slice(-2) === b.slice(-2);
   return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
 }
+function visitDateKey(start, tz) {
+  return dayInZone(tz, ms(start)).key;
+}
+function visitStartTime(v, tz) {
+  if (v.allDay || v.all_day) return "all day";
+  return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(ms(v.start)));
+}
 function visitLine(v, tz, nowMs) {
   return `${visitDay(v.start, tz, nowMs)} \xB7 ${visitTime(v, tz)}`;
 }
@@ -3344,7 +3351,10 @@ function toPersonRowVM(r, now = /* @__PURE__ */ new Date()) {
     nextVisitMs,
     lastVisitMs,
     nextVisitDays: nextVisitMs !== null ? Math.max(0, Math.ceil((nextVisitMs - nowMs) / DAY_MS2)) : null,
-    lastVisitDays: lastVisitMs !== null ? Math.max(0, Math.floor((nowMs - lastVisitMs) / DAY_MS2)) : null
+    lastVisitDays: lastVisitMs !== null ? Math.max(0, Math.floor((nowMs - lastVisitMs) / DAY_MS2)) : null,
+    nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
+    lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
+    calendarTz: v?.timezone ?? null
   };
 }
 var PEOPLE_LIST_GROUPS = [
@@ -3693,6 +3703,10 @@ var LINK = { kind: "booking_link", label: "Booking link", example: "https://book
 var FIRST_ES = { ...FIRST, label: "Nombre" };
 var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
 var LINK_ES = { ...LINK, label: "Enlace de reservas" };
+var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE = { kind: "visit_service", label: "Service", example: "a balayage" };
+var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "un balayage" };
 var STOP_EN = "Reply STOP to opt out";
 var STOP_ES = "Responde STOP para darte de baja";
 var STARTER_TEMPLATES = [
@@ -3773,6 +3787,46 @@ var STARTER_TEMPLATES = [
         body: "Hola {{1}}, este mes en {{2}}: {{3}} Reserva aqu\xED: {{4}} \u2014 las plazas son limitadas.",
         footer: STOP_ES,
         slots: [FIRST_ES, BUSINESS_ES, { kind: "text", label: "La oferta", example: "20% de descuento en balayage para clientas habituales, reserva antes del viernes." }, LINK_ES]
+      }
+    }
+  },
+  {
+    key: "visit_reminder",
+    name: "visit_reminder",
+    title: "Visit reminder",
+    purpose: "for the day before an appointment",
+    category: "utility",
+    trigger: "visit_tomorrow",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, it's {{2}}. A reminder of your appointment {{3}} for {{4}}. If you need to change it, just reply here.",
+        footer: null,
+        slots: [FIRST, BUSINESS, WHEN, SERVICE]
+      },
+      es: {
+        body: "Hola {{1}}, te escribimos de {{2}}. Te recordamos tu cita {{3}} para {{4}}. Si necesitas cambiarla, responde aqu\xED.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, WHEN_ES, SERVICE_ES]
+      }
+    }
+  },
+  {
+    key: "after_visit",
+    name: "after_visit",
+    title: "After the visit",
+    purpose: "for the day after a visit",
+    category: "marketing",
+    trigger: "visited",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thank you for coming to {{2}} yesterday \u2014 we hope you love the result. When you're ready for your next visit, pick a time here: {{3}}.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}} \u2014 esperamos que te encante el resultado. Cuando quieras tu pr\xF3xima cita, elige la hora aqu\xED: {{3}}.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
       }
     }
   },
@@ -4049,23 +4103,25 @@ function templateComponents(v) {
   if (v.footer) out.push({ type: "FOOTER", text: v.footer });
   return out;
 }
-var PARAM_SOURCES = ["text", "first_name", "business_name", "booking_link"];
+var PARAM_SOURCES = ["text", "first_name", "business_name", "booking_link", "visit_when", "visit_service"];
 var PARAM_SOURCE_LABELS = {
   text: "Type it",
   first_name: "Their first name",
   business_name: "The business name",
-  booking_link: "The booking link"
+  booking_link: "The booking link",
+  visit_when: "Their visit's time",
+  visit_service: "Their visit's service"
 };
 function parseParamSpec(raw) {
   if (typeof raw === "string") {
-    const m = /^@(first_name|business_name|booking_link)$/.exec(raw.trim());
+    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service)$/.exec(raw.trim());
     if (m) return { kind: m[1] };
     return { kind: "text", value: raw };
   }
   if (raw && typeof raw === "object") {
     const o = raw;
     if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
-    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link") return { kind: o.kind };
+    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service") return { kind: o.kind };
   }
   return null;
 }
@@ -4089,20 +4145,26 @@ function resolveParams(specs, f) {
         return f.businessName;
       case "booking_link":
         return f.bookingLink ?? "";
+      case "visit_when":
+        return f.visitWhen ?? "";
+      case "visit_service":
+        return f.visitService ?? "";
     }
   });
 }
 function exampleParams(specs, businessName) {
-  return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link" });
+  return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link", visitWhen: "tomorrow at 2:00 PM", visitService: "a balayage" });
 }
 
 // src/playbooks.ts
 var DAY_MS3 = 864e5;
 var PLAYBOOK_TRIGGERS = [
-  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", hint: "Nothing heard in 30 days" },
-  { id: "new_week", label: "Welcome", list: "new_week", cls: "campaign", hint: "First contact in the last 7 days" },
-  { id: "phoned_only", label: "Save our number", list: "phoned_only", cls: "reengage", hint: "Only ever phoned, never texted" },
-  { id: "everyone_monthly", label: "The month's offer", list: null, cls: "campaign", hint: "Everyone who said yes, on a cadence" }
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
+  { id: "new_week", label: "Welcome", list: "new_week", cls: "campaign", kind: "list", hint: "First contact in the last 7 days" },
+  { id: "phoned_only", label: "Save our number", list: "phoned_only", cls: "reengage", kind: "list", hint: "Only ever phoned, never texted" },
+  { id: "everyone_monthly", label: "The month's offer", list: null, cls: "campaign", kind: "cadence", hint: "Everyone who said yes, on a cadence" },
+  { id: "visit_tomorrow", label: "Visit reminder", list: null, cls: "booking", kind: "visit", hint: "The day before an appointment on the calendar" },
+  { id: "visited", label: "After the visit", list: null, cls: "reengage", kind: "visit", hint: "The day after a visit, when nothing is booked next" }
 ];
 var PLAYBOOK_STATES = ["running", "paused"];
 var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
@@ -4116,6 +4178,15 @@ function triggerOf(id) {
 function eligibleForPlaybook(rows, p, touches, nowMs) {
   const t = triggerOf(p.trigger);
   if (!t) return [];
+  if (t.kind === "visit") {
+    const pool2 = eligibleFor(rows, "everyone", null, null).filter((r) => {
+      if (!r.calendarTz) return false;
+      if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS3));
+      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS3)) && !r.booked;
+    });
+    pool2.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
+    return pool2.slice(0, Math.max(1, p.cap_per_run));
+  }
   const pool = t.list ? eligibleFor(rows, "list", t.list, null) : eligibleFor(rows, "everyone", null, null);
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS3;
   const picked = pool.filter((r) => {
@@ -4164,6 +4235,7 @@ function runDueNow(p, tz, now) {
 var two = (n) => String(n).padStart(2, "0");
 function scheduleLine(p) {
   const at = `${two(p.run_hour)}:00`;
+  if (triggerOf(p.trigger)?.kind === "visit") return `Daily ${at} \xB7 ${p.trigger === "visit_tomorrow" ? "everyone with a visit tomorrow" : "everyone who visited yesterday"} \xB7 up to ${p.cap_per_run}`;
   if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at} \xB7 up to ${p.cap_per_run} a day`;
   return `Daily ${at} \xB7 up to ${p.cap_per_run} \xB7 once per person, again after ${p.gap_days} days`;
 }
@@ -4177,7 +4249,15 @@ function nextRunLabel(p, tz, now) {
   }
   return `tomorrow ${at}`;
 }
-var PLAYBOOK_CLASS_LABEL = { reengage: "Re-engage", campaign: "Campaigns" };
+var PLAYBOOK_CLASS_LABEL = { reengage: "Re-engage", campaign: "Campaigns", booking: "Booking" };
+function visitFactsFor(trigger, visit, tz) {
+  const t = triggerOf(trigger);
+  if (!t || t.kind !== "visit" || !visit) return null;
+  return {
+    visit_when: trigger === "visit_tomorrow" ? `tomorrow at ${visitStartTime(visit, tz)}` : "yesterday",
+    visit_service: visit.title.trim() || "your appointment"
+  };
+}
 
 // src/reports.ts
 var REPORT_RANGES = [
@@ -4373,7 +4453,7 @@ function toReportVM(dto) {
 // src/campaign-report.ts
 var sum2 = (xs) => xs.reduce((a, b) => a + b, 0);
 var pct = (n, d) => d ? Math.round(n / d * 100) : null;
-var WHEN = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 function toCampaignReportVM(dto) {
   const days = dto.days;
   const series = dto.series ?? [];
@@ -4422,7 +4502,7 @@ function toCampaignReportVM(dto) {
     deliveredPct: pct(s.delivered, s.sent),
     readPct: pct(s.read, s.sent),
     repliedPct: pct(s.replied, s.sent),
-    lastLabel: s.last_at ? WHEN.format(new Date(s.last_at)) : "",
+    lastLabel: s.last_at ? WHEN2.format(new Date(s.last_at)) : "",
     share: s.sent / maxSent
   }));
   const tiles = [
@@ -5102,8 +5182,11 @@ export {
   triggerOf,
   validateTemplateDraft,
   violatesNoPrices,
+  visitDateKey,
   visitDay,
+  visitFactsFor,
   visitLine,
+  visitStartTime,
   visitTime,
   visitsIn,
   visitsOf,

@@ -214,6 +214,17 @@ export function visitTime(v: { start: number | string; end: number | string; all
 }
 
 /** "Tue, Sep 8 · 2:00 – 5:00 PM" */
+/** "2026-09-08" — the day a visit falls on, by the calendar's own clock. */
+export function visitDateKey(start: number | string, tz: string): string {
+  return dayInZone(tz, ms(start)).key;
+}
+
+/** "2:00 PM" — the start alone, for a reminder's sentence. */
+export function visitStartTime(v: { start: number | string; allDay?: boolean; all_day?: boolean }, tz: string): string {
+  if (v.allDay || v.all_day) return "all day";
+  return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(ms(v.start)));
+}
+
 export function visitLine(v: { start: number | string; end: number | string; allDay?: boolean; all_day?: boolean }, tz: string, nowMs: number): string {
   return `${visitDay(v.start, tz, nowMs)} · ${visitTime(v, tz)}`;
 }

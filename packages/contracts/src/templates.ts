@@ -115,20 +115,25 @@ export function templateComponents(v: TemplateDraft): Array<Record<string, unkno
 
 /* ---- What fills a slot ---- */
 
-export const PARAM_SOURCES = ["text", "first_name", "business_name", "booking_link"] as const;
+export const PARAM_SOURCES = ["text", "first_name", "business_name", "booking_link", "visit_when", "visit_service"] as const;
 export type ParamSourceKind = (typeof PARAM_SOURCES)[number];
 
 export type ParamSpec =
   | { kind: "text"; value: string }
   | { kind: "first_name" }
   | { kind: "business_name" }
-  | { kind: "booking_link" };
+  | { kind: "booking_link" }
+  /** A visit playbook's own words: "tomorrow at 2:00 PM", and the service. */
+  | { kind: "visit_when" }
+  | { kind: "visit_service" };
 
 export const PARAM_SOURCE_LABELS: Record<ParamSourceKind, string> = {
   text: "Type it",
   first_name: "Their first name",
   business_name: "The business name",
   booking_link: "The booking link",
+  visit_when: "Their visit's time",
+  visit_service: "Their visit's service",
 };
 
 /**
@@ -138,14 +143,14 @@ export const PARAM_SOURCE_LABELS: Record<ParamSourceKind, string> = {
  */
 export function parseParamSpec(raw: unknown): ParamSpec | null {
   if (typeof raw === "string") {
-    const m = /^@(first_name|business_name|booking_link)$/.exec(raw.trim());
+    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service)$/.exec(raw.trim());
     if (m) return { kind: m[1] as Exclude<ParamSourceKind, "text"> };
     return { kind: "text", value: raw };
   }
   if (raw && typeof raw === "object") {
     const o = raw as { kind?: unknown; value?: unknown };
     if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
-    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link") return { kind: o.kind };
+    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service") return { kind: o.kind };
   }
   return null;
 }
@@ -158,6 +163,9 @@ export interface ParamFacts {
   firstName: string | null;
   businessName: string;
   bookingLink: string | null;
+  /** A visit playbook's words for this person, resolved when the run was made; absent elsewhere. */
+  visitWhen?: string | null;
+  visitService?: string | null;
 }
 
 /** The first name a message may use, or null when all that is on file is a number. */
@@ -180,11 +188,13 @@ export function resolveParams(specs: readonly ParamSpec[], f: ParamFacts): strin
       case "first_name": return f.firstName || "there";
       case "business_name": return f.businessName;
       case "booking_link": return f.bookingLink ?? "";
+      case "visit_when": return f.visitWhen ?? "";
+      case "visit_service": return f.visitService ?? "";
     }
   });
 }
 
 /** Example words for a preview: what a real person would see. */
 export function exampleParams(specs: readonly ParamSpec[], businessName: string): string[] {
-  return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link" });
+  return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link", visitWhen: "tomorrow at 2:00 PM", visitService: "a balayage" });
 }

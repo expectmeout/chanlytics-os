@@ -19,7 +19,7 @@ test.describe("Playbooks on a real workspace", () => {
     await signIn(page);
   });
 
-  test("renders the real page from the workspace's playbooks, offers the four triggers, and never invents a number", async ({ page }) => {
+  test("renders the real page from the workspace's playbooks, offers the six triggers, and never invents a number", async ({ page }) => {
     await page.goto("/#/outbound");
     await page.waitForLoadState("networkidle");
     const real = page.getByTestId("playbooks-real");
@@ -47,7 +47,7 @@ test.describe("Playbooks on a real workspace", () => {
     await page.getByTestId("pb-new").click();
     const composer = real.getByTestId("pb-composer");
     await expect(composer).toBeVisible();
-    await expect(composer.getByTestId("pb-trigger")).toHaveCount(4);
+    await expect(composer.getByTestId("pb-trigger")).toHaveCount(6);
     await expect(composer.getByTestId("pb-trigger").first()).toContainText("Win-back");
     await expect(composer.getByTestId("pb-trigger-hint")).toContainText("Settings › Autonomy");
     if (approved.length === 0) {

@@ -121,6 +121,7 @@ type Database = {
                 Row: {
                     broadcast_id: string;
                     contact_id: string;
+                    facts: Json | null;
                     message_id: string | null;
                     reason: string | null;
                     sent_at: string | null;
@@ -130,6 +131,7 @@ type Database = {
                 Insert: {
                     broadcast_id: string;
                     contact_id: string;
+                    facts?: Json | null;
                     message_id?: string | null;
                     reason?: string | null;
                     sent_at?: string | null;
@@ -139,6 +141,7 @@ type Database = {
                 Update: {
                     broadcast_id?: string;
                     contact_id?: string;
+                    facts?: Json | null;
                     message_id?: string | null;
                     reason?: string | null;
                     sent_at?: string | null;

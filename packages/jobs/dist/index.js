@@ -4497,6 +4497,10 @@ var LINK = { kind: "booking_link", label: "Booking link", example: "https://book
 var FIRST_ES = { ...FIRST, label: "Nombre" };
 var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
 var LINK_ES = { ...LINK, label: "Enlace de reservas" };
+var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE = { kind: "visit_service", label: "Service", example: "a balayage" };
+var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "un balayage" };
 var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,
@@ -4509,7 +4513,7 @@ var DAY_MS3 = 864e5;
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS3;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WHEN = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var DAY_MS5 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS5;
@@ -9047,6 +9051,10 @@ var LINK2 = { kind: "booking_link", label: "Booking link", example: "https://boo
 var FIRST_ES2 = { ...FIRST2, label: "Nombre" };
 var BUSINESS_ES2 = { ...BUSINESS2, label: "Nombre del negocio" };
 var LINK_ES2 = { ...LINK2, label: "Enlace de reservas" };
+var WHEN3 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE2 = { kind: "visit_service", label: "Service", example: "a balayage" };
+var WHEN_ES2 = { ...WHEN3, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES2 = { ...SERVICE2, label: "Servicio", example: "un balayage" };
 var BROADCAST_CHUNK = 25;
 var BROADCAST_GAP_MS = 300;
 function renderTemplate(body, params) {
@@ -9065,14 +9073,14 @@ var LIMIT_TIERS2 = {
 };
 function parseParamSpec(raw) {
   if (typeof raw === "string") {
-    const m = /^@(first_name|business_name|booking_link)$/.exec(raw.trim());
+    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service)$/.exec(raw.trim());
     if (m) return { kind: m[1] };
     return { kind: "text", value: raw };
   }
   if (raw && typeof raw === "object") {
     const o = raw;
     if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
-    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link") return { kind: o.kind };
+    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service") return { kind: o.kind };
   }
   return null;
 }
@@ -9093,6 +9101,10 @@ function resolveParams(specs, f) {
         return f.businessName;
       case "booking_link":
         return f.bookingLink ?? "";
+      case "visit_when":
+        return f.visitWhen ?? "";
+      case "visit_service":
+        return f.visitService ?? "";
     }
   });
 }
@@ -9100,7 +9112,7 @@ var DAY_MS32 = 864e5;
 var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS32;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
 var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SHORT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var DAY_MS52 = 864e5;
 var QUIET_AFTER_MS22 = 7 * DAY_MS52;
@@ -13557,6 +13569,10 @@ var LINK3 = { kind: "booking_link", label: "Booking link", example: "https://boo
 var FIRST_ES3 = { ...FIRST3, label: "Nombre" };
 var BUSINESS_ES3 = { ...BUSINESS3, label: "Nombre del negocio" };
 var LINK_ES3 = { ...LINK3, label: "Enlace de reservas" };
+var WHEN4 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE3 = { kind: "visit_service", label: "Service", example: "a balayage" };
+var WHEN_ES3 = { ...WHEN4, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES3 = { ...SERVICE3, label: "Servicio", example: "un balayage" };
 var LIMIT_TIERS3 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -13569,7 +13585,7 @@ var DAY_MS33 = 864e5;
 var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS33;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
 var DATE_FMT33 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WHEN3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SHORT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var DAY_MS53 = 864e5;
 var QUIET_AFTER_MS23 = 7 * DAY_MS53;
@@ -13843,7 +13859,7 @@ async function broadcastSend(ctx, job) {
   const parsedCfg = parseTenantConfig(cfgRow?.config ?? null);
   const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";
   const bookingLink = parsedCfg?.brain?.booking_link ?? null;
-  const { data: batch, error: qErr } = await ctx.db.from("broadcast_recipients").select("contact_id").eq("broadcast_id", b.id).eq("state", "queued").limit(BROADCAST_CHUNK);
+  const { data: batch, error: qErr } = await ctx.db.from("broadcast_recipients").select("contact_id, facts").eq("broadcast_id", b.id).eq("state", "queued").limit(BROADCAST_CHUNK);
   if (qErr) throw new Error(`broadcast_send: cannot read recipients: ${qErr.message}`);
   const mark = (contactId, patch) => ctx.db.from("broadcast_recipients").update({ ...patch, sent_at: patch.state === "sent" ? (/* @__PURE__ */ new Date()).toISOString() : null }).eq("broadcast_id", b.id).eq("contact_id", contactId);
   for (const r of batch ?? []) {
@@ -13877,7 +13893,14 @@ async function broadcastSend(ctx, job) {
       await mark(r.contact_id, { state: "skipped", reason: "human_has_it" });
       continue;
     }
-    const params = resolveParams(specs, { firstName: firstNameOf(c.display_name, c.wa_profile_name), businessName, bookingLink });
+    const facts = r.facts !== null && typeof r.facts === "object" && !Array.isArray(r.facts) ? r.facts : {};
+    const params = resolveParams(specs, {
+      firstName: firstNameOf(c.display_name, c.wa_profile_name),
+      businessName,
+      bookingLink,
+      visitWhen: typeof facts.visit_when === "string" ? facts.visit_when : null,
+      visitService: typeof facts.visit_service === "string" ? facts.visit_service : null
+    });
     if (params.some((v) => !v)) {
       await mark(r.contact_id, { state: "skipped", reason: "missing_value" });
       continue;

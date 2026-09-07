@@ -4476,6 +4476,10 @@ var LINK = { kind: "booking_link", label: "Booking link", example: "https://book
 var FIRST_ES = { ...FIRST, label: "Nombre" };
 var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
 var LINK_ES = { ...LINK, label: "Enlace de reservas" };
+var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE = { kind: "visit_service", label: "Service", example: "a balayage" };
+var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "un balayage" };
 var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,
@@ -4488,7 +4492,7 @@ var DAY_MS3 = 864e5;
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS3;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WHEN = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var DAY_MS5 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS5;
