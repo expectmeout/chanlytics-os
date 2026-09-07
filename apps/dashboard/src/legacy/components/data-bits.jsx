@@ -50,7 +50,7 @@ const StatCell = ({ label, value, valueSize, meta, metaTone = "", spark, tip, ch
       <span className="stat-cell-value tabular" style={valueSize ? { fontSize: valueSize } : undefined}>{value}</span>
     )}
     {children}
-    {meta && <span className={`stat-cell-meta ${metaTone}`}>{meta}</span>}
+    {meta && <span className={`stat-cell-meta ${metaTone}`} title={typeof meta === "string" ? meta : undefined}>{meta}</span>}
     {spark && <Sparkline data={spark} stroke="var(--ink-faint)" />}
   </div>
 );

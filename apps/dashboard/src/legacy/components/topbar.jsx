@@ -431,18 +431,21 @@ const Topbar = ({
       {right}
 
       <div className="tbn-wrap">
-        <MoreMenu
-          btnClass="btn btn-ghost btn-sm tb-presence"
-          title="Presence — gates transfers and veto timers"
-          label={<><span className={`tb-pres-dot ${window.PR_STORE.away ? "away" : window.PR_STORE.transfers ? "" : "off"}`}></span> {window.PR_STORE.away ? "Away" : "Available"}</>}
-          items={[
-            { header: window.PR_STORE.away ? "Away — veto timers paused · holding line" : "Available — timers run · transfers " + (window.PR_STORE.transfers ? "on" : "off") },
-            { label: "Available", icon: "check", onClick: () => window.PR_STORE.setAway(false), meta: window.PR_STORE.away ? "" : "current" },
-            { label: "Away", icon: "pause", onClick: () => window.PR_STORE.setAway(true), meta: window.PR_STORE.away ? "current" : "" },
-            { divider: true },
-            { label: window.PR_STORE.transfers ? "Transfers: on" : "Transfers: off", icon: "phone", meta: window.PR_STORE.away ? "holding line while Away" : "click to flip", onClick: () => window.PR_STORE.setTransfers(!window.PR_STORE.transfers) },
-          ]}
-        />
+        {/* Presence is the mockup's: a real workspace has no away timer or transfer line yet, so the control would change nothing. */}
+        {window.__DEMO_MODE && (
+          <MoreMenu
+            btnClass="btn btn-ghost btn-sm tb-presence"
+            title="Presence — gates transfers and veto timers"
+            label={<><span className={`tb-pres-dot ${window.PR_STORE.away ? "away" : window.PR_STORE.transfers ? "" : "off"}`}></span> {window.PR_STORE.away ? "Away" : "Available"}</>}
+            items={[
+              { header: window.PR_STORE.away ? "Away — veto timers paused · holding line" : "Available — timers run · transfers " + (window.PR_STORE.transfers ? "on" : "off") },
+              { label: "Available", icon: "check", onClick: () => window.PR_STORE.setAway(false), meta: window.PR_STORE.away ? "" : "current" },
+              { label: "Away", icon: "pause", onClick: () => window.PR_STORE.setAway(true), meta: window.PR_STORE.away ? "current" : "" },
+              { divider: true },
+              { label: window.PR_STORE.transfers ? "Transfers: on" : "Transfers: off", icon: "phone", meta: window.PR_STORE.away ? "holding line while Away" : "click to flip", onClick: () => window.PR_STORE.setTransfers(!window.PR_STORE.transfers) },
+            ]}
+          />
+        )}
         <button
           className={`btn btn-ghost btn-icon btn-sm tb-bell ${ping ? "ping" : ""}`}
           data-tip={real

@@ -2172,6 +2172,25 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
 // src/today.ts
 var TODAY_QUEUE_MAX = 6;
 var CHANNEL_LABEL = { whatsapp: "WhatsApp", voice: "Phone line" };
+function tzClock(iso, tz, now) {
+  const t = tzTime(iso, tz);
+  if (!iso || !t) return t;
+  const key = (d) => {
+    try {
+      return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+    } catch {
+      return d.toDateString();
+    }
+  };
+  const day = key(new Date(iso));
+  if (day === key(now)) return t;
+  if (day === key(new Date(now.getTime() + 864e5))) return `tomorrow ${t}`;
+  try {
+    return `${new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date(iso))} ${t}`;
+  } catch {
+    return t;
+  }
+}
 function tzTime(iso, tz) {
   if (!iso) return null;
   try {
@@ -2246,7 +2265,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     const lastCustomer = conv ? [...conv.messages].reverse().find((x) => x.sender === "customer") : void 0;
     const waitedMs = now.getTime() - new Date(e.created_at).getTime();
     const win = conv ? waWindow(conv.last_wa_inbound_at, now) : null;
-    const closes = win?.open ? tzTime(win.closesAtIso, tz) : null;
+    const closes = win?.open ? tzClock(win.closesAtIso, tz, now) : null;
     return {
       id: `th-${e.conversation_id}`,
       conversationId: e.conversation_id,
@@ -2275,7 +2294,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     const mins = w.closesAtIso ? Math.max(1, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / 6e4)) : 0;
     return {
       id: `wc-${c.id}`,
-      text: `${contactName(c)} \u2014 window closes ${tzTime(w.closesAtIso, tz) ?? "soon"} (in ${formatWaited(mins * 6e4)})`,
+      text: `${contactName(c)} \u2014 window closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} (in ${formatWaited(mins * 6e4)})`,
       to: `inbox/th-${c.id}`
     };
   });
@@ -2453,7 +2472,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     const quote = lastCustomer ? messageText(lastCustomer).slice(0, 110) : "";
     const who = conv ? contactName(conv) : "Unknown";
     const win = conv ? waWindow(conv.last_wa_inbound_at, now) : null;
-    const closes = win?.open ? tzTime(win.closesAtIso, tz) : null;
+    const closes = win?.open ? tzClock(win.closesAtIso, tz, now) : null;
     queueAll.push({
       id: `q-${e.id}`,
       kind: "handoff",
@@ -2482,7 +2501,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       who,
       initials: initialsOf(who),
       channel: "WhatsApp",
-      when: `closes ${tzTime(w.closesAtIso, tz) ?? "soon"} \xB7 in ${formatWaited(leftMs)}`,
+      when: `closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} \xB7 in ${formatWaited(leftMs)}`,
       sentence: last ? messageText(last).slice(0, 110) : "They wrote last, and the free reply window is closing.",
       quoted: !!last,
       status: ["Reply window closing", "they wrote last"],
@@ -3345,9 +3364,14 @@ function serverNotificationRows(dto) {
       icon: look.icon,
       tone: look.tone,
       action: look.action,
-      unread: at > seen && !n.read
+      unread: at > seen && !n.read,
+      about: n.subject_type && n.subject_id ? { type: n.subject_type, id: n.subject_id } : null
     };
   });
+}
+function dedupeFeed(rows) {
+  const covered = new Set(rows.filter((r) => r.kind === "needs_you" && r.key.startsWith("needs:th-")).map((r) => r.key.slice("needs:th-".length)));
+  return rows.filter((r) => !(r.key.startsWith(SERVER_KEY_PREFIX) && r.about?.type === "conversation" && covered.has(r.about.id)));
 }
 
 // src/ask.ts
@@ -4767,7 +4791,7 @@ function toCampaignReportVM(dto) {
       id: "replied",
       label: "Replied",
       value: pct(tot.replied, tot.sent) === null ? "\u2014" : `${pct(tot.replied, tot.sent)}%`,
-      meta: tot.sent ? `${tot.replied} wrote back` : "nothing sent",
+      meta: tot.sent ? `${tot.replied} wrote back within 3 days` : "nothing sent",
       delta: pointsDelta(pct(tot.replied, tot.sent), pct(prev.replied, prev.sent), noun),
       spark: points.map((p) => p.replied)
     },
@@ -5273,6 +5297,7 @@ export {
   dayFromQuestion,
   dayInZone,
   dayIntervals,
+  dedupeFeed,
   defaultParamSpecs,
   defaultSlotKinds,
   defaultTemplate,
@@ -5424,6 +5449,7 @@ export {
   todayJourney,
   todayWeek,
   triggerOf,
+  tzClock,
   validateTemplateDraft,
   violatesNoPrices,
   visitDateKey,

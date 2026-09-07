@@ -23,6 +23,7 @@ import {
   type NotificationRow,
   type NotificationsDto,
   SERVER_KEY_PREFIX,
+  dedupeFeed,
   serverNotificationRows,
 } from "@chanlytics/contracts";
 import { getActiveWorkspace, scoped } from "./surface-data";
@@ -142,7 +143,7 @@ export function installNotifications(
   };
   // What the surfaces derive (read state on this device) beside what the
   // workspace keeps (read state on the server), newest first.
-  const rows = () => [...applyReadState(feedFromGlobals(win, Date.now()), state()), ...serverNotificationRows(win.__NOTIFICATIONS?.dto)].sort((a, b) => b.at - a.at);
+  const rows = () => dedupeFeed([...applyReadState(feedFromGlobals(win, Date.now()), state()), ...serverNotificationRows(win.__NOTIFICATIONS?.dto)]).sort((a, b) => b.at - a.at);
   const isKept = (key: string) => key.startsWith(SERVER_KEY_PREFIX);
   // A kept row's marks go to the server and the surface is re-read, so every
   // device agrees; a failure here loses a mark, never a notification.

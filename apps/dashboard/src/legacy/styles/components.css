@@ -824,6 +824,8 @@
   color: var(--ink-dim);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .stat-cell-meta.pos { color: var(--ok); }
 .stat-cell-meta.neg { color: var(--accent); }

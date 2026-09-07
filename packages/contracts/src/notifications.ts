@@ -28,6 +28,8 @@ export interface NotificationItem {
   tone: "" | "ok" | "warn";
   /** The button under it. */
   action: string;
+  /** What a kept row is about, when the edge said: a conversation, a call, a broadcast. */
+  about?: { type: string; id: string } | null;
 }
 
 /** The slice of the Inbox thread view-model the feed reads. */
@@ -243,6 +245,19 @@ export function serverNotificationRows(dto: NotificationsDto | null | undefined)
         tone: look.tone,
         action: look.action,
         unread: at > seen && !n.read,
+        about: n.subject_type && n.subject_id ? { type: n.subject_type, id: n.subject_id } : null,
       };
     });
+}
+
+/**
+ * One row per thing. A derived "needs you" row and the kept handoff (or
+ * call-back) row for the same conversation said the same thing twice, in two
+ * voices. While the derived row stands, the kept one about that conversation
+ * is not shown; once the thread is answered the derived row goes and the kept
+ * row remains as the record.
+ */
+export function dedupeFeed(rows: NotificationRow[]): NotificationRow[] {
+  const covered = new Set(rows.filter((r) => r.kind === "needs_you" && r.key.startsWith("needs:th-")).map((r) => r.key.slice("needs:th-".length)));
+  return rows.filter((r) => !(r.key.startsWith(SERVER_KEY_PREFIX) && r.about?.type === "conversation" && covered.has(r.about.id)));
 }

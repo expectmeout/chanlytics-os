@@ -163,6 +163,23 @@ export interface TodayVM {
 const CHANNEL_LABEL: Record<string, string> = { whatsapp: "WhatsApp", voice: "Phone line" };
 
 /** Wall-clock time AT THE SALON, whatever clock the reader is holding. */
+/**
+ * A clock time that says which day when it is not today: "3:30 PM",
+ * "tomorrow 6:46 PM", "Wed 9:00 AM". A closing window printed as "6:46 PM"
+ * beside "since 6:46 PM" read as the same moment.
+ */
+export function tzClock(iso: string | null | undefined, tz: string, now: Date): string | null {
+  const t = tzTime(iso, tz);
+  if (!iso || !t) return t;
+  const key = (d: Date) => {
+    try { return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d); } catch { return d.toDateString(); }
+  };
+  const day = key(new Date(iso));
+  if (day === key(now)) return t;
+  if (day === key(new Date(now.getTime() + 86_400_000))) return `tomorrow ${t}`;
+  try { return `${new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date(iso))} ${t}`; } catch { return t; }
+}
+
 function tzTime(iso: string | null | undefined, tz: string): string | null {
   if (!iso) return null;
   try {
@@ -275,7 +292,7 @@ export function toTodayVM(
     const lastCustomer = conv ? [...conv.messages].reverse().find((x) => x.sender === "customer") : undefined;
     const waitedMs = now.getTime() - new Date(e.created_at).getTime();
     const win = conv ? waWindow(conv.last_wa_inbound_at, now) : null;
-    const closes = win?.open ? tzTime(win.closesAtIso, tz) : null;
+    const closes = win?.open ? tzClock(win.closesAtIso, tz, now) : null;
     return {
       id: `th-${e.conversation_id}`,
       conversationId: e.conversation_id,
@@ -313,7 +330,7 @@ export function toTodayVM(
         : 0;
       return {
         id: `wc-${c.id}`,
-        text: `${contactName(c)} — window closes ${tzTime(w.closesAtIso, tz) ?? "soon"} (in ${formatWaited(mins * 60000)})`,
+        text: `${contactName(c)} — window closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} (in ${formatWaited(mins * 60000)})`,
         to: `inbox/th-${c.id}`,
       };
     });
@@ -595,7 +612,7 @@ export function toTodayVM(
     const quote = lastCustomer ? messageText(lastCustomer).slice(0, 110) : "";
     const who = conv ? contactName(conv) : "Unknown";
     const win = conv ? waWindow(conv.last_wa_inbound_at, now) : null;
-    const closes = win?.open ? tzTime(win.closesAtIso, tz) : null;
+    const closes = win?.open ? tzClock(win.closesAtIso, tz, now) : null;
     queueAll.push({
       id: `q-${e.id}`, kind: "handoff", who, initials: initialsOf(who), channel: "WhatsApp",
       when: `waited ${formatWaited(waitedMs)}`,
@@ -614,7 +631,7 @@ export function toTodayVM(
     const who = contactName(c);
     queueAll.push({
       id: `q-w-${c.id}`, kind: "window", who, initials: initialsOf(who), channel: "WhatsApp",
-      when: `closes ${tzTime(w.closesAtIso, tz) ?? "soon"} · in ${formatWaited(leftMs)}`,
+      when: `closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} · in ${formatWaited(leftMs)}`,
       sentence: last ? messageText(last).slice(0, 110) : "They wrote last, and the free reply window is closing.", quoted: !!last,
       status: ["Reply window closing", "they wrote last"], tone: "warn", warn: leftMs < 2 * 3600000,
       cta: { label: "Open thread", to: `inbox/th-${c.id}` }, also: null,

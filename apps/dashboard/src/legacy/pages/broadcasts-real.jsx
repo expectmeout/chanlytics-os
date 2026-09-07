@@ -198,7 +198,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
       <StatStrip>
         <StatCell label="Sent" value={stats.sent} meta={`${stats.messages.toLocaleString()} messages`} />
         <StatCell label="Delivered" tip="Delivered or read, over sent — WhatsApp's own receipts" value={stats.delivered} meta="from WhatsApp receipts" />
-        <StatCell label="Replies" tip="Threads that heard from the customer after a broadcast" value={stats.replies} meta="answered in the Inbox" accent />
+        <StatCell label="Replies" tip="Threads that heard from the customer within 3 days of a broadcast" value={stats.replies} meta="answered in the Inbox" accent />
       </StatStrip>
 
       <section className="bc-composer" data-testid="bc-composer">

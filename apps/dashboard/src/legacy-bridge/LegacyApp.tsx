@@ -253,9 +253,6 @@ export default function LegacyApp() {
 
   const ChanlyticsApp = (window as unknown as { ChanlyticsApp: ChanlyticsAppComponent }).ChanlyticsApp;
   const statuses = getSurfaceStatuses();
-  const liveLabels = Object.entries(SURFACE_LABELS)
-    .filter(([key]) => statuses.get(key) === "live")
-    .map(([, label]) => label);
   const degradedLabels = Object.entries(SURFACE_LABELS)
     .filter(([key]) => statuses.get(key) === "degraded")
     .map(([, label]) => label);
@@ -294,9 +291,8 @@ export default function LegacyApp() {
             ) : (
               <b>{workspace.name}</b>
             )}
-            {liveLabels.length ? ` · ${liveLabels.join(", ")} live` : ""}
+            {/* A customer's footer names the workspace and warns when a surface is stale; which surfaces are real is the registry's business, not theirs. */}
             {degradedLabels.length ? ` · ${degradedLabels.join(", ")} stale` : ""}
-            {" · other surfaces seeded"}
           </span>
         ) : (
           <span>Connecting to your workspace…</span>

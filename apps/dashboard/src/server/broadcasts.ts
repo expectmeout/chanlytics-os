@@ -72,7 +72,10 @@ function countRecipients(recipients: RecipientRow[], ids: string[]): { counts: M
   return { counts, threadsOf };
 }
 
-/** Which threads heard from the customer after the broadcast reached them. */
+/** A reply is an inbound within this long of the send; a question two weeks later is its own thread, not a reply. The SQL series (campaign_series) keeps the same window. */
+const REPLY_WINDOW_MS = 72 * 3_600_000;
+
+/** Which threads heard from the customer within the reply window after the broadcast reached them. */
 async function repliedThreads(ctx: RouteContext, tenantId: string, threads: Map<string, string>): Promise<Set<string>> {
   const convIds = [...threads.keys()];
   const since = [...threads.values()].sort()[0];
@@ -88,7 +91,7 @@ async function repliedThreads(ctx: RouteContext, tenantId: string, threads: Map<
     if (error) throw new Error(error.message);
     for (const m of inbound ?? []) {
       const sentAt = threads.get(m.conversation_id);
-      if (sentAt && m.created_at > sentAt) replied.add(m.conversation_id);
+      if (sentAt && m.created_at > sentAt && Date.parse(m.created_at) - Date.parse(sentAt) <= REPLY_WINDOW_MS) replied.add(m.conversation_id);
     }
   }
   return replied;
