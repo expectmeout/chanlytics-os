@@ -3737,7 +3737,7 @@ var ASK_FINISH_JSON_SCHEMA = {
     },
     citations: {
       type: "array",
-      description: "The rows the answer rests on, taken ONLY from what the tools returned this turn. Each needs the kind, the exact id the tool gave you, and a short label (a name, a day, a call time).",
+      description: "The rows the answer rests on, taken ONLY from what the tools returned this turn, at most four \u2014 the ones the answer names. Each needs the kind, the exact id the tool gave you, and a short label (a name, a day, a call time).",
       items: {
         type: "object",
         properties: {
@@ -3751,7 +3751,7 @@ var ASK_FINISH_JSON_SCHEMA = {
     },
     followups: {
       type: "array",
-      description: "Up to three short questions the person might ask next, in their language. Empty when nothing natural follows.",
+      description: "Up to two short questions the person might ask next, in their language. Empty when nothing natural follows.",
       items: { type: "string" }
     },
     navigate: {

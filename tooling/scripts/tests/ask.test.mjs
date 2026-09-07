@@ -262,7 +262,7 @@ test("the loop: read tools plus finish, tool_choice any then finish forced on th
   assert.ok(l.includes('cache_control: { type: "ephemeral" }'), "the stable block is cached");
   assert.ok(readCode("apps/dashboard/src/server/ask/round.ts").includes("partialAnswer(b.json)"), "the answer streams out of the finish call, in the round module");
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
-  for (const name of ["get_today", "list_threads", "get_thread", "search_people", "get_person", "list_calls", "get_call", "get_report", "get_settings", "get_openings", "list_audiences", "explain_metric"]) {
+  for (const name of ["get_today", "list_threads", "get_thread", "search_people", "get_person", "list_calls", "get_call", "get_report", "get_settings", "get_openings", "list_audiences"]) {
     assert.ok(tools.includes(`name: "${name}"`), name);
   }
   assert.ok(tools.includes("strict: true,"), "finish is strict");
@@ -513,7 +513,7 @@ test("context first: the day rides into every turn, its rows can be cited, loade
   assert.ok(snap.includes('? { name: "get_call", input: { call_id: scope.id } }'), "the scoped row rides along in full");
   assert.ok(snap.includes("Answer from this when it is enough."));
   const loop = readCode("apps/dashboard/src/server/ask/loop.ts");
-  assert.ok(loop.includes("snapshot = snapshotBlock(await buildSnapshot(tc, input.timezone, input.scope));"));
+  assert.ok(loop.includes("snapshot = await snapshotFor(tc, input.timezone, input.scope);"), "the day rides in first, kept twenty seconds for a follow-up");
   assert.ok(loop.includes('console.error("ask_snapshot_failed"'), "a failed snapshot costs the snapshot, never the turn");
   assert.ok(loop.includes("output_config: { effort: EFFORT }") && loop.includes('const EFFORT: "low" | "medium" = "low";'));
   assert.ok(loop.includes("...(snapshot ? [{ type: \"text\", text: snapshot, cache_control: { type: \"ephemeral\" } }] : []),"), "the snapshot is the second cache breakpoint: a turn's later rounds and a quick follow-up read it from the cache");
@@ -622,4 +622,19 @@ test("the speed pass: a fast model for a short answer, the day's rows never re-r
   assert.ok(snap.includes("person_route: d.contact.id ? `clients/${d.contact.id}` : null,") && snap.includes("person_route: c.contact_id ? `clients/${c.contact_id}` : null,"), "a profile opens from the snapshot without a read");
   const g = readCode("apps/edge/api/admin/llm.ts");
   assert.ok(g.includes("const BUDGET_TTL_MS = 60_000;") && g.includes("budgetSeen.set(tenantId, { at: Date.now(), used });"));
+});
+
+test("the speed pass, two: no definitions tool, a proposal ends the turn, the snapshot kept twenty seconds, fewer citations and follow-ups to write", () => {
+  const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
+  assert.ok(!tools.includes("explain_metric") && !tools.includes("ASK_DEFINITIONS"), "the definitions are in the prompt; a tool for them was a round");
+  assert.ok(readCode("apps/dashboard/src/server/ask/prompt.ts").includes("a word the pages use is defined above, never read"));
+  const l = readCode("apps/dashboard/src/server/ask/loop.ts");
+  assert.ok(l.includes("export function proposalsAnswer(") && l.includes("const answer = prose || proposalsAnswer(proposals.slice(before), es);"), "the cards are the answer");
+  assert.ok(l.includes("outcomes.every(({ out }) => !out.isError) && proposals.length > before"), "a refused proposal keeps the round");
+  assert.ok(l.includes("snapshot = await snapshotFor(tc, input.timezone, input.scope);") && l.includes("followups: f.followups.slice(0, 2)") && l.includes("citations: kept.slice(0, 4)"));
+  const snap = readCode("apps/dashboard/src/server/ask/snapshot.ts");
+  assert.ok(snap.includes("export const SNAPSHOT_TTL_MS = 20_000;") && snap.includes("t.read[kind].add(id)"), "a kept snapshot's rows re-enter the read set");
+  assert.ok(snap.includes("`${t.tenantId}|${t.ctx.userId}|"), "kept per person, not per workspace");
+  const schema = readCode("packages/contracts/src/ask.ts");
+  assert.ok(schema.includes("at most four — the ones the answer names") && schema.includes("Up to two short questions"));
 });

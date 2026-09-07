@@ -53,7 +53,7 @@ import { listPlaybooks } from "../playbooks";
 import { calendarWeek } from "../calendar";
 import { tenantFacts } from "../tenant";
 import { openingsFor } from "./openings";
-import { ASK_DEFINITIONS, workspaceFacts } from "./prompt";
+import { workspaceFacts } from "./prompt";
 
 /**
  * What the assistant may read, and how each read is shaped.
@@ -140,11 +140,6 @@ export const READ_TOOLS: ToolDef[] = [
     name: "get_calendar",
     description: "The owner's calendar as the receptionist reads it, for a day or a few: what is taken (the calendar's own words, with the person in People when the title names one), whether the business is closed, and the windows the receptionist would offer. day: today, tomorrow, a weekday (mon..sun), a date (YYYY-MM-DD), or empty for today. days: how many from there, at most 14. Nothing is booked from here.",
     input_schema: obj({ day: { type: "string" }, days: { type: "number" } }, ["day"]),
-  },
-  {
-    name: "explain_metric",
-    description: "What a word on the pages means: needs you, waiting on you, held draft, answering, snoozed, opted out, 24-hour window, escalation, confidence dial, token budget, veto window, missed call, median reply time, said yes, broadcast, held back, playbook.",
-    input_schema: obj({ term: { type: "string" } }, ["term"]),
   },
 ];
 
@@ -580,11 +575,6 @@ async function getOpenings(t: ToolContext, input: Record<string, unknown>): Prom
   return { state: r.state, text: r.text, days: r.days, service: r.service?.name ?? null };
 }
 
-function explainMetric(input: Record<string, unknown>): unknown {
-  const term = str(input.term, 60).toLowerCase();
-  const key = Object.keys(ASK_DEFINITIONS).find((k) => k === term || term.includes(k) || k.includes(term));
-  return key ? { term: key, meaning: ASK_DEFINITIONS[key] } : { error: "no definition for that term", terms: Object.keys(ASK_DEFINITIONS) };
-}
 
 /* ----------------------------------------------------------- dispatch */
 
@@ -602,7 +592,6 @@ const LABELS: Record<string, string> = {
   list_audiences: "Reading the lists and templates",
   list_playbooks: "Reading the playbooks",
   get_calendar: "Reading the calendar",
-  explain_metric: "Checking a definition",
 };
 
 export function toolLabel(name: string): string {
@@ -766,7 +755,6 @@ export async function runTool(t: ToolContext, run: ToolRun): Promise<ToolOutcome
       case "list_audiences": out = await listAudiences(t); break;
       case "list_playbooks": out = await listPlaybooksTool(t); break;
       case "get_calendar": out = await getCalendar(t, run.input); break;
-      case "explain_metric": out = explainMetric(run.input); break;
       default: return { result: json({ error: `unknown tool ${run.name}` }), isError: true, label };
     }
     const isError = !!(out && typeof out === "object" && "error" in (out as Record<string, unknown>) && Object.keys(out as object).length <= 2);

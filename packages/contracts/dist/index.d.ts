@@ -3817,7 +3817,7 @@ declare const ASK_FINISH_JSON_SCHEMA: {
         };
         readonly citations: {
             readonly type: "array";
-            readonly description: "The rows the answer rests on, taken ONLY from what the tools returned this turn. Each needs the kind, the exact id the tool gave you, and a short label (a name, a day, a call time).";
+            readonly description: "The rows the answer rests on, taken ONLY from what the tools returned this turn, at most four — the ones the answer names. Each needs the kind, the exact id the tool gave you, and a short label (a name, a day, a call time).";
             readonly items: {
                 readonly type: "object";
                 readonly properties: {
@@ -3838,7 +3838,7 @@ declare const ASK_FINISH_JSON_SCHEMA: {
         };
         readonly followups: {
             readonly type: "array";
-            readonly description: "Up to three short questions the person might ask next, in their language. Empty when nothing natural follows.";
+            readonly description: "Up to two short questions the person might ask next, in their language. Empty when nothing natural follows.";
             readonly items: {
                 readonly type: "string";
             };
