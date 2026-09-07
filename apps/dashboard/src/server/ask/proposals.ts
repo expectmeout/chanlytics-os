@@ -75,7 +75,7 @@ export const ACT_TOOLS: ToolDef[] = [
   },
   {
     name: "propose_policy",
-    description: "Propose a change to what the receptionist may do alone: a class (reply, booking, faq, reengage, campaign) and a mode (auto, veto, ask, never), or the reply confidence dial (0 to 1). The money class is locked by charter.",
+    description: "Propose a change to what the receptionist may do alone: a class (reply, booking, faq, reengage, campaign, reviews) and a mode (auto, veto, ask, never), or the reply confidence dial (0 to 1). Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed.",
     input_schema: obj({ class: { type: "string", enum: [...POLICY_CLASSES] }, mode: { type: "string", enum: ["", ...POLICY_MODES] }, min_confidence: { type: "number" } }, ["class", "mode"]),
   },
   {
@@ -266,7 +266,7 @@ async function proposePolicy(t: ToolContext, input: Record<string, unknown>): Pr
   const cls = str(input.class, 20);
   const mode = str(input.mode, 10);
   const conf = typeof input.min_confidence === "number" ? input.min_confidence : null;
-  if (!(POLICY_CLASSES as readonly string[]).includes(cls)) return refuse("class must be reply, booking, faq, reengage, campaign or money");
+  if (!(POLICY_CLASSES as readonly string[]).includes(cls)) return refuse("class must be reply, booking, faq, reengage, campaign, reviews or money");
   if (cls === "money") return refuse("money stays owner-only by charter; that row is locked");
   if (mode && !(POLICY_MODES as readonly string[]).includes(mode)) return refuse("mode must be auto, veto, ask or never");
   if (mode === "veto" && cls !== "reply") return refuse("only replies can be held for review");
