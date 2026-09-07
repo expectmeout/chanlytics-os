@@ -4532,6 +4532,7 @@ function reviewSnippet(body, max = 90) {
 }
 var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS3 = 7 * 864e5;
+var DATE_FMT6 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
 var SignupSchema = external_exports.object({

@@ -4518,6 +4518,7 @@ var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
 var BOOTSTRAP_MS = 3600 * 1e3;
 var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS3 = 7 * 864e5;
+var DATE_FMT6 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
 var SignupSchema = external_exports.object({
@@ -4951,8 +4952,10 @@ var WATCHED = [
   // a line's saga step, its failure, its answer: Setup repaints
   { table: "google_listings", event: "*" },
   // the listing linked, read, or removed: Setup and Reports repaint
-  { table: "google_reviews", event: "INSERT" }
+  { table: "google_reviews", event: "INSERT" },
   // a review seen for the first time
+  { table: "billing_accounts", event: "*" }
+  // Stripe's answer, applied by the webhook: Billing and Setup repaint
 ];
 function subscribeMessagesInserts(client, onInsert, opts = {}) {
   const topic = `db-changes:${opts.topic ?? "bridge"}`;

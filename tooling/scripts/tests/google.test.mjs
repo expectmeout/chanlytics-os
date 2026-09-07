@@ -322,7 +322,7 @@ test("the edge: the key alone on the edge, diag-key verbs, the cron-key sweep, o
   const vercel = JSON.parse(readRaw("apps/edge/vercel.json"));
   assert.equal(vercel.functions["api/admin/google.ts"].maxDuration, 60);
   assert.equal(vercel.functions["api/cron/google.ts"].maxDuration, 60);
-  assert.ok(readCode("apps/edge/lib/notify.ts").includes('"calendar_people", "alert", "review"]'), "the kind is kept, not folded into alert");
+  assert.ok(readCode("apps/edge/lib/notify.ts").includes('"calendar_people", "alert", "review", "billing"]'), "the kind is kept, not folded into alert");
   assert.ok(readRaw("apps/edge/.env.example").includes("GOOGLE_PLACES_API_KEY="));
 });
 
@@ -346,7 +346,7 @@ test("the dashboard: owners link and search, operators read, members look; the p
   const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");
   assert.ok(bridge.includes('key: "google",') && bridge.includes('refreshOnTables: ["google_listings", "google_reviews", "google_connections"],'));
   assert.ok(bridge.includes("refreshSurfaces([googleOverride, setupOverride])"), "a link repaints Setup too");
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("setupOverride, googleOverride]") && readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installGoogle();"));
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("setupOverride, googleOverride, billingOverride]") && readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installGoogle();"));
   const rt = readCode("packages/db/src/realtime.ts");
   assert.ok(rt.includes('{ table: "google_listings", event: "*" }') && rt.includes('{ table: "google_reviews", event: "INSERT" }'));
   const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");

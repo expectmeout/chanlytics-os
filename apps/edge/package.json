@@ -10,10 +10,11 @@
     "@chanlytics/channels": "workspace:*",
     "@chanlytics/contracts": "workspace:*",
     "@chanlytics/db": "workspace:*",
-    "@supabase/supabase-js": "^2.49.0",
-    "@vercel/blob": "^2",
     "@chanlytics/jobs": "workspace:*",
-    "@upstash/qstash": "^2.7.0"
+    "@supabase/supabase-js": "^2.49.0",
+    "@upstash/qstash": "^2.7.0",
+    "@vercel/blob": "^2",
+    "stripe": "22.6.1"
   },
   "devDependencies": {
     "@types/node": "^22",

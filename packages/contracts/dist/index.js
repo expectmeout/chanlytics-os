@@ -125,7 +125,10 @@ var EVENT_KINDS = [
   "google.connected",
   "google.disconnected",
   "google.replied",
-  "workspace.created"
+  "workspace.created",
+  "billing.updated",
+  "billing.paused",
+  "billing.resumed"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
@@ -158,7 +161,9 @@ var ESCALATION_REASONS = [
   /** A booking or a service/pricing question, with that class set to Ask me first on the Autonomy pane: a person answers. */
   "policy_ask",
   /** The phone receptionist could not finish the call: a person calls them back. What to do rides in the details. */
-  "callback"
+  "callback",
+  /** The workspace is paused (billing): messages land, nothing is answered until it resumes. */
+  "paused"
 ];
 var ESCALATION_STATES = ["open", "resolved"];
 var DECISION_VERBS = [
@@ -629,7 +634,8 @@ var ESCALATION_REASON_LABELS = {
   state_unavailable: "The receptionist could not read this thread \u2014 needs a human",
   stale: "Arrived hours late \u2014 too old to answer automatically",
   budget: "The day's model budget is used up \u2014 the receptionist paused itself",
-  callback: "Needs a call back \u2014 the phone receptionist could not finish it"
+  callback: "Needs a call back \u2014 the phone receptionist could not finish it",
+  paused: "Held \u2014 the workspace is paused until billing resumes"
 };
 var ESCALATION_SUMMARIES = {
   human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
@@ -646,7 +652,8 @@ var ESCALATION_SUMMARIES = {
   opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
   state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
   stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
-  callback: "They phoned, and the receptionist could not finish it. Call them back \u2014 the details say what they wanted."
+  callback: "They phoned, and the receptionist could not finish it. Call them back \u2014 the details say what they wanted.",
+  paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself."
 };
 function formatWaited(ms2) {
   return waitedLabel(ms2);
@@ -3648,7 +3655,7 @@ function agoLabel(atMs, now) {
   return agoShort(atMs, now);
 }
 var ALERT_KINDS = ["needs_you", "held_draft", "missed_call"];
-var SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review"];
+var SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing"];
 var SERVER_LOOK = {
   handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   deadman: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
@@ -3660,6 +3667,8 @@ var SERVER_LOOK = {
   calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
   /** A review on Google: good news with somewhere to read it. */
   review: { icon: "star", tone: "ok", action: "Open Reports", to: "reports" },
+  /** The subscription: a trial starting or ending, a card declined, the receptionist paused or back. */
+  billing: { icon: "money", tone: "warn", action: "Open Billing", to: "admin/billing" },
   alert: { icon: "bell", tone: "", action: "Open Today", to: "today" }
 };
 var ROUTE_VERBS = [
@@ -3667,6 +3676,7 @@ var ROUTE_VERBS = [
   [/^admin\/integrations/, "Open Integrations"],
   [/^admin\/workspace/, "Open Workspace"],
   [/^admin\/notifications/, "Open Notifications"],
+  [/^admin\/billing/, "Open Billing"],
   [/^inbox/, "Open the Inbox"],
   [/^conversations\/phone/, "Open the calls"],
   [/^live/, "Open Live"],
@@ -5557,6 +5567,126 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
   };
 }
 
+// src/billing.ts
+var BILLING_MODES = ["stripe", "direct"];
+var BILLING_STATUSES = ["none", "incomplete", "incomplete_expired", "trialing", "active", "past_due", "canceled", "unpaid", "paused"];
+var BILLING_TRIAL_DAYS = 14;
+function receptionistOn(status) {
+  return status === "trialing" || status === "active" || status === "past_due" || status === "incomplete" || status === "none";
+}
+function tenantStatusFor(mode, status) {
+  if (mode !== "stripe") return null;
+  return receptionistOn(status) ? "active" : "paused";
+}
+function planBilling(before, sub, nowMs) {
+  const row = {
+    stripe_subscription_id: sub.id,
+    status: sub.status,
+    price_id: sub.price_id,
+    current_period_end: sub.current_period_end,
+    trial_end: sub.trial_end,
+    cancel_at: sub.cancel_at,
+    cancel_at_period_end: sub.cancel_at_period_end,
+    card_brand: sub.card_brand,
+    card_last4: sub.card_last4
+  };
+  const wanted = tenantStatusFor(before.mode, sub.status);
+  const tenantStatus = wanted && wanted !== before.tenant_status ? wanted : null;
+  const wasOn = receptionistOn(before.status);
+  const isOn = receptionistOn(sub.status);
+  const switched = before.mode === "stripe" && wasOn !== isOn ? isOn ? "resumed" : "paused" : null;
+  let bell = null;
+  if (switched === "paused") {
+    bell = {
+      title: "Your receptionist is paused",
+      body: sub.status === "paused" ? "The trial ended without a card on file. Messages still land in the Inbox; nothing is answered until you resume from Billing." : "The subscription ended. Messages still land in the Inbox; nothing is answered until you resume from Billing."
+    };
+  } else if (switched === "resumed") {
+    bell = { title: "Your receptionist is back", body: "Billing is in order; the receptionist answers again." };
+  } else if (before.status !== "trialing" && sub.status === "trialing") {
+    bell = { title: "Your trial has started", body: `${trialWords(sub.trial_end, nowMs)}. Cancel any time from Billing.` };
+  }
+  return { row, tenantStatus, switched, bell };
+}
+var DATE_FMT6 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+function dayWords(iso) {
+  if (!iso) return "";
+  const ms2 = Date.parse(iso);
+  return Number.isNaN(ms2) ? "" : DATE_FMT6.format(new Date(ms2));
+}
+function trialWords(trialEnd, nowMs) {
+  if (!trialEnd) return "";
+  const end = Date.parse(trialEnd);
+  if (Number.isNaN(end)) return "";
+  const days = Math.ceil((end - nowMs) / 864e5);
+  if (days <= 0) return "Trial ends today";
+  return `${days} day${days === 1 ? "" : "s"} left on the trial, until ${dayWords(trialEnd)}`;
+}
+function priceWords(p) {
+  if (!p || p.unit_amount === null) return "";
+  const amount = new Intl.NumberFormat("en-US", { style: "currency", currency: p.currency.toUpperCase() }).format(p.unit_amount / 100);
+  const per = p.interval === "year" ? "a year" : p.interval === "week" ? "a week" : p.interval === "day" ? "a day" : "a month";
+  return `${amount} ${per}`;
+}
+function toBillingVM(dto, nowMs = Date.now()) {
+  const a = dto.account;
+  const plan = priceWords(dto.price) ? `${dto.price?.product_name ? `${dto.price.product_name} \xB7 ` : ""}${priceWords(dto.price)}` : "";
+  const card = a?.card_brand && a.card_last4 ? `${a.card_brand.charAt(0).toUpperCase()}${a.card_brand.slice(1)} ending ${a.card_last4}` : null;
+  if (!a || a.mode === "direct") {
+    return { mode: "direct", status: a?.status ?? "active", headline: "Direct arrangement", detail: "This workspace runs on an arrangement made with Chanlytics; nothing on this screen charges anything.", tone: "", plan, card: null, actions: { checkout: false, portal: false, resume: false }, paused: false };
+  }
+  const s = a.status;
+  const base = { mode: "stripe", status: s, plan, card };
+  switch (s) {
+    case "none":
+      return { ...base, headline: "No subscription yet", detail: dto.ready ? `Start the ${dto.trial_days}-day trial with a card; nothing is charged until it ends, and you can cancel from here any time.` : "Billing is not available on this deployment yet.", tone: "warn", actions: { checkout: dto.ready, portal: false, resume: false }, paused: false };
+    case "trialing":
+      return { ...base, headline: "On trial", detail: `${trialWords(a.trial_end, nowMs)}${card ? `, then ${plan || "the plan"} on ${card}` : ""}.`, tone: "ok", actions: { checkout: false, portal: true, resume: false }, paused: false };
+    case "active":
+      return { ...base, headline: a.cancel_at_period_end || a.cancel_at ? "Subscribed, ending" : "Subscribed", detail: a.cancel_at || a.cancel_at_period_end ? `Ends ${dayWords(a.cancel_at ?? a.current_period_end)}; the receptionist answers until then.` : `Next invoice ${dayWords(a.current_period_end) || "on the renewal date"}${card ? ` on ${card}` : ""}.`, tone: "ok", actions: { checkout: false, portal: true, resume: false }, paused: false };
+    case "past_due":
+      return { ...base, headline: "Payment failed", detail: `${a.last_payment_failed_at ? `The last charge failed ${agoWords(Date.parse(a.last_payment_failed_at), nowMs)}. ` : ""}Stripe retries for a few days; update the card in Manage billing to keep the receptionist answering.`, tone: "danger", actions: { checkout: false, portal: true, resume: false }, paused: false };
+    case "incomplete":
+      return { ...base, headline: "Finishing checkout", detail: "The first payment is still being confirmed. This page updates by itself.", tone: "warn", actions: { checkout: false, portal: true, resume: false }, paused: false };
+    case "paused":
+      return { ...base, headline: "Paused", detail: "The trial ended without a card on file. Add one in Manage billing, then resume; messages keep landing in the Inbox meanwhile.", tone: "danger", actions: { checkout: false, portal: true, resume: true }, paused: true };
+    case "unpaid":
+      return { ...base, headline: "Paused", detail: "Payment could not be collected after several tries. Update the card in Manage billing, then resume.", tone: "danger", actions: { checkout: false, portal: true, resume: true }, paused: true };
+    case "canceled":
+    case "incomplete_expired":
+    default:
+      return { ...base, headline: "Subscription ended", detail: dto.ready ? `Start again with a card; the ${dto.trial_days}-day trial applies once.` : "Billing is not available on this deployment yet.", tone: "danger", actions: { checkout: dto.ready, portal: !!a.card_brand, resume: false }, paused: true };
+  }
+}
+var CHECKOUT_OUTCOME_WORDS = {
+  success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
+  cancel: "Checkout was closed before finishing; nothing was charged.",
+  portal: "Back from Stripe. Any change you made there shows here within a minute."
+};
+function moneyWords(amountCents, currency) {
+  try {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(amountCents / 100);
+  } catch {
+    return `${(amountCents / 100).toFixed(2)} ${currency.toUpperCase()}`;
+  }
+}
+function billingAccountDto(r) {
+  return {
+    mode: r.mode === "direct" ? "direct" : "stripe",
+    status: BILLING_STATUSES.includes(r.status ?? "") ? r.status : "none",
+    price_id: r.price_id ?? null,
+    current_period_end: r.current_period_end ?? null,
+    trial_end: r.trial_end ?? null,
+    cancel_at: r.cancel_at ?? null,
+    cancel_at_period_end: !!r.cancel_at_period_end,
+    card_brand: r.card_brand ?? null,
+    card_last4: r.card_last4 ?? null,
+    last_payment_failed_at: r.last_payment_failed_at ?? null,
+    last_paid_at: r.last_paid_at ?? null,
+    updated_at: r.updated_at
+  };
+}
+
 // src/setup.ts
 var LINE_STEP_WORDS = {
   subaccount: "opening your account with the carrier",
@@ -5586,6 +5716,20 @@ function setupSteps(i, nowMs = Date.now()) {
   const handoffNum = display(i.business.handoff);
   const rows = [];
   const row = (r) => rows.push({ ...r, stateWords: r.stateWords ?? SETUP_STATE_WORDS[r.state], later: !r.required && later.has(r.id) });
+  if (i.billing && i.billing.mode === "stripe" && i.billing.ready) {
+    const b = i.billing;
+    if (b.status === "trialing") {
+      row({ id: "billing", icon: "money", title: "Billing", state: "ready", required: true, sentence: `On trial: ${trialWords(b.trial_end, nowMs) || "the card is on file"}.`, details: ["The card on file is charged when the trial ends; cancel from Billing before then if you'd rather not"], verb: { label: "Open Billing", to: "admin/billing" } });
+    } else if (b.status === "active" || b.status === "incomplete") {
+      row({ id: "billing", icon: "money", title: "Billing", state: "ready", required: true, sentence: b.status === "active" ? `Subscribed \xB7 next invoice ${dayWords(b.current_period_end) || "on the renewal date"}.` : "Finishing checkout \u2014 this page updates by itself.", details: [], verb: { label: "Open Billing", to: "admin/billing" } });
+    } else if (b.status === "past_due") {
+      row({ id: "billing", icon: "money", title: "Billing", state: "waiting_you", required: true, sentence: "The last payment failed. Update the card to keep the receptionist answering.", details: ["Stripe retries for a few days, then pauses the subscription"], verb: { label: "Update the card", to: "verb:billing-portal" } });
+    } else if (b.status === "paused" || b.status === "unpaid") {
+      row({ id: "billing", icon: "money", title: "Billing", state: "waiting_you", required: true, sentence: "Your receptionist is paused: messages land in the Inbox, nothing is answered.", details: [b.status === "paused" ? "The trial ended without a card on file" : "Payment could not be collected"], verb: { label: "Resume in Billing", to: "admin/billing" } });
+    } else {
+      row({ id: "billing", icon: "money", title: "Billing", state: "not_started", required: true, sentence: `Start the ${b.trial_days}-day trial with a card \u2014 nothing is charged until it ends.`, details: ["Cancel any time from Billing", "The receptionist answers through the trial"], verb: { label: "Start the trial", to: "verb:billing-checkout" } });
+    }
+  }
   {
     const b = i.business;
     const missing = [!b.name ? "a name" : "", !b.hours ? "hours" : "", b.services === 0 ? "services" : ""].filter(Boolean);
@@ -5857,6 +6001,9 @@ export {
   AskFinishSchema,
   AskProposalOutcomeSchema,
   AskSettingsChangeSchema,
+  BILLING_MODES,
+  BILLING_STATUSES,
+  BILLING_TRIAL_DAYS,
   BOOKING_DEFAULTS,
   BRAIN_INTENTS,
   BRAIN_LANGUAGES,
@@ -5880,6 +6027,7 @@ export {
   CARRIERS,
   CARRIER_WORDS,
   CHANNEL_KINDS,
+  CHECKOUT_OUTCOME_WORDS,
   CONFIDENCE_STEPS,
   CONSENT_RESET_SOURCE,
   CONSENT_SOURCES,
@@ -6006,6 +6154,7 @@ export {
   attentionRow,
   autoReplyBell,
   autoReplyCandidates,
+  billingAccountDto,
   bookedAfterAsk,
   brainMetaOf,
   broadcastName,
@@ -6035,6 +6184,7 @@ export {
   dayFromQuestion,
   dayInZone,
   dayIntervals2 as dayIntervals,
+  dayWords,
   dedupeFeed,
   defaultParamSpecs,
   defaultSlotKinds,
@@ -6108,6 +6258,7 @@ export {
   messageStatusLabel,
   messageText,
   mondayOf,
+  moneyWords,
   monthLabelOf,
   monthSpan,
   navigateLabel,
@@ -6137,17 +6288,20 @@ export {
   personStateFor,
   placeholdersOf,
   placeholdersSequential,
+  planBilling,
   planRun,
   pointsDelta,
   policyAskClass,
   policyClassOfIntent,
   policyRules,
+  priceWords,
   quantile,
   ratingWords,
   reachedCustomer,
   readAgoLabel,
   reasonShort,
   recencyCells,
+  receptionistOn,
   recoverCitations,
   renderTemplate,
   replyDelayMs,
@@ -6195,8 +6349,10 @@ export {
   templateComponents,
   templateNameOk,
   templateTitle,
+  tenantStatusFor,
   threadStanding,
   tidyCallSummary,
+  toBillingVM,
   toBookingReportVM,
   toBroadcastVM,
   toCalendarVM,
@@ -6219,6 +6375,7 @@ export {
   todayDayFacts,
   todayJourney,
   todayWeek,
+  trialWords,
   triggerOf,
   tzClock,
   validateTemplateDraft,

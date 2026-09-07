@@ -291,7 +291,7 @@ test("wiring: Settings tab, manifest, bridge, routes, registry, rate bucket, eve
   assert.ok(settings.includes('{active.id === "setup" && window.PaneSetup && <window.PaneSetup />}'), "the pane is the page's component");
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/setup.jsx";'));
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
-  assert.ok(app.includes("installSetup();") && app.includes("notificationsOverride, setupOverride, googleOverride];"), "the surface boots with the rest");
+  assert.ok(app.includes("installSetup();") && app.includes("notificationsOverride, setupOverride, googleOverride, billingOverride];"), "the surface boots with the rest");
   const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
   assert.ok(reg.includes('"admin/setup": "real",') && reg.includes('"admin/setup": "setup",'), "the route waits for its surface");
   assert.ok(readCode("apps/dashboard/src/server/rate-limit.ts").includes('setup_request: { limit: 5, windowMs: 3_600_000, noun: "setup requests" },'));

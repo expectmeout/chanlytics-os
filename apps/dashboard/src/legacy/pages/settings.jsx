@@ -2452,7 +2452,7 @@ const PaneBilling = ({ flash }) => {
 };
 
 // ---------- Page ----------
-// ---------- Not built yet: Billing and AI memory, said in the pane ----------
+// ---------- Not built yet: AI memory, said in the pane (Billing is real: billing-real.jsx) ----------
 // Outside a demo these two tabs used to fall through the shell's gate, which
 // replaced the WHOLE settings page with a bare card titled "billing" and a
 // "Back to Today" button — the owner lost the settings nav for clicking a tab.
@@ -2464,12 +2464,6 @@ const SET_SOON = {
     chip: "Not built yet",
     body: "The receptionist does not learn rules on its own yet. Everything it knows comes from Workspace: the business details, hours, services, notes and the extra instructions saved there.",
     action: { label: "Open Workspace", tab: "workspace", icon: "home" },
-  },
-  billing: {
-    title: "Billing",
-    chip: "Not built yet",
-    body: "There is no billing in the product yet. This workspace runs on a direct arrangement, and nothing on this screen charges anything.",
-    action: null,
   },
 };
 
@@ -2509,7 +2503,7 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
         {active.id === "integrations" && (window.__CHANNELS === undefined ? <PaneIntegrations flash={flash} /> : <PaneIntegrationsReal />)}
         {active.id === "memory" && (window.__SETTINGS === undefined ? <PaneMemory flash={flash} /> : <PaneSoon which="memory" onTab={onTab} />)}
         {active.id === "notifications" && (window.__SETTINGS === undefined ? <PaneNotifications /> : <PaneNotificationsReal flash={flash} />)}
-        {active.id === "billing" && (window.__SETTINGS === undefined ? <PaneBilling flash={flash} /> : <PaneSoon which="billing" onTab={onTab} />)}
+        {active.id === "billing" && (window.__SETTINGS === undefined ? <PaneBilling flash={flash} /> : <window.PaneBillingReal flash={flash} />)}
       </div>
 
       {toastNode}

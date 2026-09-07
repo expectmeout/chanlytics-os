@@ -80,6 +80,8 @@ export const RATE = {
   /** A reply reaches Google under the business's name. */
   google_reply: { limit: 20, windowMs: 3_600_000, noun: "review replies" },
   google_draft: { limit: 30, windowMs: 3_600_000, noun: "review drafts" },
+  /** A Checkout or portal session, an invoice list, a resume: each a call to Stripe for an owner. */
+  billing: { limit: 20, windowMs: 3_600_000, noun: "billing requests" },
   /** A whole thread, a whole call, or everyone, as a file. */
   export: { limit: 10, windowMs: 60_000, noun: "exports" },
   /** A question to the workspace assistant: a model turn, tools and all. */

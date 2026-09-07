@@ -4541,6 +4541,7 @@ var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
 var BOOTSTRAP_MS = 3600 * 1e3;
 var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS3 = 7 * 864e5;
+var DATE_FMT6 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
 var SignupSchema = external_exports.object({
@@ -8733,7 +8734,7 @@ var BrainOutputSchema2 = external_exports2.object({
 var WA_WINDOW_MS2 = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS2 = 10 * 60 * 1e3;
 var TIME_FMT3 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DATE_FMT6 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT7 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var POLICY_CLASS_WORDS2 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
@@ -9192,6 +9193,7 @@ var REVIEW_NEWS_MAX_AGE_MS2 = 14 * 864e5;
 var BOOTSTRAP_MS2 = 3600 * 1e3;
 var DATE_FMT52 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS32 = 7 * 864e5;
+var DATE_FMT62 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN2 = 2;
 var SIGNUP_NAME_MAX2 = 120;
 var SignupSchema2 = external_exports2.object({
@@ -13296,7 +13298,7 @@ var BrainOutputSchema3 = external_exports3.object({
 var WA_WINDOW_MS3 = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS3 = 10 * 60 * 1e3;
 var TIME_FMT4 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DATE_FMT7 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT8 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var POLICY_CLASS_WORDS3 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
@@ -13698,6 +13700,7 @@ var REVIEW_NEWS_MAX_AGE_MS3 = 14 * 864e5;
 var BOOTSTRAP_MS3 = 3600 * 1e3;
 var DATE_FMT53 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS33 = 7 * 864e5;
+var DATE_FMT63 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN3 = 2;
 var SIGNUP_NAME_MAX3 = 120;
 var SignupSchema3 = external_exports3.object({
