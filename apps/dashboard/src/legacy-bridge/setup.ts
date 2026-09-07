@@ -20,6 +20,19 @@ export interface SetupApi {
   later(id: string, on: boolean): void;
   /** Ask a person at Chanlytics for something the product cannot provision yet. */
   request(what: "line"): Promise<{ ok: boolean; already: boolean; message: string }>;
+  /** The product's own line: numbers to choose from, the one chosen, a retry. Owners only; the route says so. */
+  lines: {
+    search(areaCode: string): Promise<{ ok: boolean; numbers: LineChoice[]; message: string }>;
+    buy(number: string, areaCode: string): Promise<{ ok: boolean; message: string }>;
+    retry(lineId: string): Promise<{ ok: boolean; message: string }>;
+  };
+}
+
+export interface LineChoice {
+  e164: string;
+  friendly: string;
+  locality: string | null;
+  region: string | null;
 }
 
 declare global {
@@ -57,11 +70,25 @@ export const setupOverride: SurfaceOverride = {
   key: "setup",
   globals: ["__SETUP"],
   events: ["surface:setup"],
+  // A line's saga records every step on its row, and the bell a step raises.
+  refreshOnTables: ["lines", "notifications"],
   apply: async () => {
     const d = await fetchEnvelope<{ setup: SetupDto; role: string }>("/api/v1/setup");
     publish(d.setup, d.role);
   },
 };
+
+/** One POST to a v1 route: the envelope's data, or its error in a sentence. Never throws. */
+async function post<T>(path: string, body: unknown): Promise<{ ok: boolean; data: T | null; message: string }> {
+  try {
+    const res = await fetch(scoped(path), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const parsed = (await res.json().catch(() => null)) as { data?: T; error?: { message?: string } } | null;
+    if (res.ok) return { ok: true, data: parsed?.data ?? null, message: "" };
+    return { ok: false, data: null, message: parsed?.error?.message ?? `HTTP ${res.status}` };
+  } catch (e) {
+    return { ok: false, data: null, message: e instanceof Error ? e.message : String(e) };
+  }
+}
 
 export function installSetup(win: Window = window): void {
   win.__setup = {
@@ -73,6 +100,24 @@ export function installSetup(win: Window = window): void {
         publish(s.dto, s.role);
         win.dispatchEvent(new CustomEvent("surface:setup"));
       }
+    },
+    lines: {
+      async search(areaCode) {
+        const r = await post<{ numbers?: LineChoice[] }>("/api/v1/lines/search", { area_code: areaCode });
+        return { ok: r.ok, numbers: r.ok ? (r.data?.numbers ?? []) : [], message: r.message };
+      },
+      async buy(number, areaCode) {
+        const r = await post<{ ok?: boolean; error?: string | null }>("/api/v1/lines/buy", { number, area_code: areaCode });
+        await refreshSurfaces([setupOverride]);
+        if (!r.ok) return { ok: false, message: r.message };
+        return { ok: r.data?.ok === true, message: r.data?.ok ? "" : "" };
+      },
+      async retry(lineId) {
+        const r = await post<{ ok?: boolean; error?: string | null }>("/api/v1/lines/retry", { line_id: lineId });
+        await refreshSurfaces([setupOverride]);
+        if (!r.ok) return { ok: false, message: r.message };
+        return { ok: r.data?.ok === true, message: r.data?.ok ? "" : "It stopped again — a person at Chanlytics has it." };
+      },
     },
     async request(what) {
       try {
