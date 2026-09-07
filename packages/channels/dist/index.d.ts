@@ -939,4 +939,137 @@ declare function retellImportBody(o: {
 declare function nextLineStep(line: LineRow): LineStep | null;
 declare function runLineSaga(start: LineRow, ports: LinePorts): Promise<SagaResult>;
 
-export { type AgentPlan, type AvailableNumber, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, DEFAULT_FN_URL, type DryCall, type DryProvider, FACTS_UNAVAILABLE, GREETING_DEFAULT, HANDOFF_VAR, LINE_COSTS, LINE_STEPS, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, type ProviderAccount, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, RETELL_ORIGINATION, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type SagaResult, type SendResult, type TwilioAnswer, TwilioError, type TwilioHttp, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, agentSettingsDrift, availabilityUrl, callSummaryLine, chooseLineProvider, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, desiredVoiceShell, dryProvider, fetchMediaBytes, fetchRecording, fetchTwilio, getAgent, getAgentRaw, getCall, getPhoneNumber, getRetellLlm, importPhoneNumber, isAreaCode, isE164, isValidSipPassword, listCalls, liveTurns, needsHydration, nextLineStep, normalizeCall, normalizeInbound, parseTranscriptText, planAgentSettings, planVoiceConvergence, planVoiceProvision, publishAgentVersion, retellImportBody, runLineSaga, sendTemplate, sendText, sipPassword, sipUsername, stripKey, trunkDomain, twilioProvider, twilioUrls, updateAgent, updateLiveCall, updatePhoneNumber, verifyRetellSignature, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withKey };
+/**
+ * Google Places (New): the public listing — what anyone can read on Maps.
+ *
+ * Two calls, pinned to the documented shapes. Text Search finds the business
+ * from its name and address and asks for Pro fields only (a name, an
+ * address, a link — never the rating, which would bill the Enterprise SKU
+ * for a search the owner confirms by eye anyway). Place Details reads what
+ * the listing says: the rating, the count, and the five reviews Google shows
+ * first — `reviews` is the Enterprise + Atmosphere field, the one that
+ * costs, and it is asked for once a day per workspace.
+ *
+ * The key travels in a header and the field mask in another; without the
+ * mask Google refuses the call. HTTP is a port, so the planner beside this
+ * (google-sync.ts) and every test run without a network.
+ */
+declare const PLACES_BASE = "https://places.googleapis.com/v1";
+declare const PLACES_SEARCH_MASK = "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,places.businessStatus";
+declare const PLACES_DETAILS_MASK = "id,displayName,formattedAddress,googleMapsUri,businessStatus,rating,userRatingCount,reviews";
+/** Candidates shown to the owner: a handful, never a page of twenty. */
+declare const PLACES_SEARCH_LIMIT = 5;
+declare const PLACES_TIMEOUT_MS = 10000;
+interface PlacesRequest {
+    url: string;
+    method: "GET" | "POST";
+    headers: Record<string, string>;
+    body?: string;
+}
+/** One HTTP round trip. The real one is placesFetch(); tests hand in a fake. */
+type PlacesHttp = (req: PlacesRequest) => Promise<{
+    status: number;
+    body: string;
+}>;
+declare class PlacesError extends Error {
+    readonly status: number;
+    constructor(status: number, message: string);
+}
+interface PlaceCandidate {
+    place_id: string;
+    name: string;
+    address: string | null;
+    maps_uri: string | null;
+    business_status: string | null;
+}
+interface PlaceReview {
+    review_id: string;
+    rating: number | null;
+    author: string | null;
+    author_uri: string | null;
+    author_photo_uri: string | null;
+    text: string | null;
+    language_code: string | null;
+    published_at: string | null;
+    maps_uri: string | null;
+}
+interface PlaceDetails {
+    place_id: string;
+    name: string;
+    address: string | null;
+    maps_uri: string | null;
+    business_status: string | null;
+    rating: number | null;
+    review_count: number | null;
+    reviews: PlaceReview[];
+}
+/** Text Search: the query as the owner or the facts give it; a handful of results. */
+declare function placesSearchRequest(key: string, query: string, opts?: {
+    limit?: number;
+    languageCode?: string;
+}): PlacesRequest;
+/** Place Details: the listing by its id, with the reviews. */
+declare function placesDetailsRequest(key: string, placeId: string, opts?: {
+    languageCode?: string;
+}): PlacesRequest;
+/** A review's id is the last segment of its resource name, places/{place}/reviews/{review}. */
+declare function reviewIdOf(name: unknown): string | null;
+declare function parsePlacesSearch(json: unknown): PlaceCandidate[];
+declare function parsePlaceDetails(json: unknown): PlaceDetails;
+declare function searchPlaces(http: PlacesHttp, key: string, query: string, opts?: {
+    limit?: number;
+    languageCode?: string;
+}): Promise<PlaceCandidate[]>;
+declare function getPlace(http: PlacesHttp, key: string, placeId: string, opts?: {
+    languageCode?: string;
+}): Promise<PlaceDetails>;
+/** The real port: fetch with a timeout, the body as text whatever the status. */
+declare function placesFetch(fetchImpl?: typeof fetch, timeoutMs?: number): PlacesHttp;
+/** A place id as Google issues them: letters, digits, dashes and underscores. */
+declare const PLACE_ID: RegExp;
+
+interface ListingBefore {
+    rating: number | null;
+    review_count: number | null;
+    /** The previous successful read; null before the first. */
+    checked_at: string | null;
+}
+interface ReviewBell {
+    title: string;
+    body: string;
+    /** The review it is about, when it is about one. */
+    review_id: string | null;
+}
+interface ListingCheckPlan {
+    listing: {
+        name: string;
+        address: string | null;
+        maps_uri: string | null;
+        business_status: string | null;
+        rating: number | null;
+        review_count: number | null;
+        checked_at: string;
+        check_error: null;
+    };
+    day: {
+        day: string;
+        rating: number | null;
+        review_count: number;
+    };
+    /** Every review Google showed, to upsert; the row keeps its first_seen_at. */
+    reviews: Array<PlaceReview & {
+        last_seen_at: string;
+    }>;
+    /** Not on record and written since the previous check: news. */
+    fresh: PlaceReview[];
+    /** Ratings gained by Google's count since the previous read; 0 on the first. */
+    counted: number;
+    bells: ReviewBell[];
+}
+/** More new reviews than this in one check become one row, not a pile. */
+declare const REVIEW_BELL_MAX = 3;
+/** A review dated up to this long before the previous check still counts as written since it: Google's clock and ours differ, and a review can be dated by its visit. */
+declare const FRESH_SLACK_MS: number;
+declare function planListingCheck(before: ListingBefore, knownIds: ReadonlySet<string>, fresh: PlaceDetails, day: string, nowMs: number): ListingCheckPlan;
+
+export { type AgentPlan, type AvailableNumber, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, DEFAULT_FN_URL, type DryCall, type DryProvider, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GREETING_DEFAULT, HANDOFF_VAR, LINE_COSTS, LINE_STEPS, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type ProviderAccount, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, RETELL_ORIGINATION, REVIEW_BELL_MAX, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, type SagaResult, type SendResult, type TwilioAnswer, TwilioError, type TwilioHttp, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, agentSettingsDrift, availabilityUrl, callSummaryLine, chooseLineProvider, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, desiredVoiceShell, dryProvider, fetchMediaBytes, fetchRecording, fetchTwilio, getAgent, getAgentRaw, getCall, getPhoneNumber, getPlace, getRetellLlm, importPhoneNumber, isAreaCode, isE164, isValidSipPassword, listCalls, liveTurns, needsHydration, nextLineStep, normalizeCall, normalizeInbound, parsePlaceDetails, parsePlacesSearch, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planVoiceConvergence, planVoiceProvision, publishAgentVersion, retellImportBody, reviewIdOf, runLineSaga, searchPlaces, sendTemplate, sendText, sipPassword, sipUsername, stripKey, trunkDomain, twilioProvider, twilioUrls, updateAgent, updateLiveCall, updatePhoneNumber, verifyRetellSignature, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withKey };

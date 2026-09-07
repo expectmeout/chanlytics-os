@@ -1239,6 +1239,162 @@ type Database = {
                 };
                 Relationships: [];
             };
+            google_listing_days: {
+                Row: {
+                    day: string;
+                    rating: number | null;
+                    review_count: number;
+                    tenant_id: string;
+                };
+                Insert: {
+                    day: string;
+                    rating?: number | null;
+                    review_count: number;
+                    tenant_id: string;
+                };
+                Update: {
+                    day?: string;
+                    rating?: number | null;
+                    review_count?: number;
+                    tenant_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "google_listing_days_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "google_listings";
+                        referencedColumns: ["tenant_id"];
+                    }
+                ];
+            };
+            google_listings: {
+                Row: {
+                    address: string | null;
+                    business_status: string | null;
+                    check_error: string | null;
+                    checked_at: string | null;
+                    created_at: string;
+                    facts: Json;
+                    linked_at: string;
+                    linked_by: string | null;
+                    maps_uri: string | null;
+                    name: string;
+                    place_id: string;
+                    rating: number | null;
+                    review_count: number | null;
+                    tenant_id: string;
+                    updated_at: string;
+                };
+                Insert: {
+                    address?: string | null;
+                    business_status?: string | null;
+                    check_error?: string | null;
+                    checked_at?: string | null;
+                    created_at?: string;
+                    facts?: Json;
+                    linked_at?: string;
+                    linked_by?: string | null;
+                    maps_uri?: string | null;
+                    name: string;
+                    place_id: string;
+                    rating?: number | null;
+                    review_count?: number | null;
+                    tenant_id: string;
+                    updated_at?: string;
+                };
+                Update: {
+                    address?: string | null;
+                    business_status?: string | null;
+                    check_error?: string | null;
+                    checked_at?: string | null;
+                    created_at?: string;
+                    facts?: Json;
+                    linked_at?: string;
+                    linked_by?: string | null;
+                    maps_uri?: string | null;
+                    name?: string;
+                    place_id?: string;
+                    rating?: number | null;
+                    review_count?: number | null;
+                    tenant_id?: string;
+                    updated_at?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "google_listings_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: true;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            google_reviews: {
+                Row: {
+                    author: string | null;
+                    author_photo_uri: string | null;
+                    author_uri: string | null;
+                    body: string | null;
+                    first_seen_at: string;
+                    id: string;
+                    language_code: string | null;
+                    last_seen_at: string;
+                    maps_uri: string | null;
+                    origin: string;
+                    published_at: string | null;
+                    rating: number | null;
+                    replied_at: string | null;
+                    reply_text: string | null;
+                    review_id: string;
+                    tenant_id: string;
+                };
+                Insert: {
+                    author?: string | null;
+                    author_photo_uri?: string | null;
+                    author_uri?: string | null;
+                    body?: string | null;
+                    first_seen_at?: string;
+                    id?: string;
+                    language_code?: string | null;
+                    last_seen_at?: string;
+                    maps_uri?: string | null;
+                    origin?: string;
+                    published_at?: string | null;
+                    rating?: number | null;
+                    replied_at?: string | null;
+                    reply_text?: string | null;
+                    review_id: string;
+                    tenant_id: string;
+                };
+                Update: {
+                    author?: string | null;
+                    author_photo_uri?: string | null;
+                    author_uri?: string | null;
+                    body?: string | null;
+                    first_seen_at?: string;
+                    id?: string;
+                    language_code?: string | null;
+                    last_seen_at?: string;
+                    maps_uri?: string | null;
+                    origin?: string;
+                    published_at?: string | null;
+                    rating?: number | null;
+                    replied_at?: string | null;
+                    reply_text?: string | null;
+                    review_id?: string;
+                    tenant_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "google_reviews_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "google_listings";
+                        referencedColumns: ["tenant_id"];
+                    }
+                ];
+            };
             idempotency_keys: {
                 Row: {
                     created_at: string;
@@ -2625,6 +2781,10 @@ type Database = {
                 Returns: number;
             };
             trigger_deadman_sweep: {
+                Args: never;
+                Returns: number;
+            };
+            trigger_google_sweep: {
                 Args: never;
                 Returns: number;
             };

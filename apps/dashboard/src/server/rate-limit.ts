@@ -62,6 +62,10 @@ export const RATE = {
   lines_retry: { limit: 10, windowMs: 3_600_000, noun: "line retries" },
   lines_forwarding: { limit: 10, windowMs: 3_600_000, noun: "forwarding changes" },
   profile_set: { limit: 10, windowMs: 3_600_000, noun: "name changes" },
+  /** Each is a paid call to Google, made for an owner who typed a few words. */
+  google_search: { limit: 20, windowMs: 3_600_000, noun: "listing searches" },
+  google_link: { limit: 10, windowMs: 3_600_000, noun: "listing changes" },
+  google_refresh: { limit: 6, windowMs: 3_600_000, noun: "listing reads" },
   /** A whole thread, a whole call, or everyone, as a file. */
   export: { limit: 10, windowMs: 60_000, noun: "exports" },
   /** A question to the workspace assistant: a model turn, tools and all. */

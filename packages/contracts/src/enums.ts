@@ -83,6 +83,10 @@ export const EVENT_KINDS = [
   "line.failed",
   "line.released",
   "line.forwarding_verified",
+  /** The workspace's listing on Google: linked, removed, and a read that found new reviews or ratings. */
+  "google.linked",
+  "google.unlinked",
+  "google.reviews",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 

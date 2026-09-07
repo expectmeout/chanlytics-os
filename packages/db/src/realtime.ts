@@ -28,6 +28,8 @@ const WATCHED: Array<{ table: string; event: "INSERT" | "*" }> = [
   { table: "calls", event: "*" },           // a call starting, each live turn, its end, its analysis
   { table: "notifications", event: "INSERT" }, // an alert the edge kept: the bell repaints
   { table: "lines", event: "*" },           // a line's saga step, its failure, its answer: Setup repaints
+  { table: "google_listings", event: "*" }, // the listing linked, read, or removed: Setup and Reports repaint
+  { table: "google_reviews", event: "INSERT" }, // a review seen for the first time
 ];
 
 export function subscribeMessagesInserts(

@@ -38,7 +38,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   assert.ok(route.includes("read: !!m?.read_at, dismissed: !!m?.dismissed_at,"), "this person's marks ride on each row");
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes('key: "notifications",') && sd.includes('refreshOnTables: ["notifications"],'), "repaints as the edge writes a row");
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("calendarOverride, notificationsOverride, setupOverride]"));
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("calendarOverride, notificationsOverride, setupOverride, googleOverride]"));
   assert.ok(readCode("packages/db/src/realtime.ts").includes('{ table: "notifications", event: "INSERT" }'), "the channel watches the table");
   const bell = readCode("apps/dashboard/src/legacy-bridge/notifications.ts");
   assert.ok(bell.includes("dedupeFeed([...applyReadState(feedFromGlobals(win, Date.now()), state()), ...serverNotificationRows(win.__NOTIFICATIONS?.dto)]).sort((a, b) => b.at - a.at)"), "derived beside kept, once, newest first");

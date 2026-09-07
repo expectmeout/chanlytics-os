@@ -1,0 +1,360 @@
+/**
+ * Google, step one: the public listing found from facts and watched.
+ *
+ * The two Places calls are pinned to the documented shapes without a
+ * network; the check planner's truth table is the contract for what counts
+ * as new; the view model, the Setup row and Today's line are executed; and
+ * the wiring pins keep the edge, the routes, the bridge, the migration and
+ * the manifests saying the same thing.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import {
+  placesSearchRequest, placesDetailsRequest, parsePlacesSearch, parsePlaceDetails, searchPlaces, getPlace, reviewIdOf,
+  PLACES_SEARCH_MASK, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PlacesError, PLACE_ID,
+  planListingCheck, REVIEW_BELL_MAX, FRESH_SLACK_MS,
+} from "@chanlytics/channels";
+import {
+  toGoogleVM, gainedOver, reviewIsNew, ratingWords, starsOf, listingLine, checkedWords, reviewSnippet,
+  setupSteps, serverNotificationRows, verbForRoute, EVENT_KINDS, SERVER_NOTIFICATION_KINDS, GOOGLE_SHOWN_REVIEWS,
+} from "@chanlytics/contracts";
+import { readCode, readRaw } from "./_source.mjs";
+
+const NOW = Date.parse("2026-09-07T15:00:00Z");
+const KEY = "AIza-test-key-not-real";
+
+/* ------------------------------------------------------------ the two calls */
+
+test("Text Search asks Google's documented endpoint for a handful of Pro fields, never the rating", () => {
+  const r = placesSearchRequest(KEY, "Northside Movers, Brooklyn");
+  assert.equal(r.url, "https://places.googleapis.com/v1/places:searchText");
+  assert.equal(r.method, "POST");
+  assert.equal(r.headers["X-Goog-Api-Key"], KEY);
+  assert.equal(r.headers["X-Goog-FieldMask"], PLACES_SEARCH_MASK);
+  assert.equal(r.headers["Content-Type"], "application/json");
+  assert.deepEqual(JSON.parse(r.body), { textQuery: "Northside Movers, Brooklyn", pageSize: PLACES_SEARCH_LIMIT, languageCode: "en" });
+  assert.ok(!PLACES_SEARCH_MASK.includes("rating"), "the search stays on the Pro SKU");
+  assert.ok(PLACES_SEARCH_MASK.split(",").every((f) => f.startsWith("places.")), "search fields are prefixed");
+  assert.equal(JSON.parse(placesSearchRequest(KEY, "x", { limit: 99 }).body).pageSize, 20, "pageSize is 1..20");
+});
+
+test("Place Details asks by id with the reviews in the mask, the id encoded, the language named", () => {
+  const r = placesDetailsRequest(KEY, "ChIJN1t_tDeuEmsRUsoyG83frY4");
+  assert.equal(r.url, "https://places.googleapis.com/v1/places/ChIJN1t_tDeuEmsRUsoyG83frY4?languageCode=en");
+  assert.equal(r.method, "GET");
+  assert.equal(r.headers["X-Goog-FieldMask"], PLACES_DETAILS_MASK);
+  for (const f of ["id", "displayName", "formattedAddress", "googleMapsUri", "businessStatus", "rating", "userRatingCount", "reviews"]) assert.ok(PLACES_DETAILS_MASK.split(",").includes(f), f);
+  assert.equal(r.body, undefined);
+  assert.ok(PLACE_ID.test("ChIJN1t_tDeuEmsRUsoyG83frY4") && !PLACE_ID.test("short") && !PLACE_ID.test("has spaces in it here"));
+});
+
+const PLACE = {
+  id: "ChIJN1t_tDeuEmsRUsoyG83frY4",
+  displayName: { text: "Northside Movers", languageCode: "en" },
+  formattedAddress: "1200 Harbor Blvd, Brooklyn, NY 11201, USA",
+  googleMapsUri: "https://maps.google.com/?cid=1",
+  businessStatus: "OPERATIONAL",
+  rating: 4.8,
+  userRatingCount: 213,
+  reviews: [
+    { name: "places/ChIJN1t_tDeuEmsRUsoyG83frY4/reviews/r-ana", rating: 5, text: { text: "Fast, careful, and on time.", languageCode: "en" }, authorAttribution: { displayName: "Ana P.", uri: "https://maps.google.com/u/1", photoUri: "https://lh3/x" }, publishTime: "2026-09-07T13:00:00Z", googleMapsUri: "https://maps.google.com/r/1" },
+    { name: "places/ChIJN1t_tDeuEmsRUsoyG83frY4/reviews/r-old", rating: 4, text: { text: "Good crew.", languageCode: "en" }, authorAttribution: { displayName: "Ben" }, publishTime: "2025-01-10T13:00:00Z" },
+    { name: "places/ChIJN1t_tDeuEmsRUsoyG83frY4/reviews/r-nowords", rating: 5, authorAttribution: { displayName: "" }, publishTime: "2026-09-06T20:00:00Z" },
+  ],
+};
+
+test("the parsers read what Google returns and refuse what it does not", () => {
+  const found = parsePlacesSearch({ places: [PLACE, { id: "x" }, "junk"] });
+  assert.deepEqual(found, [{ place_id: PLACE.id, name: "Northside Movers", address: PLACE.formattedAddress, maps_uri: PLACE.googleMapsUri, business_status: "OPERATIONAL" }]);
+  assert.deepEqual(parsePlacesSearch({}), []);
+  const d = parsePlaceDetails(PLACE);
+  assert.equal(d.rating, 4.8);
+  assert.equal(d.review_count, 213);
+  assert.equal(d.reviews.length, 3);
+  assert.deepEqual(d.reviews[0], { review_id: "r-ana", rating: 5, author: "Ana P.", author_uri: "https://maps.google.com/u/1", author_photo_uri: "https://lh3/x", text: "Fast, careful, and on time.", language_code: "en", published_at: "2026-09-07T13:00:00Z", maps_uri: "https://maps.google.com/r/1" });
+  assert.equal(d.reviews[2].author, null, "an empty name is no name");
+  assert.equal(d.reviews[2].text, null);
+  assert.equal(reviewIdOf("places/p/reviews/abc"), "abc");
+  assert.equal(reviewIdOf(""), null);
+  assert.throws(() => parsePlaceDetails({ id: "x" }), PlacesError);
+});
+
+test("the client turns Google's refusal into its own words and never swallows a bad status", async () => {
+  const calls = [];
+  const http = async (req) => { calls.push(req); return { status: 403, body: JSON.stringify({ error: { code: 403, message: "Places API (New) has not been used in project 1 before", status: "PERMISSION_DENIED" } }) }; };
+  await assert.rejects(() => searchPlaces(http, KEY, "Northside"), (e) => e instanceof PlacesError && e.status === 403 && /PERMISSION_DENIED: Places API/.test(e.message));
+  assert.equal(calls.length, 1);
+  const ok = async () => ({ status: 200, body: JSON.stringify(PLACE) });
+  assert.equal((await getPlace(ok, KEY, PLACE.id)).name, "Northside Movers");
+  const notJson = async () => ({ status: 200, body: "<html>" });
+  await assert.rejects(() => getPlace(notJson, KEY, PLACE.id), (e) => e instanceof PlacesError && e.status === 502);
+});
+
+/* ------------------------------------------------------------- the planner */
+
+const details = (over = {}) => ({ ...parsePlaceDetails(PLACE), ...over });
+const nobody = new Set();
+
+test("the first read after linking is history: the rows are written, nothing is announced", () => {
+  const p = planListingCheck({ rating: null, review_count: null, checked_at: null }, nobody, details(), "2026-09-07", NOW);
+  assert.deepEqual(p.bells, []);
+  assert.deepEqual(p.fresh, []);
+  assert.equal(p.counted, 0);
+  assert.equal(p.reviews.length, 3);
+  assert.equal(p.reviews[0].last_seen_at, new Date(NOW).toISOString());
+  assert.deepEqual(p.day, { day: "2026-09-07", rating: 4.8, review_count: 213 });
+  assert.deepEqual(p.listing, { name: "Northside Movers", address: PLACE.formattedAddress, maps_uri: PLACE.googleMapsUri, business_status: "OPERATIONAL", rating: 4.8, review_count: 213, checked_at: new Date(NOW).toISOString(), check_error: null });
+});
+
+test("a review not on record and written since the previous check is news; an old one resurfacing is not", () => {
+  const before = { rating: 4.8, review_count: 212, checked_at: "2026-09-06T15:00:00Z" };
+  const p = planListingCheck(before, new Set(["r-nowords"]), details(), "2026-09-07", NOW);
+  assert.deepEqual(p.fresh.map((r) => r.review_id), ["r-ana"], "the old one is not on record either, but it was written last year");
+  assert.equal(p.counted, 1);
+  assert.equal(p.bells.length, 1);
+  assert.equal(p.bells[0].title, "New on Google: ★★★★★ from Ana P.");
+  assert.equal(p.bells[0].body, "“Fast, careful, and on time.”\n4.8 ★ overall · 213 reviews.");
+  assert.equal(p.bells[0].review_id, "r-ana");
+  // Dated slightly before the previous check still counts: Google's clock and a visit date differ from ours.
+  const slack = planListingCheck({ ...before, checked_at: new Date(Date.parse("2026-09-07T13:00:00Z") + FRESH_SLACK_MS - 1000).toISOString() }, nobody, details(), "2026-09-07", NOW);
+  assert.ok(slack.fresh.some((r) => r.review_id === "r-ana"));
+});
+
+test("ratings without words are counted from the count and said as such; several new reviews become one row", () => {
+  const before = { rating: 4.7, review_count: 210, checked_at: "2026-09-06T15:00:00Z" };
+  const all = new Set(["r-ana", "r-old", "r-nowords"]);
+  const p = planListingCheck(before, all, details(), "2026-09-07", NOW);
+  assert.deepEqual(p.fresh, []);
+  assert.equal(p.counted, 3);
+  assert.equal(p.bells.length, 1);
+  assert.equal(p.bells[0].title, "3 new ratings on Google");
+  assert.match(p.bells[0].body, /^4\.8 ★ overall · 213 reviews\. Google shows the words of its five most relevant reviews/);
+  assert.equal(p.bells[0].review_id, null);
+  const many = details({ reviews: ["a", "b", "c", "d", "e"].map((who) => ({ review_id: `r-${who}`, rating: 5, author: who.toUpperCase(), author_uri: null, author_photo_uri: null, text: "Great", language_code: "en", published_at: "2026-09-07T12:00:00Z", maps_uri: null })) });
+  const pile = planListingCheck(before, nobody, many, "2026-09-07", NOW);
+  assert.equal(pile.fresh.length, 5);
+  assert.ok(pile.fresh.length > REVIEW_BELL_MAX);
+  assert.equal(pile.bells.length, 1);
+  assert.equal(pile.bells[0].title, "5 new reviews on Google");
+  assert.match(pile.bells[0].body, /^From A, B, C, D, E\. 4\.8 ★ overall · 213 reviews\. The words are on Reports\.$/);
+  const same = planListingCheck({ rating: 4.8, review_count: 213, checked_at: "2026-09-06T15:00:00Z" }, all, details(), "2026-09-07", NOW);
+  assert.deepEqual(same.bells, [], "nothing changed, nothing said");
+  assert.equal(GOOGLE_SHOWN_REVIEWS, 5);
+});
+
+/* ------------------------------------------------------- words and the VM */
+
+const listing = (over = {}) => ({ place_id: PLACE.id, name: "Northside Movers", address: PLACE.formattedAddress, maps_uri: PLACE.googleMapsUri, business_status: "OPERATIONAL", rating: 4.8, review_count: 213, linked_at: "2026-08-01T12:00:00Z", checked_at: "2026-09-07T12:00:00Z", check_error: null, ...over });
+const review = (over = {}) => ({ id: "11111111-1111-4111-8111-111111111111", review_id: "r-ana", origin: "places", rating: 5, author: "Ana P.", author_uri: null, author_photo_uri: null, body: "Fast, careful, and on time. Would hire again.", language_code: "en", published_at: "2026-09-07T13:00:00Z", reply_text: null, replied_at: null, maps_uri: null, first_seen_at: "2026-09-07T14:00:00Z", ...over });
+const dto = (over = {}) => ({ ready: { places: true, profile: false }, listing: listing(), reviews: [review()], days: [], role: "owner", ...over });
+
+test("the words: a rating, its stars, the listing's line, when it was read", () => {
+  assert.equal(ratingWords(4.8), "4.8 ★");
+  assert.equal(ratingWords(null), "no rating yet");
+  assert.equal(starsOf(5), "★★★★★");
+  assert.equal(starsOf(3.6), "★★★★☆");
+  assert.equal(starsOf(null), "☆☆☆☆☆");
+  assert.equal(listingLine(listing()), "Northside Movers · 4.8 ★ · 213 reviews on Google");
+  assert.equal(listingLine(listing({ rating: null, review_count: 0 })), "Northside Movers · no reviews on Google yet");
+  assert.equal(checkedWords(listing(), NOW), "Checked 3h ago");
+  assert.equal(checkedWords(listing({ check_error: "PERMISSION_DENIED" }), NOW), "Google could not be read since 3h ago — tried again every hour");
+  assert.equal(checkedWords(listing({ checked_at: null, check_error: "x" }), NOW), "Google could not be read yet — tried again every hour");
+  assert.equal(checkedWords(listing({ checked_at: null }), NOW), "Not read yet");
+  assert.equal(reviewSnippet("  a   b  "), "a b");
+  assert.equal(reviewSnippet("x".repeat(100)).length, 90);
+});
+
+test("a review is news when first seen recently, written recently, and after the first read", () => {
+  assert.equal(reviewIsNew(review(), "2026-08-01T12:00:00Z", NOW), true);
+  assert.equal(reviewIsNew(review({ first_seen_at: "2026-09-05T14:00:00Z" }), "2026-08-01T12:00:00Z", NOW), false, "seen two days ago: old news");
+  assert.equal(reviewIsNew(review({ published_at: "2025-01-10T13:00:00Z" }), "2026-08-01T12:00:00Z", NOW), false, "written last year: a relevance shift, not news");
+  assert.equal(reviewIsNew(review({ first_seen_at: "2026-09-07T14:00:00Z" }), "2026-09-07T13:30:00Z", NOW), false, "the first read after linking");
+  assert.equal(reviewIsNew(review({ published_at: null }), "2026-08-01T12:00:00Z", NOW), false);
+});
+
+test("what a period gained comes from the day snapshots, and refuses to guess from one day", () => {
+  const days = [
+    { day: "2026-08-05", rating: 4.7, review_count: 200 },
+    { day: "2026-08-31", rating: 4.7, review_count: 205 },
+    { day: "2026-09-02", rating: 4.8, review_count: 208 },
+    { day: "2026-09-05", rating: 4.8, review_count: 210 },
+    { day: "2026-09-07", rating: 4.8, review_count: 213 },
+  ];
+  const seven = gainedOver(days, 7);
+  assert.equal(seven.current.total, 8, "213 on the 7th less 205 on the 31st, the newest day before the period");
+  assert.equal(seven.current.sinceLabel, null);
+  assert.equal(seven.current.points.length, 7);
+  assert.deepEqual(seven.current.points.map((p) => p.gained), [0, 3, 0, 0, 2, 0, 3]);
+  assert.equal(seven.current.max, 3);
+  assert.equal(seven.previous, 5, "the period before: 205 on the 31st less 200 on the 5th");
+  const one = gainedOver([days[4]], 7);
+  assert.equal(one.current.total, null, "one day cannot say what was gained");
+  const inside = gainedOver(days.slice(2), 7);
+  assert.equal(inside.current.total, 5, "without a day before the period, from the first day inside it");
+  assert.ok(inside.current.sinceLabel, "…and the day is named");
+  assert.equal(inside.previous, null);
+});
+
+test("the view model: four measured tiles, the latest reviews, a table twin, Today's line; nothing without a listing", () => {
+  const vm = toGoogleVM(dto({ days: [{ day: "2026-08-31", rating: 4.7, review_count: 205 }, { day: "2026-09-07", rating: 4.8, review_count: 213 }] }), 30, NOW);
+  assert.equal(vm.listing.name, "Northside Movers");
+  assert.equal(vm.listing.ratingLabel, "4.8 ★");
+  assert.equal(vm.listing.checked, "Checked 3h ago");
+  assert.equal(vm.listing.trouble, false);
+  assert.deepEqual(vm.tiles.map((t) => [t.id, t.label, t.value]), [["rating", "Rating on Google", "4.8"], ["reviews", "Reviews on Google", "213"], ["gained", "Gained in 30 days", "8"], ["newest", "Newest review", "2h ago"]]);
+  assert.equal(vm.tiles[0].meta, "213 reviews · checked 3h ago");
+  assert.equal(vm.tiles[0].delta, null, "no day before the period to compare the rating with");
+  assert.equal(vm.tiles[2].meta, "since Aug 31, the first day on record");
+  assert.equal(vm.tiles[3].meta, "★★★★★ · Ana P.");
+  assert.equal(vm.latest.length, 1);
+  assert.equal(vm.latest[0].isNew, true);
+  assert.equal(vm.latest[0].text, "Fast, careful, and on time. Would hire again.");
+  assert.deepEqual(vm.table.columns, ["Reviewer", "Stars", "Written", "Words"]);
+  assert.deepEqual(vm.table.rows, [["Ana P.", 5, "2h ago", "Fast, careful, and on time. Would hire again."]]);
+  assert.deepEqual(vm.todayLine, { text: "New on Google: ★★★★★ from Ana P. — “Fast, careful, and on time. Would hire again.”", to: "reports" });
+  const quiet = toGoogleVM(dto({ reviews: [review({ first_seen_at: "2026-09-01T14:00:00Z" })] }), 30, NOW);
+  assert.equal(quiet.todayLine, null);
+  assert.equal(quiet.tiles[2].value, "—");
+  assert.equal(quiet.tiles[2].meta, "needs a second day of reading");
+  const none = toGoogleVM(dto({ listing: null, reviews: [] }), 30, NOW);
+  assert.equal(none.listing, null);
+  assert.deepEqual(none.tiles, []);
+  assert.equal(none.todayLine, null);
+  const trouble = toGoogleVM(dto({ listing: listing({ check_error: "boom" }) }), 7, NOW);
+  assert.equal(trouble.listing.trouble, true);
+  assert.match(trouble.listing.checked, /could not be read since 3h ago/);
+  assert.ok(!JSON.stringify(vm).includes("null."), "no null read aloud");
+});
+
+/* ------------------------------------------------------------- Setup's row */
+
+const setup = (google, over = {}) => setupSteps({
+  business: { name: "Northside Movers", hours: true, services: 4, bookingLink: true, address: true, handoff: null, broken: false },
+  channels: { whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null }, voice: { present: false, active: false, number: null, lastInboundAt: null } },
+  templates: { approved: 0, pending: 0, startersApproved: 0 },
+  calendar: { state: "none" }, team: { members: 1, invitesOpen: 0, alertEmails: 0 }, consent: { yes: 0 }, requests: { line: null }, later: [],
+  google, ...over,
+}, NOW);
+const row = (vm, id) => vm.rows.find((r) => r.id === id);
+
+test("Setup's Google row: absent until the platform can look listings up; then Find it, then the listing's line, or Waiting on Google", () => {
+  assert.equal(row(setup(undefined), "google"), undefined);
+  assert.equal(row(setup({ ready: false, listing: null }), "google"), undefined);
+  assert.equal(setup(undefined).total, 9);
+  const find = setup({ ready: true, listing: null });
+  assert.equal(find.total, 10);
+  assert.equal(row(find, "google").state, "not_started");
+  assert.equal(row(find, "google").required, false, "optional, and can be put off");
+  assert.equal(row(find, "google").sentence, "Find your business on Google so new reviews reach you here.");
+  assert.deepEqual(row(find, "google").details, ["Uses the name and address on record"]);
+  assert.deepEqual(row(find, "google").verb, { label: "Find it", to: "verb:google-find" });
+  const noAddress = setup({ ready: true, listing: null }, { business: { name: "Northside Movers", hours: true, services: 4, bookingLink: true, address: false, handoff: null, broken: false } });
+  assert.deepEqual(row(noAddress, "google").details, ["Add your address in Workspace for a surer match"]);
+  const linked = setup({ ready: true, listing: { name: "Northside Movers", rating: 4.8, review_count: 213, checked_at: "2026-09-07T12:00:00Z", check_error: null } });
+  assert.equal(row(linked, "google").state, "ready");
+  assert.equal(row(linked, "google").sentence, "Northside Movers · 4.8 ★ · 213 reviews on Google.");
+  assert.deepEqual(row(linked, "google").details, ["Checked 3h ago", "New reviews reach your bell and Reports"]);
+  assert.deepEqual(row(linked, "google").verb, { label: "Open Reports", to: "reports" });
+  const trouble = setup({ ready: true, listing: { name: "Northside Movers", rating: 4.8, review_count: 213, checked_at: "2026-09-06T12:00:00Z", check_error: "PERMISSION_DENIED" } });
+  assert.equal(row(trouble, "google").state, "waiting_them");
+  assert.equal(row(trouble, "google").stateWords, "Waiting on Google");
+  assert.equal(row(trouble, "google").sentence, "Northside Movers is on record, but Google could not be read since 1d ago — it is tried again every hour.");
+  assert.equal(row(find, "google").later, false);
+  const later = setup({ ready: true, listing: null }, { later: ["google"] });
+  assert.equal(row(later, "google").later, true, "put off for later, like any optional row");
+  assert.equal(later.rows[later.rows.length - 1].id, "google", "the last row: optional, after the first yes");
+});
+
+/* ------------------------------------------------------------- the bell */
+
+test("a review on the bell is good news that opens Reports, and its route has a verb", () => {
+  assert.ok(SERVER_NOTIFICATION_KINDS.includes("review"));
+  const rows = serverNotificationRows({ seen_at: null, notifications: [{ id: "1", kind: "review", title: "New on Google: ★★★★★ from Ana P.", body: "“Fast, careful, and on time.”\n4.8 ★ overall · 213 reviews.", route: "reports", subject_type: "review", subject_id: "r-ana", created_at: "2026-09-07T14:00:00Z", read: false, dismissed: false }] });
+  assert.deepEqual([rows[0].icon, rows[0].tone, rows[0].action, rows[0].to, rows[0].message], ["star", "ok", "Open Reports", "reports", "“Fast, careful, and on time.”"]);
+  assert.equal(verbForRoute("reports"), "Open Reports");
+  for (const k of ["google.linked", "google.unlinked", "google.reviews"]) assert.ok(EVENT_KINDS.includes(k), k);
+});
+
+/* ------------------------------------------------------------- the wiring */
+
+test("the migration: three tables that hang off the listing, members read, realtime on two, the bell's kind, the sweep at :37", () => {
+  const sql = readRaw("supabase/migrations/00069_google_listings.sql");
+  assert.ok(sql.includes("create table public.google_listings (") && sql.includes("tenant_id        uuid primary key references public.tenants (id) on delete cascade"));
+  assert.ok(sql.includes("uuid not null references public.google_listings (tenant_id) on delete cascade"), "reviews and days go with the listing");
+  for (const t of ["google_listings", "google_reviews", "google_listing_days"]) {
+    assert.ok(sql.includes(`alter table public.${t} enable row level security;`), t);
+    assert.ok(sql.includes(`create policy ${t}_member_select on public.${t}`), t);
+    assert.ok(!sql.includes(`on public.${t}\n  for insert`) && !sql.includes(`on public.${t}\n  for update`), `${t}: the edge alone writes`);
+  }
+  assert.ok(sql.includes("alter publication supabase_realtime add table public.google_listings, public.google_reviews;"));
+  assert.ok(sql.includes("'calendar_people','alert','review'"), "the bell's kind");
+  assert.ok(sql.includes("unique (tenant_id, review_id)"));
+  assert.ok(sql.includes("check (origin in ('places', 'profile'))"));
+  assert.ok(sql.includes("url     := v_url || '/api/cron/google'"));
+  const m = sql.match(/cron\.schedule\('google-listings-sweep', '(\d+) \* \* \* \*'/);
+  assert.ok(m, "hourly");
+  assert.ok(Number(m[1]) % 5 !== 0 && ![13, 23, 43].includes(Number(m[1])), "a minute no other sweep uses");
+});
+
+test("the edge: the key alone on the edge, diag-key verbs, the cron-key sweep, one check routine, a read before a row", () => {
+  const admin = readCode("apps/edge/api/admin/google.ts");
+  assert.ok(admin.includes('request.headers.get("x-diag-key") !== process.env.DIAG_KEY'));
+  assert.ok(admin.includes('if (op === "status") return json(200, { ok: true, ready: googleReadiness() });'));
+  assert.ok(admin.includes('error: "no_places_key"'));
+  assert.ok(admin.indexOf("await readPlace(key, placeId)") < admin.indexOf('.from("google_listings")\n      .upsert('), "a wrong id is refused before any row exists");
+  assert.ok(admin.includes('await db.from("google_reviews").delete().eq("tenant_id", tenantId);'), "a new listing forgets the old one's reviews");
+  for (const k of ['"google.linked"', '"google.unlinked"']) assert.ok(admin.includes(k), k);
+  const lib = readCode("apps/edge/lib/google.ts");
+  assert.ok(lib.includes("process.env.GOOGLE_PLACES_API_KEY"));
+  assert.ok(lib.includes("planListingCheck(") && lib.includes('kind: "review", title: b.title, body: b.body, route: "reports"'), "the plan decides, the edge writes and rings");
+  assert.ok(lib.includes('.update({ check_error: error })'), "a failed read leaves its words and the last good numbers");
+  assert.ok(lib.includes('onConflict: "tenant_id,review_id"') && !lib.includes("first_seen_at"), "an existing review keeps its first_seen_at");
+  assert.ok(lib.includes('"google.reviews"'));
+  const cron = readCode("apps/edge/api/cron/google.ts");
+  assert.ok(cron.includes('db.rpc("get_cron_sweep_key")') && cron.includes("timingSafeEqual"));
+  assert.ok(cron.includes('skipped: "no_places_key"'));
+  assert.ok(cron.includes("const MAX_PER_TICK = 40;"));
+  const vercel = JSON.parse(readRaw("apps/edge/vercel.json"));
+  assert.equal(vercel.functions["api/admin/google.ts"].maxDuration, 30);
+  assert.equal(vercel.functions["api/cron/google.ts"].maxDuration, 60);
+  assert.ok(readCode("apps/edge/lib/notify.ts").includes('"calendar_people", "alert", "review"]'), "the kind is kept, not folded into alert");
+  assert.ok(readRaw("apps/edge/.env.example").includes("GOOGLE_PLACES_API_KEY="));
+});
+
+test("the dashboard: owners link and search, operators read, members look; the pages read one surface", () => {
+  const search = readCode("apps/dashboard/app/api/v1/google/search/route.ts");
+  assert.ok(search.includes('requireRole(member, "owner")') && search.includes('takeRate(ctx.userId, "google_search")'));
+  assert.ok(search.includes("cfg?.brain?.business_name") && search.includes("cfg?.brain?.profile?.address"), "the facts on record are the default query");
+  const link = readCode("apps/dashboard/app/api/v1/google/link/route.ts");
+  assert.ok(link.includes("export const POST") && link.includes("export const DELETE"));
+  assert.equal((link.match(/requireRole\(member, "owner"\)/g) ?? []).length, 2);
+  assert.ok(link.includes('op: "link", tenant_id: member.tenantId, user_id: ctx.userId, place_id: placeId'));
+  const refresh = readCode("apps/dashboard/app/api/v1/google/refresh/route.ts");
+  assert.ok(refresh.includes('requireRole(member, "operator")') && refresh.includes('takeRate(ctx.userId, "google_refresh")'));
+  const get = readCode("apps/dashboard/app/api/v1/google/route.ts");
+  assert.ok(get.includes("googleFor(ctx.supabase, member.tenantId), googleReadiness()"));
+  const server = readCode("apps/dashboard/src/server/google.ts");
+  assert.ok(server.includes('"x-diag-key": process.env.DIAG_KEY') && server.includes("const READY_TTL_MS = 5 * 60_000;"));
+  assert.ok(!server.includes("GOOGLE_PLACES_API_KEY"), "the dashboard never holds the key");
+  const setup = readCode("apps/dashboard/app/api/v1/setup/route.ts");
+  assert.ok(setup.includes("listingFor(supabase, tenantId),\n    googleReadiness(),") && setup.includes("ready: google.places,"));
+  const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");
+  assert.ok(bridge.includes('key: "google",') && bridge.includes('refreshOnTables: ["google_listings", "google_reviews"],'));
+  assert.ok(bridge.includes("refreshSurfaces([googleOverride, setupOverride])"), "a link repaints Setup too");
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("setupOverride, googleOverride]") && readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installGoogle();"));
+  const rt = readCode("packages/db/src/realtime.ts");
+  assert.ok(rt.includes('{ table: "google_listings", event: "*" }') && rt.includes('{ table: "google_reviews", event: "INSERT" }'));
+  const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
+  assert.ok(page.includes('if (verb.to === "verb:google-find") { setFinder((v) => !v); return; }') && page.includes('r.id === "google" && finder && <ListingFinder'));
+  assert.ok(page.includes('window.canDo("team")'), "linking is an owner's move on the page too");
+  const reports = readCode("apps/dashboard/src/legacy/pages/reports.jsx");
+  assert.ok(reports.includes("<GoogleSection days={R.days} />") && reports.includes("if (!G || !G.dto.ready.places || !window.__google) return null;"));
+  assert.ok(reports.includes("the ${vm.latest.length === 1 ? \"one\" : vm.latest.length} Google shows first"), "the source is named");
+  const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
+  assert.ok(brief.includes("<ReviewLine nav={nav} />") && brief.includes('data-testid="brief-review"'));
+  const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  assert.ok(settings.includes("<GoogleCard />") && settings.includes('data-testid="google-check"') && settings.includes('data-testid="google-remove"'));
+  assert.ok(settings.includes('name: "Google Business Profile"'), "the second door is named as not available, not hidden");
+  const rate = readCode("apps/dashboard/src/server/rate-limit.ts");
+  for (const b of ["google_search", "google_link", "google_refresh"]) assert.ok(rate.includes(`${b}: {`), b);
+});
