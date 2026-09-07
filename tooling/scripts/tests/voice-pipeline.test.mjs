@@ -18,7 +18,7 @@ import assert from "node:assert/strict";
 import { composeSystemPrompt, parseTenantConfigResult, hasProfile } from "@chanlytics/contracts";
 import {
   VOICE_SHELL_PROMPT, VOICE_SHELL_BEGIN, HANDOFF_VAR, FACTS_UNAVAILABLE,
-  desiredVoiceShell, planVoiceConvergence, voiceShellDrift,
+  desiredVoiceShell, planVoiceConvergence, voiceShellDrift, voiceLlmCreateBody,
 } from "@chanlytics/channels";
 import { readCode, readRaw } from "./_source.mjs";
 
@@ -117,12 +117,10 @@ test("the shell is only placeholders and tools, and the transfer dials the varia
   assert.deepEqual(Object.keys(d.default_dynamic_variables).sort(), ["business_facts", "caller_context", "greeting", "handoff_number"]);
   assert.equal(d.default_dynamic_variables.handoff_number, "", "nowhere to dial, by default");
   for (const v of Object.values(d.default_dynamic_variables)) assert.ok(!v.includes("{{"), "a default that is a placeholder is read aloud");
-  // A test double for the provisioning script: the same prompt, the same variable.
-  const py = readRaw("tooling/scripts/setup_voice.py");
-  const prompt = py.match(/PROMPT = """([\s\S]*?)"""/)[1].replace(/\r\n/g, "\n");
-  assert.equal(prompt, VOICE_SHELL_PROMPT, "setup_voice.py is a mirror of the shell — keep it equal");
-  assert.ok(py.includes('"number": "{{handoff_number}}"'));
-  assert.ok(!py.includes("VOICE_TRANSFER_TO"), "the transfer number is a per-call variable now, not an env fact");
+  // Provisioning creates the shell itself: the same prompt, the same variable.
+  const created = voiceLlmCreateBody({ fnSecret: "s" });
+  assert.equal(created.general_prompt, VOICE_SHELL_PROMPT, "provisioning is the first converge");
+  assert.equal(created.general_tools[1].transfer_destination.number, HANDOFF_VAR);
 });
 
 test("the converger's plan is complete against the hand-typed agent, and idempotent once applied", () => {

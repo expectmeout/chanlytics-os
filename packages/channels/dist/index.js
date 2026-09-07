@@ -4796,7 +4796,7 @@ async function getAgentRaw(cfg, agentId) {
   const a = await r.json();
   return a !== null && typeof a === "object" && !Array.isArray(a) ? a : null;
 }
-async function writeAgent(cfg, method, path, payload) {
+async function writeRetell(cfg, method, path, payload) {
   const r = await fetch(`${API}${path}`, {
     method,
     headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
@@ -4814,13 +4814,34 @@ async function writeAgent(cfg, method, path, payload) {
   return { ok: r.ok, status: r.status, body };
 }
 function createAgentVersion(cfg, agentId, baseVersion) {
-  return writeAgent(cfg, "POST", `/create-agent-version/${agentId}`, { base_version: baseVersion });
+  return writeRetell(cfg, "POST", `/create-agent-version/${agentId}`, { base_version: baseVersion });
 }
 function updateAgent(cfg, agentId, patch) {
-  return writeAgent(cfg, "PATCH", `/update-agent/${agentId}`, patch);
+  return writeRetell(cfg, "PATCH", `/update-agent/${agentId}`, patch);
 }
 function publishAgentVersion(cfg, agentId, version, title) {
-  return writeAgent(cfg, "POST", `/publish-agent-version/${agentId}`, { version, version_title: title });
+  return writeRetell(cfg, "POST", `/publish-agent-version/${agentId}`, { version, version_title: title });
+}
+function createRetellLlm(cfg, body) {
+  return writeRetell(cfg, "POST", "/create-retell-llm", body);
+}
+function createAgent(cfg, body) {
+  return writeRetell(cfg, "POST", "/create-agent", body);
+}
+function createPhoneNumber(cfg, body) {
+  return writeRetell(cfg, "POST", "/create-phone-number", body);
+}
+function updatePhoneNumber(cfg, number, patch) {
+  return writeRetell(cfg, "PATCH", `/update-phone-number/${encodeURIComponent(number)}`, patch);
+}
+async function getPhoneNumber(cfg, number) {
+  const r = await fetch(`${API}/get-phone-number/${encodeURIComponent(number)}`, {
+    headers: { Authorization: `Bearer ${cfg.apiKey}` },
+    signal: AbortSignal.timeout(8e3)
+  });
+  if (!r.ok) return null;
+  const n = await r.json();
+  return n !== null && typeof n === "object" && !Array.isArray(n) ? n : null;
 }
 async function updateLiveCall(cfg, callId, control) {
   const r = await fetch(`${API}/v2/update-live-call/${encodeURIComponent(callId)}`, {
@@ -4847,6 +4868,8 @@ async function getRetellLlm(cfg, llmId, version) {
   return {
     llm_id: str("llm_id") ?? llmId,
     version: typeof l.version === "number" ? l.version : null,
+    model: str("model"),
+    model_temperature: typeof l.model_temperature === "number" ? l.model_temperature : null,
     general_prompt: str("general_prompt"),
     begin_message: str("begin_message"),
     default_dynamic_variables: l.default_dynamic_variables && typeof l.default_dynamic_variables === "object" ? l.default_dynamic_variables : null,
@@ -5115,6 +5138,125 @@ function agentSettingsDrift(live) {
   const plan = planAgentSettings(live);
   return { converged: plan.drift.length === 0, drift: plan.drift };
 }
+
+// src/voice-provision.ts
+var VOICE_LLM_DEFAULTS = {
+  model: "claude-4.5-haiku",
+  model_temperature: 0,
+  start_speaker: "agent"
+};
+var VOICE_AGENT_DEFAULTS = {
+  voice_id: "11labs-Andrea",
+  language: ["en-US", "es-ES", "fr-FR", "de-DE", "hi-IN", "ru-RU", "pt-PT", "ja-JP", "it-IT", "nl-NL"],
+  end_call_after_silence_ms: 3e4,
+  max_call_duration_ms: 36e5,
+  data_storage_setting: "everything",
+  data_storage_retention_days: 90,
+  post_call_analysis_model: "gpt-4.1",
+  allow_user_dtmf: true
+};
+var VOICE_NUMBER_DEFAULTS = {
+  country_code: "US",
+  number_provider: "twilio"
+};
+function voiceEndpoints(fnUrl = DEFAULT_FN_URL) {
+  const base = fnUrl.replace(/\/api\/retell-fn$/, "");
+  return {
+    fn: fnUrl,
+    availability: availabilityUrl(fnUrl),
+    webhook: `${base}/api/retell-webhook`,
+    inbound: `${base}/api/retell-inbound`
+  };
+}
+function withKey(url, secret) {
+  return `${url}?key=${encodeURIComponent(secret)}`;
+}
+function stripKey(url) {
+  return typeof url === "string" ? url.split("?")[0] : null;
+}
+function voiceLlmCreateBody(s, fnUrl = DEFAULT_FN_URL) {
+  return { ...VOICE_LLM_DEFAULTS, ...desiredVoiceShell(fnUrl, { "x-fn-secret": s.fnSecret }) };
+}
+function voiceAgentCreateBody(o, s, fnUrl = DEFAULT_FN_URL) {
+  return {
+    agent_name: o.agentName,
+    response_engine: { type: "retell-llm", llm_id: o.llmId, ...o.llmVersion === null ? {} : { version: o.llmVersion } },
+    ...VOICE_AGENT_DEFAULTS,
+    language: [...VOICE_AGENT_DEFAULTS.language],
+    webhook_url: withKey(voiceEndpoints(fnUrl).webhook, s.fnSecret),
+    webhook_events: [...VOICE_WEBHOOK_EVENTS],
+    webhook_timeout_ms: VOICE_WEBHOOK_TIMEOUT_MS,
+    opt_in_signed_url: true,
+    post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f }))
+  };
+}
+function voiceNumberBinding(o) {
+  return [{ agent_id: o.agentId, ...o.pinned ? { agent_version: "latest_published" } : {}, weight: 1 }];
+}
+function voiceNumberCreateBody(o, s, fnUrl = DEFAULT_FN_URL) {
+  return {
+    ...VOICE_NUMBER_DEFAULTS,
+    area_code: o.areaCode,
+    nickname: o.nickname,
+    inbound_agents: voiceNumberBinding(o),
+    inbound_webhook_url: withKey(voiceEndpoints(fnUrl).inbound, s.fnSecret)
+  };
+}
+function voiceNumberBindBody(o, s, fnUrl = DEFAULT_FN_URL) {
+  return {
+    nickname: o.nickname,
+    inbound_agents: voiceNumberBinding(o),
+    inbound_webhook_url: withKey(voiceEndpoints(fnUrl).inbound, s.fnSecret)
+  };
+}
+var E1643 = /^\+[1-9]\d{6,14}$/;
+function planVoiceProvision(st) {
+  const errors = [];
+  const r = st.request;
+  const number = r.number ?? null;
+  const area = r.areaCode ?? null;
+  if (number !== null && !E1643.test(number)) errors.push("number must be E.164, like +13055550100");
+  if (area !== null && !(Number.isInteger(area) && area >= 200 && area <= 999)) errors.push("area_code must be three digits, like 305");
+  if (number !== null && area !== null) errors.push("give a number to bind or an area code to buy in, not both");
+  if (r.llmId && !/^llm_[a-z0-9]+$/i.test(r.llmId)) errors.push("llm_id does not look like a Retell LLM id");
+  if (r.agentId && !/^agent_[a-z0-9]+$/i.test(r.agentId)) errors.push("agent_id does not look like a Retell agent id");
+  const names = { agent: `${st.tenant.name} front desk`, nickname: `${st.tenant.name} \xB7 Chanlytics` };
+  if (errors.length) return { ok: false, errors, nothing: true, reason: null, steps: [], names };
+  if (st.channel) {
+    const on = st.channel.status === "active";
+    return {
+      ok: true,
+      errors,
+      nothing: true,
+      reason: on ? `already answering on ${st.channel.number ?? "its number"} (agent ${st.channel.agentId}); voice-converge keeps it on the shell` : `a voice line exists but is ${st.channel.status} (agent ${st.channel.agentId}); switch it on in Integrations rather than provisioning another`,
+      steps: [],
+      names
+    };
+  }
+  const steps = [];
+  if (r.agentId) {
+    steps.push({ id: "llm", action: "skip", detail: "the adopted agent brings its own LLM" });
+    steps.push({ id: "agent", action: "adopt", detail: `${r.agentId}, read from the provider first` });
+  } else {
+    steps.push(
+      r.llmId ? { id: "llm", action: "reuse", detail: `${r.llmId}, read from the provider first` } : { id: "llm", action: "create", detail: `the shell: placeholders, the four tools, spoken defaults; ${VOICE_LLM_DEFAULTS.model} at temperature ${VOICE_LLM_DEFAULTS.model_temperature}` }
+    );
+    steps.push({
+      id: "agent",
+      action: "create",
+      detail: `"${names.agent}": the product's voice, the webhook with its events, the analysis fields, ${VOICE_AGENT_DEFAULTS.data_storage_retention_days}-day retention`
+    });
+  }
+  steps.push({ id: "publish", action: "publish", detail: "the first version, so the number can pin to latest_published" });
+  if (number) steps.push({ id: "number", action: "bind", detail: `${number} \u2192 the agent, pinned to latest_published, inbound webhook set` });
+  else if (area !== null) steps.push({ id: "number", action: "buy", detail: `a local number in area code ${area} from Retell (Twilio), bound and pinned, inbound webhook set` });
+  else steps.push({ id: "number", action: "skip", detail: "no number asked for \u2014 give number (an existing Retell number) or area_code (buy one); the row is not written until a number answers" });
+  if (number || area !== null) {
+    steps.push({ id: "channel", action: "insert", detail: "tenant_channels: kind voice, the agent as external_id, the number, active" });
+    steps.push({ id: "notify", action: "notify", detail: "the workspace's bell says the line is ready; a voice.provisioned event" });
+  }
+  return { ok: true, errors, nothing: false, reason: null, steps, names };
+}
 export {
   CALLER_UNKNOWN,
   CALL_ANALYSIS_FIELDS,
@@ -5122,6 +5264,9 @@ export {
   FACTS_UNAVAILABLE,
   GREETING_DEFAULT,
   HANDOFF_VAR,
+  VOICE_AGENT_DEFAULTS,
+  VOICE_LLM_DEFAULTS,
+  VOICE_NUMBER_DEFAULTS,
   VOICE_SHELL_BEGIN,
   VOICE_SHELL_PROMPT,
   VOICE_WEBHOOK_EVENTS,
@@ -5129,13 +5274,17 @@ export {
   agentSettingsDrift,
   availabilityUrl,
   callSummaryLine,
+  createAgent,
   createAgentVersion,
+  createPhoneNumber,
+  createRetellLlm,
   desiredVoiceShell,
   fetchMediaBytes,
   fetchRecording,
   getAgent,
   getAgentRaw,
   getCall,
+  getPhoneNumber,
   getRetellLlm,
   listCalls,
   liveTurns,
@@ -5145,12 +5294,22 @@ export {
   parseTranscriptText,
   planAgentSettings,
   planVoiceConvergence,
+  planVoiceProvision,
   publishAgentVersion,
   sendTemplate,
   sendText,
+  stripKey,
   updateAgent,
   updateLiveCall,
+  updatePhoneNumber,
   verifyRetellSignature,
+  voiceAgentCreateBody,
+  voiceEndpoints,
+  voiceLlmCreateBody,
+  voiceNumberBindBody,
+  voiceNumberBinding,
+  voiceNumberCreateBody,
   voiceShellDrift,
-  voiceShellTools
+  voiceShellTools,
+  withKey
 };

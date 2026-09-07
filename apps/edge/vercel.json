@@ -8,6 +8,9 @@
     },
     "api/admin/voice-converge.ts": {
       "maxDuration": 30
+    },
+    "api/admin/voice-provision.ts": {
+      "maxDuration": 60
     }
   }
 }

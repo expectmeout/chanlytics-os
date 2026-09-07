@@ -8,10 +8,11 @@
  * themselves: where they go in the prompt, which tools exist, and what the
  * agent hears when a variable could not be supplied.
  *
- * ONE definition, in code, for three readers: the converger script that
- * brings a live agent onto it, the diagnostic that reports whether a line
- * has drifted off it, and the provisioning script for a new tenant (a mirror,
- * pinned equal by a test). The live agent predates all of this and was
+ * ONE definition, in code, for three readers: the converger that brings a
+ * live agent onto it, the diagnostic that reports whether a line has
+ * drifted off it, and the provisioning endpoint for a new workspace
+ * (voice-provision.ts builds the LLM from it; a test proves the converger
+ * plans nothing against what it creates). The live agent predates all of this and was
  * typed by hand in Retell's dashboard — its prompt bakes the hours, the
  * address and a transfer number, so correcting the hours in Settings changed
  * what the chat receptionist said and left the phone saying the old ones.
