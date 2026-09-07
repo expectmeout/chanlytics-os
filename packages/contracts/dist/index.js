@@ -2526,6 +2526,30 @@ function todayDayFacts(cal, agg) {
   if (agg) out.push({ label: "Booked ahead", value: String(agg.booked), hint: `${agg.reachedWeek} reached this week` });
   return out;
 }
+function todayWeek(r) {
+  if (!r) return null;
+  const find = (id) => r.campaigns.tiles.find((t) => t.id === id);
+  const sent = find("sent");
+  const yes = find("optins");
+  const offers = r.campaigns.empty || !sent || sent.value === "0" ? "No offers went out." : `${sent.value} offer message${sent.value === "1" ? "" : "s"} sent \xB7 ${yes ? yes.value : "0"} said yes`;
+  const b = r.booking;
+  const booking = !b.present ? { text: b.sub, to: "calendar" } : b.pct === null ? { text: "Nobody wrote or called, so there was nothing to book.", to: "reports" } : { text: `Asked \u2192 booked: ${b.headline} \xB7 ${b.pct}%`, to: "reports" };
+  return {
+    label: `Last ${r.vm.rangeLabel}`,
+    sub: `${r.vm.since} \u2013 ${r.vm.until} \xB7 against the ${r.vm.days} days before`,
+    tiles: r.vm.tiles,
+    lines: [{ id: "campaigns", text: offers, to: "reports" }, { id: "booking", ...booking }]
+  };
+}
+function todayJourney(people) {
+  if (!people) return null;
+  const rows = people.lists.filter((l) => l.group === "journey").map((l) => ({ id: l.id, label: l.label, count: l.count, to: `clients/seg:${l.id}`, act: l.count > 0 && l.action && l.action.enabled ? { label: l.action.cta, to: l.action.to } : null }));
+  return { rows, note: people.calendar.state === "ok" ? null : "Booked, asked-never-booked and lapsed appear once the calendar is connected." };
+}
+function todayAway(rows, max = 5) {
+  const fresh = rows.filter((r) => r.unread);
+  return { rows: fresh.slice(0, max), more: Math.max(0, fresh.length - max) };
+}
 
 // src/config.ts
 import { z as z2 } from "zod";
@@ -5320,8 +5344,11 @@ export {
   toReportVM,
   toTodayVM,
   toVisitDto,
+  todayAway,
   todayDay,
   todayDayFacts,
+  todayJourney,
+  todayWeek,
   triggerOf,
   validateTemplateDraft,
   violatesNoPrices,

@@ -60,7 +60,7 @@ test("the facts beside the recap's: appointments today with the next opening or 
 });
 
 test("the wiring: the bridge publishes the helpers, the page composes the module, the hero adds the facts and drops its one-line calendar, the core shows both", () => {
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/today.ts").includes("window.__today = { day: todayDay, facts: todayDayFacts };"));
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/today.ts").includes("window.__today = { day: todayDay, facts: todayDayFacts, week: todayWeek, journey: todayJourney, away: todayAway };"));
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
   assert.ok(app.includes('import { installToday } from "./today";') && app.includes("installToday();"));
   const page = readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx");
