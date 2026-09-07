@@ -35,16 +35,6 @@ const TPL_SAMPLES = new Set(["hello_world"]);
 const tplExamples = (t) => (Array.isArray(t.variables) ? t.variables : []).map((x) => (x && typeof x === "object" && typeof x.example === "string" ? x.example : null));
 const tplRender = (body, examples) => String(body || "").replace(/\{\{(\d+)\}\}/g, (m, n) => examples[Number(n) - 1] || m);
 
-// Campaigns' three doors, one strip, on each of the three pages.
-const CampaignsTabs = ({ active }) => (
-  <div className="cl-tabs camp-tabs" role="navigation" aria-label="Campaigns" data-testid="campaigns-tabs">
-    {[["outbound", "Playbooks"], ["broadcasts", "Broadcasts"], ["messages", "Messages"]].map(([to, label]) => (
-      <button key={to} className={`cl-tab ${active === to ? "active" : ""}`} aria-current={active === to ? "page" : undefined} onClick={() => { if (active !== to) window.CHANLY.nav(to); }}>{label}</button>
-    ))}
-  </div>
-);
-window.CampaignsTabs = CampaignsTabs;
-
 const useMessages = () => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
   React.useEffect(() => {
@@ -144,7 +134,6 @@ const MessagesReal = () => {
     return (
       <div className="reports" data-testid="messages-real">
         <div className="cl-head"><div className="cl-head-titles"><div className="cl-page-title">Messages</div><div className="cl-page-sub">Reading your messages…</div></div></div>
-        <div className="cl-controls"><CampaignsTabs active="messages" /></div>
       </div>
     );
   }
@@ -152,7 +141,6 @@ const MessagesReal = () => {
     return (
       <div className="reports" data-testid="messages-real">
         <div className="cl-head"><div className="cl-head-titles"><div className="cl-page-title">Messages</div><div className="cl-page-sub">Couldn&rsquo;t be loaded right now</div></div></div>
-        <div className="cl-controls"><CampaignsTabs active="messages" /></div>
         <div className="rp-body">
           <section className="fl-card rp2-card">
             <div className="rp2-empty">The receptionist keeps sending; this page just can&rsquo;t show the messages at the moment. <button className="cl-bucket-link" onClick={() => window.__refreshSettings && window.__refreshSettings()}>Retry</button></div>
@@ -220,7 +208,6 @@ const MessagesReal = () => {
       </div>
 
       <div className="cl-controls">
-        <CampaignsTabs active="messages" />
         <div className="cl-controls-right">
           {canAct && hasWhatsApp && missing.filter((m) => m.n > 0).map((m) => (
             <button key={m.lang.id} className="btn btn-sm" disabled={busy} onClick={() => addStarters(null, [m.lang.id])} data-testid="starter-add-all">{busy ? "Adding…" : `Add ${m.n === (S ? S.list.length : 0) ? "all " : "the "}${m.n} in ${m.lang.label}`}</button>

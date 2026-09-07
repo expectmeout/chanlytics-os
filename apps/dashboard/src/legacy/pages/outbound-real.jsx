@@ -385,8 +385,7 @@ const PlaybooksReal = () => {
       </div>
 
       <div className="cl-controls">
-        {window.CampaignsTabs && <window.CampaignsTabs active="outbound" />}
-        <div className="cl-controls-right">
+        <div className="cl-controls-right" style={{ marginLeft: 0 }}>
           <div className="fleet-filter">
             {PB_FILTERS.map((f) => (
               <button key={f.id} className={`fleet-filter-chip ${filter === f.id ? "active" : ""}`} onClick={() => setFilter(f.id)}>

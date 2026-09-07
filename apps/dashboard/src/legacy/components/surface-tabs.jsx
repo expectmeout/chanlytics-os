@@ -35,11 +35,13 @@ const ST_GROUPS = {
     ],
   },
   campaigns: {
-    match: ["outbound", "broadcasts", "content"],
+    match: ["outbound", "broadcasts", "messages", "content"],
     tabs: [
       { id: "outbound", label: "Playbooks", to: "outbound" },
       { id: "broadcasts", label: "Broadcasts", to: "broadcasts" },
-      { id: "content", label: "Content", to: "content" },
+      { id: "messages", label: "Messages", to: "messages", tip: "The WhatsApp messages your playbooks and broadcasts send, as the customer sees them" },
+      // Content is seed-only: a real workspace has no such surface yet.
+      { id: "content", label: "Content", to: "content", demoOnly: true },
     ],
   },
   agents: {
