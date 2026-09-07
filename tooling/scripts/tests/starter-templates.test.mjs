@@ -94,7 +94,9 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
   assert.ok(s.includes("<window.WaBubble from={bizName || \"Your business\"} body={body} footer={footer} />"), "the card is the message as the customer sees it");
   assert.ok(readCode("apps/dashboard/src/legacy/pages/app-shell.jsx").includes('page === "messages"') && readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/messages.jsx";'));
   assert.ok(readCode("apps/dashboard/src/legacy/pages/settings.jsx").includes('data-testid="channel-messages"') && !readCode("apps/dashboard/src/legacy/pages/settings.jsx").includes("TemplatesCard"), "Integrations points at Messages and lists no template");
-  for (const f of ["outbound-real", "broadcasts-real"]) assert.ok(readCode(`apps/dashboard/src/legacy/pages/${f}.jsx`).includes("<window.CampaignsTabs active="), f);
+  const tabs = readCode("apps/dashboard/src/legacy/components/surface-tabs.jsx");
+  assert.ok(tabs.includes('match: ["outbound", "broadcasts", "messages", "content"]') && tabs.includes('{ id: "messages", label: "Messages", to: "messages"') && tabs.includes('to: "content", demoOnly: true'), "Messages is the third door of the shell's own Campaigns strip; Content stays seed-only");
+  for (const f of ["outbound-real", "broadcasts-real", "messages"]) assert.ok(!readCode(`apps/dashboard/src/legacy/pages/${f}.jsx`).includes("CampaignsTabs"), `${f}: one strip, the shell's`);
   assert.ok(s.includes("{tplTitle(t)}") && s.includes('" · made here"'), "a title, with the raw name beside it");
   const b = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
   assert.ok(b.includes('data-testid="bc-add-starters"') && b.includes("{bcTitle(t.name)}"));

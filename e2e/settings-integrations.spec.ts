@@ -54,7 +54,7 @@ test.describe("Settings → Integrations on a real workspace", () => {
     }
   });
 
-  test("on a phone, every card keeps its height and the Google card sits above the templates", async ({ page }) => {
+  test("on a phone, every card keeps its height", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/#/admin/integrations");
     await page.waitForLoadState("networkidle");
@@ -68,9 +68,7 @@ test.describe("Settings → Integrations on a real workspace", () => {
     const google = page.getByTestId("google-card");
     if (await google.count()) {
       const gb = await google.boundingBox();
-      const tb = await page.getByTestId("templates").boundingBox();
       expect(gb!.height).toBeGreaterThan(100);
-      if (tb) expect(gb!.y).toBeLessThan(tb.y);
     }
   });
 

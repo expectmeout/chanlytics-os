@@ -1826,8 +1826,6 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 .sb-sheet-sep { font-size: 11px; color: var(--ink-dim); padding: 0 2px; }
 
 /* ---- Campaigns › Messages: one card per message, the bubble the customer sees ---- */
-.camp-tabs { margin-right: auto; }
-.ct-head .camp-tabs { margin-right: 0; align-self: flex-start; }
 .cl-bucket-link.danger { color: var(--danger); }
 .int-soon-list { font-style: normal; line-height: 1.6; }
 .int-soon-list b { color: var(--ink); font-weight: 500; }

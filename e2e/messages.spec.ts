@@ -19,8 +19,10 @@ test.describe("Messages on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const real = page.getByTestId("messages-real");
     await expect(real).toBeVisible();
-    await expect(real.getByTestId("campaigns-tabs")).toContainText("Playbooks");
-    await expect(real.getByTestId("campaigns-tabs").locator(".cl-tab.active")).toHaveText("Messages");
+    // The strip is the shell's own, above the page: Playbooks · Broadcasts · Messages.
+    const strip = page.locator(".stabs");
+    await expect(strip).toContainText("Playbooks");
+    await expect(strip.locator(".stabs-tab.active")).toHaveText("Messages");
 
     const res = await page.request.get("/api/v1/templates?all=1");
     expect(res.status()).toBe(200);
@@ -63,12 +65,16 @@ test.describe("Messages on a real workspace", () => {
   test("the three doors of Campaigns are one strip on each page", async ({ page }) => {
     await page.goto("/#/outbound");
     await page.waitForLoadState("networkidle");
-    await expect(page.getByTestId("campaigns-tabs").locator(".cl-tab.active")).toHaveText("Playbooks");
-    await page.getByTestId("campaigns-tabs").getByRole("button", { name: "Messages" }).click();
+    const strip = page.locator(".stabs");
+    await expect(strip.locator(".stabs-tab.active")).toHaveText("Playbooks");
+    // Three doors on a real workspace: Content is seed-only and stays out of the strip.
+    await expect(strip.locator(".stabs-tab")).toHaveCount(3);
+    await strip.getByRole("button", { name: "Messages" }).click();
     await expect(page).toHaveURL(/#\/messages/);
     await expect(page.getByTestId("messages-real")).toBeVisible();
-    await page.getByTestId("campaigns-tabs").getByRole("button", { name: "Broadcasts" }).click();
+    await expect(page.locator(".stabs .stabs-tab.active")).toHaveText("Messages");
+    await strip.getByRole("button", { name: "Broadcasts" }).click();
     await expect(page).toHaveURL(/#\/broadcasts/);
-    await expect(page.getByTestId("campaigns-tabs").locator(".cl-tab.active")).toHaveText("Broadcasts");
+    await expect(page.locator(".stabs .stabs-tab.active")).toHaveText("Broadcasts");
   });
 });

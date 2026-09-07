@@ -193,7 +193,6 @@ const BroadcastsReal = ({ initialSegment = null }) => {
           <h2 className="ct-h2">Broadcasts</h2>
           <p className="ct-sub">One approved template to the people who said yes. Replies land in the Inbox, where the receptionist answers them.</p>
         </div>
-        {window.CampaignsTabs && <window.CampaignsTabs active="broadcasts" />}
       </header>
 
       <StatStrip>
