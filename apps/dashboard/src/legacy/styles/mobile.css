@@ -161,7 +161,13 @@
   .set-nav .fl-roster-head { display: none; }
   .set-nav-row { grid-template-columns: auto auto; white-space: nowrap; flex: 0 0 auto; }
   .set-pane { padding: 16px 16px 32px; }
+  /* A card that scrolls sideways (below, for wide tables) gets min-height 0 in
+     this bounded flex column and collapsed to its head with an inner scroll —
+     every Settings card, on every phone. Cards keep their height; the pane scrolls. */
+  .set-pane > * { flex: 0 0 auto; }
   .set-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+  /* A Setup row's sentence is the content: on a phone it wraps instead of ending in an ellipsis. */
+  .setup-rows .cl-attn-sentence { white-space: normal; }
 
   /* ---------- Tasks ---------- */
   .rp-agents .tbl td, .rp-agents .tbl th { padding-left: 12px; padding-right: 12px; }

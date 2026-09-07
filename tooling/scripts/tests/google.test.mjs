@@ -359,6 +359,8 @@ test("the dashboard: owners link and search, operators read, members look; the p
   assert.ok(brief.includes("<ReviewLine nav={nav} />") && brief.includes('data-testid="brief-review"'));
   const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
   assert.ok(settings.includes("<GoogleCard />") && settings.includes('data-testid="google-check"') && settings.includes('data-testid="google-remove"'));
+  assert.ok(settings.indexOf("<GoogleCard />") < settings.indexOf("<TemplatesCard />"), "the Google card sits above the long list of templates");
+  assert.ok(search.includes('console.error("google_search_failed"') && !search.includes("typeof b.error === \"string\" ? b.error :"), "Google's words go to the log, not the owner");
   assert.ok(settings.includes('data-testid="google-profile-none"') && settings.includes('data-testid="google-connect"'), "the second door is named either way: Connect where open, Not available where not");
   const rate = readCode("apps/dashboard/src/server/rate-limit.ts");
   for (const b of ["google_search", "google_link", "google_refresh"]) assert.ok(rate.includes(`${b}: {`), b);

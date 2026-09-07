@@ -2274,9 +2274,9 @@ const PaneIntegrationsReal = () => {
         )}
       </section>
 
-      <TemplatesCard />
-
       <GoogleCard />
+
+      <TemplatesCard />
 
       <section className="fl-card set-card" data-testid="not-available">
         <div className="fl-card-head">
