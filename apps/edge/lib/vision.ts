@@ -33,7 +33,7 @@ export function photoUserText(caption: string | null | undefined): string {
   const said = (caption ?? "").trim();
   return [
     said ? `The customer sent this photo with the message: "${said}"` : "The customer sent this photo, with no words.",
-    "Answer as the receptionist would to a customer who has just shown you a picture: say what you notice that matters for the salon — the style, colour, length or condition, or the product — and what the next step is. Every rule you were given still holds: no price, no promised result, no health or skin advice, and never a confirmed appointment. If the picture is not something the salon can help with, say so kindly.",
+    "Answer as the receptionist would to a customer who has just shown you a picture: say what you notice that matters for this business — what it shows, its style, colour, size or condition, or the product — and what the next step is. Every rule you were given still holds: no price, no promised result, no health or skin advice, and never a confirmed appointment. If the picture is not something the business can help with, say so kindly.",
   ].join("\n\n");
 }
 

@@ -260,7 +260,7 @@ const CvViewer = ({ c, onBack = null }) => {
           )}
           {c.clientId && (
             <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav(window.CHANLY.R.client(c.clientId))}>
-              <Icon name="users" size={12} /> Open client
+              <Icon name="users" size={12} /> Open profile
             </button>
           )}
           {/* A file from the route that writes it. The menu item that used to

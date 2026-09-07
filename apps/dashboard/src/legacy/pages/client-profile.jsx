@@ -425,7 +425,7 @@ const ClientProfileSeed = ({ id = "c-aisha", onBack = () => {} }) => {
           <div className="cl-prof-rail-label">About</div>
           <div className="cl-prof-attr-list">
             <div className="cl-prof-attr"><span className="cl-prof-attr-key">Source</span><span className="cl-prof-attr-val">{c.source}</span></div>
-            <div className="cl-prof-attr"><span className="cl-prof-attr-key">Therapist</span><span className="cl-prof-attr-val">{c.therapist}</span></div>
+            <div className="cl-prof-attr"><span className="cl-prof-attr-key">Staff</span><span className="cl-prof-attr-val">{c.therapist}</span></div>
             <div className="cl-prof-attr"><span className="cl-prof-attr-key">Joined</span><span className="cl-prof-attr-val">{Math.round(c.joinedDays/30)} months ago</span></div>
             <div className="cl-prof-attr"><span className="cl-prof-attr-key">Primary ch.</span><span className="cl-prof-attr-val">{c.primaryChannel}</span></div>
             {(() => { const cp2 = window.CHANLY.compliance(c.id); return (

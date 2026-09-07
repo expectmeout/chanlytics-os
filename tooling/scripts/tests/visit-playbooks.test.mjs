@@ -85,9 +85,9 @@ test("the visit's own words: when and what for, from the visit the run read", ()
   assert.deepEqual(parseParamSpec({ kind: "visit_service" }), { kind: "visit_service" });
   assert.equal(PARAM_SOURCE_LABELS.visit_when, "Their visit's time");
   const specs = [{ kind: "first_name" }, { kind: "business_name" }, { kind: "visit_when" }, { kind: "visit_service" }];
-  assert.deepEqual(resolveParams(specs, { firstName: "Ana", businessName: "Melany's", bookingLink: null, visitWhen: "tomorrow at 2:00 PM", visitService: "a balayage" }), ["Ana", "Melany's", "tomorrow at 2:00 PM", "a balayage"]);
+  assert.deepEqual(resolveParams(specs, { firstName: "Ana", businessName: "Melany's", bookingLink: null, visitWhen: "tomorrow at 2:00 PM", visitService: "a consultation" }), ["Ana", "Melany's", "tomorrow at 2:00 PM", "a consultation"]);
   assert.deepEqual(resolveParams(specs, { firstName: "Ana", businessName: "Melany's", bookingLink: null }).slice(2), ["", ""], "no facts, no words: the send holds the person rather than sending a blank");
-  assert.deepEqual(exampleParams(specs, "Melany's").slice(2), ["tomorrow at 2:00 PM", "a balayage"]);
+  assert.deepEqual(exampleParams(specs, "Melany's").slice(2), ["tomorrow at 2:00 PM", "a consultation"]);
 });
 
 test("two starters written for the two moments: a utility reminder with the visit's words, a marketing thank-you with the link, in both languages", () => {
@@ -103,7 +103,7 @@ test("two starters written for the two moments: a utility reminder with the visi
   assert.deepEqual(starterText(thanks, "en_US").slots.map((s) => s.kind), ["first_name", "business_name", "booking_link"]);
   assert.match(starterText(thanks, "en_US").footer, /STOP/);
   const draft = starterDraft(reminder, "en_US");
-  assert.deepEqual(draft.examples, ["Dani", "Luna Studio", "tomorrow at 2:00 PM", "a balayage"]);
+  assert.deepEqual(draft.examples, ["Dani", "Luna Studio", "tomorrow at 2:00 PM", "a consultation"]);
 });
 
 test("the wiring: the CHECKs, the facts column, the runner attaching the calendar and keeping the words, the send reading them, the page and the assistant", () => {
@@ -119,7 +119,7 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
   const page = readCode("apps/dashboard/src/legacy/pages/outbound-real.jsx");
   assert.ok(page.includes("pbRowLabel(trig.cls)") && page.includes('trig.kind === "visit"') && page.includes("needs the calendar connected"), "the composer says it plainly");
   assert.ok(page.includes("one message per visit · people who asked to stop") && page.includes("the day's visits are picked from them"), "no gap and no breath are promised for a visit trigger");
-  assert.ok(page.includes('visit_when: "tomorrow at 2:00 PM"') && page.includes('visit_service: "a balayage"'), "the preview shows the visit's words");
+  assert.ok(page.includes('visit_when: "tomorrow at 2:00 PM"') && page.includes('visit_service: "a consultation"'), "the preview shows the visit's words");
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(tools.includes('booking: modeOf("booking")') && tools.includes("withVisits(t.ctx, t.tenantId, people, t.now)"), "the assistant counts with the calendar too");
 });

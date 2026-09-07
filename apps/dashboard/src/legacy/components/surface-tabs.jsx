@@ -8,7 +8,7 @@ const ST_GROUPS = {
   people: {
     match: ["clients", "leads", "pipeline", "segments"],
     tabs: [
-      { id: "clients", label: "Clients", to: "clients" },
+      { id: "clients", label: "People", to: "clients" },
       // badge is demo-only: LEADS is seed data, and this number rendered inside
       // otherwise-real chrome — a fabricated "4" one tab away from real threads.
       // Leads, the deal board and saved lists are Tier 2: seed data with no

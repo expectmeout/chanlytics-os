@@ -144,7 +144,7 @@ import { waWindow, isLiveCall } from "./policy";
 import { callOutcomeWords, tidyCallSummary } from "./call-words";
 
 const AGENT = { glyph: "W", name: "WhatsApp Receptionist" };
-const CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the salon line\.\s*)?(Summary:\s*)?/;
+const CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the (?:salon|business) line\.\s*)?(Summary:\s*)?/; // trade-word: the older notes said "salon"; the newer say "business"
 
 /**
  * Hoisted formatters. `toLocaleTimeString`/`toLocaleDateString` construct a

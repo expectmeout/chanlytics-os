@@ -186,7 +186,7 @@ export async function POST(request: Request): Promise<Response> {
         meta: { source: VOICE_SEND_SOURCE, call_id: call.call_id ?? null, http_status: sent.status },
       }).catch((e) => console.error("retell_fn_record_failed", e instanceof Error ? e.message : e));
       return json(200, {
-        result: `The text could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach the salon on ${brain.phone_display}.`,
+        result: `The text could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach us on ${brain.phone_display}.`,
       });
     }
 

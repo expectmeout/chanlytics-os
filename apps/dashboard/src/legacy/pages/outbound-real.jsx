@@ -102,7 +102,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
   const defaults = tpl && window.__starters ? window.__starters.slotKinds(tpl).map((k) => (k === "booking_link" && !data.bookingLink ? "text" : k)) : PB_NONE;
   const srcOf = (i) => ((sources[tplId] || defaults)[i] || "text");
   const textOf = (i) => ((typed[tplId] || [])[i] || "");
-  const PB_EXAMPLES = { visit_when: "tomorrow at 2:00 PM", visit_service: "a balayage" };
+  const PB_EXAMPLES = { visit_when: "tomorrow at 2:00 PM", visit_service: "a consultation" };
   const exampleOf = (kind) => (kind === "first_name" ? "Dani" : kind === "business_name" ? (data.businessName || "the business") : kind === "booking_link" ? "your booking link" : (PB_EXAMPLES[kind] || ""));
   const labels = tpl && window.__starters ? window.__starters.slotLabels(tpl) : vars.map((v, i) => v.label || `Value ${v.position || i + 1}`);
   const filled = vars.map((v, i) => (srcOf(i) === "text" ? textOf(i) : exampleOf(srcOf(i))));

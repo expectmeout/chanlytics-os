@@ -97,7 +97,7 @@ const SOON_META = {
   studio:     { icon: "sparkle",     title: "Agent Studio", blurb: "Compose custom agents from skills, tone, and guardrails." },
   reports:    { icon: "trending-up", title: "Reports",    blurb: "Revenue, conversion, and agent performance over time." },
   admin:      { icon: "settings",    title: "Settings",   blurb: "Team, billing, integrations, AI memory, and autonomy defaults." },
-  clients:    { icon: "users",       title: "Clients",    blurb: "Every customer's history, spend, and preferences in one profile." },
+  clients:    { icon: "users",       title: "People",    blurb: "Every customer's history, spend, and preferences in one profile." },
   leads:      { icon: "bolt",        title: "Leads",      blurb: "New prospects captured, scored, and queued for your call." },
   segments:   { icon: "filter",      title: "Lists",      blurb: "Smart lists that keep themselves current — lapsed, VIP, new." },
   tasks:      { icon: "check",       title: "Tasks",      blurb: "The work ledger — a receipt for everything your agents did." },
@@ -352,7 +352,7 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
     const surfaceList = segId && window.__PEOPLE && (window.__PEOPLE.lists || []).find(l => l.id === segId);
     const savedMeta = savedId && window.__PEOPLE && (window.__PEOPLE.saved || []).find(l => l.id === savedId);
     activeNav = "clients";
-    crumbs = ["People", { label: "Clients", to: "clients" }, surfaceList ? surfaceList.label : segMeta ? segMeta.label : savedMeta ? savedMeta.name : stateId ? stateId.replace(/_/g, " ") : "Segment"];
+    crumbs = [{ label: "People", to: "clients" }, surfaceList ? surfaceList.label : segMeta ? segMeta.label : savedMeta ? savedMeta.name : stateId ? stateId.replace(/_/g, " ") : "Segment"];
     pane = true;
     content = <ClientsA initialSegment={segId} initialSaved={savedId} initialState={stateId} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
   } else if (page === "clients" && param) {
@@ -361,14 +361,14 @@ const ChanlyticsApp = ({ theme, onTheme, inboxDensity, showInboxAgentRail }) => 
     const people = window.__PEOPLE;
     const client = people ? people.rows.find(c => c.id === param) : (window.CLIENTS || []).find(c => c.id === param);
     activeNav = "clients";
-    crumbs = ["People", { label: "Clients", to: "clients" }, client ? client.name : "Profile"];
+    crumbs = [{ label: "People", to: "clients" }, client ? client.name : "Profile"];
     pane = true;
     content = client || people
       ? <ClientProfile id={param} onBack={() => navigate("clients")} />
       : <ClientNotFound onNavigate={navigate} />;
   } else if (page === "clients") {
     activeNav = "clients";
-    crumbs = ["People", "Clients"];
+    crumbs = ["People"];
     pane = true;
     // "Add client" opens the Ask overlay, which is demo theater; a real
     // workspace gains people when they write or phone.

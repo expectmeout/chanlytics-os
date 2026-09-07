@@ -46,7 +46,7 @@ export async function GET(request: Request): Promise<Response> {
     return json(403, { ok: false });
   }
   const apply = url.searchParams.get("mode") === "apply";
-  const tenantSlug = url.searchParams.get("tenant") || "melanys-beauty-salon";
+  const tenantSlug = url.searchParams.get("tenant") || "melanys-beauty-salon"; // trade-word: the one workspace this admin backfill was written for; pass ?tenant= for any other
   const db = pg();
   if (!db) return json(400, { ok: false, error: "PG_WRITES not enabled" });
 

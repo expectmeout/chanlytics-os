@@ -109,7 +109,7 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
       )}
       <div className="tpl-row">
         <span className="bc-row-label">Say</span>
-        <textarea className="tpl-brief" rows={2} value={brief} placeholder="What do you want to tell customers? e.g. 20% off balayage this week for regulars, book by Friday" onChange={(e) => setBrief(e.target.value)} data-testid="tpl-brief" />
+        <textarea className="tpl-brief" rows={2} value={brief} placeholder="What do you want to tell customers? e.g. 20% off any service this week, book by Friday" onChange={(e) => setBrief(e.target.value)} data-testid="tpl-brief" />
       </div>
       <div className="tpl-row">
         <span className="bc-row-label">Kind</span>
