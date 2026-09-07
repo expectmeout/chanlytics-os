@@ -227,6 +227,12 @@ test.describe("People on a real workspace", () => {
     await expect(strip).toBeVisible();
     // No header, no toggle: the strip is the page's hero, as drawn.
     await expect(page.locator(".cl-buckets-toggle")).toHaveCount(0);
+    // Inset like the sections around it: its left edge is the search box's, its right edge the table's.
+    const stripBox = (await strip.boundingBox())!;
+    const searchBox = (await page.locator(".cl-search-wrap").boundingBox())!;
+    const tableBox = (await page.locator(".cl-table-wrap").boundingBox())!;
+    expect(Math.abs(stripBox.x - searchBox.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(stripBox.x + stripBox.width - (tableBox.x + tableBox.width))).toBeLessThanOrEqual(1);
     const heights: number[] = [];
     for (const t of ["needs_you", "waiting_on_you", "new", "quiet", "active"]) {
       await page.getByTestId(`attention-tab-${t}`).click();
