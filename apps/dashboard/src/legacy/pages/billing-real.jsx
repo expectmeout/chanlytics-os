@@ -88,7 +88,7 @@ const PaneBillingReal = ({ flash }) => {
           <div className="set-row-info">
             <span className="set-row-label" data-testid="billing-headline">
               {vm.headline}
-              {vm.mode === "stripe" && <span className={`pill ${BILLING_PILL[vm.tone] || "pill-accent"}`} style={{ marginLeft: 8 }}>{vm.status.replace(/_/g, " ")}</span>}
+              {vm.mode === "stripe" && vm.status !== "none" && <span className={`pill ${BILLING_PILL[vm.tone] || "pill-accent"}`} style={{ marginLeft: 8 }}>{vm.status.replace(/_/g, " ")}</span>}
             </span>
             <span className="set-row-hint">{vm.detail}</span>
             {vm.card && <span className="set-row-hint">Card on file: {vm.card}</span>}

@@ -86,6 +86,10 @@ test("the view model per status: what the pane says and what an owner may do", (
   assert.equal(trial.headline, "On trial");
   assert.equal(trial.detail, "14 days left on the trial, until Sep 21, then Chanlytics OS · $49.00 a month on Visa ending 4242.");
   assert.deepEqual(trial.actions, { checkout: false, portal: true, resume: false });
+  const ending = toBillingVM(dto(acct({ status: "trialing", trial_end: "2026-09-21T15:00:00Z", cancel_at: "2026-09-21T15:00:00Z", card_brand: "visa", card_last4: "4242" })), NOW);
+  assert.equal(ending.headline, "On trial, ending");
+  assert.ok(ending.detail.startsWith("Cancelled: the receptionist answers until Sep 21, then stops"));
+  assert.equal(ending.tone, "warn");
   const paused = toBillingVM(dto(acct({ status: "paused" })), NOW);
   assert.equal(paused.paused, true);
   assert.deepEqual(paused.actions, { checkout: false, portal: true, resume: true });
@@ -114,6 +118,7 @@ test("the Setup row: first, for a workspace that pays by card, in each state; ab
   assert.equal(first.verb.to, "verb:billing-checkout");
   assert.ok(first.sentence.includes("14-day trial"));
   assert.equal(rowOf({ ready: true, mode: "stripe", status: "trialing", trial_end: "2026-09-21T15:00:00Z", current_period_end: null, trial_days: 14 }).state, "ready");
+  assert.ok(rowOf({ ready: true, mode: "stripe", status: "trialing", trial_end: "2026-09-21T15:00:00Z", current_period_end: null, trial_days: 14, cancel_at: "2026-09-21T15:00:00Z" }).sentence.startsWith("On trial, cancelled: the receptionist answers until Sep 21"));
   assert.equal(rowOf({ ready: true, mode: "stripe", status: "past_due", trial_end: null, current_period_end: null, trial_days: 14 }).verb.to, "verb:billing-portal");
   assert.equal(rowOf({ ready: true, mode: "stripe", status: "paused", trial_end: null, current_period_end: null, trial_days: 14 }).state, "waiting_you");
   assert.equal(rowOf({ ready: true, mode: "direct", status: "active", trial_end: null, current_period_end: null, trial_days: 14 }), undefined, "a direct arrangement has no row");
@@ -166,7 +171,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   assert.ok(!server.includes("STRIPE_SECRET_KEY"), "the dashboard never holds the key");
   assert.ok(readCode("apps/dashboard/src/server/rate-limit.ts").includes("billing: {"));
   const setup = readCode("apps/dashboard/app/api/v1/setup/route.ts");
-  assert.ok(setup.includes("billingFor(supabase, tenantId),") && setup.includes("billingReadiness(),") && setup.includes("trial_days: billingReady.trial_days"));
+  assert.ok(setup.includes("billingFor(supabase, tenantId),") && setup.includes("billingReadiness(),") && setup.includes("trial_days: billingReady.trial_days, cancel_at: billingRow.cancel_at"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/billing.ts");
   assert.ok(bridge.includes('key: "billing",') && bridge.includes('refreshOnTables: ["billing_accounts"],') && bridge.includes("win.location.assign(r.data.url)"));
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");

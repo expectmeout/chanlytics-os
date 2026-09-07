@@ -5641,6 +5641,9 @@ function toBillingVM(dto, nowMs = Date.now()) {
     case "none":
       return { ...base, headline: "No subscription yet", detail: dto.ready ? `Start the ${dto.trial_days}-day trial with a card; nothing is charged until it ends, and you can cancel from here any time.` : "Billing is not available on this deployment yet.", tone: "warn", actions: { checkout: dto.ready, portal: false, resume: false }, paused: false };
     case "trialing":
+      if (a.cancel_at || a.cancel_at_period_end) {
+        return { ...base, headline: "On trial, ending", detail: `Cancelled: the receptionist answers until ${dayWords(a.cancel_at ?? a.trial_end) || "the trial ends"}, then stops, and nothing is charged. Undo it from Manage billing before then to keep it.`, tone: "warn", actions: { checkout: false, portal: true, resume: false }, paused: false };
+      }
       return { ...base, headline: "On trial", detail: `${trialWords(a.trial_end, nowMs)}${card ? `, then ${plan || "the plan"} on ${card}` : ""}.`, tone: "ok", actions: { checkout: false, portal: true, resume: false }, paused: false };
     case "active":
       return { ...base, headline: a.cancel_at_period_end || a.cancel_at ? "Subscribed, ending" : "Subscribed", detail: a.cancel_at || a.cancel_at_period_end ? `Ends ${dayWords(a.cancel_at ?? a.current_period_end)}; the receptionist answers until then.` : `Next invoice ${dayWords(a.current_period_end) || "on the renewal date"}${card ? ` on ${card}` : ""}.`, tone: "ok", actions: { checkout: false, portal: true, resume: false }, paused: false };
@@ -5726,7 +5729,9 @@ function setupSteps(i, nowMs = Date.now()) {
   const row = (r) => rows.push({ ...r, stateWords: r.stateWords ?? SETUP_STATE_WORDS[r.state], later: !r.required && later.has(r.id) });
   if (i.billing && i.billing.mode === "stripe" && i.billing.ready) {
     const b = i.billing;
-    if (b.status === "trialing") {
+    if (b.status === "trialing" && (b.cancel_at || b.cancel_at_period_end)) {
+      row({ id: "billing", icon: "money", title: "Billing", state: "ready", required: true, sentence: `On trial, cancelled: the receptionist answers until ${dayWords(b.cancel_at ?? b.trial_end) || "the trial ends"}, then stops.`, details: ["Nothing is charged; undo the cancellation from Billing before then to keep it"], verb: { label: "Open Billing", to: "admin/billing" } });
+    } else if (b.status === "trialing") {
       row({ id: "billing", icon: "money", title: "Billing", state: "ready", required: true, sentence: `On trial: ${trialWords(b.trial_end, nowMs) || "the card is on file"}.`, details: ["The card on file is charged when the trial ends; cancel from Billing before then if you'd rather not"], verb: { label: "Open Billing", to: "admin/billing" } });
     } else if (b.status === "active" || b.status === "incomplete") {
       row({ id: "billing", icon: "money", title: "Billing", state: "ready", required: true, sentence: b.status === "active" ? `Subscribed \xB7 next invoice ${dayWords(b.current_period_end) || "on the renewal date"}.` : "Finishing checkout \u2014 this page updates by itself.", details: [], verb: { label: "Open Billing", to: "admin/billing" } });

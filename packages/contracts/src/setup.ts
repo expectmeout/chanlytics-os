@@ -149,7 +149,9 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
   // the desk. A direct arrangement has no row; a closed door draws nothing.
   if (i.billing && i.billing.mode === "stripe" && i.billing.ready) {
     const b = i.billing;
-    if (b.status === "trialing") {
+    if (b.status === "trialing" && (b.cancel_at || b.cancel_at_period_end)) {
+      row({ id: "billing", icon: "money", title: "Billing", state: "ready", required: true, sentence: `On trial, cancelled: the receptionist answers until ${dayWords(b.cancel_at ?? b.trial_end) || "the trial ends"}, then stops.`, details: ["Nothing is charged; undo the cancellation from Billing before then to keep it"], verb: { label: "Open Billing", to: "admin/billing" } });
+    } else if (b.status === "trialing") {
       row({ id: "billing", icon: "money", title: "Billing", state: "ready", required: true, sentence: `On trial: ${trialWords(b.trial_end, nowMs) || "the card is on file"}.`, details: ["The card on file is charged when the trial ends; cancel from Billing before then if you'd rather not"], verb: { label: "Open Billing", to: "admin/billing" } });
     } else if (b.status === "active" || b.status === "incomplete") {
       row({ id: "billing", icon: "money", title: "Billing", state: "ready", required: true, sentence: b.status === "active" ? `Subscribed · next invoice ${dayWords(b.current_period_end) || "on the renewal date"}.` : "Finishing checkout — this page updates by itself.", details: [], verb: { label: "Open Billing", to: "admin/billing" } });
