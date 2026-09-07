@@ -935,13 +935,14 @@ var ROLE_PERMS = {
   operator: { approve: true, autonomy: true, disconnect: false, billing: false, team: false, settings: false, export: false },
   viewer: { approve: false, autonomy: false, disconnect: false, billing: false, team: false, settings: false, export: false }
 };
-var POLICY_CLASSES = ["reply", "booking", "faq", "reengage", "campaign", "money"];
+var POLICY_CLASSES = ["reply", "booking", "faq", "reengage", "campaign", "reviews", "money"];
 var POLICY_CLASS_WORDS = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
   booking: { name: "Book \xB7 reschedule", short: "Bookings", note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone" },
   reengage: { name: "Re-engage quiet customers", short: "Re-engage", note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
   campaign: { name: "Standing offers", short: "Offers", note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
+  reviews: { name: "Google reviews", short: "Reviews", note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you" },
   money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
 };
 var POLICY_MODES = ["auto", "veto", "ask", "never"];
@@ -951,6 +952,7 @@ var POLICY_CLASS_MODES = {
   faq: ["auto", "ask"],
   reengage: ["auto", "veto", "ask", "never"],
   campaign: ["auto", "veto", "ask", "never"],
+  reviews: ["auto", "ask", "never"],
   money: ["never"]
 };
 function policyClassOfIntent(intent) {
@@ -5289,6 +5291,82 @@ function forwardingTestOpen(facts, nowMs = Date.now()) {
   return !Number.isNaN(until) && until > nowMs;
 }
 
+// src/review-reply.ts
+function reviewReplyModeOf(rows) {
+  const m = rows?.find((r) => r.class === "reviews")?.mode;
+  return m === "auto" || m === "never" ? m : "ask";
+}
+var REVIEW_REPLY_MAX_WORDS = 60;
+var REVIEW_REPLY_MAX_CHARS = 1e3;
+var REVIEW_AUTO_REPLIES_PER_SYNC = 3;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
+function firstName(author) {
+  const a = (author ?? "").trim();
+  if (!a || /^(a google user|anonymous)$/i.test(a)) return null;
+  return a.split(/\s+/)[0];
+}
+function reviewReplyPrompt(facts, review) {
+  const lang = facts.languages[0] ?? "English";
+  const system = [
+    "You write the public reply a business posts under a Google review, in the business's own name.",
+    `Business: ${facts.name}.`,
+    facts.tone ? `Tone, in the owner's words: ${facts.tone}` : null,
+    facts.languages.length ? `Languages the business speaks: ${facts.languages.join(", ")}.` : null,
+    facts.services.length ? `Services: ${facts.services.slice(0, 12).join(", ")}.` : null,
+    facts.website ? `Website: ${facts.website}` : null,
+    facts.phone ? `Phone: ${facts.phone}` : null,
+    "",
+    "Rules:",
+    `- Reply in the language the review is written in. When the review has no words, reply in ${lang}.`,
+    `- One to three sentences, at most ${REVIEW_REPLY_MAX_WORDS} words. Warm and specific to what they wrote, never a form letter.`,
+    "- Address them by first name when one is given; no name when the review is anonymous.",
+    "- Four or five stars: thank them and pick up one thing they praised.",
+    `- Three stars or fewer: thank them for the feedback, apologise plainly for what went wrong, and invite them to get in touch so it can be put right${facts.phone ? ` (${facts.phone})` : ""}. Never argue, never dispute what they wrote, never blame them.`,
+    "- Never mention refunds, discounts, prices or compensation \u2014 those decisions belong to the owner.",
+    "- Never invent details about their visit, names of staff, or promises the business did not make.",
+    "- No emojis, no hashtags, no sign-off, no quotation marks around the reply, and do not write the business name at the end.",
+    "",
+    "Answer with the reply text only."
+  ].filter((l) => l !== null).join("\n");
+  const name = firstName(review.author);
+  const text = (review.text ?? "").replace(/\s+/g, " ").trim();
+  const user = [
+    `Rating: ${typeof review.rating === "number" ? `${review.rating} of 5` : "not given"}`,
+    `From: ${name ? review.author.trim() : "a customer who did not give a name"}`,
+    review.written_at ? `Written: ${review.written_at.slice(0, 10)}` : null,
+    text ? `Review: "${text}"` : "The review has no words, only the stars."
+  ].filter((l) => l !== null).join("\n");
+  return { system, user };
+}
+function cleanDraft(raw) {
+  if (typeof raw !== "string") return "";
+  let t = raw.replace(/\r\n?/g, "\n").trim();
+  t = t.replace(/^(reply|response|draft)\s*:\s*/i, "");
+  t = t.replace(/^["“”'‘’«»]+|["“”'‘’«»]+$/g, "");
+  t = t.replace(/\s+/g, " ").trim();
+  return t.slice(0, REVIEW_REPLY_MAX_CHARS);
+}
+function autoReplyCandidates(rows, connectedAt, nowMs, cap = REVIEW_AUTO_REPLIES_PER_SYNC) {
+  const connected = connectedAt ? Date.parse(connectedAt) : NaN;
+  if (Number.isNaN(connected)) return [];
+  return rows.filter((r) => r.origin === "profile" && !r.reply_text && r.published_at).map((r) => ({ r, at: Date.parse(r.published_at) })).filter(({ at }) => !Number.isNaN(at) && at > connected && nowMs - at <= REVIEW_AUTO_REPLY_MAX_AGE_MS).sort((a, b) => b.at - a.at).slice(0, Math.max(0, cap)).map(({ r }) => r);
+}
+function autoReplyBell(answered) {
+  if (!answered.length) return null;
+  if (answered.length === 1) {
+    const who = (answered[0].author ?? "").trim();
+    return { title: who ? `Replied to ${who}'s review` : "Replied to a review on Google", body: answered[0].text };
+  }
+  const names = answered.map((a) => (a.author ?? "").trim()).filter(Boolean);
+  return { title: `Replied to ${answered.length} reviews on Google`, body: names.length ? `Under the reviews from ${names.join(", ")}. Each reply is on Reports.` : "Each reply is on Reports." };
+}
+function reviewReplyWords(mode, canReply) {
+  if (!canReply || !mode) return "";
+  if (mode === "auto") return "new ones are answered by the receptionist within the hour";
+  if (mode === "ask") return "the receptionist drafts, you send";
+  return "";
+}
+
 // src/google.ts
 var GOOGLE_SHOWN_REVIEWS = 5;
 var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
@@ -5399,8 +5477,9 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
   const c = dto.connection ?? null;
   const connection = c ? { email: c.google_email, location: c.location_title, words: connectionWords(c, nowMs), pending: !c.location_name, trouble: !!c.sync_error } : null;
   const canReply = !!c && !!c.location_name;
+  const reply = { mode: dto.reply_mode, words: reviewReplyWords(dto.reply_mode, canReply) };
   const table = { columns: ["Reviewer", "Stars", "Written", "Words"], rows: [] };
-  if (!l) return { listing: null, connection, canReply, tiles: [], gained: EMPTY_GAINED, latest: [], source: "", table, todayLine: null };
+  if (!l) return { listing: null, connection, canReply, reply, tiles: [], gained: EMPTY_GAINED, latest: [], source: "", table, todayLine: null };
   const latest = [...dto.reviews].sort((a, b) => (Date.parse(b.published_at ?? "") || 0) - (Date.parse(a.published_at ?? "") || 0)).map((r) => toGoogleReviewVM(r, l.linked_at, nowMs));
   table.rows = latest.map((r) => [r.author, r.rating ?? "\u2014", r.when || "\u2014", r.text || "\u2014"]);
   const source = canReply ? "every review, from your Business Profile" : `the ${latest.length === 1 ? "one" : latest.length} Google shows first`;
@@ -5467,6 +5546,7 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
     },
     connection,
     canReply,
+    reply,
     tiles,
     gained,
     latest,
@@ -5844,8 +5924,12 @@ export {
   REPLY_DELAY_MAX_MS,
   REPLY_DELAY_MIN_MS,
   REPORT_RANGES,
+  REVIEW_AUTO_REPLIES_PER_SYNC,
+  REVIEW_AUTO_REPLY_MAX_AGE_MS,
   REVIEW_NEWS_MAX_AGE_MS,
   REVIEW_NEWS_MS,
+  REVIEW_REPLY_MAX_CHARS,
+  REVIEW_REPLY_MAX_WORDS,
   ROLES,
   ROLE_PERMS,
   ROLE_WORDS,
@@ -5880,6 +5964,8 @@ export {
   asPersonMode,
   askJump,
   attentionRow,
+  autoReplyBell,
+  autoReplyCandidates,
   bookedAfterAsk,
   brainMetaOf,
   broadcastName,
@@ -5892,6 +5978,7 @@ export {
   citationsToShow,
   cleanAnswer,
   cleanDisplayName,
+  cleanDraft,
   cleanParam,
   clockInZone,
   clockLabel,
@@ -6028,6 +6115,9 @@ export {
   resolveSystemPrompt,
   resolveTheme,
   reviewIsNew,
+  reviewReplyModeOf,
+  reviewReplyPrompt,
+  reviewReplyWords,
   reviewSnippet,
   reviewsWords,
   rulesLine,

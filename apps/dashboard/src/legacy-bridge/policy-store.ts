@@ -50,6 +50,7 @@ export const UI_ROWS: readonly UiRowMeta[] = [
   { id: "book", cls: "booking", ...W("booking"), enforced: true, modes: ["Auto", "Ask"], hints: { Auto: "sends your booking link when they want to book, move or cancel", Ask: "tells them a person will confirm, never sends the link, and lands the thread in Needs you" } },
   { id: "reengage", cls: "reengage", ...W("reengage"), enforced: true },
   { id: "campaign", cls: "campaign", ...W("campaign"), enforced: true },
+  { id: "reviews", cls: "reviews", ...W("reviews"), enforced: true, modes: ["Auto", "Ask", "Never"], hints: { Auto: "answers each new review on Google within the hour, in the business's name — never about money", Ask: "writes a draft when you open a reply on Reports; you send it", Never: "writes nothing; you reply in your own words" } },
   { id: "money", cls: "money", ...W("money"), locked: true, enforced: true },
 ];
 

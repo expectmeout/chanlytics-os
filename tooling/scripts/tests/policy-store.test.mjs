@@ -37,7 +37,8 @@ test("modes round-trip between the database's spelling and the mockup's, and unk
 
 test("only the classes the runtime consults are offered as switches", () => {
   const enforced = UI_ROWS.filter((r) => r.enforced).map((r) => r.id).sort();
-  assert.deepEqual(enforced, ["book", "campaign", "faq", "money", "reengage", "reply"], "reply by the handlers; booking and faq in both prompts and after generation; reengage and campaign by the playbooks sweep; money is locked in the database");
+  assert.deepEqual(enforced, ["book", "campaign", "faq", "money", "reengage", "reply", "reviews"], "reply by the handlers; booking and faq in both prompts and after generation; reengage and campaign by the playbooks sweep; reviews by the profile sync and the draft route; money is locked in the database");
+  assert.deepEqual(UI_ROWS.find((r) => r.id === "reviews").modes, ["Auto", "Ask", "Never"], "answered, drafted for a person, or left alone — no countdown to hold");
   assert.deepEqual(UI_ROWS.find((r) => r.id === "book").modes, ["Auto", "Ask"], "no never for a salon that takes bookings, no draft to hold for review");
   assert.deepEqual(UI_ROWS.find((r) => r.id === "faq").modes, ["Auto", "Ask"]);
   assert.equal(UI_ROWS.find((r) => r.id === "money").locked, true);

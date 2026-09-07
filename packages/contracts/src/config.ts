@@ -27,7 +27,7 @@ export const ROLE_PERMS: Record<Role, { approve: boolean; autonomy: boolean; dis
 
 /* --------------------------------------------------------------- E3 policy */
 
-export const POLICY_CLASSES = ["reply", "booking", "faq", "reengage", "campaign", "money"] as const;
+export const POLICY_CLASSES = ["reply", "booking", "faq", "reengage", "campaign", "reviews", "money"] as const;
 export type PolicyClass = (typeof POLICY_CLASSES)[number];
 
 /**
@@ -42,6 +42,7 @@ export const POLICY_CLASS_WORDS: Record<PolicyClass, { name: string; short: stri
   booking: { name: "Book · reschedule", short: "Bookings", note: "auto sends your booking link · ask has a person confirm instead, on WhatsApp and on the phone" },
   reengage: { name: "Re-engage quiet customers", short: "Re-engage", note: "the win-back and save-our-number playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
   campaign: { name: "Standing offers", short: "Offers", note: "the welcome and month's-offer playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
+  reviews: { name: "Google reviews", short: "Reviews", note: "replies under new reviews on Google, through the connected Business Profile · auto answers each within the hour, ask drafts one for you to send, never leaves them all to you" },
   money: { name: "Refunds · rates · negotiation", short: "Money", note: "always goes to you" },
 };
 
@@ -57,7 +58,9 @@ export type PolicyMode = (typeof POLICY_MODES)[number];
  * (never). Booking and service questions are answered by the receptionist
  * or by a person: there is no "never" for a salon that takes bookings, and
  * no draft to hold for review. The playbook classes run, wait, wait for a
- * person, or do not run. Money is the charter's.
+ * person, or do not run. Reviews are answered, drafted for a person, or
+ * left alone — there is no draft to hold on a countdown. Money is the
+ * charter's.
  */
 export const POLICY_CLASS_MODES: Record<PolicyClass, readonly PolicyMode[]> = {
   reply: ["auto", "veto", "ask", "never"],
@@ -65,6 +68,7 @@ export const POLICY_CLASS_MODES: Record<PolicyClass, readonly PolicyMode[]> = {
   faq: ["auto", "ask"],
   reengage: ["auto", "veto", "ask", "never"],
   campaign: ["auto", "veto", "ask", "never"],
+  reviews: ["auto", "ask", "never"],
   money: ["never"],
 };
 

@@ -15,6 +15,7 @@
  * gained. Pure: the routes feed it rows, the tests feed it fixtures.
  */
 import { agoWords } from "./time";
+import { reviewReplyWords, type ReviewReplyMode } from "./review-reply";
 import { dayDate, fmtDay, deltaOf, type ReportTileVM } from "./reports";
 
 export interface GoogleListingDto {
@@ -78,6 +79,8 @@ export interface GoogleDto {
   reviews: GoogleReviewDto[];
   /** Oldest first. */
   days: GoogleDayDto[];
+  /** The Autonomy row for reviews: what the receptionist does under a new one. */
+  reply_mode: ReviewReplyMode;
   role: string;
 }
 
@@ -210,6 +213,8 @@ export interface GoogleVM {
   connection: { email: string | null; location: string | null; words: string; pending: boolean; trouble: boolean } | null;
   /** Reviews can be answered from here: the profile is connected and complete. */
   canReply: boolean;
+  /** What the receptionist does under a new review, and the words for it beside the source; empty until replies can go out from here. */
+  reply: { mode: ReviewReplyMode; words: string };
   /** Rating now · reviews on Google · gained in the period · newest review. */
   tiles: ReportTileVM[];
   gained: {
@@ -317,8 +322,9 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
     ? { email: c.google_email, location: c.location_title, words: connectionWords(c, nowMs), pending: !c.location_name, trouble: !!c.sync_error }
     : null;
   const canReply = !!c && !!c.location_name;
+  const reply = { mode: dto.reply_mode, words: reviewReplyWords(dto.reply_mode, canReply) };
   const table = { columns: ["Reviewer", "Stars", "Written", "Words"], rows: [] as (string | number)[][] };
-  if (!l) return { listing: null, connection, canReply, tiles: [], gained: EMPTY_GAINED, latest: [], source: "", table, todayLine: null };
+  if (!l) return { listing: null, connection, canReply, reply, tiles: [], gained: EMPTY_GAINED, latest: [], source: "", table, todayLine: null };
 
   const latest = [...dto.reviews]
     .sort((a, b) => (Date.parse(b.published_at ?? "") || 0) - (Date.parse(a.published_at ?? "") || 0))
@@ -398,6 +404,7 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
     },
     connection,
     canReply,
+    reply,
     tiles,
     gained,
     latest,

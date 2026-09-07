@@ -76,6 +76,7 @@ export const RATE = {
   google_refresh: { limit: 6, windowMs: 3_600_000, noun: "listing reads" },
   /** A reply reaches Google under the business's name. */
   google_reply: { limit: 20, windowMs: 3_600_000, noun: "review replies" },
+  google_draft: { limit: 30, windowMs: 3_600_000, noun: "review drafts" },
   /** A whole thread, a whole call, or everyone, as a file. */
   export: { limit: 10, windowMs: 60_000, noun: "exports" },
   /** A question to the workspace assistant: a model turn, tools and all. */
