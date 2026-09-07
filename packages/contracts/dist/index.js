@@ -521,9 +521,9 @@ function bubbleTime(iso, now) {
 function contactName(dto) {
   return dto.contact.display_name || dto.contact.wa_profile_name || formatPhoneDisplay(dto.contact.phone_e164) || "Unknown";
 }
-function contactMeta(dto) {
+function contactMeta(dto, channel = "WhatsApp") {
   const phone = formatPhoneDisplay(dto.contact.phone_e164);
-  return contactName(dto) === phone ? "WhatsApp \xB7 no name saved" : `WhatsApp \xB7 ${phone ?? "no phone"}`;
+  return contactName(dto) === phone ? `${channel} \xB7 no name saved` : `${channel} \xB7 ${phone ?? "no phone"}`;
 }
 function initialsOf(name) {
   const digits = name.replace(/[^\d]/g, "");
@@ -658,6 +658,10 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
   const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   const win = waWindow(dto.last_wa_inbound_at, now).open;
+  const hasCalls = dto.messages.some((m) => m.type === "call_summary");
+  const hasChat = !!dto.last_wa_inbound_at || dto.messages.some((m) => m.type !== "call_summary");
+  const primaryChannel = hasChat || !hasCalls ? "whatsapp" : "phone";
+  const channels = [...hasChat || !hasCalls ? ["whatsapp"] : [], ...hasCalls ? ["phone"] : []];
   const timeline = dto.messages.map((m) => {
     const onPhone = m.type === "call_summary";
     const media = mediaVM(m);
@@ -710,7 +714,7 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
     windowOpen: win,
     optedOut: isOptedOut(dto),
     who,
-    whoMeta: contactMeta(dto),
+    whoMeta: contactMeta(dto, primaryChannel === "phone" ? "Phone" : "WhatsApp"),
     avatar: initialsOf(who),
     state,
     takenOver,
@@ -725,8 +729,11 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
         ...replyWhy(draftMsg.meta) ? { why: replyWhy(draftMsg.meta) } : {}
       }
     } : {},
-    channels: ["whatsapp"],
-    primaryChannel: "whatsapp",
+    channels,
+    primaryChannel,
+    hasChat,
+    phone: dto.contact.phone_e164 ?? null,
+    ...waitingMin ? { waited: formatWaited(waitingMin * 6e4) } : {},
     agent: { name: "WhatsApp Receptionist", glyph: "W", autonomy: "Pauses on handoff", tone: "Warm \xB7 bilingual (EN/ES)" },
     subject: (claimedByOther ? "A teammate is answering this" : null) ?? reasonLabel ?? (takenOver ? "You're answering this one" : lastInbound ? messageText(lastInbound).slice(0, 80) : last ? messageText(last).slice(0, 80) : "No messages yet"),
     preview: last ? messageText(last).slice(0, 110) : "",
@@ -734,8 +741,8 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
     contextStrip: [
       ...reasonLabel ? [{ label: "Why you", value: reasonLabel }] : [],
       { label: "Waiting", value: waitingMin ? formatWaited(waitingMin * 6e4) : "\u2014", ...waitingMin && waitingMin > 30 ? { warn: true } : {} },
-      { label: "Receptionist", value: needsHuman ? "Paused \u2014 you have it" : "Answering" },
-      { label: "Reply window", value: win ? "Open \u2014 you can write freely" : "Closed \u2014 template only" }
+      { label: "Receptionist", value: needsHuman ? escalation?.reason === "callback" ? "Paused \u2014 call them back" : "Paused \u2014 you have it" : "Answering" },
+      hasChat ? { label: "Reply window", value: win ? "Open \u2014 you can write freely" : "Closed \u2014 template only" } : { label: "WhatsApp", value: "No thread yet \u2014 they have only phoned" }
     ],
     lastAt: shortTime(dto.last_message_at, now),
     lastAtFull: shortTime(dto.last_message_at, now),

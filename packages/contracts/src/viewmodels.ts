@@ -193,10 +193,10 @@ export function contactName(dto: ConversationDto): string {
   );
 }
 
-/** The "WhatsApp · +1 …" subtitle line, same source as the thread viewmodel. */
-export function contactMeta(dto: ConversationDto): string {
+/** The "WhatsApp · +1 …" subtitle line, same source as the thread viewmodel; "Phone · …" for a caller with no thread. */
+export function contactMeta(dto: ConversationDto, channel: "WhatsApp" | "Phone" = "WhatsApp"): string {
   const phone = formatPhoneDisplay(dto.contact.phone_e164);
-  return contactName(dto) === phone ? "WhatsApp · no name saved" : `WhatsApp · ${phone ?? "no phone"}`;
+  return contactName(dto) === phone ? `${channel} · no name saved` : `${channel} · ${phone ?? "no phone"}`;
 }
 
 export function initialsOf(name: string): string {
@@ -409,8 +409,15 @@ export interface InboxThreadVM {
    * server-side and the UI only reports what is already true.
    */
   veto?: { window: number; draft: string; endsAtMs: number; messageId: string; why?: ReplyWhyVM };
+  /** The channels the thread has actually used: "whatsapp", "phone", or both. */
   channels: string[];
-  primaryChannel: "whatsapp";
+  primaryChannel: "whatsapp" | "phone";
+  /** A WhatsApp thread exists. False for a caller who has only ever phoned: no reply window, phone verbs. */
+  hasChat: boolean;
+  /** The number to call back, E.164, when known. */
+  phone: string | null;
+  /** How long the request has waited, in the one family every surface reads ("57m", "2h"). */
+  waited?: string;
   agent: { name: string; glyph: string; autonomy: string; tone: string };
   subject: string;
   preview: string;
@@ -522,6 +529,13 @@ export function toInboxThreadVM(
   // send is legal — with two expressions those answers drift the moment either
   // moves, and the operator is told they can send something the server refuses.
   const win = waWindow(dto.last_wa_inbound_at, now).open;
+  // The channels the thread has actually used: a call note is the phone, any
+  // other row is WhatsApp. A caller with no thread on WhatsApp gets phone
+  // verbs, not a notice about a reply window that never opened.
+  const hasCalls = dto.messages.some((m) => m.type === "call_summary");
+  const hasChat = !!dto.last_wa_inbound_at || dto.messages.some((m) => m.type !== "call_summary");
+  const primaryChannel: InboxThreadVM["primaryChannel"] = hasChat || !hasCalls ? "whatsapp" : "phone";
+  const channels = [...(hasChat || !hasCalls ? ["whatsapp"] : []), ...(hasCalls ? ["phone"] : [])];
 
   const timeline: InboxThreadVM["timeline"] = dto.messages.map((m) => {
     const onPhone = m.type === "call_summary";
@@ -588,7 +602,7 @@ export function toInboxThreadVM(
     windowOpen: win,
     optedOut: isOptedOut(dto),
     who,
-    whoMeta: contactMeta(dto),
+    whoMeta: contactMeta(dto, primaryChannel === "phone" ? "Phone" : "WhatsApp"),
     avatar: initialsOf(who),
     state,
     takenOver,
@@ -605,8 +619,11 @@ export function toInboxThreadVM(
           },
         }
       : {}),
-    channels: ["whatsapp"],
-    primaryChannel: "whatsapp",
+    channels,
+    primaryChannel,
+    hasChat,
+    phone: dto.contact.phone_e164 ?? null,
+    ...(waitingMin ? { waited: formatWaited(waitingMin * 60000) } : {}),
     agent: { name: "WhatsApp Receptionist", glyph: "W", autonomy: "Pauses on handoff", tone: "Warm · bilingual (EN/ES)" },
     subject:
       (claimedByOther ? "A teammate is answering this" : null) ??
@@ -630,8 +647,10 @@ export function toInboxThreadVM(
     contextStrip: [
       ...(reasonLabel ? [{ label: "Why you", value: reasonLabel }] : []),
       { label: "Waiting", value: waitingMin ? formatWaited(waitingMin * 60000) : "—", ...(waitingMin && waitingMin > 30 ? { warn: true } : {}) },
-      { label: "Receptionist", value: needsHuman ? "Paused — you have it" : "Answering" },
-      { label: "Reply window", value: win ? "Open — you can write freely" : "Closed — template only" },
+      { label: "Receptionist", value: needsHuman ? (escalation?.reason === "callback" ? "Paused — call them back" : "Paused — you have it") : "Answering" },
+      hasChat
+        ? { label: "Reply window", value: win ? "Open — you can write freely" : "Closed — template only" }
+        : { label: "WhatsApp", value: "No thread yet — they have only phoned" },
     ],
     lastAt: shortTime(dto.last_message_at, now),
     lastAtFull: shortTime(dto.last_message_at, now),

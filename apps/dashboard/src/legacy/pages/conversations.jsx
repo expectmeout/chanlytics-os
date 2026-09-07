@@ -13,9 +13,10 @@ const OutcomePill = ({ outcome, decidedAction, channel }) => {
   if (outcome === "live") return <span className="pill pill-accent"><span className="live-dot" style={{ width: 5, height: 5 }} />Live</span>;
   if (outcome === "missed") return <span className="pill">Never connected</span>;
   if (outcome === "booked") return <span className="pill pill-ok">Booked</span>;
-  if (outcome === "escalated") return <span className="pill pill-warn">Waiting on you</span>;
+  if (outcome === "escalated") return <span className="pill pill-warn">Needs you</span>;
   if (outcome === "handled") return <span className="pill">{channel === "phone" ? "Receptionist handled it" : "Receptionist replied"}</span>;
-  return <span className="pill">Customer's turn</span>;
+  // The customer had the last word — it is your turn, not theirs; this read "Customer's turn" for a year.
+  return <span className="pill">Customer wrote last</span>;
 };
 
 // Session-decision overlay — approval convos reflect IX_STORE state
