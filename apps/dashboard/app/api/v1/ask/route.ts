@@ -3,7 +3,8 @@ import { withRoute, memberContext } from "@/server/with-route";
 import { takeRate } from "@/server/rate-limit";
 import { requireUuid } from "@/server/request-guards";
 import { tenantFacts } from "@/server/tenant";
-import { runAskTurn, type TurnEvent } from "@/server/ask/loop";
+import { runAskTurn, ASK_MODEL, type TurnEvent } from "@/server/ask/loop";
+import { listPolicies } from "@chanlytics/db";
 import { workspaceFacts, resultTitle, titleFromQuestion } from "@/server/ask/prompt";
 import { appendMessage, createThread, readThread, retitleThread, touchThread } from "@/server/ask/store";
 
@@ -67,12 +68,14 @@ export const POST = withRoute(async (req, ctx) => {
   }
   await appendMessage(ctx, thread.id, tenantId, "user", { text });
 
-  const [{ name, timezone }, cfg] = await Promise.all([
+  const [{ name, timezone }, cfg, policies] = await Promise.all([
     tenantFacts(ctx.supabase, tenantId),
     ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+    // The autonomy modes ride in the stable block, so "what can the receptionist do alone" needs no read.
+    listPolicies(ctx.supabase, tenantId).catch(() => []),
   ]);
   if (cfg.error) throw new Error(cfg.error.message);
-  const facts = workspaceFacts(name, timezone, cfg.data?.config ?? null);
+  const facts = workspaceFacts(name, timezone, cfg.data?.config ?? null, policies);
   const language = detectLanguage(text);
   const personLabel = ctx.email ? `${ctx.email} (${member.role})` : member.role;
 
@@ -100,7 +103,7 @@ export const POST = withRoute(async (req, ctx) => {
         latency_ms: result.latencyMs,
         failed: result.failed,
         ...(result.failure ? { failure: result.failure.slice(0, 200) } : {}),
-        model: "claude-opus-5",
+        model: ASK_MODEL,
         rounds: result.rounds,
       };
       let saved: { id: string; created_at: string } | null = null;

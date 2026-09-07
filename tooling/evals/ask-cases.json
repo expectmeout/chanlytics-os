@@ -101,9 +101,12 @@
     "id": "rules",
     "text": "what can the receptionist do on its own?",
     "expect": {
-      "tools_any": [
-        "get_settings",
-        "explain_metric"
+      "includes_any": [
+        "auto",
+        "ask",
+        "never",
+        "on its own",
+        "automatic"
       ],
       "no_write": true
     }

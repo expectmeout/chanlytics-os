@@ -39,8 +39,8 @@ export interface Snapshot {
   counts: { needs_you: number; held_drafts: number; calls_today: number; missed_today: number; messages_in_today: number };
   needs_you: Array<{ conversation_id: string; route: string; who: string; reason: string; since: string; quote: string | null }>;
   held_drafts: Array<{ message_id: string; conversation_id: string; route: string; who: string; text: string; sends_at: string | null }>;
-  threads: Array<{ conversation_id: string; route: string; who: string; state: string; last_at: string | null; recent: Array<{ from: string; text: string; at: string }> }>;
-  calls_today: Array<{ call_id: string; route: string; who: string; at: string; duration: string | null; outcome: string; summary: string | null }>;
+  threads: Array<{ conversation_id: string; route: string; who: string; person_route: string | null; state: string; last_at: string | null; recent: Array<{ from: string; text: string; at: string }> }>;
+  calls_today: Array<{ call_id: string; route: string; who: string; person_route: string | null; at: string; duration: string | null; outcome: string; summary: string | null }>;
   scoped: unknown;
   note: string;
 }
@@ -142,6 +142,7 @@ export async function buildSnapshot(t: ToolContext, timezone: string, scope: Ask
       conversation_id: d.id,
       route: `inbox/th-${d.id}`,
       who: contactName(d),
+      person_route: d.contact.id ? `clients/${d.contact.id}` : null,
       state: stateWord(d, byConv.get(d.id) ?? null, now),
       last_at: fmtWhen(d.last_message_at, timezone, now) || null,
       recent: d.messages.slice(-MESSAGES_PER_THREAD).map((m) => ({
@@ -178,6 +179,7 @@ export async function buildSnapshot(t: ToolContext, timezone: string, scope: Ask
       call_id: c.id,
       route: `conversations/cv-${c.id}`,
       who: v.who,
+      person_route: c.contact_id ? `clients/${c.contact_id}` : null,
       at: fmtTime(c.started_at, timezone),
       duration: v.duration ?? null,
       outcome: v.outcome,
@@ -225,6 +227,6 @@ export function snapshotBlock(s: Snapshot): string {
   return [
     "The workspace right now:",
     JSON.stringify(s),
-    "Answer from this when it is enough. Read only for what is not here: a whole conversation or transcript, a person's profile, a report, openings, settings. A thread's `route`, a call's `route` and a person's `route` are what navigate.to takes.",
+    "Answer from this when it is enough. get_today, list_threads (needs_you, held, recent) and list_calls (today, missed) return these same rows: do not call them for what is here. Read only for what is not here: a whole conversation or transcript, a person's profile, a report, openings, settings, threads and calls older than these. A thread's `route`, a call's `route` and a person's `person_route` are what navigate.to takes; to show or open a person's profile, navigate to their `person_route` without reading it.",
   ].join("\n");
 }

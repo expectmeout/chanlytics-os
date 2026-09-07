@@ -607,3 +607,19 @@ test("REGRESSION: the assistant's tools fit under the edge gateway's cap — one
   assert.ok(reads >= 14 && acts >= 10, `found ${reads} read and ${acts} act tools — the count regex no longer matches the files`);
   assert.ok(total <= cap - 4, `${total} tools against a cap of ${cap}: leave room, or raise GATEWAY_MAX_TOOLS on the edge first`);
 });
+
+test("the speed pass: a fast model for a short answer, the day's rows never re-read, the autonomy modes in the prompt, the budget read once a minute", () => {
+  const l = readCode("apps/dashboard/src/server/ask/loop.ts");
+  assert.ok(l.includes('export const ASK_MODEL = "claude-sonnet-5";'), "the eval set chose it: same grounding, the answer written faster");
+  const route = readCode("apps/dashboard/app/api/v1/ask/route.ts");
+  assert.ok(route.includes("model: ASK_MODEL,") && !route.includes('model: "claude-opus-5"'), "the saved turn names the model that ran");
+  assert.ok(route.includes("listPolicies(ctx.supabase, tenantId).catch(() => [])") && route.includes("cfg.data?.config ?? null, policies)"));
+  const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
+  assert.ok(prompt.includes("autonomy: POLICY_CLASSES.flatMap(") && prompt.includes("Autonomy, class by class (auto: on its own"), "the modes are facts in the stable block");
+  assert.ok(prompt.includes("booking notes and the autonomy modes"), "and the rules say so");
+  const snap = readCode("apps/dashboard/src/server/ask/snapshot.ts");
+  assert.ok(snap.includes("return these same rows: do not call them for what is here"), "a second read of the day is refused in words");
+  assert.ok(snap.includes("person_route: d.contact.id ? `clients/${d.contact.id}` : null,") && snap.includes("person_route: c.contact_id ? `clients/${c.contact_id}` : null,"), "a profile opens from the snapshot without a read");
+  const g = readCode("apps/edge/api/admin/llm.ts");
+  assert.ok(g.includes("const BUDGET_TTL_MS = 60_000;") && g.includes("budgetSeen.set(tenantId, { at: Date.now(), used });"));
+});

@@ -554,7 +554,7 @@ async function getSettings(t: ToolContext): Promise<unknown> {
     sb.from("tenant_channels").select("kind, status, number_e164").eq("tenant_id", t.tenantId),
   ]);
   const cfg = parseTenantConfig(cfgRow.data?.config ?? null);
-  const facts = workspaceFacts(name, timezone, cfgRow.data?.config ?? null);
+  const facts = workspaceFacts(name, timezone, cfgRow.data?.config ?? null, policies);
   return {
     business: facts.businessName,
     timezone,
