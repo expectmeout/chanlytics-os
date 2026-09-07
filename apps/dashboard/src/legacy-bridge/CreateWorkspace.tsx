@@ -3,7 +3,9 @@
 import { useState } from "react";
 
 /**
- * The first screen of an account that belongs to nowhere.
+ * The first screen of an account that belongs to nowhere — and, from the
+ * workspace menu, the screen for another one: an owner with several
+ * businesses, or an agency setting workspaces up for its clients.
  *
  * Until this existed, a session with no memberships reached the shell, every
  * surface fetched and 404'd, and the status pill said "Connecting to your
@@ -11,8 +13,8 @@ import { useState } from "react";
  * out was an engineer writing SQL. That is what made a second customer an
  * engineering task rather than a signup.
  *
- * Rendered INSTEAD of the app, not inside it: there is no workspace, so there
- * is no inbox, no settings and no nav to put this in.
+ * Rendered INSTEAD of the app, not inside it: with no workspace there is no
+ * nav to put this in, and for another workspace the page changes anyway.
  */
 
 export interface CreatedWorkspace {
@@ -51,10 +53,14 @@ const ZONES = (() => {
 export default function CreateWorkspace({
   email,
   onCreated,
+  onCancel,
 }: {
   email: string | null;
   onCreated: (w: CreatedWorkspace) => void;
+  /** Present when there is somewhere to go back to: this is another workspace, not the first. */
+  onCancel?: () => void;
 }) {
+  const another = !!onCancel;
   const [name, setName] = useState("");
   const [timezone, setTimezone] = useState(browserZone());
   const [busy, setBusy] = useState(false);
@@ -97,12 +103,13 @@ export default function CreateWorkspace({
   };
 
   return (
-    <div className="cw-screen">
+    <div className="cw-screen" data-testid="create-workspace">
       <form className="cw-card" onSubmit={submit}>
-        <h1 className="cw-title">Create your workspace</h1>
+        <h1 className="cw-title">{another ? "New workspace" : "Create your workspace"}</h1>
         <p className="cw-lede">
-          One business, one workspace. It holds your receptionist, your conversations
-          and your team{email ? <> — signed in as <b>{email}</b></> : null}.
+          {another
+            ? <>Another business, another workspace: its own receptionist, conversations and team. You become its owner{email ? <> as <b>{email}</b></> : null}.</>
+            : <>One business, one workspace. It holds your receptionist, your conversations and your team{email ? <> — signed in as <b>{email}</b></> : null}.</>}
         </p>
 
         <label className="cw-field">
@@ -140,11 +147,18 @@ export default function CreateWorkspace({
         <button className="cw-submit" type="submit" disabled={busy}>
           {busy ? "Creating…" : "Create workspace"}
         </button>
+        {onCancel && (
+          <button className="cw-back" type="button" onClick={onCancel} disabled={busy} data-testid="create-workspace-back">
+            Back
+          </button>
+        )}
 
-        <p className="cw-foot">
-          Been invited to a workspace? Ask whoever invited you to send it again — an
-          invitation is accepted the first time you sign in.
-        </p>
+        {!another && (
+          <p className="cw-foot">
+            Been invited to a workspace? Ask whoever invited you to send it again — an
+            invitation is accepted the first time you sign in.
+          </p>
+        )}
       </form>
     </div>
   );

@@ -176,6 +176,13 @@ type ChanlyticsAppComponent = React.ComponentType<{
 
 export default function LegacyApp() {
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
+  // Another workspace, asked for from the workspace menu (shell.createWorkspace).
+  const [creating, setCreating] = useState(false);
+  useEffect(() => {
+    const on = () => setCreating(true);
+    window.addEventListener("shell:create-workspace", on);
+    return () => window.removeEventListener("shell:create-workspace", on);
+  }, []);
   const systemDark = useSystemDark();
   const theme = resolveTheme(prefs.theme, systemDark);
   const [allWorkspaces, setAllWorkspaces] = useState<Workspace[]>(
@@ -283,6 +290,21 @@ export default function LegacyApp() {
           // switchWorkspace persists the choice and re-runs every surface, so
           // the new workspace is the one the app opens on — which is where the
           // "no receptionist yet" setup card is waiting.
+          switchWorkspace(w.id);
+        }}
+      />
+    );
+  }
+
+  if (creating) {
+    const me = (window as unknown as { __ME?: { email?: string | null } }).__ME;
+    return (
+      <CreateWorkspace
+        email={me?.email ?? null}
+        onCancel={() => setCreating(false)}
+        onCreated={(w) => {
+          setCreating(false);
+          // The new workspace is the one the app opens on — where its Setup is waiting.
           switchWorkspace(w.id);
         }}
       />
