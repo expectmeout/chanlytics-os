@@ -11,7 +11,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { planAgentSettings, agentSettingsDrift, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, CALL_ANALYSIS_FIELDS } from "@chanlytics/channels";
+import { planAgentSettings, agentSettingsDrift, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, CALL_ANALYSIS_FIELDS, voiceAgentCreateBody } from "@chanlytics/channels";
 import { readCode, readRaw } from "./_source.mjs";
 
 test("a fresh agent (provider defaults) is planned onto the pipeline's settings", () => {
@@ -65,8 +65,9 @@ test("the converger, the diagnostic and the provisioning script all read the sam
   assert.ok(diag.includes("agent: agentSettingsDrift(a),"));
   const adapter = readCode("packages/channels/src/voice-retell.ts");
   assert.ok(adapter.includes('data_storage_retention_days: num("data_storage_retention_days")'));
-  const py = readRaw("tooling/scripts/setup_voice.py");
-  assert.ok(py.includes('"webhook_events": ["call_started", "call_ended", "call_analyzed", "transcript_updated"]'));
-  assert.ok(py.includes('"webhook_timeout_ms": 20000'));
-  assert.ok(py.includes('"opt_in_signed_url": True'));
+  // Provisioning creates the agent with the same settings the converger keeps.
+  const created = voiceAgentCreateBody({ llmId: "llm_x", llmVersion: 0, agentName: "x" }, { fnSecret: "s" });
+  assert.deepEqual(created.webhook_events, ["call_started", "call_ended", "call_analyzed", "transcript_updated"]);
+  assert.equal(created.webhook_timeout_ms, 20000);
+  assert.equal(created.opt_in_signed_url, true);
 });

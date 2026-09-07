@@ -334,7 +334,7 @@ export interface RetellWrite {
   body: Record<string, unknown> | null;
 }
 
-async function writeAgent(cfg: RetellConfig, method: "POST" | "PATCH", path: string, payload: unknown): Promise<RetellWrite> {
+async function writeRetell(cfg: RetellConfig, method: "POST" | "PATCH", path: string, payload: unknown): Promise<RetellWrite> {
   const r = await fetch(`${API}${path}`, {
     method,
     headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
@@ -349,17 +349,50 @@ async function writeAgent(cfg: RetellConfig, method: "POST" | "PATCH", path: str
 
 /** POST /create-agent-version — a new draft from a version; a published version cannot change. */
 export function createAgentVersion(cfg: RetellConfig, agentId: string, baseVersion: number): Promise<RetellWrite> {
-  return writeAgent(cfg, "POST", `/create-agent-version/${agentId}`, { base_version: baseVersion });
+  return writeRetell(cfg, "POST", `/create-agent-version/${agentId}`, { base_version: baseVersion });
 }
 
 /** PATCH /update-agent — the latest (draft) version takes the patch. */
 export function updateAgent(cfg: RetellConfig, agentId: string, patch: Record<string, unknown>): Promise<RetellWrite> {
-  return writeAgent(cfg, "PATCH", `/update-agent/${agentId}`, patch);
+  return writeRetell(cfg, "PATCH", `/update-agent/${agentId}`, patch);
 }
 
 /** POST /publish-agent-version — a number pinned to latest_published follows it. */
 export function publishAgentVersion(cfg: RetellConfig, agentId: string, version: number, title: string): Promise<RetellWrite> {
-  return writeAgent(cfg, "POST", `/publish-agent-version/${agentId}`, { version, version_title: title });
+  return writeRetell(cfg, "POST", `/publish-agent-version/${agentId}`, { version, version_title: title });
+}
+
+/* ------------------------------ provisioning ------------------------------ */
+
+/** POST /create-retell-llm — the shell as a new LLM (voice-provision.ts builds the body). */
+export function createRetellLlm(cfg: RetellConfig, body: Record<string, unknown>): Promise<RetellWrite> {
+  return writeRetell(cfg, "POST", "/create-retell-llm", body);
+}
+
+/** POST /create-agent — an agent over a Retell LLM, with the product's voice and webhook. */
+export function createAgent(cfg: RetellConfig, body: Record<string, unknown>): Promise<RetellWrite> {
+  return writeRetell(cfg, "POST", "/create-agent", body);
+}
+
+/** POST /create-phone-number — BUYS a number in an area code; it costs money every month. */
+export function createPhoneNumber(cfg: RetellConfig, body: Record<string, unknown>): Promise<RetellWrite> {
+  return writeRetell(cfg, "POST", "/create-phone-number", body);
+}
+
+/** PATCH /update-phone-number — the agents on a number, its inbound webhook, its nickname. */
+export function updatePhoneNumber(cfg: RetellConfig, number: string, patch: Record<string, unknown>): Promise<RetellWrite> {
+  return writeRetell(cfg, "PATCH", `/update-phone-number/${encodeURIComponent(number)}`, patch);
+}
+
+/** GET /get-phone-number — the number as stored; null when the provider says no. Never printed whole: the inbound webhook URL carries a key. */
+export async function getPhoneNumber(cfg: RetellConfig, number: string): Promise<Record<string, unknown> | null> {
+  const r = await fetch(`${API}/get-phone-number/${encodeURIComponent(number)}`, {
+    headers: { Authorization: `Bearer ${cfg.apiKey}` },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!r.ok) return null;
+  const n = (await r.json()) as unknown;
+  return n !== null && typeof n === "object" && !Array.isArray(n) ? (n as Record<string, unknown>) : null;
 }
 
 /** What an operator says to the agent mid-call, heard by the agent alone. */
@@ -399,6 +432,9 @@ export async function updateLiveCall(
 export interface RetellLlmConfig {
   llm_id: string;
   version: number | null;
+  /** The text model behind the shell, and its temperature — provisioning parity, readable by the diagnostic. */
+  model: string | null;
+  model_temperature: number | null;
   general_prompt: string | null;
   begin_message: string | null;
   default_dynamic_variables: Record<string, string> | null;
@@ -423,6 +459,8 @@ export async function getRetellLlm(
   return {
     llm_id: str("llm_id") ?? llmId,
     version: typeof l.version === "number" ? l.version : null,
+    model: str("model"),
+    model_temperature: typeof l.model_temperature === "number" ? l.model_temperature : null,
     general_prompt: str("general_prompt"),
     begin_message: str("begin_message"),
     default_dynamic_variables:

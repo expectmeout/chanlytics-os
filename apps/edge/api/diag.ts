@@ -137,6 +137,8 @@ export async function GET(request: Request): Promise<Response> {
                 ...a,
                 channel_status: r.status,
                 live_transcript: (a.webhook_events ?? []).includes("transcript_updated"),
+                // Which text model the line runs — provisioning parity, in one word.
+                model: llm?.model ?? null,
                 shell: llm ? voiceShellDrift(llm) : { error: a.llm_id ? "llm_unreadable" : "not_a_retell_llm" },
                 // The agent-level settings the pipeline needs: the live
                 // transcript event, a webhook budget the recording copy fits

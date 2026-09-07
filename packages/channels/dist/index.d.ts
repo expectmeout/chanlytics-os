@@ -327,6 +327,16 @@ declare function createAgentVersion(cfg: RetellConfig, agentId: string, baseVers
 declare function updateAgent(cfg: RetellConfig, agentId: string, patch: Record<string, unknown>): Promise<RetellWrite>;
 /** POST /publish-agent-version — a number pinned to latest_published follows it. */
 declare function publishAgentVersion(cfg: RetellConfig, agentId: string, version: number, title: string): Promise<RetellWrite>;
+/** POST /create-retell-llm — the shell as a new LLM (voice-provision.ts builds the body). */
+declare function createRetellLlm(cfg: RetellConfig, body: Record<string, unknown>): Promise<RetellWrite>;
+/** POST /create-agent — an agent over a Retell LLM, with the product's voice and webhook. */
+declare function createAgent(cfg: RetellConfig, body: Record<string, unknown>): Promise<RetellWrite>;
+/** POST /create-phone-number — BUYS a number in an area code; it costs money every month. */
+declare function createPhoneNumber(cfg: RetellConfig, body: Record<string, unknown>): Promise<RetellWrite>;
+/** PATCH /update-phone-number — the agents on a number, its inbound webhook, its nickname. */
+declare function updatePhoneNumber(cfg: RetellConfig, number: string, patch: Record<string, unknown>): Promise<RetellWrite>;
+/** GET /get-phone-number — the number as stored; null when the provider says no. Never printed whole: the inbound webhook URL carries a key. */
+declare function getPhoneNumber(cfg: RetellConfig, number: string): Promise<Record<string, unknown> | null>;
 /** What an operator says to the agent mid-call, heard by the agent alone. */
 interface LiveCallControl {
     /** Free text, injected into the transcript as "injected" and worked into the next answer. */
@@ -348,6 +358,9 @@ declare function updateLiveCall(cfg: RetellConfig, callId: string, control: Live
 interface RetellLlmConfig {
     llm_id: string;
     version: number | null;
+    /** The text model behind the shell, and its temperature — provisioning parity, readable by the diagnostic. */
+    model: string | null;
+    model_temperature: number | null;
     general_prompt: string | null;
     begin_message: string | null;
     default_dynamic_variables: Record<string, string> | null;
@@ -391,10 +404,11 @@ declare function verifyRetellSignature(rawBody: string, header: string | null | 
  * themselves: where they go in the prompt, which tools exist, and what the
  * agent hears when a variable could not be supplied.
  *
- * ONE definition, in code, for three readers: the converger script that
- * brings a live agent onto it, the diagnostic that reports whether a line
- * has drifted off it, and the provisioning script for a new tenant (a mirror,
- * pinned equal by a test). The live agent predates all of this and was
+ * ONE definition, in code, for three readers: the converger that brings a
+ * live agent onto it, the diagnostic that reports whether a line has
+ * drifted off it, and the provisioning endpoint for a new workspace
+ * (voice-provision.ts builds the LLM from it; a test proves the converger
+ * plans nothing against what it creates). The live agent predates all of this and was
  * typed by hand in Retell's dashboard — its prompt bakes the hours, the
  * address and a transfer number, so correcting the hours in Settings changed
  * what the chat receptionist said and left the phone saying the old ones.
@@ -550,4 +564,116 @@ declare function agentSettingsDrift(live: LiveAgentSettings): {
     drift: string[];
 };
 
-export { type AgentPlan, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, DEFAULT_FN_URL, FACTS_UNAVAILABLE, GREETING_DEFAULT, HANDOFF_VAR, type ListCallsPage, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type SendResult, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, agentSettingsDrift, availabilityUrl, callSummaryLine, createAgentVersion, desiredVoiceShell, fetchMediaBytes, fetchRecording, getAgent, getAgentRaw, getCall, getRetellLlm, listCalls, liveTurns, needsHydration, normalizeCall, normalizeInbound, parseTranscriptText, planAgentSettings, planVoiceConvergence, publishAgentVersion, sendTemplate, sendText, updateAgent, updateLiveCall, verifyRetellSignature, voiceShellDrift, voiceShellTools };
+/** The model behind the shell. Temperature 0: the facts are read, not improvised. */
+declare const VOICE_LLM_DEFAULTS: {
+    readonly model: "claude-4.5-haiku";
+    readonly model_temperature: 0;
+    readonly start_speaker: "agent";
+};
+/**
+ * The product's voice and the call's shape, pinned from the live line so a
+ * second workspace sounds like the first. Retention is the product's 90
+ * days; the pipeline copies audio into private storage within seconds.
+ */
+declare const VOICE_AGENT_DEFAULTS: {
+    readonly voice_id: "11labs-Andrea";
+    readonly language: readonly ["en-US", "es-ES", "fr-FR", "de-DE", "hi-IN", "ru-RU", "pt-PT", "ja-JP", "it-IT", "nl-NL"];
+    readonly end_call_after_silence_ms: 30000;
+    readonly max_call_duration_ms: 3600000;
+    readonly data_storage_setting: "everything";
+    readonly data_storage_retention_days: 90;
+    readonly post_call_analysis_model: "gpt-4.1";
+    readonly allow_user_dtmf: true;
+};
+/** A local US number through Retell's Twilio pool. Toll-free and Telnyx are later levers. */
+declare const VOICE_NUMBER_DEFAULTS: {
+    readonly country_code: "US";
+    readonly number_provider: "twilio";
+};
+/** The product's voice endpoints, from the one base the shell already pins. */
+declare function voiceEndpoints(fnUrl?: string): {
+    fn: string;
+    availability: string;
+    webhook: string;
+    inbound: string;
+};
+/** The shared secret rides the tool header and, as ?key=, both webhooks (the edge checks each). */
+interface ProvisionSecrets {
+    fnSecret: string;
+}
+declare function withKey(url: string, secret: string): string;
+/** The URL without its query string — the only form a response or a log may carry. */
+declare function stripKey(url: string | null | undefined): string | null;
+/** POST /create-retell-llm: the shell, with the secret on its tools. */
+declare function voiceLlmCreateBody(s: ProvisionSecrets, fnUrl?: string): Record<string, unknown>;
+/** POST /create-agent: the voice, the webhook and its events, the analysis fields, retention. */
+declare function voiceAgentCreateBody(o: {
+    llmId: string;
+    llmVersion: number | null;
+    agentName: string;
+}, s: ProvisionSecrets, fnUrl?: string): Record<string, unknown>;
+/** The agent on the number. Pinned to latest_published, a saved draft cannot go live by itself. */
+declare function voiceNumberBinding(o: {
+    agentId: string;
+    pinned: boolean;
+}): Array<Record<string, unknown>>;
+/** POST /create-phone-number: a local number in the area code, bound and answering with the facts. */
+declare function voiceNumberCreateBody(o: {
+    areaCode: number;
+    agentId: string;
+    pinned: boolean;
+    nickname: string;
+}, s: ProvisionSecrets, fnUrl?: string): Record<string, unknown>;
+/** PATCH /update-phone-number: an existing Retell number, bound the same way. */
+declare function voiceNumberBindBody(o: {
+    agentId: string;
+    pinned: boolean;
+    nickname: string;
+}, s: ProvisionSecrets, fnUrl?: string): Record<string, unknown>;
+interface VoiceProvisionRequest {
+    /** An existing Retell number to bind, E.164. */
+    number?: string | null;
+    /** Or an area code to buy a local number in. */
+    areaCode?: number | null;
+    /** Resume: an LLM a previous run created before the agent step failed. */
+    llmId?: string | null;
+    /** Resume: an agent a previous run created before the number or the row landed. */
+    agentId?: string | null;
+}
+interface VoiceProvisionState {
+    tenant: {
+        id: string;
+        name: string;
+    };
+    /** The workspace's voice row, when one exists. */
+    channel: {
+        id: string;
+        status: string;
+        agentId: string;
+        number: string | null;
+    } | null;
+    request: VoiceProvisionRequest;
+}
+type ProvisionStepId = "llm" | "agent" | "publish" | "number" | "channel" | "notify";
+type ProvisionAction = "create" | "reuse" | "adopt" | "publish" | "buy" | "bind" | "insert" | "notify" | "skip";
+interface ProvisionStep {
+    id: ProvisionStepId;
+    action: ProvisionAction;
+    detail: string;
+}
+interface VoiceProvisionPlan {
+    ok: boolean;
+    errors: string[];
+    /** Nothing to do: the line exists, or the request is not actionable. */
+    nothing: boolean;
+    reason: string | null;
+    steps: ProvisionStep[];
+    names: {
+        agent: string;
+        nickname: string;
+    };
+}
+/** What the endpoint will do, in order. Pure: the dry run prints this; the apply follows it. */
+declare function planVoiceProvision(st: VoiceProvisionState): VoiceProvisionPlan;
+
+export { type AgentPlan, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, DEFAULT_FN_URL, FACTS_UNAVAILABLE, GREETING_DEFAULT, HANDOFF_VAR, type ListCallsPage, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type SendResult, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, agentSettingsDrift, availabilityUrl, callSummaryLine, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, desiredVoiceShell, fetchMediaBytes, fetchRecording, getAgent, getAgentRaw, getCall, getPhoneNumber, getRetellLlm, listCalls, liveTurns, needsHydration, normalizeCall, normalizeInbound, parseTranscriptText, planAgentSettings, planVoiceConvergence, planVoiceProvision, publishAgentVersion, sendTemplate, sendText, stripKey, updateAgent, updateLiveCall, updatePhoneNumber, verifyRetellSignature, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withKey };

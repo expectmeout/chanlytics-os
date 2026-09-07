@@ -15,8 +15,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseIcs, filterOpenings, freeWindows, localToUtcMs, composeSystemPrompt } from "@chanlytics/contracts";
-import { desiredVoiceShell, availabilityUrl } from "@chanlytics/channels";
-import { readCode, readRaw } from "./_source.mjs";
+import { desiredVoiceShell, availabilityUrl, voiceLlmCreateBody } from "@chanlytics/channels";
+import { readCode } from "./_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { matchService, spoken } = await import(pathToFileURL(path.join(here, "../../../apps/edge/api/retell-availability.ts")).href);
@@ -125,6 +125,6 @@ test("the shell carries the tool beside the booking link, the edge guards it, an
   const voice = composeSystemPrompt(brain, { hours: { mon: { open: "09:00", close: "17:00" } } }, "voice");
   assert.ok(voice.includes("use check_availability before offering a time"));
   assert.ok(!composeSystemPrompt(brain, { hours: { mon: { open: "09:00", close: "17:00" } } }, "whatsapp").includes("check_availability"), "a phone tool, not a WhatsApp one");
-  const py = readRaw("tooling/scripts/setup_voice.py");
-  assert.ok(py.includes('"name": "check_availability"') && py.includes("SITE_AVAIL"), "the provisioning mirror carries it too");
+  const created = voiceLlmCreateBody({ fnSecret: "sealed" }).general_tools.find((t) => t.name === "check_availability");
+  assert.ok(created && created.url === "https://chanlytics-messaging.vercel.app/api/retell-availability", "provisioning creates it too");
 });

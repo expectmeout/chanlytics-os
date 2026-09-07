@@ -16,7 +16,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { desiredVoiceShell, planVoiceConvergence } from "@chanlytics/channels";
+import { desiredVoiceShell, planVoiceConvergence, voiceLlmCreateBody } from "@chanlytics/channels";
 import { readCode, readRaw } from "./_source.mjs";
 
 test("a freshly applied agent, with the provider's own defaults added, is converged", () => {
@@ -41,7 +41,7 @@ test("a freshly applied agent, with the provider's own defaults added, is conver
   const cold = { ...live, general_tools: live.general_tools.map((t) => (t.name === "transfer_to_staff" ? { ...t, transfer_option: { ...t.transfer_option, type: "cold_transfer" } } : t)) };
   assert.ok(planVoiceConvergence(cold, desired).drift.some((l) => l.includes("transfer_to_staff differs")));
   assert.ok(!JSON.stringify(desired.general_tools).includes('"required"'), "an empty required list is the provider's default and is dropped on save");
-  assert.ok(!readRaw("tooling/scripts/setup_voice.py").includes('"required": []'));
+  assert.ok(!JSON.stringify(voiceLlmCreateBody({ fnSecret: "s" }).general_tools).includes('"required"'), "provisioning sends none either");
 });
 
 test("every delivery leaves a readable row saying which credential it passed; the fallback stays until a real one shows sig:true", () => {

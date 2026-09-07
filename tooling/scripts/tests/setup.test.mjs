@@ -115,8 +115,10 @@ test("a line that was asked for waits on us and says when; one that exists but i
   assert.equal(row(asked, "line").verb, null, "asked once — no second ask");
   assert.equal(row(asked, "line").sentence, `Requested ${agoWords(Date.parse("2026-09-07T13:00:00Z"), NOW)} — a person at Chanlytics will set up your line with you and reach you by email.`);
   const inactive = setupSteps(empty({ channels: { ...empty().channels, voice: { present: true, active: false, number: VOICE, lastInboundAt: null } } }), NOW);
-  assert.equal(row(inactive, "line").sentence, `Your line ${formatPhoneDisplay(VOICE)} is set up but not active — a person at Chanlytics is on it.`);
-  assert.equal(row(inactive, "receptionist").state, "waiting_them");
+  assert.equal(row(inactive, "line").sentence, `Your line ${formatPhoneDisplay(VOICE)} is switched off — the receptionist is not answering it.`);
+  assert.equal(row(inactive, "line").state, "waiting_you");
+  assert.equal(row(inactive, "receptionist").state, "waiting_you");
+  assert.equal(row(inactive, "receptionist").sentence, "Switched off with the line.");
 });
 
 test("WhatsApp waits on Meta while the first messages are with them, or while the number is not active", () => {
@@ -127,7 +129,8 @@ test("WhatsApp waits on Meta while the first messages are with them, or while th
   assert.ok(row(meta, "whatsapp").details.includes("3 messages with Meta for approval"));
   assert.equal(meta.readiness.answering, true, "the number answers even while a template waits");
   const inactive = setupSteps(empty({ channels: { ...empty().channels, whatsapp: { present: true, active: false, number: WA, quality: null, lastInboundAt: null } } }), NOW);
-  assert.equal(row(inactive, "whatsapp").stateWords, "Waiting on Meta");
+  assert.equal(row(inactive, "whatsapp").stateWords, "Waiting on you");
+  assert.equal(row(inactive, "whatsapp").sentence, `${formatPhoneDisplay(WA)} is connected but switched off.`);
   assert.deepEqual(row(inactive, "whatsapp").verb, { label: "Open Integrations", to: "admin/integrations" });
   const few = setupSteps(live({ templates: { approved: 2, pending: 0, startersApproved: 2 } }), NOW);
   assert.deepEqual(row(few, "whatsapp").verb, { label: "Add the starters", to: "outbound" });
