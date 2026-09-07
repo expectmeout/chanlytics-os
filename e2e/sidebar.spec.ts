@@ -53,7 +53,7 @@ test.describe("sidebar on a real workspace", () => {
       await expect(page.getByTestId("sidebar")).not.toHaveClass(/collapsed/);
 
       // The sheet on "?", closed on Escape.
-      await page.keyboard.press("Shift+/");
+      await page.keyboard.press("?");
       await expect(page.getByTestId("shortcuts-sheet")).toBeVisible();
       await expect(page.getByTestId("shortcuts-sheet")).toContainText("Ask Chanlytics");
       await page.keyboard.press("Escape");
