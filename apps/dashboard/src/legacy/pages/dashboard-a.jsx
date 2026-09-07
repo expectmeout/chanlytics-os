@@ -1,6 +1,7 @@
-/* global React, HeroBrief, AgentCommand, TodayDay, NowPlayingRail, AgentFleet, AmbientDock, SegmentPulse, TrustReview */
+/* global React, HeroBrief, AgentCommand, TodayDay, TodayWeek, TodayAway, TodayJourney, NowPlayingRail, AgentFleet, AmbientDock, SegmentPulse, TrustReview */
 // Dashboard — Operator's brief.
-// Composition: HeroBrief → (AgentCommand + NowPlayingRail) → SegmentPulse → AgentFleet + AmbientDock.
+// Composition: HeroBrief → (AgentCommand + TodayDay) → TodayWeek → (TodayAway + TodayJourney);
+// the seeded panels below stay demo-only.
 // The Ask overlay and ⌘K are owned by the app shell; the dock's "Listen in" opens it via onAsk.
 
 const DashboardA = ({ onAsk = () => {} }) => (
@@ -16,6 +17,15 @@ const DashboardA = ({ onAsk = () => {} }) => (
           only until each engine's slice lands. */}
       {window.__DEMO_MODE && <NowPlayingRail />}
     </div>
+
+    <TodayWeek />
+
+    {!window.__DEMO_MODE && (
+      <div className="dash-a-v2-core">
+        <TodayAway />
+        <TodayJourney />
+      </div>
+    )}
 
     {window.__DEMO_MODE && <TrustReview />}
 

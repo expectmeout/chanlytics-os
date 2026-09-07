@@ -34,6 +34,7 @@ import "@/legacy/pages/attention-bits.jsx";
 import "@/legacy/pages/dashboard-a-brief.jsx";
 import "@/legacy/pages/dashboard-a-command.jsx";
 import "@/legacy/pages/dashboard-a-day.jsx";
+import "@/legacy/pages/dashboard-a-week.jsx";
 import "@/legacy/pages/dashboard-a-live.jsx";
 import "@/legacy/pages/dashboard-a-fleet.jsx";
 import "@/legacy/pages/dashboard-a-ask.jsx";

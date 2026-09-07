@@ -762,3 +762,87 @@ export function todayDayFacts(cal: CalendarLike | null, agg: { booked: number; r
   if (agg) out.push({ label: "Booked ahead", value: String(agg.booked), hint: `${agg.reachedWeek} reached this week` });
   return out;
 }
+
+/* ------------------------- the period, the journey, away ------------------ */
+
+/** A Reports tile as Reports builds it; the page draws it with Reports' own component. */
+export interface WeekTileLike {
+  id: string;
+  label: string;
+  value: string;
+  meta: string;
+  delta: { text: string; tone: "pos" | "neg" | "" } | null;
+  spark: number[];
+}
+/** What the Reports surface publishes, as far as Today reads it. */
+export interface ReportsLike {
+  vm: { days: number; rangeLabel: string; since: string; until: string; empty: boolean; tiles: WeekTileLike[] };
+  campaigns: { tiles: WeekTileLike[]; empty: boolean };
+  booking: { present: boolean; headline: string; sub: string; pct: number | null };
+}
+
+export interface TodayWeekVM {
+  /** "Last 7 days" — the range the owner chose on Reports. */
+  label: string;
+  /** "Aug 31 – Sep 6 · against the 7 days before" */
+  sub: string;
+  tiles: WeekTileLike[];
+  /** The offers' line and the booking line, each with where it leads. */
+  lines: Array<{ id: "campaigns" | "booking"; text: string; to: string }>;
+}
+
+/**
+ * The period as Reports counts it: its tiles untouched, plus one line for
+ * what the offers earned and one for who booked. The same numbers as the
+ * page it links to, never a second count.
+ */
+export function todayWeek(r: ReportsLike | null): TodayWeekVM | null {
+  if (!r) return null;
+  const find = (id: string) => r.campaigns.tiles.find((t) => t.id === id);
+  const sent = find("sent");
+  const yes = find("optins");
+  const offers = r.campaigns.empty || !sent || sent.value === "0"
+    ? "No offers went out."
+    : `${sent.value} offer message${sent.value === "1" ? "" : "s"} sent · ${yes ? yes.value : "0"} said yes`;
+  const b = r.booking;
+  const booking = !b.present
+    ? { text: b.sub, to: "calendar" }
+    : b.pct === null
+      ? { text: "Nobody wrote or called, so there was nothing to book.", to: "reports" }
+      : { text: `Asked → booked: ${b.headline} · ${b.pct}%`, to: "reports" };
+  return {
+    label: `Last ${r.vm.rangeLabel}`,
+    sub: `${r.vm.since} – ${r.vm.until} · against the ${r.vm.days} days before`,
+    tiles: r.vm.tiles,
+    lines: [{ id: "campaigns", text: offers, to: "reports" }, { id: "booking", ...booking }],
+  };
+}
+
+/** A People list as the People surface publishes it. */
+export interface JourneyListLike {
+  id: string;
+  label: string;
+  group: string;
+  count: number;
+  action: { text: string; cta: string; to: string; enabled: boolean } | null;
+}
+export interface TodayJourneyVM {
+  rows: Array<{ id: string; label: string; count: number; to: string; act: { label: string; to: string } | null }>;
+  /** Said once when the calendar is not connected: which lists are missing and why. */
+  note: string | null;
+}
+
+/** Where people are on the way to a booking: People's journey lists, their counts, and the step each has when it has one. */
+export function todayJourney(people: { lists: JourneyListLike[]; calendar: { state: string } } | null): TodayJourneyVM | null {
+  if (!people) return null;
+  const rows = people.lists
+    .filter((l) => l.group === "journey")
+    .map((l) => ({ id: l.id, label: l.label, count: l.count, to: `clients/seg:${l.id}`, act: l.count > 0 && l.action && l.action.enabled ? { label: l.action.cta, to: l.action.to } : null }));
+  return { rows, note: people.calendar.state === "ok" ? null : "Booked, asked-never-booked and lapsed appear once the calendar is connected." };
+}
+
+/** While you were away: the bell's unread rows in the bell's order, capped, the rest counted. */
+export function todayAway<T extends { unread: boolean }>(rows: T[], max = 5): { rows: T[]; more: number } {
+  const fresh = rows.filter((r) => r.unread);
+  return { rows: fresh.slice(0, max), more: Math.max(0, fresh.length - max) };
+}

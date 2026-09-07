@@ -769,3 +769,5 @@ const ReportsReal = () => {
 const ReportsPage = () => (window.__REPORTS === undefined ? <ReportsSeed /> : <ReportsReal />);
 
 window.ReportsPage = ReportsPage;
+// Today draws the period with the same tile.
+Object.assign(window, { RpTile, RpSpark });

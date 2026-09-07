@@ -53,4 +53,34 @@ test.describe("Today on a real workspace", () => {
     // The facts strip carries the day's two beside the recap's four.
     await expect(page.locator(".brief .stat-cell").filter({ hasText: "Appointments today" })).toHaveCount(1);
   });
+
+  test("below the core: the period as Reports counts it, where people are, and what happened while away", async ({ page }) => {
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    // The period: Reports' six tiles, real values, the two lines, Open Reports.
+    const week = page.getByTestId("today-week");
+    await expect(week).toBeVisible();
+    await expect(week.locator(".rp2-tile")).toHaveCount(6);
+    for (const v of await week.locator(".rp2-tile-value").allInnerTexts()) expect(v.trim()).toMatch(/^(\d+|\d+%|—|\d+s|\d+m( \d{2}s)?|\d+h \d{2}m)$/);
+    await expect(week).toContainText(/^Last (7|30|90) days/);
+    await expect(week.getByTestId("today-week-campaigns")).toBeVisible();
+    await expect(week.getByTestId("today-week-booking")).toBeVisible();
+    await expect(week.getByRole("button", { name: /Open Reports/ })).toBeVisible();
+    // The journey: People's lists with counts; a row opens its list.
+    const journey = page.getByTestId("today-journey");
+    await expect(journey).toBeVisible();
+    const rows = journey.getByTestId("today-journey-row");
+    expect(await rows.count()).toBeGreaterThan(0);
+    for (const c of await rows.locator(".tj-count").allInnerTexts()) expect(c.trim()).toMatch(/^\d+$/);
+    await rows.first().locator(".tj-open").click();
+    await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/clients\/seg:[a-z_]+$/);
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    // While away: the bell's unread rows, or the plain word that there are none.
+    const away = page.getByTestId("today-away");
+    await expect(away).toBeVisible();
+    const n = await away.getByTestId("today-away-row").count();
+    if (n === 0) await expect(away.getByTestId("today-away-empty")).toBeVisible();
+    else await expect(away.getByRole("button", { name: "Mark all read" })).toBeVisible();
+  });
 });
