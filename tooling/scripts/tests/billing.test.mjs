@@ -145,6 +145,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   assert.ok(lib.includes('s.subscriptions.resume(row.stripe_subscription_id, { billing_cycle_anchor: "now"'));
   assert.ok(lib.includes('if (error.code === "23505") return false;'), "a second delivery hits the primary key");
   assert.ok(lib.includes("planBilling(") && lib.includes('kind: "billing"'), "the plan decides, the edge writes and rings");
+  assert.ok(lib.includes('.eq("updated_at", row.updated_at)') && lib.includes('L.info("billing_apply_raced"'), "two events for one change: the loser writes nothing and rings nothing");
   const admin = readCode("apps/edge/api/admin/billing.ts");
   for (const op of ['op === "status"', 'op === "checkout"', 'op === "portal"', 'op === "invoices"', 'op === "sync"', 'op === "resume"']) assert.ok(admin.includes(op), op);
   assert.ok(admin.includes('request.headers.get("x-diag-key") !== process.env.DIAG_KEY'));

@@ -139,8 +139,24 @@ export async function applySubscription(db: Db, row: BillingRow, sub: Stripe.Sub
     now.getTime(),
   );
   const customerId = idOf(sub.customer);
-  const up = await db.from("billing_accounts").update({ ...plan.row, ...(customerId ? { stripe_customer_id: customerId } : {}) }).eq("tenant_id", row.tenant_id);
+  // Written only if the row is still what this reading was planned against.
+  // Stripe sends several events for one change within milliseconds
+  // (subscription.created, checkout.session.completed, invoice.paid), and
+  // two of them applied side by side each saw the old row and rang the
+  // same bell twice. The loser writes nothing and rings nothing; the row
+  // already holds the same reading.
+  const up = await db
+    .from("billing_accounts")
+    .update({ ...plan.row, ...(customerId ? { stripe_customer_id: customerId } : {}) })
+    .eq("tenant_id", row.tenant_id)
+    .eq("status", row.status)
+    .eq("updated_at", row.updated_at)
+    .select("tenant_id");
   if (up.error) throw new Error(up.error.message);
+  if (!up.data?.length) {
+    L.info("billing_apply_raced", { source, status: facts.status });
+    return { switched: null, status: facts.status };
+  }
   if (plan.tenantStatus) {
     const t = await db.from("tenants").update({ status: plan.tenantStatus }).eq("id", row.tenant_id);
     if (t.error) throw new Error(t.error.message);
