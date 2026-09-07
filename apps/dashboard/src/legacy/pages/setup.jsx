@@ -87,10 +87,9 @@ const PaneSetup = () => {
               <window.AttnRow
                 glyph={r.icon}
                 name={r.title}
-                meta={r.stateWords}
                 sentence={r.sentence}
                 quoted={false}
-                status={r.details.length ? r.details : [r.stateWords]}
+                status={[r.stateWords, ...r.details]}
                 tone={SETUP_TONE[r.state] || ""}
                 cta={r.verb ? { label: r.verb.label, kind: r.state === "ready" ? "ghost" : "primary", onClick: () => act(r.verb) } : null}
                 also={!r.required && r.state !== "ready" ? { label: r.later ? "Undo later" : "Later", onClick: () => window.__setup.later(r.id, !r.later), testid: `setup-later-${r.id}` } : null}
