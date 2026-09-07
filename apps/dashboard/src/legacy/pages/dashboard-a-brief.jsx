@@ -36,29 +36,22 @@ const RunsDone = ({ nav }) => {
   ));
 };
 
-// The day on the calendar, from the Calendar surface that boots with the
-// rest: how much is taken today and the next opening the receptionist
-// would offer. Silent without a feed — that is the Calendar page's card.
-const CalendarLine = ({ nav }) => {
+// The day's facts beside the recap's — appointments today, what is booked
+// ahead — from the calendar and People surfaces the page already holds
+// (contracts/today.ts todayDayFacts, published by the bridge). The day
+// itself is the module beside the queue (dashboard-a-day.jsx).
+const DayFacts = () => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
   React.useEffect(() => {
-    window.addEventListener("surface:calendar", bump);
-    return () => window.removeEventListener("surface:calendar", bump);
+    const names = ["surface:calendar", "surface:people"];
+    names.forEach((n) => window.addEventListener(n, bump));
+    return () => names.forEach((n) => window.removeEventListener(n, bump));
   }, []);
   const C = window.__CALENDAR;
-  if (!C || !C.vm || C.vm.feed.state !== "ok") return null;
-  const today = C.vm.days.find((d) => d.today);
-  if (!today) return null;
-  const n = today.blocks.length + today.allDay.length;
-  return (
-    <div className="brief-beat" data-testid="brief-calendar">
-      <span className="brief-beat-dot" style={{ background: "var(--ink-faint)" }} />
-      <span className="brief-beat-text">
-        <b>Calendar</b> — {today.closed.yes ? `closed today${today.closed.note ? ` · ${today.closed.note}` : ""}` : `${n} ${n === 1 ? "appointment" : "appointments"} today`}{C.vm.stats.next !== "—" ? ` · next opening ${C.vm.stats.next}` : ""}
-      </span>
-      <button className="brief-chip" onClick={() => nav("calendar")}>Open <Icon name="arrow-right" size={10} /></button>
-    </div>
-  );
+  const P = window.__PEOPLE;
+  if (!window.__today) return null;
+  const facts = window.__today.facts(C ? C.vm : null, P ? P.aggregates : null);
+  return facts.map((f, i) => <StatCell key={`day-${i}`} label={f.label} value={f.value} valueSize={22} meta={f.hint} />);
 };
 
 const HeroBrief = () => {
@@ -129,7 +122,6 @@ const HeroBriefReal = ({ vm }) => {
               </div>
             ))}
             <RunsDone nav={nav} />
-            <CalendarLine nav={nav} />
             {(recap ? recap.receipts.slice(0, 1) : []).map((r, i) => (
               <div key={i} className="brief-beat">
                 <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
@@ -161,6 +153,7 @@ const HeroBriefReal = ({ vm }) => {
         {(recap ? recap.facts : []).map((f, i) => (
           <StatCell key={i} label={f.label} value={f.value} valueSize={22} meta={f.hint} />
         ))}
+        <DayFacts />
       </StatStrip>
       {toastNode}
     </header>

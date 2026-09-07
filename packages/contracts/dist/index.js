@@ -2492,6 +2492,40 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     quiet: null
   };
 }
+function todayDay(cal, playbooks) {
+  if (!cal) return { feed: "none", frames: [], nextOpening: null, reminders: null };
+  const feed = cal.feed.state;
+  const idx = cal.days.findIndex((d) => d.today);
+  const picked = idx >= 0 ? cal.days.slice(idx, idx + 2) : [];
+  const item = (b, allDay) => ({ id: b.id, time: b.time, title: b.title, person: b.person ? { id: b.person.id, name: b.person.name } : null, allDay });
+  const frames = picked.map((d) => ({
+    key: d.key,
+    label: `${d.today ? "Today" : "Tomorrow"} \xB7 ${d.long}`,
+    today: d.today,
+    past: d.past,
+    closed: d.closed,
+    items: [...d.allDay.map((b) => item(b, true)), ...[...d.blocks].sort((a, b) => a.t - b.t).map((b) => item(b, false))],
+    open: d.closed.yes || d.past ? [] : d.windows.map((w) => w.label)
+  }));
+  let reminders = null;
+  if (feed === "ok") {
+    const visit = (playbooks ?? []).filter((p) => (p.trigger === "visit_tomorrow" || p.trigger === "visited") && p.state === "running");
+    reminders = visit.length === 0 ? { text: "No visit reminders yet \u2014 a playbook can text the day before an appointment and the day after a visit.", to: "outbound" } : { text: visit.map((p) => `${p.trigger === "visit_tomorrow" ? "Visit reminder" : "After the visit"}: ${p.candidates} ${p.candidates === 1 ? "person" : "people"} \xB7 next run ${p.next}`).join(" \xB7 "), to: "outbound" };
+  }
+  return { feed, frames, nextOpening: feed === "ok" && cal.stats.next !== "\u2014" ? cal.stats.next : null, reminders };
+}
+function todayDayFacts(cal, agg) {
+  if (!cal || cal.feed.state !== "ok") return [];
+  const out = [];
+  const today = cal.days.find((d) => d.today);
+  if (today) {
+    const n = today.blocks.length + today.allDay.length;
+    const hint = today.closed.yes ? `closed today${today.closed.note ? ` \xB7 ${today.closed.note}` : ""}` : cal.stats.next !== "\u2014" ? `next opening ${cal.stats.next}` : void 0;
+    out.push(hint ? { label: "Appointments today", value: String(n), hint } : { label: "Appointments today", value: String(n) });
+  }
+  if (agg) out.push({ label: "Booked ahead", value: String(agg.booked), hint: `${agg.reachedWeek} reached this week` });
+  return out;
+}
 
 // src/config.ts
 import { z as z2 } from "zod";
@@ -5286,6 +5320,8 @@ export {
   toReportVM,
   toTodayVM,
   toVisitDto,
+  todayDay,
+  todayDayFacts,
   triggerOf,
   validateTemplateDraft,
   violatesNoPrices,
