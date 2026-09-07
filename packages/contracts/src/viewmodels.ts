@@ -1,3 +1,4 @@
+import { standingOf } from "./standing";
 /**
  * ThreadCard/ConversationVM viewmodels (Blueprint §7): pure mapping from API
  * DTOs into the exact shapes the mockup surfaces render. Fed fields only —
@@ -472,9 +473,8 @@ export function threadStanding(
   escalation: EscalationDto | null,
   now = new Date(),
 ): { state: InboxThreadVM["state"]; takenOver: boolean; needsYou: boolean } {
-  const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
-  const needsHuman = dto.state === "needs_human" || paused;
-  // Snoozed wins over escalated, and that ordering is the whole point.
+  // One rule for the Inbox, People and Today (standing.ts). Snoozed wins over
+  // escalated, and that ordering is the whole point.
   //
   // Snoozing used to RESOLVE the open escalation, because otherwise the thread
   // would have stayed in "Needs you" and the snooze would have done nothing.
@@ -483,13 +483,15 @@ export function threadStanding(
   // for you", while the person who had asked for a human was still waiting.
   // Snooze now leaves the escalation open and hides the thread by STATE, so
   // "come back to this later" means the request comes back too.
-  const state: InboxThreadVM["state"] =
-    dto.state === "snoozed" ? "snoozed" : escalation || needsHuman ? "escalated" : "done";
-  // "You own this" must mean YOU — a teammate's claim reads differently.
-  const claimedByOther = !!dto.assignee_user_id && dto.assignee_is_me === false;
-  const takenOver =
-    state === "escalated" && !claimedByOther && (!!dto.assignee_user_id || (!escalation && needsHuman));
-  return { state, takenOver, needsYou: state === "escalated" && !takenOver };
+  const v = standingOf({
+    state: dto.state,
+    paused_until: dto.paused_until,
+    assignee_user_id: dto.assignee_user_id,
+    assignee_is_me: dto.assignee_is_me,
+    open_escalation: !!escalation,
+  }, now.getTime());
+  const state: InboxThreadVM["state"] = v.standing === "snoozed" ? "snoozed" : v.flagged ? "escalated" : "done";
+  return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you" };
 }
 
 export function toInboxThreadVM(

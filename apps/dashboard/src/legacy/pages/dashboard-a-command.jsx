@@ -146,14 +146,13 @@ const TodayQueue = ({ vm }) => {
   const rows = vm.queue.rows;
   const runs = runRows(nav, ppFlash);
   const total = rows.length + runs.length + vm.queue.more;
-  const oldest = rows.length ? rows[0].when.replace(/^waited /, "") : null;
   return (
     <section className="tq" data-testid="today-queue">
       <div className="tq-head">
-        <span className="tq-title">Needs you</span>
+        <span className="tq-title">Your queue</span>
         <span className={`tq-count tabular ${total ? "" : "calm"}`}>{total}</span>
         <span className="tq-sub">
-          {total === 0 ? "nothing waiting on you" : rows[0] && rows[0].kind !== "call" && rows[0].kind !== "window" && oldest ? `the longest has waited ${oldest}` : "in the order they came"}
+          {[...vm.queue.parts, runs.length ? `${runs.length} run${runs.length === 1 ? "" : "s"} waiting` : ""].filter(Boolean).join(" · ") || "nothing needs you"}
         </span>
         <button className="btn btn-ghost btn-sm" onClick={() => nav("inbox")}>Open Inbox <Icon name="arrow-right" size={11} /></button>
       </div>

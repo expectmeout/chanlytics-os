@@ -5,6 +5,7 @@ export * from "./enums";
 export * from "./consent";
 export * from "./viewmodels";
 export * from "./policy";
+export * from "./standing";
 export * from "./today";
 export * from "./config";
 export * from "./whisper";

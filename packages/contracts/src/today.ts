@@ -1,3 +1,4 @@
+import { standingOf } from "./standing";
 /**
  * Today (Slice 4): the morning brief.
  *
@@ -147,7 +148,8 @@ export interface TodayVM {
   pulse: { num: number; den: number } | null;
   calls: { line: string; rows: TodayCallRowVM[] } | null;
   /** Everything that asks for a person, in one row grammar, longest wait first. */
-  queue: { rows: TodayQueueRowVM[]; more: number };
+  /** The rows, the rest as a count, and what the rows hold in words: "2 need you", "1 reply window closing", "1 call worth a listen". */
+  queue: { rows: TodayQueueRowVM[]; more: number; parts: string[] };
   launchpad: Array<{ label: string; to: string }>;
   updatedAt: string;
   quiet: {
@@ -251,7 +253,21 @@ export function toTodayVM(
   const byConv = new Map(conversations.map((c) => [c.id, c]));
   const openEsc = escalations
     .filter((e) => e.state === "open")
+    // One rule (standing.ts): a handoff a person has already taken over is
+    // theirs, not the queue's. An escalation whose thread the page did not
+    // load keeps its place — unknown is not "handled".
+    .filter((e) => {
+      const conv = byConv.get(e.conversation_id);
+      if (!conv) return true;
+      return standingOf({
+        state: conv.state, paused_until: conv.paused_until, assignee_user_id: conv.assignee_user_id,
+        assignee_is_me: conv.assignee_is_me, open_escalation: true,
+      }, now.getTime()).standing === "needs_you";
+    })
     .sort((a, b) => a.created_at.localeCompare(b.created_at)); // oldest waiting first
+  // The one number every surface shows for "need you": the Inbox badge counts
+  // the same threads by the same rule.
+  const needsYouCount = openEsc.length;
 
   const needsRows: TodayNeedsRowVM[] = openEsc.map((e) => {
     const conv = byConv.get(e.conversation_id);
@@ -309,7 +325,7 @@ export function toTodayVM(
   const callMinutes = Math.round(p.call_seconds / 60);
 
   const traffic = p.messages_in + p.calls + p.messages_out_you;
-  const isQuiet = traffic === 0 && live.escalations_open === 0 && !alert;
+  const isQuiet = traffic === 0 && needsYouCount === 0 && !alert;
 
   // The hero's stat strip is part of the design and always renders — a zero
   // is a real measurement, and "—" is a real "not enough data yet". What
@@ -364,7 +380,7 @@ export function toTodayVM(
       recap: { label: "Today so far", sentences: [], facts, receipts: [] },
       pulse: null,
       calls: null,
-      queue: { rows: [], more: 0 },
+      queue: { rows: [], more: 0, parts: [] },
       launchpad: [{ label: "Conversations", to: "conversations" }],
       updatedAt: clock,
       quiet: {
@@ -400,11 +416,11 @@ export function toTodayVM(
   if (alert) {
     headline = "Check your connection before anything else.";
     tone = "alert";
-  } else if (live.escalations_open > 1) {
-    headline = `${live.escalations_open} conversations need you.`;
+  } else if (needsYouCount > 1) {
+    headline = `${needsYouCount} conversations need you.`;
     if (oldest) detail = `The oldest has been waiting since ${oldest}.`;
     tone = "needs";
-  } else if (live.escalations_open === 1) {
+  } else if (needsYouCount === 1) {
     headline = "One conversation needs you";
     const who = needsRows[0]?.who;
     if (who && oldest) detail = `${who} has been waiting since ${oldest}.`;
@@ -620,7 +636,16 @@ export function toTodayVM(
     });
   }
   queueAll.sort((a, b) => b.waitedMs - a.waitedMs);
-  const queue = { rows: queueAll.slice(0, TODAY_QUEUE_MAX), more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX) };
+  const countOf = (...kinds: TodayQueueRowVM["kind"][]) => queueAll.filter((r) => kinds.includes(r.kind)).length;
+  const needN = countOf("handoff", "callback");
+  const winN = countOf("window");
+  const earN = countOf("call");
+  const parts = [
+    needN ? `${needN} need you` : "",
+    winN ? `${winN} reply window${winN === 1 ? "" : "s"} closing` : "",
+    earN ? `${earN} call${earN === 1 ? "" : "s"} worth a listen` : "",
+  ].filter(Boolean);
+  const queue = { rows: queueAll.slice(0, TODAY_QUEUE_MAX), more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX), parts };
 
   return {
     standing: {
@@ -633,14 +658,14 @@ export function toTodayVM(
       tone,
     },
     needsYou: {
-      count: live.escalations_open,
+      count: needsYouCount,
       hint: "The receptionist stopped and asked for a human.",
       rows: needsRows,
       empty: needsRows.length
         ? null
         : p.unanswered_in_window === 0 && p.messages_out_you === 0
-          ? "Nothing is waiting on you. The receptionist answered every message that came in, and nobody asked for a person."
-          : "Nothing is waiting on you right now — nobody asked for a person.",
+          ? "Nothing needs you. The receptionist answered every message that came in, and nobody asked for a person."
+          : "Nothing needs you right now — nobody asked for a person.",
     },
     windowClosing: closingRows.length
       ? {
@@ -660,7 +685,7 @@ export function toTodayVM(
         }
       : null,
     launchpad: [
-      { label: `Inbox — ${live.escalations_open} need you`, to: "inbox" },
+      { label: `Inbox — ${needsYouCount} need you`, to: "inbox" },
       { label: "Conversations", to: "conversations" },
       ...(p.calls ? [{ label: `Calls — ${p.calls} today`, to: "conversations/phone" }] : []),
     ],
