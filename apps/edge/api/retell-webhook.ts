@@ -21,7 +21,7 @@
  */
 import { getThread, saveThread, storeBackend, threadNamespace } from "../lib/store.js";
 import { notify } from "../lib/notify.js";
-import { loadTenantNotifications } from "../lib/tenant-runtime.js";
+import { loadTenantNotifications, loadTenantRuntime } from "../lib/tenant-runtime.js";
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import {
@@ -32,6 +32,7 @@ import {
   type RetellCall,
 } from "../lib/workspace/channels.js";
 import {
+  pauseConversation,
   resolveChannel,
   ingestCall,
   recordCallNote,
@@ -40,6 +41,8 @@ import {
   emitEvent,
 } from "../lib/workspace/db.js";
 import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "../lib/call-recording.js";
+import { upsertEscalation } from "../lib/workspace/jobs.js";
+import { callOutcomeWords } from "../lib/workspace/contracts.js";
 import type { RoutedChannel } from "../lib/workspace/db.js";
 
 export const config = { maxDuration: 60 };
@@ -221,6 +224,20 @@ export async function POST(request: Request): Promise<Response> {
           if (msgId) await linkCallMessage(db, routed.tenantId, res.call_id, msgId);
         }
 
+        // The analysis says a person must call them back: the thread lands on
+        // Needs you with what to do, and the receptionist steps aside on it for
+        // the workspace's pause, exactly as a WhatsApp handoff does. A replay
+        // refreshes the one open escalation rather than opening a second.
+        if (event === "call_analyzed" && res.conversation_id && n.analysis?.outcome === "callback_needed") {
+          const say = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : "");
+          const todo = say(n.analysis.follow_up) || say(n.analysis.caller_wanted) || "The caller needs a call back.";
+          const rt = await loadTenantRuntime(db, routed);
+          const pauseHours = rt.policy["reply"]?.limits.pause_hours ?? 24;
+          await pauseConversation(db, routed.tenantId, res.conversation_id, new Date(Date.now() + pauseHours * 3_600_000).toISOString());
+          const opened = await upsertEscalation(db, routed.tenantId, res.conversation_id, "callback", todo.slice(0, 400));
+          console.log("call_callback_needed", JSON.stringify({ tenant: routed.tenantId, call: res.call_id, escalation: opened }));
+        }
+
         // The email and the memory note below happen ONCE per call. Retell
         // retries a slow delivery and replays inside the signature window; the
         // claim is what makes the second delivery a no-op.
@@ -267,6 +284,12 @@ export async function POST(request: Request): Promise<Response> {
     const from = (call.from_number || "").replace(/^\+/, "");
     const summary = n.summary || "(no summary)";
     const sentiment = n.sentiment || "n/a";
+    // What the analysis said, for the email: the request, the outcome, the to-do.
+    const said = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : "");
+    const wanted = said(n.analysis?.caller_wanted);
+    const outcomeWords = callOutcomeWords(n.analysis?.outcome);
+    const followUp = said(n.analysis?.follow_up);
+    const callback = n.analysis?.outcome === "callback_needed";
     const durationS = n.durationMs ? Math.round(n.durationMs / 1000) : 0;
 
     // Resolve the tenant ONCE for this block. Both the thread note and the
@@ -304,11 +327,15 @@ export async function POST(request: Request): Promise<Response> {
       {
         kind: "call",
         route: "conversations/phone",
-        subject: `Voice call: ${call.from_number || "unknown"} (${durationS}s, ${sentiment})`,
+        subject: `Voice call: ${call.from_number || "unknown"} (${durationS}s, ${sentiment})${callback ? " — needs a call back" : ""}`,
         body:
           `AI phone agent handled a call on ${call.to_number || "the business line"}.\n\n` +
           `From: ${call.from_number || "unknown"}\nDuration: ${durationS}s\nSentiment: ${sentiment}\n` +
-          `Disconnection: ${n.disconnectionReason || "n/a"}\n\n` +
+          `Disconnection: ${n.disconnectionReason || "n/a"}\n` +
+          (wanted ? `They wanted: ${wanted}\n` : "") +
+          (outcomeWords ? `Outcome: ${outcomeWords}\n` : "") +
+          (followUp ? `To do: ${followUp}\n` : "") +
+          `\n` +
           `Summary:\n${summary}\n\n` +
           `Transcript:\n${String(n.transcript || "(none)").slice(0, 3000)}`,
         redactedBody: `A voice call was handled for a workspace (${durationS}s). The summary and transcript were withheld.`,

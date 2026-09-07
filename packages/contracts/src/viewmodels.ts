@@ -318,6 +318,7 @@ export const ESCALATION_REASON_LABELS: Record<string, string> = {
   state_unavailable: "The receptionist could not read this thread — needs a human",
   stale: "Arrived hours late — too old to answer automatically",
   budget: "The day's model budget is used up — the receptionist paused itself",
+  callback: "Needs a call back — the phone receptionist could not finish it",
 };
 
 /**
@@ -349,6 +350,7 @@ const ESCALATION_SUMMARIES: Record<string, string> = {
   opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
   state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
   stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent — they have been waiting since.",
+  callback: "They phoned, and the receptionist could not finish it. Call them back — the details say what they wanted.",
 };
 
 /** "8m" / "3h" / "2d". An overnight wait is the NORMAL case for a morning

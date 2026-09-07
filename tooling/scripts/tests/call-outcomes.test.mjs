@@ -147,3 +147,18 @@ test("the converge endpoint: the edge's key, a dry run by default, a draft for a
   assert.ok(src.includes("before: forRecord(before)") && src.includes('a.webhook_url.split("?")[0]'), "the backup rides in the response, its secret stripped");
   assert.ok(readRaw("apps/edge/vercel.json").includes('"api/admin/voice-converge.ts"'), "several provider calls need more than the default budget");
 });
+
+test("a caller who needs a call back lands on Needs you: the reason exists everywhere a reason is named, the webhook opens it once and pauses the thread, the email says so", () => {
+  const enums = readCode("packages/contracts/src/enums.ts");
+  assert.ok(enums.includes('"callback",'), "the reason is declared");
+  assert.ok(readRaw("supabase/migrations/00062_callback_reason.sql").includes("'callback'"), "and the CHECK admits it");
+  assert.ok(readCode("packages/contracts/src/people.ts").includes('callback: "needs a call back",'), "the strip's words");
+  const vm = readCode("packages/contracts/src/viewmodels.ts");
+  assert.ok(vm.includes('callback: "Needs a call back — the phone receptionist could not finish it",') && vm.includes("callback: \"They phoned, and the receptionist could not finish it."), "the Inbox's label and the operator's first sentence");
+  const hook = readCode("apps/edge/api/retell-webhook.ts");
+  assert.ok(hook.includes('if (event === "call_analyzed" && res.conversation_id && n.analysis?.outcome === "callback_needed") {'), "only on the analysis, only with a thread to land on");
+  assert.ok(hook.includes('upsertEscalation(db, routed.tenantId, res.conversation_id, "callback", todo.slice(0, 400))'), "one open escalation, refreshed on a replay");
+  assert.ok(hook.includes('const pauseHours = rt.policy["reply"]?.limits.pause_hours ?? 24;') && hook.includes("pauseConversation(db, routed.tenantId, res.conversation_id,"), "the receptionist steps aside for the workspace's own pause");
+  assert.ok(hook.includes('${callback ? " — needs a call back" : ""}') && hook.includes("(followUp ? `To do: ${followUp}\\n` : \"\")"), "the email says what to do");
+  assert.ok(hook.indexOf("const todo = say(n.analysis.follow_up) || say(n.analysis.caller_wanted)") > 0, "the to-do first, the request second");
+});

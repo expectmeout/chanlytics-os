@@ -141,7 +141,9 @@ var ESCALATION_REASONS = [
   /** The workspace's day of model tokens is spent (limits.max_llm_tokens_day). */
   "budget",
   /** A booking or a service/pricing question, with that class set to Ask me first on the Autonomy pane: a person answers. */
-  "policy_ask"
+  "policy_ask",
+  /** The phone receptionist could not finish the call: a person calls them back. What to do rides in the details. */
+  "callback"
 ];
 var ESCALATION_STATES = ["open", "resolved"];
 var DECISION_VERBS = [
@@ -561,7 +563,8 @@ var ESCALATION_REASON_LABELS = {
   opt_out: "Asked to stop receiving messages",
   state_unavailable: "The receptionist could not read this thread \u2014 needs a human",
   stale: "Arrived hours late \u2014 too old to answer automatically",
-  budget: "The day's model budget is used up \u2014 the receptionist paused itself"
+  budget: "The day's model budget is used up \u2014 the receptionist paused itself",
+  callback: "Needs a call back \u2014 the phone receptionist could not finish it"
 };
 var ESCALATION_SUMMARIES = {
   human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
@@ -577,7 +580,8 @@ var ESCALATION_SUMMARIES = {
   manual: "Flagged by hand for a human.",
   opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
   state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
-  stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since."
+  stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
+  callback: "They phoned, and the receptionist could not finish it. Call them back \u2014 the details say what they wanted."
 };
 function formatWaited(ms2) {
   const min = Math.max(1, Math.round(ms2 / 6e4));
@@ -3160,7 +3164,8 @@ var REASON_SHORT = {
   manual: "flagged by you",
   opt_out: "asked to stop",
   state_unavailable: "memory was unavailable",
-  stale: "message arrived late"
+  stale: "message arrived late",
+  callback: "needs a call back"
 };
 function reasonShort(reason) {
   if (!reason) return "";
