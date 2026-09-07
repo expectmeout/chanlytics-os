@@ -48,7 +48,8 @@ test.describe("Broadcasts on a real workspace", () => {
     }
 
     // History and Scheduled are exactly what the route holds.
-    const open = broadcasts.filter((b) => b.state === "scheduled" || b.state === "sending").length;
+    // Open = still to go out: scheduled, sending, or a playbook run held for a person (the page's own rule).
+    const open = broadcasts.filter((b) => b.state === "scheduled" || b.state === "sending" || b.state === "pending_approval").length;
     await expect(real.getByTestId("bc-open")).toHaveCount(open);
     await expect(real.getByTestId("bc-history")).toHaveCount(broadcasts.length - open);
 
