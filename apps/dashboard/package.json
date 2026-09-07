@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@chanlytics/channels": "workspace:*",
     "@chanlytics/contracts": "workspace:*",
     "@chanlytics/db": "workspace:*",
     "@chanlytics/jobs": "workspace:*",

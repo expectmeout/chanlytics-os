@@ -618,3 +618,4 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
 /* Back, when the create screen was opened from the workspace menu. */
 .cw-back { margin-top: 8px; align-self: center; font: inherit; font-size: 13px; color: var(--ink-muted); text-decoration: underline; text-underline-offset: 3px; }
 .cw-back:hover { color: var(--ink); }
+.set-row-stack { flex-direction: column; align-items: stretch; gap: 8px; }

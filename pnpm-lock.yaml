@@ -33,6 +33,9 @@ importers:
 
   apps/dashboard:
     dependencies:
+      '@chanlytics/channels':
+        specifier: workspace:*
+        version: link:../../packages/channels
       '@chanlytics/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

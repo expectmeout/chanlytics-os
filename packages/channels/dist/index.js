@@ -129,26 +129,26 @@ var util;
   }
   util2.assertNever = assertNever;
   util2.arrayToEnum = (items) => {
-    const obj2 = {};
+    const obj3 = {};
     for (const item of items) {
-      obj2[item] = item;
+      obj3[item] = item;
     }
-    return obj2;
+    return obj3;
   };
-  util2.getValidEnumValues = (obj2) => {
-    const validKeys = util2.objectKeys(obj2).filter((k) => typeof obj2[obj2[k]] !== "number");
+  util2.getValidEnumValues = (obj3) => {
+    const validKeys = util2.objectKeys(obj3).filter((k) => typeof obj3[obj3[k]] !== "number");
     const filtered = {};
     for (const k of validKeys) {
-      filtered[k] = obj2[k];
+      filtered[k] = obj3[k];
     }
     return util2.objectValues(filtered);
   };
-  util2.objectValues = (obj2) => {
-    return util2.objectKeys(obj2).map(function(e) {
-      return obj2[e];
+  util2.objectValues = (obj3) => {
+    return util2.objectKeys(obj3).map(function(e) {
+      return obj3[e];
     });
   };
-  util2.objectKeys = typeof Object.keys === "function" ? (obj2) => Object.keys(obj2) : (object) => {
+  util2.objectKeys = typeof Object.keys === "function" ? (obj3) => Object.keys(obj3) : (object) => {
     const keys = [];
     for (const key in object) {
       if (Object.prototype.hasOwnProperty.call(object, key)) {
@@ -269,8 +269,8 @@ var ZodIssueCode = util.arrayToEnum([
   "not_multiple_of",
   "not_finite"
 ]);
-var quotelessJson = (obj2) => {
-  const json = JSON.stringify(obj2, null, 2);
+var quotelessJson = (obj3) => {
+  const json = JSON.stringify(obj3, null, 2);
   return json.replace(/"([^"]+)":/g, "$1:");
 };
 var ZodError = class _ZodError extends Error {
@@ -4666,7 +4666,7 @@ async function fetchMediaBytes(cfg, providerMediaId) {
 }
 
 // src/voice-retell.ts
-import crypto from "crypto";
+import crypto2 from "crypto";
 var API = "https://api.retellai.com";
 var E1642 = /^\+[1-9]\d{6,14}$/;
 function plainObject(v) {
@@ -4783,23 +4783,23 @@ async function getAgent(cfg, agentId) {
   });
   if (!r.ok) return null;
   const a = await r.json();
-  const str3 = (k) => typeof a[k] === "string" ? a[k] : null;
+  const str4 = (k) => typeof a[k] === "string" ? a[k] : null;
   const num2 = (k) => typeof a[k] === "number" ? a[k] : null;
   const bool = (k) => typeof a[k] === "boolean" ? a[k] : null;
   const engine = a.response_engine ?? {};
   return {
-    agent_id: str3("agent_id") ?? agentId,
-    agent_name: str3("agent_name"),
+    agent_id: str4("agent_id") ?? agentId,
+    agent_name: str4("agent_name"),
     version: num2("version"),
     is_published: bool("is_published"),
     llm_id: engine.type === "retell-llm" && typeof engine.llm_id === "string" ? engine.llm_id : null,
     llm_version: typeof engine.version === "number" ? engine.version : null,
     // The URL only, never its query string: Retell lets a secret ride there
     // (?key=...) and this object is meant to be printed by a diagnostic.
-    webhook_url: str3("webhook_url")?.split("?")[0] ?? null,
+    webhook_url: str4("webhook_url")?.split("?")[0] ?? null,
     webhook_events: Array.isArray(a.webhook_events) ? a.webhook_events.map(String) : null,
     webhook_timeout_ms: num2("webhook_timeout_ms"),
-    data_storage_setting: str3("data_storage_setting"),
+    data_storage_setting: str4("data_storage_setting"),
     data_storage_retention_days: num2("data_storage_retention_days"),
     opt_in_signed_url: bool("opt_in_signed_url"),
     post_call_analysis_data: Array.isArray(a.post_call_analysis_data) ? a.post_call_analysis_data : null
@@ -4885,14 +4885,14 @@ async function getRetellLlm(cfg, llmId, version) {
   });
   if (!r.ok) return null;
   const l = await r.json();
-  const str3 = (k) => typeof l[k] === "string" ? l[k] : null;
+  const str4 = (k) => typeof l[k] === "string" ? l[k] : null;
   return {
-    llm_id: str3("llm_id") ?? llmId,
+    llm_id: str4("llm_id") ?? llmId,
     version: typeof l.version === "number" ? l.version : null,
-    model: str3("model"),
+    model: str4("model"),
     model_temperature: typeof l.model_temperature === "number" ? l.model_temperature : null,
-    general_prompt: str3("general_prompt"),
-    begin_message: str3("begin_message"),
+    general_prompt: str4("general_prompt"),
+    begin_message: str4("begin_message"),
     default_dynamic_variables: l.default_dynamic_variables && typeof l.default_dynamic_variables === "object" ? l.default_dynamic_variables : null,
     general_tools: Array.isArray(l.general_tools) ? l.general_tools : null,
     knowledge_base_ids: Array.isArray(l.knowledge_base_ids) ? l.knowledge_base_ids.map(String) : null
@@ -4913,10 +4913,10 @@ function verifyRetellSignature(rawBody, header, apiKey) {
   if (!m) return false;
   const [, ts, digest] = m;
   if (Math.abs(Date.now() - Number(ts)) > 5 * 60 * 1e3) return false;
-  const expected = crypto.createHmac("sha256", apiKey).update(rawBody + ts).digest("hex");
+  const expected = crypto2.createHmac("sha256", apiKey).update(rawBody + ts).digest("hex");
   const a = Buffer.from(digest.toLowerCase());
   const b = Buffer.from(expected);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+  return a.length === b.length && crypto2.timingSafeEqual(a, b);
 }
 
 // src/voice-shell.ts
@@ -5345,14 +5345,14 @@ var TwilioError = class extends Error {
     this.code = code;
   }
 };
-var fetchTwilio = async (acct, method, url, form) => {
+var fetchTwilio = async (acct, method, url, form2) => {
   const r = await fetch(url, {
     method,
     headers: {
       Authorization: `Basic ${Buffer.from(`${acct.sid}:${acct.token}`).toString("base64")}`,
-      ...form ? { "Content-Type": "application/x-www-form-urlencoded" } : {}
+      ...form2 ? { "Content-Type": "application/x-www-form-urlencoded" } : {}
     },
-    body: form ? new URLSearchParams(form).toString() : void 0,
+    body: form2 ? new URLSearchParams(form2).toString() : void 0,
     signal: AbortSignal.timeout(15e3)
   });
   const text = await r.text();
@@ -5795,44 +5795,47 @@ var PLACE_ID = /^[A-Za-z0-9_-]{10,300}$/;
 var REVIEW_BELL_MAX = 3;
 var FRESH_SLACK_MS = 2 * 864e5;
 var plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-function writtenSince(r, sinceMs) {
-  const at = r.published_at ? Date.parse(r.published_at) : NaN;
-  return !Number.isNaN(at) && at >= sinceMs - FRESH_SLACK_MS;
-}
 function overall(rating, count) {
   return `${ratingWords(rating)} overall${typeof count === "number" ? ` \xB7 ${plural(count, "review")}` : ""}`;
 }
-function planListingCheck(before, knownIds, fresh, day, nowMs) {
+function reviewBells(news, counted, listing) {
+  if (news.length > 0 && news.length <= REVIEW_BELL_MAX) {
+    return news.map((r) => ({
+      title: `New on Google: ${starsOf(r.rating)} from ${r.author?.trim() || "a customer"}`,
+      body: `${r.text?.trim() ? `\u201C${reviewSnippet(r.text, 280)}\u201D` : "A rating without words."}
+${overall(listing.rating, listing.review_count)}.`,
+      review_id: r.review_id
+    }));
+  }
+  if (news.length > REVIEW_BELL_MAX) {
+    const who = news.map((r) => r.author?.trim() || "a customer").slice(0, 5).join(", ");
+    return [{
+      title: `${news.length} new reviews on Google`,
+      body: `From ${who}${news.length > 5 ? " and others" : ""}. ${overall(listing.rating, listing.review_count)}. The words are on Reports.`,
+      review_id: null
+    }];
+  }
+  if (counted > 0) {
+    return [{
+      title: `${plural(counted, "new rating")} on Google`,
+      body: `${overall(listing.rating, listing.review_count)}. Google shows the words of its five most relevant reviews; a rating outside them counts without its words.`,
+      review_id: null
+    }];
+  }
+  return [];
+}
+function writtenSince(at, sinceMs) {
+  const t = at ? Date.parse(at) : NaN;
+  return !Number.isNaN(t) && t >= sinceMs - FRESH_SLACK_MS;
+}
+function planListingCheck(before, knownIds, fresh, day, nowMs, opts = {}) {
   const now = new Date(nowMs).toISOString();
   const first = !before.checked_at;
   const sinceMs = before.checked_at ? Date.parse(before.checked_at) : NaN;
-  const unseen = fresh.reviews.filter((r) => !knownIds.has(r.review_id));
-  const news = first || Number.isNaN(sinceMs) ? [] : unseen.filter((r) => writtenSince(r, sinceMs));
+  const carriesReviews = opts.reviews !== false;
+  const unseen = carriesReviews ? fresh.reviews.filter((r) => !knownIds.has(r.review_id)) : [];
+  const news = first || Number.isNaN(sinceMs) ? [] : unseen.filter((r) => writtenSince(r.published_at, sinceMs));
   const counted = first || typeof before.review_count !== "number" || typeof fresh.review_count !== "number" ? 0 : Math.max(0, fresh.review_count - before.review_count);
-  const bells = [];
-  if (news.length > 0 && news.length <= REVIEW_BELL_MAX) {
-    for (const r of news) {
-      bells.push({
-        title: `New on Google: ${starsOf(r.rating)} from ${r.author?.trim() || "a customer"}`,
-        body: `${r.text?.trim() ? `\u201C${reviewSnippet(r.text, 280)}\u201D` : "A rating without words."}
-${overall(fresh.rating, fresh.review_count)}.`,
-        review_id: r.review_id
-      });
-    }
-  } else if (news.length > REVIEW_BELL_MAX) {
-    const who = news.map((r) => r.author?.trim() || "a customer").slice(0, 5).join(", ");
-    bells.push({
-      title: `${news.length} new reviews on Google`,
-      body: `From ${who}${news.length > 5 ? " and others" : ""}. ${overall(fresh.rating, fresh.review_count)}. The words are on Reports.`,
-      review_id: null
-    });
-  } else if (counted > 0) {
-    bells.push({
-      title: `${plural(counted, "new rating")} on Google`,
-      body: `${overall(fresh.rating, fresh.review_count)}. Google shows the words of its five most relevant reviews; a rating outside them counts without its words.`,
-      review_id: null
-    });
-  }
   return {
     listing: {
       name: fresh.name,
@@ -5845,11 +5848,300 @@ ${overall(fresh.rating, fresh.review_count)}.`,
       check_error: null
     },
     day: { day, rating: fresh.rating, review_count: fresh.review_count ?? 0 },
-    reviews: fresh.reviews.map((r) => ({ ...r, last_seen_at: now })),
+    reviews: carriesReviews ? fresh.reviews.map((r) => ({ ...r, last_seen_at: now })) : [],
     fresh: news,
     counted,
-    bells
+    bells: carriesReviews ? reviewBells(news, counted, fresh) : []
   };
+}
+function planProfileSync(before, known, page, day, nowMs) {
+  const now = new Date(nowMs).toISOString();
+  const first = !before.last_synced_at;
+  const sinceMs = before.last_synced_at ? Date.parse(before.last_synced_at) : NaN;
+  const unseen = page.reviews.filter((r) => !known.has(r.review_id));
+  const news = first || Number.isNaN(sinceMs) ? [] : unseen.filter((r) => writtenSince(r.created_at, sinceMs));
+  const replied = page.reviews.filter((r) => {
+    const k = known.get(r.review_id);
+    return !!k && !!r.reply_text && r.reply_text !== k.reply_text;
+  }).map((r) => r.review_id);
+  const rating = page.average_rating;
+  const count = page.total_count;
+  const listing = typeof count === "number" || typeof rating === "number" ? { rating: typeof rating === "number" ? Math.round(rating * 10) / 10 : null, review_count: count, checked_at: now, check_error: null } : null;
+  return {
+    listing,
+    day: typeof count === "number" ? { day, rating: listing?.rating ?? null, review_count: count } : null,
+    reviews: page.reviews.map((r) => ({ ...r, last_seen_at: now })),
+    fresh: news,
+    replied,
+    bells: reviewBells(news, 0, { rating: listing?.rating ?? null, review_count: count }),
+    synced_at: now
+  };
+}
+
+// src/google-oauth.ts
+var GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
+var GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+var GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
+var PROFILE_SCOPES = ["openid", "email", "https://www.googleapis.com/auth/business.manage"];
+var STATE_TTL_MS = 10 * 6e4;
+function authorizeUrl(cfg, state, loginHint) {
+  const q = new URLSearchParams({
+    client_id: cfg.clientId,
+    redirect_uri: cfg.redirectUri,
+    response_type: "code",
+    scope: PROFILE_SCOPES.join(" "),
+    access_type: "offline",
+    prompt: "consent",
+    include_granted_scopes: "false",
+    state
+  });
+  if (loginHint) q.set("login_hint", loginHint);
+  return `${GOOGLE_AUTH_URL}?${q.toString()}`;
+}
+var form = (params) => new URLSearchParams(params).toString();
+var FORM = { "Content-Type": "application/x-www-form-urlencoded" };
+function tokenExchangeRequest(cfg, code) {
+  return { url: GOOGLE_TOKEN_URL, method: "POST", headers: FORM, body: form({ code, client_id: cfg.clientId, client_secret: cfg.clientSecret, redirect_uri: cfg.redirectUri, grant_type: "authorization_code" }) };
+}
+function tokenRefreshRequest(cfg, refreshToken) {
+  return { url: GOOGLE_TOKEN_URL, method: "POST", headers: FORM, body: form({ refresh_token: refreshToken, client_id: cfg.clientId, client_secret: cfg.clientSecret, grant_type: "refresh_token" }) };
+}
+function revokeRequest(token) {
+  return { url: GOOGLE_REVOKE_URL, method: "POST", headers: FORM, body: form({ token }) };
+}
+function parseTokenResponse(json) {
+  const o = json && typeof json === "object" ? json : {};
+  const access = typeof o.access_token === "string" ? o.access_token : "";
+  if (!access) throw new Error(typeof o.error === "string" ? `${o.error}${typeof o.error_description === "string" ? `: ${o.error_description}` : ""}` : "Google answered without a token");
+  return {
+    access_token: access,
+    refresh_token: typeof o.refresh_token === "string" && o.refresh_token ? o.refresh_token : null,
+    expires_in: typeof o.expires_in === "number" ? o.expires_in : 3600,
+    scope: typeof o.scope === "string" ? o.scope : "",
+    id_token: typeof o.id_token === "string" ? o.id_token : null
+  };
+}
+function grantHasScope(grant, scope) {
+  return grant.scope.split(/\s+/).includes(scope);
+}
+var enc = new TextEncoder();
+var dec = new TextDecoder();
+function b64url(bytes) {
+  const b = typeof bytes === "string" ? enc.encode(bytes) : bytes;
+  let s = "";
+  for (const x of b) s += String.fromCharCode(x);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function unb64url(s) {
+  const pad = s.length % 4 === 0 ? "" : "=".repeat(4 - s.length % 4);
+  const bin = atob(s.replace(/-/g, "+").replace(/_/g, "/") + pad);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function idTokenClaims(idToken) {
+  try {
+    const parts = (idToken ?? "").split(".");
+    if (parts.length < 2) return { email: null, sub: null };
+    const c = JSON.parse(dec.decode(unb64url(parts[1])));
+    return { email: typeof c.email === "string" ? c.email : null, sub: typeof c.sub === "string" ? c.sub : null };
+  } catch {
+    return { email: null, sub: null };
+  }
+}
+async function hmac(secret, data) {
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(data));
+  return b64url(new Uint8Array(sig));
+}
+async function signState(secret, s) {
+  const payload = b64url(JSON.stringify(s));
+  return `${payload}.${await hmac(secret, payload)}`;
+}
+async function verifyState(secret, state, nowMs) {
+  if (!state) return { ok: false, reason: "missing" };
+  const [payload, sig, ...rest] = state.split(".");
+  if (!payload || !sig || rest.length) return { ok: false, reason: "malformed" };
+  const expected = await hmac(secret, payload);
+  if (expected.length !== sig.length || !timingSafeEqualStr(expected, sig)) return { ok: false, reason: "signature" };
+  let s;
+  try {
+    s = JSON.parse(dec.decode(unb64url(payload)));
+  } catch {
+    return { ok: false, reason: "malformed" };
+  }
+  if (typeof s.t !== "string" || typeof s.u !== "string" || typeof s.n !== "string" || typeof s.exp !== "number") return { ok: false, reason: "malformed" };
+  if (s.exp < nowMs) return { ok: false, reason: "expired" };
+  return { ok: true, state: s };
+}
+function timingSafeEqualStr(a, b) {
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+function newNonce() {
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  return b64url(b);
+}
+
+// src/google-profile.ts
+var GBP_ACCOUNTS_URL = "https://mybusinessaccountmanagement.googleapis.com/v1/accounts";
+var GBP_INFO_BASE = "https://mybusinessbusinessinformation.googleapis.com/v1";
+var GBP_V4_BASE = "https://mybusiness.googleapis.com/v4";
+var GBP_LOCATIONS_READ_MASK = "name,title,storefrontAddress,metadata";
+var GBP_REVIEWS_PAGE = 50;
+var GBP_REVIEWS_MAX_PAGES = 5;
+var obj2 = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
+var str3 = (v) => typeof v === "string" && v.trim() ? v : null;
+function bearer(token, v4 = false) {
+  return { Authorization: `Bearer ${token}`, ...v4 ? { "X-GOOG-API-FORMAT-VERSION": "2" } : {} };
+}
+function accountsRequest(token, pageToken) {
+  const q = new URLSearchParams({ pageSize: "20" });
+  if (pageToken) q.set("pageToken", pageToken);
+  return { url: `${GBP_ACCOUNTS_URL}?${q.toString()}`, method: "GET", headers: bearer(token) };
+}
+function locationsRequest(token, accountName, pageToken) {
+  const q = new URLSearchParams({ readMask: GBP_LOCATIONS_READ_MASK, pageSize: "100" });
+  if (pageToken) q.set("pageToken", pageToken);
+  return { url: `${GBP_INFO_BASE}/${accountName}/locations?${q.toString()}`, method: "GET", headers: bearer(token) };
+}
+function reviewParent(accountName, locationName) {
+  const loc = locationName.startsWith("locations/") ? locationName.slice("locations/".length) : locationName;
+  return `${accountName}/locations/${loc}`;
+}
+function reviewsRequest(token, parent, pageToken) {
+  const q = new URLSearchParams({ pageSize: String(GBP_REVIEWS_PAGE), orderBy: "updateTime desc" });
+  if (pageToken) q.set("pageToken", pageToken);
+  return { url: `${GBP_V4_BASE}/${parent}/reviews?${q.toString()}`, method: "GET", headers: bearer(token, true) };
+}
+function replyRequest(token, reviewName, comment) {
+  return { url: `${GBP_V4_BASE}/${reviewName}/reply`, method: "PUT", headers: { ...bearer(token, true), "Content-Type": "application/json" }, body: JSON.stringify({ comment }) };
+}
+function deleteReplyRequest(token, reviewName) {
+  return { url: `${GBP_V4_BASE}/${reviewName}/reply`, method: "DELETE", headers: bearer(token, true) };
+}
+function parseAccounts(json) {
+  const o = obj2(json);
+  const list = Array.isArray(o?.accounts) ? o.accounts : [];
+  const accounts = list.map((a) => obj2(a)).filter((a) => !!a).map((a) => ({ name: str3(a.name) ?? "", title: str3(a.accountName) ?? str3(obj2(a.organizationInfo)?.registeredDomain) ?? str3(a.name) ?? "", type: str3(a.type) })).filter((a) => a.name.startsWith("accounts/"));
+  return { accounts, next: str3(o?.nextPageToken) };
+}
+function oneLineAddress(a) {
+  const o = obj2(a);
+  if (!o) return null;
+  const lines = Array.isArray(o.addressLines) ? o.addressLines.filter((l) => typeof l === "string" && !!l.trim()) : [];
+  const parts = [...lines, str3(o.locality), [str3(o.administrativeArea), str3(o.postalCode)].filter(Boolean).join(" ")].filter((p) => !!p);
+  return parts.length ? parts.join(", ") : null;
+}
+function parseLocations(json) {
+  const o = obj2(json);
+  const list = Array.isArray(o?.locations) ? o.locations : [];
+  const locations = list.map((l) => obj2(l)).filter((l) => !!l).map((l) => {
+    const meta = obj2(l.metadata);
+    return { name: str3(l.name) ?? "", title: str3(l.title) ?? "", address: oneLineAddress(l.storefrontAddress), place_id: str3(meta?.placeId), maps_uri: str3(meta?.mapsUri), new_review_uri: str3(meta?.newReviewUri) };
+  }).filter((l) => l.name.startsWith("locations/"));
+  return { locations, next: str3(o?.nextPageToken) };
+}
+var STARS = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
+function starRatingNumber(v) {
+  return typeof v === "string" && v in STARS ? STARS[v] : null;
+}
+function parseReviewsPage(json) {
+  const o = obj2(json);
+  const list = Array.isArray(o?.reviews) ? o.reviews : [];
+  const reviews = list.map((r) => obj2(r)).filter((r) => !!r).map((r) => {
+    const name = str3(r.name);
+    const id = str3(r.reviewId) ?? (name ? name.split("/").pop() ?? null : null);
+    if (!name || !id) return null;
+    const who = obj2(r.reviewer);
+    const reply = obj2(r.reviewReply);
+    return {
+      name,
+      review_id: id,
+      rating: starRatingNumber(r.starRating),
+      author: who?.isAnonymous === true ? null : str3(who?.displayName),
+      author_photo_uri: str3(who?.profilePhotoUrl),
+      anonymous: who?.isAnonymous === true,
+      text: str3(r.comment),
+      created_at: str3(r.createTime),
+      updated_at: str3(r.updateTime),
+      reply_text: str3(reply?.comment),
+      replied_at: str3(reply?.updateTime)
+    };
+  }).filter((r) => r !== null);
+  const avg = typeof o?.averageRating === "number" ? o.averageRating : null;
+  const total = typeof o?.totalReviewCount === "number" ? o.totalReviewCount : null;
+  return { reviews, average_rating: avg, total_count: total, next_page_token: str3(o?.nextPageToken) };
+}
+function refusal2(status, body) {
+  let message = `Google answered ${status}`;
+  try {
+    const e = obj2(obj2(JSON.parse(body))?.error);
+    const m = str3(e?.message);
+    const s = str3(e?.status);
+    if (m) message = s ? `${s}: ${m}` : m;
+  } catch {
+  }
+  return new PlacesError(status, message);
+}
+async function call2(http, req) {
+  const r = await http(req);
+  if (r.status < 200 || r.status >= 300) throw refusal2(r.status, r.body);
+  if (!r.body.trim()) return {};
+  try {
+    return JSON.parse(r.body);
+  } catch {
+    throw new PlacesError(502, "Google answered with something other than JSON");
+  }
+}
+async function listAccounts(http, token) {
+  const out = [];
+  let page = null;
+  for (let i = 0; i < 5; i++) {
+    const r = parseAccounts(await call2(http, accountsRequest(token, page)));
+    out.push(...r.accounts);
+    page = r.next;
+    if (!page) break;
+  }
+  return out;
+}
+async function listLocations(http, token, accountName) {
+  const out = [];
+  let page = null;
+  for (let i = 0; i < 5; i++) {
+    const r = parseLocations(await call2(http, locationsRequest(token, accountName, page)));
+    out.push(...r.locations);
+    page = r.next;
+    if (!page) break;
+  }
+  return out;
+}
+async function listReviews(http, token, parent, maxPages = GBP_REVIEWS_MAX_PAGES) {
+  const all = [];
+  let page = null;
+  let avg = null;
+  let total = null;
+  for (let i = 0; i < Math.max(1, maxPages); i++) {
+    const r = parseReviewsPage(await call2(http, reviewsRequest(token, parent, page)));
+    all.push(...r.reviews);
+    if (i === 0) {
+      avg = r.average_rating;
+      total = r.total_count;
+    }
+    page = r.next_page_token;
+    if (!page) break;
+  }
+  return { reviews: all, average_rating: avg, total_count: total, next_page_token: page };
+}
+async function replyToReview(http, token, reviewName, comment) {
+  const o = obj2(await call2(http, replyRequest(token, reviewName, comment)));
+  return { reply_text: str3(o?.comment) ?? comment, replied_at: str3(o?.updateTime) ?? (/* @__PURE__ */ new Date()).toISOString() };
+}
+var GBP_REPLY_MAX = 4096;
+function cleanReply(text) {
+  return typeof text === "string" ? text.replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/\n[ \t]+/g, "\n").trim().slice(0, GBP_REPLY_MAX) : "";
 }
 export {
   CALLER_UNKNOWN,
@@ -5857,6 +6149,16 @@ export {
   DEFAULT_FN_URL,
   FACTS_UNAVAILABLE,
   FRESH_SLACK_MS,
+  GBP_ACCOUNTS_URL,
+  GBP_INFO_BASE,
+  GBP_LOCATIONS_READ_MASK,
+  GBP_REPLY_MAX,
+  GBP_REVIEWS_MAX_PAGES,
+  GBP_REVIEWS_PAGE,
+  GBP_V4_BASE,
+  GOOGLE_AUTH_URL,
+  GOOGLE_REVOKE_URL,
+  GOOGLE_TOKEN_URL,
   GREETING_DEFAULT,
   HANDOFF_VAR,
   LINE_COSTS,
@@ -5867,9 +6169,11 @@ export {
   PLACES_SEARCH_MASK,
   PLACES_TIMEOUT_MS,
   PLACE_ID,
+  PROFILE_SCOPES,
   PlacesError,
   RETELL_ORIGINATION,
   REVIEW_BELL_MAX,
+  STATE_TTL_MS,
   TwilioError,
   VOICE_AGENT_DEFAULTS,
   VOICE_LLM_DEFAULTS,
@@ -5878,14 +6182,19 @@ export {
   VOICE_SHELL_PROMPT,
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
+  accountsRequest,
   agentSettingsDrift,
+  authorizeUrl,
   availabilityUrl,
+  b64url,
   callSummaryLine,
   chooseLineProvider,
+  cleanReply,
   createAgent,
   createAgentVersion,
   createPhoneNumber,
   createRetellLlm,
+  deleteReplyRequest,
   desiredVoiceShell,
   dryProvider,
   fetchMediaBytes,
@@ -5897,43 +6206,67 @@ export {
   getPhoneNumber,
   getPlace,
   getRetellLlm,
+  grantHasScope,
+  idTokenClaims,
   importPhoneNumber,
   isAreaCode,
   isE164,
   isValidSipPassword,
+  listAccounts,
   listCalls,
+  listLocations,
+  listReviews,
   liveTurns,
+  locationsRequest,
   needsHydration,
+  newNonce,
   nextLineStep,
   normalizeCall,
   normalizeInbound,
+  parseAccounts,
+  parseLocations,
   parsePlaceDetails,
   parsePlacesSearch,
+  parseReviewsPage,
+  parseTokenResponse,
   parseTranscriptText,
   placesDetailsRequest,
   placesFetch,
   placesSearchRequest,
   planAgentSettings,
   planListingCheck,
+  planProfileSync,
   planVoiceConvergence,
   planVoiceProvision,
   publishAgentVersion,
+  replyRequest,
+  replyToReview,
   retellImportBody,
+  reviewBells,
   reviewIdOf,
+  reviewParent,
+  reviewsRequest,
+  revokeRequest,
   runLineSaga,
   searchPlaces,
   sendTemplate,
   sendText,
+  signState,
   sipPassword,
   sipUsername,
+  starRatingNumber,
   stripKey,
+  tokenExchangeRequest,
+  tokenRefreshRequest,
   trunkDomain,
   twilioProvider,
   twilioUrls,
+  unb64url,
   updateAgent,
   updateLiveCall,
   updatePhoneNumber,
   verifyRetellSignature,
+  verifyState,
   voiceAgentCreateBody,
   voiceEndpoints,
   voiceLlmCreateBody,

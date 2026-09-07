@@ -962,7 +962,7 @@ declare const PLACES_SEARCH_LIMIT = 5;
 declare const PLACES_TIMEOUT_MS = 10000;
 interface PlacesRequest {
     url: string;
-    method: "GET" | "POST";
+    method: "GET" | "POST" | "PUT" | "DELETE";
     headers: Record<string, string>;
     body?: string;
 }
@@ -1028,6 +1028,94 @@ declare function placesFetch(fetchImpl?: typeof fetch, timeoutMs?: number): Plac
 /** A place id as Google issues them: letters, digits, dashes and underscores. */
 declare const PLACE_ID: RegExp;
 
+/**
+ * Google Business Profile: the owner's own listing, with every review and
+ * the right to answer them. Three APIs, pinned to the documented shapes:
+ * Account Management (whose accounts), Business Information (which
+ * locations, with the place id that ties one to the public listing), and
+ * the v4 API that still carries reviews and replies.
+ *
+ * Nothing here holds a token for longer than a call; the edge trades the
+ * Vault-held refresh token for one. HTTP is the same port the Places client
+ * uses, so the planner beside this runs in tests without a network.
+ */
+
+declare const GBP_ACCOUNTS_URL = "https://mybusinessaccountmanagement.googleapis.com/v1/accounts";
+declare const GBP_INFO_BASE = "https://mybusinessbusinessinformation.googleapis.com/v1";
+declare const GBP_V4_BASE = "https://mybusiness.googleapis.com/v4";
+/** What a location is asked for: its name, its title, where it is, and the metadata that names its place on Maps. */
+declare const GBP_LOCATIONS_READ_MASK = "name,title,storefrontAddress,metadata";
+declare const GBP_REVIEWS_PAGE = 50;
+/** Pages of fifty read on one sync: a history of two hundred and fifty, then the newest page each day. */
+declare const GBP_REVIEWS_MAX_PAGES = 5;
+declare function accountsRequest(token: string, pageToken?: string | null): PlacesRequest;
+declare function locationsRequest(token: string, accountName: string, pageToken?: string | null): PlacesRequest;
+/** The v4 review path: accounts/{a}/locations/{l}, from the account's name and the location's. */
+declare function reviewParent(accountName: string, locationName: string): string;
+declare function reviewsRequest(token: string, parent: string, pageToken?: string | null): PlacesRequest;
+declare function replyRequest(token: string, reviewName: string, comment: string): PlacesRequest;
+declare function deleteReplyRequest(token: string, reviewName: string): PlacesRequest & {
+    method: "DELETE";
+};
+interface GbpAccount {
+    /** accounts/{id} */
+    name: string;
+    title: string;
+    type: string | null;
+}
+interface GbpLocation {
+    /** locations/{id} */
+    name: string;
+    title: string;
+    address: string | null;
+    /** The listing on Maps, when Google has one; null for a location not yet on Maps. */
+    place_id: string | null;
+    maps_uri: string | null;
+    new_review_uri: string | null;
+}
+interface GbpReview {
+    /** accounts/{a}/locations/{l}/reviews/{id} */
+    name: string;
+    review_id: string;
+    rating: number | null;
+    author: string | null;
+    author_photo_uri: string | null;
+    anonymous: boolean;
+    text: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+    reply_text: string | null;
+    replied_at: string | null;
+}
+interface GbpReviewsPage {
+    reviews: GbpReview[];
+    average_rating: number | null;
+    total_count: number | null;
+    next_page_token: string | null;
+}
+declare function parseAccounts(json: unknown): {
+    accounts: GbpAccount[];
+    next: string | null;
+};
+declare function parseLocations(json: unknown): {
+    locations: GbpLocation[];
+    next: string | null;
+};
+/** "FIVE" → 5; anything else → null. */
+declare function starRatingNumber(v: unknown): number | null;
+declare function parseReviewsPage(json: unknown): GbpReviewsPage;
+declare function listAccounts(http: PlacesHttp, token: string): Promise<GbpAccount[]>;
+declare function listLocations(http: PlacesHttp, token: string, accountName: string): Promise<GbpLocation[]>;
+/** The newest pages of reviews, up to `maxPages`; the rating and the count as Google reports them beside. */
+declare function listReviews(http: PlacesHttp, token: string, parent: string, maxPages?: number): Promise<GbpReviewsPage>;
+declare function replyToReview(http: PlacesHttp, token: string, reviewName: string, comment: string): Promise<{
+    reply_text: string | null;
+    replied_at: string | null;
+}>;
+/** A reply as Google accepts it: words, at most this many characters. */
+declare const GBP_REPLY_MAX = 4096;
+declare function cleanReply(text: unknown): string;
+
 interface ListingBefore {
     rating: number | null;
     review_count: number | null;
@@ -1040,6 +1128,25 @@ interface ReviewBell {
     /** The review it is about, when it is about one. */
     review_id: string | null;
 }
+/** More new reviews than this in one check become one row, not a pile. */
+declare const REVIEW_BELL_MAX = 3;
+/** A review dated up to this long before the previous check still counts as written since it: Google's clock and ours differ, and a review can be dated by its visit. */
+declare const FRESH_SLACK_MS: number;
+interface NewsItem {
+    review_id: string;
+    rating: number | null;
+    author: string | null;
+    text: string | null;
+}
+/**
+ * The bell rows for what is new: one per review up to three, else one
+ * summary naming who wrote; with nothing new by name but ratings gained by
+ * the count, one row that says why the words are missing.
+ */
+declare function reviewBells(news: NewsItem[], counted: number, listing: {
+    rating: number | null;
+    review_count: number | null;
+}): ReviewBell[];
 interface ListingCheckPlan {
     listing: {
         name: string;
@@ -1056,7 +1163,7 @@ interface ListingCheckPlan {
         rating: number | null;
         review_count: number;
     };
-    /** Every review Google showed, to upsert; the row keeps its first_seen_at. */
+    /** Every review Google showed, to upsert; the row keeps its first_seen_at. Empty when the profile carries the reviews. */
     reviews: Array<PlaceReview & {
         last_seen_at: string;
     }>;
@@ -1066,10 +1173,117 @@ interface ListingCheckPlan {
     counted: number;
     bells: ReviewBell[];
 }
-/** More new reviews than this in one check become one row, not a pile. */
-declare const REVIEW_BELL_MAX = 3;
-/** A review dated up to this long before the previous check still counts as written since it: Google's clock and ours differ, and a review can be dated by its visit. */
-declare const FRESH_SLACK_MS: number;
-declare function planListingCheck(before: ListingBefore, knownIds: ReadonlySet<string>, fresh: PlaceDetails, day: string, nowMs: number): ListingCheckPlan;
+declare function planListingCheck(before: ListingBefore, knownIds: ReadonlySet<string>, fresh: PlaceDetails, day: string, nowMs: number, opts?: {
+    reviews?: boolean;
+}): ListingCheckPlan;
+interface ProfileBefore {
+    /** The previous successful sync; null before the first. */
+    last_synced_at: string | null;
+}
+interface KnownReview {
+    updated_at: string | null;
+    reply_text: string | null;
+}
+interface ProfileSyncPlan {
+    /** The rating and the count as the profile reports them, when it does. */
+    listing: {
+        rating: number | null;
+        review_count: number | null;
+        checked_at: string;
+        check_error: null;
+    } | null;
+    day: {
+        day: string;
+        rating: number | null;
+        review_count: number;
+    } | null;
+    /** Every review read, to upsert with origin 'profile'; the row keeps its first_seen_at. */
+    reviews: Array<GbpReview & {
+        last_seen_at: string;
+    }>;
+    /** Not on record and written since the last sync: news. */
+    fresh: GbpReview[];
+    /** Reviews whose reply appeared or changed since the last sync — answered on Google, not here. */
+    replied: string[];
+    bells: ReviewBell[];
+    synced_at: string;
+}
+declare function planProfileSync(before: ProfileBefore, known: ReadonlyMap<string, KnownReview>, page: GbpReviewsPage, day: string, nowMs: number): ProfileSyncPlan;
 
-export { type AgentPlan, type AvailableNumber, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, DEFAULT_FN_URL, type DryCall, type DryProvider, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GREETING_DEFAULT, HANDOFF_VAR, LINE_COSTS, LINE_STEPS, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type ProviderAccount, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, RETELL_ORIGINATION, REVIEW_BELL_MAX, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, type SagaResult, type SendResult, type TwilioAnswer, TwilioError, type TwilioHttp, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, agentSettingsDrift, availabilityUrl, callSummaryLine, chooseLineProvider, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, desiredVoiceShell, dryProvider, fetchMediaBytes, fetchRecording, fetchTwilio, getAgent, getAgentRaw, getCall, getPhoneNumber, getPlace, getRetellLlm, importPhoneNumber, isAreaCode, isE164, isValidSipPassword, listCalls, liveTurns, needsHydration, nextLineStep, normalizeCall, normalizeInbound, parsePlaceDetails, parsePlacesSearch, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planVoiceConvergence, planVoiceProvision, publishAgentVersion, retellImportBody, reviewIdOf, runLineSaga, searchPlaces, sendTemplate, sendText, sipPassword, sipUsername, stripKey, trunkDomain, twilioProvider, twilioUrls, updateAgent, updateLiveCall, updatePhoneNumber, verifyRetellSignature, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withKey };
+/**
+ * Google OAuth for a web server, pinned to the documented shapes.
+ *
+ * The owner signs in to Google once; what comes back is a refresh token
+ * that the edge keeps in Vault and trades for an hour's access token when
+ * it needs one. `access_type=offline` and `prompt=consent` are what make
+ * Google return the refresh token, and it does so on the first
+ * authorization only — a reconnect goes through consent again on purpose.
+ *
+ * The state is the CSRF proof: the workspace, the person and a nonce,
+ * signed with a secret the dashboard holds, checked on the way back before
+ * the code is trusted. Everything here is pure or Web Crypto, so the tests
+ * run it without a network.
+ */
+
+declare const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
+declare const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+declare const GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
+/** Business Profile, plus the email so the card can say whose account it is. */
+declare const PROFILE_SCOPES: readonly ["openid", "email", "https://www.googleapis.com/auth/business.manage"];
+/** How long the way to Google and back may take. */
+declare const STATE_TTL_MS: number;
+interface OAuthClient {
+    clientId: string;
+    clientSecret: string;
+    redirectUri: string;
+}
+declare function authorizeUrl(cfg: Pick<OAuthClient, "clientId" | "redirectUri">, state: string, loginHint?: string | null): string;
+declare function tokenExchangeRequest(cfg: OAuthClient, code: string): PlacesRequest;
+declare function tokenRefreshRequest(cfg: Pick<OAuthClient, "clientId" | "clientSecret">, refreshToken: string): PlacesRequest;
+/** Either token may be revoked; revoking the refresh token ends the grant. */
+declare function revokeRequest(token: string): PlacesRequest;
+interface TokenGrant {
+    access_token: string;
+    /** Present on the first authorization (and whenever consent was forced). */
+    refresh_token: string | null;
+    expires_in: number;
+    scope: string;
+    id_token: string | null;
+}
+declare function parseTokenResponse(json: unknown): TokenGrant;
+/** The grant's scopes, one by one, so a missing one can be named. */
+declare function grantHasScope(grant: Pick<TokenGrant, "scope">, scope: string): boolean;
+declare function b64url(bytes: Uint8Array | string): string;
+declare function unb64url(s: string): Uint8Array;
+/**
+ * The id token's claims, read without verification: it arrived in the token
+ * endpoint's own answer over TLS, so its issuer is not in question, and the
+ * one claim read from it — the email — is shown on a card, never trusted for
+ * access. A malformed token yields nothing.
+ */
+declare function idTokenClaims(idToken: string | null | undefined): {
+    email: string | null;
+    sub: string | null;
+};
+interface OAuthState {
+    /** The workspace. */
+    t: string;
+    /** The person. */
+    u: string;
+    /** A nonce. */
+    n: string;
+    /** Expiry, epoch ms. */
+    exp: number;
+}
+declare function signState(secret: string, s: OAuthState): Promise<string>;
+/** The state back from Google: its signature, its expiry, then its claims — or the reason it is refused. */
+declare function verifyState(secret: string, state: string | null | undefined, nowMs: number): Promise<{
+    ok: true;
+    state: OAuthState;
+} | {
+    ok: false;
+    reason: "missing" | "malformed" | "signature" | "expired";
+}>;
+declare function newNonce(): string;
+
+export { type AgentPlan, type AvailableNumber, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, DEFAULT_FN_URL, type DryCall, type DryProvider, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, GREETING_DEFAULT, type GbpAccount, type GbpLocation, type GbpReview, type GbpReviewsPage, HANDOFF_VAR, type KnownReview, LINE_COSTS, LINE_STEPS, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type ProfileBefore, type ProfileSyncPlan, type ProviderAccount, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, RETELL_ORIGINATION, REVIEW_BELL_MAX, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, STATE_TTL_MS, type SagaResult, type SendResult, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, accountsRequest, agentSettingsDrift, authorizeUrl, availabilityUrl, b64url, callSummaryLine, chooseLineProvider, cleanReply, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, deleteReplyRequest, desiredVoiceShell, dryProvider, fetchMediaBytes, fetchRecording, fetchTwilio, getAgent, getAgentRaw, getCall, getPhoneNumber, getPlace, getRetellLlm, grantHasScope, idTokenClaims, importPhoneNumber, isAreaCode, isE164, isValidSipPassword, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, needsHydration, newNonce, nextLineStep, normalizeCall, normalizeInbound, parseAccounts, parseLocations, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, publishAgentVersion, replyRequest, replyToReview, retellImportBody, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, runLineSaga, searchPlaces, sendTemplate, sendText, signState, sipPassword, sipUsername, starRatingNumber, stripKey, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, twilioProvider, twilioUrls, unb64url, updateAgent, updateLiveCall, updatePhoneNumber, verifyRetellSignature, verifyState, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withKey };

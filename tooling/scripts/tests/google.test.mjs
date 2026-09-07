@@ -146,7 +146,7 @@ test("ratings without words are counted from the count and said as such; several
 
 const listing = (over = {}) => ({ place_id: PLACE.id, name: "Northside Movers", address: PLACE.formattedAddress, maps_uri: PLACE.googleMapsUri, business_status: "OPERATIONAL", rating: 4.8, review_count: 213, linked_at: "2026-08-01T12:00:00Z", checked_at: "2026-09-07T12:00:00Z", check_error: null, ...over });
 const review = (over = {}) => ({ id: "11111111-1111-4111-8111-111111111111", review_id: "r-ana", origin: "places", rating: 5, author: "Ana P.", author_uri: null, author_photo_uri: null, body: "Fast, careful, and on time. Would hire again.", language_code: "en", published_at: "2026-09-07T13:00:00Z", reply_text: null, replied_at: null, maps_uri: null, first_seen_at: "2026-09-07T14:00:00Z", ...over });
-const dto = (over = {}) => ({ ready: { places: true, profile: false }, listing: listing(), reviews: [review()], days: [], role: "owner", ...over });
+const dto = (over = {}) => ({ ready: { places: true, profile: false }, listing: listing(), connection: null, reviews: [review()], days: [], role: "owner", ...over });
 
 test("the words: a rating, its stars, the listing's line, when it was read", () => {
   assert.equal(ratingWords(4.8), "4.8 ★");
@@ -241,14 +241,19 @@ test("Setup's Google row: absent until the platform can look listings up; then F
   assert.equal(row(setup(undefined), "google"), undefined);
   assert.equal(row(setup({ ready: false, listing: null }), "google"), undefined);
   assert.equal(setup(undefined).total, 9);
-  const find = setup({ ready: true, listing: null });
+  const find = setup({ ready: true, places: true, listing: null });
   assert.equal(find.total, 10);
   assert.equal(row(find, "google").state, "not_started");
   assert.equal(row(find, "google").required, false, "optional, and can be put off");
   assert.equal(row(find, "google").sentence, "Find your business on Google so new reviews reach you here.");
   assert.deepEqual(row(find, "google").details, ["Uses the name and address on record"]);
   assert.deepEqual(row(find, "google").verb, { label: "Find it", to: "verb:google-find" });
-  const noAddress = setup({ ready: true, listing: null }, { business: { name: "Northside Movers", hours: true, services: 4, bookingLink: true, address: false, handoff: null, broken: false } });
+  const noAddress = setup({ ready: true, places: true, listing: null }, { business: { name: "Northside Movers", hours: true, services: 4, bookingLink: true, address: false, handoff: null, broken: false } });
+  const profileOnly = setup({ ready: true, places: false, listing: null });
+  assert.equal(row(profileOnly, "google").sentence, "Connect your Google Business Profile so every review reaches you here.");
+  assert.deepEqual(row(profileOnly, "google").verb, { label: "Connect", to: "admin/integrations" });
+  const connected = setup({ ready: true, places: true, listing: { name: "Northside Movers", rating: 4.8, review_count: 213, checked_at: "2026-09-07T12:00:00Z", check_error: null }, connected: true });
+  assert.deepEqual(row(connected, "google").details, ["Checked 3h ago", "Business Profile connected — every review, replies from Reports"]);
   assert.deepEqual(row(noAddress, "google").details, ["Add your address in Workspace for a surer match"]);
   const linked = setup({ ready: true, listing: { name: "Northside Movers", rating: 4.8, review_count: 213, checked_at: "2026-09-07T12:00:00Z", check_error: null } });
   assert.equal(row(linked, "google").state, "ready");
@@ -260,7 +265,7 @@ test("Setup's Google row: absent until the platform can look listings up; then F
   assert.equal(row(trouble, "google").stateWords, "Waiting on Google");
   assert.equal(row(trouble, "google").sentence, "Northside Movers is on record, but Google could not be read since 1d ago — it is tried again every hour.");
   assert.equal(row(find, "google").later, false);
-  const later = setup({ ready: true, listing: null }, { later: ["google"] });
+  const later = setup({ ready: true, places: true, listing: null }, { later: ["google"] });
   assert.equal(row(later, "google").later, true, "put off for later, like any optional row");
   assert.equal(later.rows[later.rows.length - 1].id, "google", "the last row: optional, after the first yes");
 });
@@ -299,7 +304,7 @@ test("the migration: three tables that hang off the listing, members read, realt
 test("the edge: the key alone on the edge, diag-key verbs, the cron-key sweep, one check routine, a read before a row", () => {
   const admin = readCode("apps/edge/api/admin/google.ts");
   assert.ok(admin.includes('request.headers.get("x-diag-key") !== process.env.DIAG_KEY'));
-  assert.ok(admin.includes('if (op === "status") return json(200, { ok: true, ready: googleReadiness() });'));
+  assert.ok(admin.includes('if (op === "status") return json(200, { ok: true, ready: googleReadiness(), profile: profilePublic() });'));
   assert.ok(admin.includes('error: "no_places_key"'));
   assert.ok(admin.indexOf("await readPlace(key, placeId)") < admin.indexOf('.from("google_listings")\n      .upsert('), "a wrong id is refused before any row exists");
   assert.ok(admin.includes('await db.from("google_reviews").delete().eq("tenant_id", tenantId);'), "a new listing forgets the old one's reviews");
@@ -315,7 +320,7 @@ test("the edge: the key alone on the edge, diag-key verbs, the cron-key sweep, o
   assert.ok(cron.includes('skipped: "no_places_key"'));
   assert.ok(cron.includes("const MAX_PER_TICK = 40;"));
   const vercel = JSON.parse(readRaw("apps/edge/vercel.json"));
-  assert.equal(vercel.functions["api/admin/google.ts"].maxDuration, 30);
+  assert.equal(vercel.functions["api/admin/google.ts"].maxDuration, 60);
   assert.equal(vercel.functions["api/cron/google.ts"].maxDuration, 60);
   assert.ok(readCode("apps/edge/lib/notify.ts").includes('"calendar_people", "alert", "review"]'), "the kind is kept, not folded into alert");
   assert.ok(readRaw("apps/edge/.env.example").includes("GOOGLE_PLACES_API_KEY="));
@@ -337,9 +342,9 @@ test("the dashboard: owners link and search, operators read, members look; the p
   assert.ok(server.includes('"x-diag-key": process.env.DIAG_KEY') && server.includes("const READY_TTL_MS = 5 * 60_000;"));
   assert.ok(!server.includes("GOOGLE_PLACES_API_KEY"), "the dashboard never holds the key");
   const setup = readCode("apps/dashboard/app/api/v1/setup/route.ts");
-  assert.ok(setup.includes("listingFor(supabase, tenantId),\n    googleReadiness(),") && setup.includes("ready: google.places,"));
+  assert.ok(setup.includes("listingFor(supabase, tenantId),\n    googleReadiness(),") && setup.includes("ready: google.places || google.profile,"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");
-  assert.ok(bridge.includes('key: "google",') && bridge.includes('refreshOnTables: ["google_listings", "google_reviews"],'));
+  assert.ok(bridge.includes('key: "google",') && bridge.includes('refreshOnTables: ["google_listings", "google_reviews", "google_connections"],'));
   assert.ok(bridge.includes("refreshSurfaces([googleOverride, setupOverride])"), "a link repaints Setup too");
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("setupOverride, googleOverride]") && readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installGoogle();"));
   const rt = readCode("packages/db/src/realtime.ts");
@@ -348,13 +353,13 @@ test("the dashboard: owners link and search, operators read, members look; the p
   assert.ok(page.includes('if (verb.to === "verb:google-find") { setFinder((v) => !v); return; }') && page.includes('r.id === "google" && finder && <ListingFinder'));
   assert.ok(page.includes('window.canDo("team")'), "linking is an owner's move on the page too");
   const reports = readCode("apps/dashboard/src/legacy/pages/reports.jsx");
-  assert.ok(reports.includes("<GoogleSection days={R.days} />") && reports.includes("if (!G || !G.dto.ready.places || !window.__google) return null;"));
-  assert.ok(reports.includes("the ${vm.latest.length === 1 ? \"one\" : vm.latest.length} Google shows first"), "the source is named");
+  assert.ok(reports.includes("<GoogleSection days={R.days} />") && reports.includes("if (!G || (!G.dto.ready.places && !G.dto.ready.profile && !G.dto.listing) || !window.__google) return null;"));
+  assert.ok(reports.includes("sub={vm.latest.length ? vm.source : \"\"}"), "the source is named");
   const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
   assert.ok(brief.includes("<ReviewLine nav={nav} />") && brief.includes('data-testid="brief-review"'));
   const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
   assert.ok(settings.includes("<GoogleCard />") && settings.includes('data-testid="google-check"') && settings.includes('data-testid="google-remove"'));
-  assert.ok(settings.includes('name: "Google Business Profile"'), "the second door is named as not available, not hidden");
+  assert.ok(settings.includes('data-testid="google-profile-none"') && settings.includes('data-testid="google-connect"'), "the second door is named either way: Connect where open, Not available where not");
   const rate = readCode("apps/dashboard/src/server/rate-limit.ts");
   for (const b of ["google_search", "google_link", "google_refresh"]) assert.ok(rate.includes(`${b}: {`), b);
 });

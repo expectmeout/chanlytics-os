@@ -5,14 +5,14 @@
  * is public: a name, an address, a rating, a count of reviews, and the five
  * reviews Google shows first. Setup finds it from the facts the workspace
  * already holds, the edge reads it once a day, and what changed reaches the
- * bell, Today and Reports. Nothing here needs the owner's Google account;
- * connecting the Business Profile (every review, replies) is a later door.
+ * bell, Today and Reports. The owner's own Business Profile, connected once,
+ * adds every review and the right to answer them.
  *
- * Two honesties shape every line: Google shows at most five reviews, sorted
- * by relevance, so "new" is a review not on record and written since the
- * previous check, while the count of ratings is exact; and fewer than two
- * days of reading cannot say what a period gained. Pure: the routes feed it
- * rows, the tests feed it fixtures.
+ * Two honesties shape every line: Google shows at most five reviews of the
+ * public listing, sorted by relevance, so "new" is a review not on record
+ * and written since the previous check, while the count of ratings is
+ * exact; and fewer than two days of reading cannot say what a period
+ * gained. Pure: the routes feed it rows, the tests feed it fixtures.
  */
 import { agoWords } from "./time";
 import { dayDate, fmtDay, deltaOf, type ReportTileVM } from "./reports";
@@ -56,11 +56,24 @@ export interface GoogleDayDto {
   review_count: number;
 }
 
+/** The owner's Business Profile, connected: whose account, which location, when it last synced. Never a token. */
+export interface GoogleConnectionDto {
+  google_email: string | null;
+  account_title: string | null;
+  /** Null while the owner still has to choose among several locations. */
+  location_name: string | null;
+  location_title: string | null;
+  connected_at: string;
+  last_synced_at: string | null;
+  sync_error: string | null;
+}
+
 /** What `GET /api/v1/google` returns. */
 export interface GoogleDto {
-  /** Whether this deployment can look listings up (a Places key on the edge) and connect profiles (an OAuth client, later). */
+  /** Whether this deployment can look listings up (a Places key on the edge) and connect profiles (an OAuth client on the edge). */
   ready: { places: boolean; profile: boolean };
   listing: GoogleListingDto | null;
+  connection: GoogleConnectionDto | null;
   /** The newest first; at most a screenful. */
   reviews: GoogleReviewDto[];
   /** Oldest first. */
@@ -76,10 +89,26 @@ export interface GoogleCandidateDto {
   maps_uri: string | null;
 }
 
-/** The facts Setup reads: can the listing be found here, and is one linked. */
+/** A location of the connected account, for the owner to choose. */
+export interface GoogleLocationDto {
+  account_name: string;
+  account_title: string;
+  location_name: string;
+  title: string;
+  address: string | null;
+  /** Null for a location not on Maps yet — it cannot be chosen until Google lists it. */
+  place_id: string | null;
+  maps_uri: string | null;
+}
+
+/** The facts Setup reads: can the listing be found here, is one linked, is the profile connected. */
 export interface SetupGoogleFacts {
+  /** Either door is open: listings can be found here, or profiles connected. */
   ready: boolean;
+  /** Listings can be found here (a Places key); absent means yes. */
+  places?: boolean;
   listing: { name: string; rating: number | null; review_count: number | null; checked_at: string | null; check_error: string | null } | null;
+  connected?: boolean;
 }
 
 /** Google shows this many reviews of a listing, the most relevant first. */
@@ -124,6 +153,16 @@ export function checkedWords(l: Pick<GoogleListingDto, "checked_at" | "check_err
   return "Not read yet";
 }
 
+/** The connection in words: whose account, and when it last synced or why it could not. */
+export function connectionWords(c: GoogleConnectionDto, nowMs: number): string {
+  const who = c.google_email ? `Connected as ${c.google_email}` : "Connected";
+  if (!c.location_name) return `${who} · choose the location to finish`;
+  if (c.sync_error && c.last_synced_at) return `${who} · could not sync since ${agoWords(Date.parse(c.last_synced_at), nowMs)} — tried again every hour`;
+  if (c.sync_error) return `${who} · could not sync yet — tried again every hour`;
+  if (c.last_synced_at) return `${who} · synced ${agoWords(Date.parse(c.last_synced_at), nowMs)}`;
+  return `${who} · not synced yet`;
+}
+
 /** A review's words, cut for a line: the first sentence or so. */
 export function reviewSnippet(body: string | null | undefined, max = 90): string {
   const t = (body ?? "").replace(/\s+/g, " ").trim();
@@ -140,9 +179,12 @@ export interface GoogleReviewVM {
   when: string;
   text: string;
   replied: boolean;
+  replyText: string;
   mapsUri: string | null;
   /** First seen recently, written recently, and not part of the first read. */
   isNew: boolean;
+  /** Read through the owner's profile: every review, and it can be answered. */
+  fromProfile: boolean;
 }
 
 export interface GoogleGainedPointVM {
@@ -164,6 +206,10 @@ export interface GoogleVM {
     /** The last read failed. */
     trouble: boolean;
   } | null;
+  /** The owner's profile, when connected: whose account, the location, when it synced. */
+  connection: { email: string | null; location: string | null; words: string; pending: boolean; trouble: boolean } | null;
+  /** Reviews can be answered from here: the profile is connected and complete. */
+  canReply: boolean;
   /** Rating now · reviews on Google · gained in the period · newest review. */
   tiles: ReportTileVM[];
   gained: {
@@ -175,6 +221,8 @@ export interface GoogleVM {
     sinceLabel: string | null;
   };
   latest: GoogleReviewVM[];
+  /** "the five Google shows first" or "every review, from your Business Profile". */
+  source: string;
   table: { columns: string[]; rows: (string | number)[][] };
   /** Today's one line when a review is news, and where it leads. */
   todayLine: { text: string; to: string } | null;
@@ -219,8 +267,10 @@ export function toGoogleReviewVM(r: GoogleReviewDto, linkedAt: string, nowMs: nu
     when: whenWords(r.published_at, nowMs),
     text: (r.body ?? "").replace(/\s+/g, " ").trim(),
     replied: !!r.reply_text,
+    replyText: (r.reply_text ?? "").replace(/\s+/g, " ").trim(),
     mapsUri: r.maps_uri,
     isNew: reviewIsNew(r, linkedAt, nowMs),
+    fromProfile: r.origin === "profile",
   };
 }
 
@@ -262,13 +312,19 @@ export function gainedOver(days: GoogleDayDto[], periodDays: number): { current:
 
 export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now()): GoogleVM {
   const l = dto.listing;
+  const c = dto.connection ?? null;
+  const connection: GoogleVM["connection"] = c
+    ? { email: c.google_email, location: c.location_title, words: connectionWords(c, nowMs), pending: !c.location_name, trouble: !!c.sync_error }
+    : null;
+  const canReply = !!c && !!c.location_name;
   const table = { columns: ["Reviewer", "Stars", "Written", "Words"], rows: [] as (string | number)[][] };
-  if (!l) return { listing: null, tiles: [], gained: EMPTY_GAINED, latest: [], table, todayLine: null };
+  if (!l) return { listing: null, connection, canReply, tiles: [], gained: EMPTY_GAINED, latest: [], source: "", table, todayLine: null };
 
   const latest = [...dto.reviews]
     .sort((a, b) => (Date.parse(b.published_at ?? "") || 0) - (Date.parse(a.published_at ?? "") || 0))
     .map((r) => toGoogleReviewVM(r, l.linked_at, nowMs));
   table.rows = latest.map((r) => [r.author, r.rating ?? "—", r.when || "—", r.text || "—"]);
+  const source = canReply ? "every review, from your Business Profile" : `the ${latest.length === 1 ? "one" : latest.length} Google shows first`;
 
   const days = [...dto.days].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
   const { current: gained, previous } = gainedOver(days, periodDays);
@@ -319,7 +375,7 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
       id: "newest",
       label: "Newest review",
       value: newest?.when || "—",
-      meta: newest ? `${newest.stars} · ${newest.author}` : "none of the five Google shows has a date",
+      meta: newest ? `${newest.stars} · ${newest.author}` : canReply ? "no review yet" : "none of the five Google shows has a date",
       delta: null,
       spark: [],
     },
@@ -340,9 +396,12 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
       mapsUri: l.maps_uri,
       trouble: !!l.check_error,
     },
+    connection,
+    canReply,
     tiles,
     gained,
     latest,
+    source,
     table,
     todayLine,
   };

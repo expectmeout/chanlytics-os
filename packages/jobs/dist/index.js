@@ -181,26 +181,26 @@ var util;
   }
   util22.assertNever = assertNever;
   util22.arrayToEnum = (items) => {
-    const obj2 = {};
+    const obj3 = {};
     for (const item of items) {
-      obj2[item] = item;
+      obj3[item] = item;
     }
-    return obj2;
+    return obj3;
   };
-  util22.getValidEnumValues = (obj2) => {
-    const validKeys = util22.objectKeys(obj2).filter((k) => typeof obj2[obj2[k]] !== "number");
+  util22.getValidEnumValues = (obj3) => {
+    const validKeys = util22.objectKeys(obj3).filter((k) => typeof obj3[obj3[k]] !== "number");
     const filtered = {};
     for (const k of validKeys) {
-      filtered[k] = obj2[k];
+      filtered[k] = obj3[k];
     }
     return util22.objectValues(filtered);
   };
-  util22.objectValues = (obj2) => {
-    return util22.objectKeys(obj2).map(function(e) {
-      return obj2[e];
+  util22.objectValues = (obj3) => {
+    return util22.objectKeys(obj3).map(function(e) {
+      return obj3[e];
     });
   };
-  util22.objectKeys = typeof Object.keys === "function" ? (obj2) => Object.keys(obj2) : (object) => {
+  util22.objectKeys = typeof Object.keys === "function" ? (obj3) => Object.keys(obj3) : (object) => {
     const keys = [];
     for (const key in object) {
       if (Object.prototype.hasOwnProperty.call(object, key)) {
@@ -319,8 +319,8 @@ var ZodIssueCode = util.arrayToEnum([
   "not_multiple_of",
   "not_finite"
 ]);
-var quotelessJson = (obj2) => {
-  const json = JSON.stringify(obj2, null, 2);
+var quotelessJson = (obj3) => {
+  const json = JSON.stringify(obj3, null, 2);
   return json.replace(/"([^"]+)":/g, "$1:");
 };
 var ZodError = class _ZodError extends Error {
@@ -4618,6 +4618,9 @@ var twilioUrls = {
   trunkPhoneNumbers: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/PhoneNumbers`
 };
 var FRESH_SLACK_MS = 2 * 864e5;
+var STATE_TTL_MS = 10 * 6e4;
+var enc = new TextEncoder();
+var dec = new TextDecoder();
 
 // ../../node_modules/zod/v3/external.js
 var external_exports2 = {};

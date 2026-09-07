@@ -87,6 +87,10 @@ export const EVENT_KINDS = [
   "google.linked",
   "google.unlinked",
   "google.reviews",
+  /** The owner's Business Profile: connected, disconnected, and a review answered from here. */
+  "google.connected",
+  "google.disconnected",
+  "google.replied",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 
@@ -196,12 +200,18 @@ export const DECISION_VERBS = [
   /** A playbook started or paused: subject 'playbook'. Its runs are send_broadcast rows. */
   "start_playbook",
   "pause_playbook",
+  /**
+   * An answer to a review on Google, in the business's own words: subject
+   * 'review' (the row's id), payload the words and when Google took them.
+   * Replaces the previous answer; Google keeps one per review.
+   */
+  "reply_review",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 
 export const DECISION_SUBJECTS = [
   "conversation", "escalation", "draft", "lead", "message", "agent",
-  "membership", "invitation", "contact", "call", "channel", "broadcast", "playbook",
+  "membership", "invitation", "contact", "call", "channel", "broadcast", "playbook", "review",
 ] as const;
 export type DecisionSubject = (typeof DECISION_SUBJECTS)[number];
 

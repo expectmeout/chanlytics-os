@@ -618,6 +618,42 @@ const RpSources = ({ rows }) => {
   );
 };
 
+// An answer to a review, on Google, in the business's own words: a link
+// under the review, a few lines, Send. Google keeps one reply per review,
+// so sending again replaces it. Shown only when the Business Profile is
+// connected and the review came through it.
+const ReviewReply = ({ r }) => {
+  const [open, setOpen] = React.useState(false);
+  const [text, setText] = React.useState(r.replyText || "");
+  const [busy, setBusy] = React.useState(false);
+  const [toastNode, flash] = window.usePPToast();
+  const send = async () => {
+    if (!window.__google || busy || !text.trim()) return;
+    setBusy(true);
+    const res = await window.__google.reply(r.id, text);
+    setBusy(false);
+    flash({ msg: res.ok ? <>Your reply is on Google, under the review.</> : <>{res.message}</> });
+    if (res.ok) setOpen(false);
+  };
+  return (
+    <div className="rp2-review-reply">
+      {r.replied && !open && <p className="rp2-review-replytext"><b>You replied:</b> {r.replyText}</p>}
+      {!open ? (
+        <button className="cl-bucket-link" onClick={() => setOpen(true)} data-testid="google-reply">{r.replied ? "Change the reply" : "Reply"}</button>
+      ) : (
+        <div className="rp2-review-composer" data-testid="google-reply-composer">
+          <textarea className="rp2-review-textarea" rows={3} value={text} maxLength={4096} onChange={(e) => setText(e.target.value)} placeholder="Thank them, or answer them — it appears on Google under the review, in the business's name." data-testid="google-reply-text" />
+          <div className="bc-chips">
+            <button className="btn btn-primary btn-sm" onClick={send} disabled={busy || !text.trim()} data-testid="google-reply-send">{busy ? "Sending…" : "Send to Google"}</button>
+            <button className="cl-bucket-link" onClick={() => setOpen(false)} disabled={busy}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {toastNode}
+    </div>
+  );
+};
+
 // Google reviews: the listing as the edge last read it, over the period
 // above. Four measured tiles, the ratings gained day by day (from the
 // day-by-day count, a table twin beside), and the latest reviews with their
@@ -631,8 +667,9 @@ const GoogleSection = ({ days }) => {
     return () => window.removeEventListener("surface:google", bump);
   }, []);
   const G = window.__GOOGLE;
-  if (!G || !G.dto.ready.places || !window.__google) return null;
+  if (!G || (!G.dto.ready.places && !G.dto.ready.profile && !G.dto.listing) || !window.__google) return null;
   const vm = window.__google.vm(G.dto, days);
+  const operator = window.canDo ? window.canDo("approve") : false;
   if (!vm.listing) {
     return (
       <>
@@ -659,7 +696,7 @@ const GoogleSection = ({ days }) => {
             ? <RpColumns points={vm.gained.points} field="gained" max={vm.gained.max} days={days} label="ratings gained" />
             : <div className="rp2-empty">The count is read once a day; the first difference shows after the second read.</div>}
         </RpCard>
-        <RpCard title="Latest reviews" sub={vm.latest.length ? `the ${vm.latest.length === 1 ? "one" : vm.latest.length} Google shows first` : ""} testid="chart-google-latest" table={vm.table}>
+        <RpCard title="Latest reviews" sub={vm.latest.length ? vm.source : ""} testid="chart-google-latest" table={vm.table}>
           {vm.latest.length ? (
             <div className="rp2-reviews">
               {vm.latest.map((r) => (
@@ -670,6 +707,9 @@ const GoogleSection = ({ days }) => {
                     <span className="rp2-review-when">{r.when}{r.isNew ? " · new" : ""}{r.replied ? " · replied" : ""}</span>
                   </div>
                   {r.text ? <p className="rp2-review-text">{r.text}</p> : <p className="rp2-review-text dim">A rating without words.</p>}
+                  {vm.canReply && operator && r.fromProfile
+                    ? <ReviewReply r={r} />
+                    : r.replied ? <p className="rp2-review-replytext"><b>Replied:</b> {r.replyText}</p> : null}
                 </div>
               ))}
             </div>
