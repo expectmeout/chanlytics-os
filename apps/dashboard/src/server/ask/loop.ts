@@ -19,6 +19,7 @@ import { FINISH_TOOL, READ_TOOLS, newToolContext, runTool, toolLabel, type ToolC
 import { ACT_TOOLS, ACT_TOOL_NAMES, buildProposal, proposalLabel } from "./proposals";
 import { stableSystem, turnSystem, type WorkspaceFacts } from "./prompt";
 import { snapshotFor } from "./snapshot";
+import { prefetchBlock, prefetchPlan } from "./prefetch";
 import { parseInput, runRound, type RoundBlock } from "./round";
 
 /**
@@ -143,26 +144,46 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
   const proposals: AskProposal[] = [];
   let reads = 0;
 
-  // The day, before the model is asked. Its rows enter the read set, so the
-  // answer can cite them; a failure here costs the snapshot, never the turn.
-  let snapshot = "";
+  // The day, before the model is asked, and beside it the reads the question
+  // names plainly (prefetch.ts): both ride into the first round as data, so
+  // their rows enter the read set and the answer can cite them. A failure
+  // here costs the snapshot or that read, never the turn.
   const tSnap = Date.now();
-  try {
-    snapshot = await snapshotFor(tc, input.timezone, input.scope);
+  const plan = prefetchPlan(input.text);
+  const [snapshot, preOuts] = await Promise.all([
+    snapshotFor(tc, input.timezone, input.scope).catch((e) => {
+      console.error("ask_snapshot_failed", JSON.stringify({ error: e instanceof Error ? e.message : String(e), tenant: input.tenantId }));
+      return "";
+    }),
+    Promise.all(plan.map(async (run) => {
+      try {
+        return { run, out: await runTool(tc, run) };
+      } catch (e) {
+        console.error("ask_prefetch_failed", JSON.stringify({ tool: run.name, error: e instanceof Error ? e.message : String(e), tenant: input.tenantId }));
+        return { run, out: { result: "", isError: true } };
+      }
+    })),
+  ]);
+  if (snapshot) reads++;
+  const prefetched = preOuts.filter((p) => !p.out.isError);
+  for (const p of prefetched) {
+    toolsUsed.push(p.run.name);
     reads++;
-  } catch (e) {
-    console.error("ask_snapshot_failed", JSON.stringify({ error: e instanceof Error ? e.message : String(e), tenant: input.tenantId }));
   }
+  const prefetch = prefetchBlock(prefetched.map((p) => ({ run: p.run, result: p.out.result })));
   const snapshotMs = Date.now() - tSnap;
 
   // Two cache breakpoints: the stable block for every turn in the workspace,
-  // and the snapshot for this turn's later rounds and a quick follow-up. The
-  // clock sits between them and is rewritten each turn without touching
-  // either cache.
+  // and the snapshot, kept twenty seconds, for this turn's later rounds and a
+  // quick follow-up. The clock and the person come AFTER both: a breakpoint
+  // covers everything before it, so a clock between the two blocks spoilt
+  // the snapshot's cache every minute. The prefetched rows are this turn's
+  // alone and sit uncached beside the clock.
   const system = [
     { type: "text", text: stableSystem(input.facts), cache_control: { type: "ephemeral" } },
-    { type: "text", text: turnSystem({ role: input.role, personLabel: input.personLabel, scope: input.scope, surface: input.surface, language: input.language, timezone: input.timezone, closures: input.facts.closures, now }) },
     ...(snapshot ? [{ type: "text", text: snapshot, cache_control: { type: "ephemeral" } }] : []),
+    ...(prefetch ? [{ type: "text", text: prefetch }] : []),
+    { type: "text", text: turnSystem({ role: input.role, personLabel: input.personLabel, scope: input.scope, surface: input.surface, language: input.language, timezone: input.timezone, closures: input.facts.closures, now }) },
   ];
   const messages = foldHistory(input.history, input.text);
   const baseTools = [...READ_TOOLS, ...(input.role === "viewer" ? [] : ACT_TOOLS), FINISH_TOOL];
@@ -172,7 +193,7 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
 
   const done = (partial: Partial<TurnResult> & { answer: string; failed: boolean; failure: string | null; rounds: number }): TurnResult => {
     clearTimeout(timer);
-    console.log(JSON.stringify({ level: "info", event: "ask_turn_shape", tenant: input.tenantId, snapshot_ms: snapshotMs, snapshot: !!snapshot, rounds: partial.rounds, tools: toolsUsed }));
+    console.log(JSON.stringify({ level: "info", event: "ask_turn_shape", tenant: input.tenantId, snapshot_ms: snapshotMs, snapshot: !!snapshot, prefetched: plan.map((r) => r.name), rounds: partial.rounds, tools: toolsUsed }));
     return { finish: null, citations: [], navigate: null, followups: [], language: input.language, ungrounded: false, tools: toolsUsed, proposals, latencyMs: Date.now() - t0, ...partial };
   };
 
