@@ -134,21 +134,14 @@ const sbWorkspaceMark = () => {
   const w = n.split(/[\s@._-]+/).filter(Boolean);
   return ((w[0]?.[0] ?? "") + (w[1]?.[0] ?? "")).toUpperCase() || "—";
 };
-const sbAccountEmail = () => (sbMe() ? sbMe().email : window.__DEMO_MODE ? "sales@chanlytics.com" : "Signed in");
-// Title line is the WORKSPACE, not a name invented from the email's local part
-// ("hi@chanlytics.agency" -> "Hi" is technically honest and reads like a bug).
-// There is no profile name in the schema yet; when Settings adds one, it wins.
-const sbAccountName = () => {
-  if (!sbMe()) return window.__DEMO_MODE ? "Sarah Chen" : "Your account";
-  const ws = (window.__WORKSPACES || [])[0];
-  return (ws && ws.name) || "Your account";
-};
-const sbInitials = () => {
-  if (!sbMe()) return window.__DEMO_MODE ? "SC" : "—";
-  const ws = (window.__WORKSPACES || [])[0];
-  const src = (ws && ws.name) || sbMe().email || "?";
-  const words = src.split(/[\s@._-]+/).filter(Boolean);
-  return ((words[0]?.[0] ?? "") + (words[1]?.[0] ?? "")).toUpperCase() || "—";
+// The person, in the words contracts/identity.ts gives: the name they gave,
+// else "Your account" — never a name invented from the email. The demo keeps
+// its persona; signed in with no identity yet, we say so.
+const sbWho = () => {
+  const me = sbMe();
+  if (!me) return window.__DEMO_MODE ? { name: "Sarah Chen", email: "sales@chanlytics.com", initials: "SC" } : { name: "Your account", email: "Signed in", initials: "—" };
+  const w = window.__identity.words(me);
+  return { name: w.name, email: w.email, initials: w.initials };
 };
 
 const Sidebar = ({ active = "home", onNavigate = () => {}, onNewChat = () => {}, onClose = null, agents = ACTIVE_AGENTS_DEFAULT, badges = {} }) => {
@@ -165,7 +158,9 @@ const Sidebar = ({ active = "home", onNavigate = () => {}, onNewChat = () => {},
     window.addEventListener("billing:changed", bump);
     window.addEventListener("inbox:counts", onCounts);
     window.addEventListener("inbox:decisions", onDecisions);
+    window.addEventListener("me:changed", bump);
     return () => {
+      window.removeEventListener("me:changed", bump);
       window.removeEventListener("fleet:status", bump);
       window.removeEventListener("live:ended", bump);
       window.removeEventListener("billing:changed", bump);
@@ -175,6 +170,7 @@ const Sidebar = ({ active = "home", onNavigate = () => {}, onNewChat = () => {},
   }, []);
 
   const liveAgents = agents.map(sbOverlay);
+  const who = sbWho();
 
   // Computed badges — seed-honest counts; caller-supplied badges win
   const computedBadges = {
@@ -323,10 +319,10 @@ const Sidebar = ({ active = "home", onNavigate = () => {}, onNewChat = () => {},
           meter behind that number. */}
       <div className="sidebar-foot">
         <div className="user-chip" onClick={() => onNavigate("admin")}>
-          <div className="avatar">{sbInitials()}</div>
+          <div className="avatar">{who.initials}</div>
           <div className="who">
-            <div className="name">{sbAccountName()}</div>
-            <div className="email">{sbAccountEmail()}</div>
+            <div className="name">{who.name}</div>
+            <div className="email">{who.email}</div>
           </div>
           {window.__DEMO_MODE && <div className="user-credits mono tabular">{sbCredits()}</div>}
         </div>

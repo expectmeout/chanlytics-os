@@ -215,6 +215,8 @@ export interface TeamMember {
   membershipId: string;
   userId: string;
   email: string | null;
+  /** The name they gave; "" when none. */
+  displayName: string;
   role: string;
   isMe?: boolean;
 }
@@ -300,6 +302,7 @@ export async function teamRoster(
     membershipId: m.membership_id,
     userId: m.member_user_id,
     email: m.email,
+    displayName: m.display_name,
     role: m.role,
   }));
   return { members: roster, invites: (invites.data ?? []) as OpenInvite[], callerRole };

@@ -1836,6 +1836,24 @@ export type Database = {
           },
         ]
       }
+      profiles: {
+        Row: {
+          display_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          display_name?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          display_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       rate_hits: {
         Row: {
           actor: string
@@ -2337,6 +2355,7 @@ export type Database = {
           wa_profile_name: string
         }[]
       }
+      profile_set: { Args: { p_display_name: string }; Returns: Json }
       provision_tenant: { Args: { p_tenant_id: string }; Returns: undefined }
       purge_ask: { Args: { p_keep?: string }; Returns: number }
       purge_cron_history: {
@@ -2439,6 +2458,7 @@ export type Database = {
       team_roster: {
         Args: { p_tenant_id: string }
         Returns: {
+          display_name: string
           email: string
           joined_at: string
           member_user_id: string

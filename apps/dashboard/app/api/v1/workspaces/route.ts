@@ -19,6 +19,10 @@ export const GET = withRoute(async (_req, ctx) => {
     .select("id, slug, name, status, timezone")
     .order("name");
   if (error) throw new Error(error.message);
+  // The name this person gave (profiles, 00068) rides with the identity, so
+  // the chrome shows a person rather than the workspace standing in for one.
+  const { data: profile } = await supabase.from("profiles").select("display_name").eq("user_id", userId).maybeSingle();
+  const displayName = profile?.display_name || null;
 
   // Accept any open invitation for this address, then re-read. Self-healing:
   // there is no accept endpoint to get wrong, and no link that expires into a
@@ -60,7 +64,7 @@ export const GET = withRoute(async (_req, ctx) => {
   // must see an empty state, not a 404. This endpoint answers "where am I", and
   // "nowhere yet" is a real answer.
   if (!data?.length) {
-    return { workspaces: [], activeWorkspaceId: null, user: { id: userId, email: email ?? null, role: null } };
+    return { workspaces: [], activeWorkspaceId: null, user: { id: userId, email: email ?? null, role: null, display_name: displayName } };
   }
 
   const preferred = new URL(_req.url).searchParams.get("workspace");
@@ -72,6 +76,6 @@ export const GET = withRoute(async (_req, ctx) => {
     // Which workspace everything else on this page is scoped to. The client
     // echoes it back as ?workspace= so a reload lands where it left off.
     activeWorkspaceId: active.tenantId,
-    user: { id: userId, email: email ?? null, role: active.role },
+    user: { id: userId, email: email ?? null, role: active.role, display_name: displayName },
   };
 });

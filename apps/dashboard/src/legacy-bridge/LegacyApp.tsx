@@ -39,6 +39,7 @@ import { installPlaybooks } from "./playbooks";
 import { installCalendar } from "./calendar";
 import { installToday } from "./today";
 import { installSetup, setupOverride } from "./setup";
+import { installIdentity } from "./identity";
 import CreateWorkspace from "./CreateWorkspace";
 
 installInboxVerbs();
@@ -61,6 +62,7 @@ installPlaybooks();
 installCalendar();
 installToday();
 installSetup();
+installIdentity();
 // The installable shell's service worker (public/sw.js). It caches nothing
 // and answers nothing — the workspace is live data — and exists so a phone
 // can add the app to its home screen. Production only: a worker on a dev

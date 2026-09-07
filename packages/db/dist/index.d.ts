@@ -1831,6 +1831,24 @@ type Database = {
                     }
                 ];
             };
+            profiles: {
+                Row: {
+                    display_name: string;
+                    updated_at: string;
+                    user_id: string;
+                };
+                Insert: {
+                    display_name?: string;
+                    updated_at?: string;
+                    user_id: string;
+                };
+                Update: {
+                    display_name?: string;
+                    updated_at?: string;
+                    user_id?: string;
+                };
+                Relationships: [];
+            };
             rate_hits: {
                 Row: {
                     actor: string;
@@ -2414,6 +2432,12 @@ type Database = {
                     wa_profile_name: string;
                 }[];
             };
+            profile_set: {
+                Args: {
+                    p_display_name: string;
+                };
+                Returns: Json;
+            };
             provision_tenant: {
                 Args: {
                     p_tenant_id: string;
@@ -2584,6 +2608,7 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: {
+                    display_name: string;
                     email: string;
                     joined_at: string;
                     member_user_id: string;

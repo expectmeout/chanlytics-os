@@ -177,7 +177,7 @@ export async function activateOverride(o: SurfaceOverride): Promise<boolean> {
  */
 export interface Workspace { id: string; slug: string; name: string; status: string; timezone: string }
 
-export interface Me { id: string; email: string | null; role?: "owner" | "operator" | "viewer" | null }
+export interface Me { id: string; email: string | null; role?: "owner" | "operator" | "viewer" | null; display_name?: string | null }
 
 export const workspaceOverride: SurfaceOverride & { current: () => Workspace | null } = {
   key: "workspace",

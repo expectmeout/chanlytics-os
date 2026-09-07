@@ -155,6 +155,36 @@ const PolicyMatrix = () => {
 const ST_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const stInitials = (n) => n.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
 
+// You, on the team card: the name you go by, saved through the bridge
+// (/api/v1/me). Empty clears it; the chip and the roster read the same words.
+const YourName = ({ flash }) => {
+  const me = window.__ME || {};
+  const [name, setName] = React.useState(me.display_name || "");
+  const [busy, setBusy] = React.useState(false);
+  const dirty = name.trim() !== (me.display_name || "");
+  const save = async () => {
+    setBusy(true);
+    const r = await window.__me.setName(name);
+    setBusy(false);
+    flash({ msg: r.ok ? (r.name ? <>You&rsquo;re <b>{r.name}</b> to your team now.</> : <>Name cleared — your email stands in.</>) : <>{r.message}</> });
+  };
+  return (
+    <div className="set-you" data-testid="set-you">
+      <span className="set-you-label">Your name</span>
+      <input
+        className="sd-input set-you-input"
+        value={name}
+        maxLength={80}
+        placeholder="How your team sees you"
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter" && dirty) save(); }}
+        data-testid="set-you-name"
+      />
+      {dirty && <button className="btn btn-primary btn-sm" onClick={save} disabled={busy} data-testid="set-you-save">{busy ? "Saving…" : "Save"}</button>}
+    </div>
+  );
+};
+
 const RolePill = ({ role }) => {
   const m = ST_ROLE_META[role] || {};
   return <span className={`pill ${m.tone ? "pill-" + m.tone : ""}`}>{m.label || role}</span>;
@@ -205,18 +235,18 @@ const TeamSection = ({ flash }) => {
   const realInvites = Array.isArray(window.__TEAM_INVITES) ? window.__TEAM_INVITES : [];
   const team = Array.isArray(realTeam)
     ? [
-        ...realTeam.map((m) => ({
-          id: m.membershipId,
-          name: (m.email || "").split("@")[0],
-          email: m.email,
-          role: m.role,
-          status: "active",
-          isMe: !!me && m.email === me,
-        })),
+        ...realTeam.map((m) => {
+          // The name they gave with the email under it, or the email alone —
+          // never the email's local part dressed as a name.
+          const w = window.__identity.member({ email: m.email, display_name: m.displayName });
+          return { id: m.membershipId, name: w.name, sub: w.sub, email: m.email, displayName: m.displayName || "", role: m.role, status: "active", isMe: !!me && m.email === me };
+        }),
         ...realInvites.map((i) => ({
           id: i.id,
-          name: (i.email || "").split("@")[0],
+          name: i.email,
+          sub: null,
           email: i.email,
+          displayName: "",
           role: i.role,
           status: "invited",
           isMe: false,
@@ -344,6 +374,8 @@ const TeamSection = ({ flash }) => {
         )}
       </div>
 
+      {Array.isArray(realTeam) && <YourName flash={flash} />}
+
       {isOwner && (
         <div className="set-viewas">
           <span className="set-viewas-label">View as</span>
@@ -391,10 +423,10 @@ const TeamSection = ({ flash }) => {
         const pending = m.status === "invited";
         return (
           <div key={m.id} className={`set-team-row ${pending ? "pending" : ""}`}>
-            <span className="avatar" style={pending ? { background: "var(--ink-faint)" } : m.role === "owner" ? undefined : { background: "var(--ink-muted)" }}>{stInitials(m.name)}</span>
+            <span className="avatar" style={pending ? { background: "var(--ink-faint)" } : m.role === "owner" ? undefined : { background: "var(--ink-muted)" }}>{m.displayName !== undefined ? window.__identity.initials(m.displayName, m.email) : stInitials(m.name)}</span>
             <span className="set-team-body">
               <span className="set-team-name">{m.name}{isMe && <span className="set-team-you">You</span>}</span>
-              <span className="set-team-mail">{m.email}{pending ? " · invite pending" : ""}</span>
+              <span className="set-team-mail">{[m.sub !== undefined ? m.sub : m.email, pending ? "invite pending" : ""].filter(Boolean).join(" · ")}</span>
             </span>
             <RolePill role={m.role} />
             {canManage && !isMe ? (
