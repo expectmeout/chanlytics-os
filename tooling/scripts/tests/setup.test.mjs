@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setupSteps, setupRoute, shouldLandOnSetup, SETUP_STATE_WORDS, formatPhoneDisplay, agoWords, EVENT_KINDS } from "@chanlytics/contracts";
+import { setupSteps, setupRoute, shouldLandOnSetup, SETUP_STATE_WORDS, formatPhoneDisplay, agoWords, EVENT_KINDS, serverNotificationRows, verbForRoute } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
@@ -48,7 +48,9 @@ test("an empty workspace: nothing answers, every row reads its true state, the f
   assert.equal(vm.readiness.answering, false);
   assert.equal(vm.readiness.sentence, "Your receptionist is not answering yet.");
   assert.deepEqual(vm.rows.map((r) => r.id), ["facts", "handoff", "line", "receptionist", "whatsapp", "calendar", "team", "yes"]);
-  assert.deepEqual(vm.rows.map((r) => r.state), ["not_started", "waiting_you", "waiting_them", "waiting_them", "waiting_you", "not_started", "not_started", "not_started"]);
+  assert.deepEqual(vm.rows.map((r) => r.state), ["not_started", "waiting_you", "waiting_you", "waiting_them", "waiting_you", "not_started", "not_started", "not_started"], "the ask is the owner's move; the receptionist is ours");
+  assert.equal(row(vm, "line").sentence, "We set up your phone line with you.");
+  assert.deepEqual(row(vm, "line").details, ["A number, the receptionist answering it, and forwarding from the number you have"]);
   assert.deepEqual(vm.rows.map((r) => r.required), [true, false, true, true, true, false, false, false], "the channel rows count until something answers");
   assert.deepEqual(row(vm, "line").verb, { label: "Ask for a line", to: "verb:request-line" }, "until lines provision themselves, the line is asked for");
   assert.equal(row(vm, "receptionist").verb, null, "the receptionist arrives with the line — nothing to press");
@@ -97,7 +99,7 @@ test("WhatsApp only: no phone line yet, and the line row still asks", () => {
   const vm = setupSteps(live({ channels: { ...live().channels, voice: { present: false, active: false, number: null, lastInboundAt: null } } }), NOW);
   assert.equal(vm.readiness.sentence, `Your receptionist answers WhatsApp on ${formatPhoneDisplay(WA)}. No phone line yet.`);
   assert.equal(row(vm, "line").required, false);
-  assert.equal(row(vm, "line").state, "waiting_them");
+  assert.equal(row(vm, "line").state, "waiting_you", "not asked for yet");
   assert.deepEqual(vm.tryIt, { voice: null, voiceLabel: null, whatsapp: WA, whatsappLabel: formatPhoneDisplay(WA) });
 });
 
@@ -111,7 +113,7 @@ test("later is a preference for optional rows only; a required row ignores it", 
 
 test("a line that was asked for waits on us and says when; one that exists but is not active says so", () => {
   const asked = setupSteps(empty({ requests: { line: "2026-09-07T13:00:00Z" } }), NOW);
-  assert.equal(row(asked, "line").state, "waiting_them");
+  assert.equal(row(asked, "line").state, "waiting_them", "asked: now it is ours");
   assert.equal(row(asked, "line").verb, null, "asked once — no second ask");
   assert.equal(row(asked, "line").sentence, `Requested ${agoWords(Date.parse("2026-09-07T13:00:00Z"), NOW)} — a person at Chanlytics will set up your line with you and reach you by email.`);
   const inactive = setupSteps(empty({ channels: { ...empty().channels, voice: { present: true, active: false, number: VOICE, lastInboundAt: null } } }), NOW);
@@ -162,6 +164,50 @@ test("team and alerts: the verb goes to whichever half is missing; calendar: unr
   const feed = setupSteps(empty({ calendar: { state: "unavailable" } }), NOW);
   assert.equal(row(feed, "calendar").state, "waiting_you");
   assert.deepEqual(row(feed, "calendar").verb, { label: "Check the feed", to: "admin/workspace" });
+});
+
+test("a channel row without a number never reads a null aloud", () => {
+  const vm = setupSteps(live({ channels: { whatsapp: { present: true, active: true, number: null, quality: null, lastInboundAt: null }, voice: { present: true, active: true, number: null, lastInboundAt: null } } }), NOW);
+  assert.equal(vm.readiness.sentence, "Your receptionist answers calls on your line and WhatsApp on your number. Texting is not available yet.");
+  assert.equal(row(vm, "whatsapp").sentence, "Connected on your number.");
+  assert.equal(row(vm, "receptionist").sentence, "Answering on your line.");
+  assert.equal(row(vm, "receptionist").verb, null, "nothing to dial");
+  assert.ok(!JSON.stringify(vm).includes("null."), "no null read aloud");
+});
+
+test("the bell's verb follows the row's route: a setup row opens Setup, an unrouted alert still opens Today", () => {
+  const rows = serverNotificationRows({
+    seen_at: null,
+    notifications: [
+      { id: "1", kind: "alert", title: "We got your request for a phone line", body: "A person at Chanlytics…", route: "admin/setup", subject_type: "setup", subject_id: null, created_at: "2026-09-07T12:00:00Z", read: false, dismissed: false },
+      { id: "2", kind: "alert", title: "Plain", body: "x", route: null, subject_type: null, subject_id: null, created_at: "2026-09-07T12:00:00Z", read: false, dismissed: false },
+      { id: "3", kind: "number", title: "Your phone line is ready", body: "x", route: "admin/setup", subject_type: "setup", subject_id: "c1", created_at: "2026-09-07T12:00:00Z", read: false, dismissed: false },
+    ],
+  });
+  assert.deepEqual(rows.map((r) => [r.to, r.action]), [["admin/setup", "Open Setup"], ["today", "Open Today"], ["admin/setup", "Open Setup"]]);
+  assert.equal(verbForRoute("inbox/th-1"), "Open the Inbox");
+  assert.equal(verbForRoute("somewhere/new"), null);
+});
+
+test("a first ask reaches the platform mailbox through the edge; a repeat does not; a failure is never the owner's problem", () => {
+  const route = readCode("apps/dashboard/app/api/v1/setup/request/route.ts");
+  assert.ok(route.includes("const told = already ? false : await tellPlatformOfSetupRequest(member.tenantId, what, ctx.email ?? null);"));
+  assert.ok(route.includes("return { request: data, told };"));
+  const service = readCode("apps/dashboard/src/server/service.ts");
+  assert.ok(service.includes('if (process.env.VERCEL_ENV !== "production" || !process.env.DIAG_KEY) return false;'), "production only");
+  assert.ok(service.includes("${EDGE_BASE}/api/admin/setup-request"));
+  assert.ok(service.includes('console.error("setup_request_tell_failed"'), "logged, not thrown");
+  const edge = readCode("apps/edge/api/admin/setup-request.ts");
+  assert.ok(edge.includes('request.headers.get("x-diag-key") !== process.env.DIAG_KEY'));
+  assert.ok(edge.includes("{ tenantId: null, notifications: null, isEnvDefault: true }"), "addressed to the platform's own mailbox");
+  assert.ok(edge.includes("voice-provision"), "the email says how to set the line up");
+  assert.ok(!/contacts|messages|conversations/.test(edge), "no customer content anywhere near this");
+});
+
+test("the primary verb belongs to the next row alone; mobile tabs keep their labels", () => {
+  const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
+  assert.ok(page.includes('kind: vm.next && vm.next.row === r.id ? "primary" : "ghost"'));
+  assert.ok(readRaw("apps/dashboard/src/legacy/styles/mobile.css").includes(".set-nav-row { grid-template-columns: auto auto; white-space: nowrap; flex: 0 0 auto; }"));
 });
 
 test("the landing rule: an owner whose receptionist answers nowhere lands on Setup once, from Today or nothing", () => {

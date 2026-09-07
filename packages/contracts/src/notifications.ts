@@ -218,6 +218,28 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
   alert: { icon: "bell", tone: "", action: "Open Today", to: "today" },
 };
 
+/** The verb for a row that names its own route; the kind's verb otherwise. */
+const ROUTE_VERBS: Array<[RegExp, string]> = [
+  [/^admin\/setup/, "Open Setup"],
+  [/^admin\/integrations/, "Open Integrations"],
+  [/^admin\/workspace/, "Open Workspace"],
+  [/^admin\/notifications/, "Open Notifications"],
+  [/^inbox/, "Open the Inbox"],
+  [/^conversations\/phone/, "Open the calls"],
+  [/^live/, "Open Live"],
+  [/^outbound/, "Open Playbooks"],
+  [/^broadcasts/, "Open Broadcasts"],
+  [/^calendar/, "Open Calendar"],
+  [/^clients/, "Open People"],
+  [/^today/, "Open Today"],
+];
+
+export function verbForRoute(route: string | null | undefined): string | null {
+  if (!route) return null;
+  const hit = ROUTE_VERBS.find(([re]) => re.test(route));
+  return hit ? hit[1] : null;
+}
+
 /** A kept row's key on the bell, so the bridge can tell it from a derived one. */
 export const SERVER_KEY_PREFIX = "n:";
 
@@ -243,7 +265,7 @@ export function serverNotificationRows(dto: NotificationsDto | null | undefined)
         to: n.route ?? look.to,
         icon: look.icon,
         tone: look.tone,
-        action: look.action,
+        action: verbForRoute(n.route) ?? look.action,
         unread: at > seen && !n.read,
         about: n.subject_type && n.subject_id ? { type: n.subject_type, id: n.subject_id } : null,
       };

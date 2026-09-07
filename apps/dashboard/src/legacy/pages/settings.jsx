@@ -1755,7 +1755,7 @@ const PaneIntegrations = ({ flash }) => {
 
 const INT_NOT_AVAILABLE = [
   { name: "Instagram", desc: "Direct messages", icon: "instagram" },
-  { name: "Google Calendar", desc: "Bookings and availability", icon: "calendar" },
+  { name: "Google Calendar", desc: "Two-way sync — for now, paste its iCal feed in Workspace and the receptionist reads it", icon: "calendar" },
   { name: "Stripe", desc: "Deposits and payments", icon: "money" },
   { name: "Email", desc: "An address the receptionist answers", icon: "mail" },
   { name: "SMS", desc: "Plain text messages", icon: "chat" },

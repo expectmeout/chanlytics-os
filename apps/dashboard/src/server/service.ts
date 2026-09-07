@@ -163,6 +163,29 @@ export async function whisperLiveCall(
 }
 
 /**
+ * Tell the platform mailbox that a workspace asked a person at Chanlytics
+ * for something (a line, until lines provision themselves). The database
+ * has already recorded the ask; this is the email Postgres cannot send.
+ * Production only, never throws: a failure here is logged, not surfaced.
+ */
+export async function tellPlatformOfSetupRequest(tenantId: string, what: string, by: string | null): Promise<boolean> {
+  if (process.env.VERCEL_ENV !== "production" || !process.env.DIAG_KEY) return false;
+  try {
+    const r = await fetch(`${EDGE_BASE}/api/admin/setup-request`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY },
+      body: JSON.stringify({ tenant_id: tenantId, what, by }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) console.error("setup_request_tell_failed", JSON.stringify({ tenant: tenantId, what, status: r.status }));
+    return r.ok;
+  } catch (e) {
+    console.error("setup_request_tell_failed", JSON.stringify({ tenant: tenantId, what, error: e instanceof Error ? e.message : String(e) }));
+    return false;
+  }
+}
+
+/**
  * Have the edge rewrite a held draft to the owner's instruction. The model
  * key lives there; RLS and the role door have already been checked by the
  * route that calls this.

@@ -91,7 +91,7 @@ const PaneSetup = () => {
                 quoted={false}
                 status={[r.stateWords, ...r.details]}
                 tone={SETUP_TONE[r.state] || ""}
-                cta={r.verb ? { label: r.verb.label, kind: r.state === "ready" ? "ghost" : "primary", onClick: () => act(r.verb) } : null}
+                cta={r.verb ? { label: r.verb.label, kind: vm.next && vm.next.row === r.id ? "primary" : "ghost", onClick: () => act(r.verb) } : null}
                 also={!r.required && r.state !== "ready" ? { label: r.later ? "Undo later" : "Later", onClick: () => window.__setup.later(r.id, !r.later), testid: `setup-later-${r.id}` } : null}
                 onOpen={() => act(r.verb)}
                 testid={`setup-row-${r.id}`}
