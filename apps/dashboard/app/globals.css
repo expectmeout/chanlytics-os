@@ -51,6 +51,9 @@ body {
   cursor: pointer;
 }
 .auth-card button:disabled { opacity: 0.6; cursor: default; }
+/* The one link on the auth cards (sign-up ↔ sign-in) takes the card's accent, not the browser's blue. */
+.auth-card a { color: var(--auth-teal); text-decoration: underline; text-underline-offset: 2px; }
+.auth-card a:hover { opacity: 0.85; }
 .auth-card .error { color: var(--auth-danger); font-size: 0.85rem; margin-top: 10px; }
 .auth-card .hint { color: var(--auth-muted); font-size: 0.8rem; margin-top: 12px; }
 .os-shell { max-width: 760px; margin: 8vh auto; padding: 0 24px; }
