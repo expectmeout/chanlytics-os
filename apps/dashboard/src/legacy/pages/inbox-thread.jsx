@@ -71,18 +71,20 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
             <Icon name="flag" size={13} />
             <div className="ix-take-body">
               <div className="ix-take-title">
-                {thread.real ? <>Waiting on you{thread.waitingMin ? ` · ${thread.waitingMin}m` : ""}</> : "Escalated — needs a human voice"}
+                {thread.real ? <>Needs you{thread.waited ? ` · waited ${thread.waited}` : ""}</> : "Escalated — needs a human voice"}
               </div>
+              {/* The reason's own sentence (ESCALATION_SUMMARIES), never one line for every reason:
+                  a held message was not "already answered", and a call back is not a reply. */}
               <div className="ix-take-sub">{thread.real
-                ? <>The receptionist already sent a holding reply and stopped answering this thread. It stays quiet until you reply or hand it back.</>
+                ? <>{thread.summary}</>
                 : <>{thread.agent.name} stopped drafting. HR-sensitive threads never get suggested replies.</>}</div>
             </div>
             <button className="btn btn-primary btn-sm" onClick={() => onTakeOver(thread.id)} {...window.gate("approve")}>
-              {thread.real ? "I'll answer this" : "I'll take this one"}
+              {thread.real ? (thread.primaryChannel === "phone" ? "I'll call them" : "I'll answer this") : "I'll take this one"}
             </button>
             {thread.real && thread.escalationId && (
               <button className="btn btn-ghost btn-sm" onClick={() => onDecide(thread.id, "__HANDBACK__")} {...window.gate("approve")}>
-                Nothing needed — let the AI resume
+                Nothing needed — hand it back to the receptionist
               </button>
             )}
           </div>
@@ -201,6 +203,11 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
         ))}
       </div>
       <div className="ix-th-actions">
+        {thread.real && thread.phone && thread.primaryChannel === "phone" && (
+          <a className="btn btn-ghost btn-sm" href={`tel:${thread.phone}`} data-testid="ix-call-back">
+            <Icon name="phone" size={12} /> Call back
+          </a>
+        )}
         <button className="btn btn-ghost btn-sm" onClick={() => onSnooze(thread.id)} disabled={snoozed} {...window.gate("approve")}>
           <Icon name={snoozed ? "check" : "clock"} size={12} /> {snoozed ? `Wakes ${thread.wake || "tomorrow"}` : "Snooze"}
         </button>
@@ -812,6 +819,29 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
     );
   }
 
+  // A caller with no WhatsApp thread: the window never opened, so the honest
+  // verbs are the phone and an approved message that starts a thread.
+  if (thread.real && thread.hasChat === false) {
+    return (
+      <div className="ix-composer">
+        <div className="ix-composer-banner">
+          <Icon name="phone" size={11} />
+          <span>They have only phoned — there is no WhatsApp thread yet. Call them back, or start one with an approved message.</span>
+        </div>
+        <div className="ix-composer-foot">
+          <div className="ix-composer-channel">
+            <Icon name="phone" size={12} />
+            <span>PHONE · {thread.phone || thread.who}</span>
+          </div>
+          <div className="ix-composer-actions">
+            {thread.phone && <a className="btn btn-sm" href={`tel:${thread.phone}`}><Icon name="phone" size={12} /> Call back</a>}
+            <TemplateSendButton onSend={onSend} threadId={thread.id} real={!!thread.real} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (thread.real && thread.windowOpen === false) {
     return (
       <div className="ix-composer">
@@ -848,7 +878,7 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
         className="ix-composer-text"
         value={text}
         onChange={(e) => { setText(e.target.value); if (onType) onType(); }}
-        placeholder={thread.real ? "Reply as the salon…" : `Reply via ${thread.primaryChannel?.toUpperCase() || "SMS"}…`}
+        placeholder={thread.real ? `Reply to ${thread.who}…` : `Reply via ${thread.primaryChannel?.toUpperCase() || "SMS"}…`}
         rows={3}
       />
       <div className="ix-composer-foot">
