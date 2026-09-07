@@ -1,15 +1,15 @@
 /**
- * POST /api/admin/voice-provision — a workspace's phone receptionist, from
- * the edge.
+ * POST /api/admin/voice-provision — a workspace's phone receptionist on a
+ * Retell-owned number, from the edge.
  *
  * What the laptop script did (tooling/scripts/setup_voice.py, retired) with
  * the provider key on someone's machine: create the Retell LLM that is the
- * shell, the agent over it with the product's voice and webhook, publish
- * the first version, bind a number — an existing Retell number, or a local
- * one bought in an area code — with the inbound webhook that fills the
- * facts per call, and write the voice row that routes every delivery back
- * to the workspace. The plan is packages/channels voice-provision.ts, so the
- * dry run prints exactly what the apply sends.
+ * shell and the agent over it (lib/voice-agent.ts, shared with lines),
+ * publish the first version, bind a number — an existing Retell number, or
+ * a local one bought in an area code — with the inbound webhook that fills
+ * the facts per call, and write the voice row that routes every delivery
+ * back to the workspace. The plan is packages/channels voice-provision.ts,
+ * so the dry run prints exactly what the apply sends.
  *
  * Dry run by default. Idempotent: a workspace with a voice row plans
  * nothing; a run that fails after creating the LLM or the agent answers
@@ -26,22 +26,18 @@ import { pg } from "../../lib/pg.js";
 import { recordNotification } from "../../lib/notify.js";
 import { emitEvent } from "../../lib/workspace/db.js";
 import { formatPhoneDisplay } from "../../lib/workspace/contracts.js";
+import { createVoiceAgent } from "../../lib/voice-agent.js";
 import {
   planVoiceProvision,
-  voiceLlmCreateBody,
-  voiceAgentCreateBody,
   voiceNumberCreateBody,
   voiceNumberBindBody,
   voiceEndpoints,
   VOICE_AGENT_DEFAULTS,
   VOICE_LLM_DEFAULTS,
-  createRetellLlm,
-  createAgent,
   createPhoneNumber,
   updatePhoneNumber,
   getRetellLlm,
   getAgentRaw,
-  publishAgentVersion,
   planAgentSettings,
   voiceShellDrift,
   type LiveAgentSettings,
@@ -133,57 +129,16 @@ export async function POST(request: Request): Promise<Response> {
   const fail = (step: string, status: number, detail: unknown) =>
     json(status >= 500 ? 503 : 502, { ...out, ok: false, error: { step, status, detail }, result });
 
-  // 1 + 2. The LLM and the agent — created, reused, or adopted.
-  let llmId = req.llmId;
-  let llmVersion: number | null = null;
-  let agentId: string;
-  let agentVersion: number | null = null;
-  let published = false;
-  if (req.agentId) {
-    const a = await getAgentRaw(cfg, req.agentId);
-    if (!a) return fail("agent", 404, `${req.agentId} is not readable with this key`);
-    const engine = (a.response_engine ?? {}) as Record<string, unknown>;
-    if (engine.type !== "retell-llm" || typeof engine.llm_id !== "string") return fail("agent", 422, "the adopted agent is not on a Retell LLM");
-    agentId = req.agentId;
-    llmId = engine.llm_id;
-    llmVersion = typeof engine.version === "number" ? engine.version : null;
-    agentVersion = typeof a.version === "number" ? a.version : null;
-    published = a.is_published === true;
-    result.llm = { llm_id: llmId, version: llmVersion, adopted: true };
-    result.agent = { agent_id: agentId, version: agentVersion, adopted: true };
-  } else {
-    if (llmId) {
-      const l = await getRetellLlm(cfg, llmId);
-      if (!l) return fail("llm", 404, `${llmId} is not readable with this key`);
-      llmVersion = l.version;
-      result.llm = { llm_id: llmId, version: llmVersion, reused: true };
-    } else {
-      const w = await createRetellLlm(cfg, voiceLlmCreateBody(secrets));
-      if (!w.ok || typeof w.body?.llm_id !== "string") return fail("llm", w.status, w.body);
-      llmId = w.body.llm_id;
-      llmVersion = typeof w.body.version === "number" ? w.body.version : null;
-      result.llm = { llm_id: llmId, version: llmVersion, created: true };
-    }
-    const w = await createAgent(cfg, voiceAgentCreateBody({ llmId, llmVersion, agentName: plan.names.agent }, secrets));
-    if (!w.ok || typeof w.body?.agent_id !== "string") return fail("agent", w.status, w.body);
-    agentId = w.body.agent_id;
-    agentVersion = typeof w.body.version === "number" ? w.body.version : null;
-    published = w.body.is_published === true;
-    result.agent = { agent_id: agentId, version: agentVersion, created: true };
+  // 1–3. The LLM, the agent, the first version published — created, reused, or adopted.
+  const made = await createVoiceAgent(cfg, secrets, { agentName: plan.names.agent, llmId: req.llmId, agentId: req.agentId });
+  if (!made.ok) {
+    result.llm = made.partial.llmId ? { llm_id: made.partial.llmId, version: made.partial.llmVersion } : null;
+    return fail(made.step, made.status, made.detail);
   }
-
-  // 3. Publish the first version, so the number can pin to latest_published.
-  //    A refusal is not the end: the number then follows the latest version,
-  //    and voice-converge --publish --pin closes that later.
-  let pinned = true;
-  let publish: Record<string, unknown> | null = null;
-  if (!published && agentVersion !== null) {
-    const p = await publishAgentVersion(cfg, agentId, agentVersion, "provisioned from the edge");
-    if (p.ok) published = true;
-    else publish = { ok: false, status: p.status, detail: p.body, note: "the number follows the latest version instead of latest_published; publish and pin with voice-converge later" };
-  }
-  if (!published) pinned = false;
-  result.publish = publish ?? (published ? { ok: true, version: agentVersion } : { ok: false, note: "no version to publish; the number follows the latest version" });
+  const { llmId, llmVersion, agentId, agentVersion, pinned } = made.agent;
+  result.llm = { llm_id: llmId, version: llmVersion, created: made.agent.created.llm };
+  result.agent = { agent_id: agentId, version: agentVersion, created: made.agent.created.agent };
+  result.publish = made.agent.publish;
 
   // 4. The number: bind an existing one, or buy one in the area code.
   let number = req.number;

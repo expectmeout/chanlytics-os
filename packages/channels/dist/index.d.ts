@@ -333,6 +333,8 @@ declare function createRetellLlm(cfg: RetellConfig, body: Record<string, unknown
 declare function createAgent(cfg: RetellConfig, body: Record<string, unknown>): Promise<RetellWrite>;
 /** POST /create-phone-number — BUYS a number in an area code; it costs money every month. */
 declare function createPhoneNumber(cfg: RetellConfig, body: Record<string, unknown>): Promise<RetellWrite>;
+/** POST /import-phone-number — a number from an elastic SIP trunk, bound like Retell's own (lines-saga.ts builds the body). */
+declare function importPhoneNumber(cfg: RetellConfig, body: Record<string, unknown>): Promise<RetellWrite>;
 /** PATCH /update-phone-number — the agents on a number, its inbound webhook, its nickname. */
 declare function updatePhoneNumber(cfg: RetellConfig, number: string, patch: Record<string, unknown>): Promise<RetellWrite>;
 /** GET /get-phone-number — the number as stored; null when the provider says no. Never printed whole: the inbound webhook URL carries a key. */
@@ -676,4 +678,265 @@ interface VoiceProvisionPlan {
 /** What the endpoint will do, in order. Pure: the dry run prints this; the apply follows it. */
 declare function planVoiceProvision(st: VoiceProvisionState): VoiceProvisionPlan;
 
-export { type AgentPlan, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, DEFAULT_FN_URL, FACTS_UNAVAILABLE, GREETING_DEFAULT, HANDOFF_VAR, type ListCallsPage, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type SendResult, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, agentSettingsDrift, availabilityUrl, callSummaryLine, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, desiredVoiceShell, fetchMediaBytes, fetchRecording, getAgent, getAgentRaw, getCall, getPhoneNumber, getRetellLlm, listCalls, liveTurns, needsHydration, normalizeCall, normalizeInbound, parseTranscriptText, planAgentSettings, planVoiceConvergence, planVoiceProvision, publishAgentVersion, sendTemplate, sendText, stripKey, updateAgent, updateLiveCall, updatePhoneNumber, verifyRetellSignature, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withKey };
+/**
+ * Lines — a workspace's own phone number, behind a provider interface.
+ *
+ * The plan (docs/plans/2026-09-07-onboarding-and-lines.md §5): the product
+ * owns lines through a provider, Twilio first, one subaccount per
+ * workspace, and a `dry` provider outside production so the whole path
+ * runs with fake SIDs. Nothing here touches the network: this file is the
+ * interface, the words the product needs from a provider, and the small
+ * pure helpers the saga and the endpoint share.
+ */
+type LineProviderName = "twilio" | "dry";
+/** Credentials to act as — the master account, or a workspace's subaccount. */
+interface ProviderAccount {
+    sid: string;
+    token: string;
+}
+interface AvailableNumber {
+    e164: string;
+    /** The provider's display form, e.g. "(305) 555-0100". */
+    friendly: string;
+    locality: string | null;
+    region: string | null;
+    capabilities: {
+        voice: boolean;
+        sms: boolean;
+        mms: boolean;
+    };
+}
+/**
+ * What a line needs from a provider, in the order the saga uses it. Every
+ * method is one provider call; idempotency is the saga's job (it records
+ * each SID before the next call and skips what exists).
+ */
+interface LineProvider {
+    readonly name: LineProviderName;
+    createSubaccount(master: ProviderAccount, friendlyName: string): Promise<ProviderAccount & {
+        status: string;
+    }>;
+    searchLocal(acct: ProviderAccount, q: {
+        areaCode: number;
+        limit: number;
+    }): Promise<AvailableNumber[]>;
+    buyNumber(acct: ProviderAccount, e164: string, friendlyName: string): Promise<{
+        sid: string;
+        e164: string;
+    }>;
+    releaseNumber(acct: ProviderAccount, numberSid: string): Promise<void>;
+    createTrunk(acct: ProviderAccount, o: {
+        friendlyName: string;
+        domainName: string;
+    }): Promise<{
+        sid: string;
+        domainName: string;
+    }>;
+    deleteTrunk(acct: ProviderAccount, trunkSid: string): Promise<void>;
+    createCredentialList(acct: ProviderAccount, friendlyName: string): Promise<{
+        sid: string;
+    }>;
+    addCredential(acct: ProviderAccount, listSid: string, username: string, password: string): Promise<{
+        sid: string;
+    }>;
+    attachCredentialList(acct: ProviderAccount, trunkSid: string, listSid: string): Promise<void>;
+    addOrigination(acct: ProviderAccount, trunkSid: string, o: {
+        sipUrl: string;
+        friendlyName: string;
+    }): Promise<{
+        sid: string;
+    }>;
+    attachNumber(acct: ProviderAccount, trunkSid: string, numberSid: string): Promise<void>;
+}
+/** Where Twilio sends a line's calls: Retell's SIP front door (Retell's Twilio guide). */
+declare const RETELL_ORIGINATION = "sip:sip.retellai.com";
+/** What the page states as fact before billing exists (plan §8). */
+declare const LINE_COSTS: {
+    readonly local_number_month_usd: 1.15;
+    readonly toll_free_month_usd: 2.15;
+};
+/**
+ * Which provider this deployment may use. Real credentials win; the dry
+ * provider is for previews and laptops only — production never fakes a
+ * line, so with no credentials there is no provider and the Setup page
+ * keeps "we set it up with you".
+ */
+declare function chooseLineProvider(env: {
+    sid?: string | null;
+    token?: string | null;
+    dryRun?: string | null;
+    vercelEnv?: string | null;
+}): LineProviderName | null;
+/** The trunk's SIP domain: unique per line, letters, digits and dashes, on Twilio's suffix. */
+declare function trunkDomain(lineId: string): string;
+/** The SIP username Retell presents on the trunk (≤ 32 characters at Twilio). */
+declare function sipUsername(lineId: string): string;
+/**
+ * A SIP password Twilio accepts: at least 12 characters, a digit, mixed
+ * case (SIP Credential docs). 24 characters here; `random` is injectable so
+ * a test can pin one.
+ */
+declare function sipPassword(random?: () => number): string;
+/** Twilio's rule, checked before a password is sent. */
+declare function isValidSipPassword(p: string): boolean;
+declare const isE164: (s: unknown) => s is string;
+declare const isAreaCode: (n: unknown) => n is number;
+
+/**
+ * Twilio as a LineProvider. Field and URL names verified against Twilio's
+ * REST docs (Subaccounts, AvailablePhoneNumbers Local, IncomingPhoneNumbers,
+ * Elastic SIP Trunking: Trunk, CredentialList, OriginationUrl, PhoneNumber;
+ * SIP Credential) on 2026-09-07.
+ *
+ * Every call goes through one `TwilioHttp` port — basic auth as the account
+ * given, form-encoded bodies, JSON answers — so a test can pin every URL
+ * and parameter without a network, and the edge supplies fetch.
+ */
+
+interface TwilioAnswer {
+    status: number;
+    body: Record<string, unknown> | null;
+}
+type TwilioHttp = (acct: ProviderAccount, method: "GET" | "POST" | "DELETE", url: string, form?: Record<string, string>) => Promise<TwilioAnswer>;
+declare const twilioUrls: {
+    subaccounts: string;
+    availableLocal: (sid: string, country?: string) => string;
+    incomingNumbers: (sid: string) => string;
+    incomingNumber: (sid: string, numberSid: string) => string;
+    credentialLists: (sid: string) => string;
+    credentials: (sid: string, listSid: string) => string;
+    trunks: string;
+    trunk: (trunkSid: string) => string;
+    trunkCredentialLists: (trunkSid: string) => string;
+    trunkOriginationUrls: (trunkSid: string) => string;
+    trunkPhoneNumbers: (trunkSid: string) => string;
+};
+/** A provider refusal as an error the saga records: status, Twilio's code, its message. */
+declare class TwilioError extends Error {
+    readonly status: number;
+    readonly code: number | null;
+    constructor(status: number, body: Record<string, unknown> | null, what: string);
+}
+/** The fetch-backed port: basic auth as `acct`, 15 s per call. */
+declare const fetchTwilio: TwilioHttp;
+declare function twilioProvider(http?: TwilioHttp): LineProvider;
+
+/**
+ * The dry LineProvider: fake SIDs, no network, the shape of every answer a
+ * real provider gives. It is the provider on laptops and previews
+ * (LINES_DRY_RUN=1) and in the saga's tests; production never uses it
+ * (chooseLineProvider). It keeps a ledger of calls so a test can prove a
+ * resumed saga repeats nothing.
+ */
+
+interface DryCall {
+    op: string;
+    args: unknown[];
+}
+interface DryProvider extends LineProvider {
+    readonly calls: DryCall[];
+    /** Numbers bought and not released, by SID. */
+    readonly owned: Map<string, string>;
+}
+declare function dryProvider(seed?: number): DryProvider;
+
+type LineStep = "subaccount" | "number" | "trunk" | "agent" | "import" | "channel";
+declare const LINE_STEPS: readonly LineStep[];
+type LineVoiceState = "none" | "provisioning" | "answering" | "failed";
+/** The columns the saga reads and writes — a projection of the `lines` row. */
+interface LineRow {
+    id: string;
+    tenant_id: string;
+    e164: string | null;
+    provider: string;
+    area_code: number | null;
+    subaccount_sid: string | null;
+    number_sid: string | null;
+    trunk_sid: string | null;
+    credential_list_sid: string | null;
+    termination_uri: string | null;
+    retell_agent_id: string | null;
+    voice_state: LineVoiceState;
+    step: LineStep | null;
+    last_error: string | null;
+    state_since: string;
+    facts: Record<string, unknown>;
+}
+interface LineSecrets {
+    /** The subaccount's auth token. */
+    auth_token?: string;
+    sip_username?: string;
+    sip_password?: string;
+}
+interface LinePorts {
+    provider: LineProvider;
+    /** The master account: the only one that can create a subaccount. */
+    master: ProviderAccount;
+    tenant: {
+        id: string;
+        name: string;
+    };
+    now: () => string;
+    random?: () => number;
+    store: {
+        /** Persist a patch of the row; the saga keeps its own copy current. */
+        save(patch: Partial<LineRow>): Promise<void>;
+        getSecrets(): Promise<LineSecrets>;
+        /** Merge into what is there. */
+        putSecrets(s: LineSecrets): Promise<void>;
+    };
+    /** The workspace's phone receptionist: an existing agent, or a new one. */
+    agent: {
+        ensure(): Promise<{
+            agentId: string;
+            llmId: string | null;
+            pinned: boolean;
+        }>;
+    };
+    retell: {
+        importNumber(body: Record<string, unknown>): Promise<{
+            ok: boolean;
+            status: number;
+            body: Record<string, unknown> | null;
+        }>;
+    };
+    /** The tenant_channels row that routes calls back — created once per agent. */
+    channel: {
+        ensure(o: {
+            agentId: string;
+            e164: string;
+            lineId: string;
+        }): Promise<{
+            channelId: string;
+            created: boolean;
+        }>;
+    };
+    /** With its key: the inbound-call webhook that fills the facts per call. */
+    inboundWebhookUrl: string;
+    nickname: string;
+}
+type SagaResult = {
+    ok: true;
+    line: LineRow;
+} | {
+    ok: false;
+    step: LineStep;
+    error: string;
+    line: LineRow;
+};
+/** The body Retell's import takes — pure, so a test can pin it. */
+declare function retellImportBody(o: {
+    e164: string;
+    terminationUri: string;
+    username: string;
+    password: string;
+    agentId: string;
+    pinned: boolean;
+    nickname: string;
+    inboundWebhookUrl: string;
+}): Record<string, unknown>;
+/** The first step whose effect is missing from the row. */
+declare function nextLineStep(line: LineRow): LineStep | null;
+declare function runLineSaga(start: LineRow, ports: LinePorts): Promise<SagaResult>;
+
+export { type AgentPlan, type AvailableNumber, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, DEFAULT_FN_URL, type DryCall, type DryProvider, FACTS_UNAVAILABLE, GREETING_DEFAULT, HANDOFF_VAR, LINE_COSTS, LINE_STEPS, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, type ProviderAccount, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, RETELL_ORIGINATION, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type SagaResult, type SendResult, type TwilioAnswer, TwilioError, type TwilioHttp, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, agentSettingsDrift, availabilityUrl, callSummaryLine, chooseLineProvider, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, desiredVoiceShell, dryProvider, fetchMediaBytes, fetchRecording, fetchTwilio, getAgent, getAgentRaw, getCall, getPhoneNumber, getRetellLlm, importPhoneNumber, isAreaCode, isE164, isValidSipPassword, listCalls, liveTurns, needsHydration, nextLineStep, normalizeCall, normalizeInbound, parseTranscriptText, planAgentSettings, planVoiceConvergence, planVoiceProvision, publishAgentVersion, retellImportBody, runLineSaga, sendTemplate, sendText, sipPassword, sipUsername, stripKey, trunkDomain, twilioProvider, twilioUrls, updateAgent, updateLiveCall, updatePhoneNumber, verifyRetellSignature, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withKey };

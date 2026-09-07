@@ -4596,6 +4596,21 @@ var CALL_ANALYSIS_FIELDS = [
     examples: ["Ana", "Daniela R."]
   }
 ];
+var API2 = "https://api.twilio.com/2010-04-01";
+var TRUNKING = "https://trunking.twilio.com/v1";
+var twilioUrls = {
+  subaccounts: `${API2}/Accounts.json`,
+  availableLocal: (sid, country = "US") => `${API2}/Accounts/${sid}/AvailablePhoneNumbers/${country}/Local.json`,
+  incomingNumbers: (sid) => `${API2}/Accounts/${sid}/IncomingPhoneNumbers.json`,
+  incomingNumber: (sid, numberSid) => `${API2}/Accounts/${sid}/IncomingPhoneNumbers/${numberSid}.json`,
+  credentialLists: (sid) => `${API2}/Accounts/${sid}/SIP/CredentialLists.json`,
+  credentials: (sid, listSid) => `${API2}/Accounts/${sid}/SIP/CredentialLists/${listSid}/Credentials.json`,
+  trunks: `${TRUNKING}/Trunks`,
+  trunk: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}`,
+  trunkCredentialLists: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/CredentialLists`,
+  trunkOriginationUrls: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/OriginationUrls`,
+  trunkPhoneNumbers: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/PhoneNumbers`
+};
 
 // ../../node_modules/zod/v3/external.js
 var external_exports2 = {};

@@ -1,0 +1,15 @@
+# Secret scan configuration (gitleaks, CI's "Secret scan" job).
+#
+# The default rules stay in force. What is allowed here is one rule-shaped
+# fake: a test pins that the Twilio adapter sends a SIP password that meets
+# Twilio's rule (12+ characters, a digit, mixed case), and the fixture it
+# used to do that looked enough like a key for the scanner. It is a fixture
+# in a test, not a credential, and it is listed here by value so nothing
+# else is allowed by accident. Real secrets never live in this repository.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "A rule-shaped fake SIP password in tooling/scripts/tests/lines-saga.test.mjs"
+regexes = ['''Abcdefghij12kl''']
