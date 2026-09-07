@@ -1,3 +1,4 @@
+import { waitedLabel } from "./time";
 import { standingOf } from "./standing";
 /**
  * ThreadCard/ConversationVM viewmodels (Blueprint §7): pure mapping from API
@@ -356,12 +357,9 @@ const ESCALATION_SUMMARIES: Record<string, string> = {
 
 /** "8m" / "3h" / "2d". An overnight wait is the NORMAL case for a morning
  *  brief, and "561 min" is not a number anyone reads as half a day. */
+/** A wait, in the one family every surface reads (time.ts): "1m" at the least, "3h", "2d". */
 export function formatWaited(ms: number): string {
-  const min = Math.max(1, Math.round(ms / 60000));
-  if (min < 60) return `${min}m`;
-  const hr = Math.round(min / 60);
-  if (hr < 24) return `${hr}h`;
-  return `${Math.round(hr / 24)}d`;
+  return waitedLabel(ms);
 }
 
 export interface InboxThreadVM {

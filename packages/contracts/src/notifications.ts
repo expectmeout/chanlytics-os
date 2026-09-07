@@ -1,3 +1,4 @@
+import { agoShort as spanAgo } from "./time";
 /**
  * The bell: what needs the owner, from what the browser already holds.
  *
@@ -168,14 +169,9 @@ export function applyReadState(items: NotificationItem[], state: NotificationRea
 }
 
 /** "now", "5m", "2h", "3d" — the bell's clock (the Inbox has its own `ago`). */
+/** The bell's time: one family with every other surface (time.ts). */
 export function agoLabel(atMs: number, now: number): string {
-  const s = Math.max(0, Math.round((now - atMs) / 1000));
-  if (s < 60) return "now";
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m}m`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h}h`;
-  return `${Math.round(h / 24)}d`;
+  return spanAgo(atMs, now);
 }
 
 /** The kinds a device is woken for; an invitation can wait for the bell. */

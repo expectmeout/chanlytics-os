@@ -30,6 +30,21 @@ export const ROLE_PERMS: Record<Role, { approve: boolean; autonomy: boolean; dis
 export const POLICY_CLASSES = ["reply", "booking", "faq", "reengage", "campaign", "money"] as const;
 export type PolicyClass = (typeof POLICY_CLASSES)[number];
 
+/**
+ * The words for each class, said once. The Autonomy matrix rows, a playbook's
+ * "runs under" chip and the assistant's proposals all read these; three maps
+ * used to name the same row three ways ("Campaigns" on a playbook for the row
+ * the matrix called "Standing offers").
+ */
+export const POLICY_CLASS_WORDS: Record<PolicyClass, { name: string; short: string; note: string }> = {
+  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
+  faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile · ask hands every service or pricing question to you, on WhatsApp and on the phone" },
+  booking: { name: "Book · reschedule", short: "Bookings", note: "auto sends your booking link · ask has a person confirm instead, on WhatsApp and on the phone" },
+  reengage: { name: "Re-engage quiet customers", short: "Re-engage", note: "the win-back and save-our-number playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
+  campaign: { name: "Standing offers", short: "Offers", note: "the welcome and month's-offer playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
+  money: { name: "Refunds · rates · negotiation", short: "Money", note: "always goes to you" },
+};
+
 /** 'veto' exists in the enum (and the DB CHECK) but is NOT offered by any UI
  *  until the drafts/countdown engine exists — R1: no option without an
  *  enforcer. The runtime treats an unexpected mode as 'ask' (fail safe). */

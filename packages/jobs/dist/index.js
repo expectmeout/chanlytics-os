@@ -4084,6 +4084,8 @@ var coerce = {
   date: ((arg) => ZodDate.create({ ...arg, coerce: true }))
 };
 var NEVER = INVALID;
+var DAY_MS = 864e5;
+var WEEK_MS = 7 * DAY_MS;
 var BRAIN_INTENTS = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
 var BRAIN_LANGUAGES = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA = {
@@ -4141,14 +4143,22 @@ var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
-var DAY_MS = 864e5;
-var WEEK_MS = 7 * DAY_MS;
-var MONTH_MS = 30 * DAY_MS;
-var NEW_WINDOW_MS = 7 * DAY_MS;
-var QUIET_AFTER_MS = 30 * DAY_MS;
+var DAY_MS2 = 864e5;
+var WEEK_MS2 = 7 * DAY_MS2;
+var MONTH_MS = 30 * DAY_MS2;
+var NEW_WINDOW_MS = 7 * DAY_MS2;
+var QUIET_AFTER_MS = 30 * DAY_MS2;
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_YEAR_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
 var TIME_FMT2 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
+var POLICY_CLASS_WORDS = {
+  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
+  faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
+  booking: { name: "Book \xB7 reschedule", short: "Bookings", note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone" },
+  reengage: { name: "Re-engage quiet customers", short: "Re-engage", note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
+  campaign: { name: "Standing offers", short: "Offers", note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
+};
 var PolicyLimitsSchema = external_exports.object({
   max_replies_day: external_exports.number().int().min(1).max(200).optional(),
   pause_hours: external_exports.number().int().min(1).max(168).optional(),
@@ -4406,7 +4416,7 @@ var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
 });
-var DAY_MS2 = 24 * 3600 * 1e3;
+var DAY_MS3 = 24 * 3600 * 1e3;
 var ASK_CAPS = {
   threads: 20,
   messages: 30,
@@ -4509,9 +4519,14 @@ var LIMIT_TIERS = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS3 = 864e5;
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS3;
+var DAY_MS4 = 864e5;
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS4;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
+var PLAYBOOK_CLASS_LABEL = {
+  reengage: POLICY_CLASS_WORDS.reengage.short,
+  campaign: POLICY_CLASS_WORDS.campaign.short,
+  booking: POLICY_CLASS_WORDS.booking.short
+};
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -8627,6 +8642,8 @@ var NEVER2 = INVALID2;
 function isOptedOutContact(c) {
   return c.consent === "opted_out" || c.dnc === true;
 }
+var DAY_MS6 = 864e5;
+var WEEK_MS3 = 7 * DAY_MS6;
 var BRAIN_INTENTS2 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
 var BRAIN_LANGUAGES2 = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA2 = {
@@ -8683,14 +8700,22 @@ var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LIVE_STALE_MS2 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS2 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;
-var DAY_MS4 = 864e5;
-var WEEK_MS2 = 7 * DAY_MS4;
-var MONTH_MS2 = 30 * DAY_MS4;
-var NEW_WINDOW_MS2 = 7 * DAY_MS4;
-var QUIET_AFTER_MS3 = 30 * DAY_MS4;
+var DAY_MS22 = 864e5;
+var WEEK_MS22 = 7 * DAY_MS22;
+var MONTH_MS2 = 30 * DAY_MS22;
+var NEW_WINDOW_MS2 = 7 * DAY_MS22;
+var QUIET_AFTER_MS3 = 30 * DAY_MS22;
 var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_YEAR_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
 var TIME_FMT22 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
+var POLICY_CLASS_WORDS2 = {
+  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
+  faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
+  booking: { name: "Book \xB7 reschedule", short: "Bookings", note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone" },
+  reengage: { name: "Re-engage quiet customers", short: "Re-engage", note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
+  campaign: { name: "Standing offers", short: "Offers", note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
+};
 var PolicyLimitsSchema2 = external_exports2.object({
   max_replies_day: external_exports2.number().int().min(1).max(200).optional(),
   pause_hours: external_exports2.number().int().min(1).max(168).optional(),
@@ -8960,7 +8985,7 @@ function parseTenantConfig(raw) {
   const r = parseTenantConfigResult(raw);
   return r.ok ? r.config : null;
 }
-var DAY_MS22 = 24 * 3600 * 1e3;
+var DAY_MS32 = 24 * 3600 * 1e3;
 var ASK_CAPS2 = {
   threads: 20,
   messages: 30,
@@ -9108,9 +9133,14 @@ function resolveParams(specs, f) {
     }
   });
 }
-var DAY_MS32 = 864e5;
-var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS32;
+var DAY_MS42 = 864e5;
+var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS42;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
+var PLAYBOOK_CLASS_LABEL2 = {
+  reengage: POLICY_CLASS_WORDS2.reengage.short,
+  campaign: POLICY_CLASS_WORDS2.campaign.short,
+  booking: POLICY_CLASS_WORDS2.booking.short
+};
 var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SHORT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -13157,6 +13187,8 @@ function normalizePhone(raw) {
   if (digits.length >= 8 && digits.length <= 15) return `+${digits}`;
   return null;
 }
+var DAY_MS7 = 864e5;
+var WEEK_MS4 = 7 * DAY_MS7;
 var BRAIN_INTENTS3 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
 var BRAIN_LANGUAGES3 = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA3 = {
@@ -13213,14 +13245,22 @@ var DATE_FMT6 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LIVE_STALE_MS3 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS3 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS3 = 10 * 60 * 1e3;
-var DAY_MS6 = 864e5;
-var WEEK_MS3 = 7 * DAY_MS6;
-var MONTH_MS3 = 30 * DAY_MS6;
-var NEW_WINDOW_MS3 = 7 * DAY_MS6;
-var QUIET_AFTER_MS4 = 30 * DAY_MS6;
+var DAY_MS23 = 864e5;
+var WEEK_MS23 = 7 * DAY_MS23;
+var MONTH_MS3 = 30 * DAY_MS23;
+var NEW_WINDOW_MS3 = 7 * DAY_MS23;
+var QUIET_AFTER_MS4 = 30 * DAY_MS23;
 var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_YEAR_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
 var TIME_FMT23 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
+var POLICY_CLASS_WORDS3 = {
+  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
+  faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
+  booking: { name: "Book \xB7 reschedule", short: "Bookings", note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone" },
+  reengage: { name: "Re-engage quiet customers", short: "Re-engage", note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
+  campaign: { name: "Standing offers", short: "Offers", note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
+};
 var PolicyLimitsSchema3 = external_exports3.object({
   max_replies_day: external_exports3.number().int().min(1).max(200).optional(),
   pause_hours: external_exports3.number().int().min(1).max(168).optional(),
@@ -13478,7 +13518,7 @@ var TenantConfigWriteSchema3 = TenantConfigSchema3.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c, n) => checkClosure3(c, n, ctx));
 });
-var DAY_MS23 = 24 * 3600 * 1e3;
+var DAY_MS33 = 24 * 3600 * 1e3;
 var ASK_CAPS3 = {
   threads: 20,
   messages: 30,
@@ -13581,9 +13621,14 @@ var LIMIT_TIERS3 = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS33 = 864e5;
-var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS33;
+var DAY_MS43 = 864e5;
+var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS43;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
+var PLAYBOOK_CLASS_LABEL3 = {
+  reengage: POLICY_CLASS_WORDS3.reengage.short,
+  campaign: POLICY_CLASS_WORDS3.campaign.short,
+  booking: POLICY_CLASS_WORDS3.booking.short
+};
 var DATE_FMT33 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SHORT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -13662,7 +13707,7 @@ async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, d
 }
 var POS_TTL_MS = 5 * 60 * 1e3;
 var NEG_TTL_MS = 60 * 1e3;
-var DAY_MS42 = 24 * 3600 * 1e3;
+var DAY_MS62 = 24 * 3600 * 1e3;
 
 // src/handlers.ts
 var SENDERS = {

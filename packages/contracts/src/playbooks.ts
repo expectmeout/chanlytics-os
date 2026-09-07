@@ -1,3 +1,4 @@
+import { POLICY_CLASS_WORDS } from "./config";
 /**
  * Playbooks: a standing rule that sends one approved template to newly
  * eligible people who said yes, under the workspace's autonomy mode.
@@ -183,7 +184,11 @@ export function nextRunLabel(p: Pick<PlaybookDto, "state" | "run_hour" | "last_r
   return `tomorrow ${at}`;
 }
 
-export const PLAYBOOK_CLASS_LABEL: Record<PlaybookPolicyClass, string> = { reengage: "Re-engage", campaign: "Campaigns", booking: "Booking" };
+export const PLAYBOOK_CLASS_LABEL: Record<PlaybookPolicyClass, string> = {
+  reengage: POLICY_CLASS_WORDS.reengage.short,
+  campaign: POLICY_CLASS_WORDS.campaign.short,
+  booking: POLICY_CLASS_WORDS.booking.short,
+};
 
 /**
  * The words a visit playbook's slots take for one person — when, and what

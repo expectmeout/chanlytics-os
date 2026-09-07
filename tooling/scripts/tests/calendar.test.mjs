@@ -84,7 +84,7 @@ test("the week as the page draws it: hours with air, bands where closed, blocks 
   const sun = vm.days[6];
   assert.deepEqual(sun.closed, { yes: true, note: null });
   assert.deepEqual(vm.stats, { events: 2, windows: 2, next: "today 3:30 PM" });
-  assert.equal(vm.feed.line, "From your calendar · read 2 min ago · 4 events");
+  assert.equal(vm.feed.line, "From your calendar · read 2m ago · 4 events");
   assert.equal(vm.rules, "Offers times at least 2h ahead · 15 min between appointments · up to 14 days out · 30-min slots");
   assert.equal(vm.bookingLink, "https://booksy.com/melanys");
 });

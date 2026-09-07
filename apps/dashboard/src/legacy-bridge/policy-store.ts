@@ -1,3 +1,4 @@
+import { POLICY_CLASS_WORDS, type PolicyClass } from "@chanlytics/contracts";
 /**
  * The workspace policy matrix, on the mockup's own store interface.
  *
@@ -40,13 +41,16 @@ export interface UiRowMeta {
   hints?: Partial<Record<UiMode, string>>;
 }
 
+// label, note and chip are the one set of words (contracts POLICY_CLASS_WORDS); the rest is this pane's.
+const W = (cls: PolicyClass) => ({ label: POLICY_CLASS_WORDS[cls].name, note: POLICY_CLASS_WORDS[cls].note, chip: POLICY_CLASS_WORDS[cls].short });
+
 export const UI_ROWS: readonly UiRowMeta[] = [
-  { id: "reply", cls: "reply", label: "Replies to customers", note: "every text the receptionist sends", chip: "Replies", enforced: true },
-  { id: "faq", cls: "faq", label: "Service & pricing questions", note: "auto answers from your business profile · ask hands every service or pricing question to you, on WhatsApp and on the phone", chip: "FAQs", enforced: true, modes: ["Auto", "Ask"], hints: { Auto: "answers from your business profile — never a price", Ask: "tells them a person will get back with the details, and lands the thread in Needs you" } },
-  { id: "book", cls: "booking", label: "Book · reschedule", note: "auto sends your booking link · ask has a person confirm instead, on WhatsApp and on the phone", chip: "Booking", enforced: true, modes: ["Auto", "Ask"], hints: { Auto: "sends your booking link when they want to book, move or cancel", Ask: "tells them a person will confirm, never sends the link, and lands the thread in Needs you" } },
-  { id: "reengage", cls: "reengage", label: "Re-engage quiet customers", note: "the win-back and save-our-number playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing", chip: "Re-engage", enforced: true },
-  { id: "campaign", cls: "campaign", label: "Standing offers", note: "the welcome and month's-offer playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing", chip: "Campaigns", enforced: true },
-  { id: "money", cls: "money", label: "Refunds · rates · negotiation", note: "always goes to you", chip: "Money", locked: true, enforced: true },
+  { id: "reply", cls: "reply", ...W("reply"), enforced: true },
+  { id: "faq", cls: "faq", ...W("faq"), enforced: true, modes: ["Auto", "Ask"], hints: { Auto: "answers from your business profile — never a price", Ask: "tells them a person will get back with the details, and lands the thread in Needs you" } },
+  { id: "book", cls: "booking", ...W("booking"), enforced: true, modes: ["Auto", "Ask"], hints: { Auto: "sends your booking link when they want to book, move or cancel", Ask: "tells them a person will confirm, never sends the link, and lands the thread in Needs you" } },
+  { id: "reengage", cls: "reengage", ...W("reengage"), enforced: true },
+  { id: "campaign", cls: "campaign", ...W("campaign"), enforced: true },
+  { id: "money", cls: "money", ...W("money"), locked: true, enforced: true },
 ];
 
 export interface PolicyRecordLike {

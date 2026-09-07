@@ -40,7 +40,7 @@ test("six triggers: four lists and cadences, two the calendar makes possible, ea
   assert.deepEqual(PLAYBOOK_TRIGGERS.map((t) => t.kind), ["list", "list", "list", "cadence", "visit", "visit"]);
   assert.equal(triggerOf("visit_tomorrow").cls, "booking", "the same setting that governs bookings governs their reminders");
   assert.equal(triggerOf("visited").cls, "reengage");
-  assert.equal(PLAYBOOK_CLASS_LABEL.booking, "Booking");
+  assert.equal(PLAYBOOK_CLASS_LABEL.booking, "Bookings");
   assert.equal(scheduleLine({ trigger: "visit_tomorrow", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }), "Daily 10:00 · everyone with a visit tomorrow · up to 25");
   assert.equal(scheduleLine({ trigger: "visited", run_hour: 18, cap_per_run: 25, gap_days: 90, cadence_days: 30 }), "Daily 18:00 · everyone who visited yesterday · up to 25");
   assert.equal(scheduleLine({ trigger: "quiet_30", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }), "Daily 10:00 · up to 25 · once per person, again after 90 days", "the old lines are the old lines");
@@ -117,7 +117,7 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes("kind: t.kind") && sd.includes('calendar: people.calendar?.state ?? "none"'), "the page knows which triggers need the calendar, and whether there is one");
   const page = readCode("apps/dashboard/src/legacy/pages/outbound-real.jsx");
-  assert.ok(page.includes('booking: "Bookings"') && page.includes('trig.kind === "visit"') && page.includes("needs the calendar connected"), "the composer says it plainly");
+  assert.ok(page.includes("pbRowLabel(trig.cls)") && page.includes('trig.kind === "visit"') && page.includes("needs the calendar connected"), "the composer says it plainly");
   assert.ok(page.includes("one message per visit · people who asked to stop") && page.includes("the day's visits are picked from them"), "no gap and no breath are promised for a visit trigger");
   assert.ok(page.includes('visit_when: "tomorrow at 2:00 PM"') && page.includes('visit_service: "a balayage"'), "the preview shows the visit's words");
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
