@@ -56,8 +56,10 @@ test.describe("Settings → Integrations on a real workspace", () => {
     if ((await card.getByTestId("template-new").count()) > 0) {
       await card.getByTestId("template-new").click();
       await expect(card.getByTestId("tpl-composer")).toBeVisible();
-      // The starter set: five, each with its English and Spanish state.
-      await expect(card.getByTestId("starter-row")).toHaveCount(5);
+      // The starter set, as the library holds it, each with its English and Spanish state.
+      const starters = await page.evaluate(() => (window as unknown as { __starters?: { list: unknown[] } }).__starters?.list.length ?? 0);
+      expect(starters).toBeGreaterThanOrEqual(5);
+      await expect(card.getByTestId("starter-row")).toHaveCount(starters);
       await expect(card.getByTestId("starters")).toContainText("Win-back");
     }
   });

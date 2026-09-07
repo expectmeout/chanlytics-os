@@ -23,7 +23,7 @@ export const PLACES_TIMEOUT_MS = 10_000;
 
 export interface PlacesRequest {
   url: string;
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "PUT" | "DELETE";
   headers: Record<string, string>;
   body?: string;
 }

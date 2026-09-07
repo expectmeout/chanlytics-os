@@ -1787,7 +1787,6 @@ const PaneIntegrations = ({ flash }) => {
 
 const INT_NOT_AVAILABLE = [
   { name: "Instagram", desc: "Direct messages", icon: "instagram" },
-  { name: "Google Business Profile", desc: "Replies to reviews and the full history — arrives with Google's approval of the connection; the public listing is watched above", icon: "star" },
   { name: "Google Calendar", desc: "Two-way sync — for now, paste its iCal feed in Workspace and the receptionist reads it", icon: "calendar" },
   { name: "Stripe", desc: "Deposits and payments", icon: "money" },
   { name: "Email", desc: "An address the receptionist answers", icon: "mail" },
@@ -2061,14 +2060,31 @@ const GoogleCard = () => {
     return () => window.removeEventListener("surface:google", bump);
   }, []);
   const [busy, setBusy] = React.useState(false);
-  const [arm, setArm] = React.useState(false);
+  const [arm, setArm] = React.useState(null);
+  const [places, setPlaces] = React.useState(null);
+  // What the browser came back from Google with, said once, in the card itself.
+  const [note, setNote] = React.useState(() => {
+    const o = window.__google ? window.__google.outcome() : null;
+    if (!o) return null;
+    const W = window.__google.outcomeWords;
+    return W[o.why || ""] || W[o.outcome] || (o.outcome === "error" ? `Google did not connect (${o.why || "unknown"}).` : null);
+  });
   const [toastNode, flash] = window.usePPToast();
   const G = window.__GOOGLE;
   const W = window.__google && window.__google.words;
-  if (!G || !G.dto.ready.places || !W) return null;
+  const c = G ? G.dto.connection : null;
+  const pending = !!c && !c.location_name;
+  React.useEffect(() => {
+    if (!pending || !window.__google) return undefined;
+    let on = true;
+    window.__google.locations().then((r) => { if (on) setPlaces(r.ok ? r.locations : []); });
+    return () => { on = false; };
+  }, [pending]);
+  if (!G || !W || (!G.dto.ready.places && !G.dto.ready.profile && !G.dto.listing)) return null;
   const l = G.dto.listing;
   const owner = window.canDo ? window.canDo("team") : false;
   const operator = window.canDo ? window.canDo("approve") : false;
+  const plural = (n, one) => `${n} ${one}${n === 1 ? "" : "s"}`;
   const check = async () => {
     if (!window.__google || busy) return;
     setBusy(true);
@@ -2082,16 +2098,44 @@ const GoogleCard = () => {
     setBusy(true);
     const r = await window.__google.unlink();
     setBusy(false);
-    setArm(false);
-    flash({ msg: r.ok ? <>The listing is off the record, with what was read from it.</> : <>{r.message}</> });
+    setArm(null);
+    flash({ msg: r.ok ? <>The listing is off the record, with what was read from it{c ? " — and the Business Profile is disconnected" : ""}.</> : <>{r.message}</> });
   };
-  const plural = (n, one) => `${n} ${one}${n === 1 ? "" : "s"}`;
+  const disconnect = async () => {
+    if (!window.__google || busy) return;
+    setBusy(true);
+    const r = await window.__google.disconnect();
+    setBusy(false);
+    setArm(null);
+    setPlaces(null);
+    flash({ msg: r.ok ? <>Google is disconnected. The public listing stays; replies and the full history do not.</> : <>{r.message}</> });
+  };
+  const choose = async (p) => {
+    if (!window.__google || busy) return;
+    setBusy(true);
+    const r = await window.__google.choose(p.account_name, p.location_name);
+    setBusy(false);
+    flash({ msg: r.ok ? <><b>{p.title}</b> is your listing on Google{r.read ? " — every review is on Reports now" : " — the reviews follow within the hour"}.</> : <>{r.message}</> });
+    if (r.ok) setPlaces(null);
+  };
+  const profileReady = G.dto.ready.profile;
+  const profileHint = !profileReady
+    ? "Replies to reviews and the full history arrive with the Business Profile connection, not yet available here."
+    : owner
+      ? "Sign in to Google once; every review and the right to answer them follow. Nothing here changes your listing."
+      : "An owner connects it; every review and the right to answer them follow.";
   return (
     <section className="fl-card set-card" data-testid="google-card">
       <div className="fl-card-head">
         <span className="fl-card-title">Google</span>
         <span className="fl-card-sub">{l ? W.checked(l, Date.now()) : "Your listing on Google Maps"}</span>
       </div>
+      {note && (
+        <div className="set-row" data-testid="google-note">
+          <div className="set-row-info"><span className="set-row-hint">{note}</span></div>
+          <button className="cl-bucket-link" onClick={() => setNote(null)}>Ok</button>
+        </div>
+      )}
       {l ? (
         <div className="set-int-row" data-testid="google-listing">
           <span className="st-tile installed set-int-tile"><Icon name="star" size={14} /></span>
@@ -2103,13 +2147,13 @@ const GoogleCard = () => {
             </span>
           </span>
           {l.check_error ? <span className="pill pill-warn">Could not be read</span> : <span className="pill pill-ok"><span className="dot" />Watched</span>}
-          {operator && !arm && <button className="btn btn-sm" onClick={check} disabled={busy} data-testid="google-check">{busy ? "Reading…" : "Check now"}</button>}
-          {owner && !arm && <button className="cl-bucket-link" onClick={() => setArm(true)} disabled={busy} data-testid="google-remove">Remove</button>}
-          {arm && (
-            <span className="set-row-hint">Remove the listing and what was read from it? <button className="cl-bucket-link" disabled={busy} onClick={remove} data-testid="google-remove-yes">Yes, remove</button> <button className="cl-bucket-link" onClick={() => setArm(false)}>No</button></span>
+          {operator && arm !== "remove" && <button className="btn btn-sm" onClick={check} disabled={busy} data-testid="google-check">{busy ? "Reading…" : c && c.location_name ? "Sync now" : "Check now"}</button>}
+          {owner && arm !== "remove" && <button className="cl-bucket-link" onClick={() => setArm("remove")} disabled={busy} data-testid="google-remove">Remove</button>}
+          {arm === "remove" && (
+            <span className="set-row-hint">Remove the listing and what was read from it{c ? ", and disconnect Google" : ""}? <button className="cl-bucket-link" disabled={busy} onClick={remove} data-testid="google-remove-yes">Yes, remove</button> <button className="cl-bucket-link" onClick={() => setArm(null)}>No</button></span>
           )}
         </div>
-      ) : (
+      ) : G.dto.ready.places ? (
         <div className="set-row" data-testid="google-none">
           <div className="set-row-info">
             <span className="set-row-label">Your listing on Google</span>
@@ -2117,10 +2161,55 @@ const GoogleCard = () => {
           </div>
           {owner && <button className="btn btn-primary btn-sm" onClick={() => window.appNavigate && window.appNavigate("admin/setup")} data-testid="google-find">Find it on Setup</button>}
         </div>
+      ) : null}
+      {c && !pending ? (
+        <div className="set-int-row" data-testid="google-profile">
+          <span className="st-tile installed set-int-tile"><Icon name="shield" size={14} /></span>
+          <span className="set-team-body">
+            <span className="set-team-name">Google Business Profile{c.location_title ? <span className="dim"> · {c.location_title}</span> : null}</span>
+            <span className="set-team-mail">{W.connection(c, Date.now())}</span>
+          </span>
+          {c.sync_error ? <span className="pill pill-warn">Could not sync</span> : <span className="pill pill-ok"><span className="dot" />Connected</span>}
+          {owner && arm !== "disconnect" && <button className="cl-bucket-link" onClick={() => setArm("disconnect")} disabled={busy} data-testid="google-disconnect">Disconnect</button>}
+          {arm === "disconnect" && (
+            <span className="set-row-hint">Disconnect Google? The public listing stays; replies and the full history do not. <button className="cl-bucket-link" disabled={busy} onClick={disconnect} data-testid="google-disconnect-yes">Yes, disconnect</button> <button className="cl-bucket-link" onClick={() => setArm(null)}>No</button></span>
+          )}
+        </div>
+      ) : c && pending ? (
+        <div className="set-row set-row-stack" data-testid="google-choose">
+          <div className="set-row-info">
+            <span className="set-row-label">Which location is this workspace?</span>
+            <span className="set-row-hint">{W.connection(c, Date.now())}. {places === null ? "Reading the locations…" : places.length === 0 ? "No location on Google Maps could be read. Try again, or disconnect and connect the right account." : "Pick one; every review of it follows."}</span>
+          </div>
+          {places && places.length > 0 && (
+            <div className="setup-places" data-testid="google-places">
+              {places.map((p) => (
+                <div key={`${p.account_name}/${p.location_name}`} className="setup-place" data-testid="google-place">
+                  <span className="setup-place-body">
+                    <span className="setup-place-name">{p.title}</span>
+                    <span className="setup-place-where">{p.address || "no address on Google"}{p.account_title ? ` · ${p.account_title}` : ""}</span>
+                  </span>
+                  {owner && <button className="btn btn-primary btn-sm" onClick={() => choose(p)} disabled={busy} data-testid="google-place-choose">This is it</button>}
+                </div>
+              ))}
+            </div>
+          )}
+          {owner && <button className="cl-bucket-link" onClick={disconnect} disabled={busy} data-testid="google-choose-disconnect">Disconnect instead</button>}
+        </div>
+      ) : (
+        <div className="set-row" data-testid="google-profile-none">
+          <div className="set-row-info">
+            <span className="set-row-label">Google Business Profile</span>
+            <span className="set-row-hint">{profileHint}</span>
+          </div>
+          {!profileReady
+            ? <span className="pill">Not available</span>
+            : owner && <button className="btn btn-primary btn-sm" onClick={() => window.__google && window.__google.connect()} disabled={busy} data-testid="google-connect">Connect Google</button>}
+        </div>
       )}
       <div className="set-row">
         <div className="set-row-info">
-          <span className="set-row-hint">Read once a day from the public listing: Google shows the five reviews it finds most relevant and counts every rating. Replies and the full history arrive with the Business Profile connection, not yet available.</span>
+          <span className="set-row-hint">The public listing is read once a day: Google shows the five reviews it finds most relevant and counts every rating. The Business Profile, connected, carries every review and the replies you send from Reports.</span>
         </div>
       </div>
       {toastNode}

@@ -28,25 +28,26 @@ test.describe("Google on a real workspace", () => {
   test("Setup, Reports and Integrations follow the platform's readiness, then the listing", async ({ page }) => {
     const { data } = await (await page.request.get("/api/v1/google")).json();
     const ready: boolean = data.google.ready.places;
+    const profile: boolean = data.google.ready.profile;
     const linked = !!data.google.listing;
 
     await page.goto("/#/admin/setup");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("setup-readiness")).toBeVisible();
     const row = page.getByTestId("setup-row-google");
-    if (!ready) {
+    if (!ready && !profile) {
       await expect(row).toHaveCount(0);
     } else {
       await expect(row).toBeVisible();
       await expect(row).toContainText("Your Google listing");
       await expect(row.locator(".cl-attn-status .lead")).toHaveText(linked ? /^(Ready|Waiting on Google)$/ : "Not started");
-      if (!linked) await expect(row.getByTestId("setup-verb")).toHaveText("Find it");
+      if (!linked) await expect(row.getByTestId("setup-verb")).toHaveText(ready ? "Find it" : "Connect");
     }
 
     await page.goto("/#/reports");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("reports-real")).toBeVisible();
-    if (!ready) {
+    if (!ready && !profile) {
       await expect(page.getByTestId("google-none")).toHaveCount(0);
       await expect(page.getByTestId("google-tiles")).toHaveCount(0);
     } else if (!linked) {
@@ -61,9 +62,33 @@ test.describe("Google on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("channels")).toBeVisible();
     const card = page.getByTestId("google-card");
-    if (!ready) await expect(card).toHaveCount(0);
-    else await expect(card).toContainText(linked ? /Watched|Could not be read/ : "Your listing on Google");
-    // The second door is named, never drawn as a button.
-    await expect(page.getByTestId("not-available")).toContainText("Google Business Profile");
+    if (!ready && !profile) {
+      await expect(card).toHaveCount(0);
+    } else {
+      // The second door is named either way: a Connect button for an owner where it is open, "Not available" where it is not.
+      await expect(card).toContainText("Google Business Profile");
+      if (ready) await expect(card).toContainText(linked ? /Watched|Could not be read/ : "Your listing on Google");
+      if (!profile) await expect(card.getByTestId("google-profile-none")).toContainText("Not available");
+      await expect(JSON.stringify(await (await page.request.get("/api/v1/google")).json())).not.toMatch(/refresh_token|access_token|credentials_ref/);
+    }
+  });
+
+  test("the way to Google refuses politely where the door is closed, and never leaks the state key", async ({ page }) => {
+    const { data } = await (await page.request.get("/api/v1/google")).json();
+    const res = await page.request.get("/api/v1/google/connect", { maxRedirects: 0 });
+    if (!data.google.ready.profile) {
+      expect([403, 409]).toContain(res.status());
+    } else {
+      expect(res.status()).toBe(302);
+      const to = res.headers()["location"] ?? "";
+      expect(to).toMatch(/^https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/);
+      expect(to).toContain("access_type=offline");
+      expect(to).toContain("prompt=consent");
+      expect(to).not.toMatch(/client_secret/);
+    }
+    // A forged state is refused before anything is trusted.
+    const back = await page.request.get("/api/v1/google/callback?code=x&state=forged.forged", { maxRedirects: 0 });
+    expect(back.status()).toBe(302);
+    expect(back.headers()["location"] ?? "").toMatch(/google=error&why=(state_signature|not_available)/);
   });
 });

@@ -120,7 +120,11 @@ var EVENT_KINDS = [
   /** The workspace's listing on Google: linked, removed, and a read that found new reviews or ratings. */
   "google.linked",
   "google.unlinked",
-  "google.reviews"
+  "google.reviews",
+  /** The owner's Business Profile: connected, disconnected, and a review answered from here. */
+  "google.connected",
+  "google.disconnected",
+  "google.replied"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
@@ -222,7 +226,13 @@ var DECISION_VERBS = [
   "cancel_broadcast",
   /** A playbook started or paused: subject 'playbook'. Its runs are send_broadcast rows. */
   "start_playbook",
-  "pause_playbook"
+  "pause_playbook",
+  /**
+   * An answer to a review on Google, in the business's own words: subject
+   * 'review' (the row's id), payload the words and when Google took them.
+   * Replaces the previous answer; Google keeps one per review.
+   */
+  "reply_review"
 ];
 var DECISION_SUBJECTS = [
   "conversation",
@@ -237,7 +247,8 @@ var DECISION_SUBJECTS = [
   "call",
   "channel",
   "broadcast",
-  "playbook"
+  "playbook",
+  "review"
 ];
 var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
 var TEMPLATE_STATUSES = ["approved", "pending", "rejected", "paused", "disabled"];
@@ -5304,6 +5315,14 @@ function checkedWords(l, nowMs) {
   if (l.checked_at) return `Checked ${agoWords(Date.parse(l.checked_at), nowMs)}`;
   return "Not read yet";
 }
+function connectionWords(c, nowMs) {
+  const who = c.google_email ? `Connected as ${c.google_email}` : "Connected";
+  if (!c.location_name) return `${who} \xB7 choose the location to finish`;
+  if (c.sync_error && c.last_synced_at) return `${who} \xB7 could not sync since ${agoWords(Date.parse(c.last_synced_at), nowMs)} \u2014 tried again every hour`;
+  if (c.sync_error) return `${who} \xB7 could not sync yet \u2014 tried again every hour`;
+  if (c.last_synced_at) return `${who} \xB7 synced ${agoWords(Date.parse(c.last_synced_at), nowMs)}`;
+  return `${who} \xB7 not synced yet`;
+}
 function reviewSnippet(body, max = 90) {
   const t = (body ?? "").replace(/\s+/g, " ").trim();
   if (!t) return "";
@@ -5342,8 +5361,10 @@ function toGoogleReviewVM(r, linkedAt, nowMs) {
     when: whenWords(r.published_at, nowMs),
     text: (r.body ?? "").replace(/\s+/g, " ").trim(),
     replied: !!r.reply_text,
+    replyText: (r.reply_text ?? "").replace(/\s+/g, " ").trim(),
     mapsUri: r.maps_uri,
-    isNew: reviewIsNew(r, linkedAt, nowMs)
+    isNew: reviewIsNew(r, linkedAt, nowMs),
+    fromProfile: r.origin === "profile"
   };
 }
 var EMPTY_GAINED = { points: [], max: 0, total: null, sinceLabel: null };
@@ -5375,10 +5396,14 @@ function gainedOver(days, periodDays) {
 }
 function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
   const l = dto.listing;
+  const c = dto.connection ?? null;
+  const connection = c ? { email: c.google_email, location: c.location_title, words: connectionWords(c, nowMs), pending: !c.location_name, trouble: !!c.sync_error } : null;
+  const canReply = !!c && !!c.location_name;
   const table = { columns: ["Reviewer", "Stars", "Written", "Words"], rows: [] };
-  if (!l) return { listing: null, tiles: [], gained: EMPTY_GAINED, latest: [], table, todayLine: null };
+  if (!l) return { listing: null, connection, canReply, tiles: [], gained: EMPTY_GAINED, latest: [], source: "", table, todayLine: null };
   const latest = [...dto.reviews].sort((a, b) => (Date.parse(b.published_at ?? "") || 0) - (Date.parse(a.published_at ?? "") || 0)).map((r) => toGoogleReviewVM(r, l.linked_at, nowMs));
   table.rows = latest.map((r) => [r.author, r.rating ?? "\u2014", r.when || "\u2014", r.text || "\u2014"]);
+  const source = canReply ? "every review, from your Business Profile" : `the ${latest.length === 1 ? "one" : latest.length} Google shows first`;
   const days = [...dto.days].sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
   const { current: gained, previous } = gainedOver(days, periodDays);
   const noun = `${periodDays} days`;
@@ -5423,7 +5448,7 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
       id: "newest",
       label: "Newest review",
       value: newest?.when || "\u2014",
-      meta: newest ? `${newest.stars} \xB7 ${newest.author}` : "none of the five Google shows has a date",
+      meta: newest ? `${newest.stars} \xB7 ${newest.author}` : canReply ? "no review yet" : "none of the five Google shows has a date",
       delta: null,
       spark: []
     }
@@ -5440,9 +5465,12 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
       mapsUri: l.maps_uri,
       trouble: !!l.check_error
     },
+    connection,
+    canReply,
     tiles,
     gained,
     latest,
+    source,
     table,
     todayLine
   };
@@ -5575,12 +5603,16 @@ function setupSteps(i, nowMs = Date.now()) {
   if (i.google?.ready) {
     const g = i.google.listing;
     const title = "Your Google listing";
+    const connected = i.google.connected === true;
+    const reach = connected ? "Business Profile connected \u2014 every review, replies from Reports" : "New reviews reach your bell and Reports";
     if (g && g.check_error) {
       row({ id: "google", icon: "star", title, state: "waiting_them", stateWords: "Waiting on Google", required: false, sentence: `${g.name} is on record, but Google could not be read${g.checked_at ? ` since ${agoWords(Date.parse(g.checked_at), nowMs)}` : " yet"} \u2014 it is tried again every hour.`, details: [], verb: { label: "Open Reports", to: "reports" } });
     } else if (g) {
-      row({ id: "google", icon: "star", title, state: "ready", required: false, sentence: `${listingLine(g)}.`, details: [g.checked_at ? `Checked ${agoWords(Date.parse(g.checked_at), nowMs)}` : "Not read yet", "New reviews reach your bell and Reports"], verb: { label: "Open Reports", to: "reports" } });
-    } else {
+      row({ id: "google", icon: "star", title, state: "ready", required: false, sentence: `${listingLine(g)}.`, details: [g.checked_at ? `Checked ${agoWords(Date.parse(g.checked_at), nowMs)}` : "Not read yet", reach], verb: { label: "Open Reports", to: "reports" } });
+    } else if (i.google.places !== false) {
       row({ id: "google", icon: "star", title, state: "not_started", required: false, sentence: "Find your business on Google so new reviews reach you here.", details: [i.business.address ? "Uses the name and address on record" : "Add your address in Workspace for a surer match"], verb: { label: "Find it", to: "verb:google-find" } });
+    } else {
+      row({ id: "google", icon: "star", title, state: "not_started", required: false, sentence: "Connect your Google Business Profile so every review reaches you here.", details: ["Sign in to Google once, on Integrations"], verb: { label: "Connect", to: "admin/integrations" } });
     }
   }
   const open = rows.filter((r) => r.state !== "ready" && !r.later);
@@ -5866,6 +5898,7 @@ export {
   closedOn,
   compareTemplates,
   composeSystemPrompt,
+  connectionWords,
   consentSourceLabel,
   contactMeta,
   contactName,

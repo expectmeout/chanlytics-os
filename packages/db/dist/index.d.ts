@@ -1239,6 +1239,71 @@ type Database = {
                 };
                 Relationships: [];
             };
+            google_connections: {
+                Row: {
+                    account_name: string;
+                    account_title: string | null;
+                    connected_at: string;
+                    connected_by: string | null;
+                    created_at: string;
+                    credentials_ref: string | null;
+                    facts: Json;
+                    google_email: string | null;
+                    google_sub: string | null;
+                    last_synced_at: string | null;
+                    location_name: string | null;
+                    location_title: string | null;
+                    scopes: string[];
+                    sync_error: string | null;
+                    tenant_id: string;
+                    updated_at: string;
+                };
+                Insert: {
+                    account_name: string;
+                    account_title?: string | null;
+                    connected_at?: string;
+                    connected_by?: string | null;
+                    created_at?: string;
+                    credentials_ref?: string | null;
+                    facts?: Json;
+                    google_email?: string | null;
+                    google_sub?: string | null;
+                    last_synced_at?: string | null;
+                    location_name?: string | null;
+                    location_title?: string | null;
+                    scopes?: string[];
+                    sync_error?: string | null;
+                    tenant_id: string;
+                    updated_at?: string;
+                };
+                Update: {
+                    account_name?: string;
+                    account_title?: string | null;
+                    connected_at?: string;
+                    connected_by?: string | null;
+                    created_at?: string;
+                    credentials_ref?: string | null;
+                    facts?: Json;
+                    google_email?: string | null;
+                    google_sub?: string | null;
+                    last_synced_at?: string | null;
+                    location_name?: string | null;
+                    location_title?: string | null;
+                    scopes?: string[];
+                    sync_error?: string | null;
+                    tenant_id?: string;
+                    updated_at?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "google_connections_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: true;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             google_listing_days: {
                 Row: {
                     day: string;
@@ -2385,6 +2450,12 @@ type Database = {
                 };
                 Returns: number;
             };
+            drop_google_credentials: {
+                Args: {
+                    p_tenant_id: string;
+                };
+                Returns: boolean;
+            };
             ensure_events_partition: {
                 Args: {
                     p_month: string;
@@ -2432,6 +2503,12 @@ type Database = {
             get_cron_sweep_key: {
                 Args: never;
                 Returns: string;
+            };
+            get_google_credentials: {
+                Args: {
+                    p_tenant_id: string;
+                };
+                Returns: Json;
             };
             get_line_credentials: {
                 Args: {
@@ -2629,6 +2706,13 @@ type Database = {
                 Args: {
                     p_channel_id: string;
                     p_secret: Json;
+                };
+                Returns: string;
+            };
+            put_google_credentials: {
+                Args: {
+                    p_secret: Json;
+                    p_tenant_id: string;
                 };
                 Returns: string;
             };

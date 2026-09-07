@@ -4,7 +4,7 @@ import { parseTenantConfigResult, starterByName, type SetupDto } from "@chanlyti
 import { calendarWeek } from "@/server/calendar";
 import { teamRoster } from "@/server/service";
 import { linesFor, linesStatus } from "@/server/lines";
-import { listingFor, googleReadiness } from "@/server/google";
+import { listingFor, connectionFor, googleReadiness } from "@/server/google";
 
 /**
  * GET /api/v1/setup — what the workspace has, for the Setup page.
@@ -23,7 +23,7 @@ export const GET = withRoute(async (req, ctx) => {
   const tenantId = member.tenantId;
   const now = new Date();
 
-  const [cfgRow, channels, lastMsg, lastCall, templates, calendar, team, yes, requested, lineRows, lineStatus, listing, google] = await Promise.all([
+  const [cfgRow, channels, lastMsg, lastCall, templates, calendar, team, yes, requested, lineRows, lineStatus, listing, google, connection] = await Promise.all([
     getTenantConfig(supabase, tenantId),
     supabase.from("tenant_channels").select("kind, status, number_e164, config").eq("tenant_id", tenantId),
     supabase.from("messages").select("channel_ts, created_at").eq("tenant_id", tenantId).eq("direction", "inbound").eq("channel", "whatsapp")
@@ -40,6 +40,7 @@ export const GET = withRoute(async (req, ctx) => {
     linesStatus(),
     listingFor(supabase, tenantId),
     googleReadiness(),
+    connectionFor(supabase, tenantId),
   ]);
   if (channels.error) throw new Error(channels.error.message);
   if (lastMsg.error) throw new Error(lastMsg.error.message);
@@ -103,8 +104,10 @@ export const GET = withRoute(async (req, ctx) => {
     requests: { line: requested.data?.created_at ?? null },
     lines: { rows: lineRows, ready: lineStatus.ready, provider: lineStatus.provider, costs: { local_number_month_usd: lineStatus.costs.local_number_month_usd } },
     google: {
-      ready: google.places,
+      ready: google.places || google.profile,
+      places: google.places,
       listing: listing ? { name: listing.name, rating: listing.rating, review_count: listing.review_count, checked_at: listing.checked_at, check_error: listing.check_error } : null,
+      connected: !!connection?.location_name,
     },
   };
   return { setup, role: member.role };
