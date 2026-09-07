@@ -192,6 +192,10 @@ export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
     case "none":
       return { ...base, headline: "No subscription yet", detail: dto.ready ? `Start the ${dto.trial_days}-day trial with a card; nothing is charged until it ends, and you can cancel from here any time.` : "Billing is not available on this deployment yet.", tone: "warn", actions: { checkout: dto.ready, portal: false, resume: false }, paused: false };
     case "trialing":
+      // Cancelled during the trial: Stripe keeps the subscription trialing and sets cancel_at to the trial's end.
+      if (a.cancel_at || a.cancel_at_period_end) {
+        return { ...base, headline: "On trial, ending", detail: `Cancelled: the receptionist answers until ${dayWords(a.cancel_at ?? a.trial_end) || "the trial ends"}, then stops, and nothing is charged. Undo it from Manage billing before then to keep it.`, tone: "warn", actions: { checkout: false, portal: true, resume: false }, paused: false };
+      }
       return { ...base, headline: "On trial", detail: `${trialWords(a.trial_end, nowMs)}${card ? `, then ${plan || "the plan"} on ${card}` : ""}.`, tone: "ok", actions: { checkout: false, portal: true, resume: false }, paused: false };
     case "active":
       return { ...base, headline: a.cancel_at_period_end || a.cancel_at ? "Subscribed, ending" : "Subscribed", detail: a.cancel_at || a.cancel_at_period_end ? `Ends ${dayWords(a.cancel_at ?? a.current_period_end)}; the receptionist answers until then.` : `Next invoice ${dayWords(a.current_period_end) || "on the renewal date"}${card ? ` on ${card}` : ""}.`, tone: "ok", actions: { checkout: false, portal: true, resume: false }, paused: false };
@@ -218,6 +222,9 @@ export interface SetupBillingFacts {
   trial_end: string | null;
   current_period_end: string | null;
   trial_days: number;
+  /** Set when the subscription is cancelled ahead: it runs out on that day. */
+  cancel_at?: string | null;
+  cancel_at_period_end?: boolean;
 }
 
 /** The words the pages say for what came back from Stripe (the query the card reads once). */

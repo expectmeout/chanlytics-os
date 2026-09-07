@@ -6493,6 +6493,9 @@ interface SetupBillingFacts {
     trial_end: string | null;
     current_period_end: string | null;
     trial_days: number;
+    /** Set when the subscription is cancelled ahead: it runs out on that day. */
+    cancel_at?: string | null;
+    cancel_at_period_end?: boolean;
 }
 /** The words the pages say for what came back from Stripe (the query the card reads once). */
 declare const CHECKOUT_OUTCOME_WORDS: Record<string, string>;
