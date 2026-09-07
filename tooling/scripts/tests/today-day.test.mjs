@@ -73,5 +73,5 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   const manifest = readCode("apps/dashboard/src/legacy-bridge/manifest.ts");
   assert.ok(manifest.indexOf('"@/legacy/pages/dashboard-a-day.jsx"') < manifest.indexOf('"@/legacy/pages/dashboard-a.jsx"'));
   const css = readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css");
-  assert.ok(css.includes(".td-day {") && css.includes(".td-frame.today .td-frame-label") && css.includes("@media (max-width: 900px) {\n  .dash-a-v2-core { grid-template-columns: 1fr; }"));
+  assert.ok(css.includes(".td-day {") && css.includes(".td-frame.today .td-frame-label") && css.includes('grid-template-areas: "time title" "time person";') && css.includes("-webkit-line-clamp: 2;") && !readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx").includes("cal-agenda") && css.includes("@media (max-width: 900px) {\n  .dash-a-v2-core { grid-template-columns: 1fr; }"));
 });

@@ -35,23 +35,29 @@ const TodayDay = () => {
         <div key={d.key} className={`td-frame ${d.today ? "today" : ""}`} data-testid="today-day-frame">
           <div className="td-frame-head">
             <span className="td-frame-label">{d.label}</span>
-            {d.closed.yes && <span className="cal-closed-chip">Closed{d.closed.note ? ` · ${d.closed.note}` : ""}</span>}
+            {d.closed.yes
+              ? <span className="td-frame-note">Closed{d.closed.note ? ` · ${d.closed.note}` : ""}</span>
+              : d.items.length > 0 && <span className="td-frame-note tabular">{d.items.length} booked</span>}
           </div>
+          {/* Time beside, title and person stacked: a long title wraps under
+              itself instead of into a three-line column, and a long name
+              never squeezes the title. The column is 320px wide; the words
+              on it are whatever the business's calendar says. */}
           {d.items.length > 0 ? (
-            <div className="cal-agenda-items">
+            <div className="td-items">
               {d.items.map((b) => (
-                <button key={b.id} className="cal-agenda-item" onClick={() => open(b)} title={b.person ? `Open ${b.person.name}` : "Open the Calendar"} data-testid="today-day-item">
-                  <span className="cal-agenda-time tabular">{b.allDay ? "all day" : b.time}</span>
-                  <span className="cal-agenda-title">{b.title}</span>
-                  {b.person && <span className="cal-agenda-person">{b.person.name}</span>}
+                <button key={b.id} className="td-item" onClick={() => open(b)} title={b.person ? `Open ${b.person.name}` : "Open the Calendar"} data-testid="today-day-item">
+                  <span className="td-item-time tabular">{b.allDay ? "All day" : b.time}</span>
+                  <span className="td-item-title">{b.title}</span>
+                  {b.person && <span className="td-item-person">{b.person.name}</span>}
                 </button>
               ))}
             </div>
-          ) : (!d.closed.yes && <div className="cal-agenda-empty">Nothing on the calendar.</div>)}
+          ) : (!d.closed.yes && <div className="td-empty">Nothing on the calendar.</div>)}
           {d.open.length > 0 && (
-            <div className="cal-agenda-open">
-              <span className="cal-agenda-open-label">Open:</span>
-              {d.open.map((w) => <span key={w} className="cal-agenda-window">{w}</span>)}
+            <div className="td-open">
+              <span className="td-open-label">Open</span>
+              {d.open.map((w) => <span key={w} className="td-window">{w}</span>)}
             </div>
           )}
         </div>
