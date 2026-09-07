@@ -4541,6 +4541,16 @@ var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
 var BOOTSTRAP_MS = 3600 * 1e3;
 var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS3 = 7 * 864e5;
+var SIGNUP_NAME_MIN = 2;
+var SIGNUP_NAME_MAX = 120;
+var SignupSchema = external_exports.object({
+  name: external_exports.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: external_exports.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
+  timezone: external_exports.string().trim().min(1).max(64).optional(),
+  /** The invite code, when sign-up is by invitation. */
+  code: external_exports.string().trim().max(80).optional()
+}).strict();
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -9182,6 +9192,16 @@ var REVIEW_NEWS_MAX_AGE_MS2 = 14 * 864e5;
 var BOOTSTRAP_MS2 = 3600 * 1e3;
 var DATE_FMT52 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS32 = 7 * 864e5;
+var SIGNUP_NAME_MIN2 = 2;
+var SIGNUP_NAME_MAX2 = 120;
+var SignupSchema2 = external_exports2.object({
+  name: external_exports2.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
+  email: external_exports2.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
+  timezone: external_exports2.string().trim().min(1).max(64).optional(),
+  /** The invite code, when sign-up is by invitation. */
+  code: external_exports2.string().trim().max(80).optional()
+}).strict();
 
 // ../db/dist/index.js
 var __defProp3 = Object.defineProperty;
@@ -13678,6 +13698,16 @@ var REVIEW_NEWS_MAX_AGE_MS3 = 14 * 864e5;
 var BOOTSTRAP_MS3 = 3600 * 1e3;
 var DATE_FMT53 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS33 = 7 * 864e5;
+var SIGNUP_NAME_MIN3 = 2;
+var SIGNUP_NAME_MAX3 = 120;
+var SignupSchema3 = external_exports3.object({
+  name: external_exports3.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
+  email: external_exports3.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
+  timezone: external_exports3.string().trim().min(1).max(64).optional(),
+  /** The invite code, when sign-up is by invitation. */
+  code: external_exports3.string().trim().max(80).optional()
+}).strict();
 async function recordOutbound(db, p) {
   const { data, error } = await db.from("messages").insert({
     tenant_id: p.tenantId,

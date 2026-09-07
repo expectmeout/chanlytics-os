@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { clearSurfaceCache } from "@/legacy-bridge/surface-cache";
 
@@ -74,7 +74,7 @@ export default function LoginPage() {
   // step — otherwise every sign-in starts with a dead click into the page.
   useEffect(() => { fieldRef.current?.focus(); }, [stage]);
 
-  function startCooldown() {
+  const startCooldown = useCallback(() => {
     setCooldown(RESEND_COOLDOWN_S);
     if (cooldownTimer.current) clearInterval(cooldownTimer.current);
     cooldownTimer.current = setInterval(() => {
@@ -83,7 +83,21 @@ export default function LoginPage() {
         return Math.max(0, s - 1);
       });
     }, 1000);
-  }
+  }, []);
+
+  // Arriving from sign-up: the code is already on its way to this address, so
+  // the page opens at the code step for it. Read on the client, once; the
+  // query never reaches a server log of this page's own making.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const e = q.get("email");
+    if (e && q.get("sent") === "1") {
+      setEmail(e);
+      setStage("code");
+      startCooldown();
+      window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+    }
+  }, [startCooldown]);
 
   async function sendCode(e?: React.FormEvent) {
     e?.preventDefault();
@@ -199,7 +213,7 @@ export default function LoginPage() {
       <div role="alert" aria-live="assertive">
         {error && <div className="error">{error}</div>}
       </div>
-      <div className="hint">Access is invite-only. Ask your Chanlytics contact to add you.</div>
+      <div className="hint">New to Chanlytics? <a href="/signup">Create your workspace</a></div>
     </main>
   );
 }

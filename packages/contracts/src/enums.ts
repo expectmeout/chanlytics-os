@@ -91,6 +91,7 @@ export const EVENT_KINDS = [
   "google.connected",
   "google.disconnected",
   "google.replied",
+  "workspace.created",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 

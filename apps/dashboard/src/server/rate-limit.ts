@@ -70,6 +70,9 @@ export const RATE = {
   lines_retry: { limit: 10, windowMs: 3_600_000, noun: "line retries" },
   lines_forwarding: { limit: 10, windowMs: 3_600_000, noun: "forwarding changes" },
   profile_set: { limit: 10, windowMs: 3_600_000, noun: "name changes" },
+  /** A stranger at the door: per network they came from and per address they typed. */
+  signup_ip: { limit: 5, windowMs: 3_600_000, noun: "sign-ups" },
+  signup_email: { limit: 3, windowMs: 3_600_000, noun: "sign-ups" },
   /** Each is a paid call to Google, made for an owner who typed a few words. */
   google_search: { limit: 20, windowMs: 3_600_000, noun: "listing searches" },
   google_link: { limit: 10, windowMs: 3_600_000, noun: "listing changes" },
