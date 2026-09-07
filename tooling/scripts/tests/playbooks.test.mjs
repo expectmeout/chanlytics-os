@@ -150,8 +150,8 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
   assert.ok(svc.includes("/api/admin/playbooks-run") && svc.includes("export async function runPlaybookNow("), "through the edge, production only");
   const check = readCode("apps/dashboard/src/server/playbooks.ts");
   assert.ok(check.includes('if (tpl.meta_status !== "approved") throw new AppError("conflict"') && check.includes("This message takes the booking link, and none is on file."), "checked the way a broadcast is");
-  const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-  assert.ok(brief.includes('data-testid="brief-run-row"') && brief.includes('r.state === "pending_approval"'), "Today shows a run that waits, from the surface it already has");
+  const queue = readCode("apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
+  assert.ok(queue.includes('testid="brief-run-row"') && queue.includes('r.state === "pending_approval"'), "Today's queue shows a run that waits, from the surface it already has");
   const bridge = readCode("apps/dashboard/src/legacy-bridge/playbooks.ts");
   assert.ok(bridge.includes("refreshSurfaces([playbooksOverride, broadcastsOverride])"), "every write re-fetches both surfaces");
   const surface = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");

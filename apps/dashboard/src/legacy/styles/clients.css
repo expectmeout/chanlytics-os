@@ -1677,3 +1677,8 @@
   .cl-attn-cta { grid-column: 2; justify-self: start; }
   .cl-attn-list, .cl-attn-empty { min-height: 0; }
 }
+
+/* The row's verbs: the one button, and where a state asks a second thing of
+   you, a quiet second (attention-bits.jsx draws them for People and Today). */
+.cl-attn-acts { display: inline-flex; align-items: center; gap: 6px; }
+.cl-attn-row.tone-warn .cl-attn-status .lead { color: var(--warn); }

@@ -23,95 +23,170 @@ const AgentCommand = () => {
     window.addEventListener("surface:today", bump);
     return () => window.removeEventListener("surface:today", bump);
   }, []);
-  return window.TODAY_DATA ? <AgentCommandReal vm={window.TODAY_DATA} /> : <AgentCommandSeed />;
+  return window.TODAY_DATA ? <TodayQueue vm={window.TODAY_DATA} /> : <AgentCommandSeed />;
 };
 
-const AgentCommandReal = ({ vm }) => {
-  const rows = vm.needsYou ? vm.needsYou.rows : [];
+// Needs you: ONE list in the strip's row grammar (attention-bits.jsx) —
+// WhatsApp handoffs, callers who need a call back, reply windows closing,
+// calls worth an ear (contracts/today.ts queue), and the playbook runs that
+// wait for a word or sit under a Stop (the broadcasts surface) — the longest
+// wait first, each with its one verb and, where the state asks it, a second.
+// A call in progress rides above the list while it lasts.
+const useSurfaceTick = (name) => {
+  const [, bump] = React.useReducer((n) => n + 1, 0);
+  React.useEffect(() => {
+    window.addEventListener(name, bump);
+    return () => window.removeEventListener(name, bump);
+  }, [name]);
+};
+
+const tqClock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+const LiveRail = ({ nav }) => {
+  useSurfaceTick("surface:live");
+  const [nowMs, setNowMs] = React.useState(Date.now());
+  const L = window.__LIVE;
+  // The heartbeat rule, re-applied between refreshes, the way the Live page does.
+  const live = L ? L.now.filter((c) => nowMs - (c.heartbeatAtMs || c.startedAtMs || 0) < L.heartbeatMs) : [];
+  const count = live.length;
+  React.useEffect(() => {
+    if (!count) return undefined;
+    const t = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, [count]);
+  if (!count) return null;
+  return live.map((c) => {
+    const last = [...c.transcript].reverse().find((t) => t.speaker !== "whisper");
+    const elapsed = Math.max(0, Math.floor((nowMs - (c.startedAtMs || nowMs)) / 1000));
+    return (
+      <div key={c.callId} className="tq-live" data-testid="brief-live-call">
+        <span className="live-dot" />
+        <span className="tq-live-text">
+          <b>{c.who}</b> is on the line · {tqClock(elapsed)}
+          {last ? <span className="tq-live-last"> · {last.speaker === "client" ? c.whoShort : "Receptionist"}: &ldquo;{last.text.slice(0, 90)}&rdquo;</span> : null}
+        </span>
+        <button className="cl-attn-cta primary" onClick={() => nav("live")}>Open Live</button>
+      </div>
+    );
+  });
+};
+
+// A playbook's run that waits for a person, or one under the veto window —
+// scheduled, not yet sending — as rows of the same grammar, with Approve or
+// Stop where the button goes. What already went out is the hero's receipt.
+const runRows = (nav, flash) => {
+  const all = (window.__BROADCASTS && window.__BROADCASTS.rows) || [];
+  const waiting = all.filter((r) => r.state === "pending_approval");
+  const soon = all.filter((r) => r.state === "scheduled" && r.playbook_id && Date.parse(r.scheduled_for) > Date.now());
+  const people = (r) => `${r.recipient_count} ${r.recipient_count === 1 ? "person" : "people"}`;
+  const can = window.canDo && window.canDo("approve");
+  const stop = async (r) => {
+    if (!can || !window.__broadcasts) return;
+    const res = await window.__broadcasts.cancel(r.id);
+    if (res.ok && window.__refreshPlaybooks) window.__refreshPlaybooks();
+    flash(res.ok ? { msg: <><b>{r.audience.label}</b> stopped — nothing sends</> } : { msg: <>{res.message}</> });
+  };
+  const approve = async (r) => {
+    if (!can || !window.__broadcasts) return;
+    const res = await window.__broadcasts.approve(r.id);
+    if (res.ok && window.__refreshPlaybooks) window.__refreshPlaybooks();
+    const n = res.ok ? (res.data.recipient_count || r.recipient_count) : 0;
+    flash(res.ok ? { msg: <><b>{r.audience.label}</b> approved — {n} {n === 1 ? "person" : "people"}, sending now</> } : { msg: <>{res.message}</> });
+  };
+  return [
+    ...waiting.map((r) => (
+      <window.AttnRow
+        key={`run-${r.id}`}
+        initials="▶"
+        glyph="bolt"
+        name={r.audience.label}
+        meta="Playbook · ready"
+        sentence={`${people(r)} · nothing sends until you say so`}
+        status={["Waiting for your approval"]}
+        tone="escalated"
+        cta={{ label: "Approve", kind: "primary", onClick: () => approve(r) }}
+        also={{ label: "Open Playbooks", onClick: () => nav("outbound") }}
+        onOpen={() => nav("outbound")}
+        testid="brief-run-row"
+      />
+    )),
+    ...soon.map((r) => (
+      <window.AttnRow
+        key={`run-${r.id}`}
+        initials="▶"
+        glyph="bolt"
+        name={r.audience.label}
+        meta={`Playbook · sends ${r.when}`}
+        sentence={`${people(r)} · stop it if you'd rather not`}
+        status={["Scheduled", `sends ${r.when}`]}
+        tone="warn"
+        cta={{ label: "Open", kind: "primary", onClick: () => nav("broadcasts") }}
+        also={{ label: "Stop", onClick: () => stop(r), gate: window.gate("approve") }}
+        onOpen={() => nav("broadcasts")}
+        testid="brief-run-soon"
+      />
+    )),
+  ];
+};
+
+const TodayQueue = ({ vm }) => {
+  useSurfaceTick("surface:broadcasts");
   const [toastNode, ppFlash] = window.usePPToast();
   const nav = (to) => window.appNavigate && window.appNavigate(to);
-
-  const snooze = async (r) => {
+  const verb = async (r, which) => {
     if (!(window.canDo && window.canDo("approve"))) return;
     const res = await window.__inboxVerb(
-      { conversationId: r.conversationId, escalationId: r.escalationId, who: r.who },
-      "snooze", {},
+      { conversationId: r.also.conversationId, escalationId: r.also.escalationId, who: r.who },
+      which, {},
     );
     ppFlash(res.ok
-      ? { msg: <><b>{r.who}</b> snoozed — hidden until they wake or reply</> }
-      : { msg: <>Couldn&rsquo;t snooze — {res.message}</> });
+      ? { msg: which === "snooze" ? <><b>{r.who}</b> snoozed — hidden until they wake or reply</> : <><b>{r.who}</b> — done, the receptionist has the thread back</> }
+      : { msg: <>Couldn&rsquo;t {which === "snooze" ? "snooze" : "resolve"} — {res.message}</> });
   };
-
-  const insight = rows.length === 0
-    ? (vm.needsYou && vm.needsYou.empty) || "Queue clear — the receptionist is answering on its own."
-    : `${rows.length} waiting on you. The receptionist paused and is holding until you answer — the oldest has waited ${rows[0].waited}.`;
-
+  const rows = vm.queue.rows;
+  const runs = runRows(nav, ppFlash);
+  const total = rows.length + runs.length + vm.queue.more;
+  const oldest = rows.length ? rows[0].when.replace(/^waited /, "") : null;
   return (
-    <section className="ac">
-      <div className="ac-bar">
-        <span className="ac-bar-title">Agent Command</span>
-        <div className="ac-seg" role="tablist" aria-label="Queue bucket">
-          <button role="tab" aria-selected="true" className={`ac-seg-btn active ${rows.length > 0 ? "urgent" : ""}`}>
-            Now
-            <span className="ac-seg-count tabular">{rows.length}</span>
-          </button>
-        </div>
-        <div className="ac-bar-r">
-          <button className="btn btn-ghost btn-sm ac-bar-inbox" onClick={() => nav("inbox")}>
-            Open Inbox <Icon name="arrow-right" size={11} />
-          </button>
-        </div>
+    <section className="tq" data-testid="today-queue">
+      <div className="tq-head">
+        <span className="tq-title">Needs you</span>
+        <span className={`tq-count tabular ${total ? "" : "calm"}`}>{total}</span>
+        <span className="tq-sub">
+          {total === 0 ? "nothing waiting on you" : rows[0] && rows[0].kind !== "call" && rows[0].kind !== "window" && oldest ? `the longest has waited ${oldest}` : "in the order they came"}
+        </span>
+        <button className="btn btn-ghost btn-sm" onClick={() => nav("inbox")}>Open Inbox <Icon name="arrow-right" size={11} /></button>
       </div>
-
-      <div className="ac-insight">
-        <Icon name="sparkle" size={12} style={{ color: "var(--accent)", flexShrink: 0, marginTop: 3 }} />
-        <p className="ac-insight-text">{insight}</p>
-      </div>
-
-      <div className="ac-list">
-        {rows.length === 0 && (
-          <div className="ac-empty">
-            <div className="ac-empty-line"><Icon name="check" size={16} style={{ color: "var(--ok)" }} /> All caught up — nothing needs you here.</div>
-          </div>
-        )}
+      <LiveRail nav={nav} />
+      <div className="tq-list">
         {rows.map((r) => (
-          <article key={r.id} className="dr is-now">
-            <div className="dr-top">
-              <div className="dr-l1">
-                <span className="dr-kind">WhatsApp</span>
-                <span className="dr-who">{r.who}</span>
-                <Icon name="chat" size={11} className="dr-chan" />
-                <span className="dr-grow" />
-                <span className="dr-time mono" style={r.warn ? { color: "var(--warn)" } : undefined}>waited {r.waited}</span>
-              </div>
-              <div className="dr-detail">
-                {r.reason}
-                {r.quote ? <> · &ldquo;{r.quote}&rdquo;</> : null}
-                <span className="dr-meta"> · {r.meta}{r.windowNote ? ` · ${r.windowNote}` : ""}</span>
-              </div>
-            </div>
-            <div className="dr-foot">
-              <span className="dr-agent">
-                <span className="agent-avatar active">W</span>
-                <strong>WhatsApp Receptionist</strong>
-                <span className="dr-agent-state">paused — waiting on you</span>
-              </span>
-              <div className="dr-acts">
-                <button className="btn btn-sm btn-primary" onClick={() => nav(r.to)}>Open and reply</button>
-                <button className="btn btn-ghost btn-sm" onClick={() => snooze(r)} {...window.gate("approve")}>Snooze</button>
-              </div>
-            </div>
-          </article>
+          <window.AttnRow
+            key={r.id}
+            initials={r.initials}
+            glyph={r.channel === "Phone" && /^[+\d(]/.test(r.who) ? "phone" : null}
+            name={r.who}
+            meta={`${r.channel} · ${r.when}`}
+            sentence={r.sentence}
+            quoted={r.quoted}
+            status={r.status}
+            tone={r.tone}
+            cta={{ label: r.cta.label, kind: "primary", onClick: () => nav(r.cta.to) }}
+            also={r.also ? { label: r.also.label, onClick: () => verb(r, r.also.verb), gate: window.gate("approve"), testid: `queue-${r.also.verb}` } : null}
+            onOpen={() => nav(r.cta.to)}
+            testid={`queue-${r.kind}`}
+          />
         ))}
-        {rows.length > 0 && (
-          <div className="ac-list-foot">
-            <span className="ac-list-foot-meta">{rows.length} needing your call</span>
-            <button className="btn btn-ghost btn-sm" onClick={() => nav("inbox")}>
-              View all in Inbox <Icon name="arrow-right" size={11} />
-            </button>
-          </div>
+        {runs}
+        {total === 0 && (
+          <div className="tq-empty"><Icon name="check" size={14} style={{ color: "var(--ok)" }} /> All caught up — the receptionist is answering on its own.</div>
         )}
       </div>
+      {vm.queue.more > 0 && (
+        <div className="tq-foot">
+          <span>{vm.queue.more} more in the Inbox</span>
+          <button className="cl-attn-cta ghost" onClick={() => nav("inbox")}>See all</button>
+        </div>
+      )}
       {toastNode}
     </section>
   );

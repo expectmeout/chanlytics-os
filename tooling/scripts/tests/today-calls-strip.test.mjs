@@ -23,18 +23,20 @@ import { readCode, readRaw } from "./_source.mjs";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { wantsRefresh } = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/legacy-bridge/surface-realtime.ts")).href);
 
-test("the brief draws the call in progress first, and the calls worth an ear after the people who need you", () => {
+test("Today draws the call in progress first, then the people who need you, the windows closing, and the calls worth an ear last", () => {
+  // The queue (dashboard-a-command.jsx) owns the order now; the hero keeps the narrative.
+  const queue = readRaw("apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
+  const rail = queue.indexOf("<LiveRail nav={nav} />");
+  const rows = queue.indexOf("{rows.map((r) => (");
+  assert.ok(rail > 0 && rail < rows, "REGRESSION: a customer on the line was invisible on Today");
+  assert.ok(queue.includes('data-testid="brief-live-call"') && queue.includes('nav("live")'));
+  const vm = readRaw("packages/contracts/src/today.ts");
+  const esc = vm.indexOf("for (const e of openEsc) {");
+  const win = vm.indexOf("for (const c of closingConvs) {");
+  const ear = vm.indexOf("for (const r of callRows) {");
+  assert.ok(esc > 0 && esc < win && win < ear && vm.includes("waitedMs: Number.NEGATIVE_INFINITY"), "a voicemail is worth an ear, after the people waiting on you");
   const brief = readRaw("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-  const live = brief.indexOf('data-testid="brief-live-call"');
-  const detail = brief.indexOf("{standing.detail && !standing.alert && (");
-  const needs = brief.indexOf("{(needsYou ? needsYou.rows.slice(0, 2) : []).map((r) => (");
-  const ear = brief.indexOf('data-testid="brief-call-row"');
-  const closing = brief.indexOf("{(windowClosing ? windowClosing.rows : []).map((r) => (");
-  assert.ok(live > 0 && live < detail, "REGRESSION: a customer on the line was invisible on Today");
-  assert.ok(needs < ear && ear < closing, "a voicemail is worth an ear, after the people waiting on you");
-  assert.ok(brief.includes('r.to === "live"'));
-  assert.ok(brief.includes('nav("live")'));
-  assert.ok(brief.includes('r.to !== "live").slice(0, 2)'), "the region stays short");
+  assert.ok(!brief.includes('data-testid="brief-live-call"') && !brief.includes('data-testid="brief-call-row"'), "the hero no longer repeats the queue");
 });
 
 const NOW = new Date("2026-09-04T15:00:00.000Z");

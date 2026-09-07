@@ -861,38 +861,25 @@ const PL_TAB_TONE = { needs_you: "var(--accent)", waiting_on_you: "var(--warn)",
 // One row of the strip: the name, where and when, one sentence, one state
 // line, one button (contracts/people.ts attentionRow). The row opens the
 // profile; the button is the thread, when there is one.
+// One row of the strip: the person, in the shared grammar (attention-bits.jsx
+// window.AttnRow); the words come from contracts/people.ts attentionRow. The
+// row opens the profile; the button is the thread, when there is one.
 const AttentionRow = ({ p, a, onOpen }) => {
   const numbered = plIsNumber(p.name);
-  const open = () => onOpen(p.id);
   const toThread = () => window.CHANLY.nav(window.CHANLY.R.thread(p.threadId));
   return (
-    <div
-      className={`cl-attn-row tone-${a ? a.tone : "answering"}`}
-      role="button"
-      tabIndex={0}
-      onClick={open}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } }}
-      data-testid="attention-row"
-    >
-      <div className={`cl-attn-avatar ${numbered ? "glyph" : ""}`} title={numbered ? "No name yet" : undefined}>
-        {numbered ? <Icon name="phone" size={12} /> : p.initials}
-      </div>
-      <div className="cl-attn-body">
-        <div className="cl-attn-name">
-          <span className="cl-attn-who">{p.name}</span>
-          {a && <span className="cl-attn-meta">{a.channel ? `${a.channel} · ${a.when}` : a.when}</span>}
-        </div>
-        <div className={`cl-attn-sentence ${a && a.quoted ? "quoted" : ""}`}>{a ? (a.quoted ? `\u201C${a.sentence}\u201D` : a.sentence) : ""}</div>
-        <div className="cl-attn-status">
-          {a && a.status.map((seg, i) => (
-            <span key={i} className={i === 0 ? "lead" : ""}>{i > 0 && <span className="sep"> · </span>}{seg}</span>
-          ))}
-        </div>
-      </div>
-      {a && a.cta && p.threadId && (
-        <button className={`cl-attn-cta ${a.cta.kind}`} onClick={(e) => { e.stopPropagation(); toThread(); }} data-testid="attention-cta">{a.cta.label}</button>
-      )}
-    </div>
+    <window.AttnRow
+      initials={p.initials}
+      glyph={numbered ? "phone" : null}
+      name={p.name}
+      meta={a ? (a.channel ? `${a.channel} · ${a.when}` : a.when) : ""}
+      sentence={a ? a.sentence : ""}
+      quoted={!!(a && a.quoted)}
+      status={a ? a.status : []}
+      tone={a ? a.tone : "answering"}
+      cta={a && a.cta && p.threadId ? { label: a.cta.label, kind: a.cta.kind, onClick: toThread } : null}
+      onOpen={() => onOpen(p.id)}
+    />
   );
 };
 

@@ -30,6 +30,7 @@ import "@/legacy/data/calendar-data.jsx";
 import "@/legacy/data/reports-data.jsx";
 import "@/legacy/data/tasks-data.jsx";
 import "@/legacy/data/people-data.jsx";
+import "@/legacy/pages/attention-bits.jsx";
 import "@/legacy/pages/dashboard-a-brief.jsx";
 import "@/legacy/pages/dashboard-a-command.jsx";
 import "@/legacy/pages/dashboard-a-live.jsx";

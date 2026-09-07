@@ -11,40 +11,21 @@
 // A playbook's run that waited for a person: the sweep found people and the
 // class is set to ask. Read from the Broadcasts surface, which boots with the
 // rest, so Today needs no fetch of its own. Approve here, or open Playbooks.
-const RunsWaiting = ({ nav, flash }) => {
+const RunsDone = ({ nav }) => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
   React.useEffect(() => {
     window.addEventListener("surface:broadcasts", bump);
     return () => window.removeEventListener("surface:broadcasts", bump);
   }, []);
   const all = (window.__BROADCASTS && window.__BROADCASTS.rows) || [];
-  // A run that waits for a person, and a run under the veto window — a
-  // playbook's, scheduled, not yet sending — with a Stop while there is time.
-  const waiting = all.filter((r) => r.state === "pending_approval");
-  const soon = all.filter((r) => r.state === "scheduled" && r.playbook_id && Date.parse(r.scheduled_for) > Date.now());
-  // What went out today — a playbook's run or a broadcast — with what it has earned so far.
+  // What went out today — a playbook's run or a broadcast — with what it has
+  // earned so far. The runs that wait for a word, and the ones under a Stop,
+  // are rows of the queue (dashboard-a-command.jsx).
   const dayStart = new Date();
   dayStart.setHours(0, 0, 0, 0);
-  const done = all.filter((r) => (r.state === "sent" || r.state === "sending") && r.started_at && Date.parse(r.started_at) >= dayStart.getTime());
-  const rows = [...waiting, ...soon, ...done].slice(0, 3);
+  const done = all.filter((r) => (r.state === "sent" || r.state === "sending") && r.started_at && Date.parse(r.started_at) >= dayStart.getTime()).slice(0, 2);
   const timeOf = (iso) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  const stop = async (r) => {
-    if (!(window.canDo && window.canDo("approve")) || !window.__broadcasts) return;
-    const res = await window.__broadcasts.cancel(r.id);
-    if (res.ok && window.__refreshPlaybooks) window.__refreshPlaybooks();
-    flash(res.ok ? { msg: <><b>{r.audience.label}</b> stopped — nothing sends</> } : { msg: <>{res.message}</> });
-  };
-  const approve = async (r) => {
-    if (!(window.canDo && window.canDo("approve")) || !window.__broadcasts) return;
-    const res = await window.__broadcasts.approve(r.id);
-    if (res.ok && window.__refreshPlaybooks) window.__refreshPlaybooks();
-    const n = res.ok ? (res.data.recipient_count || r.recipient_count) : 0;
-    flash(res.ok
-      ? { msg: <><b>{r.audience.label}</b> approved — {n} {n === 1 ? "person" : "people"}, sending now</> }
-      : { msg: <>{res.message}</> });
-  };
-  const people = (r) => `${r.recipient_count} ${r.recipient_count === 1 ? "person" : "people"}`;
-  return rows.map((r) => (r.state === "sent" || r.state === "sending" ? (
+  return done.map((r) => (
     <div key={`run-${r.id}`} className="brief-beat" data-testid="brief-run-done">
       <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
       <span className="brief-beat-text">
@@ -52,29 +33,7 @@ const RunsWaiting = ({ nav, flash }) => {
       </span>
       <button className="brief-chip" onClick={() => nav("broadcasts")}>Open <Icon name="arrow-right" size={10} /></button>
     </div>
-  ) : r.state === "pending_approval" ? (
-    <div key={`run-${r.id}`} className="brief-beat" data-testid="brief-run-row">
-      <span className="brief-beat-dot" style={{ background: "var(--accent)" }} />
-      <span className="brief-beat-text">
-        <b>{r.audience.label}</b> is ready — {people(r)} · nothing sends until you say so
-      </span>
-      <span className="brief-beat-acts">
-        <button className="brief-chip primary" onClick={() => approve(r)} {...window.gate("approve")}>Approve</button>
-        <button className="brief-chip" onClick={() => nav("outbound")}>Open Playbooks <Icon name="arrow-right" size={10} /></button>
-      </span>
-    </div>
-  ) : (
-    <div key={`run-${r.id}`} className="brief-beat" data-testid="brief-run-soon">
-      <span className="brief-beat-dot" style={{ background: "var(--warn)" }} />
-      <span className="brief-beat-text">
-        <b>{r.audience.label}</b> sends {r.when} — {people(r)} · stop it if you'd rather not
-      </span>
-      <span className="brief-beat-acts">
-        <button className="brief-chip" onClick={() => stop(r)} {...window.gate("approve")}>Stop</button>
-        <button className="brief-chip" onClick={() => nav("broadcasts")}>Open <Icon name="arrow-right" size={10} /></button>
-      </span>
-    </div>
-  )));
+  ));
 };
 
 // The day on the calendar, from the Calendar surface that boots with the
@@ -113,30 +72,15 @@ const HeroBrief = () => {
 };
 
 const HeroBriefReal = ({ vm }) => {
-  const { standing, needsYou, windowClosing, recap, pulse, launchpad, quiet, calls } = vm;
-  // The VM has carried these rows since the Calls slice: the call in progress,
-  // the one that reached voicemail, the one whose caller was angry. Nothing
-  // rendered them, so a customer could be ON THE LINE while the page built to
-  // say what is happening said nothing about it.
-  const callRows = calls ? calls.rows : [];
-  const liveCalls = callRows.filter((r) => r.to === "live");
-  const earCalls = callRows.filter((r) => r.to !== "live").slice(0, 2);
-  const [toastNode, ppFlash] = window.usePPToast();
+  // The rows — who needs you, a caller to call back, a closing window, a call
+  // worth an ear, a call in progress — are the queue's (dashboard-a-command.jsx).
+  // The hero keeps what the queue cannot say: the day in sentences.
+  const { standing, needsYou, recap, pulse, quiet } = vm;
+  const [toastNode] = window.usePPToast();
   const nav = (to) => window.appNavigate && window.appNavigate(to);
   const up = standing.chips.filter((c) => c.ok).length;
   const total = standing.chips.length;
   const waiting = needsYou ? needsYou.count : 0;
-
-  const snooze = async (r) => {
-    if (!(window.canDo && window.canDo("approve"))) return;
-    const res = await window.__inboxVerb(
-      { conversationId: r.conversationId, escalationId: r.escalationId, who: r.who },
-      "snooze", {},
-    );
-    ppFlash(res.ok
-      ? { msg: <><b>{r.who}</b> snoozed — hidden until they wake or reply</> }
-      : { msg: <>Couldn&rsquo;t snooze — {res.message}</> });
-  };
 
   return (
     <header className="brief">
@@ -158,13 +102,6 @@ const HeroBriefReal = ({ vm }) => {
             </span>
           </h1>
           <div className="brief-beats">
-            {liveCalls.map((r) => (
-              <div key={`live-${r.id}`} className="brief-beat" data-testid="brief-live-call">
-                <span className="brief-beat-dot" style={{ background: "var(--accent)" }} />
-                <span className="brief-beat-text"><b>{r.who}</b> is on the phone line right now · since {r.at}</span>
-                <button className="brief-chip primary" onClick={() => nav("live")}>Open Live <Icon name="arrow-right" size={10} /></button>
-              </div>
-            ))}
             {standing.detail && !standing.alert && (
               <div className="brief-beat">
                 <span className="brief-beat-dot" />
@@ -191,34 +128,7 @@ const HeroBriefReal = ({ vm }) => {
                 )}
               </div>
             ))}
-            {(needsYou ? needsYou.rows.slice(0, 2) : []).map((r) => (
-              <div key={r.id} className="brief-beat">
-                <span className="brief-beat-dot" />
-                <span className="brief-beat-text">
-                  <b>{r.who}</b> — {r.reason} · waited <b style={r.warn ? { color: "var(--warn)" } : undefined}>{r.waited}</b>
-                  {r.quote ? <> · &ldquo;{r.quote}&rdquo;</> : null}
-                </span>
-                <span className="brief-beat-acts">
-                  <button className="brief-chip primary" onClick={() => nav(r.to)}>Open and reply</button>
-                  <button className="brief-chip" onClick={() => snooze(r)} {...window.gate("approve")}>Snooze</button>
-                </span>
-              </div>
-            ))}
-            {earCalls.map((r) => (
-              <div key={`call-${r.id}`} className="brief-beat" data-testid="brief-call-row">
-                <span className="brief-beat-dot" style={{ background: "var(--warn)" }} />
-                <span className="brief-beat-text"><b>{r.who}</b> — {r.note} · {r.at}{r.duration ? ` · ${r.duration}` : ""}</span>
-                <button className="brief-chip" onClick={() => nav(r.to)}>Open the call <Icon name="arrow-right" size={10} /></button>
-              </div>
-            ))}
-            {(windowClosing ? windowClosing.rows : []).map((r) => (
-              <div key={r.id} className="brief-beat">
-                <span className="brief-beat-dot" style={{ background: "var(--warn)" }} />
-                <span className="brief-beat-text">{r.text}</span>
-                <button className="brief-chip" onClick={() => nav(r.to)}>Open thread <Icon name="arrow-right" size={10} /></button>
-              </div>
-            ))}
-            <RunsWaiting nav={nav} flash={ppFlash} />
+            <RunsDone nav={nav} />
             <CalendarLine nav={nav} />
             {(recap ? recap.receipts.slice(0, 1) : []).map((r, i) => (
               <div key={i} className="brief-beat">
