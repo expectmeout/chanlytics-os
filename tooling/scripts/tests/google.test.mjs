@@ -354,7 +354,7 @@ test("the dashboard: owners link and search, operators read, members look; the p
   assert.ok(page.includes('window.canDo("team")'), "linking is an owner's move on the page too");
   const reports = readCode("apps/dashboard/src/legacy/pages/reports.jsx");
   assert.ok(reports.includes("<GoogleSection days={R.days} />") && reports.includes("if (!G || (!G.dto.ready.places && !G.dto.ready.profile && !G.dto.listing) || !window.__google) return null;"));
-  assert.ok(reports.includes("sub={vm.latest.length ? vm.source : \"\"}"), "the source is named");
+  assert.ok(reports.includes('vm.reply.words ? `${vm.source} · ${vm.reply.words}` : vm.source'), "the source is named, and what the receptionist does under a new review beside it");
   const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
   assert.ok(brief.includes("<ReviewLine nav={nav} />") && brief.includes('data-testid="brief-review"'));
   const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");

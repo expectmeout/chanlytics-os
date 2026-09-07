@@ -622,13 +622,29 @@ const RpSources = ({ rows }) => {
 // under the review, a few lines, Send. Google keeps one reply per review,
 // so sending again replaces it. Shown only when the Business Profile is
 // connected and the review came through it.
-const ReviewReply = ({ r }) => {
+// The composer under a review. Under Ask (and Auto, for one the receptionist
+// has not reached), opening it asks the receptionist for a draft first, so a
+// reply is one tap: read, change anything, send. Under Never the box opens
+// empty and nothing is asked.
+const ReviewReply = ({ r, mode }) => {
   const [open, setOpen] = React.useState(false);
   const [text, setText] = React.useState(r.replyText || "");
   const [busy, setBusy] = React.useState(false);
+  const [drafting, setDrafting] = React.useState(false);
+  // null · "yes" (the words in the box are the receptionist's) · a sentence saying why there is none
+  const [drafted, setDrafted] = React.useState(null);
   const [toastNode, flash] = window.usePPToast();
+  const openIt = async () => {
+    setOpen(true);
+    if (r.replied || mode === "never" || !window.__google || !window.__google.draft) return;
+    setDrafting(true);
+    const d = await window.__google.draft(r.id);
+    setDrafting(false);
+    if (d.ok) { setText(d.text); setDrafted("yes"); }
+    else setDrafted(d.message || "No draft this time — write the reply yourself.");
+  };
   const send = async () => {
-    if (!window.__google || busy || !text.trim()) return;
+    if (!window.__google || busy || drafting || !text.trim()) return;
     setBusy(true);
     const res = await window.__google.reply(r.id, text);
     setBusy(false);
@@ -639,12 +655,14 @@ const ReviewReply = ({ r }) => {
     <div className="rp2-review-reply">
       {r.replied && !open && <p className="rp2-review-replytext"><b>You replied:</b> {r.replyText}</p>}
       {!open ? (
-        <button className="cl-bucket-link" onClick={() => setOpen(true)} data-testid="google-reply">{r.replied ? "Change the reply" : "Reply"}</button>
+        <button className="cl-bucket-link" onClick={openIt} data-testid="google-reply">{r.replied ? "Change the reply" : "Reply"}</button>
       ) : (
         <div className="rp2-review-composer" data-testid="google-reply-composer">
-          <textarea className="rp2-review-textarea" rows={3} value={text} maxLength={4096} onChange={(e) => setText(e.target.value)} placeholder="Thank them, or answer them — it appears on Google under the review, in the business's name." data-testid="google-reply-text" />
+          <textarea className="rp2-review-textarea" rows={3} value={text} maxLength={4096} disabled={drafting} onChange={(e) => { setText(e.target.value); if (drafted === "yes") setDrafted(null); }} placeholder={drafting ? "The receptionist is writing a draft…" : "Thank them, or answer them — it appears on Google under the review, in the business's name."} data-testid="google-reply-text" />
+          {drafted === "yes" && <span className="rp2-review-drafted" data-testid="google-reply-drafted">Drafted by the receptionist — change anything, then send.</span>}
+          {drafted && drafted !== "yes" && <span className="rp2-review-drafted dim" data-testid="google-reply-undrafted">{drafted}</span>}
           <div className="bc-chips">
-            <button className="btn btn-primary btn-sm" onClick={send} disabled={busy || !text.trim()} data-testid="google-reply-send">{busy ? "Sending…" : "Send to Google"}</button>
+            <button className="btn btn-primary btn-sm" onClick={send} disabled={busy || drafting || !text.trim()} data-testid="google-reply-send">{busy ? "Sending…" : "Send to Google"}</button>
             <button className="cl-bucket-link" onClick={() => setOpen(false)} disabled={busy}>Cancel</button>
           </div>
         </div>
@@ -696,7 +714,7 @@ const GoogleSection = ({ days }) => {
             ? <RpColumns points={vm.gained.points} field="gained" max={vm.gained.max} days={days} label="ratings gained" />
             : <div className="rp2-empty">The count is read once a day; the first difference shows after the second read.</div>}
         </RpCard>
-        <RpCard title="Latest reviews" sub={vm.latest.length ? vm.source : ""} testid="chart-google-latest" table={vm.table}>
+        <RpCard title="Latest reviews" sub={vm.latest.length ? (vm.reply.words ? `${vm.source} · ${vm.reply.words}` : vm.source) : ""} testid="chart-google-latest" table={vm.table}>
           {vm.latest.length ? (
             <div className="rp2-reviews">
               {vm.latest.map((r) => (
@@ -708,7 +726,7 @@ const GoogleSection = ({ days }) => {
                   </div>
                   {r.text ? <p className="rp2-review-text">{r.text}</p> : <p className="rp2-review-text dim">A rating without words.</p>}
                   {vm.canReply && operator && r.fromProfile
-                    ? <ReviewReply r={r} />
+                    ? <ReviewReply r={r} mode={vm.reply.mode} />
                     : r.replied ? <p className="rp2-review-replytext"><b>Replied:</b> {r.replyText}</p> : null}
                 </div>
               ))}

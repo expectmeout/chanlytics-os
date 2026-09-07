@@ -8,14 +8,15 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "./workspace/db.js";
-import { emitEvent } from "./workspace/db.js";
+import { emitEvent, listPolicies } from "./workspace/db.js";
 import {
   getPlace, placesFetch, planListingCheck, planProfileSync, searchPlaces,
   tokenExchangeRequest, tokenRefreshRequest, revokeRequest, parseTokenResponse, grantHasScope, idTokenClaims,
   listAccounts, listLocations, listReviews, replyToReview, reviewParent,
   type PlaceCandidate, type PlaceDetails, type OAuthClient, type GbpLocation, type PlacesHttp, type TokenGrant,
 } from "./workspace/channels.js";
-import { localDate } from "./workspace/contracts.js";
+import { autoReplyBell, autoReplyCandidates, localDate, parseTenantConfig, reviewReplyModeOf, type ReviewReplyFacts, type ReviewReplyMode } from "./workspace/contracts.js";
+import { draftReviewReply } from "./review-reply.js";
 import { recordNotification } from "./notify.js";
 import { logger } from "./log.js";
 
@@ -89,12 +90,93 @@ export async function readPlace(key: string, placeId: string): Promise<PlaceDeta
   return getPlace(http, key, placeId);
 }
 
-export type CheckResult = { ok: true; fresh: number; counted: number } | { ok: false; error: string };
+export type CheckResult = { ok: true; fresh: number; counted: number; answered?: number } | { ok: false; error: string };
 
 async function connectionOf(db: Db, tenantId: string): Promise<ConnectionRow | null> {
   const { data, error } = await db.from("google_connections").select("*").eq("tenant_id", tenantId).maybeSingle();
   if (error) throw new Error(error.message);
   return data;
+}
+
+/** The Autonomy row for reviews. No row reads as ask: a draft on request, nothing posted alone. */
+export async function reviewReplyMode(db: Db, tenantId: string): Promise<ReviewReplyMode> {
+  return reviewReplyModeOf(await listPolicies(db, tenantId));
+}
+
+/** What the receptionist knows about the business when it writes under a review: the name, the tone, the languages, the services — from the same profile the WhatsApp brain speaks from. */
+export async function reviewFacts(db: Db, tenantId: string): Promise<ReviewReplyFacts> {
+  const [t, c] = await Promise.all([
+    db.from("tenants").select("name").eq("id", tenantId).maybeSingle(),
+    db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+  ]);
+  if (t.error) throw new Error(t.error.message);
+  if (c.error) throw new Error(c.error.message);
+  const brain = parseTenantConfig(c.data?.config)?.brain ?? null;
+  const p = brain?.profile;
+  return {
+    name: brain?.business_name || t.data?.name || "the business",
+    tone: p?.tone?.trim() || null,
+    languages: p?.languages ?? [],
+    phone: brain?.phone_display || null,
+    website: p?.website ?? null,
+    services: (p?.services ?? []).map((s) => s.name),
+  };
+}
+
+/** A draft for one review on record, for a person to send. Never posts. */
+export async function draftFor(db: Db, tenantId: string, rowId: string): Promise<{ ok: true; text: string } | { ok: false; error: string; detail?: string }> {
+  const review = await db.from("google_reviews").select("id, rating, author, body, published_at").eq("tenant_id", tenantId).eq("id", rowId).maybeSingle();
+  if (review.error) return { ok: false, error: "review_read_failed", detail: review.error.message };
+  if (!review.data) return { ok: false, error: "no_review" };
+  const facts = await reviewFacts(db, tenantId);
+  const d = await draftReviewReply(facts, { rating: review.data.rating, author: review.data.author, text: review.data.body, written_at: review.data.published_at });
+  return d.ok ? { ok: true, text: d.text } : { ok: false, error: d.error, detail: d.detail };
+}
+
+/**
+ * Under the auto mode, the reviews that came in while the receptionist was
+ * on duty and have no reply yet are answered on Google, a few per sync
+ * (contracts autoReplyCandidates decides which). A draft that fails or a
+ * reply Google refuses is logged and left for the next hour; nothing here
+ * stops the sync that called it. Returns what was answered, for the bell.
+ */
+async function answerNewReviews(db: Db, conn: ConnectionRow, parent: string, now: Date): Promise<Array<{ id: string; author: string | null; text: string }>> {
+  const L = logger({ tenant: conn.tenant_id, location: conn.location_name ?? "" });
+  if ((await reviewReplyMode(db, conn.tenant_id)) !== "auto") return [];
+  const unreplied = await db
+    .from("google_reviews")
+    .select("id, review_id, origin, rating, author, body, published_at, reply_text")
+    .eq("tenant_id", conn.tenant_id)
+    .eq("origin", "profile")
+    .is("reply_text", null)
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .limit(20);
+  if (unreplied.error) throw new Error(unreplied.error.message);
+  const picks = autoReplyCandidates(unreplied.data ?? [], conn.connected_at, now.getTime());
+  if (!picks.length) return [];
+  const t = await tokenFor(db, conn.tenant_id, now.getTime());
+  if (!t.ok) return [];
+  const facts = await reviewFacts(db, conn.tenant_id);
+  const answered: Array<{ id: string; author: string | null; text: string }> = [];
+  for (const r of picks) {
+    const d = await draftReviewReply(facts, { rating: r.rating, author: r.author, text: r.body, written_at: r.published_at });
+    if (!d.ok) {
+      L.warn("google_auto_reply_undrafted", { id: r.id, error: d.error });
+      continue;
+    }
+    let reply;
+    try {
+      reply = await replyToReview(http, t.token, `${parent}/reviews/${r.review_id}`, d.text);
+    } catch (e) {
+      L.warn("google_auto_reply_refused", { id: r.id, error: e instanceof Error ? e.message : String(e) });
+      continue;
+    }
+    const up = await db.from("google_reviews").update({ reply_text: reply.reply_text, replied_at: reply.replied_at }).eq("id", r.id).eq("tenant_id", conn.tenant_id);
+    if (up.error) throw new Error(up.error.message);
+    await emitEvent(db, conn.tenant_id, "google.replied", "google", "review", r.id, { review_id: r.review_id, chars: d.text.length, by: "receptionist", usage: d.usage }).catch(() => {});
+    answered.push({ id: r.id, author: r.author, text: d.text });
+  }
+  return answered;
 }
 
 /**
@@ -467,11 +549,21 @@ export async function syncProfile(db: Db, conn: ConnectionRow, tz: string, now =
   for (const b of plan.bells) {
     await recordNotification(conn.tenant_id, { kind: "review", title: b.title, body: b.body, route: "reports", about: b.review_id ? { type: "review", id: b.review_id } : null });
   }
+  // The first sync is history, never answered. After that, the auto mode
+  // answers what came in on duty; a failure here is logged, not thrown.
+  const answered = first ? [] : await answerNewReviews(db, conn, reviewParent(conn.account_name, conn.location_name), now).catch((e) => {
+    L.warn("google_auto_reply_failed", { error: e instanceof Error ? e.message : String(e) });
+    return [];
+  });
+  const bell = autoReplyBell(answered);
+  if (bell) {
+    await recordNotification(conn.tenant_id, { kind: "review", title: bell.title, body: bell.body, route: "reports", about: answered.length === 1 ? { type: "review", id: answered[0].id } : null });
+  }
   if (plan.fresh.length) {
     await emitEvent(db, conn.tenant_id, "google.reviews", "google", "listing", null, { source: "profile", fresh: plan.fresh.length, counted: 0, rating: plan.listing?.rating ?? null, review_count: plan.listing?.review_count ?? null }).catch(() => {});
   }
-  L.info("google_profile_synced", { read: plan.reviews.length, fresh: plan.fresh.length, replied: plan.replied.length, first, rating: plan.listing?.rating ?? null, review_count: plan.listing?.review_count ?? null });
-  return { ok: true, fresh: plan.fresh.length, counted: 0 };
+  L.info("google_profile_synced", { read: plan.reviews.length, fresh: plan.fresh.length, replied: plan.replied.length, answered: answered.length, first, rating: plan.listing?.rating ?? null, review_count: plan.listing?.review_count ?? null });
+  return { ok: true, fresh: plan.fresh.length, counted: 0, answered: answered.length };
 }
 
 /** The grant given back to Google, the token gone from Vault, the row gone, the profile's reviews gone. The listing stays. */

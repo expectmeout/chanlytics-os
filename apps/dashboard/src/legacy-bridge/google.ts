@@ -3,8 +3,9 @@
  * last read them (/api/v1/google → window.__GOOGLE, repainted as the tables
  * change), the view model the Reports section and Today's line derive from
  * it (contracts/google.ts), and the verbs — find, link, unlink, refresh,
- * connect, locations, choose, disconnect, reply — each of which refreshes
- * this surface and Setup's, since the Setup row reads the same facts.
+ * connect, locations, choose, disconnect, reply, draft — each of which
+ * refreshes this surface and Setup's, since the Setup row reads the same
+ * facts; a draft touches nothing and refreshes nothing.
  */
 import {
   toGoogleVM, ratingWords, starsOf, listingLine, checkedWords, connectionWords, reviewSnippet,
@@ -40,6 +41,8 @@ export interface GoogleApi {
   disconnect(): Promise<{ ok: boolean; message: string }>;
   /** An answer to a review, on Google. Operators and owners. */
   reply(id: string, comment: string): Promise<{ ok: boolean; message: string }>;
+  /** The receptionist's draft of a reply, for the composer. Nothing is posted. Operators and owners; refused under Never, with the words for it. */
+  draft(id: string): Promise<{ ok: boolean; text: string; message: string }>;
   /** What the browser came back from Google with, read once and cleared: "connected", "choose", or an error and why. */
   outcome(): { outcome: string; why: string | null } | null;
   /** The words for each outcome, by the outcome or its reason. */
@@ -151,6 +154,10 @@ export function installGoogle(win: Window = window): void {
       const r = await send<{ reply_text: string }>(`/api/v1/google/reviews/${encodeURIComponent(id)}/reply`, "POST", { comment });
       if (r.ok) await refreshSurfaces([googleOverride]);
       return { ok: r.ok, message: r.message };
+    },
+    async draft(id) {
+      const r = await send<{ text: string }>(`/api/v1/google/reviews/${encodeURIComponent(id)}/draft`, "POST", {});
+      return { ok: r.ok && typeof r.data?.text === "string", text: r.data?.text ?? "", message: r.message };
     },
     outcome() {
       try {

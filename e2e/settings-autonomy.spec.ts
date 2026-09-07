@@ -8,8 +8,8 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
  * "12 auto-sent · 4% edited"), a veto row pointing at an invented draft, quiet
  * hours, outreach defaults and per-segment guardrails — none backed by a
  * column. The real pane renders the policies table: the reply row is a live
- * switch, money is locked, the other four say they are stored but not
- * enforced, and the hard limits are the runtime's actual numbers.
+ * switch, money is locked, every other row is one the receptionist consults
+ * (reviews included), and the hard limits are the runtime's actual numbers.
  *
  * Intercepts its own PUT, so the workspace's policy is never changed.
  */
@@ -31,7 +31,7 @@ test.describe("Settings → Autonomy on a real workspace", () => {
     for (const s of INVENTED) expect(text, `invented copy on the pane: "${s}"`).not.toContain(s);
 
     const rows = table.locator("tbody tr");
-    await expect(rows).toHaveCount(6);
+    await expect(rows).toHaveCount(7);
     // The reply row is the live switch: exactly one mode on, and it is enabled for an owner.
     const reply = rows.filter({ hasText: "Replies to customers" });
     await expect(reply.locator(".pol-dot.on")).toHaveCount(1);
@@ -56,6 +56,13 @@ test.describe("Settings → Autonomy on a real workspace", () => {
       await expect(row).toContainText("ask leaves it waiting on Today");
       await expect(row.locator(".pol-dot").first()).toBeEnabled();
     }
+
+    // Reviews offer Auto, Ask and Never; Veto is a dash. The row exists on every workspace, so one mode is on.
+    const reviews = rows.filter({ hasText: "Google reviews" });
+    await expect(reviews.locator(".pol-dash")).toHaveCount(1);
+    await expect(reviews.locator(".pol-dot")).toHaveCount(3);
+    await expect(reviews.locator(".pol-dot.on")).toHaveCount(1);
+    await expect(reviews.locator(".pol-dot").first()).toBeEnabled();
 
     // Hard limits are numbers the runtime actually uses.
     await expect(page.getByText(/Stops after \d+ automatic replies/)).toBeVisible();

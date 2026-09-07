@@ -17,6 +17,7 @@ test("each class offers only the modes the runtime honours", () => {
   assert.deepEqual(POLICY_CLASS_MODES.faq, ["auto", "ask"]);
   assert.deepEqual(POLICY_CLASS_MODES.reply, ["auto", "veto", "ask", "never"]);
   assert.deepEqual(POLICY_CLASS_MODES.money, ["never"]);
+  assert.deepEqual(POLICY_CLASS_MODES.reviews, ["auto", "ask", "never"]);
 });
 
 test("an intent falls under a class; ask is the only mode that changes anything; an unknown mode is treated as ask", () => {

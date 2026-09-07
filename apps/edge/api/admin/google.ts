@@ -14,6 +14,7 @@
  *   { op: "choose", tenant_id, user_id, account_name, location_name } → the chosen location becomes the listing, synced at once
  *   { op: "disconnect", tenant_id }                        → the grant given back, the token gone, the profile's reviews gone
  *   { op: "reply", tenant_id, user_id, id, comment }       → an answer to a review, on Google and on the row
+ *   { op: "draft", tenant_id, id }                         → the receptionist's draft of a reply, for a person to send; refused under Never
  *
  * The key and the client secret live here and nowhere else. Without them the
  * ops that need them say so, and the dashboard draws nothing it cannot do.
@@ -23,8 +24,8 @@ import { pg } from "../../lib/pg.js";
 import { emitEvent } from "../../lib/workspace/db.js";
 import { PLACE_ID, cleanReply } from "../../lib/workspace/channels.js";
 import {
-  bindLocation, checkListing, connectProfile, connectionForClient, disconnectProfile, findPlaces, googleReadiness, listingForClient,
-  locationsFor, placesKey, profilePublic, readPlace, replyOnProfile, syncProfile,
+  bindLocation, checkListing, connectProfile, connectionForClient, disconnectProfile, draftFor, findPlaces, googleReadiness, listingForClient,
+  locationsFor, placesKey, profilePublic, readPlace, replyOnProfile, reviewReplyMode, syncProfile,
 } from "../../lib/google.js";
 
 interface Body {
@@ -128,6 +129,21 @@ export async function POST(request: Request): Promise<Response> {
     return json(200, { ok: true, pending: r.pending, connection: connectionForClient(r.connection), ...(r.pending ? { locations: r.locations } : { read: r.read, listing: await listingNow() }) });
   }
 
+  if (op === "draft") {
+    const id = typeof body.id === "string" ? body.id.trim() : "";
+    if (!UUID.test(id)) return json(400, { ok: false, error: "id (the review's row) is required" });
+    // The Autonomy row is read here, once, for the dashboard's draft and the sweep's replies alike.
+    const mode = await reviewReplyMode(db, tenantId);
+    if (mode === "never") return json(409, { ok: false, error: "policy_never", mode });
+    const r = await draftFor(db, tenantId, id);
+    if (!r.ok) {
+      log("google_review_draft_failed", { id, error: r.error });
+      return json(r.error === "no_review" ? 404 : r.error === "no_model_key" ? 503 : 502, r);
+    }
+    log("google_review_drafted", { id, chars: r.text.length });
+    return json(200, { ok: true, text: r.text, mode });
+  }
+
   const conn = await db.from("google_connections").select("*").eq("tenant_id", tenantId).maybeSingle();
   if (conn.error) return json(503, { ok: false, error: conn.error.message });
 
@@ -194,5 +210,5 @@ export async function POST(request: Request): Promise<Response> {
     return json(read.ok ? 200 : 502, { ok: read.ok, read, listing: await listingNow(), connection: null });
   }
 
-  return json(400, { ok: false, error: "op must be status, search, link, unlink, refresh, connect, locations, choose, disconnect or reply" });
+  return json(400, { ok: false, error: "op must be status, search, link, unlink, refresh, connect, locations, choose, disconnect, reply or draft" });
 }
