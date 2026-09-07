@@ -220,7 +220,9 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
       </div>
       <div className="bc-meta">
         <Icon name="shield" size={11} />
-        <span>Only people with a recorded yes and a number · never twice within the gap · one playbook message per person per week, across playbooks · people who asked to stop or are mid-thread with a person are held back at the wire</span>
+        <span>{trig && trig.kind === "visit"
+          ? "Only people with a recorded yes and a number · one message per visit · people who asked to stop or are mid-thread with a person are held back at the wire"
+          : "Only people with a recorded yes and a number · never twice within the gap · one playbook message per person per week, across playbooks · people who asked to stop or are mid-thread with a person are held back at the wire"}</span>
       </div>
       {data.number && data.number.present && !data.number.health.canSend && <div className="bc-excl-hint">{data.number.health.refusal}</div>}
       {data.number && !data.number.present && <div className="bc-excl-hint">No WhatsApp number connected — connect one in Settings › Integrations before a run can send.</div>}
@@ -286,7 +288,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
       </div>
 
       <div className="ob-row">
-        <button className="ob-audience" data-tip="The list this playbook watches — before the gap and the week's breath · click to open it in People" onClick={() => window.CHANLY.nav(listRoute)}>
+        <button className="ob-audience" data-tip={trig && trig.kind === "visit" ? "Everyone with a recorded yes — the day's visits are picked from them · click to open them in People" : "The list this playbook watches — before the gap and the week's breath · click to open it in People"} onClick={() => window.CHANLY.nav(listRoute)}>
           <Icon name="sparkle" size={12} />
           {pbPeople(p.candidates)} on the list said yes
           <Icon name="arrow-right" size={10} />
