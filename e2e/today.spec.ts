@@ -32,4 +32,25 @@ test.describe("Today on a real workspace", () => {
     // Nothing invented: no dollar amounts on a page with no revenue column.
     expect(await page.locator("body").innerText()).not.toMatch(/\$\d/);
   });
+
+  test("the day beside the queue: today and tomorrow from the calendar when there is one, nothing when there is not", async ({ page }) => {
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    const cal = ((await (await page.request.get("/api/v1/calendar")).json()).data as { feed?: { state?: string } }).feed;
+    const day = page.getByTestId("today-day");
+    if (cal?.state !== "ok") { await expect(day).toHaveCount(0); return; }
+    await expect(day).toBeVisible();
+    const frames = day.getByTestId("today-day-frame");
+    await expect(frames).toHaveCount(2);
+    await expect(frames.first()).toContainText(/^Today · /);
+    await expect(frames.nth(1)).toContainText(/^Tomorrow · /);
+    // Every item is a time, a title, and a person when the calendar names one.
+    for (const item of await day.getByTestId("today-day-item").all()) {
+      expect((await item.locator(".cal-agenda-title").innerText()).trim().length).toBeGreaterThan(0);
+    }
+    await expect(day.getByRole("button", { name: /Open Calendar/ })).toBeVisible();
+    await expect(day.getByTestId("today-day-reminders")).toBeVisible();
+    // The facts strip carries the day's two beside the recap's four.
+    await expect(page.locator(".brief .stat-cell").filter({ hasText: "Appointments today" })).toHaveCount(1);
+  });
 });

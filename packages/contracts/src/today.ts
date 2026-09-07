@@ -669,3 +669,96 @@ export function toTodayVM(
     quiet: null,
   };
 }
+
+/* ------------------------------ the day ---------------------------------- */
+
+/** What the day module reads, as the calendar surface publishes it. Minimal on purpose: the page hands the surface in. */
+export interface DayFrameLike {
+  key: string;
+  long: string;
+  today: boolean;
+  past: boolean;
+  closed: { yes: boolean; note: string | null };
+  blocks: Array<{ id: string; t: number; time: string; title: string; person: { id: string; name: string } | null }>;
+  allDay: Array<{ id: string; t: number; time: string; title: string; person: { id: string; name: string } | null }>;
+  windows: Array<{ label: string }>;
+}
+export interface CalendarLike {
+  days: DayFrameLike[];
+  feed: { state: "ok" | "unavailable" | "none" };
+  stats: { next: string };
+}
+/** A playbook card as the playbooks surface publishes it. */
+export interface PlaybookCardLike {
+  trigger: string;
+  state: string;
+  candidates: number;
+  next: string;
+}
+
+export interface TodayDayFrameVM {
+  key: string;
+  /** "Today · Sunday, September 6" */
+  label: string;
+  today: boolean;
+  past: boolean;
+  closed: { yes: boolean; note: string | null };
+  items: Array<{ id: string; time: string; title: string; person: { id: string; name: string } | null; allDay: boolean }>;
+  /** The windows the receptionist would offer, as labels; none on a closed or past day. */
+  open: string[];
+}
+
+export interface TodayDayVM {
+  feed: "ok" | "unavailable" | "none";
+  frames: TodayDayFrameVM[];
+  nextOpening: string | null;
+  /** The visit playbooks' line — what goes out and when — or the offer to start one. */
+  reminders: { text: string; to: string } | null;
+}
+
+/**
+ * Today and tomorrow, as the calendar reads them: who is coming and when,
+ * what is open, what is closed — and the visit playbooks' line. Nothing here
+ * is derived from a message; the calendar is the source, the playbooks say
+ * what they will do about it.
+ */
+export function todayDay(cal: CalendarLike | null, playbooks: PlaybookCardLike[] | null): TodayDayVM {
+  if (!cal) return { feed: "none", frames: [], nextOpening: null, reminders: null };
+  const feed = cal.feed.state;
+  const idx = cal.days.findIndex((d) => d.today);
+  const picked = idx >= 0 ? cal.days.slice(idx, idx + 2) : [];
+  const item = (b: DayFrameLike["blocks"][number], allDay: boolean) => ({ id: b.id, time: b.time, title: b.title, person: b.person ? { id: b.person.id, name: b.person.name } : null, allDay });
+  const frames: TodayDayFrameVM[] = picked.map((d) => ({
+    key: d.key,
+    label: `${d.today ? "Today" : "Tomorrow"} · ${d.long}`,
+    today: d.today,
+    past: d.past,
+    closed: d.closed,
+    items: [...d.allDay.map((b) => item(b, true)), ...[...d.blocks].sort((a, b) => a.t - b.t).map((b) => item(b, false))],
+    open: d.closed.yes || d.past ? [] : d.windows.map((w) => w.label),
+  }));
+  let reminders: TodayDayVM["reminders"] = null;
+  if (feed === "ok") {
+    const visit = (playbooks ?? []).filter((p) => (p.trigger === "visit_tomorrow" || p.trigger === "visited") && p.state === "running");
+    reminders = visit.length === 0
+      ? { text: "No visit reminders yet — a playbook can text the day before an appointment and the day after a visit.", to: "outbound" }
+      : { text: visit.map((p) => `${p.trigger === "visit_tomorrow" ? "Visit reminder" : "After the visit"}: ${p.candidates} ${p.candidates === 1 ? "person" : "people"} · next run ${p.next}`).join(" · "), to: "outbound" };
+  }
+  return { feed, frames, nextOpening: feed === "ok" && cal.stats.next !== "—" ? cal.stats.next : null, reminders };
+}
+
+/** Two facts beside the recap's, only with a calendar: appointments today, and what is booked ahead. */
+export function todayDayFacts(cal: CalendarLike | null, agg: { booked: number; reachedWeek: number } | null): TodayFactVM[] {
+  if (!cal || cal.feed.state !== "ok") return [];
+  const out: TodayFactVM[] = [];
+  const today = cal.days.find((d) => d.today);
+  if (today) {
+    const n = today.blocks.length + today.allDay.length;
+    const hint = today.closed.yes
+      ? `closed today${today.closed.note ? ` · ${today.closed.note}` : ""}`
+      : cal.stats.next !== "—" ? `next opening ${cal.stats.next}` : undefined;
+    out.push(hint ? { label: "Appointments today", value: String(n), hint } : { label: "Appointments today", value: String(n) });
+  }
+  if (agg) out.push({ label: "Booked ahead", value: String(agg.booked), hint: `${agg.reachedWeek} reached this week` });
+  return out;
+}

@@ -169,8 +169,8 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes("&days=${w.days}") && sd.includes("if (from !== calendarFrom || days !== calendarDays) return;") && sd.includes("calendarDays = Math.min(63, Math.max(1, Math.round(days) || 63));"));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts").includes("await refreshSurfaces([settingsOverride, todayOverride, calendarOverride]);"), "hours, closures, rules and services saved in Settings reach the board");
-  const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-  assert.ok(brief.includes('data-testid="brief-calendar"') && brief.includes('C.vm.feed.state !== "ok") return null;'), "Today says the day on the calendar, and nothing without a feed");
+  const dayModule = readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx");
+  assert.ok(dayModule.includes('data-testid="today-day"') && dayModule.includes('C.vm.feed.state !== "ok" || !window.__today) return null;'), "Today shows the day on the calendar, and nothing without a feed");
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(tools.includes('name: "get_calendar"') && tools.includes('case "get_calendar": out = await getCalendar(t, run.input); break;'));
   assert.ok(tools.includes("Nothing is booked from here — the booking link does that."));

@@ -1,4 +1,4 @@
-/* global React, HeroBrief, AgentCommand, NowPlayingRail, AgentFleet, AmbientDock, SegmentPulse, TrustReview */
+/* global React, HeroBrief, AgentCommand, TodayDay, NowPlayingRail, AgentFleet, AmbientDock, SegmentPulse, TrustReview */
 // Dashboard — Operator's brief.
 // Composition: HeroBrief → (AgentCommand + NowPlayingRail) → SegmentPulse → AgentFleet + AmbientDock.
 // The Ask overlay and ⌘K are owned by the app shell; the dock's "Listen in" opens it via onAsk.
@@ -9,6 +9,7 @@ const DashboardA = ({ onAsk = () => {} }) => (
 
     <div className="dash-a-v2-core">
       <AgentCommand />
+      <TodayDay />
       {/* Everything below is 100% seeded: a fake live call, invented
           appointments, an 8-agent fleet, a pinned dock. Sitting inches under a
           hero that truthfully says "0 messages today", it read as real. Demo
