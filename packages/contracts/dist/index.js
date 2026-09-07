@@ -5686,6 +5686,14 @@ function billingAccountDto(r) {
     updated_at: r.updated_at
   };
 }
+function pausedVoiceFacts(businessName) {
+  const name = (businessName ?? "").trim() || "this business";
+  return [
+    `You are answering the phone for ${name}. Their automated receptionist is paused right now, so you cannot help with bookings, prices, hours or questions today.`,
+    "Say so plainly and kindly, in the caller's language. Take the caller's name, their number and what they need, tell them someone from the business will call them back, and end the call politely.",
+    "Do not quote a price, do not book or reschedule anything, do not transfer the call, and do not promise a time for the call back."
+  ].join("\n");
+}
 
 // src/setup.ts
 var LINE_STEP_WORDS = {
@@ -5920,6 +5928,7 @@ function isTypingTarget(tagName, contentEditable) {
 }
 function shellStatusLine(s) {
   if (!s) return null;
+  if (s.paused) return { text: "Your receptionist is paused", action: "billing" };
   if (s.stale) return { text: "A newer version is ready", action: "reload" };
   if (s.degraded.length) return { text: `${s.degraded.join(", ")} not refreshing`, action: null };
   return null;
@@ -6278,6 +6287,7 @@ export {
   parseTenantConfig,
   parseTenantConfigResult,
   partialAnswer,
+  pausedVoiceFacts,
   peopleAggregates,
   peopleFromItems,
   peopleListAction,

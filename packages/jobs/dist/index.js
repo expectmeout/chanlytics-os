@@ -13962,6 +13962,12 @@ async function broadcastSend(ctx, job) {
   if (bErr) throw new Error(`broadcast_send: cannot read broadcast ${p.broadcast_id}: ${bErr.message}`);
   if (!b) return;
   if (b.state !== "scheduled" && b.state !== "sending") return;
+  const { data: tenantState } = await ctx.db.from("tenants").select("status").eq("id", job.tenant_id).maybeSingle();
+  if (tenantState?.status === "paused") {
+    await ctx.db.from("broadcasts").update({ state: "failed", failure: "paused", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", b.id);
+    await ctx.alert(`Broadcast \u201C${b.name}\u201D not sent`, "The workspace is paused until billing resumes, so nothing went out. Resume from Settings \u203A Billing and send it again.");
+    return;
+  }
   const startedAt = (/* @__PURE__ */ new Date()).toISOString();
   if (b.state === "scheduled") {
     await ctx.db.from("broadcasts").update({ state: "sending", started_at: startedAt }).eq("id", b.id).eq("state", "scheduled");

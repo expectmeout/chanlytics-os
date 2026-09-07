@@ -367,6 +367,15 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   // Only a scheduled or sending broadcast goes out: a run waiting for a
   // person (pending_approval) has no job, and one that ended stays ended.
   if (b.state !== "scheduled" && b.state !== "sending") return;
+  // A paused workspace (tenants.status, written by billing) sends nothing:
+  // the run fails with its reason and the owner is told, rather than a
+  // template going out under a subscription that stopped.
+  const { data: tenantState } = await ctx.db.from("tenants").select("status").eq("id", job.tenant_id).maybeSingle();
+  if (tenantState?.status === "paused") {
+    await ctx.db.from("broadcasts").update({ state: "failed", failure: "paused", finished_at: new Date().toISOString() }).eq("id", b.id);
+    await ctx.alert(`Broadcast “${b.name}” not sent`, "The workspace is paused until billing resumes, so nothing went out. Resume from Settings › Billing and send it again.");
+    return;
+  }
   const startedAt = new Date().toISOString();
   if (b.state === "scheduled") {
     await ctx.db.from("broadcasts").update({ state: "sending", started_at: startedAt }).eq("id", b.id).eq("state", "scheduled");
