@@ -27,6 +27,7 @@ const WATCHED: Array<{ table: string; event: "INSERT" | "*" }> = [
   { table: "escalations", event: "*" },     // opened by the edge, resolved elsewhere
   { table: "calls", event: "*" },           // a call starting, each live turn, its end, its analysis
   { table: "notifications", event: "INSERT" }, // an alert the edge kept: the bell repaints
+  { table: "lines", event: "*" },           // a line's saga step, its failure, its answer: Setup repaints
 ];
 
 export function subscribeMessagesInserts(

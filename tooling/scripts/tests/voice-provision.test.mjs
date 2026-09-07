@@ -148,14 +148,18 @@ test("the request is checked before anything is planned", () => {
 
 test("the edge endpoint: key-gated, dry run by default, secrets never echoed, budgeted, row last, then the bell and the event", () => {
   const src = readCode("apps/edge/api/admin/voice-provision.ts");
+  const agent = readCode("apps/edge/lib/voice-agent.ts");
   assert.ok(src.includes('request.headers.get("x-diag-key") !== process.env.DIAG_KEY'));
   assert.ok(src.includes("const apply = body.apply === true;"));
-  assert.ok(src.indexOf("if (!apply || plan.nothing) return json(200, out);") < src.indexOf("createRetellLlm(cfg,"), "the dry run answers before any provider write");
-  for (const pin of ["createRetellLlm(cfg, voiceLlmCreateBody(secrets))", "createAgent(cfg, voiceAgentCreateBody(", 'publishAgentVersion(cfg, agentId, agentVersion, "provisioned from the edge")', "updatePhoneNumber(cfg, number, voiceNumberBindBody(", "createPhoneNumber(cfg, voiceNumberCreateBody("]) {
-    assert.ok(src.includes(pin), pin);
+  assert.ok(src.indexOf("if (!apply || plan.nothing) return json(200, out);") < src.indexOf("createVoiceAgent(cfg,"), "the dry run answers before any provider write");
+  // The receptionist is made once, in the lib both line paths share.
+  assert.ok(src.includes("createVoiceAgent(cfg, secrets, { agentName: plan.names.agent, llmId: req.llmId, agentId: req.agentId })"));
+  for (const pin of ["createRetellLlm(cfg, voiceLlmCreateBody(secrets))", "createAgent(cfg, voiceAgentCreateBody(", 'publishAgentVersion(cfg, agentId, agentVersion, "provisioned from the edge")']) {
+    assert.ok(agent.includes(pin), pin);
   }
+  for (const pin of ["updatePhoneNumber(cfg, number, voiceNumberBindBody(", "createPhoneNumber(cfg, voiceNumberCreateBody("]) assert.ok(src.includes(pin), pin);
   // Resume reads the provider before trusting an id.
-  assert.ok(src.includes("await getAgentRaw(cfg, req.agentId)") && src.includes("await getRetellLlm(cfg, llmId)"));
+  assert.ok(agent.includes("await getAgentRaw(cfg, o.agentId)") && agent.includes("await getRetellLlm(cfg, llmId)"));
   // The row is written after the number, active, with the agent as the routing key.
   const row = src.indexOf('.insert({\n      tenant_id: tenantId,\n      kind: "voice",\n      external_id: agentId,');
   assert.ok(row > src.indexOf("createPhoneNumber(cfg,"), "the row comes after the number");
@@ -166,13 +170,12 @@ test("the edge endpoint: key-gated, dry run by default, secrets never echoed, bu
   assert.ok(EVENT_KINDS.includes("voice.provisioned"));
   // What comes back never carries a key: URLs from voiceEndpoints (no query), never a provider success body.
   assert.ok(src.includes("webhook_url: ends.webhook,") && src.includes("inbound_webhook_url: ends.inbound,"));
-  assert.ok(!src.includes("result.agent = { ...w.body"), "a success body echoes the webhook URL with its key");
-  assert.ok(!src.includes("body: w.body") || src.split("fail(").length > 3, "provider bodies are only returned on failure");
+  assert.ok(!src.includes("result.agent = { ...w.body") && !agent.includes("...w.body"), "a success body echoes the webhook URL with its key");
   assert.ok(readRaw("apps/edge/vercel.json").includes('"api/admin/voice-provision.ts"'), "several provider calls need more than the default budget");
   // Read back: a freshly provisioned line plans nothing on either converger.
   assert.ok(src.includes("planAgentSettings(after as unknown as LiveAgentSettings, { retentionDays: VOICE_AGENT_DEFAULTS.data_storage_retention_days }).drift"));
   assert.ok(src.includes("voiceShellDrift(llmAfter).drift"));
-  assert.ok(!/key_[0-9a-f]{16}/.test(src), "no literal provider key");
+  assert.ok(!/key_[0-9a-f]{16}/.test(src) && !/key_[0-9a-f]{16}/.test(agent), "no literal provider key");
 });
 
 test("the laptop script is retired: the key lives on the edge and nowhere else", () => {

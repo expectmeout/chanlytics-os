@@ -379,6 +379,11 @@ export function createPhoneNumber(cfg: RetellConfig, body: Record<string, unknow
   return writeRetell(cfg, "POST", "/create-phone-number", body);
 }
 
+/** POST /import-phone-number — a number from an elastic SIP trunk, bound like Retell's own (lines-saga.ts builds the body). */
+export function importPhoneNumber(cfg: RetellConfig, body: Record<string, unknown>): Promise<RetellWrite> {
+  return writeRetell(cfg, "POST", "/import-phone-number", body);
+}
+
 /** PATCH /update-phone-number — the agents on a number, its inbound webhook, its nickname. */
 export function updatePhoneNumber(cfg: RetellConfig, number: string, patch: Record<string, unknown>): Promise<RetellWrite> {
   return writeRetell(cfg, "PATCH", `/update-phone-number/${encodeURIComponent(number)}`, patch);

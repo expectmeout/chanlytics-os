@@ -4765,23 +4765,23 @@ async function getAgent(cfg, agentId) {
   });
   if (!r.ok) return null;
   const a = await r.json();
-  const str = (k) => typeof a[k] === "string" ? a[k] : null;
+  const str2 = (k) => typeof a[k] === "string" ? a[k] : null;
   const num = (k) => typeof a[k] === "number" ? a[k] : null;
   const bool = (k) => typeof a[k] === "boolean" ? a[k] : null;
   const engine = a.response_engine ?? {};
   return {
-    agent_id: str("agent_id") ?? agentId,
-    agent_name: str("agent_name"),
+    agent_id: str2("agent_id") ?? agentId,
+    agent_name: str2("agent_name"),
     version: num("version"),
     is_published: bool("is_published"),
     llm_id: engine.type === "retell-llm" && typeof engine.llm_id === "string" ? engine.llm_id : null,
     llm_version: typeof engine.version === "number" ? engine.version : null,
     // The URL only, never its query string: Retell lets a secret ride there
     // (?key=...) and this object is meant to be printed by a diagnostic.
-    webhook_url: str("webhook_url")?.split("?")[0] ?? null,
+    webhook_url: str2("webhook_url")?.split("?")[0] ?? null,
     webhook_events: Array.isArray(a.webhook_events) ? a.webhook_events.map(String) : null,
     webhook_timeout_ms: num("webhook_timeout_ms"),
-    data_storage_setting: str("data_storage_setting"),
+    data_storage_setting: str2("data_storage_setting"),
     data_storage_retention_days: num("data_storage_retention_days"),
     opt_in_signed_url: bool("opt_in_signed_url"),
     post_call_analysis_data: Array.isArray(a.post_call_analysis_data) ? a.post_call_analysis_data : null
@@ -4831,6 +4831,9 @@ function createAgent(cfg, body) {
 function createPhoneNumber(cfg, body) {
   return writeRetell(cfg, "POST", "/create-phone-number", body);
 }
+function importPhoneNumber(cfg, body) {
+  return writeRetell(cfg, "POST", "/import-phone-number", body);
+}
 function updatePhoneNumber(cfg, number, patch) {
   return writeRetell(cfg, "PATCH", `/update-phone-number/${encodeURIComponent(number)}`, patch);
 }
@@ -4864,14 +4867,14 @@ async function getRetellLlm(cfg, llmId, version) {
   });
   if (!r.ok) return null;
   const l = await r.json();
-  const str = (k) => typeof l[k] === "string" ? l[k] : null;
+  const str2 = (k) => typeof l[k] === "string" ? l[k] : null;
   return {
-    llm_id: str("llm_id") ?? llmId,
+    llm_id: str2("llm_id") ?? llmId,
     version: typeof l.version === "number" ? l.version : null,
-    model: str("model"),
+    model: str2("model"),
     model_temperature: typeof l.model_temperature === "number" ? l.model_temperature : null,
-    general_prompt: str("general_prompt"),
-    begin_message: str("begin_message"),
+    general_prompt: str2("general_prompt"),
+    begin_message: str2("begin_message"),
     default_dynamic_variables: l.default_dynamic_variables && typeof l.default_dynamic_variables === "object" ? l.default_dynamic_variables : null,
     general_tools: Array.isArray(l.general_tools) ? l.general_tools : null,
     knowledge_base_ids: Array.isArray(l.knowledge_base_ids) ? l.knowledge_base_ids.map(String) : null
@@ -5257,6 +5260,392 @@ function planVoiceProvision(st) {
   }
   return { ok: true, errors, nothing: false, reason: null, steps, names };
 }
+
+// src/lines.ts
+var RETELL_ORIGINATION = "sip:sip.retellai.com";
+var LINE_COSTS = {
+  local_number_month_usd: 1.15,
+  toll_free_month_usd: 2.15
+};
+function chooseLineProvider(env) {
+  if (env.sid && env.token) return "twilio";
+  if (env.dryRun === "1" && env.vercelEnv !== "production") return "dry";
+  return null;
+}
+function trunkDomain(lineId) {
+  return `chanlytics-${lineId.replace(/[^a-z0-9]/gi, "").slice(0, 12).toLowerCase()}.pstn.twilio.com`;
+}
+function sipUsername(lineId) {
+  return `line-${lineId.replace(/[^a-z0-9]/gi, "").slice(0, 12).toLowerCase()}`;
+}
+var LOWER = "abcdefghijkmnpqrstuvwxyz";
+var UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+var DIGIT = "23456789";
+function sipPassword(random = Math.random) {
+  const pick = (s) => s[Math.floor(random() * s.length)];
+  const all = LOWER + UPPER + DIGIT;
+  const chars = [pick(LOWER), pick(UPPER), pick(DIGIT)];
+  while (chars.length < 24) chars.push(pick(all));
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join("");
+}
+function isValidSipPassword(p) {
+  return p.length >= 12 && /\d/.test(p) && /[a-z]/.test(p) && /[A-Z]/.test(p);
+}
+var E1644 = /^\+[1-9]\d{6,14}$/;
+var isE164 = (s) => typeof s === "string" && E1644.test(s);
+var isAreaCode = (n) => typeof n === "number" && Number.isInteger(n) && n >= 200 && n <= 999;
+
+// src/lines-twilio.ts
+var API2 = "https://api.twilio.com/2010-04-01";
+var TRUNKING = "https://trunking.twilio.com/v1";
+var twilioUrls = {
+  subaccounts: `${API2}/Accounts.json`,
+  availableLocal: (sid, country = "US") => `${API2}/Accounts/${sid}/AvailablePhoneNumbers/${country}/Local.json`,
+  incomingNumbers: (sid) => `${API2}/Accounts/${sid}/IncomingPhoneNumbers.json`,
+  incomingNumber: (sid, numberSid) => `${API2}/Accounts/${sid}/IncomingPhoneNumbers/${numberSid}.json`,
+  credentialLists: (sid) => `${API2}/Accounts/${sid}/SIP/CredentialLists.json`,
+  credentials: (sid, listSid) => `${API2}/Accounts/${sid}/SIP/CredentialLists/${listSid}/Credentials.json`,
+  trunks: `${TRUNKING}/Trunks`,
+  trunk: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}`,
+  trunkCredentialLists: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/CredentialLists`,
+  trunkOriginationUrls: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/OriginationUrls`,
+  trunkPhoneNumbers: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/PhoneNumbers`
+};
+var TwilioError = class extends Error {
+  status;
+  code;
+  constructor(status, body, what) {
+    const code = typeof body?.code === "number" ? body.code : null;
+    const msg = typeof body?.message === "string" ? body.message : `HTTP ${status}`;
+    super(`${what}: ${msg}${code ? ` (Twilio ${code})` : ""}`);
+    this.name = "TwilioError";
+    this.status = status;
+    this.code = code;
+  }
+};
+var fetchTwilio = async (acct, method, url, form) => {
+  const r = await fetch(url, {
+    method,
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${acct.sid}:${acct.token}`).toString("base64")}`,
+      ...form ? { "Content-Type": "application/x-www-form-urlencoded" } : {}
+    },
+    body: form ? new URLSearchParams(form).toString() : void 0,
+    signal: AbortSignal.timeout(15e3)
+  });
+  const text = await r.text();
+  let body = null;
+  try {
+    const parsed = JSON.parse(text);
+    body = parsed !== null && typeof parsed === "object" ? parsed : null;
+  } catch {
+    body = text ? { text: text.slice(0, 300) } : null;
+  }
+  return { status: r.status, body };
+};
+var str = (o, k) => typeof o?.[k] === "string" ? o[k] : null;
+function need(a, what) {
+  if (a.status < 200 || a.status >= 300 || !a.body) throw new TwilioError(a.status, a.body, what);
+  return a.body;
+}
+function twilioProvider(http = fetchTwilio) {
+  return {
+    name: "twilio",
+    async createSubaccount(master, friendlyName) {
+      const b = need(await http(master, "POST", twilioUrls.subaccounts, { FriendlyName: friendlyName.slice(0, 64) }), "create subaccount");
+      const sid = str(b, "sid");
+      const token = str(b, "auth_token");
+      if (!sid || !token) throw new TwilioError(200, b, "create subaccount answered without sid/auth_token");
+      return { sid, token, status: str(b, "status") ?? "active" };
+    },
+    async searchLocal(acct, q) {
+      const url = `${twilioUrls.availableLocal(acct.sid)}?${new URLSearchParams({
+        AreaCode: String(q.areaCode),
+        VoiceEnabled: "true",
+        SmsEnabled: "true",
+        PageSize: String(Math.min(Math.max(q.limit, 1), 30))
+      }).toString()}`;
+      const b = need(await http(acct, "GET", url), "search numbers");
+      const rows = Array.isArray(b.available_phone_numbers) ? b.available_phone_numbers : [];
+      return rows.map((n) => {
+        const e164 = str(n, "phone_number");
+        if (!e164) return null;
+        const caps = n.capabilities ?? {};
+        return {
+          e164,
+          friendly: str(n, "friendly_name") ?? e164,
+          locality: str(n, "locality"),
+          region: str(n, "region"),
+          capabilities: { voice: caps.voice === true, sms: caps.sms === true, mms: caps.mms === true }
+        };
+      }).filter((n) => n !== null);
+    },
+    async buyNumber(acct, e164, friendlyName) {
+      const b = need(await http(acct, "POST", twilioUrls.incomingNumbers(acct.sid), { PhoneNumber: e164, FriendlyName: friendlyName.slice(0, 64) }), "buy number");
+      const sid = str(b, "sid");
+      if (!sid) throw new TwilioError(200, b, "buy number answered without a sid");
+      return { sid, e164: str(b, "phone_number") ?? e164 };
+    },
+    async releaseNumber(acct, numberSid) {
+      const a = await http(acct, "DELETE", twilioUrls.incomingNumber(acct.sid, numberSid));
+      if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "release number");
+    },
+    async createTrunk(acct, o) {
+      const b = need(await http(acct, "POST", twilioUrls.trunks, { FriendlyName: o.friendlyName.slice(0, 64), DomainName: o.domainName }), "create trunk");
+      const sid = str(b, "sid");
+      if (!sid) throw new TwilioError(200, b, "create trunk answered without a sid");
+      return { sid, domainName: str(b, "domain_name") ?? o.domainName };
+    },
+    async deleteTrunk(acct, trunkSid) {
+      const a = await http(acct, "DELETE", twilioUrls.trunk(trunkSid));
+      if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "delete trunk");
+    },
+    async createCredentialList(acct, friendlyName) {
+      const b = need(await http(acct, "POST", twilioUrls.credentialLists(acct.sid), { FriendlyName: friendlyName.slice(0, 64) }), "create credential list");
+      const sid = str(b, "sid");
+      if (!sid) throw new TwilioError(200, b, "create credential list answered without a sid");
+      return { sid };
+    },
+    async addCredential(acct, listSid, username, password) {
+      const b = need(await http(acct, "POST", twilioUrls.credentials(acct.sid, listSid), { Username: username, Password: password }), "add credential");
+      const sid = str(b, "sid");
+      if (!sid) throw new TwilioError(200, b, "add credential answered without a sid");
+      return { sid };
+    },
+    async attachCredentialList(acct, trunkSid, listSid) {
+      need(await http(acct, "POST", twilioUrls.trunkCredentialLists(trunkSid), { CredentialListSid: listSid }), "attach credential list");
+    },
+    async addOrigination(acct, trunkSid, o) {
+      const b = need(
+        await http(acct, "POST", twilioUrls.trunkOriginationUrls(trunkSid), {
+          SipUrl: o.sipUrl,
+          FriendlyName: o.friendlyName.slice(0, 64),
+          Weight: "10",
+          Priority: "10",
+          Enabled: "true"
+        }),
+        "add origination"
+      );
+      const sid = str(b, "sid");
+      if (!sid) throw new TwilioError(200, b, "add origination answered without a sid");
+      return { sid };
+    },
+    async attachNumber(acct, trunkSid, numberSid) {
+      need(await http(acct, "POST", twilioUrls.trunkPhoneNumbers(trunkSid), { PhoneNumberSid: numberSid }), "attach number to trunk");
+    }
+  };
+}
+
+// src/lines-dry.ts
+var hex = (n, width = 32) => n.toString(16).padStart(width, "0");
+function dryProvider(seed = 1) {
+  let n = seed;
+  const next = (prefix) => `${prefix}${hex(n++)}`;
+  const calls = [];
+  const owned = /* @__PURE__ */ new Map();
+  const rec = (op, ...args) => calls.push({ op, args });
+  const acctOf = (a) => a.sid;
+  return {
+    name: "dry",
+    calls,
+    owned,
+    async createSubaccount(master, friendlyName) {
+      rec("createSubaccount", acctOf(master), friendlyName);
+      return { sid: next("AC"), token: next("tok"), status: "active" };
+    },
+    async searchLocal(acct, q) {
+      rec("searchLocal", acctOf(acct), q);
+      const out = [];
+      for (let i = 0; i < Math.min(q.limit, 8); i++) {
+        const local = `555${String(100 + i).padStart(4, "0")}`;
+        out.push({
+          e164: `+1${q.areaCode}${local}`,
+          friendly: `(${q.areaCode}) ${local.slice(0, 3)}-${local.slice(3)}`,
+          locality: "Dry Run",
+          region: "XX",
+          capabilities: { voice: true, sms: true, mms: false }
+        });
+      }
+      return out;
+    },
+    async buyNumber(acct, e164, friendlyName) {
+      rec("buyNumber", acctOf(acct), e164, friendlyName);
+      const sid = next("PN");
+      owned.set(sid, e164);
+      return { sid, e164 };
+    },
+    async releaseNumber(acct, numberSid) {
+      rec("releaseNumber", acctOf(acct), numberSid);
+      owned.delete(numberSid);
+    },
+    async createTrunk(acct, o) {
+      rec("createTrunk", acctOf(acct), o);
+      return { sid: next("TK"), domainName: o.domainName };
+    },
+    async deleteTrunk(acct, trunkSid) {
+      rec("deleteTrunk", acctOf(acct), trunkSid);
+    },
+    async createCredentialList(acct, friendlyName) {
+      rec("createCredentialList", acctOf(acct), friendlyName);
+      return { sid: next("CL") };
+    },
+    async addCredential(acct, listSid, username) {
+      rec("addCredential", acctOf(acct), listSid, username);
+      return { sid: next("CR") };
+    },
+    async attachCredentialList(acct, trunkSid, listSid) {
+      rec("attachCredentialList", acctOf(acct), trunkSid, listSid);
+    },
+    async addOrigination(acct, trunkSid, o) {
+      rec("addOrigination", acctOf(acct), trunkSid, o);
+      return { sid: next("OU") };
+    },
+    async attachNumber(acct, trunkSid, numberSid) {
+      rec("attachNumber", acctOf(acct), trunkSid, numberSid);
+    }
+  };
+}
+
+// src/lines-saga.ts
+var LINE_STEPS = ["subaccount", "number", "trunk", "agent", "import", "channel"];
+function retellImportBody(o) {
+  return {
+    phone_number: o.e164,
+    termination_uri: o.terminationUri,
+    sip_trunk_auth_username: o.username,
+    sip_trunk_auth_password: o.password,
+    inbound_agents: [{ agent_id: o.agentId, ...o.pinned ? { agent_version: "latest_published" } : {}, weight: 1 }],
+    nickname: o.nickname,
+    inbound_webhook_url: o.inboundWebhookUrl
+  };
+}
+function nextLineStep(line) {
+  if (!line.subaccount_sid) return "subaccount";
+  if (!line.number_sid) return "number";
+  if (!line.trunk_sid || !line.credential_list_sid || !line.termination_uri || line.facts.trunk_ready !== true) return "trunk";
+  if (!line.retell_agent_id) return "agent";
+  if (line.facts.retell_imported !== true) return "import";
+  if (typeof line.facts.channel_id !== "string") return "channel";
+  return null;
+}
+function errorWords(e) {
+  return (e instanceof Error ? e.message : String(e)).slice(0, 500);
+}
+async function runLineSaga(start, ports) {
+  let line = { ...start, facts: { ...start.facts ?? {} } };
+  const save = async (patch) => {
+    line = { ...line, ...patch, facts: patch.facts ? { ...patch.facts } : line.facts };
+    await ports.store.save(patch);
+  };
+  const fact = async (k, v) => save({ facts: { ...line.facts, [k]: v } });
+  if (line.voice_state === "answering" && nextLineStep(line) === null) return { ok: true, line };
+  if (!line.e164) {
+    await save({ voice_state: "failed", step: "number", last_error: "no number chosen", state_since: ports.now() });
+    return { ok: false, step: "number", error: "no number chosen", line };
+  }
+  let secrets = await ports.store.getSecrets();
+  const putSecrets = async (s) => {
+    secrets = { ...secrets, ...s };
+    await ports.store.putSecrets(s);
+  };
+  const sub = () => {
+    if (!line.subaccount_sid || !secrets.auth_token) throw new Error("the subaccount's token is missing from the vault");
+    return { sid: line.subaccount_sid, token: secrets.auth_token };
+  };
+  let step = nextLineStep(line);
+  await save({ voice_state: "provisioning", step, last_error: null, state_since: ports.now() });
+  try {
+    while ((step = nextLineStep(line)) !== null) {
+      await save({ step });
+      switch (step) {
+        case "subaccount": {
+          const acct = await ports.provider.createSubaccount(ports.master, `${ports.tenant.name} \xB7 Chanlytics`);
+          await putSecrets({ auth_token: acct.token });
+          await save({ subaccount_sid: acct.sid });
+          break;
+        }
+        case "number": {
+          const bought = await ports.provider.buyNumber(sub(), line.e164, `${ports.tenant.name} \xB7 Chanlytics`);
+          await save({ number_sid: bought.sid, e164: bought.e164 });
+          break;
+        }
+        case "trunk": {
+          const acct = sub();
+          if (!line.trunk_sid) {
+            const t = await ports.provider.createTrunk(acct, { friendlyName: `${ports.tenant.name} \xB7 Chanlytics`, domainName: trunkDomain(line.id) });
+            await save({ trunk_sid: t.sid, termination_uri: t.domainName });
+          }
+          if (!line.credential_list_sid) {
+            const cl = await ports.provider.createCredentialList(acct, `${ports.tenant.name} \xB7 Chanlytics`);
+            await save({ credential_list_sid: cl.sid });
+          }
+          if (!secrets.sip_password || !secrets.sip_username) {
+            const username = sipUsername(line.id);
+            const password = sipPassword(ports.random);
+            if (!isValidSipPassword(password)) throw new Error("generated SIP password failed Twilio's rule");
+            await ports.provider.addCredential(acct, line.credential_list_sid, username, password);
+            await putSecrets({ sip_username: username, sip_password: password });
+          }
+          if (line.facts.credential_list_attached !== true) {
+            await ports.provider.attachCredentialList(acct, line.trunk_sid, line.credential_list_sid);
+            await fact("credential_list_attached", true);
+          }
+          if (typeof line.facts.origination_sid !== "string") {
+            const o = await ports.provider.addOrigination(acct, line.trunk_sid, { sipUrl: RETELL_ORIGINATION, friendlyName: "Retell" });
+            await fact("origination_sid", o.sid);
+          }
+          if (line.facts.number_attached !== true) {
+            await ports.provider.attachNumber(acct, line.trunk_sid, line.number_sid);
+            await fact("number_attached", true);
+          }
+          await fact("trunk_ready", true);
+          break;
+        }
+        case "agent": {
+          const a = await ports.agent.ensure();
+          await save({ retell_agent_id: a.agentId, facts: { ...line.facts, llm_id: a.llmId, agent_pinned: a.pinned } });
+          break;
+        }
+        case "import": {
+          if (!secrets.sip_username || !secrets.sip_password) throw new Error("the SIP credential is missing from the vault");
+          const body = retellImportBody({
+            e164: line.e164,
+            terminationUri: line.termination_uri,
+            username: secrets.sip_username,
+            password: secrets.sip_password,
+            agentId: line.retell_agent_id,
+            pinned: line.facts.agent_pinned === true,
+            nickname: ports.nickname,
+            inboundWebhookUrl: ports.inboundWebhookUrl
+          });
+          const r = await ports.retell.importNumber(body);
+          if (!r.ok) {
+            const msg = typeof r.body?.message === "string" ? r.body.message : JSON.stringify(r.body ?? {}).slice(0, 200);
+            throw new Error(`Retell import: HTTP ${r.status} ${msg}`);
+          }
+          await save({ facts: { ...line.facts, retell_imported: true, retell_number_type: typeof r.body?.phone_number_type === "string" ? r.body.phone_number_type : "custom" } });
+          break;
+        }
+        case "channel": {
+          const c = await ports.channel.ensure({ agentId: line.retell_agent_id, e164: line.e164, lineId: line.id });
+          await fact("channel_id", c.channelId);
+          break;
+        }
+      }
+    }
+    await save({ voice_state: "answering", step: null, last_error: null, state_since: ports.now() });
+    return { ok: true, line };
+  } catch (e) {
+    const error = errorWords(e);
+    const at = line.step ?? step ?? "subaccount";
+    await save({ voice_state: "failed", step: at, last_error: error, state_since: ports.now() });
+    return { ok: false, step: at, error, line };
+  }
+}
 export {
   CALLER_UNKNOWN,
   CALL_ANALYSIS_FIELDS,
@@ -5264,6 +5653,10 @@ export {
   FACTS_UNAVAILABLE,
   GREETING_DEFAULT,
   HANDOFF_VAR,
+  LINE_COSTS,
+  LINE_STEPS,
+  RETELL_ORIGINATION,
+  TwilioError,
   VOICE_AGENT_DEFAULTS,
   VOICE_LLM_DEFAULTS,
   VOICE_NUMBER_DEFAULTS,
@@ -5274,21 +5667,29 @@ export {
   agentSettingsDrift,
   availabilityUrl,
   callSummaryLine,
+  chooseLineProvider,
   createAgent,
   createAgentVersion,
   createPhoneNumber,
   createRetellLlm,
   desiredVoiceShell,
+  dryProvider,
   fetchMediaBytes,
   fetchRecording,
+  fetchTwilio,
   getAgent,
   getAgentRaw,
   getCall,
   getPhoneNumber,
   getRetellLlm,
+  importPhoneNumber,
+  isAreaCode,
+  isE164,
+  isValidSipPassword,
   listCalls,
   liveTurns,
   needsHydration,
+  nextLineStep,
   normalizeCall,
   normalizeInbound,
   parseTranscriptText,
@@ -5296,9 +5697,16 @@ export {
   planVoiceConvergence,
   planVoiceProvision,
   publishAgentVersion,
+  retellImportBody,
+  runLineSaga,
   sendTemplate,
   sendText,
+  sipPassword,
+  sipUsername,
   stripKey,
+  trunkDomain,
+  twilioProvider,
+  twilioUrls,
   updateAgent,
   updateLiveCall,
   updatePhoneNumber,

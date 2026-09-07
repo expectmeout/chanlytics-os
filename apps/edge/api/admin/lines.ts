@@ -1,0 +1,193 @@
+/**
+ * POST /api/admin/lines — a workspace's own phone number, provisioned by the
+ * product (plan §5, §7). Diagnostic-key only; the dashboard's /api/v1/lines
+ * verbs call it for an owner.
+ *
+ *   { op: "status" }                                  → may this deployment get lines, and with which provider
+ *   { op: "search", area_code }                       → local numbers to choose from, with the monthly cost
+ *   { op: "buy", tenant_id, number }                  → the saga: subaccount → number → trunk → agent → import → row
+ *   { op: "retry", tenant_id, line_id }               → resume a failed line at its step
+ *   { op: "release", tenant_id, line_id }             → give the number back and forget the line (hygiene)
+ *
+ * The provider is Twilio when the master credentials exist, the dry
+ * provider on previews with LINES_DRY_RUN=1, and nothing on production
+ * without credentials — then the Setup page keeps "we set it up with you".
+ * A line that fails leaves its step and the provider's words on the row,
+ * tells the workspace's bell and emails the platform; a retry resumes.
+ */
+import { json } from "../../lib/http.js";
+import { pg } from "../../lib/pg.js";
+import { notify, recordNotification } from "../../lib/notify.js";
+import { emitEvent } from "../../lib/workspace/db.js";
+import { formatPhoneDisplay } from "../../lib/workspace/contracts.js";
+import { runLineSaga, isAreaCode, isE164, LINE_COSTS, type LineRow } from "../../lib/workspace/channels.js";
+import { lineProviderFromEnv, linePorts, lineForClient, rowToLine, LINE_STEP_WORDS, type LineProviderChoice } from "../../lib/lines.js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "../../lib/workspace/db.js";
+
+interface Body {
+  op?: string;
+  tenant_id?: string;
+  area_code?: number | string;
+  number?: string;
+  line_id?: string;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function areaCodeOf(v: unknown): number | null {
+  if (typeof v === "number") return v;
+  if (typeof v === "string" && /^\d{3}$/.test(v.trim())) return Number(v.trim());
+  return null;
+}
+
+async function tenantOf(db: SupabaseClient<Database>, id: string) {
+  const r = await db.from("tenants").select("id, name, slug").eq("id", id).maybeSingle();
+  if (r.error) throw new Error(r.error.message);
+  return r.data;
+}
+
+/** Run the saga on a row, then tell the workspace and the platform what happened. */
+async function provision(
+  db: SupabaseClient<Database>,
+  choice: LineProviderChoice,
+  cfg: { apiKey: string },
+  secrets: { fnSecret: string },
+  tenant: { id: string; name: string },
+  line: LineRow,
+) {
+  const result = await runLineSaga(line, linePorts(db, cfg, secrets, tenant, line, choice));
+  const shown = formatPhoneDisplay(result.line.e164) ?? result.line.e164 ?? "your number";
+  if (result.ok) {
+    await recordNotification(tenant.id, {
+      kind: "number",
+      title: `Your phone line is ready: ${shown}`,
+      body: `The receptionist answers calls on ${shown}. Call it from your own phone to hear it; the Live page shows the call as it happens. Texting arrives once the carriers register the line.`,
+      route: "admin/setup",
+      about: { type: "line", id: line.id },
+    });
+    await emitEvent(db, tenant.id, "line.answering", "setup", "line", line.id, { e164: result.line.e164, provider: choice.name, agent_id: result.line.retell_agent_id }).catch(() => {});
+  } else {
+    const at = LINE_STEP_WORDS[result.step] ?? result.step;
+    await recordNotification(tenant.id, {
+      kind: "alert",
+      title: "Your phone line hit a snag — a person at Chanlytics has it",
+      body: `Setting up ${shown} stopped while ${at}. You can retry from Setup; we have been told and will finish it with you if the retry does not.`,
+      route: "admin/setup",
+      about: { type: "line", id: line.id },
+    });
+    await notify(
+      { tenantId: null, notifications: null, isEnvDefault: true },
+      {
+        kind: "alert",
+        subject: `Line failed · ${tenant.name}`,
+        body: `${tenant.name} (${tenant.id}) — line ${line.id} for ${result.line.e164 ?? "no number"} stopped at step "${result.step}" (${at}).\n\n${result.error}\n\nRetry: POST /api/admin/lines { "op": "retry", "tenant_id": "${tenant.id}", "line_id": "${line.id}" } (x-diag-key).`,
+      },
+    );
+    await emitEvent(db, tenant.id, "line.failed", "setup", "line", line.id, { step: result.step, error: result.error.slice(0, 300), provider: choice.name }).catch(() => {});
+  }
+  console.log("line_saga", JSON.stringify({ tenant: tenant.id, line: line.id, ok: result.ok, step: result.ok ? null : result.step, provider: choice.name }));
+  return result;
+}
+
+export async function POST(request: Request): Promise<Response> {
+  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
+    return json(403, { ok: false });
+  }
+  let body: Body = {};
+  try { body = JSON.parse(await request.text()); } catch { /* validated below */ }
+  const op = typeof body.op === "string" ? body.op : "";
+  const choice = lineProviderFromEnv();
+
+  if (op === "status") {
+    return json(200, { ok: true, ready: !!choice, provider: choice?.name ?? null, costs: LINE_COSTS });
+  }
+  if (!choice) return json(503, { ok: false, error: "no_line_provider", hint: "TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN, or LINES_DRY_RUN=1 outside production" });
+
+  if (op === "search") {
+    const areaCode = areaCodeOf(body.area_code);
+    if (!isAreaCode(areaCode)) return json(400, { ok: false, error: "area_code must be three digits, like 305" });
+    try {
+      const numbers = await choice.provider.searchLocal(choice.master, { areaCode, limit: 8 });
+      return json(200, { ok: true, provider: choice.name, area_code: areaCode, cost_month_usd: LINE_COSTS.local_number_month_usd, numbers });
+    } catch (e) {
+      return json(502, { ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  // Everything below writes: it needs the database, the receptionist's provider and a workspace.
+  const apiKey = process.env.RETELL_API_KEY;
+  const fnSecret = process.env.RETELL_FN_SECRET;
+  if (!apiKey || !fnSecret) return json(503, { ok: false, error: !apiKey ? "no_provider_key" : "no_fn_secret" });
+  const db = pg();
+  if (!db) return json(503, { ok: false, error: "no_database" });
+  const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
+  if (!UUID.test(tenantId)) return json(400, { ok: false, error: "tenant_id (a workspace id) is required" });
+  let tenant: { id: string; name: string; slug: string } | null;
+  try { tenant = await tenantOf(db, tenantId); } catch (e) { return json(503, { ok: false, error: e instanceof Error ? e.message : String(e) }); }
+  if (!tenant) return json(404, { ok: false, error: "no such workspace" });
+  const cfg = { apiKey };
+  const secrets = { fnSecret };
+
+  if (op === "buy") {
+    const number = typeof body.number === "string" ? body.number.trim() : "";
+    if (!isE164(number)) return json(400, { ok: false, error: "number must be E.164, like +13055550100" });
+    const areaCode = areaCodeOf(body.area_code) ?? (number.startsWith("+1") ? Number(number.slice(2, 5)) : null);
+    const others = await db.from("lines").select("*").eq("tenant_id", tenantId).order("created_at");
+    if (others.error) return json(503, { ok: false, error: others.error.message });
+    const live = (others.data ?? []).find((l) => l.voice_state === "provisioning" || l.voice_state === "answering");
+    if (live) return json(409, { ok: false, error: "line_exists", line: lineForClient(live) });
+    const failed = (others.data ?? []).find((l) => l.voice_state === "failed");
+    if (failed) return json(409, { ok: false, error: "line_failed_retry", line: lineForClient(failed) });
+    const ins = await db
+      .from("lines")
+      .insert({ tenant_id: tenantId, e164: number, kind: "chanlytics", provider: choice.name, area_code: areaCode, voice_state: "provisioning", step: "subaccount", state_since: new Date().toISOString() })
+      .select("*")
+      .single();
+    if (ins.error) return json(503, { ok: false, error: ins.error.message });
+    const result = await provision(db, choice, cfg, secrets, tenant, rowToLine(ins.data));
+    const after = await db.from("lines").select("*").eq("id", ins.data.id).single();
+    return json(result.ok ? 200 : 502, { ok: result.ok, provider: choice.name, line: after.data ? lineForClient(after.data) : null, ...(result.ok ? {} : { step: result.step, error: result.error }) });
+  }
+
+  if (op === "retry" || op === "release") {
+    const lineId = typeof body.line_id === "string" ? body.line_id.trim() : "";
+    if (!UUID.test(lineId)) return json(400, { ok: false, error: "line_id is required" });
+    const row = await db.from("lines").select("*").eq("id", lineId).eq("tenant_id", tenantId).maybeSingle();
+    if (row.error) return json(503, { ok: false, error: row.error.message });
+    if (!row.data) return json(404, { ok: false, error: "no such line" });
+
+    if (op === "retry") {
+      if (row.data.voice_state !== "failed") return json(409, { ok: false, error: `the line is ${row.data.voice_state}, not failed`, line: lineForClient(row.data) });
+      const result = await provision(db, choice, cfg, secrets, tenant, rowToLine(row.data));
+      const after = await db.from("lines").select("*").eq("id", lineId).single();
+      return json(result.ok ? 200 : 502, { ok: result.ok, provider: choice.name, line: after.data ? lineForClient(after.data) : null, ...(result.ok ? {} : { step: result.step, error: result.error }) });
+    }
+
+    // release: give the number back, drop the trunk, forget the line; the
+    // routing row it created is switched off, never deleted (calls keep their history).
+    const line = rowToLine(row.data);
+    const released: Record<string, unknown> = {};
+    try {
+      const creds = await db.rpc("get_line_credentials", { p_line_id: line.id });
+      const token = creds.data && typeof creds.data === "object" && !Array.isArray(creds.data) ? (creds.data as { auth_token?: string }).auth_token : undefined;
+      if (line.subaccount_sid && token) {
+        const acct = { sid: line.subaccount_sid, token };
+        if (line.number_sid) { await choice.provider.releaseNumber(acct, line.number_sid); released.number = line.number_sid; }
+        if (line.trunk_sid) { await choice.provider.deleteTrunk(acct, line.trunk_sid); released.trunk = line.trunk_sid; }
+      }
+    } catch (e) {
+      return json(502, { ok: false, error: `releasing at the provider: ${e instanceof Error ? e.message : String(e)}`, released });
+    }
+    if (typeof line.facts.channel_id === "string") {
+      await db.from("tenant_channels").update({ status: "disabled" }).eq("id", line.facts.channel_id).eq("tenant_id", tenantId);
+      released.channel_disabled = line.facts.channel_id;
+    }
+    const del = await db.from("lines").delete().eq("id", line.id);
+    if (del.error) return json(503, { ok: false, error: del.error.message, released });
+    await emitEvent(db, tenantId, "line.released", "setup", "line", line.id, { e164: line.e164, provider: choice.name, ...released }).catch(() => {});
+    return json(200, { ok: true, released });
+  }
+
+  return json(400, { ok: false, error: "op must be status, search, buy, retry or release" });
+}

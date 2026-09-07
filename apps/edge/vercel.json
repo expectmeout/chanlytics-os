@@ -11,6 +11,9 @@
     },
     "api/admin/voice-provision.ts": {
       "maxDuration": 60
+    },
+    "api/admin/lines.ts": {
+      "maxDuration": 60
     }
   }
 }

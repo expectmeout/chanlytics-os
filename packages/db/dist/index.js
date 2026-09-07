@@ -4927,8 +4927,10 @@ var WATCHED = [
   // opened by the edge, resolved elsewhere
   { table: "calls", event: "*" },
   // a call starting, each live turn, its end, its analysis
-  { table: "notifications", event: "INSERT" }
+  { table: "notifications", event: "INSERT" },
   // an alert the edge kept: the bell repaints
+  { table: "lines", event: "*" }
+  // a line's saga step, its failure, its answer: Setup repaints
 ];
 function subscribeMessagesInserts(client, onInsert, opts = {}) {
   const topic = `db-changes:${opts.topic ?? "bridge"}`;

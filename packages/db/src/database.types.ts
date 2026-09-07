@@ -1382,6 +1382,98 @@ export type Database = {
           },
         ]
       }
+      lines: {
+        Row: {
+          area_code: number | null
+          created_at: string
+          credential_list_sid: string | null
+          credentials_ref: string | null
+          e164: string | null
+          facts: Json
+          forwarding_state: string
+          id: string
+          kind: string
+          last_error: string | null
+          messaging_service_sid: string | null
+          number_sid: string | null
+          port_state: string
+          provider: string
+          retell_agent_id: string | null
+          sms_state: string
+          state_since: string
+          step: string | null
+          subaccount_sid: string | null
+          tenant_id: string
+          termination_uri: string | null
+          trunk_sid: string | null
+          updated_at: string
+          voice_state: string
+          whatsapp_state: string
+        }
+        Insert: {
+          area_code?: number | null
+          created_at?: string
+          credential_list_sid?: string | null
+          credentials_ref?: string | null
+          e164?: string | null
+          facts?: Json
+          forwarding_state?: string
+          id?: string
+          kind?: string
+          last_error?: string | null
+          messaging_service_sid?: string | null
+          number_sid?: string | null
+          port_state?: string
+          provider: string
+          retell_agent_id?: string | null
+          sms_state?: string
+          state_since?: string
+          step?: string | null
+          subaccount_sid?: string | null
+          tenant_id: string
+          termination_uri?: string | null
+          trunk_sid?: string | null
+          updated_at?: string
+          voice_state?: string
+          whatsapp_state?: string
+        }
+        Update: {
+          area_code?: number | null
+          created_at?: string
+          credential_list_sid?: string | null
+          credentials_ref?: string | null
+          e164?: string | null
+          facts?: Json
+          forwarding_state?: string
+          id?: string
+          kind?: string
+          last_error?: string | null
+          messaging_service_sid?: string | null
+          number_sid?: string | null
+          port_state?: string
+          provider?: string
+          retell_agent_id?: string | null
+          sms_state?: string
+          state_since?: string
+          step?: string | null
+          subaccount_sid?: string | null
+          tenant_id?: string
+          termination_uri?: string | null
+          trunk_sid?: string | null
+          updated_at?: string
+          voice_state?: string
+          whatsapp_state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lines_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       memberships: {
         Row: {
           created_at: string
@@ -2124,6 +2216,7 @@ export type Database = {
       }
       get_channel_credentials: { Args: { p_channel_id: string }; Returns: Json }
       get_cron_sweep_key: { Args: never; Returns: string }
+      get_line_credentials: { Args: { p_line_id: string }; Returns: Json }
       ingest_call: {
         Args: {
           p_agent_id: string
@@ -2240,6 +2333,10 @@ export type Database = {
       purge_notifications: { Args: { p_keep?: string }; Returns: number }
       put_channel_credentials: {
         Args: { p_channel_id: string; p_secret: Json }
+        Returns: string
+      }
+      put_line_credentials: {
+        Args: { p_line_id: string; p_secret: Json }
         Returns: string
       }
       report_series: {

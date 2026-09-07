@@ -112,7 +112,10 @@ var EVENT_KINDS = [
   "contact.erased",
   "contact.blob_erased",
   "setup.requested",
-  "voice.provisioned"
+  "voice.provisioned",
+  "line.answering",
+  "line.failed",
+  "line.released"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;

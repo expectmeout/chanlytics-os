@@ -79,6 +79,9 @@ export const EVENT_KINDS = [
   "contact.blob_erased",
   "setup.requested",
   "voice.provisioned",
+  "line.answering",
+  "line.failed",
+  "line.released",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 
