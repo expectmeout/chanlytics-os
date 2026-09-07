@@ -14,7 +14,7 @@
 import { formatPhoneDisplay } from "./phone";
 import { waWindow } from "./policy";
 import { tidyCallSummary } from "./call-words";
-import { visitDay, visitLine, visitTime, type PersonVisitsDto } from "./calendar-people";
+import { visitDateKey, visitDay, visitLine, visitTime, type PersonVisitsDto } from "./calendar-people";
 import {
   initialsOf,
   messageAt,
@@ -462,6 +462,11 @@ export interface PersonRowVM {
   nextVisitDays: number | null;
   /** Days since the last visit; null without one. */
   lastVisitDays: number | null;
+  /** "2026-09-08": the day of the next / last visit by the calendar's own clock — what a day-keyed playbook reads. */
+  nextVisitDate: string | null;
+  lastVisitDate: string | null;
+  /** The calendar's zone; null without a calendar. */
+  calendarTz: string | null;
 }
 
 export function toPersonRowVM(r: PersonRowDto, now = new Date()): PersonRowVM {
@@ -530,6 +535,9 @@ export function toPersonRowVM(r: PersonRowDto, now = new Date()): PersonRowVM {
     lastVisitMs,
     nextVisitDays: nextVisitMs !== null ? Math.max(0, Math.ceil((nextVisitMs - nowMs) / DAY_MS)) : null,
     lastVisitDays: lastVisitMs !== null ? Math.max(0, Math.floor((nowMs - lastVisitMs) / DAY_MS)) : null,
+    nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
+    lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
+    calendarTz: v?.timezone ?? null,
   };
 }
 

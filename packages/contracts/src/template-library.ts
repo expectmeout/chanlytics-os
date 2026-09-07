@@ -13,7 +13,7 @@
 import type { ParamSpec } from "./templates";
 import type { PlaybookTrigger } from "./playbooks";
 
-export type StarterSlotKind = "first_name" | "business_name" | "booking_link" | "text";
+export type StarterSlotKind = "first_name" | "business_name" | "booking_link" | "visit_when" | "visit_service" | "text";
 
 export interface StarterSlot {
   kind: StarterSlotKind;
@@ -53,6 +53,10 @@ const LINK = { kind: "booking_link" as const, label: "Booking link", example: "h
 const FIRST_ES = { ...FIRST, label: "Nombre" };
 const BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
 const LINK_ES = { ...LINK, label: "Enlace de reservas" };
+const WHEN = { kind: "visit_when" as const, label: "When", example: "tomorrow at 2:00 PM" };
+const SERVICE = { kind: "visit_service" as const, label: "Service", example: "a balayage" };
+const WHEN_ES = { ...WHEN, label: "Cuándo", example: "mañana a las 2:00 PM" };
+const SERVICE_ES = { ...SERVICE, label: "Servicio", example: "un balayage" };
 const STOP_EN = "Reply STOP to opt out";
 const STOP_ES = "Responde STOP para darte de baja";
 
@@ -134,6 +138,46 @@ export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
         body: "Hola {{1}}, este mes en {{2}}: {{3}} Reserva aquí: {{4}} — las plazas son limitadas.",
         footer: STOP_ES,
         slots: [FIRST_ES, BUSINESS_ES, { kind: "text", label: "La oferta", example: "20% de descuento en balayage para clientas habituales, reserva antes del viernes." }, LINK_ES],
+      },
+    },
+  },
+  {
+    key: "visit_reminder",
+    name: "visit_reminder",
+    title: "Visit reminder",
+    purpose: "for the day before an appointment",
+    category: "utility",
+    trigger: "visit_tomorrow",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, it's {{2}}. A reminder of your appointment {{3}} for {{4}}. If you need to change it, just reply here.",
+        footer: null,
+        slots: [FIRST, BUSINESS, WHEN, SERVICE],
+      },
+      es: {
+        body: "Hola {{1}}, te escribimos de {{2}}. Te recordamos tu cita {{3}} para {{4}}. Si necesitas cambiarla, responde aquí.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, WHEN_ES, SERVICE_ES],
+      },
+    },
+  },
+  {
+    key: "after_visit",
+    name: "after_visit",
+    title: "After the visit",
+    purpose: "for the day after a visit",
+    category: "marketing",
+    trigger: "visited",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thank you for coming to {{2}} yesterday — we hope you love the result. When you're ready for your next visit, pick a time here: {{3}}.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, LINK],
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}} — esperamos que te encante el resultado. Cuando quieras tu próxima cita, elige la hora aquí: {{3}}.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES],
       },
     },
   },

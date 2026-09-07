@@ -126,6 +126,7 @@ export type Database = {
         Row: {
           broadcast_id: string
           contact_id: string
+          facts: Json | null
           message_id: string | null
           reason: string | null
           sent_at: string | null
@@ -135,6 +136,7 @@ export type Database = {
         Insert: {
           broadcast_id: string
           contact_id: string
+          facts?: Json | null
           message_id?: string | null
           reason?: string | null
           sent_at?: string | null
@@ -144,6 +146,7 @@ export type Database = {
         Update: {
           broadcast_id?: string
           contact_id?: string
+          facts?: Json | null
           message_id?: string | null
           reason?: string | null
           sent_at?: string | null

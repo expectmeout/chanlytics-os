@@ -97,7 +97,7 @@ function int(v: unknown, fallback: number, min: number, max: number, what: strin
 export async function checkPlaybookInput(ctx: RouteContext, tenantId: string, body: Record<string, unknown> | null): Promise<PlaybookInput> {
   const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, PLAYBOOK_NAME_MAX) : "";
   const trig = typeof body?.trigger === "string" ? triggerOf(body.trigger) : null;
-  if (!trig) throw new AppError("validation", "Pick what starts it: win-back, welcome, save our number, or the month's offer.");
+  if (!trig) throw new AppError("validation", "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, or a visit yesterday.");
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
   if (!UUID.test(templateId)) throw new AppError("validation", "Pick a template.");
   const { data: tpl, error } = await ctx.supabase

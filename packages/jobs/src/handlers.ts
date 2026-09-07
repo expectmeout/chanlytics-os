@@ -401,7 +401,7 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
 
   const { data: batch, error: qErr } = await ctx.db
     .from("broadcast_recipients")
-    .select("contact_id")
+    .select("contact_id, facts")
     .eq("broadcast_id", b.id)
     .eq("state", "queued")
     .limit(BROADCAST_CHUNK);
@@ -437,7 +437,13 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
 
     // Their own words in the slots: a first name nobody has on file reads
     // "there"; a slot nothing can fill holds the person, never a blank send.
-    const params = resolveParams(specs, { firstName: firstNameOf(c.display_name, c.wa_profile_name), businessName, bookingLink });
+    // A visit run's words for this person, resolved when the run was made.
+    const facts = (r.facts !== null && typeof r.facts === "object" && !Array.isArray(r.facts) ? r.facts : {}) as Record<string, unknown>;
+    const params = resolveParams(specs, {
+      firstName: firstNameOf(c.display_name, c.wa_profile_name), businessName, bookingLink,
+      visitWhen: typeof facts.visit_when === "string" ? facts.visit_when : null,
+      visitService: typeof facts.visit_service === "string" ? facts.visit_service : null,
+    });
     if (params.some((v) => !v)) { await mark(r.contact_id, { state: "skipped", reason: "missing_value" }); continue; }
     const words = renderTemplate(tpl.body_preview, params);
     const sent = await SENDERS.whatsapp(ctx, c.phone_e164, { body: words, template: { name: b.template_name, language: b.template_language, params } });

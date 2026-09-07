@@ -27,8 +27,8 @@ const person = (id, over = {}) => ({
 const base = { trigger: "quiet_30", cap_per_run: 25, gap_days: 90, cadence_days: 30 };
 const noTouch = { byThis: new Map(), byAny: new Map() };
 
-test("four triggers, each a list that keeps itself current, each under one of the two autonomy rows", () => {
-  assert.deepEqual(PLAYBOOK_TRIGGERS.map((t) => t.id), ["quiet_30", "new_week", "phoned_only", "everyone_monthly"]);
+test("six triggers: four lists and cadences, two the calendar makes possible, each under one of the three autonomy rows", () => {
+  assert.deepEqual(PLAYBOOK_TRIGGERS.map((t) => t.id), ["quiet_30", "new_week", "phoned_only", "everyone_monthly", "visit_tomorrow", "visited"]);
   assert.equal(triggerOf("quiet_30").list, "quiet");
   assert.equal(triggerOf("everyone_monthly").list, null);
   assert.equal(triggerOf("quiet_30").cls, "reengage");

@@ -44,7 +44,7 @@ test("names Meta accepts, slots in order, one example each: what is refused is r
 });
 
 test("what fills a slot: typed text once, or the person's first name, the business's name, the booking link — per recipient, with the same words the page previews", () => {
-  assert.deepEqual([...PARAM_SOURCES], ["text", "first_name", "business_name", "booking_link"]);
+  assert.deepEqual([...PARAM_SOURCES], ["text", "first_name", "business_name", "booking_link", "visit_when", "visit_service"]);
   assert.deepEqual(parseParamSpec("20%"), { kind: "text", value: "20%" });
   assert.deepEqual(parseParamSpec("@first_name"), { kind: "first_name" });
   assert.deepEqual(parseParamSpec({ kind: "booking_link" }), { kind: "booking_link" });
@@ -98,7 +98,7 @@ test("the routes: what Meta refuses is refused first; a duplicate name is a conf
 
 test("the job fills the slots per person and holds anyone a slot cannot be filled for; the send route takes specs and refuses a booking-link slot with no link on file", () => {
   const h = readCode("packages/jobs/src/handlers.ts");
-  assert.ok(h.includes("const params = resolveParams(specs, { firstName: firstNameOf(c.display_name, c.wa_profile_name), businessName, bookingLink });"));
+  assert.ok(h.includes("firstName: firstNameOf(c.display_name, c.wa_profile_name), businessName, bookingLink,") && h.includes('visitWhen: typeof facts.visit_when === "string" ? facts.visit_when : null,'), "the person's own words, and a visit run's words from their row");
   assert.ok(h.includes('if (params.some((v) => !v)) { await mark(r.contact_id, { state: "skipped", reason: "missing_value" }); continue; }'), "never a blank send");
   assert.ok(h.includes('const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";'));
   const r = readCode("apps/dashboard/app/api/v1/broadcasts/route.ts");
