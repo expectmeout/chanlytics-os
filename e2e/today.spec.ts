@@ -36,7 +36,7 @@ test.describe("Today on a real workspace", () => {
   test("the day beside the queue: today and tomorrow from the calendar when there is one, nothing when there is not", async ({ page }) => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
-    const cal = ((await (await page.request.get("/api/v1/calendar")).json()).data as { feed?: { state?: string } }).feed;
+    const cal = ((await (await page.request.get("/api/v1/calendar")).json()).data.calendar as { feed?: { state?: string } }).feed;
     const day = page.getByTestId("today-day");
     if (cal?.state !== "ok") { await expect(day).toHaveCount(0); return; }
     await expect(day).toBeVisible();
