@@ -1,3 +1,4 @@
+import { clockLabel } from "./calendar";
 import { standingOf } from "./standing";
 /**
  * Today (Slice 4): the morning brief.
@@ -721,12 +722,14 @@ export interface DayFrameLike {
   today: boolean;
   past: boolean;
   closed: { yes: boolean; note: string | null };
-  blocks: Array<{ id: string; t: number; time: string; title: string; person: { id: string; name: string } | null }>;
-  allDay: Array<{ id: string; t: number; time: string; title: string; person: { id: string; name: string } | null }>;
+  blocks: Array<{ id: string; t: number; dur: number; time: string; title: string; person: { id: string; name: string } | null }>;
+  allDay: Array<{ id: string; t: number; dur: number; time: string; title: string; person: { id: string; name: string } | null }>;
   windows: Array<{ label: string }>;
 }
 export interface CalendarLike {
   days: DayFrameLike[];
+  /** The clock now, as hours in the business's zone (14.5 is 2:30 PM). */
+  now: number;
   feed: { state: "ok" | "unavailable" | "none" };
   stats: { next: string };
 }
@@ -738,6 +741,23 @@ export interface PlaybookCardLike {
   next: string;
 }
 
+export interface TodayDayItemVM {
+  id: string;
+  /** "2 PM" · "10:15 AM" · "All day" — the column. */
+  start: string;
+  /** "2 – 5 PM" — the whole span, for the hover. */
+  time: string;
+  /** "3h" · "1h 30m" · "45m"; empty for all-day. */
+  dur: string;
+  title: string;
+  person: { id: string; name: string } | null;
+  allDay: boolean;
+  /** Where it sits against the clock, today only: past · now · next · later. */
+  phase: "past" | "now" | "next" | "later";
+  /** The person's open thread, when they have one: "Needs you — in Inbox". */
+  flag: string | null;
+}
+
 export interface TodayDayFrameVM {
   key: string;
   /** "Today · Sunday, September 6" */
@@ -745,10 +765,22 @@ export interface TodayDayFrameVM {
   today: boolean;
   past: boolean;
   closed: { yes: boolean; note: string | null };
-  items: Array<{ id: string; time: string; title: string; person: { id: string; name: string } | null; allDay: boolean }>;
+  items: TodayDayItemVM[];
+  /** "2 booked", and "1 needs you" when a person on the day has an open thread. */
+  summary: { booked: string; flagged: string | null } | null;
   /** The windows the receptionist would offer, as labels; none on a closed or past day. */
   open: string[];
 }
+
+/** "45m" · "1h" · "1h 30m" */
+export function durationLabel(minutes: number): string {
+  if (!Number.isFinite(minutes) || minutes <= 0) return "";
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return h ? (m ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
+}
+
+const FLAG_WORDS: Record<string, string> = { needs_you: "Needs you — in Inbox", waiting_on_you: "Waiting on you — in Inbox" };
 
 export interface TodayDayVM {
   feed: "ok" | "unavailable" | "none";
@@ -764,21 +796,56 @@ export interface TodayDayVM {
  * is derived from a message; the calendar is the source, the playbooks say
  * what they will do about it.
  */
-export function todayDay(cal: CalendarLike | null, playbooks: PlaybookCardLike[] | null): TodayDayVM {
+export function todayDay(
+  cal: CalendarLike | null,
+  playbooks: PlaybookCardLike[] | null,
+  /** People's rows, for the red line: a person on the day whose thread needs someone. */
+  people: { rows: Array<{ id: string; state: string }> } | null = null,
+): TodayDayVM {
   if (!cal) return { feed: "none", frames: [], nextOpening: null, reminders: null };
   const feed = cal.feed.state;
   const idx = cal.days.findIndex((d) => d.today);
   const picked = idx >= 0 ? cal.days.slice(idx, idx + 2) : [];
-  const item = (b: DayFrameLike["blocks"][number], allDay: boolean) => ({ id: b.id, time: b.time, title: b.title, person: b.person ? { id: b.person.id, name: b.person.name } : null, allDay });
-  const frames: TodayDayFrameVM[] = picked.map((d) => ({
-    key: d.key,
-    label: `${d.today ? "Today" : "Tomorrow"} · ${d.long}`,
-    today: d.today,
-    past: d.past,
-    closed: d.closed,
-    items: [...d.allDay.map((b) => item(b, true)), ...[...d.blocks].sort((a, b) => a.t - b.t).map((b) => item(b, false))],
-    open: d.closed.yes || d.past ? [] : d.windows.map((w) => w.label),
-  }));
+  const stateOf = new Map((people?.rows ?? []).map((r) => [r.id, r.state]));
+  const item = (b: DayFrameLike["blocks"][number], allDay: boolean, phase: TodayDayItemVM["phase"]): TodayDayItemVM => ({
+    id: b.id,
+    start: allDay ? "All day" : clockLabel(b.t),
+    time: b.time,
+    dur: allDay ? "" : durationLabel(b.dur),
+    title: b.title,
+    person: b.person ? { id: b.person.id, name: b.person.name } : null,
+    allDay,
+    phase,
+    flag: b.person ? FLAG_WORDS[stateOf.get(b.person.id) ?? ""] ?? null : null,
+  });
+  const frames: TodayDayFrameVM[] = picked.map((d) => {
+    // Against the clock, today only: what is over, what is on now, the one
+    // coming next. Tomorrow is all "later"; an all-day entry has no place on
+    // the rail.
+    let nextTaken = false;
+    const timed = [...d.blocks].sort((a, b) => a.t - b.t).map((b) => {
+      let phase: TodayDayItemVM["phase"] = "later";
+      if (d.today) {
+        const end = b.t + b.dur / 60;
+        if (end <= cal.now) phase = "past";
+        else if (b.t <= cal.now) phase = "now";
+        else if (!nextTaken) { phase = "next"; nextTaken = true; }
+      }
+      return item(b, false, phase);
+    });
+    const items = [...d.allDay.map((b) => item(b, true, "later")), ...timed];
+    const flagged = items.filter((i) => i.flag).length;
+    return {
+      key: d.key,
+      label: `${d.today ? "Today" : "Tomorrow"} · ${d.long}`,
+      today: d.today,
+      past: d.past,
+      closed: d.closed,
+      items,
+      summary: items.length ? { booked: `${items.length} booked`, flagged: flagged ? `${flagged} need${flagged === 1 ? "s" : ""} you` : null } : null,
+      open: d.closed.yes || d.past ? [] : d.windows.map((w) => w.label),
+    };
+  });
   let reminders: TodayDayVM["reminders"] = null;
   if (feed === "ok") {
     const visit = (playbooks ?? []).filter((p) => (p.trigger === "visit_tomorrow" || p.trigger === "visited") && p.state === "running");

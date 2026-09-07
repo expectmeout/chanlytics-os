@@ -20,15 +20,23 @@ test("today and tomorrow, as the calendar reads them: items in time order with t
     day("2026-09-07", { long: "Monday, September 7", closed: { yes: true, note: "Labor Day" }, windows: [{ t: 9, dur: 60, label: "9 – 10 AM" }] }),
     day("2026-09-08", { long: "Tuesday, September 8", blocks: [block("b3", 9, "9 – 10 AM", "Cut")] }),
   ];
-  const vm = todayDay(cal(days), [{ trigger: "visit_tomorrow", state: "running", run_hour: 10, candidates: 2, next: "today 10:00" }, { trigger: "quiet_30", state: "running", run_hour: 10, candidates: 5, next: "today 10:00" }]);
+  const vm = todayDay(cal(days), [{ trigger: "visit_tomorrow", state: "running", run_hour: 10, candidates: 2, next: "today 10:00" }, { trigger: "quiet_30", state: "running", run_hour: 10, candidates: 5, next: "today 10:00" }], { rows: [{ id: "c1", state: "needs_you" }] });
   assert.equal(vm.feed, "ok");
   assert.deepEqual(vm.frames.map((f) => f.key), ["2026-09-06", "2026-09-07"], "today and tomorrow, never yesterday");
   const today = vm.frames[0];
   assert.equal(today.label, "Today · Sunday, September 6");
   assert.deepEqual(today.items.map((i) => [i.time, i.title, i.person ? i.person.name : null, i.allDay]), [["", "Stock count", null, true], ["10 – 11 AM", "Gloss", null, false], ["2 – 3 PM", "Balayage", "Daniela R.", false]], "all-day first, then by the clock");
   assert.deepEqual(today.open, ["11 AM – 1 PM", "3 – 4 PM"]);
+  // The schedule's own words: the start in a column, the length, the place against the clock (now is 10), the person's open thread.
+  assert.deepEqual(today.items.map((i) => [i.start, i.dur, i.phase, i.flag]), [["All day", "", "later", null], ["10 AM", "1h", "now", null], ["2 PM", "1h", "next", "Needs you — in Inbox"]]);
+  assert.deepEqual(today.summary, { booked: "3 booked", flagged: "1 needs you" });
+  const later = todayDay(cal([day("2026-09-06", { today: true, blocks: [block("b1", 8, "8 – 9 AM", "Trim"), block("b2", 9, "9 – 10 AM", "Cut")] }), day("2026-09-07", { blocks: [block("b3", 9, "9 – 10 AM", "Cut", person("c9", "Ana"))] })]), [], null);
+  assert.deepEqual(later.frames[0].items.map((i) => i.phase), ["past", "past"], "over by ten");
+  assert.deepEqual([later.frames[1].items[0].phase, later.frames[1].items[0].flag, later.frames[1].summary], ["later", null, { booked: "1 booked", flagged: null }], "tomorrow has no clock and no rows to flag from");
   const tomorrow = vm.frames[1];
   assert.equal(tomorrow.label, "Tomorrow · Monday, September 7");
+  assert.equal(tomorrow.summary, null);
+  assert.deepEqual(tomorrow.items.map((i) => i.phase), [], "tomorrow is closed with nothing on it");
   assert.deepEqual([tomorrow.closed, tomorrow.open, tomorrow.items], [{ yes: true, note: "Labor Day" }, [], []], "a closed day offers no windows");
   assert.equal(vm.nextOpening, "Mon 9:30 AM");
   assert.deepEqual(vm.reminders, { text: "Visit reminder: 2 people · next run today 10:00", to: "outbound" }, "only the visit playbooks speak here");
@@ -64,7 +72,7 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
   assert.ok(app.includes('import { installToday } from "./today";') && app.includes("installToday();"));
   const page = readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx");
-  for (const s of ['data-testid="today-day"', 'C.vm.feed.state !== "ok" || !window.__today) return null;', "window.__today.day(C.vm, P ? P.rows : null)", 'data-testid="today-day-frame"', 'data-testid="today-day-item"', "nav(b.person ? `clients/${b.person.id}` : \"calendar\")", 'data-testid="today-day-reminders"']) assert.ok(page.includes(s), s);
+  for (const s of ['data-testid="today-day"', 'C.vm.feed.state !== "ok" || !window.__today) return null;', "window.__today.day(C.vm, P ? P.rows : null, window.__PEOPLE || null)", 'data-testid="today-day-frame"', 'data-testid="today-day-item"', "nav(b.person ? `clients/${b.person.id}` : \"calendar\")", 'data-testid="today-day-reminders"', 'className="td-item-rail"', "data-phase={b.phase}", 'className="td-item-flag"', "b.person ? b.person.name : b.title"]) assert.ok(page.includes(s), s);
   const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
   assert.ok(brief.includes("<DayFacts />") && brief.includes("window.__today.facts(C ? C.vm : null, P ? P.aggregates : null)"), "the day's facts ride the recap's strip");
   assert.ok(!brief.includes("CalendarLine") && !brief.includes('data-testid="brief-calendar"'), "the one-line calendar beat is the module now");
@@ -73,5 +81,5 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   const manifest = readCode("apps/dashboard/src/legacy-bridge/manifest.ts");
   assert.ok(manifest.indexOf('"@/legacy/pages/dashboard-a-day.jsx"') < manifest.indexOf('"@/legacy/pages/dashboard-a.jsx"'));
   const css = readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css");
-  assert.ok(css.includes(".td-day {") && css.includes(".td-frame.today .td-frame-label") && css.includes('grid-template-areas: "time title" "time person";') && css.includes("-webkit-line-clamp: 2;") && !readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx").includes("cal-agenda") && css.includes("@media (max-width: 900px) {\n  .dash-a-v2-core { grid-template-columns: 1fr; }"));
+  assert.ok(css.includes(".td-day {") && css.includes(".td-frame.today .td-frame-label") && css.includes(".td-items::before {") && css.includes("grid-template-columns: 56px 12px minmax(0, 1fr) auto;") && css.includes("-webkit-line-clamp: 2;") && css.includes(".td-item.now .td-item-rail::after") && !readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx").includes("cal-agenda") && css.includes("@media (max-width: 900px) {\n  .dash-a-v2-core { grid-template-columns: 1fr; }"));
 });
