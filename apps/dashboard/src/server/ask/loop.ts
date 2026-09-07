@@ -18,7 +18,7 @@ import { GatewayRefused, featureRejected } from "./gateway";
 import { FINISH_TOOL, READ_TOOLS, newToolContext, runTool, toolLabel, type ToolContext } from "./tools";
 import { ACT_TOOLS, ACT_TOOL_NAMES, buildProposal, proposalLabel } from "./proposals";
 import { stableSystem, turnSystem, type WorkspaceFacts } from "./prompt";
-import { buildSnapshot, snapshotBlock } from "./snapshot";
+import { snapshotFor } from "./snapshot";
 import { parseInput, runRound, type RoundBlock } from "./round";
 
 /**
@@ -104,6 +104,20 @@ function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
   }
 }
 
+/**
+ * The answer when a round proposed and nothing else: the cards are the
+ * answer, and a second round of the model to say so cost more than the
+ * proposal did. The model's own prose beside the call is kept when it
+ * wrote any; otherwise each card's title and change, and what a card is.
+ */
+export function proposalsAnswer(ps: ReadonlyArray<Pick<AskProposal, "title" | "summary">>, es: boolean): string {
+  const lines = ps.map((p) => (p.summary && p.summary !== p.title ? `${p.title}: ${p.summary}` : p.title).trim());
+  const tail = es
+    ? (ps.length === 1 ? "Es una tarjeta: apruébala, cámbiala o descártala." : "Son tarjetas: aprueba, cambia o descarta cada una.")
+    : (ps.length === 1 ? "It's a card: approve it, change it or dismiss it." : "They're cards: approve, change or dismiss each.");
+  return [...lines, tail].join("\n");
+}
+
 /** The thread's prior turns, folded so no two neighbours share a role, starting with the person. */
 export function foldHistory(history: TurnInput["history"], text: string): Msg[] {
   const messages: Msg[] = [
@@ -134,7 +148,7 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
   let snapshot = "";
   const tSnap = Date.now();
   try {
-    snapshot = snapshotBlock(await buildSnapshot(tc, input.timezone, input.scope));
+    snapshot = await snapshotFor(tc, input.timezone, input.scope);
     reads++;
   } catch (e) {
     console.error("ask_snapshot_failed", JSON.stringify({ error: e instanceof Error ? e.message : String(e), tenant: input.tenantId }));
@@ -245,9 +259,9 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
         return done({
           finish: f,
           answer: f.answer,
-          citations: kept.map((c) => ({ ...c, to: citationRoute(c) })),
+          citations: kept.slice(0, 4).map((c) => ({ ...c, to: citationRoute(c) })),
           navigate: f.navigate && navTo ? { ...f.navigate, to: navTo } : null,
-          followups: f.followups,
+          followups: f.followups.slice(0, 2),
           language: f.language === "other" ? input.language : f.language,
           ungrounded: isUngrounded(f.answer, reads + proposals.length),
           failed: false,
@@ -264,7 +278,16 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
 
       // Reads and proposals, in parallel; every result goes back at once.
       for (const b of calls) input.emit({ t: "trace", text: ACT_TOOL_NAMES.has(b.name) ? proposalLabel(b.name) : toolLabel(b.name) });
+      const before = proposals.length;
       const outcomes = await Promise.all(calls.map(async (b) => ({ block: b, out: ACT_TOOL_NAMES.has(b.name) ? await propose(b) : await read(b) })));
+      // Proposals alone, every one of them made: the cards are the answer.
+      // A refused or failed proposal keeps the round — the model must say why
+      // and what the person can do instead.
+      if (calls.every((b) => ACT_TOOL_NAMES.has(b.name)) && outcomes.every(({ out }) => !out.isError) && proposals.length > before) {
+        const answer = prose || proposalsAnswer(proposals.slice(before), es);
+        input.emit({ t: "delta", text: answer });
+        return done({ answer, citations: [], navigate: null, followups: [], ungrounded: false, failed: false, failure: null, rounds: round });
+      }
       messages.push({ role: "assistant", content: blocks.map((b) => (b.type === "text" ? { type: "text", text: b.text || " " } : { type: "tool_use", id: b.id, name: b.name, input: parseInput(b.json) })) });
       messages.push({ role: "user", content: outcomes.map(({ block, out }) => ({ type: "tool_result", tool_use_id: block.id, content: out.result, is_error: out.isError })) });
       if (Date.now() - t0 > ASK_TURN_BUDGET_MS - 8_000 && !last) {

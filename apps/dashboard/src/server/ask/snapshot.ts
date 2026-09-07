@@ -13,6 +13,7 @@ import {
   type EscalationDto,
   type MessageDto,
 } from "@chanlytics/contracts";
+import type { AskReadSet } from "@chanlytics/contracts";
 import { CALL_COLUMNS, CONVERSATION_COLUMNS, MESSAGE_COLUMNS, groupMessages, toCallDto, toConversationDto } from "../dto";
 import { runTool, type ToolContext } from "./tools";
 
@@ -229,4 +230,33 @@ export function snapshotBlock(s: Snapshot): string {
     JSON.stringify(s),
     "Answer from this when it is enough. get_today, list_threads (needs_you, held, recent) and list_calls (today, missed) return these same rows: do not call them for what is here. Read only for what is not here: a whole conversation or transcript, a person's profile, a report, openings, settings, threads and calls older than these. A thread's `route`, a call's `route` and a person's `person_route` are what navigate.to takes; to show or open a person's profile, navigate to their `person_route` without reading it.",
   ].join("\n");
+}
+
+/** A snapshot lives this long for the same person, workspace and scope: a follow-up asked within it reads the day once. */
+export const SNAPSHOT_TTL_MS = 20_000;
+type ReadIds = Record<keyof AskReadSet, string[]>;
+const recent = new Map<string, { at: number; block: string; read: ReadIds }>();
+const RECENT_MAX = 200;
+
+/**
+ * The snapshot for a turn: built, or the one built for this person's last
+ * question within the TTL. The clock lives in the turn block above it, so
+ * a kept snapshot reads the same to the model, and its rows re-enter the
+ * turn's read set so the answer may still cite them. Keyed by the person
+ * too, not only the workspace: what a thread says about "you" is theirs.
+ */
+export async function snapshotFor(t: ToolContext, timezone: string, scope: AskScope | null): Promise<string> {
+  const key = `${t.tenantId}|${t.ctx.userId}|${scope ? `${scope.kind}:${scope.id}` : ""}`;
+  const nowMs = t.now.getTime();
+  const hit = recent.get(key);
+  if (hit && nowMs - hit.at < SNAPSHOT_TTL_MS && nowMs >= hit.at) {
+    for (const kind of Object.keys(hit.read) as (keyof AskReadSet)[]) for (const id of hit.read[kind]) t.read[kind].add(id);
+    return hit.block;
+  }
+  const block = snapshotBlock(await buildSnapshot(t, timezone, scope));
+  // The snapshot is the turn's first read, so the read set holds exactly its rows here.
+  const read: ReadIds = { thread: [...t.read.thread], conversation: [...t.read.conversation], call: [...t.read.call], person: [...t.read.person] };
+  recent.set(key, { at: nowMs, block, read });
+  if (recent.size > RECENT_MAX) recent.delete(recent.keys().next().value as string);
+  return block;
 }
