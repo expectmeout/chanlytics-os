@@ -68,6 +68,7 @@ const NAV_ROUTE = {
   outbound: "outbound",
   content: "content",
   broadcasts: "broadcasts",
+  messages: "messages",
   pipeline: "pipeline",
   calendar: "calendar",
   leads: "leads",
@@ -518,6 +519,11 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
       </button>
     );
     content = <OutboundPage />;
+  } else if (page === "messages") {
+    activeNav = "messages";
+    crumbs = ["Campaigns", "Messages"];
+    pane = true;
+    content = <MessagesPage />;
   } else if (page === "content") {
     activeNav = "content";
     crumbs = ["Campaigns", "Content"];

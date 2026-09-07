@@ -1825,32 +1825,33 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 .sb-sheet-keys { display: inline-flex; align-items: center; gap: 4px; }
 .sb-sheet-sep { font-size: 11px; color: var(--ink-dim); padding: 0 2px; }
 
-/* ---- WhatsApp messages: one row per message, its languages beside it, the words on expand ---- */
-.msg-intro { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 6px 0 10px; }
-.msg-intro .set-row-hint { flex: 1 1 320px; }
-.msg-list { display: flex; flex-direction: column; }
-.msg-group { flex-wrap: wrap; align-items: center; }
-.msg-group-main { flex: 1 1 260px; min-width: 0; display: flex; align-items: center; gap: 10px; text-align: left; background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; }
-.msg-group-main:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-sm); }
-.msg-group-main .tpl-starter-main { min-width: 0; }
-.msg-chev { color: var(--ink-faint); flex: none; }
-.msg-langs { display: inline-flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-left: auto; }
-.msg-lang-missing { font-size: 11px; color: var(--ink-dim); white-space: nowrap; }
-.msg-detail { flex-basis: 100%; display: grid; gap: 12px; padding: 10px 0 4px 40px; }
-.msg-line { display: grid; gap: 4px; }
-.msg-line.is-hidden { opacity: .7; }
-.msg-line-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11.5px; }
-.msg-line-title { font-size: 12.5px; font-weight: 500; color: var(--ink); }
-.msg-line-lang { font-weight: 500; color: var(--ink); }
-.msg-line-name { font-size: 11px; }
-.msg-line-acts { margin-left: auto; display: inline-flex; gap: 10px; }
-.msg-line-body { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); white-space: pre-wrap; }
-.msg-other { border-top: 1px solid var(--line); margin-top: 6px; display: grid; gap: 10px; padding-bottom: 4px; }
-.msg-other-toggle { background: none; border: 0; text-align: left; cursor: pointer; margin-top: 0; display: inline-flex; align-items: center; gap: 6px; }
+/* ---- Campaigns › Messages: one card per message, the bubble the customer sees ---- */
+.camp-tabs { margin-right: auto; }
+.ct-head .camp-tabs { margin-right: 0; align-self: flex-start; }
 .cl-bucket-link.danger { color: var(--danger); }
 .int-soon-list { font-style: normal; line-height: 1.6; }
 .int-soon-list b { color: var(--ink); font-weight: 500; }
+.msg-intro { padding: 0 0 10px; }
+.msg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.msg-card { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); min-width: 0; }
+.msg-card.is-hidden { opacity: .7; }
+.msg-card-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.msg-card-title { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.msg-card-purpose { font-size: 11.5px; color: var(--ink-dim); }
+.msg-card-langs { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.msg-lang { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 11px; font-weight: 500; padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--ink-muted); cursor: pointer; }
+.msg-lang.active { border-color: var(--accent); color: var(--ink); box-shadow: 0 0 0 1px var(--accent) inset; }
+.msg-lang .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--ok); }
+.msg-lang .dot.warn { background: var(--warn); }
+.msg-lang .dot.review { background: var(--ink-faint); }
+.msg-lang-missing { font-size: 11px; color: var(--ink-dim); }
+.msg-card .wa-bubble { max-width: none; }
+.msg-card-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--ink-dim); margin-top: auto; }
+.msg-card-meta { min-width: 0; }
+.msg-card-spacer { flex: 1; }
+.msg-card-acts { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 11.5px; padding-top: 6px; border-top: 1px solid var(--line); }
+.msg-fold { display: grid; gap: 12px; }
+.msg-fold-toggle { background: none; border: 0; cursor: pointer; font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); display: inline-flex; align-items: center; gap: 6px; padding: 0; }
 @media (max-width: 640px) {
-  .msg-detail { padding-left: 0; }
-  .msg-langs { margin-left: 40px; }
+  .msg-grid { grid-template-columns: 1fr; }
 }

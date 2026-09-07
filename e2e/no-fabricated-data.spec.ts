@@ -40,7 +40,7 @@ const INVENTED = [
 ];
 
 /** Surfaces classified `real` in surface-registry.ts — fed by live data. */
-const REAL_ROUTES = ["#/today", "#/inbox", "#/conversations", "#/clients", "#/admin/workspace", "#/admin/autonomy", "#/admin/notifications", "#/admin/integrations", "#/reports", "#/live"];
+const REAL_ROUTES = ["#/today", "#/inbox", "#/conversations", "#/clients", "#/admin/workspace", "#/admin/autonomy", "#/admin/notifications", "#/admin/integrations", "#/reports", "#/live", "#/messages"];
 
 async function assertNothingInvented(page: Page, where: string) {
   const text = await page.locator("body").innerText();

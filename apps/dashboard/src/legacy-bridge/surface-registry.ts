@@ -45,6 +45,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   outbound: "real",   // Campaigns › Playbooks: standing rules over the people who said yes, under the two Autonomy rows
   content: "demo",
   broadcasts: "real",  // one approved template to the people who said yes; SMS and email stay not available
+  messages: "real",    // Campaigns › Messages: what the receptionist and the campaigns send, as the customer sees it
   admin: "demo",    // the page itself: every pane below is classified, and a
                     // pane nobody has listed inherits this honest default
   "admin/setup": "real",      // read from the workspace: contracts/setup.ts over /api/v1/setup
@@ -74,6 +75,8 @@ export const ROUTE_SURFACE: Record<string, string> = {
   reports: "reports",
   live: "live",
   broadcasts: "broadcasts",
+  // The templates ride on the settings surface; the page waits for it like Settings does.
+  messages: "settings",
   outbound: "playbooks",
   calendar: "calendar",
   // The pane is fed by settingsOverride, so the route gate waits for it the
