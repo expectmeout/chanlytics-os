@@ -175,7 +175,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
       id: "replied",
       label: "Replied",
       value: pct(tot.replied, tot.sent) === null ? "—" : `${pct(tot.replied, tot.sent)}%`,
-      meta: tot.sent ? `${tot.replied} wrote back` : "nothing sent",
+      meta: tot.sent ? `${tot.replied} wrote back within 3 days` : "nothing sent",
       delta: pointsDelta(pct(tot.replied, tot.sent), pct(prev.replied, prev.sent), noun),
       spark: points.map((p) => p.replied),
     },

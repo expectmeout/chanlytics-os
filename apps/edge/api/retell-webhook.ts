@@ -42,7 +42,7 @@ import {
 } from "../lib/workspace/db.js";
 import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "../lib/call-recording.js";
 import { upsertEscalation } from "../lib/workspace/jobs.js";
-import { callOutcomeWords } from "../lib/workspace/contracts.js";
+import { callOutcomeWords, formatPhoneDisplay } from "../lib/workspace/contracts.js";
 import type { RoutedChannel } from "../lib/workspace/db.js";
 
 export const config = { maxDuration: 60 };
@@ -177,6 +177,8 @@ export async function POST(request: Request): Promise<Response> {
   // null = no control plane to ask; true = this delivery owns the post-call
   // side effects; false = a retry or replay, they already went out.
   let notifyClaim: boolean | null = null;
+  // What the bell row is about: the call, or the thread when it needs a call back.
+  let callAbout: { type: string; id: string } | null = null;
 
   // ---- canonical calls row (additive; never breaks the legacy path) ----
   if (db) {
@@ -188,6 +190,7 @@ export async function POST(request: Request): Promise<Response> {
           { channel: "voice", agent_id: n.agentId }).catch(() => {});
       } else {
         const res = await ingestCall(db, routed.tenantId, n, call);
+        if (res.call_id) callAbout = { type: "call", id: res.call_id };
         if (res.skipped) {
           // Older than the row: a retried call_started after call_ended, or a
           // partial transcript after the final one. Nothing was written.
@@ -235,6 +238,7 @@ export async function POST(request: Request): Promise<Response> {
           const pauseHours = rt.policy["reply"]?.limits.pause_hours ?? 24;
           await pauseConversation(db, routed.tenantId, res.conversation_id, new Date(Date.now() + pauseHours * 3_600_000).toISOString());
           const opened = await upsertEscalation(db, routed.tenantId, res.conversation_id, "callback", todo.slice(0, 400));
+          callAbout = { type: "conversation", id: res.conversation_id };
           console.log("call_callback_needed", JSON.stringify({ tenant: routed.tenantId, call: res.call_id, escalation: opened }));
         }
 
@@ -327,16 +331,15 @@ export async function POST(request: Request): Promise<Response> {
       {
         kind: "call",
         route: "conversations/phone",
-        subject: `Voice call: ${call.from_number || "unknown"} (${durationS}s, ${sentiment})${callback ? " — needs a call back" : ""}`,
+        about: callAbout,
+        // In the owner's words, name first: "Emily phoned · 3 min · needs a call back".
+        subject: `${said(n.analysis?.caller_name) || formatPhoneDisplay(call.from_number) || "Unknown caller"} phoned · ${durationS >= 60 ? `${Math.round(durationS / 60)} min` : `${durationS} s`}${callback ? " · needs a call back" : ""}`,
         body:
-          `AI phone agent handled a call on ${call.to_number || "the business line"}.\n\n` +
-          `From: ${call.from_number || "unknown"}\nDuration: ${durationS}s\nSentiment: ${sentiment}\n` +
-          `Disconnection: ${n.disconnectionReason || "n/a"}\n` +
-          (wanted ? `They wanted: ${wanted}\n` : "") +
-          (outcomeWords ? `Outcome: ${outcomeWords}\n` : "") +
+          (wanted ? `They wanted: ${wanted}.\n` : `${summary}\n`) +
+          (outcomeWords ? `Outcome: ${outcomeWords}.\n` : "") +
           (followUp ? `To do: ${followUp}\n` : "") +
-          `\n` +
-          `Summary:\n${summary}\n\n` +
+          `\nFrom ${call.from_number || "unknown"} · ${durationS}s · sentiment ${sentiment} · ended: ${n.disconnectionReason || "n/a"}\n` +
+          `\nSummary:\n${summary}\n\n` +
           `Transcript:\n${String(n.transcript || "(none)").slice(0, 3000)}`,
         redactedBody: `A voice call was handled for a workspace (${durationS}s). The summary and transcript were withheld.`,
       },

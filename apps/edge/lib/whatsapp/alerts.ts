@@ -6,6 +6,7 @@
 import { sendText as waSendText } from "../workspace/channels.js";
 import { waCfgFor, type TenantRuntime } from "../tenant-runtime.js";
 import { notify, type NotifyTarget } from "../notify.js";
+import { formatPhoneDisplay } from "../workspace/contracts.js";
 
 export async function sendText(to: string, body: string, rt?: TenantRuntime | null): Promise<{ ok: boolean; wamid: string | null; status: number }> {
   const r = await waSendText(waCfgFor(rt), to, body);
@@ -19,6 +20,20 @@ export async function sendText(to: string, body: string, rt?: TenantRuntime | nu
  * we know belongs to THIS tenant. `notify` decides that; a workspace we cannot
  * address gets a redacted platform notice rather than someone else's mailbox.
  */
+/** The reasons the handler names, in the owner's words. Anything else is said as it came. */
+const REASON_WORDS: Record<string, string> = {
+  "passed to a human": "asked for a person",
+  "assistant flagged handoff": "the receptionist asked for a person",
+  "assistant flagged handoff (reply held for review)": "a reply is waiting for your review",
+  "non-text message": "sent a photo or a voice note",
+  "opt-out": "asked to stop",
+  "state unavailable": "the receptionist could not read the thread",
+  "late message": "arrived too late to answer automatically",
+  "rate cap": "the receptionist reached its daily limit",
+  budget: "the day's model budget is used up",
+  wa_send_failed: "the reply failed to send",
+};
+
 export async function alertStaff(
   threadId: string,
   userText: string,
@@ -28,18 +43,24 @@ export async function alertStaff(
   pauseHours = 24,
   /** Where the bell sends the reader: the thread when it is known, else the Inbox. */
   route = "inbox",
+  /** The customer's name when the channel gave one; the number stands in otherwise. */
+  who: string | null = null,
+  /** The conversation the row is about, so the bell can say a thing once. */
+  about: { type: string; id: string } | null = null,
 ): Promise<void> {
+  const name = who?.trim() || formatPhoneDisplay(`+${threadId}`) || `+${threadId}`;
+  const why = REASON_WORDS[reason] ?? reason;
   await notify(target, {
     kind: "handoff",
     route,
-    subject: `WhatsApp handoff needed: +${threadId}`,
+    about,
+    subject: `${name} needs a person — ${why}`,
     body:
-      `The WhatsApp assistant flagged a conversation for a human (${reason}).\n\n` +
-      `Customer: +${threadId}\n` +
-      `Their message: ${userText}\n` +
-      `Bot's reply: ${botText}\n\n` +
-      `Reply from the WhatsApp Business app — the bot is paused on this thread for ${pauseHours}h.`,
-    redactedBody: `A WhatsApp conversation needed a human (${reason}), and nobody could be told.`,
+      `They wrote: “${userText}”\n` +
+      `${botText}\n\n` +
+      `WhatsApp · +${threadId}\n` +
+      `Reply from the Inbox — the receptionist is paused on this thread for ${pauseHours}h.`,
+    redactedBody: `A WhatsApp conversation needed a person (${why}), and nobody could be told.`,
   });
 }
 

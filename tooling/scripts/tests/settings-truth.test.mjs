@@ -65,7 +65,7 @@ test("F35: every pause reads the workspace's own pause_hours, not a hard-coded d
   const alerts = readCode("apps/edge/lib/whatsapp/alerts.ts");
   assert.ok(wa.includes("const echoPauseMs = (echoLimits.pause_hours ? echoLimits.pause_hours * 3600 * 1000 : PAUSE_MS);"));
   assert.ok(!wa.includes("t.pausedUntil = Date.now() + PAUSE_MS;"), "the WhatsApp-app echo honoured nothing");
-  assert.ok(alerts.includes("the bot is paused on this thread for ${pauseHours}h."), "and the handoff email states the same number");
+  assert.ok(alerts.includes("the receptionist is paused on this thread for ${pauseHours}h."), "and the handoff email states the same number");
   assert.equal((inbound.match(/, pauseHours[,)]/g) ?? []).length + (inbound.match(/\n\s+pauseHours,\n/g) ?? []).length, 11, "every handoff email carries it — eleven since the token budget's own handoff email; two also carry the thread route");
 });
 

@@ -159,6 +159,6 @@ test("a caller who needs a call back lands on Needs you: the reason exists every
   assert.ok(hook.includes('if (event === "call_analyzed" && res.conversation_id && n.analysis?.outcome === "callback_needed") {'), "only on the analysis, only with a thread to land on");
   assert.ok(hook.includes('upsertEscalation(db, routed.tenantId, res.conversation_id, "callback", todo.slice(0, 400))'), "one open escalation, refreshed on a replay");
   assert.ok(hook.includes('const pauseHours = rt.policy["reply"]?.limits.pause_hours ?? 24;') && hook.includes("pauseConversation(db, routed.tenantId, res.conversation_id,"), "the receptionist steps aside for the workspace's own pause");
-  assert.ok(hook.includes('${callback ? " — needs a call back" : ""}') && hook.includes("(followUp ? `To do: ${followUp}\\n` : \"\")"), "the email says what to do");
+  assert.ok(hook.includes('${callback ? " · needs a call back" : ""}') && hook.includes("(followUp ? `To do: ${followUp}\\n` : \"\")"), "the email says what to do");
   assert.ok(hook.indexOf("const todo = say(n.analysis.follow_up) || say(n.analysis.caller_wanted)") > 0, "the to-do first, the request second");
 });
