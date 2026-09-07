@@ -4118,6 +4118,14 @@ var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
+var DAY_MS = 864e5;
+var WEEK_MS = 7 * DAY_MS;
+var MONTH_MS = 30 * DAY_MS;
+var NEW_WINDOW_MS = 7 * DAY_MS;
+var QUIET_AFTER_MS = 30 * DAY_MS;
+var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_YEAR_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
+var TIME_FMT2 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var PolicyLimitsSchema = external_exports.object({
   max_replies_day: external_exports.number().int().min(1).max(200).optional(),
   pause_hours: external_exports.number().int().min(1).max(168).optional(),
@@ -4375,7 +4383,7 @@ var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
 });
-var DAY_MS = 24 * 3600 * 1e3;
+var DAY_MS2 = 24 * 3600 * 1e3;
 var ASK_CAPS = {
   threads: 20,
   messages: 30,
@@ -4460,14 +4468,6 @@ var AskSettingsChangeSchema = external_exports.discriminatedUnion("op", [
   external_exports.object({ op: external_exports.literal("add_note"), title: external_exports.string().min(1).max(80), text: external_exports.string().min(1).max(1200) }),
   external_exports.object({ op: external_exports.literal("add_service"), name: external_exports.string().min(1).max(80), duration_min: external_exports.number().int().min(1).max(1440).optional() })
 ]);
-var DAY_MS2 = 864e5;
-var WEEK_MS = 7 * DAY_MS2;
-var MONTH_MS = 30 * DAY_MS2;
-var NEW_WINDOW_MS = 7 * DAY_MS2;
-var QUIET_AFTER_MS = 30 * DAY_MS2;
-var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DATE_YEAR_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
-var TIME_FMT2 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };

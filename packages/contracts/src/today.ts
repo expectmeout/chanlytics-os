@@ -19,12 +19,14 @@ import {
   ESCALATION_REASON_LABELS,
   DISCONNECTION_LABELS,
   formatWaited,
+  initialsOf,
   type ConversationDto,
   type EscalationDto,
   type CallDto,
 } from "./viewmodels";
 import { waWindow } from "./policy";
 import { ANALYSIS_GRACE_MS } from "./live";
+import { reasonShort } from "./people";
 
 export interface MetricsSummaryDto {
   workspace: { name: string; timezone: string; status: string };
@@ -95,6 +97,33 @@ export interface TodaySentenceVM {
   warn?: boolean;
 }
 
+/**
+ * One row of the queue on Today, in the strip's grammar (people.ts
+ * attentionRow): who, where and when, one sentence, one state line, one
+ * verb — and, where the state asks a second thing of you, a second.
+ */
+export interface TodayQueueRowVM {
+  id: string;
+  kind: "handoff" | "callback" | "window" | "call";
+  who: string;
+  initials: string;
+  channel: "WhatsApp" | "Phone";
+  /** "waited 2h" · "closes 5:10 PM · in 40m" · "2:14 PM · 1:35". */
+  when: string;
+  sentence: string;
+  quoted: boolean;
+  status: string[];
+  tone: "escalated" | "warn";
+  warn: boolean;
+  cta: { label: string; to: string };
+  also: { label: string; verb: "snooze" | "resolve"; conversationId: string; escalationId: string } | null;
+  /** For the order: the longest wait first; a window by how soon it closes; a call last. */
+  waitedMs: number;
+}
+
+/** Six rows on Today; the rest is a count for the Inbox link. */
+export const TODAY_QUEUE_MAX = 6;
+
 export interface TodayVM {
   standing: {
     eyebrow: string;
@@ -117,6 +146,8 @@ export interface TodayVM {
    *  (an arc of 0/0 is a gauge with no needle). */
   pulse: { num: number; den: number } | null;
   calls: { line: string; rows: TodayCallRowVM[] } | null;
+  /** Everything that asks for a person, in one row grammar, longest wait first. */
+  queue: { rows: TodayQueueRowVM[]; more: number };
   launchpad: Array<{ label: string; to: string }>;
   updatedAt: string;
   quiet: {
@@ -249,7 +280,7 @@ export function toTodayVM(
   // out. Rendered ONLY when at least one qualifies — an empty deadline board
   // manufactures anxiety on a calm day.
   const escSet = new Set(openEsc.map((e) => e.conversation_id));
-  const closingRows = conversations
+  const closingConvs = conversations
     .filter((c) => {
       if (escSet.has(c.id)) return false;
       const last = c.messages[c.messages.length - 1];
@@ -258,8 +289,8 @@ export function toTodayVM(
       return w.open && w.closesAtIso
         ? new Date(w.closesAtIso).getTime() - now.getTime() < 6 * 3600 * 1000
         : false;
-    })
-    .map((c) => {
+    });
+  const closingRows = closingConvs.map((c) => {
       const w = waWindow(c.last_wa_inbound_at, now);
       const mins = w.closesAtIso
         ? Math.max(1, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / 60000))
@@ -333,6 +364,7 @@ export function toTodayVM(
       recap: { label: "Today so far", sentences: [], facts, receipts: [] },
       pulse: null,
       calls: null,
+      queue: { rows: [], more: 0 },
       launchpad: [{ label: "Conversations", to: "conversations" }],
       updatedAt: clock,
       quiet: {
@@ -511,6 +543,85 @@ export function toTodayVM(
       };
     });
 
+  /* ---- the queue: everything that asks for a person, in one row grammar.
+     The longest wait first; a closing window by how soon it closes; a call
+     worth an ear last. Six on Today, the rest a count for the Inbox link. ---- */
+  const callByConv = new Map<string, CallDto>();
+  for (const c of calls) {
+    if (!c.conversation_id) continue;
+    const prev = callByConv.get(c.conversation_id);
+    if (!prev || String(c.started_at ?? "") > String(prev.started_at ?? "")) callByConv.set(c.conversation_id, c);
+  }
+  const say = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : "");
+  const queueAll: TodayQueueRowVM[] = [];
+  for (const e of openEsc) {
+    const conv = byConv.get(e.conversation_id);
+    const waitedMs = now.getTime() - new Date(e.created_at).getTime();
+    const since = tzTime(e.created_at, tz) ?? "";
+    const warn = waitedMs > 30 * 60000;
+    if (e.reason === "callback") {
+      // The phone receptionist could not finish it: the to-do it left is the
+      // sentence, the call itself is where the verb goes, Done resolves it.
+      const call = callByConv.get(e.conversation_id) ?? null;
+      const who = conv ? contactName(conv) : call ? toCallVM(call, now).who : "Unknown caller";
+      queueAll.push({
+        id: `q-${e.id}`, kind: "callback", who, initials: initialsOf(who), channel: "Phone",
+        when: `waited ${formatWaited(waitedMs)}`,
+        sentence: say(e.details) || "The caller needs a call back.", quoted: false,
+        status: ["Needs a call back", `since ${since}`], tone: "escalated", warn,
+        cta: { label: "Open the call", to: call ? `conversations/cv-${call.id}` : `inbox/th-${e.conversation_id}` },
+        also: { label: "Done", verb: "resolve", conversationId: e.conversation_id, escalationId: e.id },
+        waitedMs,
+      });
+      continue;
+    }
+    const lastCustomer = conv ? [...conv.messages].reverse().find((x) => x.sender === "customer") : undefined;
+    const quote = lastCustomer ? messageText(lastCustomer).slice(0, 110) : "";
+    const who = conv ? contactName(conv) : "Unknown";
+    const win = conv ? waWindow(conv.last_wa_inbound_at, now) : null;
+    const closes = win?.open ? tzTime(win.closesAtIso, tz) : null;
+    queueAll.push({
+      id: `q-${e.id}`, kind: "handoff", who, initials: initialsOf(who), channel: "WhatsApp",
+      when: `waited ${formatWaited(waitedMs)}`,
+      sentence: quote || (ESCALATION_REASON_LABELS[e.reason] ?? e.reason), quoted: !!quote,
+      status: ["Escalated", reasonShort(e.reason) || e.reason, `since ${since}`, ...(closes ? [`reply window closes ${closes}`] : [])],
+      tone: "escalated", warn,
+      cta: { label: "Open and reply", to: `inbox/th-${e.conversation_id}` },
+      also: { label: "Snooze", verb: "snooze", conversationId: e.conversation_id, escalationId: e.id },
+      waitedMs,
+    });
+  }
+  for (const c of closingConvs) {
+    const w = waWindow(c.last_wa_inbound_at, now);
+    const leftMs = w.closesAtIso ? Math.max(60000, new Date(w.closesAtIso).getTime() - now.getTime()) : 0;
+    const last = [...c.messages].reverse().find((x) => x.sender === "customer");
+    const who = contactName(c);
+    queueAll.push({
+      id: `q-w-${c.id}`, kind: "window", who, initials: initialsOf(who), channel: "WhatsApp",
+      when: `closes ${tzTime(w.closesAtIso, tz) ?? "soon"} · in ${formatWaited(leftMs)}`,
+      sentence: last ? messageText(last).slice(0, 110) : "They wrote last, and the free reply window is closing.", quoted: !!last,
+      status: ["Reply window closing", "they wrote last"], tone: "warn", warn: leftMs < 2 * 3600000,
+      cta: { label: "Open thread", to: `inbox/th-${c.id}` }, also: null,
+      // After every escalation (which waited ≥ 0), the soonest to close first.
+      waitedMs: -leftMs,
+    });
+  }
+  for (const r of callRows) {
+    if (r.to === "live") continue;
+    const c = callsInWindow.find((k) => k.id === r.id);
+    const wanted = say(c?.wanted);
+    queueAll.push({
+      id: `q-c-${r.id}`, kind: "call", who: r.who, initials: initialsOf(r.who), channel: "Phone",
+      when: `${r.at}${r.duration ? ` · ${r.duration}` : ""}`,
+      sentence: wanted || r.note, quoted: false,
+      status: [wanted ? r.note : "Worth a listen"], tone: "warn", warn: false,
+      cta: { label: "Open the call", to: r.to }, also: null,
+      waitedMs: Number.NEGATIVE_INFINITY,
+    });
+  }
+  queueAll.sort((a, b) => b.waitedMs - a.waitedMs);
+  const queue = { rows: queueAll.slice(0, TODAY_QUEUE_MAX), more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX) };
+
   return {
     standing: {
       eyebrow: `${datePart} · ${clock} · ${m.workspace.name}`,
@@ -553,6 +664,7 @@ export function toTodayVM(
       { label: "Conversations", to: "conversations" },
       ...(p.calls ? [{ label: `Calls — ${p.calls} today`, to: "conversations/phone" }] : []),
     ],
+    queue,
     updatedAt: clock,
     quiet: null,
   };

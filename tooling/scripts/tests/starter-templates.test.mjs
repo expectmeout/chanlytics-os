@@ -145,8 +145,8 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   assert.ok(s.includes('data-testid="template-hide"') && s.includes('data-testid="templates-hidden"'));
   const b = readCode("apps/dashboard/src/legacy-bridge/templates.ts");
   assert.ok(b.includes('"PUT", { hidden: true }, true)') && b.includes('"PUT", { hidden: false }, true)'));
-  const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-  assert.ok(brief.includes('data-testid="brief-run-soon"') && brief.includes("Date.parse(r.scheduled_for) > Date.now()"), "a run under the veto window is on Today with a Stop");
+  const queue = readCode("apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
+  assert.ok(queue.includes('testid="brief-run-soon"') && queue.includes("Date.parse(r.scheduled_for) > Date.now()"), "a run under the veto window is on Today's queue with a Stop");
   const top = readCode("apps/dashboard/src/legacy/components/topbar.jsx");
   assert.ok(top.includes('className="btn btn-ghost btn-icon btn-sm tb-theme"'), "presence, the bell and the theme are one group");
   assert.ok(readCode("apps/dashboard/src/legacy/styles/components.css").includes(".tbn-wrap { position: relative; display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }"));

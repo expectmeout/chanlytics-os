@@ -946,7 +946,1180 @@ function toLiveVM(calls, channels, now = /* @__PURE__ */ new Date()) {
   return { now: nowList, recent, line, heartbeatMs: CALL_HEARTBEAT_MS, fetchedAtMs: now.getTime() };
 }
 
+// src/availability.ts
+function zoneParts(tz, at) {
+  const parts2 = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hourCycle: "h23",
+    weekday: "short",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  }).formatToParts(at);
+  const get = (t) => parts2.find((p) => p.type === t)?.value ?? "";
+  return {
+    y: Number(get("year")),
+    m: Number(get("month")),
+    d: Number(get("day")),
+    hh: Number(get("hour")) % 24,
+    mm: Number(get("minute")),
+    ss: Number(get("second")),
+    weekday: get("weekday").toLowerCase().slice(0, 3)
+  };
+}
+function zoneOffsetMs(tz, atMs) {
+  const p = zoneParts(tz, new Date(atMs));
+  return Date.UTC(p.y, p.m - 1, p.d, p.hh, p.mm, p.ss) - Math.floor(atMs / 1e3) * 1e3;
+}
+function localToUtcMs(tz, y, m, d, hh, mm) {
+  const guess = Date.UTC(y, m - 1, d, hh, mm);
+  const first = guess - zoneOffsetMs(tz, guess);
+  const second = guess - zoneOffsetMs(tz, first);
+  return second;
+}
+function clockInZone(tz, atMs) {
+  const p = zoneParts(tz, new Date(atMs));
+  return { hh: p.hh, mm: p.mm, ss: p.ss };
+}
+function dayInZone(tz, atMs) {
+  const p = zoneParts(tz, new Date(atMs));
+  const pad = (n) => String(n).padStart(2, "0");
+  return { key: `${p.y}-${pad(p.m)}-${pad(p.d)}`, weekday: p.weekday, y: p.y, m: p.m, d: p.d };
+}
+function unescapeText(v) {
+  return v.replace(/\\([\\;,nN])/g, (_, c) => c === "n" || c === "N" ? "\n" : c).trim();
+}
+function unfold(text) {
+  const out = [];
+  for (const raw of text.replace(/\r\n/g, "\n").split("\n")) {
+    if ((raw.startsWith(" ") || raw.startsWith("	")) && out.length) out[out.length - 1] += raw.slice(1);
+    else out.push(raw);
+  }
+  return out;
+}
+function splitLine(line) {
+  let colon = -1;
+  let q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') q = !q;
+    else if (ch === ":" && !q) {
+      colon = i;
+      break;
+    }
+  }
+  if (colon === -1) return null;
+  const head = line.slice(0, colon);
+  const value = line.slice(colon + 1);
+  const parts2 = [];
+  let cur = "";
+  q = false;
+  for (const ch of head) {
+    if (ch === '"') {
+      q = !q;
+      continue;
+    }
+    if (ch === ";" && !q) {
+      parts2.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += ch;
+  }
+  parts2.push(cur);
+  const [name, ...rest] = parts2;
+  const params = {};
+  for (const p of rest) {
+    const eq = p.indexOf("=");
+    if (eq > 0) params[p.slice(0, eq).toUpperCase()] = p.slice(eq + 1);
+  }
+  return { name: name.toUpperCase(), params, value };
+}
+function toMs(value, params, fallbackTz) {
+  const v = value.trim();
+  const date = /^(\d{4})(\d{2})(\d{2})$/.exec(v);
+  if (date || params.VALUE === "DATE") {
+    const m2 = date ?? /^(\d{4})(\d{2})(\d{2})/.exec(v);
+    if (!m2) return null;
+    return localToUtcMs(fallbackTz, Number(m2[1]), Number(m2[2]), Number(m2[3]), 0, 0);
+  }
+  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
+  if (!m) return null;
+  const [, y, mo, d, hh, mm, ss, z4] = m;
+  if (z4) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const tz = params.TZID ?? fallbackTz;
+  try {
+    return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
+  } catch {
+    return localToUtcMs(fallbackTz, Number(y), Number(mo), Number(d), Number(hh), Number(mm));
+  }
+}
+function localPartsOf(value, params, fallbackTz) {
+  const v = value.trim();
+  const date = /^(\d{4})(\d{2})(\d{2})$/.exec(v);
+  if (date || params.VALUE === "DATE") {
+    const m2 = date ?? /^(\d{4})(\d{2})(\d{2})/.exec(v);
+    if (!m2) return null;
+    return { tz: fallbackTz, y: Number(m2[1]), m: Number(m2[2]), d: Number(m2[3]), hh: 0, mm: 0, allDay: true };
+  }
+  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
+  if (!m) return null;
+  if (m[7]) {
+    const p = zoneParts(fallbackTz, new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] ?? 0))));
+    return { tz: fallbackTz, y: p.y, m: p.m, d: p.d, hh: p.hh, mm: p.mm, allDay: false };
+  }
+  return { tz: params.TZID ?? fallbackTz, y: Number(m[1]), m: Number(m[2]), d: Number(m[3]), hh: Number(m[4]), mm: Number(m[5]), allDay: false };
+}
+var WEEKDAYS = ["su", "mo", "tu", "we", "th", "fr", "sa"];
+function parseRule(value, fallbackTz) {
+  const parts2 = {};
+  for (const kv of value.split(";")) {
+    const eq = kv.indexOf("=");
+    if (eq > 0) parts2[kv.slice(0, eq).toUpperCase()] = kv.slice(eq + 1);
+  }
+  const freq = parts2.FREQ;
+  if (!freq || !["DAILY", "WEEKLY", "MONTHLY", "YEARLY"].includes(freq)) return null;
+  for (const k of Object.keys(parts2)) if (!["FREQ", "INTERVAL", "COUNT", "UNTIL", "BYDAY", "BYMONTHDAY", "WKST"].includes(k)) return null;
+  const interval = Math.max(1, Number(parts2.INTERVAL ?? 1) || 1);
+  const count = parts2.COUNT ? Number(parts2.COUNT) : null;
+  let until = null;
+  if (parts2.UNTIL) {
+    until = toMs(parts2.UNTIL, {}, fallbackTz);
+    if (until !== null && /^\d{8}$/.test(parts2.UNTIL)) until += 864e5 - 1;
+  }
+  let byday = null;
+  if (parts2.BYDAY) {
+    byday = [];
+    for (const d of parts2.BYDAY.split(",")) {
+      const i = WEEKDAYS.indexOf(d.trim().toLowerCase());
+      if (i === -1) return null;
+      byday.push(i);
+    }
+    if (freq !== "WEEKLY") return null;
+  }
+  let bymonthday = null;
+  if (parts2.BYMONTHDAY) {
+    if (freq !== "MONTHLY" || parts2.BYMONTHDAY.includes(",")) return null;
+    bymonthday = Number(parts2.BYMONTHDAY);
+    if (!Number.isInteger(bymonthday) || bymonthday < 1 || bymonthday > 31) return null;
+  }
+  return { freq, interval, count: count && count > 0 ? count : null, until, byday, bymonthday };
+}
+var dayNumber = (y, m, d) => Math.floor(Date.UTC(y, m - 1, d) / 864e5);
+function occurrences(start, durMs, rule, exdates, horizon) {
+  const out = [];
+  const first = dayNumber(start.y, start.m, start.d);
+  const firstDate = new Date(first * 864e5);
+  const firstWeek = Math.floor((first - (firstDate.getUTCDay() + 6) % 7) / 7);
+  const wanted = rule.byday ?? [firstDate.getUTCDay()];
+  let produced = 0;
+  for (let n = 0; n < 2e4; n++) {
+    const day = first + n;
+    const at = new Date(day * 864e5);
+    const y = at.getUTCFullYear(), m = at.getUTCMonth() + 1, d = at.getUTCDate();
+    let hit = false;
+    if (rule.freq === "DAILY") hit = n % rule.interval === 0;
+    else if (rule.freq === "WEEKLY") {
+      const week = Math.floor((day - (at.getUTCDay() + 6) % 7) / 7);
+      hit = wanted.includes(at.getUTCDay()) && (week - firstWeek) % rule.interval === 0;
+    } else if (rule.freq === "MONTHLY") {
+      const months = (y - start.y) * 12 + (m - start.m);
+      hit = d === (rule.bymonthday ?? start.d) && months % rule.interval === 0;
+    } else if (rule.freq === "YEARLY") {
+      hit = m === start.m && d === start.d && (y - start.y) % rule.interval === 0;
+    }
+    if (!hit) continue;
+    const s = localToUtcMs(start.tz, y, m, d, start.hh, start.mm);
+    if (rule.until !== null && s > rule.until) break;
+    produced++;
+    if (rule.count !== null && produced > rule.count) break;
+    if (s > horizon.to) break;
+    if (exdates.has(s)) continue;
+    if (s + durMs >= horizon.from) out.push({ start: s, end: s + durMs });
+  }
+  return out;
+}
+function durationMs(v) {
+  const m = /^([+-])?P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(v.trim());
+  if (!m) return null;
+  const sign = m[1] === "-" ? -1 : 1;
+  return sign * ((Number(m[2] ?? 0) * 86400 + Number(m[3] ?? 0) * 3600 + Number(m[4] ?? 0) * 60 + Number(m[5] ?? 0)) * 1e3);
+}
+function parseIcs(text, fallbackTz, opts = {}) {
+  const horizon = opts.horizon ?? { from: Date.now() - 864e5, to: Date.now() + 90 * 864e5 };
+  const busy = [];
+  const items = [];
+  let events = 0;
+  let recurringExpanded = 0;
+  let skippedRecurring = 0;
+  let cur = null;
+  const exdatesOf = [];
+  const attendees = [];
+  for (const line of unfold(text)) {
+    if (line === "BEGIN:VEVENT") {
+      cur = {};
+      exdatesOf.length = 0;
+      attendees.length = 0;
+      continue;
+    }
+    if (line === "END:VEVENT") {
+      if (cur) {
+        events++;
+        const status = cur.STATUS?.value.toUpperCase();
+        const transp = cur.TRANSP?.value.toUpperCase();
+        if (status !== "CANCELLED" && transp !== "TRANSPARENT" && cur.DTSTART) {
+          const start = toMs(cur.DTSTART.value, cur.DTSTART.params, fallbackTz);
+          let end = null;
+          if (cur.DTEND) end = toMs(cur.DTEND.value, cur.DTEND.params, fallbackTz);
+          else if (cur.DURATION && start !== null) {
+            const d = durationMs(cur.DURATION.value);
+            end = d === null ? null : start + d;
+          } else if (start !== null) {
+            end = cur.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(cur.DTSTART.value.trim()) ? start + 864e5 : start;
+          }
+          if (start !== null && end !== null && end > start) {
+            const title = unescapeText(cur.SUMMARY?.value ?? "");
+            const description = unescapeText(cur.DESCRIPTION?.value ?? "") || null;
+            const location = unescapeText(cur.LOCATION?.value ?? "") || null;
+            const guests = attendees.slice();
+            const allDay = cur.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(cur.DTSTART.value.trim());
+            const uid = cur.UID?.value.trim() || null;
+            const rule = cur.RRULE ? parseRule(cur.RRULE.value, fallbackTz) : null;
+            const local = cur.RRULE ? localPartsOf(cur.DTSTART.value, cur.DTSTART.params, fallbackTz) : null;
+            if (cur.RRULE && rule && local) {
+              const ex = /* @__PURE__ */ new Set();
+              for (const e of exdatesOf) for (const v of e.value.split(",")) {
+                const ms2 = toMs(v, e.params, fallbackTz);
+                if (ms2 !== null) ex.add(ms2);
+              }
+              const occ = occurrences(local, end - start, rule, ex, horizon);
+              busy.push(...occ);
+              for (const o of occ) items.push({ ...o, title, allDay, uid, description, location, attendees: guests });
+              recurringExpanded++;
+            } else {
+              if (cur.RRULE || cur.RDATE) skippedRecurring++;
+              busy.push({ start, end });
+              items.push({ start, end, title, allDay, uid, description, location, attendees: guests });
+            }
+          }
+        }
+      }
+      cur = null;
+      continue;
+    }
+    if (!cur) continue;
+    const s = splitLine(line);
+    if (!s) continue;
+    if (s.name === "EXDATE") {
+      exdatesOf.push({ params: s.params, value: s.value });
+      continue;
+    }
+    if (s.name === "ATTENDEE") {
+      const v = s.value.trim();
+      attendees.push({ name: s.params.CN?.trim() || null, email: /^mailto:/i.test(v) ? v.slice(7).toLowerCase() : null });
+      continue;
+    }
+    cur[s.name] = { params: s.params, value: s.value };
+  }
+  busy.sort((a, b) => a.start - b.start);
+  items.sort((a, b) => a.start - b.start);
+  return { busy, items, events, recurringExpanded, skippedRecurring };
+}
+var BOOKING_DEFAULTS = { lead_hours: 2, buffer_min: 0, max_days_ahead: 14, slot_min: 30 };
+function hhmm(s) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());
+  return m ? [Number(m[1]), Number(m[2])] : null;
+}
+function dayIntervals(h) {
+  if (!h) return [];
+  if (h.intervals?.length) return h.intervals.filter((i) => i.open && i.close).map((i) => [i.open, i.close]);
+  return h.open && h.close ? [[h.open, h.close]] : [];
+}
+function closedOn(closures, key) {
+  return !!closures?.some((c) => c.date <= key && key <= (c.until && c.until >= c.date ? c.until : c.date));
+}
+function freeWindows(input) {
+  const rules = { ...BOOKING_DEFAULTS, ...input.rules ?? {} };
+  const leadMs = rules.lead_hours * 36e5;
+  const bufferMs = rules.buffer_min * 6e4;
+  const slotMs = rules.slot_min * 6e4;
+  const earliest = input.now.getTime() + leadMs;
+  const busy = input.busy.map((b) => ({ start: b.start - bufferMs, end: b.end + bufferMs })).sort((a, b) => a.start - b.start);
+  const out = [];
+  for (let offset = 0; offset < rules.max_days_ahead; offset++) {
+    const at = input.now.getTime() + offset * 864e5;
+    const day = dayInZone(input.tz, at);
+    if (closedOn(input.closures, day.key)) continue;
+    const ranges = dayIntervals(input.hours?.[day.weekday]);
+    const windows = [];
+    for (const [open, close] of ranges) {
+      const o = hhmm(open), c = hhmm(close);
+      if (!o || !c) continue;
+      let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, o[0], o[1]), earliest);
+      const end = localToUtcMs(input.tz, day.y, day.m, day.d, c[0], c[1]);
+      for (const b of busy) {
+        if (b.end <= start) continue;
+        if (b.start >= end) break;
+        if (b.start > start && b.start - start >= slotMs) windows.push({ start, end: b.start });
+        start = Math.max(start, b.end);
+      }
+      if (end - start >= slotMs) windows.push({ start, end });
+    }
+    if (windows.length) {
+      out.push({
+        key: day.key,
+        weekday: day.weekday,
+        label: new Intl.DateTimeFormat("en-US", { timeZone: input.tz, weekday: "long", month: "long", day: "numeric" }).format(new Date(at)),
+        windows
+      });
+    }
+  }
+  return out;
+}
+var DAY_NAMES = {
+  mon: "mon",
+  monday: "mon",
+  tue: "tue",
+  tues: "tue",
+  tuesday: "tue",
+  wed: "wed",
+  wednesday: "wed",
+  thu: "thu",
+  thur: "thu",
+  thurs: "thu",
+  thursday: "thu",
+  fri: "fri",
+  friday: "fri",
+  sat: "sat",
+  saturday: "sat",
+  sun: "sun",
+  sunday: "sun"
+};
+function filterOpenings(openings, by) {
+  const day = (by.day ?? "").trim().toLowerCase();
+  const weekday = day ? DAY_NAMES[day] : void 0;
+  const key = /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : void 0;
+  const minMs = by.minMinutes && by.minMinutes > 0 ? by.minMinutes * 6e4 : 0;
+  const picked = openings.filter((o) => key ? o.key === key : weekday ? o.weekday === weekday : true);
+  const first = weekday && !key ? picked.slice(0, 1) : picked;
+  return first.map((o) => ({ ...o, windows: o.windows.filter((w) => w.end - w.start >= minMs) })).filter((o) => o.windows.length > 0);
+}
+function span(tz, start, end) {
+  const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+  return `${f.format(new Date(start))} \u2013 ${f.format(new Date(end))}`;
+}
+function describeOpenings(openings, tz, opts = {}) {
+  const maxDays = opts.maxDays ?? 5;
+  const ahead = opts.daysAhead ?? BOOKING_DEFAULTS.max_days_ahead;
+  if (!openings.length) {
+    return `Open times (from the calendar): nothing is open in the next ${ahead} days. Offer to have someone call back, and send the booking link so they are told when a slot frees up.`;
+  }
+  const lines = openings.slice(0, maxDays).map((o) => `- ${o.label}: ${o.windows.map((w) => span(tz, w.start, w.end)).join(", ")}`);
+  return `Open times (from the calendar, checked just now \u2014 these change as bookings come in):
+${lines.join("\n")}
+Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides.`;
+}
+
+// src/calendar-people.ts
+var EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+var PHONE_RE = /\+?\(?\d{1,4}\)?(?:[\s.-]?\(?\d{2,4}\)?){2,5}/g;
+var ISO_DATE_RE = /^\d{4}[-./]\d{2}[-./]\d{2}/;
+function phoneFrom(raw) {
+  const s = raw.trim();
+  if (ISO_DATE_RE.test(s)) return null;
+  const digits = s.replace(/\D/g, "");
+  if (digits.length < 10 || digits.length > 15) return null;
+  const bare = /^\+?\d+$/.test(s);
+  if (bare && !s.startsWith("+") && !(digits.length === 10 || digits.length === 11 && digits.startsWith("1"))) return null;
+  return normalizePhone(s.startsWith("+") ? `+${digits}` : digits);
+}
+function extractContacts(item) {
+  const text = [item.title, item.description ?? "", item.location ?? ""].join("\n");
+  const emails = /* @__PURE__ */ new Set();
+  for (const m of text.match(EMAIL_RE) ?? []) emails.add(m.toLowerCase());
+  for (const a of item.attendees ?? []) if (a.email) emails.add(a.email.toLowerCase());
+  const phones = /* @__PURE__ */ new Set();
+  for (const m of text.replace(EMAIL_RE, " ").match(PHONE_RE) ?? []) {
+    const p = phoneFrom(m);
+    if (p) phones.add(p);
+  }
+  const names = /* @__PURE__ */ new Set();
+  for (const a of item.attendees ?? []) {
+    const n = (a.name ?? "").trim();
+    if (n && !EMAIL_RE.test(n)) names.add(n);
+    EMAIL_RE.lastIndex = 0;
+  }
+  return { phones: [...phones], emails: [...emails], names: [...names] };
+}
+var escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function nameMatcher(name) {
+  const n = name.trim();
+  if (n.length < 4 || /^[+\d(]/.test(n)) return null;
+  return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(n)}(?=$|[^\\p{L}\\p{N}])`, "iu");
+}
+function personInText(text, people) {
+  let best = null;
+  for (const p of people) {
+    const re = nameMatcher(p.name);
+    if (re && re.test(text) && (!best || p.name.trim().length > best.name.trim().length)) best = p;
+  }
+  return best;
+}
+var labelOf = (p) => p.name.trim() || formatPhoneDisplay(p.phone) || "Unknown";
+function matchPerson(item, people) {
+  const c = extractContacts(item);
+  if (c.phones.length) {
+    const byPhone = /* @__PURE__ */ new Map();
+    for (const p2 of people) if (p2.phone) byPhone.set(p2.phone, p2);
+    for (const ph of c.phones) {
+      const p2 = byPhone.get(ph);
+      if (p2) return { id: p2.id, name: labelOf(p2), via: "phone" };
+    }
+  }
+  const p = personInText([item.title, ...c.names, item.description ?? ""].join("\n"), people);
+  return p ? { id: p.id, name: labelOf(p), via: "name" } : null;
+}
+function indexFeed(items) {
+  const byPhone = /* @__PURE__ */ new Map();
+  const texts = [];
+  for (const it of items) {
+    const c = extractContacts(it);
+    for (const ph of c.phones) byPhone.set(ph, [...byPhone.get(ph) ?? [], it]);
+    texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
+  }
+  return { byPhone, texts };
+}
+function allVisitsIn(index, person) {
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  const take = (it, via) => {
+    if (seen.has(it)) return;
+    seen.add(it);
+    out.push({ id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`, start: it.start, end: it.end, title: it.title || "Busy", allDay: it.allDay, via });
+  };
+  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
+  const re = nameMatcher(person.name);
+  if (re) {
+    for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
+  }
+  return out.sort((a, b) => a.start - b.start);
+}
+function visitsIn(index, person, nowMs) {
+  let next = null;
+  let last = null;
+  const seen = /* @__PURE__ */ new Set();
+  const take = (it, via) => {
+    if (seen.has(it)) return;
+    seen.add(it);
+    const v = { id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`, start: it.start, end: it.end, title: it.title || "Busy", allDay: it.allDay, via };
+    if (it.end >= nowMs) {
+      if (!next || v.start < next.start) next = v;
+    } else if (!last || v.end > last.end) last = v;
+  };
+  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
+  const re = nameMatcher(person.name);
+  if (re) {
+    for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
+  }
+  return { next, last };
+}
+function visitsOf(items, person, nowMs) {
+  return visitsIn(indexFeed(items), person, nowMs);
+}
+var ms = (t) => typeof t === "number" ? t : Date.parse(t);
+function visitDay(start, tz, nowMs) {
+  const key = dayInZone(tz, ms(start)).key;
+  const today = dayInZone(tz, nowMs).key;
+  const tomorrow = dayInZone(tz, nowMs + 864e5).key;
+  if (key === today) return "Today";
+  if (key === tomorrow) return "Tomorrow";
+  return new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" }).format(new Date(ms(start)));
+}
+function visitTime(v, tz) {
+  if (v.allDay || v.all_day) return "all day";
+  const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+  const a = f.format(new Date(ms(v.start)));
+  const b = f.format(new Date(ms(v.end)));
+  const sameHalf = a.slice(-2) === b.slice(-2);
+  return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
+}
+function visitDateKey(start, tz) {
+  return dayInZone(tz, ms(start)).key;
+}
+function visitStartTime(v, tz) {
+  if (v.allDay || v.all_day) return "all day";
+  return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(ms(v.start)));
+}
+function visitLine(v, tz, nowMs) {
+  return `${visitDay(v.start, tz, nowMs)} \xB7 ${visitTime(v, tz)}`;
+}
+function describeVisits(visits, tz, nowMs) {
+  const out = [];
+  if (visits.next) {
+    const n = visits.next;
+    out.push(`Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only \u2014 make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, send the booking link \u2014 nothing is changed from here.`);
+  }
+  if (visits.last) {
+    const l = visits.last;
+    out.push(`Their last visit on the calendar: ${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(l.start))} (${l.title}).`);
+  }
+  return out.length ? out.join(" ") : null;
+}
+function feedSourceLabel(url) {
+  if (!url) return "your calendar";
+  let host = "";
+  try {
+    host = new URL(url.replace(/^webcal:\/\//i, "https://")).hostname.toLowerCase();
+  } catch {
+    return "your calendar";
+  }
+  if (host.includes("google")) return "Google Calendar";
+  if (host.includes("icloud")) return "Apple Calendar";
+  if (host.includes("office365") || host.includes("outlook") || host.includes("live.com")) return "Outlook";
+  return "your calendar";
+}
+function eventText(raw, max = 1500) {
+  if (!raw) return null;
+  const text = raw.replace(/<br\s*\/?>/gi, "\n").replace(/<\/?(p|div|li|tr|h[1-6])\b[^>]*>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (!text) return null;
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}\u2026` : text;
+}
+function toVisitDto(v) {
+  return v ? { id: v.id, start: new Date(v.start).toISOString(), end: new Date(v.end).toISOString(), title: v.title, all_day: v.allDay, via: v.via } : null;
+}
+var NAME_WORD = /^[\p{L}][\p{L}'’.-]*$/u;
+var CAPITAL = /^\p{Lu}/u;
+function guessName(item, services = []) {
+  const svc = new Set(services.map((s) => s.trim().toLowerCase()).filter(Boolean));
+  const guest = (item.attendees ?? []).map((a) => (a.name ?? "").trim()).find((n) => n && !n.includes("@"));
+  if (guest) return guest.slice(0, 80);
+  const title = item.title.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ");
+  const parts2 = title.split(/\s+(?:-|–|—|·|\||:|\/)\s+|\s+(?:with|for|w\/)\s+|:\s+/i).map((p) => p.trim()).filter(Boolean);
+  for (const part of parts2) {
+    if (svc.has(part.toLowerCase())) continue;
+    const words = part.split(/\s+/);
+    if (words.length < 2 || words.length > 4) continue;
+    if (!words.every((w) => NAME_WORD.test(w) && CAPITAL.test(w))) continue;
+    if (words.some((w) => svc.has(w.toLowerCase()))) continue;
+    return part;
+  }
+  return null;
+}
+function peopleFromItems(items, services, nowMs, window = {}) {
+  const from = nowMs - (window.backDays ?? 30) * 864e5;
+  const to = nowMs + (window.aheadDays ?? 90) * 864e5;
+  const byPhone = /* @__PURE__ */ new Map();
+  const better = (a, b) => {
+    const aUp = a.start >= nowMs;
+    const bUp = b.start >= nowMs;
+    if (aUp !== bUp) return aUp;
+    return aUp ? a.start < b.start : a.start > b.start;
+  };
+  for (const it of items) {
+    if (it.end < from || it.start > to) continue;
+    const phones = extractContacts(it).phones;
+    if (!phones.length) continue;
+    const name = guessName(it, services);
+    for (const phone of phones) {
+      const row = { phone, name, title: it.title || "Busy", uid: it.uid, start: it.start };
+      const have = byPhone.get(phone);
+      if (!have) {
+        byPhone.set(phone, row);
+        continue;
+      }
+      if (better(row, have)) byPhone.set(phone, { ...row, name: row.name ?? have.name });
+      else if (!have.name && row.name) byPhone.set(phone, { ...have, name: row.name });
+    }
+  }
+  return [...byPhone.values()].sort((a, b) => a.start - b.start);
+}
+function bookedAfterAsk(visits, askedMs) {
+  if (!visits) return false;
+  if (visits.next) return true;
+  return !!visits.last && visits.last.start >= askedMs - 864e5;
+}
+function toBookingReportVM(dto) {
+  if (!dto || dto.calendar === "none") return { present: false, headline: "\u2014", sub: "Connect your calendar under Settings \u203A Workspace to see who booked.", pct: null, asked: 0, booked: 0 };
+  if (dto.calendar === "unavailable") return { present: false, headline: "\u2014", sub: "Your calendar could not be read.", pct: null, asked: dto.asked, booked: 0 };
+  if (dto.asked === 0) return { present: true, headline: "Nobody asked", sub: `nobody wrote or called in the last ${dto.days} days`, pct: null, asked: 0, booked: 0 };
+  const pct2 = Math.round(dto.booked / dto.asked * 100);
+  return {
+    present: true,
+    headline: `${dto.booked} of ${dto.asked} booked`,
+    sub: `${pct2}% of the people who wrote or called in the last ${dto.days} days have an appointment on the calendar`,
+    pct: pct2,
+    asked: dto.asked,
+    booked: dto.booked
+  };
+}
+
+// src/people.ts
+var PERSON_MODES = ["auto", "ask", "never"];
+var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
+function asPersonMode(s) {
+  return s && PERSON_MODES.includes(s) ? s : null;
+}
+var PERSON_STATE_LABELS = {
+  needs_you: "Needs you",
+  waiting_on_you: "Waiting on you",
+  opted_out: "Opted out",
+  new: "New",
+  quiet: "Quiet",
+  active: "Active"
+};
+var PEOPLE_TABS = [
+  { id: "all", label: "All" },
+  { id: "needs_you", label: "Needs you" },
+  { id: "waiting_on_you", label: "Waiting on you" },
+  { id: "new", label: "New" },
+  { id: "quiet", label: "Quiet" },
+  { id: "active", label: "Active" }
+];
+var DAY_MS = 864e5;
+var WEEK_MS = 7 * DAY_MS;
+var MONTH_MS = 30 * DAY_MS;
+var NEW_WINDOW_MS = 7 * DAY_MS;
+var QUIET_AFTER_MS = 30 * DAY_MS;
+var REASON_SHORT = {
+  human_token: "asked for a person",
+  non_text: "sent something the receptionist can't read",
+  refusal: "the receptionist declined to answer",
+  rate_cap: "reply limit reached",
+  policy_block: "held by your reply setting",
+  policy_ask: "a booking or a question set to Ask me first",
+  person_hold: "held for you",
+  send_failed: "a reply failed to send",
+  deadman: "no answer in time",
+  brain_error: "the receptionist hit an error",
+  manual: "flagged by you",
+  opt_out: "asked to stop",
+  state_unavailable: "memory was unavailable",
+  stale: "message arrived late",
+  callback: "needs a call back"
+};
+function reasonShort(reason) {
+  if (!reason) return "";
+  return REASON_SHORT[reason] ?? reason.replace(/_/g, " ");
+}
+var ts = (iso) => iso ? new Date(iso).getTime() : null;
+var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_YEAR_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
+var TIME_FMT2 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
+function fmtDate(ms2, nowMs) {
+  const d = new Date(ms2);
+  return d.getFullYear() === new Date(nowMs).getFullYear() ? DATE_FMT2.format(d) : DATE_YEAR_FMT.format(d);
+}
+function ago(ms2, nowMs) {
+  const diff = Math.max(0, nowMs - ms2);
+  if (diff < 6e4) return "just now";
+  if (diff < 36e5) return `${Math.round(diff / 6e4)}m ago`;
+  if (diff < DAY_MS) return `${Math.round(diff / 36e5)}h ago`;
+  if (diff < WEEK_MS) return `${Math.round(diff / DAY_MS)}d ago`;
+  return fmtDate(ms2, nowMs);
+}
+function dayLabel(ms2, nowMs) {
+  const d = new Date(ms2);
+  const now = new Date(nowMs);
+  const key = d.toDateString();
+  if (key === now.toDateString()) return `Today \xB7 ${DATE_FMT2.format(d)}`;
+  if (key === new Date(nowMs - DAY_MS).toDateString()) return `Yesterday \xB7 ${DATE_FMT2.format(d)}`;
+  return fmtDate(ms2, nowMs);
+}
+function mmss3(ms2) {
+  if (ms2 == null || ms2 <= 0) return void 0;
+  const s = Math.round(ms2 / 1e3);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+var capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
+function personName(r) {
+  return r.display_name || r.wa_profile_name || formatPhoneDisplay(r.phone_e164) || "Unknown";
+}
+function channelsOf(r) {
+  const set = new Set(r.channels ?? []);
+  if (r.has_chat) set.add("whatsapp");
+  if ((r.call_count ?? 0) > 0) set.add("voice");
+  const order = ["whatsapp", "voice"];
+  return order.filter((c) => set.has(c));
+}
+function isOwned(r, nowMs) {
+  const paused = ts(r.latest_paused_until);
+  return !!r.latest_assignee_user_id || paused !== null && paused > nowMs;
+}
+function personStateFor(r, nowMs) {
+  const flagged = !!(r.needs_human || r.open_escalation_reason);
+  const owned = isOwned(r, nowMs);
+  if (flagged && !owned && r.latest_state !== "snoozed") return "needs_you";
+  if (owned && (flagged || r.last_message_direction === "inbound")) return "waiting_on_you";
+  if (r.consent === "opted_out" || r.dnc) return "opted_out";
+  const first = ts(r.first_contact_at);
+  if (!r.has_backfill && first !== null && nowMs - first <= NEW_WINDOW_MS) return "new";
+  const last = lastContactOf(r, nowMs).ts;
+  if (last === null || nowMs - last > QUIET_AFTER_MS) return "quiet";
+  return "active";
+}
+function lastContactOf(r, nowMs) {
+  const m = ts(r.last_message_at);
+  const k = ts(r.last_call_at);
+  if (m === null && k === null) return { ts: null, at: null, kind: null, who: null, label: "No contact recorded" };
+  if (k !== null && (m === null || k > m)) {
+    return { ts: k, at: r.last_call_at, kind: "call", who: "they", label: `Phoned \xB7 ${ago(k, nowMs)}` };
+  }
+  const who = r.last_message_direction === "inbound" ? "they" : r.last_message_sender === "human" ? "you" : r.last_message_sender === "ai" ? "receptionist" : "system";
+  const verb = who === "they" ? "They wrote" : who === "you" ? "You replied" : who === "receptionist" ? "Receptionist replied" : "We sent";
+  return { ts: m, at: r.last_message_at, kind: "message", who, label: `${verb} \xB7 ${ago(m, nowMs)}` };
+}
+function firstContactOf(r, nowMs) {
+  const f = ts(r.first_contact_at);
+  if (f !== null) return { ts: f, label: fmtDate(f, nowMs), estimate: false, evidence: !r.has_backfill };
+  const e = ts(r.earliest_row_at);
+  if (e !== null && r.has_backfill) return { ts: e, label: `Before ${fmtDate(e, nowMs)}`, estimate: true, evidence: false };
+  if (e !== null) return { ts: e, label: fmtDate(e, nowMs), estimate: false, evidence: !r.has_backfill };
+  return { ts: null, label: "\u2014", estimate: true, evidence: false };
+}
+var CONSENT_SOURCES = [
+  { id: "in_person", label: "In person" },
+  { id: "phone", label: "On the phone" },
+  { id: "form", label: "Sign-up form" },
+  { id: "customer_message", label: "Their own message" }
+];
+var CONSENT_RESET_SOURCE = "operator";
+function consentSourceLabel(source) {
+  if (!source) return null;
+  const known = CONSENT_SOURCES.find((s) => s.id === source);
+  if (known) return known.label;
+  return source === CONSENT_RESET_SOURCE ? null : source;
+}
+function consentOf(r, nowMs) {
+  const dnc = !!r.dnc;
+  const state = r.consent === "opted_out" || dnc ? "opted_out" : r.consent === "opted_in" ? "opted_in" : "unknown";
+  const when = ts(r.consent_updated_at);
+  const date = when !== null ? fmtDate(when, nowMs) : "recorded";
+  const how = consentSourceLabel(r.consent_source);
+  const sub = state === "opted_out" ? r.consent_source === "customer_message" ? `STOP received${when !== null ? ` ${fmtDate(when, nowMs)}` : ""}` : `${how ? `${how} \xB7 ` : ""}${date}` : state === "opted_in" ? `${how ? `${how} \xB7 ` : ""}${date}` : "no opt-in recorded";
+  return {
+    state,
+    dnc,
+    label: state === "opted_out" ? "Opted out" : state === "opted_in" ? "Opted in" : "Unknown",
+    sub,
+    source: r.consent_source ?? null
+  };
+}
+function receptionistOf(r, nowMs) {
+  if (isOwned(r, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
+  if (r.open_escalation_reason) return { tone: "escalated", label: `Escalated, ${reasonShort(r.open_escalation_reason)}` };
+  if (r.needs_human) return { tone: "escalated", label: "Waiting for a person" };
+  if (r.queued_reply_at) return { tone: "queued", label: "Reply queued" };
+  const snooze = ts(r.latest_snooze_until);
+  if (r.latest_state === "snoozed" && snooze !== null && snooze > nowMs) {
+    return { tone: "snoozed", label: `Snoozed until ${shortTime(r.latest_snooze_until, new Date(nowMs))}` };
+  }
+  if (r.consent === "opted_out" || r.dnc) return { tone: "silent", label: "Silent, they opted out" };
+  if (r.effective_reply_mode === "never") return { tone: "paused", label: "Held for you, set to Never" };
+  if (r.effective_reply_mode === "ask") return { tone: "paused", label: "Held for you, set to Ask" };
+  return { tone: "answering", label: "Answering" };
+}
+function toPersonRowVM(r, now = /* @__PURE__ */ new Date()) {
+  const nowMs = now.getTime();
+  const name = personName(r);
+  const state = personStateFor(r, nowMs);
+  const last = lastContactOf(r, nowMs);
+  const first = firstContactOf(r, nowMs);
+  const consent = consentOf(r, nowMs);
+  const v = r.visits ?? null;
+  const calendar = v ? v.state : "none";
+  const askedCandidates = [ts(r.last_inbound_at), ts(r.last_inbound_call_at ?? null)].filter((x) => x !== null);
+  const askedMs = askedCandidates.length ? Math.max(...askedCandidates) : null;
+  const booked = !!v?.next;
+  const nextVisitMs = v?.next ? Date.parse(v.next.start) : null;
+  const lastVisitMs = v?.last ? Date.parse(v.last.start) : null;
+  const askedNotBooked = calendar === "ok" && askedMs !== null && nowMs - askedMs <= MONTH_MS && !v?.next && !v?.last;
+  const stateDetail = state === "needs_you" ? r.open_escalation_reason ? reasonShort(r.open_escalation_reason) : "waiting for a person" : state === "waiting_on_you" ? "you own the thread and they wrote last" : state === "opted_out" ? consent.sub : state === "new" ? `first contact ${first.label}` : state === "quiet" ? last.ts === null ? "no contact recorded" : `last contact ${ago(last.ts, nowMs)}` : "";
+  return {
+    id: r.id,
+    real: true,
+    name,
+    givenName: r.display_name?.trim() || null,
+    initials: initialsOf(name),
+    phone: formatPhoneDisplay(r.phone_e164),
+    waName: r.wa_profile_name,
+    channels: channelsOf(r),
+    hasChat: !!r.has_chat,
+    state,
+    stateLabel: PERSON_STATE_LABELS[state],
+    stateDetail,
+    lastContact: last,
+    receptionist: receptionistOf(r, nowMs),
+    firstContact: first,
+    consent,
+    quote: r.last_inbound_text?.trim() || null,
+    callSummary: r.last_inbound_call_summary?.trim() || null,
+    threads: r.conversation_count ?? 0,
+    calls: r.call_count ?? 0,
+    escalations: r.escalation_count ?? 0,
+    callSeconds: r.call_seconds ?? 0,
+    threadId: r.has_chat && r.latest_conversation_id ? `th-${r.latest_conversation_id}` : null,
+    needsYouSinceMs: ts(r.open_escalation_since),
+    calendar,
+    booked,
+    nextVisitDay: v?.next ? visitDay(v.next.start, v.timezone, nowMs) : null,
+    nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} \xB7 ${v.next.title}` : null,
+    lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} \xB7 ${v.last.title}` : null,
+    lastVisitDay: v?.last ? visitDay(v.last.start, v.timezone, nowMs) : null,
+    replyWindow: r.has_chat ? (() => {
+      const w = waWindow(r.latest_wa_inbound_at, now);
+      return { open: w.open, hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 36e5)) : 0 };
+    })() : null,
+    askedMs,
+    askedNotBooked,
+    nextVisitMs,
+    lastVisitMs,
+    nextVisitDays: nextVisitMs !== null ? Math.max(0, Math.ceil((nextVisitMs - nowMs) / DAY_MS)) : null,
+    lastVisitDays: lastVisitMs !== null ? Math.max(0, Math.floor((nowMs - lastVisitMs) / DAY_MS)) : null,
+    nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
+    lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
+    calendarTz: v?.timezone ?? null
+  };
+}
+var PEOPLE_LIST_GROUPS = [
+  { id: "attention", label: "Attention" },
+  { id: "journey", label: "Journey" },
+  { id: "reach", label: "Reach" }
+];
+var PEOPLE_LISTS = [
+  { id: "needs_you", label: "Needs you", group: "attention", test: (v) => v.state === "needs_you" },
+  { id: "waiting_on_you", label: "Waiting on you", group: "attention", test: (v) => v.state === "waiting_on_you" },
+  { id: "new_week", label: "New this week", group: "journey", test: (v) => v.state === "new" },
+  { id: "booked_week", label: "Booked this week", group: "journey", needsCalendar: true, test: (v) => v.nextVisitDays !== null && v.nextVisitDays <= 7 },
+  { id: "booked", label: "Booked", group: "journey", needsCalendar: true, test: (v) => v.booked },
+  { id: "asked_never_booked", label: "Asked, never booked", group: "journey", needsCalendar: true, test: (v) => v.askedNotBooked },
+  // Forty-five days since the chair, nothing ahead: the win-back list, from visits rather than silence.
+  { id: "lapsed", label: "Lapsed", group: "journey", needsCalendar: true, test: (v) => !v.booked && v.lastVisitDays !== null && v.lastVisitDays >= 45 },
+  { id: "quiet", label: "Quiet 30+ days", group: "reach", test: (v) => v.state === "quiet" },
+  { id: "phoned_only", label: "Phoned only", group: "reach", test: (v) => !v.hasChat && v.calls > 0 },
+  // A fact, not the state: someone who opted out AND needs you is in both lists.
+  // The only people a broadcast may reach: they said yes, and it is on record.
+  { id: "opted_in", label: "Can receive offers", group: "reach", test: (v) => v.consent.state === "opted_in" },
+  { id: "opted_out", label: "Opted out", group: "reach", test: (v) => v.consent.state === "opted_out" }
+];
+var LIST_STEPS = {
+  needs_you: { cta: "Open the Inbox", to: "inbox", text: "Each of them is waiting for a person." },
+  waiting_on_you: { cta: "Open the Inbox", to: "inbox", text: "You own these threads, and they wrote last." },
+  new_week: { cta: "Get their yes", to: "broadcasts", text: "Their yes to offers is the phrase and the QR on Broadcasts." },
+  booked_week: { cta: "See the week", to: "calendar", text: "Their appointments are on the Calendar." },
+  asked_never_booked: { cta: "Text the booking link", to: "broadcasts/asked_never_booked", broadcast: true },
+  lapsed: { cta: "Win them back", to: "broadcasts/lapsed", broadcast: true },
+  quiet: { cta: "Reach out", to: "broadcasts/quiet", broadcast: true },
+  opted_in: { cta: "New broadcast", to: "broadcasts", broadcast: true }
+};
+function peopleListAction(id, members) {
+  const step = LIST_STEPS[id];
+  if (!step) return null;
+  if (!step.broadcast) return { text: step.text ?? "", cta: step.cta, to: step.to, enabled: members.length > 0 };
+  const yes = members.filter((m) => m.consent.state === "opted_in").length;
+  if (yes === 0) return { text: members.length ? "Nobody on this list has said yes yet \u2014 a broadcast reaches only a recorded yes." : "Nobody here right now.", cta: step.cta, to: step.to, enabled: false };
+  return { text: `${yes} of ${members.length} on this list said yes \u2014 a broadcast reaches them.`, cta: step.cta, to: step.to, enabled: true };
+}
+function peopleAggregates(rows, nowMs) {
+  let needsYou = 0;
+  let oldest = null;
+  let newThisMonth = 0;
+  let reachedWeek = 0;
+  let reachedWeekNew = 0;
+  let booked = 0;
+  let askedNotBooked = 0;
+  for (const v of rows) {
+    if (v.booked) booked++;
+    if (v.askedNotBooked) askedNotBooked++;
+    if (v.state === "needs_you") {
+      needsYou++;
+      if (v.needsYouSinceMs !== null && (oldest === null || v.needsYouSinceMs < oldest)) oldest = v.needsYouSinceMs;
+    }
+    if (v.firstContact.evidence && v.firstContact.ts !== null && nowMs - v.firstContact.ts <= MONTH_MS) newThisMonth++;
+    if (v.lastContact.ts !== null && nowMs - v.lastContact.ts <= WEEK_MS) {
+      reachedWeek++;
+      if (v.state === "new") reachedWeekNew++;
+    }
+  }
+  return { total: rows.length, needsYou, needsYouOldestMs: oldest, newThisMonth, reachedWeek, reachedWeekNew, booked, askedNotBooked };
+}
+var RECENCY_BUCKETS = [
+  { label: "today", max: 1 },
+  { label: "3d", max: 3 },
+  { label: "1w", max: 7 },
+  { label: "2w", max: 14 },
+  { label: "1m", max: 30 },
+  { label: "2m", max: 60 },
+  { label: "3m", max: 90 },
+  { label: "older", max: Infinity }
+];
+function recencyCells(rows, nowMs) {
+  const cells = RECENCY_BUCKETS.map((b) => ({ label: b.label, count: 0 }));
+  for (const v of rows) {
+    const days = v.lastContact.ts === null ? Infinity : (nowMs - v.lastContact.ts) / DAY_MS;
+    let i = RECENCY_BUCKETS.findIndex((b) => days < b.max);
+    if (i === -1) i = cells.length - 1;
+    cells[i].count++;
+  }
+  return cells;
+}
+function oneLine(text, max) {
+  const t = text.replace(/\s+/g, " ").trim();
+  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}\u2026` : t;
+}
+function clock(ms2, nowMs) {
+  const time = new Date(ms2).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return nowMs - ms2 < DAY_MS ? time : `${fmtDate(ms2, nowMs)} ${time}`;
+}
+function attentionRow(p, nowMs) {
+  const lc = p.lastContact;
+  const channel = lc.kind === "call" ? "Phone" : lc.kind === "message" ? "WhatsApp" : null;
+  const when = lc.ts === null ? "no contact yet" : ago(lc.ts, nowMs);
+  let sentence;
+  let quoted = false;
+  if (p.quote) {
+    sentence = oneLine(p.quote, 160);
+    quoted = true;
+  } else if (p.callSummary) sentence = oneLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
+  else if (p.nextVisit) sentence = `Booked \xB7 ${p.nextVisit}`;
+  else if (p.lastVisit) sentence = `Last visit \xB7 ${p.lastVisit}`;
+  else if (p.calls > 0) sentence = p.calls === 1 ? "Phoned once; nothing in writing yet" : `Phoned ${p.calls} times; nothing in writing yet`;
+  else sentence = "Nothing written yet";
+  const r = p.receptionist;
+  let status;
+  if (p.state === "waiting_on_you") status = ["You own the thread", "they wrote last"];
+  else if (r.tone === "answering") status = p.hasChat ? ["Receptionist", "answering on WhatsApp"] : ["Receptionist", "takes their calls"];
+  else status = r.label.split(", ");
+  if (p.state === "needs_you" && p.needsYouSinceMs !== null) status = [...status, `since ${clock(p.needsYouSinceMs, nowMs)}`];
+  const cta = !p.threadId ? null : p.state === "needs_you" || p.state === "waiting_on_you" ? { label: "Open in Inbox", kind: "primary", to: `inbox/${p.threadId}` } : { label: "Open thread", kind: "ghost", to: `inbox/${p.threadId}` };
+  return { channel, when, sentence, quoted, status, tone: r.tone, cta };
+}
+var DECISION_LABELS = {
+  take_over: { who: "Took over", text: "You paused the receptionist on this thread" },
+  hand_back: { who: "Handed back", text: "You returned the thread to the receptionist" },
+  snooze: { who: "Snoozed", text: "You snoozed the thread" },
+  wake: { who: "Woke", text: "You brought the thread back" },
+  resolve: { who: "Resolved", text: "You marked the escalation resolved" },
+  archive: { who: "Archived", text: "You archived the thread" },
+  cancel_send: { who: "Canceled a reply", text: "You stopped a reply before it sent" },
+  pause_agent: { who: "Paused the receptionist", text: "You paused automatic replies" },
+  resume_agent: { who: "Resumed the receptionist", text: "You resumed automatic replies" }
+};
+function plural(n, one, many = `${one}s`) {
+  return `${n} ${n === 1 ? one : many}`;
+}
+function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
+  const nowMs = now.getTime();
+  const openEsc = d.escalations.filter((e) => e.state === "open").sort((a, b) => (ts(b.created_at) ?? 0) - (ts(a.created_at) ?? 0))[0];
+  const row = {
+    ...d.row,
+    open_escalation_reason: openEsc?.reason ?? d.row.open_escalation_reason,
+    open_escalation_since: openEsc?.created_at ?? d.row.open_escalation_since,
+    conversation_count: d.conversations.length || d.row.conversation_count,
+    // A dial that never connected is not a call; people_list agrees, and the
+    // profile used to count one more than the list.
+    call_count: d.calls.length ? d.calls.filter((k) => k.status !== "not_connected").length : d.row.call_count,
+    call_seconds: d.calls.length ? Math.round(d.calls.filter((k) => k.status !== "not_connected").reduce((a, k) => a + (k.duration_ms ?? 0), 0) / 1e3) : d.row.call_seconds,
+    escalation_count: d.escalations.length || d.row.escalation_count,
+    visits: d.visits ?? d.row.visits ?? null
+  };
+  const base = toPersonRowVM(row, now);
+  const first = /^[+\d(]/.test(base.name) ? base.name : base.name.split(" ")[0] || base.name;
+  const stamp = (t) => ({ time: TIME_FMT2.format(new Date(t)), day: dayLabel(t, nowMs) });
+  const items = [];
+  const convIds = new Set(d.conversations.map((c) => c.id));
+  for (const c of d.conversations) {
+    for (const m of c.messages) {
+      if (m.type === "call_summary") continue;
+      if (m.status === "canceled") continue;
+      const t = ts(messageAt(m));
+      if (t === null) continue;
+      const kind = m.sender === "customer" ? "customer" : m.sender === "human" ? "you" : m.sender === "ai" ? "receptionist" : "system";
+      const who = kind === "customer" ? first : kind === "you" ? "You" : kind === "receptionist" ? "Receptionist" : "System";
+      const sub = m.status === "failed" ? "Not delivered" : m.status === "queued" ? "Sending" : void 0;
+      items.push({ id: `m-${m.id}`, ts: t, ...stamp(t), kind, who, text: messageText(m), ...sub ? { sub } : {} });
+    }
+  }
+  for (const k of d.calls) {
+    const t = ts(k.started_at);
+    if (t === null) continue;
+    const dur = mmss3(k.duration_ms);
+    const wanted = (k.wanted || "").trim();
+    const summary = tidyCallSummary(k.summary) ?? "";
+    const missed = k.status === "not_connected";
+    const sentence = missed ? "The call never connected." : wanted || (summary ? summary.split(/(?<=[.!?])\s/)[0] ?? summary : k.in_voicemail ? "Reached voicemail." : "No summary from this call.");
+    items.push({
+      id: `k-${k.id}`,
+      ts: t,
+      ...stamp(t),
+      kind: "call",
+      who: missed ? "Missed call" : `${k.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""}`,
+      text: sentence,
+      sub: missed ? "Never connected" : k.recording?.fetch_state === "stored" ? "Recording and transcript in Conversations" : "Transcript in Conversations",
+      link: { label: "Open", to: `conversations/cv-${k.id}` }
+    });
+  }
+  for (const e of d.escalations) {
+    const t = ts(e.created_at);
+    if (t === null) continue;
+    items.push({
+      id: `e-${e.id}`,
+      ts: t,
+      ...stamp(t),
+      kind: "escalation",
+      who: "Escalated",
+      text: capitalize(reasonShort(e.reason)) || "The receptionist stopped",
+      sub: e.state === "resolved" ? "Resolved" : "Open"
+    });
+  }
+  for (const dec of d.decisions) {
+    const label = DECISION_LABELS[dec.verb];
+    if (!label) continue;
+    const mine = dec.subject_type === "conversation" && convIds.has(dec.subject_id) || dec.subject_type === "contact" && dec.subject_id === row.id;
+    if (!mine) continue;
+    const t = ts(dec.created_at);
+    if (t === null) continue;
+    items.push({ id: `d-${dec.id}`, ts: t, ...stamp(t), kind: "decision", who: label.who, text: label.text });
+  }
+  if (d.visits?.all?.length) {
+    const tz = d.visits.timezone;
+    for (const v of d.visits.all) {
+      const t = Date.parse(v.start);
+      if (!Number.isFinite(t)) continue;
+      const ahead = Date.parse(v.end) >= nowMs;
+      items.push({
+        id: `v-${v.id}`,
+        ts: t,
+        ...stamp(t),
+        kind: "visit",
+        who: "Calendar",
+        text: `${ahead ? "Booked" : "Visited"} \xB7 ${v.title}`,
+        sub: `${visitTime(v, tz)} \xB7 from ${d.visits.source}${v.via === "name" ? " \xB7 matched by name" : ""}`
+      });
+    }
+  }
+  if (d.added) {
+    const t = ts(d.added.at);
+    if (t !== null) items.push({ id: "added", ts: t, ...stamp(t), kind: "system", who: "Calendar", text: d.added.source === "calendar" ? `Added from your calendar${d.added.title ? ` (${d.added.title})` : ""}` : "Added by hand" });
+  }
+  items.sort((a, b) => b.ts - a.ts);
+  const latestConv = [...d.conversations].sort((a, b) => (ts(b.last_message_at) ?? 0) - (ts(a.last_message_at) ?? 0))[0];
+  let customer = null;
+  let reply = null;
+  if (latestConv) {
+    for (let i = latestConv.messages.length - 1; i >= 0; i--) {
+      const m = latestConv.messages[i];
+      if (m.type === "call_summary") continue;
+      const t = ts(messageAt(m));
+      if (t === null) continue;
+      if (!customer && m.direction === "inbound" && m.body) customer = { text: m.body, at: `${stamp(t).time} ${stamp(t).day}` };
+      if (!reply && m.direction === "outbound" && m.status !== "canceled" && (m.sender === "ai" || m.sender === "human")) {
+        reply = { text: messageText(m), at: `${stamp(t).time} ${stamp(t).day}`, who: m.sender === "ai" ? "Receptionist" : "You" };
+      }
+      if (customer && reply) break;
+    }
+  }
+  const threadTo = row.latest_conversation_id ? `inbox/th-${row.latest_conversation_id}` : null;
+  const openInbox = threadTo ? { label: "Open in Inbox", to: threadTo } : null;
+  const r = row;
+  let rightNow;
+  if (r.open_escalation_reason) {
+    const since = r.open_escalation_since ? shortTime(r.open_escalation_since, now) : null;
+    rightNow = {
+      tone: "escalated",
+      title: `Escalated \xB7 ${reasonShort(r.open_escalation_reason)}`,
+      detail: `${since ? `Since ${since} \xB7 ` : ""}the receptionist is paused on this thread until someone answers`,
+      cta: openInbox
+    };
+  } else if (r.needs_human) {
+    rightNow = { tone: "escalated", title: "Waiting for a person", detail: "The receptionist stopped and nobody has taken the thread yet", cta: openInbox };
+  } else if (r.queued_reply_at) {
+    const q = ts(r.queued_reply_at);
+    rightNow = { tone: "queued", title: "Reply sending", detail: `Queued ${q !== null ? ago(q, nowMs) : ""} \xB7 it can still be stopped from the Inbox`.replace("  ", " "), cta: openInbox };
+  } else if (base.receptionist.tone === "snoozed") {
+    rightNow = { tone: "snoozed", title: "Snoozed", detail: `Wakes ${shortTime(r.latest_snooze_until ?? null, now)}`, cta: openInbox };
+  } else if (isOwned(r, nowMs)) {
+    rightNow = { tone: "paused", title: "Paused, a person owns this thread", detail: "The receptionist will not answer until the thread is handed back", cta: openInbox };
+  } else if (base.consent.state === "opted_out") {
+    rightNow = { tone: "silent", title: "Silent, they opted out", detail: base.consent.sub, cta: null };
+  } else if (["never", "ask"].includes(d.receptionist_mode ?? "") || ["never", "ask"].includes(d.workspace_reply_mode ?? "")) {
+    const theirs = ["never", "ask"].includes(d.receptionist_mode ?? "");
+    const mode = theirs ? d.receptionist_mode : d.workspace_reply_mode;
+    rightNow = {
+      tone: "paused",
+      title: `Held for you, set to ${mode === "never" ? "Never" : "Ask"}`,
+      detail: theirs ? "You set the receptionist to stay out of this person's thread \u2014 their messages come straight to you" : "Your workspace reply setting holds every message for a person",
+      cta: openInbox
+    };
+  } else {
+    rightNow = { tone: "answering", title: "Answering", detail: "New messages are answered automatically", cta: base.threadId ? { label: "Open thread", to: `inbox/${base.threadId}` } : null };
+  }
+  const firstIsCall = d.calls.some((k) => k.started_at && ts(k.started_at) === base.firstContact.ts);
+  const firstChannel = base.firstContact.estimate ? "imported history" : firstIsCall || !base.hasChat ? "Phone" : "WhatsApp";
+  const lc = base.lastContact;
+  const lastMeta = lc.who === "they" ? lc.kind === "call" ? "they phoned" : "they wrote" : lc.who === "you" ? "you replied" : lc.who === "receptionist" ? "receptionist replied" : lc.who === "system" ? "we sent" : "";
+  const toneWord = { answering: "Answering", escalated: "Waiting", queued: "Queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent" };
+  const facts = [
+    { label: "First contact", value: base.firstContact.label, meta: firstChannel },
+    { label: "Last contact", value: lc.ts !== null ? ago(lc.ts, nowMs) : "\u2014", meta: lastMeta },
+    { label: "Conversations", value: base.threads, meta: base.escalations ? `${base.escalations} needed you` : "none needed you" },
+    { label: "Calls", value: base.calls, meta: base.calls ? `${Math.max(1, Math.round(base.callSeconds / 60))} min total` : "no calls" },
+    { label: "Consent", value: base.consent.label, meta: base.consent.sub, tone: base.consent.state === "opted_out" ? "neg" : "" },
+    { label: "Receptionist", value: toneWord[base.receptionist.tone], meta: base.receptionist.tone === "escalated" ? "for you" : base.receptionist.label.toLowerCase() }
+  ];
+  const about = [];
+  if (base.phone) about.push({ k: "Phone", v: base.phone });
+  if (base.waName) about.push({ k: "WhatsApp name", v: base.waName });
+  about.push({
+    k: "First contact",
+    v: base.firstContact.ts !== null ? `${base.firstContact.estimate ? "Before " : ""}${DATE_YEAR_FMT.format(new Date(base.firstContact.ts))} \xB7 ${firstChannel}` : "\u2014"
+  });
+  about.push({ k: "Channels", v: base.channels.map((c) => c === "whatsapp" ? "WhatsApp" : "Phone").join(" \xB7 ") || "\u2014" });
+  about.push({ k: "Consent", v: `${base.consent.label} \xB7 ${base.consent.sub}` });
+  if (base.hasChat) {
+    const w = waWindow(r.latest_wa_inbound_at, now);
+    const hours = w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 36e5)) : 0;
+    about.push({ k: "Reply window", v: w.open ? `Open \xB7 ${hours}h left` : "Closed \xB7 template only" });
+  }
+  if (d.visits) {
+    const v = d.visits;
+    const nextLine = v.next ? `${visitLine(v.next, v.timezone, nowMs)} \xB7 ${v.next.title}` : v.state === "ok" ? "Nothing on the calendar" : "Calendar could not be read";
+    facts.push({
+      label: "Next visit",
+      value: v.next ? visitDay(v.next.start, v.timezone, nowMs) : "\u2014",
+      // The cell is narrow: the time here, the service in About.
+      meta: v.next ? `${visitTime(v.next, v.timezone)}${v.next.via === "name" ? " \xB7 by name" : ""}` : v.state === "ok" ? "none booked" : "could not be read"
+    });
+    about.push({ k: "Next visit", v: nextLine });
+    if (v.last) about.push({ k: "Last visit", v: `${visitLine(v.last, v.timezone, nowMs)} \xB7 ${v.last.title}` });
+  }
+  if (d.added) {
+    const at = ts(d.added.at);
+    about.push({ k: "Added", v: `${at !== null ? DATE_YEAR_FMT.format(new Date(at)) : "\u2014"} \xB7 ${d.added.source === "calendar" ? `from your calendar${d.added.title ? ` (${d.added.title})` : ""}` : "by hand"}` });
+  }
+  return {
+    ...base,
+    since: base.firstContact.label === "\u2014" ? "" : base.firstContact.estimate ? `Since ${base.firstContact.label.charAt(0).toLowerCase()}${base.firstContact.label.slice(1)}` : `Since ${base.firstContact.label}`,
+    metaLine: `${plural(base.threads, "conversation")} \xB7 ${plural(base.calls, "call")}`,
+    lastExchange: { customer, reply },
+    facts,
+    rightNow,
+    timeline: items,
+    about,
+    notes: d.notes?.trim() || null,
+    bookingLink: d.booking_link?.trim() || null,
+    openThread: base.threadId ? `inbox/${base.threadId}` : null,
+    receptionistMode: {
+      person: asPersonMode(d.receptionist_mode),
+      workspace: d.workspace_reply_mode === "veto" ? "auto" : asPersonMode(d.workspace_reply_mode)
+    }
+  };
+}
+
 // src/today.ts
+var TODAY_QUEUE_MAX = 6;
 var CHANNEL_LABEL = { whatsapp: "WhatsApp", voice: "Phone line" };
 function tzTime(iso, tz) {
   if (!iso) return null;
@@ -1028,13 +2201,14 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     };
   });
   const escSet = new Set(openEsc.map((e) => e.conversation_id));
-  const closingRows = conversations.filter((c) => {
+  const closingConvs = conversations.filter((c) => {
     if (escSet.has(c.id)) return false;
     const last = c.messages[c.messages.length - 1];
     if (!last || last.sender !== "customer") return false;
     const w = waWindow(c.last_wa_inbound_at, now);
     return w.open && w.closesAtIso ? new Date(w.closesAtIso).getTime() - now.getTime() < 6 * 3600 * 1e3 : false;
-  }).map((c) => {
+  });
+  const closingRows = closingConvs.map((c) => {
     const w = waWindow(c.last_wa_inbound_at, now);
     const mins = w.closesAtIso ? Math.max(1, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / 6e4)) : 0;
     return {
@@ -1080,6 +2254,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       recap: { label: "Today so far", sentences: [], facts, receipts: [] },
       pulse: null,
       calls: null,
+      queue: { rows: [], more: 0 },
       launchpad: [{ label: "Conversations", to: "conversations" }],
       updatedAt: clock2,
       quiet: {
@@ -1178,6 +2353,108 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       to: vm.live ? "live" : `conversations/cv-${c.id}`
     };
   });
+  const callByConv = /* @__PURE__ */ new Map();
+  for (const c of calls) {
+    if (!c.conversation_id) continue;
+    const prev = callByConv.get(c.conversation_id);
+    if (!prev || String(c.started_at ?? "") > String(prev.started_at ?? "")) callByConv.set(c.conversation_id, c);
+  }
+  const say = (v) => typeof v === "string" && v.trim() ? v.trim() : "";
+  const queueAll = [];
+  for (const e of openEsc) {
+    const conv = byConv.get(e.conversation_id);
+    const waitedMs = now.getTime() - new Date(e.created_at).getTime();
+    const since = tzTime(e.created_at, tz) ?? "";
+    const warn = waitedMs > 30 * 6e4;
+    if (e.reason === "callback") {
+      const call = callByConv.get(e.conversation_id) ?? null;
+      const who2 = conv ? contactName(conv) : call ? toCallVM(call, now).who : "Unknown caller";
+      queueAll.push({
+        id: `q-${e.id}`,
+        kind: "callback",
+        who: who2,
+        initials: initialsOf(who2),
+        channel: "Phone",
+        when: `waited ${formatWaited(waitedMs)}`,
+        sentence: say(e.details) || "The caller needs a call back.",
+        quoted: false,
+        status: ["Needs a call back", `since ${since}`],
+        tone: "escalated",
+        warn,
+        cta: { label: "Open the call", to: call ? `conversations/cv-${call.id}` : `inbox/th-${e.conversation_id}` },
+        also: { label: "Done", verb: "resolve", conversationId: e.conversation_id, escalationId: e.id },
+        waitedMs
+      });
+      continue;
+    }
+    const lastCustomer = conv ? [...conv.messages].reverse().find((x) => x.sender === "customer") : void 0;
+    const quote = lastCustomer ? messageText(lastCustomer).slice(0, 110) : "";
+    const who = conv ? contactName(conv) : "Unknown";
+    const win = conv ? waWindow(conv.last_wa_inbound_at, now) : null;
+    const closes = win?.open ? tzTime(win.closesAtIso, tz) : null;
+    queueAll.push({
+      id: `q-${e.id}`,
+      kind: "handoff",
+      who,
+      initials: initialsOf(who),
+      channel: "WhatsApp",
+      when: `waited ${formatWaited(waitedMs)}`,
+      sentence: quote || (ESCALATION_REASON_LABELS[e.reason] ?? e.reason),
+      quoted: !!quote,
+      status: ["Escalated", reasonShort(e.reason) || e.reason, `since ${since}`, ...closes ? [`reply window closes ${closes}`] : []],
+      tone: "escalated",
+      warn,
+      cta: { label: "Open and reply", to: `inbox/th-${e.conversation_id}` },
+      also: { label: "Snooze", verb: "snooze", conversationId: e.conversation_id, escalationId: e.id },
+      waitedMs
+    });
+  }
+  for (const c of closingConvs) {
+    const w = waWindow(c.last_wa_inbound_at, now);
+    const leftMs = w.closesAtIso ? Math.max(6e4, new Date(w.closesAtIso).getTime() - now.getTime()) : 0;
+    const last = [...c.messages].reverse().find((x) => x.sender === "customer");
+    const who = contactName(c);
+    queueAll.push({
+      id: `q-w-${c.id}`,
+      kind: "window",
+      who,
+      initials: initialsOf(who),
+      channel: "WhatsApp",
+      when: `closes ${tzTime(w.closesAtIso, tz) ?? "soon"} \xB7 in ${formatWaited(leftMs)}`,
+      sentence: last ? messageText(last).slice(0, 110) : "They wrote last, and the free reply window is closing.",
+      quoted: !!last,
+      status: ["Reply window closing", "they wrote last"],
+      tone: "warn",
+      warn: leftMs < 2 * 36e5,
+      cta: { label: "Open thread", to: `inbox/th-${c.id}` },
+      also: null,
+      // After every escalation (which waited ≥ 0), the soonest to close first.
+      waitedMs: -leftMs
+    });
+  }
+  for (const r of callRows) {
+    if (r.to === "live") continue;
+    const c = callsInWindow.find((k) => k.id === r.id);
+    const wanted = say(c?.wanted);
+    queueAll.push({
+      id: `q-c-${r.id}`,
+      kind: "call",
+      who: r.who,
+      initials: initialsOf(r.who),
+      channel: "Phone",
+      when: `${r.at}${r.duration ? ` \xB7 ${r.duration}` : ""}`,
+      sentence: wanted || r.note,
+      quoted: false,
+      status: [wanted ? r.note : "Worth a listen"],
+      tone: "warn",
+      warn: false,
+      cta: { label: "Open the call", to: r.to },
+      also: null,
+      waitedMs: Number.NEGATIVE_INFINITY
+    });
+  }
+  queueAll.sort((a, b) => b.waitedMs - a.waitedMs);
+  const queue = { rows: queueAll.slice(0, TODAY_QUEUE_MAX), more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX) };
   return {
     standing: {
       eyebrow: `${datePart} \xB7 ${clock2} \xB7 ${m.workspace.name}`,
@@ -1210,6 +2487,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       { label: "Conversations", to: "conversations" },
       ...p.calls ? [{ label: `Calls \u2014 ${p.calls} today`, to: "conversations/phone" }] : []
     ],
+    queue,
     updatedAt: clock2,
     quiet: null
   };
@@ -1555,7 +2833,7 @@ var DAY_LABEL = {
   sat: "Saturday",
   sun: "Sunday"
 };
-function dayIntervals(h) {
+function dayIntervals2(h) {
   const raw = [];
   if (h?.open && h?.close) raw.push({ open: h.open, close: h.close });
   for (const iv of h?.intervals ?? []) if (iv?.open && iv?.close) raw.push(iv);
@@ -1576,7 +2854,7 @@ function joinList(parts2) {
   return `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
 }
 function dayText(h) {
-  const spans = dayIntervals(h);
+  const spans = dayIntervals2(h);
   if (spans.length) {
     const open = joinList(spans.map((x) => `${x.open}\u2013${x.close}`));
     const gaps = spans.slice(1).map((x, i) => `${spans[i].close}\u2013${x.open}`);
@@ -1825,7 +3103,7 @@ ${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
 }
 
 // src/notifications.ts
-var DAY_MS = 24 * 3600 * 1e3;
+var DAY_MS2 = 24 * 3600 * 1e3;
 function buildNotificationFeed(input) {
   const { now } = input;
   const items = [];
@@ -1862,7 +3140,7 @@ function buildNotificationFeed(input) {
   }
   for (const c of input.calls ?? []) {
     if (!c.missed || c.live || typeof c.startedAtMs !== "number") continue;
-    if (now - c.startedAtMs > DAY_MS) continue;
+    if (now - c.startedAtMs > DAY_MS2) continue;
     items.push({
       key: `call:${c.callId}`,
       kind: "missed_call",
@@ -2518,1178 +3796,6 @@ var FOLLOWUP_ECHO = [
 function followupsToShow(followups, citations, nav) {
   const places = [...citations.map((c) => c.to), ...nav && nav.to ? [nav.to] : []];
   return followups.filter((f) => !FOLLOWUP_ECHO.some(([words, route]) => words.test(f) && places.some((p) => route.test(p)))).slice(0, ASK_CAPS.followups);
-}
-
-// src/availability.ts
-function zoneParts(tz, at) {
-  const parts2 = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    hourCycle: "h23",
-    weekday: "short",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit"
-  }).formatToParts(at);
-  const get = (t) => parts2.find((p) => p.type === t)?.value ?? "";
-  return {
-    y: Number(get("year")),
-    m: Number(get("month")),
-    d: Number(get("day")),
-    hh: Number(get("hour")) % 24,
-    mm: Number(get("minute")),
-    ss: Number(get("second")),
-    weekday: get("weekday").toLowerCase().slice(0, 3)
-  };
-}
-function zoneOffsetMs(tz, atMs) {
-  const p = zoneParts(tz, new Date(atMs));
-  return Date.UTC(p.y, p.m - 1, p.d, p.hh, p.mm, p.ss) - Math.floor(atMs / 1e3) * 1e3;
-}
-function localToUtcMs(tz, y, m, d, hh, mm) {
-  const guess = Date.UTC(y, m - 1, d, hh, mm);
-  const first = guess - zoneOffsetMs(tz, guess);
-  const second = guess - zoneOffsetMs(tz, first);
-  return second;
-}
-function clockInZone(tz, atMs) {
-  const p = zoneParts(tz, new Date(atMs));
-  return { hh: p.hh, mm: p.mm, ss: p.ss };
-}
-function dayInZone(tz, atMs) {
-  const p = zoneParts(tz, new Date(atMs));
-  const pad = (n) => String(n).padStart(2, "0");
-  return { key: `${p.y}-${pad(p.m)}-${pad(p.d)}`, weekday: p.weekday, y: p.y, m: p.m, d: p.d };
-}
-function unescapeText(v) {
-  return v.replace(/\\([\\;,nN])/g, (_, c) => c === "n" || c === "N" ? "\n" : c).trim();
-}
-function unfold(text) {
-  const out = [];
-  for (const raw of text.replace(/\r\n/g, "\n").split("\n")) {
-    if ((raw.startsWith(" ") || raw.startsWith("	")) && out.length) out[out.length - 1] += raw.slice(1);
-    else out.push(raw);
-  }
-  return out;
-}
-function splitLine(line) {
-  let colon = -1;
-  let q = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') q = !q;
-    else if (ch === ":" && !q) {
-      colon = i;
-      break;
-    }
-  }
-  if (colon === -1) return null;
-  const head = line.slice(0, colon);
-  const value = line.slice(colon + 1);
-  const parts2 = [];
-  let cur = "";
-  q = false;
-  for (const ch of head) {
-    if (ch === '"') {
-      q = !q;
-      continue;
-    }
-    if (ch === ";" && !q) {
-      parts2.push(cur);
-      cur = "";
-      continue;
-    }
-    cur += ch;
-  }
-  parts2.push(cur);
-  const [name, ...rest] = parts2;
-  const params = {};
-  for (const p of rest) {
-    const eq = p.indexOf("=");
-    if (eq > 0) params[p.slice(0, eq).toUpperCase()] = p.slice(eq + 1);
-  }
-  return { name: name.toUpperCase(), params, value };
-}
-function toMs(value, params, fallbackTz) {
-  const v = value.trim();
-  const date = /^(\d{4})(\d{2})(\d{2})$/.exec(v);
-  if (date || params.VALUE === "DATE") {
-    const m2 = date ?? /^(\d{4})(\d{2})(\d{2})/.exec(v);
-    if (!m2) return null;
-    return localToUtcMs(fallbackTz, Number(m2[1]), Number(m2[2]), Number(m2[3]), 0, 0);
-  }
-  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
-  if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z4] = m;
-  if (z4) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
-  const tz = params.TZID ?? fallbackTz;
-  try {
-    return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
-  } catch {
-    return localToUtcMs(fallbackTz, Number(y), Number(mo), Number(d), Number(hh), Number(mm));
-  }
-}
-function localPartsOf(value, params, fallbackTz) {
-  const v = value.trim();
-  const date = /^(\d{4})(\d{2})(\d{2})$/.exec(v);
-  if (date || params.VALUE === "DATE") {
-    const m2 = date ?? /^(\d{4})(\d{2})(\d{2})/.exec(v);
-    if (!m2) return null;
-    return { tz: fallbackTz, y: Number(m2[1]), m: Number(m2[2]), d: Number(m2[3]), hh: 0, mm: 0, allDay: true };
-  }
-  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
-  if (!m) return null;
-  if (m[7]) {
-    const p = zoneParts(fallbackTz, new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] ?? 0))));
-    return { tz: fallbackTz, y: p.y, m: p.m, d: p.d, hh: p.hh, mm: p.mm, allDay: false };
-  }
-  return { tz: params.TZID ?? fallbackTz, y: Number(m[1]), m: Number(m[2]), d: Number(m[3]), hh: Number(m[4]), mm: Number(m[5]), allDay: false };
-}
-var WEEKDAYS = ["su", "mo", "tu", "we", "th", "fr", "sa"];
-function parseRule(value, fallbackTz) {
-  const parts2 = {};
-  for (const kv of value.split(";")) {
-    const eq = kv.indexOf("=");
-    if (eq > 0) parts2[kv.slice(0, eq).toUpperCase()] = kv.slice(eq + 1);
-  }
-  const freq = parts2.FREQ;
-  if (!freq || !["DAILY", "WEEKLY", "MONTHLY", "YEARLY"].includes(freq)) return null;
-  for (const k of Object.keys(parts2)) if (!["FREQ", "INTERVAL", "COUNT", "UNTIL", "BYDAY", "BYMONTHDAY", "WKST"].includes(k)) return null;
-  const interval = Math.max(1, Number(parts2.INTERVAL ?? 1) || 1);
-  const count = parts2.COUNT ? Number(parts2.COUNT) : null;
-  let until = null;
-  if (parts2.UNTIL) {
-    until = toMs(parts2.UNTIL, {}, fallbackTz);
-    if (until !== null && /^\d{8}$/.test(parts2.UNTIL)) until += 864e5 - 1;
-  }
-  let byday = null;
-  if (parts2.BYDAY) {
-    byday = [];
-    for (const d of parts2.BYDAY.split(",")) {
-      const i = WEEKDAYS.indexOf(d.trim().toLowerCase());
-      if (i === -1) return null;
-      byday.push(i);
-    }
-    if (freq !== "WEEKLY") return null;
-  }
-  let bymonthday = null;
-  if (parts2.BYMONTHDAY) {
-    if (freq !== "MONTHLY" || parts2.BYMONTHDAY.includes(",")) return null;
-    bymonthday = Number(parts2.BYMONTHDAY);
-    if (!Number.isInteger(bymonthday) || bymonthday < 1 || bymonthday > 31) return null;
-  }
-  return { freq, interval, count: count && count > 0 ? count : null, until, byday, bymonthday };
-}
-var dayNumber = (y, m, d) => Math.floor(Date.UTC(y, m - 1, d) / 864e5);
-function occurrences(start, durMs, rule, exdates, horizon) {
-  const out = [];
-  const first = dayNumber(start.y, start.m, start.d);
-  const firstDate = new Date(first * 864e5);
-  const firstWeek = Math.floor((first - (firstDate.getUTCDay() + 6) % 7) / 7);
-  const wanted = rule.byday ?? [firstDate.getUTCDay()];
-  let produced = 0;
-  for (let n = 0; n < 2e4; n++) {
-    const day = first + n;
-    const at = new Date(day * 864e5);
-    const y = at.getUTCFullYear(), m = at.getUTCMonth() + 1, d = at.getUTCDate();
-    let hit = false;
-    if (rule.freq === "DAILY") hit = n % rule.interval === 0;
-    else if (rule.freq === "WEEKLY") {
-      const week = Math.floor((day - (at.getUTCDay() + 6) % 7) / 7);
-      hit = wanted.includes(at.getUTCDay()) && (week - firstWeek) % rule.interval === 0;
-    } else if (rule.freq === "MONTHLY") {
-      const months = (y - start.y) * 12 + (m - start.m);
-      hit = d === (rule.bymonthday ?? start.d) && months % rule.interval === 0;
-    } else if (rule.freq === "YEARLY") {
-      hit = m === start.m && d === start.d && (y - start.y) % rule.interval === 0;
-    }
-    if (!hit) continue;
-    const s = localToUtcMs(start.tz, y, m, d, start.hh, start.mm);
-    if (rule.until !== null && s > rule.until) break;
-    produced++;
-    if (rule.count !== null && produced > rule.count) break;
-    if (s > horizon.to) break;
-    if (exdates.has(s)) continue;
-    if (s + durMs >= horizon.from) out.push({ start: s, end: s + durMs });
-  }
-  return out;
-}
-function durationMs(v) {
-  const m = /^([+-])?P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(v.trim());
-  if (!m) return null;
-  const sign = m[1] === "-" ? -1 : 1;
-  return sign * ((Number(m[2] ?? 0) * 86400 + Number(m[3] ?? 0) * 3600 + Number(m[4] ?? 0) * 60 + Number(m[5] ?? 0)) * 1e3);
-}
-function parseIcs(text, fallbackTz, opts = {}) {
-  const horizon = opts.horizon ?? { from: Date.now() - 864e5, to: Date.now() + 90 * 864e5 };
-  const busy = [];
-  const items = [];
-  let events = 0;
-  let recurringExpanded = 0;
-  let skippedRecurring = 0;
-  let cur = null;
-  const exdatesOf = [];
-  const attendees = [];
-  for (const line of unfold(text)) {
-    if (line === "BEGIN:VEVENT") {
-      cur = {};
-      exdatesOf.length = 0;
-      attendees.length = 0;
-      continue;
-    }
-    if (line === "END:VEVENT") {
-      if (cur) {
-        events++;
-        const status = cur.STATUS?.value.toUpperCase();
-        const transp = cur.TRANSP?.value.toUpperCase();
-        if (status !== "CANCELLED" && transp !== "TRANSPARENT" && cur.DTSTART) {
-          const start = toMs(cur.DTSTART.value, cur.DTSTART.params, fallbackTz);
-          let end = null;
-          if (cur.DTEND) end = toMs(cur.DTEND.value, cur.DTEND.params, fallbackTz);
-          else if (cur.DURATION && start !== null) {
-            const d = durationMs(cur.DURATION.value);
-            end = d === null ? null : start + d;
-          } else if (start !== null) {
-            end = cur.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(cur.DTSTART.value.trim()) ? start + 864e5 : start;
-          }
-          if (start !== null && end !== null && end > start) {
-            const title = unescapeText(cur.SUMMARY?.value ?? "");
-            const description = unescapeText(cur.DESCRIPTION?.value ?? "") || null;
-            const location = unescapeText(cur.LOCATION?.value ?? "") || null;
-            const guests = attendees.slice();
-            const allDay = cur.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(cur.DTSTART.value.trim());
-            const uid = cur.UID?.value.trim() || null;
-            const rule = cur.RRULE ? parseRule(cur.RRULE.value, fallbackTz) : null;
-            const local = cur.RRULE ? localPartsOf(cur.DTSTART.value, cur.DTSTART.params, fallbackTz) : null;
-            if (cur.RRULE && rule && local) {
-              const ex = /* @__PURE__ */ new Set();
-              for (const e of exdatesOf) for (const v of e.value.split(",")) {
-                const ms2 = toMs(v, e.params, fallbackTz);
-                if (ms2 !== null) ex.add(ms2);
-              }
-              const occ = occurrences(local, end - start, rule, ex, horizon);
-              busy.push(...occ);
-              for (const o of occ) items.push({ ...o, title, allDay, uid, description, location, attendees: guests });
-              recurringExpanded++;
-            } else {
-              if (cur.RRULE || cur.RDATE) skippedRecurring++;
-              busy.push({ start, end });
-              items.push({ start, end, title, allDay, uid, description, location, attendees: guests });
-            }
-          }
-        }
-      }
-      cur = null;
-      continue;
-    }
-    if (!cur) continue;
-    const s = splitLine(line);
-    if (!s) continue;
-    if (s.name === "EXDATE") {
-      exdatesOf.push({ params: s.params, value: s.value });
-      continue;
-    }
-    if (s.name === "ATTENDEE") {
-      const v = s.value.trim();
-      attendees.push({ name: s.params.CN?.trim() || null, email: /^mailto:/i.test(v) ? v.slice(7).toLowerCase() : null });
-      continue;
-    }
-    cur[s.name] = { params: s.params, value: s.value };
-  }
-  busy.sort((a, b) => a.start - b.start);
-  items.sort((a, b) => a.start - b.start);
-  return { busy, items, events, recurringExpanded, skippedRecurring };
-}
-var BOOKING_DEFAULTS = { lead_hours: 2, buffer_min: 0, max_days_ahead: 14, slot_min: 30 };
-function hhmm(s) {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());
-  return m ? [Number(m[1]), Number(m[2])] : null;
-}
-function dayIntervals2(h) {
-  if (!h) return [];
-  if (h.intervals?.length) return h.intervals.filter((i) => i.open && i.close).map((i) => [i.open, i.close]);
-  return h.open && h.close ? [[h.open, h.close]] : [];
-}
-function closedOn(closures, key) {
-  return !!closures?.some((c) => c.date <= key && key <= (c.until && c.until >= c.date ? c.until : c.date));
-}
-function freeWindows(input) {
-  const rules = { ...BOOKING_DEFAULTS, ...input.rules ?? {} };
-  const leadMs = rules.lead_hours * 36e5;
-  const bufferMs = rules.buffer_min * 6e4;
-  const slotMs = rules.slot_min * 6e4;
-  const earliest = input.now.getTime() + leadMs;
-  const busy = input.busy.map((b) => ({ start: b.start - bufferMs, end: b.end + bufferMs })).sort((a, b) => a.start - b.start);
-  const out = [];
-  for (let offset = 0; offset < rules.max_days_ahead; offset++) {
-    const at = input.now.getTime() + offset * 864e5;
-    const day = dayInZone(input.tz, at);
-    if (closedOn(input.closures, day.key)) continue;
-    const ranges = dayIntervals2(input.hours?.[day.weekday]);
-    const windows = [];
-    for (const [open, close] of ranges) {
-      const o = hhmm(open), c = hhmm(close);
-      if (!o || !c) continue;
-      let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, o[0], o[1]), earliest);
-      const end = localToUtcMs(input.tz, day.y, day.m, day.d, c[0], c[1]);
-      for (const b of busy) {
-        if (b.end <= start) continue;
-        if (b.start >= end) break;
-        if (b.start > start && b.start - start >= slotMs) windows.push({ start, end: b.start });
-        start = Math.max(start, b.end);
-      }
-      if (end - start >= slotMs) windows.push({ start, end });
-    }
-    if (windows.length) {
-      out.push({
-        key: day.key,
-        weekday: day.weekday,
-        label: new Intl.DateTimeFormat("en-US", { timeZone: input.tz, weekday: "long", month: "long", day: "numeric" }).format(new Date(at)),
-        windows
-      });
-    }
-  }
-  return out;
-}
-var DAY_NAMES = {
-  mon: "mon",
-  monday: "mon",
-  tue: "tue",
-  tues: "tue",
-  tuesday: "tue",
-  wed: "wed",
-  wednesday: "wed",
-  thu: "thu",
-  thur: "thu",
-  thurs: "thu",
-  thursday: "thu",
-  fri: "fri",
-  friday: "fri",
-  sat: "sat",
-  saturday: "sat",
-  sun: "sun",
-  sunday: "sun"
-};
-function filterOpenings(openings, by) {
-  const day = (by.day ?? "").trim().toLowerCase();
-  const weekday = day ? DAY_NAMES[day] : void 0;
-  const key = /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : void 0;
-  const minMs = by.minMinutes && by.minMinutes > 0 ? by.minMinutes * 6e4 : 0;
-  const picked = openings.filter((o) => key ? o.key === key : weekday ? o.weekday === weekday : true);
-  const first = weekday && !key ? picked.slice(0, 1) : picked;
-  return first.map((o) => ({ ...o, windows: o.windows.filter((w) => w.end - w.start >= minMs) })).filter((o) => o.windows.length > 0);
-}
-function span(tz, start, end) {
-  const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
-  return `${f.format(new Date(start))} \u2013 ${f.format(new Date(end))}`;
-}
-function describeOpenings(openings, tz, opts = {}) {
-  const maxDays = opts.maxDays ?? 5;
-  const ahead = opts.daysAhead ?? BOOKING_DEFAULTS.max_days_ahead;
-  if (!openings.length) {
-    return `Open times (from the calendar): nothing is open in the next ${ahead} days. Offer to have someone call back, and send the booking link so they are told when a slot frees up.`;
-  }
-  const lines = openings.slice(0, maxDays).map((o) => `- ${o.label}: ${o.windows.map((w) => span(tz, w.start, w.end)).join(", ")}`);
-  return `Open times (from the calendar, checked just now \u2014 these change as bookings come in):
-${lines.join("\n")}
-Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides.`;
-}
-
-// src/calendar-people.ts
-var EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-var PHONE_RE = /\+?\(?\d{1,4}\)?(?:[\s.-]?\(?\d{2,4}\)?){2,5}/g;
-var ISO_DATE_RE = /^\d{4}[-./]\d{2}[-./]\d{2}/;
-function phoneFrom(raw) {
-  const s = raw.trim();
-  if (ISO_DATE_RE.test(s)) return null;
-  const digits = s.replace(/\D/g, "");
-  if (digits.length < 10 || digits.length > 15) return null;
-  const bare = /^\+?\d+$/.test(s);
-  if (bare && !s.startsWith("+") && !(digits.length === 10 || digits.length === 11 && digits.startsWith("1"))) return null;
-  return normalizePhone(s.startsWith("+") ? `+${digits}` : digits);
-}
-function extractContacts(item) {
-  const text = [item.title, item.description ?? "", item.location ?? ""].join("\n");
-  const emails = /* @__PURE__ */ new Set();
-  for (const m of text.match(EMAIL_RE) ?? []) emails.add(m.toLowerCase());
-  for (const a of item.attendees ?? []) if (a.email) emails.add(a.email.toLowerCase());
-  const phones = /* @__PURE__ */ new Set();
-  for (const m of text.replace(EMAIL_RE, " ").match(PHONE_RE) ?? []) {
-    const p = phoneFrom(m);
-    if (p) phones.add(p);
-  }
-  const names = /* @__PURE__ */ new Set();
-  for (const a of item.attendees ?? []) {
-    const n = (a.name ?? "").trim();
-    if (n && !EMAIL_RE.test(n)) names.add(n);
-    EMAIL_RE.lastIndex = 0;
-  }
-  return { phones: [...phones], emails: [...emails], names: [...names] };
-}
-var escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-function nameMatcher(name) {
-  const n = name.trim();
-  if (n.length < 4 || /^[+\d(]/.test(n)) return null;
-  return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(n)}(?=$|[^\\p{L}\\p{N}])`, "iu");
-}
-function personInText(text, people) {
-  let best = null;
-  for (const p of people) {
-    const re = nameMatcher(p.name);
-    if (re && re.test(text) && (!best || p.name.trim().length > best.name.trim().length)) best = p;
-  }
-  return best;
-}
-var labelOf = (p) => p.name.trim() || formatPhoneDisplay(p.phone) || "Unknown";
-function matchPerson(item, people) {
-  const c = extractContacts(item);
-  if (c.phones.length) {
-    const byPhone = /* @__PURE__ */ new Map();
-    for (const p2 of people) if (p2.phone) byPhone.set(p2.phone, p2);
-    for (const ph of c.phones) {
-      const p2 = byPhone.get(ph);
-      if (p2) return { id: p2.id, name: labelOf(p2), via: "phone" };
-    }
-  }
-  const p = personInText([item.title, ...c.names, item.description ?? ""].join("\n"), people);
-  return p ? { id: p.id, name: labelOf(p), via: "name" } : null;
-}
-function indexFeed(items) {
-  const byPhone = /* @__PURE__ */ new Map();
-  const texts = [];
-  for (const it of items) {
-    const c = extractContacts(it);
-    for (const ph of c.phones) byPhone.set(ph, [...byPhone.get(ph) ?? [], it]);
-    texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
-  }
-  return { byPhone, texts };
-}
-function allVisitsIn(index, person) {
-  const out = [];
-  const seen = /* @__PURE__ */ new Set();
-  const take = (it, via) => {
-    if (seen.has(it)) return;
-    seen.add(it);
-    out.push({ id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`, start: it.start, end: it.end, title: it.title || "Busy", allDay: it.allDay, via });
-  };
-  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
-  const re = nameMatcher(person.name);
-  if (re) {
-    for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
-  }
-  return out.sort((a, b) => a.start - b.start);
-}
-function visitsIn(index, person, nowMs) {
-  let next = null;
-  let last = null;
-  const seen = /* @__PURE__ */ new Set();
-  const take = (it, via) => {
-    if (seen.has(it)) return;
-    seen.add(it);
-    const v = { id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`, start: it.start, end: it.end, title: it.title || "Busy", allDay: it.allDay, via };
-    if (it.end >= nowMs) {
-      if (!next || v.start < next.start) next = v;
-    } else if (!last || v.end > last.end) last = v;
-  };
-  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
-  const re = nameMatcher(person.name);
-  if (re) {
-    for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
-  }
-  return { next, last };
-}
-function visitsOf(items, person, nowMs) {
-  return visitsIn(indexFeed(items), person, nowMs);
-}
-var ms = (t) => typeof t === "number" ? t : Date.parse(t);
-function visitDay(start, tz, nowMs) {
-  const key = dayInZone(tz, ms(start)).key;
-  const today = dayInZone(tz, nowMs).key;
-  const tomorrow = dayInZone(tz, nowMs + 864e5).key;
-  if (key === today) return "Today";
-  if (key === tomorrow) return "Tomorrow";
-  return new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" }).format(new Date(ms(start)));
-}
-function visitTime(v, tz) {
-  if (v.allDay || v.all_day) return "all day";
-  const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
-  const a = f.format(new Date(ms(v.start)));
-  const b = f.format(new Date(ms(v.end)));
-  const sameHalf = a.slice(-2) === b.slice(-2);
-  return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
-}
-function visitDateKey(start, tz) {
-  return dayInZone(tz, ms(start)).key;
-}
-function visitStartTime(v, tz) {
-  if (v.allDay || v.all_day) return "all day";
-  return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(ms(v.start)));
-}
-function visitLine(v, tz, nowMs) {
-  return `${visitDay(v.start, tz, nowMs)} \xB7 ${visitTime(v, tz)}`;
-}
-function describeVisits(visits, tz, nowMs) {
-  const out = [];
-  if (visits.next) {
-    const n = visits.next;
-    out.push(`Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only \u2014 make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, send the booking link \u2014 nothing is changed from here.`);
-  }
-  if (visits.last) {
-    const l = visits.last;
-    out.push(`Their last visit on the calendar: ${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(l.start))} (${l.title}).`);
-  }
-  return out.length ? out.join(" ") : null;
-}
-function feedSourceLabel(url) {
-  if (!url) return "your calendar";
-  let host = "";
-  try {
-    host = new URL(url.replace(/^webcal:\/\//i, "https://")).hostname.toLowerCase();
-  } catch {
-    return "your calendar";
-  }
-  if (host.includes("google")) return "Google Calendar";
-  if (host.includes("icloud")) return "Apple Calendar";
-  if (host.includes("office365") || host.includes("outlook") || host.includes("live.com")) return "Outlook";
-  return "your calendar";
-}
-function eventText(raw, max = 1500) {
-  if (!raw) return null;
-  const text = raw.replace(/<br\s*\/?>/gi, "\n").replace(/<\/?(p|div|li|tr|h[1-6])\b[^>]*>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-  if (!text) return null;
-  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}\u2026` : text;
-}
-function toVisitDto(v) {
-  return v ? { id: v.id, start: new Date(v.start).toISOString(), end: new Date(v.end).toISOString(), title: v.title, all_day: v.allDay, via: v.via } : null;
-}
-var NAME_WORD = /^[\p{L}][\p{L}'’.-]*$/u;
-var CAPITAL = /^\p{Lu}/u;
-function guessName(item, services = []) {
-  const svc = new Set(services.map((s) => s.trim().toLowerCase()).filter(Boolean));
-  const guest = (item.attendees ?? []).map((a) => (a.name ?? "").trim()).find((n) => n && !n.includes("@"));
-  if (guest) return guest.slice(0, 80);
-  const title = item.title.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ");
-  const parts2 = title.split(/\s+(?:-|–|—|·|\||:|\/)\s+|\s+(?:with|for|w\/)\s+|:\s+/i).map((p) => p.trim()).filter(Boolean);
-  for (const part of parts2) {
-    if (svc.has(part.toLowerCase())) continue;
-    const words = part.split(/\s+/);
-    if (words.length < 2 || words.length > 4) continue;
-    if (!words.every((w) => NAME_WORD.test(w) && CAPITAL.test(w))) continue;
-    if (words.some((w) => svc.has(w.toLowerCase()))) continue;
-    return part;
-  }
-  return null;
-}
-function peopleFromItems(items, services, nowMs, window = {}) {
-  const from = nowMs - (window.backDays ?? 30) * 864e5;
-  const to = nowMs + (window.aheadDays ?? 90) * 864e5;
-  const byPhone = /* @__PURE__ */ new Map();
-  const better = (a, b) => {
-    const aUp = a.start >= nowMs;
-    const bUp = b.start >= nowMs;
-    if (aUp !== bUp) return aUp;
-    return aUp ? a.start < b.start : a.start > b.start;
-  };
-  for (const it of items) {
-    if (it.end < from || it.start > to) continue;
-    const phones = extractContacts(it).phones;
-    if (!phones.length) continue;
-    const name = guessName(it, services);
-    for (const phone of phones) {
-      const row = { phone, name, title: it.title || "Busy", uid: it.uid, start: it.start };
-      const have = byPhone.get(phone);
-      if (!have) {
-        byPhone.set(phone, row);
-        continue;
-      }
-      if (better(row, have)) byPhone.set(phone, { ...row, name: row.name ?? have.name });
-      else if (!have.name && row.name) byPhone.set(phone, { ...have, name: row.name });
-    }
-  }
-  return [...byPhone.values()].sort((a, b) => a.start - b.start);
-}
-function bookedAfterAsk(visits, askedMs) {
-  if (!visits) return false;
-  if (visits.next) return true;
-  return !!visits.last && visits.last.start >= askedMs - 864e5;
-}
-function toBookingReportVM(dto) {
-  if (!dto || dto.calendar === "none") return { present: false, headline: "\u2014", sub: "Connect your calendar under Settings \u203A Workspace to see who booked.", pct: null, asked: 0, booked: 0 };
-  if (dto.calendar === "unavailable") return { present: false, headline: "\u2014", sub: "Your calendar could not be read.", pct: null, asked: dto.asked, booked: 0 };
-  if (dto.asked === 0) return { present: true, headline: "Nobody asked", sub: `nobody wrote or called in the last ${dto.days} days`, pct: null, asked: 0, booked: 0 };
-  const pct2 = Math.round(dto.booked / dto.asked * 100);
-  return {
-    present: true,
-    headline: `${dto.booked} of ${dto.asked} booked`,
-    sub: `${pct2}% of the people who wrote or called in the last ${dto.days} days have an appointment on the calendar`,
-    pct: pct2,
-    asked: dto.asked,
-    booked: dto.booked
-  };
-}
-
-// src/people.ts
-var PERSON_MODES = ["auto", "ask", "never"];
-var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
-function asPersonMode(s) {
-  return s && PERSON_MODES.includes(s) ? s : null;
-}
-var PERSON_STATE_LABELS = {
-  needs_you: "Needs you",
-  waiting_on_you: "Waiting on you",
-  opted_out: "Opted out",
-  new: "New",
-  quiet: "Quiet",
-  active: "Active"
-};
-var PEOPLE_TABS = [
-  { id: "all", label: "All" },
-  { id: "needs_you", label: "Needs you" },
-  { id: "waiting_on_you", label: "Waiting on you" },
-  { id: "new", label: "New" },
-  { id: "quiet", label: "Quiet" },
-  { id: "active", label: "Active" }
-];
-var DAY_MS2 = 864e5;
-var WEEK_MS = 7 * DAY_MS2;
-var MONTH_MS = 30 * DAY_MS2;
-var NEW_WINDOW_MS = 7 * DAY_MS2;
-var QUIET_AFTER_MS = 30 * DAY_MS2;
-var REASON_SHORT = {
-  human_token: "asked for a person",
-  non_text: "sent something the receptionist can't read",
-  refusal: "the receptionist declined to answer",
-  rate_cap: "reply limit reached",
-  policy_block: "held by your reply setting",
-  policy_ask: "a booking or a question set to Ask me first",
-  person_hold: "held for you",
-  send_failed: "a reply failed to send",
-  deadman: "no answer in time",
-  brain_error: "the receptionist hit an error",
-  manual: "flagged by you",
-  opt_out: "asked to stop",
-  state_unavailable: "memory was unavailable",
-  stale: "message arrived late",
-  callback: "needs a call back"
-};
-function reasonShort(reason) {
-  if (!reason) return "";
-  return REASON_SHORT[reason] ?? reason.replace(/_/g, " ");
-}
-var ts = (iso) => iso ? new Date(iso).getTime() : null;
-var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DATE_YEAR_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
-var TIME_FMT2 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-function fmtDate(ms2, nowMs) {
-  const d = new Date(ms2);
-  return d.getFullYear() === new Date(nowMs).getFullYear() ? DATE_FMT2.format(d) : DATE_YEAR_FMT.format(d);
-}
-function ago(ms2, nowMs) {
-  const diff = Math.max(0, nowMs - ms2);
-  if (diff < 6e4) return "just now";
-  if (diff < 36e5) return `${Math.round(diff / 6e4)}m ago`;
-  if (diff < DAY_MS2) return `${Math.round(diff / 36e5)}h ago`;
-  if (diff < WEEK_MS) return `${Math.round(diff / DAY_MS2)}d ago`;
-  return fmtDate(ms2, nowMs);
-}
-function dayLabel(ms2, nowMs) {
-  const d = new Date(ms2);
-  const now = new Date(nowMs);
-  const key = d.toDateString();
-  if (key === now.toDateString()) return `Today \xB7 ${DATE_FMT2.format(d)}`;
-  if (key === new Date(nowMs - DAY_MS2).toDateString()) return `Yesterday \xB7 ${DATE_FMT2.format(d)}`;
-  return fmtDate(ms2, nowMs);
-}
-function mmss3(ms2) {
-  if (ms2 == null || ms2 <= 0) return void 0;
-  const s = Math.round(ms2 / 1e3);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}
-var capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
-function personName(r) {
-  return r.display_name || r.wa_profile_name || formatPhoneDisplay(r.phone_e164) || "Unknown";
-}
-function channelsOf(r) {
-  const set = new Set(r.channels ?? []);
-  if (r.has_chat) set.add("whatsapp");
-  if ((r.call_count ?? 0) > 0) set.add("voice");
-  const order = ["whatsapp", "voice"];
-  return order.filter((c) => set.has(c));
-}
-function isOwned(r, nowMs) {
-  const paused = ts(r.latest_paused_until);
-  return !!r.latest_assignee_user_id || paused !== null && paused > nowMs;
-}
-function personStateFor(r, nowMs) {
-  const flagged = !!(r.needs_human || r.open_escalation_reason);
-  const owned = isOwned(r, nowMs);
-  if (flagged && !owned && r.latest_state !== "snoozed") return "needs_you";
-  if (owned && (flagged || r.last_message_direction === "inbound")) return "waiting_on_you";
-  if (r.consent === "opted_out" || r.dnc) return "opted_out";
-  const first = ts(r.first_contact_at);
-  if (!r.has_backfill && first !== null && nowMs - first <= NEW_WINDOW_MS) return "new";
-  const last = lastContactOf(r, nowMs).ts;
-  if (last === null || nowMs - last > QUIET_AFTER_MS) return "quiet";
-  return "active";
-}
-function lastContactOf(r, nowMs) {
-  const m = ts(r.last_message_at);
-  const k = ts(r.last_call_at);
-  if (m === null && k === null) return { ts: null, at: null, kind: null, who: null, label: "No contact recorded" };
-  if (k !== null && (m === null || k > m)) {
-    return { ts: k, at: r.last_call_at, kind: "call", who: "they", label: `Phoned \xB7 ${ago(k, nowMs)}` };
-  }
-  const who = r.last_message_direction === "inbound" ? "they" : r.last_message_sender === "human" ? "you" : r.last_message_sender === "ai" ? "receptionist" : "system";
-  const verb = who === "they" ? "They wrote" : who === "you" ? "You replied" : who === "receptionist" ? "Receptionist replied" : "We sent";
-  return { ts: m, at: r.last_message_at, kind: "message", who, label: `${verb} \xB7 ${ago(m, nowMs)}` };
-}
-function firstContactOf(r, nowMs) {
-  const f = ts(r.first_contact_at);
-  if (f !== null) return { ts: f, label: fmtDate(f, nowMs), estimate: false, evidence: !r.has_backfill };
-  const e = ts(r.earliest_row_at);
-  if (e !== null && r.has_backfill) return { ts: e, label: `Before ${fmtDate(e, nowMs)}`, estimate: true, evidence: false };
-  if (e !== null) return { ts: e, label: fmtDate(e, nowMs), estimate: false, evidence: !r.has_backfill };
-  return { ts: null, label: "\u2014", estimate: true, evidence: false };
-}
-var CONSENT_SOURCES = [
-  { id: "in_person", label: "In person" },
-  { id: "phone", label: "On the phone" },
-  { id: "form", label: "Sign-up form" },
-  { id: "customer_message", label: "Their own message" }
-];
-var CONSENT_RESET_SOURCE = "operator";
-function consentSourceLabel(source) {
-  if (!source) return null;
-  const known = CONSENT_SOURCES.find((s) => s.id === source);
-  if (known) return known.label;
-  return source === CONSENT_RESET_SOURCE ? null : source;
-}
-function consentOf(r, nowMs) {
-  const dnc = !!r.dnc;
-  const state = r.consent === "opted_out" || dnc ? "opted_out" : r.consent === "opted_in" ? "opted_in" : "unknown";
-  const when = ts(r.consent_updated_at);
-  const date = when !== null ? fmtDate(when, nowMs) : "recorded";
-  const how = consentSourceLabel(r.consent_source);
-  const sub = state === "opted_out" ? r.consent_source === "customer_message" ? `STOP received${when !== null ? ` ${fmtDate(when, nowMs)}` : ""}` : `${how ? `${how} \xB7 ` : ""}${date}` : state === "opted_in" ? `${how ? `${how} \xB7 ` : ""}${date}` : "no opt-in recorded";
-  return {
-    state,
-    dnc,
-    label: state === "opted_out" ? "Opted out" : state === "opted_in" ? "Opted in" : "Unknown",
-    sub,
-    source: r.consent_source ?? null
-  };
-}
-function receptionistOf(r, nowMs) {
-  if (isOwned(r, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
-  if (r.open_escalation_reason) return { tone: "escalated", label: `Escalated, ${reasonShort(r.open_escalation_reason)}` };
-  if (r.needs_human) return { tone: "escalated", label: "Waiting for a person" };
-  if (r.queued_reply_at) return { tone: "queued", label: "Reply queued" };
-  const snooze = ts(r.latest_snooze_until);
-  if (r.latest_state === "snoozed" && snooze !== null && snooze > nowMs) {
-    return { tone: "snoozed", label: `Snoozed until ${shortTime(r.latest_snooze_until, new Date(nowMs))}` };
-  }
-  if (r.consent === "opted_out" || r.dnc) return { tone: "silent", label: "Silent, they opted out" };
-  if (r.effective_reply_mode === "never") return { tone: "paused", label: "Held for you, set to Never" };
-  if (r.effective_reply_mode === "ask") return { tone: "paused", label: "Held for you, set to Ask" };
-  return { tone: "answering", label: "Answering" };
-}
-function toPersonRowVM(r, now = /* @__PURE__ */ new Date()) {
-  const nowMs = now.getTime();
-  const name = personName(r);
-  const state = personStateFor(r, nowMs);
-  const last = lastContactOf(r, nowMs);
-  const first = firstContactOf(r, nowMs);
-  const consent = consentOf(r, nowMs);
-  const v = r.visits ?? null;
-  const calendar = v ? v.state : "none";
-  const askedCandidates = [ts(r.last_inbound_at), ts(r.last_inbound_call_at ?? null)].filter((x) => x !== null);
-  const askedMs = askedCandidates.length ? Math.max(...askedCandidates) : null;
-  const booked = !!v?.next;
-  const nextVisitMs = v?.next ? Date.parse(v.next.start) : null;
-  const lastVisitMs = v?.last ? Date.parse(v.last.start) : null;
-  const askedNotBooked = calendar === "ok" && askedMs !== null && nowMs - askedMs <= MONTH_MS && !v?.next && !v?.last;
-  const stateDetail = state === "needs_you" ? r.open_escalation_reason ? reasonShort(r.open_escalation_reason) : "waiting for a person" : state === "waiting_on_you" ? "you own the thread and they wrote last" : state === "opted_out" ? consent.sub : state === "new" ? `first contact ${first.label}` : state === "quiet" ? last.ts === null ? "no contact recorded" : `last contact ${ago(last.ts, nowMs)}` : "";
-  return {
-    id: r.id,
-    real: true,
-    name,
-    givenName: r.display_name?.trim() || null,
-    initials: initialsOf(name),
-    phone: formatPhoneDisplay(r.phone_e164),
-    waName: r.wa_profile_name,
-    channels: channelsOf(r),
-    hasChat: !!r.has_chat,
-    state,
-    stateLabel: PERSON_STATE_LABELS[state],
-    stateDetail,
-    lastContact: last,
-    receptionist: receptionistOf(r, nowMs),
-    firstContact: first,
-    consent,
-    quote: r.last_inbound_text?.trim() || null,
-    callSummary: r.last_inbound_call_summary?.trim() || null,
-    threads: r.conversation_count ?? 0,
-    calls: r.call_count ?? 0,
-    escalations: r.escalation_count ?? 0,
-    callSeconds: r.call_seconds ?? 0,
-    threadId: r.has_chat && r.latest_conversation_id ? `th-${r.latest_conversation_id}` : null,
-    needsYouSinceMs: ts(r.open_escalation_since),
-    calendar,
-    booked,
-    nextVisitDay: v?.next ? visitDay(v.next.start, v.timezone, nowMs) : null,
-    nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} \xB7 ${v.next.title}` : null,
-    lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} \xB7 ${v.last.title}` : null,
-    lastVisitDay: v?.last ? visitDay(v.last.start, v.timezone, nowMs) : null,
-    replyWindow: r.has_chat ? (() => {
-      const w = waWindow(r.latest_wa_inbound_at, now);
-      return { open: w.open, hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 36e5)) : 0 };
-    })() : null,
-    askedMs,
-    askedNotBooked,
-    nextVisitMs,
-    lastVisitMs,
-    nextVisitDays: nextVisitMs !== null ? Math.max(0, Math.ceil((nextVisitMs - nowMs) / DAY_MS2)) : null,
-    lastVisitDays: lastVisitMs !== null ? Math.max(0, Math.floor((nowMs - lastVisitMs) / DAY_MS2)) : null,
-    nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
-    lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
-    calendarTz: v?.timezone ?? null
-  };
-}
-var PEOPLE_LIST_GROUPS = [
-  { id: "attention", label: "Attention" },
-  { id: "journey", label: "Journey" },
-  { id: "reach", label: "Reach" }
-];
-var PEOPLE_LISTS = [
-  { id: "needs_you", label: "Needs you", group: "attention", test: (v) => v.state === "needs_you" },
-  { id: "waiting_on_you", label: "Waiting on you", group: "attention", test: (v) => v.state === "waiting_on_you" },
-  { id: "new_week", label: "New this week", group: "journey", test: (v) => v.state === "new" },
-  { id: "booked_week", label: "Booked this week", group: "journey", needsCalendar: true, test: (v) => v.nextVisitDays !== null && v.nextVisitDays <= 7 },
-  { id: "booked", label: "Booked", group: "journey", needsCalendar: true, test: (v) => v.booked },
-  { id: "asked_never_booked", label: "Asked, never booked", group: "journey", needsCalendar: true, test: (v) => v.askedNotBooked },
-  // Forty-five days since the chair, nothing ahead: the win-back list, from visits rather than silence.
-  { id: "lapsed", label: "Lapsed", group: "journey", needsCalendar: true, test: (v) => !v.booked && v.lastVisitDays !== null && v.lastVisitDays >= 45 },
-  { id: "quiet", label: "Quiet 30+ days", group: "reach", test: (v) => v.state === "quiet" },
-  { id: "phoned_only", label: "Phoned only", group: "reach", test: (v) => !v.hasChat && v.calls > 0 },
-  // A fact, not the state: someone who opted out AND needs you is in both lists.
-  // The only people a broadcast may reach: they said yes, and it is on record.
-  { id: "opted_in", label: "Can receive offers", group: "reach", test: (v) => v.consent.state === "opted_in" },
-  { id: "opted_out", label: "Opted out", group: "reach", test: (v) => v.consent.state === "opted_out" }
-];
-var LIST_STEPS = {
-  needs_you: { cta: "Open the Inbox", to: "inbox", text: "Each of them is waiting for a person." },
-  waiting_on_you: { cta: "Open the Inbox", to: "inbox", text: "You own these threads, and they wrote last." },
-  new_week: { cta: "Get their yes", to: "broadcasts", text: "Their yes to offers is the phrase and the QR on Broadcasts." },
-  booked_week: { cta: "See the week", to: "calendar", text: "Their appointments are on the Calendar." },
-  asked_never_booked: { cta: "Text the booking link", to: "broadcasts/asked_never_booked", broadcast: true },
-  lapsed: { cta: "Win them back", to: "broadcasts/lapsed", broadcast: true },
-  quiet: { cta: "Reach out", to: "broadcasts/quiet", broadcast: true },
-  opted_in: { cta: "New broadcast", to: "broadcasts", broadcast: true }
-};
-function peopleListAction(id, members) {
-  const step = LIST_STEPS[id];
-  if (!step) return null;
-  if (!step.broadcast) return { text: step.text ?? "", cta: step.cta, to: step.to, enabled: members.length > 0 };
-  const yes = members.filter((m) => m.consent.state === "opted_in").length;
-  if (yes === 0) return { text: members.length ? "Nobody on this list has said yes yet \u2014 a broadcast reaches only a recorded yes." : "Nobody here right now.", cta: step.cta, to: step.to, enabled: false };
-  return { text: `${yes} of ${members.length} on this list said yes \u2014 a broadcast reaches them.`, cta: step.cta, to: step.to, enabled: true };
-}
-function peopleAggregates(rows, nowMs) {
-  let needsYou = 0;
-  let oldest = null;
-  let newThisMonth = 0;
-  let reachedWeek = 0;
-  let reachedWeekNew = 0;
-  let booked = 0;
-  let askedNotBooked = 0;
-  for (const v of rows) {
-    if (v.booked) booked++;
-    if (v.askedNotBooked) askedNotBooked++;
-    if (v.state === "needs_you") {
-      needsYou++;
-      if (v.needsYouSinceMs !== null && (oldest === null || v.needsYouSinceMs < oldest)) oldest = v.needsYouSinceMs;
-    }
-    if (v.firstContact.evidence && v.firstContact.ts !== null && nowMs - v.firstContact.ts <= MONTH_MS) newThisMonth++;
-    if (v.lastContact.ts !== null && nowMs - v.lastContact.ts <= WEEK_MS) {
-      reachedWeek++;
-      if (v.state === "new") reachedWeekNew++;
-    }
-  }
-  return { total: rows.length, needsYou, needsYouOldestMs: oldest, newThisMonth, reachedWeek, reachedWeekNew, booked, askedNotBooked };
-}
-var RECENCY_BUCKETS = [
-  { label: "today", max: 1 },
-  { label: "3d", max: 3 },
-  { label: "1w", max: 7 },
-  { label: "2w", max: 14 },
-  { label: "1m", max: 30 },
-  { label: "2m", max: 60 },
-  { label: "3m", max: 90 },
-  { label: "older", max: Infinity }
-];
-function recencyCells(rows, nowMs) {
-  const cells = RECENCY_BUCKETS.map((b) => ({ label: b.label, count: 0 }));
-  for (const v of rows) {
-    const days = v.lastContact.ts === null ? Infinity : (nowMs - v.lastContact.ts) / DAY_MS2;
-    let i = RECENCY_BUCKETS.findIndex((b) => days < b.max);
-    if (i === -1) i = cells.length - 1;
-    cells[i].count++;
-  }
-  return cells;
-}
-function oneLine(text, max) {
-  const t = text.replace(/\s+/g, " ").trim();
-  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}\u2026` : t;
-}
-function clock(ms2, nowMs) {
-  const time = new Date(ms2).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  return nowMs - ms2 < DAY_MS2 ? time : `${fmtDate(ms2, nowMs)} ${time}`;
-}
-function attentionRow(p, nowMs) {
-  const lc = p.lastContact;
-  const channel = lc.kind === "call" ? "Phone" : lc.kind === "message" ? "WhatsApp" : null;
-  const when = lc.ts === null ? "no contact yet" : ago(lc.ts, nowMs);
-  let sentence;
-  let quoted = false;
-  if (p.quote) {
-    sentence = oneLine(p.quote, 160);
-    quoted = true;
-  } else if (p.callSummary) sentence = oneLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
-  else if (p.nextVisit) sentence = `Booked \xB7 ${p.nextVisit}`;
-  else if (p.lastVisit) sentence = `Last visit \xB7 ${p.lastVisit}`;
-  else if (p.calls > 0) sentence = p.calls === 1 ? "Phoned once; nothing in writing yet" : `Phoned ${p.calls} times; nothing in writing yet`;
-  else sentence = "Nothing written yet";
-  const r = p.receptionist;
-  let status;
-  if (p.state === "waiting_on_you") status = ["You own the thread", "they wrote last"];
-  else if (r.tone === "answering") status = p.hasChat ? ["Receptionist", "answering on WhatsApp"] : ["Receptionist", "takes their calls"];
-  else status = r.label.split(", ");
-  if (p.state === "needs_you" && p.needsYouSinceMs !== null) status = [...status, `since ${clock(p.needsYouSinceMs, nowMs)}`];
-  const cta = !p.threadId ? null : p.state === "needs_you" || p.state === "waiting_on_you" ? { label: "Open in Inbox", kind: "primary", to: `inbox/${p.threadId}` } : { label: "Open thread", kind: "ghost", to: `inbox/${p.threadId}` };
-  return { channel, when, sentence, quoted, status, tone: r.tone, cta };
-}
-var DECISION_LABELS = {
-  take_over: { who: "Took over", text: "You paused the receptionist on this thread" },
-  hand_back: { who: "Handed back", text: "You returned the thread to the receptionist" },
-  snooze: { who: "Snoozed", text: "You snoozed the thread" },
-  wake: { who: "Woke", text: "You brought the thread back" },
-  resolve: { who: "Resolved", text: "You marked the escalation resolved" },
-  archive: { who: "Archived", text: "You archived the thread" },
-  cancel_send: { who: "Canceled a reply", text: "You stopped a reply before it sent" },
-  pause_agent: { who: "Paused the receptionist", text: "You paused automatic replies" },
-  resume_agent: { who: "Resumed the receptionist", text: "You resumed automatic replies" }
-};
-function plural(n, one, many = `${one}s`) {
-  return `${n} ${n === 1 ? one : many}`;
-}
-function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
-  const nowMs = now.getTime();
-  const openEsc = d.escalations.filter((e) => e.state === "open").sort((a, b) => (ts(b.created_at) ?? 0) - (ts(a.created_at) ?? 0))[0];
-  const row = {
-    ...d.row,
-    open_escalation_reason: openEsc?.reason ?? d.row.open_escalation_reason,
-    open_escalation_since: openEsc?.created_at ?? d.row.open_escalation_since,
-    conversation_count: d.conversations.length || d.row.conversation_count,
-    // A dial that never connected is not a call; people_list agrees, and the
-    // profile used to count one more than the list.
-    call_count: d.calls.length ? d.calls.filter((k) => k.status !== "not_connected").length : d.row.call_count,
-    call_seconds: d.calls.length ? Math.round(d.calls.filter((k) => k.status !== "not_connected").reduce((a, k) => a + (k.duration_ms ?? 0), 0) / 1e3) : d.row.call_seconds,
-    escalation_count: d.escalations.length || d.row.escalation_count,
-    visits: d.visits ?? d.row.visits ?? null
-  };
-  const base = toPersonRowVM(row, now);
-  const first = /^[+\d(]/.test(base.name) ? base.name : base.name.split(" ")[0] || base.name;
-  const stamp = (t) => ({ time: TIME_FMT2.format(new Date(t)), day: dayLabel(t, nowMs) });
-  const items = [];
-  const convIds = new Set(d.conversations.map((c) => c.id));
-  for (const c of d.conversations) {
-    for (const m of c.messages) {
-      if (m.type === "call_summary") continue;
-      if (m.status === "canceled") continue;
-      const t = ts(messageAt(m));
-      if (t === null) continue;
-      const kind = m.sender === "customer" ? "customer" : m.sender === "human" ? "you" : m.sender === "ai" ? "receptionist" : "system";
-      const who = kind === "customer" ? first : kind === "you" ? "You" : kind === "receptionist" ? "Receptionist" : "System";
-      const sub = m.status === "failed" ? "Not delivered" : m.status === "queued" ? "Sending" : void 0;
-      items.push({ id: `m-${m.id}`, ts: t, ...stamp(t), kind, who, text: messageText(m), ...sub ? { sub } : {} });
-    }
-  }
-  for (const k of d.calls) {
-    const t = ts(k.started_at);
-    if (t === null) continue;
-    const dur = mmss3(k.duration_ms);
-    const wanted = (k.wanted || "").trim();
-    const summary = tidyCallSummary(k.summary) ?? "";
-    const missed = k.status === "not_connected";
-    const sentence = missed ? "The call never connected." : wanted || (summary ? summary.split(/(?<=[.!?])\s/)[0] ?? summary : k.in_voicemail ? "Reached voicemail." : "No summary from this call.");
-    items.push({
-      id: `k-${k.id}`,
-      ts: t,
-      ...stamp(t),
-      kind: "call",
-      who: missed ? "Missed call" : `${k.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""}`,
-      text: sentence,
-      sub: missed ? "Never connected" : k.recording?.fetch_state === "stored" ? "Recording and transcript in Conversations" : "Transcript in Conversations",
-      link: { label: "Open", to: `conversations/cv-${k.id}` }
-    });
-  }
-  for (const e of d.escalations) {
-    const t = ts(e.created_at);
-    if (t === null) continue;
-    items.push({
-      id: `e-${e.id}`,
-      ts: t,
-      ...stamp(t),
-      kind: "escalation",
-      who: "Escalated",
-      text: capitalize(reasonShort(e.reason)) || "The receptionist stopped",
-      sub: e.state === "resolved" ? "Resolved" : "Open"
-    });
-  }
-  for (const dec of d.decisions) {
-    const label = DECISION_LABELS[dec.verb];
-    if (!label) continue;
-    const mine = dec.subject_type === "conversation" && convIds.has(dec.subject_id) || dec.subject_type === "contact" && dec.subject_id === row.id;
-    if (!mine) continue;
-    const t = ts(dec.created_at);
-    if (t === null) continue;
-    items.push({ id: `d-${dec.id}`, ts: t, ...stamp(t), kind: "decision", who: label.who, text: label.text });
-  }
-  if (d.visits?.all?.length) {
-    const tz = d.visits.timezone;
-    for (const v of d.visits.all) {
-      const t = Date.parse(v.start);
-      if (!Number.isFinite(t)) continue;
-      const ahead = Date.parse(v.end) >= nowMs;
-      items.push({
-        id: `v-${v.id}`,
-        ts: t,
-        ...stamp(t),
-        kind: "visit",
-        who: "Calendar",
-        text: `${ahead ? "Booked" : "Visited"} \xB7 ${v.title}`,
-        sub: `${visitTime(v, tz)} \xB7 from ${d.visits.source}${v.via === "name" ? " \xB7 matched by name" : ""}`
-      });
-    }
-  }
-  if (d.added) {
-    const t = ts(d.added.at);
-    if (t !== null) items.push({ id: "added", ts: t, ...stamp(t), kind: "system", who: "Calendar", text: d.added.source === "calendar" ? `Added from your calendar${d.added.title ? ` (${d.added.title})` : ""}` : "Added by hand" });
-  }
-  items.sort((a, b) => b.ts - a.ts);
-  const latestConv = [...d.conversations].sort((a, b) => (ts(b.last_message_at) ?? 0) - (ts(a.last_message_at) ?? 0))[0];
-  let customer = null;
-  let reply = null;
-  if (latestConv) {
-    for (let i = latestConv.messages.length - 1; i >= 0; i--) {
-      const m = latestConv.messages[i];
-      if (m.type === "call_summary") continue;
-      const t = ts(messageAt(m));
-      if (t === null) continue;
-      if (!customer && m.direction === "inbound" && m.body) customer = { text: m.body, at: `${stamp(t).time} ${stamp(t).day}` };
-      if (!reply && m.direction === "outbound" && m.status !== "canceled" && (m.sender === "ai" || m.sender === "human")) {
-        reply = { text: messageText(m), at: `${stamp(t).time} ${stamp(t).day}`, who: m.sender === "ai" ? "Receptionist" : "You" };
-      }
-      if (customer && reply) break;
-    }
-  }
-  const threadTo = row.latest_conversation_id ? `inbox/th-${row.latest_conversation_id}` : null;
-  const openInbox = threadTo ? { label: "Open in Inbox", to: threadTo } : null;
-  const r = row;
-  let rightNow;
-  if (r.open_escalation_reason) {
-    const since = r.open_escalation_since ? shortTime(r.open_escalation_since, now) : null;
-    rightNow = {
-      tone: "escalated",
-      title: `Escalated \xB7 ${reasonShort(r.open_escalation_reason)}`,
-      detail: `${since ? `Since ${since} \xB7 ` : ""}the receptionist is paused on this thread until someone answers`,
-      cta: openInbox
-    };
-  } else if (r.needs_human) {
-    rightNow = { tone: "escalated", title: "Waiting for a person", detail: "The receptionist stopped and nobody has taken the thread yet", cta: openInbox };
-  } else if (r.queued_reply_at) {
-    const q = ts(r.queued_reply_at);
-    rightNow = { tone: "queued", title: "Reply sending", detail: `Queued ${q !== null ? ago(q, nowMs) : ""} \xB7 it can still be stopped from the Inbox`.replace("  ", " "), cta: openInbox };
-  } else if (base.receptionist.tone === "snoozed") {
-    rightNow = { tone: "snoozed", title: "Snoozed", detail: `Wakes ${shortTime(r.latest_snooze_until ?? null, now)}`, cta: openInbox };
-  } else if (isOwned(r, nowMs)) {
-    rightNow = { tone: "paused", title: "Paused, a person owns this thread", detail: "The receptionist will not answer until the thread is handed back", cta: openInbox };
-  } else if (base.consent.state === "opted_out") {
-    rightNow = { tone: "silent", title: "Silent, they opted out", detail: base.consent.sub, cta: null };
-  } else if (["never", "ask"].includes(d.receptionist_mode ?? "") || ["never", "ask"].includes(d.workspace_reply_mode ?? "")) {
-    const theirs = ["never", "ask"].includes(d.receptionist_mode ?? "");
-    const mode = theirs ? d.receptionist_mode : d.workspace_reply_mode;
-    rightNow = {
-      tone: "paused",
-      title: `Held for you, set to ${mode === "never" ? "Never" : "Ask"}`,
-      detail: theirs ? "You set the receptionist to stay out of this person's thread \u2014 their messages come straight to you" : "Your workspace reply setting holds every message for a person",
-      cta: openInbox
-    };
-  } else {
-    rightNow = { tone: "answering", title: "Answering", detail: "New messages are answered automatically", cta: base.threadId ? { label: "Open thread", to: `inbox/${base.threadId}` } : null };
-  }
-  const firstIsCall = d.calls.some((k) => k.started_at && ts(k.started_at) === base.firstContact.ts);
-  const firstChannel = base.firstContact.estimate ? "imported history" : firstIsCall || !base.hasChat ? "Phone" : "WhatsApp";
-  const lc = base.lastContact;
-  const lastMeta = lc.who === "they" ? lc.kind === "call" ? "they phoned" : "they wrote" : lc.who === "you" ? "you replied" : lc.who === "receptionist" ? "receptionist replied" : lc.who === "system" ? "we sent" : "";
-  const toneWord = { answering: "Answering", escalated: "Waiting", queued: "Queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent" };
-  const facts = [
-    { label: "First contact", value: base.firstContact.label, meta: firstChannel },
-    { label: "Last contact", value: lc.ts !== null ? ago(lc.ts, nowMs) : "\u2014", meta: lastMeta },
-    { label: "Conversations", value: base.threads, meta: base.escalations ? `${base.escalations} needed you` : "none needed you" },
-    { label: "Calls", value: base.calls, meta: base.calls ? `${Math.max(1, Math.round(base.callSeconds / 60))} min total` : "no calls" },
-    { label: "Consent", value: base.consent.label, meta: base.consent.sub, tone: base.consent.state === "opted_out" ? "neg" : "" },
-    { label: "Receptionist", value: toneWord[base.receptionist.tone], meta: base.receptionist.tone === "escalated" ? "for you" : base.receptionist.label.toLowerCase() }
-  ];
-  const about = [];
-  if (base.phone) about.push({ k: "Phone", v: base.phone });
-  if (base.waName) about.push({ k: "WhatsApp name", v: base.waName });
-  about.push({
-    k: "First contact",
-    v: base.firstContact.ts !== null ? `${base.firstContact.estimate ? "Before " : ""}${DATE_YEAR_FMT.format(new Date(base.firstContact.ts))} \xB7 ${firstChannel}` : "\u2014"
-  });
-  about.push({ k: "Channels", v: base.channels.map((c) => c === "whatsapp" ? "WhatsApp" : "Phone").join(" \xB7 ") || "\u2014" });
-  about.push({ k: "Consent", v: `${base.consent.label} \xB7 ${base.consent.sub}` });
-  if (base.hasChat) {
-    const w = waWindow(r.latest_wa_inbound_at, now);
-    const hours = w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 36e5)) : 0;
-    about.push({ k: "Reply window", v: w.open ? `Open \xB7 ${hours}h left` : "Closed \xB7 template only" });
-  }
-  if (d.visits) {
-    const v = d.visits;
-    const nextLine = v.next ? `${visitLine(v.next, v.timezone, nowMs)} \xB7 ${v.next.title}` : v.state === "ok" ? "Nothing on the calendar" : "Calendar could not be read";
-    facts.push({
-      label: "Next visit",
-      value: v.next ? visitDay(v.next.start, v.timezone, nowMs) : "\u2014",
-      // The cell is narrow: the time here, the service in About.
-      meta: v.next ? `${visitTime(v.next, v.timezone)}${v.next.via === "name" ? " \xB7 by name" : ""}` : v.state === "ok" ? "none booked" : "could not be read"
-    });
-    about.push({ k: "Next visit", v: nextLine });
-    if (v.last) about.push({ k: "Last visit", v: `${visitLine(v.last, v.timezone, nowMs)} \xB7 ${v.last.title}` });
-  }
-  if (d.added) {
-    const at = ts(d.added.at);
-    about.push({ k: "Added", v: `${at !== null ? DATE_YEAR_FMT.format(new Date(at)) : "\u2014"} \xB7 ${d.added.source === "calendar" ? `from your calendar${d.added.title ? ` (${d.added.title})` : ""}` : "by hand"}` });
-  }
-  return {
-    ...base,
-    since: base.firstContact.label === "\u2014" ? "" : base.firstContact.estimate ? `Since ${base.firstContact.label.charAt(0).toLowerCase()}${base.firstContact.label.slice(1)}` : `Since ${base.firstContact.label}`,
-    metaLine: `${plural(base.threads, "conversation")} \xB7 ${plural(base.calls, "call")}`,
-    lastExchange: { customer, reply },
-    facts,
-    rightNow,
-    timeline: items,
-    about,
-    notes: d.notes?.trim() || null,
-    bookingLink: d.booking_link?.trim() || null,
-    openThread: base.threadId ? `inbox/${base.threadId}` : null,
-    receptionistMode: {
-      person: asPersonMode(d.receptionist_mode),
-      workspace: d.workspace_reply_mode === "veto" ? "auto" : asPersonMode(d.workspace_reply_mode)
-    }
-  };
 }
 
 // src/template-library.ts
@@ -4670,7 +4776,7 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   let start = 24;
   let end = 0;
   for (const h of Object.values(dto.hours ?? {})) {
-    for (const [o, c] of dayIntervals2(h)) {
+    for (const [o, c] of dayIntervals(h)) {
       const oh = Number(o.split(":")[0]);
       const ch = Number(c.split(":")[0]) + (Number(c.split(":")[1]) > 0 ? 1 : 0);
       if (Number.isFinite(oh)) start = Math.min(start, oh);
@@ -4687,7 +4793,7 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
     const { y, m, d: dd } = keyParts(d.key);
     const weekday = DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()].toLowerCase();
     const closure = dto.closures.find((c) => c.date <= d.key && d.key <= (c.until && c.until >= c.date ? c.until : c.date)) ?? null;
-    const intervals = dayIntervals2(dto.hours?.[weekday]);
+    const intervals = dayIntervals(dto.hours?.[weekday]);
     const closedDay = closedOn(dto.closures, d.key) || intervals.length === 0;
     const bands = [];
     if (closedDay) {
@@ -5002,6 +5108,7 @@ export {
   TEMPLATE_STATUSES,
   TEMPLATE_TITLE_MAX,
   TENANT_STATUSES,
+  TODAY_QUEUE_MAX,
   TenantConfigSchema,
   TenantConfigWriteSchema,
   WA_WINDOW_MS,
@@ -5037,7 +5144,7 @@ export {
   dayDate,
   dayFromQuestion,
   dayInZone,
-  dayIntervals2 as dayIntervals,
+  dayIntervals,
   defaultParamSpecs,
   defaultSlotKinds,
   defaultTemplate,
