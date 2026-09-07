@@ -38,8 +38,16 @@ export const RATE = {
   erase: { limit: 5, windowMs: 3_600_000, noun: "erasures" },
   /** A sentence into a live call. */
   whisper: { limit: 20, windowMs: 60_000, noun: "whispers" },
-  /** metrics_summary and report_series, both plpgsql aggregates. */
-  aggregate: { limit: 60, windowMs: 60_000, noun: "report requests" },
+  /**
+   * metrics_summary, report_series, the campaign series and the calendar
+   * feed: the plpgsql aggregates and the one outside read. One load of Today
+   * spends four of these (Today, Reports, Campaigns and Calendar all boot
+   * together), so sixty a minute was fifteen page loads — a person with two
+   * tabs and a refresh habit, or the e2e suite, then saw "Can't reach your
+   * workspace" for a rate limit. Sixty loads a minute clears honest use; a
+   * script still cannot hammer the database.
+   */
+  aggregate: { limit: 240, windowMs: 60_000, noun: "report requests" },
   /** Whole-config writes and policy flips. */
   settings: { limit: 30, windowMs: 60_000, noun: "settings changes" },
   /** A new tenant, its rows and its provisioning. */
