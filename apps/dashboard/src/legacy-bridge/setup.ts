@@ -4,7 +4,10 @@
  * asks a person at Chanlytics for a line, and the landing rule — an owner
  * whose receptionist answers nowhere yet lands on Setup once per session.
  */
-import { setupSteps, setupRoute, shouldLandOnSetup, type SetupDto, type SetupVM } from "@chanlytics/contracts";
+import {
+  setupSteps, setupRoute, shouldLandOnSetup, type SetupDto, type SetupVM,
+  forwardingCodes, forwardingTestOpen, CARRIERS, FORWARDING_MODES, CARRIER_WORDS, MODE_WORDS, formatPhoneDisplay, agoWords,
+} from "@chanlytics/contracts";
 import { fetchEnvelope, getActiveWorkspace, scoped, type SurfaceOverride } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 
@@ -26,6 +29,23 @@ export interface SetupApi {
     buy(number: string, areaCode: string): Promise<{ ok: boolean; message: string }>;
     retry(lineId: string): Promise<{ ok: boolean; message: string }>;
   };
+  /** Keep the number you have: save the carrier and the mode, then open the test window. Owners only; the route says so. */
+  forwarding: {
+    set(o: { number: string; carrier: string; mode: string; test_from: string }): Promise<{ ok: boolean; message: string }>;
+    test(lineId: string): Promise<{ ok: boolean; message: string }>;
+  };
+}
+
+/** The words and the codes the forwarding card needs, published for the classic page. */
+export interface ForwardingWords {
+  codes: typeof forwardingCodes;
+  testOpen: typeof forwardingTestOpen;
+  carriers: readonly string[];
+  modes: readonly string[];
+  carrierWords: Record<string, string>;
+  modeWords: Record<string, string>;
+  display: (e164: string | null | undefined) => string | null;
+  ago: (iso: string) => string;
 }
 
 export interface LineChoice {
@@ -39,6 +59,7 @@ declare global {
   interface Window {
     __SETUP?: SetupSurface;
     __setup?: SetupApi;
+    __forwarding?: ForwardingWords;
   }
 }
 
@@ -91,6 +112,16 @@ async function post<T>(path: string, body: unknown): Promise<{ ok: boolean; data
 }
 
 export function installSetup(win: Window = window): void {
+  win.__forwarding = {
+    codes: forwardingCodes,
+    testOpen: forwardingTestOpen,
+    carriers: CARRIERS,
+    modes: FORWARDING_MODES,
+    carrierWords: CARRIER_WORDS,
+    modeWords: MODE_WORDS,
+    display: formatPhoneDisplay,
+    ago: (iso) => agoWords(Date.parse(iso), Date.now()),
+  };
   win.__setup = {
     later(id, on) {
       const ids = readLater();
@@ -117,6 +148,18 @@ export function installSetup(win: Window = window): void {
         await refreshSurfaces([setupOverride]);
         if (!r.ok) return { ok: false, message: r.message };
         return { ok: r.data?.ok === true, message: r.data?.ok ? "" : "It stopped again — a person at Chanlytics has it." };
+      },
+    },
+    forwarding: {
+      async set(o) {
+        const r = await post<{ line_id?: string }>("/api/v1/lines/forwarding", o);
+        if (r.ok) await refreshSurfaces([setupOverride]);
+        return { ok: r.ok, message: r.message };
+      },
+      async test(lineId) {
+        const r = await post<{ test?: unknown }>("/api/v1/lines/forwarding/test", { line_id: lineId });
+        if (r.ok) await refreshSurfaces([setupOverride]);
+        return { ok: r.ok, message: r.message };
       },
     },
     async request(what) {

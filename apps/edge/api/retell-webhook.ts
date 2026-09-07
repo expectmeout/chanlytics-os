@@ -41,6 +41,7 @@ import {
   emitEvent,
 } from "../lib/workspace/db.js";
 import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "../lib/call-recording.js";
+import { markForwardingVerified } from "../lib/forwarding.js";
 import { upsertEscalation } from "../lib/workspace/jobs.js";
 import { callOutcomeWords, formatPhoneDisplay } from "../lib/workspace/contracts.js";
 import type { RoutedChannel } from "../lib/workspace/db.js";
@@ -191,6 +192,9 @@ export async function POST(request: Request): Promise<Response> {
       } else {
         const res = await ingestCall(db, routed.tenantId, n, call);
         if (res.call_id) callAbout = { type: "call", id: res.call_id };
+        // Keep my number, proven: an inbound call inside a forwarded line's
+        // test window. Idempotent, and never in the way of the delivery.
+        if (res.call_id && n.direction === "inbound") void markForwardingVerified(db, routed.tenantId, { fromE164: n.fromE164, toE164: n.toE164, startedAtIso: n.startedAtIso, callId: res.call_id });
         if (res.skipped) {
           // Older than the row: a retried call_started after call_ended, or a
           // partial transcript after the final one. Nothing was written.

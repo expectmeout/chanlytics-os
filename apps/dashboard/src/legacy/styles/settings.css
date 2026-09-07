@@ -585,3 +585,19 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
   .setup-chooser { padding-left: 14px; }
   .setup-paths { grid-template-columns: 1fr; }
 }
+
+/* Keep the number you have: the form, then the code to dial and the test. */
+.setup-fw-form { display: grid; gap: 10px; }
+.setup-fw-field { display: grid; gap: 4px; }
+.setup-fw-input { width: 200px; }
+.setup-fw-seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.setup-seg { padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg-raised); color: var(--ink); font-size: 12px; cursor: pointer; }
+.setup-seg.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.setup-fw-code { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.setup-fw-dial { font-size: 22px; font-weight: 600; letter-spacing: .02em; color: var(--ink); text-decoration: none; }
+.setup-fw-dial:hover { text-decoration: underline; }
+.setup-fw-notes { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.45; color: var(--ink-muted); display: grid; gap: 4px; }
+.setup-fw-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 12.5px; }
+.setup-fw-ok { color: var(--ink); }
+.setup-fw-off { color: var(--ink-muted); }
+.setup-fw-note { margin: 0; font-size: 12.5px; color: var(--warn); }

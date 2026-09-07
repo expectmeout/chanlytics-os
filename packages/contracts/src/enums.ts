@@ -82,6 +82,7 @@ export const EVENT_KINDS = [
   "line.answering",
   "line.failed",
   "line.released",
+  "line.forwarding_verified",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 
