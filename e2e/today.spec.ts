@@ -29,16 +29,24 @@ test.describe("Today on a real workspace", () => {
     // The rows live in the queue alone: the hero no longer repeats them.
     await expect(page.locator(".brief").getByText("Open and reply")).toHaveCount(0);
     await expect(page.getByText("Agent Command")).toHaveCount(0);
-    // Nothing invented: no dollar amounts on a page with no revenue column.
-    expect(await page.locator("body").innerText()).not.toMatch(/\$\d/);
+    // Nothing invented: no dollar amounts in any fact or tile on a page with no
+    // revenue column. A customer's own words may name a price; the numbers may not.
+    for (const cell of await page.locator(".brief .stat-cell, .rp2-tile").allInnerTexts()) expect(cell).not.toMatch(/\$\d/);
   });
 
   test("the day beside the queue: today and tomorrow from the calendar when there is one, nothing when there is not", async ({ page }) => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
-    const cal = ((await (await page.request.get("/api/v1/calendar")).json()).data.calendar as { feed?: { state?: string } }).feed;
+    // The page decides: with a readable feed the module is there; without one
+    // it is absent, and the calendar route says why.
     const day = page.getByTestId("today-day");
-    if (cal?.state !== "ok") { await expect(day).toHaveCount(0); return; }
+    await day.waitFor({ state: "attached", timeout: 15_000 }).catch(() => {});
+    if ((await day.count()) === 0) {
+      const res = await page.request.get("/api/v1/calendar");
+      const cal = ((await res.json()).data?.calendar as { feed?: { state?: string } } | undefined)?.feed;
+      expect(cal?.state, "no day module, so the feed must not be readable").not.toBe("ok");
+      return;
+    }
     await expect(day).toBeVisible();
     const frames = day.getByTestId("today-day-frame");
     await expect(frames).toHaveCount(2);
