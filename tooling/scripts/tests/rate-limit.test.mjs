@@ -40,7 +40,8 @@ test("the ceilings are ones a person never reaches and a script reaches at once"
   assert.ok(RATE.invite.limit <= 20 && RATE.invite.windowMs >= 3_600_000, "invitations send real email");
   assert.ok(RATE.erase.limit <= 10 && RATE.erase.windowMs >= 3_600_000, "erasure is irreversible");
   assert.ok(RATE.reply.limit <= 60 && RATE.reply.windowMs <= 60_000, "a reply reaches a real person");
-  assert.ok(RATE.aggregate.limit >= 30, "Today and Reports refresh on every message; the ceiling must clear honest use");
+  assert.ok(RATE.aggregate.limit >= 240, "one load of Today spends four aggregate reads; the ceiling must clear sixty loads a minute, not fifteen");
+  assert.ok(RATE.aggregate.limit <= 600 && RATE.aggregate.windowMs <= 60_000, "…and still stop a script");
 });
 
 test("every route that sends, spends or aggregates counts against its bucket", () => {

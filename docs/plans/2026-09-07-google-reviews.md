@@ -1,6 +1,6 @@
 # Google reviews: the listing found from facts, watched, and read where the owner already looks
 
-Status: plan and first implementation, 2026-09-07. Grounded in the legacy portal's Google Business Profile integration (`chanlytics-portal-private`: `lib/api/integrations/gbp.ts`, `app/api/integrations/gbp/*`, `project-reviews-integration.md`), the OS's own doors (Vault, the edge, pg_cron sweeps, Setup rows, the bell), and Google's current documentation (sources at the end).
+Status: both steps shipped 2026-09-07 (#203 the public listing, #204 the Business Profile), each invisible until its key or client is set on the edge (§7). Grounded in the legacy portal's Google Business Profile integration (`chanlytics-portal-private`: `lib/api/integrations/gbp.ts`, `app/api/integrations/gbp/*`, `project-reviews-integration.md`), the OS's own doors (Vault, the edge, pg_cron sweeps, Setup rows, the bell), and Google's current documentation (sources at the end).
 
 ## 1. The summary
 
@@ -58,7 +58,7 @@ The OS already has every seam the feature needs: `tenant_config.brain.business_n
 
 **Honesty rules.** No listing, no numbers. Fewer than two days of snapshots, "gained" reads "—" and says why. A review that reappears through a relevance shift is never announced. The section names its source: "the five reviews Google shows first". Nothing renders when the platform has no key.
 
-## 6. Step two: the Business Profile (next, when Google approves the project)
+## 6. Step two: the Business Profile (shipped in #204; live once Google approves the project)
 
 `google_connections` (one per workspace: the Google account, the location resource name, scopes, `connected_by`, `connected_at`, `revoked_at`, `last_error`, `last_synced_at`), the refresh token in Vault through `put_google_credentials` / `get_google_credentials` (service role only). Owner starts at `GET /api/v1/google/connect` (a signed `state` naming the workspace and the person), Google returns to `GET /api/v1/google/callback`, the dashboard proves the state and hands the code to the edge, which exchanges it, lists the accounts and locations, matches the location to the linked `place_id` through `metadata.placeId`, stores the token, and syncs the full review history into the same `google_reviews` table with `origin = 'profile'`. Replies become a verb (`reply_review`, subject `review`) with the receptionist drafting under a `reviews` Autonomy class. Integrations shows Connect, the account, the location, Disconnect (revoking the token). Needs from Ruben: a Google Cloud project with the three Business Profile APIs enabled and access approved, an OAuth client (web) with the callback URL, `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` on the edge.
 
