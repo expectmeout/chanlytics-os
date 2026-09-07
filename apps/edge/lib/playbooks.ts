@@ -79,7 +79,7 @@ export interface TenantRunContext {
 /** Read once per tenant: the people, the modes, the number, the touches. */
 export async function loadTenantRunContext(db: Db, tenantId: string, now: Date): Promise<TenantRunContext | { error: string }> {
   const [{ data: tenant }, { data: people, error: pErr }, policies, { data: ch }, { data: pastRuns }, { data: cfgRow }] = await Promise.all([
-    db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle(),
+    db.from("tenants").select("timezone, status").eq("id", tenantId).maybeSingle(),
     db.rpc("people_list", { p_tenant_id: tenantId }),
     listPolicies(db, tenantId).catch(() => []),
     db.from("tenant_channels").select("config").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").limit(1).maybeSingle(),
@@ -87,6 +87,8 @@ export async function loadTenantRunContext(db: Db, tenantId: string, now: Date):
     db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
   ]);
   if (pErr) return { error: pErr.message };
+  // A paused workspace runs nothing: the sweep counts it off, and says so once, quietly.
+  if (tenant?.status === "paused") return { error: "paused" };
   const cfg = (ch?.config && typeof ch.config === "object" && !Array.isArray(ch.config) ? ch.config : {}) as Record<string, unknown>;
   const s = (k: string) => (typeof cfg[k] === "string" ? (cfg[k] as string) : null);
   const byThis = new Map<string, Map<string, number>>();

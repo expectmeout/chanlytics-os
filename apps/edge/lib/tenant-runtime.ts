@@ -41,6 +41,12 @@ export interface TenantRuntime {
    * it is. null only when the row could not be read.
    */
   timezone: string | null;
+  /**
+   * tenants.status = 'paused', written by billing for a workspace whose
+   * subscription stopped. Messages are kept and held for a person; nothing
+   * is answered and nothing automated goes out until it resumes.
+   */
+  paused: boolean;
   /** True when the control plane could not be read (infra blip, not config
    *  absence) — the caller may apply its designated DR fallback. */
   loadFailed: boolean;
@@ -151,7 +157,7 @@ export async function loadTenantRuntime(
       // Resolving by tenant + kind makes the tenant-keyed cache correct by
       // construction and closes the voice path in the same change.
       resolveWaCredentials(db, routed),
-      db.from("tenants").select("timezone").eq("id", routed.tenantId).maybeSingle(),
+      db.from("tenants").select("timezone, status").eq("id", routed.tenantId).maybeSingle(),
       // Taken with the load, so the first re-check compares like with like.
       runtimeStamp(db, routed.tenantId),
     ]);
@@ -191,6 +197,7 @@ export async function loadTenantRuntime(
           ? { accessToken: rawCreds.access_token, phoneId: rawCreds.phone_id }
           : null,
       timezone: tzQ.data?.timezone ?? null,
+      paused: tzQ.data?.status === "paused",
       configBroken: !parseResult.ok,
       loadFailed: false,
     };
@@ -210,6 +217,7 @@ export async function loadTenantRuntime(
       policy: {},
       waCreds: null,
       timezone: null,
+      paused: false,
       loadFailed: true,
     };
   }

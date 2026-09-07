@@ -40,11 +40,14 @@ export function isTypingTarget(tagName: string | null | undefined, contentEditab
 export interface ShellStatus {
   stale: boolean;
   degraded: string[];
+  /** The workspace is paused (billing stopped): nothing is answered until Billing resumes it. */
+  paused?: boolean;
 }
 
-/** The one line the sidebar's foot shows, or nothing. A new build outranks stale surfaces: refreshing fixes both. */
-export function shellStatusLine(s: ShellStatus | null | undefined): { text: string; action: "reload" | null } | null {
+/** The one line the sidebar's foot shows, or nothing. A pause outranks everything: nothing is answered until Billing resumes it. Then a new build outranks stale surfaces: refreshing fixes both. */
+export function shellStatusLine(s: ShellStatus | null | undefined): { text: string; action: "reload" | "billing" | null } | null {
   if (!s) return null;
+  if (s.paused) return { text: "Your receptionist is paused", action: "billing" };
   if (s.stale) return { text: "A newer version is ready", action: "reload" };
   if (s.degraded.length) return { text: `${s.degraded.join(", ")} not refreshing`, action: null };
   return null;

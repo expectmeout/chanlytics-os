@@ -17,6 +17,8 @@
 export interface OutboundFacts {
   /** contacts.consent === 'opted_out' or contacts.dnc. */
   optedOut: boolean;
+  /** tenants.status = 'paused' (billing stopped): nothing automated goes out. */
+  paused?: boolean;
   /** conversations.paused_until — a human has this thread. */
   pausedUntilMs: number | null;
   /** The mode in force — the workspace's, or the person's own when set.
@@ -33,6 +35,7 @@ export interface OutboundFacts {
 
 export type OutboundRefusal =
   | "opted_out"
+  | "paused"
   | "human_has_it"
   | "policy_hold"
   | "daily_cap";
@@ -46,6 +49,10 @@ export function outboundGate(f: OutboundFacts): OutboundDecision {
   // 1. Consent outranks everything, including a caller asking on the phone.
   //    Someone who said stop said stop, whatever channel they said it on.
   if (f.optedOut) return { allowed: false, refusal: "opted_out" };
+
+  // 1b. The workspace is paused: billing stopped, and with it everything
+  //     automated. Before the policy, which a paused workspace may still have set to auto.
+  if (f.paused) return { allowed: false, refusal: "paused" };
 
   // 2. A human is mid-conversation on this thread. An automated template
   //    arriving underneath them is precisely what pause is for — and the
@@ -82,6 +89,8 @@ export function refusalScript(refusal: OutboundRefusal, phoneDisplay: string): s
   switch (refusal) {
     case "opted_out":
       return "That number has asked us to stop sending messages, so I cannot text them. Offer to book them on the call instead.";
+    case "paused":
+      return "Texting is paused for this business right now, so I cannot send anything. Take the caller's name and number and say someone will call them back.";
     case "human_has_it":
       return "Someone from the team is already messaging that number, so I will not text over them. Tell the caller a person is on it and will follow up there.";
     case "policy_hold":

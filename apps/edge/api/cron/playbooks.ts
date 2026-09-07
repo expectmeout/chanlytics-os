@@ -48,6 +48,11 @@ export async function POST(request: Request): Promise<Response> {
     out.tenants += 1;
     out.due += due.length;
     const ctx = await loadTenantRunContext(db, tenantId, now);
+    if ("error" in ctx && ctx.error === "paused") {
+      L.info("playbooks_skip_paused", { tenant_id: tenantId, due: due.length });
+      out.off += due.length;
+      continue;
+    }
     if ("error" in ctx) {
       L.error("playbooks_context_failed", { tenant_id: tenantId, error: ctx.error });
       out.failed += due.length;

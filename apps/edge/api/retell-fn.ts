@@ -144,6 +144,7 @@ export async function POST(request: Request): Promise<Response> {
     // sender assembled by hand instead of going through the same door.
     const gate = outboundGate({
       optedOut: isOptedOutContact(contact),
+      paused: rt.paused,
       pausedUntilMs: contact.pausedUntil ? new Date(contact.pausedUntil).getTime() : null,
       replyMode,
       sentToday: await countSentToday(db, {

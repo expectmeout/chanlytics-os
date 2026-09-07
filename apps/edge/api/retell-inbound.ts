@@ -16,7 +16,7 @@
  * context rather than guessing. A caller treated as new is a small loss; a
  * caller read someone else's conversation is not recoverable.
  */
-import { normalizePhone, resolveSystemPrompt, describeNow } from "../lib/workspace/contracts.js";
+import { normalizePhone, resolveSystemPrompt, describeNow, pausedVoiceFacts } from "../lib/workspace/contracts.js";
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { resolveChannel, readLeadContext, describeLead } from "../lib/workspace/db.js";
@@ -107,7 +107,13 @@ export async function POST(request: Request): Promise<Response> {
       // its spoken form. Not a copy of the hours kept in Retell's dashboard —
       // a second copy is how two channels start disagreeing about when the
       // business opens, and only one of them can be corrected from here.
-      if (rt.brain) {
+      if (rt.paused) {
+        // Billing stopped: the phone receptionist takes a message and
+        // promises a call back, nothing more — its whole prompt for the call.
+        facts = pausedVoiceFacts(rt.brain?.business_name ?? null);
+        businessName = rt.brain?.business_name ?? null;
+        handoff = rt.brain?.profile?.handoff_number ?? null;
+      } else if (rt.brain) {
         // The clock rides INSIDE business_facts rather than as a variable of
         // its own. Substitution happens once, at call start, so there is no
         // cache to protect here — and a second variable would mean asking

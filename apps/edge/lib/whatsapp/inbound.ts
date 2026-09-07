@@ -413,6 +413,22 @@ export async function handleInbound(
     }
   }
 
+  // THE PAUSE (tenants.status = 'paused', written by billing for a workspace
+  // whose subscription stopped). The customer's message is already kept
+  // above; it is held for a person with its own reason, and nothing is
+  // answered until the workspace resumes. Said the way the budget says it:
+  // the escalation is the Inbox's row, the alert the owner's mail.
+  if (rt?.paused) {
+    await saveThread(ns, from, thread);
+    L.info("wa_skip_paused");
+    await Promise.all([
+      sink.escalate("paused", "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings › Billing, or answer this one yourself."),
+      alertStaff(from, bodyText, "(no reply sent — the workspace is paused until billing resumes)", "paused", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+      sink.processed(),
+    ]);
+    return;
+  }
+
   // E3: the reply policy is consulted BEFORE generation. 'ask' is the timid
   // mode — everything escalates, a human answers; a tenant with no persona
   // behaves identically. The customer's message is already persisted above.
