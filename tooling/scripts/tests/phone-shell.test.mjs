@@ -76,7 +76,7 @@ test("the installable shell: a public manifest, real icons, full-screen on iOS, 
   assert.ok(layout.includes('manifest: "/manifest.webmanifest"'));
   assert.ok(layout.includes('appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Chanlytics" }'));
   assert.ok(layout.includes('viewportFit: "cover"'));
-  assert.ok(readCode("apps/dashboard/middleware.ts").includes('"/manifest.webmanifest"]'), "the installer fetches it without a session");
+  assert.ok(readCode("apps/dashboard/middleware.ts").includes('"/manifest.webmanifest"'), "the installer fetches it without a session (the public list is pinned by value in auth-gate)");
   const sw = readRaw("apps/dashboard/public/sw.js");
   assert.ok(sw.includes("self.skipWaiting()") && sw.includes("self.clients.claim()"));
   assert.ok(!/caches\.|cache\.put|respondWith/.test(sw), "caches nothing: the workspace is live data");

@@ -4518,6 +4518,16 @@ var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
 var BOOTSTRAP_MS = 3600 * 1e3;
 var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS3 = 7 * 864e5;
+var SIGNUP_NAME_MIN = 2;
+var SIGNUP_NAME_MAX = 120;
+var SignupSchema = external_exports.object({
+  name: external_exports.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: external_exports.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
+  timezone: external_exports.string().trim().min(1).max(64).optional(),
+  /** The invite code, when sign-up is by invitation. */
+  code: external_exports.string().trim().max(80).optional()
+}).strict();
 
 // src/repositories/ingest.ts
 async function ingestInbound(db, p) {

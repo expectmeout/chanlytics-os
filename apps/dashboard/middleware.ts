@@ -13,7 +13,11 @@ import { isRetryableAuthError } from "@/server/auth-errors";
 // The manifest is fetched without credentials by the browser's installer; it
 // names the product and its icons, nothing else, so it is public like the
 // icons themselves (which the matcher already skips by extension).
-const PUBLIC_PATHS = new Set(["/login", "/auth/signout", "/api/version", "/manifest.webmanifest"]);
+// /signup and its route are the one door a stranger may use; the route
+// keeps the same-origin check, its own rate buckets and an optional invite
+// code, and creates the user with the service role (the project stays
+// invite-only at the auth level).
+const PUBLIC_PATHS = new Set(["/login", "/auth/signout", "/api/version", "/manifest.webmanifest", "/signup", "/api/v1/signup"]);
 
 /**
  * An auth redirect must never be stored. These responses depend entirely on a

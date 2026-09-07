@@ -77,7 +77,7 @@ test("the public path list is exact, never a prefix", () => {
   assert.match(middleware, /PUBLIC_PATHS\.has\(path\)/, "the gate must test exact membership");
 });
 
-test("only these four paths are reachable without a session", () => {
+test("only these six paths are reachable without a session", () => {
   const block = /PUBLIC_PATHS\s*=\s*new Set\(\[([^\]]*)\]/.exec(middleware);
   assert.ok(block, "PUBLIC_PATHS must be a literal Set so this test can read it");
   const paths = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]).sort();
@@ -85,7 +85,8 @@ test("only these four paths are reachable without a session", () => {
   // deliberate edit here, reviewed, not a side effect of adding a file.
   // The manifest joined in the phone-shell slice: a phone's installer fetches
   // it without credentials, and it names the product and its icons, nothing else.
-  assert.deepEqual(paths, ["/api/version", "/auth/signout", "/login", "/manifest.webmanifest"]);
+  // Sign-up joined in the accounts slice: the page and its route, the one door a stranger may use.
+  assert.deepEqual(paths, ["/api/v1/signup", "/api/version", "/auth/signout", "/login", "/manifest.webmanifest", "/signup"]);
 });
 
 test("the session is VERIFIED, never read from the cookie", () => {

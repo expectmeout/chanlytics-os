@@ -2430,6 +2430,21 @@ type Database = {
                     timezone: string;
                 }[];
             };
+            create_workspace_for: {
+                Args: {
+                    p_name: string;
+                    p_timezone?: string;
+                    p_user: string;
+                };
+                Returns: {
+                    id: string;
+                    locale: string;
+                    name: string;
+                    slug: string;
+                    status: string;
+                    timezone: string;
+                }[];
+            };
             deadman_candidates: {
                 Args: {
                     p_older_than?: string;

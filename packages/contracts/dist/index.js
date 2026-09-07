@@ -124,7 +124,8 @@ var EVENT_KINDS = [
   /** The owner's Business Profile: connected, disconnected, and a review answered from here. */
   "google.connected",
   "google.disconnected",
-  "google.replied"
+  "google.replied",
+  "workspace.created"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
@@ -1643,8 +1644,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z4] = m;
-  if (z4) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z5] = m;
+  if (z5) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -5801,6 +5802,41 @@ function shortcutGroups(list = SHORTCUTS) {
   }
   return out;
 }
+
+// src/signup.ts
+import { z as z4 } from "zod";
+var SIGNUP_NAME_MIN = 2;
+var SIGNUP_NAME_MAX = 120;
+var SignupSchema = z4.object({
+  name: z4.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z4.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
+  timezone: z4.string().trim().min(1).max(64).optional(),
+  /** The invite code, when sign-up is by invitation. */
+  code: z4.string().trim().max(80).optional()
+}).strict();
+var SIGNUP_WORDS = {
+  title: "Create your workspace",
+  lead: "Your business gets its own workspace: the receptionist, the inbox, the numbers. You become its owner.",
+  sent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it on the next screen to open your workspace.`,
+  codeRequired: "Sign-up is by invitation right now. Enter the invite code you were given.",
+  codeWrong: "That invite code is not right.",
+  crossSite: "That request did not come from this site.",
+  haveOne: "Already have a workspace?",
+  newHere: "New to Chanlytics?",
+  clock: (tz) => `Your clock: ${tz}, read from this device. Change it later in Settings \u203A Workspace.`
+};
+function signupNext(email) {
+  return `/login?email=${encodeURIComponent(email.trim().toLowerCase())}&sent=1`;
+}
+function deviceTimezone(resolve = () => Intl.DateTimeFormat().resolvedOptions().timeZone) {
+  try {
+    const tz = resolve();
+    return tz && tz.length <= 64 ? tz : void 0;
+  } catch {
+    return void 0;
+  }
+}
 export {
   ACTOR_TYPES,
   ALERT_KINDS,
@@ -5937,9 +5973,13 @@ export {
   SERVER_NOTIFICATION_KINDS,
   SETUP_STATE_WORDS,
   SHORTCUTS,
+  SIGNUP_NAME_MAX,
+  SIGNUP_NAME_MIN,
+  SIGNUP_WORDS,
   STARTER_LANGUAGES,
   STARTER_TEMPLATES,
   ServiceSchema,
+  SignupSchema,
   TEMPLATE_BODY_MAX,
   TEMPLATE_CATEGORIES,
   TEMPLATE_EXAMPLE_MAX,
@@ -6005,6 +6045,7 @@ export {
   describeSettingsChange,
   describeVisits,
   detectLanguage,
+  deviceTimezone,
   draftSendsAtMs,
   durationLabel,
   eligibleFor,
@@ -6135,6 +6176,7 @@ export {
   shortTime,
   shortcutGroups,
   shouldLandOnSetup,
+  signupNext,
   slotLabels,
   slugTemplateName,
   spanForView,
