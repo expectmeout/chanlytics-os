@@ -938,7 +938,7 @@ const PeopleTriage = ({ rows, recency, attention, attentionTab, setAttentionTab,
 // First contact lives in the identity cell now; the last column is the
 // row's own actions, shown on hover.
 const plCols = (withCalendar) => [
-  { key: "name", label: "Client", sortable: true },
+  { key: "name", label: "Customer", sortable: true },
   { key: "state", label: "State", sortable: true },
   { key: "last", label: "Last contact", sortable: true },
   withCalendar ? { key: "visits", label: "Visits", sortable: true } : { key: "receptionist", label: "Receptionist", sortable: false },
