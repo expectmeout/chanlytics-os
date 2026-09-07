@@ -3638,6 +3638,25 @@ var SERVER_LOOK = {
   calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
   alert: { icon: "bell", tone: "", action: "Open Today", to: "today" }
 };
+var ROUTE_VERBS = [
+  [/^admin\/setup/, "Open Setup"],
+  [/^admin\/integrations/, "Open Integrations"],
+  [/^admin\/workspace/, "Open Workspace"],
+  [/^admin\/notifications/, "Open Notifications"],
+  [/^inbox/, "Open the Inbox"],
+  [/^conversations\/phone/, "Open the calls"],
+  [/^live/, "Open Live"],
+  [/^outbound/, "Open Playbooks"],
+  [/^broadcasts/, "Open Broadcasts"],
+  [/^calendar/, "Open Calendar"],
+  [/^clients/, "Open People"],
+  [/^today/, "Open Today"]
+];
+function verbForRoute(route) {
+  if (!route) return null;
+  const hit = ROUTE_VERBS.find(([re]) => re.test(route));
+  return hit ? hit[1] : null;
+}
 var SERVER_KEY_PREFIX = "n:";
 function serverNotificationRows(dto) {
   if (!dto) return [];
@@ -3654,7 +3673,7 @@ function serverNotificationRows(dto) {
       to: n.route ?? look.to,
       icon: look.icon,
       tone: look.tone,
-      action: look.action,
+      action: verbForRoute(n.route) ?? look.action,
       unread: at > seen && !n.read,
       about: n.subject_type && n.subject_id ? { type: n.subject_type, id: n.subject_id } : null
     };
@@ -5183,8 +5202,8 @@ function setupSteps(i, nowMs = Date.now()) {
   const waReady = wa.present && wa.active;
   const voiceReady = voice.present && voice.active;
   const answering = waReady || voiceReady;
-  const waNum = display(wa.number);
-  const voiceNum = display(voice.number);
+  const waNum = display(wa.number) ?? "your number";
+  const voiceNum = display(voice.number) ?? "your line";
   const handoffNum = display(i.business.handoff);
   const rows = [];
   const row = (r) => rows.push({ ...r, stateWords: r.stateWords ?? SETUP_STATE_WORDS[r.state], later: !r.required && later.has(r.id) });
@@ -5204,11 +5223,11 @@ function setupSteps(i, nowMs = Date.now()) {
   if (voiceReady) {
     row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "ready", required: !answering, sentence: `Calls are answered on ${voiceNum}. Texting is not available yet.`, details: ["Texting arrives with lines that register with the carriers; this page will say when"], verb: { label: "Open Integrations", to: "admin/integrations" } });
   } else if (voice.present) {
-    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: `Your line ${voiceNum ? `${voiceNum} ` : ""}is switched off \u2014 the receptionist is not answering it.`, details: [], verb: { label: "Open Integrations", to: "admin/integrations" } });
+    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: `Your line ${voice.number ? `${voiceNum} ` : ""}is switched off \u2014 the receptionist is not answering it.`, details: [], verb: { label: "Open Integrations", to: "admin/integrations" } });
   } else if (i.requests.line) {
     row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Requested ${agoWords(Date.parse(i.requests.line), nowMs)} \u2014 a person at Chanlytics will set up your line with you and reach you by email.`, details: [], verb: null });
   } else {
-    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: "We set up your phone line with you: a number, the receptionist answering it, and forwarding from the number you have.", details: [], verb: { label: "Ask for a line", to: "verb:request-line" } });
+    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "We set up your phone line with you.", details: ["A number, the receptionist answering it, and forwarding from the number you have"], verb: { label: "Ask for a line", to: "verb:request-line" } });
   }
   if (voiceReady) {
     const last = voice.lastInboundAt ? `Last call ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}` : "No calls yet";
@@ -5602,6 +5621,7 @@ export {
   triggerOf,
   tzClock,
   validateTemplateDraft,
+  verbForRoute,
   violatesNoPrices,
   visitDateKey,
   visitDay,

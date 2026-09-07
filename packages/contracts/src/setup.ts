@@ -97,8 +97,9 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
   const waReady = wa.present && wa.active;
   const voiceReady = voice.present && voice.active;
   const answering = waReady || voiceReady;
-  const waNum = display(wa.number);
-  const voiceNum = display(voice.number);
+  // A channel row without a number is still a channel: never read "null" aloud.
+  const waNum = display(wa.number) ?? "your number";
+  const voiceNum = display(voice.number) ?? "your line";
   const handoffNum = display(i.business.handoff);
 
   const rows: SetupRowVM[] = [];
@@ -128,11 +129,12 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
   if (voiceReady) {
     row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "ready", required: !answering, sentence: `Calls are answered on ${voiceNum}. Texting is not available yet.`, details: ["Texting arrives with lines that register with the carriers; this page will say when"], verb: { label: "Open Integrations", to: "admin/integrations" } });
   } else if (voice.present) {
-    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: `Your line ${voiceNum ? `${voiceNum} ` : ""}is switched off — the receptionist is not answering it.`, details: [], verb: { label: "Open Integrations", to: "admin/integrations" } });
+    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: `Your line ${voice.number ? `${voiceNum} ` : ""}is switched off — the receptionist is not answering it.`, details: [], verb: { label: "Open Integrations", to: "admin/integrations" } });
   } else if (i.requests.line) {
     row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Requested ${agoWords(Date.parse(i.requests.line), nowMs)} — a person at Chanlytics will set up your line with you and reach you by email.`, details: [], verb: null });
   } else {
-    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: "We set up your phone line with you: a number, the receptionist answering it, and forwarding from the number you have.", details: [], verb: { label: "Ask for a line", to: "verb:request-line" } });
+    // Until lines provision themselves, the ask is the owner's move; from then on it is ours.
+    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "We set up your phone line with you.", details: ["A number, the receptionist answering it, and forwarding from the number you have"], verb: { label: "Ask for a line", to: "verb:request-line" } });
   }
 
   // 4. The phone receptionist — answering on the line, transferring to a person.
