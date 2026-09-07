@@ -31,7 +31,8 @@ test.describe("creating another workspace", () => {
       await expect(screen).toContainText("New workspace");
       await screen.getByLabel("Business name").fill(name);
       await screen.getByRole("button", { name: "Create workspace" }).click();
-      await expect(page.locator(".brief")).toBeVisible({ timeout: 20000 });
+      // A new workspace answers nowhere yet, so its owner lands on Setup, not Today.
+      await expect(page.getByTestId("setup-readiness")).toBeVisible({ timeout: 20000 });
       await expect(page.getByTestId("sb-workspace")).toContainText(name);
       createdId = await page.evaluate(() => (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null);
       expect(createdId).not.toBeNull();
@@ -45,9 +46,11 @@ test.describe("creating another workspace", () => {
       await page.waitForLoadState("networkidle");
       await expect(page.getByTestId("sb-workspace")).not.toContainText(name, { timeout: 20000 });
     } finally {
-      if (createdId) {
-        await rest(`events?tenant_id=eq.${createdId}`, { method: "DELETE" });
-        await rest(`tenants?id=eq.${createdId}`, { method: "DELETE" });
+      // The probe goes whether or not the page got as far as naming its id.
+      const found = (await (await rest(`tenants?select=id&name=eq.${encodeURIComponent(name)}`)).json()) as Array<{ id: string }>;
+      for (const id of new Set([createdId, ...found.map((t) => t.id)].filter((x): x is string => !!x))) {
+        await rest(`events?tenant_id=eq.${id}`, { method: "DELETE" });
+        await rest(`tenants?id=eq.${id}`, { method: "DELETE" });
       }
       await page.evaluate((id) => { if (id) localStorage.setItem("chanlytics.workspace", id); }, homeId);
     }
