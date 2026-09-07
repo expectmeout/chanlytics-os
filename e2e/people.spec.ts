@@ -39,7 +39,7 @@ test.describe("People on a real workspace", () => {
   test("the list is the workspace's people, in facts only, with the Tier 2 tabs absent", async ({ page }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
-    await expect(page.locator(".cl-page-title")).toHaveText("Clients");
+    await expect(page.locator(".cl-page-title")).toHaveText("People");
     await assertMeasuredOnly(page, "#/clients");
 
     // The seeded strip offered Leads, Deal board and Lists; a real workspace
@@ -90,7 +90,7 @@ test.describe("People on a real workspace", () => {
 
     // Back returns to the list, not to a "client not found" page.
     await page.locator(".cl-prof-back").click();
-    await expect(page.locator(".cl-page-title")).toHaveText("Clients");
+    await expect(page.locator(".cl-page-title")).toHaveText("People");
   });
 
   test("a profile deep link to a stranger's id says so instead of inventing a person", async ({ page }) => {
@@ -130,7 +130,7 @@ test.describe("People on a real workspace", () => {
     for (const gone of ["leads", "pipeline"]) {
       await page.goto(`/#/${gone}`);
       await expect.poll(() => new URL(page.url()).hash, { message: `${gone} retires into People` }).toBe("#/clients");
-      await expect(page.locator(".cl-page-title")).toHaveText("Clients");
+      await expect(page.locator(".cl-page-title")).toHaveText("People");
     }
   });
 

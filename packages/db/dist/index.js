@@ -4485,9 +4485,9 @@ var FIRST_ES = { ...FIRST, label: "Nombre" };
 var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
 var LINK_ES = { ...LINK, label: "Enlace de reservas" };
 var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE = { kind: "visit_service", label: "Service", example: "a balayage" };
+var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "un balayage" };
+var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
 var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,

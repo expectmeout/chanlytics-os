@@ -34,7 +34,7 @@ export async function GET(request: Request): Promise<Response> {
   }
   const url = new URL(request.url);
   const apply = url.searchParams.get("mode") === "apply";
-  const tenantSlug = url.searchParams.get("tenant") || "melanys-beauty-salon";
+  const tenantSlug = url.searchParams.get("tenant") || "melanys-beauty-salon"; // trade-word: the one workspace this admin backfill was written for; pass ?tenant= for any other
   const withRecordings = url.searchParams.get("recordings") !== "0";
   const maxCalls = Number(url.searchParams.get("max") || 200);
 

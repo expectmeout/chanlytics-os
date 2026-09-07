@@ -1,5 +1,5 @@
 /**
- * The salon receptionist brain — Claude Opus 5 with a guardrailed, bilingual system prompt.
+ * The receptionist brain — Claude Opus 5 with a guardrailed, bilingual system prompt.
  *
  * It answers in a record, not a string (contracts/brain.ts): the reply, what
  * the customer wanted, whether a person should take over and why, how sure it

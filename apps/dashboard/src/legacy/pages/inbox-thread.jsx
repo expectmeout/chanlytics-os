@@ -212,15 +212,15 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
           <Icon name={snoozed ? "check" : "clock"} size={12} /> {snoozed ? `Wakes ${thread.wake || "tomorrow"}` : "Snooze"}
         </button>
         {thread.clientId && (
-          <button className="btn btn-ghost btn-sm" onClick={() => onOpenClient(thread.clientId)} title="Open client profile">
-            <Icon name="users" size={12} /> Open client
+          <button className="btn btn-ghost btn-sm" onClick={() => onOpenClient(thread.clientId)} title="Open their profile">
+            <Icon name="users" size={12} /> Open profile
           </button>
         )}
         <MoreMenu btnClass="btn btn-icon btn-sm" items={[
           { header: "Conversation" },
           // clientId is the contact behind the thread, so the item only renders
           // when there is actually somewhere to go (a phone-only caller has none).
-          ...(thread.clientId ? [{ label: "Open client", icon: "users", onClick: () => onOpenClient(thread.clientId) }] : []),
+          ...(thread.clientId ? [{ label: "Open profile", icon: "users", onClick: () => onOpenClient(thread.clientId) }] : []),
           // On a real thread "Mark as unread" flipped a local flag the next
           // realtime reseed wiped, and "Block sender" opened the Ask overlay,
           // a no-op outside a demo: both promised something that did not

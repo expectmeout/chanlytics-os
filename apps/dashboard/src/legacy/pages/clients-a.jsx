@@ -484,7 +484,7 @@ const ClientsASeed = ({ onOpenProfile = () => {}, initialSegment = null }) => {
           <div className="cl-controls">
             <div className="cl-search-wrap">
               <Icon name="search" size={13} />
-              <input ref={searchRef} placeholder="Search by name, tag, therapist…" value={clQuery} onChange={(e) => setClQuery(e.target.value)} />
+              <input ref={searchRef} placeholder="Search by name, tag, staff…" value={clQuery} onChange={(e) => setClQuery(e.target.value)} />
               <span className="kbd">/</span>
             </div>
             <div className="cl-controls-right">
@@ -847,7 +847,7 @@ const PeopleRail = ({ lists, groups = PL_DEFAULT_GROUPS, active, onPick, saved =
         </button>
       ))}
       {saved.length === 0 && (
-        <div className="cl-rail-hint">No lists yet. Keep one by hand — a stylist's clients, the package holders — and add people from their profile.</div>
+        <div className="cl-rail-hint">No lists yet. Keep one by hand — regulars, one staff member's customers, a special group — and add people from their profile.</div>
       )}
     </div>
     {canEdit && onCreateList && <NewListRow onCreate={onCreateList} />}
@@ -1330,7 +1330,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         <div className="cl-main-scroll" ref={scrollRef}>
           <div className="cl-head">
             <div className="cl-head-titles">
-              <div className="cl-page-title">Clients</div>
+              <div className="cl-page-title">People</div>
               <div className="cl-page-sub">
                 Everyone who has written to or phoned {ws ? ws.name : "your business"}. The receptionist handles the routine — these lists show where you matter.
               </div>
@@ -1370,7 +1370,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
           <div className="cl-section" ref={tableRef}>
             <div className="cl-section-head">
               <div>
-                <span className="cl-section-title">All clients</span>
+                <span className="cl-section-title">All customers</span>
                 <span className="cl-section-sub" style={{ marginLeft: 10 }}>{shown.length} shown</span>
                 {activeList && (
                   <span className="cl-seg-filter">

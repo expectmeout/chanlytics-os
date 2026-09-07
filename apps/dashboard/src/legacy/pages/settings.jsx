@@ -18,7 +18,7 @@ const ST_PERMS = window.ROLE_PERMS || {
   viewer:   { approve: false, autonomy: false, disconnect: false, billing: false, team: false, settings: false, export: false },
 };
 const ST_ROLE_META = {
-  owner:    { label: "Owner",    tone: "accent", can: "Everything — billing, team, and disconnecting agents" },
+  owner:    { label: "Owner",    tone: "accent", can: "Everything — billing, team, and disconnecting channels" },
   operator: { label: "Operator", tone: "ok",     can: "Approves decisions and tunes autonomy — not billing or team" },
   viewer:   { label: "Viewer",   tone: "",       can: "Sees everything, changes nothing — approvals are read-only" },
 };
@@ -1031,7 +1031,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         )}
         {services.map((sv, i) => (
           <div key={i} className="set-svc-row">
-            <input className="set-input" value={sv.name || ""} placeholder="Haircut" aria-label="Service name" onChange={(e) => setSvc(i, "name", e.target.value)} />
+            <input className="set-input" value={sv.name || ""} placeholder="What customers call it" aria-label="Service name" onChange={(e) => setSvc(i, "name", e.target.value)} />
             <span className="set-svc-mins">
               <input className="set-input" inputMode="numeric" value={sv.duration_min || ""} placeholder="45" aria-label="Minutes" onChange={(e) => setSvc(i, "duration_min", e.target.value.replace(/[^0-9]/g, ""))} />
               <span className="set-svc-unit">min</span>
@@ -1175,11 +1175,11 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       </div>
 
       <div className="set-sec">
-        <SetSectionHead title="Other things it should know" hint="One topic each — the academy, chair rental, parking. Both receptionists say these." />
+        <SetSectionHead title="Other things it should know" hint="One topic each — parking, gift cards, a second location. Both receptionists say these." />
         {notes.map((n, i) => (
           <div key={i} className="set-note-row">
-            <input className="set-input" value={n.title || ""} placeholder="Chair rental" aria-label="Note title" onChange={(e) => setNote(i, "title", e.target.value)} />
-            <textarea className="set-input set-textarea" rows={2} value={n.text || ""} placeholder="Stylists can rent a chair by the week — ask for the owner." aria-label="Note text" onChange={(e) => setNote(i, "text", e.target.value)} />
+            <input className="set-input" value={n.title || ""} placeholder="Gift cards" aria-label="Note title" onChange={(e) => setNote(i, "title", e.target.value)} />
+            <textarea className="set-input set-textarea" rows={2} value={n.text || ""} placeholder="Gift cards are sold at the front desk, any amount — ask for the owner." aria-label="Note text" onChange={(e) => setNote(i, "text", e.target.value)} />
             <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${n.title || "note"}`} onClick={() => setNotes((l) => l.filter((_, j) => j !== i))}><Icon name="x" size={12} /></button>
           </div>
         ))}
@@ -1351,7 +1351,7 @@ const PaneWorkspace = ({ flash }) => {
         {real ? (
           <div className="cl-prof-attr"><span className="cl-prof-attr-key">Booking link</span><span className="cl-prof-attr-val">{S.booking_link || "—"}</span></div>
         ) : (
-          <div className="cl-prof-attr"><span className="cl-prof-attr-key">Therapists</span><span className="cl-prof-attr-val">Lena Park · Jay Rivera</span></div>
+          <div className="cl-prof-attr"><span className="cl-prof-attr-key">Staff</span><span className="cl-prof-attr-val">Lena Park · Jay Rivera</span></div>
         )}
         {real && profile && profile.address && (
           <div className="cl-prof-attr"><span className="cl-prof-attr-key">Address</span><span className="cl-prof-attr-val">{profile.address}</span></div>

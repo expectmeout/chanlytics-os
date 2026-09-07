@@ -54,9 +54,9 @@ const FIRST_ES = { ...FIRST, label: "Nombre" };
 const BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
 const LINK_ES = { ...LINK, label: "Enlace de reservas" };
 const WHEN = { kind: "visit_when" as const, label: "When", example: "tomorrow at 2:00 PM" };
-const SERVICE = { kind: "visit_service" as const, label: "Service", example: "a balayage" };
+const SERVICE = { kind: "visit_service" as const, label: "Service", example: "a consultation" };
 const WHEN_ES = { ...WHEN, label: "Cuándo", example: "mañana a las 2:00 PM" };
-const SERVICE_ES = { ...SERVICE, label: "Servicio", example: "un balayage" };
+const SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
 const STOP_EN = "Reply STOP to opt out";
 const STOP_ES = "Responde STOP para darte de baja";
 
@@ -132,12 +132,12 @@ export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
       en_US: {
         body: "Hi {{1}}, this month at {{2}}: {{3}} Book here: {{4}} — spaces are limited.",
         footer: STOP_EN,
-        slots: [FIRST, BUSINESS, { kind: "text", label: "The offer", example: "20% off balayage for regulars, book by Friday." }, LINK],
+        slots: [FIRST, BUSINESS, { kind: "text", label: "The offer", example: "20% off any service booked before Friday." }, LINK],
       },
       es: {
         body: "Hola {{1}}, este mes en {{2}}: {{3}} Reserva aquí: {{4}} — las plazas son limitadas.",
         footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, { kind: "text", label: "La oferta", example: "20% de descuento en balayage para clientas habituales, reserva antes del viernes." }, LINK_ES],
+        slots: [FIRST_ES, BUSINESS_ES, { kind: "text", label: "La oferta", example: "20% de descuento en cualquier servicio reservado antes del viernes." }, LINK_ES],
       },
     },
   },
@@ -261,7 +261,7 @@ export function guessSlotKind(label: string | null | undefined, example?: string
   const l = String(label ?? "").toLowerCase();
   const e = String(example ?? "").toLowerCase();
   if (/link|url|book/.test(l) || /^https?:\/\//.test(e) || /booksy|calendly|square|fresha|\.com\//.test(e)) return "booking_link";
-  if (/business|salon|company|shop|studio|clinic|brand|negocio/.test(l)) return "business_name";
+  if (/business|salon|company|shop|studio|clinic|brand|negocio/.test(l)) return "business_name"; // trade-word: a label naming the business, in whatever word a trade uses
   if (/first name|^name$|nombre|customer|client/.test(l)) return "first_name";
   return "text";
 }

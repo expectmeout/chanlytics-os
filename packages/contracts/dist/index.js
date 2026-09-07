@@ -495,7 +495,7 @@ function reachedCustomer(status) {
   return status !== "queued" && status !== "failed" && status !== "canceled";
 }
 var AGENT = { glyph: "W", name: "WhatsApp Receptionist" };
-var CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the salon line\.\s*)?(Summary:\s*)?/;
+var CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the (?:salon|business) line\.\s*)?(Summary:\s*)?/;
 var TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var sameDayKey = null;
@@ -3676,8 +3676,8 @@ var T = {
     actDraftQ: "Draft a reply to {name}: ",
     actRemember: "Remember something for the receptionist",
     actRememberQ: "Remember that ",
-    actClose: "Close the salon on a day",
-    actCloseQ: "Close the salon on ",
+    actClose: "Close for a day",
+    actCloseQ: "Close on ",
     actHours: "Change a day's hours",
     actHoursQ: "Change Saturday's hours to ",
     actInvite: "Invite a teammate",
@@ -3710,7 +3710,7 @@ var T = {
     actRemember: "Recu\xE9rdale algo a la recepcionista",
     actRememberQ: "Recuerda que ",
     actClose: "Cerrar el sal\xF3n un d\xEDa",
-    actCloseQ: "Cierra el sal\xF3n el ",
+    actCloseQ: "Cierra el ",
     actHours: "Cambiar el horario de un d\xEDa",
     actHoursQ: "Cambia el horario del s\xE1bado a ",
     actInvite: "Invitar a alguien del equipo",
@@ -3941,9 +3941,9 @@ var FIRST_ES = { ...FIRST, label: "Nombre" };
 var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
 var LINK_ES = { ...LINK, label: "Enlace de reservas" };
 var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE = { kind: "visit_service", label: "Service", example: "a balayage" };
+var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "un balayage" };
+var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
 var STOP_EN = "Reply STOP to opt out";
 var STOP_ES = "Responde STOP para darte de baja";
 var STARTER_TEMPLATES = [
@@ -4018,12 +4018,12 @@ var STARTER_TEMPLATES = [
       en_US: {
         body: "Hi {{1}}, this month at {{2}}: {{3}} Book here: {{4}} \u2014 spaces are limited.",
         footer: STOP_EN,
-        slots: [FIRST, BUSINESS, { kind: "text", label: "The offer", example: "20% off balayage for regulars, book by Friday." }, LINK]
+        slots: [FIRST, BUSINESS, { kind: "text", label: "The offer", example: "20% off any service booked before Friday." }, LINK]
       },
       es: {
         body: "Hola {{1}}, este mes en {{2}}: {{3}} Reserva aqu\xED: {{4}} \u2014 las plazas son limitadas.",
         footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, { kind: "text", label: "La oferta", example: "20% de descuento en balayage para clientas habituales, reserva antes del viernes." }, LINK_ES]
+        slots: [FIRST_ES, BUSINESS_ES, { kind: "text", label: "La oferta", example: "20% de descuento en cualquier servicio reservado antes del viernes." }, LINK_ES]
       }
     }
   },
@@ -4390,7 +4390,7 @@ function resolveParams(specs, f) {
   });
 }
 function exampleParams(specs, businessName) {
-  return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link", visitWhen: "tomorrow at 2:00 PM", visitService: "a balayage" });
+  return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link", visitWhen: "tomorrow at 2:00 PM", visitService: "a consultation" });
 }
 
 // src/playbooks.ts

@@ -196,5 +196,5 @@ export function resolveParams(specs: readonly ParamSpec[], f: ParamFacts): strin
 
 /** Example words for a preview: what a real person would see. */
 export function exampleParams(specs: readonly ParamSpec[], businessName: string): string[] {
-  return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link", visitWhen: "tomorrow at 2:00 PM", visitService: "a balayage" });
+  return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link", visitWhen: "tomorrow at 2:00 PM", visitService: "a consultation" });
 }

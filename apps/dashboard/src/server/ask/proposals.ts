@@ -298,7 +298,7 @@ async function proposeSettings(t: ToolContext, input: Record<string, unknown>): 
   return propose({
     kind: "settings",
     needs: "owner",
-    title: change.op === "add_closure" ? "Close the salon" : change.op === "set_hours" ? "Change the hours" : change.op === "add_note" ? "Remember this" : "Add a service",
+    title: change.op === "add_closure" ? "Close for a day" : change.op === "set_hours" ? "Change the hours" : change.op === "add_note" ? "Remember this" : "Add a service",
     summary: describeSettingsChange(change),
     payload: { change },
     undo: "Put the previous settings back",

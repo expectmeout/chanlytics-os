@@ -394,7 +394,7 @@ declare function verifyRetellSignature(rawBody: string, header: string | null | 
  * ONE definition, in code, for three readers: the converger script that
  * brings a live agent onto it, the diagnostic that reports whether a line
  * has drifted off it, and the provisioning script for a new tenant (a mirror,
- * pinned equal by a test). The live salon agent predates all of this and was
+ * pinned equal by a test). The live agent predates all of this and was
  * typed by hand in Retell's dashboard — its prompt bakes the hours, the
  * address and a transfer number, so correcting the hours in Settings changed
  * what the chat receptionist said and left the phone saying the old ones.
@@ -498,17 +498,17 @@ declare const VOICE_WEBHOOK_TIMEOUT_MS = 20000;
 declare const CALL_ANALYSIS_FIELDS: readonly [{
     readonly type: "string";
     readonly name: "caller_wanted";
-    readonly description: "What the caller wanted, in one short sentence in plain words, the way the salon owner would say it. Start with the request itself, never with 'The user' or 'The caller'. Leave empty if they asked for nothing.";
-    readonly examples: readonly ["Asked for a gel manicure this Saturday around 10.", "Wanted Tuesday's hours and the price of highlights.", "Rescheduled Friday's blowout to next week."];
+    readonly description: "What the caller wanted, in one short sentence in plain words, the way the business owner would say it. Start with the request itself, never with 'The user' or 'The caller'. Leave empty if they asked for nothing.";
+    readonly examples: readonly ["Asked whether Saturday at 10 is free.", "Wanted Tuesday's hours and a price.", "Moved Friday's appointment to next week."];
 }, {
     readonly type: "enum";
     readonly name: "outcome";
-    readonly description: "How the call ended for the caller. answered: their question was answered. booking_link_sent: the receptionist sent them the booking link. callback_needed: a person at the salon has to call them back or follow up. voicemail: the call reached voicemail. no_request: they hung up, tested the line or asked for nothing. other: none of these.";
+    readonly description: "How the call ended for the caller. answered: their question was answered. booking_link_sent: the receptionist sent them the booking link. callback_needed: a person at the business has to call them back or follow up. voicemail: the call reached voicemail. no_request: they hung up, tested the line or asked for nothing. other: none of these.";
     readonly choices: readonly ["answered", "booking_link_sent", "callback_needed", "voicemail", "no_request", "other"];
 }, {
     readonly type: "string";
     readonly name: "follow_up";
-    readonly description: "What a person at the salon should do next for this caller, in one short sentence. Leave empty when nothing is needed.";
+    readonly description: "What a person at the business should do next for this caller, in one short sentence. Leave empty when nothing is needed.";
     readonly examples: readonly ["Call back to confirm a Saturday 10:00 gel manicure.", "Text the price list for highlights."];
 }, {
     readonly type: "string";

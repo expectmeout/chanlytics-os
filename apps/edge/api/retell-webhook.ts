@@ -308,7 +308,7 @@ export async function POST(request: Request): Promise<Response> {
         const t = await getThread(noteNs, from);
         t.history.push({
           role: "assistant",
-          content: `[voice call note ${new Date().toISOString().slice(0, 16)}] Caller phoned the salon line. Summary: ${String(summary).slice(0, 400)}`,
+          content: `[voice call note ${new Date().toISOString().slice(0, 16)}] Caller phoned the business line. Summary: ${String(summary).slice(0, 400)}`,
         });
         await saveThread(noteNs, from, t);
       } catch (e) { console.error("call_note_failed", e instanceof Error ? e.message : e); }

@@ -137,7 +137,7 @@ const ListsReal = ({ initialId = null }) => {
               <span className="count">{s.count}</span>
             </button>
           ))}
-          {saved.length === 0 && <div className="cl-rail-hint">No lists yet. Keep one by hand — a stylist's clients, the package holders — and add people from their profile.</div>}
+          {saved.length === 0 && <div className="cl-rail-hint">No lists yet. Keep one by hand — regulars, one staff member's customers, a special group — and add people from their profile.</div>}
         </div>
         {canEdit && <NewListBox onCreate={create} />}
         <div className="cl-rail-section" data-testid="lists-rail-smart">

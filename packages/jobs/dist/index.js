@@ -4508,9 +4508,9 @@ var FIRST_ES = { ...FIRST, label: "Nombre" };
 var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
 var LINK_ES = { ...LINK, label: "Enlace de reservas" };
 var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE = { kind: "visit_service", label: "Service", example: "a balayage" };
+var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "un balayage" };
+var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
 var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,
@@ -4574,19 +4574,19 @@ var CALL_ANALYSIS_FIELDS = [
   {
     type: "string",
     name: "caller_wanted",
-    description: "What the caller wanted, in one short sentence in plain words, the way the salon owner would say it. Start with the request itself, never with 'The user' or 'The caller'. Leave empty if they asked for nothing.",
-    examples: ["Asked for a gel manicure this Saturday around 10.", "Wanted Tuesday's hours and the price of highlights.", "Rescheduled Friday's blowout to next week."]
+    description: "What the caller wanted, in one short sentence in plain words, the way the business owner would say it. Start with the request itself, never with 'The user' or 'The caller'. Leave empty if they asked for nothing.",
+    examples: ["Asked whether Saturday at 10 is free.", "Wanted Tuesday's hours and a price.", "Moved Friday's appointment to next week."]
   },
   {
     type: "enum",
     name: "outcome",
-    description: "How the call ended for the caller. answered: their question was answered. booking_link_sent: the receptionist sent them the booking link. callback_needed: a person at the salon has to call them back or follow up. voicemail: the call reached voicemail. no_request: they hung up, tested the line or asked for nothing. other: none of these.",
+    description: "How the call ended for the caller. answered: their question was answered. booking_link_sent: the receptionist sent them the booking link. callback_needed: a person at the business has to call them back or follow up. voicemail: the call reached voicemail. no_request: they hung up, tested the line or asked for nothing. other: none of these.",
     choices: [...CALL_OUTCOMES]
   },
   {
     type: "string",
     name: "follow_up",
-    description: "What a person at the salon should do next for this caller, in one short sentence. Leave empty when nothing is needed.",
+    description: "What a person at the business should do next for this caller, in one short sentence. Leave empty when nothing is needed.",
     examples: ["Call back to confirm a Saturday 10:00 gel manicure.", "Text the price list for highlights."]
   },
   {
@@ -9077,9 +9077,9 @@ var FIRST_ES2 = { ...FIRST2, label: "Nombre" };
 var BUSINESS_ES2 = { ...BUSINESS2, label: "Nombre del negocio" };
 var LINK_ES2 = { ...LINK2, label: "Enlace de reservas" };
 var WHEN3 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE2 = { kind: "visit_service", label: "Service", example: "a balayage" };
+var SERVICE2 = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES2 = { ...WHEN3, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES2 = { ...SERVICE2, label: "Servicio", example: "un balayage" };
+var SERVICE_ES2 = { ...SERVICE2, label: "Servicio", example: "una consulta" };
 var BROADCAST_CHUNK = 25;
 var BROADCAST_GAP_MS = 300;
 function renderTemplate(body, params) {
@@ -13610,9 +13610,9 @@ var FIRST_ES3 = { ...FIRST3, label: "Nombre" };
 var BUSINESS_ES3 = { ...BUSINESS3, label: "Nombre del negocio" };
 var LINK_ES3 = { ...LINK3, label: "Enlace de reservas" };
 var WHEN4 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE3 = { kind: "visit_service", label: "Service", example: "a balayage" };
+var SERVICE3 = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES3 = { ...WHEN4, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES3 = { ...SERVICE3, label: "Servicio", example: "un balayage" };
+var SERVICE_ES3 = { ...SERVICE3, label: "Servicio", example: "una consulta" };
 var LIMIT_TIERS3 = {
   TIER_50: 50,
   TIER_250: 250,
