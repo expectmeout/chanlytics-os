@@ -190,6 +190,7 @@ const REASON_SHORT: Record<string, string> = {
   opt_out: "asked to stop",
   state_unavailable: "memory was unavailable",
   stale: "message arrived late",
+  callback: "needs a call back",
 };
 
 export function reasonShort(reason: string | null | undefined): string {

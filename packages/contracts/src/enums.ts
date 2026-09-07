@@ -125,6 +125,8 @@ export const ESCALATION_REASONS = [
   "budget",
   /** A booking or a service/pricing question, with that class set to Ask me first on the Autonomy pane: a person answers. */
   "policy_ask",
+  /** The phone receptionist could not finish the call: a person calls them back. What to do rides in the details. */
+  "callback",
 ] as const;
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
 
