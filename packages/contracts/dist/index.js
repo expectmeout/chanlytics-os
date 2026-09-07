@@ -116,7 +116,11 @@ var EVENT_KINDS = [
   "line.answering",
   "line.failed",
   "line.released",
-  "line.forwarding_verified"
+  "line.forwarding_verified",
+  /** The workspace's listing on Google: linked, removed, and a read that found new reviews or ratings. */
+  "google.linked",
+  "google.unlinked",
+  "google.reviews"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
@@ -3193,8 +3197,8 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       (new Date(live.last_outbound_at).getTime() - new Date(live.last_inbound_at).getTime()) / 1e3
     ) : null;
     const names = m.channels.map((c) => CHANNEL_LABEL[c.kind] ?? c.kind).join(" and ");
-    const plural3 = m.channels.length > 1 ? "are" : "is";
-    const sub = m.channels.length === 0 ? "No phone line or WhatsApp number is connected yet, so nothing can come in." : lastIn ? `${names} ${plural3} connected. The last message arrived ${lastIn}${gap !== null && gap > 0 && gap < 3600 ? `, and the receptionist answered ${secondsPhrase(gap)} later.` : "."}` : `${names} ${plural3} connected. No messages have arrived yet.`;
+    const plural4 = m.channels.length > 1 ? "are" : "is";
+    const sub = m.channels.length === 0 ? "No phone line or WhatsApp number is connected yet, so nothing can come in." : lastIn ? `${names} ${plural4} connected. The last message arrived ${lastIn}${gap !== null && gap > 0 && gap < 3600 ? `, and the receptionist answered ${secondsPhrase(gap)} later.` : "."}` : `${names} ${plural4} connected. No messages have arrived yet.`;
     return {
       standing: {
         eyebrow: `${datePart} \xB7 ${clock2} \xB7 ${m.workspace.name}`,
@@ -3630,7 +3634,7 @@ function agoLabel(atMs, now) {
   return agoShort(atMs, now);
 }
 var ALERT_KINDS = ["needs_you", "held_draft", "missed_call"];
-var SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert"];
+var SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review"];
 var SERVER_LOOK = {
   handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   deadman: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
@@ -3640,6 +3644,8 @@ var SERVER_LOOK = {
   job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   playbook: { icon: "bolt", tone: "ok", action: "Open Playbooks", to: "outbound" },
   calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
+  /** A review on Google: good news with somewhere to read it. */
+  review: { icon: "star", tone: "ok", action: "Open Reports", to: "reports" },
   alert: { icon: "bell", tone: "", action: "Open Today", to: "today" }
 };
 var ROUTE_VERBS = [
@@ -3654,6 +3660,7 @@ var ROUTE_VERBS = [
   [/^broadcasts/, "Open Broadcasts"],
   [/^calendar/, "Open Calendar"],
   [/^clients/, "Open People"],
+  [/^reports/, "Open Reports"],
   [/^today/, "Open Today"]
 ];
 function verbForRoute(route) {
@@ -5271,6 +5278,176 @@ function forwardingTestOpen(facts, nowMs = Date.now()) {
   return !Number.isNaN(until) && until > nowMs;
 }
 
+// src/google.ts
+var GOOGLE_SHOWN_REVIEWS = 5;
+var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
+var BOOTSTRAP_MS = 3600 * 1e3;
+var plural2 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+function ratingWords(rating) {
+  return typeof rating === "number" && Number.isFinite(rating) ? `${rating.toFixed(1)} \u2605` : "no rating yet";
+}
+function starsOf(rating) {
+  const n = typeof rating === "number" && Number.isFinite(rating) ? Math.max(0, Math.min(5, Math.round(rating))) : 0;
+  return "\u2605".repeat(n) + "\u2606".repeat(5 - n);
+}
+function reviewsWords(count) {
+  return typeof count === "number" ? plural2(count, "review") : "reviews not counted yet";
+}
+function listingLine(l) {
+  if (!l.review_count) return `${l.name} \xB7 no reviews on Google yet`;
+  return `${l.name} \xB7 ${ratingWords(l.rating)} \xB7 ${reviewsWords(l.review_count)} on Google`;
+}
+function checkedWords(l, nowMs) {
+  if (l.check_error && l.checked_at) return `Google could not be read since ${agoWords(Date.parse(l.checked_at), nowMs)} \u2014 tried again every hour`;
+  if (l.check_error) return "Google could not be read yet \u2014 tried again every hour";
+  if (l.checked_at) return `Checked ${agoWords(Date.parse(l.checked_at), nowMs)}`;
+  return "Not read yet";
+}
+function reviewSnippet(body, max = 90) {
+  const t = (body ?? "").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}\u2026` : t;
+}
+var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS3 = 7 * 864e5;
+function whenWords(iso, nowMs) {
+  if (!iso) return "";
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) return "";
+  return agoWords(at, nowMs, { dateAfterMs: WEEK_MS3, date: (ms2) => DATE_FMT5.format(new Date(ms2)) });
+}
+function shiftDay(day, n) {
+  const d = dayDate(day);
+  d.setDate(d.getDate() + n);
+  const p = (x) => String(x).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+function reviewIsNew(r, linkedAt, nowMs) {
+  const seen = Date.parse(r.first_seen_at);
+  const linked = Date.parse(linkedAt);
+  if (Number.isNaN(seen)) return false;
+  if (nowMs - seen > REVIEW_NEWS_MS) return false;
+  if (!Number.isNaN(linked) && seen - linked < BOOTSTRAP_MS) return false;
+  const written = r.published_at ? Date.parse(r.published_at) : NaN;
+  if (Number.isNaN(written)) return false;
+  return nowMs - written <= REVIEW_NEWS_MAX_AGE_MS;
+}
+function toGoogleReviewVM(r, linkedAt, nowMs) {
+  return {
+    id: r.id,
+    stars: starsOf(r.rating),
+    rating: r.rating,
+    author: r.author?.trim() || "A customer",
+    when: whenWords(r.published_at, nowMs),
+    text: (r.body ?? "").replace(/\s+/g, " ").trim(),
+    replied: !!r.reply_text,
+    mapsUri: r.maps_uri,
+    isNew: reviewIsNew(r, linkedAt, nowMs)
+  };
+}
+var EMPTY_GAINED = { points: [], max: 0, total: null, sinceLabel: null };
+function gainedOver(days, periodDays) {
+  const sorted = [...days].sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
+  if (sorted.length < 2) return { current: EMPTY_GAINED, previous: null };
+  const last = sorted[sorted.length - 1];
+  const since = shiftDay(last.day, -(periodDays - 1));
+  const before = sorted.filter((d) => d.day < since);
+  const inside = sorted.filter((d) => d.day >= since);
+  const baseline = before.length ? before[before.length - 1] : inside[0];
+  const total = last.review_count - baseline.review_count;
+  const sinceLabel = before.length ? null : fmtDay(baseline.day);
+  const byDay = new Map(sorted.map((d) => [d.day, d.review_count]));
+  const points = [];
+  let prev = before.length ? baseline.review_count : null;
+  for (let day = since; day <= last.day; day = shiftDay(day, 1)) {
+    const count = byDay.get(day);
+    const gained = count !== void 0 && prev !== null ? Math.max(0, count - prev) : 0;
+    if (count !== void 0) prev = count;
+    points.push({ day, label: fmtDay(day), short: String(dayDate(day).getDate()), gained });
+  }
+  const max = Math.max(0, ...points.map((p) => p.gained));
+  const prevSince = shiftDay(since, -periodDays);
+  const prevBefore = sorted.filter((d) => d.day < prevSince);
+  const prevInside = sorted.filter((d) => d.day >= prevSince && d.day < since);
+  const previous = prevBefore.length && prevInside.length ? prevInside[prevInside.length - 1].review_count - prevBefore[prevBefore.length - 1].review_count : null;
+  return { current: { points, max, total: before.length || inside.length >= 2 ? total : null, sinceLabel }, previous };
+}
+function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
+  const l = dto.listing;
+  const table = { columns: ["Reviewer", "Stars", "Written", "Words"], rows: [] };
+  if (!l) return { listing: null, tiles: [], gained: EMPTY_GAINED, latest: [], table, todayLine: null };
+  const latest = [...dto.reviews].sort((a, b) => (Date.parse(b.published_at ?? "") || 0) - (Date.parse(a.published_at ?? "") || 0)).map((r) => toGoogleReviewVM(r, l.linked_at, nowMs));
+  table.rows = latest.map((r) => [r.author, r.rating ?? "\u2014", r.when || "\u2014", r.text || "\u2014"]);
+  const days = [...dto.days].sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
+  const { current: gained, previous } = gainedOver(days, periodDays);
+  const noun = `${periodDays} days`;
+  const inPeriod = days.length ? days.filter((d) => d.day >= shiftDay(days[days.length - 1].day, -(periodDays - 1))) : [];
+  const ratingSpark = inPeriod.map((d) => d.rating ?? 0);
+  const countSpark = inPeriod.map((d) => d.review_count);
+  const baselineRating = (() => {
+    if (!days.length) return null;
+    const since = shiftDay(days[days.length - 1].day, -(periodDays - 1));
+    const before = days.filter((d) => d.day < since);
+    return before.length ? before[before.length - 1].rating : null;
+  })();
+  const ratingDelta = typeof l.rating === "number" && typeof baselineRating === "number" ? Math.abs(l.rating - baselineRating) < 0.05 ? { text: `same as ${noun} ago`, tone: "" } : { text: `${l.rating - baselineRating > 0 ? "+" : ""}${(l.rating - baselineRating).toFixed(1)} vs ${noun} ago`, tone: l.rating > baselineRating ? "pos" : "neg" } : null;
+  const newest = latest[0] ?? null;
+  const checked = checkedWords(l, nowMs);
+  const tiles = [
+    {
+      id: "rating",
+      label: "Rating on Google",
+      value: typeof l.rating === "number" ? l.rating.toFixed(1) : "\u2014",
+      meta: `${reviewsWords(l.review_count)} \xB7 ${checked.toLowerCase()}`,
+      delta: ratingDelta,
+      spark: ratingSpark
+    },
+    {
+      id: "reviews",
+      label: "Reviews on Google",
+      value: typeof l.review_count === "number" ? String(l.review_count) : "\u2014",
+      meta: "as Google counts them, with or without words",
+      delta: null,
+      spark: countSpark
+    },
+    {
+      id: "gained",
+      label: `Gained in ${noun}`,
+      value: gained.total === null ? "\u2014" : String(gained.total),
+      meta: gained.total === null ? "needs a second day of reading" : gained.sinceLabel ? `since ${gained.sinceLabel}, the first day on record` : `new ratings, words or not`,
+      delta: gained.total !== null && previous !== null ? deltaOf(gained.total, previous, true, noun) : null,
+      spark: gained.points.map((p) => p.gained)
+    },
+    {
+      id: "newest",
+      label: "Newest review",
+      value: newest?.when || "\u2014",
+      meta: newest ? `${newest.stars} \xB7 ${newest.author}` : "none of the five Google shows has a date",
+      delta: null,
+      spark: []
+    }
+  ];
+  const news = latest.find((r) => r.isNew) ?? null;
+  const todayLine = news ? { text: `New on Google: ${news.stars} from ${news.author}${news.text ? ` \u2014 \u201C${reviewSnippet(news.text)}\u201D` : ""}`, to: "reports" } : null;
+  return {
+    listing: {
+      name: l.name,
+      address: l.address,
+      ratingLabel: ratingWords(l.rating),
+      count: l.review_count,
+      checked,
+      mapsUri: l.maps_uri,
+      trouble: !!l.check_error
+    },
+    tiles,
+    gained,
+    latest,
+    table,
+    todayLine
+  };
+}
+
 // src/setup.ts
 var LINE_STEP_WORDS = {
   subaccount: "opening your account with the carrier",
@@ -5287,7 +5464,7 @@ var SETUP_STATE_WORDS = {
   ready: "Ready"
 };
 var display = (e164) => e164 ? formatPhoneDisplay(e164) : null;
-var plural2 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+var plural3 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 function setupSteps(i, nowMs = Date.now()) {
   const later = new Set(i.later ?? []);
   const wa = i.channels.whatsapp;
@@ -5306,7 +5483,7 @@ function setupSteps(i, nowMs = Date.now()) {
     if (b.broken) {
       row({ id: "facts", icon: "home", title: "Business facts", state: "waiting_you", required: true, sentence: "Your settings could not be read. Open Workspace to repair them before anything else.", details: [], verb: { label: "Open Workspace", to: "admin/workspace" } });
     } else if (missing.length === 0) {
-      row({ id: "facts", icon: "home", title: "Business facts", state: "ready", required: true, sentence: `${b.name} \xB7 hours set \xB7 ${plural2(b.services, "service")} on record`, details: [b.bookingLink ? "Booking link on record" : "No booking link \u2014 the receptionist answers, but cannot send one", b.address ? "Address on record" : "No address yet"], verb: { label: "Edit in Workspace", to: "admin/workspace" } });
+      row({ id: "facts", icon: "home", title: "Business facts", state: "ready", required: true, sentence: `${b.name} \xB7 hours set \xB7 ${plural3(b.services, "service")} on record`, details: [b.bookingLink ? "Booking link on record" : "No booking link \u2014 the receptionist answers, but cannot send one", b.address ? "Address on record" : "No address yet"], verb: { label: "Edit in Workspace", to: "admin/workspace" } });
     } else {
       const none = missing.length === 3;
       row({ id: "facts", icon: "home", title: "Business facts", state: none ? "not_started" : "waiting_you", required: true, sentence: none ? "Name, hours and services are what the receptionist answers with." : `Still missing: ${missing.join(" and ")}.`, details: [], verb: { label: none ? "Start in Workspace" : "Finish in Workspace", to: "admin/workspace" } });
@@ -5367,7 +5544,7 @@ function setupSteps(i, nowMs = Date.now()) {
     const metaWaits = t.approved === 0 && t.pending > 0;
     const details = [
       wa.quality ? `Quality ${wa.quality.toLowerCase()}` : "",
-      t.approved ? `${plural2(t.approved, "approved message")}` : t.pending ? `${plural2(t.pending, "message")} with Meta for approval` : "No approved messages yet",
+      t.approved ? `${plural3(t.approved, "approved message")}` : t.pending ? `${plural3(t.pending, "message")} with Meta for approval` : "No approved messages yet",
       t.startersApproved < 5 ? "Add the starter messages: welcome, win-back, the month's offer" : "",
       wa.lastInboundAt ? `Last message ${agoWords(Date.parse(wa.lastInboundAt), nowMs)}` : ""
     ].filter(Boolean);
@@ -5381,8 +5558,8 @@ function setupSteps(i, nowMs = Date.now()) {
   {
     const t = i.team;
     const people = t.members > 1 || t.invitesOpen > 0;
-    const who = `${plural2(t.members, "person", "people")}${t.invitesOpen ? ` \xB7 ${plural2(t.invitesOpen, "invite")} open` : ""}`;
-    const alerts = t.alertEmails ? `alerts go to ${plural2(t.alertEmails, "address", "addresses")}` : "no alert address yet";
+    const who = `${plural3(t.members, "person", "people")}${t.invitesOpen ? ` \xB7 ${plural3(t.invitesOpen, "invite")} open` : ""}`;
+    const alerts = t.alertEmails ? `alerts go to ${plural3(t.alertEmails, "address", "addresses")}` : "no alert address yet";
     row({
       id: "team",
       icon: "users",
@@ -5394,7 +5571,18 @@ function setupSteps(i, nowMs = Date.now()) {
       verb: !t.alertEmails ? { label: "Set alerts", to: "admin/notifications" } : !people ? { label: "Invite", to: "admin/workspace" } : { label: "Open Team", to: "admin/workspace" }
     });
   }
-  row(i.consent.yes > 0 ? { id: "yes", icon: "tag", title: "The first yes", state: "ready", required: false, sentence: `${plural2(i.consent.yes, "person", "people")} said yes to offers.`, details: [], verb: { label: "Open Broadcasts", to: "broadcasts" } } : { id: "yes", icon: "tag", title: "The first yes", state: "not_started", required: false, sentence: "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.", details: [], verb: { label: "Get their yes", to: "broadcasts" } });
+  row(i.consent.yes > 0 ? { id: "yes", icon: "tag", title: "The first yes", state: "ready", required: false, sentence: `${plural3(i.consent.yes, "person", "people")} said yes to offers.`, details: [], verb: { label: "Open Broadcasts", to: "broadcasts" } } : { id: "yes", icon: "tag", title: "The first yes", state: "not_started", required: false, sentence: "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.", details: [], verb: { label: "Get their yes", to: "broadcasts" } });
+  if (i.google?.ready) {
+    const g = i.google.listing;
+    const title = "Your Google listing";
+    if (g && g.check_error) {
+      row({ id: "google", icon: "star", title, state: "waiting_them", stateWords: "Waiting on Google", required: false, sentence: `${g.name} is on record, but Google could not be read${g.checked_at ? ` since ${agoWords(Date.parse(g.checked_at), nowMs)}` : " yet"} \u2014 it is tried again every hour.`, details: [], verb: { label: "Open Reports", to: "reports" } });
+    } else if (g) {
+      row({ id: "google", icon: "star", title, state: "ready", required: false, sentence: `${listingLine(g)}.`, details: [g.checked_at ? `Checked ${agoWords(Date.parse(g.checked_at), nowMs)}` : "Not read yet", "New reviews reach your bell and Reports"], verb: { label: "Open Reports", to: "reports" } });
+    } else {
+      row({ id: "google", icon: "star", title, state: "not_started", required: false, sentence: "Find your business on Google so new reviews reach you here.", details: [i.business.address ? "Uses the name and address on record" : "Add your address in Workspace for a surer match"], verb: { label: "Find it", to: "verb:google-find" } });
+    }
+  }
   const open = rows.filter((r) => r.state !== "ready" && !r.later);
   const nextRow = open.find((r) => r.verb) ?? null;
   const next = nextRow && nextRow.verb ? { label: nextRow.verb.label, to: nextRow.verb.to, row: nextRow.id, title: nextRow.title } : null;
@@ -5567,6 +5755,7 @@ export {
   FORWARDING_MODES,
   FORWARDING_TEST_WINDOW_MS,
   FeaturesConfigSchema,
+  GOOGLE_SHOWN_REVIEWS,
   GuardrailsSchema,
   HELD_REASONS,
   HoursSchema,
@@ -5623,6 +5812,8 @@ export {
   REPLY_DELAY_MAX_MS,
   REPLY_DELAY_MIN_MS,
   REPORT_RANGES,
+  REVIEW_NEWS_MAX_AGE_MS,
+  REVIEW_NEWS_MS,
   ROLES,
   ROLE_PERMS,
   ROLE_WORDS,
@@ -5664,6 +5855,7 @@ export {
   buildNotificationFeed,
   callOutcomeOf,
   callOutcomeWords,
+  checkedWords,
   citationRoute,
   citationsToShow,
   cleanAnswer,
@@ -5719,6 +5911,7 @@ export {
   frameSteer,
   frameWhisper,
   freeWindows,
+  gainedOver,
   groundCitations,
   guessName,
   guessSlotKind,
@@ -5741,6 +5934,7 @@ export {
   isThemePref,
   isTypingTarget,
   isUngrounded,
+  listingLine,
   localDate,
   localHour,
   localToUtcMs,
@@ -5788,6 +5982,7 @@ export {
   policyClassOfIntent,
   policyRules,
   quantile,
+  ratingWords,
   reachedCustomer,
   readAgoLabel,
   reasonShort,
@@ -5799,6 +5994,9 @@ export {
   resolveParams,
   resolveSystemPrompt,
   resolveTheme,
+  reviewIsNew,
+  reviewSnippet,
+  reviewsWords,
   rulesLine,
   runDueNow,
   safeNavigate,
@@ -5820,6 +6018,7 @@ export {
   spanLabel,
   spanUnits,
   standingOf,
+  starsOf,
   starterByKey,
   starterByName,
   starterDraft,
@@ -5840,6 +6039,8 @@ export {
   toCampaignReportVM,
   toChannelVM,
   toConversationVM,
+  toGoogleReviewVM,
+  toGoogleVM,
   toInboxThreadVM,
   toLiveCallVM,
   toLiveVM,

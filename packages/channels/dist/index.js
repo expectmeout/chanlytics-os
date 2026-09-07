@@ -129,26 +129,26 @@ var util;
   }
   util2.assertNever = assertNever;
   util2.arrayToEnum = (items) => {
-    const obj = {};
+    const obj2 = {};
     for (const item of items) {
-      obj[item] = item;
+      obj2[item] = item;
     }
-    return obj;
+    return obj2;
   };
-  util2.getValidEnumValues = (obj) => {
-    const validKeys = util2.objectKeys(obj).filter((k) => typeof obj[obj[k]] !== "number");
+  util2.getValidEnumValues = (obj2) => {
+    const validKeys = util2.objectKeys(obj2).filter((k) => typeof obj2[obj2[k]] !== "number");
     const filtered = {};
     for (const k of validKeys) {
-      filtered[k] = obj[k];
+      filtered[k] = obj2[k];
     }
     return util2.objectValues(filtered);
   };
-  util2.objectValues = (obj) => {
-    return util2.objectKeys(obj).map(function(e) {
-      return obj[e];
+  util2.objectValues = (obj2) => {
+    return util2.objectKeys(obj2).map(function(e) {
+      return obj2[e];
     });
   };
-  util2.objectKeys = typeof Object.keys === "function" ? (obj) => Object.keys(obj) : (object) => {
+  util2.objectKeys = typeof Object.keys === "function" ? (obj2) => Object.keys(obj2) : (object) => {
     const keys = [];
     for (const key in object) {
       if (Object.prototype.hasOwnProperty.call(object, key)) {
@@ -269,8 +269,8 @@ var ZodIssueCode = util.arrayToEnum([
   "not_multiple_of",
   "not_finite"
 ]);
-var quotelessJson = (obj) => {
-  const json = JSON.stringify(obj, null, 2);
+var quotelessJson = (obj2) => {
+  const json = JSON.stringify(obj2, null, 2);
   return json.replace(/"([^"]+)":/g, "$1:");
 };
 var ZodError = class _ZodError extends Error {
@@ -4513,6 +4513,23 @@ var DAY_MS5 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS5;
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
+var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
+var BOOTSTRAP_MS = 3600 * 1e3;
+function ratingWords(rating) {
+  return typeof rating === "number" && Number.isFinite(rating) ? `${rating.toFixed(1)} \u2605` : "no rating yet";
+}
+function starsOf(rating) {
+  const n = typeof rating === "number" && Number.isFinite(rating) ? Math.max(0, Math.min(5, Math.round(rating))) : 0;
+  return "\u2605".repeat(n) + "\u2606".repeat(5 - n);
+}
+function reviewSnippet(body, max = 90) {
+  const t = (body ?? "").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}\u2026` : t;
+}
+var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS3 = 7 * 864e5;
 
 // src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";
@@ -4766,24 +4783,24 @@ async function getAgent(cfg, agentId) {
   });
   if (!r.ok) return null;
   const a = await r.json();
-  const str2 = (k) => typeof a[k] === "string" ? a[k] : null;
-  const num = (k) => typeof a[k] === "number" ? a[k] : null;
+  const str3 = (k) => typeof a[k] === "string" ? a[k] : null;
+  const num2 = (k) => typeof a[k] === "number" ? a[k] : null;
   const bool = (k) => typeof a[k] === "boolean" ? a[k] : null;
   const engine = a.response_engine ?? {};
   return {
-    agent_id: str2("agent_id") ?? agentId,
-    agent_name: str2("agent_name"),
-    version: num("version"),
+    agent_id: str3("agent_id") ?? agentId,
+    agent_name: str3("agent_name"),
+    version: num2("version"),
     is_published: bool("is_published"),
     llm_id: engine.type === "retell-llm" && typeof engine.llm_id === "string" ? engine.llm_id : null,
     llm_version: typeof engine.version === "number" ? engine.version : null,
     // The URL only, never its query string: Retell lets a secret ride there
     // (?key=...) and this object is meant to be printed by a diagnostic.
-    webhook_url: str2("webhook_url")?.split("?")[0] ?? null,
+    webhook_url: str3("webhook_url")?.split("?")[0] ?? null,
     webhook_events: Array.isArray(a.webhook_events) ? a.webhook_events.map(String) : null,
-    webhook_timeout_ms: num("webhook_timeout_ms"),
-    data_storage_setting: str2("data_storage_setting"),
-    data_storage_retention_days: num("data_storage_retention_days"),
+    webhook_timeout_ms: num2("webhook_timeout_ms"),
+    data_storage_setting: str3("data_storage_setting"),
+    data_storage_retention_days: num2("data_storage_retention_days"),
     opt_in_signed_url: bool("opt_in_signed_url"),
     post_call_analysis_data: Array.isArray(a.post_call_analysis_data) ? a.post_call_analysis_data : null
   };
@@ -4868,14 +4885,14 @@ async function getRetellLlm(cfg, llmId, version) {
   });
   if (!r.ok) return null;
   const l = await r.json();
-  const str2 = (k) => typeof l[k] === "string" ? l[k] : null;
+  const str3 = (k) => typeof l[k] === "string" ? l[k] : null;
   return {
-    llm_id: str2("llm_id") ?? llmId,
+    llm_id: str3("llm_id") ?? llmId,
     version: typeof l.version === "number" ? l.version : null,
-    model: str2("model"),
+    model: str3("model"),
     model_temperature: typeof l.model_temperature === "number" ? l.model_temperature : null,
-    general_prompt: str2("general_prompt"),
-    begin_message: str2("begin_message"),
+    general_prompt: str3("general_prompt"),
+    begin_message: str3("begin_message"),
     default_dynamic_variables: l.default_dynamic_variables && typeof l.default_dynamic_variables === "object" ? l.default_dynamic_variables : null,
     general_tools: Array.isArray(l.general_tools) ? l.general_tools : null,
     knowledge_base_ids: Array.isArray(l.knowledge_base_ids) ? l.knowledge_base_ids.map(String) : null
@@ -5062,10 +5079,10 @@ function planVoiceConvergence(live, desired) {
 function voiceShellDrift(live) {
   const booking = (live.general_tools ?? []).find((t) => t.name === "send_booking_link");
   const url = typeof booking?.url === "string" ? booking.url : DEFAULT_FN_URL;
-  const headers = booking?.headers ?? null;
-  const plan = planVoiceConvergence(live, desiredVoiceShell(url, headers));
+  const headers2 = booking?.headers ?? null;
+  const plan = planVoiceConvergence(live, desiredVoiceShell(url, headers2));
   const drift = [...plan.drift];
-  if (booking && !headers) drift.push("send_booking_link has no x-fn-secret header \u2014 the edge will refuse it");
+  if (booking && !headers2) drift.push("send_booking_link has no x-fn-secret header \u2014 the edge will refuse it");
   return { converged: drift.length === 0, drift };
 }
 var VOICE_WEBHOOK_EVENTS = ["call_started", "call_ended", "call_analyzed", "transcript_updated"];
@@ -5647,16 +5664,212 @@ async function runLineSaga(start, ports) {
     return { ok: false, step: at, error, line };
   }
 }
+
+// src/google-places.ts
+var PLACES_BASE = "https://places.googleapis.com/v1";
+var PLACES_SEARCH_MASK = "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,places.businessStatus";
+var PLACES_DETAILS_MASK = "id,displayName,formattedAddress,googleMapsUri,businessStatus,rating,userRatingCount,reviews";
+var PLACES_SEARCH_LIMIT = 5;
+var PLACES_TIMEOUT_MS = 1e4;
+var PlacesError = class extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+    this.name = "PlacesError";
+  }
+  status;
+};
+function headers(key, mask, json = false) {
+  return { "X-Goog-Api-Key": key, "X-Goog-FieldMask": mask, ...json ? { "Content-Type": "application/json" } : {} };
+}
+function placesSearchRequest(key, query, opts = {}) {
+  const pageSize = Math.max(1, Math.min(20, opts.limit ?? PLACES_SEARCH_LIMIT));
+  return {
+    url: `${PLACES_BASE}/places:searchText`,
+    method: "POST",
+    headers: headers(key, PLACES_SEARCH_MASK, true),
+    body: JSON.stringify({ textQuery: query, pageSize, languageCode: opts.languageCode ?? "en" })
+  };
+}
+function placesDetailsRequest(key, placeId, opts = {}) {
+  const q = new URLSearchParams({ languageCode: opts.languageCode ?? "en" });
+  return {
+    url: `${PLACES_BASE}/places/${encodeURIComponent(placeId)}?${q.toString()}`,
+    method: "GET",
+    headers: headers(key, PLACES_DETAILS_MASK)
+  };
+}
+var obj = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
+var str2 = (v) => typeof v === "string" && v.trim() ? v : null;
+var num = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
+var localized = (v) => {
+  const o = obj(v);
+  return { text: str2(o?.text), languageCode: str2(o?.languageCode) };
+};
+function candidateOf(p) {
+  const id = str2(p.id);
+  const name = localized(p.displayName).text;
+  if (!id || !name) return null;
+  return { place_id: id, name, address: str2(p.formattedAddress), maps_uri: str2(p.googleMapsUri), business_status: str2(p.businessStatus) };
+}
+function reviewIdOf(name) {
+  const s = str2(name);
+  if (!s) return null;
+  const last = s.split("/").pop();
+  return last && last.length > 0 ? last : null;
+}
+function reviewOf(r) {
+  const id = reviewIdOf(r.name);
+  if (!id) return null;
+  const author = obj(r.authorAttribution);
+  const text = localized(r.text);
+  return {
+    review_id: id,
+    rating: num(r.rating),
+    author: str2(author?.displayName),
+    author_uri: str2(author?.uri),
+    author_photo_uri: str2(author?.photoUri),
+    text: text.text,
+    language_code: text.languageCode,
+    published_at: str2(r.publishTime),
+    maps_uri: str2(r.googleMapsUri)
+  };
+}
+function parsePlacesSearch(json) {
+  const places = obj(json)?.places;
+  if (!Array.isArray(places)) return [];
+  return places.map((p) => obj(p) ? candidateOf(obj(p)) : null).filter((c) => c !== null);
+}
+function parsePlaceDetails(json) {
+  const p = obj(json);
+  const id = str2(p?.id);
+  const name = localized(p?.displayName).text;
+  if (!p || !id || !name) throw new PlacesError(502, "Google answered without a place");
+  const reviews = Array.isArray(p.reviews) ? p.reviews.map((r) => obj(r) ? reviewOf(obj(r)) : null).filter((r) => r !== null) : [];
+  return {
+    place_id: id,
+    name,
+    address: str2(p.formattedAddress),
+    maps_uri: str2(p.googleMapsUri),
+    business_status: str2(p.businessStatus),
+    rating: num(p.rating),
+    review_count: num(p.userRatingCount),
+    reviews
+  };
+}
+function refusal(status, body) {
+  let message = `Google answered ${status}`;
+  try {
+    const e = obj(obj(JSON.parse(body))?.error);
+    const m = str2(e?.message);
+    const s = str2(e?.status);
+    if (m) message = s ? `${s}: ${m}` : m;
+  } catch {
+  }
+  return new PlacesError(status, message);
+}
+async function call(http, req) {
+  const r = await http(req);
+  if (r.status < 200 || r.status >= 300) throw refusal(r.status, r.body);
+  try {
+    return JSON.parse(r.body);
+  } catch {
+    throw new PlacesError(502, "Google answered with something other than JSON");
+  }
+}
+async function searchPlaces(http, key, query, opts = {}) {
+  return parsePlacesSearch(await call(http, placesSearchRequest(key, query, opts)));
+}
+async function getPlace(http, key, placeId, opts = {}) {
+  return parsePlaceDetails(await call(http, placesDetailsRequest(key, placeId, opts)));
+}
+function placesFetch(fetchImpl = fetch, timeoutMs = PLACES_TIMEOUT_MS) {
+  return async (req) => {
+    const r = await fetchImpl(req.url, { method: req.method, headers: req.headers, body: req.body, signal: AbortSignal.timeout(timeoutMs) });
+    return { status: r.status, body: await r.text() };
+  };
+}
+var PLACE_ID = /^[A-Za-z0-9_-]{10,300}$/;
+
+// src/google-sync.ts
+var REVIEW_BELL_MAX = 3;
+var FRESH_SLACK_MS = 2 * 864e5;
+var plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+function writtenSince(r, sinceMs) {
+  const at = r.published_at ? Date.parse(r.published_at) : NaN;
+  return !Number.isNaN(at) && at >= sinceMs - FRESH_SLACK_MS;
+}
+function overall(rating, count) {
+  return `${ratingWords(rating)} overall${typeof count === "number" ? ` \xB7 ${plural(count, "review")}` : ""}`;
+}
+function planListingCheck(before, knownIds, fresh, day, nowMs) {
+  const now = new Date(nowMs).toISOString();
+  const first = !before.checked_at;
+  const sinceMs = before.checked_at ? Date.parse(before.checked_at) : NaN;
+  const unseen = fresh.reviews.filter((r) => !knownIds.has(r.review_id));
+  const news = first || Number.isNaN(sinceMs) ? [] : unseen.filter((r) => writtenSince(r, sinceMs));
+  const counted = first || typeof before.review_count !== "number" || typeof fresh.review_count !== "number" ? 0 : Math.max(0, fresh.review_count - before.review_count);
+  const bells = [];
+  if (news.length > 0 && news.length <= REVIEW_BELL_MAX) {
+    for (const r of news) {
+      bells.push({
+        title: `New on Google: ${starsOf(r.rating)} from ${r.author?.trim() || "a customer"}`,
+        body: `${r.text?.trim() ? `\u201C${reviewSnippet(r.text, 280)}\u201D` : "A rating without words."}
+${overall(fresh.rating, fresh.review_count)}.`,
+        review_id: r.review_id
+      });
+    }
+  } else if (news.length > REVIEW_BELL_MAX) {
+    const who = news.map((r) => r.author?.trim() || "a customer").slice(0, 5).join(", ");
+    bells.push({
+      title: `${news.length} new reviews on Google`,
+      body: `From ${who}${news.length > 5 ? " and others" : ""}. ${overall(fresh.rating, fresh.review_count)}. The words are on Reports.`,
+      review_id: null
+    });
+  } else if (counted > 0) {
+    bells.push({
+      title: `${plural(counted, "new rating")} on Google`,
+      body: `${overall(fresh.rating, fresh.review_count)}. Google shows the words of its five most relevant reviews; a rating outside them counts without its words.`,
+      review_id: null
+    });
+  }
+  return {
+    listing: {
+      name: fresh.name,
+      address: fresh.address,
+      maps_uri: fresh.maps_uri,
+      business_status: fresh.business_status,
+      rating: fresh.rating,
+      review_count: fresh.review_count,
+      checked_at: now,
+      check_error: null
+    },
+    day: { day, rating: fresh.rating, review_count: fresh.review_count ?? 0 },
+    reviews: fresh.reviews.map((r) => ({ ...r, last_seen_at: now })),
+    fresh: news,
+    counted,
+    bells
+  };
+}
 export {
   CALLER_UNKNOWN,
   CALL_ANALYSIS_FIELDS,
   DEFAULT_FN_URL,
   FACTS_UNAVAILABLE,
+  FRESH_SLACK_MS,
   GREETING_DEFAULT,
   HANDOFF_VAR,
   LINE_COSTS,
   LINE_STEPS,
+  PLACES_BASE,
+  PLACES_DETAILS_MASK,
+  PLACES_SEARCH_LIMIT,
+  PLACES_SEARCH_MASK,
+  PLACES_TIMEOUT_MS,
+  PLACE_ID,
+  PlacesError,
   RETELL_ORIGINATION,
+  REVIEW_BELL_MAX,
   TwilioError,
   VOICE_AGENT_DEFAULTS,
   VOICE_LLM_DEFAULTS,
@@ -5682,6 +5895,7 @@ export {
   getAgentRaw,
   getCall,
   getPhoneNumber,
+  getPlace,
   getRetellLlm,
   importPhoneNumber,
   isAreaCode,
@@ -5693,13 +5907,21 @@ export {
   nextLineStep,
   normalizeCall,
   normalizeInbound,
+  parsePlaceDetails,
+  parsePlacesSearch,
   parseTranscriptText,
+  placesDetailsRequest,
+  placesFetch,
+  placesSearchRequest,
   planAgentSettings,
+  planListingCheck,
   planVoiceConvergence,
   planVoiceProvision,
   publishAgentVersion,
   retellImportBody,
+  reviewIdOf,
   runLineSaga,
+  searchPlaces,
   sendTemplate,
   sendText,
   sipPassword,

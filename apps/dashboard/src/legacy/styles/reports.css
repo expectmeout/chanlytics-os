@@ -311,13 +311,14 @@
 .rp2-tile-meta { font-size: 11px; color: var(--ink-dim); line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rp2-tile-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-top: 3px; min-height: 24px; }
 .rp2-delta { font-size: 10.5px; white-space: normal; line-height: 1.25; min-width: 0; }
+.rp2-tiles.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 1100px) {
-  .rp2-tiles, .rp2-tiles.five { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .rp2-tiles, .rp2-tiles.five, .rp2-tiles.four { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .rp2-tile { border-bottom: 1px solid var(--line); }
   .rp2-tile:nth-child(3n) { border-right: none; }
 }
 @media (max-width: 640px) {
-  .rp2-tiles, .rp2-tiles.five { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rp2-tiles, .rp2-tiles.five, .rp2-tiles.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rp2-tile:nth-child(3n) { border-right: 1px solid var(--line); }
   .rp2-tile:nth-child(2n) { border-right: none; }
 }
@@ -352,3 +353,14 @@
 .rp2-booking-bar { height: 4px; border-radius: 999px; background: var(--line); overflow: hidden; }
 .rp2-booking-bar span { display: block; height: 100%; background: var(--ok); border-radius: 999px; }
 .rp2-booking-sub { font-size: 11.5px; color: var(--ink-dim); line-height: 1.4; }
+
+/* ---- Google reviews: the words Google shows, with their stars ---- */
+.rp2-reviews { display: flex; flex-direction: column; gap: 8px; }
+.rp2-review { display: grid; gap: 3px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-raised); }
+.rp2-review.is-new { border-color: var(--accent); }
+.rp2-review-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.rp2-review-stars { color: var(--warn); letter-spacing: 1px; font-size: 12px; white-space: nowrap; }
+.rp2-review-who { font-size: 12.5px; font-weight: 500; color: var(--ink); }
+.rp2-review-when { font-size: 11px; color: var(--ink-dim); margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rp2-review-text { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.rp2-review-text.dim { color: var(--ink-dim); font-style: italic; }

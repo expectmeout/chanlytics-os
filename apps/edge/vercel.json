@@ -14,6 +14,12 @@
     },
     "api/admin/lines.ts": {
       "maxDuration": 60
+    },
+    "api/admin/google.ts": {
+      "maxDuration": 30
+    },
+    "api/cron/google.ts": {
+      "maxDuration": 60
     }
   }
 }

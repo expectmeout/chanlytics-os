@@ -74,6 +74,29 @@ const SetupLine = ({ nav }) => {
   );
 };
 
+// A review on Google, the morning it lands: first seen in the last day and
+// a half, written recently, not part of the first read (contracts/google.ts
+// reviewIsNew). From the Google surface, which boots with the rest. Gone
+// once it is old news.
+const ReviewLine = ({ nav }) => {
+  const [, bump] = React.useReducer((n) => n + 1, 0);
+  React.useEffect(() => {
+    window.addEventListener("surface:google", bump);
+    return () => window.removeEventListener("surface:google", bump);
+  }, []);
+  const G = window.__GOOGLE;
+  if (!G || !G.dto.listing || !window.__google) return null;
+  const line = window.__google.vm(G.dto, 30).todayLine;
+  if (!line) return null;
+  return (
+    <div className="brief-beat" data-testid="brief-review">
+      <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
+      <span className="brief-beat-text">{line.text}</span>
+      <button className="brief-chip" onClick={() => nav(line.to)}>Open Reports <Icon name="arrow-right" size={10} /></button>
+    </div>
+  );
+};
+
 const HeroBrief = () => {
   const [, force] = React.useState(0);
   React.useEffect(() => {
@@ -122,6 +145,7 @@ const HeroBriefReal = ({ vm }) => {
               </div>
             )}
             <SetupLine nav={nav} />
+            <ReviewLine nav={nav} />
             {quiet && (
               <div className="brief-beat">
                 <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />

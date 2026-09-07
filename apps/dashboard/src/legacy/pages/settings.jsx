@@ -1787,6 +1787,7 @@ const PaneIntegrations = ({ flash }) => {
 
 const INT_NOT_AVAILABLE = [
   { name: "Instagram", desc: "Direct messages", icon: "instagram" },
+  { name: "Google Business Profile", desc: "Replies to reviews and the full history — arrives with Google's approval of the connection; the public listing is watched above", icon: "star" },
   { name: "Google Calendar", desc: "Two-way sync — for now, paste its iCal feed in Workspace and the receptionist reads it", icon: "calendar" },
   { name: "Stripe", desc: "Deposits and payments", icon: "money" },
   { name: "Email", desc: "An address the receptionist answers", icon: "mail" },
@@ -2049,6 +2050,84 @@ const TemplatesCard = () => {
   );
 };
 
+// Your listing on Google, as the edge last read it: the name, the rating and
+// the count, when it was read; Check now for an operator, Remove for an
+// owner. Finding it lives on Setup, beside the facts it is found from.
+// Shown only when this deployment can look listings up.
+const GoogleCard = () => {
+  const [, bump] = React.useReducer((n) => n + 1, 0);
+  React.useEffect(() => {
+    window.addEventListener("surface:google", bump);
+    return () => window.removeEventListener("surface:google", bump);
+  }, []);
+  const [busy, setBusy] = React.useState(false);
+  const [arm, setArm] = React.useState(false);
+  const [toastNode, flash] = window.usePPToast();
+  const G = window.__GOOGLE;
+  const W = window.__google && window.__google.words;
+  if (!G || !G.dto.ready.places || !W) return null;
+  const l = G.dto.listing;
+  const owner = window.canDo ? window.canDo("team") : false;
+  const operator = window.canDo ? window.canDo("approve") : false;
+  const check = async () => {
+    if (!window.__google || busy) return;
+    setBusy(true);
+    const r = await window.__google.refresh();
+    setBusy(false);
+    const news = r.fresh ? `${r.fresh} new review${r.fresh === 1 ? "" : "s"}` : r.counted ? `${r.counted} new rating${r.counted === 1 ? "" : "s"}` : "";
+    flash({ msg: r.ok ? (news ? <>Read just now — {news}. The bell has {r.fresh === 1 || (!r.fresh && r.counted === 1) ? "it" : "them"}.</> : <>Read just now — nothing new since the last read.</>) : <>{r.message}</> });
+  };
+  const remove = async () => {
+    if (!window.__google || busy) return;
+    setBusy(true);
+    const r = await window.__google.unlink();
+    setBusy(false);
+    setArm(false);
+    flash({ msg: r.ok ? <>The listing is off the record, with what was read from it.</> : <>{r.message}</> });
+  };
+  const plural = (n, one) => `${n} ${one}${n === 1 ? "" : "s"}`;
+  return (
+    <section className="fl-card set-card" data-testid="google-card">
+      <div className="fl-card-head">
+        <span className="fl-card-title">Google</span>
+        <span className="fl-card-sub">{l ? W.checked(l, Date.now()) : "Your listing on Google Maps"}</span>
+      </div>
+      {l ? (
+        <div className="set-int-row" data-testid="google-listing">
+          <span className="st-tile installed set-int-tile"><Icon name="star" size={14} /></span>
+          <span className="set-team-body">
+            <span className="set-team-name">{l.name}{l.address ? <span className="dim"> · {l.address}</span> : null}</span>
+            <span className="set-team-mail">
+              {l.review_count ? `${W.rating(l.rating)} · ${plural(l.review_count, "review")} on Google` : "No reviews on Google yet"}
+              {l.maps_uri ? <> · <a className="cl-bucket-link" href={l.maps_uri} target="_blank" rel="noreferrer">See it on Maps</a></> : null}
+            </span>
+          </span>
+          {l.check_error ? <span className="pill pill-warn">Could not be read</span> : <span className="pill pill-ok"><span className="dot" />Watched</span>}
+          {operator && !arm && <button className="btn btn-sm" onClick={check} disabled={busy} data-testid="google-check">{busy ? "Reading…" : "Check now"}</button>}
+          {owner && !arm && <button className="cl-bucket-link" onClick={() => setArm(true)} disabled={busy} data-testid="google-remove">Remove</button>}
+          {arm && (
+            <span className="set-row-hint">Remove the listing and what was read from it? <button className="cl-bucket-link" disabled={busy} onClick={remove} data-testid="google-remove-yes">Yes, remove</button> <button className="cl-bucket-link" onClick={() => setArm(false)}>No</button></span>
+          )}
+        </div>
+      ) : (
+        <div className="set-row" data-testid="google-none">
+          <div className="set-row-info">
+            <span className="set-row-label">Your listing on Google</span>
+            <span className="set-row-hint">{owner ? "Find it from the name and address on record; new reviews then reach your bell and Reports." : "An owner finds it on Setup; new reviews then reach the bell and Reports."}</span>
+          </div>
+          {owner && <button className="btn btn-primary btn-sm" onClick={() => window.appNavigate && window.appNavigate("admin/setup")} data-testid="google-find">Find it on Setup</button>}
+        </div>
+      )}
+      <div className="set-row">
+        <div className="set-row-info">
+          <span className="set-row-hint">Read once a day from the public listing: Google shows the five reviews it finds most relevant and counts every rating. Replies and the full history arrive with the Business Profile connection, not yet available.</span>
+        </div>
+      </div>
+      {toastNode}
+    </section>
+  );
+};
+
 const PaneIntegrationsReal = () => {
   const [, tick] = useSetState(0);
   React.useEffect(() => {
@@ -2107,6 +2186,8 @@ const PaneIntegrationsReal = () => {
       </section>
 
       <TemplatesCard />
+
+      <GoogleCard />
 
       <section className="fl-card set-card" data-testid="not-available">
         <div className="fl-card-head">

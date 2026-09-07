@@ -618,6 +618,68 @@ const RpSources = ({ rows }) => {
   );
 };
 
+// Google reviews: the listing as the edge last read it, over the period
+// above. Four measured tiles, the ratings gained day by day (from the
+// day-by-day count, a table twin beside), and the latest reviews with their
+// words — the five Google shows first, and said so. Nothing linked: an
+// honest card that leads to Setup. Nothing at all when this deployment
+// cannot look listings up.
+const GoogleSection = ({ days }) => {
+  const [, bump] = React.useReducer((n) => n + 1, 0);
+  React.useEffect(() => {
+    window.addEventListener("surface:google", bump);
+    return () => window.removeEventListener("surface:google", bump);
+  }, []);
+  const G = window.__GOOGLE;
+  if (!G || !G.dto.ready.places || !window.__google) return null;
+  const vm = window.__google.vm(G.dto, days);
+  if (!vm.listing) {
+    return (
+      <>
+        <RpSection label="Google reviews" />
+        <section className="fl-card rp2-card" data-testid="google-none">
+          <div className="fl-card-head"><span className="fl-card-title">Your listing on Google</span></div>
+          <div className="rp2-empty">
+            Find your business on Google once and its rating, its count and its newest reviews show here for the period, with a line on Today and a row on the bell when one lands.{" "}
+            <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("admin/setup")}>Find it on Setup</button>
+          </div>
+        </section>
+      </>
+    );
+  }
+  const L = vm.listing;
+  return (
+    <>
+      <RpSection label="Google reviews" meta={`${L.name} · ${L.checked.charAt(0).toLowerCase()}${L.checked.slice(1)}`} />
+      <div className="rp2-tiles rp2-strip-google four" data-testid="google-tiles">{vm.tiles.map((t) => <RpTile key={t.id} t={t} />)}</div>
+      <div className="rp2-row rp2-row-wide">
+        <RpCard title="Ratings gained, day by day" sub={vm.gained.total === null ? "needs a second day of reading" : `${vm.gained.total} in the period, by Google's count`} testid="chart-google-gained"
+          table={{ columns: ["Day", "Gained"], rows: vm.gained.points.map((p) => [p.label, p.gained]) }}>
+          {vm.gained.points.length && vm.gained.total !== null
+            ? <RpColumns points={vm.gained.points} field="gained" max={vm.gained.max} days={days} label="ratings gained" />
+            : <div className="rp2-empty">The count is read once a day; the first difference shows after the second read.</div>}
+        </RpCard>
+        <RpCard title="Latest reviews" sub={vm.latest.length ? `the ${vm.latest.length === 1 ? "one" : vm.latest.length} Google shows first` : ""} testid="chart-google-latest" table={vm.table}>
+          {vm.latest.length ? (
+            <div className="rp2-reviews">
+              {vm.latest.map((r) => (
+                <div key={r.id} className={"rp2-review" + (r.isNew ? " is-new" : "")} data-testid="google-review">
+                  <div className="rp2-review-head">
+                    <span className="rp2-review-stars" aria-label={`${r.rating == null ? 0 : r.rating} of 5`}>{r.stars}</span>
+                    <span className="rp2-review-who">{r.author}</span>
+                    <span className="rp2-review-when">{r.when}{r.isNew ? " · new" : ""}{r.replied ? " · replied" : ""}</span>
+                  </div>
+                  {r.text ? <p className="rp2-review-text">{r.text}</p> : <p className="rp2-review-text dim">A rating without words.</p>}
+                </div>
+              ))}
+            </div>
+          ) : <div className="rp2-empty">Google shows no written reviews for this listing yet.</div>}
+        </RpCard>
+      </div>
+    </>
+  );
+};
+
 const RP2_RANGES = [[7, "7 days"], [30, "30 days"], [90, "90 days"]];
 
 const ReportsReal = () => {
@@ -727,6 +789,8 @@ const ReportsReal = () => {
         ) : (
           <div className="rp2-empty" data-testid="chart-campaigns">Campaign numbers could not be read right now.</div>
         )}
+
+        <GoogleSection days={R.days} />
 
         {!vm.empty && (
           <>

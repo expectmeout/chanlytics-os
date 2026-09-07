@@ -12,15 +12,17 @@ test.describe("Setup on a real workspace", () => {
     await signIn(page);
   });
 
-  test("nine rows, each with a state in words, a sentence and at most one verb; Setup is the first Settings tab", async ({ page }) => {
+  test("the rows, each with a state in words, a sentence and at most one verb; Setup is the first Settings tab", async ({ page }) => {
+    // Nine rows, and a tenth for the Google listing where the platform can look one up.
+    const google = (await (await page.request.get("/api/v1/google")).json()).data as { google: { ready: { places: boolean } } };
     await page.goto("/#/admin/setup");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("setup-readiness")).toBeVisible();
     await expect(page.locator(".set-nav-row").first()).toHaveText(/Setup/);
-    await expect(page.getByTestId("setup-count")).toHaveText(/^\d of \d ready$/);
+    await expect(page.getByTestId("setup-count")).toHaveText(/^\d+ of \d+ ready$/);
     expect((await page.getByTestId("setup-sentence").innerText()).trim().length).toBeGreaterThan(0);
     const rows = page.getByTestId("setup-rows").locator(".cl-attn-row");
-    await expect(rows).toHaveCount(9);
+    await expect(rows).toHaveCount(google.google.ready.places ? 10 : 9);
     for (const row of await rows.all()) {
       await expect(row.locator(".cl-attn-status .lead")).toHaveText(/^(Not started|Waiting on you|Waiting on us|Waiting on Meta|Ready)$/);
       expect((await row.locator(".cl-attn-sentence").innerText()).trim().length).toBeGreaterThan(0);
@@ -50,7 +52,7 @@ test.describe("Setup on a real workspace", () => {
   test("Today carries one Setup line only while something is open, with the same count as the page", async ({ page }) => {
     await page.goto("/#/admin/setup");
     await page.waitForLoadState("networkidle");
-    const count = (await page.getByTestId("setup-count").innerText()).match(/^(\d) of (\d)/);
+    const count = (await page.getByTestId("setup-count").innerText()).match(/^(\d+) of (\d+)/);
     expect(count).not.toBeNull();
     const hasNext = (await page.getByTestId("setup-next").count()) > 0;
     await page.goto("/#/today");

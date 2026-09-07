@@ -181,26 +181,26 @@ var util;
   }
   util22.assertNever = assertNever;
   util22.arrayToEnum = (items) => {
-    const obj = {};
+    const obj2 = {};
     for (const item of items) {
-      obj[item] = item;
+      obj2[item] = item;
     }
-    return obj;
+    return obj2;
   };
-  util22.getValidEnumValues = (obj) => {
-    const validKeys = util22.objectKeys(obj).filter((k) => typeof obj[obj[k]] !== "number");
+  util22.getValidEnumValues = (obj2) => {
+    const validKeys = util22.objectKeys(obj2).filter((k) => typeof obj2[obj2[k]] !== "number");
     const filtered = {};
     for (const k of validKeys) {
-      filtered[k] = obj[k];
+      filtered[k] = obj2[k];
     }
     return util22.objectValues(filtered);
   };
-  util22.objectValues = (obj) => {
-    return util22.objectKeys(obj).map(function(e) {
-      return obj[e];
+  util22.objectValues = (obj2) => {
+    return util22.objectKeys(obj2).map(function(e) {
+      return obj2[e];
     });
   };
-  util22.objectKeys = typeof Object.keys === "function" ? (obj) => Object.keys(obj) : (object) => {
+  util22.objectKeys = typeof Object.keys === "function" ? (obj2) => Object.keys(obj2) : (object) => {
     const keys = [];
     for (const key in object) {
       if (Object.prototype.hasOwnProperty.call(object, key)) {
@@ -319,8 +319,8 @@ var ZodIssueCode = util.arrayToEnum([
   "not_multiple_of",
   "not_finite"
 ]);
-var quotelessJson = (obj) => {
-  const json = JSON.stringify(obj, null, 2);
+var quotelessJson = (obj2) => {
+  const json = JSON.stringify(obj2, null, 2);
   return json.replace(/"([^"]+)":/g, "$1:");
 };
 var ZodError = class _ZodError extends Error {
@@ -4534,6 +4534,11 @@ var DAY_MS5 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS5;
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
+var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
+var BOOTSTRAP_MS = 3600 * 1e3;
+var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS3 = 7 * 864e5;
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -4612,6 +4617,7 @@ var twilioUrls = {
   trunkOriginationUrls: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/OriginationUrls`,
   trunkPhoneNumbers: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/PhoneNumbers`
 };
+var FRESH_SLACK_MS = 2 * 864e5;
 
 // ../../node_modules/zod/v3/external.js
 var external_exports2 = {};
@@ -8659,7 +8665,7 @@ function isOptedOutContact(c) {
   return c.consent === "opted_out" || c.dnc === true;
 }
 var DAY_MS6 = 864e5;
-var WEEK_MS3 = 7 * DAY_MS6;
+var WEEK_MS4 = 7 * DAY_MS6;
 var BRAIN_INTENTS2 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
 var BRAIN_LANGUAGES2 = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA2 = {
@@ -8712,7 +8718,7 @@ var BrainOutputSchema2 = external_exports2.object({
 var WA_WINDOW_MS2 = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS2 = 10 * 60 * 1e3;
 var TIME_FMT3 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT6 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var POLICY_CLASS_WORDS2 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
@@ -9164,6 +9170,11 @@ var DAY_MS52 = 864e5;
 var QUIET_AFTER_MS22 = 7 * DAY_MS52;
 var DATE_FMT42 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
+var REVIEW_NEWS_MS2 = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS2 = 14 * 864e5;
+var BOOTSTRAP_MS2 = 3600 * 1e3;
+var DATE_FMT52 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS32 = 7 * 864e5;
 
 // ../db/dist/index.js
 var __defProp3 = Object.defineProperty;
@@ -13205,7 +13216,7 @@ function normalizePhone(raw) {
   return null;
 }
 var DAY_MS7 = 864e5;
-var WEEK_MS4 = 7 * DAY_MS7;
+var WEEK_MS5 = 7 * DAY_MS7;
 var BRAIN_INTENTS3 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
 var BRAIN_LANGUAGES3 = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA3 = {
@@ -13258,7 +13269,7 @@ var BrainOutputSchema3 = external_exports3.object({
 var WA_WINDOW_MS3 = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS3 = 10 * 60 * 1e3;
 var TIME_FMT4 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DATE_FMT6 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT7 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var POLICY_CLASS_WORDS3 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
@@ -13653,6 +13664,11 @@ var DAY_MS53 = 864e5;
 var QUIET_AFTER_MS23 = 7 * DAY_MS53;
 var DATE_FMT43 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
+var REVIEW_NEWS_MS3 = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS3 = 14 * 864e5;
+var BOOTSTRAP_MS3 = 3600 * 1e3;
+var DATE_FMT53 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS33 = 7 * 864e5;
 async function recordOutbound(db, p) {
   const { data, error } = await db.from("messages").insert({
     tenant_id: p.tenantId,

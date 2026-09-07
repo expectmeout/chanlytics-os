@@ -77,7 +77,7 @@ type JobKind = (typeof JOB_KINDS)[number];
 declare const JOB_STATES: readonly ["scheduled", "fired", "canceled", "failed"];
 type JobState = (typeof JOB_STATES)[number];
 /** Dot-namespaced event kinds emitted so far (grows per slice). */
-declare const EVENT_KINDS: readonly ["message.received", "message.sent", "message.status", "escalation.opened", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.pg_failed", "message.send_failed", "message.send_blocked", "message.send_raced_cancel", "conversation.reopened", "conversation.pause_expired", "contact.erased", "contact.blob_erased", "setup.requested", "voice.provisioned", "line.answering", "line.failed", "line.released", "line.forwarding_verified"];
+declare const EVENT_KINDS: readonly ["message.received", "message.sent", "message.status", "escalation.opened", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.pg_failed", "message.send_failed", "message.send_blocked", "message.send_raced_cancel", "conversation.reopened", "conversation.pause_expired", "contact.erased", "contact.blob_erased", "setup.requested", "voice.provisioned", "line.answering", "line.failed", "line.released", "line.forwarding_verified", "google.linked", "google.unlinked", "google.reviews"];
 type EventKind = (typeof EVENT_KINDS)[number];
 /** Customer texts that mean opt-out (webhook consent handling, §4). */
 declare const OPT_OUT_PATTERN: RegExp;
@@ -3711,7 +3711,7 @@ declare function agoLabel(atMs: number, now: number): string;
 /** The kinds a device is woken for; an invitation can wait for the bell. */
 declare const ALERT_KINDS: readonly NotificationKind[];
 /** What the edge writes when it raises an alert: the same kinds it emails. */
-declare const SERVER_NOTIFICATION_KINDS: readonly ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert"];
+declare const SERVER_NOTIFICATION_KINDS: readonly ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review"];
 type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
 interface NotificationDto {
     id: string;
@@ -6078,6 +6078,162 @@ declare function fmtClock(seconds: number): string;
 declare function toLiveCallVM(dto: CallDto, now?: Date): LiveCallVM;
 declare function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, now?: Date): LiveVM;
 
+interface GoogleListingDto {
+    place_id: string;
+    name: string;
+    address: string | null;
+    maps_uri: string | null;
+    business_status: string | null;
+    rating: number | null;
+    review_count: number | null;
+    linked_at: string;
+    /** The last successful read; null before the first. */
+    checked_at: string | null;
+    /** The words of the last failed read; null once a read succeeds again. */
+    check_error: string | null;
+}
+interface GoogleReviewDto {
+    id: string;
+    review_id: string;
+    origin: "places" | "profile";
+    rating: number | null;
+    author: string | null;
+    author_uri: string | null;
+    author_photo_uri: string | null;
+    body: string | null;
+    language_code: string | null;
+    published_at: string | null;
+    reply_text: string | null;
+    replied_at: string | null;
+    maps_uri: string | null;
+    first_seen_at: string;
+}
+/** The rating and the count on one local day, as the edge read them. */
+interface GoogleDayDto {
+    day: string;
+    rating: number | null;
+    review_count: number;
+}
+/** What `GET /api/v1/google` returns. */
+interface GoogleDto {
+    /** Whether this deployment can look listings up (a Places key on the edge) and connect profiles (an OAuth client, later). */
+    ready: {
+        places: boolean;
+        profile: boolean;
+    };
+    listing: GoogleListingDto | null;
+    /** The newest first; at most a screenful. */
+    reviews: GoogleReviewDto[];
+    /** Oldest first. */
+    days: GoogleDayDto[];
+    role: string;
+}
+/** What a search found: what the owner confirms with one tap. */
+interface GoogleCandidateDto {
+    place_id: string;
+    name: string;
+    address: string | null;
+    maps_uri: string | null;
+}
+/** The facts Setup reads: can the listing be found here, and is one linked. */
+interface SetupGoogleFacts {
+    ready: boolean;
+    listing: {
+        name: string;
+        rating: number | null;
+        review_count: number | null;
+        checked_at: string | null;
+        check_error: string | null;
+    } | null;
+}
+/** Google shows this many reviews of a listing, the most relevant first. */
+declare const GOOGLE_SHOWN_REVIEWS = 5;
+/** A review first seen this recently is news on Today. */
+declare const REVIEW_NEWS_MS: number;
+/** …unless it was written long ago and merely resurfaced in the five Google shows. */
+declare const REVIEW_NEWS_MAX_AGE_MS: number;
+/** "4.8 ★"; "no rating yet" when Google has none. */
+declare function ratingWords(rating: number | null | undefined): string;
+/** "★★★★☆" for a review's stars; five hollow stars for none. */
+declare function starsOf(rating: number | null | undefined): string;
+/** "213 reviews"; "reviews not counted yet" before the first read. */
+declare function reviewsWords(count: number | null | undefined): string;
+/** One line about the listing: "Northside Movers · 4.8 ★ · 213 reviews on Google". */
+declare function listingLine(l: {
+    name: string;
+    rating: number | null;
+    review_count: number | null;
+}): string;
+/** When the listing was read, in words — the fact the owner wants when a number looks stale. */
+declare function checkedWords(l: Pick<GoogleListingDto, "checked_at" | "check_error">, nowMs: number): string;
+/** A review's words, cut for a line: the first sentence or so. */
+declare function reviewSnippet(body: string | null | undefined, max?: number): string;
+interface GoogleReviewVM {
+    id: string;
+    stars: string;
+    rating: number | null;
+    author: string;
+    /** "3d ago" or the date. */
+    when: string;
+    text: string;
+    replied: boolean;
+    mapsUri: string | null;
+    /** First seen recently, written recently, and not part of the first read. */
+    isNew: boolean;
+}
+interface GoogleGainedPointVM {
+    day: string;
+    label: string;
+    short: string;
+    gained: number;
+}
+interface GoogleVM {
+    listing: {
+        name: string;
+        address: string | null;
+        ratingLabel: string;
+        count: number | null;
+        /** "Checked 3h ago" · "Google could not be read since 2d ago — …" */
+        checked: string;
+        mapsUri: string | null;
+        /** The last read failed. */
+        trouble: boolean;
+    } | null;
+    /** Rating now · reviews on Google · gained in the period · newest review. */
+    tiles: ReportTileVM[];
+    gained: {
+        points: GoogleGainedPointVM[];
+        max: number;
+        /** Null until two days of reading exist. */
+        total: number | null;
+        /** "Sep 3" — the first day the count is known from, when it is inside the period. */
+        sinceLabel: string | null;
+    };
+    latest: GoogleReviewVM[];
+    table: {
+        columns: string[];
+        rows: (string | number)[][];
+    };
+    /** Today's one line when a review is news, and where it leads. */
+    todayLine: {
+        text: string;
+        to: string;
+    } | null;
+}
+/** Whether a review is news: first seen recently, written recently, and after the first read. */
+declare function reviewIsNew(r: Pick<GoogleReviewDto, "first_seen_at" | "published_at">, linkedAt: string, nowMs: number): boolean;
+declare function toGoogleReviewVM(r: GoogleReviewDto, linkedAt: string, nowMs: number): GoogleReviewVM;
+/**
+ * What a period gained, from the day snapshots: the count on the last read
+ * day less the count on the newest day before the period (or the first day
+ * inside it, which is then named), and the same for the period before.
+ */
+declare function gainedOver(days: GoogleDayDto[], periodDays: number): {
+    current: GoogleVM["gained"];
+    previous: number | null;
+};
+declare function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs?: number): GoogleVM;
+
 interface SetupDto {
     business: {
         name: string | null;
@@ -6134,6 +6290,8 @@ interface SetupDto {
             local_number_month_usd: number;
         };
     };
+    /** The business on Google: whether it can be found here, and the listing once it is. */
+    google?: SetupGoogleFacts;
 }
 /** A line as the page may see it — states in words, never a provider id. */
 interface LineDto {
@@ -6366,4 +6524,4 @@ declare function shortcutGroups(list?: readonly Shortcut[]): Array<{
     items: Shortcut[];
 }>;
 
-export { ACTOR_TYPES, ALERT_KINDS, ANALYSIS_GRACE_MS, ASK_CAPS, ASK_CITATION_KINDS, ASK_FINISH_JSON_SCHEMA, ASK_LANGUAGES, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_PAGES, ASK_PAGE_ROUTES, ASK_RETENTION_DAYS, ASK_TOKENS_DAY, ASK_TURN_BUDGET_MS, AUDIENCE_KINDS, type ActorType, AppError, type AskCitation, type AskCitationKind, type AskFinish, AskFinishSchema, type AskLanguage, type AskMessageVM, type AskProposal, type AskProposalOutcome, AskProposalOutcomeSchema, type AskReadSet, type AskRole, type AskScope, type AskSettingsChange, AskSettingsChangeSchema, type AskSuggestion, type AskSurface, type AskThreadVM, type AttentionRowVM, type Audience, type AudienceKind, BOOKING_DEFAULTS, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, BROADCAST_CHUNK, BROADCAST_GAP_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_STATES, BROADCAST_STATE_LABELS, type BookingReportDto, type BookingReportVM, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastRecipientDto, type BroadcastState, type BroadcastVM, type BusinessProfile, BusinessProfileSchema, type BusyBlock, CALL_HEARTBEAT_MS, CALL_OUTCOMES, CALL_OUTCOME_WORDS, CAMPAIGN_REPORT_RANGES, CARRIERS, CARRIER_WORDS, CHANNEL_KINDS, CONFIDENCE_STEPS, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, CONVERSATION_STATES, type CalendarBandVM, type CalendarBlockVM, type CalendarClosureVM, type CalendarConfig, CalendarConfigSchema, type CalendarDayDto, type CalendarDayVM, type CalendarFeedDto, type CalendarItemDto, type CalendarLike, type CalendarPerson, type CalendarServiceDto, type CalendarServiceVM, type CalendarVM, type CalendarView, type CalendarWeekDto, type CalendarWindowVM, type CallDto, type CallOutcome, type CallVM, type CampaignDayDto, type CampaignPointVM, type CampaignReportDto, type CampaignReportVM, type CampaignSourceDto, type CampaignSourceVM, type CampaignTotals, type Carrier, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelVM, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, DISPLAY_NAME_MAX, type DayFrameLike, type DecisionSubject, type DecisionVerb, E164, EMPTY_READ_STATE, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, EVERYONE_LABEL, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventContacts, type EventKind, FORWARDING_MODES, FORWARDING_TEST_WINDOW_MS, type FastCall, type FastContext, type FastPath, type FeaturesConfig, FeaturesConfigSchema, type FeedAttendee, type FeedCall, type FeedIndex, type FeedInput, type FeedInvite, type FeedItem, type FeedThread, type ForwardingCode, type ForwardingCodes, type ForwardingFacts, type ForwardingMode, type FreeWindowsInput, GuardrailsSchema, HELD_REASONS, type Hours, type HoursRun, HoursSchema, INTENT_LABELS, type IdentityInput, type IdentityWords, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, type JourneyListLike, type JumpEntry, LIMIT_TIERS, LINE_STEP_WORDS, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LineDto, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, MODE_WORDS, type MediaVM, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type Note, NoteSchema, type NotificationDto, type NotificationItem, type NotificationKind, type NotificationReadState, type NotificationRow, type NotificationsConfig, NotificationsConfigSchema, type NotificationsDto, type NumberHealth, type NumberHealthInput, OFFERS_OPT_IN_PHRASES, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, type Opening, PARAM_SOURCES, PARAM_SOURCE_LABELS, PEOPLE_LISTS, PEOPLE_LIST_GROUPS, PEOPLE_TABS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_STATE_LABELS, PLAYBOOK_BREATH_MS, PLAYBOOK_CLASS_LABEL, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_NAME_MAX, PLAYBOOK_STATES, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, POLICY_CLASSES, POLICY_CLASS_MODES, POLICY_CLASS_WORDS, POLICY_MODES, PROPOSAL_GATE, type ParamFacts, type ParamSourceKind, type ParamSpec, type ParseOptions, type ParsedFeed, type PeopleAggregates, type PeopleListAction, type PeopleListGroup, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonLike, type PersonMatch, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PersonVisitsDto, type PlaybookCardLike, type PlaybookDto, type PlaybookPolicyClass, type PlaybookState, type PlaybookTrigger, type PlaybookTriggerKind, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, QUIET_AFTER_MS, RECENT_MAX, RECIPIENT_STATES, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPORT_RANGES, ROLES, ROLE_PERMS, ROLE_WORDS, type ReceptionistTone, type RecipientState, type ReplyWhyVM, type ReportBarVM, type ReportDayDto, type ReportDto, type ReportPointVM, type ReportTileVM, type ReportVM, type ReportsLike, type Role, type RunPlan, SERVER_KEY_PREFIX, SERVER_NOTIFICATION_KINDS, SETUP_STATE_WORDS, SHORTCUTS, STARTER_LANGUAGES, STARTER_TEMPLATES, type ServerNotificationKind, type Service, ServiceSchema, type SetupDto, type SetupInputs, type SetupRowVM, type SetupState, type SetupVM, type SetupVerb, type ShellStatus, type Shortcut, type SidebarPref, type SpanUnits, type Standing, type StandingInput, type StandingVerdict, type StarterSlot, type StarterSlotKind, type StarterTemplate, type StarterText, type SuggestionInput, TEMPLATE_BODY_MAX, TEMPLATE_CATEGORIES, TEMPLATE_EXAMPLE_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_LANGUAGES, TEMPLATE_NAME_MAX, TEMPLATE_STATUSES, TEMPLATE_TITLE_MAX, TENANT_STATUSES, THEME_OPTIONS, TODAY_QUEUE_MAX, type TemplateCategoryChoice, type TemplateDraft, type TemplateDraftCheck, type TemplateDraftInput, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type Theme, type ThemePref, type TimelineKind, type TodayCallRowVM, type TodayDayFrameVM, type TodayDayItemVM, type TodayDayVM, type TodayFactVM, type TodayJourneyVM, type TodayNeedsRowVM, type TodayQueueRowVM, type TodaySentenceVM, type TodayVM, type TodayWeekVM, type Touches, type Visit, type VisitDto, type Visits, WA_WINDOW_MS, type WaWindow, type WeekTileLike, ago, agoLabel, agoShort, agoWords, allVisitsIn, applyReadState, applySettingsChange, asPersonMode, askJump, attentionRow, bookedAfterAsk, brainMetaOf, broadcastName, buildAskSuggestions, buildNotificationFeed, callOutcomeOf, callOutcomeWords, citationRoute, citationsToShow, cleanAnswer, cleanDisplayName, cleanParam, clockInZone, clockLabel, closedOn, compareTemplates, composeSystemPrompt, consentSourceLabel, contactMeta, contactName, coversSpan, dailyLimit, dayDate, dayFromQuestion, dayInZone, dayIntervals, dedupeFeed, defaultParamSpecs, defaultSlotKinds, defaultTemplate, deltaOf, describeNow, describeOpenings, describeSettingsChange, describeVisits, detectLanguage, draftSendsAtMs, durationLabel, eligibleFor, eligibleForPlaybook, emptyReadSet, err, eventText, exampleParams, extractContacts, fastPath, feedSourceLabel, filterOpenings, firstNameOf, fmtClock, fmtDay, fmtSeconds, followupsToShow, formatPhoneDisplay, formatWaited, forwardingCodes, forwardingMatch, forwardingTestOpen, frameOf, frameSteer, frameWhisper, freeWindows, groundCitations, guessName, guessSlotKind, hasProfile, hoursLines, hoursRuns, identityWords, indexFeed, initialsOf, isCarrier, isDayKey, isForwardingMode, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, isSidebarPref, isThemePref, isTypingTarget, isUngrounded, localDate, localHour, localToUtcMs, matchPerson, mayReceiveOffers, mediaKind, mediaVM, memberWords, messageAt, messageStatusLabel, messageText, mondayOf, monthLabelOf, monthSpan, navigateLabel, newReceptionistDefaults, nextRunLabel, normalizeNavigate, normalizePhone, numberHealth, ok, optInLink, overLimitRefusal, paramLabel, parseAskFinish, parseBrainOutput, parseIcs, parseParamSpec, parseTenantConfig, parseTenantConfigResult, partialAnswer, peopleAggregates, peopleFromItems, peopleListAction, personInText, personInitials, personName, personStanding, personStateFor, placeholdersOf, placeholdersSequential, planRun, pointsDelta, policyAskClass, policyClassOfIntent, policyRules, quantile, reachedCustomer, readAgoLabel, reasonShort, recencyCells, recoverCitations, renderTemplate, replyDelayMs, replyWhy, resolveParams, resolveSystemPrompt, resolveTheme, rulesLine, runDueNow, safeNavigate, sameQuestion, scheduleLine, scopeFromRoute, serverNotificationRows, setupRoute, setupSteps, shellStatusLine, shiftKey, shiftMonth, shortTime, shortcutGroups, shouldLandOnSetup, slotLabels, slugTemplateName, spanForView, spanLabel, spanUnits, standingOf, starterByKey, starterByName, starterDraft, starterForTrigger, starterIndex, starterPreview, starterText, telHref, templateComponents, templateNameOk, templateTitle, threadStanding, tidyCallSummary, toBookingReportVM, toBroadcastVM, toCalendarVM, toCallVM, toCampaignReportVM, toChannelVM, toConversationVM, toInboxThreadVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, toVisitDto, todayAway, todayDay, todayDayFacts, todayJourney, todayWeek, triggerOf, tzClock, validateTemplateDraft, verbForRoute, violatesNoPrices, visitDateKey, visitDay, visitFactsFor, visitLine, visitStartTime, visitTime, visitsIn, visitsOf, waWindow, waitedLabel, whenLabel, whisperText, windowFor, workspaceHotkey, zoneMidnight, zoneOffsetMs };
+export { ACTOR_TYPES, ALERT_KINDS, ANALYSIS_GRACE_MS, ASK_CAPS, ASK_CITATION_KINDS, ASK_FINISH_JSON_SCHEMA, ASK_LANGUAGES, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_PAGES, ASK_PAGE_ROUTES, ASK_RETENTION_DAYS, ASK_TOKENS_DAY, ASK_TURN_BUDGET_MS, AUDIENCE_KINDS, type ActorType, AppError, type AskCitation, type AskCitationKind, type AskFinish, AskFinishSchema, type AskLanguage, type AskMessageVM, type AskProposal, type AskProposalOutcome, AskProposalOutcomeSchema, type AskReadSet, type AskRole, type AskScope, type AskSettingsChange, AskSettingsChangeSchema, type AskSuggestion, type AskSurface, type AskThreadVM, type AttentionRowVM, type Audience, type AudienceKind, BOOKING_DEFAULTS, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, BROADCAST_CHUNK, BROADCAST_GAP_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_STATES, BROADCAST_STATE_LABELS, type BookingReportDto, type BookingReportVM, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastRecipientDto, type BroadcastState, type BroadcastVM, type BusinessProfile, BusinessProfileSchema, type BusyBlock, CALL_HEARTBEAT_MS, CALL_OUTCOMES, CALL_OUTCOME_WORDS, CAMPAIGN_REPORT_RANGES, CARRIERS, CARRIER_WORDS, CHANNEL_KINDS, CONFIDENCE_STEPS, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, CONVERSATION_STATES, type CalendarBandVM, type CalendarBlockVM, type CalendarClosureVM, type CalendarConfig, CalendarConfigSchema, type CalendarDayDto, type CalendarDayVM, type CalendarFeedDto, type CalendarItemDto, type CalendarLike, type CalendarPerson, type CalendarServiceDto, type CalendarServiceVM, type CalendarVM, type CalendarView, type CalendarWeekDto, type CalendarWindowVM, type CallDto, type CallOutcome, type CallVM, type CampaignDayDto, type CampaignPointVM, type CampaignReportDto, type CampaignReportVM, type CampaignSourceDto, type CampaignSourceVM, type CampaignTotals, type Carrier, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelVM, type Closure, ClosureSchema, type ConsentBearing, type ConsentState, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DISCONNECTION_LABELS, DISPLAY_NAME_MAX, type DayFrameLike, type DecisionSubject, type DecisionVerb, E164, EMPTY_READ_STATE, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, EVERYONE_LABEL, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventContacts, type EventKind, FORWARDING_MODES, FORWARDING_TEST_WINDOW_MS, type FastCall, type FastContext, type FastPath, type FeaturesConfig, FeaturesConfigSchema, type FeedAttendee, type FeedCall, type FeedIndex, type FeedInput, type FeedInvite, type FeedItem, type FeedThread, type ForwardingCode, type ForwardingCodes, type ForwardingFacts, type ForwardingMode, type FreeWindowsInput, GOOGLE_SHOWN_REVIEWS, type GoogleCandidateDto, type GoogleDayDto, type GoogleDto, type GoogleGainedPointVM, type GoogleListingDto, type GoogleReviewDto, type GoogleReviewVM, type GoogleVM, GuardrailsSchema, HELD_REASONS, type Hours, type HoursRun, HoursSchema, INTENT_LABELS, type IdentityInput, type IdentityWords, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, type JourneyListLike, type JumpEntry, LIMIT_TIERS, LINE_STEP_WORDS, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LineDto, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, MODE_WORDS, type MediaVM, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type Note, NoteSchema, type NotificationDto, type NotificationItem, type NotificationKind, type NotificationReadState, type NotificationRow, type NotificationsConfig, NotificationsConfigSchema, type NotificationsDto, type NumberHealth, type NumberHealthInput, OFFERS_OPT_IN_PHRASES, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, type Opening, PARAM_SOURCES, PARAM_SOURCE_LABELS, PEOPLE_LISTS, PEOPLE_LIST_GROUPS, PEOPLE_TABS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_STATE_LABELS, PLAYBOOK_BREATH_MS, PLAYBOOK_CLASS_LABEL, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_NAME_MAX, PLAYBOOK_STATES, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, POLICY_CLASSES, POLICY_CLASS_MODES, POLICY_CLASS_WORDS, POLICY_MODES, PROPOSAL_GATE, type ParamFacts, type ParamSourceKind, type ParamSpec, type ParseOptions, type ParsedFeed, type PeopleAggregates, type PeopleListAction, type PeopleListGroup, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonLike, type PersonMatch, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PersonVisitsDto, type PlaybookCardLike, type PlaybookDto, type PlaybookPolicyClass, type PlaybookState, type PlaybookTrigger, type PlaybookTriggerKind, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, QUIET_AFTER_MS, RECENT_MAX, RECIPIENT_STATES, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPORT_RANGES, REVIEW_NEWS_MAX_AGE_MS, REVIEW_NEWS_MS, ROLES, ROLE_PERMS, ROLE_WORDS, type ReceptionistTone, type RecipientState, type ReplyWhyVM, type ReportBarVM, type ReportDayDto, type ReportDto, type ReportPointVM, type ReportTileVM, type ReportVM, type ReportsLike, type Role, type RunPlan, SERVER_KEY_PREFIX, SERVER_NOTIFICATION_KINDS, SETUP_STATE_WORDS, SHORTCUTS, STARTER_LANGUAGES, STARTER_TEMPLATES, type ServerNotificationKind, type Service, ServiceSchema, type SetupDto, type SetupGoogleFacts, type SetupInputs, type SetupRowVM, type SetupState, type SetupVM, type SetupVerb, type ShellStatus, type Shortcut, type SidebarPref, type SpanUnits, type Standing, type StandingInput, type StandingVerdict, type StarterSlot, type StarterSlotKind, type StarterTemplate, type StarterText, type SuggestionInput, TEMPLATE_BODY_MAX, TEMPLATE_CATEGORIES, TEMPLATE_EXAMPLE_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_LANGUAGES, TEMPLATE_NAME_MAX, TEMPLATE_STATUSES, TEMPLATE_TITLE_MAX, TENANT_STATUSES, THEME_OPTIONS, TODAY_QUEUE_MAX, type TemplateCategoryChoice, type TemplateDraft, type TemplateDraftCheck, type TemplateDraftInput, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type Theme, type ThemePref, type TimelineKind, type TodayCallRowVM, type TodayDayFrameVM, type TodayDayItemVM, type TodayDayVM, type TodayFactVM, type TodayJourneyVM, type TodayNeedsRowVM, type TodayQueueRowVM, type TodaySentenceVM, type TodayVM, type TodayWeekVM, type Touches, type Visit, type VisitDto, type Visits, WA_WINDOW_MS, type WaWindow, type WeekTileLike, ago, agoLabel, agoShort, agoWords, allVisitsIn, applyReadState, applySettingsChange, asPersonMode, askJump, attentionRow, bookedAfterAsk, brainMetaOf, broadcastName, buildAskSuggestions, buildNotificationFeed, callOutcomeOf, callOutcomeWords, checkedWords, citationRoute, citationsToShow, cleanAnswer, cleanDisplayName, cleanParam, clockInZone, clockLabel, closedOn, compareTemplates, composeSystemPrompt, consentSourceLabel, contactMeta, contactName, coversSpan, dailyLimit, dayDate, dayFromQuestion, dayInZone, dayIntervals, dedupeFeed, defaultParamSpecs, defaultSlotKinds, defaultTemplate, deltaOf, describeNow, describeOpenings, describeSettingsChange, describeVisits, detectLanguage, draftSendsAtMs, durationLabel, eligibleFor, eligibleForPlaybook, emptyReadSet, err, eventText, exampleParams, extractContacts, fastPath, feedSourceLabel, filterOpenings, firstNameOf, fmtClock, fmtDay, fmtSeconds, followupsToShow, formatPhoneDisplay, formatWaited, forwardingCodes, forwardingMatch, forwardingTestOpen, frameOf, frameSteer, frameWhisper, freeWindows, gainedOver, groundCitations, guessName, guessSlotKind, hasProfile, hoursLines, hoursRuns, identityWords, indexFeed, initialsOf, isCarrier, isDayKey, isForwardingMode, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, isSidebarPref, isThemePref, isTypingTarget, isUngrounded, listingLine, localDate, localHour, localToUtcMs, matchPerson, mayReceiveOffers, mediaKind, mediaVM, memberWords, messageAt, messageStatusLabel, messageText, mondayOf, monthLabelOf, monthSpan, navigateLabel, newReceptionistDefaults, nextRunLabel, normalizeNavigate, normalizePhone, numberHealth, ok, optInLink, overLimitRefusal, paramLabel, parseAskFinish, parseBrainOutput, parseIcs, parseParamSpec, parseTenantConfig, parseTenantConfigResult, partialAnswer, peopleAggregates, peopleFromItems, peopleListAction, personInText, personInitials, personName, personStanding, personStateFor, placeholdersOf, placeholdersSequential, planRun, pointsDelta, policyAskClass, policyClassOfIntent, policyRules, quantile, ratingWords, reachedCustomer, readAgoLabel, reasonShort, recencyCells, recoverCitations, renderTemplate, replyDelayMs, replyWhy, resolveParams, resolveSystemPrompt, resolveTheme, reviewIsNew, reviewSnippet, reviewsWords, rulesLine, runDueNow, safeNavigate, sameQuestion, scheduleLine, scopeFromRoute, serverNotificationRows, setupRoute, setupSteps, shellStatusLine, shiftKey, shiftMonth, shortTime, shortcutGroups, shouldLandOnSetup, slotLabels, slugTemplateName, spanForView, spanLabel, spanUnits, standingOf, starsOf, starterByKey, starterByName, starterDraft, starterForTrigger, starterIndex, starterPreview, starterText, telHref, templateComponents, templateNameOk, templateTitle, threadStanding, tidyCallSummary, toBookingReportVM, toBroadcastVM, toCalendarVM, toCallVM, toCampaignReportVM, toChannelVM, toConversationVM, toGoogleReviewVM, toGoogleVM, toInboxThreadVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, toVisitDto, todayAway, todayDay, todayDayFacts, todayJourney, todayWeek, triggerOf, tzClock, validateTemplateDraft, verbForRoute, violatesNoPrices, visitDateKey, visitDay, visitFactsFor, visitLine, visitStartTime, visitTime, visitsIn, visitsOf, waWindow, waitedLabel, whenLabel, whisperText, windowFor, workspaceHotkey, zoneMidnight, zoneOffsetMs };

@@ -205,11 +205,77 @@ const ForwardingCard = ({ S, flash, onDone }) => {
   );
 };
 
+// The finder under the Google row: what Google finds for the name and
+// address on record, one tap to confirm; a few words of your own when the
+// first search misses. Linking is an owner's move; the route says so too.
+const ListingFinder = ({ flash, onDone }) => {
+  const [query, setQuery] = React.useState("");
+  const [busy, setBusy] = React.useState(true);
+  const [result, setResult] = React.useState(null);
+  React.useEffect(() => {
+    let on = true;
+    if (!window.__google) { setBusy(false); return undefined; }
+    window.__google.find().then((r) => {
+      if (!on) return;
+      setBusy(false);
+      setResult(r.ok ? { candidates: r.candidates, query: r.query, fromFacts: r.fromFacts, failed: "" } : { candidates: [], query: "", fromFacts: true, failed: r.message });
+    });
+    return () => { on = false; };
+  }, []);
+  const search = async () => {
+    const words = query.replace(/\s+/g, " ").trim();
+    if (!window.__google || busy || words.length < 3) return;
+    setBusy(true);
+    const r = await window.__google.find(words);
+    setBusy(false);
+    setResult(r.ok ? { candidates: r.candidates, query: r.query, fromFacts: false, failed: "" } : { candidates: [], query: words, fromFacts: false, failed: r.message });
+  };
+  const link = async (c) => {
+    if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can link the listing.</> }); return; }
+    if (!window.__google || busy) return;
+    setBusy(true);
+    const r = await window.__google.link(c.place_id);
+    setBusy(false);
+    flash({ msg: r.ok ? <><b>{c.name}</b> is your listing on Google{r.read ? " — read just now" : " — Google will be read within the hour"}.</> : <>{r.message}</> });
+    if (r.ok) onDone();
+  };
+  let lead;
+  if (result === null) lead = "Looking on Google…";
+  else if (result.failed) lead = result.failed;
+  else if (result.candidates.length) lead = result.fromFacts ? "Found with the name and address on record — is one of these you?" : `Found for “${result.query}” — is one of these you?`;
+  else lead = result.fromFacts ? "Nothing found with the name and address on record. Try a few words of your own:" : `Nothing found for “${result.query}”. Try other words:`;
+  return (
+    <section className="setup-chooser setup-google" data-testid="setup-google-finder">
+      <div className="setup-ask"><span className="setup-ask-text" data-testid="setup-google-lead">{lead}</span></div>
+      {result && result.candidates.length > 0 && (
+        <div className="setup-places" data-testid="setup-places">
+          {result.candidates.map((c) => (
+            <div key={c.place_id} className="setup-place" data-testid="setup-place">
+              <span className="setup-place-body">
+                <span className="setup-place-name">{c.name}</span>
+                <span className="setup-place-where">{c.address || "no address on Google"}</span>
+              </span>
+              {c.maps_uri && <a className="cl-bucket-link" href={c.maps_uri} target="_blank" rel="noreferrer">See it on Maps</a>}
+              <button className="btn btn-primary btn-sm" onClick={() => link(c)} disabled={busy} data-testid="setup-place-link">This is it</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="setup-google-row">
+        <input className="setup-area setup-fw-input" placeholder="Name and city, like Northside Movers Brooklyn" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") search(); }} data-testid="setup-google-query" />
+        <button className="btn btn-sm" onClick={search} disabled={busy || query.trim().length < 3} data-testid="setup-google-search">{busy ? "Looking…" : "Search again"}</button>
+        <button className="cl-bucket-link" onClick={onDone}>Close</button>
+      </div>
+    </section>
+  );
+};
+
 const PaneSetup = () => {
   useSetupTick();
   const [toastNode, flash] = window.usePPToast();
   const [chooser, setChooser] = React.useState(false);
   const [forwarding, setForwarding] = React.useState(false);
+  const [finder, setFinder] = React.useState(false);
   const S = window.__SETUP;
   if (!S) {
     return (
@@ -232,6 +298,7 @@ const PaneSetup = () => {
     }
     if (verb.to === "verb:choose-line") { setChooser((v) => !v); return; }
     if (verb.to === "verb:forwarding") { setForwarding((v) => !v); return; }
+    if (verb.to === "verb:google-find") { setFinder((v) => !v); return; }
     if (verb.to.startsWith("verb:forwarding-test:")) {
       if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can test forwarding.</> }); return; }
       const r = await window.__setup.forwarding.test(verb.to.slice("verb:forwarding-test:".length));
@@ -308,6 +375,7 @@ const PaneSetup = () => {
               />
               {r.id === "line" && chooser && <LineChooser S={S} flash={flash} onDone={() => setChooser(false)} onKeep={() => setForwarding(true)} />}
               {r.id === "keep" && forwarding && <ForwardingCard S={S} flash={flash} onDone={() => setForwarding(false)} />}
+              {r.id === "google" && finder && <ListingFinder flash={flash} onDone={() => setFinder(false)} />}
             </div>
           ))}
         </div>

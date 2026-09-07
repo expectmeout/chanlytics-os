@@ -1,15 +1,20 @@
 # Secret scan configuration (gitleaks, CI's "Secret scan" job).
 #
-# The default rules stay in force. What is allowed here is one rule-shaped
-# fake: a test pins that the Twilio adapter sends a SIP password that meets
-# Twilio's rule (12+ characters, a digit, mixed case), and the fixture it
-# used to do that looked enough like a key for the scanner. It is a fixture
-# in a test, not a credential, and it is listed here by value so nothing
-# else is allowed by accident. Real secrets never live in this repository.
+# The default rules stay in force. What is allowed here are rule-shaped
+# fakes in tests, each listed by value so nothing else is allowed by
+# accident. Real secrets never live in this repository.
+#
+# - A fake SIP password: a test pins that the Twilio adapter sends one that
+#   meets Twilio's rule (12+ characters, a digit, mixed case), and the
+#   fixture looked enough like a key for the scanner
+#   (tooling/scripts/tests/lines-saga.test.mjs).
+# - Google's own documented sample place id, beside a variable named KEY in
+#   the Places test: a public identifier from Google's examples, high in
+#   entropy, and not a credential (tooling/scripts/tests/google.test.mjs).
 
 [extend]
 useDefault = true
 
 [allowlist]
-description = "A rule-shaped fake SIP password in tooling/scripts/tests/lines-saga.test.mjs"
-regexes = ['''Abcdefghij12kl''']
+description = "Rule-shaped fakes in tests, by value"
+regexes = ['''Abcdefghij12kl''', '''ChIJN1t_tDeuEmsRUsoyG83frY4''']

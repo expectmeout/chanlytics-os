@@ -161,5 +161,5 @@ test("the wiring: the migration, the webhook proves it, the routes are owner-onl
   const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
   for (const pin of ["const ForwardingCard", 'verb.to === "verb:forwarding"', 'verb.to.startsWith("verb:forwarding-test:")', 'data-testid="setup-fw-dial"', 'data-testid="setup-fw-test"', 'data-testid="setup-keep-go"']) assert.ok(page.includes(pin), pin);
   const e2e = readRaw("e2e/setup.spec.ts");
-  assert.ok(e2e.includes("/^\\d of \\d ready$/"), "the count is not pinned to eight rows");
+  assert.ok(e2e.includes("/^\\d+ of \\d+ ready$/"), "the count is not pinned to eight rows");
 });

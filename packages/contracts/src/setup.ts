@@ -15,6 +15,7 @@
 import { formatPhoneDisplay } from "./phone";
 import { agoWords, spanLabel } from "./time";
 import { CARRIER_WORDS, MODE_WORDS, forwardingTestOpen, type Carrier, type ForwardingMode } from "./forwarding";
+import { listingLine, type SetupGoogleFacts } from "./google";
 
 export interface SetupDto {
   business: {
@@ -40,6 +41,8 @@ export interface SetupDto {
   requests: { line: string | null };
   /** The workspace's own lines, and whether this deployment can get one. */
   lines?: { rows: LineDto[]; ready: boolean; provider: string | null; costs: { local_number_month_usd: number } };
+  /** The business on Google: whether it can be found here, and the listing once it is. */
+  google?: SetupGoogleFacts;
 }
 
 /** A line as the page may see it — states in words, never a provider id. */
@@ -258,6 +261,20 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
   row(i.consent.yes > 0
     ? { id: "yes", icon: "tag", title: "The first yes", state: "ready", required: false, sentence: `${plural(i.consent.yes, "person", "people")} said yes to offers.`, details: [], verb: { label: "Open Broadcasts", to: "broadcasts" } }
     : { id: "yes", icon: "tag", title: "The first yes", state: "not_started", required: false, sentence: "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.", details: [], verb: { label: "Get their yes", to: "broadcasts" } });
+
+  // 9. Your Google listing — public, found from the facts above; new reviews reach the bell and Reports.
+  // Absent until this deployment can look listings up: a row must never draw a verb that cannot work.
+  if (i.google?.ready) {
+    const g = i.google.listing;
+    const title = "Your Google listing";
+    if (g && g.check_error) {
+      row({ id: "google", icon: "star", title, state: "waiting_them", stateWords: "Waiting on Google", required: false, sentence: `${g.name} is on record, but Google could not be read${g.checked_at ? ` since ${agoWords(Date.parse(g.checked_at), nowMs)}` : " yet"} — it is tried again every hour.`, details: [], verb: { label: "Open Reports", to: "reports" } });
+    } else if (g) {
+      row({ id: "google", icon: "star", title, state: "ready", required: false, sentence: `${listingLine(g)}.`, details: [g.checked_at ? `Checked ${agoWords(Date.parse(g.checked_at), nowMs)}` : "Not read yet", "New reviews reach your bell and Reports"], verb: { label: "Open Reports", to: "reports" } });
+    } else {
+      row({ id: "google", icon: "star", title, state: "not_started", required: false, sentence: "Find your business on Google so new reviews reach you here.", details: [i.business.address ? "Uses the name and address on record" : "Add your address in Workspace for a surer match"], verb: { label: "Find it", to: "verb:google-find" } });
+    }
+  }
 
   const open = rows.filter((r) => r.state !== "ready" && !r.later);
   const nextRow = open.find((r) => r.verb) ?? null;
