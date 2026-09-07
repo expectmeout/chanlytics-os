@@ -183,7 +183,7 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
     { type: "text", text: stableSystem(input.facts), cache_control: { type: "ephemeral" } },
     ...(snapshot ? [{ type: "text", text: snapshot, cache_control: { type: "ephemeral" } }] : []),
     ...(prefetch ? [{ type: "text", text: prefetch }] : []),
-    { type: "text", text: turnSystem({ role: input.role, personLabel: input.personLabel, scope: input.scope, surface: input.surface, language: input.language, timezone: input.timezone, closures: input.facts.closures, now }) },
+    { type: "text", text: turnSystem({ role: input.role, personLabel: input.personLabel, scope: input.scope, surface: input.surface, language: input.language, timezone: input.timezone, closures: input.facts.closures, now, snapshot: !!snapshot, prefetched: !!prefetch }) },
   ];
   const messages = foldHistory(input.history, input.text);
   const baseTools = [...READ_TOOLS, ...(input.role === "viewer" ? [] : ACT_TOOLS), FINISH_TOOL];

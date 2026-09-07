@@ -665,3 +665,11 @@ test("prefetch: the reads a question names plainly run beside the snapshot and r
   const p = readCode("apps/dashboard/src/server/ask/proposals.ts");
   assert.ok(p.includes("Never for money: that class is locked by charter"), "a money change is answered, not proposed");
 });
+
+test("the speed pass, four: the day above needs no second read, said last where it weighs most", () => {
+  const p = readCode("apps/dashboard/src/server/ask/prompt.ts");
+  assert.ok(p.includes('if (t.snapshot) lines.push("The workspace right now is in the block above.') && p.includes("if (t.prefetched) lines.push("), "the sentence lives in the last block");
+  assert.ok(p.indexOf("if (t.snapshot) lines.push(") < p.indexOf("They wrote in Spanish; answer in Spanish."), "before the language line, which still closes the block");
+  assert.ok(p.includes("name the door: a broadcast reaches only the people who said yes"), "a message to many is a broadcast or one reply per thread");
+  assert.ok(readCode("apps/dashboard/src/server/ask/loop.ts").includes("now, snapshot: !!snapshot, prefetched: !!prefetch })"), "the loop says what rode in");
+});
