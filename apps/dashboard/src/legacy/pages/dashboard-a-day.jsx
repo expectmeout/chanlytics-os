@@ -20,10 +20,17 @@ const TodayDay = () => {
   const C = window.__CALENDAR;
   const P = window.__PLAYBOOKS;
   if (!C || !C.vm || C.vm.feed.state !== "ok" || !window.__today) return null;
-  const vm = window.__today.day(C.vm, P ? P.rows : null);
+  const vm = window.__today.day(C.vm, P ? P.rows : null, window.__PEOPLE || null);
   if (!vm.frames.length) return null;
   const nav = (to) => window.appNavigate && window.appNavigate(to);
   const open = (b) => nav(b.person ? `clients/${b.person.id}` : "calendar");
+  // The channel a known person uses, as People knows it: a chat, or calls only.
+  const peopleRows = window.__PEOPLE ? window.__PEOPLE.rows : [];
+  const glyphFor = (b) => {
+    if (!b.person) return null;
+    const r = peopleRows.find((x) => x.id === b.person.id);
+    return !r ? null : r.hasChat ? "chat" : r.calls > 0 ? "phone" : null;
+  };
   return (
     <section className="td-day" data-testid="today-day">
       <div className="td-day-head">
@@ -35,23 +42,38 @@ const TodayDay = () => {
         <div key={d.key} className={`td-frame ${d.today ? "today" : ""}`} data-testid="today-day-frame">
           <div className="td-frame-head">
             <span className="td-frame-label">{d.label}</span>
-            {d.closed.yes && <span className="cal-closed-chip">Closed{d.closed.note ? ` · ${d.closed.note}` : ""}</span>}
+            {d.closed.yes
+              ? <span className="td-frame-note">Closed{d.closed.note ? ` · ${d.closed.note}` : ""}</span>
+              : d.summary && <span className="td-frame-note tabular">{d.summary.booked}{d.summary.flagged && <> · <b className="warn">{d.summary.flagged}</b></>}</span>}
           </div>
+          {/* The schedule as the mockup drew it, with only what the calendar and
+              People hold: the start in a column, a rail with the now marker,
+              the name first (the title when nobody is named), the service and
+              its length under it, a red line when that person's thread needs
+              someone. Long words wrap in their own column; nothing is squeezed. */}
           {d.items.length > 0 ? (
-            <div className="cal-agenda-items">
-              {d.items.map((b) => (
-                <button key={b.id} className="cal-agenda-item" onClick={() => open(b)} title={b.person ? `Open ${b.person.name}` : "Open the Calendar"} data-testid="today-day-item">
-                  <span className="cal-agenda-time tabular">{b.allDay ? "all day" : b.time}</span>
-                  <span className="cal-agenda-title">{b.title}</span>
-                  {b.person && <span className="cal-agenda-person">{b.person.name}</span>}
-                </button>
-              ))}
+            <div className="td-items">
+              {d.items.map((b) => {
+                const glyph = glyphFor(b);
+                return (
+                  <button key={b.id} className={`td-item ${b.phase}${b.flag ? " flagged" : ""}`} onClick={() => open(b)} title={`${b.time}${b.person ? ` · open ${b.person.name}` : " · open the Calendar"}`} data-testid="today-day-item" data-phase={b.phase}>
+                    <span className="td-item-time">{b.start}</span>
+                    <span className="td-item-rail" aria-hidden="true" />
+                    <span className="td-item-body">
+                      <span className="td-item-title">{b.person ? b.person.name : b.title}</span>
+                      {(b.person || b.dur) && <span className="td-item-sub">{b.person ? `${b.title}${b.dur ? ` · ${b.dur}` : ""}` : b.dur}</span>}
+                      {b.flag && <span className="td-item-flag">{b.flag}</span>}
+                    </span>
+                    {glyph && <span className="td-item-glyph"><Icon name={glyph} size={11} /></span>}
+                  </button>
+                );
+              })}
             </div>
-          ) : (!d.closed.yes && <div className="cal-agenda-empty">Nothing on the calendar.</div>)}
+          ) : (!d.closed.yes && <div className="td-empty">Nothing on the calendar.</div>)}
           {d.open.length > 0 && (
-            <div className="cal-agenda-open">
-              <span className="cal-agenda-open-label">Open:</span>
-              {d.open.map((w) => <span key={w} className="cal-agenda-window">{w}</span>)}
+            <div className="td-open">
+              <span className="td-open-label">Open</span>
+              {d.open.map((w) => <span key={w} className="td-window">{w}</span>)}
             </div>
           )}
         </div>

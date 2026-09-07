@@ -54,7 +54,7 @@ test.describe("Today on a real workspace", () => {
     await expect(frames.nth(1)).toContainText(/^Tomorrow · /);
     // Every item is a time, a title, and a person when the calendar names one.
     for (const item of await day.getByTestId("today-day-item").all()) {
-      expect((await item.locator(".cal-agenda-title").innerText()).trim().length).toBeGreaterThan(0);
+      expect((await item.locator(".td-item-title").innerText()).trim().length).toBeGreaterThan(0);
     }
     await expect(day.getByRole("button", { name: /Open Calendar/ })).toBeVisible();
     await expect(day.getByTestId("today-day-reminders")).toBeVisible();

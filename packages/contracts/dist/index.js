@@ -901,98 +901,621 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
   };
 }
 
-// src/live.ts
-var LIVE_STALE_MS = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
-var RECENT_MAX = 8;
-var mmss2 = (ms2) => {
-  const total = Math.max(0, Math.round(ms2 / 1e3));
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+// src/config.ts
+import { z as z2 } from "zod";
+var ROLES = MEMBERSHIP_ROLES;
+var ROLE_PERMS = {
+  // `settings` is the business details and who is alerted: PUT /settings is
+  // owner-only, and the form used to open on the autonomy gate, which let an
+  // operator fill it in and be refused at Save.
+  // `export` is the whole customer list as a file: a member sees these
+  // people a screen at a time, the owner may take them all at once.
+  owner: { approve: true, autonomy: true, disconnect: true, billing: true, team: true, settings: true, export: true },
+  operator: { approve: true, autonomy: true, disconnect: false, billing: false, team: false, settings: false, export: false },
+  viewer: { approve: false, autonomy: false, disconnect: false, billing: false, team: false, settings: false, export: false }
 };
-function fmtClock(seconds) {
-  return mmss2(Math.max(0, seconds) * 1e3);
+var POLICY_CLASSES = ["reply", "booking", "faq", "reengage", "campaign", "money"];
+var POLICY_CLASS_WORDS = {
+  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
+  faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
+  booking: { name: "Book \xB7 reschedule", short: "Bookings", note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone" },
+  reengage: { name: "Re-engage quiet customers", short: "Re-engage", note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
+  campaign: { name: "Standing offers", short: "Offers", note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
+};
+var POLICY_MODES = ["auto", "veto", "ask", "never"];
+var POLICY_CLASS_MODES = {
+  reply: ["auto", "veto", "ask", "never"],
+  booking: ["auto", "ask"],
+  faq: ["auto", "ask"],
+  reengage: ["auto", "veto", "ask", "never"],
+  campaign: ["auto", "veto", "ask", "never"],
+  money: ["never"]
+};
+function policyClassOfIntent(intent) {
+  if (intent === "booking") return "booking";
+  if (intent === "pricing" || intent === "services") return "faq";
+  return null;
 }
-function turnsOf(dto) {
-  return (dto.transcript_object ?? []).filter((turn) => turn.role === "agent" || turn.role === "user" || turn.role === "injected").map((turn) => {
-    const start = turn.start ?? turn.words?.[0]?.start;
-    if (turn.role === "injected") {
-      return { speaker: "whisper", text: whisperText(turn.content), t: "\u2014" };
-    }
-    return {
-      speaker: turn.role === "agent" ? "agent" : "client",
-      text: turn.content ?? "",
-      t: typeof start === "number" ? mmss2(start * 1e3) : "\u2014"
-    };
-  });
+function policyAskClass(policy, intent) {
+  const cls = policyClassOfIntent(intent);
+  if (!cls) return null;
+  const mode = policy?.[cls]?.mode ?? "auto";
+  return mode === "auto" ? null : cls;
 }
-function toLiveCallVM(dto, now = /* @__PURE__ */ new Date()) {
-  const nowMs = now.getTime();
-  const withheld = !dto.from_e164 && !dto.from_raw;
-  const phone = formatPhoneDisplay(dto.from_e164);
-  const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
-  const who = withheld ? "Caller ID withheld" : name || phone || dto.from_raw || "Unknown caller";
-  const whoShort = name ? /^[+\d(]/.test(name) ? name : name.split(" ")[0] : "the caller";
-  const live = isLiveCall(dto, now);
-  const missed = dto.status === "not_connected";
-  const startedAtMs = dto.started_at ? new Date(dto.started_at).getTime() : null;
-  const beat = dto.updated_at ?? dto.started_at;
-  const heartbeatAtMs = beat ? new Date(beat).getTime() : null;
-  let checking = false;
-  let checkingWhy = null;
-  if (live) {
-    const sinceBeat = heartbeatAtMs === null ? 0 : nowMs - heartbeatAtMs;
-    const sinceStart = startedAtMs === null ? 0 : nowMs - startedAtMs;
-    if (sinceBeat > LIVE_STALE_MS) {
-      checking = true;
-      checkingWhy = `no word from the phone provider for ${Math.round(sinceBeat / 6e4)} minutes`;
-    } else if (sinceStart > LIVE_OVERLONG_MS) {
-      checking = true;
-      checkingWhy = `live for over ${Math.floor(sinceStart / 6e4)} minutes`;
-    }
+function policyRules(policy, channel) {
+  const out = [];
+  const modeOf = (cls) => policy?.[cls]?.mode ?? "auto";
+  const voice = channel === "voice";
+  if (modeOf("booking") !== "auto") {
+    out.push(voice ? "Booking: when someone wants to book, reschedule or cancel, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name." : "Booking: when someone wants to book, reschedule or cancel, do not send the booking link. Say a member of the team will confirm with them shortly, and set escalate to true.");
   }
-  const endedMs = dto.ended_at ? new Date(dto.ended_at).getTime() : null;
-  const summary = (dto.summary ?? "").trim() || null;
-  const summaryState = missed ? "missed" : summary ? "ready" : live || endedMs !== null && nowMs - endedMs < ANALYSIS_GRACE_MS ? "pending" : "none";
-  const recordingState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording?.fetch_state === "failed" ? "failed" : dto.recording ? "pending" : "none";
+  if (modeOf("faq") !== "auto") {
+    out.push(voice ? "Service and pricing questions: do not answer them yourself. Say a member of the team will call them back with the details, and take their name." : "Service and pricing questions: do not answer them yourself. Say a member of the team will get back to them with the details, and set escalate to true.");
+  }
+  return out;
+}
+var PolicyLimitsSchema = z2.object({
+  max_replies_day: z2.number().int().min(1).max(200).optional(),
+  pause_hours: z2.number().int().min(1).max(168).optional(),
+  /**
+   * How long the receptionist WAITS before its own reply goes out, in ms.
+   *
+   * Only meaningful when mode is 'veto'. A text channel is not a phone
+   * call — nobody expects an answer in under a second — so the delay costs
+   * the customer nothing and buys the business a window to redirect the bot
+   * before it speaks, rather than apologising for it afterwards.
+   */
+  reply_delay_ms: z2.number().int().min(5e3).max(6e5).optional(),
+  /**
+   * The confidence dial. Under 'auto', a reply the model is less sure about
+   * than this waits in the hold window (reply_delay_ms) for a person instead
+   * of going straight out — sure enough sends itself, not sure enough waits.
+   * 0 or absent means off.
+   */
+  min_confidence: z2.number().min(0).max(1).optional(),
+  /**
+   * The day's token budget: model tokens in and out over a rolling 24
+   * hours, read from the usage events every reply writes. Over it the
+   * receptionist stops and files a `budget` escalation, as it does at the
+   * reply cap. 0 or absent is off; a value is at least a thousand, because
+   * a budget of ten would be a mute button with a misleading name.
+   */
+  max_llm_tokens_day: z2.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+}).strict();
+var TIME = z2.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+var IntervalSchema = z2.object({ open: TIME, close: TIME });
+var HoursSchema = z2.object({
+  /** "09:00". Absent or null = closed that day, which is a real answer. */
+  open: TIME.nullable().optional(),
+  close: TIME.nullable().optional(),
+  /**
+   * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
+   * actually keeps. Additive: a day that has always been one stretch keeps
+   * saying so with open/close, and no stored config is rewritten.
+   */
+  intervals: z2.array(IntervalSchema).optional()
+}).strict();
+var DATE = z2.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+var ClosureSchema = z2.object({
+  date: DATE,
+  until: DATE.optional(),
+  note: z2.string().max(200).optional()
+});
+var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+var ServiceSchema = z2.object({
+  name: z2.string().min(1).max(80),
+  /** Minutes. The receptionist is asked "how long does it take" constantly. */
+  duration_min: z2.number().int().min(1).max(1440).optional(),
+  /**
+   * Free text, not a number, and deliberately so: "from $45", "quoted at
+   * consult", "varies by length". A price the business cannot state flatly
+   * must not be forced into a field that looks like it can.
+   */
+  price_note: z2.string().max(120).optional()
+}).strict();
+var GuardrailsSchema = z2.object({
+  never_quote_prices: z2.boolean().optional(),
+  never_confirm_booking: z2.boolean().optional(),
+  disclose_ai: z2.boolean().optional(),
+  /**
+   * OPT-IN, unlike the three above. Those default on because absent means
+   * "the safe reading"; this one arrived after prompts were live, and a
+   * rule that defaulted on would have changed every composed prompt in
+   * production the moment it deployed.
+   */
+  no_health_advice: z2.boolean().optional()
+}).strict();
+var NoteSchema = z2.object({
+  title: z2.string().min(1).max(80),
+  text: z2.string().min(1).max(1200)
+}).strict();
+var BookingRulesSchema = z2.object({
+  /** Least notice for a slot, in hours. Absent = 2. */
+  lead_hours: z2.number().int().min(0).max(168).optional(),
+  /** Gap kept around each existing appointment, in minutes. Absent = 0. */
+  buffer_min: z2.number().int().min(0).max(120).optional(),
+  /** How far ahead open times are offered, in days. Absent = 14. */
+  max_days_ahead: z2.number().int().min(1).max(90).optional(),
+  /** The shortest window worth naming, in minutes. Absent = 30. */
+  slot_min: z2.number().int().min(15).max(240).optional(),
+  /** Services that need a consultation before they can be booked. */
+  consult_first: z2.array(z2.string().min(1).max(80)).max(20).optional(),
+  party_max: z2.number().int().min(1).max(20).optional(),
+  /** Anything else about booking, one short line each. */
+  notes: z2.array(z2.string().min(1).max(200)).max(10).optional()
+}).strict();
+var E164 = /^\+[1-9]\d{6,14}$/;
+var BusinessProfileSchema = z2.object({
+  address: z2.string().max(300).optional(),
+  hours: z2.record(z2.enum(DAYS), HoursSchema).optional(),
+  /** Dates the business is shut regardless of the weekly grid. */
+  closures: z2.array(ClosureSchema).optional(),
+  services: z2.array(ServiceSchema).max(60).optional(),
+  languages: z2.array(z2.string().min(2).max(40)).max(8).optional(),
+  guardrails: GuardrailsSchema.optional(),
+  /** What must reach a person. One short line each. */
+  escalate_when: z2.array(z2.string().min(1).max(200)).max(20).optional(),
+  tone: z2.string().max(200).optional(),
+  /**
+   * The line a PERSON answers. The phone receptionist warm-transfers here
+   * during opening hours; absent, it takes a message instead. Never the
+   * receptionist's own line — that would ring itself.
+   */
+  handoff_number: z2.string().regex(E164, "E.164, like +16469325775").optional(),
+  website: z2.string().url().max(500).optional(),
+  notes: z2.array(NoteSchema).max(10).optional(),
+  booking_rules: BookingRulesSchema.optional(),
+  /**
+   * Anything the owner wants said that no field covers.
+   *
+   * The escape hatch that keeps this model honest — without it, structuring
+   * the facts would mean losing whatever did not fit, and the first migration
+   * would be a downgrade.
+   */
+  extra_instructions: z2.string().max(8e3).optional()
+}).strict();
+var BrainConfigSchema = z2.object({
+  business_name: z2.string().min(1).max(120),
+  phone_display: z2.string().min(3).max(40),
+  booking_link: z2.string().url().max(500),
+  /** The complete system prompt the model receives — the "AI memory" pane's
+   *  one hard promise is that what it shows is EXACTLY this, nothing more. */
+  system_prompt: z2.string().min(40).max(2e4),
+  /**
+   * The business's facts, as fields.
+   *
+   * Optional: every config written before this existed stays valid, and
+   * nothing composes until a workspace actually fills it in. When present
+   * it REPLACES system_prompt as the source the prompt is built from.
+   */
+  profile: BusinessProfileSchema.optional(),
+  fallbacks: z2.object({
+    /** Sent when no model key is configured. */
+    greeting: z2.string().min(1).max(2e3),
+    /** Sent when the model call failed. */
+    error: z2.string().min(1).max(2e3),
+    /** Sent for voice notes / photos before escalating. */
+    non_text: z2.string().min(1).max(2e3)
+  }).strict()
+}).strict();
+function newReceptionistDefaults(businessName, phoneDisplay, bookingLink) {
   return {
-    callId: dto.id,
-    cvId: `cv-${dto.id}`,
-    clientId: dto.contact_id,
-    who,
-    whoShort,
-    initials: withheld ? "\u2013" : initialsOf(who),
-    number: withheld ? null : phone ?? dto.from_raw,
-    direction: dto.direction,
-    status: dto.status,
-    live,
-    missed,
-    stale: dto.status === "ongoing" && !live,
-    checking,
-    checkingWhy,
-    startedAtMs,
-    heartbeatAtMs,
-    startedLabel: shortTime(dto.started_at, now),
-    duration: live || missed || !dto.duration_ms ? null : mmss2(dto.duration_ms),
-    summaryState,
-    summary,
-    sentiment: dto.sentiment,
-    endedHow: dto.disconnection_reason ? DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " ") : null,
-    recordingState,
-    transcript: turnsOf(dto)
+    system_prompt: `You are the assistant for ${businessName}, answering inbound customer messages. You are warm, concise and professional \u2014 a great front-desk person, in text form. If you do not know something, say so plainly and offer to have a person follow up.`,
+    // What a customer reads when the model cannot be reached. Built from what
+    // the owner just typed, so they are the business's own details.
+    fallbacks: {
+      greeting: `Hi! Thanks for reaching out to ${businessName}.
+
+Book anytime: ${bookingLink}
+
+Or reply here with any question.`,
+      error: `Thanks for reaching out to ${businessName}! Book anytime: ${bookingLink} \u2014 or a member of our team will reply here soon.`,
+      non_text: `Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at ${phoneDisplay}.`
+    }
   };
 }
-function toLiveVM(calls, channels, now = /* @__PURE__ */ new Date()) {
-  const vms = calls.map((c) => toLiveCallVM(c, now));
-  const nowList = vms.filter((c) => c.live).sort((a, b) => (a.startedAtMs ?? 0) - (b.startedAtMs ?? 0));
-  const recent = vms.filter((c) => !c.live).sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0)).slice(0, RECENT_MAX);
-  const voice = channels?.find((ch) => ch.kind === "voice") ?? null;
-  const line = voice ? {
-    number: formatPhoneDisplay(voice.number_e164),
-    on: voice.status === "active",
-    lastCallLabel: voice.last_inbound_at ? shortTime(voice.last_inbound_at, now) : null
-  } : null;
-  return { now: nowList, recent, line, heartbeatMs: CALL_HEARTBEAT_MS, fetchedAtMs: now.getTime() };
+var NotificationsConfigSchema = z2.object({
+  escalation_emails: z2.array(z2.string().email()).min(1).max(10),
+  from: z2.string().max(200).optional()
+}).strict();
+var CalendarConfigSchema = z2.object({
+  ical_url: z2.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
+}).strict();
+var FeaturesConfigSchema = z2.object({ vision: z2.boolean().optional() }).strict();
+var TenantConfigSchema = z2.object({
+  brain: BrainConfigSchema.optional(),
+  notifications: NotificationsConfigSchema.optional(),
+  calendar: CalendarConfigSchema.optional(),
+  features: FeaturesConfigSchema.optional()
+});
+var MAX_INTERVALS_PER_DAY = 4;
+var MAX_CLOSURES = 60;
+function isRealDate(key) {
+  const at = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  return !Number.isNaN(at.getTime()) && at.toISOString().slice(0, 10) === key;
+}
+var DAY_NAME = {
+  mon: "Monday",
+  tue: "Tuesday",
+  wed: "Wednesday",
+  thu: "Thursday",
+  fri: "Friday",
+  sat: "Saturday",
+  sun: "Sunday"
+};
+function checkDay(h, day, ctx) {
+  const name = DAY_NAME[day] ?? day;
+  const at = (...rest) => ["brain", "profile", "hours", day, ...rest];
+  const open = h.open ?? void 0;
+  const close = h.close ?? void 0;
+  if (!!open !== !!close) {
+    ctx.addIssue({
+      code: z2.ZodIssueCode.custom,
+      path: at(open ? "close" : "open"),
+      message: `${name} needs both an opening and a closing time, or neither.`
+    });
+  }
+  if (open && close && close <= open) {
+    ctx.addIssue({
+      code: z2.ZodIssueCode.custom,
+      path: at("close"),
+      message: `${name} closes at or before it opens.`
+    });
+  }
+  const iv = h.intervals ?? [];
+  if (iv.length > MAX_INTERVALS_PER_DAY) {
+    ctx.addIssue({
+      code: z2.ZodIssueCode.custom,
+      path: at("intervals"),
+      message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.`
+    });
+  }
+  iv.forEach((x, n) => {
+    if (x.close <= x.open) {
+      ctx.addIssue({
+        code: z2.ZodIssueCode.custom,
+        path: at("intervals", n, "close"),
+        message: `${name}: a shift has to close after it opens.`
+      });
+    }
+  });
+  const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
+  for (let n = 1; n < sorted.length; n++) {
+    if (sorted[n].open < sorted[n - 1].close) {
+      ctx.addIssue({
+        code: z2.ZodIssueCode.custom,
+        path: at("intervals", n, "open"),
+        message: `${name}: two shifts overlap.`
+      });
+    }
+  }
+}
+function checkClosure(c, n, ctx) {
+  const at = (...rest) => ["brain", "profile", "closures", n, ...rest];
+  if (!isRealDate(c.date)) {
+    ctx.addIssue({
+      code: z2.ZodIssueCode.custom,
+      path: at("date"),
+      message: `${c.date} is not a date on the calendar.`
+    });
+  }
+  if (c.until && !isRealDate(c.until)) {
+    ctx.addIssue({
+      code: z2.ZodIssueCode.custom,
+      path: at("until"),
+      message: `${c.until} is not a date on the calendar.`
+    });
+  }
+  if (c.until && c.until < c.date) {
+    ctx.addIssue({
+      code: z2.ZodIssueCode.custom,
+      path: at("until"),
+      message: "A closure cannot end before it starts."
+    });
+  }
+}
+var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
+  const p = cfg.brain?.profile;
+  if (!p) return;
+  for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay(h, day, ctx);
+  if ((p.closures?.length ?? 0) > MAX_CLOSURES) {
+    ctx.addIssue({
+      code: z2.ZodIssueCode.custom,
+      path: ["brain", "profile", "closures"],
+      message: `At most ${MAX_CLOSURES} closures.`
+    });
+  }
+  (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
+});
+function parseTenantConfigResult(raw) {
+  const r = TenantConfigSchema.safeParse(raw ?? {});
+  if (r.success) return { ok: true, config: r.data };
+  return {
+    ok: false,
+    issues: r.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+  };
+}
+function parseTenantConfig(raw) {
+  const r = parseTenantConfigResult(raw);
+  return r.ok ? r.config : null;
+}
+var DAY_LABEL = {
+  mon: "Monday",
+  tue: "Tuesday",
+  wed: "Wednesday",
+  thu: "Thursday",
+  fri: "Friday",
+  sat: "Saturday",
+  sun: "Sunday"
+};
+function dayIntervals(h) {
+  const raw = [];
+  if (h?.open && h?.close) raw.push({ open: h.open, close: h.close });
+  for (const iv of h?.intervals ?? []) if (iv?.open && iv?.close) raw.push(iv);
+  const usable = raw.filter((x) => x.close > x.open).sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
+  const merged = [];
+  for (const iv of usable) {
+    const last = merged[merged.length - 1];
+    if (last && iv.open <= last.close) {
+      if (iv.close > last.close) last.close = iv.close;
+    } else {
+      merged.push({ ...iv });
+    }
+  }
+  return merged;
+}
+function joinList(parts2) {
+  if (parts2.length < 3) return parts2.join(" and ");
+  return `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+}
+function dayText(h) {
+  const spans = dayIntervals(h);
+  if (spans.length) {
+    const open = joinList(spans.map((x) => `${x.open}\u2013${x.close}`));
+    const gaps = spans.slice(1).map((x, i) => `${spans[i].close}\u2013${x.open}`);
+    return gaps.length ? `${open} (closed ${joinList(gaps)})` : open;
+  }
+  const saidSomething = !!(h?.open || h?.close || h?.intervals?.length);
+  return saidSomething ? "Hours not confirmed \u2014 ask them to call" : "Closed";
+}
+function hoursRuns(hours) {
+  if (!hours) return [];
+  const spans = DAYS.map((d) => ({ day: d, text: dayText(hours[d]) }));
+  const out = [];
+  let i = 0;
+  while (i < spans.length) {
+    let j = i;
+    while (j + 1 < spans.length && spans[j + 1].text === spans[i].text) j++;
+    out.push({ from: spans[i].day, to: spans[j].day, text: spans[i].text });
+    i = j + 1;
+  }
+  return out;
+}
+function hoursLines(hours) {
+  return hoursRuns(hours).map((r) => {
+    const label = r.from === r.to ? DAY_LABEL[r.from] : `${DAY_LABEL[r.from]}\u2013${DAY_LABEL[r.to]}`;
+    return `${label}: ${r.text}`;
+  });
+}
+function hasProfile(p) {
+  if (!p) return false;
+  const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close || h?.intervals?.length);
+  return !!(p.address || p.tone || p.extra_instructions || statedHours || p.services?.length || p.languages?.length || p.escalate_when?.length || p.website || p.notes?.length);
+}
+function dateKeyInZone(tz, at) {
+  try {
+    const parts2 = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).formatToParts(at);
+    const get = (t) => parts2.find((p) => p.type === t)?.value ?? "";
+    const y = get("year"), m = get("month"), d = get("day");
+    return y && m && d ? `${y}-${m}-${d}` : null;
+  } catch {
+    return null;
+  }
+}
+function labelDate(key, withWeekday) {
+  const at = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  if (Number.isNaN(at.getTime()) || dateKeyInZone("UTC", at) !== key) return key;
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    ...withWeekday ? { weekday: "long" } : {},
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  }).format(at);
+}
+function upcomingClosures(closures, tz, at) {
+  if (!closures?.length) return [];
+  const today = tz && dateKeyInZone(tz, at) || dateKeyInZone("UTC", new Date(at.getTime() - 864e5));
+  if (!today) return closures;
+  return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= today).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+}
+function closureLines(closures) {
+  return closures.map((c) => {
+    const when = c.until && c.until !== c.date && c.until > c.date ? `${labelDate(c.date, false)} \u2013 ${labelDate(c.until, false)}` : labelDate(c.date, true);
+    return c.note ? `${when} \u2014 ${c.note}` : when;
+  });
+}
+function closedToday(closures, tz, at) {
+  if (!closures?.length || !tz) return null;
+  const today = dateKeyInZone(tz, at);
+  if (!today) return null;
+  return closures.find((c) => {
+    const end = c.until && c.until >= c.date ? c.until : c.date;
+    return c.date <= today && today <= end;
+  }) ?? null;
+}
+var NO_CLOCK = "You do not know today's date or the current time. If a customer asks whether the business is open right now, or about today or tomorrow, state the opening hours and let them compare \u2014 never guess which day it is.";
+function describeNow(tz, now = /* @__PURE__ */ new Date(), closures) {
+  if (!tz) return NO_CLOCK;
+  try {
+    const stamp = new Intl.DateTimeFormat("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: tz
+    }).format(now);
+    const shut = closedToday(closures, tz, now);
+    const today = shut ? ` The business is CLOSED today${shut.note ? ` \u2014 ${shut.note}` : ""}, whatever the weekly hours say. Do not offer today; offer the next day it is open.` : "";
+    return `Right now it is ${stamp} (${tz}).${today} Use this for anything about today, tomorrow, or whether the business is open at this moment \u2014 compare it against the opening hours and the closed dates, and treat a closed date as final.`;
+  } catch {
+    return NO_CLOCK;
+  }
+}
+function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy) {
+  return composeSystemPromptWith(base, profile, channel, tz, now, policy);
+}
+function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
+  const s = [];
+  const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
+  s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
+  if (profile.tone) s.push(`Tone: ${profile.tone}`);
+  if (profile.languages?.length) {
+    s.push(
+      `You speak: ${profile.languages.join(", ")}.` + // A caller picks the language by speaking it; nobody asks a phone
+      // agent to "reply in Spanish".
+      (channel === "voice" ? " Answer in whichever of these the caller uses, and switch if they do." : "")
+    );
+  }
+  if (profile.address) s.push(`
+Address: ${profile.address}`);
+  s.push(`Phone: ${base.phone_display}`);
+  s.push(`Booking link: ${base.booking_link}`);
+  if (profile.website) s.push(`Website: ${profile.website}`);
+  const hrs = hoursLines(profile.hours);
+  if (hrs.length) {
+    const where = tz ? ` (all times ${tz})` : "";
+    s.push(`
+Opening hours${where}:
+${hrs.map((l) => `- ${l}`).join("\n")}`);
+  }
+  const closed = closureLines(upcomingClosures(profile.closures, tz, now));
+  if (closed.length) {
+    s.push(
+      `
+Closed on these dates, whatever the opening hours above say:
+${closed.map((l) => `- ${l}`).join("\n")}
+If someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`
+    );
+  }
+  if (profile.services?.length) {
+    const lines = profile.services.map((sv) => {
+      const bits = [sv.name];
+      if (sv.duration_min) bits.push(`about ${sv.duration_min} minutes`);
+      if (sv.price_note) bits.push(sv.price_note);
+      return `- ${bits.join(" \u2014 ")}`;
+    });
+    s.push(`
+Services:
+${lines.join("\n")}`);
+  }
+  if (profile.notes?.length) {
+    s.push(`
+Other things to know:
+${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
+  }
+  const br = profile.booking_rules;
+  if (br && (br.lead_hours !== void 0 || br.consult_first?.length || br.party_max || br.notes?.length)) {
+    const lines = [];
+    if (br.lead_hours !== void 0) {
+      lines.push(
+        br.lead_hours === 0 ? "Same-day bookings are fine, right up to the time." : `At least ${br.lead_hours} hour${br.lead_hours === 1 ? "" : "s"}' notice for any appointment.`
+      );
+    }
+    if (br.consult_first?.length) lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
+    if (br.party_max) lines.push(`Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`);
+    for (const n of br.notes ?? []) lines.push(n);
+    s.push(`
+Booking rules:
+${lines.map((l) => `- ${l}`).join("\n")}`);
+  }
+  if (channel === "whatsapp") {
+    const when = profile.escalate_when?.length ? `
+${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
+    s.push(
+      `
+Handing the conversation to a person:
+Put the exact token [[HUMAN]] at the very end of your reply. It is removed before the customer sees it, and it is the only thing that alerts a human \u2014 saying you will fetch someone does nothing on its own. Write the reply you would normally send, then add the token.
+Do this whenever the customer asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
+    );
+  } else {
+    const when = profile.escalate_when?.length ? `
+${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
+    const staffed = profile.handoff_number ? "Use transfer_to_staff during opening hours \u2014 it rings the line a person answers, and you stay on until they pick up. Outside opening hours, or if the transfer does not connect, take the caller's name and a short message and say the team will follow up." : "There is no line to transfer to. Take the caller's name and a short message and say the team will follow up.";
+    s.push(
+      `
+Handing the caller to a person:
+${staffed}
+Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
+    );
+    s.push(
+      "\nOpen times: use check_availability before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.\nBooking: when the caller wants to book, use send_booking_link \u2014 it texts the booking link to the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Then confirm it was sent. If it fails, give the phone number above and offer to have someone follow up.\nEnding: once the caller has said goodbye, use end_call."
+    );
+  }
+  if (profile.extra_instructions?.trim()) {
+    const above = [
+      profile.address ? "address" : "",
+      hrs.length ? "hours" : "",
+      closed.length ? "closed dates" : "",
+      profile.services?.length ? "services" : ""
+    ].filter(Boolean);
+    const stated = above.length > 0;
+    const text = profile.extra_instructions.trim();
+    const header = [
+      stated ? `Further instructions from the business. Where these disagree with the ${joinList(above)} above, the details above are current and correct.` : "",
+      channel === "voice" ? "Some of it was written for text conversations; you are on a phone call." : ""
+    ].filter(Boolean).join(" ");
+    s.push(header ? `
+${header}
+${text}` : `
+${text}`);
+  }
+  s.push(
+    channel === "voice" ? "\nYou are speaking aloud. Keep answers to one or two sentences, never read a URL out character by character, and offer to text the booking link instead." : "\nKeep replies short enough to read on a phone. Send the booking link rather than describing how to book."
+  );
+  s.push(
+    "\nIf open times are listed after these instructions, offer up to three that fit what the customer wants, then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link."
+  );
+  const g = profile.guardrails ?? {};
+  const rules = [];
+  if (g.never_quote_prices !== false) {
+    rules.push("Never quote or confirm a price. Say it is quoted in person or at a consult, and offer the booking link.");
+  }
+  if (g.never_confirm_booking !== false) {
+    rules.push("Never promise or confirm an appointment yourself. Booking happens on the booking link or with staff.");
+  }
+  if (g.disclose_ai !== false) {
+    rules.push("If asked whether you are a bot, a person, or AI, say plainly that you are the business's automated assistant and offer to bring in a person.");
+  }
+  rules.push("If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else.");
+  if (g.no_health_advice === true) {
+    rules.push("Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment and offer the booking link.");
+  }
+  rules.push(...policyRules(policy, channel));
+  if (rules.length) s.push(`
+Rules you must follow:
+${rules.map((r) => `- ${r}`).join("\n")}`);
+  return s.join("\n");
+}
+function resolveSystemPrompt(brain, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy) {
+  if (!hasProfile(brain.profile)) {
+    const rules = policyRules(policy, channel);
+    return rules.length ? `${brain.system_prompt}
+
+Rules you must follow:
+${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
+  }
+  const profile = brain.profile;
+  const carried = profile.extra_instructions?.trim() ? profile : { ...profile, extra_instructions: brain.system_prompt };
+  return composeSystemPrompt(brain, carried, channel, tz, now, policy);
 }
 
 // src/availability.ts
@@ -1282,7 +1805,7 @@ function hhmm(s) {
   const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());
   return m ? [Number(m[1]), Number(m[2])] : null;
 }
-function dayIntervals(h) {
+function dayIntervals2(h) {
   if (!h) return [];
   if (h.intervals?.length) return h.intervals.filter((i) => i.open && i.close).map((i) => [i.open, i.close]);
   return h.open && h.close ? [[h.open, h.close]] : [];
@@ -1302,7 +1825,7 @@ function freeWindows(input) {
     const at = input.now.getTime() + offset * 864e5;
     const day = dayInZone(input.tz, at);
     if (closedOn(input.closures, day.key)) continue;
-    const ranges = dayIntervals(input.hours?.[day.weekday]);
+    const ranges = dayIntervals2(input.hours?.[day.weekday]);
     const windows = [];
     for (const [open, close] of ranges) {
       const o = hhmm(open), c = hhmm(close);
@@ -1370,6 +1893,352 @@ function describeOpenings(openings, tz, opts = {}) {
   return `Open times (from the calendar, checked just now \u2014 these change as bookings come in):
 ${lines.join("\n")}
 Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides.`;
+}
+
+// src/calendar.ts
+var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+var DAY_SHORT = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
+function keyParts(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  return { y, m: m ?? 1, d: d ?? 1 };
+}
+function shiftKey(key, n) {
+  const { y, m, d } = keyParts(key);
+  const at = new Date(Date.UTC(y, m - 1, d + n));
+  return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, "0")}-${String(at.getUTCDate()).padStart(2, "0")}`;
+}
+function mondayOf(key) {
+  const { y, m, d } = keyParts(key);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return shiftKey(key, -((dow + 6) % 7));
+}
+function isDayKey(s) {
+  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
+}
+function monthSpan(key) {
+  return { from: mondayOf(`${key.slice(0, 7)}-01`), days: 42 };
+}
+function shiftMonth(key, n) {
+  const { y, m } = keyParts(key);
+  const at = new Date(Date.UTC(y, m - 1 + n, 1));
+  return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, "0")}-01`;
+}
+function monthLabelOf(key) {
+  const { y, m } = keyParts(key);
+  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(new Date(Date.UTC(y, m - 1, 1, 12)));
+}
+function clockLabel(t) {
+  const h = Math.floor(t);
+  const m = Math.round((t - h) * 60);
+  const ap = h >= 12 && h < 24 ? "PM" : "AM";
+  const hh = (h + 11) % 12 + 1;
+  return `${hh}${m ? `:${String(m).padStart(2, "0")}` : ""} ${ap}`;
+}
+var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+function shortDate(key) {
+  const { y, m, d } = keyParts(key);
+  return SHORT.format(new Date(Date.UTC(y, m - 1, d, 12)));
+}
+function longDate(key) {
+  const { y, m, d } = keyParts(key);
+  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(new Date(Date.UTC(y, m - 1, d, 12)));
+}
+function readAgoLabel(iso, now) {
+  if (!iso) return null;
+  return agoWords(Date.parse(iso), now.getTime(), { dateAfterMs: Number.POSITIVE_INFINITY });
+}
+function rulesLine(rules) {
+  const r = { ...BOOKING_DEFAULTS, ...rules ?? {} };
+  const parts2 = [`at least ${r.lead_hours}h ahead`];
+  if (r.buffer_min > 0) parts2.push(`${r.buffer_min} min between appointments`);
+  parts2.push(`up to ${r.max_days_ahead} days out`, `${r.slot_min}-min slots`);
+  return `Offers times ${parts2.join(" \xB7 ")}`;
+}
+function hoursLines2(hours) {
+  if (!hours) return [];
+  const clean = {};
+  for (const d of DAYS) if (hours[d]) clean[d] = hours[d];
+  return hoursRuns(clean).map((r) => `${DAY_SHORT[r.from] ?? r.from}${r.to !== r.from ? `\u2013${DAY_SHORT[r.to] ?? r.to}` : ""} ${r.text.toLowerCase() === "closed" ? "closed" : r.text}`);
+}
+function hoursOf(tz, ms2) {
+  const c = clockInZone(tz, ms2);
+  return c.hh + c.mm / 60;
+}
+function spanLabel2(t1, t2) {
+  const a = clockLabel(t1);
+  const b = clockLabel(t2);
+  const sameHalf = a.slice(-2) === b.slice(-2);
+  return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
+}
+function toBlock(item, tz, dayStartMs, dayEndMs) {
+  const s = Math.max(Date.parse(item.start), dayStartMs);
+  const e = Math.min(Date.parse(item.end), dayEndMs);
+  const t = s === dayStartMs ? 0 : hoursOf(tz, s);
+  const tEnd = e === dayEndMs ? 24 : hoursOf(tz, e);
+  return {
+    id: item.id,
+    t,
+    dur: Math.max(15, Math.round((tEnd - t) * 60)),
+    title: item.title || "Busy",
+    time: spanLabel2(t, tEnd),
+    person: item.person ? { id: item.person.id, name: item.person.name, via: item.person.via ?? null } : null,
+    description: item.description ?? null,
+    location: item.location ?? null,
+    contacts: { phones: (item.contacts?.phones ?? []).map((p) => formatPhoneDisplay(p) ?? p), e164: item.contacts?.phones ?? [], emails: item.contacts?.emails ?? [] },
+    guess: item.guess ?? null,
+    start: item.start,
+    end: item.end
+  };
+}
+function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
+  const tz = dto.timezone;
+  const todayKey = dayInZone(tz, now.getTime()).key;
+  const nowMs = now.getTime();
+  let start = 24;
+  let end = 0;
+  for (const h of Object.values(dto.hours ?? {})) {
+    for (const [o, c] of dayIntervals2(h)) {
+      const oh = Number(o.split(":")[0]);
+      const ch = Number(c.split(":")[0]) + (Number(c.split(":")[1]) > 0 ? 1 : 0);
+      if (Number.isFinite(oh)) start = Math.min(start, oh);
+      if (Number.isFinite(ch)) end = Math.max(end, ch);
+    }
+  }
+  if (start >= end) {
+    start = 8;
+    end = 20;
+  }
+  start = Math.max(0, start - 1);
+  end = Math.min(24, end + 1);
+  const days = dto.days.map((d) => {
+    const { y, m, d: dd } = keyParts(d.key);
+    const weekday = DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()].toLowerCase();
+    const closure = dto.closures.find((c) => c.date <= d.key && d.key <= (c.until && c.until >= c.date ? c.until : c.date)) ?? null;
+    const intervals = dayIntervals2(dto.hours?.[weekday]);
+    const closedDay = closedOn(dto.closures, d.key) || intervals.length === 0;
+    const bands = [];
+    if (closedDay) {
+      bands.push({ from: start, to: end, label: closure?.note ? `Closed \xB7 ${closure.note}` : "Closed" });
+    } else {
+      let cursor = start;
+      for (const [o, c] of intervals) {
+        const oh = Number(o.split(":")[0]) + Number(o.split(":")[1]) / 60;
+        const ch = Number(c.split(":")[0]) + Number(c.split(":")[1]) / 60;
+        if (oh > cursor) bands.push({ from: cursor, to: oh, label: null });
+        cursor = Math.max(cursor, ch);
+      }
+      if (cursor < end) bands.push({ from: cursor, to: end, label: null });
+    }
+    const zoneDayStart = zoneMidnight(tz, d.key);
+    const zoneDayEnd = zoneMidnight(tz, shiftKey(d.key, 1));
+    const timed = [];
+    const allDay = [];
+    for (const item of d.items) {
+      const s = Date.parse(item.start);
+      const e = Date.parse(item.end);
+      if (!(e > zoneDayStart && s < zoneDayEnd)) continue;
+      const block = toBlock(item, tz, zoneDayStart, zoneDayEnd);
+      if (item.all_day || s <= zoneDayStart && e >= zoneDayEnd) allDay.push({ ...block, t: 0, dur: 24 * 60, time: "All day" });
+      else timed.push(block);
+    }
+    timed.sort((a, b) => a.t - b.t);
+    const windows = d.windows.map((w) => {
+      const t = hoursOf(tz, Date.parse(w.start));
+      const tEnd = hoursOf(tz, Date.parse(w.end));
+      return { t, dur: Math.round((tEnd - t) * 60), label: spanLabel2(t, tEnd) };
+    });
+    return {
+      key: d.key,
+      dow: DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()],
+      date: shortDate(d.key),
+      long: longDate(d.key),
+      dayNum: String(dd),
+      today: d.key === todayKey,
+      past: d.key < todayKey,
+      closed: { yes: closedDay, note: closure?.note ?? null },
+      bands,
+      blocks: timed,
+      allDay,
+      windows
+    };
+  });
+  const events = days.reduce((a, d) => a + d.blocks.length + d.allDay.length, 0);
+  const windowCount = days.reduce((a, d) => a + d.windows.length, 0);
+  let next = "\u2014";
+  outer: for (const d of days) {
+    for (const w of d.windows) {
+      const at = zoneMidnight(tz, d.key) + w.t * 36e5;
+      if (at >= nowMs) {
+        next = `${d.today ? "today" : d.dow} ${clockLabel(w.t)}`;
+        break outer;
+      }
+    }
+  }
+  const ago3 = readAgoLabel(dto.feed.read_at, now);
+  const feedLine = dto.feed.state === "ok" ? `From ${dto.feed.source ?? "your calendar"} \xB7 read ${ago3 ?? "just now"} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}${dto.feed.skipped_recurring ? ` \xB7 ${dto.feed.skipped_recurring} repeating rule${dto.feed.skipped_recurring === 1 ? "" : "s"} read once` : ""}` : dto.feed.state === "unavailable" ? `Your calendar could not be read${ago3 ? ` \xB7 last read ${ago3}` : ""}` : "No calendar connected";
+  const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
+  const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
+  const sameMonth = dto.from.slice(0, 7) === last.slice(0, 7);
+  const closuresAhead = dto.closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6).map((c) => ({
+    key: c.date,
+    label: c.until && c.until > c.date ? `${shortDate(c.date)} \u2013 ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}` : shortDate(c.date),
+    note: c.note ?? null
+  }));
+  const services = (dto.services ?? []).map((s) => ({
+    name: s.name,
+    duration: s.duration_min,
+    consultFirst: s.consult_first,
+    label: `${s.name}${s.duration_min ? ` \xB7 ${s.duration_min} min` : ""}${s.consult_first ? " \xB7 consult first" : ""}`
+  }));
+  return {
+    timezone: tz,
+    from: dto.from,
+    to: last,
+    rangeLabel: `${shortDate(dto.from)} \u2013 ${sameMonth ? shortDate(last).replace(/^[A-Za-z]+ /, "") : shortDate(last)}`,
+    monthLabel: monthLabelOf(dto.days.length >= 28 ? shiftKey(dto.from, 7) : dto.from),
+    hours: { start, end },
+    days,
+    today: todayKey,
+    now: nowIn,
+    feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events, source: dto.feed.source ?? "your calendar" },
+    stats: { events, windows: windowCount, next },
+    rules: rulesLine(dto.rules),
+    hoursLines: hoursLines2(dto.hours),
+    closuresAhead,
+    services,
+    bookingLink: dto.booking_link
+  };
+}
+function zoneMidnight(tz, key) {
+  const { y, m, d } = keyParts(key);
+  const guess = Date.UTC(y, m - 1, d);
+  const off1 = zoneOffsetOf(tz, guess);
+  const first = guess - off1;
+  const off2 = zoneOffsetOf(tz, first);
+  return guess - off2;
+}
+function zoneOffsetOf(tz, atMs) {
+  const c = clockInZone(tz, atMs);
+  const day = dayInZone(tz, atMs);
+  return Date.UTC(day.y, day.m - 1, day.d, c.hh, c.mm, c.ss) - Math.floor(atMs / 1e3) * 1e3;
+}
+function spanForView(view, anchor) {
+  if (view === "month") return monthSpan(anchor);
+  if (view === "agenda") return { from: anchor, days: 14 };
+  return { from: mondayOf(anchor), days: 7 };
+}
+function windowFor(anchor) {
+  return { from: shiftKey(mondayOf(`${anchor.slice(0, 7)}-01`), -7), days: 63 };
+}
+function coversSpan(days, from, count) {
+  if (!days.length || count < 1) return false;
+  return days[0].key <= from && days[days.length - 1].key >= shiftKey(from, count - 1);
+}
+function frameOf(key, todayKey) {
+  const { y, m, d } = keyParts(key);
+  return {
+    key,
+    dow: DOW[new Date(Date.UTC(y, m - 1, d)).getUTCDay()],
+    date: shortDate(key),
+    long: longDate(key),
+    dayNum: String(d),
+    today: key === todayKey,
+    past: key < todayKey
+  };
+}
+
+// src/live.ts
+var LIVE_STALE_MS = 5 * 60 * 1e3;
+var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
+var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
+var RECENT_MAX = 8;
+var mmss2 = (ms2) => {
+  const total = Math.max(0, Math.round(ms2 / 1e3));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+};
+function fmtClock(seconds) {
+  return mmss2(Math.max(0, seconds) * 1e3);
+}
+function turnsOf(dto) {
+  return (dto.transcript_object ?? []).filter((turn) => turn.role === "agent" || turn.role === "user" || turn.role === "injected").map((turn) => {
+    const start = turn.start ?? turn.words?.[0]?.start;
+    if (turn.role === "injected") {
+      return { speaker: "whisper", text: whisperText(turn.content), t: "\u2014" };
+    }
+    return {
+      speaker: turn.role === "agent" ? "agent" : "client",
+      text: turn.content ?? "",
+      t: typeof start === "number" ? mmss2(start * 1e3) : "\u2014"
+    };
+  });
+}
+function toLiveCallVM(dto, now = /* @__PURE__ */ new Date()) {
+  const nowMs = now.getTime();
+  const withheld = !dto.from_e164 && !dto.from_raw;
+  const phone = formatPhoneDisplay(dto.from_e164);
+  const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
+  const who = withheld ? "Caller ID withheld" : name || phone || dto.from_raw || "Unknown caller";
+  const whoShort = name ? /^[+\d(]/.test(name) ? name : name.split(" ")[0] : "the caller";
+  const live = isLiveCall(dto, now);
+  const missed = dto.status === "not_connected";
+  const startedAtMs = dto.started_at ? new Date(dto.started_at).getTime() : null;
+  const beat = dto.updated_at ?? dto.started_at;
+  const heartbeatAtMs = beat ? new Date(beat).getTime() : null;
+  let checking = false;
+  let checkingWhy = null;
+  if (live) {
+    const sinceBeat = heartbeatAtMs === null ? 0 : nowMs - heartbeatAtMs;
+    const sinceStart = startedAtMs === null ? 0 : nowMs - startedAtMs;
+    if (sinceBeat > LIVE_STALE_MS) {
+      checking = true;
+      checkingWhy = `no word from the phone provider for ${Math.round(sinceBeat / 6e4)} minutes`;
+    } else if (sinceStart > LIVE_OVERLONG_MS) {
+      checking = true;
+      checkingWhy = `live for over ${Math.floor(sinceStart / 6e4)} minutes`;
+    }
+  }
+  const endedMs = dto.ended_at ? new Date(dto.ended_at).getTime() : null;
+  const summary = (dto.summary ?? "").trim() || null;
+  const summaryState = missed ? "missed" : summary ? "ready" : live || endedMs !== null && nowMs - endedMs < ANALYSIS_GRACE_MS ? "pending" : "none";
+  const recordingState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording?.fetch_state === "failed" ? "failed" : dto.recording ? "pending" : "none";
+  return {
+    callId: dto.id,
+    cvId: `cv-${dto.id}`,
+    clientId: dto.contact_id,
+    who,
+    whoShort,
+    initials: withheld ? "\u2013" : initialsOf(who),
+    number: withheld ? null : phone ?? dto.from_raw,
+    direction: dto.direction,
+    status: dto.status,
+    live,
+    missed,
+    stale: dto.status === "ongoing" && !live,
+    checking,
+    checkingWhy,
+    startedAtMs,
+    heartbeatAtMs,
+    startedLabel: shortTime(dto.started_at, now),
+    duration: live || missed || !dto.duration_ms ? null : mmss2(dto.duration_ms),
+    summaryState,
+    summary,
+    sentiment: dto.sentiment,
+    endedHow: dto.disconnection_reason ? DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " ") : null,
+    recordingState,
+    transcript: turnsOf(dto)
+  };
+}
+function toLiveVM(calls, channels, now = /* @__PURE__ */ new Date()) {
+  const vms = calls.map((c) => toLiveCallVM(c, now));
+  const nowList = vms.filter((c) => c.live).sort((a, b) => (a.startedAtMs ?? 0) - (b.startedAtMs ?? 0));
+  const recent = vms.filter((c) => !c.live).sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0)).slice(0, RECENT_MAX);
+  const voice = channels?.find((ch) => ch.kind === "voice") ?? null;
+  const line = voice ? {
+    number: formatPhoneDisplay(voice.number_e164),
+    on: voice.status === "active",
+    lastCallLabel: voice.last_inbound_at ? shortTime(voice.last_inbound_at, now) : null
+  } : null;
+  return { now: nowList, recent, line, heartbeatMs: CALL_HEARTBEAT_MS, fetchedAtMs: now.getTime() };
 }
 
 // src/calendar-people.ts
@@ -2582,21 +3451,58 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     quiet: null
   };
 }
-function todayDay(cal, playbooks) {
+function durationLabel(minutes) {
+  if (!Number.isFinite(minutes) || minutes <= 0) return "";
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return h ? m ? `${h}h ${m}m` : `${h}h` : `${m}m`;
+}
+var FLAG_WORDS = { needs_you: "Needs you \u2014 in Inbox", waiting_on_you: "Waiting on you \u2014 in Inbox" };
+function todayDay(cal, playbooks, people = null) {
   if (!cal) return { feed: "none", frames: [], nextOpening: null, reminders: null };
   const feed = cal.feed.state;
   const idx = cal.days.findIndex((d) => d.today);
   const picked = idx >= 0 ? cal.days.slice(idx, idx + 2) : [];
-  const item = (b, allDay) => ({ id: b.id, time: b.time, title: b.title, person: b.person ? { id: b.person.id, name: b.person.name } : null, allDay });
-  const frames = picked.map((d) => ({
-    key: d.key,
-    label: `${d.today ? "Today" : "Tomorrow"} \xB7 ${d.long}`,
-    today: d.today,
-    past: d.past,
-    closed: d.closed,
-    items: [...d.allDay.map((b) => item(b, true)), ...[...d.blocks].sort((a, b) => a.t - b.t).map((b) => item(b, false))],
-    open: d.closed.yes || d.past ? [] : d.windows.map((w) => w.label)
-  }));
+  const stateOf = new Map((people?.rows ?? []).map((r) => [r.id, r.state]));
+  const item = (b, allDay, phase) => ({
+    id: b.id,
+    start: allDay ? "All day" : clockLabel(b.t),
+    time: b.time,
+    dur: allDay ? "" : durationLabel(b.dur),
+    title: b.title,
+    person: b.person ? { id: b.person.id, name: b.person.name } : null,
+    allDay,
+    phase,
+    flag: b.person ? FLAG_WORDS[stateOf.get(b.person.id) ?? ""] ?? null : null
+  });
+  const frames = picked.map((d) => {
+    let nextTaken = false;
+    const timed = [...d.blocks].sort((a, b) => a.t - b.t).map((b) => {
+      let phase = "later";
+      if (d.today) {
+        const end = b.t + b.dur / 60;
+        if (end <= cal.now) phase = "past";
+        else if (b.t <= cal.now) phase = "now";
+        else if (!nextTaken) {
+          phase = "next";
+          nextTaken = true;
+        }
+      }
+      return item(b, false, phase);
+    });
+    const items = [...d.allDay.map((b) => item(b, true, "later")), ...timed];
+    const flagged = items.filter((i) => i.flag).length;
+    return {
+      key: d.key,
+      label: `${d.today ? "Today" : "Tomorrow"} \xB7 ${d.long}`,
+      today: d.today,
+      past: d.past,
+      closed: d.closed,
+      items,
+      summary: items.length ? { booked: `${items.length} booked`, flagged: flagged ? `${flagged} need${flagged === 1 ? "s" : ""} you` : null } : null,
+      open: d.closed.yes || d.past ? [] : d.windows.map((w) => w.label)
+    };
+  });
   let reminders = null;
   if (feed === "ok") {
     const visit = (playbooks ?? []).filter((p) => (p.trigger === "visit_tomorrow" || p.trigger === "visited") && p.state === "running");
@@ -2639,623 +3545,6 @@ function todayJourney(people) {
 function todayAway(rows, max = 5) {
   const fresh = rows.filter((r) => r.unread);
   return { rows: fresh.slice(0, max), more: Math.max(0, fresh.length - max) };
-}
-
-// src/config.ts
-import { z as z2 } from "zod";
-var ROLES = MEMBERSHIP_ROLES;
-var ROLE_PERMS = {
-  // `settings` is the business details and who is alerted: PUT /settings is
-  // owner-only, and the form used to open on the autonomy gate, which let an
-  // operator fill it in and be refused at Save.
-  // `export` is the whole customer list as a file: a member sees these
-  // people a screen at a time, the owner may take them all at once.
-  owner: { approve: true, autonomy: true, disconnect: true, billing: true, team: true, settings: true, export: true },
-  operator: { approve: true, autonomy: true, disconnect: false, billing: false, team: false, settings: false, export: false },
-  viewer: { approve: false, autonomy: false, disconnect: false, billing: false, team: false, settings: false, export: false }
-};
-var POLICY_CLASSES = ["reply", "booking", "faq", "reengage", "campaign", "money"];
-var POLICY_CLASS_WORDS = {
-  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
-  booking: { name: "Book \xB7 reschedule", short: "Bookings", note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone" },
-  reengage: { name: "Re-engage quiet customers", short: "Re-engage", note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  campaign: { name: "Standing offers", short: "Offers", note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
-};
-var POLICY_MODES = ["auto", "veto", "ask", "never"];
-var POLICY_CLASS_MODES = {
-  reply: ["auto", "veto", "ask", "never"],
-  booking: ["auto", "ask"],
-  faq: ["auto", "ask"],
-  reengage: ["auto", "veto", "ask", "never"],
-  campaign: ["auto", "veto", "ask", "never"],
-  money: ["never"]
-};
-function policyClassOfIntent(intent) {
-  if (intent === "booking") return "booking";
-  if (intent === "pricing" || intent === "services") return "faq";
-  return null;
-}
-function policyAskClass(policy, intent) {
-  const cls = policyClassOfIntent(intent);
-  if (!cls) return null;
-  const mode = policy?.[cls]?.mode ?? "auto";
-  return mode === "auto" ? null : cls;
-}
-function policyRules(policy, channel) {
-  const out = [];
-  const modeOf = (cls) => policy?.[cls]?.mode ?? "auto";
-  const voice = channel === "voice";
-  if (modeOf("booking") !== "auto") {
-    out.push(voice ? "Booking: when someone wants to book, reschedule or cancel, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name." : "Booking: when someone wants to book, reschedule or cancel, do not send the booking link. Say a member of the team will confirm with them shortly, and set escalate to true.");
-  }
-  if (modeOf("faq") !== "auto") {
-    out.push(voice ? "Service and pricing questions: do not answer them yourself. Say a member of the team will call them back with the details, and take their name." : "Service and pricing questions: do not answer them yourself. Say a member of the team will get back to them with the details, and set escalate to true.");
-  }
-  return out;
-}
-var PolicyLimitsSchema = z2.object({
-  max_replies_day: z2.number().int().min(1).max(200).optional(),
-  pause_hours: z2.number().int().min(1).max(168).optional(),
-  /**
-   * How long the receptionist WAITS before its own reply goes out, in ms.
-   *
-   * Only meaningful when mode is 'veto'. A text channel is not a phone
-   * call — nobody expects an answer in under a second — so the delay costs
-   * the customer nothing and buys the business a window to redirect the bot
-   * before it speaks, rather than apologising for it afterwards.
-   */
-  reply_delay_ms: z2.number().int().min(5e3).max(6e5).optional(),
-  /**
-   * The confidence dial. Under 'auto', a reply the model is less sure about
-   * than this waits in the hold window (reply_delay_ms) for a person instead
-   * of going straight out — sure enough sends itself, not sure enough waits.
-   * 0 or absent means off.
-   */
-  min_confidence: z2.number().min(0).max(1).optional(),
-  /**
-   * The day's token budget: model tokens in and out over a rolling 24
-   * hours, read from the usage events every reply writes. Over it the
-   * receptionist stops and files a `budget` escalation, as it does at the
-   * reply cap. 0 or absent is off; a value is at least a thousand, because
-   * a budget of ten would be a mute button with a misleading name.
-   */
-  max_llm_tokens_day: z2.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
-}).strict();
-var TIME = z2.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-var IntervalSchema = z2.object({ open: TIME, close: TIME });
-var HoursSchema = z2.object({
-  /** "09:00". Absent or null = closed that day, which is a real answer. */
-  open: TIME.nullable().optional(),
-  close: TIME.nullable().optional(),
-  /**
-   * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
-   * actually keeps. Additive: a day that has always been one stretch keeps
-   * saying so with open/close, and no stored config is rewritten.
-   */
-  intervals: z2.array(IntervalSchema).optional()
-}).strict();
-var DATE = z2.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-var ClosureSchema = z2.object({
-  date: DATE,
-  until: DATE.optional(),
-  note: z2.string().max(200).optional()
-});
-var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-var ServiceSchema = z2.object({
-  name: z2.string().min(1).max(80),
-  /** Minutes. The receptionist is asked "how long does it take" constantly. */
-  duration_min: z2.number().int().min(1).max(1440).optional(),
-  /**
-   * Free text, not a number, and deliberately so: "from $45", "quoted at
-   * consult", "varies by length". A price the business cannot state flatly
-   * must not be forced into a field that looks like it can.
-   */
-  price_note: z2.string().max(120).optional()
-}).strict();
-var GuardrailsSchema = z2.object({
-  never_quote_prices: z2.boolean().optional(),
-  never_confirm_booking: z2.boolean().optional(),
-  disclose_ai: z2.boolean().optional(),
-  /**
-   * OPT-IN, unlike the three above. Those default on because absent means
-   * "the safe reading"; this one arrived after prompts were live, and a
-   * rule that defaulted on would have changed every composed prompt in
-   * production the moment it deployed.
-   */
-  no_health_advice: z2.boolean().optional()
-}).strict();
-var NoteSchema = z2.object({
-  title: z2.string().min(1).max(80),
-  text: z2.string().min(1).max(1200)
-}).strict();
-var BookingRulesSchema = z2.object({
-  /** Least notice for a slot, in hours. Absent = 2. */
-  lead_hours: z2.number().int().min(0).max(168).optional(),
-  /** Gap kept around each existing appointment, in minutes. Absent = 0. */
-  buffer_min: z2.number().int().min(0).max(120).optional(),
-  /** How far ahead open times are offered, in days. Absent = 14. */
-  max_days_ahead: z2.number().int().min(1).max(90).optional(),
-  /** The shortest window worth naming, in minutes. Absent = 30. */
-  slot_min: z2.number().int().min(15).max(240).optional(),
-  /** Services that need a consultation before they can be booked. */
-  consult_first: z2.array(z2.string().min(1).max(80)).max(20).optional(),
-  party_max: z2.number().int().min(1).max(20).optional(),
-  /** Anything else about booking, one short line each. */
-  notes: z2.array(z2.string().min(1).max(200)).max(10).optional()
-}).strict();
-var E164 = /^\+[1-9]\d{6,14}$/;
-var BusinessProfileSchema = z2.object({
-  address: z2.string().max(300).optional(),
-  hours: z2.record(z2.enum(DAYS), HoursSchema).optional(),
-  /** Dates the business is shut regardless of the weekly grid. */
-  closures: z2.array(ClosureSchema).optional(),
-  services: z2.array(ServiceSchema).max(60).optional(),
-  languages: z2.array(z2.string().min(2).max(40)).max(8).optional(),
-  guardrails: GuardrailsSchema.optional(),
-  /** What must reach a person. One short line each. */
-  escalate_when: z2.array(z2.string().min(1).max(200)).max(20).optional(),
-  tone: z2.string().max(200).optional(),
-  /**
-   * The line a PERSON answers. The phone receptionist warm-transfers here
-   * during opening hours; absent, it takes a message instead. Never the
-   * receptionist's own line — that would ring itself.
-   */
-  handoff_number: z2.string().regex(E164, "E.164, like +16469325775").optional(),
-  website: z2.string().url().max(500).optional(),
-  notes: z2.array(NoteSchema).max(10).optional(),
-  booking_rules: BookingRulesSchema.optional(),
-  /**
-   * Anything the owner wants said that no field covers.
-   *
-   * The escape hatch that keeps this model honest — without it, structuring
-   * the facts would mean losing whatever did not fit, and the first migration
-   * would be a downgrade.
-   */
-  extra_instructions: z2.string().max(8e3).optional()
-}).strict();
-var BrainConfigSchema = z2.object({
-  business_name: z2.string().min(1).max(120),
-  phone_display: z2.string().min(3).max(40),
-  booking_link: z2.string().url().max(500),
-  /** The complete system prompt the model receives — the "AI memory" pane's
-   *  one hard promise is that what it shows is EXACTLY this, nothing more. */
-  system_prompt: z2.string().min(40).max(2e4),
-  /**
-   * The business's facts, as fields.
-   *
-   * Optional: every config written before this existed stays valid, and
-   * nothing composes until a workspace actually fills it in. When present
-   * it REPLACES system_prompt as the source the prompt is built from.
-   */
-  profile: BusinessProfileSchema.optional(),
-  fallbacks: z2.object({
-    /** Sent when no model key is configured. */
-    greeting: z2.string().min(1).max(2e3),
-    /** Sent when the model call failed. */
-    error: z2.string().min(1).max(2e3),
-    /** Sent for voice notes / photos before escalating. */
-    non_text: z2.string().min(1).max(2e3)
-  }).strict()
-}).strict();
-function newReceptionistDefaults(businessName, phoneDisplay, bookingLink) {
-  return {
-    system_prompt: `You are the assistant for ${businessName}, answering inbound customer messages. You are warm, concise and professional \u2014 a great front-desk person, in text form. If you do not know something, say so plainly and offer to have a person follow up.`,
-    // What a customer reads when the model cannot be reached. Built from what
-    // the owner just typed, so they are the business's own details.
-    fallbacks: {
-      greeting: `Hi! Thanks for reaching out to ${businessName}.
-
-Book anytime: ${bookingLink}
-
-Or reply here with any question.`,
-      error: `Thanks for reaching out to ${businessName}! Book anytime: ${bookingLink} \u2014 or a member of our team will reply here soon.`,
-      non_text: `Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at ${phoneDisplay}.`
-    }
-  };
-}
-var NotificationsConfigSchema = z2.object({
-  escalation_emails: z2.array(z2.string().email()).min(1).max(10),
-  from: z2.string().max(200).optional()
-}).strict();
-var CalendarConfigSchema = z2.object({
-  ical_url: z2.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
-}).strict();
-var FeaturesConfigSchema = z2.object({ vision: z2.boolean().optional() }).strict();
-var TenantConfigSchema = z2.object({
-  brain: BrainConfigSchema.optional(),
-  notifications: NotificationsConfigSchema.optional(),
-  calendar: CalendarConfigSchema.optional(),
-  features: FeaturesConfigSchema.optional()
-});
-var MAX_INTERVALS_PER_DAY = 4;
-var MAX_CLOSURES = 60;
-function isRealDate(key) {
-  const at = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
-  return !Number.isNaN(at.getTime()) && at.toISOString().slice(0, 10) === key;
-}
-var DAY_NAME = {
-  mon: "Monday",
-  tue: "Tuesday",
-  wed: "Wednesday",
-  thu: "Thursday",
-  fri: "Friday",
-  sat: "Saturday",
-  sun: "Sunday"
-};
-function checkDay(h, day, ctx) {
-  const name = DAY_NAME[day] ?? day;
-  const at = (...rest) => ["brain", "profile", "hours", day, ...rest];
-  const open = h.open ?? void 0;
-  const close = h.close ?? void 0;
-  if (!!open !== !!close) {
-    ctx.addIssue({
-      code: z2.ZodIssueCode.custom,
-      path: at(open ? "close" : "open"),
-      message: `${name} needs both an opening and a closing time, or neither.`
-    });
-  }
-  if (open && close && close <= open) {
-    ctx.addIssue({
-      code: z2.ZodIssueCode.custom,
-      path: at("close"),
-      message: `${name} closes at or before it opens.`
-    });
-  }
-  const iv = h.intervals ?? [];
-  if (iv.length > MAX_INTERVALS_PER_DAY) {
-    ctx.addIssue({
-      code: z2.ZodIssueCode.custom,
-      path: at("intervals"),
-      message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.`
-    });
-  }
-  iv.forEach((x, n) => {
-    if (x.close <= x.open) {
-      ctx.addIssue({
-        code: z2.ZodIssueCode.custom,
-        path: at("intervals", n, "close"),
-        message: `${name}: a shift has to close after it opens.`
-      });
-    }
-  });
-  const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
-  for (let n = 1; n < sorted.length; n++) {
-    if (sorted[n].open < sorted[n - 1].close) {
-      ctx.addIssue({
-        code: z2.ZodIssueCode.custom,
-        path: at("intervals", n, "open"),
-        message: `${name}: two shifts overlap.`
-      });
-    }
-  }
-}
-function checkClosure(c, n, ctx) {
-  const at = (...rest) => ["brain", "profile", "closures", n, ...rest];
-  if (!isRealDate(c.date)) {
-    ctx.addIssue({
-      code: z2.ZodIssueCode.custom,
-      path: at("date"),
-      message: `${c.date} is not a date on the calendar.`
-    });
-  }
-  if (c.until && !isRealDate(c.until)) {
-    ctx.addIssue({
-      code: z2.ZodIssueCode.custom,
-      path: at("until"),
-      message: `${c.until} is not a date on the calendar.`
-    });
-  }
-  if (c.until && c.until < c.date) {
-    ctx.addIssue({
-      code: z2.ZodIssueCode.custom,
-      path: at("until"),
-      message: "A closure cannot end before it starts."
-    });
-  }
-}
-var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
-  const p = cfg.brain?.profile;
-  if (!p) return;
-  for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay(h, day, ctx);
-  if ((p.closures?.length ?? 0) > MAX_CLOSURES) {
-    ctx.addIssue({
-      code: z2.ZodIssueCode.custom,
-      path: ["brain", "profile", "closures"],
-      message: `At most ${MAX_CLOSURES} closures.`
-    });
-  }
-  (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
-});
-function parseTenantConfigResult(raw) {
-  const r = TenantConfigSchema.safeParse(raw ?? {});
-  if (r.success) return { ok: true, config: r.data };
-  return {
-    ok: false,
-    issues: r.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
-  };
-}
-function parseTenantConfig(raw) {
-  const r = parseTenantConfigResult(raw);
-  return r.ok ? r.config : null;
-}
-var DAY_LABEL = {
-  mon: "Monday",
-  tue: "Tuesday",
-  wed: "Wednesday",
-  thu: "Thursday",
-  fri: "Friday",
-  sat: "Saturday",
-  sun: "Sunday"
-};
-function dayIntervals2(h) {
-  const raw = [];
-  if (h?.open && h?.close) raw.push({ open: h.open, close: h.close });
-  for (const iv of h?.intervals ?? []) if (iv?.open && iv?.close) raw.push(iv);
-  const usable = raw.filter((x) => x.close > x.open).sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
-  const merged = [];
-  for (const iv of usable) {
-    const last = merged[merged.length - 1];
-    if (last && iv.open <= last.close) {
-      if (iv.close > last.close) last.close = iv.close;
-    } else {
-      merged.push({ ...iv });
-    }
-  }
-  return merged;
-}
-function joinList(parts2) {
-  if (parts2.length < 3) return parts2.join(" and ");
-  return `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
-}
-function dayText(h) {
-  const spans = dayIntervals2(h);
-  if (spans.length) {
-    const open = joinList(spans.map((x) => `${x.open}\u2013${x.close}`));
-    const gaps = spans.slice(1).map((x, i) => `${spans[i].close}\u2013${x.open}`);
-    return gaps.length ? `${open} (closed ${joinList(gaps)})` : open;
-  }
-  const saidSomething = !!(h?.open || h?.close || h?.intervals?.length);
-  return saidSomething ? "Hours not confirmed \u2014 ask them to call" : "Closed";
-}
-function hoursRuns(hours) {
-  if (!hours) return [];
-  const spans = DAYS.map((d) => ({ day: d, text: dayText(hours[d]) }));
-  const out = [];
-  let i = 0;
-  while (i < spans.length) {
-    let j = i;
-    while (j + 1 < spans.length && spans[j + 1].text === spans[i].text) j++;
-    out.push({ from: spans[i].day, to: spans[j].day, text: spans[i].text });
-    i = j + 1;
-  }
-  return out;
-}
-function hoursLines(hours) {
-  return hoursRuns(hours).map((r) => {
-    const label = r.from === r.to ? DAY_LABEL[r.from] : `${DAY_LABEL[r.from]}\u2013${DAY_LABEL[r.to]}`;
-    return `${label}: ${r.text}`;
-  });
-}
-function hasProfile(p) {
-  if (!p) return false;
-  const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close || h?.intervals?.length);
-  return !!(p.address || p.tone || p.extra_instructions || statedHours || p.services?.length || p.languages?.length || p.escalate_when?.length || p.website || p.notes?.length);
-}
-function dateKeyInZone(tz, at) {
-  try {
-    const parts2 = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit"
-    }).formatToParts(at);
-    const get = (t) => parts2.find((p) => p.type === t)?.value ?? "";
-    const y = get("year"), m = get("month"), d = get("day");
-    return y && m && d ? `${y}-${m}-${d}` : null;
-  } catch {
-    return null;
-  }
-}
-function labelDate(key, withWeekday) {
-  const at = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
-  if (Number.isNaN(at.getTime()) || dateKeyInZone("UTC", at) !== key) return key;
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC",
-    ...withWeekday ? { weekday: "long" } : {},
-    month: "long",
-    day: "numeric",
-    year: "numeric"
-  }).format(at);
-}
-function upcomingClosures(closures, tz, at) {
-  if (!closures?.length) return [];
-  const today = tz && dateKeyInZone(tz, at) || dateKeyInZone("UTC", new Date(at.getTime() - 864e5));
-  if (!today) return closures;
-  return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= today).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
-}
-function closureLines(closures) {
-  return closures.map((c) => {
-    const when = c.until && c.until !== c.date && c.until > c.date ? `${labelDate(c.date, false)} \u2013 ${labelDate(c.until, false)}` : labelDate(c.date, true);
-    return c.note ? `${when} \u2014 ${c.note}` : when;
-  });
-}
-function closedToday(closures, tz, at) {
-  if (!closures?.length || !tz) return null;
-  const today = dateKeyInZone(tz, at);
-  if (!today) return null;
-  return closures.find((c) => {
-    const end = c.until && c.until >= c.date ? c.until : c.date;
-    return c.date <= today && today <= end;
-  }) ?? null;
-}
-var NO_CLOCK = "You do not know today's date or the current time. If a customer asks whether the business is open right now, or about today or tomorrow, state the opening hours and let them compare \u2014 never guess which day it is.";
-function describeNow(tz, now = /* @__PURE__ */ new Date(), closures) {
-  if (!tz) return NO_CLOCK;
-  try {
-    const stamp = new Intl.DateTimeFormat("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      timeZone: tz
-    }).format(now);
-    const shut = closedToday(closures, tz, now);
-    const today = shut ? ` The business is CLOSED today${shut.note ? ` \u2014 ${shut.note}` : ""}, whatever the weekly hours say. Do not offer today; offer the next day it is open.` : "";
-    return `Right now it is ${stamp} (${tz}).${today} Use this for anything about today, tomorrow, or whether the business is open at this moment \u2014 compare it against the opening hours and the closed dates, and treat a closed date as final.`;
-  } catch {
-    return NO_CLOCK;
-  }
-}
-function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy) {
-  return composeSystemPromptWith(base, profile, channel, tz, now, policy);
-}
-function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
-  const s = [];
-  const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
-  s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
-  if (profile.tone) s.push(`Tone: ${profile.tone}`);
-  if (profile.languages?.length) {
-    s.push(
-      `You speak: ${profile.languages.join(", ")}.` + // A caller picks the language by speaking it; nobody asks a phone
-      // agent to "reply in Spanish".
-      (channel === "voice" ? " Answer in whichever of these the caller uses, and switch if they do." : "")
-    );
-  }
-  if (profile.address) s.push(`
-Address: ${profile.address}`);
-  s.push(`Phone: ${base.phone_display}`);
-  s.push(`Booking link: ${base.booking_link}`);
-  if (profile.website) s.push(`Website: ${profile.website}`);
-  const hrs = hoursLines(profile.hours);
-  if (hrs.length) {
-    const where = tz ? ` (all times ${tz})` : "";
-    s.push(`
-Opening hours${where}:
-${hrs.map((l) => `- ${l}`).join("\n")}`);
-  }
-  const closed = closureLines(upcomingClosures(profile.closures, tz, now));
-  if (closed.length) {
-    s.push(
-      `
-Closed on these dates, whatever the opening hours above say:
-${closed.map((l) => `- ${l}`).join("\n")}
-If someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`
-    );
-  }
-  if (profile.services?.length) {
-    const lines = profile.services.map((sv) => {
-      const bits = [sv.name];
-      if (sv.duration_min) bits.push(`about ${sv.duration_min} minutes`);
-      if (sv.price_note) bits.push(sv.price_note);
-      return `- ${bits.join(" \u2014 ")}`;
-    });
-    s.push(`
-Services:
-${lines.join("\n")}`);
-  }
-  if (profile.notes?.length) {
-    s.push(`
-Other things to know:
-${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
-  }
-  const br = profile.booking_rules;
-  if (br && (br.lead_hours !== void 0 || br.consult_first?.length || br.party_max || br.notes?.length)) {
-    const lines = [];
-    if (br.lead_hours !== void 0) {
-      lines.push(
-        br.lead_hours === 0 ? "Same-day bookings are fine, right up to the time." : `At least ${br.lead_hours} hour${br.lead_hours === 1 ? "" : "s"}' notice for any appointment.`
-      );
-    }
-    if (br.consult_first?.length) lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
-    if (br.party_max) lines.push(`Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`);
-    for (const n of br.notes ?? []) lines.push(n);
-    s.push(`
-Booking rules:
-${lines.map((l) => `- ${l}`).join("\n")}`);
-  }
-  if (channel === "whatsapp") {
-    const when = profile.escalate_when?.length ? `
-${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
-    s.push(
-      `
-Handing the conversation to a person:
-Put the exact token [[HUMAN]] at the very end of your reply. It is removed before the customer sees it, and it is the only thing that alerts a human \u2014 saying you will fetch someone does nothing on its own. Write the reply you would normally send, then add the token.
-Do this whenever the customer asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
-    );
-  } else {
-    const when = profile.escalate_when?.length ? `
-${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
-    const staffed = profile.handoff_number ? "Use transfer_to_staff during opening hours \u2014 it rings the line a person answers, and you stay on until they pick up. Outside opening hours, or if the transfer does not connect, take the caller's name and a short message and say the team will follow up." : "There is no line to transfer to. Take the caller's name and a short message and say the team will follow up.";
-    s.push(
-      `
-Handing the caller to a person:
-${staffed}
-Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
-    );
-    s.push(
-      "\nOpen times: use check_availability before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.\nBooking: when the caller wants to book, use send_booking_link \u2014 it texts the booking link to the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Then confirm it was sent. If it fails, give the phone number above and offer to have someone follow up.\nEnding: once the caller has said goodbye, use end_call."
-    );
-  }
-  if (profile.extra_instructions?.trim()) {
-    const above = [
-      profile.address ? "address" : "",
-      hrs.length ? "hours" : "",
-      closed.length ? "closed dates" : "",
-      profile.services?.length ? "services" : ""
-    ].filter(Boolean);
-    const stated = above.length > 0;
-    const text = profile.extra_instructions.trim();
-    const header = [
-      stated ? `Further instructions from the business. Where these disagree with the ${joinList(above)} above, the details above are current and correct.` : "",
-      channel === "voice" ? "Some of it was written for text conversations; you are on a phone call." : ""
-    ].filter(Boolean).join(" ");
-    s.push(header ? `
-${header}
-${text}` : `
-${text}`);
-  }
-  s.push(
-    channel === "voice" ? "\nYou are speaking aloud. Keep answers to one or two sentences, never read a URL out character by character, and offer to text the booking link instead." : "\nKeep replies short enough to read on a phone. Send the booking link rather than describing how to book."
-  );
-  s.push(
-    "\nIf open times are listed after these instructions, offer up to three that fit what the customer wants, then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link."
-  );
-  const g = profile.guardrails ?? {};
-  const rules = [];
-  if (g.never_quote_prices !== false) {
-    rules.push("Never quote or confirm a price. Say it is quoted in person or at a consult, and offer the booking link.");
-  }
-  if (g.never_confirm_booking !== false) {
-    rules.push("Never promise or confirm an appointment yourself. Booking happens on the booking link or with staff.");
-  }
-  if (g.disclose_ai !== false) {
-    rules.push("If asked whether you are a bot, a person, or AI, say plainly that you are the business's automated assistant and offer to bring in a person.");
-  }
-  rules.push("If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else.");
-  if (g.no_health_advice === true) {
-    rules.push("Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment and offer the booking link.");
-  }
-  rules.push(...policyRules(policy, channel));
-  if (rules.length) s.push(`
-Rules you must follow:
-${rules.map((r) => `- ${r}`).join("\n")}`);
-  return s.join("\n");
-}
-function resolveSystemPrompt(brain, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy) {
-  if (!hasProfile(brain.profile)) {
-    const rules = policyRules(policy, channel);
-    return rules.length ? `${brain.system_prompt}
-
-Rules you must follow:
-${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
-  }
-  const profile = brain.profile;
-  const carried = profile.extra_instructions?.trim() ? profile : { ...profile, extra_instructions: brain.system_prompt };
-  return composeSystemPrompt(brain, carried, channel, tz, now, policy);
 }
 
 // src/notifications.ts
@@ -4828,258 +5117,6 @@ function toCampaignReportVM(dto) {
 }
 var CAMPAIGN_REPORT_RANGES = REPORT_RANGES;
 
-// src/calendar.ts
-var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-var DAY_SHORT = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
-function keyParts(key) {
-  const [y, m, d] = key.split("-").map(Number);
-  return { y, m: m ?? 1, d: d ?? 1 };
-}
-function shiftKey(key, n) {
-  const { y, m, d } = keyParts(key);
-  const at = new Date(Date.UTC(y, m - 1, d + n));
-  return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, "0")}-${String(at.getUTCDate()).padStart(2, "0")}`;
-}
-function mondayOf(key) {
-  const { y, m, d } = keyParts(key);
-  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-  return shiftKey(key, -((dow + 6) % 7));
-}
-function isDayKey(s) {
-  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
-}
-function monthSpan(key) {
-  return { from: mondayOf(`${key.slice(0, 7)}-01`), days: 42 };
-}
-function shiftMonth(key, n) {
-  const { y, m } = keyParts(key);
-  const at = new Date(Date.UTC(y, m - 1 + n, 1));
-  return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, "0")}-01`;
-}
-function monthLabelOf(key) {
-  const { y, m } = keyParts(key);
-  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(new Date(Date.UTC(y, m - 1, 1, 12)));
-}
-function clockLabel(t) {
-  const h = Math.floor(t);
-  const m = Math.round((t - h) * 60);
-  const ap = h >= 12 && h < 24 ? "PM" : "AM";
-  const hh = (h + 11) % 12 + 1;
-  return `${hh}${m ? `:${String(m).padStart(2, "0")}` : ""} ${ap}`;
-}
-var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-function shortDate(key) {
-  const { y, m, d } = keyParts(key);
-  return SHORT.format(new Date(Date.UTC(y, m - 1, d, 12)));
-}
-function longDate(key) {
-  const { y, m, d } = keyParts(key);
-  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(new Date(Date.UTC(y, m - 1, d, 12)));
-}
-function readAgoLabel(iso, now) {
-  if (!iso) return null;
-  return agoWords(Date.parse(iso), now.getTime(), { dateAfterMs: Number.POSITIVE_INFINITY });
-}
-function rulesLine(rules) {
-  const r = { ...BOOKING_DEFAULTS, ...rules ?? {} };
-  const parts2 = [`at least ${r.lead_hours}h ahead`];
-  if (r.buffer_min > 0) parts2.push(`${r.buffer_min} min between appointments`);
-  parts2.push(`up to ${r.max_days_ahead} days out`, `${r.slot_min}-min slots`);
-  return `Offers times ${parts2.join(" \xB7 ")}`;
-}
-function hoursLines2(hours) {
-  if (!hours) return [];
-  const clean = {};
-  for (const d of DAYS) if (hours[d]) clean[d] = hours[d];
-  return hoursRuns(clean).map((r) => `${DAY_SHORT[r.from] ?? r.from}${r.to !== r.from ? `\u2013${DAY_SHORT[r.to] ?? r.to}` : ""} ${r.text.toLowerCase() === "closed" ? "closed" : r.text}`);
-}
-function hoursOf(tz, ms2) {
-  const c = clockInZone(tz, ms2);
-  return c.hh + c.mm / 60;
-}
-function spanLabel2(t1, t2) {
-  const a = clockLabel(t1);
-  const b = clockLabel(t2);
-  const sameHalf = a.slice(-2) === b.slice(-2);
-  return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
-}
-function toBlock(item, tz, dayStartMs, dayEndMs) {
-  const s = Math.max(Date.parse(item.start), dayStartMs);
-  const e = Math.min(Date.parse(item.end), dayEndMs);
-  const t = s === dayStartMs ? 0 : hoursOf(tz, s);
-  const tEnd = e === dayEndMs ? 24 : hoursOf(tz, e);
-  return {
-    id: item.id,
-    t,
-    dur: Math.max(15, Math.round((tEnd - t) * 60)),
-    title: item.title || "Busy",
-    time: spanLabel2(t, tEnd),
-    person: item.person ? { id: item.person.id, name: item.person.name, via: item.person.via ?? null } : null,
-    description: item.description ?? null,
-    location: item.location ?? null,
-    contacts: { phones: (item.contacts?.phones ?? []).map((p) => formatPhoneDisplay(p) ?? p), e164: item.contacts?.phones ?? [], emails: item.contacts?.emails ?? [] },
-    guess: item.guess ?? null,
-    start: item.start,
-    end: item.end
-  };
-}
-function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
-  const tz = dto.timezone;
-  const todayKey = dayInZone(tz, now.getTime()).key;
-  const nowMs = now.getTime();
-  let start = 24;
-  let end = 0;
-  for (const h of Object.values(dto.hours ?? {})) {
-    for (const [o, c] of dayIntervals(h)) {
-      const oh = Number(o.split(":")[0]);
-      const ch = Number(c.split(":")[0]) + (Number(c.split(":")[1]) > 0 ? 1 : 0);
-      if (Number.isFinite(oh)) start = Math.min(start, oh);
-      if (Number.isFinite(ch)) end = Math.max(end, ch);
-    }
-  }
-  if (start >= end) {
-    start = 8;
-    end = 20;
-  }
-  start = Math.max(0, start - 1);
-  end = Math.min(24, end + 1);
-  const days = dto.days.map((d) => {
-    const { y, m, d: dd } = keyParts(d.key);
-    const weekday = DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()].toLowerCase();
-    const closure = dto.closures.find((c) => c.date <= d.key && d.key <= (c.until && c.until >= c.date ? c.until : c.date)) ?? null;
-    const intervals = dayIntervals(dto.hours?.[weekday]);
-    const closedDay = closedOn(dto.closures, d.key) || intervals.length === 0;
-    const bands = [];
-    if (closedDay) {
-      bands.push({ from: start, to: end, label: closure?.note ? `Closed \xB7 ${closure.note}` : "Closed" });
-    } else {
-      let cursor = start;
-      for (const [o, c] of intervals) {
-        const oh = Number(o.split(":")[0]) + Number(o.split(":")[1]) / 60;
-        const ch = Number(c.split(":")[0]) + Number(c.split(":")[1]) / 60;
-        if (oh > cursor) bands.push({ from: cursor, to: oh, label: null });
-        cursor = Math.max(cursor, ch);
-      }
-      if (cursor < end) bands.push({ from: cursor, to: end, label: null });
-    }
-    const zoneDayStart = zoneMidnight(tz, d.key);
-    const zoneDayEnd = zoneMidnight(tz, shiftKey(d.key, 1));
-    const timed = [];
-    const allDay = [];
-    for (const item of d.items) {
-      const s = Date.parse(item.start);
-      const e = Date.parse(item.end);
-      if (!(e > zoneDayStart && s < zoneDayEnd)) continue;
-      const block = toBlock(item, tz, zoneDayStart, zoneDayEnd);
-      if (item.all_day || s <= zoneDayStart && e >= zoneDayEnd) allDay.push({ ...block, t: 0, dur: 24 * 60, time: "All day" });
-      else timed.push(block);
-    }
-    timed.sort((a, b) => a.t - b.t);
-    const windows = d.windows.map((w) => {
-      const t = hoursOf(tz, Date.parse(w.start));
-      const tEnd = hoursOf(tz, Date.parse(w.end));
-      return { t, dur: Math.round((tEnd - t) * 60), label: spanLabel2(t, tEnd) };
-    });
-    return {
-      key: d.key,
-      dow: DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()],
-      date: shortDate(d.key),
-      long: longDate(d.key),
-      dayNum: String(dd),
-      today: d.key === todayKey,
-      past: d.key < todayKey,
-      closed: { yes: closedDay, note: closure?.note ?? null },
-      bands,
-      blocks: timed,
-      allDay,
-      windows
-    };
-  });
-  const events = days.reduce((a, d) => a + d.blocks.length + d.allDay.length, 0);
-  const windowCount = days.reduce((a, d) => a + d.windows.length, 0);
-  let next = "\u2014";
-  outer: for (const d of days) {
-    for (const w of d.windows) {
-      const at = zoneMidnight(tz, d.key) + w.t * 36e5;
-      if (at >= nowMs) {
-        next = `${d.today ? "today" : d.dow} ${clockLabel(w.t)}`;
-        break outer;
-      }
-    }
-  }
-  const ago3 = readAgoLabel(dto.feed.read_at, now);
-  const feedLine = dto.feed.state === "ok" ? `From ${dto.feed.source ?? "your calendar"} \xB7 read ${ago3 ?? "just now"} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}${dto.feed.skipped_recurring ? ` \xB7 ${dto.feed.skipped_recurring} repeating rule${dto.feed.skipped_recurring === 1 ? "" : "s"} read once` : ""}` : dto.feed.state === "unavailable" ? `Your calendar could not be read${ago3 ? ` \xB7 last read ${ago3}` : ""}` : "No calendar connected";
-  const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
-  const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
-  const sameMonth = dto.from.slice(0, 7) === last.slice(0, 7);
-  const closuresAhead = dto.closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6).map((c) => ({
-    key: c.date,
-    label: c.until && c.until > c.date ? `${shortDate(c.date)} \u2013 ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}` : shortDate(c.date),
-    note: c.note ?? null
-  }));
-  const services = (dto.services ?? []).map((s) => ({
-    name: s.name,
-    duration: s.duration_min,
-    consultFirst: s.consult_first,
-    label: `${s.name}${s.duration_min ? ` \xB7 ${s.duration_min} min` : ""}${s.consult_first ? " \xB7 consult first" : ""}`
-  }));
-  return {
-    timezone: tz,
-    from: dto.from,
-    to: last,
-    rangeLabel: `${shortDate(dto.from)} \u2013 ${sameMonth ? shortDate(last).replace(/^[A-Za-z]+ /, "") : shortDate(last)}`,
-    monthLabel: monthLabelOf(dto.days.length >= 28 ? shiftKey(dto.from, 7) : dto.from),
-    hours: { start, end },
-    days,
-    today: todayKey,
-    now: nowIn,
-    feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events, source: dto.feed.source ?? "your calendar" },
-    stats: { events, windows: windowCount, next },
-    rules: rulesLine(dto.rules),
-    hoursLines: hoursLines2(dto.hours),
-    closuresAhead,
-    services,
-    bookingLink: dto.booking_link
-  };
-}
-function zoneMidnight(tz, key) {
-  const { y, m, d } = keyParts(key);
-  const guess = Date.UTC(y, m - 1, d);
-  const off1 = zoneOffsetOf(tz, guess);
-  const first = guess - off1;
-  const off2 = zoneOffsetOf(tz, first);
-  return guess - off2;
-}
-function zoneOffsetOf(tz, atMs) {
-  const c = clockInZone(tz, atMs);
-  const day = dayInZone(tz, atMs);
-  return Date.UTC(day.y, day.m - 1, day.d, c.hh, c.mm, c.ss) - Math.floor(atMs / 1e3) * 1e3;
-}
-function spanForView(view, anchor) {
-  if (view === "month") return monthSpan(anchor);
-  if (view === "agenda") return { from: anchor, days: 14 };
-  return { from: mondayOf(anchor), days: 7 };
-}
-function windowFor(anchor) {
-  return { from: shiftKey(mondayOf(`${anchor.slice(0, 7)}-01`), -7), days: 63 };
-}
-function coversSpan(days, from, count) {
-  if (!days.length || count < 1) return false;
-  return days[0].key <= from && days[days.length - 1].key >= shiftKey(from, count - 1);
-}
-function frameOf(key, todayKey) {
-  const { y, m, d } = keyParts(key);
-  return {
-    key,
-    dow: DOW[new Date(Date.UTC(y, m - 1, d)).getUTCDay()],
-    date: shortDate(key),
-    long: longDate(key),
-    dayNum: String(d),
-    today: key === todayKey,
-    past: key < todayKey
-  };
-}
-
 // src/channels.ts
 var DAY_MS5 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS5;
@@ -5296,7 +5333,7 @@ export {
   dayDate,
   dayFromQuestion,
   dayInZone,
-  dayIntervals,
+  dayIntervals2 as dayIntervals,
   dedupeFeed,
   defaultParamSpecs,
   defaultSlotKinds,
@@ -5308,6 +5345,7 @@ export {
   describeVisits,
   detectLanguage,
   draftSendsAtMs,
+  durationLabel,
   eligibleFor,
   eligibleForPlaybook,
   emptyReadSet,
