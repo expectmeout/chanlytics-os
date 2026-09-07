@@ -238,6 +238,16 @@ function isOptedOutContact(c) {
 }
 var OPT_OUT_REFUSAL = "This customer asked to stop receiving messages. They can text START to opt back in.";
 
+// src/standing.ts
+function standingOf(i, nowMs) {
+  const paused = !!i.paused_until && new Date(i.paused_until).getTime() > nowMs;
+  const flagged = i.open_escalation || i.state === "needs_human" || paused;
+  const claimedByOther = !!i.assignee_user_id && i.assignee_is_me === false;
+  const mine = !!i.assignee_user_id || paused && !i.open_escalation;
+  const standing = i.state === "snoozed" ? "snoozed" : !flagged ? "quiet" : claimedByOther ? "theirs" : mine ? "yours" : "needs_you";
+  return { standing, flagged, paused, takenOver: standing === "yours", claimedByOther };
+}
+
 // src/whisper.ts
 var OPEN = 'Owner: "';
 function frameWhisper(text) {
@@ -591,12 +601,15 @@ function formatWaited(ms2) {
   return `${Math.round(hr / 24)}d`;
 }
 function threadStanding(dto, escalation, now = /* @__PURE__ */ new Date()) {
-  const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
-  const needsHuman = dto.state === "needs_human" || paused;
-  const state = dto.state === "snoozed" ? "snoozed" : escalation || needsHuman ? "escalated" : "done";
-  const claimedByOther = !!dto.assignee_user_id && dto.assignee_is_me === false;
-  const takenOver = state === "escalated" && !claimedByOther && (!!dto.assignee_user_id || !escalation && needsHuman);
-  return { state, takenOver, needsYou: state === "escalated" && !takenOver };
+  const v = standingOf({
+    state: dto.state,
+    paused_until: dto.paused_until,
+    assignee_user_id: dto.assignee_user_id,
+    assignee_is_me: dto.assignee_is_me,
+    open_escalation: !!escalation
+  }, now.getTime());
+  const state = v.standing === "snoozed" ? "snoozed" : v.flagged ? "escalated" : "done";
+  return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you" };
 }
 function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
@@ -1644,15 +1657,22 @@ function channelsOf(r) {
   const order = ["whatsapp", "voice"];
   return order.filter((c) => set.has(c));
 }
+function personStanding(r, nowMs) {
+  return standingOf({
+    state: r.latest_state === "snoozed" ? "snoozed" : r.needs_human || r.latest_state === "needs_human" ? "needs_human" : r.latest_state ?? "open",
+    paused_until: r.latest_paused_until,
+    assignee_user_id: r.latest_assignee_user_id,
+    open_escalation: !!r.open_escalation_reason
+  }, nowMs);
+}
 function isOwned(r, nowMs) {
-  const paused = ts(r.latest_paused_until);
-  return !!r.latest_assignee_user_id || paused !== null && paused > nowMs;
+  return !!r.latest_assignee_user_id || personStanding(r, nowMs).takenOver;
 }
 function personStateFor(r, nowMs) {
-  const flagged = !!(r.needs_human || r.open_escalation_reason);
-  const owned = isOwned(r, nowMs);
-  if (flagged && !owned && r.latest_state !== "snoozed") return "needs_you";
-  if (owned && (flagged || r.last_message_direction === "inbound")) return "waiting_on_you";
+  const v = personStanding(r, nowMs);
+  const owned = !!r.latest_assignee_user_id || v.takenOver;
+  if (v.standing === "needs_you") return "needs_you";
+  if (owned && (v.flagged || r.last_message_direction === "inbound")) return "waiting_on_you";
   if (r.consent === "opted_out" || r.dnc) return "opted_out";
   const first = ts(r.first_contact_at);
   if (!r.has_backfill && first !== null && nowMs - first <= NEW_WINDOW_MS) return "new";
@@ -2178,7 +2198,18 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   const down = m.channels.filter((c) => c.status !== "active");
   const alert = m.workspace.status === "paused" ? "This workspace is paused \u2014 the receptionist is not answering anything." : down.length ? `${down.map((c) => CHANNEL_LABEL[c.kind] ?? c.kind).join(" and ")} ${down.length > 1 ? "are" : "is"} disconnected \u2014 messages coming in are not being answered.` : null;
   const byConv = new Map(conversations.map((c) => [c.id, c]));
-  const openEsc = escalations.filter((e) => e.state === "open").sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const openEsc = escalations.filter((e) => e.state === "open").filter((e) => {
+    const conv = byConv.get(e.conversation_id);
+    if (!conv) return true;
+    return standingOf({
+      state: conv.state,
+      paused_until: conv.paused_until,
+      assignee_user_id: conv.assignee_user_id,
+      assignee_is_me: conv.assignee_is_me,
+      open_escalation: true
+    }, now.getTime()).standing === "needs_you";
+  }).sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const needsYouCount = openEsc.length;
   const needsRows = openEsc.map((e) => {
     const conv = byConv.get(e.conversation_id);
     const lastCustomer = conv ? [...conv.messages].reverse().find((x) => x.sender === "customer") : void 0;
@@ -2223,7 +2254,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   );
   const callMinutes = Math.round(p.call_seconds / 60);
   const traffic = p.messages_in + p.calls + p.messages_out_you;
-  const isQuiet = traffic === 0 && live.escalations_open === 0 && !alert;
+  const isQuiet = traffic === 0 && needsYouCount === 0 && !alert;
   const facts = [
     { label: "Messages in", value: String(p.messages_in) },
     { label: "Answered by the receptionist", value: `${p.answered_by_ai} of ${p.messages_in}` },
@@ -2254,7 +2285,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       recap: { label: "Today so far", sentences: [], facts, receipts: [] },
       pulse: null,
       calls: null,
-      queue: { rows: [], more: 0 },
+      queue: { rows: [], more: 0, parts: [] },
       launchpad: [{ label: "Conversations", to: "conversations" }],
       updatedAt: clock2,
       quiet: {
@@ -2283,11 +2314,11 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   if (alert) {
     headline = "Check your connection before anything else.";
     tone = "alert";
-  } else if (live.escalations_open > 1) {
-    headline = `${live.escalations_open} conversations need you.`;
+  } else if (needsYouCount > 1) {
+    headline = `${needsYouCount} conversations need you.`;
     if (oldest) detail = `The oldest has been waiting since ${oldest}.`;
     tone = "needs";
-  } else if (live.escalations_open === 1) {
+  } else if (needsYouCount === 1) {
     headline = "One conversation needs you";
     const who = needsRows[0]?.who;
     if (who && oldest) detail = `${who} has been waiting since ${oldest}.`;
@@ -2454,7 +2485,16 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     });
   }
   queueAll.sort((a, b) => b.waitedMs - a.waitedMs);
-  const queue = { rows: queueAll.slice(0, TODAY_QUEUE_MAX), more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX) };
+  const countOf = (...kinds) => queueAll.filter((r) => kinds.includes(r.kind)).length;
+  const needN = countOf("handoff", "callback");
+  const winN = countOf("window");
+  const earN = countOf("call");
+  const parts2 = [
+    needN ? `${needN} need you` : "",
+    winN ? `${winN} reply window${winN === 1 ? "" : "s"} closing` : "",
+    earN ? `${earN} call${earN === 1 ? "" : "s"} worth a listen` : ""
+  ].filter(Boolean);
+  const queue = { rows: queueAll.slice(0, TODAY_QUEUE_MAX), more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX), parts: parts2 };
   return {
     standing: {
       eyebrow: `${datePart} \xB7 ${clock2} \xB7 ${m.workspace.name}`,
@@ -2466,10 +2506,10 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       tone
     },
     needsYou: {
-      count: live.escalations_open,
+      count: needsYouCount,
       hint: "The receptionist stopped and asked for a human.",
       rows: needsRows,
-      empty: needsRows.length ? null : p.unanswered_in_window === 0 && p.messages_out_you === 0 ? "Nothing is waiting on you. The receptionist answered every message that came in, and nobody asked for a person." : "Nothing is waiting on you right now \u2014 nobody asked for a person."
+      empty: needsRows.length ? null : p.unanswered_in_window === 0 && p.messages_out_you === 0 ? "Nothing needs you. The receptionist answered every message that came in, and nobody asked for a person." : "Nothing needs you right now \u2014 nobody asked for a person."
     },
     windowClosing: closingRows.length ? {
       label: "Reply window closing",
@@ -2483,7 +2523,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       rows: callRows
     } : null,
     launchpad: [
-      { label: `Inbox \u2014 ${live.escalations_open} need you`, to: "inbox" },
+      { label: `Inbox \u2014 ${needsYouCount} need you`, to: "inbox" },
       { label: "Conversations", to: "conversations" },
       ...p.calls ? [{ label: `Calls \u2014 ${p.calls} today`, to: "conversations/phone" }] : []
     ],
@@ -5285,6 +5325,7 @@ export {
   peopleListAction,
   personInText,
   personName,
+  personStanding,
   personStateFor,
   placeholdersOf,
   placeholdersSequential,
@@ -5317,6 +5358,7 @@ export {
   slotLabels,
   slugTemplateName,
   spanForView,
+  standingOf,
   starterByKey,
   starterByName,
   starterDraft,

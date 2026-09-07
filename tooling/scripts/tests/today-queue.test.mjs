@@ -82,7 +82,7 @@ test("the cap and the rest: six rows on Today, the rest counted for the Inbox li
   assert.equal(vm.queue.rows.length, 6);
   assert.equal(vm.queue.more, 3, "eight handoffs and the closing window: six shown, three more");
   const quiet = toTodayVM(metrics({ period: { ...metrics().period, messages_in: 0, calls: 0, messages_out_you: 0 }, now: { ...metrics().now, escalations_open: 0 } }), [], [], [], NOW);
-  assert.deepEqual(quiet.queue, { rows: [], more: 0 });
+  assert.deepEqual(quiet.queue, { rows: [], more: 0, parts: [] });
 });
 
 test("the wiring: one row component for People and Today, the queue in the command slot, the hero keeping only the narrative, the runs split between them", () => {
@@ -95,7 +95,7 @@ test("the wiring: one row component for People and Today, the queue in the comma
   const queue = readCode("apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
   for (const s of ['data-testid="today-queue"', "<TodayQueue vm={window.TODAY_DATA} />", "vm.queue.rows", 'testid="brief-run-row"', 'testid="brief-run-soon"', 'data-testid="brief-live-call"', "surface:live", "surface:broadcasts", 'verb(r, r.also.verb)']) assert.ok(queue.includes(s), s);
   const real = queue.slice(queue.indexOf("const LiveRail"), queue.indexOf("const AgentCommandSeed"));
-  assert.ok(real.includes("Needs you") && !real.includes("Agent Command"), "the real section is Needs you, not a command bar; the seed keeps its title for the demo");
+  assert.ok(real.includes("Your queue") && !real.includes("Agent Command"), "the real section is the queue, not a command bar; the seed keeps its title for the demo");
   const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
   for (const gone of ["needsYou.rows.slice(0, 2)", "earCalls.map", "liveCalls.map", "windowClosing.rows", "<RunsWaiting"]) assert.ok(!brief.includes(gone), `${gone} left the hero`);
   assert.ok(brief.includes("<RunsDone nav={nav} />") && brief.includes('data-testid="brief-run-done"'), "what went out today stays a receipt in the hero");

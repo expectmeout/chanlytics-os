@@ -1,3 +1,4 @@
+import { standingOf, type StandingVerdict } from "./standing";
 /**
  * People — the relationship record for a business whose receptionist is an AI.
  *
@@ -259,21 +260,33 @@ function channelsOf(r: PersonRowDto): PersonChannel[] {
   return order.filter((c) => set.has(c));
 }
 
-export function isOwned(r: Pick<PersonRowDto, "latest_assignee_user_id" | "latest_paused_until">, nowMs: number): boolean {
-  const paused = ts(r.latest_paused_until);
-  return !!r.latest_assignee_user_id || (paused !== null && paused > nowMs);
+type StandingRow = Pick<PersonRowDto, "latest_state" | "latest_paused_until" | "latest_assignee_user_id" | "needs_human" | "open_escalation_reason">;
+
+/** The latest thread's standing, from the one rule every surface reads (standing.ts). */
+export function personStanding(r: StandingRow, nowMs: number): StandingVerdict {
+  return standingOf({
+    state: r.latest_state === "snoozed" ? "snoozed" : r.needs_human || r.latest_state === "needs_human" ? "needs_human" : (r.latest_state ?? "open"),
+    paused_until: r.latest_paused_until,
+    assignee_user_id: r.latest_assignee_user_id,
+    open_escalation: !!r.open_escalation_reason,
+  }, nowMs);
+}
+
+/** A person has the thread: they claimed it, or their own reply paused the receptionist. */
+export function isOwned(r: StandingRow, nowMs: number): boolean {
+  return !!r.latest_assignee_user_id || personStanding(r, nowMs).takenOver;
 }
 
 /* ------------------------------ the rule --------------------------------- */
 
 export function personStateFor(r: PersonRowDto, nowMs: number): PersonState {
-  const flagged = !!(r.needs_human || r.open_escalation_reason);
-  const owned = isOwned(r, nowMs);
-  // The Inbox's rule (threadStanding): a thread someone has taken over is
-  // theirs, and a snoozed one is for later — neither is "needs you". The two
-  // surfaces counted different people under the same word.
-  if (flagged && !owned && r.latest_state !== "snoozed") return "needs_you";
-  if (owned && (flagged || r.last_message_direction === "inbound")) return "waiting_on_you";
+  const v = personStanding(r, nowMs);
+  const owned = !!r.latest_assignee_user_id || v.takenOver;
+  // One rule for the Inbox, People and Today (standing.ts): a thread someone
+  // has taken over is theirs, a snoozed one is for later, and the
+  // receptionist's own pause on a handoff is nobody's — it still needs you.
+  if (v.standing === "needs_you") return "needs_you";
+  if (owned && (v.flagged || r.last_message_direction === "inbound")) return "waiting_on_you";
   if (r.consent === "opted_out" || r.dnc) return "opted_out";
   const first = ts(r.first_contact_at);
   if (!r.has_backfill && first !== null && nowMs - first <= NEW_WINDOW_MS) return "new";

@@ -72,6 +72,7 @@ test("an open escalation is needs_you, even for someone who opted out", () => {
   assert.equal(personStateFor(row({ open_escalation_reason: "human_token", open_escalation_since: iso(H) }), nowMs), "needs_you");
   assert.equal(personStateFor(row({ open_escalation_reason: "human_token", consent: "opted_out" }), nowMs), "needs_you");
   assert.equal(personStateFor(row({ needs_human: true }), nowMs), "needs_you");
+  assert.equal(personStateFor(row({ open_escalation_reason: "policy_block", needs_human: true, latest_state: "needs_human", latest_paused_until: iso(-20 * H) }), nowMs), "needs_you", "the receptionist's own pause on a handoff is nobody's — it still needs you");
 });
 
 test("waiting_on_you means a human owns the thread AND the last word was theirs", () => {

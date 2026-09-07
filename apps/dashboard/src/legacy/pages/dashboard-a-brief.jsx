@@ -131,7 +131,7 @@ const HeroBriefReal = ({ vm }) => {
             ))}
             <button className="brief-forecast brief-inbox-link" onClick={() => nav("inbox")}>
               <Icon name="inbox" size={13} style={{ color: waiting > 0 ? "var(--accent)" : "var(--ok)" }} />
-              <span>{waiting > 0 ? `${waiting} waiting on you` : "Queue clear — nothing waiting on you"}</span>
+              <span>{waiting > 0 ? `${waiting} need you` : "Queue clear — nothing needs you"}</span>
               <Icon name="arrow-right" size={11} style={{ color: "var(--ink-faint)" }} />
             </button>
           </div>
