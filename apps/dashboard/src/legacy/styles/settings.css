@@ -545,3 +545,16 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
 .set-br-field { display: grid; gap: 4px; }
 .set-br-label { font-size: 11px; color: var(--ink-muted); }
 @media (max-width: 640px) { .set-br-grid { grid-template-columns: 1fr; } }
+
+/* Setup: one page until the receptionist answers. The rows are the attention
+   row People and Today share (attention-bits.jsx); the head carries the
+   readiness sentence and the one next verb. A row put off for later fades. */
+.setup { display: grid; gap: 12px; }
+.setup-head .fl-card-head { align-items: baseline; }
+.setup-sentence { margin: 0; font-size: 15px; line-height: 1.45; color: var(--ink); text-wrap: balance; }
+.setup-next { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.setup-next-label { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-muted); }
+.setup-try-rows { display: grid; gap: 8px; }
+.setup-try-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+.setup-try-num { font-variant-numeric: tabular-nums; font-weight: 600; }
+.setup-later { opacity: .55; }

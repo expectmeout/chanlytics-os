@@ -69,6 +69,7 @@ window.INT_STORE = window.INT_STORE || {
 };
 
 const SET_TABS = [
+  { id: "setup",         label: "Setup",         icon: "flag" },
   { id: "workspace",     label: "Workspace",     icon: "home" },
   { id: "autonomy",      label: "Autonomy",      icon: "shield" },
   { id: "integrations",  label: "Integrations",  icon: "external" },
@@ -2514,6 +2515,7 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
         ))}
       </aside>
       <div className="set-pane" key={active.id}>
+        {active.id === "setup" && window.PaneSetup && <window.PaneSetup />}
         {active.id === "workspace" && <PaneWorkspace flash={flash} />}
         {active.id === "autonomy" && (window.__POLICIES === undefined ? <PaneAutonomy flash={flash} /> : <PaneAutonomyReal flash={flash} />)}
         {active.id === "integrations" && (window.__CHANNELS === undefined ? <PaneIntegrations flash={flash} /> : <PaneIntegrationsReal />)}

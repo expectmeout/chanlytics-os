@@ -2401,6 +2401,13 @@ type Database = {
                 };
                 Returns: Json;
             };
+            setup_request: {
+                Args: {
+                    p_tenant_id: string;
+                    p_what: string;
+                };
+                Returns: Json;
+            };
             sweep_health: {
                 Args: never;
                 Returns: {

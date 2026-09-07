@@ -1,0 +1,212 @@
+/**
+ * Setup: one page a new owner lands on until the receptionist is answering.
+ * Every row is a fact the workspace holds; the truth table below is the
+ * contract, and the wiring pins keep the page, the routes, the bridge and
+ * the migration saying the same thing.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { setupSteps, setupRoute, shouldLandOnSetup, SETUP_STATE_WORDS, formatPhoneDisplay, agoWords, EVENT_KINDS } from "@chanlytics/contracts";
+import { readCode, readRaw } from "./_source.mjs";
+
+const NOW = Date.parse("2026-09-07T15:00:00Z");
+const VOICE = "+13055550124";
+const WA = "+13055550123";
+const HANDOFF = "+13055550100";
+
+const empty = (over = {}) => ({
+  business: { name: null, hours: false, services: 0, bookingLink: false, address: false, handoff: null, broken: false },
+  channels: {
+    whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
+    voice: { present: false, active: false, number: null, lastInboundAt: null },
+  },
+  templates: { approved: 0, pending: 0, startersApproved: 0 },
+  calendar: { state: "none" },
+  team: { members: 1, invitesOpen: 0, alertEmails: 0 },
+  consent: { yes: 0 },
+  requests: { line: null },
+  later: [],
+  ...over,
+});
+const facts = { name: "Northside Movers", hours: true, services: 4, bookingLink: true, address: true, handoff: HANDOFF, broken: false };
+const live = (over = {}) => empty({
+  business: facts,
+  channels: {
+    whatsapp: { present: true, active: true, number: WA, quality: "GREEN", lastInboundAt: "2026-09-07T14:30:00Z" },
+    voice: { present: true, active: true, number: VOICE, lastInboundAt: "2026-09-06T14:30:00Z" },
+  },
+  templates: { approved: 6, pending: 0, startersApproved: 5 },
+  calendar: { state: "ok" },
+  team: { members: 2, invitesOpen: 0, alertEmails: 1 },
+  consent: { yes: 3 },
+  ...over,
+});
+const row = (vm, id) => vm.rows.find((r) => r.id === id);
+
+test("an empty workspace: nothing answers, every row reads its true state, the first verb is the business facts", () => {
+  const vm = setupSteps(empty(), NOW);
+  assert.equal(vm.readiness.answering, false);
+  assert.equal(vm.readiness.sentence, "Your receptionist is not answering yet.");
+  assert.deepEqual(vm.rows.map((r) => r.id), ["facts", "handoff", "line", "receptionist", "whatsapp", "calendar", "team", "yes"]);
+  assert.deepEqual(vm.rows.map((r) => r.state), ["not_started", "waiting_you", "waiting_them", "waiting_them", "waiting_you", "not_started", "not_started", "not_started"]);
+  assert.deepEqual(vm.rows.map((r) => r.required), [true, false, true, true, true, false, false, false], "the channel rows count until something answers");
+  assert.deepEqual(row(vm, "line").verb, { label: "Ask for a line", to: "verb:request-line" }, "until lines provision themselves, the line is asked for");
+  assert.equal(row(vm, "receptionist").verb, null, "the receptionist arrives with the line — nothing to press");
+  assert.deepEqual(row(vm, "whatsapp").verb, { label: "Connect", to: "admin/integrations" });
+  assert.equal(vm.done, 0);
+  assert.equal(vm.total, 8);
+  assert.deepEqual(vm.next, { label: "Start in Workspace", to: "admin/workspace", row: "facts", title: "Business facts" });
+  assert.equal(vm.line, "Setup · 0 of 8 · Business facts: start in workspace");
+  assert.equal(vm.tryIt, null);
+  for (const r of vm.rows) assert.equal(r.stateWords, SETUP_STATE_WORDS[r.state]);
+});
+
+test("a workspace that answers everywhere: eight of eight, no next, no line on Today, both numbers to try", () => {
+  const vm = setupSteps(live(), NOW);
+  assert.equal(vm.readiness.answering, true);
+  assert.equal(vm.readiness.sentence, `Your receptionist answers calls on ${formatPhoneDisplay(VOICE)} and WhatsApp on ${formatPhoneDisplay(WA)}. Texting is not available yet.`);
+  assert.equal(vm.done, 8);
+  assert.equal(vm.next, null);
+  assert.equal(vm.line, null);
+  assert.deepEqual(vm.tryIt, { voice: VOICE, voiceLabel: formatPhoneDisplay(VOICE), whatsapp: WA, whatsappLabel: formatPhoneDisplay(WA) });
+  assert.equal(row(vm, "facts").sentence, "Northside Movers · hours set · 4 services on record");
+  assert.equal(row(vm, "handoff").sentence, `Callers who insist on a person are transferred to ${formatPhoneDisplay(HANDOFF)}.`);
+  assert.deepEqual(row(vm, "receptionist").verb, { label: "Call it", to: `tel:${VOICE}` });
+  assert.ok(row(vm, "receptionist").details.includes(`Last call ${agoWords(Date.parse("2026-09-06T14:30:00Z"), NOW)}`));
+  assert.ok(row(vm, "whatsapp").details.includes("Quality green"));
+  assert.ok(row(vm, "whatsapp").details.includes("6 approved messages"));
+  assert.equal(row(vm, "team").sentence, "2 people · alerts go to 1 address.");
+  assert.equal(row(vm, "yes").sentence, "3 people said yes to offers.");
+  assert.equal(vm.rows.every((r) => !r.later), true);
+});
+
+test("calls only: the sentence says what is missing, and WhatsApp can now wait for later", () => {
+  const dto = live({ channels: { ...live().channels, whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null } } });
+  const vm = setupSteps(dto, NOW);
+  assert.equal(vm.readiness.sentence, `Your receptionist answers calls on ${formatPhoneDisplay(VOICE)}. WhatsApp is not connected. Texting is not available yet.`);
+  assert.equal(row(vm, "whatsapp").required, false, "once something answers, a channel is optional");
+  assert.deepEqual(vm.next, { label: "Connect", to: "admin/integrations", row: "whatsapp", title: "WhatsApp" });
+  const later = setupSteps({ ...dto, later: ["whatsapp"] }, NOW);
+  assert.equal(row(later, "whatsapp").later, true);
+  assert.equal(later.next, null, "a row put off for later leaves nothing to press");
+  assert.equal(later.line, null);
+  assert.equal(later.done, 7);
+});
+
+test("WhatsApp only: no phone line yet, and the line row still asks", () => {
+  const vm = setupSteps(live({ channels: { ...live().channels, voice: { present: false, active: false, number: null, lastInboundAt: null } } }), NOW);
+  assert.equal(vm.readiness.sentence, `Your receptionist answers WhatsApp on ${formatPhoneDisplay(WA)}. No phone line yet.`);
+  assert.equal(row(vm, "line").required, false);
+  assert.equal(row(vm, "line").state, "waiting_them");
+  assert.deepEqual(vm.tryIt, { voice: null, voiceLabel: null, whatsapp: WA, whatsappLabel: formatPhoneDisplay(WA) });
+});
+
+test("later is a preference for optional rows only; a required row ignores it", () => {
+  const vm = setupSteps(empty({ business: facts, later: ["whatsapp", "handoff", "calendar", "team", "yes"] }), NOW);
+  assert.equal(row(vm, "whatsapp").later, false, "required until something answers");
+  assert.equal(row(vm, "calendar").later, true);
+  assert.deepEqual(vm.next, { label: "Ask for a line", to: "verb:request-line", row: "line", title: "A line for calls and texts" });
+  assert.equal(vm.line, "Setup · 2 of 8 · A line for calls and texts: ask for a line");
+});
+
+test("a line that was asked for waits on us and says when; one that exists but is not active says so", () => {
+  const asked = setupSteps(empty({ requests: { line: "2026-09-07T13:00:00Z" } }), NOW);
+  assert.equal(row(asked, "line").state, "waiting_them");
+  assert.equal(row(asked, "line").verb, null, "asked once — no second ask");
+  assert.equal(row(asked, "line").sentence, `Requested ${agoWords(Date.parse("2026-09-07T13:00:00Z"), NOW)} — a person at Chanlytics will set up your line with you and reach you by email.`);
+  const inactive = setupSteps(empty({ channels: { ...empty().channels, voice: { present: true, active: false, number: VOICE, lastInboundAt: null } } }), NOW);
+  assert.equal(row(inactive, "line").sentence, `Your line ${formatPhoneDisplay(VOICE)} is set up but not active — a person at Chanlytics is on it.`);
+  assert.equal(row(inactive, "receptionist").state, "waiting_them");
+});
+
+test("WhatsApp waits on Meta while the first messages are with them, or while the number is not active", () => {
+  const meta = setupSteps(live({ templates: { approved: 0, pending: 3, startersApproved: 0 } }), NOW);
+  assert.equal(row(meta, "whatsapp").state, "waiting_them");
+  assert.equal(row(meta, "whatsapp").stateWords, "Waiting on Meta");
+  assert.equal(row(meta, "whatsapp").sentence, `Connected on ${formatPhoneDisplay(WA)} — your first messages are with Meta for approval.`);
+  assert.ok(row(meta, "whatsapp").details.includes("3 messages with Meta for approval"));
+  assert.equal(meta.readiness.answering, true, "the number answers even while a template waits");
+  const inactive = setupSteps(empty({ channels: { ...empty().channels, whatsapp: { present: true, active: false, number: WA, quality: null, lastInboundAt: null } } }), NOW);
+  assert.equal(row(inactive, "whatsapp").stateWords, "Waiting on Meta");
+  assert.deepEqual(row(inactive, "whatsapp").verb, { label: "Open Integrations", to: "admin/integrations" });
+  const few = setupSteps(live({ templates: { approved: 2, pending: 0, startersApproved: 2 } }), NOW);
+  assert.deepEqual(row(few, "whatsapp").verb, { label: "Add the starters", to: "outbound" });
+  assert.ok(row(few, "whatsapp").details.includes("Add the starter messages: welcome, win-back, the month's offer"));
+});
+
+test("business facts: partly there says what is missing; a broken config is its own state", () => {
+  const part = setupSteps(empty({ business: { ...facts, hours: false, services: 0 } }), NOW);
+  assert.equal(row(part, "facts").state, "waiting_you");
+  assert.equal(row(part, "facts").sentence, "Still missing: hours and services.");
+  assert.deepEqual(row(part, "facts").verb, { label: "Finish in Workspace", to: "admin/workspace" });
+  const broken = setupSteps(empty({ business: { ...empty().business, broken: true } }), NOW);
+  assert.equal(row(broken, "facts").state, "waiting_you");
+  assert.match(row(broken, "facts").sentence, /could not be read/);
+  const noLink = setupSteps(empty({ business: { ...facts, bookingLink: false } }), NOW);
+  assert.ok(row(noLink, "facts").details.includes("No booking link — the receptionist answers, but cannot send one"));
+});
+
+test("team and alerts: the verb goes to whichever half is missing; calendar: unreadable is waiting on you", () => {
+  const noAlerts = setupSteps(empty({ team: { members: 2, invitesOpen: 0, alertEmails: 0 } }), NOW);
+  assert.equal(row(noAlerts, "team").state, "waiting_you");
+  assert.deepEqual(row(noAlerts, "team").verb, { label: "Set alerts", to: "admin/notifications" });
+  const alone = setupSteps(empty({ team: { members: 1, invitesOpen: 0, alertEmails: 1 } }), NOW);
+  assert.equal(row(alone, "team").sentence, "Only you so far · alerts go to 1 address.");
+  assert.deepEqual(row(alone, "team").verb, { label: "Invite", to: "admin/workspace" });
+  const invited = setupSteps(empty({ team: { members: 1, invitesOpen: 1, alertEmails: 2 } }), NOW);
+  assert.equal(row(invited, "team").state, "ready");
+  assert.equal(row(invited, "team").sentence, "1 person · 1 invite open · alerts go to 2 addresses.");
+  const feed = setupSteps(empty({ calendar: { state: "unavailable" } }), NOW);
+  assert.equal(row(feed, "calendar").state, "waiting_you");
+  assert.deepEqual(row(feed, "calendar").verb, { label: "Check the feed", to: "admin/workspace" });
+});
+
+test("the landing rule: an owner whose receptionist answers nowhere lands on Setup once, from Today or nothing", () => {
+  assert.equal(setupRoute(""), "today");
+  assert.equal(setupRoute("#/admin/setup"), "admin/setup");
+  assert.equal(setupRoute("#today"), "today");
+  assert.equal(shouldLandOnSetup("owner", false, "today", false), true);
+  assert.equal(shouldLandOnSetup("owner", false, "", false), true);
+  assert.equal(shouldLandOnSetup("owner", false, "inbox", false), false, "a deep link is respected");
+  assert.equal(shouldLandOnSetup("owner", false, "today", true), false, "once per session");
+  assert.equal(shouldLandOnSetup("owner", true, "today", false), false, "answering — Today is the page");
+  assert.equal(shouldLandOnSetup("operator", false, "today", false), false, "only the owner is sent to Setup");
+  assert.equal(shouldLandOnSetup(null, false, "today", false), false);
+});
+
+test("the words: four states, no jargon, no trade", () => {
+  assert.deepEqual(SETUP_STATE_WORDS, { not_started: "Not started", waiting_you: "Waiting on you", waiting_them: "Waiting on us", ready: "Ready" });
+  // Only what the owner can read: the string literals, not our identifiers.
+  const src = readCode("packages/contracts/src/setup.ts") + readCode("apps/dashboard/src/legacy/pages/setup.jsx");
+  const words = [...src.matchAll(/(["'`])((?:\\.|(?!\1)[^\\])*)\1/g)].map((m) => m[2]).join("\n");
+  assert.doesNotMatch(words, /\b(tenant|onboard|provision|SIP|E\.?164|webhook|toggle)\b/i, "the owner's words, not ours");
+  assert.doesNotMatch(words, /\$\d/, "no invented prices");
+});
+
+test("wiring: Settings tab, manifest, bridge, routes, registry, rate bucket, event kind, migration, Today line", () => {
+  const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  assert.ok(settings.includes('const SET_TABS = [\n  { id: "setup",         label: "Setup",         icon: "flag" },'), "Setup is the first Settings tab");
+  assert.ok(settings.includes('{active.id === "setup" && window.PaneSetup && <window.PaneSetup />}'), "the pane is the page's component");
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/setup.jsx";'));
+  const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
+  assert.ok(app.includes("installSetup();") && app.includes("notificationsOverride, setupOverride];"), "the surface boots with the rest");
+  const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  assert.ok(reg.includes('"admin/setup": "real",') && reg.includes('"admin/setup": "setup",'), "the route waits for its surface");
+  assert.ok(readCode("apps/dashboard/src/server/rate-limit.ts").includes('setup_request: { limit: 5, windowMs: 3_600_000, noun: "setup requests" },'));
+  assert.ok(EVENT_KINDS.includes("setup.requested"));
+  const bridge = readCode("apps/dashboard/src/legacy-bridge/setup.ts");
+  assert.ok(bridge.includes('key: "setup"') && bridge.includes('globals: ["__SETUP"]') && bridge.includes('events: ["surface:setup"]'));
+  assert.ok(bridge.includes("chanlytics.setup.later.") && bridge.includes("chanlytics.setup.landed"), "later is a preference on this device; landing is once per session");
+  assert.ok(bridge.includes("shouldLandOnSetup(s.role, s.vm.readiness.answering, setupRoute(win.location.hash), landed)"), "the landing rule is the contracts' rule");
+  const get = readCode("apps/dashboard/app/api/v1/setup/route.ts");
+  for (const pin of ["parseTenantConfigResult(cfgRow.config)", "starterByName(t.name)", "calendarWeek(ctx, tenantId, { from: null, days: 7 }", "teamRoster(supabase, tenantId, member.role)", '.eq("consent", "opted_in")', '.eq("subject_type", "setup")']) assert.ok(get.includes(pin), pin);
+  const post = readCode("apps/dashboard/app/api/v1/setup/request/route.ts");
+  for (const pin of ['requireRole(member, "operator")', 'takeRate(ctx.userId, "setup_request")', 'rpc("setup_request", { p_tenant_id: member.tenantId, p_what: what })']) assert.ok(post.includes(pin), pin);
+  const mig = readRaw("supabase/migrations/00065_setup_request.sql");
+  for (const pin of ["create or replace function public.setup_request(p_tenant_id uuid, p_what text)", "security definer", "public.is_acting_member(p_tenant_id)", "kind = 'setup.requested'", "interval '1 day'", "'admin/setup', 'setup'", "grant execute on function public.setup_request(uuid, text) to authenticated"]) assert.ok(mig.includes(pin), pin);
+  const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
+  for (const pin of ["<window.AttnRow", 'testid={`setup-row-${r.id}`}', 'ctaTestid="setup-verb"', "testid: `setup-later-${r.id}`", 'data-testid="setup-next"', 'window.canDo("approve")', "window.PaneSetup = PaneSetup;"]) assert.ok(page.includes(pin), pin);
+  const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
+  assert.ok(brief.includes('data-testid="brief-setup"') && brief.includes("<SetupLine nav={nav} />"), "Today carries the one line");
+  assert.ok(readCode("packages/contracts/src/index.ts").includes('export * from "./setup";'));
+});
