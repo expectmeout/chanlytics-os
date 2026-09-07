@@ -5,6 +5,7 @@ import { calendarWeek } from "@/server/calendar";
 import { teamRoster } from "@/server/service";
 import { linesFor, linesStatus } from "@/server/lines";
 import { listingFor, connectionFor, googleReadiness } from "@/server/google";
+import { billingFor, billingReadiness } from "@/server/billing";
 
 /**
  * GET /api/v1/setup — what the workspace has, for the Setup page.
@@ -23,7 +24,7 @@ export const GET = withRoute(async (req, ctx) => {
   const tenantId = member.tenantId;
   const now = new Date();
 
-  const [cfgRow, channels, lastMsg, lastCall, templates, calendar, team, yes, requested, lineRows, lineStatus, listing, google, connection] = await Promise.all([
+  const [cfgRow, channels, lastMsg, lastCall, templates, calendar, team, yes, requested, lineRows, lineStatus, listing, google, connection, billingRow, billingReady] = await Promise.all([
     getTenantConfig(supabase, tenantId),
     supabase.from("tenant_channels").select("kind, status, number_e164, config").eq("tenant_id", tenantId),
     supabase.from("messages").select("channel_ts, created_at").eq("tenant_id", tenantId).eq("direction", "inbound").eq("channel", "whatsapp")
@@ -41,6 +42,8 @@ export const GET = withRoute(async (req, ctx) => {
     listingFor(supabase, tenantId),
     googleReadiness(),
     connectionFor(supabase, tenantId),
+    billingFor(supabase, tenantId),
+    billingReadiness(),
   ]);
   if (channels.error) throw new Error(channels.error.message);
   if (lastMsg.error) throw new Error(lastMsg.error.message);
@@ -109,6 +112,9 @@ export const GET = withRoute(async (req, ctx) => {
       listing: listing ? { name: listing.name, rating: listing.rating, review_count: listing.review_count, checked_at: listing.checked_at, check_error: listing.check_error } : null,
       connected: !!connection?.location_name,
     },
+    billing: billingRow
+      ? { ready: billingReady.ready, mode: billingRow.mode, status: billingRow.status, trial_end: billingRow.trial_end, current_period_end: billingRow.current_period_end, trial_days: billingReady.trial_days }
+      : undefined,
   };
   return { setup, role: member.role };
 });

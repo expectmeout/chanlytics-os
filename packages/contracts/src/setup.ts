@@ -16,6 +16,7 @@ import { formatPhoneDisplay } from "./phone";
 import { agoWords, spanLabel } from "./time";
 import { CARRIER_WORDS, MODE_WORDS, forwardingTestOpen, type Carrier, type ForwardingMode } from "./forwarding";
 import { listingLine, type SetupGoogleFacts } from "./google";
+import { dayWords, trialWords, type SetupBillingFacts } from "./billing";
 
 export interface SetupDto {
   business: {
@@ -43,6 +44,8 @@ export interface SetupDto {
   lines?: { rows: LineDto[]; ready: boolean; provider: string | null; costs: { local_number_month_usd: number } };
   /** The business on Google: whether it can be found here, and the listing once it is. */
   google?: SetupGoogleFacts;
+  /** How the workspace pays, when it pays by card and this deployment can charge. */
+  billing?: SetupBillingFacts;
 }
 
 /** A line as the page may see it — states in words, never a provider id. */
@@ -141,6 +144,23 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
   const rows: SetupRowVM[] = [];
   const row = (r: Omit<SetupRowVM, "later" | "stateWords"> & { stateWords?: string }) =>
     rows.push({ ...r, stateWords: r.stateWords ?? SETUP_STATE_WORDS[r.state], later: !r.required && later.has(r.id) });
+
+  // 0. Billing — first, for a workspace that pays by card: the door before
+  // the desk. A direct arrangement has no row; a closed door draws nothing.
+  if (i.billing && i.billing.mode === "stripe" && i.billing.ready) {
+    const b = i.billing;
+    if (b.status === "trialing") {
+      row({ id: "billing", icon: "money", title: "Billing", state: "ready", required: true, sentence: `On trial: ${trialWords(b.trial_end, nowMs) || "the card is on file"}.`, details: ["The card on file is charged when the trial ends; cancel from Billing before then if you'd rather not"], verb: { label: "Open Billing", to: "admin/billing" } });
+    } else if (b.status === "active" || b.status === "incomplete") {
+      row({ id: "billing", icon: "money", title: "Billing", state: "ready", required: true, sentence: b.status === "active" ? `Subscribed · next invoice ${dayWords(b.current_period_end) || "on the renewal date"}.` : "Finishing checkout — this page updates by itself.", details: [], verb: { label: "Open Billing", to: "admin/billing" } });
+    } else if (b.status === "past_due") {
+      row({ id: "billing", icon: "money", title: "Billing", state: "waiting_you", required: true, sentence: "The last payment failed. Update the card to keep the receptionist answering.", details: ["Stripe retries for a few days, then pauses the subscription"], verb: { label: "Update the card", to: "verb:billing-portal" } });
+    } else if (b.status === "paused" || b.status === "unpaid") {
+      row({ id: "billing", icon: "money", title: "Billing", state: "waiting_you", required: true, sentence: "Your receptionist is paused: messages land in the Inbox, nothing is answered.", details: [b.status === "paused" ? "The trial ended without a card on file" : "Payment could not be collected"], verb: { label: "Resume in Billing", to: "admin/billing" } });
+    } else {
+      row({ id: "billing", icon: "money", title: "Billing", state: "not_started", required: true, sentence: `Start the ${b.trial_days}-day trial with a card — nothing is charged until it ends.`, details: ["Cancel any time from Billing", "The receptionist answers through the trial"], verb: { label: "Start the trial", to: "verb:billing-checkout" } });
+    }
+  }
 
   // 1. Business facts — what the receptionist answers with.
   {

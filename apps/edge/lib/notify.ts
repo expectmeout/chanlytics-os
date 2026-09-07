@@ -124,7 +124,7 @@ export function chooseAddressing(
  * could not. Returns whether anything was delivered.
  */
 /** The kinds the table accepts; anything else is kept as a plain alert. */
-const KEPT_KINDS = new Set(["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review"]);
+const KEPT_KINDS = new Set(["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing"]);
 
 /**
  * Keep the alert as a row the workspace can read on its bell, whether or not

@@ -41,6 +41,7 @@ import { installCalendar } from "./calendar";
 import { installToday } from "./today";
 import { installSetup, setupOverride } from "./setup";
 import { installGoogle, googleOverride } from "./google";
+import { installBilling, billingOverride } from "./billing";
 import { installIdentity } from "./identity";
 import { installShell, publishShellStatus } from "./shell";
 import CreateWorkspace from "./CreateWorkspace";
@@ -66,6 +67,7 @@ installCalendar();
 installToday();
 installSetup();
 installGoogle();
+installBilling();
 installIdentity();
 installShell();
 // The installable shell's service worker (public/sw.js). It caches nothing
@@ -85,7 +87,7 @@ markHydrated(hydrateSurfaceCache());
 // The mockup's own data-before-mount contract (boot gate).
 const REQUIRED = ["CHANLY", "INBOX_DATA", "CLIENTS", "FLEET_DATA", "CHANLY_DATA", "POLICY", "ChanlyticsApp"] as const;
 
-const SURFACES = [workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, reportsOverride, liveOverride, broadcastsOverride, playbooksOverride, calendarOverride, notificationsOverride, setupOverride, googleOverride];
+const SURFACES = [workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, reportsOverride, liveOverride, broadcastsOverride, playbooksOverride, calendarOverride, notificationsOverride, setupOverride, googleOverride, billingOverride];
 const SURFACE_LABELS: Record<string, string> = { conversations: "Conversations", inbox: "Inbox", today: "Today", people: "People", reports: "Reports", live: "Calls", calendar: "Calendar" };
 
 // Which flipped surface backs each route, and which routes are real at all —

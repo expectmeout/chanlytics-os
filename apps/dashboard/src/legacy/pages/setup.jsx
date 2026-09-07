@@ -299,6 +299,13 @@ const PaneSetup = () => {
     if (verb.to === "verb:choose-line") { setChooser((v) => !v); return; }
     if (verb.to === "verb:forwarding") { setForwarding((v) => !v); return; }
     if (verb.to === "verb:google-find") { setFinder((v) => !v); return; }
+    if (verb.to === "verb:billing-checkout" || verb.to === "verb:billing-portal") {
+      if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can start or manage the subscription.</> }); return; }
+      if (!window.__billing) return;
+      const r = verb.to === "verb:billing-checkout" ? await window.__billing.checkout() : await window.__billing.portal();
+      if (!r.ok) flash({ msg: <>{r.message}</> });
+      return;
+    }
     if (verb.to.startsWith("verb:forwarding-test:")) {
       if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can test forwarding.</> }); return; }
       const r = await window.__setup.forwarding.test(verb.to.slice("verb:forwarding-test:".length));

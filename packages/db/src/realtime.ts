@@ -30,6 +30,7 @@ const WATCHED: Array<{ table: string; event: "INSERT" | "*" }> = [
   { table: "lines", event: "*" },           // a line's saga step, its failure, its answer: Setup repaints
   { table: "google_listings", event: "*" }, // the listing linked, read, or removed: Setup and Reports repaint
   { table: "google_reviews", event: "INSERT" }, // a review seen for the first time
+  { table: "billing_accounts", event: "*" }, // Stripe's answer, applied by the webhook: Billing and Setup repaint
 ];
 
 export function subscribeMessagesInserts(

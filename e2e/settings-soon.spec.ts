@@ -2,24 +2,23 @@ import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 
 /**
- * Settings → Billing and → AI memory, on a real workspace.
+ * Settings → AI memory, on a real workspace.
  *
- * Neither is built. They used to fall through the shell's gate, which swapped
- * the whole settings page for a bare "In design" card titled "billing" and
- * sent the owner back to Today. Now each is a pane: it keeps the settings
- * nav, says what is true, and nothing seeded (a plan, credits, learned rules)
- * reaches a real session.
+ * Not built. It used to fall through the shell's gate, which swapped the
+ * whole settings page for a bare "In design" card and sent the owner back
+ * to Today. Now it is a pane: it keeps the settings nav, says what is true,
+ * and nothing seeded (learned rules) reaches a real session. Billing became
+ * real in the accounts-and-billing slice; billing.spec.ts covers it.
  */
-const INVENTED = ["Professional", "Buy credits", "Credits left", "Used this cycle", "forgotten", "playbook defaults"];
+const INVENTED = ["forgotten", "playbook defaults"];
 
-test.describe("Settings → Billing and AI memory on a real workspace", () => {
+test.describe("Settings → AI memory on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.beforeEach(async ({ page }) => {
     await signIn(page);
   });
 
   for (const [pane, says] of [
-    ["billing", "There is no billing in the product yet"],
     ["memory", "does not learn rules on its own yet"],
   ] as const) {
     test(`${pane} keeps the nav and says it is not built`, async ({ page }) => {

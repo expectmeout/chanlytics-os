@@ -117,5 +117,6 @@ test("status sets match (messages + jobs + tenants + conversations + consent)", 
 
 test("control-plane enums match policies CHECKs (0012)", () => {
   assert.deepEqual(sqlSet("class"), [...POLICY_CLASSES].sort());
-  assert.deepEqual(sqlSet("mode"), [...POLICY_MODES].sort());
+  // Content-addressed: billing_accounts.mode (stripe · direct) shares the column name since 00073.
+  assert.deepEqual(sqlSets("mode").find((s) => s.includes("veto")), [...POLICY_MODES].sort());
 });

@@ -20,6 +20,12 @@
     },
     "api/cron/google.ts": {
       "maxDuration": 60
+    },
+    "api/stripe-webhook.ts": {
+      "maxDuration": 30
+    },
+    "api/admin/billing.ts": {
+      "maxDuration": 30
     }
   }
 }

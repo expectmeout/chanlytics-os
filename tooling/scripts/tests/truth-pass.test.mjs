@@ -16,13 +16,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { ROOT, readCode, readRaw } from "./_source.mjs";
 
-test("Billing and AI memory are honest panes that keep the settings nav", () => {
+test("AI memory is an honest pane that keeps the settings nav; Billing is real", () => {
   const settings = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
   assert.ok(settings.includes('{active.id === "memory" && (window.__SETTINGS === undefined ? <PaneMemory flash={flash} /> : <PaneSoon which="memory" onTab={onTab} />)}'));
-  assert.ok(settings.includes('{active.id === "billing" && (window.__SETTINGS === undefined ? <PaneBilling flash={flash} /> : <PaneSoon which="billing" onTab={onTab} />)}'));
+  assert.ok(settings.includes('{active.id === "billing" && (window.__SETTINGS === undefined ? <PaneBilling flash={flash} /> : <window.PaneBillingReal flash={flash} />)}'), "Billing is real on a workspace: billing-real.jsx");
   assert.ok(settings.includes('data-testid={`soon-${which}`}'), "the pane is addressable by the e2e");
   assert.ok(settings.includes("does not learn rules on its own yet"), "AI memory says what is true");
-  assert.ok(settings.includes("There is no billing in the product yet"), "Billing says what is true");
+  assert.ok(!settings.includes("There is no billing in the product yet"), "nothing says billing is not built any more");
   assert.ok(settings.includes('action: { label: "Open Workspace", tab: "workspace"'), "and points at where the knowledge lives");
   // The registry classifies both panes so the gate no longer swallows the page.
   const registry = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");

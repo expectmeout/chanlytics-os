@@ -182,7 +182,7 @@ export const ALERT_KINDS: readonly NotificationKind[] = ["needs_you", "held_draf
 /* ------------------------------------------------- rows the workspace keeps */
 
 /** What the edge writes when it raises an alert: the same kinds it emails. */
-export const SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review"] as const;
+export const SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing"] as const;
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
 
 export interface NotificationDto {
@@ -217,6 +217,8 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
   calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
   /** A review on Google: good news with somewhere to read it. */
   review: { icon: "star", tone: "ok", action: "Open Reports", to: "reports" },
+  /** The subscription: a trial starting or ending, a card declined, the receptionist paused or back. */
+  billing: { icon: "money", tone: "warn", action: "Open Billing", to: "admin/billing" },
   alert: { icon: "bell", tone: "", action: "Open Today", to: "today" },
 };
 
@@ -226,6 +228,7 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^admin\/integrations/, "Open Integrations"],
   [/^admin\/workspace/, "Open Workspace"],
   [/^admin\/notifications/, "Open Notifications"],
+  [/^admin\/billing/, "Open Billing"],
   [/^inbox/, "Open the Inbox"],
   [/^conversations\/phone/, "Open the calls"],
   [/^live/, "Open Live"],

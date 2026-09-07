@@ -92,6 +92,9 @@ export const EVENT_KINDS = [
   "google.disconnected",
   "google.replied",
   "workspace.created",
+  "billing.updated",
+  "billing.paused",
+  "billing.resumed",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 
@@ -142,6 +145,8 @@ export const ESCALATION_REASONS = [
   "policy_ask",
   /** The phone receptionist could not finish the call: a person calls them back. What to do rides in the details. */
   "callback",
+  /** The workspace is paused (billing): messages land, nothing is answered until it resumes. */
+  "paused",
 ] as const;
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
 

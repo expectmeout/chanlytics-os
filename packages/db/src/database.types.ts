@@ -122,6 +122,103 @@ export type Database = {
           },
         ]
       }
+      billing_accounts: {
+        Row: {
+          cancel_at: string | null
+          cancel_at_period_end: boolean
+          card_brand: string | null
+          card_last4: string | null
+          created_at: string
+          current_period_end: string | null
+          facts: Json
+          last_paid_at: string | null
+          last_payment_failed_at: string | null
+          mode: string
+          price_id: string | null
+          status: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          tenant_id: string
+          trial_end: string | null
+          updated_at: string
+        }
+        Insert: {
+          cancel_at?: string | null
+          cancel_at_period_end?: boolean
+          card_brand?: string | null
+          card_last4?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          facts?: Json
+          last_paid_at?: string | null
+          last_payment_failed_at?: string | null
+          mode?: string
+          price_id?: string | null
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          tenant_id: string
+          trial_end?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cancel_at?: string | null
+          cancel_at_period_end?: boolean
+          card_brand?: string | null
+          card_last4?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          facts?: Json
+          last_paid_at?: string | null
+          last_payment_failed_at?: string | null
+          mode?: string
+          price_id?: string | null
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          tenant_id?: string
+          trial_end?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_accounts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      billing_events: {
+        Row: {
+          id: string
+          received_at: string
+          tenant_id: string | null
+          type: string
+        }
+        Insert: {
+          id: string
+          received_at?: string
+          tenant_id?: string | null
+          type: string
+        }
+        Update: {
+          id?: string
+          received_at?: string
+          tenant_id?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       broadcast_recipients: {
         Row: {
           broadcast_id: string
