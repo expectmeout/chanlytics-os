@@ -11,7 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./workspace/db.js";
 import {
   runA2PSaga, smsStateFor, LOW_VOLUME_USECASE, SOLE_PROPRIETOR_USECASE, brandTypeFor,
-  type A2PPorts, type A2PRequest, type A2PState, type BusinessRecord,
+  encodeForm, type A2PPorts, type A2PRequest, type A2PState, type BusinessRecord,
 } from "./workspace/channels.js";
 import { lineProviderFromEnv } from "./lines.js";
 import { logger } from "./log.js";
@@ -128,7 +128,7 @@ export async function registerLine(db: Db, o: {
         Authorization: `Basic ${Buffer.from(`${master.sid}:${master.token}`).toString("base64")}`,
         ...(req.form ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
       },
-      body: req.form ? new URLSearchParams(req.form).toString() : undefined,
+      body: req.form ? encodeForm(req.form) : undefined,
       signal: AbortSignal.timeout(20000),
     });
     const text = await r.text();
