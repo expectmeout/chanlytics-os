@@ -93,7 +93,7 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
   assert.ok(s.includes('const TPL_SAMPLES = new Set(["hello_world"]);') && s.includes("!TPL_SAMPLES.has(t.name)"), "Meta's sample is never shown");
   assert.ok(s.includes("<window.WaBubble from={bizName || \"Your business\"} body={body} footer={footer} />"), "the card is the message as the customer sees it");
   assert.ok(readCode("apps/dashboard/src/legacy/pages/app-shell.jsx").includes('page === "messages"') && readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/messages.jsx";'));
-  assert.ok(readCode("apps/dashboard/src/legacy/pages/settings.jsx").includes('messages: "channel-messages"') && !readCode("apps/dashboard/src/legacy/pages/settings.jsx").includes("TemplatesCard"), "Integrations points at Messages (the WhatsApp row's verb) and lists no template");
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx").includes('messages: "channel-messages"') && !readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx").includes("TemplatesCard"), "Integrations points at Messages (the WhatsApp row's verb) and lists no template");
   const tabs = readCode("apps/dashboard/src/legacy/components/surface-tabs.jsx");
   assert.ok(tabs.includes('match: ["outbound", "broadcasts", "messages", "content"]') && tabs.includes('{ id: "messages", label: "Messages", to: "messages"') && tabs.includes('to: "content", demoOnly: true'), "Messages is the third door of the shell's own Campaigns strip; Content stays seed-only");
   for (const f of ["outbound-real", "broadcasts-real", "messages"]) assert.ok(!readCode(`apps/dashboard/src/legacy/pages/${f}.jsx`).includes("CampaignsTabs"), `${f}: one strip, the shell's`);

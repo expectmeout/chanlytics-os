@@ -125,7 +125,7 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
 });
 
 test("the Integrations pane offers the connection to an owner or says exactly why it cannot start; the diag shows the gates", () => {
-  const s = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  const s = readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx");
   assert.ok(s.includes('"verb:whatsapp-connect": "connect-whatsapp-btn"') && s.includes('case "verb:whatsapp-connect": {'));
   const rows = readCode("packages/contracts/src/connections.ts");
   assert.ok(rows.includes('const wa = channel("whatsapp");') && rows.includes("} else if (i.whatsapp === undefined) {"), "offered only when the workspace has no WhatsApp channel, and honest while asking");

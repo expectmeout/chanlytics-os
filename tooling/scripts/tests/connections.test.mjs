@@ -152,9 +152,19 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
 });
 
 test("the wiring: the page draws rows from the same facts Setup reads, the old cards are gone, the edge says the audience", () => {
-  const page = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  const page = readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx");
+  const shell = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
   assert.ok(page.includes("window.__connections.rows({") && page.includes("lineRequestedAt: S ? S.dto.requests.line : null,") && page.includes("google: G ? { ready: G.dto.ready, listing: G.dto.listing, connection: G.dto.connection } : null,") && page.includes("calendar: S ? S.dto.calendar : null,"));
   assert.ok(!page.includes("INT_NOT_AVAILABLE") && !page.includes("<GoogleCard />") && !page.includes("<ConnectWhatsAppRow />"), "one row model, no hand-built cards");
+  // The pane is its own file; the settings shell only chooses between the
+  // mockup and it, the way it does for Billing.
+  assert.ok(shell.includes("<window.PaneIntegrationsReal />") && !shell.includes("const PaneIntegrationsReal"), "the shell renders the pane, it does not contain it");
+  assert.ok(page.includes("window.PaneIntegrationsReal = PaneIntegrationsReal;"));
+  // Both files are loaded, and the form is rendered through the window the
+  // way the shell renders the billing pane: one file per concern.
+  const manifest = readCode("apps/dashboard/src/legacy-bridge/manifest.ts");
+  for (const f of ["integrations-real.jsx", "business-record.jsx"]) assert.ok(manifest.includes(`@/legacy/pages/${f}`), f);
+  assert.ok(page.includes("<window.BusinessRecordForm line={ownLine} flash={flash} />"));
   assert.ok(page.includes('data-testid={`connections-${g}`}') && page.includes('data-testid={`connection-${r.kind}`}'));
   assert.ok(page.includes('for (const ev of ["surface:settings", "surface:setup", "surface:google"]) window.addEventListener(ev, bump);'), "repaints on every surface it reads");
   assert.ok(page.includes('verb.who === "owner" ? window.canDo("team") : window.canDo("approve")'), "who may press is the row's to say, the page only checks");
