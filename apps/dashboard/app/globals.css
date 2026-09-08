@@ -121,7 +121,9 @@ body {
 .yes-terms li:last-child { margin-bottom: 0; }
 .yes-foot { color: var(--auth-muted); font-size: 0.8rem; margin: 22px 0 0; text-align: center; }
 .yes a { color: var(--auth-teal); text-decoration: underline; text-underline-offset: 2px; }
-.yes-btn { text-decoration: none; }
+/* Specificity, deliberately: the link rule above is (0,1,1) and would
+   otherwise paint the button's label teal on teal — invisible. */
+.yes a.yes-btn { color: #06231d; text-decoration: none; }
 
 .legal .legal-foot { border-top: 1px solid var(--auth-line); margin-top: 36px; padding-top: 16px; color: var(--auth-muted); font-size: 0.85rem; }
 .auth-card .error { color: var(--auth-danger); font-size: 0.85rem; margin-top: 10px; }
