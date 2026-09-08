@@ -80,6 +80,7 @@ export default function SignupPage() {
       <div className="hint">
         {SIGNUP_WORDS.haveOne} <a href="/login">Sign in</a>
       </div>
+      <div className="hint auth-legal"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></div>
     </main>
   );
 }
