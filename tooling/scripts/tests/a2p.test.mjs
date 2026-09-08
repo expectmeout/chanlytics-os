@@ -379,7 +379,8 @@ test("the wiring: filed as us, never twice, never real by default, and the recor
   assert.ok(readRaw("apps/edge/.env.example").includes("TWILIO_PRIMARY_PROFILE_SID="));
   // The wait must end without anyone pressing anything.
   const sweep = readCode("apps/edge/api/cron/registrations.ts");
-  assert.ok(sweep.includes('.eq("sms_state", "registering")') && sweep.includes('if (r.brand === "APPROVED" && !line.campaign_sid)'), "the sweep files the campaign the carriers were still holding");
+  assert.ok(sweep.includes('const WAITING = ["registering", "approved"];') && sweep.includes('.in("sms_state", WAITING)'), "REGRESSION: filtering on 'registering' alone stopped sweeping a line the moment it was approved, so it could never become active");
+  assert.ok(sweep.includes('if (r.brand === "APPROVED" && !line.campaign_sid)'), "the sweep files the campaign the carriers were still holding");
   assert.ok(sweep.includes("secretsMatch(presented, expected"), "and it is the same door the other sweeps use");
   assert.ok(readRaw("supabase/migrations/00077_registration_truth.sql").includes("cron.schedule('registration-sweep'"), "REGRESSION: nothing called the status check, so 'waiting on carriers' was a state nothing ever left");
 });
