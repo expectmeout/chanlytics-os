@@ -59,6 +59,10 @@ export interface BusinessRecord {
   websiteUrl: string;
   /** Twilio's industry vocabulary. */
   industry: string;
+  /** The legal form, on Twilio's enum. */
+  businessType: string;
+  /** Ownership, on Twilio's enum. */
+  companyType: string;
   contactFirstName: string;
   contactLastName: string;
   contactEmail: string;
@@ -91,11 +95,42 @@ export function industryOf(v: string | null | undefined): BusinessIndustry {
   return (BUSINESS_INDUSTRIES as readonly string[]).includes(up) ? (up as BusinessIndustry) : DEFAULT_INDUSTRY;
 }
 
+/** The legal forms Twilio accepts. Told to the carriers in the business's name, so it is asked. */
+export const BUSINESS_TYPES = ["Co-operative", "Corporation", "Limited Liability Corporation", "Non-profit Corporation", "Partnership"] as const;
+export type BusinessType = (typeof BUSINESS_TYPES)[number];
+export const DEFAULT_BUSINESS_TYPE: BusinessType = "Limited Liability Corporation";
+
+/** Ownership, on Twilio's enum for the A2P messaging profile. */
+export const COMPANY_TYPES = ["government", "non-profit", "private", "public"] as const;
+export type CompanyType = (typeof COMPANY_TYPES)[number];
+export const DEFAULT_COMPANY_TYPE: CompanyType = "private";
+
+export function businessTypeOf(v: string | null | undefined): BusinessType {
+  const s = String(v ?? "").trim();
+  return (BUSINESS_TYPES as readonly string[]).includes(s) ? (s as BusinessType) : DEFAULT_BUSINESS_TYPE;
+}
+export function companyTypeOf(v: string | null | undefined): CompanyType {
+  const s = String(v ?? "").trim().toLowerCase();
+  return (COMPANY_TYPES as readonly string[]).includes(s) ? (s as CompanyType) : DEFAULT_COMPANY_TYPE;
+}
+
 export type BrandType = "STANDARD" | "SOLE_PROPRIETOR";
 
 /** With a tax id a business is a standard brand; without one it is a sole proprietor. */
 export function brandTypeFor(r: Pick<BusinessRecord, "ein">): BrandType {
   return r.ein && r.ein.trim() ? "STANDARD" : "SOLE_PROPRIETOR";
+}
+
+/**
+ * A business with no tax id registers on a DIFFERENT path: a starter
+ * profile on the sole-proprietor policy, and a one-time code the owner
+ * reads off their own mobile. None of that is built here, and filing a
+ * sole proprietor against the business policy produces a registration the
+ * carriers reject — which, on a real filing, is a fee spent on nothing.
+ * So it is refused before anything is created, by name.
+ */
+export function soleProprietorUnsupported(r: Pick<BusinessRecord, "ein">): boolean {
+  return brandTypeFor(r) === "SOLE_PROPRIETOR";
 }
 
 export interface A2PRequest {
@@ -151,8 +186,8 @@ export function businessEndUserRequest(r: BusinessRecord): A2PRequest {
         social_media_profile_urls: "",
         website_url: r.websiteUrl,
         business_regions_of_operation: "USA_AND_CANADA",
-        business_type: r.ein ? "Limited Liability Corporation" : "Sole Proprietorship",
-        business_registration_identifier: r.ein ? "EIN" : "USA:EIN",
+        business_type: businessTypeOf(r.businessType),
+        business_registration_identifier: "EIN",
         business_identity: "direct_customer",
         business_industry: industryOf(r.industry),
         business_registration_number: r.ein ?? "",
@@ -266,13 +301,14 @@ export function a2pProfileRequest(o: { friendlyName: string; email: string; stat
 }
 
 export function a2pProfileEndUserRequest(o: { friendlyName: string; companyType: string }): A2PRequest {
+  const companyType = companyTypeOf(o.companyType);
   return {
     url: `${TRUSTHUB}/EndUsers`,
     method: "POST",
     form: {
       FriendlyName: `${o.friendlyName} · A2P`.slice(0, 64),
       Type: "us_a2p_messaging_profile_information",
-      Attributes: attrs({ company_type: o.companyType }),
+      Attributes: attrs({ company_type: companyType }),
     },
   };
 }
@@ -411,11 +447,15 @@ export function isBrandNotReady(error: string): boolean {
 }
 
 /** Twilio's brand and campaign statuses, in the words `lines.sms_state` uses. */
-export function smsStateFor(o: { brandStatus?: string | null; campaignStatus?: string | null }): "registering" | "approved" | "rejected" | "failed" {
+export function smsStateFor(o: { brandStatus?: string | null; campaignStatus?: string | null }): "registering" | "active" | "rejected" | "failed" {
   const brand = (o.brandStatus ?? "").toUpperCase();
   const campaign = (o.campaignStatus ?? "").toUpperCase();
   if (brand === "FAILED" || campaign === "FAILED") return "rejected";
   if (brand === "SUSPENDED") return "failed";
-  if (campaign === "VERIFIED") return "approved";
+  // A verified campaign IS the permission, and the number is already in the
+  // Messaging Service, so the line can answer now. Returning "approved" here
+  // left every text held for ever: the inbound path only answers on "active",
+  // and nothing moved a line from one to the other.
+  if (campaign === "VERIFIED") return "active";
   return "registering";
 }

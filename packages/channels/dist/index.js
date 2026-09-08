@@ -5861,8 +5861,23 @@ function industryOf(v) {
   const up = String(v ?? "").trim().toUpperCase();
   return BUSINESS_INDUSTRIES.includes(up) ? up : DEFAULT_INDUSTRY;
 }
+var BUSINESS_TYPES = ["Co-operative", "Corporation", "Limited Liability Corporation", "Non-profit Corporation", "Partnership"];
+var DEFAULT_BUSINESS_TYPE = "Limited Liability Corporation";
+var COMPANY_TYPES = ["government", "non-profit", "private", "public"];
+var DEFAULT_COMPANY_TYPE = "private";
+function businessTypeOf(v) {
+  const s = String(v ?? "").trim();
+  return BUSINESS_TYPES.includes(s) ? s : DEFAULT_BUSINESS_TYPE;
+}
+function companyTypeOf(v) {
+  const s = String(v ?? "").trim().toLowerCase();
+  return COMPANY_TYPES.includes(s) ? s : DEFAULT_COMPANY_TYPE;
+}
 function brandTypeFor(r) {
   return r.ein && r.ein.trim() ? "STANDARD" : "SOLE_PROPRIETOR";
+}
+function soleProprietorUnsupported(r) {
+  return brandTypeFor(r) === "SOLE_PROPRIETOR";
 }
 function encodeForm(form2) {
   const q = new URLSearchParams();
@@ -5899,8 +5914,8 @@ function businessEndUserRequest(r) {
         social_media_profile_urls: "",
         website_url: r.websiteUrl,
         business_regions_of_operation: "USA_AND_CANADA",
-        business_type: r.ein ? "Limited Liability Corporation" : "Sole Proprietorship",
-        business_registration_identifier: r.ein ? "EIN" : "USA:EIN",
+        business_type: businessTypeOf(r.businessType),
+        business_registration_identifier: "EIN",
         business_identity: "direct_customer",
         business_industry: industryOf(r.industry),
         business_registration_number: r.ein ?? ""
@@ -5988,13 +6003,14 @@ function a2pProfileRequest(o) {
   };
 }
 function a2pProfileEndUserRequest(o) {
+  const companyType = companyTypeOf(o.companyType);
   return {
     url: `${TRUSTHUB}/EndUsers`,
     method: "POST",
     form: {
       FriendlyName: `${o.friendlyName} \xB7 A2P`.slice(0, 64),
       Type: "us_a2p_messaging_profile_information",
-      Attributes: attrs({ company_type: o.companyType })
+      Attributes: attrs({ company_type: companyType })
     }
   };
 }
@@ -6076,7 +6092,7 @@ function smsStateFor(o) {
   const campaign = (o.campaignStatus ?? "").toUpperCase();
   if (brand === "FAILED" || campaign === "FAILED") return "rejected";
   if (brand === "SUSPENDED") return "failed";
-  if (campaign === "VERIFIED") return "approved";
+  if (campaign === "VERIFIED") return "active";
   return "registering";
 }
 
@@ -6153,7 +6169,7 @@ async function runA2PSaga(start, p) {
         }
         case "a2p_profile": {
           const bundle = await need2(a2pProfileRequest({ friendlyName: p.workspace.name, email: p.email, statusCallback: p.statusCallback }), "creating the messaging profile");
-          const endUser = await need2(a2pProfileEndUserRequest({ friendlyName: p.workspace.name, companyType: p.record.ein ? "private" : "private" }), "recording the company type");
+          const endUser = await need2(a2pProfileEndUserRequest({ friendlyName: p.workspace.name, companyType: p.record.companyType }), "recording the company type");
           for (const objectSid of [endUser, state.profileSid]) {
             const a = await p.send(trustProductAssignRequest(bundle, objectSid));
             if (!ok(a)) throw new Error(refusal(a, "attaching to the messaging profile"));
@@ -6672,8 +6688,12 @@ export {
   A2P_POLICIES,
   A2P_STEPS,
   BUSINESS_INDUSTRIES,
+  BUSINESS_TYPES,
   CALLER_UNKNOWN,
   CALL_ANALYSIS_FIELDS,
+  COMPANY_TYPES,
+  DEFAULT_BUSINESS_TYPE,
+  DEFAULT_COMPANY_TYPE,
   DEFAULT_FN_URL,
   DEFAULT_INDUSTRY,
   EMPTY_A2P_STATE,
@@ -6733,10 +6753,12 @@ export {
   brandTypeFor,
   businessAttributes,
   businessEndUserRequest,
+  businessTypeOf,
   callSummaryLine,
   campaignRequest,
   chooseLineProvider,
   cleanReply,
+  companyTypeOf,
   createAgent,
   createAgentVersion,
   createPhoneNumber,
@@ -6818,6 +6840,7 @@ export {
   smsInboundFrom,
   smsInboundUrl,
   smsStateFor,
+  soleProprietorUnsupported,
   starRatingNumber,
   stripKey,
   submitProfileRequest,

@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import {
   A2P_POLICIES, A2P_STEPS, EMPTY_A2P_STATE, LOW_VOLUME_USECASE, SOLE_PROPRIETOR_USECASE,
   brandTypeFor, nextA2PStep, smsStateFor, runA2PSaga, BUSINESS_INDUSTRIES, DEFAULT_INDUSTRY, industryOf, isBrandNotReady,
+  soleProprietorUnsupported, COMPANY_TYPES, companyTypeOf, businessTypeOf, a2pProfileEndUserRequest,
   addressRequest, a2pProfileRequest, brandRequest, businessEndUserRequest, campaignRequest,
   customerProfileRequest, evaluateRequest, representativeEndUserRequest, submitProfileRequest, supportingDocumentRequest, encodeForm, keywordsFor,
 } from "@chanlytics/channels";
@@ -21,6 +22,7 @@ const RECORD = {
   websiteUrl: "https://app.chanlytics.com/yes/harbor-moving", industry: "PROFESSIONAL",
   contactFirstName: "Ruben", contactLastName: "Segura", contactEmail: "hi@chanlytics.com",
   contactPhone: "+16465550123", contactTitle: "Owner", contactJobPosition: "Director",
+  businessType: "Limited Liability Corporation", companyType: "private",
 };
 
 test("the policy ids are the ones Twilio names, and a tax id decides the brand type", () => {
@@ -44,6 +46,12 @@ test("every request is the documented URL and the documented fields", () => {
   assert.equal(ba.business_name, "Harbor Moving LLC");
   assert.equal(ba.business_registration_number, "12-3456789");
   assert.equal(ba.business_regions_of_operation, "USA_AND_CANADA");
+  // The legal form is ASKED, never inferred: a corporation with a tax id was
+  // being told to the carriers as a limited liability corporation.
+  assert.equal(ba.business_type, "Limited Liability Corporation");
+  assert.equal(JSON.parse(businessEndUserRequest({ ...RECORD, businessType: "Partnership" }).form.Attributes).business_type, "Partnership");
+  assert.equal(JSON.parse(businessEndUserRequest({ ...RECORD, businessType: "Sole Proprietorship" }).form.Attributes).business_type, "Limited Liability Corporation", "a value Twilio does not accept becomes the default, never reaches them");
+  assert.equal(ba.business_registration_identifier, "EIN");
   assert.equal(ba.website_url, RECORD.websiteUrl, "the reviewer is sent to a page that exists");
 
   const r = representativeEndUserRequest(RECORD);
@@ -239,10 +247,30 @@ test("a brand the carriers still hold is a WAIT, not a refusal, and the status c
   assert.ok(lines.includes('if (r.ok && r.brand === "APPROVED" && !row.data.campaign_sid) {'), "and the next status check files the campaign, so the wait finishes by itself");
 });
 
+test("a business with no tax id is refused by name, before anything is created", () => {
+  assert.equal(soleProprietorUnsupported({ ein: null }), true);
+  assert.equal(soleProprietorUnsupported({ ein: "12-3456789" }), false);
+  const lib = readCode("apps/edge/lib/a2p.ts");
+  assert.ok(lib.includes('return { ok: false, error: "sole_proprietor_unsupported"'), "a sole proprietor filed on the business policy is rejected by the carriers — on a real filing, a fee spent on nothing");
+  assert.ok(lib.indexOf("soleProprietorUnsupported") < lib.indexOf("const send = async"), "refused before a single call is made");
+});
+
+test("ownership is asked too, and a value Twilio rejects never reaches it", () => {
+  assert.deepEqual([...COMPANY_TYPES], ["government", "non-profit", "private", "public"]);
+  assert.equal(companyTypeOf("Private"), "private");
+  assert.equal(companyTypeOf("llc"), "private", "an unknown value becomes the default rather than a refusal");
+  assert.equal(JSON.parse(a2pProfileEndUserRequest({ friendlyName: "x", companyType: "non-profit" }).form.Attributes).company_type, "non-profit");
+  assert.ok(!readCode("packages/channels/src/a2p-saga.ts").includes('p.record.ein ? "private" : "private"'), "REGRESSION: ownership was hard-coded behind a ternary that could not vary");
+  assert.equal(businessTypeOf("Corporation"), "Corporation");
+});
+
 test("the carriers' verdicts become the words the row uses", () => {
   assert.equal(smsStateFor({ brandStatus: "PENDING", campaignStatus: null }), "registering");
   assert.equal(smsStateFor({ brandStatus: "APPROVED", campaignStatus: "PENDING" }), "registering");
-  assert.equal(smsStateFor({ brandStatus: "APPROVED", campaignStatus: "VERIFIED" }), "approved");
+  // ACTIVE, not "approved": the inbound path only answers on active, and
+  // nothing moved a line from one to the other, so every text stayed held.
+  assert.equal(smsStateFor({ brandStatus: "APPROVED", campaignStatus: "VERIFIED" }), "active");
+  assert.ok(readCode("apps/edge/api/inbound-sms.ts").includes('const held = line.sms_state !== "active";'), "which is the state the inbound path reads");
   assert.equal(smsStateFor({ brandStatus: "FAILED", campaignStatus: null }), "rejected");
   assert.equal(smsStateFor({ brandStatus: "APPROVED", campaignStatus: "FAILED" }), "rejected");
   assert.equal(smsStateFor({ brandStatus: "SUSPENDED" }), "failed");
@@ -271,4 +299,9 @@ test("the wiring: filed as us, never twice, never real by default, and the recor
   assert.ok(sql.includes("create table public.business_records") && sql.includes("business_records_member_select"));
   assert.ok(sql.includes("reg_mock") && sql.includes("brand_sid"), "the row says which registration it is and what it made");
   assert.ok(readRaw("apps/edge/.env.example").includes("TWILIO_PRIMARY_PROFILE_SID="));
+  // The wait must end without anyone pressing anything.
+  const sweep = readCode("apps/edge/api/cron/registrations.ts");
+  assert.ok(sweep.includes('.eq("sms_state", "registering")') && sweep.includes('if (r.brand === "APPROVED" && !line.campaign_sid)'), "the sweep files the campaign the carriers were still holding");
+  assert.ok(sweep.includes("secretsMatch(presented, expected"), "and it is the same door the other sweeps use");
+  assert.ok(readRaw("supabase/migrations/00077_registration_truth.sql").includes("cron.schedule('registration-sweep'"), "REGRESSION: nothing called the status check, so 'waiting on carriers' was a state nothing ever left");
 });
