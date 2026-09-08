@@ -40,7 +40,11 @@ export default defineConfig({
   fullyParallel: false,
   // A stray `test.only` must not silently shrink the suite in CI.
   forbidOnly: !!process.env.CI,
-  reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : [["list"]],
+  // ./e2e/skip-ceiling: a run that claims credentials and then skips most of
+  // itself is the same defect as a run that skipped everything and passed.
+  reporter: process.env.CI
+    ? [["list"], ["html", { open: "never" }], ["./e2e/skip-ceiling.ts"]]
+    : [["list"], ["./e2e/skip-ceiling.ts"]],
   use: {
     baseURL,
     // Kept only for failures: a passing run's traces are noise, and these

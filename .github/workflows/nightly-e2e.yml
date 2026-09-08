@@ -19,6 +19,15 @@ on:
     - cron: "0 9 * * *"
   workflow_dispatch:
 
+# One run at a time. workspace-create.spec.ts really creates and deletes a
+# tenant, `retries: 2` means up to three of those per run, and create_workspace
+# allows five an hour -- so a manual dispatch overlapping the cron exhausts the
+# budget and the spec then fails with "Too many new workspaces in a short
+# time", which looks nothing like the bug anyone is chasing.
+concurrency:
+  group: nightly-e2e
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
@@ -27,6 +36,12 @@ jobs:
     name: Playwright against production
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # issues: write is the whole point of the step at the end -- a red run at
+    # 09:00 that nobody is told about is the failure this suite exists to
+    # prevent, one level up.
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -69,3 +84,14 @@ jobs:
           name: playwright-report
           path: playwright-report
           retention-days: 7
+      # Somebody has to be told. The job runs at 09:00 with nobody watching,
+      # and its whole purpose is to notice things.
+      - name: Say so, where a person will see it
+        if: failure()
+        run: |
+          gh issue create \
+            --title "Nightly e2e failed $(date -u +%F)" \
+            --body "The nightly suite failed. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
