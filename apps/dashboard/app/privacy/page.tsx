@@ -19,7 +19,7 @@ export default function PrivacyPage() {
       <p>Chanlytics OS is a receptionist for small businesses: it answers a business's customers on WhatsApp, by phone and by text, keeps the conversations where the owner can read them, and helps the owner reply to reviews and reach customers who asked to hear from them. This policy says what we hold to do that, why, who else touches it, and what you can do about it.</p>
 
       <h2>Who we are</h2>
-      <p>Chanlytics ("we", "us") operates Chanlytics OS at app.chanlytics.com. When a business ("the workspace owner") signs up, it is the controller of its customers' data; we process that data on its behalf and under its instructions. Questions about this policy go to <a href="mailto:privacy@chanlytics.com">privacy@chanlytics.com</a>.</p>
+      <p>Chanlytics ("we", "us") operates Chanlytics OS at app.chanlytics.com. When a business ("the workspace owner") signs up, it is the controller of its customers' data; we process that data on its behalf and under its instructions. Questions about this policy go to <a href="mailto:hi@chanlytics.com">hi@chanlytics.com</a>.</p>
 
       <h2>What we hold</h2>
       <ul>
@@ -64,7 +64,7 @@ export default function PrivacyPage() {
       <p>Account and conversation data stays while the workspace exists. Call recordings are kept for 90 days. An owner can export a workspace's data and can ask us to delete the workspace, after which its data is removed within 30 days, except what the law requires us to keep.</p>
 
       <h2>Your rights</h2>
-      <p>You can ask what we hold about you, ask for it to be corrected or deleted, and object to how it is used, by writing to <a href="mailto:privacy@chanlytics.com">privacy@chanlytics.com</a>. If you are a customer of a business that uses Chanlytics, the business is the controller of your data; we will pass your request to it and help it answer.</p>
+      <p>You can ask what we hold about you, ask for it to be corrected or deleted, and object to how it is used, by writing to <a href="mailto:hi@chanlytics.com">hi@chanlytics.com</a>. If you are a customer of a business that uses Chanlytics, the business is the controller of your data; we will pass your request to it and help it answer.</p>
 
       <h2>Security</h2>
       <p>Data travels encrypted and is stored encrypted at rest. Credentials for connected services are kept in a vault the product's pages cannot read. Access inside Chanlytics is limited to what running and supporting the service requires.</p>

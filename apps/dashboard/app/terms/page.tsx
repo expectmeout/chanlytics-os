@@ -67,7 +67,7 @@ export default function TermsPage() {
       <p>You end it by deleting your workspace. We may end it if you break these terms, with notice where the breach can be fixed. When it ends, the privacy policy says what happens to the data.</p>
 
       <h2>Contact</h2>
-      <p>Questions about these terms go to <a href="mailto:privacy@chanlytics.com">privacy@chanlytics.com</a>.</p>
+      <p>Questions about these terms go to <a href="mailto:hi@chanlytics.com">hi@chanlytics.com</a>.</p>
 
       <p className="legal-foot">Chanlytics OS · <a href="/privacy">Privacy policy</a> · <a href="https://www.chanlytics.com" target="_blank" rel="noreferrer">chanlytics.com</a></p>
     </main>
