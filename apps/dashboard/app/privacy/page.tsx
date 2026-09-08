@@ -64,7 +64,7 @@ export default function PrivacyPage() {
       <p>Account and conversation data stays while the workspace exists. Call recordings are kept for 90 days. An owner can export a workspace's data and can ask us to delete the workspace, after which its data is removed within 30 days, except what the law requires us to keep.</p>
 
       <h2>Your rights</h2>
-      <p>You can ask what we hold about you, ask for it to be corrected or deleted, and object to how it is used, by writing to <a href="mailto:hi@chanlytics.com">hi@chanlytics.com</a>. If you are a customer of a business that uses Chanlytics, the business is the controller of your data; we will pass your request to it and help it answer.</p>
+      <p>You can ask what we hold about you, ask for it to be corrected or deleted, and object to how it is used, by writing to <a href="mailto:hi@chanlytics.com">hi@chanlytics.com</a>. <a href="/data-deletion">Deleting your data</a> says exactly how deletion works for an owner and for a business’s customer. If you are a customer of a business that uses Chanlytics, the business is the controller of your data; we will pass your request to it and help it answer.</p>
 
       <h2>Security</h2>
       <p>Data travels encrypted and is stored encrypted at rest. Credentials for connected services are kept in a vault the product's pages cannot read. Access inside Chanlytics is limited to what running and supporting the service requires.</p>
@@ -72,7 +72,7 @@ export default function PrivacyPage() {
       <h2>Changes</h2>
       <p>When this policy changes, the date above changes with it and workspace owners are told in the product.</p>
 
-      <p className="legal-foot">Chanlytics OS · <a href="/terms">Terms of service</a> · <a href="https://www.chanlytics.com" target="_blank" rel="noreferrer">chanlytics.com</a></p>
+      <p className="legal-foot">Chanlytics OS · <a href="/data-deletion">Deleting your data</a> · <a href="/terms">Terms of service</a> · <a href="https://www.chanlytics.com" target="_blank" rel="noreferrer">chanlytics.com</a></p>
     </main>
   );
 }

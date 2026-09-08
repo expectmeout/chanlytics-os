@@ -103,7 +103,7 @@ test("exactly one public PREFIX, and only the opt-in page lives under it", () =>
   assert.deepEqual(fs.readdirSync(path.join(dir, "[slug]")), ["page.tsx"], "and it is a page, not a route that takes input");
 });
 
-test("only these eight paths are reachable without a session", () => {
+test("only these nine paths are reachable without a session", () => {
   const block = /PUBLIC_PATHS\s*=\s*new Set\(\[([^\]]*)\]/.exec(middleware);
   assert.ok(block, "PUBLIC_PATHS must be a literal Set so this test can read it");
   const paths = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]).sort();
@@ -113,7 +113,33 @@ test("only these eight paths are reachable without a session", () => {
   // it without credentials, and it names the product and its icons, nothing else.
   // Sign-up joined in the accounts slice: the page and its route, the one door a stranger may use.
   // Privacy and terms joined in the connections slice: the two pages every platform review links to; static, and they read nothing.
-  assert.deepEqual(paths, ["/api/v1/signup", "/api/version", "/auth/signout", "/login", "/manifest.webmanifest", "/privacy", "/signup", "/terms"]);
+  // Deleting your data joined with them: Meta's app settings, Google's consent
+  // screen and the app stores each ask for a URL whose whole subject is
+  // deletion, and pointing that field at a policy's midpoint is how it ends up
+  // pointing at facebook.com instead.
+  assert.deepEqual(paths, ["/api/v1/signup", "/api/version", "/auth/signout", "/data-deletion", "/login", "/manifest.webmanifest", "/privacy", "/signup", "/terms"]);
+});
+
+test("the three legal pages are static, read nothing, and point at each other", () => {
+  const pages = { privacy: "privacy", terms: "terms", deletion: "data-deletion" };
+  for (const [name, dir] of Object.entries(pages)) {
+    const src = readRaw(`apps/dashboard/app/${dir}/page.tsx`);
+    // A page a stranger may open must not reach for a session, a database or
+    // the network: it is served to whoever asks, including a reviewer.
+    for (const forbidden of ["createClient", "supabase", "fetch(", "cookies()", "headers()", "use client"]) {
+      assert.ok(!src.includes(forbidden), `${name} must not use ${forbidden}`);
+    }
+    assert.ok(src.includes("robots: { index: true }"), `${name} must be indexable — a review checks it is reachable`);
+  }
+  // A dead end is how the deletion URL gets pasted as facebook.com: the pages
+  // carry each other, so whichever one a reviewer lands on leads to the rest.
+  const privacy = readRaw("apps/dashboard/app/privacy/page.tsx");
+  assert.ok(privacy.includes('href="/data-deletion"'), "the policy names the deletion page");
+  const deletion = readRaw("apps/dashboard/app/data-deletion/page.tsx");
+  assert.ok(deletion.includes('href="/privacy"') && deletion.includes('href="/terms"'), "the deletion page names the other two");
+  // The one promise a reviewer reads it for, and the one an end customer needs.
+  assert.ok(/within 30 days/.test(deletion), "it says how long deletion takes");
+  assert.ok(deletion.includes("<b>STOP</b>"), "and how to stop messages without deleting anything");
 });
 
 test("the session is VERIFIED, never read from the cookie", () => {
