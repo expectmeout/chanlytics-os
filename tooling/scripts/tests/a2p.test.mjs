@@ -316,8 +316,9 @@ test("the owner's form: every field the carriers ask, checked in the owner's wor
   const reg = readCode("apps/dashboard/app/api/v1/lines/register/route.ts");
   assert.ok(reg.includes('requireRole(member, "owner")') && reg.includes('takeRate(ctx.userId, "lines_register")'), "filing costs money, so it is an owner's and it is rate-limited");
   assert.ok(!/mock:\s*(true|body)/.test(reg), "the free test registry is never reachable from the dashboard: an owner's filing is always the real one");
-  const page = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  const page = readCode("apps/dashboard/src/legacy/pages/business-record.jsx");
   assert.ok(page.includes('data-testid="business-record"') && page.includes('data-testid="biz-file-yes"'), "and filing asks once, plainly, with the price in the question");
+  assert.ok(page.includes("window.BusinessRecordForm = BusinessRecordForm;"), "the form is its own file, opened by the row that needs it");
   assert.ok(page.includes("Filing costs about $19 once and a few dollars a month, and cannot be undone."));
 });
 

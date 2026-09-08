@@ -74,7 +74,9 @@ test("F36/F37: alerts that go to Chanlytics say so; switching a number off is de
   assert.equal((pane.match(/platform: true/g) ?? []).length, 2, "exactly the two platform alerts");
   assert.ok(pane.includes("except the two marked for Chanlytics"));
   assert.ok(!pane.includes("emails you every message instead"), "REGRESSION: promised an email nothing sends");
-  assert.ok(pane.includes("neither answered nor recorded — Chanlytics is told they are arriving, you are not"));
+  // The channels sentence moved with the pane it belongs to; the alerts
+  // above it are the notifications pane and stay in the settings shell.
+  assert.ok(readRaw("apps/dashboard/src/legacy/pages/integrations-real.jsx").includes("neither answered nor recorded — Chanlytics is told they are arriving, you are not"));
 });
 
 test("F50: gates match doors — the business form is owner-only like PUT /settings; a delay edit sends no mode; an invite has no role menu", () => {

@@ -77,6 +77,9 @@ import "@/legacy/pages/tasks.jsx";
 import "@/legacy/pages/setup.jsx";
 import "@/legacy/pages/settings.jsx";
 import "@/legacy/pages/billing-real.jsx";
+// After the mockup's settings: the Integrations pane and the one form it opens.
+import "@/legacy/pages/integrations-real.jsx";
+import "@/legacy/pages/business-record.jsx";
 import "@/legacy/pages/app-shell.jsx";
 
 export {};
