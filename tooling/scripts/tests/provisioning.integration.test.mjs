@@ -20,6 +20,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { POLICY_CLASSES } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -53,7 +54,12 @@ test("creating a tenant provisions it — no application code involved", { skip 
     .from("policies").select("class, mode, limits").eq("tenant_id", tenantId).is("subject_type", null);
   const byClass = Object.fromEntries((policies ?? []).map((p) => [p.class, p]));
 
-  assert.equal(policies.length, 6, `expected the full matrix, got ${policies.length}`);
+  // The CLASSES, not their number. `byClass` is already built from the class
+  // column one line up, and a set catches a missing, an extra and a renamed
+  // class where a count catches only the first. The literal 6 was wrong from
+  // the day `reviews` was added and stayed wrong because this suite needs
+  // service credentials and so ran nowhere at all.
+  assert.deepEqual(Object.keys(byClass).sort(), [...POLICY_CLASSES].sort(), "the matrix must hold exactly the classes contracts declares");
   // The modes must mirror the runtime's actual behaviour, or provisioning a
   // tenant would CHANGE how it behaves rather than just making it visible.
   assert.equal(byClass.reply.mode, "auto");
@@ -88,7 +94,7 @@ test("provision_tenant is idempotent — the trigger, backfill and onboarding ca
   assert.equal(error, null, error?.message);
   const { data: policies } = await db
     .from("policies").select("id").eq("tenant_id", tenantId).is("subject_type", null);
-  assert.equal(policies.length, 6, "a second call duplicated the matrix");
+  assert.equal(policies.length, POLICY_CLASSES.length, "a second call duplicated the matrix");
 });
 
 test("every existing tenant was backfilled", { skip }, async () => {
@@ -100,7 +106,7 @@ test("every existing tenant was backfilled", { skip }, async () => {
       .from("policies").select("id").eq("tenant_id", t.id).is("subject_type", null);
     const { data: c } = await db
       .from("tenant_config").select("tenant_id").eq("tenant_id", t.id).maybeSingle();
-    assert.equal(p.length, 6, `${t.slug} has ${p.length} policy rows`);
+    assert.equal(p.length, POLICY_CLASSES.length, `${t.slug} has ${p.length} policy rows`);
     assert.ok(c, `${t.slug} has no tenant_config row`);
   }
 });
