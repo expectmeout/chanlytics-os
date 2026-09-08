@@ -3024,7 +3024,7 @@ declare function createServiceClient(cfg: ServiceClientConfig): SupabaseClient<D
 type Db$3 = SupabaseClient<Database>;
 interface IngestInboundParams {
     tenantId: string;
-    channel: "whatsapp";
+    channel: "whatsapp" | "sms";
     identityExternalId: string;
     phoneE164: string | null;
     waProfileName: string | null;
@@ -3068,6 +3068,8 @@ declare function recordOutbound(db: Db$3, p: {
     /** "queued" is a DRAFT awaiting its veto window — written by the bot,
      *  fired later by outbound_send, cancellable until then. */
     status?: "sent" | "failed" | "queued";
+    /** The wire it goes out on: where the person last wrote. WhatsApp unless said. */
+    channel?: "whatsapp" | "sms";
 }): Promise<string | null>;
 interface OutboundTarget {
     contactId: string;

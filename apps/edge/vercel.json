@@ -26,6 +26,9 @@
     },
     "api/admin/billing.ts": {
       "maxDuration": 30
+    },
+    "api/inbound-sms.ts": {
+      "maxDuration": 60
     }
   }
 }

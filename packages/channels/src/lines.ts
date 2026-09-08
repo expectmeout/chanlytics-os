@@ -44,6 +44,20 @@ export interface LineProvider {
   attachCredentialList(acct: ProviderAccount, trunkSid: string, listSid: string): Promise<void>;
   addOrigination(acct: ProviderAccount, trunkSid: string, o: { sipUrl: string; friendlyName: string }): Promise<{ sid: string }>;
   attachNumber(acct: ProviderAccount, trunkSid: string, numberSid: string): Promise<void>;
+  /** The Messaging Service a line texts through: inbound to our webhook, the number in its sender pool. */
+  createMessagingService(acct: ProviderAccount, o: { friendlyName: string; inboundUrl: string }): Promise<{ sid: string }>;
+  addNumberToService(acct: ProviderAccount, serviceSid: string, numberSid: string): Promise<{ sid: string }>;
+  /** One text out through the service. Never throws: a refusal is an answer with the provider's code. */
+  sendSms(acct: ProviderAccount, o: { serviceSid: string; to: string; body: string }): Promise<SmsSendResult>;
+}
+
+export interface SmsSendResult {
+  ok: boolean;
+  /** The provider's message id (SM…), for the row. */
+  sid: string | null;
+  status: number;
+  /** The provider's error code when refused: 21610 = the person opted out at the carrier, 30034 = the line is not registered yet. */
+  code: number | null;
 }
 
 /** Where Twilio sends a line's calls: Retell's SIP front door (Retell's Twilio guide). */

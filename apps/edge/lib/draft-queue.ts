@@ -30,6 +30,8 @@ export interface DraftArgs {
   brainMeta?: BrainMeta;
   /** Anything else the row should carry (a steer's instruction, its origin). */
   extra?: Record<string, unknown>;
+  /** The wire the draft goes out on; WhatsApp unless said. */
+  channel?: "whatsapp" | "sms";
 }
 
 export interface DraftLog {
@@ -60,6 +62,7 @@ export async function queueDraft(db: SupabaseClient<Database>, a: DraftArgs, L: 
       body: a.body,
       externalId: null,
       status: "queued",
+      channel: a.channel ?? "whatsapp",
       meta: { source: a.source, delay_ms: a.delayMs, ...(a.brainMeta ?? {}), ...(a.extra ?? {}) } as Json,
     });
     if (!messageId) return null;

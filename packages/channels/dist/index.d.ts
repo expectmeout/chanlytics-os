@@ -747,6 +747,30 @@ interface LineProvider {
         sid: string;
     }>;
     attachNumber(acct: ProviderAccount, trunkSid: string, numberSid: string): Promise<void>;
+    /** The Messaging Service a line texts through: inbound to our webhook, the number in its sender pool. */
+    createMessagingService(acct: ProviderAccount, o: {
+        friendlyName: string;
+        inboundUrl: string;
+    }): Promise<{
+        sid: string;
+    }>;
+    addNumberToService(acct: ProviderAccount, serviceSid: string, numberSid: string): Promise<{
+        sid: string;
+    }>;
+    /** One text out through the service. Never throws: a refusal is an answer with the provider's code. */
+    sendSms(acct: ProviderAccount, o: {
+        serviceSid: string;
+        to: string;
+        body: string;
+    }): Promise<SmsSendResult>;
+}
+interface SmsSendResult {
+    ok: boolean;
+    /** The provider's message id (SM…), for the row. */
+    sid: string | null;
+    status: number;
+    /** The provider's error code when refused: 21610 = the person opted out at the carrier, 30034 = the line is not registered yet. */
+    code: number | null;
 }
 /** Where Twilio sends a line's calls: Retell's SIP front door (Retell's Twilio guide). */
 declare const RETELL_ORIGINATION = "sip:sip.retellai.com";
@@ -810,6 +834,9 @@ declare const twilioUrls: {
     trunkCredentialLists: (trunkSid: string) => string;
     trunkOriginationUrls: (trunkSid: string) => string;
     trunkPhoneNumbers: (trunkSid: string) => string;
+    messagingServices: string;
+    serviceNumbers: (serviceSid: string) => string;
+    messages: (sid: string) => string;
 };
 /** A provider refusal as an error the saga records: status, Twilio's code, its message. */
 declare class TwilioError extends Error {
@@ -840,7 +867,7 @@ interface DryProvider extends LineProvider {
 }
 declare function dryProvider(seed?: number): DryProvider;
 
-type LineStep = "subaccount" | "number" | "trunk" | "agent" | "import" | "channel";
+type LineStep = "subaccount" | "number" | "trunk" | "agent" | "import" | "messaging" | "channel";
 declare const LINE_STEPS: readonly LineStep[];
 type LineVoiceState = "none" | "provisioning" | "answering" | "failed";
 /** The columns the saga reads and writes — a projection of the `lines` row. */
@@ -855,6 +882,8 @@ interface LineRow {
     trunk_sid: string | null;
     credential_list_sid: string | null;
     termination_uri: string | null;
+    /** The Messaging Service the line texts through (MG…); null until the messaging step. */
+    messaging_service_sid: string | null;
     retell_agent_id: string | null;
     voice_state: LineVoiceState;
     step: LineStep | null;
@@ -911,8 +940,21 @@ interface LinePorts {
             created: boolean;
         }>;
     };
+    /** The tenant_channels row that routes texts back — one per line, keyed on the number. */
+    smsChannel: {
+        ensure(o: {
+            e164: string;
+            lineId: string;
+            serviceSid: string;
+        }): Promise<{
+            channelId: string;
+            created: boolean;
+        }>;
+    };
     /** With its key: the inbound-call webhook that fills the facts per call. */
     inboundWebhookUrl: string;
+    /** Where the line's texts arrive (no key: the provider signs every request). */
+    smsInboundUrl: string;
     nickname: string;
 }
 type SagaResult = {
@@ -938,6 +980,64 @@ declare function retellImportBody(o: {
 /** The first step whose effect is missing from the row. */
 declare function nextLineStep(line: LineRow): LineStep | null;
 declare function runLineSaga(start: LineRow, ports: LinePorts): Promise<SagaResult>;
+
+/**
+ * SMS on a Chanlytics line, the pure parts: Twilio's inbound webhook read
+ * into one shape, that shape handed to the WhatsApp handler as the message
+ * it already knows how to answer, the signature every inbound request must
+ * carry, the footer the first reply carries, and the words a held text
+ * shows. Nothing here touches the network; the edge supplies fetch and the
+ * vault, the tests supply fixtures.
+ *
+ * Verified against Twilio's docs on 2026-09-07: the inbound parameters
+ * (MessageSid, From, To, Body, NumMedia, MediaContentType0, OptOutType,
+ * MessagingServiceSid) and the X-Twilio-Signature rule — HMAC-SHA1 of the
+ * exact URL plus every POST field sorted by name with its value appended,
+ * keyed with the auth token of the account the number belongs to, base64.
+ */
+
+/** Twilio's inbound message, the fields the product reads. */
+interface SmsInbound {
+    messageSid: string;
+    /** E.164 as Twilio sends it. */
+    from: string;
+    to: string;
+    body: string;
+    numMedia: number;
+    mediaTypes: string[];
+    /** Twilio's own opt-out handling, when it fired: STOP · START · HELP. */
+    optOutType: "STOP" | "START" | "HELP" | null;
+    messagingServiceSid: string | null;
+    accountSid: string | null;
+}
+/** The form fields of one inbound webhook as one object; null when it is not a message. */
+declare function smsInboundFrom(form: Record<string, string>): SmsInbound | null;
+/**
+ * The inbound text as the WhatsApp handler's message. Words are words; a
+ * picture with words is answered for its words and the picture is noted; a
+ * picture alone is "unsupported", which the handler acknowledges as it does
+ * a sticker. The sender's digits are the thread key, the same form a
+ * WhatsApp id takes, so one person is one thread across both channels.
+ */
+declare function smsAsWaMessage(s: SmsInbound, nowMs?: number): WaRawMessage;
+/** What the first reply to a number carries, once. Carrier guidance for A2P traffic. */
+declare const SMS_FOOTER = "Msg&data rates may apply. Reply STOP to opt out.";
+/** Twilio's ceiling for one message body. */
+declare const SMS_MAX_CHARS = 1600;
+/** The reply as it goes out: the footer on the first reply to this person, and never over the ceiling. */
+declare function smsBody(reply: string, isFirstReply: boolean): string;
+/** The hold while the carriers have not approved the line: the Inbox's reason and its words. */
+declare const SMS_HELD_REASON = "carriers";
+declare const SMS_HELD_DETAILS = "This text arrived on your line before the carriers approved it for texting, so the receptionist did not answer. It is kept here; answer it yourself, or wait for the approval on Setup.";
+/** Where a line's texts arrive: beside the voice webhooks, on the same edge. */
+declare function smsInboundUrl(fnUrl: string): string;
+/** The exact string Twilio signs: the URL as requested, then each POST field sorted by name with its value appended. */
+declare function twilioSignedString(url: string, form: Record<string, string>): string;
+/** HMAC-SHA1 of the signed string with the auth token, base64 — the value of X-Twilio-Signature. */
+declare function twilioSignature(authToken: string, url: string, form: Record<string, string>): Promise<string>;
+/** Constant-time equality on the two base64 strings. */
+declare function sameSignature(a: string, b: string): boolean;
+declare function verifyTwilioSignature(authToken: string, url: string, form: Record<string, string>, header: string | null): Promise<boolean>;
 
 /**
  * Google Places (New): the public listing — what anyone can read on Maps.
@@ -1286,4 +1386,4 @@ declare function verifyState(secret: string, state: string | null | undefined, n
 }>;
 declare function newNonce(): string;
 
-export { type AgentPlan, type AvailableNumber, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, DEFAULT_FN_URL, type DryCall, type DryProvider, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, GREETING_DEFAULT, type GbpAccount, type GbpLocation, type GbpReview, type GbpReviewsPage, HANDOFF_VAR, type KnownReview, LINE_COSTS, LINE_STEPS, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type ProfileBefore, type ProfileSyncPlan, type ProviderAccount, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, RETELL_ORIGINATION, REVIEW_BELL_MAX, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, STATE_TTL_MS, type SagaResult, type SendResult, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, accountsRequest, agentSettingsDrift, authorizeUrl, availabilityUrl, b64url, callSummaryLine, chooseLineProvider, cleanReply, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, deleteReplyRequest, desiredVoiceShell, dryProvider, fetchMediaBytes, fetchRecording, fetchTwilio, getAgent, getAgentRaw, getCall, getPhoneNumber, getPlace, getRetellLlm, grantHasScope, idTokenClaims, importPhoneNumber, isAreaCode, isE164, isValidSipPassword, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, needsHydration, newNonce, nextLineStep, normalizeCall, normalizeInbound, parseAccounts, parseLocations, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, publishAgentVersion, replyRequest, replyToReview, retellImportBody, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, runLineSaga, searchPlaces, sendTemplate, sendText, signState, sipPassword, sipUsername, starRatingNumber, stripKey, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, twilioProvider, twilioUrls, unb64url, updateAgent, updateLiveCall, updatePhoneNumber, verifyRetellSignature, verifyState, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withKey };
+export { type AgentPlan, type AvailableNumber, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, DEFAULT_FN_URL, type DryCall, type DryProvider, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, GREETING_DEFAULT, type GbpAccount, type GbpLocation, type GbpReview, type GbpReviewsPage, HANDOFF_VAR, type KnownReview, LINE_COSTS, LINE_STEPS, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type ProfileBefore, type ProfileSyncPlan, type ProviderAccount, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, RETELL_ORIGINATION, REVIEW_BELL_MAX, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, STATE_TTL_MS, type SagaResult, type SendResult, type SmsInbound, type SmsSendResult, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, accountsRequest, agentSettingsDrift, authorizeUrl, availabilityUrl, b64url, callSummaryLine, chooseLineProvider, cleanReply, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, deleteReplyRequest, desiredVoiceShell, dryProvider, fetchMediaBytes, fetchRecording, fetchTwilio, getAgent, getAgentRaw, getCall, getPhoneNumber, getPlace, getRetellLlm, grantHasScope, idTokenClaims, importPhoneNumber, isAreaCode, isE164, isValidSipPassword, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, needsHydration, newNonce, nextLineStep, normalizeCall, normalizeInbound, parseAccounts, parseLocations, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, publishAgentVersion, replyRequest, replyToReview, retellImportBody, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, runLineSaga, sameSignature, searchPlaces, sendTemplate, sendText, signState, sipPassword, sipUsername, smsAsWaMessage, smsBody, smsInboundFrom, smsInboundUrl, starRatingNumber, stripKey, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, twilioProvider, twilioSignature, twilioSignedString, twilioUrls, unb64url, updateAgent, updateLiveCall, updatePhoneNumber, verifyRetellSignature, verifyState, verifyTwilioSignature, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withKey };

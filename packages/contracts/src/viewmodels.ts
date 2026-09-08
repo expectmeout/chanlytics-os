@@ -12,6 +12,8 @@ export interface MessageDto {
   id: string;
   direction: "inbound" | "outbound";
   sender: "customer" | "ai" | "human" | "system";
+  /** The wire it travelled — whatsapp · sms · voice; absent from older readers. */
+  channel?: string;
   type: string;
   body: string | null;
   /** The attachment facts a browser may see; the bytes are behind
@@ -322,6 +324,7 @@ export const ESCALATION_REASON_LABELS: Record<string, string> = {
   budget: "The day's model budget is used up — the receptionist paused itself",
   callback: "Needs a call back — the phone receptionist could not finish it",
   paused: "Held — the workspace is paused until billing resumes",
+  carriers: "Held — the carriers have not approved this line for texting yet",
 };
 
 /**
@@ -355,6 +358,7 @@ const ESCALATION_SUMMARIES: Record<string, string> = {
   stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent — they have been waiting since.",
   callback: "They phoned, and the receptionist could not finish it. Call them back — the details say what they wanted.",
   paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings › Billing, or answer this one yourself.",
+  carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
 };
 
 /** "8m" / "3h" / "2d". An overnight wait is the NORMAL case for a morning
@@ -530,7 +534,9 @@ export function toInboxThreadVM(
   // the operator they can write freely, and the reply route decides whether the
   // send is legal — with two expressions those answers drift the moment either
   // moves, and the operator is told they can send something the server refuses.
-  const win = waWindow(dto.last_wa_inbound_at, now).open;
+  // A text has no window: where the customer last wrote by SMS the composer
+  // is open, exactly as the reply route decides it.
+  const win = lastInbound?.channel === "sms" ? true : waWindow(dto.last_wa_inbound_at, now).open;
   // The channels the thread has actually used: a call note is the phone, any
   // other row is WhatsApp. A caller with no thread on WhatsApp gets phone
   // verbs, not a notice about a reply window that never opened.

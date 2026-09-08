@@ -13,6 +13,7 @@ import {
   dryProvider,
   importPhoneNumber,
   voiceEndpoints,
+  smsInboundUrl,
   withKey,
   type LinePorts,
   type LineRow,
@@ -58,6 +59,7 @@ export function rowToLine(r: Row): LineRow {
     trunk_sid: r.trunk_sid,
     credential_list_sid: r.credential_list_sid,
     termination_uri: r.termination_uri,
+    messaging_service_sid: r.messaging_service_sid,
     retell_agent_id: r.retell_agent_id,
     voice_state: r.voice_state as LineRow["voice_state"],
     step: r.step as LineRow["step"],
@@ -102,6 +104,7 @@ export function linePorts(
     now: () => new Date().toISOString(),
     nickname: `${tenant.name} · Chanlytics`,
     inboundWebhookUrl: withKey(voiceEndpoints().inbound, secrets.fnSecret),
+    smsInboundUrl: smsInboundUrl(voiceEndpoints().fn),
     store: {
       async save(patch) {
         const row: Partial<Row> = {};
@@ -141,6 +144,29 @@ export function linePorts(
           .select("id")
           .single();
         if (ins.error) throw new Error(`writing the voice row: ${ins.error.message}`);
+        return { channelId: ins.data.id, created: true };
+      },
+    },
+    smsChannel: {
+      // One routing row per number: a text arrives with the number it was
+      // sent to, which is the key the inbound webhook resolves.
+      async ensure({ e164, lineId, serviceSid }) {
+        const have = await db.from("tenant_channels").select("id").eq("kind", "sms").eq("external_id", e164).maybeSingle();
+        if (have.error) throw new Error(`reading the sms row: ${have.error.message}`);
+        if (have.data) return { channelId: have.data.id, created: false };
+        const ins = await db
+          .from("tenant_channels")
+          .insert({
+            tenant_id: tenant.id,
+            kind: "sms",
+            external_id: e164,
+            number_e164: e164,
+            status: "active",
+            config: { provider: "twilio", line_id: lineId, messaging_service_sid: serviceSid, provisioned_at: new Date().toISOString(), provisioned_by: "lines" },
+          })
+          .select("id")
+          .single();
+        if (ins.error) throw new Error(`writing the sms row: ${ins.error.message}`);
         return { channelId: ins.data.id, created: true };
       },
     },

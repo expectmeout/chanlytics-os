@@ -85,7 +85,7 @@ test("a queued draft falls back to sending when it cannot be scheduled", () => {
   // worse than both — so a missing token or a dead queue must not mean silence.
   assert.match(edge, /queueReply\(/);
   // Spans lines since the confidence dial: the same expression, more arguments.
-  assert.match(edge, /delayMs > 0\s*\?\s*await queueReply\([^)]*\)\s*:\s*false/s);
+  assert.match(edge, /delayMs > 0\s*\?\s*await queueReply\([\s\S]*?\)\s*:\s*false/);
 });
 
 test("EVERY path where a human takes control withdraws the draft", () => {

@@ -36,6 +36,20 @@ import { MAX_REPLIES_PER_DAY, PAUSE_MS, ageVerdict, threadVerdict, holdPlan, lay
 /** Gate 1b: read the bot's memory from Postgres instead of Blob. */
 const PG_READS = process.env.PG_READS === "on";
 
+/**
+ * A channel other than WhatsApp riding the same road. It says how a reply
+ * goes out, what the words become on its wire (a text's first reply to a
+ * person carries the footer), and whether every message is held for a
+ * person for now (a line the carriers have not approved for texting).
+ * Null = WhatsApp, on the tenant's credentials, as before.
+ */
+export interface InboundCarrier {
+  channel: "sms";
+  send(to: string, body: string): Promise<{ ok: boolean; wamid: string | null; status: number }>;
+  body(text: string, isFirstReply: boolean): string;
+  held: { reason: string; details: string } | null;
+}
+
 
 export async function handleInbound(
   m: WaRawMessage,
@@ -44,9 +58,11 @@ export async function handleInbound(
   routed: RoutedChannel | null,
   isEnvDefault: boolean,
   routingFailed = false,
+  carrier: InboundCarrier | null = null,
 ): Promise<void> {
   const from = m.from;
   const n = normalizeInbound(m, value);
+  const channel: "whatsapp" | "sms" = carrier?.channel ?? "whatsapp";
   const db = pg();
   const t0 = Date.now();
   // Bound once, here, where the tenant becomes known. Every line below carries
@@ -96,8 +112,8 @@ export async function handleInbound(
   const allow = (process.env.WHATSAPP_TEST_ALLOWLIST || "").split(",").map((s) => s.trim()).filter(Boolean);
   if (allow.length && !allow.includes(from)) {
     // §4 delta (deliberate): allowlist gates the REPLY, not the persist.
-    const ing = await pgIngest(tenantId, n);
-    const sink = pgSink(db, tenantId, ing, rt);
+    const ing = await pgIngest(tenantId, n, channel);
+    const sink = pgSink(db, tenantId, ing, rt, channel);
     await sink.allowlistSkip();
     await sink.processed();
     return;
@@ -114,7 +130,7 @@ export async function handleInbound(
   let thread: ThreadState;
   let memory: "pg" | "blob" = "blob";
   if (PG_READS) {
-    ing = await pgIngest(tenantId, n);
+    ing = await pgIngest(tenantId, n, channel);
     thread = await pgThread(db, tenantId, ing);
     memory = thread === PG_MISS ? "blob" : "pg";
     // With the store retired this read answers "unknown", and the thread goes
@@ -122,11 +138,17 @@ export async function handleInbound(
     if (memory === "blob") thread = await getThread(ns, from);
   } else {
     // The Blob read is side-effect-free, so it runs alongside the write.
-    [ing, thread] = (await Promise.all([pgIngest(tenantId, n), getThread(ns, from)])) as
+    [ing, thread] = (await Promise.all([pgIngest(tenantId, n, channel), getThread(ns, from)])) as
       [IngestResult | null, ThreadState];
   }
   const ingestMs = Date.now() - t0;
-  const sink = pgSink(db, tenantId, ing, rt);
+  const sink = pgSink(db, tenantId, ing, rt, channel);
+  // One door out for this message's channel: WhatsApp on the tenant's
+  // credentials, or the carrier that brought the text in, which shapes the
+  // words for its wire (the footer on the first reply to a person).
+  const firstReply = thread.replies.length === 0 && !thread.history.some((h) => h.role === "assistant");
+  const wire = (text: string) => (carrier ? carrier.body(text, firstReply) : text);
+  const send = (text: string) => (carrier ? carrier.send(from, wire(text)) : sendText(from, text, rt));
 
   // Atomic concurrent-redelivery gate. PG_READS implies it: Postgres-sourced
   // memory carries no `seen` list, so is_new IS the dedupe — and it is stronger
@@ -235,6 +257,20 @@ export async function handleInbound(
     return;
   }
 
+  // THE CARRIERS' HOLD (a line not yet approved for texting). The text is
+  // kept above; it is held for a person with its own reason, and nothing is
+  // answered until the line is approved. After consent, which outranks it;
+  // before every branch that can speak.
+  if (carrier?.held) {
+    await Promise.all([
+      sink.escalate(carrier.held.reason, carrier.held.details),
+      alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — the carriers have not approved this line for texting yet)", "carriers", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+      sink.processed(),
+    ]);
+    L.info("sms_held_for_carriers");
+    return;
+  }
+
   // Routing is on the NORMALIZED type, not the raw one. A quick-reply tap or a
   // list selection arrives as type "button"/"interactive" with the customer's
   // words in a different field; matching on m.type sent every one of them down
@@ -306,7 +342,7 @@ export async function handleInbound(
       // the message still escalates so a human sees it. No persona -> no ack.
       const mayAck = !!brainCfg && (replyMode === "auto" || replyMode === "veto");
       if (mayAck) {
-        await sendText(from, brainCfg!.fallbacks.non_text, rt);
+        await send(brainCfg!.fallbacks.non_text);
         thread.pausedUntil = Date.now() + pauseMs;
         await saveThread(ns, from, thread);
       }
@@ -560,7 +596,7 @@ export async function handleInbound(
   const { delayMs, heldForConfidence } = plan;
   if (heldForConfidence) L.info("wa_held_low_confidence", { confidence: brainMeta?.confidence, min: plan.minConfidence, delay_ms: delayMs });
   const queued = delayMs > 0
-    ? await queueReply(db, tenantId, ing, from, replyText, delayMs, L, plan.source, brainMeta)
+    ? await queueReply(db, tenantId, ing, from, wire(replyText), delayMs, L, plan.source, brainMeta, channel)
     : false;
   // The quality signal on this reply's usage event: how sure, how fast,
   // whether it waited, whether it handed off. The diagnostics read the day
@@ -607,7 +643,7 @@ export async function handleInbound(
     return;
   }
 
-  const sent = await sendText(from, replyText, rt);
+  const sent = await send(replyText);
   const tSent = Date.now();
   if (sent.ok) {
     thread.history.push({ role: "user", content: bodyText });

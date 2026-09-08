@@ -185,6 +185,7 @@ const REASON_SHORT: Record<string, string> = {
   policy_block: "held by your reply setting",
   policy_ask: "a booking or a question set to Ask me first",
   person_hold: "held for you",
+  carriers: "waiting on carriers",
   send_failed: "a reply failed to send",
   deadman: "no answer in time",
   brain_error: "the receptionist hit an error",

@@ -86,5 +86,18 @@ export function dryProvider(seed = 1): DryProvider {
     async attachNumber(acct, trunkSid, numberSid) {
       rec("attachNumber", acctOf(acct), trunkSid, numberSid);
     },
+    async createMessagingService(acct, o) {
+      rec("createMessagingService", acctOf(acct), o);
+      return { sid: next("MG") };
+    },
+    async addNumberToService(acct, serviceSid, numberSid) {
+      rec("addNumberToService", acctOf(acct), serviceSid, numberSid);
+      return { sid: next("PH") };
+    },
+    async sendSms(acct, o) {
+      // Recorded, never delivered: the dry provider is for previews and tests.
+      rec("sendSms", acctOf(acct), o.serviceSid, o.to);
+      return { ok: true, sid: next("SM"), status: 201, code: null };
+    },
   };
 }

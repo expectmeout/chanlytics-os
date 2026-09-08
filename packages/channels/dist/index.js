@@ -5333,6 +5333,7 @@ var isAreaCode = (n) => typeof n === "number" && Number.isInteger(n) && n >= 200
 // src/lines-twilio.ts
 var API2 = "https://api.twilio.com/2010-04-01";
 var TRUNKING = "https://trunking.twilio.com/v1";
+var MESSAGING = "https://messaging.twilio.com/v1";
 var twilioUrls = {
   subaccounts: `${API2}/Accounts.json`,
   availableLocal: (sid, country = "US") => `${API2}/Accounts/${sid}/AvailablePhoneNumbers/${country}/Local.json`,
@@ -5344,7 +5345,10 @@ var twilioUrls = {
   trunk: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}`,
   trunkCredentialLists: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/CredentialLists`,
   trunkOriginationUrls: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/OriginationUrls`,
-  trunkPhoneNumbers: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/PhoneNumbers`
+  trunkPhoneNumbers: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/PhoneNumbers`,
+  messagingServices: `${MESSAGING}/Services`,
+  serviceNumbers: (serviceSid) => `${MESSAGING}/Services/${serviceSid}/PhoneNumbers`,
+  messages: (sid) => `${API2}/Accounts/${sid}/Messages.json`
 };
 var TwilioError = class extends Error {
   status;
@@ -5467,6 +5471,35 @@ function twilioProvider(http = fetchTwilio) {
     },
     async attachNumber(acct, trunkSid, numberSid) {
       need(await http(acct, "POST", twilioUrls.trunkPhoneNumbers(trunkSid), { PhoneNumberSid: numberSid }), "attach number to trunk");
+    },
+    // Messaging Services API (verified 2026-09-07): the service's own inbound
+    // URL wins over the number's; sticky sender and smart encoding on.
+    async createMessagingService(acct, o) {
+      const b = need(
+        await http(acct, "POST", twilioUrls.messagingServices, {
+          FriendlyName: o.friendlyName.slice(0, 64),
+          InboundRequestUrl: o.inboundUrl,
+          InboundMethod: "POST",
+          UseInboundWebhookOnNumber: "false",
+          StickySender: "true",
+          SmartEncoding: "true"
+        }),
+        "create messaging service"
+      );
+      const sid = str(b, "sid");
+      if (!sid) throw new TwilioError(200, b, "create messaging service answered without a sid");
+      return { sid };
+    },
+    async addNumberToService(acct, serviceSid, numberSid) {
+      const b = need(await http(acct, "POST", twilioUrls.serviceNumbers(serviceSid), { PhoneNumberSid: numberSid }), "add number to messaging service");
+      const sid = str(b, "sid");
+      if (!sid) throw new TwilioError(200, b, "add number to messaging service answered without a sid");
+      return { sid };
+    },
+    async sendSms(acct, o) {
+      const a = await http(acct, "POST", twilioUrls.messages(acct.sid), { MessagingServiceSid: o.serviceSid, To: o.to, Body: o.body });
+      const ok = a.status >= 200 && a.status < 300 && !!str(a.body, "sid");
+      return { ok, sid: str(a.body, "sid"), status: a.status, code: typeof a.body?.code === "number" ? a.body.code : null };
     }
   };
 }
@@ -5537,12 +5570,24 @@ function dryProvider(seed = 1) {
     },
     async attachNumber(acct, trunkSid, numberSid) {
       rec("attachNumber", acctOf(acct), trunkSid, numberSid);
+    },
+    async createMessagingService(acct, o) {
+      rec("createMessagingService", acctOf(acct), o);
+      return { sid: next("MG") };
+    },
+    async addNumberToService(acct, serviceSid, numberSid) {
+      rec("addNumberToService", acctOf(acct), serviceSid, numberSid);
+      return { sid: next("PH") };
+    },
+    async sendSms(acct, o) {
+      rec("sendSms", acctOf(acct), o.serviceSid, o.to);
+      return { ok: true, sid: next("SM"), status: 201, code: null };
     }
   };
 }
 
 // src/lines-saga.ts
-var LINE_STEPS = ["subaccount", "number", "trunk", "agent", "import", "channel"];
+var LINE_STEPS = ["subaccount", "number", "trunk", "agent", "import", "messaging", "channel"];
 function retellImportBody(o) {
   return {
     phone_number: o.e164,
@@ -5560,7 +5605,8 @@ function nextLineStep(line) {
   if (!line.trunk_sid || !line.credential_list_sid || !line.termination_uri || line.facts.trunk_ready !== true) return "trunk";
   if (!line.retell_agent_id) return "agent";
   if (line.facts.retell_imported !== true) return "import";
-  if (typeof line.facts.channel_id !== "string") return "channel";
+  if (!line.messaging_service_sid || line.facts.number_in_service !== true) return "messaging";
+  if (typeof line.facts.channel_id !== "string" || typeof line.facts.sms_channel_id !== "string") return "channel";
   return null;
 }
 function errorWords(e) {
@@ -5661,9 +5707,27 @@ async function runLineSaga(start, ports) {
           await save({ facts: { ...line.facts, retell_imported: true, retell_number_type: typeof r.body?.phone_number_type === "string" ? r.body.phone_number_type : "custom" } });
           break;
         }
+        case "messaging": {
+          const acct = sub();
+          if (!line.messaging_service_sid) {
+            const svc = await ports.provider.createMessagingService(acct, { friendlyName: `${ports.tenant.name} \xB7 Chanlytics`, inboundUrl: ports.smsInboundUrl });
+            await save({ messaging_service_sid: svc.sid });
+          }
+          if (line.facts.number_in_service !== true) {
+            await ports.provider.addNumberToService(acct, line.messaging_service_sid, line.number_sid);
+            await fact("number_in_service", true);
+          }
+          break;
+        }
         case "channel": {
-          const c = await ports.channel.ensure({ agentId: line.retell_agent_id, e164: line.e164, lineId: line.id });
-          await fact("channel_id", c.channelId);
+          if (typeof line.facts.channel_id !== "string") {
+            const c = await ports.channel.ensure({ agentId: line.retell_agent_id, e164: line.e164, lineId: line.id });
+            await fact("channel_id", c.channelId);
+          }
+          if (typeof line.facts.sms_channel_id !== "string") {
+            const s = await ports.smsChannel.ensure({ e164: line.e164, lineId: line.id, serviceSid: line.messaging_service_sid });
+            await fact("sms_channel_id", s.channelId);
+          }
           break;
         }
       }
@@ -5676,6 +5740,71 @@ async function runLineSaga(start, ports) {
     await save({ voice_state: "failed", step: at, last_error: error, state_since: ports.now() });
     return { ok: false, step: at, error, line };
   }
+}
+
+// src/sms.ts
+function smsInboundFrom(form2) {
+  const messageSid = form2.MessageSid || form2.SmsSid || "";
+  const from = form2.From || "";
+  const to = form2.To || "";
+  if (!messageSid || !from || !to) return null;
+  const numMedia = Math.max(0, Number.parseInt(form2.NumMedia || "0", 10) || 0);
+  const mediaTypes = [];
+  for (let i = 0; i < numMedia; i++) {
+    const t = form2[`MediaContentType${i}`];
+    if (t) mediaTypes.push(t);
+  }
+  const opt = (form2.OptOutType || "").toUpperCase();
+  return {
+    messageSid,
+    from,
+    to,
+    body: form2.Body ?? "",
+    numMedia,
+    mediaTypes,
+    optOutType: opt === "STOP" || opt === "START" || opt === "HELP" ? opt : null,
+    messagingServiceSid: form2.MessagingServiceSid || null,
+    accountSid: form2.AccountSid || null
+  };
+}
+function smsAsWaMessage(s, nowMs = Date.now()) {
+  const digits = s.from.replace(/[^\d]/g, "");
+  const words = s.body.trim();
+  const base = { from: digits, id: s.messageSid, timestamp: String(Math.floor(nowMs / 1e3)) };
+  if (words) return { ...base, type: "text", text: { body: s.numMedia > 0 ? `${words} [with ${s.numMedia === 1 ? "a picture" : `${s.numMedia} pictures`}]` : words } };
+  return { ...base, type: s.numMedia > 0 ? "image" : "unsupported" };
+}
+var SMS_FOOTER = "Msg&data rates may apply. Reply STOP to opt out.";
+var SMS_MAX_CHARS = 1600;
+function smsBody(reply, isFirstReply) {
+  const text = reply.trim();
+  const withFooter = isFirstReply && !text.includes("STOP") ? `${text}
+${SMS_FOOTER}` : text;
+  return withFooter.length > SMS_MAX_CHARS ? `${withFooter.slice(0, SMS_MAX_CHARS - 1)}\u2026` : withFooter;
+}
+var SMS_HELD_REASON = "carriers";
+var SMS_HELD_DETAILS = "This text arrived on your line before the carriers approved it for texting, so the receptionist did not answer. It is kept here; answer it yourself, or wait for the approval on Setup.";
+function smsInboundUrl(fnUrl) {
+  return `${fnUrl.replace(/\/api\/retell-fn$/, "")}/api/inbound-sms`;
+}
+function twilioSignedString(url, form2) {
+  return url + Object.keys(form2).sort().map((k) => `${k}${form2[k]}`).join("");
+}
+var enc = new TextEncoder();
+async function twilioSignature(authToken, url, form2) {
+  const key = await crypto.subtle.importKey("raw", enc.encode(authToken), { name: "HMAC", hash: "SHA-1" }, false, ["sign"]);
+  const mac = await crypto.subtle.sign("HMAC", key, enc.encode(twilioSignedString(url, form2)));
+  return btoa(String.fromCharCode(...new Uint8Array(mac)));
+}
+function sameSignature(a, b) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+async function verifyTwilioSignature(authToken, url, form2, header) {
+  if (!header) return false;
+  return sameSignature(await twilioSignature(authToken, url, form2), header);
 }
 
 // src/google-places.ts
@@ -5937,10 +6066,10 @@ function parseTokenResponse(json) {
 function grantHasScope(grant, scope) {
   return grant.scope.split(/\s+/).includes(scope);
 }
-var enc = new TextEncoder();
+var enc2 = new TextEncoder();
 var dec = new TextDecoder();
 function b64url(bytes) {
-  const b = typeof bytes === "string" ? enc.encode(bytes) : bytes;
+  const b = typeof bytes === "string" ? enc2.encode(bytes) : bytes;
   let s = "";
   for (const x of b) s += String.fromCharCode(x);
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -5963,8 +6092,8 @@ function idTokenClaims(idToken) {
   }
 }
 async function hmac(secret, data) {
-  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(data));
+  const key = await crypto.subtle.importKey("raw", enc2.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, enc2.encode(data));
   return b64url(new Uint8Array(sig));
 }
 async function signState(secret, s) {
@@ -6186,6 +6315,10 @@ export {
   PlacesError,
   RETELL_ORIGINATION,
   REVIEW_BELL_MAX,
+  SMS_FOOTER,
+  SMS_HELD_DETAILS,
+  SMS_HELD_REASON,
+  SMS_MAX_CHARS,
   STATE_TTL_MS,
   TwilioError,
   VOICE_AGENT_DEFAULTS,
@@ -6261,18 +6394,25 @@ export {
   reviewsRequest,
   revokeRequest,
   runLineSaga,
+  sameSignature,
   searchPlaces,
   sendTemplate,
   sendText,
   signState,
   sipPassword,
   sipUsername,
+  smsAsWaMessage,
+  smsBody,
+  smsInboundFrom,
+  smsInboundUrl,
   starRatingNumber,
   stripKey,
   tokenExchangeRequest,
   tokenRefreshRequest,
   trunkDomain,
   twilioProvider,
+  twilioSignature,
+  twilioSignedString,
   twilioUrls,
   unb64url,
   updateAgent,
@@ -6280,6 +6420,7 @@ export {
   updatePhoneNumber,
   verifyRetellSignature,
   verifyState,
+  verifyTwilioSignature,
   voiceAgentCreateBody,
   voiceEndpoints,
   voiceLlmCreateBody,

@@ -163,7 +163,9 @@ var ESCALATION_REASONS = [
   /** The phone receptionist could not finish the call: a person calls them back. What to do rides in the details. */
   "callback",
   /** The workspace is paused (billing): messages land, nothing is answered until it resumes. */
-  "paused"
+  "paused",
+  /** A text arrived on a line the carriers have not approved for texting yet: kept, a person answers. */
+  "carriers"
 ];
 var ESCALATION_STATES = ["open", "resolved"];
 var DECISION_VERBS = [
@@ -635,7 +637,8 @@ var ESCALATION_REASON_LABELS = {
   stale: "Arrived hours late \u2014 too old to answer automatically",
   budget: "The day's model budget is used up \u2014 the receptionist paused itself",
   callback: "Needs a call back \u2014 the phone receptionist could not finish it",
-  paused: "Held \u2014 the workspace is paused until billing resumes"
+  paused: "Held \u2014 the workspace is paused until billing resumes",
+  carriers: "Held \u2014 the carriers have not approved this line for texting yet"
 };
 var ESCALATION_SUMMARIES = {
   human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
@@ -653,7 +656,8 @@ var ESCALATION_SUMMARIES = {
   state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
   stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
   callback: "They phoned, and the receptionist could not finish it. Call them back \u2014 the details say what they wanted.",
-  paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself."
+  paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
+  carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup."
 };
 function formatWaited(ms2) {
   return waitedLabel(ms2);
@@ -686,7 +690,7 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
   const reasonLabel = escalation ? ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason : null;
   const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
-  const win = waWindow(dto.last_wa_inbound_at, now).open;
+  const win = lastInbound?.channel === "sms" ? true : waWindow(dto.last_wa_inbound_at, now).open;
   const hasCalls = dto.messages.some((m) => m.type === "call_summary");
   const hasChat = !!dto.last_wa_inbound_at || dto.messages.some((m) => m.type !== "call_summary");
   const primaryChannel = hasChat || !hasCalls ? "whatsapp" : "phone";
@@ -2540,6 +2544,7 @@ var REASON_SHORT = {
   policy_block: "held by your reply setting",
   policy_ask: "a booking or a question set to Ask me first",
   person_hold: "held for you",
+  carriers: "waiting on carriers",
   send_failed: "a reply failed to send",
   deadman: "no answer in time",
   brain_error: "the receptionist hit an error",
@@ -5705,6 +5710,7 @@ var LINE_STEP_WORDS = {
   trunk: "connecting the number to the receptionist",
   agent: "creating the receptionist",
   import: "handing the number to the receptionist",
+  messaging: "setting up texting",
   channel: "recording the line"
 };
 var SETUP_STATE_WORDS = {

@@ -29,6 +29,15 @@ declare function cancelJobsFor(db: SupabaseClient<Database>, tenantId: string, k
 interface JobContext {
     db: SupabaseClient<Database>;
     waCfg: WaConfig;
+    /** The workspace's texting line, when it has one — injected by the edge like waCfg; null = no line. */
+    sms?: {
+        send(to: string, body: string): Promise<{
+            ok: boolean;
+            wamid: string | null;
+            status: number;
+            errorBody?: string;
+        }>;
+    } | null;
     alert: (subject: string, body: string) => Promise<void>;
     /**
      * Delete one customer's stored Blob thread.

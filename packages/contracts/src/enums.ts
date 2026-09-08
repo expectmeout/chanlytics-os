@@ -147,6 +147,8 @@ export const ESCALATION_REASONS = [
   "callback",
   /** The workspace is paused (billing): messages land, nothing is answered until it resumes. */
   "paused",
+  /** A text arrived on a line the carriers have not approved for texting yet: kept, a person answers. */
+  "carriers",
 ] as const;
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
 
