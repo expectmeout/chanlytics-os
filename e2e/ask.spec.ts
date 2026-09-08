@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { activeWorkspace, scoped } from "./workspace";
 
 /**
  * Ask on a real workspace: the palette opens from ⌘K and the button, shows
@@ -59,7 +60,8 @@ test.describe("Ask on a real workspace", () => {
 
   test("a real turn reads the workspace and answers with what it read", async ({ page }) => {
     test.setTimeout(120_000);
-    const res = await page.request.post("/api/v1/ask", {
+    const ws = await activeWorkspace(page);
+    const res = await page.request.post(scoped("/api/v1/ask", ws), {
       data: { text: "what are our opening hours this week?", thread_id: null, scope: null, surface: "today" },
       ...fromTheApp,
       timeout: 90_000,
@@ -90,7 +92,8 @@ test.describe("Ask on a real workspace", () => {
 
   test("a request to act becomes a card with Approve and Not now, and the test never approves it", async ({ page }) => {
     test.setTimeout(120_000);
-    const res = await page.request.post("/api/v1/ask", {
+    const ws = await activeWorkspace(page);
+    const res = await page.request.post(scoped("/api/v1/ask", ws), {
       data: { text: "invite ask-e2e-card@example.com as a viewer", thread_id: null, scope: null, surface: "settings" },
       ...fromTheApp,
       timeout: 90_000,
@@ -143,8 +146,9 @@ test.describe("Ask on a real workspace", () => {
     // writers (the eval set asks about them) are not counted as twins.
     const nonce = Date.now().toString(36).slice(-5);
     const question = `who wrote today? check ${nonce}`;
+    const ws = await activeWorkspace(page);
     const ask = async () => {
-      const res = await page.request.post("/api/v1/ask", { data: { text: question, thread_id: null, scope: null, surface: "today" }, ...fromTheApp, timeout: 90_000 });
+      const res = await page.request.post(scoped("/api/v1/ask", ws), { data: { text: question, thread_id: null, scope: null, surface: "today" }, ...fromTheApp, timeout: 90_000 });
       expect(res.status()).toBe(200);
       return (await res.text()).split("\n").filter(Boolean).map((l) => JSON.parse(l)).find((l) => l.t === "thread").id as string;
     };

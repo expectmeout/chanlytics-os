@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { activeWorkspace, scoped } from "./workspace";
 
 /**
  * Billing on a real workspace: the route answers honestly about what this
@@ -51,9 +52,14 @@ test.describe("Billing on a real workspace", () => {
   test("Checkout is refused for a direct arrangement, and says so", async ({ page, baseURL }) => {
     const { data } = await (await page.request.get("/api/v1/billing")).json();
     test.skip(data.billing.account.mode !== "direct", "the live workspace pays by card; the refusal is for direct arrangements");
-    const res = await page.request.post("/api/v1/billing/checkout", { headers: { origin: baseURL!, "content-type": "application/json" }, data: {} });
-    expect([403, 409, 503]).toContain(res.status());
+    // Named, as the client names it. Unscoped, this POST was refused with a
+    // 400 by the ambiguity guard and the spec read it as a billing failure.
+    const ws = await activeWorkspace(page);
+    const res = await page.request.post(scoped("/api/v1/billing/checkout", ws), { headers: { origin: baseURL!, "content-type": "application/json" }, data: {} });
     const body = await res.json();
+    // The body in the message: a bare status assertion threw away the one
+    // sentence that says which refusal this was.
+    expect([403, 409, 503], `checkout answered ${res.status()}: ${JSON.stringify(body)}`).toContain(res.status());
     expect(body.ok).toBe(false);
     if (res.status() === 409) expect(body.error.message).toContain("direct arrangement");
   });
