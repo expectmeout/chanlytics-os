@@ -145,6 +145,22 @@ export function dayWords(iso: string | null | undefined): string {
 }
 
 /** "13 days left, until Sep 21" · "ends today" · "" */
+/**
+ * The offer, in the owner's words, for however many trial days there are.
+ * Zero is a legitimate setting — no trial, charge today — and the sentence has
+ * to stay true at zero rather than promising "the 0-day trial".
+ */
+export function trialOffer(days: number, again = false): string {
+  if (!(days > 0)) {
+    return again
+      ? "Start again with a card; the first charge is today."
+      : "Subscribe with a card; the first charge is today, and you can cancel from here any time.";
+  }
+  return again
+    ? `Start again with a card; the ${days}-day trial applies once.`
+    : `Start the ${days}-day trial with a card; nothing is charged until it ends, and you can cancel from here any time.`;
+}
+
 export function trialWords(trialEnd: string | null | undefined, nowMs: number): string {
   if (!trialEnd) return "";
   const end = Date.parse(trialEnd);
@@ -190,7 +206,7 @@ export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
   const base = { mode: "stripe" as const, status: s, plan, card };
   switch (s) {
     case "none":
-      return { ...base, headline: "No subscription yet", detail: dto.ready ? `Start the ${dto.trial_days}-day trial with a card; nothing is charged until it ends, and you can cancel from here any time.` : "Billing is not available on this deployment yet.", tone: "warn", actions: { checkout: dto.ready, portal: false, resume: false }, paused: false };
+      return { ...base, headline: "No subscription yet", detail: dto.ready ? trialOffer(dto.trial_days) : "Billing is not available on this deployment yet.", tone: "warn", actions: { checkout: dto.ready, portal: false, resume: false }, paused: false };
     case "trialing":
       // Cancelled during the trial: Stripe keeps the subscription trialing and sets cancel_at to the trial's end.
       if (a.cancel_at || a.cancel_at_period_end) {
@@ -210,7 +226,7 @@ export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
     case "canceled":
     case "incomplete_expired":
     default:
-      return { ...base, headline: "Subscription ended", detail: dto.ready ? `Start again with a card; the ${dto.trial_days}-day trial applies once.` : "Billing is not available on this deployment yet.", tone: "danger", actions: { checkout: dto.ready, portal: !!a.card_brand, resume: false }, paused: true };
+      return { ...base, headline: "Subscription ended", detail: dto.ready ? trialOffer(dto.trial_days, true) : "Billing is not available on this deployment yet.", tone: "danger", actions: { checkout: dto.ready, portal: !!a.card_brand, resume: false }, paused: true };
   }
 }
 

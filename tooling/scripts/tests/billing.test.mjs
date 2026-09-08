@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  planBilling, receptionistOn, tenantStatusFor, toBillingVM, trialWords, priceWords, dayWords, moneyWords, billingAccountDto,
+  planBilling, receptionistOn, tenantStatusFor, toBillingVM, trialWords, trialOffer, priceWords, dayWords, moneyWords, billingAccountDto,
   setupSteps, BILLING_STATUSES, BILLING_TRIAL_DAYS, ESCALATION_REASONS, EVENT_KINDS, SERVER_NOTIFICATION_KINDS,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
@@ -73,6 +73,19 @@ test("the words: the trial, the price as Stripe states it, a day, an amount", ()
   assert.equal(moneyWords(4900, "usd"), "$49.00");
 });
 
+test("zero trial days is a real setting, so the offer stays true at zero", () => {
+  // 0 is inside the accepted range, so the words have to hold there as well as
+  // at fourteen. They did not: the pane offered a "0-day trial" during which
+  // "nothing is charged until it ends", while Checkout took the card at once.
+  assert.equal(trialOffer(14), "Start the 14-day trial with a card; nothing is charged until it ends, and you can cancel from here any time.");
+  assert.equal(trialOffer(14, true), "Start again with a card; the 14-day trial applies once.");
+  for (const n of [0, -1, Number.NaN]) {
+    assert.ok(!trialOffer(n).includes("trial"), `${n} must not offer a trial`);
+    assert.ok(trialOffer(n).includes("the first charge is today"), `${n} must say when the charge lands`);
+    assert.ok(!trialOffer(n, true).includes("trial"), `${n} again`);
+  }
+});
+
 test("the view model per status: what the pane says and what an owner may do", () => {
   const price = { id: "price_1", currency: "usd", unit_amount: 4900, interval: "month", product_name: "Chanlytics OS" };
   const acct = (over) => ({ mode: "stripe", status: "none", price_id: null, current_period_end: null, trial_end: null, cancel_at: null, cancel_at_period_end: false, card_brand: null, card_last4: null, last_payment_failed_at: null, last_paid_at: null, updated_at: "2026-09-07T14:00:00Z", ...over });
@@ -117,6 +130,11 @@ test("the Setup row: first, for a workspace that pays by card, in each state; ab
   assert.equal(first.state, "not_started");
   assert.equal(first.verb.to, "verb:billing-checkout");
   assert.ok(first.sentence.includes("14-day trial"));
+  // Zero is inside the accepted range, and the row is the other place the
+  // number is quoted, so it has to stay true there too.
+  const none = rowOf({ ready: true, mode: "stripe", status: "none", trial_end: null, current_period_end: null, trial_days: 0 });
+  assert.ok(!none.sentence.includes("trial") && none.sentence.includes("the first charge is today"));
+  assert.equal(none.verb.label, "Subscribe", "the button says what pressing it does");
   assert.equal(rowOf({ ready: true, mode: "stripe", status: "trialing", trial_end: "2026-09-21T15:00:00Z", current_period_end: null, trial_days: 14 }).state, "ready");
   assert.ok(rowOf({ ready: true, mode: "stripe", status: "trialing", trial_end: "2026-09-21T15:00:00Z", current_period_end: null, trial_days: 14, cancel_at: "2026-09-21T15:00:00Z" }).sentence.startsWith("On trial, cancelled: the receptionist answers until Sep 21"));
   assert.equal(rowOf({ ready: true, mode: "stripe", status: "past_due", trial_end: null, current_period_end: null, trial_days: 14 }).verb.to, "verb:billing-portal");
@@ -147,6 +165,12 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   assert.ok(lib.includes("process.env.STRIPE_SECRET_KEY") && lib.includes("process.env.STRIPE_PRICE_ID") && lib.includes("process.env.STRIPE_WEBHOOK_SECRET"), "the key, the price and the secret on the edge alone");
   assert.ok(lib.includes('mode: "subscription"') && lib.includes("trial_period_days: trial") && lib.includes("metadata: { tenant_id: tenantId }"), "Checkout in subscription mode, the trial applied, the workspace on the subscription");
   assert.ok(lib.includes("const trial = row.stripe_subscription_id ? 0 : trialDays();"), "the trial applies once");
+  // Number("") is 0, not NaN, so a variable created in Vercel and left blank —
+  // which is exactly what copying .env.example gives you — read as a deliberate
+  // zero: no trial_period_days, the card charged on the spot, and every surface
+  // still offering "the 0-day trial ... nothing is charged until it ends".
+  assert.ok(lib.includes('const raw = (process.env.BILLING_TRIAL_DAYS ?? "").trim();') && lib.includes("if (!raw) return BILLING_TRIAL_DAYS;"), "blank is unset, and it is tested BEFORE the number is parsed");
+  assert.ok(lib.indexOf('const raw = (process.env.BILLING_TRIAL_DAYS') < lib.indexOf("const n = Number(raw)"), "trimmed first, parsed second");
   assert.ok(lib.includes('s.subscriptions.resume(row.stripe_subscription_id, { billing_cycle_anchor: "now"'));
   assert.ok(lib.includes('if (error.code === "23505") return false;'), "a second delivery hits the primary key");
   assert.ok(lib.includes("planBilling(") && lib.includes('kind: "billing"'), "the plan decides, the edge writes and rings");
