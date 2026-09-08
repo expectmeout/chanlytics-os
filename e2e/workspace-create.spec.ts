@@ -8,6 +8,13 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
  */
 test.describe("creating another workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
+  // No retries here alone. This spec creates a REAL tenant, and CI retries
+  // twice — so one failing run spends three of the five workspace creations
+  // an hour allows. The nightly's concurrency group stops two runs
+  // overlapping but not two running back to back, and the second would then
+  // fail with "Too many new workspaces in a short time", which looks nothing
+  // like the bug being chased.
+  test.describe.configure({ retries: 0 });
 
   test("New workspace in the menu creates one, switches to it, and lists both", async ({ page }) => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;

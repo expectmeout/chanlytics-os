@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { activeWorkspace, scoped } from "./workspace";
 
 /**
  * The text whisper's route, on a real workspace: wired, keeping its doors,
@@ -21,14 +22,16 @@ test.describe("Rewriting a held draft on a real workspace", () => {
   });
 
   test("a write that did not come from the app is refused before anything else", async ({ page }) => {
-    const res = await page.request.post("/api/v1/messages/3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c/steer", { data: { text: "shorter" } });
+    const ws = await activeWorkspace(page);
+    const res = await page.request.post(scoped("/api/v1/messages/3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c/steer", ws), { data: { text: "shorter" } });
     expect(res.status()).toBe(403);
     const body = await res.json();
     expect(body.error.code).toBe("forbidden");
   });
 
   test("an unknown message is a 404 in the envelope", async ({ page }) => {
-    const res = await page.request.post("/api/v1/messages/3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c/steer", { data: { text: "shorter" }, ...fromTheApp });
+    const ws = await activeWorkspace(page);
+    const res = await page.request.post(scoped("/api/v1/messages/3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c/steer", ws), { data: { text: "shorter" }, ...fromTheApp });
     expect(res.status()).toBe(404);
     const body = await res.json();
     expect(body.ok).toBe(false);
@@ -36,6 +39,7 @@ test.describe("Rewriting a held draft on a real workspace", () => {
   });
 
   test("a reply that already went out cannot be rewritten, and the route says so", async ({ page }) => {
+    const ws = await activeWorkspace(page);
     const list = await page.request.get("/api/v1/conversations");
     const { data } = await list.json();
     const first = data.conversations?.[0];
@@ -44,14 +48,15 @@ test.describe("Rewriting a held draft on a real workspace", () => {
     const { data: t } = await thread.json();
     const sent = (t.messages ?? []).find((m: { sender: string; status?: string }) => m.sender === "ai" && m.status !== "queued");
     test.skip(!sent, "no sent reply to probe");
-    const res = await page.request.post(`/api/v1/messages/${sent.id}/steer`, { data: { text: "shorter" }, ...fromTheApp });
+    const res = await page.request.post(scoped(`/api/v1/messages/${sent.id}/steer`, ws), { data: { text: "shorter" }, ...fromTheApp });
     expect(res.status()).toBe(409);
     const body = await res.json();
     expect(body.error.message).toContain("not waiting");
   });
 
   test("an empty instruction is refused before anything is looked up", async ({ page }) => {
-    const res = await page.request.post("/api/v1/messages/3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c/steer", { data: { text: "   " }, ...fromTheApp });
+    const ws = await activeWorkspace(page);
+    const res = await page.request.post(scoped("/api/v1/messages/3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c/steer", ws), { data: { text: "   " }, ...fromTheApp });
     expect(res.status()).toBe(400);
     const body = await res.json();
     expect(body.error.message).toContain("what should change");

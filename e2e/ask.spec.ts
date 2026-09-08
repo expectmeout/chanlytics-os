@@ -86,7 +86,7 @@ test.describe("Ask on a real workspace", () => {
     const one = await page.request.get(`/api/v1/ask/threads/${lines[0].id}`);
     const { data: d1 } = await one.json();
     expect(d1.messages.map((m: { role: string }) => m.role)).toEqual(["user", "assistant"]);
-    const del = await page.request.delete(`/api/v1/ask/threads/${lines[0].id}`, fromTheApp);
+    const del = await page.request.delete(scoped(`/api/v1/ask/threads/${lines[0].id}`, ws), fromTheApp);
     expect(del.status()).toBe(200);
   });
 
@@ -109,7 +109,7 @@ test.describe("Ask on a real workspace", () => {
       expect(invite.payload.email).toBe("ask-e2e-card@example.com");
       expect(final.message.text).not.toMatch(/\bI (have )?(sent|invited)\b/i);
       // Dismissing is recorded on the turn; approving would send a real email.
-      const out = await page.request.post(`/api/v1/ask/messages/${final.message.id}/proposals/${invite.id}`, {
+      const out = await page.request.post(scoped(`/api/v1/ask/messages/${final.message.id}/proposals/${invite.id}`, ws), {
         data: { state: "dismissed", receipt: "Not now", atMs: Date.now() },
         ...fromTheApp,
       });
@@ -119,7 +119,7 @@ test.describe("Ask on a real workspace", () => {
       const stored = data.messages[1].proposals.find((p: { id: string }) => p.id === invite.id);
       expect(stored.outcome.state).toBe("dismissed");
     }
-    await page.request.delete(`/api/v1/ask/threads/${lines[0].id}`, fromTheApp);
+    await page.request.delete(scoped(`/api/v1/ask/threads/${lines[0].id}`, ws), fromTheApp);
   });
 
   test("opening a call from the palette lands on the call with its transcript pane", async ({ page }) => {
@@ -166,7 +166,7 @@ test.describe("Ask on a real workspace", () => {
     const twins = data.threads.filter((t: { title: string }) => t.title.includes(nonce));
     expect(twins.length, "one thread for one question").toBe(1);
     expect(twins[0].id).toBe(first);
-    await page.request.delete(`/api/v1/ask/threads/${first}`, fromTheApp);
+    await page.request.delete(scoped(`/api/v1/ask/threads/${first}`, ws), fromTheApp);
   });
 
   test("the palette streams a turn and shows citations or a plain failure", async ({ page }) => {
