@@ -21,6 +21,9 @@ export const config = { maxDuration: 60 };
 /** A bound per tick; a backlog drains over successive hours rather than one long call. */
 const MAX_PER_TICK = 20;
 
+/** The states that mean the carriers still have it. */
+const WAITING = ["registering", "approved"];
+
 function secretsMatch(a: string, b: string): boolean {
   const x = Buffer.from(a);
   const y = Buffer.from(b);
@@ -36,11 +39,14 @@ export async function POST(request: Request): Promise<Response> {
   if (keyErr || !expected) return json(503, { ok: false, error: "key_unavailable" });
   if (!presented || !secretsMatch(presented, expected as unknown as string)) return json(401, { ok: false, error: "unauthorized" });
 
-  // Only lines the carriers still hold, oldest first, so a backlog drains in order.
+  // Every line the carriers still hold, oldest first, so a backlog drains in
+  // order. BOTH waiting states: a line that reaches "approved" is still
+  // waiting on the last check, and filtering on "registering" alone meant it
+  // was never asked about again and could never become active.
   const { data: lines, error } = await db
     .from("lines")
     .select("*")
-    .eq("sms_state", "registering")
+    .in("sms_state", WAITING)
     .not("brand_sid", "is", null)
     .order("state_since", { ascending: true })
     .limit(MAX_PER_TICK);
