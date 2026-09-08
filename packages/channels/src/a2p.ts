@@ -321,6 +321,20 @@ export interface CampaignFacts {
   useCase: string;
 }
 
+/**
+ * A keyword is one word.
+ *
+ * The carriers refuse anything with a space — "Opt In Keywords must contain
+ * either alphanumeric or accented characters" — and they refuse it at the
+ * campaign, after the brand is registered. Our own opt-in phrase is two
+ * words ("YES OFFERS"), which belongs in the message flow, where it is
+ * explained, and not in this field. So only single words are declared, and
+ * only ones the product actually honours.
+ */
+export function keywordsFor(words: readonly string[]): string[] {
+  return words.map((w) => w.trim()).filter((w) => /^[A-Za-z0-9]+$/.test(w));
+}
+
 /** Twilio's code for a small business sending a bit of everything. */
 export const LOW_VOLUME_USECASE = "LOW_VOLUME";
 export const SOLE_PROPRIETOR_USECASE = "SOLE_PROPRIETOR";
@@ -342,7 +356,9 @@ export function campaignRequest(f: CampaignFacts): A2PRequest {
   };
   // Repeated keys, the way Twilio's form encoding takes a list.
   form.MessageSamples = f.samples.slice(0, 5);
-  form.OptInKeywords = f.optInKeywords;
+  const keywords = keywordsFor(f.optInKeywords);
+  if (keywords.length) form.OptInKeywords = keywords;
+  else delete form.OptInMessage;
   return { url: `${MESSAGING}/Services/${f.messagingServiceSid}/Compliance/Usa2p`, method: "POST", as: "line", form };
 }
 

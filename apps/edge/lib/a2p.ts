@@ -80,7 +80,9 @@ export function campaignFactsFor(o: { businessName: string; optInUrl: string; pr
       `Reminder: your appointment with ${o.businessName} is tomorrow at 2:00pm. Reply STOP to opt out.`,
     ],
     optInMessage: `You're subscribed to offers and news from ${o.businessName}. Msg&data rates may apply. Reply STOP to opt out, HELP for help.`,
-    optInKeywords: ["YES OFFERS", "START"],
+    // Single words only, and only ones the receptionist actually honours
+    // (contracts OPT_IN_PATTERN). The two-word phrase lives in the flow above.
+    optInKeywords: ["START", "UNSTOP", "RESUME"],
     privacyPolicyUrl: o.privacyUrl,
     termsUrl: o.termsUrl,
   };
