@@ -109,8 +109,8 @@ corepack pnpm e2e:install             # once, fetches Chromium
 corepack pnpm e2e                     # runs against production by default
 ```
 
-Sixteen of these need no credentials and pin the auth gate. The rest sign in,
-and need four variables:
+Twenty-four of these need no credentials and pin the auth gate. The rest sign
+in, and need four variables:
 
 ```
 NEXT_PUBLIC_SUPABASE_URL       NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -119,6 +119,15 @@ SUPABASE_SERVICE_ROLE_KEY      E2E_USER_EMAIL
 
 Without them those specs **skip**, with the reason printed. `E2E_BASE_URL`
 points the run somewhere other than production.
+
+A skip is not a pass, and an exit code cannot tell them apart — which is how
+the nightly reported success four mornings running while executing 24 of 128
+specs. So a run that is MEANT to be signed in says so with
+`REQUIRE_SERVICE_CREDENTIALS=1`, and `e2e/coverage.spec.ts` then fails instead
+of skipping. The node suite carries the same guard in
+`tooling/scripts/tests/coverage-guard.test.mjs` for its 62 integration tests.
+The nightly sets the flag; `ci.yml`, which holds no live service secrets by
+policy, does not.
 
 There is no password anywhere in this product — sign-in is an emailed
 code — so `e2e/session.ts` mints a session over the API and hands the browser
