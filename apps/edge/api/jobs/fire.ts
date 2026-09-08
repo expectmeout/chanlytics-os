@@ -7,31 +7,12 @@ import { Receiver } from "@upstash/qstash";
 import { json } from "../../lib/http.js";
 import { pg } from "../../lib/pg.js";
 import { dispatchJob, FIRE_URL, scheduleJob, type ClaimedJob } from "../../lib/workspace/jobs.js";
-import { notify } from "../../lib/notify.js";
-import { loadTenantNotifications, waCredentialsForTenant } from "../../lib/tenant-runtime.js";
+import { waCredentialsForTenant } from "../../lib/tenant-runtime.js";
+import { alertFor } from "../../lib/job-alert.js";
 import { smsSenderForTenant } from "../../lib/sms.js";
 import { deleteThread } from "../../lib/store.js";
 
 export const config = { maxDuration: 60 };
-
-/**
- * A job failing concerns the tenant whose job it is, so the alert is addressed
- * from that tenant's runtime rather than from a hardcoded personal mailbox —
- * this file used to fall back to a literal name and address, which with a
- * second tenant would deliver one business's delivery failure, naming its
- * customer's number, to a different business's owner.
- */
-function alertFor(db: ReturnType<typeof pg>, job: ClaimedJob) {
-  return async (subject: string, body: string): Promise<void> => {
-    const addressing = db
-      ? await loadTenantNotifications(db, job.tenant_id)
-      : { notifications: null, isEnvDefault: false };
-    await notify(
-      { tenantId: job.tenant_id, ...addressing },
-      { kind: "job_failed", route: "inbox", subject, body, redactedBody: `A background job failed for a workspace (kind: ${job.kind}).` },
-    );
-  };
-}
 
 export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
