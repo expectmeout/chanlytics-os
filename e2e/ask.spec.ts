@@ -6,7 +6,7 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
  * the workspace and nothing seeded, jumps, answers the quick questions
  * without a model, and runs a real turn that reads and cites.
  */
-const BASE = process.env.E2E_BASE_URL ?? "https://chanlytics-os.vercel.app";
+const BASE = process.env.E2E_BASE_URL ?? "https://app.chanlytics.com";
 const fromTheApp = { headers: { origin: new URL(BASE).origin } };
 const INVENTED = ["Aisha", "Jordan", "Lena", "Drifting VIP", "revenue pacing", "Serenity", "Sarah Chen"];
 

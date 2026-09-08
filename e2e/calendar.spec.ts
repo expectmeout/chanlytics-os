@@ -12,7 +12,7 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
  * issues a GET.
  */
 /** A write is refused unless it comes from the app: the same-origin guard every mutating route applies. */
-const fromTheApp = { headers: { origin: new URL(process.env.E2E_BASE_URL ?? "https://chanlytics-os.vercel.app").origin } };
+const fromTheApp = { headers: { origin: new URL(process.env.E2E_BASE_URL ?? "https://app.chanlytics.com").origin } };
 const INVENTED = ["Two-way sync", "Apple iCal", "Utilization", "Lena", "Jay", "Swedish", "Hot stone", "At risk", "double-booking"];
 
 test.describe("Calendar on a real workspace", () => {

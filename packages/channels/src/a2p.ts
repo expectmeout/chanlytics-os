@@ -329,9 +329,15 @@ export function keywordsFor(words: readonly string[]): string[] {
   return words.map((w) => w.trim()).filter((w) => /^[A-Za-z0-9]+$/.test(w));
 }
 
-/** Twilio's code for a small business sending a bit of everything. */
+/**
+ * Twilio's code for a small business sending a bit of everything.
+ *
+ * There is no sole-proprietor code here on purpose: that registration is
+ * refused by name (soleProprietorUnsupported) until its own path is built,
+ * and a constant kept for a path nobody can take is just something to
+ * maintain.
+ */
 export const LOW_VOLUME_USECASE = "LOW_VOLUME";
-export const SOLE_PROPRIETOR_USECASE = "SOLE_PROPRIETOR";
 
 export function campaignRequest(f: CampaignFacts): A2PRequest {
   const form: Record<string, string | string[]> = {

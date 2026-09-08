@@ -278,7 +278,7 @@ test("the edge: the secret alone on the edge, a read before a row, the grant giv
   assert.ok(cron.includes("connectionsDue(db, now, MAX_PER_TICK)") && cron.includes("syncProfile(db, conn,"));
   const env = readRaw("apps/edge/.env.example");
   for (const v of ["GOOGLE_OAUTH_CLIENT_ID=", "GOOGLE_OAUTH_CLIENT_SECRET=", "GOOGLE_OAUTH_REDIRECT_URI="]) assert.ok(env.includes(v), v);
-  assert.ok(env.includes("https://chanlytics-os.vercel.app/api/v1/google/callback"), "the redirect URI is written where the operator sets it");
+  assert.ok(env.includes("https://app.chanlytics.com/api/v1/google/callback"), "the redirect URI is written where the operator sets it");
 });
 
 test("the dashboard: the way there is signed, the way back is proven before anything is trusted, and a reply is a ledger entry", () => {

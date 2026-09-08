@@ -11,7 +11,7 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
  * a cross-site write and refuses — correctly. The app's own requests carry
  * their origin, so these do too, and the refusal is pinned as its own case.
  */
-const BASE = process.env.E2E_BASE_URL ?? "https://chanlytics-os.vercel.app";
+const BASE = process.env.E2E_BASE_URL ?? "https://app.chanlytics.com";
 const fromTheApp = { headers: { origin: new URL(BASE).origin } };
 
 test.describe("Rewriting a held draft on a real workspace", () => {
