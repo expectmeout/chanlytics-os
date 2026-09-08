@@ -1,6 +1,7 @@
 import "server-only";
 import {
   AppError,
+  afterPersonRefused,
   eventText,
   extractContacts,
   feedSourceLabel,
@@ -132,16 +133,31 @@ async function addPeopleSeen(ctx: RouteContext, tenantId: string, items: FeedIte
   const have = new Set(people.map((p) => p.phone).filter(Boolean));
   const rows = peopleFromItems(items, services, now.getTime()).filter((r) => !have.has(r.phone)).slice(0, 40);
   const added: PersonLike[] = [];
+  // Counted, then said once. Logging per row turned one bad number into forty
+  // identical lines and still never said how many people it had cost.
+  let refused = 0;
+  let firstRefusal: string | null = null;
   for (const r of rows) {
     // The door records the `contact.added` event itself (members cannot
     // insert events), with the appointment that named them.
     const { data, error } = await ctx.supabase.rpc("create_person", { p_tenant_id: tenantId, p_phone_e164: r.phone, p_display_name: r.name ?? "", p_source: "calendar", p_title: r.title });
     if (error) {
-      console.error("calendar_person_add_failed", JSON.stringify({ tenant: tenantId, error: error.message }));
+      // One bad number is one person, not everyone behind them. See
+      // afterPersonRefused: 22023 is the door refusing THIS row, anything
+      // else refuses every row and is worth stopping for.
+      if (afterPersonRefused(error.code) === "skip") {
+        refused += 1;
+        firstRefusal ??= error.message;
+        continue;
+      }
+      console.error("calendar_person_add_failed", JSON.stringify({ tenant: tenantId, code: error.code, error: error.message }));
       break;
     }
     const out = data as { contact_id: string; existed: boolean };
     added.push({ id: out.contact_id, name: r.name ?? "", phone: r.phone });
+  }
+  if (refused) {
+    console.error("calendar_people_refused", JSON.stringify({ tenant: tenantId, refused, of: rows.length, added: added.length, first: firstRefusal }));
   }
   return added;
 }

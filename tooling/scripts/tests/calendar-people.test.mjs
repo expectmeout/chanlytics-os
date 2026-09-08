@@ -11,7 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   parseIcs, extractContacts, personInText, matchPerson, visitsOf, visitDay, visitTime, visitLine,
-  describeVisits, feedSourceLabel, eventText, toVisitDto, toPersonVM,
+  describeVisits, feedSourceLabel, eventText, toVisitDto, toPersonVM, afterPersonRefused,
 } from "@chanlytics/contracts";
 import { readCode } from "./_source.mjs";
 
@@ -239,6 +239,43 @@ test("people from a feed: one row per phone inside the window, the soonest upcom
   assert.deepEqual(out.map((r) => [r.phone, r.name, r.uid]), [["+13055550199", "Ana Ruiz", "p2"]], "the soonest upcoming keys the row; outside the window is left alone");
   const named = peopleFromItems([mk("q1", "Balayage", NOW + 86_400_000, "305-555-0155"), mk("q2", "Lola Diaz - Haircut", NOW + 3 * 86_400_000, "305-555-0155")], ["Balayage", "Haircut"], NOW);
   assert.deepEqual(named.map((r) => [r.name, r.uid]), [["Lola Diaz", "q1"]], "a later appointment with a name fills in for the one without");
+});
+
+test("one refused number costs one person, never everyone behind them", () => {
+  // 22023 is create_person's own refusal of THIS row: a phone that is not in
+  // international form, or a name over 80 characters. The read used to `break`
+  // on it, so a single short code sitting on the calendar silently kept every
+  // later person out of People for as long as it stayed there -- and said so
+  // only in a log line nobody reads.
+  assert.equal(afterPersonRefused("22023"), "skip");
+
+  // Everything else fails the same way for all forty rows, so proving it forty
+  // times during a page load helps nobody.
+  for (const code of ["28000", "P0002", "42501", "PGRST202", "57014"]) {
+    assert.equal(afterPersonRefused(code), "stop", code);
+  }
+
+  // Unknown means unproven, and the safe unknown is the one that does less.
+  // It is also the old behaviour, so a client that stops reporting codes
+  // degrades to what shipped rather than to forty futile calls.
+  assert.equal(afterPersonRefused(undefined), "stop");
+  assert.equal(afterPersonRefused(null), "stop");
+  assert.equal(afterPersonRefused(""), "stop");
+
+  const svc = readCode("apps/dashboard/src/server/calendar.ts");
+  assert.ok(
+    svc.includes('if (afterPersonRefused(error.code) === "skip") {') && svc.includes("continue;"),
+    "the read must ASK the rule rather than deciding inline",
+  );
+  // The bare `break` is what this test exists to prevent coming back.
+  assert.ok(
+    !/if \(error\) \{[^}]*\n\s*break;/.test(svc),
+    "a refusal must not end the batch before the rule has been consulted",
+  );
+  assert.ok(
+    svc.includes('console.error("calendar_people_refused"') && svc.includes("refused, of: rows.length, added: added.length"),
+    "and it says once how many people the refusals cost, not once per row",
+  );
 });
 
 test("automatically: an hourly sweep on the edge and the owner's own read both put the feed's people in People through one extraction; the profile says where they came from; no button", () => {
