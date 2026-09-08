@@ -14,6 +14,16 @@
  * copied from a blog. Request shapes verified the same day against the
  * ISV onboarding guide, the BrandRegistrations resource and the
  * UsAppToPerson resource.
+ *
+ * WHOSE ACCOUNT. Every call here is made as the WORKSPACE'S OWN subaccount,
+ * which is what Twilio's ISV guide asks for: "create a Secondary Customer
+ * Profile under the customer's subaccount and register a Brand under the
+ * customer's subaccount". A brand registered on the parent is not shared
+ * with the subaccount that owns the Messaging Service, and the campaign is
+ * refused with 21717 — after the brand is registered and, on a real filing,
+ * paid for. Chanlytics' own primary profile is not moved into the
+ * subaccount; it is REFERENCED by sid, and that reference is the whole
+ * declaration that this business is ours.
  */
 
 /** Trust Hub policies, by the names Twilio gives them. */
@@ -91,17 +101,6 @@ export function brandTypeFor(r: Pick<BusinessRecord, "ein">): BrandType {
 export interface A2PRequest {
   url: string;
   method: "GET" | "POST";
-  /**
-   * Whose credentials it goes on.
-   *
-   * The bundles and the brand belong to Chanlytics, so they are made as the
-   * MASTER account — that is what makes these businesses ours to register.
-   * The campaign is attached to the workspace's own Messaging Service,
-   * which lives in ITS subaccount and which the master cannot see: asked as
-   * the master, Twilio answers "resource not found" after the brand has
-   * already been registered and paid for. Default is the master.
-   */
-  as?: "master" | "line";
   /**
    * Form fields; the caller encodes them. A list is sent as REPEATED keys —
    * `MessageSamples=a&MessageSamples=b` — which is the only shape Twilio
@@ -359,7 +358,7 @@ export function campaignRequest(f: CampaignFacts): A2PRequest {
   const keywords = keywordsFor(f.optInKeywords);
   if (keywords.length) form.OptInKeywords = keywords;
   else delete form.OptInMessage;
-  return { url: `${MESSAGING}/Services/${f.messagingServiceSid}/Compliance/Usa2p`, method: "POST", as: "line", form };
+  return { url: `${MESSAGING}/Services/${f.messagingServiceSid}/Compliance/Usa2p`, method: "POST", form };
 }
 
 /* --------------------------- the state machine --------------------------- */
