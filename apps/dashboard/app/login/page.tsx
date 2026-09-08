@@ -214,6 +214,7 @@ export default function LoginPage() {
         {error && <div className="error">{error}</div>}
       </div>
       <div className="hint">New to Chanlytics? <a href="/signup">Create your workspace</a></div>
+      <div className="hint auth-legal"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></div>
     </main>
   );
 }

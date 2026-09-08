@@ -54,6 +54,24 @@ body {
 /* The one link on the auth cards (sign-up ↔ sign-in) takes the card's accent, not the browser's blue. */
 .auth-card a { color: var(--auth-teal); text-decoration: underline; text-underline-offset: 2px; }
 .auth-card a:hover { opacity: 0.85; }
+.auth-legal { margin-top: 14px; font-size: 0.78rem; }
+.auth-legal a { color: var(--auth-muted); }
+
+/* The two public pages every platform review links to. Same tokens as the
+   auth card, a reading width instead of a form's. */
+.legal {
+  max-width: 680px;
+  margin: 8vh auto 12vh;
+  padding: 0 24px;
+  line-height: 1.6;
+}
+.legal h1 { font-size: 1.6rem; margin: 0 0 4px; text-wrap: balance; }
+.legal .legal-meta { color: var(--auth-muted); font-size: 0.85rem; margin: 0 0 28px; }
+.legal h2 { font-size: 1.05rem; margin: 28px 0 8px; }
+.legal p, .legal li { color: var(--auth-ink); font-size: 0.95rem; margin: 0 0 12px; }
+.legal ul { padding-left: 20px; margin: 0 0 12px; }
+.legal a { color: var(--auth-teal); text-decoration: underline; text-underline-offset: 2px; }
+.legal .legal-foot { border-top: 1px solid var(--auth-line); margin-top: 36px; padding-top: 16px; color: var(--auth-muted); font-size: 0.85rem; }
 .auth-card .error { color: var(--auth-danger); font-size: 0.85rem; margin-top: 10px; }
 .auth-card .hint { color: var(--auth-muted); font-size: 0.8rem; margin-top: 12px; }
 .os-shell { max-width: 760px; margin: 8vh auto; padding: 0 24px; }

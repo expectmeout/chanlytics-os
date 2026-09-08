@@ -20,8 +20,14 @@ import { logger } from "./log.js";
 type Db = SupabaseClient<Database>;
 export type BillingRow = Database["public"]["Tables"]["billing_accounts"]["Row"];
 
-/** Where the browser lands after Stripe: Settings › Billing, with the outcome in a word the pane reads once. */
-export const DASHBOARD_BASE = "https://chanlytics-os.vercel.app";
+/** The dashboard's address before it had its own domain; what Stripe returns the browser to when nothing else is set. */
+export const DEFAULT_DASHBOARD_ORIGIN = "https://chanlytics-os.vercel.app";
+
+/** Where the browser lands after Stripe: Settings › Billing on the dashboard's origin, with the outcome in a word the pane reads once. An origin only — no path, no trailing slash — or the default. */
+export function dashboardOrigin(): string {
+  const o = process.env.DASHBOARD_ORIGIN;
+  return o && /^https:\/\/[a-z0-9.-]+$/i.test(o) ? o : DEFAULT_DASHBOARD_ORIGIN;
+}
 
 let client: Stripe | null = null;
 export function stripe(): Stripe | null {
@@ -199,8 +205,8 @@ export async function checkoutFor(db: Db, tenantId: string, tenantName: string, 
       line_items: [{ price, quantity: 1 }],
       subscription_data: { metadata: { tenant_id: tenantId }, ...(trial > 0 ? { trial_period_days: trial } : {}) },
       allow_promotion_codes: true,
-      success_url: `${DASHBOARD_BASE}/?billing=success#/admin/billing`,
-      cancel_url: `${DASHBOARD_BASE}/?billing=cancel#/admin/billing`,
+      success_url: `${dashboardOrigin()}/?billing=success#/admin/billing`,
+      cancel_url: `${dashboardOrigin()}/?billing=cancel#/admin/billing`,
       metadata: { tenant_id: tenantId },
     });
     if (!session.url) return { ok: false, error: "stripe_refused", detail: "no url on the session" };
@@ -219,7 +225,7 @@ export async function portalFor(db: Db, tenantId: string): Promise<{ ok: true; u
   if (row.mode === "direct") return { ok: false, error: "direct" };
   if (!row.stripe_customer_id) return { ok: false, error: "no_customer" };
   try {
-    const session = await s.billingPortal.sessions.create({ customer: row.stripe_customer_id, return_url: `${DASHBOARD_BASE}/?billing=portal#/admin/billing` });
+    const session = await s.billingPortal.sessions.create({ customer: row.stripe_customer_id, return_url: `${dashboardOrigin()}/?billing=portal#/admin/billing` });
     return { ok: true, url: session.url };
   } catch (e) {
     return { ok: false, error: "stripe_refused", detail: e instanceof Error ? e.message : String(e) };
