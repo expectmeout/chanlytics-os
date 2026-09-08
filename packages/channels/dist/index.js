@@ -6092,7 +6092,41 @@ function smsStateFor(o) {
   if (brand === "FAILED" || campaign === "FAILED") return "rejected";
   if (brand === "SUSPENDED") return "failed";
   if (campaign === "VERIFIED") return "active";
+  if (brand === "APPROVED") return "approved";
   return "registering";
+}
+function registrationVerdict(before, after, o) {
+  if (before === after) return null;
+  const num2 = o.number ?? "your line";
+  const rehearsal = o.mock ? " (this was a test filing, so nothing routes)" : "";
+  if (after === "active") {
+    return {
+      kind: "number",
+      title: `Texting is on: ${num2}`,
+      body: `The carriers approved ${num2}, so the receptionist answers texts to it inside your hours${rehearsal}. Customers who text first are answered; offers go only to people who said yes.`,
+      route: "admin/integrations",
+      event: "line.texting_on"
+    };
+  }
+  if (after === "approved") {
+    return {
+      kind: "number",
+      title: "Your business is approved by the carriers",
+      body: `${num2} is through the slow half. One last check on the line is left, usually days; nothing is needed from you, and texting switches itself on when it clears.`,
+      route: "admin/integrations",
+      event: "line.texting_approved"
+    };
+  }
+  if (after === "rejected" || after === "failed") {
+    return {
+      kind: "alert",
+      title: "The carriers sent your texting registration back",
+      body: `${o.reason ? `They said: ${o.reason}. ` : ""}Open Integrations, correct your business on record, and file it again. Calls and WhatsApp are unaffected.`,
+      route: "admin/integrations",
+      event: "line.texting_rejected"
+    };
+  }
+  return null;
 }
 
 // src/a2p-saga.ts
@@ -6805,6 +6839,7 @@ export {
   planVoiceConvergence,
   planVoiceProvision,
   publishAgentVersion,
+  registrationVerdict,
   replyRequest,
   replyToReview,
   representativeAttributes,

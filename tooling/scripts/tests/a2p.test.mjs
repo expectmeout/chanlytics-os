@@ -9,12 +9,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   A2P_POLICIES, A2P_STEPS, EMPTY_A2P_STATE, LOW_VOLUME_USECASE,
-  brandTypeFor, nextA2PStep, smsStateFor, runA2PSaga, isBrandNotReady,
+  brandTypeFor, nextA2PStep, smsStateFor, registrationVerdict, runA2PSaga, isBrandNotReady,
   soleProprietorUnsupported, a2pProfileEndUserRequest,
   addressRequest, a2pProfileRequest, brandRequest, businessEndUserRequest, campaignRequest,
   customerProfileRequest, evaluateRequest, representativeEndUserRequest, submitProfileRequest, supportingDocumentRequest, encodeForm, keywordsFor,
 } from "@chanlytics/channels";
-import { BUSINESS_INDUSTRIES, DEFAULT_INDUSTRY, industryOf, COMPANY_TYPES, companyTypeOf, businessTypeOf, BUSINESS_FIELDS, businessRecordProblems, businessRecordLine, emptyBusinessRecord } from "@chanlytics/contracts";
+import { BUSINESS_INDUSTRIES, DEFAULT_INDUSTRY, industryOf, COMPANY_TYPES, companyTypeOf, businessTypeOf, BUSINESS_FIELDS, businessRecordProblems, businessRecordLine, emptyBusinessRecord, EVENT_KINDS } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 const RECORD = {
@@ -265,9 +265,50 @@ test("ownership is asked too, and a value Twilio rejects never reaches it", () =
   assert.equal(businessTypeOf("Corporation"), "Corporation");
 });
 
+test("the two waits are told apart, and the carriers answering rings once", () => {
+  // The business being approved is the slow half and the half that can be
+  // refused; the campaign after it is days. One word for both made a
+  // three-week silence look like a stuck registration.
+  assert.equal(smsStateFor({ brandStatus: "APPROVED", campaignStatus: "PENDING" }), "approved");
+  assert.equal(smsStateFor({ brandStatus: "PENDING", campaignStatus: null }), "registering");
+
+  const num = "+1 (929) 656-6623";
+  assert.equal(registrationVerdict("approved", "approved", { number: num }), null, "the sweep runs hourly; the same answer is not news");
+  assert.equal(registrationVerdict("registering", "registering", { number: num }), null);
+
+  const on = registrationVerdict("approved", "active", { number: num });
+  assert.equal(on.kind, "number");
+  assert.ok(on.title.includes("Texting is on") && on.title.includes(num));
+  assert.ok(on.body.includes("inside your hours") && on.body.includes("said yes"));
+  assert.equal(on.route, "admin/integrations");
+  assert.equal(on.event, "line.texting_on");
+  assert.ok(!on.body.includes("test filing"));
+  assert.ok(registrationVerdict("approved", "active", { number: num, mock: true }).body.includes("test filing, so nothing routes"), "a rehearsal says so rather than promising texting");
+
+  for (const v of [on, registrationVerdict("registering", "approved", { number: num }), registrationVerdict("registering", "rejected", { number: num, reason: "x" })]) {
+    assert.ok(!/10DLC|A2P|campaign|brand|TCR|Twilio/i.test(`${v.title} ${v.body}`), `the registry's words stay out of the bell too: ${v.title}`);
+  }
+  const half = registrationVerdict("registering", "approved", { number: num });
+  assert.ok(half.title.includes("approved by the carriers") && half.body.includes("nothing is needed from you"));
+  assert.equal(half.event, "line.texting_approved");
+
+  const back = registrationVerdict("registering", "rejected", { number: num, reason: "the website could not be reached" });
+  assert.equal(back.kind, "alert", "a refusal needs a person, so it is not filed under good news");
+  assert.ok(back.body.startsWith("They said: the website could not be reached."));
+  assert.ok(back.body.includes("Calls and WhatsApp are unaffected"), "and it says what is NOT broken");
+  assert.equal(back.event, "line.texting_rejected");
+  assert.equal(registrationVerdict("registering", "failed", { number: num }).event, "line.texting_rejected");
+
+  for (const e of ["line.texting_on", "line.texting_approved", "line.texting_rejected"]) assert.ok(EVENT_KINDS.includes(e), e);
+
+  const edge = readCode("apps/edge/lib/a2p.ts");
+  assert.ok(edge.includes("const verdict = registrationVerdict(line.sms_state, smsState, {"), "the state BEFORE the write is what decides whether this is news");
+  assert.ok(edge.includes("recordNotification(line.tenant_id, { kind: verdict.kind"), "the bell is the workspace's own row, addressed or not");
+});
+
 test("the carriers' verdicts become the words the row uses", () => {
   assert.equal(smsStateFor({ brandStatus: "PENDING", campaignStatus: null }), "registering");
-  assert.equal(smsStateFor({ brandStatus: "APPROVED", campaignStatus: "PENDING" }), "registering");
+  assert.equal(smsStateFor({ brandStatus: "APPROVED", campaignStatus: "PENDING" }), "approved", "the business is through; the campaign is the shorter wait after it");
   // ACTIVE, not "approved": the inbound path only answers on active, and
   // nothing moved a line from one to the other, so every text stayed held.
   assert.equal(smsStateFor({ brandStatus: "APPROVED", campaignStatus: "VERIFIED" }), "active");

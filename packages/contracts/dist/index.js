@@ -117,6 +117,10 @@ var EVENT_KINDS = [
   "line.failed",
   "line.released",
   "line.forwarding_verified",
+  /** The carriers answered: texting is on, the business is through, or it came back. */
+  "line.texting_on",
+  "line.texting_approved",
+  "line.texting_rejected",
   /** The business on record for the carriers, saved or changed. */
   "business.recorded",
   /** The workspace's listing on Google: linked, removed, and a read that found new reviews or ratings. */
@@ -6014,7 +6018,7 @@ function smsStateRow(line, nowMs) {
     case "active":
       return { ...base, state: "connected", stateWords: "On", sentence: `Customers text ${num ?? "this number"}; the receptionist answers inside your hours.` };
     case "approved":
-      return { ...base, state: "waiting_them", stateWords: "Waiting on us", sentence: "The carriers approved your line \u2014 switching texting on." };
+      return { ...base, state: "waiting_them", stateWords: "Waiting on carriers", sentence: `Your business is approved. One last check on the line is with the carriers \u2014 usually days, and texting switches itself on${since ? `; approved ${since}` : ""}.` };
     case "needs_record":
       return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Texting needs your business on record for the carriers \u2014 two minutes, once.", verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
     case "otp_waiting":

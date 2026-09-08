@@ -23,7 +23,7 @@ create table public.lines (
   messaging_service_sid text,
   retell_agent_id      text,
   voice_state          text not null default 'none' check (voice_state in ('none', 'provisioning', 'answering', 'failed')),
-  sms_state            text not null default 'none' check (sms_state in ('none', 'needs_record', 'otp_waiting', 'registering', 'approved', 'rejected', 'hosting', 'active', 'failed')),
+  sms_state            text not null default 'none' check (sms_state in ('none', 'needs_record', 'otp_waiting', 'registering', 'approved', 'rejected', 'hosting', 'active', 'failed')),  -- otp_waiting: the sole-proprietor path; hosting: hosted SMS. Neither is built; both keep their word here.
   whatsapp_state       text not null default 'none' check (whatsapp_state in ('none', 'connecting', 'connected', 'coexistence', 'failed')),
   port_state           text not null default 'none' check (port_state in ('none', 'requested', 'scheduled', 'done', 'rejected')),
   forwarding_state     text not null default 'none' check (forwarding_state in ('none', 'instructed', 'verified')),

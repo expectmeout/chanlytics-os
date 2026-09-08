@@ -412,7 +412,9 @@ export function isBrandNotReady(error: string): boolean {
 }
 
 /** Twilio's brand and campaign statuses, in the words `lines.sms_state` uses. */
-export function smsStateFor(o: { brandStatus?: string | null; campaignStatus?: string | null }): "registering" | "active" | "rejected" | "failed" {
+export type SmsRegistrationState = "registering" | "approved" | "active" | "rejected" | "failed";
+
+export function smsStateFor(o: { brandStatus?: string | null; campaignStatus?: string | null }): SmsRegistrationState {
   const brand = (o.brandStatus ?? "").toUpperCase();
   const campaign = (o.campaignStatus ?? "").toUpperCase();
   if (brand === "FAILED" || campaign === "FAILED") return "rejected";
@@ -422,5 +424,53 @@ export function smsStateFor(o: { brandStatus?: string | null; campaignStatus?: s
   // left every text held for ever: the inbound path only answers on "active",
   // and nothing moved a line from one to the other.
   if (campaign === "VERIFIED") return "active";
+  // Two quite different waits were one word. The business being approved is
+  // the slow half and the half that can be refused; once it is through, what
+  // is left is the campaign, which is days rather than weeks.
+  if (brand === "APPROVED") return "approved";
   return "registering";
+}
+
+/**
+ * What the carriers just decided, in the owner's words — or nothing, when
+ * the answer is the same as last hour. The sweep runs hourly; a bell that
+ * rang every hour would be noise, and the one that matters would be lost
+ * in it.
+ */
+export function registrationVerdict(
+  before: string,
+  after: SmsRegistrationState,
+  o: { number: string | null; reason?: string | null; mock?: boolean },
+): { kind: "number" | "alert"; title: string; body: string; route: string; event: "line.texting_on" | "line.texting_rejected" | "line.texting_approved" } | null {
+  if (before === after) return null;
+  const num = o.number ?? "your line";
+  const rehearsal = o.mock ? " (this was a test filing, so nothing routes)" : "";
+  if (after === "active") {
+    return {
+      kind: "number",
+      title: `Texting is on: ${num}`,
+      body: `The carriers approved ${num}, so the receptionist answers texts to it inside your hours${rehearsal}. Customers who text first are answered; offers go only to people who said yes.`,
+      route: "admin/integrations",
+      event: "line.texting_on",
+    };
+  }
+  if (after === "approved") {
+    return {
+      kind: "number",
+      title: "Your business is approved by the carriers",
+      body: `${num} is through the slow half. One last check on the line is left, usually days; nothing is needed from you, and texting switches itself on when it clears.`,
+      route: "admin/integrations",
+      event: "line.texting_approved",
+    };
+  }
+  if (after === "rejected" || after === "failed") {
+    return {
+      kind: "alert",
+      title: "The carriers sent your texting registration back",
+      body: `${o.reason ? `They said: ${o.reason}. ` : ""}Open Integrations, correct your business on record, and file it again. Calls and WhatsApp are unaffected.`,
+      route: "admin/integrations",
+      event: "line.texting_rejected",
+    };
+  }
+  return null;
 }
