@@ -126,6 +126,19 @@ test("Twilio's calls, pinned: the Messaging Service, the sender pool, the messag
   assert.equal(twilioUrls.messages("AC1"), "https://api.twilio.com/2010-04-01/Accounts/AC1/Messages.json");
 });
 
+test("the pilot allowlist gates the deployment's own number, never a tenant that brought its own", () => {
+  const code = readCode("apps/edge/lib/whatsapp/inbound.ts");
+  assert.ok(
+    code.includes("if (isEnvDefault && allow.length && !allow.includes(from)) {"),
+    "REGRESSION: the pilot allowlist muted every tenant on every channel — a business that connected its own number had its customers persisted, marked processed and never answered",
+  );
+  const raw = readRaw("apps/edge/lib/whatsapp/inbound.ts");
+  assert.ok(raw.includes("THE PILOT ALLOWLIST, scoped to the number it was made for."), "and the reason it is scoped stays written down");
+  // A text never arrives on the deployment's own WhatsApp number, so the
+  // allowlist can never gate one; the endpoint says so by passing false.
+  assert.ok(readCode("apps/edge/api/inbound-sms.ts").includes("handleInbound(smsAsWaMessage(inbound), {}, routed.tenantId, routed, false, false, carrier)"));
+});
+
 test("the wiring: proven before trusted, held before spoken, the channel on every row, a second wire", () => {
   assert.ok(ESCALATION_REASONS.includes(SMS_HELD_REASON));
   const hook = readCode("apps/edge/api/inbound-sms.ts");
