@@ -5786,7 +5786,11 @@ function setupSteps(i, nowMs = Date.now()) {
   }
   if (voiceReady) {
     const last = voice.lastInboundAt ? `Last call ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}` : "No calls yet";
-    row2({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "ready", required: !answering, sentence: `Answering on ${voiceNum}.`, details: [handoffNum ? `Transfers to ${handoffNum} when a caller insists on a person` : "No hand-off number yet \u2014 callers who insist on a person are told someone will call back", last], verb: voice.number ? { label: "Call it", to: `tel:${voice.number}` } : null });
+    if (!i.business.name || !i.business.hours) {
+      row2({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "waiting_you", required: !answering, sentence: `Picking up on ${voiceNum}, but it has no facts to answer with yet.`, details: ["Callers are told someone will confirm and are offered to leave a message", "Fill in your name, hours and services and it answers properly from the next call"], verb: { label: "Add your facts", to: "admin/workspace" } });
+    } else {
+      row2({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "ready", required: !answering, sentence: `Answering on ${voiceNum}.`, details: [handoffNum ? `Transfers to ${handoffNum} when a caller insists on a person` : "No hand-off number yet \u2014 callers who insist on a person are told someone will call back", last], verb: voice.number ? { label: "Call it", to: `tel:${voice.number}` } : null });
+    }
   } else if (voice.present) {
     row2({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "waiting_you", required: !answering, sentence: "Switched off with the line.", details: [], verb: null });
   } else if (ownLine && (ownLine.voice_state === "provisioning" || ownLine.voice_state === "answering")) {

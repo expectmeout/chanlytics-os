@@ -22,6 +22,7 @@
  * Diagnostic-key only.
  */
 import { json } from "../../lib/http.js";
+import { edgeFnUrl } from "../../lib/lines.js";
 import { pg } from "../../lib/pg.js";
 import { recordNotification } from "../../lib/notify.js";
 import { emitEvent } from "../../lib/workspace/db.js";
@@ -98,7 +99,7 @@ export async function POST(request: Request): Promise<Response> {
     channel: existing.data ? { id: existing.data.id, status: existing.data.status, agentId: existing.data.external_id, number: existing.data.number_e164 } : null,
     request: req,
   });
-  const ends = voiceEndpoints();
+  const ends = voiceEndpoints(edgeFnUrl());
   const out: Record<string, unknown> = {
     ok: plan.ok,
     apply,

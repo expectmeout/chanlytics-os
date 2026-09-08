@@ -165,5 +165,11 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   assert.ok(sql.includes("'messaging'") && sql.includes("'carriers'"));
   assert.ok(readRaw("apps/edge/vercel.json").includes('"api/inbound-sms.ts"'));
   const edge = readCode("apps/edge/lib/lines.ts");
-  assert.ok(edge.includes("smsInboundUrl: smsInboundUrl(voiceEndpoints().fn),") && edge.includes('.eq("kind", "sms").eq("external_id", e164)'), "the sms row is keyed on the number the text was sent to");
+  assert.ok(edge.includes("smsInboundUrl: smsInboundUrl(edgeFnUrl()),") && edge.includes('.eq("kind", "sms").eq("external_id", e164)'), "the sms row is keyed on the number the text was sent to");
+  // One value says where this deployment answers, so a provider is never
+  // told an address baked into a shared package.
+  assert.ok(edge.includes("export function edgeFnUrl(): string {") && edge.includes("process.env.EDGE_ORIGIN"));
+  assert.ok(edge.includes("inboundWebhookUrl: withKey(voiceEndpoints(edgeFnUrl()).inbound"), "the voice webhook is built from the same value");
+  assert.ok(readCode("apps/edge/api/admin/voice-provision.ts").includes("voiceEndpoints(edgeFnUrl())"), "and so is the one the provisioner sends");
+  assert.ok(readCode("apps/edge/lib/lines.ts").includes("export function lineForClient(r: Row): LineDto {"), "REGRESSION: the page's line shape was a loose object, so a field added on one side and forgotten on the other compiled and arrived undefined");
 });
