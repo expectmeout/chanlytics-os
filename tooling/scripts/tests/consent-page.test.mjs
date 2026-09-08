@@ -72,5 +72,7 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
   assert.ok(bc.includes('data-testid="bc-optin-page"') && bc.includes("the wording the phone carriers ask for"));
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes("const slug = workspaceOverride.current()?.slug ?? null;") && sd.includes("pageUrl: slug ? `${window.location.origin}/yes/${slug}` : null,"), "the address is built from the workspace being viewed");
-  assert.ok(readRaw("apps/dashboard/app/globals.css").includes(".yes-terms {"), "the page has its own styles, not the auth card's");
+  const css = readRaw("apps/dashboard/app/globals.css");
+  assert.ok(css.includes(".yes-terms {"), "the page has its own styles, not the auth card's");
+  assert.ok(css.includes(".yes a.yes-btn { color: #06231d;"), "REGRESSION: .yes a outranks .yes-btn and painted the button's label teal on teal");
 });
