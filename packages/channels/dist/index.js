@@ -4840,8 +4840,8 @@ async function writeRetell(cfg, method, path, payload) {
   const text = await r.text();
   let body = null;
   try {
-    const parsed = JSON.parse(text);
-    body = parsed !== null && typeof parsed === "object" ? parsed : null;
+    const parsed2 = JSON.parse(text);
+    body = parsed2 !== null && typeof parsed2 === "object" ? parsed2 : null;
   } catch {
     body = text ? { text: text.slice(0, 300) } : null;
   }
@@ -5378,8 +5378,8 @@ var fetchTwilio = async (acct, method, url, form2) => {
   const text = await r.text();
   let body = null;
   try {
-    const parsed = JSON.parse(text);
-    body = parsed !== null && typeof parsed === "object" ? parsed : null;
+    const parsed2 = JSON.parse(text);
+    body = parsed2 !== null && typeof parsed2 === "object" ? parsed2 : null;
   } catch {
     body = text ? { text: text.slice(0, 300) } : null;
   }
@@ -5864,6 +5864,14 @@ function industryOf(v) {
 function brandTypeFor(r) {
   return r.ein && r.ein.trim() ? "STANDARD" : "SOLE_PROPRIETOR";
 }
+function encodeForm(form2) {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(form2)) {
+    if (Array.isArray(v)) v.forEach((one) => q.append(k, one));
+    else q.append(k, v);
+  }
+  return q.toString();
+}
 var attrs = (o) => JSON.stringify(o);
 function customerProfileRequest(o) {
   return {
@@ -5948,11 +5956,12 @@ function supportingDocumentRequest(o) {
 function updateEndUserRequest(sid2, attributes) {
   return { url: `${TRUSTHUB}/EndUsers/${sid2}`, method: "POST", form: { Attributes: attrs(attributes) } };
 }
+var parsed = (req) => JSON.parse(String(req.form?.Attributes ?? "{}"));
 function businessAttributes(r) {
-  return JSON.parse(businessEndUserRequest(r).form.Attributes);
+  return parsed(businessEndUserRequest(r));
 }
 function representativeAttributes(r) {
-  return JSON.parse(representativeEndUserRequest(r).form.Attributes);
+  return parsed(representativeEndUserRequest(r));
 }
 function assignRequest(bundleSid, objectSid) {
   return { url: `${TRUSTHUB}/CustomerProfiles/${bundleSid}/EntityAssignments`, method: "POST", form: { ObjectSid: objectSid } };
@@ -6024,12 +6033,8 @@ function campaignRequest(f) {
     PrivacyPolicyUrl: f.privacyPolicyUrl,
     TermsAndConditionsUrl: f.termsUrl
   };
-  f.samples.slice(0, 5).forEach((s, i) => {
-    form2[`MessageSamples[${i}]`] = s;
-  });
-  f.optInKeywords.forEach((k, i) => {
-    form2[`OptInKeywords[${i}]`] = k;
-  });
+  form2.MessageSamples = f.samples.slice(0, 5);
+  form2.OptInKeywords = f.optInKeywords;
   return { url: `${MESSAGING2}/Services/${f.messagingServiceSid}/Compliance/Usa2p`, method: "POST", form: form2 };
 }
 var A2P_STEPS = ["profile", "business", "representative", "address", "document", "primary", "submit", "a2p_profile", "brand", "campaign"];
@@ -6731,6 +6736,7 @@ export {
   deleteReplyRequest,
   desiredVoiceShell,
   dryProvider,
+  encodeForm,
   evaluateRequest,
   evaluateTrustProductRequest,
   fetchMediaBytes,

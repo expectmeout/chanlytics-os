@@ -11,7 +11,7 @@ import {
   A2P_POLICIES, A2P_STEPS, EMPTY_A2P_STATE, LOW_VOLUME_USECASE, SOLE_PROPRIETOR_USECASE,
   brandTypeFor, nextA2PStep, smsStateFor, runA2PSaga, BUSINESS_INDUSTRIES, DEFAULT_INDUSTRY, industryOf,
   addressRequest, a2pProfileRequest, brandRequest, businessEndUserRequest, campaignRequest,
-  customerProfileRequest, evaluateRequest, representativeEndUserRequest, submitProfileRequest, supportingDocumentRequest,
+  customerProfileRequest, evaluateRequest, representativeEndUserRequest, submitProfileRequest, supportingDocumentRequest, encodeForm,
 } from "@chanlytics/channels";
 import { readCode, readRaw } from "./_source.mjs";
 
@@ -108,9 +108,14 @@ test("the campaign says what the carriers ask, with the samples and keywords as 
   assert.equal(c.url, "https://messaging.twilio.com/v1/Services/MG1/Compliance/Usa2p");
   assert.equal(c.form.BrandRegistrationSid, "BN1");
   assert.equal(c.form.UsAppToPersonUsecase, "LOW_VOLUME");
-  assert.equal(c.form["MessageSamples[0]"], "one sample message here ok");
-  assert.equal(c.form["MessageSamples[1]"], "two sample message here ok");
-  assert.equal(c.form["OptInKeywords[0]"], "YES OFFERS");
+  // Repeated keys, not indexed ones: Twilio answers an indexed list with
+  // "Unable to process JSON" after the brand has already been registered.
+  assert.deepEqual(c.form.MessageSamples, ["one sample message here ok", "two sample message here ok"]);
+  assert.deepEqual(c.form.OptInKeywords, ["YES OFFERS", "START"]);
+  const wire = encodeForm(c.form);
+  assert.equal((wire.match(/MessageSamples=/g) ?? []).length, 2);
+  assert.ok(wire.includes("OptInKeywords=YES+OFFERS") && wire.includes("OptInKeywords=START"));
+  assert.ok(!wire.includes("%5B0%5D"), "no indexed keys reach the wire");
   assert.equal(c.form.PrivacyPolicyUrl, "https://app.chanlytics.com/privacy");
   assert.equal(c.form.TermsAndConditionsUrl, "https://app.chanlytics.com/terms");
   assert.equal(c.form.SubscriberOptIn, "true");

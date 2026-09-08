@@ -91,8 +91,23 @@ export function brandTypeFor(r: Pick<BusinessRecord, "ein">): BrandType {
 export interface A2PRequest {
   url: string;
   method: "GET" | "POST";
-  /** Form fields; the caller encodes them. */
-  form?: Record<string, string>;
+  /**
+   * Form fields; the caller encodes them. A list is sent as REPEATED keys —
+   * `MessageSamples=a&MessageSamples=b` — which is the only shape Twilio
+   * parses. Indexed keys (`MessageSamples[0]`) come back as
+   * "Unable to process JSON".
+   */
+  form?: Record<string, string | string[]>;
+}
+
+/** One place that knows how a list is written on the wire. */
+export function encodeForm(form: Record<string, string | string[]>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(form)) {
+    if (Array.isArray(v)) v.forEach((one) => q.append(k, one));
+    else q.append(k, v);
+  }
+  return q.toString();
 }
 
 const attrs = (o: Record<string, unknown>) => JSON.stringify(o);
@@ -200,11 +215,12 @@ export function updateEndUserRequest(sid: string, attributes: Record<string, unk
 }
 
 /** The attributes each end user carries, so the create and the update cannot drift. */
+const parsed = (req: A2PRequest): Record<string, unknown> => JSON.parse(String(req.form?.Attributes ?? "{}")) as Record<string, unknown>;
 export function businessAttributes(r: BusinessRecord): Record<string, unknown> {
-  return JSON.parse(businessEndUserRequest(r).form!.Attributes) as Record<string, unknown>;
+  return parsed(businessEndUserRequest(r));
 }
 export function representativeAttributes(r: BusinessRecord): Record<string, unknown> {
-  return JSON.parse(representativeEndUserRequest(r).form!.Attributes) as Record<string, unknown>;
+  return parsed(representativeEndUserRequest(r));
 }
 
 /** Everything a bundle carries is attached the same way. */
@@ -299,7 +315,7 @@ export const LOW_VOLUME_USECASE = "LOW_VOLUME";
 export const SOLE_PROPRIETOR_USECASE = "SOLE_PROPRIETOR";
 
 export function campaignRequest(f: CampaignFacts): A2PRequest {
-  const form: Record<string, string> = {
+  const form: Record<string, string | string[]> = {
     BrandRegistrationSid: f.brandSid,
     Description: f.description,
     MessageFlow: f.messageFlow,
@@ -313,9 +329,9 @@ export function campaignRequest(f: CampaignFacts): A2PRequest {
     PrivacyPolicyUrl: f.privacyPolicyUrl,
     TermsAndConditionsUrl: f.termsUrl,
   };
-  // Repeated fields, the way Twilio's form encoding takes a list.
-  f.samples.slice(0, 5).forEach((s, i) => { form[`MessageSamples[${i}]`] = s; });
-  f.optInKeywords.forEach((k, i) => { form[`OptInKeywords[${i}]`] = k; });
+  // Repeated keys, the way Twilio's form encoding takes a list.
+  form.MessageSamples = f.samples.slice(0, 5);
+  form.OptInKeywords = f.optInKeywords;
   return { url: `${MESSAGING}/Services/${f.messagingServiceSid}/Compliance/Usa2p`, method: "POST", form };
 }
 
