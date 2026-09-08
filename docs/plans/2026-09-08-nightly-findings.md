@@ -1,209 +1,267 @@
 # First Credentialed Nightly — Findings Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Clear the seven failures from the first nightly that actually ran, fixing the four stale specs outright and turning the two undiagnosed failures into self-diagnosing ones before any product code is touched.
+**Goal:** Close all seven failures from the first nightly that actually ran, and leave the suite unable to fail this way again.
 
-**Architecture:** Four of the seven are assertions that drifted while nobody ran them, and each is fixed by deriving from the source of truth instead of a copied literal. The remaining three (one billing, one calendar, and the leftover workspace behind the count) are not yet understood, so this plan does not guess at fixes: it makes each failure carry the evidence needed to fix it on the next run, then acts on that evidence in Task 7 along a decision tree whose branches are all written out.
+**Architecture:** Six of the seven are test defects, and three of those are one defect: two specs write to the API without naming a workspace, which the server correctly refuses for an account holding more than one membership. The fix is to make the specs do what the real client already does. No product code changes and no migration.
 
-**Tech Stack:** Node 22 `node:test` with `tsx`, Playwright against production, Supabase/PostgREST, pnpm workspaces. Tests live in `tooling/scripts/tests/*.test.mjs` (node) and `e2e/*.spec.ts` (browser).
+**Tech Stack:** Node 22 `node:test` with `tsx`, Playwright against production, Supabase/PostgREST, pnpm workspaces.
 
 ---
 
-## Background: what the run reported
+## Background
 
-Run [34274028660](https://github.com/expectmeout/chanlytics-os/actions/runs/34274028660), the first with the four `E2E_*` secrets present.
+Run [34274028660](https://github.com/expectmeout/chanlytics-os/actions/runs/34274028660): node 1088 tests, 1085 pass, 3 fail, 0 skipped; browser 128 specs, 123 pass, 4 fail, 1 skipped. Before the `E2E_*` secrets existed the integration half ran nowhere and the browser suite ran 24 of 128.
 
-| Suite | Result |
-|---|---|
-| node (`pnpm test`) | 1088 tests, 1085 pass, **3 fail**, 0 skipped |
-| browser (`pnpm e2e`) | 128 specs, 123 pass, **4 fail**, 1 skipped |
-
-Before the secrets, the node integration half ran nowhere and the browser suite ran 24 of 128. These seven failures are the first output those 165 tests have ever produced.
-
-| # | Where | Symptom | Cause |
+| # | Where | Cause | Task |
 |---|---|---|---|
-| 1–3 | `provisioning.integration.test.mjs:56,91,103` | `7 !== 6` | Stale literal: `POLICY_CLASSES` grew to seven when the `reviews` autonomy class landed |
-| 4 | `sidebar.spec.ts:26` | expected `billing@rjcapital.io` | Spec hardcodes an address; the account is whatever `E2E_USER_EMAIL` holds |
-| 5 | `workspace-create.spec.ts` | `toHaveCount(2)` got 3 | Spec pins an absolute count; the account has a leftover **Billing probe** workspace |
-| 6 | `billing.spec.ts:55` | status 400, expected one of 403/409/503 | **Unknown.** The route's own mapping cannot produce 400 |
-| 7 | `calendar.spec.ts:109` | status 400, expected 200 | **Unknown value.** Three layers disagree about what a phone number is |
+| 1–3 | `provisioning.integration.test.mjs:56,91,103` | `POLICY_CLASSES` grew to seven with the `reviews` class; three literals still say six | 4 |
+| 4 | `sidebar.spec.ts:26` **and `:41`** | A hardcoded email, and an absolute workspace count | 2 |
+| 5 | `workspace-create.spec.ts:42` | An absolute workspace count | 3 |
+| 6 | `billing.spec.ts:55` | **The ambiguity guard** | 1 |
+| 7 | `calendar.spec.ts:109` | **The ambiguity guard** | 1 |
 
-### The disagreement behind failure 7
+### Failures 6 and 7 are one cause, and it is not phone numbers
 
-| Layer | Rule |
-|---|---|
-| `contacts.phone_e164` (`00002_conversations.sql:31`) | `text` — **no constraint at all** |
-| `normalizePhone` (`packages/contracts/src/phone.ts:10`) | 8–15 digits; exactly 10 becomes `+1…` |
-| `create_person` (`00053_calendar_people_sweep.sql`) | `^\+[1-9][0-9]{7,14}$` — no leading zero |
+`memberContext` returns `ambiguous: !wanted && rows.length > 1` (`with-route.ts:162`). `requireRole` turns that into `AppError("validation", "This account belongs to more than one workspace — say which one before changing anything.")` (`with-route.ts:180-183`), which `DEFAULT_STATUS` maps to **400** (`errors.ts:40`). Both failing POSTs omit `?workspace=`, and both handlers pass `searchParams.get("workspace")` — null — into `memberContext` before calling `requireRole` (`billing/checkout/route.ts:13-14`, `contacts/route.ts:40-41`).
 
-Ingest writes through the loosest rule and the create door reads through the strictest, so the product can hold a number it will then refuse to accept, telling the owner "A phone number is needed to add a person" about a number printed on their own screen. Which stored value trips it is not knowable from the source; Task 6 makes the spec name it.
+Three things prove it is this and nothing else:
 
----
+- `/api/v1/ask` never calls `requireRole`, and `ask.spec.ts` fires eight unscoped writes that all pass.
+- `steer.spec.ts:47` POSTs unscoped and passes, because `requireOperator(ctx, m.tenant_id)` forwards the **row's** tenant id as `wanted` (`verbs.ts:26`), so `ambiguous` is false by construction. The two specs that failed are exactly the two whose write resolves the workspace from the *caller*.
+- In `calendar.spec.ts` the deliberately-bad phone at `:104` still returns its expected 400, because `normalizePhone` runs at `contacts/route.ts:36` — before `memberContext` at `:40`. The phone layer is reached; the workspace layer is what refuses.
 
-## File Structure
+The real client never has this problem: `scoped()` (`surface-data.ts:113-116`) appends `?workspace=` to every URL, and its own comment records this exact bug being fixed once already — *"the verb courier fetched its URLs verbatim, so every mutation arrived with no workspace named."* The specs bypass `scoped()` by calling `page.request` directly.
 
-| File | Responsibility | Change |
-|---|---|---|
-| `tooling/scripts/tests/policy-matrix.test.mjs` | Pins the autonomy classes by value and forbids a copied count in the provisioning suite. Runs without credentials, so it gates every PR. | **Create** |
-| `tooling/scripts/tests/provisioning.integration.test.mjs` | Proves a new tenant is born configurable. | Modify: derive the count from `POLICY_CLASSES` |
-| `e2e/sidebar.spec.ts` | The sidebar's chrome on a real workspace. | Modify: assert the configured account, not a literal |
-| `e2e/workspace-create.spec.ts` | A second workspace from the menu, then cleaned up. | Modify: count relatively |
-| `e2e/billing.spec.ts` | Billing's states on a real workspace. | Modify: carry the response body into the failure |
-| `e2e/calendar.spec.ts` | The calendar board and get-or-create. | Modify: name the offending number in the failure |
-| `packages/contracts/src/phone.ts` | The one rule for what a phone number is. | Modify in Task 7, branch A or B only |
-| `tooling/scripts/tests/phone.test.mjs` | The rule's own test. **Does not exist today** — its absence is why the rule drifted. | Create in Task 7, branch A or B |
-| `supabase/migrations/00078_*.sql` | Reconciling the stored column with the rule. | Create in Task 7, branch C only |
+### What is deliberately NOT in this plan
+
+An earlier draft proposed reconciling `normalizePhone` with `create_person` and adding a CHECK constraint to `contacts.phone_e164`. That work targeted a cause the source rules out, and each branch was independently dangerous:
+
+- `normalizePhone` has five call sites across both runtimes. At `retell-inbound.ts:96` a null return skips `readLeadContext`, so a caller who texted that morning meets a receptionist with no memory of them. At `forwarding.ts:140` a null `dest` **skips the guard entirely**, marking a line verified by the wrong call. At `retell-fn.ts:75` `const target = asked ?? caller` turns a refusal into a text sent to the caller instead of the number they gave.
+- A CHECK constraint is enforced on every INSERT **and UPDATE** even when added `NOT VALID`, and three writers of that column never call `normalizePhone` — `persist.ts:102` builds `` `+${digits}` `` by hand. On WhatsApp and SMS the violation is swallowed and the customer's message is discarded with a 200 to Meta.
+
+Two genuine issues survive from that work and are filed separately as Task 8, neither urgent.
 
 ---
 
-## Task 1: Stop the policy matrix count going stale again
+## Task 1: The specs name their workspace, as the app does
 
 **Files:**
-- Create: `tooling/scripts/tests/policy-matrix.test.mjs`
-- Modify: `tooling/scripts/tests/provisioning.integration.test.mjs:56,91,103` and its imports
+- Create: `e2e/workspace.ts`
+- Modify: `e2e/billing.spec.ts:52-57`, `e2e/calendar.spec.ts:101-115`
+- Modify: `tooling/scripts/tests/e2e-shape.test.mjs` (create if absent)
 
-Two guards, because the literal `6` was only ever wrong in a file nobody ran. The new test runs on every PR with no credentials, so the next class addition fails fast.
+Closes failures 6 and 7, and stops the class recurring the day the account legitimately owns two workspaces — which self-serve sign-up makes ordinary.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing guard test**
 
-Create `tooling/scripts/tests/policy-matrix.test.mjs`:
+Create `tooling/scripts/tests/e2e-shape.test.mjs`:
 
 ```javascript
 /**
- * The autonomy matrix, pinned — and the rule that nothing may copy its size.
+ * A spec that writes must name its workspace, because the app does.
  *
- * `provisioning.integration.test.mjs` asserted the matrix had six rows in
- * three places. It grew to seven when the `reviews` class landed, and the
- * assertions stayed wrong for as long as they did because that suite needs
- * service credentials and so ran nowhere at all. A literal count copied out
- * of a list is a fact with no owner; this gives it one.
+ * `scoped()` (apps/dashboard/src/legacy-bridge/surface-data.ts:113) appends
+ * ?workspace= to every URL the client fetches, and its comment records this
+ * bug being fixed there once already. Specs that call page.request directly
+ * skip that, so they test something the product never does — and the server's
+ * ambiguity guard (with-route.ts:180) refuses them with a 400 the moment the
+ * account holds a second membership.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { POLICY_CLASSES } from "@chanlytics/contracts";
-import { readCode } from "./_source.mjs";
+import fs from "node:fs";
+import path from "node:path";
+import { ROOT, readCode } from "./_source.mjs";
 
-test("the autonomy classes are pinned by value", () => {
-  // BY VALUE: adding a class is a deliberate edit here, reviewed, because it
-  // widens what the receptionist may decide on its own.
-  assert.deepEqual([...POLICY_CLASSES], [
-    "reply", "booking", "faq", "reengage", "campaign", "reviews", "money",
-  ]);
+const SPECS = fs.readdirSync(path.join(ROOT, "e2e")).filter((f) => f.endsWith(".spec.ts"));
+
+test("every direct write in the e2e suite names a workspace", () => {
+  const offenders = [];
+  for (const f of SPECS) {
+    const src = readCode(`e2e/${f}`);
+    for (const line of src.split("\n")) {
+      if (!/request\.(post|patch|put|delete)\(/.test(line)) continue;
+      // Absolved: an absolute URL to the edge (its own auth), a route that
+      // takes the workspace from the row it names, and anything already scoped.
+      if (line.includes("workspace=") || line.includes("https://")) continue;
+      if (/\/(messages|conversations)\//.test(line)) continue;
+      offenders.push(`${f}: ${line.trim().slice(0, 90)}`);
+    }
+  }
+  assert.deepEqual(offenders, [], "these writes would 400 for an account with two workspaces");
 });
-
-test("nothing hardcodes the size of the matrix", () => {
-  const src = readCode("tooling/scripts/tests/provisioning.integration.test.mjs");
-  assert.ok(src.includes("POLICY_CLASSES"), "the provisioning suite must derive the count, not copy it");
-  assert.ok(
-    !/policies\.length,\s*\d/.test(src) && !/p\.length,\s*\d/.test(src),
-    "a bare number here is the bug this test exists to prevent",
-  );
-});
 ```
 
-- [ ] **Step 2: Run it to make sure it fails**
+- [ ] **Step 2: Run it to verify it fails**
 
 ```bash
-node --import tsx --test tooling/scripts/tests/policy-matrix.test.mjs
+node --import tsx --test tooling/scripts/tests/e2e-shape.test.mjs
 ```
 
-Expected: the first test PASSES (the classes really are those seven); the second FAILS with `the provisioning suite must derive the count, not copy it`.
+Expected: FAIL, listing `billing.spec.ts` and `calendar.spec.ts` among the offenders. `ask.spec.ts` will also appear — that is correct and Step 5 handles it.
 
-- [ ] **Step 3: Make the provisioning suite derive its count**
+- [ ] **Step 3: Add the helper**
 
-In `tooling/scripts/tests/provisioning.integration.test.mjs`, add the import beneath the existing ones:
+Create `e2e/workspace.ts`:
 
-```javascript
-import { createClient } from "@supabase/supabase-js";
-import { POLICY_CLASSES } from "@chanlytics/contracts";
+```typescript
+import type { Page } from "@playwright/test";
+
+/**
+ * The active workspace id, and a URL that names it.
+ *
+ * The mirror of scoped() in apps/dashboard/src/legacy-bridge/surface-data.ts:
+ * the client appends ?workspace= to everything it fetches, so a spec that
+ * calls page.request directly must too, or it is exercising a request the
+ * product never makes. Without it, requireRole refuses every write from an
+ * account holding more than one membership, with a 400 that reads as a
+ * validation error and has nothing to do with the thing being tested.
+ */
+export async function activeWorkspace(page: Page): Promise<string> {
+  const { data } = await (await page.request.get("/api/v1/workspaces")).json();
+  const id = data.activeWorkspaceId ?? data.workspaces?.[0]?.id;
+  if (!id) throw new Error("no workspace for this account");
+  return id;
+}
+
+/** `scoped()`'s rule, with the id passed in rather than read from window. */
+export function scoped(url: string, workspaceId: string): string {
+  if (url.includes("workspace=")) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}workspace=${encodeURIComponent(workspaceId)}`;
+}
 ```
 
-Then replace all three assertions. Line 56:
+- [ ] **Step 4: Scope the billing write**
 
-```javascript
-  assert.equal(policies.length, POLICY_CLASSES.length, `expected the full matrix, got ${policies.length}`);
+In `e2e/billing.spec.ts`, add `import { activeWorkspace, scoped } from "./workspace";` beside the existing imports, then replace lines 52–57:
+
+```typescript
+  test("Checkout is refused for a direct arrangement, and says so", async ({ page, baseURL }) => {
+    const { data } = await (await page.request.get("/api/v1/billing")).json();
+    test.skip(data.billing.account.mode !== "direct", "the live workspace pays by card; the refusal is for direct arrangements");
+    const ws = await activeWorkspace(page);
+    const res = await page.request.post(scoped("/api/v1/billing/checkout", ws), { headers: { origin: baseURL!, "content-type": "application/json" }, data: {} });
+    const body = await res.json();
+    // The body in the message: a bare status assertion threw away the one
+    // sentence that says which refusal this was.
+    expect([403, 409, 503], `checkout answered ${res.status()}: ${JSON.stringify(body)}`).toContain(res.status());
+    expect(body.ok).toBe(false);
+    if (res.status() === 409) expect(body.error.message).toContain("direct arrangement");
+  });
 ```
 
-Line 91:
+- [ ] **Step 5: Scope the calendar writes**
 
-```javascript
-  assert.equal(policies.length, POLICY_CLASSES.length, "a second call duplicated the matrix");
+In `e2e/calendar.spec.ts`, add the same import, then replace the `get-or-create` test body (lines 101–115):
+
+```typescript
+  test("adding a person from an appointment is get-or-create: an existing number returns them, a bad one is refused, nothing is duplicated", async ({ page }) => {
+    const ws = await activeWorkspace(page);
+    const before = (await (await page.request.get("/api/v1/contacts")).json()).data.people as Array<{ id: string; phone_e164: string | null }>;
+    const bad = await page.request.post(scoped("/api/v1/contacts", ws), { data: { phone: "not a number", source: "calendar" }, ...fromTheApp });
+    expect(bad.status()).toBe(400);
+    expect(((await bad.json()).error?.message ?? "") as string).toContain("phone");
+    const known = before.find((p) => p.phone_e164);
+    if (known) {
+      const again = await page.request.post(scoped("/api/v1/contacts", ws), { data: { phone: known.phone_e164, source: "calendar" }, ...fromTheApp });
+      const body = await again.json();
+      // The status and the reason, never the number: this message reaches the
+      // GitHub Actions run log, which is not the seven-day artifact the
+      // workflow deliberately confines a real workspace's data to.
+      expect(again.status(), `re-adding a stored number answered ${again.status()}: ${JSON.stringify(body.error ?? {})}`).toBe(200);
+      expect(body.data).toEqual({ contact_id: known.id, existed: true });
+      const after = (await (await page.request.get("/api/v1/contacts")).json()).data.people as unknown[];
+      expect(after.length, "an existing number adds nobody").toBe(before.length);
+    }
+  });
 ```
 
-Line 103:
+- [ ] **Step 6: Scope the remaining offenders the guard names**
 
-```javascript
-    assert.equal(p.length, POLICY_CLASSES.length, `${t.slug} has ${p.length} policy rows`);
-```
-
-- [ ] **Step 4: Run both to verify they pass**
+Run the guard again and apply the same two-line treatment — `const ws = await activeWorkspace(page);` and `scoped(url, ws)` — to every spec it still lists. `ask.spec.ts` is the expected remainder.
 
 ```bash
-node --import tsx --test tooling/scripts/tests/policy-matrix.test.mjs tooling/scripts/tests/provisioning.integration.test.mjs
+node --import tsx --test tooling/scripts/tests/e2e-shape.test.mjs
 ```
 
-Expected: `# fail 0`. The provisioning tests report as skipped without `SUPABASE_URL`; that is correct here — the nightly runs them for real.
+Expected: PASS, offenders empty.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add tooling/scripts/tests/policy-matrix.test.mjs tooling/scripts/tests/provisioning.integration.test.mjs && git -c core.safecrlf=false commit -m "The matrix count comes from the list, not a copy of its length"
+git add e2e/workspace.ts e2e/billing.spec.ts e2e/calendar.spec.ts e2e/ask.spec.ts tooling/scripts/tests/e2e-shape.test.mjs && git -c core.safecrlf=false commit -m "A spec that writes names its workspace, as the app does"
 ```
 
 ---
 
-## Task 2: The sidebar asserts the account that is configured
+## Task 2: The sidebar spec stops assuming one workspace
 
 **Files:**
-- Modify: `e2e/sidebar.spec.ts:26`
+- Modify: `e2e/sidebar.spec.ts:26`, `:41-43`
 
-The spec expects `billing@rjcapital.io`; the signed-in account is whatever `E2E_USER_EMAIL` holds, and the two differ. `session.ts` already reads that variable, so the spec can too.
+Line 26 is the failure that was reported. Line 41 is `toHaveCount(1)` — a stricter version of the same assumption, masked only because line 26 failed first. Fixing one without the other buys a red run either way.
 
-- [ ] **Step 1: Replace the literal with the configured address**
+- [ ] **Step 1: The account it signed in as**
 
-At `e2e/sidebar.spec.ts:26`:
+Line 26:
 
-```javascript
-      // The address the run signed in as, not a literal: session.ts mints the
-      // session for E2E_USER_EMAIL, so anything else is a spec asserting a
-      // different person than the one it logged in.
+```typescript
+      // The address this run signed in as, not a literal: session.ts mints the
+      // session for E2E_USER_EMAIL, and asserting anything else is a spec
+      // checking a different person than the one it logged in.
       await expect(me.getByTestId("sb-me")).toContainText(process.env.E2E_USER_EMAIL!);
 ```
 
-- [ ] **Step 2: Run the spec**
+- [ ] **Step 2: However many workspaces there are**
+
+Lines 41–43:
+
+```typescript
+      const items = ws.getByTestId("sb-ws-item");
+      // At least one, and the active one is checked. An absolute count assumed
+      // this account owned exactly one workspace; self-serve sign-up makes a
+      // second one ordinary, and workspace-create.spec.ts makes one on purpose.
+      await expect(items.first()).toBeVisible();
+      const checked = items.filter({ has: page.locator('[aria-checked="true"]') }).or(items.and(page.locator('[aria-checked="true"]')));
+      await expect(checked).toHaveCount(1);
+      await expect(items.filter({ hasText: "Owner" }).first()).toBeVisible();
+```
+
+- [ ] **Step 3: Run it**
 
 ```bash
 corepack pnpm e2e -- sidebar.spec.ts
 ```
 
-Expected without credentials: `1 skipped`. With them: `1 passed`.
+Expected credential-free: `1 skipped`.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add e2e/sidebar.spec.ts && git -c core.safecrlf=false commit -m "The sidebar spec asserts the account it signed in as"
+git add e2e/sidebar.spec.ts && git -c core.safecrlf=false commit -m "The sidebar spec stops assuming one workspace"
 ```
 
 ---
 
-## Task 3: The workspace spec counts relatively
+## Task 3: The workspace spec counts one more, and waits for the menu
 
 **Files:**
-- Modify: `e2e/workspace-create.spec.ts` — the `toHaveCount(2)` assertion
+- Modify: `e2e/workspace-create.spec.ts:31-42`
 
-The account owns more than one workspace today, and will own a different number tomorrow. What the spec means is "one more than before", and it already has the menu open at the right moment to learn that.
+- [ ] **Step 1: Take the baseline with an auto-waiting read in front of it**
 
-- [ ] **Step 1: Count before creating**
+After `await page.getByTestId("sb-workspace").click();`:
 
-Replace the block that opens the menu and creates, so the count is taken while the menu is already open:
-
-```javascript
-      await page.getByTestId("sb-workspace").click();
-      // How many there were, taken with the menu already open. An absolute
-      // count assumed this account owned exactly one workspace; it owns as
-      // many as it owns, and what this test means is "one more than before".
-      const before = await page.getByTestId("sb-workspace-menu").getByTestId("sb-ws-item").count();
+```typescript
+      const menu = page.getByTestId("sb-workspace-menu");
+      // toBeVisible first: count() is the one Playwright read that does NOT
+      // retry, and sidebar.jsx:201 falls back to [] until __WORKSPACES lands —
+      // so a bare count() here yields 0 and turns a deterministic failure into
+      // an intermittent one.
+      await expect(menu.getByTestId("sb-ws-item").first()).toBeVisible();
+      const before = await menu.getByTestId("sb-ws-item").count();
       await page.getByTestId("sb-ws-new").click();
 ```
 
@@ -211,439 +269,255 @@ Replace the block that opens the menu and creates, so the count is taken while t
 
 Replace `await expect(items).toHaveCount(2);` with:
 
-```javascript
+```typescript
       await expect(items).toHaveCount(before + 1);
 ```
 
-- [ ] **Step 3: Run the spec**
+- [ ] **Step 3: Commit**
 
 ```bash
-corepack pnpm e2e -- workspace-create.spec.ts
-```
-
-Expected without credentials: `1 skipped`. With them: `1 passed`, and the probe workspace deleted by the existing `finally`.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add e2e/workspace-create.spec.ts && git -c core.safecrlf=false commit -m "The workspace spec counts one more, not exactly two"
+git add e2e/workspace-create.spec.ts && git -c core.safecrlf=false commit -m "The workspace spec counts one more, after the menu has drawn"
 ```
 
 ---
 
-## Task 4: The billing refusal carries its body
+## Task 4: The matrix count comes from the list
 
 **Files:**
-- Modify: `e2e/billing.spec.ts:55`
+- Modify: `tooling/scripts/tests/provisioning.integration.test.mjs`
 
-The route's own mapping produces 409, 503 or 502 and never 400, so the observed 400 comes from somewhere this plan has not identified. The spec asserted only the status, so the body — which names the reason — was never printed. This does not fix the failure; it makes the next run explain it.
+Three lines. No new test file: `enums-vs-checks.test.mjs:119` already asserts `deepEqual(sqlSet("class"), [...POLICY_CLASSES].sort())` credential-free on every PR, so a third copy of that pin would make adding a class a three-file edit for no extra safety.
 
-- [ ] **Step 1: Put the body in the assertion message**
+- [ ] **Step 1: Import the list**
 
-Replace lines 54–57 of `e2e/billing.spec.ts`:
+Beneath the existing imports:
 
 ```javascript
-    const res = await page.request.post("/api/v1/billing/checkout", { headers: { origin: baseURL!, "content-type": "application/json" }, data: {} });
-    // The body, in the message. The route maps the edge's answer to 409, 503
-    // or 502 and cannot produce 400, so a 400 means something upstream of the
-    // handler refused — and a bare status assertion threw that away.
-    const body = await res.json();
-    expect([403, 409, 503], `checkout answered ${res.status()}: ${JSON.stringify(body)}`).toContain(res.status());
-    expect(body.ok).toBe(false);
-    if (res.status() === 409) expect(body.error.message).toContain("direct arrangement");
+import { POLICY_CLASSES } from "@chanlytics/contracts";
 ```
 
-- [ ] **Step 2: Verify the file still parses**
+- [ ] **Step 2: Assert the classes, not the count, at line 56**
+
+`byClass` is already built one line above from the `class` column, so the set is free — and it catches a missing, extra or renamed class, which a count cannot:
+
+```javascript
+  assert.deepEqual(Object.keys(byClass).sort(), [...POLICY_CLASSES].sort(), "the matrix must hold exactly the classes contracts declares");
+```
+
+- [ ] **Step 3: Lines 91 and 103**
+
+```javascript
+  assert.equal(policies.length, POLICY_CLASSES.length, "a second call duplicated the matrix");
+```
+
+```javascript
+    assert.equal(p.length, POLICY_CLASSES.length, `${t.slug} has ${p.length} policy rows`);
+```
+
+- [ ] **Step 4: Run**
 
 ```bash
-corepack pnpm -r --if-present typecheck
+node --import tsx --test tooling/scripts/tests/provisioning.integration.test.mjs
 ```
 
-Expected: `Done` for both apps, no errors.
+Expected: skipped without `SUPABASE_URL`, which is correct — the nightly runs it for real.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add tooling/scripts/tests/provisioning.integration.test.mjs && git -c core.safecrlf=false commit -m "The matrix assertion names the classes, not their number"
+```
+
+---
+
+## Task 5: A red nightly reaches a person, and silence stops reading as success
+
+**Files:**
+- Modify: `.github/workflows/nightly-e2e.yml`
+- Modify: `e2e/coverage.spec.ts`
+
+The defect that produced this plan was a green light that meant nothing. Restoring its meaning while leaving nobody looking at it is half a fix — and the data-shaped version of the same defect is still live: 27 of the 28 conditional skips in `e2e/` are gated on the live workspace's **data**, so a quiet month at the salon can gut the suite and still exit 0.
+
+- [ ] **Step 1: One run at a time, and tell somebody when it breaks**
+
+In `.github/workflows/nightly-e2e.yml`, after `on:`:
+
+```yaml
+# One at a time. workspace-create.spec.ts really creates and deletes a tenant,
+# retries: 2 means up to three per run, and create_workspace allows five an
+# hour — so a dispatch overlapping the cron exhausts the budget and the spec
+# then fails with "Too many new workspaces", which looks nothing like the bug.
+concurrency:
+  group: nightly-e2e
+  cancel-in-progress: false
+```
+
+And in the job, raise permissions and add a final step:
+
+```yaml
+    permissions:
+      contents: read
+      issues: write
+```
+
+```yaml
+      - name: Say so, where a person will see it
+        if: failure()
+        run: gh issue create --title "Nightly e2e failed $(date -u +%F)" --body "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --label nightly
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+- [ ] **Step 2: A ceiling on skips**
+
+In `e2e/coverage.spec.ts`, add:
+
+```typescript
+// A skip ceiling. The credential guard above catches a suite that cannot sign
+// in; this catches the quieter version — 27 of this suite's conditional skips
+// are gated on the live workspace HAVING data, so a slow month at the salon
+// can hollow the run out while it still exits 0.
+test("the run covered most of the suite", async () => {
+  test.skip(process.env.REQUIRE_SERVICE_CREDENTIALS !== "1", "not a credentialed run");
+  const max = Number(process.env.E2E_MAX_SKIPS ?? "8");
+  const skipped = test.info().config.metadata.skipped ?? 0;
+  expect(skipped, `${skipped} specs skipped; a credentialed run should skip almost none`).toBeLessThanOrEqual(max);
+});
+```
+
+If Playwright's reporter does not expose that count in this version, implement the ceiling as a `globalTeardown` reading the JSON reporter's output instead, and say so in a comment. Do not ship a test that silently reads `undefined` as zero.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add e2e/billing.spec.ts && git -c core.safecrlf=false commit -m "A refused checkout says what it answered"
+git add .github/workflows/nightly-e2e.yml e2e/coverage.spec.ts && git -c core.safecrlf=false commit -m "A red nightly reaches a person, and a hollow one is not green"
 ```
 
 ---
 
-## Task 5: The calendar failure names the number
+## Task 6: Ship it
 
-**Files:**
-- Modify: `e2e/calendar.spec.ts:107-111`
+- [ ] **Step 1: Branch — the earlier tasks committed onto whatever branch you were on**
 
-Which stored `phone_e164` the product refuses to re-accept is data-dependent and not knowable from source. The spec picks the first contact with a phone; make it say which one, and what the door said back.
-
-- [ ] **Step 1: Carry the number and the reason into the failure**
-
-Replace the `if (known)` block:
-
-```javascript
-    const known = before.find((p) => p.phone_e164);
-    if (known) {
-      const again = await page.request.post("/api/v1/contacts", { data: { phone: known.phone_e164, source: "calendar" }, ...fromTheApp });
-      // The number, in the message. `contacts.phone_e164` has no constraint,
-      // normalizePhone accepts 8-15 digits, and create_person demands
-      // ^\+[1-9][0-9]{7,14}$ — three rules, so a number the product stored can
-      // be one it then refuses. Which one it is decides where the fix goes.
-      const againBody = await again.json();
-      expect(again.status(), `re-adding ${known.phone_e164} answered ${again.status()}: ${JSON.stringify(againBody)}`).toBe(200);
-      expect(againBody.data).toEqual({ contact_id: known.id, existed: true });
-      const after = (await (await page.request.get("/api/v1/contacts")).json()).data.people as unknown[];
-      expect(after.length, "an existing number adds nobody").toBe(before.length);
-    }
-```
-
-- [ ] **Step 2: Verify the file still parses**
+If you began on `main`, move the commits now:
 
 ```bash
-corepack pnpm -r --if-present typecheck
+git branch nightly-findings && git reset --hard origin/main && git checkout nightly-findings
 ```
 
-Expected: `Done` for both apps, no errors.
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: Every gate CI runs, in CI's order**
 
 ```bash
-git add e2e/calendar.spec.ts && git -c core.safecrlf=false commit -m "The get-or-create failure names the number it refused"
+corepack pnpm --filter "./packages/*" build && git diff --exit-code -- packages/*/dist && corepack pnpm -r --if-present typecheck && corepack pnpm lint && corepack pnpm test
 ```
+
+Expected: dist clean, typecheck `Done`, lint `0 errors` with 23 warnings, tests `# fail 0`.
+
+- [ ] **Step 3: Typecheck the specs, which the workspace typecheck does not cover**
+
+`pnpm -r typecheck` runs per package; `e2e/` belongs to no package, so nothing above reads the files Tasks 1–3 changed.
+
+```bash
+npx tsc --noEmit --skipLibCheck --module esnext --moduleResolution bundler --target es2022 --types node e2e/*.ts
+```
+
+Expected: no output.
+
+- [ ] **Step 4: Push and open the pull request**
+
+```bash
+git push -u origin nightly-findings && gh pr create --title "The specs name their workspace, as the app does" --body-file docs/plans/2026-09-08-nightly-findings.md
+```
+
+- [ ] **Step 5: Merge when CI is green**
+
+`--auto` waits; a bare `--squash` does not.
+
+```bash
+gh pr merge --squash --auto --delete-branch
+```
+
+- [ ] **Step 6: Wait for the deployment before testing against it**
+
+Playwright runs against `https://app.chanlytics.com`. Firing the nightly straight after a merge tests the previous deployment.
+
+```bash
+until curl -s https://app.chanlytics.com/api/version | grep -q "$(git rev-parse HEAD)"; do sleep 15; done; echo deployed
+```
+
+- [ ] **Step 7: Run the nightly on the merged code**
+
+`workflow_dispatch` with no `--ref` runs the default branch, which is what you want only after Step 5 landed there.
+
+```bash
+gh workflow run nightly-e2e.yml --ref main --repo expectmeout/chanlytics-os
+```
+
+- [ ] **Step 8: Read both halves**
+
+```bash
+gh run view "$(gh run list --workflow=nightly-e2e.yml --limit 1 --json databaseId --jq '.[0].databaseId')" --log | grep -E "# (tests|pass|fail|skipped)|passed|failed|skipped|a run that claims to cover Postgres|the signed-in half"
+```
+
+Expected: node `# fail 0`, `# skipped 0`; browser `0 failed`. **Do not assert a specific skip count** — `billing.spec.ts`'s two conditional skips depend on whether the live workspace pays by card, and the run being fixed proves they did not fire. Both guards must appear as run, not skipped.
 
 ---
 
-## Task 6: Ship Tasks 1–5 and re-run the nightly
+## Task 7: The probe workspace — separately, and to the repo's bar
 
-**Files:** none — this task opens a pull request and reads a run.
+**Not part of the pull request above, and not needed by it.** Task 1 makes the suite survive a second membership, so this is hygiene before live Stripe keys, not a fix.
 
-- [ ] **Step 1: Run every gate locally**
+`delete from tenants` cascades through more than twenty-five tables. This repo's own rule for production-mutating work is dry-run by default, idempotent, a JSONL backup, and an explicit `--apply`. A hand-typed `DELETE` in the SQL editor guarded by a human reading a name meets none of that, and nothing in this plan can undo it.
 
-```bash
-corepack pnpm --filter "./packages/*" build && corepack pnpm -r --if-present typecheck && corepack pnpm test && corepack pnpm lint
-```
-
-Expected: packages build, both apps typecheck `Done`, `# fail 0` with 1090 tests, and `0 errors` with 23 warnings (the baseline).
-
-- [ ] **Step 2: Confirm no dist drift**
-
-```bash
-git status --short -- packages
-```
-
-Expected: empty, or `packages/*/dist` changes that must be committed — CI fails on `git diff --exit-code -- packages/*/dist`.
-
-- [ ] **Step 3: Open the pull request**
-
-```bash
-gh pr create --title "The four assertions that drifted while nobody ran them" --body "Four of the seven failures from the first credentialed nightly, plus two failures made self-diagnosing. Fixes: the matrix count now comes from POLICY_CLASSES; the sidebar asserts the account it signed in as; the workspace spec counts one more rather than exactly two. Diagnostics: the billing and calendar failures now carry their response bodies, so the next run explains itself."
-```
-
-- [ ] **Step 4: Merge once CI is green**
-
-```bash
-gh pr merge --squash --delete-branch
-```
-
-- [ ] **Step 5: Re-run the nightly and read the two diagnostics**
-
-```bash
-gh workflow run nightly-e2e.yml --repo expectmeout/chanlytics-os
-```
-
-Expected: node `# fail 0`; browser down to two failures, each now printing the response body. **Record the exact `phone_e164` from the calendar failure and the exact body from the billing failure — Task 7 branches on them.**
-
----
-
-## Task 7: Reconcile the three phone rules
-
-**Files:** depends on the value recorded in Task 6, Step 5. All three branches are written out; take exactly one.
-
-The rule this task establishes: **whatever the product stores, the product accepts.** Do not weaken `create_person` — its regex is correct E.164 and the money and consent paths depend on it.
-
-### Branch A — the value has fewer than 8 digits (a short code, e.g. `+22395`)
-
-`normalizePhone` returns `null`, so the route throws before the database is asked. A short code is a real sender that cannot be a person: it cannot receive a reply and has no owner.
-
-- [ ] **Step A1: Write the failing test**
-
-`normalizePhone` has no test file today — that absence is why it drifted. Create `tooling/scripts/tests/phone.test.mjs`:
-
-```javascript
-/**
- * What the product calls a phone number.
- *
- * `normalizePhone` had no test of its own, which is how it drifted apart from
- * `create_person`'s own rule (`^\+[1-9][0-9]{7,14}$`) without anyone noticing:
- * the app accepted shapes the database then refused, and the owner was told
- * "A phone number is needed to add a person" about a number on their screen.
- */
-import { test } from "node:test";
-import assert from "node:assert/strict";
-import { normalizePhone, shortCode } from "@chanlytics/contracts";
-
-test("a short code is refused as a person, and said so by name", () => {
-  assert.equal(normalizePhone("22395"), null, "five digits is a short code, not a person");
-  assert.equal(shortCode("+22395"), true);
-  assert.equal(shortCode("+15551234567"), false);
-});
-```
-
-- [ ] **Step A2: Run it to verify it fails**
-
-```bash
-node --import tsx --test tooling/scripts/tests/phone.test.mjs
-```
-
-Expected: FAIL with `shortCode is not defined`.
-
-- [ ] **Step A3: Add the predicate**
-
-In `packages/contracts/src/phone.ts`:
-
-```typescript
-/** A short code — 3 to 7 digits — is a sender, never a person: nothing can reply to it. */
-export function shortCode(e164: string | null | undefined): boolean {
-  const digits = String(e164 ?? "").replace(/[^\d]/g, "");
-  return digits.length >= 3 && digits.length <= 7;
-}
-```
-
-- [ ] **Step A4: Say so at the door**
-
-In `apps/dashboard/app/api/v1/contacts/route.ts`, replace the validation line:
-
-```typescript
-  const raw = typeof body?.phone === "string" ? body.phone : null;
-  const phone = normalizePhone(raw);
-  if (!phone) {
-    throw new AppError("validation", shortCode(raw)
-      ? "That is a short code, not a phone number — nobody can be reached on it."
-      : "A phone number is needed to add a person.");
-  }
-```
-
-Add `shortCode` to the existing `@chanlytics/contracts` import.
-
-- [ ] **Step A5: Stop the calendar spec choosing one**
-
-In `e2e/calendar.spec.ts`, narrow the pick:
-
-```javascript
-    const known = before.find((p) => p.phone_e164 && !shortCode(p.phone_e164));
-```
-
-Import `shortCode` from `@chanlytics/contracts` at the top of the spec.
-
-- [ ] **Step A6: Run and commit**
-
-```bash
-corepack pnpm --filter "./packages/*" build && corepack pnpm test && git add -A && git -c core.safecrlf=false commit -m "A short code is a sender, not a person, and the door says so"
-```
-
-### Branch B — the value has 8–15 digits but starts with `+0`
-
-`normalizePhone` accepts it and `create_person` rejects it, so the two rules disagree with each other. `normalizePhone` is the one that is wrong: no country code begins with zero.
-
-- [ ] **Step B1: Write the failing test**
-
-`normalizePhone` has no test file today — that absence is why it drifted. Create `tooling/scripts/tests/phone.test.mjs` (drop `shortCode` from the import; this branch does not add it):
-
-```javascript
-/**
- * What the product calls a phone number.
- *
- * `normalizePhone` had no test of its own, which is how it drifted apart from
- * `create_person`'s own rule (`^\+[1-9][0-9]{7,14}$`) without anyone noticing:
- * the app accepted shapes the database then refused, and the owner was told
- * "A phone number is needed to add a person" about a number on their screen.
- */
-import { test } from "node:test";
-import assert from "node:assert/strict";
-import { normalizePhone } from "@chanlytics/contracts";
-
-test("no country code starts with zero, and normalizePhone agrees with the database", () => {
-  assert.equal(normalizePhone("+012345678"), null, "the create_person regex refuses this; so must the app");
-  assert.equal(normalizePhone("+15551234567"), "+15551234567");
-  assert.equal(normalizePhone("5551234567"), "+15551234567");
-});
-```
-
-- [ ] **Step B2: Run it to verify it fails**
-
-```bash
-node --import tsx --test tooling/scripts/tests/phone.test.mjs
-```
-
-Expected: FAIL — `normalizePhone("+012345678")` returns `'+012345678'`, not `null`.
-
-- [ ] **Step B3: Make the app's rule match the database's**
-
-In `packages/contracts/src/phone.ts`:
-
-```typescript
-export function normalizePhone(raw: string | null | undefined): string | null {
-  if (raw == null) return null;
-  const digits = String(raw).replace(/[^\d]/g, "");
-  if (!digits) return null;
-  if (digits.length === 10) return `+1${digits}`;
-  // The leading digit must not be zero: create_person's own rule is
-  // ^\+[1-9][0-9]{7,14}$, and a looser rule here only moves the refusal from
-  // a sentence the owner can act on to a database error they cannot.
-  if (digits.length >= 8 && digits.length <= 15 && digits[0] !== "0") return `+${digits}`;
-  return null;
-}
-```
-
-- [ ] **Step B4: Run and commit**
-
-```bash
-corepack pnpm --filter "./packages/*" build && corepack pnpm test && git add -A && git -c core.safecrlf=false commit -m "The app's phone rule and the database's are one rule"
-```
-
-### Branch C — the value is malformed (no `+`, more than 15 digits, or not a number)
-
-Then ingest stored something that is not a phone number, and the fix belongs at the write, not the read.
-
-- [ ] **Step C1: Find every offending row**
-
-Ruben runs this in the Supabase SQL editor; it writes nothing:
+- [ ] **Step 1: Count what would go, inside a transaction that is rolled back**
 
 ```sql
-select tenant_id, id, phone_e164, first_seen_at
-  from contacts
- where erased_at is null
-   and (phone_e164 !~ '^\+[1-9][0-9]{7,14}$')
- order by first_seen_at desc;
-```
-
-- [ ] **Step C2: Write the failing test**
-
-Create `tooling/scripts/tests/contacts.integration.test.mjs`, copying the credential gate verbatim from the top of `people.integration.test.mjs` (the `URL_` / `KEY` / `skip` triple and the `before` that builds `db`), then add:
-
-```javascript
-import { normalizePhone } from "@chanlytics/contracts";
-
-test("every stored number is one the product would accept back", { skip }, async () => {
-  const { data } = await db.from("contacts").select("id, phone_e164").is("erased_at", null).not("phone_e164", "is", null);
-  const bad = (data ?? []).filter((c) => normalizePhone(c.phone_e164) !== c.phone_e164);
-  assert.deepEqual(bad, [], "a number the product stored must be one it will re-accept");
-});
-```
-
-- [ ] **Step C3: Run it to verify it fails**
-
-```bash
-SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node --import tsx --test tooling/scripts/tests/contacts.integration.test.mjs
-```
-
-Expected: FAIL, listing the offending rows.
-
-- [ ] **Step C4: Normalise on write and constrain the column**
-
-Create `supabase/migrations/00078_contacts_phone_shape.sql`:
-
-```sql
--- 00078 · A stored number is one the product will accept back.
---
--- contacts.phone_e164 was plain text with no constraint, so ingest could write
--- a shape create_person then refused — and "add this person" failed forever
--- for someone whose number was printed on the owner's own screen.
-
-update contacts
-   set phone_e164 = '+' || regexp_replace(phone_e164, '[^0-9]', '', 'g')
- where phone_e164 is not null
-   and phone_e164 !~ '^\+'
-   and regexp_replace(phone_e164, '[^0-9]', '', 'g') ~ '^[1-9][0-9]{7,14}$';
-
-alter table public.contacts
-  add constraint contacts_phone_e164_shape
-  check (phone_e164 is null or phone_e164 ~ '^\+[1-9][0-9]{7,14}$')
-  not valid;
-```
-
-`not valid` so the constraint governs every future write without failing on rows the update could not repair; validate it once Step C1 returns no rows.
-
-- [ ] **Step C5: Apply and verify**
-
-```bash
-~/AppData/Local/npm-cache/_npx/*/node_modules/.bin/supabase db push --linked -p "$PW"
-```
-
-Then re-run Step C3. Expected: PASS.
-
-- [ ] **Step C6: Commit**
-
-```bash
-git add -A && git -c core.safecrlf=false commit -m "A stored number is one the product will accept back"
-```
-
----
-
-## Task 8: Clear the leftover probe workspace
-
-**Files:** none — this is console work, and it is Ruben's.
-
-The **Billing probe** workspace `ee0e86b7-6afc-4c12-b404-fcae14652205` was created during Stripe test-mode work and is the third workspace behind failure 5. Task 3 stops it breaking the spec, but it should still go before live Stripe keys, or it will appear in a real customer's workspace menu.
-
-- [ ] **Step 1: Confirm it is the test-mode probe and nothing else**
-
-```sql
+begin;
+select 'contacts' t, count(*) from contacts where tenant_id = 'ee0e86b7-6afc-4c12-b404-fcae14652205'
+union all select 'conversations', count(*) from conversations where tenant_id = 'ee0e86b7-6afc-4c12-b404-fcae14652205'
+union all select 'messages', count(*) from messages where tenant_id = 'ee0e86b7-6afc-4c12-b404-fcae14652205'
+union all select 'calls', count(*) from calls where tenant_id = 'ee0e86b7-6afc-4c12-b404-fcae14652205'
+union all select 'memberships', count(*) from memberships where tenant_id = 'ee0e86b7-6afc-4c12-b404-fcae14652205';
 select id, name, slug, created_at from tenants where id = 'ee0e86b7-6afc-4c12-b404-fcae14652205';
+select tenant_id, mode, status, stripe_customer_id from billing_accounts where tenant_id = 'ee0e86b7-6afc-4c12-b404-fcae14652205';
+rollback;
 ```
 
-- [ ] **Step 2: Delete it**
+Proceed only if the name is the Billing probe and every count is what a throwaway test workspace should hold.
 
-Only after Step 1 confirms the name. `tenants` cascades to its policies and config.
+- [ ] **Step 2: Delete, in a transaction, checking the row count before committing**
 
 ```sql
-delete from events where tenant_id = 'ee0e86b7-6afc-4c12-b404-fcae14652205';
+begin;
 delete from tenants where id = 'ee0e86b7-6afc-4c12-b404-fcae14652205';
+-- Expect exactly 1. Anything else: rollback.
+commit;
 ```
+
+- [ ] **Step 3: Note what does not go**
+
+`billing_events.tenant_id` is `on delete set null` (`00073_billing.sql:48`) — deliberate, since Stripe's dedup ledger must outlive the tenant. And the Stripe **test-mode customer** that `billing_accounts.stripe_customer_id` pointed at is not touched by any of this; remove it in Stripe's own dashboard if you want it gone.
 
 ---
 
-## Task 9: Confirm the nightly is green and means it
+## Task 8: The phone inconsistencies — real, latent, and not what the nightly caught
 
-**Files:** none.
+Filed for later. Neither item is urgent and neither belongs in the pull request above.
 
-- [ ] **Step 1: Trigger the run**
+**8a. The calendar sweep gives up on the first refusal.** `apps/dashboard/src/server/calendar.ts:141` does `break`, not `continue`, when `create_person` returns an error. One appointment carrying a number the door rejects silently stops every later person in that read from being added, leaving only a `console.error`. Change `break` to `continue`, and count the refusals into the existing log line so the truncation is visible. One word, and it wants its own small pull request with a test.
 
-```bash
-gh workflow run nightly-e2e.yml --repo expectmeout/chanlytics-os
-```
+**8b. Four layers disagree about what a phone number is.** `contacts.phone_e164` is `text` with no constraint; `persist.ts:102` writes `` `+${digits}` `` by hand; `normalizePhone` accepts 8–15 digits and turns exactly 10 into `+1…`; `create_person` demands `^\+[1-9][0-9]{7,14}$`. So the product can store a number it will then refuse — a short code arriving over SMS is stored as `+12345` and cannot be added as a person.
 
-- [ ] **Step 2: Read both step summaries**
-
-```bash
-gh run list --workflow=nightly-e2e.yml --limit 1 --json databaseId --jq '.[0].databaseId'
-```
-
-Then, with that id:
-
-```bash
-gh run view <id> --log | grep -E "# (tests|pass|fail|skipped)|passed|failed|skipped"
-```
-
-Expected: node `# fail 0` and `# skipped 0`; browser `0 failed`, `127 passed`, `1 skipped` — the one conditional skip inside `billing.spec.ts` for a card-paying workspace.
-
-- [ ] **Step 3: Check the guards still bite**
-
-A green run must not be green because the guards stopped working. Confirm both ran rather than skipped:
-
-```bash
-gh run view <id> --log | grep -E "a run that claims to cover Postgres|the signed-in half of this suite"
-```
-
-Expected: both named, neither reported as skipped.
+The fix is **at the door, not in the shared helper and not in the column**. `normalizePhone` is called by the live inbound voice path, the forwarding verifier and the Retell function handler, and in two of those a null return fails *open* rather than closed. A refusal belongs in `contacts/route.ts`, phrased for the owner: *"That is a short code, not a phone number — nobody can be reached on it."* Decide it deliberately; do not let a test drive it.
 
 ---
 
 ## Self-Review
 
-**Spec coverage.** All seven failures have a task: 1–3 in Task 1, 4 in Task 2, 5 in Task 3 and Task 8, 6 in Task 4, 7 in Task 5 then Task 7. The two undiagnosed ones are deliberately split into "make it explain itself" (Tasks 4–5) and "fix it" (Task 7), with the branch chosen by evidence from Task 6, Step 5.
+**Coverage.** 1–3 → Task 4. 4 → Task 2, both lines. 5 → Task 3. 6 and 7 → Task 1. Every failure has a task that changes a status or an assertion, not a diagnostic.
 
-**Placeholders.** None. Every branch of Task 7 is written out; no step says "handle the error case" without showing the code. The one genuinely unknown — which stored number is bad — is not guessed at; Task 5 makes the next run print it, and Task 7's three branches cover every shape it can be.
+**Ordering.** Task 1 is first because it is the durable fix; Task 7 would also clear 6 and 7 by removing the second membership, which is precisely why it must not run first — a green run bought by deleting a workspace would ratify specs that break again on the next one.
 
-**Type consistency.** `shortCode` is defined in Task 7 Step A3 and used in A4 and A5 with the same signature. `POLICY_CLASSES` is imported in Task 1 Step 3 and asserted against in Step 1. `normalizePhone` keeps its signature in Branch B and is used unchanged in Branch C's test.
+**Placeholders.** None. Task 5 Step 2 names its own uncertainty about the Playwright reporter API and says what to do instead rather than shipping a test that reads `undefined` as zero.
 
-**Risk left standing.** Task 7 Branch C adds a `check` constraint to a live table. It is `not valid`, so it governs new writes without rejecting existing rows, and the repair `update` runs first. Ingest paths that write a malformed number will begin failing at the database rather than storing something the product refuses later — which is the intended change, but it is the one step in this plan that can make a write path throw where it previously succeeded. Land it on its own, not bundled with Tasks 1–5.
+**Risk left standing.** Task 7's delete, which is why it is out of the pull request, wrapped in a transaction, and preceded by counts. Task 5's issue-creation step needs `issues: write`, a genuine widening of the workflow's permissions — narrower than it looks, since the token is job-scoped, but it is a change to what CI may do.
