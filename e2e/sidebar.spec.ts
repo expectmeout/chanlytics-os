@@ -23,7 +23,10 @@ test.describe("sidebar on a real workspace", () => {
       await page.getByTestId("sb-account").click();
       const me = page.getByTestId("sb-account-menu");
       await expect(me).toBeVisible();
-      await expect(me.getByTestId("sb-me")).toContainText("billing@rjcapital.io");
+      // The address this run signed in as, not a literal: session.ts mints the
+      // session for E2E_USER_EMAIL, and asserting anything else is a spec
+      // checking a different person than the one it logged in.
+      await expect(me.getByTestId("sb-me")).toContainText(process.env.E2E_USER_EMAIL!);
       await expect(me.getByTestId("sb-me-role")).toHaveText("Owner");
       await expect(me.getByTestId("sb-signout")).toHaveText("Sign out");
       await me.getByTestId("sb-theme-light").click();
@@ -38,9 +41,15 @@ test.describe("sidebar on a real workspace", () => {
       const ws = page.getByTestId("sb-workspace-menu");
       await expect(ws).toBeVisible();
       const items = ws.getByTestId("sb-ws-item");
-      await expect(items).toHaveCount(1);
-      await expect(items.first()).toHaveAttribute("aria-checked", "true");
-      await expect(items.first()).toContainText("Owner");
+      // However many there are, exactly one is current. An absolute count
+      // assumed this account owned a single workspace; self-serve sign-up
+      // makes a second one ordinary, and workspace-create.spec.ts makes one
+      // on purpose. What the sidebar promises is that one is marked, and it
+      // is the one whose role is shown.
+      await expect(items.first()).toBeVisible();
+      const active = ws.locator('[data-testid="sb-ws-item"][aria-checked="true"]');
+      await expect(active).toHaveCount(1);
+      await expect(active).toContainText("Owner");
       await page.keyboard.press("Escape");
 
       // The rail: ⌘B folds it, the preference survives a reload, ⌘B opens it.

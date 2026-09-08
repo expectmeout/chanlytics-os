@@ -25,6 +25,13 @@ test.describe("creating another workspace", () => {
     let createdId: string | null = null;
     try {
       await page.getByTestId("sb-workspace").click();
+      const menu = page.getByTestId("sb-workspace-menu");
+      // toBeVisible FIRST: count() is the one Playwright read that does not
+      // retry, and the menu draws from window.__WORKSPACES with a [] fallback
+      // and so a bare count() here returns 0, turning a deterministic
+      // assertion into an intermittent one.
+      await expect(menu.getByTestId("sb-ws-item").first()).toBeVisible();
+      const before = await menu.getByTestId("sb-ws-item").count();
       await page.getByTestId("sb-ws-new").click();
       const screen = page.getByTestId("create-workspace");
       await expect(screen).toBeVisible();
@@ -39,7 +46,7 @@ test.describe("creating another workspace", () => {
       expect(createdId).not.toBe(homeId);
       await page.getByTestId("sb-workspace").click();
       const items = page.getByTestId("sb-workspace-menu").getByTestId("sb-ws-item");
-      await expect(items).toHaveCount(2);
+      await expect(items).toHaveCount(before + 1);
       await expect(items.filter({ hasText: name })).toHaveAttribute("aria-checked", "true");
       // Back to where they were, through the same menu.
       await items.filter({ hasNotText: name }).first().click();
