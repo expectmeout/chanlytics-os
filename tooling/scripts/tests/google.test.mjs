@@ -358,9 +358,9 @@ test("the dashboard: owners link and search, operators read, members look; the p
   const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
   assert.ok(brief.includes("<ReviewLine nav={nav} />") && brief.includes('data-testid="brief-review"'));
   const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
-  assert.ok(settings.includes("<GoogleCard />") && settings.includes('data-testid="google-check"') && settings.includes('data-testid="google-remove"'));
+  assert.ok(settings.includes('"verb:google-check": "google-check"') && settings.includes('data-testid="google-remove"'), "the listing row keeps its verbs' names");
   assert.ok(search.includes('console.error("google_search_failed"') && !search.includes("typeof b.error === \"string\" ? b.error :"), "Google's words go to the log, not the owner");
-  assert.ok(settings.includes('data-testid="google-profile-none"') && settings.includes('data-testid="google-connect"'), "the second door is named either way: Connect where open, Not available where not");
+  assert.ok(settings.includes('"verb:google-connect": "google-connect"') && settings.includes('data-testid="google-disconnect-yes"'), "the second door keeps its verbs' names");
   const rate = readCode("apps/dashboard/src/server/rate-limit.ts");
   for (const b of ["google_search", "google_link", "google_refresh"]) assert.ok(rate.includes(`${b}: {`), b);
 });

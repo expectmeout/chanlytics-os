@@ -42,6 +42,7 @@ import { installToday } from "./today";
 import { installSetup, setupOverride } from "./setup";
 import { installGoogle, googleOverride } from "./google";
 import { installBilling, billingOverride } from "./billing";
+import { installConnections } from "./connections";
 import { installIdentity } from "./identity";
 import { installShell, publishShellStatus } from "./shell";
 import CreateWorkspace from "./CreateWorkspace";
@@ -68,6 +69,7 @@ installToday();
 installSetup();
 installGoogle();
 installBilling();
+installConnections();
 installIdentity();
 installShell();
 // The installable shell's service worker (public/sw.js). It caches nothing
