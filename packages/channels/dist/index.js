@@ -6068,6 +6068,9 @@ function nextA2PStep(s) {
   if (!s.campaignSid) return "campaign";
   return null;
 }
+function isBrandNotReady(error) {
+  return /until Brand is registered|Brand.*Current status:\s*(IN_PROGRESS|PENDING)/i.test(error);
+}
 function smsStateFor(o) {
   const brand = (o.brandStatus ?? "").toUpperCase();
   const campaign = (o.campaignStatus ?? "").toUpperCase();
@@ -6182,7 +6185,8 @@ async function runA2PSaga(start, p) {
     }
     return { ok: true, state };
   } catch (e) {
-    return { ok: false, step: step ?? nextA2PStep(state) ?? "profile", error: (e instanceof Error ? e.message : String(e)).slice(0, 500), state };
+    const error = (e instanceof Error ? e.message : String(e)).slice(0, 500);
+    return { ok: false, step: step ?? nextA2PStep(state) ?? "profile", error, pending: isBrandNotReady(error), state };
   }
 }
 
@@ -6758,6 +6762,7 @@ export {
   importPhoneNumber,
   industryOf,
   isAreaCode,
+  isBrandNotReady,
   isE164,
   isValidSipPassword,
   keywordsFor,
