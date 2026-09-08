@@ -109,8 +109,21 @@ export async function handleInbound(
   // for five minutes on the edge; a feed that cannot be read says nothing.
   const openings = rt ? await openingsFor(rt) : null;
 
+  // THE PILOT ALLOWLIST, scoped to the number it was made for.
+  //
+  // It exists so the deployment's OWN WhatsApp number — the pilot line in
+  // WHATSAPP_PHONE_ID — answers only the testers while something is being
+  // tried. It was applied to every message on every channel, which was
+  // harmless while there was one tenant and became a silent muzzle the
+  // moment there were more: a business that connected its own number would
+  // have its customers persisted, marked processed, and never answered,
+  // with one event to show for it. The salon has only escaped it because
+  // the one allowlisted number is the only person who has written to them.
+  //
+  // A tenant that brought its own number, and every text on a line this
+  // product bought, is never gated by it.
   const allow = (process.env.WHATSAPP_TEST_ALLOWLIST || "").split(",").map((s) => s.trim()).filter(Boolean);
-  if (allow.length && !allow.includes(from)) {
+  if (isEnvDefault && allow.length && !allow.includes(from)) {
     // §4 delta (deliberate): allowlist gates the REPLY, not the persist.
     const ing = await pgIngest(tenantId, n, channel);
     const sink = pgSink(db, tenantId, ing, rt, channel);
