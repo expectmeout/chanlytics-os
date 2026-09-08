@@ -69,6 +69,10 @@ export const RATE = {
   lines_buy: { limit: 3, windowMs: 3_600_000, noun: "lines" },
   lines_retry: { limit: 10, windowMs: 3_600_000, noun: "line retries" },
   lines_forwarding: { limit: 10, windowMs: 3_600_000, noun: "forwarding changes" },
+  /** The business on record: edited freely, but it is a write that leaves for a provider. */
+  business_record: { limit: 20, windowMs: 3_600_000, noun: "changes to your business record" },
+  /** Filing with the carriers costs money and cannot be undone. */
+  lines_register: { limit: 3, windowMs: 3_600_000, noun: "registrations" },
   profile_set: { limit: 10, windowMs: 3_600_000, noun: "name changes" },
   /** A stranger at the door: per network they came from and per address they typed. */
   signup_ip: { limit: 5, windowMs: 3_600_000, noun: "sign-ups" },

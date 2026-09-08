@@ -125,8 +125,16 @@ test("the phone line's road: requested, being set up with the step and since, st
 
 test("texting's states, in the owner's words, with the carriers' vocabulary kept out", () => {
   const words = (s, over = {}) => smsStateRow(line({ sms_state: s, ...over }), NOW);
-  assert.equal(words("none").state, "later");
+  // A line that ANSWERS CALLS already has everything a text needs except the
+  // carriers' permission, so it offers the one thing an owner can do about
+  // it. Filed under "later", that was invisible.
+  const offered = words("none");
+  assert.equal(offered.state, "waiting_you");
+  assert.equal(offered.verb.to, "verb:business-record");
+  assert.equal(offered.body, "business_record");
+  assert.equal(smsStateRow(line({ sms_state: "none", voice_state: "provisioning" }), NOW).state, "later", "a line that cannot answer a call yet cannot text either");
   assert.equal(words("needs_record").state, "waiting_you");
+  assert.equal(words("needs_record").body, "business_record", "and the form is right there");
   assert.equal(words("otp_waiting").sentence, "Type the code the carriers sent to your mobile.");
   const reg = words("registering", { state_since: ago(2 * 24 * H) });
   assert.equal(reg.state, "waiting_them");
@@ -134,7 +142,9 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
   assert.ok(reg.sentence.includes("since 2d ago"));
   assert.equal(words("rejected", { last_error: "the website could not be reached" }).sentence, "The carriers sent the registration back: the website could not be reached.");
   assert.equal(words("active").state, "connected");
-  assert.equal(smsStateRow(null, NOW).state, "later");
+  assert.equal(smsStateRow(null, NOW).state, "later", "no line at all: nothing to offer");
+  assert.equal(words("rejected", { last_error: "x" }).verb.to, "verb:business-record", "a rejection points at the thing to fix");
+  assert.equal(words("failed", { last_error: "Texting for a business without a tax id needs a different registration." }).sentence, "Texting for a business without a tax id needs a different registration.", "and a refusal says what it actually was");
   for (const s of ["none", "needs_record", "otp_waiting", "registering", "rejected", "failed", "active", "approved"]) {
     const t = `${words(s).sentence} ${words(s).stateWords}`;
     assert.ok(!/10DLC|A2P|campaign|brand|TCR|Twilio/i.test(t), `${s}: no trade words`);

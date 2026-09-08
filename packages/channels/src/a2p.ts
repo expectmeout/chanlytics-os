@@ -25,6 +25,7 @@
  * subaccount; it is REFERENCED by sid, and that reference is the whole
  * declaration that this business is ours.
  */
+import { businessTypeOf, companyTypeOf, industryOf } from "@chanlytics/contracts";
 
 /** Trust Hub policies, by the names Twilio gives them. */
 export const A2P_POLICIES = {
@@ -70,48 +71,6 @@ export interface BusinessRecord {
   contactPhone: string;
   contactTitle: string;
   contactJobPosition: string;
-}
-
-/**
- * The industries Twilio's Trust Hub accepts, exactly as it spells them. A
- * value outside this list is refused at the evaluation with "The Business
- * Industry is invalid", after every other step has already been made and
- * paid for, so the form offers these and nothing else.
- */
-export const BUSINESS_INDUSTRIES = [
-  "AGRICULTURE", "AUTOMOTIVE", "BANKING", "CONSTRUCTION", "CONSUMER", "EDUCATION", "ELECTRONICS",
-  "ENERGY", "ENGINEERING", "FAST_MOVING_CONSUMER_GOODS", "FINANCIAL", "FINTECH", "FOOD_AND_BEVERAGE",
-  "GOVERNMENT", "HEALTHCARE", "HOSPITALITY", "INSURANCE", "JEWELRY", "LEGAL", "MANUFACTURING",
-  "MEDIA", "NOT_FOR_PROFIT", "OIL_AND_GAS", "ONLINE", "PROFESSIONAL_SERVICES", "RAW_MATERIALS",
-  "REAL_ESTATE", "RELIGION", "RETAIL", "TECHNOLOGY", "TELECOMMUNICATIONS", "TRANSPORTATION", "TRAVEL",
-] as const;
-export type BusinessIndustry = (typeof BUSINESS_INDUSTRIES)[number];
-/** What a small local business is, unless it says otherwise. */
-export const DEFAULT_INDUSTRY: BusinessIndustry = "PROFESSIONAL_SERVICES";
-
-/** The value Twilio will accept, or the default — never a guess it refuses. */
-export function industryOf(v: string | null | undefined): BusinessIndustry {
-  const up = String(v ?? "").trim().toUpperCase();
-  return (BUSINESS_INDUSTRIES as readonly string[]).includes(up) ? (up as BusinessIndustry) : DEFAULT_INDUSTRY;
-}
-
-/** The legal forms Twilio accepts. Told to the carriers in the business's name, so it is asked. */
-export const BUSINESS_TYPES = ["Co-operative", "Corporation", "Limited Liability Corporation", "Non-profit Corporation", "Partnership"] as const;
-export type BusinessType = (typeof BUSINESS_TYPES)[number];
-export const DEFAULT_BUSINESS_TYPE: BusinessType = "Limited Liability Corporation";
-
-/** Ownership, on Twilio's enum for the A2P messaging profile. */
-export const COMPANY_TYPES = ["government", "non-profit", "private", "public"] as const;
-export type CompanyType = (typeof COMPANY_TYPES)[number];
-export const DEFAULT_COMPANY_TYPE: CompanyType = "private";
-
-export function businessTypeOf(v: string | null | undefined): BusinessType {
-  const s = String(v ?? "").trim();
-  return (BUSINESS_TYPES as readonly string[]).includes(s) ? (s as BusinessType) : DEFAULT_BUSINESS_TYPE;
-}
-export function companyTypeOf(v: string | null | undefined): CompanyType {
-  const s = String(v ?? "").trim().toLowerCase();
-  return (COMPANY_TYPES as readonly string[]).includes(s) ? (s as CompanyType) : DEFAULT_COMPANY_TYPE;
 }
 
 export type BrandType = "STANDARD" | "SOLE_PROPRIETOR";

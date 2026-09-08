@@ -9,11 +9,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   A2P_POLICIES, A2P_STEPS, EMPTY_A2P_STATE, LOW_VOLUME_USECASE, SOLE_PROPRIETOR_USECASE,
-  brandTypeFor, nextA2PStep, smsStateFor, runA2PSaga, BUSINESS_INDUSTRIES, DEFAULT_INDUSTRY, industryOf, isBrandNotReady,
-  soleProprietorUnsupported, COMPANY_TYPES, companyTypeOf, businessTypeOf, a2pProfileEndUserRequest,
+  brandTypeFor, nextA2PStep, smsStateFor, runA2PSaga, isBrandNotReady,
+  soleProprietorUnsupported, a2pProfileEndUserRequest,
   addressRequest, a2pProfileRequest, brandRequest, businessEndUserRequest, campaignRequest,
   customerProfileRequest, evaluateRequest, representativeEndUserRequest, submitProfileRequest, supportingDocumentRequest, encodeForm, keywordsFor,
 } from "@chanlytics/channels";
+import { BUSINESS_INDUSTRIES, DEFAULT_INDUSTRY, industryOf, COMPANY_TYPES, companyTypeOf, businessTypeOf, BUSINESS_FIELDS, businessRecordProblems, businessRecordLine, emptyBusinessRecord } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 const RECORD = {
@@ -283,6 +284,41 @@ test("everything is filed as the workspace's own subaccount, with our primary pr
   assert.ok(lib.includes("const acct = sub;"), "one account for every call");
   const raw = readRaw("packages/channels/src/a2p.ts");
   assert.ok(raw.includes("WHOSE ACCOUNT.") && raw.includes("refused with 21717"), "REGRESSION: a brand on the parent is refused at the campaign, after it is registered and paid for");
+});
+
+test("the owner's form: every field the carriers ask, checked in the owner's words before anything leaves", () => {
+  const fields = BUSINESS_FIELDS.map((f) => f.name);
+  for (const need of ["legal_name", "ein", "business_type", "company_type", "industry", "website_url", "street", "city", "region", "postal_code", "contact_first_name", "contact_email", "contact_phone"]) {
+    assert.ok(fields.includes(need), `the form asks for ${need}`);
+  }
+  for (const f of BUSINESS_FIELDS) {
+    assert.ok(f.label && f.group, f.name);
+    assert.ok(!/brand|campaign|10DLC|A2P|TCR/i.test(`${f.label} ${f.hint ?? ""}`), `${f.name}: the registry's words stay out of the form`);
+  }
+  const empty = emptyBusinessRecord({ websiteUrl: "https://app.chanlytics.com/yes/x", email: "you@business.com" });
+  const problems = businessRecordProblems(empty);
+  assert.ok(problems.legal_name && problems.ein && problems.street, "an empty form says what is missing");
+  assert.equal(problems.industry, undefined, "the closed lists start on a value Twilio accepts");
+  assert.equal(problems.business_type, undefined);
+  assert.equal(problems.company_type, undefined);
+  const filled = { ...empty, legal_name: "Harbor Moving LLC", ein: "12-3456789", street: "193 Jamaica Ave", city: "Brooklyn", region: "NY", postal_code: "11207", contact_first_name: "Ruben", contact_last_name: "Segura", contact_email: "hi@chanlytics.com", contact_phone: "+16465550123" };
+  assert.deepEqual(businessRecordProblems(filled), {}, "a filled one can be filed");
+  assert.equal(businessRecordProblems({ ...filled, ein: "123" }).ein, "A tax ID is nine digits, like 12-3456789.");
+  assert.equal(businessRecordProblems({ ...filled, region: "New York" }).region, "Two letters, like NY.");
+  assert.equal(businessRecordProblems({ ...filled, contact_phone: "646 555 0123" }).contact_phone, "Write it with the country code, like +1 646 555 0123.");
+  assert.deepEqual(businessRecordProblems({ ...filled, contact_phone: "+1 (646) 555-0123" }), {}, "and it is forgiving about how a number is written");
+  assert.ok(businessRecordLine(null).includes("two minutes"));
+  assert.ok(businessRecordLine(filled).startsWith("Harbor Moving LLC"));
+
+  const route = readCode("apps/dashboard/app/api/v1/business-record/route.ts");
+  assert.ok(route.includes('requireRole(member, "owner")') && route.includes("businessRecordProblems(body)"), "checked here, in the owner's words, before anything leaves for a provider");
+  assert.ok(!route.includes("service") , "it goes through the edge like every other provider write");
+  const reg = readCode("apps/dashboard/app/api/v1/lines/register/route.ts");
+  assert.ok(reg.includes('requireRole(member, "owner")') && reg.includes('takeRate(ctx.userId, "lines_register")'), "filing costs money, so it is an owner's and it is rate-limited");
+  assert.ok(!/mock:\s*(true|body)/.test(reg), "the free test registry is never reachable from the dashboard: an owner's filing is always the real one");
+  const page = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  assert.ok(page.includes('data-testid="business-record"') && page.includes('data-testid="biz-file-yes"'), "and filing asks once, plainly, with the price in the question");
+  assert.ok(page.includes("Filing costs about $19 once and a few dollars a month, and cannot be undone."));
 });
 
 test("the wiring: filed as us, never twice, never real by default, and the record is asked for first", () => {

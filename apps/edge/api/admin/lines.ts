@@ -23,7 +23,7 @@ import { formatPhoneDisplay } from "../../lib/workspace/contracts.js";
 import { runLineSaga, isAreaCode, isE164, LINE_COSTS, type LineRow } from "../../lib/workspace/channels.js";
 import { lineProviderFromEnv, linePorts, lineForClient, rowToLine, LINE_STEP_WORDS, type LineProviderChoice } from "../../lib/lines.js";
 import { registerLine, syncRegistration } from "../../lib/a2p.js";
-import { businessTypeOf, companyTypeOf, industryOf } from "../../lib/workspace/channels.js";
+import { businessTypeOf, companyTypeOf, industryOf } from "../../lib/workspace/contracts.js";
 import { dashboardOrigin } from "../../lib/billing.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../lib/workspace/db.js";

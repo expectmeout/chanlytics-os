@@ -6002,22 +6002,26 @@ function smsStateRow(line, nowMs) {
   const num = line ? formatPhoneDisplay(line.e164) : null;
   const since = line ? agoWords(Date.parse(line.state_since), nowMs) : null;
   const base = { kind: "sms", icon: "chat", title: "Texting", detail: num, verb: null };
+  const ready = line?.voice_state === "answering";
+  if (ready && (!line?.sms_state || line.sms_state === "none")) {
+    return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Texting needs your business on record for the carriers \u2014 two minutes, once.", verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
+  }
   switch (line?.sms_state) {
     case "active":
       return { ...base, state: "connected", stateWords: "On", sentence: `Customers text ${num ?? "this number"}; the receptionist answers inside your hours.` };
     case "approved":
       return { ...base, state: "waiting_them", stateWords: "Waiting on us", sentence: "The carriers approved your line \u2014 switching texting on." };
     case "needs_record":
-      return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Texting needs your business on record for the carriers \u2014 two minutes." };
+      return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Texting needs your business on record for the carriers \u2014 two minutes, once.", verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
     case "otp_waiting":
       return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Type the code the carriers sent to your mobile." };
     case "registering":
     case "hosting":
       return { ...base, state: "waiting_them", stateWords: "Waiting on carriers", sentence: `The carriers are registering your line, since ${since} \xB7 usually a week.` };
     case "rejected":
-      return { ...base, state: "attention", stateWords: "Sent back", sentence: `The carriers sent the registration back${line?.last_error ? `: ${line.last_error}` : ""}.` };
+      return { ...base, state: "attention", stateWords: "Sent back", sentence: `The carriers sent the registration back${line?.last_error ? `: ${line.last_error}` : ""}.`, verb: { label: "Fix and resubmit", to: "verb:business-record", who: "owner" }, body: "business_record" };
     case "failed":
-      return { ...base, state: "attention", stateWords: "Waiting on us", sentence: "Registering stopped. A person at Chanlytics has it." };
+      return { ...base, state: "attention", stateWords: "Waiting on us", sentence: line?.last_error || "Registering stopped. A person at Chanlytics has it." };
     default:
       return { ...base, state: "later", stateWords: "Later", sentence: "Plain text messages \u2014 arrives with a line that registers with the carriers; this page will say when." };
   }
@@ -6141,6 +6145,134 @@ function consentPageVM(f) {
   };
 }
 
+// src/a2p-enums.ts
+var BUSINESS_INDUSTRIES = [
+  "AGRICULTURE",
+  "AUTOMOTIVE",
+  "BANKING",
+  "CONSTRUCTION",
+  "CONSUMER",
+  "EDUCATION",
+  "ELECTRONICS",
+  "ENERGY",
+  "ENGINEERING",
+  "FAST_MOVING_CONSUMER_GOODS",
+  "FINANCIAL",
+  "FINTECH",
+  "FOOD_AND_BEVERAGE",
+  "GOVERNMENT",
+  "HEALTHCARE",
+  "HOSPITALITY",
+  "INSURANCE",
+  "JEWELRY",
+  "LEGAL",
+  "MANUFACTURING",
+  "MEDIA",
+  "NOT_FOR_PROFIT",
+  "OIL_AND_GAS",
+  "ONLINE",
+  "PROFESSIONAL_SERVICES",
+  "RAW_MATERIALS",
+  "REAL_ESTATE",
+  "RELIGION",
+  "RETAIL",
+  "TECHNOLOGY",
+  "TELECOMMUNICATIONS",
+  "TRANSPORTATION",
+  "TRAVEL"
+];
+var DEFAULT_INDUSTRY = "PROFESSIONAL_SERVICES";
+var BUSINESS_TYPES = ["Co-operative", "Corporation", "Limited Liability Corporation", "Non-profit Corporation", "Partnership"];
+var DEFAULT_BUSINESS_TYPE = "Limited Liability Corporation";
+var COMPANY_TYPES = ["government", "non-profit", "private", "public"];
+var DEFAULT_COMPANY_TYPE = "private";
+function industryOf(v) {
+  const up = String(v ?? "").trim().toUpperCase();
+  return BUSINESS_INDUSTRIES.includes(up) ? up : DEFAULT_INDUSTRY;
+}
+function businessTypeOf(v) {
+  const s = String(v ?? "").trim();
+  return BUSINESS_TYPES.includes(s) ? s : DEFAULT_BUSINESS_TYPE;
+}
+function companyTypeOf(v) {
+  const s = String(v ?? "").trim().toLowerCase();
+  return COMPANY_TYPES.includes(s) ? s : DEFAULT_COMPANY_TYPE;
+}
+function industryWords(v) {
+  return v.toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
+
+// src/business-record.ts
+var BUSINESS_FIELDS = [
+  { name: "legal_name", label: "Legal name", hint: "Exactly as it appears on your tax filing, not your trading name.", required: true, placeholder: "Harbor Moving LLC", group: "business" },
+  { name: "trade_name", label: "Trading name", hint: "What customers call you, if it differs.", required: false, placeholder: "Harbor Moving", group: "business" },
+  { name: "ein", label: "Tax ID (EIN)", hint: "Nine digits from the IRS. Without one the carriers use a different registration, which we do not offer yet.", required: true, placeholder: "12-3456789", group: "business" },
+  { name: "business_type", label: "Legal form", options: BUSINESS_TYPES, required: true, group: "business" },
+  { name: "company_type", label: "Ownership", options: COMPANY_TYPES, required: true, group: "business" },
+  { name: "industry", label: "Industry", options: BUSINESS_INDUSTRIES, required: true, group: "business" },
+  { name: "website_url", label: "Website", hint: "A page a reviewer can open. Your sign-up page works if you have no site.", required: true, placeholder: "https://", group: "business" },
+  { name: "street", label: "Street", required: true, placeholder: "193 Jamaica Ave", group: "address" },
+  { name: "street_secondary", label: "Suite or floor", required: false, group: "address" },
+  { name: "city", label: "City", required: true, placeholder: "Brooklyn", group: "address" },
+  { name: "region", label: "State", required: true, placeholder: "NY", group: "address" },
+  { name: "postal_code", label: "ZIP", required: true, placeholder: "11207", group: "address" },
+  { name: "contact_first_name", label: "First name", required: true, group: "contact" },
+  { name: "contact_last_name", label: "Last name", required: true, group: "contact" },
+  { name: "contact_email", label: "Email", hint: "The carriers write here if they need something.", required: true, placeholder: "you@business.com", group: "contact" },
+  { name: "contact_phone", label: "Mobile", hint: "Yours, not the business line.", required: true, placeholder: "+1 646 555 0123", group: "contact" },
+  { name: "contact_title", label: "Title", required: false, placeholder: "Owner", group: "contact" }
+];
+var BUSINESS_GROUP_WORDS = {
+  business: { title: "The business", sub: "as the tax authorities know it" },
+  address: { title: "Where it is registered", sub: "the address on the filing, not a mailbox" },
+  contact: { title: "Who signs for it", sub: "a person the carriers can reach" }
+};
+function emptyBusinessRecord(o = {}) {
+  return {
+    legal_name: "",
+    trade_name: null,
+    ein: null,
+    street: "",
+    street_secondary: null,
+    city: "",
+    region: "",
+    postal_code: "",
+    country: "US",
+    website_url: o.websiteUrl ?? "",
+    industry: DEFAULT_INDUSTRY,
+    business_type: DEFAULT_BUSINESS_TYPE,
+    company_type: DEFAULT_COMPANY_TYPE,
+    contact_first_name: "",
+    contact_last_name: "",
+    contact_email: o.email ?? "",
+    contact_phone: "",
+    contact_title: "Owner",
+    contact_job_position: "Director"
+  };
+}
+var EIN = /^\d{2}-?\d{7}$/;
+var EMAIL = /^[^@\s]+@[^@\s.]+\.[^@\s]+$/;
+var E1642 = /^\+[1-9]\d{6,14}$/;
+var REGION = /^[A-Za-z]{2}$/;
+function businessRecordProblems(r) {
+  const out = {};
+  const has = (k) => String(r[k] ?? "").trim().length > 0;
+  for (const f of BUSINESS_FIELDS) if (f.required && !has(f.name)) out[f.name] = `${f.label} is needed.`;
+  if (has("ein") && !EIN.test(String(r.ein).trim())) out.ein = "A tax ID is nine digits, like 12-3456789.";
+  if (has("contact_email") && !EMAIL.test(String(r.contact_email).trim())) out.contact_email = "That does not look like an email address.";
+  if (has("contact_phone") && !E1642.test(String(r.contact_phone).replace(/[\s()-]/g, ""))) out.contact_phone = "Write it with the country code, like +1 646 555 0123.";
+  if (has("region") && !REGION.test(String(r.region).trim())) out.region = "Two letters, like NY.";
+  if (has("website_url") && !/^https?:\/\/\S+\.\S+/.test(String(r.website_url).trim())) out.website_url = "A full address a reviewer can open, starting with https://";
+  return out;
+}
+function businessRecordLine(r) {
+  if (!r) return "The carriers ask who you are before they let a number text. It takes two minutes, once.";
+  const problems = businessRecordProblems(r);
+  const missing = Object.keys(problems).length;
+  if (missing) return `${missing} thing${missing === 1 ? "" : "s"} still to fill in before this can be filed.`;
+  return `${r.legal_name}${r.trade_name ? ` (${r.trade_name})` : ""} \xB7 ${r.city}, ${r.region} \xB7 on record.`;
+}
+
 // src/signup.ts
 import { z as z4 } from "zod";
 var SIGNUP_NAME_MIN = 2;
@@ -6210,6 +6342,10 @@ export {
   BROADCAST_SCHEDULE_MAX_DAYS,
   BROADCAST_STATES,
   BROADCAST_STATE_LABELS,
+  BUSINESS_FIELDS,
+  BUSINESS_GROUP_WORDS,
+  BUSINESS_INDUSTRIES,
+  BUSINESS_TYPES,
   BookingRulesSchema,
   BrainConfigSchema,
   BrainOutputSchema,
@@ -6222,6 +6358,7 @@ export {
   CARRIER_WORDS,
   CHANNEL_KINDS,
   CHECKOUT_OUTCOME_WORDS,
+  COMPANY_TYPES,
   CONFIDENCE_STEPS,
   CONNECTION_GROUP_WORDS,
   CONNECTION_KINDS,
@@ -6236,6 +6373,9 @@ export {
   DAYS,
   DECISION_SUBJECTS,
   DECISION_VERBS,
+  DEFAULT_BUSINESS_TYPE,
+  DEFAULT_COMPANY_TYPE,
+  DEFAULT_INDUSTRY,
   DISCONNECTION_LABELS,
   DISPLAY_NAME_MAX,
   E164,
@@ -6358,6 +6498,9 @@ export {
   broadcastName,
   buildAskSuggestions,
   buildNotificationFeed,
+  businessRecordLine,
+  businessRecordProblems,
+  businessTypeOf,
   callOutcomeOf,
   callOutcomeWords,
   checkedWords,
@@ -6370,6 +6513,7 @@ export {
   clockInZone,
   clockLabel,
   closedOn,
+  companyTypeOf,
   compareTemplates,
   composeSystemPrompt,
   connectionRows,
@@ -6400,6 +6544,7 @@ export {
   durationLabel,
   eligibleFor,
   eligibleForPlaybook,
+  emptyBusinessRecord,
   emptyReadSet,
   err,
   eventText,
@@ -6432,6 +6577,8 @@ export {
   hoursRuns,
   identityWords,
   indexFeed,
+  industryOf,
+  industryWords,
   initialsOf,
   isCarrier,
   isDayKey,
