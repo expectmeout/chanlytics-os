@@ -164,9 +164,14 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
   // lives in the file it came from: `useSetState` is an alias declared at
   // the top of settings.jsx, so it left with the code and arrived undefined
   // — a break no source-reading test could see, and the browser found.
-  for (const f of [page, readCode("apps/dashboard/src/legacy/pages/business-record.jsx")]) {
-    assert.ok(!/useSetState|useSetEffect/.test(f), "an alias from settings.jsx cannot be used here");
-    assert.ok(!/usePPToast\(/.test(f.replace(/window\.usePPToast\(/g, "")), "the toast is reached through the window, as it is everywhere else");
+  // A file of its own may use React and the window, never a helper that
+  // lives in the file it came from: `useSetState` is an alias declared at
+  // the top of settings.jsx, so it left with the code and arrived undefined
+  // — a break no source-reading test could see, and the browser found.
+  const form = readCode("apps/dashboard/src/legacy/pages/business-record.jsx");
+  for (const f of [page, form]) {
+    assert.ok(!f.includes("useSetState") && !f.includes("useSetEffect"), "an alias from settings.jsx cannot be used here");
+    assert.ok(!f.includes("usePPToast()") || f.includes("window.usePPToast()"), "the toast is reached through the window, as it is everywhere else");
   }
   // Both files are loaded, and the form is rendered through the window the
   // way the shell renders the billing pane: one file per concern.
