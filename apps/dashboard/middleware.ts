@@ -17,7 +17,7 @@ import { isRetryableAuthError } from "@/server/auth-errors";
 // keeps the same-origin check, its own rate buckets and an optional invite
 // code, and creates the user with the service role (the project stays
 // invite-only at the auth level).
-const PUBLIC_PATHS = new Set(["/login", "/auth/signout", "/api/version", "/manifest.webmanifest", "/signup", "/api/v1/signup", "/privacy", "/terms"]);
+const PUBLIC_PATHS = new Set(["/login", "/auth/signout", "/api/version", "/manifest.webmanifest", "/signup", "/api/v1/signup", "/privacy", "/terms", "/data-deletion"]);
 
 /**
  * The one public PREFIX. A workspace's "say yes to offers" page is opened by
