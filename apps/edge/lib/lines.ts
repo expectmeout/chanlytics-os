@@ -69,6 +69,11 @@ export function rowToLine(r: Row): LineRow {
   };
 }
 
+/** Both receipts are in: the brand and the campaign are on record with the carriers. */
+export function isRegistered(r: Pick<Row, "brand_sid" | "campaign_sid">): boolean {
+  return !!(r.brand_sid && r.campaign_sid);
+}
+
 /** What the page may see of a line: never a SID that opens a door. */
 export function lineForClient(r: Row): Record<string, unknown> {
   return {
@@ -79,6 +84,9 @@ export function lineForClient(r: Row): Record<string, unknown> {
     area_code: r.area_code,
     voice_state: r.voice_state,
     sms_state: r.sms_state,
+    reg_step: r.reg_step,
+    reg_mock: r.reg_mock,
+    registered: isRegistered(r),
     whatsapp_state: r.whatsapp_state,
     port_state: r.port_state,
     forwarding_state: r.forwarding_state,

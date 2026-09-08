@@ -1040,6 +1040,209 @@ declare function sameSignature(a: string, b: string): boolean;
 declare function verifyTwilioSignature(authToken: string, url: string, form: Record<string, string>, header: string | null): Promise<boolean>;
 
 /**
+ * A2P 10DLC: registering one workspace with the carriers, as pure parts.
+ *
+ * The shape of it, from Twilio's ISV walkthrough: the business on record
+ * becomes a secondary customer profile under Chanlytics' own approved
+ * primary profile, that profile carries the business, the person who
+ * signs for it and the address, it is evaluated and submitted, an A2P
+ * messaging profile is built beside it, a brand is registered from the
+ * two, and a campaign is attached to the line's Messaging Service. Each
+ * step records what it made before the next runs, so a resumed
+ * registration repeats nothing and pays nothing twice.
+ *
+ * Policy ids read from Twilio's own Policies endpoint on 2026-09-08, not
+ * copied from a blog. Request shapes verified the same day against the
+ * ISV onboarding guide, the BrandRegistrations resource and the
+ * UsAppToPerson resource.
+ */
+/** Trust Hub policies, by the names Twilio gives them. */
+declare const A2P_POLICIES: {
+    /** The bundle one customer of an ISV gets. */
+    readonly secondaryCustomerProfile: "RNdfbf3fae0e1107f8aded0e7cead80bf5";
+    /** The messaging profile a brand is registered from. */
+    readonly a2pMessaging: "RNb0d4771c2c98518d916a3d4cd70a8f8b";
+    /** A customer with no tax id registers on this one instead. */
+    readonly soleProprietor: "RN670d5d2e282a6130ae063b234b6019c8";
+};
+declare const TRUSTHUB = "https://trusthub.twilio.com/v1";
+declare const MESSAGING = "https://messaging.twilio.com/v1";
+/** What every registration asks of a business, collected once and reused. */
+interface BusinessRecord {
+    /** The name on the tax filing, not the trading name. */
+    legalName: string;
+    /** The trading name customers know, when it differs. */
+    tradeName?: string | null;
+    /** An EIN, or null for a sole proprietor with no tax id. */
+    ein: string | null;
+    street: string;
+    streetSecondary?: string | null;
+    city: string;
+    /** Two-letter state or province. */
+    region: string;
+    postalCode: string;
+    /** ISO 3166 alpha-2. */
+    country: string;
+    /** The page a reviewer opens; the workspace's own sign-up page when it has no site. */
+    websiteUrl: string;
+    /** Twilio's industry vocabulary. */
+    industry: string;
+    contactFirstName: string;
+    contactLastName: string;
+    contactEmail: string;
+    /** E.164. */
+    contactPhone: string;
+    contactTitle: string;
+    contactJobPosition: string;
+}
+type BrandType = "STANDARD" | "SOLE_PROPRIETOR";
+/** With a tax id a business is a standard brand; without one it is a sole proprietor. */
+declare function brandTypeFor(r: Pick<BusinessRecord, "ein">): BrandType;
+interface A2PRequest {
+    url: string;
+    method: "GET" | "POST";
+    /** Form fields; the caller encodes them. */
+    form?: Record<string, string>;
+}
+/** The customer's own bundle, under our primary profile. */
+declare function customerProfileRequest(o: {
+    friendlyName: string;
+    email: string;
+    statusCallback?: string;
+}): A2PRequest;
+/** The business itself, in the carriers' vocabulary. */
+declare function businessEndUserRequest(r: BusinessRecord): A2PRequest;
+/** The person who signs for it. */
+declare function representativeEndUserRequest(r: BusinessRecord): A2PRequest;
+/** The address as an account resource, which the supporting document points at. */
+declare function addressRequest(accountSid: string, r: BusinessRecord): A2PRequest;
+declare function supportingDocumentRequest(o: {
+    legalName: string;
+    addressSid: string;
+}): A2PRequest;
+/** Everything a bundle carries is attached the same way. */
+declare function assignRequest(bundleSid: string, objectSid: string): A2PRequest;
+declare function trustProductAssignRequest(bundleSid: string, objectSid: string): A2PRequest;
+/** Ask Twilio whether the bundle is complete before submitting it. */
+declare function evaluateRequest(bundleSid: string, policySid?: string): A2PRequest;
+declare function submitProfileRequest(bundleSid: string): A2PRequest;
+/** The messaging profile a brand is registered from. */
+declare function a2pProfileRequest(o: {
+    friendlyName: string;
+    email: string;
+    statusCallback?: string;
+}): A2PRequest;
+declare function a2pProfileEndUserRequest(o: {
+    friendlyName: string;
+    companyType: string;
+}): A2PRequest;
+declare function evaluateTrustProductRequest(bundleSid: string): A2PRequest;
+declare function submitTrustProductRequest(bundleSid: string): A2PRequest;
+/**
+ * The brand. `mock` registers against Twilio's test registry: free, never
+ * routes a real message, and gone after thirty days — which is how this
+ * whole path is exercised before a customer pays for anything.
+ */
+declare function brandRequest(o: {
+    customerProfileBundleSid: string;
+    a2pProfileBundleSid: string;
+    brandType: BrandType;
+    mock: boolean;
+}): A2PRequest;
+/** What the campaign says about the messages this workspace will send. */
+interface CampaignFacts {
+    brandSid: string;
+    messagingServiceSid: string;
+    /** What the receptionist does, in a reviewer's words. */
+    description: string;
+    /** How a customer comes to be on the list. */
+    messageFlow: string;
+    /** Two to five real examples. */
+    samples: string[];
+    optInMessage: string;
+    optInKeywords: string[];
+    privacyPolicyUrl: string;
+    termsUrl: string;
+    useCase: string;
+}
+/** Twilio's code for a small business sending a bit of everything. */
+declare const LOW_VOLUME_USECASE = "LOW_VOLUME";
+declare const SOLE_PROPRIETOR_USECASE = "SOLE_PROPRIETOR";
+declare function campaignRequest(f: CampaignFacts): A2PRequest;
+type A2PStep = "profile" | "business" | "representative" | "address" | "document" | "primary" | "submit" | "a2p_profile" | "brand" | "campaign";
+declare const A2P_STEPS: readonly A2PStep[];
+/** What the registration has made so far. Every field is a receipt for one step. */
+interface A2PState {
+    profileSid: string | null;
+    businessSid: string | null;
+    representativeSid: string | null;
+    addressSid: string | null;
+    documentSid: string | null;
+    primaryAssigned: boolean;
+    profileSubmitted: boolean;
+    a2pProfileSid: string | null;
+    brandSid: string | null;
+    campaignSid: string | null;
+}
+declare const EMPTY_A2P_STATE: A2PState;
+/** The first step whose receipt is missing; null when the registration is filed. */
+declare function nextA2PStep(s: A2PState): A2PStep | null;
+/** Twilio's brand and campaign statuses, in the words `lines.sms_state` uses. */
+declare function smsStateFor(o: {
+    brandStatus?: string | null;
+    campaignStatus?: string | null;
+}): "registering" | "approved" | "rejected" | "failed";
+
+/**
+ * The registration, run: one idempotent step at a time over a port that
+ * makes the request and hands back what Twilio said. The saga records
+ * every receipt before the next call, so a resumed run repeats nothing —
+ * which matters here more than anywhere else in this product, because a
+ * repeated brand registration is a second fee for the same business.
+ *
+ * Pure of the network and of the database: the edge supplies both.
+ */
+
+interface A2PAnswer {
+    status: number;
+    body: Record<string, unknown> | null;
+}
+interface A2PPorts {
+    /** One request, as the master account. Never throws for a refusal; the status says it. */
+    send(req: A2PRequest): Promise<A2PAnswer>;
+    /** The account the address is created under. */
+    accountSid: string;
+    /** Chanlytics' own approved primary profile: what makes these customers ours. */
+    primaryProfileSid: string;
+    /** Where Twilio writes about the bundle; the platform's mailbox, not the customer's. */
+    email: string;
+    /** Where status callbacks land, when the deployment has a public one. */
+    statusCallback?: string;
+    /** Keep a receipt before the next call runs. */
+    save(patch: Partial<A2PState>): Promise<void>;
+    /** The workspace, for the names a reviewer reads. */
+    workspace: {
+        name: string;
+    };
+    record: BusinessRecord;
+    campaign: Omit<CampaignFacts, "brandSid" | "messagingServiceSid" | "useCase">;
+    messagingServiceSid: string;
+    useCase: string;
+    /** Twilio's free test registry: no fee, no real routing, gone in thirty days. */
+    mock: boolean;
+}
+type A2PResult = {
+    ok: true;
+    state: A2PState;
+} | {
+    ok: false;
+    step: A2PStep;
+    error: string;
+    state: A2PState;
+};
+declare function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResult>;
+
+/**
  * Google Places (New): the public listing — what anyone can read on Maps.
  *
  * Two calls, pinned to the documented shapes. Text Search finds the business
@@ -1386,4 +1589,4 @@ declare function verifyState(secret: string, state: string | null | undefined, n
 }>;
 declare function newNonce(): string;
 
-export { type AgentPlan, type AvailableNumber, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, DEFAULT_FN_URL, type DryCall, type DryProvider, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, GREETING_DEFAULT, type GbpAccount, type GbpLocation, type GbpReview, type GbpReviewsPage, HANDOFF_VAR, type KnownReview, LINE_COSTS, LINE_STEPS, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type NormalizedCall, type NormalizedInbound, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type ProfileBefore, type ProfileSyncPlan, type ProviderAccount, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, RETELL_ORIGINATION, REVIEW_BELL_MAX, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, STATE_TTL_MS, type SagaResult, type SendResult, type SmsInbound, type SmsSendResult, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, accountsRequest, agentSettingsDrift, authorizeUrl, availabilityUrl, b64url, callSummaryLine, chooseLineProvider, cleanReply, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, deleteReplyRequest, desiredVoiceShell, dryProvider, fetchMediaBytes, fetchRecording, fetchTwilio, getAgent, getAgentRaw, getCall, getPhoneNumber, getPlace, getRetellLlm, grantHasScope, idTokenClaims, importPhoneNumber, isAreaCode, isE164, isValidSipPassword, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, needsHydration, newNonce, nextLineStep, normalizeCall, normalizeInbound, parseAccounts, parseLocations, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, publishAgentVersion, replyRequest, replyToReview, retellImportBody, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, runLineSaga, sameSignature, searchPlaces, sendTemplate, sendText, signState, sipPassword, sipUsername, smsAsWaMessage, smsBody, smsInboundFrom, smsInboundUrl, starRatingNumber, stripKey, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, twilioProvider, twilioSignature, twilioSignedString, twilioUrls, unb64url, updateAgent, updateLiveCall, updatePhoneNumber, verifyRetellSignature, verifyState, verifyTwilioSignature, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withKey };
+export { type A2PAnswer, type A2PPorts, type A2PRequest, type A2PResult, type A2PState, type A2PStep, A2P_POLICIES, A2P_STEPS, type AgentPlan, type AvailableNumber, type BrandType, type BusinessRecord, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, type CampaignFacts, DEFAULT_FN_URL, type DryCall, type DryProvider, EMPTY_A2P_STATE, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, GREETING_DEFAULT, type GbpAccount, type GbpLocation, type GbpReview, type GbpReviewsPage, HANDOFF_VAR, type KnownReview, LINE_COSTS, LINE_STEPS, LOW_VOLUME_USECASE, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, MESSAGING, type NormalizedCall, type NormalizedInbound, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type ProfileBefore, type ProfileSyncPlan, type ProviderAccount, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, RETELL_ORIGINATION, REVIEW_BELL_MAX, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, SOLE_PROPRIETOR_USECASE, STATE_TTL_MS, type SagaResult, type SendResult, type SmsInbound, type SmsSendResult, TRUSTHUB, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, a2pProfileEndUserRequest, a2pProfileRequest, accountsRequest, addressRequest, agentSettingsDrift, assignRequest, authorizeUrl, availabilityUrl, b64url, brandRequest, brandTypeFor, businessEndUserRequest, callSummaryLine, campaignRequest, chooseLineProvider, cleanReply, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, customerProfileRequest, deleteReplyRequest, desiredVoiceShell, dryProvider, evaluateRequest, evaluateTrustProductRequest, fetchMediaBytes, fetchRecording, fetchTwilio, getAgent, getAgentRaw, getCall, getPhoneNumber, getPlace, getRetellLlm, grantHasScope, idTokenClaims, importPhoneNumber, isAreaCode, isE164, isValidSipPassword, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, needsHydration, newNonce, nextA2PStep, nextLineStep, normalizeCall, normalizeInbound, parseAccounts, parseLocations, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, publishAgentVersion, replyRequest, replyToReview, representativeEndUserRequest, retellImportBody, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, runA2PSaga, runLineSaga, sameSignature, searchPlaces, sendTemplate, sendText, signState, sipPassword, sipUsername, smsAsWaMessage, smsBody, smsInboundFrom, smsInboundUrl, smsStateFor, starRatingNumber, stripKey, submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, trustProductAssignRequest, twilioProvider, twilioSignature, twilioSignedString, twilioUrls, unb64url, updateAgent, updateLiveCall, updatePhoneNumber, verifyRetellSignature, verifyState, verifyTwilioSignature, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withKey };

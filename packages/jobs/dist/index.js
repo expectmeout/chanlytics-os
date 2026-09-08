@@ -4623,11 +4623,11 @@ var TRUNKING = "https://trunking.twilio.com/v1";
 var MESSAGING = "https://messaging.twilio.com/v1";
 var twilioUrls = {
   subaccounts: `${API2}/Accounts.json`,
-  availableLocal: (sid, country = "US") => `${API2}/Accounts/${sid}/AvailablePhoneNumbers/${country}/Local.json`,
-  incomingNumbers: (sid) => `${API2}/Accounts/${sid}/IncomingPhoneNumbers.json`,
-  incomingNumber: (sid, numberSid) => `${API2}/Accounts/${sid}/IncomingPhoneNumbers/${numberSid}.json`,
-  credentialLists: (sid) => `${API2}/Accounts/${sid}/SIP/CredentialLists.json`,
-  credentials: (sid, listSid) => `${API2}/Accounts/${sid}/SIP/CredentialLists/${listSid}/Credentials.json`,
+  availableLocal: (sid2, country = "US") => `${API2}/Accounts/${sid2}/AvailablePhoneNumbers/${country}/Local.json`,
+  incomingNumbers: (sid2) => `${API2}/Accounts/${sid2}/IncomingPhoneNumbers.json`,
+  incomingNumber: (sid2, numberSid) => `${API2}/Accounts/${sid2}/IncomingPhoneNumbers/${numberSid}.json`,
+  credentialLists: (sid2) => `${API2}/Accounts/${sid2}/SIP/CredentialLists.json`,
+  credentials: (sid2, listSid) => `${API2}/Accounts/${sid2}/SIP/CredentialLists/${listSid}/Credentials.json`,
   trunks: `${TRUNKING}/Trunks`,
   trunk: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}`,
   trunkCredentialLists: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/CredentialLists`,
@@ -4635,7 +4635,7 @@ var twilioUrls = {
   trunkPhoneNumbers: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/PhoneNumbers`,
   messagingServices: `${MESSAGING}/Services`,
   serviceNumbers: (serviceSid) => `${MESSAGING}/Services/${serviceSid}/PhoneNumbers`,
-  messages: (sid) => `${API2}/Accounts/${sid}/Messages.json`
+  messages: (sid2) => `${API2}/Accounts/${sid2}/Messages.json`
 };
 var enc = new TextEncoder();
 var FRESH_SLACK_MS = 2 * 864e5;

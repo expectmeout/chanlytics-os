@@ -83,6 +83,8 @@ export const EVENT_KINDS = [
   "line.failed",
   "line.released",
   "line.forwarding_verified",
+  /** The business on record for the carriers, saved or changed. */
+  "business.recorded",
   /** The workspace's listing on Google: linked, removed, and a read that found new reviews or ratings. */
   "google.linked",
   "google.unlinked",

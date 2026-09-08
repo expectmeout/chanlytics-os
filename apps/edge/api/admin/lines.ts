@@ -22,6 +22,8 @@ import { emitEvent } from "../../lib/workspace/db.js";
 import { formatPhoneDisplay } from "../../lib/workspace/contracts.js";
 import { runLineSaga, isAreaCode, isE164, LINE_COSTS, type LineRow } from "../../lib/workspace/channels.js";
 import { lineProviderFromEnv, linePorts, lineForClient, rowToLine, LINE_STEP_WORDS, type LineProviderChoice } from "../../lib/lines.js";
+import { registerLine, syncRegistration } from "../../lib/a2p.js";
+import { dashboardOrigin } from "../../lib/billing.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../lib/workspace/db.js";
 
@@ -31,6 +33,10 @@ interface Body {
   area_code?: number | string;
   number?: string;
   line_id?: string;
+  /** The business on record, as the form sends it; validated field by field below. */
+  record?: unknown;
+  /** File against Twilio's free test registry instead of the carriers. */
+  mock?: boolean;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -189,5 +195,79 @@ export async function POST(request: Request): Promise<Response> {
     return json(200, { ok: true, released });
   }
 
-  return json(400, { ok: false, error: "op must be status, search, buy, retry or release" });
+  if (op === "record") {
+    // The business on record: what every carrier registration asks, kept
+    // once per workspace. Owners edit it through the dashboard's route;
+    // this is the door that writes it.
+    const b = body.record && typeof body.record === "object" ? (body.record as Record<string, unknown>) : null;
+    if (!b) return json(400, { ok: false, error: "record is required" });
+    const str = (k: string) => (typeof b[k] === "string" ? (b[k] as string).trim() : "");
+    const need = ["legal_name", "street", "city", "region", "postal_code", "website_url", "contact_first_name", "contact_last_name", "contact_email", "contact_phone"];
+    const missing = need.filter((k) => !str(k));
+    if (missing.length) return json(400, { ok: false, error: `missing: ${missing.join(", ")}` });
+    const row = {
+      tenant_id: tenantId,
+      legal_name: str("legal_name"),
+      trade_name: str("trade_name") || null,
+      ein: str("ein") || null,
+      street: str("street"),
+      street_secondary: str("street_secondary") || null,
+      city: str("city"),
+      region: str("region"),
+      postal_code: str("postal_code"),
+      country: str("country") || "US",
+      website_url: str("website_url"),
+      industry: str("industry") || "PROFESSIONAL",
+      contact_first_name: str("contact_first_name"),
+      contact_last_name: str("contact_last_name"),
+      contact_email: str("contact_email"),
+      contact_phone: str("contact_phone"),
+      contact_title: str("contact_title") || "Owner",
+      contact_job_position: str("contact_job_position") || "Director",
+    };
+    const up = await db.from("business_records").upsert(row, { onConflict: "tenant_id" }).select("*").single();
+    if (up.error) return json(503, { ok: false, error: up.error.message });
+    await emitEvent(db, tenantId, "business.recorded", "setup", "tenant", tenantId, { legal_name: row.legal_name, sole_proprietor: !row.ein }).catch(() => {});
+    return json(200, { ok: true, record: { legal_name: up.data.legal_name, sole_proprietor: !up.data.ein, updated_at: up.data.updated_at } });
+  }
+
+  if (op === "register" || op === "registration-status") {
+    const lineId = typeof body.line_id === "string" ? body.line_id.trim() : "";
+    if (!UUID.test(lineId)) return json(400, { ok: false, error: "line_id is required" });
+    const row = await db.from("lines").select("*").eq("id", lineId).eq("tenant_id", tenantId).maybeSingle();
+    if (row.error) return json(503, { ok: false, error: row.error.message });
+    if (!row.data) return json(404, { ok: false, error: "no such line" });
+
+    if (op === "registration-status") {
+      const r = await syncRegistration(db, row.data);
+      return json(r.ok ? 200 : 502, r);
+    }
+
+    const rec = await db.from("business_records").select("*").eq("tenant_id", tenantId).maybeSingle();
+    if (rec.error) return json(503, { ok: false, error: rec.error.message });
+    if (!rec.data) {
+      await db.from("lines").update({ sms_state: "needs_record", state_since: new Date().toISOString() }).eq("id", lineId);
+      return json(409, { ok: false, error: "no_business_record", hint: "op 'record' first" });
+    }
+    if (row.data.brand_sid && row.data.campaign_sid) {
+      return json(409, { ok: false, error: "already_registered", brand_sid: row.data.brand_sid, campaign_sid: row.data.campaign_sid });
+    }
+    // A mock registration is Twilio's free test registry; the real one costs
+    // the workspace money, so it is never the default.
+    const mock = body.mock === true;
+    const origin = dashboardOrigin();
+    const result = await registerLine(db, {
+      line: row.data,
+      record: rec.data,
+      workspaceName: tenant.name,
+      optInUrl: `${origin}/yes/${tenant.slug}`,
+      privacyUrl: `${origin}/privacy`,
+      termsUrl: `${origin}/terms`,
+      mock,
+    });
+    const after = await db.from("lines").select("*").eq("id", lineId).single();
+    return json(result.ok ? 200 : 502, { ...result, mock, line: after.data ? lineForClient(after.data) : null });
+  }
+
+  return json(400, { ok: false, error: "op must be status, search, buy, retry, release, record, register or registration-status" });
 }
