@@ -109,7 +109,7 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
     case "active":
       return { ...base, state: "connected", stateWords: "On", sentence: `Customers text ${num ?? "this number"}; the receptionist answers inside your hours.` };
     case "approved":
-      return { ...base, state: "waiting_them", stateWords: "Waiting on us", sentence: "The carriers approved your line — switching texting on." };
+      return { ...base, state: "waiting_them", stateWords: "Waiting on carriers", sentence: `Your business is approved. One last check on the line is with the carriers — usually days, and texting switches itself on${since ? `; approved ${since}` : ""}.` };
     case "needs_record":
       return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Texting needs your business on record for the carriers — two minutes, once.", verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
     case "otp_waiting":

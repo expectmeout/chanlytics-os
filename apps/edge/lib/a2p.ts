@@ -10,9 +10,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./workspace/db.js";
 import {
-  runA2PSaga, smsStateFor, LOW_VOLUME_USECASE,
+  runA2PSaga, smsStateFor, registrationVerdict, LOW_VOLUME_USECASE,
   encodeForm, soleProprietorUnsupported, type A2PPorts, type A2PRequest, type A2PState, type BusinessRecord,
 } from "./workspace/channels.js";
+import { formatPhoneDisplay } from "./workspace/contracts.js";
+import { emitEvent } from "./workspace/db.js";
+import { recordNotification } from "./notify.js";
 import { lineProviderFromEnv } from "./lines.js";
 import { lineAccount } from "./sms.js";
 import { logger } from "./log.js";
@@ -230,7 +233,7 @@ export async function registerLine(db: Db, o: {
 }
 
 /** Ask Twilio where the brand and the campaign stand, and write it to the row. */
-export async function syncRegistration(db: Db, line: LineRow): Promise<{ ok: boolean; smsState: string; brand?: string; campaign?: string; error?: string }> {
+export async function syncRegistration(db: Db, line: LineRow): Promise<{ ok: boolean; smsState: string; brand?: string; campaign?: string; error?: string; told?: boolean }> {
   const choice = lineProviderFromEnv();
   if (!choice || choice.name !== "twilio") return { ok: false, smsState: line.sms_state, error: "no_provider" };
   const basic = (a: { sid: string; token: string }) => `Basic ${Buffer.from(`${a.sid}:${a.token}`).toString("base64")}`;
@@ -246,10 +249,24 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<{ ok: boo
   const campaignStatus = typeof campaign?.campaign_status === "string" ? campaign.campaign_status : null;
   const smsState = smsStateFor({ brandStatus, campaignStatus });
   const failure = typeof brand?.failure_reason === "string" ? brand.failure_reason : null;
+  const reason = smsState === "rejected" ? failure ?? "the carriers sent the registration back" : null;
   await db.from("lines").update({
     sms_state: smsState,
-    last_error: smsState === "rejected" ? failure ?? "the carriers sent the registration back" : null,
+    last_error: reason,
     state_since: new Date().toISOString(),
   }).eq("id", line.id);
-  return { ok: true, smsState, brand: brandStatus ?? undefined, campaign: campaignStatus ?? undefined };
+
+  // The carriers answering is the whole point of the wait, so the owner is
+  // told — once, on the change. The sweep runs hourly; a bell every hour
+  // would bury the one that matters.
+  const verdict = registrationVerdict(line.sms_state, smsState, {
+    number: formatPhoneDisplay(line.e164) ?? line.e164,
+    reason,
+    mock: line.reg_mock,
+  });
+  if (verdict) {
+    await recordNotification(line.tenant_id, { kind: verdict.kind, title: verdict.title, body: verdict.body, route: verdict.route, about: { type: "line", id: line.id } });
+    await emitEvent(db, line.tenant_id, verdict.event, "setup", "line", line.id, { e164: line.e164, from: line.sms_state, to: smsState, mock: line.reg_mock }).catch(() => {});
+  }
+  return { ok: true, smsState, brand: brandStatus ?? undefined, campaign: campaignStatus ?? undefined, told: !!verdict };
 }
