@@ -71,6 +71,58 @@ body {
 .legal p, .legal li { color: var(--auth-ink); font-size: 0.95rem; margin: 0 0 12px; }
 .legal ul { padding-left: 20px; margin: 0 0 12px; }
 .legal a { color: var(--auth-teal); text-decoration: underline; text-underline-offset: 2px; }
+/* A workspace's public "say yes to offers" page: read on a phone, at a desk,
+   by a customer who has never seen this product. */
+.yes {
+  max-width: 520px;
+  margin: 7vh auto 10vh;
+  padding: 0 22px;
+  line-height: 1.55;
+}
+.yes h1 { font-size: 1.45rem; margin: 0 0 8px; text-wrap: balance; }
+.yes-lead { color: var(--auth-muted); font-size: 0.95rem; margin: 0 0 26px; }
+.yes-ways { display: flex; flex-direction: column; gap: 10px; }
+.yes-way {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--auth-surface);
+  border: 1px solid var(--auth-line);
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+.yes-way-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.yes-way-title { font-size: 0.95rem; font-weight: 600; }
+.yes-way-sentence { font-size: 0.85rem; color: var(--auth-muted); }
+.yes-btn {
+  flex: none;
+  background: var(--auth-teal);
+  color: #06231d;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+  border-radius: 9px;
+  padding: 10px 16px;
+}
+.yes-btn:hover { opacity: 0.9; }
+.yes-qr { margin: 26px 0 0; text-align: center; }
+.yes-qr-code { display: inline-block; background: #fff; padding: 10px; border-radius: 12px; line-height: 0; }
+.yes-qr-code svg { display: block; width: 190px; height: 190px; }
+.yes-qr-note { color: var(--auth-muted); font-size: 0.82rem; margin: 10px 0 0; }
+.yes-terms {
+  margin: 30px 0 0;
+  padding: 18px 18px 18px 34px;
+  border: 1px solid var(--auth-line);
+  border-radius: 12px;
+  color: var(--auth-muted);
+  font-size: 0.8rem;
+}
+.yes-terms li { margin: 0 0 7px; }
+.yes-terms li:last-child { margin-bottom: 0; }
+.yes-foot { color: var(--auth-muted); font-size: 0.8rem; margin: 22px 0 0; text-align: center; }
+.yes a { color: var(--auth-teal); text-decoration: underline; text-underline-offset: 2px; }
+.yes-btn { text-decoration: none; }
+
 .legal .legal-foot { border-top: 1px solid var(--auth-line); margin-top: 36px; padding-top: 16px; color: var(--auth-muted); font-size: 0.85rem; }
 .auth-card .error { color: var(--auth-danger); font-size: 0.85rem; margin-top: 10px; }
 .auth-card .hint { color: var(--auth-muted); font-size: 0.8rem; margin-top: 12px; }

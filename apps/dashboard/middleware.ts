@@ -20,6 +20,14 @@ import { isRetryableAuthError } from "@/server/auth-errors";
 const PUBLIC_PATHS = new Set(["/login", "/auth/signout", "/api/version", "/manifest.webmanifest", "/signup", "/api/v1/signup", "/privacy", "/terms"]);
 
 /**
+ * The one public PREFIX. A workspace's "say yes to offers" page is opened by
+ * a customer from a QR at the desk, so it carries the workspace's slug and
+ * cannot be an exact path. Nothing else lives under it, it takes no input
+ * and it writes nothing — see app/yes/[slug]/page.tsx.
+ */
+const PUBLIC_PREFIXES = ["/yes/"];
+
+/**
  * An auth redirect must never be stored. These responses depend entirely on a
  * cookie, so any cache that keys on the URL alone would serve one visitor's
  * outcome to the next — sending a signed-in operator to /login, or worse.
@@ -64,7 +72,7 @@ export async function middleware(request: NextRequest) {
   // token-exchange endpoint would have shipped unauthenticated by default, and
   // nothing in review would have flagged it. Adding a public route is now a
   // deliberate edit to this list, which the auth tests assert against.
-  const isPublic = PUBLIC_PATHS.has(path);
+  const isPublic = PUBLIC_PATHS.has(path) || PUBLIC_PREFIXES.some((p) => path.startsWith(p));
 
   // "We could not ask" is not "you are not signed in". withRoute answers 503
   // for a retryable auth failure so the client keeps its session — but this

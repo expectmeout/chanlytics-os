@@ -6095,6 +6095,50 @@ var CONNECTION_GROUP_WORDS = {
   later: { title: "Later", sub: () => "nothing here pretends to be connected" }
 };
 
+// src/consent-page.ts
+var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
+var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
+function consentPageVM(f) {
+  const name = f.businessName.trim() || "This business";
+  const ways = [];
+  const waLink = optInLink(f.whatsappE164, CONSENT_PHRASE);
+  if (waLink) {
+    ways.push({
+      kind: "whatsapp",
+      title: "On WhatsApp",
+      sentence: `Tap to open WhatsApp with ${CONSENT_PHRASE} ready to send. Sending it is your yes.`,
+      phrase: CONSENT_PHRASE,
+      href: waLink,
+      display: formatPhoneDisplay(f.whatsappE164)
+    });
+  }
+  const smsDisplay = formatPhoneDisplay(f.smsE164);
+  if (smsDisplay) {
+    ways.push({
+      kind: "sms",
+      title: "By text",
+      sentence: `Text ${CONSENT_PHRASE} to ${smsDisplay}. Sending it is your yes.`,
+      phrase: CONSENT_PHRASE,
+      href: `sms:${f.smsE164}?&body=${encodeURIComponent(CONSENT_PHRASE)}`,
+      display: smsDisplay
+    });
+  }
+  return {
+    title: `Offers and news from ${name}`,
+    lead: ways.length ? `Say yes in your own message, from your own phone. ${name} then sends you offers, news and reminders \u2014 and never sells or shares your number.` : `${name} is not set up to take sign-ups here yet.`,
+    ways,
+    qrLink: waLink,
+    terms: [
+      `You get offers, news and appointment reminders from ${name}. A few messages a month, never daily.`,
+      "Message and data rates may apply. Message frequency varies.",
+      `Reply STOP at any time to stop. Reply HELP for help.`,
+      "No mobile information is shared with third parties or affiliates for marketing purposes.",
+      `Consent is not a condition of any purchase from ${name}.`
+    ],
+    empty: ways.length === 0
+  };
+}
+
 // src/signup.ts
 import { z as z4 } from "zod";
 var SIGNUP_NAME_MIN = 2;
@@ -6179,6 +6223,8 @@ export {
   CONFIDENCE_STEPS,
   CONNECTION_GROUP_WORDS,
   CONNECTION_KINDS,
+  CONSENT_PHRASE,
+  CONSENT_PHRASE_ES,
   CONSENT_RESET_SOURCE,
   CONSENT_SOURCES,
   CONSENT_STATES,
@@ -6326,6 +6372,7 @@ export {
   composeSystemPrompt,
   connectionRows,
   connectionWords,
+  consentPageVM,
   consentSourceLabel,
   contactMeta,
   contactName,

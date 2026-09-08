@@ -692,7 +692,7 @@ export interface BroadcastsSurface {
   /** How a customer says yes in their own words: the phrase, the link that
    *  opens WhatsApp with it ready, and the QR of that link. Null link without
    *  a number. */
-  optIn: { phrase: string; phraseEs: string; link: string | null; qrPath: string | null };
+  optIn: { phrase: string; phraseEs: string; link: string | null; qrPath: string | null; pageUrl: string | null };
   /** The business's own words for the slots that name it, and whether a booking link is on file. */
   businessName: string;
   bookingLink: boolean;
@@ -737,6 +737,8 @@ export const broadcastsOverride: SurfaceOverride = {
     ];
     if (saved instanceof Error) console.error("broadcasts_lists_fetch_failed", saved.message);
     if (tpl instanceof Error) console.error("broadcasts_templates_fetch_failed", tpl.message);
+    // The workspace being VIEWED, for the public page's address.
+    const slug = workspaceOverride.current()?.slug ?? null;
     (window as unknown as { __BROADCASTS?: BroadcastsSurface }).__BROADCASTS = {
       rows: bc.broadcasts.map((b) => toBroadcastVM(b, now)),
       templates: tpl instanceof Error ? [] : (tpl.templates ?? []).filter((t) => t.channel === "whatsapp" && t.meta_status === "approved"),
@@ -754,6 +756,9 @@ export const broadcastsOverride: SurfaceOverride = {
         phraseEs: OFFERS_OPT_IN_PHRASES.es,
         link: optInLink(wa?.number_e164),
         qrPath: optInLink(wa?.number_e164) ? scoped("/api/v1/consent/qr") : null,
+        // The public page the same yes lives on: what a carrier is shown when
+        // they ask how this business gets permission to text.
+        pageUrl: slug ? `${window.location.origin}/yes/${slug}` : null,
       },
       fetchedAt: now.getTime(),
     };
