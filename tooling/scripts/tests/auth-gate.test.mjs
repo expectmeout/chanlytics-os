@@ -77,6 +77,20 @@ test("the public path list is exact, never a prefix", () => {
   assert.match(middleware, /PUBLIC_PATHS\.has\(path\)/, "the gate must test exact membership");
 });
 
+test("exactly one public PREFIX, and only the opt-in page lives under it", () => {
+  const block = /PUBLIC_PREFIXES\s*=\s*\[([^\]]*)\]/.exec(middleware);
+  assert.ok(block, "PUBLIC_PREFIXES must be a literal array so this test can read it");
+  const prefixes = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]);
+  // Pinned BY VALUE like the paths above: a prefix opens EVERY path beneath
+  // it, so widening this is a deliberate edit here, reviewed, and never a
+  // side effect of adding a route.
+  assert.deepEqual(prefixes, ["/yes/"]);
+  assert.match(middleware, /PUBLIC_PREFIXES\.some\(\(p\) => path\.startsWith\(p\)\)/);
+  const dir = path.join(ROOT, "apps/dashboard/app/yes");
+  assert.deepEqual(fs.readdirSync(dir), ["[slug]"], "nothing but the opt-in page may live under the public prefix");
+  assert.deepEqual(fs.readdirSync(path.join(dir, "[slug]")), ["page.tsx"], "and it is a page, not a route that takes input");
+});
+
 test("only these eight paths are reachable without a session", () => {
   const block = /PUBLIC_PATHS\s*=\s*new Set\(\[([^\]]*)\]/.exec(middleware);
   assert.ok(block, "PUBLIC_PATHS must be a literal Set so this test can read it");

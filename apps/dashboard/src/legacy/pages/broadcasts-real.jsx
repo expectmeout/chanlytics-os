@@ -318,6 +318,11 @@ const BroadcastsReal = ({ initialSegment = null }) => {
                 <a className="btn btn-sm" href={data.optIn.qrPath} download="say-yes-to-offers.svg">Download QR</a>
                 <a className="cl-bucket-link" href={data.optIn.link} target="_blank" rel="noreferrer">Open the link</a>
               </div>
+              {data.optIn.pageUrl && (
+                <p className="bc-optin-page" data-testid="bc-optin-page">
+                  Or share your sign-up page: <a className="cl-bucket-link" href={data.optIn.pageUrl} target="_blank" rel="noreferrer">{data.optIn.pageUrl.replace("https://", "")}</a>. It shows the same QR and the wording the phone carriers ask for before they let a business text.
+                </p>
+              )}
             </div>
           </div>
         </section>
