@@ -106,6 +106,10 @@ test("the campaign says what the carriers ask, with the samples and keywords as 
     useCase: LOW_VOLUME_USECASE,
   });
   assert.equal(c.url, "https://messaging.twilio.com/v1/Services/MG1/Compliance/Usa2p");
+  // The Messaging Service lives in the workspace's subaccount; asked as the
+  // master, Twilio answers "not found" after the brand is already paid for.
+  assert.equal(c.as, "line");
+  assert.equal(brandRequest({ customerProfileBundleSid: "BU1", a2pProfileBundleSid: "BU2", brandType: "STANDARD", mock: true }).as, undefined, "everything else is ours, as the master");
   assert.equal(c.form.BrandRegistrationSid, "BN1");
   assert.equal(c.form.UsAppToPersonUsecase, "LOW_VOLUME");
   // Repeated keys, not indexed ones: Twilio answers an indexed list with

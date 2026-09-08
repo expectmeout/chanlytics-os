@@ -14,6 +14,7 @@ import {
   encodeForm, type A2PPorts, type A2PRequest, type A2PState, type BusinessRecord,
 } from "./workspace/channels.js";
 import { lineProviderFromEnv } from "./lines.js";
+import { lineAccount } from "./sms.js";
 import { logger } from "./log.js";
 
 type Db = SupabaseClient<Database>;
@@ -121,11 +122,16 @@ export async function registerLine(db: Db, o: {
   const record = businessRecordFrom(o.record);
   const master = choice.master;
 
+  // The campaign is attached to the workspace's own Messaging Service, which
+  // only its subaccount can see; everything else is ours and goes as the master.
+  const sub = await lineAccount(db, o.line).catch(() => null);
   const send = async (req: A2PRequest) => {
+    const acct = req.as === "line" ? sub : master;
+    if (!acct) throw new Error("the line's own credentials are missing from the vault");
     const r = await fetch(req.url, {
       method: req.method,
       headers: {
-        Authorization: `Basic ${Buffer.from(`${master.sid}:${master.token}`).toString("base64")}`,
+        Authorization: `Basic ${Buffer.from(`${acct.sid}:${acct.token}`).toString("base64")}`,
         ...(req.form ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
       },
       body: req.form ? encodeForm(req.form) : undefined,
@@ -204,13 +210,15 @@ export async function registerLine(db: Db, o: {
 export async function syncRegistration(db: Db, line: LineRow): Promise<{ ok: boolean; smsState: string; brand?: string; campaign?: string; error?: string }> {
   const choice = lineProviderFromEnv();
   if (!choice || choice.name !== "twilio") return { ok: false, smsState: line.sms_state, error: "no_provider" };
-  const auth = `Basic ${Buffer.from(`${choice.master.sid}:${choice.master.token}`).toString("base64")}`;
-  const read = async (url: string) => {
-    const r = await fetch(url, { headers: { Authorization: auth }, signal: AbortSignal.timeout(15000) });
+  const basic = (a: { sid: string; token: string }) => `Basic ${Buffer.from(`${a.sid}:${a.token}`).toString("base64")}`;
+  const read = async (url: string, acct: { sid: string; token: string }) => {
+    const r = await fetch(url, { headers: { Authorization: basic(acct) }, signal: AbortSignal.timeout(15000) });
     return (await r.json().catch(() => null)) as Record<string, unknown> | null;
   };
-  const brand = line.brand_sid ? await read(`https://messaging.twilio.com/v1/a2p/BrandRegistrations/${line.brand_sid}`) : null;
-  const campaign = line.messaging_service_sid ? await read(`https://messaging.twilio.com/v1/Services/${line.messaging_service_sid}/Compliance/Usa2p`) : null;
+  const brand = line.brand_sid ? await read(`https://messaging.twilio.com/v1/a2p/BrandRegistrations/${line.brand_sid}`, choice.master) : null;
+  // The campaign hangs off the workspace's own Messaging Service, so it is read as its subaccount.
+  const sub = await lineAccount(db, line).catch(() => null);
+  const campaign = line.messaging_service_sid && sub ? await read(`https://messaging.twilio.com/v1/Services/${line.messaging_service_sid}/Compliance/Usa2p`, sub) : null;
   const brandStatus = typeof brand?.status === "string" ? brand.status : null;
   const campaignStatus = typeof campaign?.campaign_status === "string" ? campaign.campaign_status : null;
   const smsState = smsStateFor({ brandStatus, campaignStatus });

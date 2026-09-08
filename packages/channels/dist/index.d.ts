@@ -1114,6 +1114,17 @@ interface A2PRequest {
     url: string;
     method: "GET" | "POST";
     /**
+     * Whose credentials it goes on.
+     *
+     * The bundles and the brand belong to Chanlytics, so they are made as the
+     * MASTER account — that is what makes these businesses ours to register.
+     * The campaign is attached to the workspace's own Messaging Service,
+     * which lives in ITS subaccount and which the master cannot see: asked as
+     * the master, Twilio answers "resource not found" after the brand has
+     * already been registered and paid for. Default is the master.
+     */
+    as?: "master" | "line";
+    /**
      * Form fields; the caller encodes them. A list is sent as REPEATED keys —
      * `MessageSamples=a&MessageSamples=b` — which is the only shape Twilio
      * parses. Indexed keys (`MessageSamples[0]`) come back as
