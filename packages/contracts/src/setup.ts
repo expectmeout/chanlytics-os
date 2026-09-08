@@ -57,6 +57,12 @@ export interface LineDto {
   area_code: number | null;
   voice_state: "none" | "provisioning" | "answering" | "failed";
   sms_state: string;
+  /** Where a carrier registration stopped, when one did. */
+  reg_step?: string | null;
+  /** Filed against Twilio's free test registry rather than the carriers. */
+  reg_mock?: boolean;
+  /** Both the brand and the campaign are on record. */
+  registered?: boolean;
   whatsapp_state: string;
   port_state: string;
   forwarding_state: string;

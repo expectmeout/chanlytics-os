@@ -77,7 +77,7 @@ type JobKind = (typeof JOB_KINDS)[number];
 declare const JOB_STATES: readonly ["scheduled", "fired", "canceled", "failed"];
 type JobState = (typeof JOB_STATES)[number];
 /** Dot-namespaced event kinds emitted so far (grows per slice). */
-declare const EVENT_KINDS: readonly ["message.received", "message.sent", "message.status", "escalation.opened", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.pg_failed", "message.send_failed", "message.send_blocked", "message.send_raced_cancel", "conversation.reopened", "conversation.pause_expired", "contact.erased", "contact.blob_erased", "setup.requested", "voice.provisioned", "line.answering", "line.failed", "line.released", "line.forwarding_verified", "google.linked", "google.unlinked", "google.reviews", "google.connected", "google.disconnected", "google.replied", "workspace.created", "billing.updated", "billing.paused", "billing.resumed"];
+declare const EVENT_KINDS: readonly ["message.received", "message.sent", "message.status", "escalation.opened", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.pg_failed", "message.send_failed", "message.send_blocked", "message.send_raced_cancel", "conversation.reopened", "conversation.pause_expired", "contact.erased", "contact.blob_erased", "setup.requested", "voice.provisioned", "line.answering", "line.failed", "line.released", "line.forwarding_verified", "business.recorded", "google.linked", "google.unlinked", "google.reviews", "google.connected", "google.disconnected", "google.replied", "workspace.created", "billing.updated", "billing.paused", "billing.resumed"];
 type EventKind = (typeof EVENT_KINDS)[number];
 /** Customer texts that mean opt-out (webhook consent handling, §4). */
 declare const OPT_OUT_PATTERN: RegExp;
@@ -6599,6 +6599,12 @@ interface LineDto {
     area_code: number | null;
     voice_state: "none" | "provisioning" | "answering" | "failed";
     sms_state: string;
+    /** Where a carrier registration stopped, when one did. */
+    reg_step?: string | null;
+    /** Filed against Twilio's free test registry rather than the carriers. */
+    reg_mock?: boolean;
+    /** Both the brand and the campaign are on record. */
+    registered?: boolean;
     whatsapp_state: string;
     port_state: string;
     forwarding_state: string;

@@ -369,6 +369,83 @@ export type Database = {
           },
         ]
       }
+      business_records: {
+        Row: {
+          city: string
+          contact_email: string
+          contact_first_name: string
+          contact_job_position: string
+          contact_last_name: string
+          contact_phone: string
+          contact_title: string
+          country: string
+          created_at: string
+          ein: string | null
+          industry: string
+          legal_name: string
+          postal_code: string
+          region: string
+          street: string
+          street_secondary: string | null
+          tenant_id: string
+          trade_name: string | null
+          updated_at: string
+          website_url: string
+        }
+        Insert: {
+          city: string
+          contact_email: string
+          contact_first_name: string
+          contact_job_position?: string
+          contact_last_name: string
+          contact_phone: string
+          contact_title?: string
+          country?: string
+          created_at?: string
+          ein?: string | null
+          industry?: string
+          legal_name: string
+          postal_code: string
+          region: string
+          street: string
+          street_secondary?: string | null
+          tenant_id: string
+          trade_name?: string | null
+          updated_at?: string
+          website_url: string
+        }
+        Update: {
+          city?: string
+          contact_email?: string
+          contact_first_name?: string
+          contact_job_position?: string
+          contact_last_name?: string
+          contact_phone?: string
+          contact_title?: string
+          country?: string
+          created_at?: string
+          ein?: string | null
+          industry?: string
+          legal_name?: string
+          postal_code?: string
+          region?: string
+          street?: string
+          street_secondary?: string | null
+          tenant_id?: string
+          trade_name?: string | null
+          updated_at?: string
+          website_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_records_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calls: {
         Row: {
           agent_id: string | null
@@ -1702,7 +1779,10 @@ export type Database = {
       }
       lines: {
         Row: {
+          a2p_profile_sid: string | null
           area_code: number | null
+          brand_sid: string | null
+          campaign_sid: string | null
           created_at: string
           credential_list_sid: string | null
           credentials_ref: string | null
@@ -1715,7 +1795,10 @@ export type Database = {
           messaging_service_sid: string | null
           number_sid: string | null
           port_state: string
+          profile_sid: string | null
           provider: string
+          reg_mock: boolean
+          reg_step: string | null
           retell_agent_id: string | null
           sms_state: string
           state_since: string
@@ -1729,7 +1812,10 @@ export type Database = {
           whatsapp_state: string
         }
         Insert: {
+          a2p_profile_sid?: string | null
           area_code?: number | null
+          brand_sid?: string | null
+          campaign_sid?: string | null
           created_at?: string
           credential_list_sid?: string | null
           credentials_ref?: string | null
@@ -1742,7 +1828,10 @@ export type Database = {
           messaging_service_sid?: string | null
           number_sid?: string | null
           port_state?: string
+          profile_sid?: string | null
           provider: string
+          reg_mock?: boolean
+          reg_step?: string | null
           retell_agent_id?: string | null
           sms_state?: string
           state_since?: string
@@ -1756,7 +1845,10 @@ export type Database = {
           whatsapp_state?: string
         }
         Update: {
+          a2p_profile_sid?: string | null
           area_code?: number | null
+          brand_sid?: string | null
+          campaign_sid?: string | null
           created_at?: string
           credential_list_sid?: string | null
           credentials_ref?: string | null
@@ -1769,7 +1861,10 @@ export type Database = {
           messaging_service_sid?: string | null
           number_sid?: string | null
           port_state?: string
+          profile_sid?: string | null
           provider?: string
+          reg_mock?: boolean
+          reg_step?: string | null
           retell_agent_id?: string | null
           sms_state?: string
           state_since?: string

@@ -5339,11 +5339,11 @@ var TRUNKING = "https://trunking.twilio.com/v1";
 var MESSAGING = "https://messaging.twilio.com/v1";
 var twilioUrls = {
   subaccounts: `${API2}/Accounts.json`,
-  availableLocal: (sid, country = "US") => `${API2}/Accounts/${sid}/AvailablePhoneNumbers/${country}/Local.json`,
-  incomingNumbers: (sid) => `${API2}/Accounts/${sid}/IncomingPhoneNumbers.json`,
-  incomingNumber: (sid, numberSid) => `${API2}/Accounts/${sid}/IncomingPhoneNumbers/${numberSid}.json`,
-  credentialLists: (sid) => `${API2}/Accounts/${sid}/SIP/CredentialLists.json`,
-  credentials: (sid, listSid) => `${API2}/Accounts/${sid}/SIP/CredentialLists/${listSid}/Credentials.json`,
+  availableLocal: (sid2, country = "US") => `${API2}/Accounts/${sid2}/AvailablePhoneNumbers/${country}/Local.json`,
+  incomingNumbers: (sid2) => `${API2}/Accounts/${sid2}/IncomingPhoneNumbers.json`,
+  incomingNumber: (sid2, numberSid) => `${API2}/Accounts/${sid2}/IncomingPhoneNumbers/${numberSid}.json`,
+  credentialLists: (sid2) => `${API2}/Accounts/${sid2}/SIP/CredentialLists.json`,
+  credentials: (sid2, listSid) => `${API2}/Accounts/${sid2}/SIP/CredentialLists/${listSid}/Credentials.json`,
   trunks: `${TRUNKING}/Trunks`,
   trunk: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}`,
   trunkCredentialLists: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/CredentialLists`,
@@ -5351,7 +5351,7 @@ var twilioUrls = {
   trunkPhoneNumbers: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/PhoneNumbers`,
   messagingServices: `${MESSAGING}/Services`,
   serviceNumbers: (serviceSid) => `${MESSAGING}/Services/${serviceSid}/PhoneNumbers`,
-  messages: (sid) => `${API2}/Accounts/${sid}/Messages.json`
+  messages: (sid2) => `${API2}/Accounts/${sid2}/Messages.json`
 };
 var TwilioError = class extends Error {
   status;
@@ -5395,10 +5395,10 @@ function twilioProvider(http = fetchTwilio) {
     name: "twilio",
     async createSubaccount(master, friendlyName) {
       const b = need(await http(master, "POST", twilioUrls.subaccounts, { FriendlyName: friendlyName.slice(0, 64) }), "create subaccount");
-      const sid = str(b, "sid");
+      const sid2 = str(b, "sid");
       const token = str(b, "auth_token");
-      if (!sid || !token) throw new TwilioError(200, b, "create subaccount answered without sid/auth_token");
-      return { sid, token, status: str(b, "status") ?? "active" };
+      if (!sid2 || !token) throw new TwilioError(200, b, "create subaccount answered without sid/auth_token");
+      return { sid: sid2, token, status: str(b, "status") ?? "active" };
     },
     async searchLocal(acct, q) {
       const url = `${twilioUrls.availableLocal(acct.sid)}?${new URLSearchParams({
@@ -5424,9 +5424,9 @@ function twilioProvider(http = fetchTwilio) {
     },
     async buyNumber(acct, e164, friendlyName) {
       const b = need(await http(acct, "POST", twilioUrls.incomingNumbers(acct.sid), { PhoneNumber: e164, FriendlyName: friendlyName.slice(0, 64) }), "buy number");
-      const sid = str(b, "sid");
-      if (!sid) throw new TwilioError(200, b, "buy number answered without a sid");
-      return { sid, e164: str(b, "phone_number") ?? e164 };
+      const sid2 = str(b, "sid");
+      if (!sid2) throw new TwilioError(200, b, "buy number answered without a sid");
+      return { sid: sid2, e164: str(b, "phone_number") ?? e164 };
     },
     async releaseNumber(acct, numberSid) {
       const a = await http(acct, "DELETE", twilioUrls.incomingNumber(acct.sid, numberSid));
@@ -5434,9 +5434,9 @@ function twilioProvider(http = fetchTwilio) {
     },
     async createTrunk(acct, o) {
       const b = need(await http(acct, "POST", twilioUrls.trunks, { FriendlyName: o.friendlyName.slice(0, 64), DomainName: o.domainName }), "create trunk");
-      const sid = str(b, "sid");
-      if (!sid) throw new TwilioError(200, b, "create trunk answered without a sid");
-      return { sid, domainName: str(b, "domain_name") ?? o.domainName };
+      const sid2 = str(b, "sid");
+      if (!sid2) throw new TwilioError(200, b, "create trunk answered without a sid");
+      return { sid: sid2, domainName: str(b, "domain_name") ?? o.domainName };
     },
     async deleteTrunk(acct, trunkSid) {
       const a = await http(acct, "DELETE", twilioUrls.trunk(trunkSid));
@@ -5444,15 +5444,15 @@ function twilioProvider(http = fetchTwilio) {
     },
     async createCredentialList(acct, friendlyName) {
       const b = need(await http(acct, "POST", twilioUrls.credentialLists(acct.sid), { FriendlyName: friendlyName.slice(0, 64) }), "create credential list");
-      const sid = str(b, "sid");
-      if (!sid) throw new TwilioError(200, b, "create credential list answered without a sid");
-      return { sid };
+      const sid2 = str(b, "sid");
+      if (!sid2) throw new TwilioError(200, b, "create credential list answered without a sid");
+      return { sid: sid2 };
     },
     async addCredential(acct, listSid, username, password) {
       const b = need(await http(acct, "POST", twilioUrls.credentials(acct.sid, listSid), { Username: username, Password: password }), "add credential");
-      const sid = str(b, "sid");
-      if (!sid) throw new TwilioError(200, b, "add credential answered without a sid");
-      return { sid };
+      const sid2 = str(b, "sid");
+      if (!sid2) throw new TwilioError(200, b, "add credential answered without a sid");
+      return { sid: sid2 };
     },
     async attachCredentialList(acct, trunkSid, listSid) {
       need(await http(acct, "POST", twilioUrls.trunkCredentialLists(trunkSid), { CredentialListSid: listSid }), "attach credential list");
@@ -5468,9 +5468,9 @@ function twilioProvider(http = fetchTwilio) {
         }),
         "add origination"
       );
-      const sid = str(b, "sid");
-      if (!sid) throw new TwilioError(200, b, "add origination answered without a sid");
-      return { sid };
+      const sid2 = str(b, "sid");
+      if (!sid2) throw new TwilioError(200, b, "add origination answered without a sid");
+      return { sid: sid2 };
     },
     async attachNumber(acct, trunkSid, numberSid) {
       need(await http(acct, "POST", twilioUrls.trunkPhoneNumbers(trunkSid), { PhoneNumberSid: numberSid }), "attach number to trunk");
@@ -5489,20 +5489,20 @@ function twilioProvider(http = fetchTwilio) {
         }),
         "create messaging service"
       );
-      const sid = str(b, "sid");
-      if (!sid) throw new TwilioError(200, b, "create messaging service answered without a sid");
-      return { sid };
+      const sid2 = str(b, "sid");
+      if (!sid2) throw new TwilioError(200, b, "create messaging service answered without a sid");
+      return { sid: sid2 };
     },
     async addNumberToService(acct, serviceSid, numberSid) {
       const b = need(await http(acct, "POST", twilioUrls.serviceNumbers(serviceSid), { PhoneNumberSid: numberSid }), "add number to messaging service");
-      const sid = str(b, "sid");
-      if (!sid) throw new TwilioError(200, b, "add number to messaging service answered without a sid");
-      return { sid };
+      const sid2 = str(b, "sid");
+      if (!sid2) throw new TwilioError(200, b, "add number to messaging service answered without a sid");
+      return { sid: sid2 };
     },
     async sendSms(acct, o) {
       const a = await http(acct, "POST", twilioUrls.messages(acct.sid), { MessagingServiceSid: o.serviceSid, To: o.to, Body: o.body });
-      const ok = a.status >= 200 && a.status < 300 && !!str(a.body, "sid");
-      return { ok, sid: str(a.body, "sid"), status: a.status, code: typeof a.body?.code === "number" ? a.body.code : null };
+      const ok2 = a.status >= 200 && a.status < 300 && !!str(a.body, "sid");
+      return { ok: ok2, sid: str(a.body, "sid"), status: a.status, code: typeof a.body?.code === "number" ? a.body.code : null };
     }
   };
 }
@@ -5541,9 +5541,9 @@ function dryProvider(seed = 1) {
     },
     async buyNumber(acct, e164, friendlyName) {
       rec("buyNumber", acctOf(acct), e164, friendlyName);
-      const sid = next("PN");
-      owned.set(sid, e164);
-      return { sid, e164 };
+      const sid2 = next("PN");
+      owned.set(sid2, e164);
+      return { sid: sid2, e164 };
     },
     async releaseNumber(acct, numberSid) {
       rec("releaseNumber", acctOf(acct), numberSid);
@@ -5810,6 +5810,319 @@ async function verifyTwilioSignature(authToken, url, form2, header) {
   return sameSignature(await twilioSignature(authToken, url, form2), header);
 }
 
+// src/a2p.ts
+var A2P_POLICIES = {
+  /** The bundle one customer of an ISV gets. */
+  secondaryCustomerProfile: "RNdfbf3fae0e1107f8aded0e7cead80bf5",
+  /** The messaging profile a brand is registered from. */
+  a2pMessaging: "RNb0d4771c2c98518d916a3d4cd70a8f8b",
+  /** A customer with no tax id registers on this one instead. */
+  soleProprietor: "RN670d5d2e282a6130ae063b234b6019c8"
+};
+var TRUSTHUB = "https://trusthub.twilio.com/v1";
+var MESSAGING2 = "https://messaging.twilio.com/v1";
+function brandTypeFor(r) {
+  return r.ein && r.ein.trim() ? "STANDARD" : "SOLE_PROPRIETOR";
+}
+var attrs = (o) => JSON.stringify(o);
+function customerProfileRequest(o) {
+  return {
+    url: `${TRUSTHUB}/CustomerProfiles`,
+    method: "POST",
+    form: {
+      FriendlyName: o.friendlyName.slice(0, 64),
+      // Twilio asks for the ISV's address here, not the customer's: we are
+      // the one it writes to about the bundle.
+      Email: o.email,
+      PolicySid: A2P_POLICIES.secondaryCustomerProfile,
+      ...o.statusCallback ? { StatusCallback: o.statusCallback } : {}
+    }
+  };
+}
+function businessEndUserRequest(r) {
+  return {
+    url: `${TRUSTHUB}/EndUsers`,
+    method: "POST",
+    form: {
+      FriendlyName: `${r.legalName} \xB7 business`.slice(0, 64),
+      Type: "customer_profile_business_information",
+      Attributes: attrs({
+        business_name: r.legalName,
+        social_media_profile_urls: "",
+        website_url: r.websiteUrl,
+        business_regions_of_operation: "USA_AND_CANADA",
+        business_type: r.ein ? "Limited Liability Corporation" : "Sole Proprietorship",
+        business_registration_identifier: r.ein ? "EIN" : "USA:EIN",
+        business_identity: "direct_customer",
+        business_industry: r.industry,
+        business_registration_number: r.ein ?? ""
+      })
+    }
+  };
+}
+function representativeEndUserRequest(r) {
+  return {
+    url: `${TRUSTHUB}/EndUsers`,
+    method: "POST",
+    form: {
+      FriendlyName: `${r.contactFirstName} ${r.contactLastName}`.slice(0, 64),
+      Type: "authorized_representative_1",
+      Attributes: attrs({
+        job_position: r.contactJobPosition,
+        last_name: r.contactLastName,
+        phone_number: r.contactPhone,
+        first_name: r.contactFirstName,
+        email: r.contactEmail,
+        business_title: r.contactTitle
+      })
+    }
+  };
+}
+function addressRequest(accountSid, r) {
+  return {
+    url: `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Addresses.json`,
+    method: "POST",
+    form: {
+      FriendlyName: r.legalName.slice(0, 64),
+      CustomerName: r.legalName.slice(0, 64),
+      Street: r.street,
+      ...r.streetSecondary ? { StreetSecondary: r.streetSecondary } : {},
+      City: r.city,
+      Region: r.region,
+      PostalCode: r.postalCode,
+      IsoCountry: r.country
+    }
+  };
+}
+function supportingDocumentRequest(o) {
+  return {
+    url: `${TRUSTHUB}/SupportingDocuments`,
+    method: "POST",
+    form: {
+      FriendlyName: `${o.legalName} \xB7 address`.slice(0, 64),
+      Type: "customer_profile_address",
+      Attributes: attrs({ address_sids: o.addressSid })
+    }
+  };
+}
+function assignRequest(bundleSid, objectSid) {
+  return { url: `${TRUSTHUB}/CustomerProfiles/${bundleSid}/EntityAssignments`, method: "POST", form: { ObjectSid: objectSid } };
+}
+function trustProductAssignRequest(bundleSid, objectSid) {
+  return { url: `${TRUSTHUB}/TrustProducts/${bundleSid}/EntityAssignments`, method: "POST", form: { ObjectSid: objectSid } };
+}
+function evaluateRequest(bundleSid, policySid = A2P_POLICIES.secondaryCustomerProfile) {
+  return { url: `${TRUSTHUB}/CustomerProfiles/${bundleSid}/Evaluations`, method: "POST", form: { PolicySid: policySid } };
+}
+function submitProfileRequest(bundleSid) {
+  return { url: `${TRUSTHUB}/CustomerProfiles/${bundleSid}`, method: "POST", form: { Status: "pending-review" } };
+}
+function a2pProfileRequest(o) {
+  return {
+    url: `${TRUSTHUB}/TrustProducts`,
+    method: "POST",
+    form: {
+      FriendlyName: `${o.friendlyName} \xB7 A2P`.slice(0, 64),
+      Email: o.email,
+      PolicySid: A2P_POLICIES.a2pMessaging,
+      ...o.statusCallback ? { StatusCallback: o.statusCallback } : {}
+    }
+  };
+}
+function a2pProfileEndUserRequest(o) {
+  return {
+    url: `${TRUSTHUB}/EndUsers`,
+    method: "POST",
+    form: {
+      FriendlyName: `${o.friendlyName} \xB7 A2P`.slice(0, 64),
+      Type: "us_a2p_messaging_profile_information",
+      Attributes: attrs({ company_type: o.companyType })
+    }
+  };
+}
+function evaluateTrustProductRequest(bundleSid) {
+  return { url: `${TRUSTHUB}/TrustProducts/${bundleSid}/Evaluations`, method: "POST", form: { PolicySid: A2P_POLICIES.a2pMessaging } };
+}
+function submitTrustProductRequest(bundleSid) {
+  return { url: `${TRUSTHUB}/TrustProducts/${bundleSid}`, method: "POST", form: { Status: "pending-review" } };
+}
+function brandRequest(o) {
+  return {
+    url: `${MESSAGING2}/a2p/BrandRegistrations`,
+    method: "POST",
+    form: {
+      CustomerProfileBundleSid: o.customerProfileBundleSid,
+      A2PProfileBundleSid: o.a2pProfileBundleSid,
+      BrandType: o.brandType,
+      ...o.mock ? { Mock: "true" } : {}
+    }
+  };
+}
+var LOW_VOLUME_USECASE = "LOW_VOLUME";
+var SOLE_PROPRIETOR_USECASE = "SOLE_PROPRIETOR";
+function campaignRequest(f) {
+  const form2 = {
+    BrandRegistrationSid: f.brandSid,
+    Description: f.description,
+    MessageFlow: f.messageFlow,
+    UsAppToPersonUsecase: f.useCase,
+    HasEmbeddedLinks: "true",
+    HasEmbeddedPhone: "true",
+    SubscriberOptIn: "true",
+    AgeGated: "false",
+    DirectLending: "false",
+    OptInMessage: f.optInMessage,
+    PrivacyPolicyUrl: f.privacyPolicyUrl,
+    TermsAndConditionsUrl: f.termsUrl
+  };
+  f.samples.slice(0, 5).forEach((s, i) => {
+    form2[`MessageSamples[${i}]`] = s;
+  });
+  f.optInKeywords.forEach((k, i) => {
+    form2[`OptInKeywords[${i}]`] = k;
+  });
+  return { url: `${MESSAGING2}/Services/${f.messagingServiceSid}/Compliance/Usa2p`, method: "POST", form: form2 };
+}
+var A2P_STEPS = ["profile", "business", "representative", "address", "document", "primary", "submit", "a2p_profile", "brand", "campaign"];
+var EMPTY_A2P_STATE = {
+  profileSid: null,
+  businessSid: null,
+  representativeSid: null,
+  addressSid: null,
+  documentSid: null,
+  primaryAssigned: false,
+  profileSubmitted: false,
+  a2pProfileSid: null,
+  brandSid: null,
+  campaignSid: null
+};
+function nextA2PStep(s) {
+  if (!s.profileSid) return "profile";
+  if (!s.businessSid) return "business";
+  if (!s.representativeSid) return "representative";
+  if (!s.addressSid) return "address";
+  if (!s.documentSid) return "document";
+  if (!s.primaryAssigned) return "primary";
+  if (!s.profileSubmitted) return "submit";
+  if (!s.a2pProfileSid) return "a2p_profile";
+  if (!s.brandSid) return "brand";
+  if (!s.campaignSid) return "campaign";
+  return null;
+}
+function smsStateFor(o) {
+  const brand = (o.brandStatus ?? "").toUpperCase();
+  const campaign = (o.campaignStatus ?? "").toUpperCase();
+  if (brand === "FAILED" || campaign === "FAILED") return "rejected";
+  if (brand === "SUSPENDED") return "failed";
+  if (campaign === "VERIFIED") return "approved";
+  return "registering";
+}
+
+// src/a2p-saga.ts
+var sid = (a) => typeof a.body?.sid === "string" ? a.body.sid : null;
+function refusal(a, what) {
+  const msg = typeof a.body?.message === "string" ? a.body.message : `HTTP ${a.status}`;
+  const code = typeof a.body?.code === "number" ? ` (Twilio ${a.body.code})` : "";
+  return `${what}: ${msg}${code}`;
+}
+var ok = (a) => a.status >= 200 && a.status < 300;
+async function runA2PSaga(start, p) {
+  let state = { ...EMPTY_A2P_STATE, ...start };
+  const save = async (patch) => {
+    state = { ...state, ...patch };
+    await p.save(patch);
+  };
+  const need2 = async (req, what) => {
+    const a = await p.send(req);
+    const id = sid(a);
+    if (!ok(a) || !id) throw new Error(refusal(a, what));
+    return id;
+  };
+  let step = null;
+  try {
+    while ((step = nextA2PStep(state)) !== null) {
+      switch (step) {
+        case "profile":
+          await save({ profileSid: await need2(customerProfileRequest({ friendlyName: p.workspace.name, email: p.email, statusCallback: p.statusCallback }), "creating the customer's profile") });
+          break;
+        case "business": {
+          const id = await need2(businessEndUserRequest(p.record), "recording the business");
+          const a = await p.send(assignRequest(state.profileSid, id));
+          if (!ok(a)) throw new Error(refusal(a, "attaching the business"));
+          await save({ businessSid: id });
+          break;
+        }
+        case "representative": {
+          const id = await need2(representativeEndUserRequest(p.record), "recording the person who signs");
+          const a = await p.send(assignRequest(state.profileSid, id));
+          if (!ok(a)) throw new Error(refusal(a, "attaching the person who signs"));
+          await save({ representativeSid: id });
+          break;
+        }
+        case "address":
+          await save({ addressSid: await need2(addressRequest(p.accountSid, p.record), "recording the address") });
+          break;
+        case "document": {
+          const id = await need2(supportingDocumentRequest({ legalName: p.record.legalName, addressSid: state.addressSid }), "attaching the address");
+          const a = await p.send(assignRequest(state.profileSid, id));
+          if (!ok(a)) throw new Error(refusal(a, "attaching the address document"));
+          await save({ documentSid: id });
+          break;
+        }
+        case "primary": {
+          const a = await p.send(assignRequest(state.profileSid, p.primaryProfileSid));
+          if (!ok(a)) throw new Error(refusal(a, "naming us as the provider"));
+          await save({ primaryAssigned: true });
+          break;
+        }
+        case "submit": {
+          const ev = await p.send(evaluateRequest(state.profileSid, A2P_POLICIES.secondaryCustomerProfile));
+          const status = typeof ev.body?.status === "string" ? ev.body.status : "";
+          if (!ok(ev)) throw new Error(refusal(ev, "checking the profile"));
+          if (status !== "compliant") throw new Error(`the profile is not complete yet: ${JSON.stringify(ev.body?.results ?? ev.body).slice(0, 300)}`);
+          const sub = await p.send(submitProfileRequest(state.profileSid));
+          if (!ok(sub)) throw new Error(refusal(sub, "submitting the profile"));
+          await save({ profileSubmitted: true });
+          break;
+        }
+        case "a2p_profile": {
+          const bundle = await need2(a2pProfileRequest({ friendlyName: p.workspace.name, email: p.email, statusCallback: p.statusCallback }), "creating the messaging profile");
+          const endUser = await need2(a2pProfileEndUserRequest({ friendlyName: p.workspace.name, companyType: p.record.ein ? "private" : "private" }), "recording the company type");
+          for (const objectSid of [endUser, state.profileSid]) {
+            const a = await p.send(trustProductAssignRequest(bundle, objectSid));
+            if (!ok(a)) throw new Error(refusal(a, "attaching to the messaging profile"));
+          }
+          const ev = await p.send(evaluateTrustProductRequest(bundle));
+          if (!ok(ev)) throw new Error(refusal(ev, "checking the messaging profile"));
+          const sub = await p.send(submitTrustProductRequest(bundle));
+          if (!ok(sub)) throw new Error(refusal(sub, "submitting the messaging profile"));
+          await save({ a2pProfileSid: bundle });
+          break;
+        }
+        case "brand":
+          await save({
+            brandSid: await need2(
+              brandRequest({ customerProfileBundleSid: state.profileSid, a2pProfileBundleSid: state.a2pProfileSid, brandType: brandTypeFor(p.record), mock: p.mock }),
+              "registering the brand"
+            )
+          });
+          break;
+        case "campaign":
+          await save({
+            campaignSid: await need2(
+              campaignRequest({ ...p.campaign, brandSid: state.brandSid, messagingServiceSid: p.messagingServiceSid, useCase: p.useCase }),
+              "registering the campaign"
+            )
+          });
+          break;
+      }
+    }
+    return { ok: true, state };
+  } catch (e) {
+    return { ok: false, step: step ?? nextA2PStep(state) ?? "profile", error: (e instanceof Error ? e.message : String(e)).slice(0, 500), state };
+  }
+}
+
 // src/google-places.ts
 var PLACES_BASE = "https://places.googleapis.com/v1";
 var PLACES_SEARCH_MASK = "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,places.businessStatus";
@@ -5902,7 +6215,7 @@ function parsePlaceDetails(json) {
     reviews
   };
 }
-function refusal(status, body) {
+function refusal2(status, body) {
   let message = `Google answered ${status}`;
   try {
     const e = obj(obj(JSON.parse(body))?.error);
@@ -5915,7 +6228,7 @@ function refusal(status, body) {
 }
 async function call(http, req) {
   const r = await http(req);
-  if (r.status < 200 || r.status >= 300) throw refusal(r.status, r.body);
+  if (r.status < 200 || r.status >= 300) throw refusal2(r.status, r.body);
   try {
     return JSON.parse(r.body);
   } catch {
@@ -6220,7 +6533,7 @@ function parseReviewsPage(json) {
   const total = typeof o?.totalReviewCount === "number" ? o.totalReviewCount : null;
   return { reviews, average_rating: avg, total_count: total, next_page_token: str3(o?.nextPageToken) };
 }
-function refusal2(status, body) {
+function refusal3(status, body) {
   let message = `Google answered ${status}`;
   try {
     const e = obj2(obj2(JSON.parse(body))?.error);
@@ -6233,7 +6546,7 @@ function refusal2(status, body) {
 }
 async function call2(http, req) {
   const r = await http(req);
-  if (r.status < 200 || r.status >= 300) throw refusal2(r.status, r.body);
+  if (r.status < 200 || r.status >= 300) throw refusal3(r.status, r.body);
   if (!r.body.trim()) return {};
   try {
     return JSON.parse(r.body);
@@ -6289,9 +6602,12 @@ function cleanReply(text) {
   return typeof text === "string" ? text.replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/\n[ \t]+/g, "\n").trim().slice(0, GBP_REPLY_MAX) : "";
 }
 export {
+  A2P_POLICIES,
+  A2P_STEPS,
   CALLER_UNKNOWN,
   CALL_ANALYSIS_FIELDS,
   DEFAULT_FN_URL,
+  EMPTY_A2P_STATE,
   FACTS_UNAVAILABLE,
   FRESH_SLACK_MS,
   GBP_ACCOUNTS_URL,
@@ -6308,6 +6624,8 @@ export {
   HANDOFF_VAR,
   LINE_COSTS,
   LINE_STEPS,
+  LOW_VOLUME_USECASE,
+  MESSAGING2 as MESSAGING,
   PLACES_BASE,
   PLACES_DETAILS_MASK,
   PLACES_SEARCH_LIMIT,
@@ -6322,7 +6640,9 @@ export {
   SMS_HELD_DETAILS,
   SMS_HELD_REASON,
   SMS_MAX_CHARS,
+  SOLE_PROPRIETOR_USECASE,
   STATE_TTL_MS,
+  TRUSTHUB,
   TwilioError,
   VOICE_AGENT_DEFAULTS,
   VOICE_LLM_DEFAULTS,
@@ -6331,21 +6651,32 @@ export {
   VOICE_SHELL_PROMPT,
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
+  a2pProfileEndUserRequest,
+  a2pProfileRequest,
   accountsRequest,
+  addressRequest,
   agentSettingsDrift,
+  assignRequest,
   authorizeUrl,
   availabilityUrl,
   b64url,
+  brandRequest,
+  brandTypeFor,
+  businessEndUserRequest,
   callSummaryLine,
+  campaignRequest,
   chooseLineProvider,
   cleanReply,
   createAgent,
   createAgentVersion,
   createPhoneNumber,
   createRetellLlm,
+  customerProfileRequest,
   deleteReplyRequest,
   desiredVoiceShell,
   dryProvider,
+  evaluateRequest,
+  evaluateTrustProductRequest,
   fetchMediaBytes,
   fetchRecording,
   fetchTwilio,
@@ -6369,6 +6700,7 @@ export {
   locationsRequest,
   needsHydration,
   newNonce,
+  nextA2PStep,
   nextLineStep,
   normalizeCall,
   normalizeInbound,
@@ -6390,12 +6722,14 @@ export {
   publishAgentVersion,
   replyRequest,
   replyToReview,
+  representativeEndUserRequest,
   retellImportBody,
   reviewBells,
   reviewIdOf,
   reviewParent,
   reviewsRequest,
   revokeRequest,
+  runA2PSaga,
   runLineSaga,
   sameSignature,
   searchPlaces,
@@ -6408,11 +6742,16 @@ export {
   smsBody,
   smsInboundFrom,
   smsInboundUrl,
+  smsStateFor,
   starRatingNumber,
   stripKey,
+  submitProfileRequest,
+  submitTrustProductRequest,
+  supportingDocumentRequest,
   tokenExchangeRequest,
   tokenRefreshRequest,
   trunkDomain,
+  trustProductAssignRequest,
   twilioProvider,
   twilioSignature,
   twilioSignedString,
