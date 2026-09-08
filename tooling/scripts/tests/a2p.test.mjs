@@ -11,7 +11,7 @@ import {
   A2P_POLICIES, A2P_STEPS, EMPTY_A2P_STATE, LOW_VOLUME_USECASE, SOLE_PROPRIETOR_USECASE,
   brandTypeFor, nextA2PStep, smsStateFor, runA2PSaga, BUSINESS_INDUSTRIES, DEFAULT_INDUSTRY, industryOf,
   addressRequest, a2pProfileRequest, brandRequest, businessEndUserRequest, campaignRequest,
-  customerProfileRequest, evaluateRequest, representativeEndUserRequest, submitProfileRequest, supportingDocumentRequest, encodeForm,
+  customerProfileRequest, evaluateRequest, representativeEndUserRequest, submitProfileRequest, supportingDocumentRequest, encodeForm, keywordsFor,
 } from "@chanlytics/channels";
 import { readCode, readRaw } from "./_source.mjs";
 
@@ -101,7 +101,7 @@ test("the campaign says what the carriers ask, with the samples and keywords as 
   const c = campaignRequest({
     brandSid: "BN1", messagingServiceSid: "MG1", description: "d".repeat(45), messageFlow: "f".repeat(45),
     samples: ["one sample message here ok", "two sample message here ok"],
-    optInMessage: "You are subscribed. Reply STOP.", optInKeywords: ["YES OFFERS", "START"],
+    optInMessage: "You are subscribed. Reply STOP.", optInKeywords: ["YES OFFERS", "START", "UNSTOP"],
     privacyPolicyUrl: "https://app.chanlytics.com/privacy", termsUrl: "https://app.chanlytics.com/terms",
     useCase: LOW_VOLUME_USECASE,
   });
@@ -115,10 +115,17 @@ test("the campaign says what the carriers ask, with the samples and keywords as 
   // Repeated keys, not indexed ones: Twilio answers an indexed list with
   // "Unable to process JSON" after the brand has already been registered.
   assert.deepEqual(c.form.MessageSamples, ["one sample message here ok", "two sample message here ok"]);
-  assert.deepEqual(c.form.OptInKeywords, ["YES OFFERS", "START"]);
+  // A keyword is one word: the carriers refuse a space, at the campaign,
+  // after the brand is already registered.
+  assert.deepEqual(c.form.OptInKeywords, ["START", "UNSTOP"]);
   const wire = encodeForm(c.form);
   assert.equal((wire.match(/MessageSamples=/g) ?? []).length, 2);
-  assert.ok(wire.includes("OptInKeywords=YES+OFFERS") && wire.includes("OptInKeywords=START"));
+  assert.ok(wire.includes("OptInKeywords=START") && wire.includes("OptInKeywords=UNSTOP"));
+  assert.ok(!wire.includes("YES+OFFERS"), "REGRESSION: a two-word keyword is refused with 'must contain either alphanumeric or accented characters'");
+  assert.deepEqual(keywordsFor(["YES OFFERS", "start", "SI OFERTAS", " STOP "]), ["start", "STOP"]);
+  const none = campaignRequest({ brandSid: "BN1", messagingServiceSid: "MG1", description: "d".repeat(45), messageFlow: "f".repeat(45), samples: ["one sample message here ok"], optInMessage: "subscribed here", optInKeywords: ["YES OFFERS"], privacyPolicyUrl: "https://p", termsUrl: "https://t", useCase: LOW_VOLUME_USECASE });
+  assert.equal(none.form.OptInKeywords, undefined);
+  assert.equal(none.form.OptInMessage, undefined, "no keywords, no keyword message");
   assert.ok(!wire.includes("%5B0%5D"), "no indexed keys reach the wire");
   assert.equal(c.form.PrivacyPolicyUrl, "https://app.chanlytics.com/privacy");
   assert.equal(c.form.TermsAndConditionsUrl, "https://app.chanlytics.com/terms");

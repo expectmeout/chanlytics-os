@@ -6016,6 +6016,9 @@ function brandRequest(o) {
     }
   };
 }
+function keywordsFor(words) {
+  return words.map((w) => w.trim()).filter((w) => /^[A-Za-z0-9]+$/.test(w));
+}
 var LOW_VOLUME_USECASE = "LOW_VOLUME";
 var SOLE_PROPRIETOR_USECASE = "SOLE_PROPRIETOR";
 function campaignRequest(f) {
@@ -6034,7 +6037,9 @@ function campaignRequest(f) {
     TermsAndConditionsUrl: f.termsUrl
   };
   form2.MessageSamples = f.samples.slice(0, 5);
-  form2.OptInKeywords = f.optInKeywords;
+  const keywords = keywordsFor(f.optInKeywords);
+  if (keywords.length) form2.OptInKeywords = keywords;
+  else delete form2.OptInMessage;
   return { url: `${MESSAGING2}/Services/${f.messagingServiceSid}/Compliance/Usa2p`, method: "POST", as: "line", form: form2 };
 }
 var A2P_STEPS = ["profile", "business", "representative", "address", "document", "primary", "submit", "a2p_profile", "brand", "campaign"];
@@ -6755,6 +6760,7 @@ export {
   isAreaCode,
   isE164,
   isValidSipPassword,
+  keywordsFor,
   listAccounts,
   listCalls,
   listLocations,
