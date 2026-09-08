@@ -60,7 +60,9 @@ export async function POST(request: Request): Promise<Response> {
     try {
       const r = await syncRegistration(db, line);
       if (!r.ok) continue;
-      if (r.smsState !== "registering") moved++;
+      // Moved means CHANGED. Counting "not registering any more" called a
+      // line that has sat in the same state for a week a move, every hour.
+      if (r.smsState !== line.sms_state) moved++;
       // The wait's own ending: the brand is through, so the campaign can go.
       if (r.brand === "APPROVED" && !line.campaign_sid) {
         const rec = await db.from("business_records").select("*").eq("tenant_id", line.tenant_id).maybeSingle();
