@@ -388,6 +388,27 @@ export function peopleFromItems(items: FeedItem[], services: string[], nowMs: nu
 /* ------------------------------------------------- asked, then booked */
 
 /** Of the people who wrote or called in the period, how many have an appointment on the calendar. */
+/**
+ * What a refusal from `create_person` means for the rest of the batch.
+ *
+ * `22023` is the door's own refusal of THIS row — a phone that is not in
+ * international form, or a name over 80 characters (00052_create_person.sql).
+ * The appointments behind it are innocent: skipping costs one person, and
+ * stopping costs everyone after them. Stopping is what the calendar read used
+ * to do, so a single short code on the calendar silently kept every later
+ * person out of People for as long as it stayed there, leaving one line in a
+ * log nobody reads.
+ *
+ * Every other code fails identically for every row — `28000` not signed in,
+ * `P0002` no membership, `42501` the grant gone, `PGRST202` the function
+ * gone — so spending forty more calls proving it during a page load helps
+ * nobody. An absent code is treated as systemic too: unknown means unproven,
+ * and the safe unknown is the one that does less.
+ */
+export function afterPersonRefused(code: string | null | undefined): "skip" | "stop" {
+  return code === "22023" ? "skip" : "stop";
+}
+
 export interface BookingReportDto {
   calendar: "ok" | "unavailable" | "none";
   days: number;

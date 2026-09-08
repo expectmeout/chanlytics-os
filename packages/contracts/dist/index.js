@@ -2495,6 +2495,9 @@ function peopleFromItems(items, services, nowMs, window = {}) {
   }
   return [...byPhone.values()].sort((a, b) => a.start - b.start);
 }
+function afterPersonRefused(code2) {
+  return code2 === "22023" ? "skip" : "stop";
+}
 function bookedAfterAsk(visits, askedMs) {
   if (!visits) return false;
   if (visits.next) return true;
@@ -6494,6 +6497,7 @@ export {
   TenantConfigSchema,
   TenantConfigWriteSchema,
   WA_WINDOW_MS,
+  afterPersonRefused,
   ago,
   agoLabel,
   agoShort,
