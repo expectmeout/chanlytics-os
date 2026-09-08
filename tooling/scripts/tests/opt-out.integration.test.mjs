@@ -17,6 +17,7 @@ import { resolveOutboundTarget } from "@chanlytics/db";
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const skip = !URL_ || !KEY ? "no service-role credentials in env" : false;
+const SMOKE_SLUG = "chanlytics-smoke-test";
 
 let db;
 let tenantId;
@@ -31,7 +32,13 @@ before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   const { data: ts } = await db.from("tenants").select("id, slug");
-  tenantId = (ts.find((t) => t.slug === "chanlytics-smoke-test") ?? ts[0]).id;
+  // NOT `?? ts[0]`. Pointed at production the first tenant in the table is a
+  // real business, and this suite inserts fixture contacts and messages into
+  // whatever tenant it is handed — so a missing smoke tenant meant probe rows
+  // in a live customer's inbox, tidied away only if the run reached `after`.
+  const smoke = (ts ?? []).find((t) => t.slug === SMOKE_SLUG);
+  if (!smoke) throw new Error(`no tenant with slug ${SMOKE_SLUG}: refusing to write fixtures into a real workspace`);
+  tenantId = smoke.id;
 });
 
 after(async () => {

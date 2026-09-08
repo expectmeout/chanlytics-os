@@ -36,9 +36,26 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm e2e:install
+      # The 62 integration suites talk to real Postgres. ci.yml holds no live
+      # secrets by policy, so until now they ran NOWHERE — 62 written tests
+      # covering erasure, the message lifecycle, opt-out, the deadman and the
+      # metrics, executed by nobody. SUPABASE_URL is what they read; passing
+      # only NEXT_PUBLIC_SUPABASE_URL left them skipping even here.
+      - name: Integration suites against real Postgres
+        run: pnpm test
+        env:
+          REQUIRE_SERVICE_CREDENTIALS: "1"
+          SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
       - run: pnpm e2e
+        if: ${{ !cancelled() }}
         env:
           CI: "true"
+          # Says this run is meant to be signed in, so skipping the signed-in
+          # half is a failure rather than a quiet success. Not keyed on CI:
+          # GitHub sets that for the pull-request job too, which is meant to
+          # run credential-free.
+          REQUIRE_SERVICE_CREDENTIALS: "1"
           E2E_BASE_URL: https://app.chanlytics.com
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
