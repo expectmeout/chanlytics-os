@@ -11,7 +11,7 @@ type Db = SupabaseClient<Database>;
 
 export interface IngestInboundParams {
   tenantId: string;
-  channel: "whatsapp";
+  channel: "whatsapp" | "sms";
   identityExternalId: string;
   phoneE164: string | null;
   waProfileName: string | null;
@@ -85,6 +85,8 @@ export async function recordOutbound(
     /** "queued" is a DRAFT awaiting its veto window — written by the bot,
      *  fired later by outbound_send, cancellable until then. */
     status?: "sent" | "failed" | "queued";
+    /** The wire it goes out on: where the person last wrote. WhatsApp unless said. */
+    channel?: "whatsapp" | "sms";
   },
 ): Promise<string | null> {
   const { data, error } = await db
@@ -93,7 +95,7 @@ export async function recordOutbound(
       tenant_id: p.tenantId,
       conversation_id: p.conversationId,
       contact_id: p.contactId,
-      channel: "whatsapp",
+      channel: p.channel ?? "whatsapp",
       direction: "outbound",
       sender: p.sender,
       type: p.type ?? "text",

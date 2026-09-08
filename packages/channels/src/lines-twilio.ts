@@ -24,6 +24,7 @@ export type TwilioHttp = (
 
 const API = "https://api.twilio.com/2010-04-01";
 const TRUNKING = "https://trunking.twilio.com/v1";
+const MESSAGING = "https://messaging.twilio.com/v1";
 
 export const twilioUrls = {
   subaccounts: `${API}/Accounts.json`,
@@ -37,6 +38,9 @@ export const twilioUrls = {
   trunkCredentialLists: (trunkSid: string) => `${TRUNKING}/Trunks/${trunkSid}/CredentialLists`,
   trunkOriginationUrls: (trunkSid: string) => `${TRUNKING}/Trunks/${trunkSid}/OriginationUrls`,
   trunkPhoneNumbers: (trunkSid: string) => `${TRUNKING}/Trunks/${trunkSid}/PhoneNumbers`,
+  messagingServices: `${MESSAGING}/Services`,
+  serviceNumbers: (serviceSid: string) => `${MESSAGING}/Services/${serviceSid}/PhoneNumbers`,
+  messages: (sid: string) => `${API}/Accounts/${sid}/Messages.json`,
 };
 
 /** A provider refusal as an error the saga records: status, Twilio's code, its message. */
@@ -179,6 +183,38 @@ export function twilioProvider(http: TwilioHttp = fetchTwilio): LineProvider {
 
     async attachNumber(acct, trunkSid, numberSid) {
       need(await http(acct, "POST", twilioUrls.trunkPhoneNumbers(trunkSid), { PhoneNumberSid: numberSid }), "attach number to trunk");
+    },
+
+    // Messaging Services API (verified 2026-09-07): the service's own inbound
+    // URL wins over the number's; sticky sender and smart encoding on.
+    async createMessagingService(acct, o) {
+      const b = need(
+        await http(acct, "POST", twilioUrls.messagingServices, {
+          FriendlyName: o.friendlyName.slice(0, 64),
+          InboundRequestUrl: o.inboundUrl,
+          InboundMethod: "POST",
+          UseInboundWebhookOnNumber: "false",
+          StickySender: "true",
+          SmartEncoding: "true",
+        }),
+        "create messaging service",
+      );
+      const sid = str(b, "sid");
+      if (!sid) throw new TwilioError(200, b, "create messaging service answered without a sid");
+      return { sid };
+    },
+
+    async addNumberToService(acct, serviceSid, numberSid) {
+      const b = need(await http(acct, "POST", twilioUrls.serviceNumbers(serviceSid), { PhoneNumberSid: numberSid }), "add number to messaging service");
+      const sid = str(b, "sid");
+      if (!sid) throw new TwilioError(200, b, "add number to messaging service answered without a sid");
+      return { sid };
+    },
+
+    async sendSms(acct, o) {
+      const a = await http(acct, "POST", twilioUrls.messages(acct.sid), { MessagingServiceSid: o.serviceSid, To: o.to, Body: o.body });
+      const ok = a.status >= 200 && a.status < 300 && !!str(a.body, "sid");
+      return { ok, sid: str(a.body, "sid"), status: a.status, code: typeof a.body?.code === "number" ? (a.body.code as number) : null };
     },
   };
 }

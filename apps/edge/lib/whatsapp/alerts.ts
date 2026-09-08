@@ -32,6 +32,7 @@ const REASON_WORDS: Record<string, string> = {
   "rate cap": "the receptionist reached its daily limit",
   budget: "the day's model budget is used up",
   wa_send_failed: "the reply failed to send",
+  carriers: "texted before the carriers approved the line",
 };
 
 export async function alertStaff(

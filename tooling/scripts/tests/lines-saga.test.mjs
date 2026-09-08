@@ -32,7 +32,7 @@ import { readCode, readRaw } from "./_source.mjs";
 const LINE_ID = "0f3c2a1e-1111-4222-8333-444455556666";
 const freshLine = (over = {}) => ({
   id: LINE_ID, tenant_id: "t1", e164: "+13055550100", provider: "dry", area_code: 305,
-  subaccount_sid: null, number_sid: null, trunk_sid: null, credential_list_sid: null, termination_uri: null, retell_agent_id: null,
+  subaccount_sid: null, number_sid: null, trunk_sid: null, credential_list_sid: null, termination_uri: null, messaging_service_sid: null, retell_agent_id: null,
   voice_state: "none", step: null, last_error: null, state_since: "2026-09-07T00:00:00Z", facts: {},
   ...over,
 });
@@ -45,6 +45,7 @@ function fakes(over = {}) {
   let secrets = {};
   const imports = [];
   const channels = [];
+  const smsChannels = [];
   const provider = dryProvider(7);
   const ports = {
     provider,
@@ -60,11 +61,13 @@ function fakes(over = {}) {
     agent: { ensure: async () => ({ agentId: "agent_x", llmId: "llm_x", pinned: true }) },
     retell: { importNumber: async (body) => { imports.push(body); return { ok: true, status: 201, body: { phone_number_type: "custom" } }; } },
     channel: { ensure: async (o) => { channels.push(o); return { channelId: "ch1", created: true }; } },
+    smsChannel: { ensure: async (o) => { smsChannels.push(o); return { channelId: "chs1", created: true }; } },
     inboundWebhookUrl: "https://chanlytics-messaging.vercel.app/api/retell-inbound?key=s",
+    smsInboundUrl: "https://chanlytics-messaging.vercel.app/api/inbound-sms",
     nickname: "Harbor Moving Co. · Chanlytics",
     ...over,
   };
-  return { ports, saves, imports, channels, secrets: () => secrets, provider };
+  return { ports, saves, imports, channels, smsChannels, secrets: () => secrets, provider };
 }
 const ops = (provider) => provider.calls.map((c) => c.op);
 
@@ -88,7 +91,7 @@ test("a fresh line runs every step in order and answers; secrets go to the vault
     { trunk_ready: true, imported: true, type: "custom", channel: "ch1", pinned: true, attached: true, cl: true },
   );
   assert.match(String(l.facts.origination_sid), /^OU/);
-  assert.deepEqual(ops(f.provider), ["createSubaccount", "buyNumber", "createTrunk", "createCredentialList", "addCredential", "attachCredentialList", "addOrigination", "attachNumber"]);
+  assert.deepEqual(ops(f.provider), ["createSubaccount", "buyNumber", "createTrunk", "createCredentialList", "addCredential", "attachCredentialList", "addOrigination", "attachNumber", "createMessagingService", "addNumberToService"]);
   // The subaccount, not the master, buys and trunks.
   assert.equal(f.provider.calls[0].args[0], "ACmaster");
   for (const c of f.provider.calls.slice(1)) assert.equal(c.args[0], l.subaccount_sid, `${c.op} acts as the subaccount`);
@@ -115,7 +118,10 @@ test("a fresh line runs every step in order and answers; secrets go to the vault
   // The row said provisioning first and answering last.
   assert.deepEqual(f.saves[0], { voice_state: "provisioning", step: "subaccount", last_error: null, state_since: "2026-09-07T12:00:00Z" });
   assert.deepEqual(f.saves.at(-1), { voice_state: "answering", step: null, last_error: null, state_since: "2026-09-07T12:00:00Z" });
-  assert.deepEqual([...LINE_STEPS], ["subaccount", "number", "trunk", "agent", "import", "channel"]);
+  assert.deepEqual([...LINE_STEPS], ["subaccount", "number", "trunk", "agent", "import", "messaging", "channel"]);
+  assert.match(String(f.saves.find((s) => s.messaging_service_sid)?.messaging_service_sid), /^MG/, "the line texts through its own Messaging Service");
+  assert.deepEqual(f.smsChannels.map((c) => ({ e164: c.e164, lineId: c.lineId, hasService: /^MG/.test(c.serviceSid) })), [{ e164: "+13055550100", lineId: LINE_ID, hasService: true }]);
+  assert.deepEqual(ops(f.provider).slice(-2), ["createMessagingService", "addNumberToService"], "texting is set up after the number answers calls, before the rows are written");
 });
 
 test("a refusal at the import leaves the step and the provider's words; a retry resumes there and buys nothing twice", async () => {
@@ -139,7 +145,7 @@ test("a refusal at the import leaves the step and the provider's words; a retry 
   const again = await runLineSaga(first.line, f.ports);
   assert.equal(again.ok, true);
   assert.equal(again.line.voice_state, "answering");
-  assert.equal(f.provider.calls.length, 8, "no provider call repeated");
+  assert.equal(f.provider.calls.length, 10, "no provider call repeated; the two messaging calls follow the import");
   assert.equal(f.imports.length, 2);
   assert.deepEqual(f.imports[1], f.imports[0], "the same import, retried");
 });
@@ -159,12 +165,12 @@ test("a provider failure inside the trunk step resumes at the sub-step that fail
   const again = await runLineSaga(first.line, f.ports);
   assert.equal(again.ok, true);
   const after = ops(f.provider).slice(before.length);
-  assert.deepEqual(after, ["attachNumber"], "only the sub-step that failed runs again");
+  assert.deepEqual(after, ["attachNumber", "createMessagingService", "addNumberToService"], "only the sub-step that failed runs again, then the steps that never ran");
 });
 
 test("a line that answers is left alone; a line with no number cannot start; a lost token is a failure with a reason", async () => {
   const f = fakes();
-  const done = await runLineSaga(freshLine({ voice_state: "answering", subaccount_sid: "AC1", number_sid: "PN1", trunk_sid: "TK1", credential_list_sid: "CL1", termination_uri: "x.pstn.twilio.com", retell_agent_id: "agent_x", facts: { trunk_ready: true, retell_imported: true, channel_id: "ch1" } }), f.ports);
+  const done = await runLineSaga(freshLine({ voice_state: "answering", subaccount_sid: "AC1", number_sid: "PN1", trunk_sid: "TK1", credential_list_sid: "CL1", termination_uri: "x.pstn.twilio.com", messaging_service_sid: "MG1", retell_agent_id: "agent_x", facts: { trunk_ready: true, retell_imported: true, number_in_service: true, channel_id: "ch1", sms_channel_id: "chs1" } }), f.ports);
   assert.equal(done.ok, true);
   assert.equal(f.saves.length, 0);
   assert.equal(f.provider.calls.length, 0);

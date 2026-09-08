@@ -6,6 +6,7 @@ export * from "./lines";
 export * from "./lines-twilio";
 export * from "./lines-dry";
 export * from "./lines-saga";
+export * from "./sms";
 export * from "./google-places";
 export * from "./google-sync";
 export * from "./google-oauth";

@@ -72,7 +72,21 @@ export const POST = withRoute(async (req, ctx) => {
     throw new AppError("validation", field ? `${field}: ${first.message}` : first.message);
   }
   const body = parsed.data;
-  const window = waWindow(conv.last_wa_inbound_at);
+  // Reply where the person last wrote. A conversation is one per person and
+  // its messages carry the channel; a text has no 24-hour window and no
+  // templates, so the operator's words go out as they are.
+  const { data: lastIn, error: lastInErr } = await ctx.supabase
+    .from("messages")
+    .select("channel")
+    .eq("conversation_id", conv.id)
+    .eq("tenant_id", conv.tenant_id)
+    .eq("direction", "inbound")
+    .order("channel_ts", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+  if (lastInErr) throw new Error(`reading the last inbound: ${lastInErr.message}`);
+  const replyChannel: "whatsapp" | "sms" = lastIn?.channel === "sms" ? "sms" : "whatsapp";
+  const window = replyChannel === "sms" ? { open: true, closesAtIso: null } : waWindow(conv.last_wa_inbound_at);
 
   // Idempotency: a replayed POST returns the original envelope, never a double
   // text. The key identifies the INTENT (conversation + message body), so a
@@ -112,6 +126,7 @@ export const POST = withRoute(async (req, ctx) => {
   if (window.open) {
     if (!body.text?.trim()) throw new AppError("validation", "Reply text is required.");
     messageBody = body.text.trim();
+    if (replyChannel === "sms" && messageBody.length > 1600) throw new AppError("validation", "A text can be at most 1600 characters.");
   } else {
     if (!body.template?.name) {
       throw new AppError(
@@ -210,7 +225,7 @@ export const POST = withRoute(async (req, ctx) => {
       tenant_id: conv.tenant_id,
       conversation_id: conv.id,
       contact_id: conv.contact_id,
-      channel: "whatsapp",
+      channel: replyChannel,
       direction: "outbound",
       sender: "human",
       sent_by: ctx.userId,

@@ -71,6 +71,8 @@ export async function queueReply(
   source: "veto_window" | "low_confidence" = "veto_window",
   /** What the row remembers about the answer (contracts/brain.ts). */
   brainMeta?: BrainMeta,
+  /** The wire the draft will go out on. */
+  channel: "whatsapp" | "sms" = "whatsapp",
 ): Promise<boolean> {
   if (!db || !tenantId || !ing) {
     L.warn("wa_queue_unavailable", {
@@ -82,20 +84,20 @@ export async function queueReply(
   // queues the same row and the same job when an owner has one rewritten.
   const id = await queueDraft(
     db,
-    { tenantId, conversationId: ing.conversation_id, contactId: ing.contact_id, toPhone, body, delayMs, source, brainMeta },
+    { tenantId, conversationId: ing.conversation_id, contactId: ing.contact_id, toPhone, body, delayMs, source, brainMeta, channel },
     L,
   );
   return !!id;
 }
 
 /** Additive PG ingest — never throws into the handling path. */
-export async function pgIngest(tenantId: string | null, n: NormalizedInbound): Promise<IngestResult | null> {
+export async function pgIngest(tenantId: string | null, n: NormalizedInbound, channel: "whatsapp" | "sms" = "whatsapp"): Promise<IngestResult | null> {
   const db = pg();
   if (!db || !tenantId) return null;
   try {
     return await ingestInbound(db, {
       tenantId,
-      channel: "whatsapp",
+      channel,
       identityExternalId: n.waId,
       phoneE164: n.phoneDigits ? `+${n.phoneDigits.replace(/^\+/, "")}` : null,
       waProfileName: n.profileName,
@@ -143,6 +145,8 @@ export function pgSink(
   tenantId: string | null,
   ing: IngestResult | null,
   rt?: TenantRuntime | null,
+  /** The wire this message's replies go out on. */
+  channel: "whatsapp" | "sms" = "whatsapp",
 ) {
   const on = !!(db && tenantId && ing);
   return {
@@ -176,7 +180,7 @@ export function pgSink(
         ? pgSafe("outbound", () =>
             recordOutbound(db!, {
               tenantId: tenantId!, conversationId: ing!.conversation_id, contactId: ing!.contact_id,
-              sender: "ai", body, externalId: wamid,
+              sender: "ai", body, externalId: wamid, channel,
               ...(brainMeta ? { meta: brainMeta as unknown as Json } : {}),
             }))
         : Promise.resolve(),

@@ -11,6 +11,8 @@ import { recordOutbound, resolveOutboundTarget, type Database, type Json } from 
 export interface JobContext {
   db: SupabaseClient<Database>;
   waCfg: WaConfig;
+  /** The workspace's texting line, when it has one — injected by the edge like waCfg; null = no line. */
+  sms?: { send(to: string, body: string): Promise<{ ok: boolean; wamid: string | null; status: number; errorBody?: string }> } | null;
   alert: (subject: string, body: string) => Promise<void>;
   /**
    * Delete one customer's stored Blob thread.
@@ -65,6 +67,12 @@ const SENDERS: Record<string, ChannelSend> = {
       ? sendTemplate(ctx.waCfg, digits, p.template)
       : sendText(ctx.waCfg, digits, p.body);
   },
+  // A text has no templates: the words go as they are, through the line's
+  // Messaging Service. No line = a loud failure, never the other wire.
+  sms: (ctx, to, p) =>
+    ctx.sms
+      ? ctx.sms.send(to.startsWith("+") ? to : `+${to}`, p.body)
+      : Promise.resolve({ ok: false, wamid: null, status: 503, errorBody: "no texting line" }),
 };
 
 async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {

@@ -9,6 +9,7 @@ import { pg } from "../../lib/pg.js";
 import { dispatchJob, FIRE_URL, scheduleJob, type ClaimedJob } from "../../lib/workspace/jobs.js";
 import { notify } from "../../lib/notify.js";
 import { loadTenantNotifications, waCredentialsForTenant } from "../../lib/tenant-runtime.js";
+import { smsSenderForTenant } from "../../lib/sms.js";
 import { deleteThread } from "../../lib/store.js";
 
 export const config = { maxDuration: 60 };
@@ -91,6 +92,8 @@ export async function POST(request: Request): Promise<Response> {
         // business's token. The same file already resolves per-tenant
         // notification settings per job; the credentials simply never were.
         waCfg: await waCredentialsForTenant(db, job.tenant_id),
+        // The texting line's sender, when the workspace has one.
+        sms: await smsSenderForTenant(db, job.tenant_id),
         alert: alertFor(db, job),
         // The edge is the only runtime holding BLOB_READ_WRITE_TOKEN, which is
         // why the erase job is fired here rather than orchestrated from the

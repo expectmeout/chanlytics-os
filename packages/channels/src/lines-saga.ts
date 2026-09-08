@@ -18,8 +18,8 @@
 import { RETELL_ORIGINATION, isValidSipPassword, sipPassword, sipUsername, trunkDomain } from "./lines";
 import type { LineProvider, ProviderAccount } from "./lines";
 
-export type LineStep = "subaccount" | "number" | "trunk" | "agent" | "import" | "channel";
-export const LINE_STEPS: readonly LineStep[] = ["subaccount", "number", "trunk", "agent", "import", "channel"];
+export type LineStep = "subaccount" | "number" | "trunk" | "agent" | "import" | "messaging" | "channel";
+export const LINE_STEPS: readonly LineStep[] = ["subaccount", "number", "trunk", "agent", "import", "messaging", "channel"];
 
 export type LineVoiceState = "none" | "provisioning" | "answering" | "failed";
 
@@ -35,6 +35,8 @@ export interface LineRow {
   trunk_sid: string | null;
   credential_list_sid: string | null;
   termination_uri: string | null;
+  /** The Messaging Service the line texts through (MG…); null until the messaging step. */
+  messaging_service_sid: string | null;
   retell_agent_id: string | null;
   voice_state: LineVoiceState;
   step: LineStep | null;
@@ -69,8 +71,12 @@ export interface LinePorts {
   retell: { importNumber(body: Record<string, unknown>): Promise<{ ok: boolean; status: number; body: Record<string, unknown> | null }> };
   /** The tenant_channels row that routes calls back — created once per agent. */
   channel: { ensure(o: { agentId: string; e164: string; lineId: string }): Promise<{ channelId: string; created: boolean }> };
+  /** The tenant_channels row that routes texts back — one per line, keyed on the number. */
+  smsChannel: { ensure(o: { e164: string; lineId: string; serviceSid: string }): Promise<{ channelId: string; created: boolean }> };
   /** With its key: the inbound-call webhook that fills the facts per call. */
   inboundWebhookUrl: string;
+  /** Where the line's texts arrive (no key: the provider signs every request). */
+  smsInboundUrl: string;
   nickname: string;
 }
 
@@ -105,7 +111,8 @@ export function nextLineStep(line: LineRow): LineStep | null {
   if (!line.trunk_sid || !line.credential_list_sid || !line.termination_uri || line.facts.trunk_ready !== true) return "trunk";
   if (!line.retell_agent_id) return "agent";
   if (line.facts.retell_imported !== true) return "import";
-  if (typeof line.facts.channel_id !== "string") return "channel";
+  if (!line.messaging_service_sid || line.facts.number_in_service !== true) return "messaging";
+  if (typeof line.facts.channel_id !== "string" || typeof line.facts.sms_channel_id !== "string") return "channel";
   return null;
 }
 
@@ -212,9 +219,27 @@ export async function runLineSaga(start: LineRow, ports: LinePorts): Promise<Sag
           await save({ facts: { ...line.facts, retell_imported: true, retell_number_type: typeof r.body?.phone_number_type === "string" ? r.body.phone_number_type : "custom" } });
           break;
         }
+        case "messaging": {
+          const acct = sub();
+          if (!line.messaging_service_sid) {
+            const svc = await ports.provider.createMessagingService(acct, { friendlyName: `${ports.tenant.name} · Chanlytics`, inboundUrl: ports.smsInboundUrl });
+            await save({ messaging_service_sid: svc.sid });
+          }
+          if (line.facts.number_in_service !== true) {
+            await ports.provider.addNumberToService(acct, line.messaging_service_sid!, line.number_sid!);
+            await fact("number_in_service", true);
+          }
+          break;
+        }
         case "channel": {
-          const c = await ports.channel.ensure({ agentId: line.retell_agent_id!, e164: line.e164, lineId: line.id });
-          await fact("channel_id", c.channelId);
+          if (typeof line.facts.channel_id !== "string") {
+            const c = await ports.channel.ensure({ agentId: line.retell_agent_id!, e164: line.e164, lineId: line.id });
+            await fact("channel_id", c.channelId);
+          }
+          if (typeof line.facts.sms_channel_id !== "string") {
+            const s = await ports.smsChannel.ensure({ e164: line.e164, lineId: line.id, serviceSid: line.messaging_service_sid! });
+            await fact("sms_channel_id", s.channelId);
+          }
           break;
         }
       }

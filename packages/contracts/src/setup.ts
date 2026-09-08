@@ -75,6 +75,7 @@ export const LINE_STEP_WORDS: Record<string, string> = {
   trunk: "connecting the number to the receptionist",
   agent: "creating the receptionist",
   import: "handing the number to the receptionist",
+  messaging: "setting up texting",
   channel: "recording the line",
 };
 

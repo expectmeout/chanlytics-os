@@ -57,7 +57,7 @@ test("the inbound media download uses the tenant's runtime", () => {
 });
 
 test("the sink carries the runtime, so a future send inside it cannot regress", () => {
-  assert.match(wa, /pgSink\(db, tenantId, ing, rt\)/);
+  assert.match(wa, /pgSink\(db, tenantId, ing, rt, channel\)/);
   assert.ok(
     !/pgSink\(db, tenantId, ing\)/.test(wa),
     "every call site must pass the runtime",

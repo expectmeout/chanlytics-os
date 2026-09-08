@@ -4617,6 +4617,7 @@ var CALL_ANALYSIS_FIELDS = [
 ];
 var API2 = "https://api.twilio.com/2010-04-01";
 var TRUNKING = "https://trunking.twilio.com/v1";
+var MESSAGING = "https://messaging.twilio.com/v1";
 var twilioUrls = {
   subaccounts: `${API2}/Accounts.json`,
   availableLocal: (sid, country = "US") => `${API2}/Accounts/${sid}/AvailablePhoneNumbers/${country}/Local.json`,
@@ -4628,11 +4629,15 @@ var twilioUrls = {
   trunk: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}`,
   trunkCredentialLists: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/CredentialLists`,
   trunkOriginationUrls: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/OriginationUrls`,
-  trunkPhoneNumbers: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/PhoneNumbers`
+  trunkPhoneNumbers: (trunkSid) => `${TRUNKING}/Trunks/${trunkSid}/PhoneNumbers`,
+  messagingServices: `${MESSAGING}/Services`,
+  serviceNumbers: (serviceSid) => `${MESSAGING}/Services/${serviceSid}/PhoneNumbers`,
+  messages: (sid) => `${API2}/Accounts/${sid}/Messages.json`
 };
+var enc = new TextEncoder();
 var FRESH_SLACK_MS = 2 * 864e5;
 var STATE_TTL_MS = 10 * 6e4;
-var enc = new TextEncoder();
+var enc2 = new TextEncoder();
 var dec = new TextDecoder();
 
 // ../../node_modules/zod/v3/external.js
@@ -13716,7 +13721,7 @@ async function recordOutbound(db, p) {
     tenant_id: p.tenantId,
     conversation_id: p.conversationId,
     contact_id: p.contactId,
-    channel: "whatsapp",
+    channel: p.channel ?? "whatsapp",
     direction: "outbound",
     sender: p.sender,
     type: p.type ?? "text",
@@ -13790,7 +13795,10 @@ var SENDERS = {
   whatsapp: (ctx, to, p) => {
     const digits = to.replace(/^\+/, "");
     return p.template ? sendTemplate(ctx.waCfg, digits, p.template) : sendText(ctx.waCfg, digits, p.body);
-  }
+  },
+  // A text has no templates: the words go as they are, through the line's
+  // Messaging Service. No line = a loud failure, never the other wire.
+  sms: (ctx, to, p) => ctx.sms ? ctx.sms.send(to.startsWith("+") ? to : `+${to}`, p.body) : Promise.resolve({ ok: false, wamid: null, status: 503, errorBody: "no texting line" })
 };
 async function outboundSend(ctx, job) {
   const p = job.payload;

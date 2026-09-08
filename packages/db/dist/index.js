@@ -4562,7 +4562,7 @@ async function recordOutbound(db, p) {
     tenant_id: p.tenantId,
     conversation_id: p.conversationId,
     contact_id: p.contactId,
-    channel: "whatsapp",
+    channel: p.channel ?? "whatsapp",
     direction: "outbound",
     sender: p.sender,
     type: p.type ?? "text",
