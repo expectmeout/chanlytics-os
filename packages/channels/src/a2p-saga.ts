@@ -12,6 +12,7 @@ import {
   addressRequest, assignRequest, a2pProfileEndUserRequest, a2pProfileRequest, brandRequest, businessEndUserRequest,
   campaignRequest, customerProfileRequest, evaluateRequest, evaluateTrustProductRequest, representativeEndUserRequest,
   submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, trustProductAssignRequest,
+  businessAttributes, representativeAttributes, updateEndUserRequest,
   type A2PRequest, type A2PState, type A2PStep, type BusinessRecord, type CampaignFacts,
 } from "./a2p";
 
@@ -108,6 +109,12 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
           break;
         }
         case "submit": {
+          // What the owner last typed is what gets evaluated, even if they
+          // corrected it after the first attempt failed.
+          for (const [sid, a] of [[state.businessSid!, businessAttributes(p.record)], [state.representativeSid!, representativeAttributes(p.record)]] as const) {
+            const up = await p.send(updateEndUserRequest(sid, a));
+            if (!ok(up)) throw new Error(refusal(up, "refreshing the business on record"));
+          }
           const ev = await p.send(evaluateRequest(state.profileSid!, A2P_POLICIES.secondaryCustomerProfile));
           const status = typeof ev.body?.status === "string" ? ev.body.status : "";
           if (!ok(ev)) throw new Error(refusal(ev, "checking the profile"));

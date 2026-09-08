@@ -23,6 +23,7 @@ import { formatPhoneDisplay } from "../../lib/workspace/contracts.js";
 import { runLineSaga, isAreaCode, isE164, LINE_COSTS, type LineRow } from "../../lib/workspace/channels.js";
 import { lineProviderFromEnv, linePorts, lineForClient, rowToLine, LINE_STEP_WORDS, type LineProviderChoice } from "../../lib/lines.js";
 import { registerLine, syncRegistration } from "../../lib/a2p.js";
+import { industryOf } from "../../lib/workspace/channels.js";
 import { dashboardOrigin } from "../../lib/billing.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../lib/workspace/db.js";
@@ -217,7 +218,7 @@ export async function POST(request: Request): Promise<Response> {
       postal_code: str("postal_code"),
       country: str("country") || "US",
       website_url: str("website_url"),
-      industry: str("industry") || "PROFESSIONAL",
+      industry: industryOf(str("industry")),
       contact_first_name: str("contact_first_name"),
       contact_last_name: str("contact_last_name"),
       contact_email: str("contact_email"),
