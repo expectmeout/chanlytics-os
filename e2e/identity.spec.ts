@@ -16,11 +16,23 @@ test.describe("identity on a real workspace", () => {
     const field = page.getByTestId("set-you-name");
     await expect(field).toBeVisible();
     const before = await field.inputValue();
-    const put = (name: string) =>
-      page.evaluate(async (n) => {
-        const r = await fetch("/api/v1/me", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ display_name: n }) });
-        return { status: r.status, body: await r.json() };
+    const put = async (name: string) => {
+      const r = await page.evaluate(async (n) => {
+        const res = await fetch("/api/v1/me", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ display_name: n }) });
+        return { status: res.status, body: await res.json() };
       }, name);
+      // A 429 here is not the product misbehaving. profile_set allows ten name
+      // changes an hour (rate-limit.ts) and this spec spends four of them per
+      // run, so three runs inside one window exhaust it. Said plainly, because
+      // the assertion that follows would otherwise read "Expected 400,
+      // Received 429" and send whoever is on the failure hunting a validation
+      // bug that does not exist.
+      expect(
+        r.status,
+        "rate limited: profile_set allows 10 name changes an hour and this spec spends 4 per run, so the suite cannot judge the product when it is run repeatedly inside that window",
+      ).not.toBe(429);
+      return r;
+    };
     try {
       const set = await put("Ruben Test");
       expect(set.status).toBe(200);
