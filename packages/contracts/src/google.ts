@@ -69,10 +69,13 @@ export interface GoogleConnectionDto {
   sync_error: string | null;
 }
 
+/** Google's consent-screen audience for our app, as the operator set it on the edge; null = nothing to say. */
+export type GoogleAudience = "testing" | "unverified" | "verified";
+
 /** What `GET /api/v1/google` returns. */
 export interface GoogleDto {
-  /** Whether this deployment can look listings up (a Places key on the edge) and connect profiles (an OAuth client on the edge). */
-  ready: { places: boolean; profile: boolean };
+  /** Whether this deployment can look listings up (a Places key on the edge) and connect profiles (an OAuth client on the edge), and which audience Google's consent screen has. */
+  ready: { places: boolean; profile: boolean; audience?: GoogleAudience | null };
   listing: GoogleListingDto | null;
   connection: GoogleConnectionDto | null;
   /** The newest first; at most a screenful. */

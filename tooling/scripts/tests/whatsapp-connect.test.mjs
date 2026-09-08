@@ -126,9 +126,10 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
 
 test("the Integrations pane offers the connection to an owner or says exactly why it cannot start; the diag shows the gates", () => {
   const s = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
-  assert.ok(s.includes('data-testid="connect-whatsapp"') && s.includes('data-testid="connect-whatsapp-btn"'));
-  assert.ok(s.includes('{!list.some((c) => c.kind === "whatsapp") && <ConnectWhatsAppRow />}'), "offered only when the workspace has no WhatsApp channel");
-  assert.ok(s.includes("the Embedded Signup configuration is missing on the Chanlytics side"), "the missing piece is named, not hidden");
+  assert.ok(s.includes('"verb:whatsapp-connect": "connect-whatsapp-btn"') && s.includes('case "verb:whatsapp-connect": {'));
+  const rows = readCode("packages/contracts/src/connections.ts");
+  assert.ok(rows.includes('const wa = channel("whatsapp");') && rows.includes("} else if (i.whatsapp === undefined) {"), "offered only when the workspace has no WhatsApp channel, and honest while asking");
+  assert.ok(rows.includes("the Embedded Signup configuration is missing on the Chanlytics side"), "the missing piece is named, not hidden");
   assert.ok(!s.includes("A WhatsApp number or a phone line is connected by Chanlytics when your workspace is set up."), "the old by-hand line is gone");
   const d = readCode("apps/edge/api/diag.ts");
   assert.ok(d.includes("allowlist_numbers:") && d.includes("env_fallback_token:") && d.includes("signup_ready:"), "the gates that decide who is answered are visible");

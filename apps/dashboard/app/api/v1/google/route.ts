@@ -15,6 +15,6 @@ import { googleFor, googleReadiness } from "@/server/google";
 export const GET = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   const [data, ready, policies] = await Promise.all([googleFor(ctx.supabase, member.tenantId), googleReadiness(), listPolicies(ctx.supabase, member.tenantId)]);
-  const google: GoogleDto = { ready: { places: ready.places, profile: ready.profile }, ...data, reply_mode: reviewReplyModeOf(policies), role: member.role };
+  const google: GoogleDto = { ready: { places: ready.places, profile: ready.profile, audience: ready.audience }, ...data, reply_mode: reviewReplyModeOf(policies), role: member.role };
   return { google };
 });

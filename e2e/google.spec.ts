@@ -61,16 +61,14 @@ test.describe("Google on a real workspace", () => {
     await page.goto("/#/admin/integrations");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("channels")).toBeVisible();
-    const card = page.getByTestId("google-card");
-    if (!ready && !profile) {
-      await expect(card).toHaveCount(0);
-    } else {
-      // The second door is named either way: a Connect button for an owner where it is open, "Not available" where it is not.
-      await expect(card).toContainText("Google Business Profile");
-      if (ready) await expect(card).toContainText(linked ? /Watched|Could not be read/ : "Your listing on Google");
-      if (!profile) await expect(card.getByTestId("google-profile-none")).toContainText("Not available");
-      await expect(JSON.stringify(await (await page.request.get("/api/v1/google")).json())).not.toMatch(/refresh_token|access_token|credentials_ref/);
-    }
+    // Both doors are rows either way: "Later" where closed, a verb for an owner where open, the listing's state where linked.
+    const profileRow = page.getByTestId("connection-google_profile");
+    const listingRow = page.getByTestId("connection-google_listing");
+    await expect(profileRow).toContainText("Google Business Profile");
+    if (!profile) await expect(profileRow).toContainText("Later");
+    if (!ready) await expect(listingRow).toContainText("Later");
+    if (ready) await expect(listingRow).toContainText(linked ? /Watched|Could not be read/ : "Your listing on Google");
+    await expect(JSON.stringify(await (await page.request.get("/api/v1/google")).json())).not.toMatch(/refresh_token|access_token|credentials_ref/);
   });
 
   test("the way to Google refuses politely where the door is closed, and never leaks the state key", async ({ page }) => {

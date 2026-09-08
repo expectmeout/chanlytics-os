@@ -15,7 +15,7 @@ import {
   listAccounts, listLocations, listReviews, replyToReview, reviewParent,
   type PlaceCandidate, type PlaceDetails, type OAuthClient, type GbpLocation, type PlacesHttp, type TokenGrant,
 } from "./workspace/channels.js";
-import { autoReplyBell, autoReplyCandidates, localDate, parseTenantConfig, reviewReplyModeOf, type ReviewReplyFacts, type ReviewReplyMode } from "./workspace/contracts.js";
+import { autoReplyBell, autoReplyCandidates, localDate, parseTenantConfig, reviewReplyModeOf, type GoogleAudience, type ReviewReplyFacts, type ReviewReplyMode } from "./workspace/contracts.js";
 import { draftReviewReply } from "./review-reply.js";
 import { recordNotification } from "./notify.js";
 import { logger } from "./log.js";
@@ -40,9 +40,21 @@ export function profileClient(): OAuthClient | null {
   return clientId && clientSecret && redirectUri ? { clientId, clientSecret, redirectUri } : null;
 }
 
-/** What this deployment can do: look listings up; connect profiles. */
-export function googleReadiness(): { places: boolean; profile: boolean } {
-  return { places: !!placesKey(), profile: !!profileClient() };
+/**
+ * Google's consent-screen audience for our OAuth app, as the operator set it
+ * here when Google's console changed: `testing` (only listed test users may
+ * grant; everyone else is refused by Google), `unverified` (in production
+ * before Google's review; a warning screen), `verified`. Unknown or unset
+ * says nothing rather than something wrong.
+ */
+export function googleAudience(): GoogleAudience | null {
+  const a = process.env.GOOGLE_OAUTH_AUDIENCE;
+  return a === "testing" || a === "unverified" || a === "verified" ? a : null;
+}
+
+/** What this deployment can do: look listings up; connect profiles; and which audience the app has with Google. */
+export function googleReadiness(): { places: boolean; profile: boolean; audience: GoogleAudience | null } {
+  return { places: !!placesKey(), profile: !!profileClient(), audience: googleAudience() };
 }
 
 /** The public half of the OAuth client, for the dashboard to build the way to Google. */

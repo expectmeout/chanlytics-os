@@ -32,6 +32,7 @@ export * from "./forwarding";
 export * from "./identity";
 export * from "./chrome";
 export * from "./google";
+export * from "./connections";
 export * from "./review-reply";
 export * from "./signup";
 export * from "./billing";

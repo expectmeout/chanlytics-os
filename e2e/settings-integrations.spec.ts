@@ -6,11 +6,13 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
  *
  * The seeded pane showed seven "connected" services — Instagram, two
  * calendars, Stripe, Twilio, Gmail with a re-authorize nag — none of which
- * exist. The real pane lists the workspace's channels from tenant_channels
- * with whether each is on and when a customer last used it, and names the
- * rest as not available yet. Read-only.
+ * exist. The real pane is one row per connection in three groups: Connected
+ * (from tenant_channels, Google, the calendar feed), Available (a door this
+ * deployment has), Later (built for nobody yet, with no button). Nothing
+ * pretends.
  */
 const INVENTED = ["Reauthorize by May 1", "7 of 7 healthy", "Twilio", "Apple Calendar", "Email Agent"];
+const KINDS = ["whatsapp", "phone", "sms", "google_profile", "google_listing", "calendar", "instagram", "email", "deposits"];
 
 test.describe("Settings → Integrations on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
@@ -29,22 +31,37 @@ test.describe("Settings → Integrations on a real workspace", () => {
     expect(JSON.stringify(data)).not.toMatch(/secret|token/i);
   });
 
+  test("every connection is a row, once, in its group; Later rows offer nothing", async ({ page }) => {
+    await page.goto("/#/admin/integrations");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByTestId("connections-connected")).toBeVisible();
+    await expect(page.getByTestId("connections-later")).toBeVisible();
+    for (const k of KINDS) await expect(page.getByTestId(`connection-${k}`)).toHaveCount(1);
+    const later = page.getByTestId("connections-later");
+    await expect(later).toContainText("Instagram");
+    await expect(later).toContainText("nothing here pretends to be connected");
+    expect(await later.locator("button").count()).toBe(0);
+    const text = await page.locator(".set-pane").innerText();
+    for (const s of INVENTED) expect(text, `invented service: "${s}"`).not.toContain(s);
+  });
+
   test("a workspace without a WhatsApp channel is offered the connection, or told why it cannot start", async ({ page }) => {
     await page.goto("/#/admin/integrations");
     await page.waitForLoadState("networkidle");
-    const card = page.getByTestId("channels");
-    await expect(card).toBeVisible();
-    const hasWhatsApp = (await card.locator(".set-int-row", { hasText: "WhatsApp" }).count()) > 0;
-    if (hasWhatsApp) return;
-    const row = page.getByTestId("connect-whatsapp");
+    const row = page.getByTestId("connection-whatsapp");
     await expect(row).toBeVisible();
-    await expect(row).toContainText(/Connect WhatsApp|isn't set up to connect|connected by an owner|Checking/);
+    const state = await row.getAttribute("data-state");
+    if (state === "connected" || state === "off") {
+      await expect(row).toContainText(/Receiving|Quiet|Switched off|no message has arrived yet/);
+      return;
+    }
+    await expect(row).toContainText(/Connect WhatsApp|isn't set up to connect|Checking|Sign in to Meta/);
   });
 
   test("Integrations lists no template: the WhatsApp row points at Campaigns › Messages", async ({ page }) => {
     await page.goto("/#/admin/integrations");
     await page.waitForLoadState("networkidle");
-    await expect(page.getByTestId("channels")).toBeVisible();
+    await expect(page.getByTestId("connections-connected")).toBeVisible();
     await expect(page.getByTestId("templates")).toHaveCount(0);
     const link = page.getByTestId("channel-messages");
     if (await link.count()) {
@@ -58,38 +75,27 @@ test.describe("Settings → Integrations on a real workspace", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/#/admin/integrations");
     await page.waitForLoadState("networkidle");
-    const channels = page.getByTestId("channels");
-    await expect(channels).toBeVisible();
-    // A collapsed card is its head alone: about 64px. A whole one carries its rows.
-    const rows = await channels.locator(".set-int-row, .set-row").count();
-    const box = await channels.boundingBox();
-    expect(box).not.toBeNull();
-    if (rows > 0) expect(box!.height).toBeGreaterThan(100);
-    const google = page.getByTestId("google-card");
-    if (await google.count()) {
-      const gb = await google.boundingBox();
-      expect(gb!.height).toBeGreaterThan(100);
+    for (const g of ["connected", "available", "later"]) {
+      const card = page.getByTestId(`connections-${g}`);
+      if (!(await card.count())) continue;
+      // A collapsed card is its head alone: about 64px. A whole one carries its rows.
+      const rows = await card.locator(".set-int-row, .set-row").count();
+      const box = await card.boundingBox();
+      expect(box).not.toBeNull();
+      if (rows > 0) expect(box!.height).toBeGreaterThan(100);
     }
   });
 
-  test("lists the real channels with their state and nothing invented", async ({ page }) => {
+  test("connected rows state their health in the schema's words, and nothing invented", async ({ page }) => {
     await page.goto("/#/admin/integrations");
     await page.waitForLoadState("networkidle");
-    const card = page.getByTestId("channels");
+    const card = page.getByTestId("connections-connected");
     await expect(card).toBeVisible();
-    const text = await page.locator(".set-pane").innerText();
-    for (const s of INVENTED) expect(text, `invented service: "${s}"`).not.toContain(s);
-
-    const rows = card.locator(".set-int-row");
-    expect(await rows.count()).toBeGreaterThan(0);
-    for (const row of await rows.all()) {
-      const t = await row.innerText();
-      expect(t, "each channel states its health in the schema's words").toMatch(/Receiving|Quiet|Switched off|no (message|call) has arrived yet/);
+    for (const k of ["whatsapp", "phone"]) {
+      const row = card.getByTestId(`connection-${k}`);
+      if (!(await row.count())) continue;
+      await expect(row, "each channel states its health in the schema's words").toContainText(/Receiving|Quiet|Switched off|no (message|call) has arrived yet/);
+      await expect(row.locator(".pill")).toContainText(/^On$|^Off$/);
     }
-    // No "Connected" pill on a channel: the schema has 'active' and 'disabled', and the card says those.
-    expect(await card.innerText()).not.toMatch(/\bConnected\b/);
-    // The unbuilt services are named as such.
-    await expect(page.getByTestId("not-available")).toBeVisible();
-    await expect(page.getByTestId("not-available")).toContainText("Instagram");
   });
 });

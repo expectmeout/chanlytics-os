@@ -8,7 +8,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
-import type { GoogleConnectionDto, GoogleDayDto, GoogleListingDto, GoogleReviewDto } from "@chanlytics/contracts";
+import type { GoogleAudience, GoogleConnectionDto, GoogleDayDto, GoogleListingDto, GoogleReviewDto } from "@chanlytics/contracts";
 import type { EdgeAnswer } from "./lines";
 
 const EDGE_BASE = "https://chanlytics-messaging.vercel.app";
@@ -73,11 +73,13 @@ export async function edgeGoogle(body: Record<string, unknown>, timeoutMs = 20_0
 export interface GoogleReadiness {
   places: boolean;
   profile: boolean;
+  /** Google's consent-screen audience for our app, as the edge states it; null = nothing to say. */
+  audience: GoogleAudience | null;
   /** The public half of the OAuth client, when the profile door is open. */
   oauth: { client_id: string; redirect_uri: string } | null;
 }
 
-const NOT_READY: GoogleReadiness = { places: false, profile: false, oauth: null };
+const NOT_READY: GoogleReadiness = { places: false, profile: false, audience: null, oauth: null };
 let readyCache: { at: number; value: GoogleReadiness } | null = null;
 const READY_TTL_MS = 5 * 60_000;
 
@@ -91,12 +93,13 @@ export async function googleReadiness(now = Date.now()): Promise<GoogleReadiness
   if (readyCache && now - readyCache.at < READY_TTL_MS) return readyCache.value;
   const a = await edgeGoogle({ op: "status" }, 4_000);
   const b = a.body ?? {};
-  const ready = b.ready && typeof b.ready === "object" ? (b.ready as Partial<Record<"places" | "profile", unknown>>) : null;
+  const ready = b.ready && typeof b.ready === "object" ? (b.ready as Partial<Record<"places" | "profile" | "audience", unknown>>) : null;
   const oauth = b.profile && typeof b.profile === "object" ? (b.profile as Partial<Record<"client_id" | "redirect_uri", unknown>>) : null;
   const value: GoogleReadiness = a.status === 200 && b.ok === true && ready
     ? {
       places: ready.places === true,
       profile: ready.profile === true && typeof oauth?.client_id === "string" && typeof oauth?.redirect_uri === "string",
+      audience: ready.audience === "testing" || ready.audience === "unverified" || ready.audience === "verified" ? ready.audience : null,
       oauth: typeof oauth?.client_id === "string" && typeof oauth?.redirect_uri === "string" ? { client_id: oauth.client_id, redirect_uri: oauth.redirect_uri } : null,
     }
     : NOT_READY;
