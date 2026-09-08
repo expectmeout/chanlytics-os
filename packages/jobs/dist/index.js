@@ -4084,6 +4084,7 @@ var coerce = {
   date: ((arg) => ZodDate.create({ ...arg, coerce: true }))
 };
 var NEVER = INVALID;
+var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
 var BRAIN_INTENTS = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
@@ -4542,6 +4543,8 @@ var BOOTSTRAP_MS = 3600 * 1e3;
 var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS3 = 7 * 864e5;
 var DATE_FMT6 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
+var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
 var SignupSchema = external_exports.object({
@@ -8682,6 +8685,7 @@ var coerce2 = {
 var NEVER2 = INVALID2;
 
 // ../contracts/dist/index.js
+var OFFERS_OPT_IN_PHRASES2 = { en: "YES OFFERS", es: "SI OFERTAS" };
 function isOptedOutContact(c) {
   return c.consent === "opted_out" || c.dnc === true;
 }
@@ -9199,6 +9203,8 @@ var BOOTSTRAP_MS2 = 3600 * 1e3;
 var DATE_FMT52 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS32 = 7 * 864e5;
 var DATE_FMT62 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
+var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
 var SIGNUP_NAME_MIN2 = 2;
 var SIGNUP_NAME_MAX2 = 120;
 var SignupSchema2 = external_exports2.object({
@@ -13249,6 +13255,7 @@ function normalizePhone(raw) {
   if (digits.length >= 8 && digits.length <= 15) return `+${digits}`;
   return null;
 }
+var OFFERS_OPT_IN_PHRASES3 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DAY_MS7 = 864e5;
 var WEEK_MS5 = 7 * DAY_MS7;
 var BRAIN_INTENTS3 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
@@ -13706,6 +13713,8 @@ var BOOTSTRAP_MS3 = 3600 * 1e3;
 var DATE_FMT53 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS33 = 7 * 864e5;
 var DATE_FMT63 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
+var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
 var SIGNUP_NAME_MIN3 = 2;
 var SIGNUP_NAME_MAX3 = 120;
 var SignupSchema3 = external_exports3.object({
