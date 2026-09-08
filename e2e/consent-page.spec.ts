@@ -13,7 +13,10 @@ test.describe("the opt-in page", () => {
   test("an unknown workspace is a 404, and nothing about it is said", async ({ request }) => {
     const res = await request.get("/yes/no-such-workspace-here", { maxRedirects: 0 });
     expect(res.status()).toBe(404);
-    expect(await res.text()).not.toMatch(/tenant|slug|supabase|service_role/i);
+    // Next names the route's own segment in its not-found payload, which the
+    // URL already shows. What must never appear is anything about the
+    // workspaces that DO exist, or the credential that read them.
+    expect(await res.text()).not.toMatch(/service_role|supabase[.]co|tenant_id|eyJ/i);
   });
 
   test("a malformed slug is refused the same way", async ({ request }) => {
