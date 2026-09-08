@@ -94,9 +94,9 @@ const ConnectionRow = ({ r, run, busy, arm, setArm, confirm }) => {
 };
 
 const PaneIntegrationsReal = () => {
-  const [, tick] = useSetState(0);
+  const [, tick] = React.useReducer((n) => n + 1, 0);
   React.useEffect(() => {
-    const bump = () => tick((n) => n + 1);
+    const bump = () => tick();
     for (const ev of ["surface:settings", "surface:setup", "surface:google"]) window.addEventListener(ev, bump);
     return () => { for (const ev of ["surface:settings", "surface:setup", "surface:google"]) window.removeEventListener(ev, bump); };
   }, []);
