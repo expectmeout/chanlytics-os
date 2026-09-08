@@ -1039,33 +1039,6 @@ declare function twilioSignature(authToken: string, url: string, form: Record<st
 declare function sameSignature(a: string, b: string): boolean;
 declare function verifyTwilioSignature(authToken: string, url: string, form: Record<string, string>, header: string | null): Promise<boolean>;
 
-/**
- * A2P 10DLC: registering one workspace with the carriers, as pure parts.
- *
- * The shape of it, from Twilio's ISV walkthrough: the business on record
- * becomes a secondary customer profile under Chanlytics' own approved
- * primary profile, that profile carries the business, the person who
- * signs for it and the address, it is evaluated and submitted, an A2P
- * messaging profile is built beside it, a brand is registered from the
- * two, and a campaign is attached to the line's Messaging Service. Each
- * step records what it made before the next runs, so a resumed
- * registration repeats nothing and pays nothing twice.
- *
- * Policy ids read from Twilio's own Policies endpoint on 2026-09-08, not
- * copied from a blog. Request shapes verified the same day against the
- * ISV onboarding guide, the BrandRegistrations resource and the
- * UsAppToPerson resource.
- *
- * WHOSE ACCOUNT. Every call here is made as the WORKSPACE'S OWN subaccount,
- * which is what Twilio's ISV guide asks for: "create a Secondary Customer
- * Profile under the customer's subaccount and register a Brand under the
- * customer's subaccount". A brand registered on the parent is not shared
- * with the subaccount that owns the Messaging Service, and the campaign is
- * refused with 21717 — after the brand is registered and, on a real filing,
- * paid for. Chanlytics' own primary profile is not moved into the
- * subaccount; it is REFERENCED by sid, and that reference is the whole
- * declaration that this business is ours.
- */
 /** Trust Hub policies, by the names Twilio gives them. */
 declare const A2P_POLICIES: {
     /** The bundle one customer of an ISV gets. */
@@ -1109,28 +1082,6 @@ interface BusinessRecord {
     contactTitle: string;
     contactJobPosition: string;
 }
-/**
- * The industries Twilio's Trust Hub accepts, exactly as it spells them. A
- * value outside this list is refused at the evaluation with "The Business
- * Industry is invalid", after every other step has already been made and
- * paid for, so the form offers these and nothing else.
- */
-declare const BUSINESS_INDUSTRIES: readonly ["AGRICULTURE", "AUTOMOTIVE", "BANKING", "CONSTRUCTION", "CONSUMER", "EDUCATION", "ELECTRONICS", "ENERGY", "ENGINEERING", "FAST_MOVING_CONSUMER_GOODS", "FINANCIAL", "FINTECH", "FOOD_AND_BEVERAGE", "GOVERNMENT", "HEALTHCARE", "HOSPITALITY", "INSURANCE", "JEWELRY", "LEGAL", "MANUFACTURING", "MEDIA", "NOT_FOR_PROFIT", "OIL_AND_GAS", "ONLINE", "PROFESSIONAL_SERVICES", "RAW_MATERIALS", "REAL_ESTATE", "RELIGION", "RETAIL", "TECHNOLOGY", "TELECOMMUNICATIONS", "TRANSPORTATION", "TRAVEL"];
-type BusinessIndustry = (typeof BUSINESS_INDUSTRIES)[number];
-/** What a small local business is, unless it says otherwise. */
-declare const DEFAULT_INDUSTRY: BusinessIndustry;
-/** The value Twilio will accept, or the default — never a guess it refuses. */
-declare function industryOf(v: string | null | undefined): BusinessIndustry;
-/** The legal forms Twilio accepts. Told to the carriers in the business's name, so it is asked. */
-declare const BUSINESS_TYPES: readonly ["Co-operative", "Corporation", "Limited Liability Corporation", "Non-profit Corporation", "Partnership"];
-type BusinessType = (typeof BUSINESS_TYPES)[number];
-declare const DEFAULT_BUSINESS_TYPE: BusinessType;
-/** Ownership, on Twilio's enum for the A2P messaging profile. */
-declare const COMPANY_TYPES: readonly ["government", "non-profit", "private", "public"];
-type CompanyType = (typeof COMPANY_TYPES)[number];
-declare const DEFAULT_COMPANY_TYPE: CompanyType;
-declare function businessTypeOf(v: string | null | undefined): BusinessType;
-declare function companyTypeOf(v: string | null | undefined): CompanyType;
 type BrandType = "STANDARD" | "SOLE_PROPRIETOR";
 /** With a tax id a business is a standard brand; without one it is a sole proprietor. */
 declare function brandTypeFor(r: Pick<BusinessRecord, "ein">): BrandType;
@@ -1674,4 +1625,4 @@ declare function verifyState(secret: string, state: string | null | undefined, n
 }>;
 declare function newNonce(): string;
 
-export { type A2PAnswer, type A2PPorts, type A2PRequest, type A2PResult, type A2PState, type A2PStep, A2P_POLICIES, A2P_STEPS, type AgentPlan, type AvailableNumber, BUSINESS_INDUSTRIES, BUSINESS_TYPES, type BrandType, type BusinessIndustry, type BusinessRecord, type BusinessType, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, COMPANY_TYPES, type CampaignFacts, type CompanyType, DEFAULT_BUSINESS_TYPE, DEFAULT_COMPANY_TYPE, DEFAULT_FN_URL, DEFAULT_INDUSTRY, type DryCall, type DryProvider, EMPTY_A2P_STATE, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, GREETING_DEFAULT, type GbpAccount, type GbpLocation, type GbpReview, type GbpReviewsPage, HANDOFF_VAR, type KnownReview, LINE_COSTS, LINE_STEPS, LOW_VOLUME_USECASE, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, MESSAGING, type NormalizedCall, type NormalizedInbound, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type ProfileBefore, type ProfileSyncPlan, type ProviderAccount, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, RETELL_ORIGINATION, REVIEW_BELL_MAX, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, SOLE_PROPRIETOR_USECASE, STATE_TTL_MS, type SagaResult, type SendResult, type SmsInbound, type SmsSendResult, TRUSTHUB, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, a2pProfileEndUserRequest, a2pProfileRequest, accountsRequest, addressRequest, agentSettingsDrift, assignRequest, authorizeUrl, availabilityUrl, b64url, brandRequest, brandTypeFor, businessAttributes, businessEndUserRequest, businessTypeOf, callSummaryLine, campaignRequest, chooseLineProvider, cleanReply, companyTypeOf, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, customerProfileRequest, deleteReplyRequest, desiredVoiceShell, dryProvider, encodeForm, evaluateRequest, evaluateTrustProductRequest, fetchMediaBytes, fetchRecording, fetchTwilio, getAgent, getAgentRaw, getCall, getPhoneNumber, getPlace, getRetellLlm, grantHasScope, idTokenClaims, importPhoneNumber, industryOf, isAreaCode, isBrandNotReady, isE164, isValidSipPassword, keywordsFor, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, needsHydration, newNonce, nextA2PStep, nextLineStep, normalizeCall, normalizeInbound, parseAccounts, parseLocations, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, publishAgentVersion, replyRequest, replyToReview, representativeAttributes, representativeEndUserRequest, retellImportBody, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, runA2PSaga, runLineSaga, sameSignature, searchPlaces, sendTemplate, sendText, signState, sipPassword, sipUsername, smsAsWaMessage, smsBody, smsInboundFrom, smsInboundUrl, smsStateFor, soleProprietorUnsupported, starRatingNumber, stripKey, submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, trustProductAssignRequest, twilioProvider, twilioSignature, twilioSignedString, twilioUrls, unb64url, updateAgent, updateEndUserRequest, updateLiveCall, updatePhoneNumber, verifyRetellSignature, verifyState, verifyTwilioSignature, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withKey };
+export { type A2PAnswer, type A2PPorts, type A2PRequest, type A2PResult, type A2PState, type A2PStep, A2P_POLICIES, A2P_STEPS, type AgentPlan, type AvailableNumber, type BrandType, type BusinessRecord, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, type CampaignFacts, DEFAULT_FN_URL, type DryCall, type DryProvider, EMPTY_A2P_STATE, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, GREETING_DEFAULT, type GbpAccount, type GbpLocation, type GbpReview, type GbpReviewsPage, HANDOFF_VAR, type KnownReview, LINE_COSTS, LINE_STEPS, LOW_VOLUME_USECASE, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, MESSAGING, type NormalizedCall, type NormalizedInbound, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type ProfileBefore, type ProfileSyncPlan, type ProviderAccount, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, RETELL_ORIGINATION, REVIEW_BELL_MAX, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, SOLE_PROPRIETOR_USECASE, STATE_TTL_MS, type SagaResult, type SendResult, type SmsInbound, type SmsSendResult, TRUSTHUB, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, a2pProfileEndUserRequest, a2pProfileRequest, accountsRequest, addressRequest, agentSettingsDrift, assignRequest, authorizeUrl, availabilityUrl, b64url, brandRequest, brandTypeFor, businessAttributes, businessEndUserRequest, callSummaryLine, campaignRequest, chooseLineProvider, cleanReply, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, customerProfileRequest, deleteReplyRequest, desiredVoiceShell, dryProvider, encodeForm, evaluateRequest, evaluateTrustProductRequest, fetchMediaBytes, fetchRecording, fetchTwilio, getAgent, getAgentRaw, getCall, getPhoneNumber, getPlace, getRetellLlm, grantHasScope, idTokenClaims, importPhoneNumber, isAreaCode, isBrandNotReady, isE164, isValidSipPassword, keywordsFor, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, needsHydration, newNonce, nextA2PStep, nextLineStep, normalizeCall, normalizeInbound, parseAccounts, parseLocations, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, publishAgentVersion, replyRequest, replyToReview, representativeAttributes, representativeEndUserRequest, retellImportBody, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, runA2PSaga, runLineSaga, sameSignature, searchPlaces, sendTemplate, sendText, signState, sipPassword, sipUsername, smsAsWaMessage, smsBody, smsInboundFrom, smsInboundUrl, smsStateFor, soleProprietorUnsupported, starRatingNumber, stripKey, submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, trustProductAssignRequest, twilioProvider, twilioSignature, twilioSignedString, twilioUrls, unb64url, updateAgent, updateEndUserRequest, updateLiveCall, updatePhoneNumber, verifyRetellSignature, verifyState, verifyTwilioSignature, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withKey };

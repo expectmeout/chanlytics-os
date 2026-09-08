@@ -4536,6 +4536,58 @@ var WEEK_MS3 = 7 * 864e5;
 var DATE_FMT6 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
+var BUSINESS_INDUSTRIES = [
+  "AGRICULTURE",
+  "AUTOMOTIVE",
+  "BANKING",
+  "CONSTRUCTION",
+  "CONSUMER",
+  "EDUCATION",
+  "ELECTRONICS",
+  "ENERGY",
+  "ENGINEERING",
+  "FAST_MOVING_CONSUMER_GOODS",
+  "FINANCIAL",
+  "FINTECH",
+  "FOOD_AND_BEVERAGE",
+  "GOVERNMENT",
+  "HEALTHCARE",
+  "HOSPITALITY",
+  "INSURANCE",
+  "JEWELRY",
+  "LEGAL",
+  "MANUFACTURING",
+  "MEDIA",
+  "NOT_FOR_PROFIT",
+  "OIL_AND_GAS",
+  "ONLINE",
+  "PROFESSIONAL_SERVICES",
+  "RAW_MATERIALS",
+  "REAL_ESTATE",
+  "RELIGION",
+  "RETAIL",
+  "TECHNOLOGY",
+  "TELECOMMUNICATIONS",
+  "TRANSPORTATION",
+  "TRAVEL"
+];
+var DEFAULT_INDUSTRY = "PROFESSIONAL_SERVICES";
+var BUSINESS_TYPES = ["Co-operative", "Corporation", "Limited Liability Corporation", "Non-profit Corporation", "Partnership"];
+var DEFAULT_BUSINESS_TYPE = "Limited Liability Corporation";
+var COMPANY_TYPES = ["government", "non-profit", "private", "public"];
+var DEFAULT_COMPANY_TYPE = "private";
+function industryOf(v) {
+  const up = String(v ?? "").trim().toUpperCase();
+  return BUSINESS_INDUSTRIES.includes(up) ? up : DEFAULT_INDUSTRY;
+}
+function businessTypeOf(v) {
+  const s = String(v ?? "").trim();
+  return BUSINESS_TYPES.includes(s) ? s : DEFAULT_BUSINESS_TYPE;
+}
+function companyTypeOf(v) {
+  const s = String(v ?? "").trim().toLowerCase();
+  return COMPANY_TYPES.includes(s) ? s : DEFAULT_COMPANY_TYPE;
+}
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
 var SignupSchema = external_exports.object({
@@ -5821,58 +5873,6 @@ var A2P_POLICIES = {
 };
 var TRUSTHUB = "https://trusthub.twilio.com/v1";
 var MESSAGING2 = "https://messaging.twilio.com/v1";
-var BUSINESS_INDUSTRIES = [
-  "AGRICULTURE",
-  "AUTOMOTIVE",
-  "BANKING",
-  "CONSTRUCTION",
-  "CONSUMER",
-  "EDUCATION",
-  "ELECTRONICS",
-  "ENERGY",
-  "ENGINEERING",
-  "FAST_MOVING_CONSUMER_GOODS",
-  "FINANCIAL",
-  "FINTECH",
-  "FOOD_AND_BEVERAGE",
-  "GOVERNMENT",
-  "HEALTHCARE",
-  "HOSPITALITY",
-  "INSURANCE",
-  "JEWELRY",
-  "LEGAL",
-  "MANUFACTURING",
-  "MEDIA",
-  "NOT_FOR_PROFIT",
-  "OIL_AND_GAS",
-  "ONLINE",
-  "PROFESSIONAL_SERVICES",
-  "RAW_MATERIALS",
-  "REAL_ESTATE",
-  "RELIGION",
-  "RETAIL",
-  "TECHNOLOGY",
-  "TELECOMMUNICATIONS",
-  "TRANSPORTATION",
-  "TRAVEL"
-];
-var DEFAULT_INDUSTRY = "PROFESSIONAL_SERVICES";
-function industryOf(v) {
-  const up = String(v ?? "").trim().toUpperCase();
-  return BUSINESS_INDUSTRIES.includes(up) ? up : DEFAULT_INDUSTRY;
-}
-var BUSINESS_TYPES = ["Co-operative", "Corporation", "Limited Liability Corporation", "Non-profit Corporation", "Partnership"];
-var DEFAULT_BUSINESS_TYPE = "Limited Liability Corporation";
-var COMPANY_TYPES = ["government", "non-profit", "private", "public"];
-var DEFAULT_COMPANY_TYPE = "private";
-function businessTypeOf(v) {
-  const s = String(v ?? "").trim();
-  return BUSINESS_TYPES.includes(s) ? s : DEFAULT_BUSINESS_TYPE;
-}
-function companyTypeOf(v) {
-  const s = String(v ?? "").trim().toLowerCase();
-  return COMPANY_TYPES.includes(s) ? s : DEFAULT_COMPANY_TYPE;
-}
 function brandTypeFor(r) {
   return r.ein && r.ein.trim() ? "STANDARD" : "SOLE_PROPRIETOR";
 }
@@ -6687,15 +6687,9 @@ function cleanReply(text) {
 export {
   A2P_POLICIES,
   A2P_STEPS,
-  BUSINESS_INDUSTRIES,
-  BUSINESS_TYPES,
   CALLER_UNKNOWN,
   CALL_ANALYSIS_FIELDS,
-  COMPANY_TYPES,
-  DEFAULT_BUSINESS_TYPE,
-  DEFAULT_COMPANY_TYPE,
   DEFAULT_FN_URL,
-  DEFAULT_INDUSTRY,
   EMPTY_A2P_STATE,
   FACTS_UNAVAILABLE,
   FRESH_SLACK_MS,
@@ -6753,12 +6747,10 @@ export {
   brandTypeFor,
   businessAttributes,
   businessEndUserRequest,
-  businessTypeOf,
   callSummaryLine,
   campaignRequest,
   chooseLineProvider,
   cleanReply,
-  companyTypeOf,
   createAgent,
   createAgentVersion,
   createPhoneNumber,
@@ -6782,7 +6774,6 @@ export {
   grantHasScope,
   idTokenClaims,
   importPhoneNumber,
-  industryOf,
   isAreaCode,
   isBrandNotReady,
   isE164,

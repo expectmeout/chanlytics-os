@@ -49,8 +49,8 @@ export interface ConnectionRow {
   /** One line, in the owner's words, with "since" on every wait. */
   sentence: string;
   verb: ConnectionVerb | null;
-  /** The page's own hook for the parts a row cannot say in one line: a choice of locations, a confirmation. */
-  body: "google_choose" | null;
+  /** The page's own hook for the parts a row cannot say in one line: a choice of locations, a form. */
+  body: "google_choose" | "business_record" | null;
 }
 
 export interface ConnectionInputs {
@@ -97,22 +97,30 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
   const num = line ? formatPhoneDisplay(line.e164) : null;
   const since = line ? agoWords(Date.parse(line.state_since), nowMs) : null;
   const base = { kind: "sms" as const, icon: "chat", title: "Texting", detail: num, verb: null };
+  // A line that answers calls already has everything a text needs except
+  // the carriers' permission, so it OFFERS texting rather than filing it
+  // under "later" — which is what it did, so the one thing an owner could
+  // do about it was invisible.
+  const ready = line?.voice_state === "answering";
+  if (ready && (!line?.sms_state || line.sms_state === "none")) {
+    return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Texting needs your business on record for the carriers — two minutes, once.", verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
+  }
   switch (line?.sms_state) {
     case "active":
       return { ...base, state: "connected", stateWords: "On", sentence: `Customers text ${num ?? "this number"}; the receptionist answers inside your hours.` };
     case "approved":
       return { ...base, state: "waiting_them", stateWords: "Waiting on us", sentence: "The carriers approved your line — switching texting on." };
     case "needs_record":
-      return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Texting needs your business on record for the carriers — two minutes." };
+      return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Texting needs your business on record for the carriers — two minutes, once.", verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
     case "otp_waiting":
       return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Type the code the carriers sent to your mobile." };
     case "registering":
     case "hosting":
       return { ...base, state: "waiting_them", stateWords: "Waiting on carriers", sentence: `The carriers are registering your line, since ${since} · usually a week.` };
     case "rejected":
-      return { ...base, state: "attention", stateWords: "Sent back", sentence: `The carriers sent the registration back${line?.last_error ? `: ${line.last_error}` : ""}.` };
+      return { ...base, state: "attention", stateWords: "Sent back", sentence: `The carriers sent the registration back${line?.last_error ? `: ${line.last_error}` : ""}.`, verb: { label: "Fix and resubmit", to: "verb:business-record", who: "owner" }, body: "business_record" };
     case "failed":
-      return { ...base, state: "attention", stateWords: "Waiting on us", sentence: "Registering stopped. A person at Chanlytics has it." };
+      return { ...base, state: "attention", stateWords: "Waiting on us", sentence: line?.last_error || "Registering stopped. A person at Chanlytics has it." };
     default:
       return { ...base, state: "later", stateWords: "Later", sentence: "Plain text messages — arrives with a line that registers with the carriers; this page will say when." };
   }
