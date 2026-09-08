@@ -10,8 +10,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./workspace/db.js";
 import {
-  runA2PSaga, smsStateFor, LOW_VOLUME_USECASE, SOLE_PROPRIETOR_USECASE, brandTypeFor,
-  encodeForm, type A2PPorts, type A2PRequest, type A2PState, type BusinessRecord,
+  runA2PSaga, smsStateFor, LOW_VOLUME_USECASE,
+  encodeForm, soleProprietorUnsupported, type A2PPorts, type A2PRequest, type A2PState, type BusinessRecord,
 } from "./workspace/channels.js";
 import { lineProviderFromEnv } from "./lines.js";
 import { lineAccount } from "./sms.js";
@@ -50,6 +50,8 @@ export function businessRecordFrom(r: RecordRow): BusinessRecord {
     contactPhone: r.contact_phone,
     contactTitle: r.contact_title,
     contactJobPosition: r.contact_job_position,
+    businessType: r.business_type,
+    companyType: r.company_type,
   };
 }
 
@@ -75,9 +77,12 @@ export function campaignFactsFor(o: { businessName: string; optInUrl: string; pr
   return {
     description: `${o.businessName} answers its own customers and sends them appointment reminders and occasional offers. Messages are written or approved by the business; a customer starts every conversation or asks for offers first.`,
     messageFlow: `Customers opt in by messaging the business first, or by sending the words YES OFFERS from the business's public sign-up page at ${o.optInUrl}, which states the message frequency, that rates may apply, and how to stop.`,
+    // Samples a reviewer reads. They must not state a fact about the
+    // business we were never given — an invented opening time is a claim
+    // made in their name.
     samples: [
-      `Hi! Thanks for writing ${o.businessName}. We're open today until 6pm — how can we help?`,
-      `Reminder: your appointment with ${o.businessName} is tomorrow at 2:00pm. Reply STOP to opt out.`,
+      `Hi, thanks for writing ${o.businessName}. How can we help today?`,
+      `Reminder from ${o.businessName}: you have an appointment tomorrow. Reply STOP to opt out.`,
     ],
     optInMessage: `You're subscribed to offers and news from ${o.businessName}. Msg&data rates may apply. Reply STOP to opt out, HELP for help.`,
     // Single words only, and only ones the receptionist actually honours
@@ -121,6 +126,16 @@ export async function registerLine(db: Db, o: {
   if (!primary) return { ok: false, error: "no_primary_profile", state, smsState: o.line.sms_state };
   if (!email) return { ok: false, error: "no_platform_mailbox", state, smsState: o.line.sms_state };
   if (!o.line.messaging_service_sid) return { ok: false, error: "no_messaging_service", state, smsState: o.line.sms_state };
+  // Refused before anything is created: on a real filing this would be a fee
+  // spent on a registration the carriers reject.
+  if (soleProprietorUnsupported(businessRecordFrom(o.record))) {
+    await db.from("lines").update({
+      sms_state: "failed",
+      last_error: "Texting for a business without a tax id needs a different registration, which Chanlytics has not built yet. A person at Chanlytics has this.",
+      state_since: new Date().toISOString(),
+    }).eq("id", o.line.id);
+    return { ok: false, error: "sole_proprietor_unsupported", state, smsState: "failed" };
+  }
 
   const L = logger({ tenant_id: o.line.tenant_id, line_id: o.line.id });
   const record = businessRecordFrom(o.record);
@@ -176,7 +191,7 @@ export async function registerLine(db: Db, o: {
     record,
     campaign: campaignFactsFor({ businessName: o.workspaceName, optInUrl: o.optInUrl, privacyUrl: o.privacyUrl, termsUrl: o.termsUrl }),
     messagingServiceSid: o.line.messaging_service_sid,
-    useCase: brandTypeFor(record) === "SOLE_PROPRIETOR" ? SOLE_PROPRIETOR_USECASE : LOW_VOLUME_USECASE,
+    useCase: LOW_VOLUME_USECASE,
     mock: o.mock,
     async save(patch) {
       const row: Record<string, unknown> = {};

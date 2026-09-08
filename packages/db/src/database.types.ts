@@ -371,7 +371,9 @@ export type Database = {
       }
       business_records: {
         Row: {
+          business_type: string
           city: string
+          company_type: string
           contact_email: string
           contact_first_name: string
           contact_job_position: string
@@ -393,7 +395,9 @@ export type Database = {
           website_url: string
         }
         Insert: {
+          business_type?: string
           city: string
+          company_type?: string
           contact_email: string
           contact_first_name: string
           contact_job_position?: string
@@ -415,7 +419,9 @@ export type Database = {
           website_url: string
         }
         Update: {
+          business_type?: string
           city?: string
+          company_type?: string
           contact_email?: string
           contact_first_name?: string
           contact_job_position?: string
@@ -2904,6 +2910,7 @@ export type Database = {
       trigger_deadman_sweep: { Args: never; Returns: number }
       trigger_google_sweep: { Args: never; Returns: number }
       trigger_playbooks_sweep: { Args: never; Returns: number }
+      trigger_registration_sweep: { Args: never; Returns: number }
       trigger_sweep_health: { Args: never; Returns: number }
     }
     Enums: {

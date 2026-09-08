@@ -29,6 +29,9 @@
     },
     "api/inbound-sms.ts": {
       "maxDuration": 60
+    },
+    "api/cron/registrations.ts": {
+      "maxDuration": 60
     }
   }
 }

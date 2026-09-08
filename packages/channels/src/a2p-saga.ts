@@ -127,7 +127,7 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
         }
         case "a2p_profile": {
           const bundle = await need(a2pProfileRequest({ friendlyName: p.workspace.name, email: p.email, statusCallback: p.statusCallback }), "creating the messaging profile");
-          const endUser = await need(a2pProfileEndUserRequest({ friendlyName: p.workspace.name, companyType: p.record.ein ? "private" : "private" }), "recording the company type");
+          const endUser = await need(a2pProfileEndUserRequest({ friendlyName: p.workspace.name, companyType: p.record.companyType }), "recording the company type");
           for (const objectSid of [endUser, state.profileSid!]) {
             const a = await p.send(trustProductAssignRequest(bundle, objectSid));
             if (!ok(a)) throw new Error(refusal(a, "attaching to the messaging profile"));
