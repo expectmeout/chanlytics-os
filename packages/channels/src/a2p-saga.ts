@@ -12,7 +12,7 @@ import {
   addressRequest, assignRequest, a2pProfileEndUserRequest, a2pProfileRequest, brandRequest, businessEndUserRequest,
   campaignRequest, customerProfileRequest, evaluateRequest, evaluateTrustProductRequest, representativeEndUserRequest,
   submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, trustProductAssignRequest,
-  businessAttributes, representativeAttributes, updateEndUserRequest,
+  businessAttributes, representativeAttributes, updateEndUserRequest, isBrandNotReady,
   type A2PRequest, type A2PState, type A2PStep, type BusinessRecord, type CampaignFacts,
 } from "./a2p";
 
@@ -46,7 +46,8 @@ export interface A2PPorts {
 
 export type A2PResult =
   | { ok: true; state: A2PState }
-  | { ok: false; step: A2PStep; error: string; state: A2PState };
+  /** `pending` is a wait, not a refusal: the carriers have not finished with the brand. */
+  | { ok: false; step: A2PStep; error: string; pending: boolean; state: A2PState };
 
 const sid = (a: A2PAnswer): string | null => (typeof a.body?.sid === "string" ? a.body.sid : null);
 
@@ -158,6 +159,7 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
     }
     return { ok: true, state };
   } catch (e) {
-    return { ok: false, step: (step ?? nextA2PStep(state) ?? "profile") as A2PStep, error: (e instanceof Error ? e.message : String(e)).slice(0, 500), state };
+    const error = (e instanceof Error ? e.message : String(e)).slice(0, 500);
+    return { ok: false, step: (step ?? nextA2PStep(state) ?? "profile") as A2PStep, error, pending: isBrandNotReady(error), state };
   }
 }

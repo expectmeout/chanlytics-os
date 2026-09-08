@@ -400,6 +400,16 @@ export function nextA2PStep(s: A2PState): A2PStep | null {
   return null;
 }
 
+/**
+ * The campaign cannot be filed until the carriers have finished with the
+ * brand. That is a WAIT, not a refusal: everything asked for was accepted,
+ * and the last step simply cannot run yet. Told apart here so the row says
+ * "waiting on carriers" instead of "something went wrong".
+ */
+export function isBrandNotReady(error: string): boolean {
+  return /until Brand is registered|Brand.*Current status:\s*(IN_PROGRESS|PENDING)/i.test(error);
+}
+
 /** Twilio's brand and campaign statuses, in the words `lines.sms_state` uses. */
 export function smsStateFor(o: { brandStatus?: string | null; campaignStatus?: string | null }): "registering" | "approved" | "rejected" | "failed" {
   const brand = (o.brandStatus ?? "").toUpperCase();

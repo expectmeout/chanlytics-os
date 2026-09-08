@@ -9,7 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   A2P_POLICIES, A2P_STEPS, EMPTY_A2P_STATE, LOW_VOLUME_USECASE, SOLE_PROPRIETOR_USECASE,
-  brandTypeFor, nextA2PStep, smsStateFor, runA2PSaga, BUSINESS_INDUSTRIES, DEFAULT_INDUSTRY, industryOf,
+  brandTypeFor, nextA2PStep, smsStateFor, runA2PSaga, BUSINESS_INDUSTRIES, DEFAULT_INDUSTRY, industryOf, isBrandNotReady,
   addressRequest, a2pProfileRequest, brandRequest, businessEndUserRequest, campaignRequest,
   customerProfileRequest, evaluateRequest, representativeEndUserRequest, submitProfileRequest, supportingDocumentRequest, encodeForm, keywordsFor,
 } from "@chanlytics/channels";
@@ -211,6 +211,32 @@ test("a profile Twilio calls incomplete is not submitted", async () => {
   assert.equal(r.step, "submit");
   assert.match(r.error, /not complete yet/);
   assert.equal(r.state.profileSubmitted, false);
+});
+
+test("a brand the carriers still hold is a WAIT, not a refusal, and the status check finishes it", async () => {
+  assert.equal(isBrandNotReady("registering the campaign: Can't create a Campaign until Brand is registered. Current status: IN_PROGRESS (Twilio 21717)"), true);
+  assert.equal(isBrandNotReady("Brand BN1 is not shared with account AC2 (Twilio 21717)"), false, "not shared is a real mistake, not a wait");
+  assert.equal(isBrandNotReady("Opt In Keywords must contain either alphanumeric"), false);
+
+  const send = async (req) => {
+    if (req.url.endsWith("/Evaluations")) return { status: 201, body: { status: "compliant" } };
+    if (req.url.includes("Compliance/Usa2p")) return { status: 400, body: { code: 21717, message: "Can't create a Campaign until Brand is registered. Current status: IN_PROGRESS" } };
+    return { status: 201, body: { sid: "XX1" } };
+  };
+  const r = await runA2PSaga({ ...EMPTY_A2P_STATE }, {
+    send, accountSid: "ACsub", primaryProfileSid: "BUprimary", email: "hi@chanlytics.com",
+    workspace: { name: "Harbor Moving" }, record: RECORD,
+    campaign: { description: "d".repeat(45), messageFlow: "f".repeat(45), samples: ["one sample message here", "two sample message here"], optInMessage: "subscribed", optInKeywords: ["START"], privacyPolicyUrl: "https://p", termsUrl: "https://t" },
+    messagingServiceSid: "MG1", useCase: LOW_VOLUME_USECASE, mock: true, save: async () => {},
+  });
+  assert.equal(r.ok, false);
+  assert.equal(r.step, "campaign");
+  assert.equal(r.pending, true, "the row must say 'waiting on carriers', never 'something went wrong'");
+  const edge = readCode("apps/edge/lib/a2p.ts");
+  assert.ok(edge.includes("const waiting = !result.ok && result.pending;") && edge.includes('const smsState = result.ok || waiting ? "registering" : "failed";'));
+  assert.ok(edge.includes("last_error: result.ok || waiting ? null : result.error,"), "a wait carries no error");
+  const lines = readCode("apps/edge/api/admin/lines.ts");
+  assert.ok(lines.includes('if (r.ok && r.brand === "APPROVED" && !row.data.campaign_sid) {'), "and the next status check files the campaign, so the wait finishes by itself");
 });
 
 test("the carriers' verdicts become the words the row uses", () => {

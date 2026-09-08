@@ -241,6 +241,22 @@ export async function POST(request: Request): Promise<Response> {
 
     if (op === "registration-status") {
       const r = await syncRegistration(db, row.data);
+      // The campaign could not be filed while the carriers still had the
+      // brand. Now that they are through with it, file it — this is what
+      // makes "waiting on carriers" finish by itself.
+      if (r.ok && r.brand === "APPROVED" && !row.data.campaign_sid) {
+        const rec = await db.from("business_records").select("*").eq("tenant_id", tenantId).maybeSingle();
+        const fresh = await db.from("lines").select("*").eq("id", lineId).single();
+        if (rec.data && fresh.data) {
+          const origin = dashboardOrigin();
+          const filed = await registerLine(db, {
+            line: fresh.data, record: rec.data, workspaceName: tenant.name,
+            optInUrl: `${origin}/yes/${tenant.slug}`, privacyUrl: `${origin}/privacy`, termsUrl: `${origin}/terms`,
+            mock: fresh.data.reg_mock,
+          });
+          return json(200, { ...r, campaign_filed: filed.ok, campaign_sid: filed.state.campaignSid, ...(filed.ok ? {} : { step: filed.step, error: filed.error }) });
+        }
+      }
       return json(r.ok ? 200 : 502, r);
     }
 

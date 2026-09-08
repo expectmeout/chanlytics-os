@@ -90,6 +90,8 @@ export function campaignFactsFor(o: { businessName: string; optInUrl: string; pr
 
 export interface RegisterResult {
   ok: boolean;
+  /** Not a refusal: the carriers have not finished with the brand yet. */
+  pending?: boolean;
   step?: string;
   error?: string;
   state: A2PState;
@@ -110,7 +112,7 @@ export async function registerLine(db: Db, o: {
   termsUrl: string;
   mock: boolean;
   statusCallback?: string;
-}): Promise<RegisterResult | { ok: false; error: string; state: A2PState; smsState: string }> {
+}): Promise<RegisterResult> {
   const choice = lineProviderFromEnv();
   const primary = primaryProfileSid();
   const email = platformEmail();
@@ -193,18 +195,23 @@ export async function registerLine(db: Db, o: {
 
   await db.from("lines").update({ sms_state: "registering", reg_mock: o.mock, last_error: null, state_since: new Date().toISOString() }).eq("id", o.line.id);
   const result = await runA2PSaga(state, ports);
-  const smsState = result.ok ? "registering" : "failed";
+  // A campaign that cannot be filed until the carriers finish with the brand
+  // is a WAIT: everything asked for was accepted. The row says "waiting on
+  // carriers", carries no error, and the next status check files it.
+  const waiting = !result.ok && result.pending;
+  const smsState = result.ok || waiting ? "registering" : "failed";
   await db.from("lines").update({
     sms_state: smsState,
     reg_step: result.ok ? null : result.step,
-    last_error: result.ok ? null : result.error,
+    last_error: result.ok || waiting ? null : result.error,
     state_since: new Date().toISOString(),
   }).eq("id", o.line.id);
   if (result.ok) L.info("a2p_filed", { mock: o.mock, brand: result.state.brandSid, campaign: result.state.campaignSid });
+  else if (waiting) L.info("a2p_waiting_on_brand", { brand: result.state.brandSid });
   else L.error("a2p_failed", { step: result.step, error: result.error });
   return result.ok
     ? { ok: true, state: result.state, smsState }
-    : { ok: false, step: result.step, error: result.error, state: result.state, smsState };
+    : { ok: false, pending: result.pending, step: result.step, error: result.error, state: result.state, smsState };
 }
 
 /** Ask Twilio where the brand and the campaign stand, and write it to the row. */
