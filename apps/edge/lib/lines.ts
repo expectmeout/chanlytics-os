@@ -14,6 +14,7 @@ import {
   importPhoneNumber,
   voiceEndpoints,
   smsInboundUrl,
+  DEFAULT_FN_URL,
   withKey,
   type LinePorts,
   type LineRow,
@@ -25,11 +26,25 @@ import {
   type ProvisionSecrets,
 } from "./workspace/channels.js";
 import { ensureVoiceAgent } from "./voice-agent.js";
+import type { LineDto } from "./workspace/contracts.js";
 
 export interface LineProviderChoice {
   name: LineProviderName;
   provider: LineProvider;
   master: ProviderAccount;
+}
+
+/**
+ * Where this deployment answers, as the provider must be told to reach it.
+ *
+ * The default is the address the edge has always had; `EDGE_ORIGIN` moves
+ * it, the way DASHBOARD_ORIGIN moves the dashboard's. Without this the
+ * production URL is a constant inside a shared package, which is exactly
+ * the thing that has to be edited and redeployed to move an environment.
+ */
+export function edgeFnUrl(): string {
+  const o = process.env.EDGE_ORIGIN;
+  return o && /^https:\/\/[a-z0-9.-]+$/i.test(o) ? `${o}/api/retell-fn` : DEFAULT_FN_URL;
 }
 
 /** Real credentials win; the dry provider only outside production; otherwise none. */
@@ -74,15 +89,22 @@ export function isRegistered(r: Pick<Row, "brand_sid" | "campaign_sid">): boolea
   return !!(r.brand_sid && r.campaign_sid);
 }
 
-/** What the page may see of a line: never a SID that opens a door. */
-export function lineForClient(r: Row): Record<string, unknown> {
+/**
+ * What the page may see of a line: never a SID that opens a door.
+ *
+ * Typed as the CONTRACT the page reads, not as a loose object. It was a
+ * `Record<string, unknown>`, so this shape and `contracts/setup.ts`'s
+ * `LineDto` were two hand-kept copies of one thing: a field added on one
+ * side and forgotten on the other compiled cleanly and arrived undefined.
+ */
+export function lineForClient(r: Row): LineDto {
   return {
     id: r.id,
     e164: r.e164,
     kind: r.kind,
     provider: r.provider,
     area_code: r.area_code,
-    voice_state: r.voice_state,
+    voice_state: r.voice_state as LineDto["voice_state"],
     sms_state: r.sms_state,
     reg_step: r.reg_step,
     reg_mock: r.reg_mock,
@@ -111,8 +133,8 @@ export function linePorts(
     tenant,
     now: () => new Date().toISOString(),
     nickname: `${tenant.name} · Chanlytics`,
-    inboundWebhookUrl: withKey(voiceEndpoints().inbound, secrets.fnSecret),
-    smsInboundUrl: smsInboundUrl(voiceEndpoints().fn),
+    inboundWebhookUrl: withKey(voiceEndpoints(edgeFnUrl()).inbound, secrets.fnSecret),
+    smsInboundUrl: smsInboundUrl(edgeFnUrl()),
     store: {
       async save(patch) {
         const row: Partial<Row> = {};

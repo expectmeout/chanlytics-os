@@ -216,7 +216,16 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
   // 4. The phone receptionist — answering on the line, transferring to a person.
   if (voiceReady) {
     const last = voice.lastInboundAt ? `Last call ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}` : "No calls yet";
-    row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "ready", required: !answering, sentence: `Answering on ${voiceNum}.`, details: [handoffNum ? `Transfers to ${handoffNum} when a caller insists on a person` : "No hand-off number yet — callers who insist on a person are told someone will call back", last], verb: voice.number ? { label: "Call it", to: `tel:${voice.number}` } : null });
+    // A line can be bought in a minute and the facts take longer, so a
+    // receptionist can be answering with nothing to answer WITH. It does not
+    // invent — it says someone will confirm and takes a message — but the
+    // page said "Answering", which reads as ready, and the one thing that
+    // would fix it was three rows up with no mention of the phone.
+    if (!i.business.name || !i.business.hours) {
+      row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "waiting_you", required: !answering, sentence: `Picking up on ${voiceNum}, but it has no facts to answer with yet.`, details: ["Callers are told someone will confirm and are offered to leave a message", "Fill in your name, hours and services and it answers properly from the next call"], verb: { label: "Add your facts", to: "admin/workspace" } });
+    } else {
+      row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "ready", required: !answering, sentence: `Answering on ${voiceNum}.`, details: [handoffNum ? `Transfers to ${handoffNum} when a caller insists on a person` : "No hand-off number yet — callers who insist on a person are told someone will call back", last], verb: voice.number ? { label: "Call it", to: `tel:${voice.number}` } : null });
+    }
   } else if (voice.present) {
     row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "waiting_you", required: !answering, sentence: "Switched off with the line.", details: [], verb: null });
   } else if (ownLine && (ownLine.voice_state === "provisioning" || ownLine.voice_state === "answering")) {

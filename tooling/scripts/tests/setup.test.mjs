@@ -43,6 +43,26 @@ const live = (over = {}) => empty({
 });
 const row = (vm, id) => vm.rows.find((r) => r.id === id);
 
+
+test("a receptionist answering with nothing to answer with says so, and points at the one thing that fixes it", () => {
+  // A number is bought in a minute; the facts take longer. The page used to
+  // say "Answering", which reads as ready, while every caller got the
+  // fallback that refuses to state hours, prices or an address.
+  const withLine = empty({
+    channels: {
+      whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
+      voice: { present: true, active: true, number: VOICE, lastInboundAt: null },
+    },
+  });
+  const bare = row(setupSteps(withLine, NOW), "receptionist");
+  assert.equal(bare.state, "waiting_you");
+  assert.ok(bare.sentence.includes("no facts to answer with yet"));
+  assert.equal(bare.verb.to, "admin/workspace");
+  const filled = row(setupSteps({ ...withLine, business: facts }, NOW), "receptionist");
+  assert.equal(filled.state, "ready");
+  assert.ok(filled.sentence.startsWith("Answering on"));
+});
+
 test("an empty workspace: nothing answers, every row reads its true state, the first verb is the business facts", () => {
   const vm = setupSteps(empty(), NOW);
   assert.equal(vm.readiness.answering, false);
