@@ -167,7 +167,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
     } else if (b.status === "paused" || b.status === "unpaid") {
       row({ id: "billing", icon: "money", title: "Billing", state: "waiting_you", required: true, sentence: "Your receptionist is paused: messages land in the Inbox, nothing is answered.", details: [b.status === "paused" ? "The trial ended without a card on file" : "Payment could not be collected"], verb: { label: "Resume in Billing", to: "admin/billing" } });
     } else {
-      row({ id: "billing", icon: "money", title: "Billing", state: "not_started", required: true, sentence: `Start the ${b.trial_days}-day trial with a card — nothing is charged until it ends.`, details: ["Cancel any time from Billing", "The receptionist answers through the trial"], verb: { label: "Start the trial", to: "verb:billing-checkout" } });
+      row({ id: "billing", icon: "money", title: "Billing", state: "not_started", required: true, sentence: b.trial_days > 0 ? `Start the ${b.trial_days}-day trial with a card — nothing is charged until it ends.` : "Subscribe with a card — the first charge is today.", details: b.trial_days > 0 ? ["Cancel any time from Billing", "The receptionist answers through the trial"] : ["Cancel any time from Billing"], verb: { label: b.trial_days > 0 ? "Start the trial" : "Subscribe", to: "verb:billing-checkout" } });
     }
   }
 

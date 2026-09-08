@@ -44,7 +44,15 @@ export function priceId(): string | null {
 }
 
 export function trialDays(): number {
-  const n = Number(process.env.BILLING_TRIAL_DAYS);
+  // Trimmed and checked for emptiness FIRST, because Number("") is 0, not NaN.
+  // Creating the variable in the console and leaving the value blank — which is
+  // what copying .env.example into Vercel does — therefore passed every guard
+  // below as a deliberate zero: Checkout omitted trial_period_days and took the
+  // card on the spot, while Billing and Setup went on offering "the 0-day trial
+  // with a card; nothing is charged until it ends".
+  const raw = (process.env.BILLING_TRIAL_DAYS ?? "").trim();
+  if (!raw) return BILLING_TRIAL_DAYS;
+  const n = Number(raw);
   return Number.isInteger(n) && n >= 0 && n <= 90 ? n : BILLING_TRIAL_DAYS;
 }
 

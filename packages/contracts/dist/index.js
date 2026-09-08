@@ -5625,6 +5625,12 @@ function dayWords(iso) {
   const ms2 = Date.parse(iso);
   return Number.isNaN(ms2) ? "" : DATE_FMT6.format(new Date(ms2));
 }
+function trialOffer(days, again = false) {
+  if (!(days > 0)) {
+    return again ? "Start again with a card; the first charge is today." : "Subscribe with a card; the first charge is today, and you can cancel from here any time.";
+  }
+  return again ? `Start again with a card; the ${days}-day trial applies once.` : `Start the ${days}-day trial with a card; nothing is charged until it ends, and you can cancel from here any time.`;
+}
 function trialWords(trialEnd, nowMs) {
   if (!trialEnd) return "";
   const end = Date.parse(trialEnd);
@@ -5650,7 +5656,7 @@ function toBillingVM(dto, nowMs = Date.now()) {
   const base = { mode: "stripe", status: s, plan, card };
   switch (s) {
     case "none":
-      return { ...base, headline: "No subscription yet", detail: dto.ready ? `Start the ${dto.trial_days}-day trial with a card; nothing is charged until it ends, and you can cancel from here any time.` : "Billing is not available on this deployment yet.", tone: "warn", actions: { checkout: dto.ready, portal: false, resume: false }, paused: false };
+      return { ...base, headline: "No subscription yet", detail: dto.ready ? trialOffer(dto.trial_days) : "Billing is not available on this deployment yet.", tone: "warn", actions: { checkout: dto.ready, portal: false, resume: false }, paused: false };
     case "trialing":
       if (a.cancel_at || a.cancel_at_period_end) {
         return { ...base, headline: "On trial, ending", detail: `Cancelled: the receptionist answers until ${dayWords(a.cancel_at ?? a.trial_end) || "the trial ends"}, then stops, and nothing is charged. Undo it from Manage billing before then to keep it.`, tone: "warn", actions: { checkout: false, portal: true, resume: false }, paused: false };
@@ -5669,7 +5675,7 @@ function toBillingVM(dto, nowMs = Date.now()) {
     case "canceled":
     case "incomplete_expired":
     default:
-      return { ...base, headline: "Subscription ended", detail: dto.ready ? `Start again with a card; the ${dto.trial_days}-day trial applies once.` : "Billing is not available on this deployment yet.", tone: "danger", actions: { checkout: dto.ready, portal: !!a.card_brand, resume: false }, paused: true };
+      return { ...base, headline: "Subscription ended", detail: dto.ready ? trialOffer(dto.trial_days, true) : "Billing is not available on this deployment yet.", tone: "danger", actions: { checkout: dto.ready, portal: !!a.card_brand, resume: false }, paused: true };
   }
 }
 var CHECKOUT_OUTCOME_WORDS = {
@@ -5752,7 +5758,7 @@ function setupSteps(i, nowMs = Date.now()) {
     } else if (b.status === "paused" || b.status === "unpaid") {
       row2({ id: "billing", icon: "money", title: "Billing", state: "waiting_you", required: true, sentence: "Your receptionist is paused: messages land in the Inbox, nothing is answered.", details: [b.status === "paused" ? "The trial ended without a card on file" : "Payment could not be collected"], verb: { label: "Resume in Billing", to: "admin/billing" } });
     } else {
-      row2({ id: "billing", icon: "money", title: "Billing", state: "not_started", required: true, sentence: `Start the ${b.trial_days}-day trial with a card \u2014 nothing is charged until it ends.`, details: ["Cancel any time from Billing", "The receptionist answers through the trial"], verb: { label: "Start the trial", to: "verb:billing-checkout" } });
+      row2({ id: "billing", icon: "money", title: "Billing", state: "not_started", required: true, sentence: b.trial_days > 0 ? `Start the ${b.trial_days}-day trial with a card \u2014 nothing is charged until it ends.` : "Subscribe with a card \u2014 the first charge is today.", details: b.trial_days > 0 ? ["Cancel any time from Billing", "The receptionist answers through the trial"] : ["Cancel any time from Billing"], verb: { label: b.trial_days > 0 ? "Start the trial" : "Subscribe", to: "verb:billing-checkout" } });
     }
   }
   {
@@ -6733,6 +6739,7 @@ export {
   todayDayFacts,
   todayJourney,
   todayWeek,
+  trialOffer,
   trialWords,
   triggerOf,
   tzClock,
