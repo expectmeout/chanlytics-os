@@ -6040,7 +6040,7 @@ function campaignRequest(f) {
   const keywords = keywordsFor(f.optInKeywords);
   if (keywords.length) form2.OptInKeywords = keywords;
   else delete form2.OptInMessage;
-  return { url: `${MESSAGING2}/Services/${f.messagingServiceSid}/Compliance/Usa2p`, method: "POST", as: "line", form: form2 };
+  return { url: `${MESSAGING2}/Services/${f.messagingServiceSid}/Compliance/Usa2p`, method: "POST", form: form2 };
 }
 var A2P_STEPS = ["profile", "business", "representative", "address", "document", "primary", "submit", "a2p_profile", "brand", "campaign"];
 var EMPTY_A2P_STATE = {

@@ -106,10 +106,7 @@ test("the campaign says what the carriers ask, with the samples and keywords as 
     useCase: LOW_VOLUME_USECASE,
   });
   assert.equal(c.url, "https://messaging.twilio.com/v1/Services/MG1/Compliance/Usa2p");
-  // The Messaging Service lives in the workspace's subaccount; asked as the
-  // master, Twilio answers "not found" after the brand is already paid for.
-  assert.equal(c.as, "line");
-  assert.equal(brandRequest({ customerProfileBundleSid: "BU1", a2pProfileBundleSid: "BU2", brandType: "STANDARD", mock: true }).as, undefined, "everything else is ours, as the master");
+
   assert.equal(c.form.BrandRegistrationSid, "BN1");
   assert.equal(c.form.UsAppToPersonUsecase, "LOW_VOLUME");
   // Repeated keys, not indexed ones: Twilio answers an indexed list with
@@ -225,6 +222,15 @@ test("the carriers' verdicts become the words the row uses", () => {
   assert.equal(smsStateFor({ brandStatus: "SUSPENDED" }), "failed");
 });
 
+test("everything is filed as the workspace's own subaccount, with our primary profile referenced by sid", () => {
+  const lib = readCode("apps/edge/lib/a2p.ts");
+  assert.ok(lib.includes("const sub = await lineAccount(db, o.line)") && lib.includes('if (!sub) return { ok: false, error: "no_line_credentials"'), "no subaccount, no filing");
+  assert.ok(lib.includes("accountSid: sub.sid,") && !lib.includes("accountSid: master.sid,"), "the address belongs to the same account as the profile");
+  assert.ok(lib.includes("const acct = sub;"), "one account for every call");
+  const raw = readRaw("packages/channels/src/a2p.ts");
+  assert.ok(raw.includes("WHOSE ACCOUNT.") && raw.includes("refused with 21717"), "REGRESSION: a brand on the parent is refused at the campaign, after it is registered and paid for");
+});
+
 test("the wiring: filed as us, never twice, never real by default, and the record is asked for first", () => {
   const edge = readCode("apps/edge/api/admin/lines.ts");
   assert.ok(edge.includes('if (op === "record") {') && edge.includes('if (op === "register" || op === "registration-status") {'));
@@ -234,8 +240,7 @@ test("the wiring: filed as us, never twice, never real by default, and the recor
   assert.ok(edge.includes("optInUrl: `${origin}/yes/${tenant.slug}`") && edge.includes("privacyUrl: `${origin}/privacy`"), "the reviewer is sent to pages that exist");
   const lib = readCode("apps/edge/lib/a2p.ts");
   assert.ok(lib.includes("export function primaryProfileSid()") && lib.includes('error: "no_primary_profile"'), "nothing is filed without our own approved profile");
-  assert.ok(lib.includes("const master = choice.master;"), "the bundles hang under the master account, not a subaccount");
-  assert.ok(!/subaccount/i.test(lib.split("registerLine")[1] ?? ""), "and never under the workspace's own");
+  assert.ok(lib.includes("primaryProfileSid: primary,"), "our own profile is referenced by sid, which is the whole declaration that this business is ours");
   const sql = readRaw("supabase/migrations/00075_registration.sql");
   assert.ok(sql.includes("create table public.business_records") && sql.includes("business_records_member_select"));
   assert.ok(sql.includes("reg_mock") && sql.includes("brand_sid"), "the row says which registration it is and what it made");

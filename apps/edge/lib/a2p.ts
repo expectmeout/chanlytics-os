@@ -122,14 +122,13 @@ export async function registerLine(db: Db, o: {
 
   const L = logger({ tenant_id: o.line.tenant_id, line_id: o.line.id });
   const record = businessRecordFrom(o.record);
-  const master = choice.master;
 
-  // The campaign is attached to the workspace's own Messaging Service, which
-  // only its subaccount can see; everything else is ours and goes as the master.
+  // Everything is filed as the WORKSPACE'S OWN subaccount, per Twilio's ISV
+  // guide; our primary profile is referenced by sid, never moved.
   const sub = await lineAccount(db, o.line).catch(() => null);
+  if (!sub) return { ok: false, error: "no_line_credentials", state, smsState: o.line.sms_state };
   const send = async (req: A2PRequest) => {
-    const acct = req.as === "line" ? sub : master;
-    if (!acct) throw new Error("the line's own credentials are missing from the vault");
+    const acct = sub;
     const r = await fetch(req.url, {
       method: req.method,
       headers: {
@@ -167,7 +166,7 @@ export async function registerLine(db: Db, o: {
 
   const ports: A2PPorts = {
     send,
-    accountSid: master.sid,
+    accountSid: sub.sid,
     primaryProfileSid: primary,
     email,
     ...(o.statusCallback ? { statusCallback: o.statusCallback } : {}),
@@ -217,9 +216,9 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<{ ok: boo
     const r = await fetch(url, { headers: { Authorization: basic(acct) }, signal: AbortSignal.timeout(15000) });
     return (await r.json().catch(() => null)) as Record<string, unknown> | null;
   };
-  const brand = line.brand_sid ? await read(`https://messaging.twilio.com/v1/a2p/BrandRegistrations/${line.brand_sid}`, choice.master) : null;
-  // The campaign hangs off the workspace's own Messaging Service, so it is read as its subaccount.
+  // Both are the workspace's own, so both are read as its subaccount.
   const sub = await lineAccount(db, line).catch(() => null);
+  const brand = line.brand_sid && sub ? await read(`https://messaging.twilio.com/v1/a2p/BrandRegistrations/${line.brand_sid}`, sub) : null;
   const campaign = line.messaging_service_sid && sub ? await read(`https://messaging.twilio.com/v1/Services/${line.messaging_service_sid}/Compliance/Usa2p`, sub) : null;
   const brandStatus = typeof brand?.status === "string" ? brand.status : null;
   const campaignStatus = typeof campaign?.campaign_status === "string" ? campaign.campaign_status : null;
