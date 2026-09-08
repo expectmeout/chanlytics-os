@@ -93,6 +93,12 @@
 .set-team-name { font-size: 12.5px; font-weight: 500; color: var(--ink); }
 .set-team-mail { font-size: 11px; color: var(--ink-dim); }
 .set-int-tile { width: 30px !important; height: 30px !important; border-radius: 8px !important; }
+/* On a phone a row's words keep the width; its pill and verbs take the next line, right-aligned. */
+@media (max-width: 640px) {
+  .set-int-row { flex-wrap: wrap; }
+  .set-int-row > .set-team-body { flex: 1 1 calc(100% - 40px); }
+  .set-int-row > .pill { margin-left: auto; }
+}
 
 /* Memory */
 .set-mem-row {

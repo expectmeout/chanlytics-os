@@ -60,7 +60,7 @@ test.describe("Google on a real workspace", () => {
 
     await page.goto("/#/admin/integrations");
     await page.waitForLoadState("networkidle");
-    await expect(page.getByTestId("channels")).toBeVisible();
+    await expect(page.getByTestId("connections-connected")).toBeVisible();
     // Both doors are rows either way: "Later" where closed, a verb for an owner where open, the listing's state where linked.
     const profileRow = page.getByTestId("connection-google_profile");
     const listingRow = page.getByTestId("connection-google_listing");
@@ -72,8 +72,11 @@ test.describe("Google on a real workspace", () => {
   });
 
   test("the way to Google refuses politely where the door is closed, and never leaks the state key", async ({ page }) => {
-    const { data } = await (await page.request.get("/api/v1/google")).json();
-    const res = await page.request.get("/api/v1/google/connect", { maxRedirects: 0 });
+    // An account with more than one workspace must say which; the app's own calls always do.
+    const ws = await (await page.request.get("/api/v1/workspaces")).json();
+    const id = ws.data.activeWorkspaceId ?? ws.data.workspaces[0]?.id;
+    const { data } = await (await page.request.get(`/api/v1/google?workspace=${id}`)).json();
+    const res = await page.request.get(`/api/v1/google/connect?workspace=${id}`, { maxRedirects: 0 });
     if (!data.google.ready.profile) {
       expect([403, 409]).toContain(res.status());
     } else {
@@ -85,7 +88,7 @@ test.describe("Google on a real workspace", () => {
       expect(to).not.toMatch(/client_secret/);
     }
     // A forged state is refused before anything is trusted.
-    const back = await page.request.get("/api/v1/google/callback?code=x&state=forged.forged", { maxRedirects: 0 });
+    const back = await page.request.get(`/api/v1/google/callback?code=x&state=forged.forged&workspace=${id}`, { maxRedirects: 0 });
     expect(back.status()).toBe(302);
     expect(back.headers()["location"] ?? "").toMatch(/google=error&why=(state_signature|not_available)/);
   });
