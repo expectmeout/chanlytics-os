@@ -8,6 +8,8 @@
 
 **Tech Stack:** Node 22 `node:test` with `tsx`, Playwright against production, Supabase/PostgREST, pnpm workspaces.
 
+**Shell:** every command below is **bash** (Git Bash on Windows). `until`, `$(...)` and glob expansion differ in PowerShell; run these in the Bash shell rather than translating them.
+
 ---
 
 ## Background
@@ -431,18 +433,22 @@ git push -u origin nightly-findings && gh pr create --title "The specs name thei
 
 - [ ] **Step 5: Merge when CI is green**
 
-`--auto` waits; a bare `--squash` does not.
+`--auto` *enables* auto-merge and returns immediately; it does not block. So wait for the merge to actually land before doing anything that depends on it.
 
 ```bash
 gh pr merge --squash --auto --delete-branch
 ```
 
-- [ ] **Step 6: Wait for the deployment before testing against it**
+```bash
+until [ "$(gh pr view --json mergedAt --jq '.mergedAt // empty')" != "" ]; do sleep 20; done; echo merged
+```
 
-Playwright runs against `https://app.chanlytics.com`. Firing the nightly straight after a merge tests the previous deployment.
+- [ ] **Step 6: Wait for the deployment of the MERGE COMMIT**
+
+Playwright runs against `https://app.chanlytics.com`, so firing the nightly straight after a merge tests the previous deployment. And the SHA to wait for is the squash **merge commit**, not the feature branch's HEAD — a squash merge creates a new commit, so `git rev-parse HEAD` on the branch names something that will never be deployed.
 
 ```bash
-until curl -s https://app.chanlytics.com/api/version | grep -q "$(git rev-parse HEAD)"; do sleep 15; done; echo deployed
+SHA=$(gh pr view --json mergeCommit --jq '.mergeCommit.oid') && until curl -s https://app.chanlytics.com/api/version | grep -q "$SHA"; do sleep 15; done; echo "deployed $SHA"
 ```
 
 - [ ] **Step 7: Run the nightly on the merged code**
@@ -467,9 +473,33 @@ Expected: node `# fail 0`, `# skipped 0`; browser `0 failed`. **Do not assert a 
 
 **Not part of the pull request above, and not needed by it.** Task 1 makes the suite survive a second membership, so this is hygiene before live Stripe keys, not a fix.
 
-`delete from tenants` cascades through more than twenty-five tables. This repo's own rule for production-mutating work is dry-run by default, idempotent, a JSONL backup, and an explicit `--apply`. A hand-typed `DELETE` in the SQL editor guarded by a human reading a name meets none of that, and nothing in this plan can undo it.
+`delete from tenants` cascades through more than twenty-five tables. This repo's rule for production-mutating work is dry-run by default, idempotent, a JSONL backup, and an explicit `--apply`.
 
-- [ ] **Step 1: Count what would go, inside a transaction that is rolled back**
+**Meet that bar rather than citing it.** An earlier draft of this task named the rule and then prescribed hand-typed SQL guarded by a human reading a name, which meets none of it. Write the tool instead: this will not be the last probe workspace, and a reusable `tooling/scripts/delete-tenant.mjs` costs less than the second time somebody does it by hand.
+
+- [ ] **Step 1: Write the tool**
+
+`tooling/scripts/delete-tenant.mjs`, taking `--tenant <uuid>`, dry-run unless `--apply`:
+
+1. Read the tenant row and refuse if it is missing, or if `--expect-name` does not match its name exactly.
+2. Count every table that cascades, and print the table-by-table tally.
+3. Write every row it is about to destroy to `backup/tenant-<id>-<timestamp>.jsonl`, one JSON object per line with its table name, and refuse to continue if that file cannot be written.
+4. Without `--apply`, stop here and print what would happen. Idempotent: a second run against an already-deleted tenant reports nothing to do and exits 0.
+5. With `--apply`, delete inside a transaction, assert exactly one `tenants` row went, and commit.
+
+- [ ] **Step 2: Rehearse, then apply**
+
+```bash
+node tooling/scripts/delete-tenant.mjs --tenant ee0e86b7-6afc-4c12-b404-fcae14652205 --expect-name "Billing probe"
+```
+
+Read the tally. Then, and only then:
+
+```bash
+node tooling/scripts/delete-tenant.mjs --tenant ee0e86b7-6afc-4c12-b404-fcae14652205 --expect-name "Billing probe" --apply
+```
+
+- [ ] **Step 3 (reference): what the counts should look like**
 
 ```sql
 begin;
@@ -483,18 +513,9 @@ select tenant_id, mode, status, stripe_customer_id from billing_accounts where t
 rollback;
 ```
 
-Proceed only if the name is the Billing probe and every count is what a throwaway test workspace should hold.
+The tool prints this itself; the query is here so the numbers can be checked independently before `--apply`.
 
-- [ ] **Step 2: Delete, in a transaction, checking the row count before committing**
-
-```sql
-begin;
-delete from tenants where id = 'ee0e86b7-6afc-4c12-b404-fcae14652205';
--- Expect exactly 1. Anything else: rollback.
-commit;
-```
-
-- [ ] **Step 3: Note what does not go**
+- [ ] **Step 4: Note what does not go**
 
 `billing_events.tenant_id` is `on delete set null` (`00073_billing.sql:48`) — deliberate, since Stripe's dedup ledger must outlive the tenant. And the Stripe **test-mode customer** that `billing_accounts.stripe_customer_id` pointed at is not touched by any of this; remove it in Stripe's own dashboard if you want it gone.
 

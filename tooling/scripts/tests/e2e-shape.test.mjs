@@ -10,6 +10,14 @@
  *
  * Two failures in the first credentialed nightly were exactly this, and read
  * as a billing bug and a phone-number bug for a day.
+ *
+ * No exemption for routes that resolve the workspace from the row they name
+ * (requireOperator passes the row's tenant as `wanted`, so those cannot be
+ * refused). The client has no such exemption — scoped() appends to every URL
+ * it fetches — and a rule with a carve-out list is a rule that rots. One
+ * carve-out only: the bare `request` fixture, which has no session by
+ * construction and is how ask.spec.ts proves an unauthenticated POST is
+ * refused.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -29,11 +37,6 @@ test("every direct write in the e2e suite names a workspace", () => {
       // bare `request` fixture has no session at all, which is the point of
       // ask.spec.ts's unauthenticated case, so only `page.request` is judged.
       if (line.includes("https://")) continue;
-      // A route that names a row resolves the workspace FROM that row:
-      // requireOperator(ctx, m.tenant_id) passes it as `wanted`, so the
-      // ambiguity guard cannot fire. steer.spec.ts:47 proves it — it posts
-      // unscoped and passes.
-      if (/\/(messages|conversations|threads|proposals)\//.test(line)) continue;
       offenders.push(`${f}: ${line.trim().slice(0, 90)}`);
     }
   }

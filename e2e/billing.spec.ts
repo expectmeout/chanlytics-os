@@ -57,11 +57,15 @@ test.describe("Billing on a real workspace", () => {
     const ws = await activeWorkspace(page);
     const res = await page.request.post(scoped("/api/v1/billing/checkout", ws), { headers: { origin: baseURL!, "content-type": "application/json" }, data: {} });
     const body = await res.json();
-    // The body in the message: a bare status assertion threw away the one
-    // sentence that says which refusal this was.
-    expect([403, 409, 503], `checkout answered ${res.status()}: ${JSON.stringify(body)}`).toContain(res.status());
+    // 409, exactly. STATUS_OF.direct = 409 on the edge (api/admin/billing.ts:30)
+    // and the route maps a 409 through unchanged, so this is deterministic —
+    // and the looser [403, 409, 503] it replaced would have swallowed the two
+    // regressions worth catching: a 403 means the test account lost owner, a
+    // 503 means the edge is unreachable. The body is in the message because a
+    // bare status assertion threw away the sentence naming the refusal.
+    expect(res.status(), `checkout answered ${res.status()}: ${JSON.stringify(body)}`).toBe(409);
     expect(body.ok).toBe(false);
-    if (res.status() === 409) expect(body.error.message).toContain("direct arrangement");
+    expect(body.error.message).toContain("direct arrangement");
   });
 
   test("Setup shows no billing row for a direct arrangement", async ({ page }) => {
