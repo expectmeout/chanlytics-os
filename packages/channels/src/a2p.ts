@@ -58,6 +58,29 @@ export interface BusinessRecord {
   contactJobPosition: string;
 }
 
+/**
+ * The industries Twilio's Trust Hub accepts, exactly as it spells them. A
+ * value outside this list is refused at the evaluation with "The Business
+ * Industry is invalid", after every other step has already been made and
+ * paid for, so the form offers these and nothing else.
+ */
+export const BUSINESS_INDUSTRIES = [
+  "AGRICULTURE", "AUTOMOTIVE", "BANKING", "CONSTRUCTION", "CONSUMER", "EDUCATION", "ELECTRONICS",
+  "ENERGY", "ENGINEERING", "FAST_MOVING_CONSUMER_GOODS", "FINANCIAL", "FINTECH", "FOOD_AND_BEVERAGE",
+  "GOVERNMENT", "HEALTHCARE", "HOSPITALITY", "INSURANCE", "JEWELRY", "LEGAL", "MANUFACTURING",
+  "MEDIA", "NOT_FOR_PROFIT", "OIL_AND_GAS", "ONLINE", "PROFESSIONAL_SERVICES", "RAW_MATERIALS",
+  "REAL_ESTATE", "RELIGION", "RETAIL", "TECHNOLOGY", "TELECOMMUNICATIONS", "TRANSPORTATION", "TRAVEL",
+] as const;
+export type BusinessIndustry = (typeof BUSINESS_INDUSTRIES)[number];
+/** What a small local business is, unless it says otherwise. */
+export const DEFAULT_INDUSTRY: BusinessIndustry = "PROFESSIONAL_SERVICES";
+
+/** The value Twilio will accept, or the default — never a guess it refuses. */
+export function industryOf(v: string | null | undefined): BusinessIndustry {
+  const up = String(v ?? "").trim().toUpperCase();
+  return (BUSINESS_INDUSTRIES as readonly string[]).includes(up) ? (up as BusinessIndustry) : DEFAULT_INDUSTRY;
+}
+
 export type BrandType = "STANDARD" | "SOLE_PROPRIETOR";
 
 /** With a tax id a business is a standard brand; without one it is a sole proprietor. */
@@ -106,7 +129,7 @@ export function businessEndUserRequest(r: BusinessRecord): A2PRequest {
         business_type: r.ein ? "Limited Liability Corporation" : "Sole Proprietorship",
         business_registration_identifier: r.ein ? "EIN" : "USA:EIN",
         business_identity: "direct_customer",
-        business_industry: r.industry,
+        business_industry: industryOf(r.industry),
         business_registration_number: r.ein ?? "",
       }),
     },
@@ -161,6 +184,27 @@ export function supportingDocumentRequest(o: { legalName: string; addressSid: st
       Attributes: attrs({ address_sids: o.addressSid }),
     },
   };
+}
+
+/**
+ * The business and the person, as they stand now.
+ *
+ * An owner who corrects a typo after the first attempt would otherwise be
+ * evaluated on what they first typed: the end users are made once and the
+ * saga skips a step whose receipt it already holds. So the current record
+ * is pushed onto them again just before the profile is submitted, which is
+ * the last moment it can still matter.
+ */
+export function updateEndUserRequest(sid: string, attributes: Record<string, unknown>): A2PRequest {
+  return { url: `${TRUSTHUB}/EndUsers/${sid}`, method: "POST", form: { Attributes: attrs(attributes) } };
+}
+
+/** The attributes each end user carries, so the create and the update cannot drift. */
+export function businessAttributes(r: BusinessRecord): Record<string, unknown> {
+  return JSON.parse(businessEndUserRequest(r).form!.Attributes) as Record<string, unknown>;
+}
+export function representativeAttributes(r: BusinessRecord): Record<string, unknown> {
+  return JSON.parse(representativeEndUserRequest(r).form!.Attributes) as Record<string, unknown>;
 }
 
 /** Everything a bundle carries is attached the same way. */

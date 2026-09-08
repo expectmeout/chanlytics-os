@@ -9,7 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   A2P_POLICIES, A2P_STEPS, EMPTY_A2P_STATE, LOW_VOLUME_USECASE, SOLE_PROPRIETOR_USECASE,
-  brandTypeFor, nextA2PStep, smsStateFor, runA2PSaga,
+  brandTypeFor, nextA2PStep, smsStateFor, runA2PSaga, BUSINESS_INDUSTRIES, DEFAULT_INDUSTRY, industryOf,
   addressRequest, a2pProfileRequest, brandRequest, businessEndUserRequest, campaignRequest,
   customerProfileRequest, evaluateRequest, representativeEndUserRequest, submitProfileRequest, supportingDocumentRequest,
 } from "@chanlytics/channels";
@@ -67,6 +67,34 @@ test("every request is the documented URL and the documented fields", () => {
   assert.equal(brand.url, "https://messaging.twilio.com/v1/a2p/BrandRegistrations");
   assert.deepEqual(brand.form, { CustomerProfileBundleSid: "BU1", A2PProfileBundleSid: "BU2", BrandType: "STANDARD", Mock: "true" });
   assert.equal(brandRequest({ customerProfileBundleSid: "BU1", a2pProfileBundleSid: "BU2", brandType: "SOLE_PROPRIETOR", mock: false }).form.Mock, undefined, "a real filing never says Mock");
+});
+
+test("the industry is Twilio's enum: an unknown value becomes the default rather than a refusal", () => {
+  assert.ok(BUSINESS_INDUSTRIES.includes("PROFESSIONAL_SERVICES") && BUSINESS_INDUSTRIES.includes("HOSPITALITY"));
+  assert.ok(!BUSINESS_INDUSTRIES.includes("PROFESSIONAL"), "REGRESSION: 'PROFESSIONAL' is refused at the evaluation, after every other step is already made");
+  assert.equal(industryOf("PROFESSIONAL"), "PROFESSIONAL_SERVICES");
+  assert.equal(industryOf("hospitality"), "HOSPITALITY");
+  assert.equal(industryOf(null), DEFAULT_INDUSTRY);
+  assert.equal(JSON.parse(businessEndUserRequest({ ...RECORD, industry: "PROFESSIONAL" }).form.Attributes).business_industry, "PROFESSIONAL_SERVICES");
+});
+
+test("what the owner last typed is what Twilio evaluates", async () => {
+  const seen = [];
+  const send = async (req) => {
+    seen.push(req.url);
+    if (req.url.endsWith("/Evaluations")) return { status: 201, body: { status: "compliant" } };
+    return { status: 201, body: { sid: "XX0001" } };
+  };
+  const state = { ...EMPTY_A2P_STATE, profileSid: "BU1", businessSid: "IT1", representativeSid: "IT2", addressSid: "AD1", documentSid: "RD1", primaryAssigned: true };
+  const r = await runA2PSaga(state, {
+    send, accountSid: "ACmaster", primaryProfileSid: "BUprimary", email: "hi@chanlytics.com",
+    workspace: { name: "Harbor Moving" }, record: RECORD,
+    campaign: { description: "d".repeat(45), messageFlow: "f".repeat(45), samples: ["one sample message here", "two sample message here"], optInMessage: "subscribed", optInKeywords: ["YES OFFERS"], privacyPolicyUrl: "https://p", termsUrl: "https://t" },
+    messagingServiceSid: "MG1", useCase: LOW_VOLUME_USECASE, mock: true, save: async () => {},
+  });
+  assert.equal(r.ok, true, r.ok ? "" : r.error);
+  assert.ok(seen.includes("https://trusthub.twilio.com/v1/EndUsers/IT1") && seen.includes("https://trusthub.twilio.com/v1/EndUsers/IT2"), "both end users are refreshed");
+  assert.ok(seen.indexOf("https://trusthub.twilio.com/v1/EndUsers/IT1") < seen.indexOf("https://trusthub.twilio.com/v1/CustomerProfiles/BU1/Evaluations"), "before the evaluation, which is the last moment it can matter");
 });
 
 test("the campaign says what the carriers ask, with the samples and keywords as a list", () => {

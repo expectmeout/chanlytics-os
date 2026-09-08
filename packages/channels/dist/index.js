@@ -5821,6 +5821,46 @@ var A2P_POLICIES = {
 };
 var TRUSTHUB = "https://trusthub.twilio.com/v1";
 var MESSAGING2 = "https://messaging.twilio.com/v1";
+var BUSINESS_INDUSTRIES = [
+  "AGRICULTURE",
+  "AUTOMOTIVE",
+  "BANKING",
+  "CONSTRUCTION",
+  "CONSUMER",
+  "EDUCATION",
+  "ELECTRONICS",
+  "ENERGY",
+  "ENGINEERING",
+  "FAST_MOVING_CONSUMER_GOODS",
+  "FINANCIAL",
+  "FINTECH",
+  "FOOD_AND_BEVERAGE",
+  "GOVERNMENT",
+  "HEALTHCARE",
+  "HOSPITALITY",
+  "INSURANCE",
+  "JEWELRY",
+  "LEGAL",
+  "MANUFACTURING",
+  "MEDIA",
+  "NOT_FOR_PROFIT",
+  "OIL_AND_GAS",
+  "ONLINE",
+  "PROFESSIONAL_SERVICES",
+  "RAW_MATERIALS",
+  "REAL_ESTATE",
+  "RELIGION",
+  "RETAIL",
+  "TECHNOLOGY",
+  "TELECOMMUNICATIONS",
+  "TRANSPORTATION",
+  "TRAVEL"
+];
+var DEFAULT_INDUSTRY = "PROFESSIONAL_SERVICES";
+function industryOf(v) {
+  const up = String(v ?? "").trim().toUpperCase();
+  return BUSINESS_INDUSTRIES.includes(up) ? up : DEFAULT_INDUSTRY;
+}
 function brandTypeFor(r) {
   return r.ein && r.ein.trim() ? "STANDARD" : "SOLE_PROPRIETOR";
 }
@@ -5854,7 +5894,7 @@ function businessEndUserRequest(r) {
         business_type: r.ein ? "Limited Liability Corporation" : "Sole Proprietorship",
         business_registration_identifier: r.ein ? "EIN" : "USA:EIN",
         business_identity: "direct_customer",
-        business_industry: r.industry,
+        business_industry: industryOf(r.industry),
         business_registration_number: r.ein ?? ""
       })
     }
@@ -5904,6 +5944,15 @@ function supportingDocumentRequest(o) {
       Attributes: attrs({ address_sids: o.addressSid })
     }
   };
+}
+function updateEndUserRequest(sid2, attributes) {
+  return { url: `${TRUSTHUB}/EndUsers/${sid2}`, method: "POST", form: { Attributes: attrs(attributes) } };
+}
+function businessAttributes(r) {
+  return JSON.parse(businessEndUserRequest(r).form.Attributes);
+}
+function representativeAttributes(r) {
+  return JSON.parse(representativeEndUserRequest(r).form.Attributes);
 }
 function assignRequest(bundleSid, objectSid) {
   return { url: `${TRUSTHUB}/CustomerProfiles/${bundleSid}/EntityAssignments`, method: "POST", form: { ObjectSid: objectSid } };
@@ -6076,6 +6125,10 @@ async function runA2PSaga(start, p) {
           break;
         }
         case "submit": {
+          for (const [sid2, a] of [[state.businessSid, businessAttributes(p.record)], [state.representativeSid, representativeAttributes(p.record)]]) {
+            const up = await p.send(updateEndUserRequest(sid2, a));
+            if (!ok(up)) throw new Error(refusal(up, "refreshing the business on record"));
+          }
           const ev = await p.send(evaluateRequest(state.profileSid, A2P_POLICIES.secondaryCustomerProfile));
           const status = typeof ev.body?.status === "string" ? ev.body.status : "";
           if (!ok(ev)) throw new Error(refusal(ev, "checking the profile"));
@@ -6604,9 +6657,11 @@ function cleanReply(text) {
 export {
   A2P_POLICIES,
   A2P_STEPS,
+  BUSINESS_INDUSTRIES,
   CALLER_UNKNOWN,
   CALL_ANALYSIS_FIELDS,
   DEFAULT_FN_URL,
+  DEFAULT_INDUSTRY,
   EMPTY_A2P_STATE,
   FACTS_UNAVAILABLE,
   FRESH_SLACK_MS,
@@ -6662,6 +6717,7 @@ export {
   b64url,
   brandRequest,
   brandTypeFor,
+  businessAttributes,
   businessEndUserRequest,
   callSummaryLine,
   campaignRequest,
@@ -6689,6 +6745,7 @@ export {
   grantHasScope,
   idTokenClaims,
   importPhoneNumber,
+  industryOf,
   isAreaCode,
   isE164,
   isValidSipPassword,
@@ -6722,6 +6779,7 @@ export {
   publishAgentVersion,
   replyRequest,
   replyToReview,
+  representativeAttributes,
   representativeEndUserRequest,
   retellImportBody,
   reviewBells,
@@ -6758,6 +6816,7 @@ export {
   twilioUrls,
   unb64url,
   updateAgent,
+  updateEndUserRequest,
   updateLiveCall,
   updatePhoneNumber,
   verifyRetellSignature,
