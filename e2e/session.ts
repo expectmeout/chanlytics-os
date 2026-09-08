@@ -120,7 +120,7 @@ export async function signIn(page: Page): Promise<void> {
       .replace(/\//g, "_")
       .replace(/=+$/, "");
 
-  const base = new URL(process.env.E2E_BASE_URL ?? "https://chanlytics-os.vercel.app");
+  const base = new URL(process.env.E2E_BASE_URL ?? "https://app.chanlytics.com");
   await page.context().addCookies(
     createChunks(storageKey(), value).map((c: { name: string; value: string }) => ({
       name: c.name,

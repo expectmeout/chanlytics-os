@@ -38,7 +38,34 @@ function noStore(response: NextResponse): NextResponse {
 }
 
 /** Session refresh + auth gate: everything outside PUBLIC_PATHS requires a user. */
+/**
+ * The product has ONE address.
+ *
+ * A Vercel project keeps its deploy alias working for ever, so the app was
+ * reachable at two origins at once. Cookies are per-origin, so a person
+ * signed in on one was signed out on the other — and once Google's callback
+ * moved to the custom domain, starting Connect from the alias sent the
+ * browser back to a host it had no session on. The alias now redirects,
+ * permanently, path and query intact.
+ *
+ * Production only, and only a `.vercel.app` host: a preview deployment is
+ * also a vercel.app host and must keep answering as itself.
+ */
+function canonicalRedirect(request: NextRequest): NextResponse | null {
+  const canonical = process.env.CANONICAL_HOST;
+  if (!canonical || process.env.VERCEL_ENV !== "production") return null;
+  const host = request.headers.get("host");
+  if (!host || host === canonical || !host.endsWith(".vercel.app")) return null;
+  const url = new URL(request.url);
+  url.host = canonical;
+  url.protocol = "https:";
+  url.port = "";
+  return NextResponse.redirect(url, 308);
+}
+
 export async function middleware(request: NextRequest) {
+  const moved = canonicalRedirect(request);
+  if (moved) return moved;
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

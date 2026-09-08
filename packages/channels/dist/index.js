@@ -6036,7 +6036,6 @@ function keywordsFor(words) {
   return words.map((w) => w.trim()).filter((w) => /^[A-Za-z0-9]+$/.test(w));
 }
 var LOW_VOLUME_USECASE = "LOW_VOLUME";
-var SOLE_PROPRIETOR_USECASE = "SOLE_PROPRIETOR";
 function campaignRequest(f) {
   const form2 = {
     BrandRegistrationSid: f.brandSid,
@@ -6723,7 +6722,6 @@ export {
   SMS_HELD_DETAILS,
   SMS_HELD_REASON,
   SMS_MAX_CHARS,
-  SOLE_PROPRIETOR_USECASE,
   STATE_TTL_MS,
   TRUSTHUB,
   TwilioError,

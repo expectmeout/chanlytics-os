@@ -24,7 +24,7 @@ import { defineConfig, devices } from "@playwright/test";
  */
 
 /** Deployed by default; override for a preview or a local server. */
-const baseURL = process.env.E2E_BASE_URL ?? "https://chanlytics-os.vercel.app";
+const baseURL = process.env.E2E_BASE_URL ?? "https://app.chanlytics.com";
 
 export default defineConfig({
   testDir: "./e2e",

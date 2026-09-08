@@ -77,6 +77,18 @@ test("the public path list is exact, never a prefix", () => {
   assert.match(middleware, /PUBLIC_PATHS\.has\(path\)/, "the gate must test exact membership");
 });
 
+test("one address: the deploy alias redirects, and a preview never does", () => {
+  // Cookies are per-origin, and Google's callback is registered against one
+  // host — so a person who started on the alias came back to a host they had
+  // no session on, and Connect Google simply failed.
+  assert.match(middleware, /const canonical = process\.env\.CANONICAL_HOST;/);
+  assert.match(middleware, /process\.env\.VERCEL_ENV !== "production"/, "a preview is also a vercel.app host and must answer as itself");
+  assert.match(middleware, /!host\.endsWith\("\.vercel\.app"\)/, "only the alias is moved, never a custom domain");
+  assert.match(middleware, /NextResponse\.redirect\(url, 308\)/, "permanent, so it is cached and so search engines follow it");
+  const before = middleware.indexOf("const moved = canonicalRedirect(request);");
+  assert.ok(before > 0 && before < middleware.indexOf("PUBLIC_PATHS.has(path)"), "before the auth gate: the redirect is not a place to leak whether a path exists");
+});
+
 test("exactly one public PREFIX, and only the opt-in page lives under it", () => {
   const block = /PUBLIC_PREFIXES\s*=\s*\[([^\]]*)\]/.exec(middleware);
   assert.ok(block, "PUBLIC_PREFIXES must be a literal array so this test can read it");

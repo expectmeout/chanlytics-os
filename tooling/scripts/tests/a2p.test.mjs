@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  A2P_POLICIES, A2P_STEPS, EMPTY_A2P_STATE, LOW_VOLUME_USECASE, SOLE_PROPRIETOR_USECASE,
+  A2P_POLICIES, A2P_STEPS, EMPTY_A2P_STATE, LOW_VOLUME_USECASE,
   brandTypeFor, nextA2PStep, smsStateFor, runA2PSaga, isBrandNotReady,
   soleProprietorUnsupported, a2pProfileEndUserRequest,
   addressRequest, a2pProfileRequest, brandRequest, businessEndUserRequest, campaignRequest,
@@ -136,7 +136,7 @@ test("the campaign says what the carriers ask, with the samples and keywords as 
   assert.equal(c.form.PrivacyPolicyUrl, "https://app.chanlytics.com/privacy");
   assert.equal(c.form.TermsAndConditionsUrl, "https://app.chanlytics.com/terms");
   assert.equal(c.form.SubscriberOptIn, "true");
-  assert.equal(SOLE_PROPRIETOR_USECASE, "SOLE_PROPRIETOR");
+
 });
 
 /** A fake Twilio that answers every call, and counts them. */

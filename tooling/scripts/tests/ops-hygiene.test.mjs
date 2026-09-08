@@ -29,7 +29,7 @@ test("the nightly e2e job exists, runs against production, and is honest about w
   const y = readRaw(".github/workflows/nightly-e2e.yml");
   assert.ok(y.includes('cron: "0 9 * * *"'));
   assert.ok(y.includes("workflow_dispatch:"));
-  assert.ok(y.includes("E2E_BASE_URL: https://chanlytics-os.vercel.app"));
+  assert.ok(y.includes("E2E_BASE_URL: https://app.chanlytics.com"), "the nightly run exercises the address people actually use");
   assert.ok(y.includes("run: pnpm e2e:install") && y.includes("run: pnpm e2e"));
   for (const s of ["E2E_SUPABASE_URL", "E2E_SUPABASE_ANON_KEY", "E2E_SERVICE_ROLE_KEY", "E2E_USER_EMAIL"]) {
     assert.ok(y.includes(`secrets.${s}`), s);

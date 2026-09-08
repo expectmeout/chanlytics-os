@@ -38,14 +38,26 @@ const MANIFESTS = [
   {
     name: "apps/dashboard/.env.example",
     file: path.join(ROOT, "apps/dashboard/.env.example"),
-    // src/legacy is the ported mockup and reads no env.
-    sources: ["apps/dashboard/app", "apps/dashboard/src/server", "apps/dashboard/src/lib", "apps/dashboard/src/legacy-bridge"],
+    // src/legacy is the ported mockup and reads no env. middleware.ts sits at
+    // the app root and was not scanned at all — the one file every request
+    // passes through, reading env to decide the address and the session.
+    sources: ["apps/dashboard/app", "apps/dashboard/src/server", "apps/dashboard/src/lib", "apps/dashboard/src/legacy-bridge", "apps/dashboard/middleware.ts"],
   },
 ];
 
 /** Every `process.env.NAME` under a directory, recursively, source only. */
 function envReads(dir) {
   const found = new Set();
+  const read = (file) => {
+    const src = fs.readFileSync(file, "utf8");
+    for (const m of src.matchAll(/process\.env\.([A-Z0-9_]+)/g)) found.add(m[1]);
+  };
+  // A source may be one FILE — middleware.ts sits at the app root, outside
+  // every directory below it, and reads env on every request.
+  if (fs.statSync(dir).isFile()) {
+    read(dir);
+    return found;
+  }
   const walk = (d) => {
     for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
       const p = path.join(d, entry.name);
@@ -53,8 +65,7 @@ function envReads(dir) {
         if (["node_modules", "dist", ".next", ".vercel"].includes(entry.name)) continue;
         walk(p);
       } else if (/\.(ts|tsx|mjs|js)$/.test(entry.name)) {
-        const src = fs.readFileSync(p, "utf8");
-        for (const m of src.matchAll(/process\.env\.([A-Z0-9_]+)/g)) found.add(m[1]);
+        read(p);
       }
     }
   };

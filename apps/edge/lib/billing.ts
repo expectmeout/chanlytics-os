@@ -20,8 +20,8 @@ import { logger } from "./log.js";
 type Db = SupabaseClient<Database>;
 export type BillingRow = Database["public"]["Tables"]["billing_accounts"]["Row"];
 
-/** The dashboard's address before it had its own domain; what Stripe returns the browser to when nothing else is set. */
-export const DEFAULT_DASHBOARD_ORIGIN = "https://chanlytics-os.vercel.app";
+/** The dashboard's address; what Stripe returns the browser to when DASHBOARD_ORIGIN is not set. */
+export const DEFAULT_DASHBOARD_ORIGIN = "https://app.chanlytics.com";
 
 /** Where the browser lands after Stripe: Settings › Billing on the dashboard's origin, with the outcome in a word the pane reads once. An origin only — no path, no trailing slash — or the default. */
 export function dashboardOrigin(): string {
