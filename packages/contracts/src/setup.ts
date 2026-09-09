@@ -17,7 +17,7 @@ import type { FactConflict } from "./facts";
 import { agoWords, spanLabel } from "./time";
 import { CARRIER_WORDS, MODE_WORDS, forwardingTestOpen, type Carrier, type ForwardingMode } from "./forwarding";
 import { listingLine, type SetupGoogleFacts } from "./google";
-import { dayWords, trialWords, type SetupBillingFacts } from "./billing";
+import { dayWords, trialWords, maySpend, type SetupBillingFacts } from "./billing";
 
 export interface SetupDto {
   business: {
@@ -250,6 +250,10 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
 
   // 3. A line for calls and texts — the product's own line when this deployment can get one; a person at Chanlytics otherwise.
   const lines = i.lines ?? { rows: [], ready: false, provider: null, costs: { local_number_month_usd: 1.15 } };
+  // Whether this workspace may put a charge on Chanlytics' account. The same
+  // rule the routes enforce (maySpend), read here so the page never offers a
+  // button the server will refuse.
+  const canSpend = !i.billing || maySpend(i.billing.mode, i.billing.status);
   const ownLine = lines.rows.find((l) => l.voice_state !== "none") ?? null;
   const texting = textingWords(ownLine);
   const lineNum = ownLine?.e164 ? display(ownLine.e164) ?? ownLine.e164 : "your number";
@@ -266,7 +270,14 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
   } else if (i.requests.line) {
     row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Requested ${agoWords(Date.parse(i.requests.line), nowMs)} — a person at Chanlytics will set up your line with you and reach you by email.`, details: [], verb: null });
   } else if (lines.ready) {
-    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "Get a number for calls, or keep the one you have.", details: [`A local number is about $${lines.costs.local_number_month_usd.toFixed(2)} a month · your receptionist answers it · texting arrives when the carriers register it`], verb: { label: "Get a line", to: "verb:choose-line" } });
+    // A workspace that cannot spend is not shown a button that will refuse it.
+    // Buying a number costs Chanlytics money whatever the workspace does next
+    // (requireSpend), so the honest next step here is the card, not the number
+    // -- and saying so on THIS row is what stops an owner pressing Get a line
+    // and reading a 402 they did not expect.
+    canSpend
+      ? row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "Get a number for calls, or keep the one you have.", details: [`A local number is about $${lines.costs.local_number_month_usd.toFixed(2)} a month · your receptionist answers it · texting arrives when the carriers register it`], verb: { label: "Get a line", to: "verb:choose-line" } })
+      : row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "Add a card, then get a number for calls.", details: [`A local number is about $${lines.costs.local_number_month_usd.toFixed(2)} a month, billed with your subscription`, "Nothing is charged until your trial ends"], verb: { label: "Open Billing", to: "admin/billing" } });
   } else {
     // Until lines provision themselves, the ask is the owner's move; from then on it is ours.
     row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "We set up your phone line with you.", details: ["A number, the receptionist answering it, and forwarding from the number you have"], verb: { label: "Ask for a line", to: "verb:request-line" } });

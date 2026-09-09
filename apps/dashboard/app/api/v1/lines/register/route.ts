@@ -1,4 +1,4 @@
-import { withRoute, memberContext, requireRole } from "@/server/with-route";
+import { withRoute, memberContext, requireRole, requireSpend } from "@/server/with-route";
 import { AppError, MOCK_TEXTING_SENTENCE } from "@chanlytics/contracts";
 import { takeRate } from "@/server/rate-limit";
 import { edgeLines } from "@/server/lines";
@@ -19,6 +19,9 @@ import { edgeLines } from "@/server/lines";
 export const POST = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   requireRole(member, "owner");
+  // $4.50 for the brand and $15.00 for the campaign, one time and
+  // non-refundable, on Chanlytics' account. See requireSpend.
+  await requireSpend(ctx, member);
   await takeRate(ctx.userId, "lines_register");
   const body = (await req.json().catch(() => ({}))) as { line_id?: unknown };
   const lineId = typeof body.line_id === "string" ? body.line_id.trim() : "";

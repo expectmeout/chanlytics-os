@@ -1,4 +1,4 @@
-import { withRoute, memberContext, requireRole } from "@/server/with-route";
+import { withRoute, memberContext, requireRole, requireSpend } from "@/server/with-route";
 import { AppError } from "@chanlytics/contracts";
 import { takeRate } from "@/server/rate-limit";
 import { edgeLines } from "@/server/lines";
@@ -13,6 +13,10 @@ import { edgeLines } from "@/server/lines";
 export const POST = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   requireRole(member, "owner");
+  // Two doors: may this PERSON act for this workspace, and may this WORKSPACE
+  // spend our money. A number is $1.15 a month on Chanlytics' Twilio account
+  // for as long as it is held, whatever the workspace does next.
+  await requireSpend(ctx, member);
   await takeRate(ctx.userId, "lines_buy");
   const body = (await req.json().catch(() => ({}))) as { number?: unknown; area_code?: unknown };
   const number = typeof body.number === "string" ? body.number.trim() : "";

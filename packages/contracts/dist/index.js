@@ -13,6 +13,13 @@ var ERROR_CODES = [
   "validation",
   "conflict",
   "rate_limited",
+  /**
+   * The workspace itself may not do this until it pays — not the caller, and
+   * not their role. Its own code because the fix is a card rather than a
+   * different account, and a client that shows "forbidden" for it sends the
+   * owner to the wrong page.
+   */
+  "payment_required",
   "window_closed",
   "upstream_meta",
   "upstream_retell",
@@ -42,6 +49,7 @@ var DEFAULT_STATUS = {
   validation: 400,
   conflict: 409,
   rate_limited: 429,
+  payment_required: 402,
   window_closed: 409,
   upstream_meta: 502,
   upstream_retell: 502,
@@ -5772,6 +5780,19 @@ var BILLING_TRIAL_DAYS = 14;
 function receptionistOn(status) {
   return status === "trialing" || status === "active" || status === "past_due" || status === "incomplete" || status === "none";
 }
+function maySpend(mode, status) {
+  if (mode !== "stripe") return true;
+  return status === "trialing" || status === "active" || status === "past_due";
+}
+function whyCannotSpend(mode, status) {
+  if (maySpend(mode, status)) return null;
+  if (status === "none") return "Add a card before buying a number \u2014 nothing is charged until your trial ends.";
+  if (status === "incomplete") return "Your card is not confirmed yet. Finish checkout in Billing, then try again.";
+  if (status === "paused" || status === "canceled" || status === "incomplete_expired") {
+    return "This workspace is not subscribed. Start it again from Billing before buying a number.";
+  }
+  return "Billing needs attention before this workspace can buy a number. Open Billing to sort it out.";
+}
 function tenantStatusFor(mode, status) {
   if (mode !== "stripe") return null;
   return receptionistOn(status) ? "active" : "paused";
@@ -5984,6 +6005,7 @@ function setupSteps(i, nowMs = Date.now()) {
   }
   row2(handoffNum ? { id: "handoff", icon: "phone", title: "A person to hand off to", state: "ready", required: false, sentence: `Callers who insist on a person are transferred to ${handoffNum}.`, details: [], verb: { label: "Change it", to: "admin/workspace" } } : { id: "handoff", icon: "phone", title: "A person to hand off to", state: "waiting_you", required: false, sentence: "Give the receptionist a number to hand callers to when they insist on a person.", details: [], verb: { label: "Add a number", to: "admin/workspace" } });
   const lines = i.lines ?? { rows: [], ready: false, provider: null, costs: { local_number_month_usd: 1.15 } };
+  const canSpend = !i.billing || maySpend(i.billing.mode, i.billing.status);
   const ownLine = lines.rows.find((l) => l.voice_state !== "none") ?? null;
   const texting = textingWords(ownLine);
   const lineNum = ownLine?.e164 ? display(ownLine.e164) ?? ownLine.e164 : "your number";
@@ -6000,7 +6022,7 @@ function setupSteps(i, nowMs = Date.now()) {
   } else if (i.requests.line) {
     row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Requested ${agoWords(Date.parse(i.requests.line), nowMs)} \u2014 a person at Chanlytics will set up your line with you and reach you by email.`, details: [], verb: null });
   } else if (lines.ready) {
-    row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "Get a number for calls, or keep the one you have.", details: [`A local number is about $${lines.costs.local_number_month_usd.toFixed(2)} a month \xB7 your receptionist answers it \xB7 texting arrives when the carriers register it`], verb: { label: "Get a line", to: "verb:choose-line" } });
+    canSpend ? row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "Get a number for calls, or keep the one you have.", details: [`A local number is about $${lines.costs.local_number_month_usd.toFixed(2)} a month \xB7 your receptionist answers it \xB7 texting arrives when the carriers register it`], verb: { label: "Get a line", to: "verb:choose-line" } }) : row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "Add a card, then get a number for calls.", details: [`A local number is about $${lines.costs.local_number_month_usd.toFixed(2)} a month, billed with your subscription`, "Nothing is charged until your trial ends"], verb: { label: "Open Billing", to: "admin/billing" } });
   } else {
     row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "We set up your phone line with you.", details: ["A number, the receptionist answering it, and forwarding from the number you have"], verb: { label: "Ask for a line", to: "verb:request-line" } });
   }
@@ -6888,6 +6910,7 @@ export {
   localToUtcMs,
   matchPerson,
   mayReceiveOffers,
+  maySpend,
   mediaKind,
   mediaVM,
   memberWords,
@@ -7042,6 +7065,7 @@ export {
   waitedLabel,
   whenLabel,
   whisperText,
+  whyCannotSpend,
   whyNotAHandoff,
   whyNotAPhone,
   windowFor,

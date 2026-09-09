@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { AppError, err, ok } from "@chanlytics/contracts";
+import { AppError, err, ok, whyCannotSpend, type BillingMode, type BillingStatus } from "@chanlytics/contracts";
 // Relative, not "@/": the alias is a build-tool convenience, and depending on
 // one here made this module — which decides who may do what — unimportable by
 // anything that is not Next. It is the only such import in src/server, and
@@ -192,4 +192,38 @@ export function requireRole(member: MemberContext, atLeast: MemberContext["role"
       403,
     );
   }
+}
+
+/**
+ * The workspace may incur a cost on Chanlytics' own account.
+ *
+ * A SECOND door beside requireRole, because the two ask different questions:
+ * requireRole asks whether this person may act for this workspace, and this
+ * asks whether this workspace may spend our money. A route that buys a number
+ * or files a carrier registration needs both, and until this existed it had
+ * only the first — so an owner of a workspace that had never entered a card
+ * could spend $19.50 of the platform's Twilio balance, three times an hour,
+ * with every check in the request passing.
+ *
+ * It lives here rather than in each route for the same reason requireRole does:
+ * the next money route will be written by someone who did not read this comment.
+ *
+ * 402 rather than 403: nothing is wrong with the caller or their permissions,
+ * and the fix is a card rather than a different account. The message names the
+ * fix, because a refusal at the moment somebody is trying to give you money has
+ * to say what to do about it.
+ */
+export async function requireSpend(ctx: RouteContext, member: MemberContext): Promise<void> {
+  const { data, error } = await ctx.supabase
+    .from("billing_accounts")
+    .select("mode, status")
+    .eq("tenant_id", member.tenantId)
+    .maybeSingle();
+  // No row is not permission. Every workspace gets one at creation
+  // (create_workspace_for), so its absence means something is wrong with this
+  // workspace, not that it may spend freely.
+  if (error) throw new AppError("internal", "Billing could not be read just now. Try again in a moment.", 503);
+  if (!data) throw new AppError("payment_required", "This workspace has no billing record. Open Billing to set one up.", 402);
+  const why = whyCannotSpend(data.mode as BillingMode, data.status as BillingStatus);
+  if (why) throw new AppError("payment_required", why, 402);
 }
