@@ -158,6 +158,15 @@ var EVENT_KINDS = [
   "line.failed",
   "line.released",
   "line.forwarding_verified",
+  /**
+   * Somebody at Chanlytics acted on a workspace they are not a member of.
+   *
+   * The back office's write half. Recorded BEFORE the action, and the action is
+   * refused if it cannot be recorded: a cross-tenant write that nobody can be
+   * held to is worse than one that did not happen. What happened next is the
+   * line's own event, written by the edge, immediately after this one.
+   */
+  "platform.acted",
   /** The carriers answered: texting is on, the business is through, or it came back. */
   "line.texting_on",
   "line.texting_approved",
@@ -6672,6 +6681,53 @@ function platformSummary(rows) {
 function platformNumber(e164) {
   return formatPhoneDisplay(e164) ?? "\u2014";
 }
+var NUMBER_MONTHLY = "$1.15 a month";
+var REAL_FILING = "about $19.50 once";
+function platformLineActions(l) {
+  const out = [];
+  if (l.voice_state === "failed") {
+    out.push({
+      action: "retry",
+      label: "Retry setting up",
+      sentence: "Resumes the line where it stopped, without repeating the steps that succeeded.",
+      // A saga that failed BEFORE the number was bought buys one when it
+      // resumes, so this can spend even though it usually does not.
+      cost: `If it stopped before the number was bought, this buys one \u2014 ${NUMBER_MONTHLY}.`,
+      permanent: false
+    });
+  }
+  if (l.sms_state === "rejected") {
+    out.push({
+      action: "refile",
+      label: "Send the campaign back",
+      sentence: "Resubmits the corrected campaign to the carriers. Correct the business on record first \u2014 this sends what is there now.",
+      cost: null,
+      permanent: false
+    });
+  } else if (l.reg_mock === true) {
+    out.push({
+      action: "refile",
+      label: "File it for real",
+      sentence: "Takes the rehearsal off and files a real registration with the carriers. The rehearsal delivers nothing and expires thirty days after it was filed.",
+      cost: `${REAL_FILING}, charged to Chanlytics.`,
+      permanent: true
+    });
+  }
+  if (l.e164) {
+    out.push({
+      action: "release",
+      label: "Give the number back",
+      sentence: "Releases the number, drops the trunk and forgets the line. Calls keep their history; the routing row is switched off, never deleted.",
+      cost: `Stops the ${NUMBER_MONTHLY} this number costs.`,
+      permanent: true
+    });
+  }
+  return out;
+}
+function platformActionWarning(a) {
+  const parts2 = [a.cost, a.permanent ? "This cannot be undone." : null].filter(Boolean);
+  return parts2.length ? parts2.join(" ") : "Nothing is spent, and it can be done again.";
+}
 
 // src/consent-page.ts
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
@@ -7311,6 +7367,8 @@ export {
   placeholdersSequential,
   planBilling,
   planRun,
+  platformActionWarning,
+  platformLineActions,
   platformNumber,
   platformRows,
   platformSummary,

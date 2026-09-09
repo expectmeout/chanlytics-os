@@ -831,5 +831,8 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
 }
 .pf-events li { display: grid; grid-template-columns: 116px 1fr auto; gap: 10px; align-items: baseline; }
 .pf-when { font-variant-numeric: tabular-nums; color: var(--ink-faint); }
+/* The confirmation under a line, leading with what it spends. */
+.pf-arm { display: block; margin-top: 6px; padding: 8px 10px; border-radius: 8px; border: 1px dashed var(--line); background: var(--bg-sunken); }
+.pf-arm b { color: var(--ink); }
 .pf-kind { color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pf-cat { color: var(--ink-faint); }
