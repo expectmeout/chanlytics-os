@@ -20,11 +20,10 @@ export const FALLBACK_NOTIFICATIONS: NotificationsConfig = {
 
 export const FALLBACK_BRAIN: BrainConfig = {
   business_name: "Melany's Beauty Salon",
-  phone_display: "(646) 932-5775",
   booking_link: "https://booksy.com/en-us/1817434_melany-s-beauty-salon_hair-salon_29902_brooklyn",
   fallbacks: {
     greeting:
-      "Hi! Thanks for reaching out to Melany's Beauty Salon \u{1F49B} We're newly renovated and booking now.\n\nBook anytime: https://booksy.com/en-us/1817434_melany-s-beauty-salon_hair-salon_29902_brooklyn\n\nOr reply here with any question — for a person, just ask for Melany.",
+      "Hi! Thanks for reaching out to Melany's Beauty Salon 💛 We're newly renovated and booking now.\n\nBook anytime: https://booksy.com/en-us/1817434_melany-s-beauty-salon_hair-salon_29902_brooklyn\n\nOr reply here with any question — for a person, just ask for Melany.",
     error:
       "Thanks for reaching out to Melany's Beauty Salon! Book anytime: https://booksy.com/en-us/1817434_melany-s-beauty-salon_hair-salon_29902_brooklyn — or a member of our team will reply here soon.",
     non_text:
