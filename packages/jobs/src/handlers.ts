@@ -125,15 +125,25 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     .eq("tenant_id", job.tenant_id)
     .maybeSingle();
   if (consentErr || !convRow) {
+    const why = consentErr?.message ?? "conversation not found";
     console.error(JSON.stringify({
       level: "error", event: "outbound_consent_unreadable",
-      tenant_id: job.tenant_id, message_id: p.message_id,
-      error: consentErr?.message ?? "conversation not found",
+      tenant_id: job.tenant_id, message_id: p.message_id, error: why,
     }));
-    // Leave the row queued: claim_job is exactly-once per job, but the message
-    // stays visible and unsent rather than being marked failed on our own
-    // inability to check.
-    return;
+    // THROW, do not return. Failing closed is right and is not the question;
+    // the question is who finds out. Returning consumed the claim, and since
+    // 00080 a handler that returns moves the job to 'done' — so the message sat
+    // 'queued' for ever with the job recorded as a success and no sweep left
+    // that would ever look at it again. Before 'done' existed it at least
+    // stayed 'fired' until the stale-jobs sweep reaped it and told the owner;
+    // making success visible accidentally made this failure invisible.
+    //
+    // Throwing reaches fail_job and the alert fire.ts already builds. The
+    // message row itself is deliberately left 'queued' either way: it was not
+    // sent, and marking it failed on our own inability to check would be a
+    // second untruth on top of the first. Only the job fails, which is the part
+    // an owner can act on.
+    throw new Error(`outbound_send: cannot read consent for conversation ${p.conversation_id}: ${why}`);
   }
   const contact = convRow.contacts;
   if (contact && isOptedOutContact(contact)) {
