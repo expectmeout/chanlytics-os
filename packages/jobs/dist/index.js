@@ -4328,8 +4328,8 @@ var TenantConfigSchema = external_exports.object({
 var MAX_INTERVALS_PER_DAY = 4;
 var MAX_CLOSURES = 60;
 function isRealDate(key) {
-  const at = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
-  return !Number.isNaN(at.getTime()) && at.toISOString().slice(0, 10) === key;
+  const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
 var DAY_NAME = {
   mon: "Monday",
@@ -4342,20 +4342,20 @@ var DAY_NAME = {
 };
 function checkDay(h, day, ctx) {
   const name = DAY_NAME[day] ?? day;
-  const at = (...rest) => ["brain", "profile", "hours", day, ...rest];
+  const at2 = (...rest) => ["brain", "profile", "hours", day, ...rest];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
     ctx.addIssue({
       code: external_exports.ZodIssueCode.custom,
-      path: at(open ? "close" : "open"),
+      path: at2(open ? "close" : "open"),
       message: `${name} needs both an opening and a closing time, or neither.`
     });
   }
   if (open && close && close <= open) {
     ctx.addIssue({
       code: external_exports.ZodIssueCode.custom,
-      path: at("close"),
+      path: at2("close"),
       message: `${name} closes at or before it opens.`
     });
   }
@@ -4363,7 +4363,7 @@ function checkDay(h, day, ctx) {
   if (iv.length > MAX_INTERVALS_PER_DAY) {
     ctx.addIssue({
       code: external_exports.ZodIssueCode.custom,
-      path: at("intervals"),
+      path: at2("intervals"),
       message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.`
     });
   }
@@ -4371,7 +4371,7 @@ function checkDay(h, day, ctx) {
     if (x.close <= x.open) {
       ctx.addIssue({
         code: external_exports.ZodIssueCode.custom,
-        path: at("intervals", n, "close"),
+        path: at2("intervals", n, "close"),
         message: `${name}: a shift has to close after it opens.`
       });
     }
@@ -4381,32 +4381,32 @@ function checkDay(h, day, ctx) {
     if (sorted[n].open < sorted[n - 1].close) {
       ctx.addIssue({
         code: external_exports.ZodIssueCode.custom,
-        path: at("intervals", n, "open"),
+        path: at2("intervals", n, "open"),
         message: `${name}: two shifts overlap.`
       });
     }
   }
 }
 function checkClosure(c, n, ctx) {
-  const at = (...rest) => ["brain", "profile", "closures", n, ...rest];
+  const at2 = (...rest) => ["brain", "profile", "closures", n, ...rest];
   if (!isRealDate(c.date)) {
     ctx.addIssue({
       code: external_exports.ZodIssueCode.custom,
-      path: at("date"),
+      path: at2("date"),
       message: `${c.date} is not a date on the calendar.`
     });
   }
   if (c.until && !isRealDate(c.until)) {
     ctx.addIssue({
       code: external_exports.ZodIssueCode.custom,
-      path: at("until"),
+      path: at2("until"),
       message: `${c.until} is not a date on the calendar.`
     });
   }
   if (c.until && c.until < c.date) {
     ctx.addIssue({
       code: external_exports.ZodIssueCode.custom,
-      path: at("until"),
+      path: at2("until"),
       message: "A closure cannot end before it starts."
     });
   }
@@ -8964,8 +8964,8 @@ var TenantConfigSchema2 = external_exports2.object({
 var MAX_INTERVALS_PER_DAY2 = 4;
 var MAX_CLOSURES2 = 60;
 function isRealDate2(key) {
-  const at = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
-  return !Number.isNaN(at.getTime()) && at.toISOString().slice(0, 10) === key;
+  const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
 var DAY_NAME2 = {
   mon: "Monday",
@@ -8978,20 +8978,20 @@ var DAY_NAME2 = {
 };
 function checkDay2(h, day, ctx) {
   const name = DAY_NAME2[day] ?? day;
-  const at = (...rest) => ["brain", "profile", "hours", day, ...rest];
+  const at2 = (...rest) => ["brain", "profile", "hours", day, ...rest];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
     ctx.addIssue({
       code: external_exports2.ZodIssueCode.custom,
-      path: at(open ? "close" : "open"),
+      path: at2(open ? "close" : "open"),
       message: `${name} needs both an opening and a closing time, or neither.`
     });
   }
   if (open && close && close <= open) {
     ctx.addIssue({
       code: external_exports2.ZodIssueCode.custom,
-      path: at("close"),
+      path: at2("close"),
       message: `${name} closes at or before it opens.`
     });
   }
@@ -8999,7 +8999,7 @@ function checkDay2(h, day, ctx) {
   if (iv.length > MAX_INTERVALS_PER_DAY2) {
     ctx.addIssue({
       code: external_exports2.ZodIssueCode.custom,
-      path: at("intervals"),
+      path: at2("intervals"),
       message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY2} shifts.`
     });
   }
@@ -9007,7 +9007,7 @@ function checkDay2(h, day, ctx) {
     if (x.close <= x.open) {
       ctx.addIssue({
         code: external_exports2.ZodIssueCode.custom,
-        path: at("intervals", n, "close"),
+        path: at2("intervals", n, "close"),
         message: `${name}: a shift has to close after it opens.`
       });
     }
@@ -9017,32 +9017,32 @@ function checkDay2(h, day, ctx) {
     if (sorted[n].open < sorted[n - 1].close) {
       ctx.addIssue({
         code: external_exports2.ZodIssueCode.custom,
-        path: at("intervals", n, "open"),
+        path: at2("intervals", n, "open"),
         message: `${name}: two shifts overlap.`
       });
     }
   }
 }
 function checkClosure2(c, n, ctx) {
-  const at = (...rest) => ["brain", "profile", "closures", n, ...rest];
+  const at2 = (...rest) => ["brain", "profile", "closures", n, ...rest];
   if (!isRealDate2(c.date)) {
     ctx.addIssue({
       code: external_exports2.ZodIssueCode.custom,
-      path: at("date"),
+      path: at2("date"),
       message: `${c.date} is not a date on the calendar.`
     });
   }
   if (c.until && !isRealDate2(c.until)) {
     ctx.addIssue({
       code: external_exports2.ZodIssueCode.custom,
-      path: at("until"),
+      path: at2("until"),
       message: `${c.until} is not a date on the calendar.`
     });
   }
   if (c.until && c.until < c.date) {
     ctx.addIssue({
       code: external_exports2.ZodIssueCode.custom,
-      path: at("until"),
+      path: at2("until"),
       message: "A closure cannot end before it starts."
     });
   }
@@ -13564,8 +13564,8 @@ var TenantConfigSchema3 = external_exports3.object({
 var MAX_INTERVALS_PER_DAY3 = 4;
 var MAX_CLOSURES3 = 60;
 function isRealDate3(key) {
-  const at = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
-  return !Number.isNaN(at.getTime()) && at.toISOString().slice(0, 10) === key;
+  const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
 var DAY_NAME3 = {
   mon: "Monday",
@@ -13578,20 +13578,20 @@ var DAY_NAME3 = {
 };
 function checkDay3(h, day, ctx) {
   const name = DAY_NAME3[day] ?? day;
-  const at = (...rest) => ["brain", "profile", "hours", day, ...rest];
+  const at2 = (...rest) => ["brain", "profile", "hours", day, ...rest];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
     ctx.addIssue({
       code: external_exports3.ZodIssueCode.custom,
-      path: at(open ? "close" : "open"),
+      path: at2(open ? "close" : "open"),
       message: `${name} needs both an opening and a closing time, or neither.`
     });
   }
   if (open && close && close <= open) {
     ctx.addIssue({
       code: external_exports3.ZodIssueCode.custom,
-      path: at("close"),
+      path: at2("close"),
       message: `${name} closes at or before it opens.`
     });
   }
@@ -13599,7 +13599,7 @@ function checkDay3(h, day, ctx) {
   if (iv.length > MAX_INTERVALS_PER_DAY3) {
     ctx.addIssue({
       code: external_exports3.ZodIssueCode.custom,
-      path: at("intervals"),
+      path: at2("intervals"),
       message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY3} shifts.`
     });
   }
@@ -13607,7 +13607,7 @@ function checkDay3(h, day, ctx) {
     if (x.close <= x.open) {
       ctx.addIssue({
         code: external_exports3.ZodIssueCode.custom,
-        path: at("intervals", n, "close"),
+        path: at2("intervals", n, "close"),
         message: `${name}: a shift has to close after it opens.`
       });
     }
@@ -13617,32 +13617,32 @@ function checkDay3(h, day, ctx) {
     if (sorted[n].open < sorted[n - 1].close) {
       ctx.addIssue({
         code: external_exports3.ZodIssueCode.custom,
-        path: at("intervals", n, "open"),
+        path: at2("intervals", n, "open"),
         message: `${name}: two shifts overlap.`
       });
     }
   }
 }
 function checkClosure3(c, n, ctx) {
-  const at = (...rest) => ["brain", "profile", "closures", n, ...rest];
+  const at2 = (...rest) => ["brain", "profile", "closures", n, ...rest];
   if (!isRealDate3(c.date)) {
     ctx.addIssue({
       code: external_exports3.ZodIssueCode.custom,
-      path: at("date"),
+      path: at2("date"),
       message: `${c.date} is not a date on the calendar.`
     });
   }
   if (c.until && !isRealDate3(c.until)) {
     ctx.addIssue({
       code: external_exports3.ZodIssueCode.custom,
-      path: at("until"),
+      path: at2("until"),
       message: `${c.until} is not a date on the calendar.`
     });
   }
   if (c.until && c.until < c.date) {
     ctx.addIssue({
       code: external_exports3.ZodIssueCode.custom,
-      path: at("until"),
+      path: at2("until"),
       message: "A closure cannot end before it starts."
     });
   }

@@ -371,9 +371,9 @@ Write your reply again and follow it where it fits. Keep everything else that wa
 }
 function whisperText(content) {
   const c = (content ?? "").replace(/\r\n/g, "\n");
-  const at = c.indexOf(OPEN);
-  if (at === -1) return c.trim();
-  const rest = c.slice(at + OPEN.length);
+  const at2 = c.indexOf(OPEN);
+  if (at2 === -1) return c.trim();
+  const rest = c.slice(at2 + OPEN.length);
   const close = rest.indexOf('"\n');
   return (close === -1 ? rest.replace(/"$/, "") : rest.slice(0, close)).trim();
 }
@@ -503,9 +503,9 @@ function isLiveCall(call, now = /* @__PURE__ */ new Date()) {
   if (call.status !== "ongoing") return false;
   const beat = call.updated_at ?? call.started_at;
   if (!beat) return false;
-  const at = new Date(beat).getTime();
-  if (Number.isNaN(at)) return false;
-  return now.getTime() - at < CALL_HEARTBEAT_MS;
+  const at2 = new Date(beat).getTime();
+  if (Number.isNaN(at2)) return false;
+  return now.getTime() - at2 < CALL_HEARTBEAT_MS;
 }
 var REPLY_DELAY_DEFAULT_MS = 3e4;
 var REPLY_DELAY_MIN_MS = 5e3;
@@ -1359,8 +1359,8 @@ var TenantConfigSchema = z2.object({
 var MAX_INTERVALS_PER_DAY = 4;
 var MAX_CLOSURES = 60;
 function isRealDate(key) {
-  const at = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
-  return !Number.isNaN(at.getTime()) && at.toISOString().slice(0, 10) === key;
+  const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
 var DAY_NAME = {
   mon: "Monday",
@@ -1373,20 +1373,20 @@ var DAY_NAME = {
 };
 function checkDay(h, day, ctx) {
   const name = DAY_NAME[day] ?? day;
-  const at = (...rest) => ["brain", "profile", "hours", day, ...rest];
+  const at2 = (...rest) => ["brain", "profile", "hours", day, ...rest];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
     ctx.addIssue({
       code: z2.ZodIssueCode.custom,
-      path: at(open ? "close" : "open"),
+      path: at2(open ? "close" : "open"),
       message: `${name} needs both an opening and a closing time, or neither.`
     });
   }
   if (open && close && close <= open) {
     ctx.addIssue({
       code: z2.ZodIssueCode.custom,
-      path: at("close"),
+      path: at2("close"),
       message: `${name} closes at or before it opens.`
     });
   }
@@ -1394,7 +1394,7 @@ function checkDay(h, day, ctx) {
   if (iv.length > MAX_INTERVALS_PER_DAY) {
     ctx.addIssue({
       code: z2.ZodIssueCode.custom,
-      path: at("intervals"),
+      path: at2("intervals"),
       message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.`
     });
   }
@@ -1402,7 +1402,7 @@ function checkDay(h, day, ctx) {
     if (x.close <= x.open) {
       ctx.addIssue({
         code: z2.ZodIssueCode.custom,
-        path: at("intervals", n, "close"),
+        path: at2("intervals", n, "close"),
         message: `${name}: a shift has to close after it opens.`
       });
     }
@@ -1412,32 +1412,32 @@ function checkDay(h, day, ctx) {
     if (sorted[n].open < sorted[n - 1].close) {
       ctx.addIssue({
         code: z2.ZodIssueCode.custom,
-        path: at("intervals", n, "open"),
+        path: at2("intervals", n, "open"),
         message: `${name}: two shifts overlap.`
       });
     }
   }
 }
 function checkClosure(c, n, ctx) {
-  const at = (...rest) => ["brain", "profile", "closures", n, ...rest];
+  const at2 = (...rest) => ["brain", "profile", "closures", n, ...rest];
   if (!isRealDate(c.date)) {
     ctx.addIssue({
       code: z2.ZodIssueCode.custom,
-      path: at("date"),
+      path: at2("date"),
       message: `${c.date} is not a date on the calendar.`
     });
   }
   if (c.until && !isRealDate(c.until)) {
     ctx.addIssue({
       code: z2.ZodIssueCode.custom,
-      path: at("until"),
+      path: at2("until"),
       message: `${c.until} is not a date on the calendar.`
     });
   }
   if (c.until && c.until < c.date) {
     ctx.addIssue({
       code: z2.ZodIssueCode.custom,
-      path: at("until"),
+      path: at2("until"),
       message: "A closure cannot end before it starts."
     });
   }
@@ -1530,14 +1530,14 @@ function hasProfile(p) {
   const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close || h?.intervals?.length);
   return !!(p.address || p.tone || p.extra_instructions || statedHours || p.services?.length || p.languages?.length || p.escalate_when?.length || p.website || p.notes?.length);
 }
-function dateKeyInZone(tz, at) {
+function dateKeyInZone(tz, at2) {
   try {
     const parts2 = new Intl.DateTimeFormat("en-US", {
       timeZone: tz,
       year: "numeric",
       month: "2-digit",
       day: "2-digit"
-    }).formatToParts(at);
+    }).formatToParts(at2);
     const get = (t) => parts2.find((p) => p.type === t)?.value ?? "";
     const y = get("year"), m = get("month"), d = get("day");
     return y && m && d ? `${y}-${m}-${d}` : null;
@@ -1546,19 +1546,19 @@ function dateKeyInZone(tz, at) {
   }
 }
 function labelDate(key, withWeekday) {
-  const at = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
-  if (Number.isNaN(at.getTime()) || dateKeyInZone("UTC", at) !== key) return key;
+  const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  if (Number.isNaN(at2.getTime()) || dateKeyInZone("UTC", at2) !== key) return key;
   return new Intl.DateTimeFormat("en-US", {
     timeZone: "UTC",
     ...withWeekday ? { weekday: "long" } : {},
     month: "long",
     day: "numeric",
     year: "numeric"
-  }).format(at);
+  }).format(at2);
 }
-function upcomingClosures(closures, tz, at) {
+function upcomingClosures(closures, tz, at2) {
   if (!closures?.length) return [];
-  const today = tz && dateKeyInZone(tz, at) || dateKeyInZone("UTC", new Date(at.getTime() - 864e5));
+  const today = tz && dateKeyInZone(tz, at2) || dateKeyInZone("UTC", new Date(at2.getTime() - 864e5));
   if (!today) return closures;
   return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= today).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
 }
@@ -1568,9 +1568,9 @@ function closureLines(closures) {
     return c.note ? `${when} \u2014 ${c.note}` : when;
   });
 }
-function closedToday(closures, tz, at) {
+function closedToday(closures, tz, at2) {
   if (!closures?.length || !tz) return null;
-  const today = dateKeyInZone(tz, at);
+  const today = dateKeyInZone(tz, at2);
   if (!today) return null;
   return closures.find((c) => {
     const end = c.until && c.until >= c.date ? c.until : c.date;
@@ -1752,7 +1752,7 @@ ${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
 }
 
 // src/availability.ts
-function zoneParts(tz, at) {
+function zoneParts(tz, at2) {
   const parts2 = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
     hourCycle: "h23",
@@ -1763,7 +1763,7 @@ function zoneParts(tz, at) {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit"
-  }).formatToParts(at);
+  }).formatToParts(at2);
   const get = (t) => parts2.find((p) => p.type === t)?.value ?? "";
   return {
     y: Number(get("year")),
@@ -1923,13 +1923,13 @@ function occurrences(start, durMs, rule, exdates, horizon) {
   let produced = 0;
   for (let n = 0; n < 2e4; n++) {
     const day = first + n;
-    const at = new Date(day * 864e5);
-    const y = at.getUTCFullYear(), m = at.getUTCMonth() + 1, d = at.getUTCDate();
+    const at2 = new Date(day * 864e5);
+    const y = at2.getUTCFullYear(), m = at2.getUTCMonth() + 1, d = at2.getUTCDate();
     let hit = false;
     if (rule.freq === "DAILY") hit = n % rule.interval === 0;
     else if (rule.freq === "WEEKLY") {
-      const week = Math.floor((day - (at.getUTCDay() + 6) % 7) / 7);
-      hit = wanted.includes(at.getUTCDay()) && (week - firstWeek) % rule.interval === 0;
+      const week = Math.floor((day - (at2.getUTCDay() + 6) % 7) / 7);
+      hit = wanted.includes(at2.getUTCDay()) && (week - firstWeek) % rule.interval === 0;
     } else if (rule.freq === "MONTHLY") {
       const months = (y - start.y) * 12 + (m - start.m);
       hit = d === (rule.bymonthday ?? start.d) && months % rule.interval === 0;
@@ -2055,8 +2055,8 @@ function freeWindows(input) {
   const busy = input.busy.map((b) => ({ start: b.start - bufferMs, end: b.end + bufferMs })).sort((a, b) => a.start - b.start);
   const out = [];
   for (let offset = 0; offset < rules.max_days_ahead; offset++) {
-    const at = input.now.getTime() + offset * 864e5;
-    const day = dayInZone(input.tz, at);
+    const at2 = input.now.getTime() + offset * 864e5;
+    const day = dayInZone(input.tz, at2);
     if (closedOn(input.closures, day.key)) continue;
     const ranges = dayIntervals2(input.hours?.[day.weekday]);
     const windows = [];
@@ -2077,7 +2077,7 @@ function freeWindows(input) {
       out.push({
         key: day.key,
         weekday: day.weekday,
-        label: new Intl.DateTimeFormat("en-US", { timeZone: input.tz, weekday: "long", month: "long", day: "numeric" }).format(new Date(at)),
+        label: new Intl.DateTimeFormat("en-US", { timeZone: input.tz, weekday: "long", month: "long", day: "numeric" }).format(new Date(at2)),
         windows
       });
     }
@@ -2137,8 +2137,8 @@ function keyParts(key) {
 }
 function shiftKey(key, n) {
   const { y, m, d } = keyParts(key);
-  const at = new Date(Date.UTC(y, m - 1, d + n));
-  return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, "0")}-${String(at.getUTCDate()).padStart(2, "0")}`;
+  const at2 = new Date(Date.UTC(y, m - 1, d + n));
+  return `${at2.getUTCFullYear()}-${String(at2.getUTCMonth() + 1).padStart(2, "0")}-${String(at2.getUTCDate()).padStart(2, "0")}`;
 }
 function mondayOf(key) {
   const { y, m, d } = keyParts(key);
@@ -2153,8 +2153,8 @@ function monthSpan(key) {
 }
 function shiftMonth(key, n) {
   const { y, m } = keyParts(key);
-  const at = new Date(Date.UTC(y, m - 1 + n, 1));
-  return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, "0")}-01`;
+  const at2 = new Date(Date.UTC(y, m - 1 + n, 1));
+  return `${at2.getUTCFullYear()}-${String(at2.getUTCMonth() + 1).padStart(2, "0")}-01`;
 }
 function monthLabelOf(key) {
   const { y, m } = keyParts(key);
@@ -2300,8 +2300,8 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   let next = "\u2014";
   outer: for (const d of days) {
     for (const w of d.windows) {
-      const at = zoneMidnight(tz, d.key) + w.t * 36e5;
-      if (at >= nowMs) {
+      const at2 = zoneMidnight(tz, d.key) + w.t * 36e5;
+      if (at2 >= nowMs) {
         next = `${d.today ? "today" : d.dow} ${clockLabel(w.t)}`;
         break outer;
       }
@@ -2768,7 +2768,7 @@ function fmtDate(ms2, nowMs) {
   return d.getFullYear() === new Date(nowMs).getFullYear() ? DATE_FMT2.format(d) : DATE_YEAR_FMT.format(d);
 }
 function ago(ms2, nowMs) {
-  return agoWords(ms2, nowMs, { dateAfterMs: WEEK_MS2, date: (at) => fmtDate(at, nowMs) });
+  return agoWords(ms2, nowMs, { dateAfterMs: WEEK_MS2, date: (at2) => fmtDate(at2, nowMs) });
 }
 function dayLabel(ms2, nowMs) {
   const d = new Date(ms2);
@@ -3253,8 +3253,8 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
     if (v.last) about.push({ k: "Last visit", v: `${visitLine(v.last, v.timezone, nowMs)} \xB7 ${v.last.title}` });
   }
   if (d.added) {
-    const at = ts(d.added.at);
-    about.push({ k: "Added", v: `${at !== null ? DATE_YEAR_FMT.format(new Date(at)) : "\u2014"} \xB7 ${d.added.source === "calendar" ? `from your calendar${d.added.title ? ` (${d.added.title})` : ""}` : "by hand"}` });
+    const at2 = ts(d.added.at);
+    about.push({ k: "Added", v: `${at2 !== null ? DATE_YEAR_FMT.format(new Date(at2)) : "\u2014"} \xB7 ${d.added.source === "calendar" ? `from your calendar${d.added.title ? ` (${d.added.title})` : ""}` : "by hand"}` });
   }
   return {
     ...base,
@@ -3792,11 +3792,11 @@ function buildNotificationFeed(input) {
   for (const t of input.threads ?? []) {
     if (!t.real) continue;
     if (t.needsYou) {
-      const at = t.escalatedAtMs ?? (typeof t.waitingMin === "number" ? now - t.waitingMin * 6e4 : t.lastAtMs ?? now);
+      const at2 = t.escalatedAtMs ?? (typeof t.waitingMin === "number" ? now - t.waitingMin * 6e4 : t.lastAtMs ?? now);
       items.push({
         key: `needs:${t.id}`,
         kind: "needs_you",
-        at,
+        at: at2,
         title: `${t.who} needs you`,
         message: t.preview ? `They wrote: \u201C${t.preview}\u201D` : "Flagged for a person.",
         to: `inbox/${t.id}`,
@@ -3836,11 +3836,11 @@ function buildNotificationFeed(input) {
     });
   }
   for (const i of input.invites ?? []) {
-    const at = Date.parse(i.created_at);
+    const at2 = Date.parse(i.created_at);
     items.push({
       key: `invite:${i.id}`,
       kind: "invite",
-      at: Number.isNaN(at) ? now : at,
+      at: Number.isNaN(at2) ? now : at2,
       title: `Invitation pending \xB7 ${i.email}`,
       message: "They have not accepted yet.",
       to: "admin/workspace",
@@ -3904,18 +3904,18 @@ function serverNotificationRows(dto) {
   const seen = dto.seen_at ? Date.parse(dto.seen_at) : 0;
   return dto.notifications.filter((n) => !n.dismissed).map((n) => {
     const look = SERVER_LOOK[n.kind] ?? SERVER_LOOK.alert;
-    const at = Date.parse(n.created_at);
+    const at2 = Date.parse(n.created_at);
     return {
       key: `${SERVER_KEY_PREFIX}${n.id}`,
       kind: SERVER_NOTIFICATION_KINDS.includes(n.kind) ? n.kind : "alert",
-      at,
+      at: at2,
       title: n.title,
       message: n.body.split("\n").find((l) => l.trim())?.trim().slice(0, 160) ?? "",
       to: n.route ?? look.to,
       icon: look.icon,
       tone: look.tone,
       action: verbForRoute(n.route) ?? look.action,
-      unread: at > seen && !n.read,
+      unread: at2 > seen && !n.read,
       about: n.subject_type && n.subject_id ? { type: n.subject_type, id: n.subject_id } : null
     };
   });
@@ -3992,9 +3992,9 @@ function cleanAnswer(raw) {
   return s.replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "").replace(/\s+$/g, "").trim();
 }
 function recoverCitations(raw) {
-  const at = raw.search(/name=["']citations["']/i);
-  if (at < 0) return [];
-  const start = raw.indexOf("[", at);
+  const at2 = raw.search(/name=["']citations["']/i);
+  if (at2 < 0) return [];
+  const start = raw.indexOf("[", at2);
   if (start < 0) return [];
   let depth = 0;
   let end = -1;
@@ -5046,20 +5046,20 @@ function runDueNow(p, tz, now) {
 }
 var two = (n) => String(n).padStart(2, "0");
 function scheduleLine(p) {
-  const at = `${two(p.run_hour)}:00`;
-  if (triggerOf(p.trigger)?.kind === "visit") return `Daily ${at} \xB7 ${p.trigger === "visit_tomorrow" ? "everyone with a visit tomorrow" : "everyone who visited yesterday"} \xB7 up to ${p.cap_per_run}`;
-  if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at} \xB7 up to ${p.cap_per_run} a day`;
-  return `Daily ${at} \xB7 up to ${p.cap_per_run} \xB7 once per person, again after ${p.gap_days} days`;
+  const at2 = `${two(p.run_hour)}:00`;
+  if (triggerOf(p.trigger)?.kind === "visit") return `Daily ${at2} \xB7 ${p.trigger === "visit_tomorrow" ? "everyone with a visit tomorrow" : "everyone who visited yesterday"} \xB7 up to ${p.cap_per_run}`;
+  if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at2} \xB7 up to ${p.cap_per_run} a day`;
+  return `Daily ${at2} \xB7 up to ${p.cap_per_run} \xB7 once per person, again after ${p.gap_days} days`;
 }
 function nextRunLabel(p, tz, now) {
   if (p.state !== "running") return "paused";
   const { date, hour } = parts(tz, now);
-  const at = `${two(p.run_hour)}:00`;
+  const at2 = `${two(p.run_hour)}:00`;
   if (p.last_run_for !== date) {
-    if (hour < p.run_hour) return `today ${at}`;
+    if (hour < p.run_hour) return `today ${at2}`;
     if (hour <= PLAYBOOK_HOURS.max) return "today, within the hour";
   }
-  return `tomorrow ${at}`;
+  return `tomorrow ${at2}`;
 }
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
@@ -5384,7 +5384,7 @@ var DAY_MS5 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS5;
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 function ago2(ms2, nowMs) {
-  return agoWords(ms2, nowMs, { dateAfterMs: QUIET_AFTER_MS2, date: (at) => DATE_FMT4.format(new Date(at)) });
+  return agoWords(ms2, nowMs, { dateAfterMs: QUIET_AFTER_MS2, date: (at2) => DATE_FMT4.format(new Date(at2)) });
 }
 var KIND_META = {
   whatsapp: { name: "WhatsApp Business", what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
@@ -5566,7 +5566,7 @@ function cleanDraft(raw) {
 function autoReplyCandidates(rows, connectedAt, nowMs, cap = REVIEW_AUTO_REPLIES_PER_SYNC) {
   const connected = connectedAt ? Date.parse(connectedAt) : NaN;
   if (Number.isNaN(connected)) return [];
-  return rows.filter((r) => r.origin === "profile" && !r.reply_text && r.published_at).map((r) => ({ r, at: Date.parse(r.published_at) })).filter(({ at }) => !Number.isNaN(at) && at > connected && nowMs - at <= REVIEW_AUTO_REPLY_MAX_AGE_MS).sort((a, b) => b.at - a.at).slice(0, Math.max(0, cap)).map(({ r }) => r);
+  return rows.filter((r) => r.origin === "profile" && !r.reply_text && r.published_at).map((r) => ({ r, at: Date.parse(r.published_at) })).filter(({ at: at2 }) => !Number.isNaN(at2) && at2 > connected && nowMs - at2 <= REVIEW_AUTO_REPLY_MAX_AGE_MS).sort((a, b) => b.at - a.at).slice(0, Math.max(0, cap)).map(({ r }) => r);
 }
 function autoReplyBell(answered) {
   if (!answered.length) return null;
@@ -5627,9 +5627,9 @@ var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS3 = 7 * 864e5;
 function whenWords(iso, nowMs) {
   if (!iso) return "";
-  const at = Date.parse(iso);
-  if (Number.isNaN(at)) return "";
-  return agoWords(at, nowMs, { dateAfterMs: WEEK_MS3, date: (ms2) => DATE_FMT5.format(new Date(ms2)) });
+  const at2 = Date.parse(iso);
+  if (Number.isNaN(at2)) return "";
+  return agoWords(at2, nowMs, { dateAfterMs: WEEK_MS3, date: (ms2) => DATE_FMT5.format(new Date(ms2)) });
 }
 function shiftDay(day, n) {
   const d = dayDate(day);
@@ -6516,6 +6516,117 @@ var CONNECTION_GROUP_WORDS = {
   later: { title: "Later", sub: () => "nothing here pretends to be connected" }
 };
 
+// src/platform.ts
+var PLATFORM_VERDICTS = {
+  broken: { label: "Broken", tone: "danger", rank: 100 },
+  billing: { label: "Billing", tone: "danger", rank: 90 },
+  rehearsal: { label: "Rehearsal", tone: "warn", rank: 80 },
+  stalled: { label: "Stalled", tone: "warn", rank: 70 },
+  waiting_owner: { label: "Waiting on them", tone: "accent", rank: 60 },
+  quiet: { label: "Quiet", tone: "warn", rank: 40 },
+  new: { label: "New", tone: "accent", rank: 20 },
+  live: { label: "Live", tone: "ok", rank: 10 },
+  paused: { label: "Paused", tone: "muted", rank: 5 },
+  test: { label: "Test", tone: "muted", rank: 0 }
+};
+var DAY = 864e5;
+var PLATFORM_NEW_DAYS = 1;
+var PLATFORM_QUIET_DAYS = 14;
+var at = (iso) => {
+  if (!iso) return null;
+  const ms2 = Date.parse(iso);
+  return Number.isFinite(ms2) ? ms2 : null;
+};
+var OURS_TO_FIX = ["failed"];
+var THEIRS_TO_FIX = ["needs_record", "otp_waiting", "rejected"];
+function verdictFor(r, nowMs) {
+  if (r.status === "test") return "test";
+  if (r.status === "paused") return "paused";
+  const mode = r.billing_mode ?? "direct";
+  const status = r.billing_status ?? "none";
+  const answering = r.voice_active === true || r.whatsapp_active === true;
+  const age = nowMs - (at(r.created_at) ?? nowMs);
+  if (r.voice_state === "failed" || OURS_TO_FIX.includes(r.sms_state ?? "")) return "broken";
+  if (mode === "stripe" && !receptionistOn(status)) return "billing";
+  if (mode === "stripe" && status === "past_due") return "billing";
+  if (r.reg_mock === true) return "rehearsal";
+  if (!answering) return age > PLATFORM_NEW_DAYS * DAY ? "stalled" : "new";
+  if (THEIRS_TO_FIX.includes(r.sms_state ?? "")) return "waiting_owner";
+  if (mode === "stripe" && !maySpend(mode, status)) return "waiting_owner";
+  const heard = at(r.last_inbound_at);
+  if (heard === null) return age > PLATFORM_QUIET_DAYS * DAY ? "quiet" : "new";
+  if (nowMs - heard > PLATFORM_QUIET_DAYS * DAY) return "quiet";
+  return "live";
+}
+function sentenceFor(r, verdict, nowMs) {
+  const heard = at(r.last_inbound_at);
+  const quietFor = heard === null ? null : Math.floor((nowMs - heard) / DAY);
+  switch (verdict) {
+    case "broken":
+      return r.line_error ? `${r.line_error}${r.reg_step ? ` (stopped at ${r.reg_step})` : ""}` : "Their line stopped and said nothing. A person at Chanlytics has to look.";
+    case "billing":
+      return r.billing_status === "past_due" ? "A payment failed. The receptionist still answers, and will not once Stripe gives up." : `Not subscribed (${r.billing_status ?? "no status"}) \u2014 the receptionist is paused for them.`;
+    case "rehearsal":
+      return "Texting is filed against the test registry: it reports itself approved, delivers nothing, and expires thirty days after filing.";
+    case "stalled":
+      return `Set up ${agoWords(at(r.created_at) ?? nowMs, nowMs)} and nothing answers yet${r.members <= 1 ? ", with one person in the workspace" : ""}.`;
+    case "waiting_owner":
+      return textingWords({ sms_state: r.sms_state ?? "none", reg_mock: r.reg_mock ?? false, reg_sole_prop: r.reg_sole_prop ?? false }).sentence;
+    case "quiet":
+      return quietFor === null ? "Answering, and no customer has ever reached them." : `Answering, and no customer has reached them in ${quietFor} days.`;
+    case "new":
+      return `Signed up ${agoWords(at(r.created_at) ?? nowMs, nowMs)}, still setting up.`;
+    case "live":
+      return `Answering; last heard from ${heard === null ? "never" : agoWords(heard, nowMs)}.`;
+    case "paused":
+      return "The workspace is paused. Nothing answers, by design.";
+    case "test":
+      return "Not a customer \u2014 a test workspace.";
+  }
+}
+function factsFor(r, nowMs) {
+  const mode = r.billing_mode ?? null;
+  const status = r.billing_status ?? null;
+  const paying = mode === null ? "No arrangement" : mode === "direct" ? "Invoiced" : status === "trialing" && r.trial_end ? `Trial to ${r.trial_end.slice(0, 10)}` : status ?? "unknown";
+  const on = [r.voice_active ? "phone" : null, r.whatsapp_active ? "WhatsApp" : null].filter(Boolean);
+  const answering = on.length ? on.join(" + ") : r.voice_state === "provisioning" ? "Getting a number" : r.voice_state === "failed" ? "Line failed" : "Nothing yet";
+  const texting = !r.line_e164 ? "No line" : r.sms_state === "active" ? r.reg_sole_prop ? "On (sole proprietor)" : "On" : r.reg_mock ? "Rehearsal" : (r.sms_state ?? "none").replace(/_/g, " ");
+  const at_ = at(r.last_inbound_at);
+  return { paying, answering, texting, heard: at_ === null ? "Never" : agoWords(at_, nowMs) };
+}
+function platformRows(rows, nowMs = Date.now()) {
+  return rows.map((r) => {
+    const verdict = verdictFor(r, nowMs);
+    return {
+      tenantId: r.tenant_id,
+      slug: r.slug,
+      name: r.name,
+      verdict,
+      sentence: sentenceFor(r, verdict, nowMs),
+      facts: factsFor(r, nowMs),
+      age: agoWords(at(r.created_at) ?? nowMs, nowMs),
+      members: r.members
+    };
+  }).sort((a, b) => {
+    const byRank = PLATFORM_VERDICTS[b.verdict].rank - PLATFORM_VERDICTS[a.verdict].rank;
+    if (byRank !== 0) return byRank;
+    return a.name.localeCompare(b.name);
+  });
+}
+function platformSummary(rows) {
+  const customers = rows.filter((r) => r.verdict !== "test");
+  const needsUs = customers.filter((r) => r.verdict === "broken" || r.verdict === "rehearsal").length;
+  const needsThem = customers.filter((r) => r.verdict === "billing" || r.verdict === "waiting_owner" || r.verdict === "stalled").length;
+  const live = customers.filter((r) => r.verdict === "live").length;
+  const parts2 = [`${customers.length} workspace${customers.length === 1 ? "" : "s"}`, `${live} live`];
+  if (needsUs) parts2.push(`${needsUs} on us`);
+  if (needsThem) parts2.push(`${needsThem} on them`);
+  return { total: customers.length, needsUs, needsThem, live, sentence: parts2.join(" \xB7 ") };
+}
+function platformNumber(e164) {
+  return formatPhoneDisplay(e164) ?? "\u2014";
+}
+
 // src/consent-page.ts
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
@@ -6881,6 +6992,9 @@ export {
   PERSON_MODES,
   PERSON_MODE_LABELS,
   PERSON_STATE_LABELS,
+  PLATFORM_NEW_DAYS,
+  PLATFORM_QUIET_DAYS,
+  PLATFORM_VERDICTS,
   PLAYBOOK_BREATH_MS,
   PLAYBOOK_CLASS_LABEL,
   PLAYBOOK_DEFAULTS,
@@ -7115,6 +7229,9 @@ export {
   placeholdersSequential,
   planBilling,
   planRun,
+  platformNumber,
+  platformRows,
+  platformSummary,
   pointsDelta,
   policyAskClass,
   policyClassOfIntent,

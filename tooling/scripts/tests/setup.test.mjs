@@ -309,7 +309,7 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
     assert.ok(server.includes(`${field},`) || server.includes(`${field} `), `${field} is selected`);
     assert.ok(server.includes(`${field}: r.${field},`), `${field} reaches the page`);
   }
-  assert.ok(readCode("apps/dashboard/app/api/v1/setup/route.ts").includes("lines: { rows: lineRows, ready: lineStatus.ready, provider: lineStatus.provider, costs: { local_number_month_usd: lineStatus.costs.local_number_month_usd } },"));
+  assert.ok(readCode("apps/dashboard/src/server/setup.ts").includes("lines: { rows: lineRows, ready: lineStatus.ready, provider: lineStatus.provider, costs: { local_number_month_usd: lineStatus.costs.local_number_month_usd } },"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/setup.ts");
   assert.ok(bridge.includes('refreshOnTables: ["lines", "notifications"]'));
   for (const pin of ['"/api/v1/lines/search"', '"/api/v1/lines/buy"', '"/api/v1/lines/retry"']) assert.ok(bridge.includes(pin), pin);
@@ -362,8 +362,12 @@ test("wiring: Settings tab, manifest, bridge, routes, registry, rate bucket, eve
   assert.ok(bridge.includes('key: "setup"') && bridge.includes('globals: ["__SETUP"]') && bridge.includes('events: ["surface:setup"]'));
   assert.ok(bridge.includes("chanlytics.setup.later.") && bridge.includes("chanlytics.setup.landed"), "later is a preference on this device; landing is once per session");
   assert.ok(bridge.includes("shouldLandOnSetup(s.role, s.vm.readiness.answering, setupRoute(win.location.hash), landed)"), "the landing rule is the contracts' rule");
-  const get = readCode("apps/dashboard/app/api/v1/setup/route.ts");
-  for (const pin of ["parseTenantConfigResult(cfgRow.config)", "starterByName(t.name)", "calendarWeek(ctx, tenantId, { from: null, days: 7 }", "teamRoster(supabase, tenantId, member.role)", '.eq("consent", "opted_in")', '.eq("subject_type", "setup")']) assert.ok(get.includes(pin), pin);
+  // One assembly, two callers: the workspace reads its own on the session
+  // client, the back office reads another's on the service client. The route
+  // is now four lines and the pins live where the work does.
+  const get = readCode("apps/dashboard/src/server/setup.ts");
+  for (const pin of ["parseTenantConfigResult(cfgRow.config)", "starterByName(t.name)", "calendarWeek({ supabase }, tenantId, { from: null, days: 7 }", "teamRoster(supabase, tenantId, role)", '.eq("consent", "opted_in")', '.eq("subject_type", "setup")']) assert.ok(get.includes(pin), pin);
+  assert.ok(readCode("apps/dashboard/app/api/v1/setup/route.ts").includes("setupDtoFor(ctx.supabase, member.tenantId, member.role)"), "and the route is its first caller");
   const post = readCode("apps/dashboard/app/api/v1/setup/request/route.ts");
   for (const pin of ['requireRole(member, "operator")', 'takeRate(ctx.userId, "setup_request")', 'rpc("setup_request", { p_tenant_id: member.tenantId, p_what: what })']) assert.ok(post.includes(pin), pin);
   const mig = readRaw("supabase/migrations/00065_setup_request.sql");

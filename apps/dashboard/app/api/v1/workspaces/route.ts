@@ -1,6 +1,7 @@
 import { withRoute, memberContext, requireRole } from "@/server/with-route";
 import { AppError, cleanTimezone } from "@chanlytics/contracts";
 import { acceptOpenInvites } from "@/server/service";
+import { isPlatformAdmin } from "@/server/platform";
 import { isSameOrigin } from "@/server/request-guards";
 
 /**
@@ -24,6 +25,14 @@ export const GET = withRoute(async (_req, ctx) => {
   // the chrome shows a person rather than the workspace standing in for one.
   const { data: profile } = await supabase.from("profiles").select("display_name").eq("user_id", userId).maybeSingle();
   const displayName = profile?.display_name || null;
+  // Whether the back office exists for this person, on the payload the seam
+  // already fetches at boot. The nav has to decide synchronously whether the
+  // tab is there at all, and a second round trip for one boolean would make
+  // the rail flicker for everybody to serve two accounts. It answers only
+  // about the caller -- see is_platform_admin() in 00091 for why that is safe
+  // to hand every session -- and it is NOT the authorization: every platform
+  // route asks the database again.
+  const platformAdmin = await isPlatformAdmin(ctx);
 
   // Accept any open invitation for this address, then re-read. Self-healing:
   // there is no accept endpoint to get wrong, and no link that expires into a
@@ -65,7 +74,7 @@ export const GET = withRoute(async (_req, ctx) => {
   // must see an empty state, not a 404. This endpoint answers "where am I", and
   // "nowhere yet" is a real answer.
   if (!data?.length) {
-    return { workspaces: [], activeWorkspaceId: null, user: { id: userId, email: email ?? null, role: null, display_name: displayName } };
+    return { workspaces: [], activeWorkspaceId: null, user: { id: userId, email: email ?? null, role: null, display_name: displayName, platform_admin: platformAdmin } };
   }
 
   const preferred = new URL(_req.url).searchParams.get("workspace");
@@ -77,7 +86,7 @@ export const GET = withRoute(async (_req, ctx) => {
     // Which workspace everything else on this page is scoped to. The client
     // echoes it back as ?workspace= so a reload lands where it left off.
     activeWorkspaceId: active.tenantId,
-    user: { id: userId, email: email ?? null, role: active.role, display_name: displayName },
+    user: { id: userId, email: email ?? null, role: active.role, display_name: displayName, platform_admin: platformAdmin },
   };
 });
 

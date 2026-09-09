@@ -341,7 +341,7 @@ test("the dashboard: owners link and search, operators read, members look; the p
   const server = readCode("apps/dashboard/src/server/google.ts");
   assert.ok(server.includes('"x-diag-key": process.env.DIAG_KEY') && server.includes("const READY_TTL_MS = 5 * 60_000;"));
   assert.ok(!server.includes("GOOGLE_PLACES_API_KEY"), "the dashboard never holds the key");
-  const setup = readCode("apps/dashboard/app/api/v1/setup/route.ts");
+  const setup = readCode("apps/dashboard/src/server/setup.ts");
   assert.ok(setup.includes("listingFor(supabase, tenantId),\n    googleReadiness(),") && setup.includes("ready: google.places || google.profile,"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");
   assert.ok(bridge.includes('key: "google",') && bridge.includes('refreshOnTables: ["google_listings", "google_reviews", "google_connections"],'));
