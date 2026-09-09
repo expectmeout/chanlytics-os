@@ -6803,6 +6803,52 @@ function consentPageVM(f) {
   };
 }
 
+// src/business-page.ts
+var SMS_CLAUSES = [
+  "Message and data rates may apply.",
+  "Message frequency varies.",
+  "Reply STOP to stop and HELP for help.",
+  "No mobile information will be shared with third parties or affiliates for marketing or promotional purposes; all other categories of sharing exclude text-messaging originator opt-in data and consent, which will not be shared with any third parties."
+];
+function smsConsentSentence(businessName) {
+  return `${businessName}'s customers receive text messages only when they have contacted ${businessName} first, or when they have separately agreed to receive them \u2014 messages about their own appointments and promotional messages are asked for separately, and either can be declined without affecting the other.`;
+}
+function addressLine(f) {
+  const parts2 = [f.street, f.streetSecondary, `${f.city}, ${f.region} ${f.postalCode}`.trim(), f.country].map((p) => (p ?? "").trim()).filter(Boolean);
+  return parts2.join(", ");
+}
+function businessPageVM(f) {
+  const legal = f.legalName.trim();
+  const trade = (f.tradeName ?? "").trim();
+  const known = trade || legal;
+  const empty = !legal || !f.street.trim() || !f.city.trim();
+  const identity = [];
+  if (legal) identity.push({ label: "Legal name", value: trade && trade !== legal ? `${legal}, trading as ${trade}` : legal });
+  const where = addressLine(f);
+  if (where) identity.push({ label: "Address", value: where });
+  const phone = formatPhoneDisplay(f.publicPhoneE164);
+  if (phone) identity.push({ label: "Phone", value: phone, href: `tel:${f.publicPhoneE164}` });
+  if (f.contactEmail.trim()) identity.push({ label: "Email", value: f.contactEmail.trim(), href: `mailto:${f.contactEmail.trim()}` });
+  if (f.websiteUrl && f.websiteUrl.trim()) identity.push({ label: "Website", value: f.websiteUrl.trim(), href: f.websiteUrl.trim() });
+  return {
+    title: known || "This business",
+    lead: empty ? "This business has not finished setting up yet." : `${known} answers its customers by phone, on WhatsApp and by text. This page says who they are and what those messages are.`,
+    identity,
+    services: f.services.slice(0, 40).map((s) => ({
+      name: s.name,
+      detail: [
+        typeof s.durationMin === "number" && s.durationMin > 0 ? `${s.durationMin} min` : null,
+        (s.priceNote ?? "").trim() || null
+      ].filter(Boolean).join(" \xB7 ") || null
+    })),
+    smsLead: smsConsentSentence(known || "This business"),
+    smsClauses: SMS_CLAUSES,
+    optInUrl: f.optInUrl,
+    websiteUrl: f.websiteUrl && f.websiteUrl.trim() ? f.websiteUrl.trim() : null,
+    empty
+  };
+}
+
 // src/a2p-enums.ts
 var BUSINESS_INDUSTRIES = [
   "AGRICULTURE",
@@ -6868,7 +6914,7 @@ var FIELD = {
   business_type: { label: "Legal form", options: BUSINESS_TYPES, group: "business" },
   company_type: { label: "Ownership", options: COMPANY_TYPES, group: "business" },
   industry: { label: "Industry", options: BUSINESS_INDUSTRIES, group: "business" },
-  website_url: { label: "Website", hint: "A page a reviewer can open. Your sign-up page works if you have no site.", placeholder: "https://", group: "business" },
+  website_url: { label: "Website", hint: "Yours, if you have one. Without it we publish a page for you at chanlytics.com carrying your name, address and the wording the carriers require \u2014 which is what they check.", placeholder: "https://", group: "business" },
   street: { label: "Street", placeholder: "193 Jamaica Ave", group: "address" },
   street_secondary: { label: "Suite or floor", group: "address" },
   city: { label: "City", placeholder: "Brooklyn", group: "address" },
@@ -6888,7 +6934,13 @@ var PATH_FIELDS = {
     { name: "business_type", required: true },
     { name: "company_type", required: true },
     { name: "industry", required: true },
-    { name: "website_url", required: true },
+    // NOT required, and this is the change gate 8 is. A carrier registration
+    // needs a website that identifies the business and a privacy policy
+    // carrying SMS language, on a domain that matches the brand -- and most
+    // salons have a Facebook page and a Booksy link. Demanding a URL here
+    // turned that into a wall at field seven. We publish `/b/<slug>` from the
+    // facts on this very form instead, and file that.
+    { name: "website_url", required: false },
     { name: "street", required: true },
     { name: "street_secondary", required: false },
     { name: "city", required: true },
@@ -7173,6 +7225,7 @@ export {
   SIGNUP_NAME_MIN,
   SIGNUP_WAITLIST,
   SIGNUP_WORDS,
+  SMS_CLAUSES,
   SOLE_PROP_CEILING_SENTENCE,
   SOLE_PROP_LIMITS,
   SOLE_PROP_TEXTING_SENTENCE,
@@ -7216,6 +7269,7 @@ export {
   buildNotificationFeed,
   businessFieldsFor,
   businessGroupWordsFor,
+  businessPageVM,
   businessRecordForPath,
   businessRecordLine,
   businessRecordProblems,
@@ -7424,6 +7478,7 @@ export {
   signupPosture,
   slotLabels,
   slugTemplateName,
+  smsConsentSentence,
   smsStateRow,
   soleProprietorLimits,
   spanForView,

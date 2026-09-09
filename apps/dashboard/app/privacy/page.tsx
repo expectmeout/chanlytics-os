@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SMS_CLAUSES } from "@chanlytics/contracts";
 
 /**
  * The privacy policy: public, static, reads nothing. Google's consent
@@ -74,8 +75,15 @@ export default function PrivacyPage() {
       <h2>Google user data</h2>
       <p>When a workspace owner connects a Google Business Profile, we ask Google for permission to manage that business's listings. We use it to read the business's reviews, to show them to the owner, and to post the replies the owner writes or approves. We store the access Google grants so the connection keeps working, and we remove it when the owner disconnects. Chanlytics' use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noreferrer">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
 
+      {/*
+        The clauses come from contracts, not from this file, because every
+        workspace's own page at /b/<slug> publishes the same ones and two copies
+        of a compliance sentence is one copy that will be edited and one that
+        will not. The lead sentence is this policy's own: it speaks about
+        businesses in general, where a workspace's page names one.
+      */}
       <h2>Text messages</h2>
-      <p>A business's customers receive texts only when they contacted the business first, or when they agreed to receive offers by texting a keyword or on the business's sign-up page. Message and data rates may apply. Reply STOP to stop and HELP for help. No mobile information will be shared with third parties or affiliates for marketing or promotional purposes; all other categories of sharing exclude text-messaging originator opt-in data and consent, which will not be shared with any third parties.</p>
+      <p>A business&rsquo;s customers receive texts only when they contacted the business first, or when they separately agreed to receive them. Messages about a customer&rsquo;s own appointments and promotional messages are asked for separately, and either can be declined without affecting the other. {SMS_CLAUSES.join(" ")}</p>
 
       <h2>How long we keep it</h2>
       <p>Account and conversation data stays while the workspace exists. Call recordings are kept for 90 days. An owner can export a workspace's data and can ask us to delete the workspace, after which its data is removed within 30 days, except what the law requires us to keep.</p>

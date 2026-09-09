@@ -104,6 +104,17 @@ export function campaignFactsFor(o: {
   privacyUrl: string;
   termsUrl: string;
   /**
+   * The workspace's own hosted page, `/b/<slug>`.
+   *
+   * Filed as the privacy policy when the business has no site of its own, which
+   * answers both of the page-shaped refusals this product has actually had:
+   * 30919 wanted a page that identifies the business, and 30907 wanted the
+   * website on the same domain as the opt-in page. It is on the same domain by
+   * construction, and it carries the identity from `business_records` -- the
+   * facts the carriers vetted on the brand.
+   */
+  hostedUrl?: string | null;
+  /**
    * The workspace's OWN line, as a person reads it. Used in the sample that
    * shows a message containing a phone number -- which the filing declares it
    * sends, and which therefore has to be a number that message could really
@@ -158,7 +169,10 @@ export function campaignFactsFor(o: {
     // (contracts CONVERSATION_OPT_IN_PATTERN). The two-word offers phrase lives
     // in the flow above, because a keyword field takes single words.
     optInKeywords: ["START", "UNSTOP", "RESUME"],
-    privacyPolicyUrl: o.privacyUrl,
+    // Their own privacy policy if they have a site; ours-for-them otherwise.
+    // Chanlytics' platform policy is the last resort and is the wrong answer for
+    // a customer: it identifies US, and 30919 asks who is sending.
+    privacyPolicyUrl: o.hostedUrl || o.privacyUrl,
     termsUrl: o.termsUrl,
   };
 }
@@ -323,6 +337,8 @@ export async function registerLine(db: Db, o: {
   optInUrl: string;
   privacyUrl: string;
   termsUrl: string;
+  /** The workspace's own hosted page, `/b/<slug>`: its website and privacy policy when it has none. */
+  hostedUrl?: string | null;
   mock: boolean;
   statusCallback?: string;
 }): Promise<RegisterResult> {
@@ -359,7 +375,12 @@ export async function registerLine(db: Db, o: {
   }
 
   const L = logger({ tenant_id: o.line.tenant_id, line_id: o.line.id });
-  const record = businessRecordFrom(o.record);
+  // A business with no website of its own files the page we publish for it. The
+  // substitution happens HERE, once, rather than in each request builder: the
+  // brand, the campaign and the profile must all name the same URL, and three
+  // places deciding that separately is three places to disagree.
+  const base = businessRecordFrom(o.record);
+  const record = base.websiteUrl?.trim() ? base : { ...base, websiteUrl: o.hostedUrl ?? base.websiteUrl };
 
   // Everything is filed as the WORKSPACE'S OWN subaccount, per Twilio's ISV
   // guide; our primary profile is referenced by sid, never moved.
@@ -413,7 +434,7 @@ export async function registerLine(db: Db, o: {
     // Twilio's vertical enum. The sole-proprietor end user asks for it by
     // name; the standard path carries it inside the business end user.
     industry: industryOf(record.industry),
-    campaign: campaignFactsFor({ businessName: o.workspaceName, optInUrl: o.optInUrl, privacyUrl: o.privacyUrl, termsUrl: o.termsUrl, lineNumber: formatPhoneDisplay(o.line.e164) }),
+    campaign: campaignFactsFor({ businessName: o.workspaceName, optInUrl: o.optInUrl, privacyUrl: o.privacyUrl, termsUrl: o.termsUrl, hostedUrl: o.hostedUrl, lineNumber: formatPhoneDisplay(o.line.e164) }),
     messagingServiceSid: o.line.messaging_service_sid,
     useCase: LOW_VOLUME_USECASE,
     mock: o.mock,

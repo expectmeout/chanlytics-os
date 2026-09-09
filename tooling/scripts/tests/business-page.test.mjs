@@ -1,0 +1,182 @@
+/**
+ * The page we publish for a business that has none.
+ *
+ * THE GAP THIS CLOSES. Chanlytics' own campaign was refused four times, and two
+ * of those were about pages rather than messages:
+ *
+ *   30919  PRIVACY_POLICY_URL — "the provided website does not contain
+ *          sufficient business information"
+ *   30907  the website URL did not match the brand and the campaign
+ *
+ * Answering them took a business-identification block on two pages, a workspace
+ * rename, a slug change, and an SMS-terms section added to a marketing site in a
+ * different repository. Every customer needs the equivalent, and most salons
+ * have a Facebook page and a Booksy link — so asking them for it is not a
+ * requirement, it is the reason they never text.
+ *
+ * These pin what the page has to carry for a reviewer to accept it, and the one
+ * property that makes the whole idea work: it is on the SAME DOMAIN as the
+ * opt-in page, which is what 30907 was actually complaining about.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { businessPageVM, smsConsentSentence, SMS_CLAUSES } from "@chanlytics/contracts";
+import { readCode, readRaw } from "./_source.mjs";
+
+const salon = {
+  legalName: "Melany Beauty Corp",
+  tradeName: "Melany's Beauty Salon",
+  street: "2581 Pitkin Ave",
+  streetSecondary: null,
+  city: "Brooklyn",
+  region: "NY",
+  postalCode: "11208",
+  country: "US",
+  contactEmail: "hola@melanys.example",
+  publicPhoneE164: "+13083368109",
+  websiteUrl: null,
+  services: [
+    { name: "Balayage", durationMin: 180, priceNote: "from $180" },
+    { name: "Cut", durationMin: 45, priceNote: null },
+  ],
+  optInUrl: "/yes/melanys-beauty-salon",
+};
+
+test("the four facts a reviewer scans for, and the name customers know", () => {
+  const vm = businessPageVM(salon);
+  assert.equal(vm.empty, false);
+  // The TRADING name is the title: it is what customers call them and what the
+  // campaign's samples say. The legal entity is in the identity block, where a
+  // reviewer looks for it.
+  assert.equal(vm.title, "Melany's Beauty Salon");
+  const identity = Object.fromEntries(vm.identity.map((f) => [f.label, f.value]));
+  assert.equal(identity["Legal name"], "Melany Beauty Corp, trading as Melany's Beauty Salon");
+  assert.equal(identity["Address"], "2581 Pitkin Ave, Brooklyn, NY 11208, US");
+  assert.equal(identity["Phone"], "+1 (308) 336-8109");
+  assert.equal(identity["Email"], "hola@melanys.example");
+  // A number and an address are things to act on, so they are links.
+  assert.equal(vm.identity.find((f) => f.label === "Phone").href, "tel:+13083368109");
+
+  // One name, said once, when the legal name IS the trading name.
+  const one = businessPageVM({ ...salon, tradeName: null });
+  assert.equal(one.title, "Melany Beauty Corp");
+  assert.equal(one.identity[0].value, "Melany Beauty Corp", "no 'trading as' when there is nothing to distinguish");
+});
+
+test("their own website is linked, not replaced", () => {
+  // The floor, not the ceiling. A business with a real site keeps filing it, and
+  // this page still exists beside it.
+  const withSite = businessPageVM({ ...salon, websiteUrl: "https://melanys.example" });
+  assert.equal(withSite.websiteUrl, "https://melanys.example");
+  assert.ok(withSite.identity.some((f) => f.label === "Website" && f.href === "https://melanys.example"));
+  assert.equal(businessPageVM(salon).websiteUrl, null);
+  assert.ok(!businessPageVM(salon).identity.some((f) => f.label === "Website"), "no empty row for a site they do not have");
+});
+
+test("the SMS clauses are the shared ones, word for word", () => {
+  const vm = businessPageVM(salon);
+  assert.equal(vm.smsClauses, SMS_CLAUSES, "the same array, not a copy that can drift");
+  const said = vm.smsClauses.join(" ");
+  assert.match(said, /Message and data rates may apply/);
+  assert.match(said, /Message frequency varies/);
+  assert.match(said, /Reply STOP to stop and HELP for help/);
+  assert.match(said, /No mobile information will be shared with third parties or affiliates/);
+  assert.ok(!/standard rate/i.test(said), "carriers refuse \"standard\": it implies premium-rate messaging");
+
+  // The lead names the business and states the separation the carriers refused
+  // us for combining (30913).
+  assert.equal(vm.smsLead, smsConsentSentence("Melany's Beauty Salon"));
+  assert.match(vm.smsLead, /Melany's Beauty Salon/);
+  assert.match(vm.smsLead, /asked for separately/);
+  assert.match(vm.smsLead, /either can be declined without affecting the other/);
+});
+
+test("a record too thin to identify anybody publishes nothing", () => {
+  // 30919 refused a page that explained a product thoroughly and never said who
+  // was behind it. A page with no legal name or no address is that page, and
+  // publishing one is worse than publishing none: a reviewer reads it as
+  // evasive rather than incomplete.
+  for (const missing of [{ legalName: "" }, { street: "" }, { city: "" }]) {
+    assert.equal(businessPageVM({ ...salon, ...missing }).empty, true, JSON.stringify(missing));
+  }
+  assert.equal(businessPageVM(salon).empty, false);
+  const page = readCode("apps/dashboard/app/b/[slug]/page.tsx");
+  assert.ok(page.includes("if (vm.empty) notFound();"), "and the page refuses to render it");
+});
+
+test("what they do, from what they already told the receptionist", () => {
+  const vm = businessPageVM(salon);
+  assert.deepEqual(vm.services, [
+    { name: "Balayage", detail: "180 min · from $180" },
+    { name: "Cut", detail: "45 min" },
+  ]);
+  // A price the business could not state flatly is free text, and a service with
+  // neither duration nor price is still a service.
+  assert.deepEqual(businessPageVM({ ...salon, services: [{ name: "Consult" }] }).services, [{ name: "Consult", detail: null }]);
+  assert.deepEqual(businessPageVM({ ...salon, services: [] }).services, []);
+});
+
+test("the page is on the same domain as the opt-in page, which is what 30907 wanted", () => {
+  const server = readCode("apps/dashboard/src/server/business-page.ts");
+  // Relative, so it is the same site by construction rather than by a constant
+  // somebody has to keep correct.
+  assert.match(server, /optInUrl: `\/yes\/\$\{clean\}`/);
+  assert.ok(!/https?:\/\//.test(server.slice(server.indexOf("optInUrl"))), "no hardcoded origin to point at the wrong deployment");
+
+  // And the ABSOLUTE form the carriers are handed is built the same way the
+  // opt-in URL is, from one origin, at the one moment a filing is composed.
+  const edge = readCode("apps/edge/api/admin/lines.ts");
+  assert.ok(edge.includes("hostedUrl: `${origin}/b/${tenant.slug}`"), "the filing names it");
+  assert.ok(edge.includes("optInUrl: `${origin}/yes/${tenant.slug}`"), "beside the opt-in page, from the same origin");
+  const cron = readCode("apps/edge/api/cron/registrations.ts");
+  assert.ok(cron.includes("hostedUrl: `${origin}/b/${tenant.data.slug}`"), "and so does the sweep that finishes a filing");
+});
+
+test("a business with no website of its own files the page we publish", () => {
+  const a2p = readCode("apps/edge/lib/a2p.ts");
+  // The privacy policy the carriers are given identifies the BUSINESS. Ours
+  // identifies Chanlytics, which is the wrong answer to 30919's question.
+  assert.match(a2p, /privacyPolicyUrl: o\.hostedUrl \|\| o\.privacyUrl,/);
+  // And the website on the brand's own end user is substituted ONCE, before any
+  // request is built -- the brand, the campaign and the profile must all name
+  // the same URL.
+  assert.match(a2p, /const record = base\.websiteUrl\?\.trim\(\) \? base : \{ \.\.\.base, websiteUrl: o\.hostedUrl \?\? base\.websiteUrl \}/);
+  assert.ok(a2p.indexOf("const record = base.websiteUrl") < a2p.indexOf("const ports: A2PPorts"), "before anything is composed from it");
+
+  // Which is only safe because the form no longer demands a URL it cannot get.
+  const rec = readRaw("packages/contracts/src/business-record.ts");
+  assert.match(rec, /\{ name: "website_url", required: false \}/);
+  assert.ok(rec.includes("We publish `/b/<slug>`"), "and says why, where the next person will read it");
+});
+
+test("the wiring: public, indexed, reads by slug, writes nothing", () => {
+  const page = readCode("apps/dashboard/app/b/[slug]/page.tsx");
+  assert.ok(page.includes("const facts = await businessPageFor(slug);") && page.includes("if (!facts) notFound();"));
+  assert.ok(!/<form|<input|useState|"POST"/.test(page), "nothing to fill in and nothing to write");
+  // INDEXED, unlike the opt-in page: a business a reviewer cannot look up is
+  // exactly what 30919 was complaining about.
+  assert.ok(page.includes("robots: { index: true, follow: true }"));
+  assert.ok(readCode("apps/dashboard/app/yes/[slug]/page.tsx").includes("robots: { index: false, follow: false }"), "and the opt-in page still is not");
+
+  const server = readCode("apps/dashboard/src/server/business-page.ts");
+  assert.ok(server.includes('import "server-only";') && server.includes("createServiceClient({"));
+  assert.ok(server.includes('if (!tenant || tenant.status === "test") return null;'), "a fixture workspace has no page");
+  assert.ok(server.includes("if (!record.data) return null;"), "and neither does a business that has not said who it is");
+  assert.ok(!/insert|update|delete|upsert/i.test(server), "the public page's reader may not write");
+
+  // The identity is `business_records` -- the same facts the carriers vetted on
+  // the brand. Publishing anything else would mean a page that disagrees with
+  // the filing it exists to support.
+  assert.ok(server.includes('.from("business_records")'));
+  assert.ok(server.includes("parseTenantConfig(cfg.data?.config ?? null)?.brain?.profile"), "and the services are what they told the receptionist");
+});
+
+test("Chanlytics' own policy and a workspace's page cannot drift", () => {
+  const privacy = readRaw("apps/dashboard/app/privacy/page.tsx");
+  assert.ok(privacy.includes('import { SMS_CLAUSES } from "@chanlytics/contracts";'));
+  assert.ok(privacy.includes('{SMS_CLAUSES.join(" ")}'), "the policy renders them rather than repeating them");
+  // The sentence that is NOT shared is the one that names who is sending: the
+  // policy speaks about businesses in general, a workspace's page names one.
+  assert.ok(privacy.includes("A business&rsquo;s customers receive texts only when"));
+  assert.ok(!privacy.includes("No mobile information will be shared with third parties or affiliates for marketing"), "REGRESSION: a second copy of a compliance clause");
+});

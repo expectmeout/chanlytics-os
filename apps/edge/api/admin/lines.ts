@@ -313,7 +313,10 @@ export async function POST(request: Request): Promise<Response> {
           const origin = dashboardOrigin();
           const filed = await registerLine(db, {
             line: fresh.data, record: rec.data, workspaceName: tenant.name,
-            optInUrl: `${origin}/yes/${tenant.slug}`, privacyUrl: `${origin}/privacy`, termsUrl: `${origin}/terms`,
+            optInUrl: `${origin}/yes/${tenant.slug}`,
+            hostedUrl: `${origin}/b/${tenant.slug}`,
+            privacyUrl: `${origin}/privacy`,
+            termsUrl: `${origin}/terms`,
             mock: fresh.data.reg_mock,
           });
           return json(200, { ...r, campaign_filed: filed.ok, campaign_sid: filed.state.campaignSid, ...(filed.ok ? {} : { step: filed.step, error: filed.error }) });
@@ -383,6 +386,7 @@ export async function POST(request: Request): Promise<Response> {
           businessName: t.data.name,
           lineNumber: formatPhoneDisplay(row.data.e164),
           optInUrl: `${base}/yes/${t.data.slug}`,
+          hostedUrl: `${base}/b/${t.data.slug}`,
           privacyUrl: `${base}/privacy`,
           termsUrl: `${base}/terms`,
         });

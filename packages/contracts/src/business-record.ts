@@ -84,7 +84,7 @@ const FIELD = {
   business_type: { label: "Legal form", options: BUSINESS_TYPES, group: "business" },
   company_type: { label: "Ownership", options: COMPANY_TYPES, group: "business" },
   industry: { label: "Industry", options: BUSINESS_INDUSTRIES, group: "business" },
-  website_url: { label: "Website", hint: "A page a reviewer can open. Your sign-up page works if you have no site.", placeholder: "https://", group: "business" },
+  website_url: { label: "Website", hint: "Yours, if you have one. Without it we publish a page for you at chanlytics.com carrying your name, address and the wording the carriers require — which is what they check.", placeholder: "https://", group: "business" },
   street: { label: "Street", placeholder: "193 Jamaica Ave", group: "address" },
   street_secondary: { label: "Suite or floor", group: "address" },
   city: { label: "City", placeholder: "Brooklyn", group: "address" },
@@ -117,7 +117,13 @@ const PATH_FIELDS: Record<RegistrationPath, readonly Ask[]> = {
     { name: "business_type", required: true },
     { name: "company_type", required: true },
     { name: "industry", required: true },
-    { name: "website_url", required: true },
+    // NOT required, and this is the change gate 8 is. A carrier registration
+    // needs a website that identifies the business and a privacy policy
+    // carrying SMS language, on a domain that matches the brand -- and most
+    // salons have a Facebook page and a Booksy link. Demanding a URL here
+    // turned that into a wall at field seven. We publish `/b/<slug>` from the
+    // facts on this very form instead, and file that.
+    { name: "website_url", required: false },
     { name: "street", required: true },
     { name: "street_secondary", required: false },
     { name: "city", required: true },
