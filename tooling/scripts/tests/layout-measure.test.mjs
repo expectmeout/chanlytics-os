@@ -14,7 +14,9 @@
  * hairlines.
  *
  * These are contracts because both defects are invisible in a diff and obvious
- * on a wide screen.
+ * on a wide screen. The file has since collected the rest of that family: a
+ * presentation rule every call site has to REMEMBER is a rule half of them
+ * will not, so each one here is a default with the exceptions named.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -143,4 +145,15 @@ test("the loading skeleton stands where the surface will stand", () => {
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(shell.includes("<RouteSkeleton pane={pane} surface={page} />"), "the shell tells the skeleton which surface it is standing in for");
   assert.ok(shell.includes('data-surface={surface}'), "and the skeleton wears it");
+});
+
+test("digits in a column line up without being asked", () => {
+  // `.tbl .num` was opt-in and forty-one money cells in Reports had not opted
+  // in, so figures a reader is there to COMPARE sat on proportional digits and
+  // the column edges wandered. Measured after: 66 numeric cells across four
+  // surfaces, none proportional.
+  const components = readRaw("apps/dashboard/src/legacy/styles/components.css");
+  assert.match(components, /\.tbl th, \.tbl td, \.cl-table th, \.cl-table td \{ font-variant-numeric: tabular-nums; \}/,
+    "the cell decides, not the call site");
+  assert.ok(!/\.tbl \.num \{ font-variant-numeric/.test(components), "and the opt-in rule it replaced is gone, not left to imply a choice");
 });

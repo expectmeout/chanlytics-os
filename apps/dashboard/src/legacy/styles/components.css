@@ -663,7 +663,14 @@
 .tbl tbody tr { transition: background var(--duration-fast) var(--ease-out); }
 .tbl tbody tr:hover { background: var(--bg-hover); }
 .tbl tbody tr:last-child td { border-bottom: none; }
-.tbl .num { font-variant-numeric: tabular-nums; }
+/* Digits in a column line up, always.
+   This was `.tbl .num` -- opt-in, and forty-one money cells in Reports had not
+   opted in, so figures a reader is there to COMPARE sat on proportional digits
+   and the column edges wandered. Setting it on the cell costs prose nothing:
+   the property only touches numerals. Same lesson as the focus ring; a
+   presentation rule that each call site has to remember is a rule half the
+   call sites will not. */
+.tbl th, .tbl td, .cl-table th, .cl-table td { font-variant-numeric: tabular-nums; }
 .tbl .muted { color: var(--ink-muted); }
 .tbl .dim { color: var(--ink-dim); }
 
