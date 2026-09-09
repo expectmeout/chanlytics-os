@@ -285,7 +285,25 @@ export function submitTrustProductRequest(bundleSid: string): A2PRequest {
  * routes a real message, and gone after thirty days — which is how this
  * whole path is exercised before a customer pays for anything.
  */
-export function brandRequest(o: { customerProfileBundleSid: string; a2pProfileBundleSid: string; brandType: BrandType; mock: boolean }): A2PRequest {
+/**
+ * `skipVetting` is a MONEY decision, so it is stated rather than defaulted.
+ *
+ * Twilio runs an automatic secondary vetting on a standard brand unless told
+ * not to, and it is the expensive half of registering a business: the first
+ * real filing this product made cost $46.00 in two one-time events, of which
+ * the brand registration itself is $4.
+ *
+ * What the vetting buys is a brand SCORE, and a score only buys throughput --
+ * T-Mobile's higher daily tiers. That filing came back with a score of 46,
+ * below the threshold where the tier changes, on a LOW_VOLUME campaign whose
+ * whole point is that it sends a handful of messages a day. So it bought
+ * nothing, for every customer, for ever.
+ *
+ * A brand can be vetted later (the Vettings endpoint) if a workspace ever needs
+ * the throughput. Paying up front for every salon, in case one of them turns
+ * into a sender, is the wrong way round.
+ */
+export function brandRequest(o: { customerProfileBundleSid: string; a2pProfileBundleSid: string; brandType: BrandType; mock: boolean; skipVetting: boolean }): A2PRequest {
   return {
     url: `${MESSAGING}/a2p/BrandRegistrations`,
     method: "POST",
@@ -293,6 +311,7 @@ export function brandRequest(o: { customerProfileBundleSid: string; a2pProfileBu
       CustomerProfileBundleSid: o.customerProfileBundleSid,
       A2PProfileBundleSid: o.a2pProfileBundleSid,
       BrandType: o.brandType,
+      ...(o.skipVetting ? { SkipAutomaticSecVet: "true" } : {}),
       ...(o.mock ? { Mock: "true" } : {}),
     },
   };

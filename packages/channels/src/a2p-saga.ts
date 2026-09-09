@@ -42,6 +42,12 @@ export interface A2PPorts {
   useCase: string;
   /** Twilio's free test registry: no fee, no real routing, gone in thirty days. */
   mock: boolean;
+  /**
+   * Skip the automatic secondary vetting on the brand. It costs about ten times
+   * the brand registration and buys only throughput this product's LOW_VOLUME
+   * campaigns cannot use -- see brandRequest.
+   */
+  skipVetting: boolean;
 }
 
 export type A2PResult =
@@ -142,7 +148,7 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
         case "brand":
           await save({
             brandSid: await need(
-              brandRequest({ customerProfileBundleSid: state.profileSid!, a2pProfileBundleSid: state.a2pProfileSid!, brandType: brandTypeFor(p.record), mock: p.mock }),
+              brandRequest({ customerProfileBundleSid: state.profileSid!, a2pProfileBundleSid: state.a2pProfileSid!, brandType: brandTypeFor(p.record), mock: p.mock, skipVetting: p.skipVetting }),
               "registering the brand",
             ),
           });
