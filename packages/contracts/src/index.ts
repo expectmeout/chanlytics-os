@@ -30,6 +30,7 @@ export * from "./live";
 export * from "./setup";
 export * from "./forwarding";
 export * from "./identity";
+export * from "./workspace";
 export * from "./chrome";
 export * from "./google";
 export * from "./connections";

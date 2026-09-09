@@ -267,7 +267,7 @@ const UserMenu = ({ who, themePref, onTheme, onNavigate, close, flash }) => {
         {who.role && <span className="pill sb-role" data-testid="sb-me-role">{who.role}</span>}
       </div>
       <div className="more-divider" />
-      <button className="more-item" role="menuitem" onClick={() => { close(); onNavigate("admin/workspace"); }} data-testid="sb-me-name">
+      <button className="more-item" role="menuitem" onClick={() => { close(); onNavigate("admin/profile"); }} data-testid="sb-me-name">
         <Icon name="user" size={13} /><span className="more-item-label">Your name</span>{!who.named && <span className="more-item-meta">Not set</span>}
       </button>
       <button className="more-item" role="menuitem" onClick={() => { close(); onNavigate("admin/notifications"); }}>

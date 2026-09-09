@@ -49,7 +49,9 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   admin: "demo",    // the page itself: every pane below is classified, and a
                     // pane nobody has listed inherits this honest default
   "admin/setup": "real",      // read from the workspace: contracts/setup.ts over /api/v1/setup
+  "admin/profile": "real",    // you: name, the address you signed in with, your role
   "admin/workspace": "real",
+  "admin/team": "real",       // split out of workspace: the people, their roles, invites
   "admin/autonomy": "real",   // the policies table, live for the reply row
   "admin/notifications": "real",  // who is alerted, from tenant_config
   "admin/integrations": "real",   // the channels in tenant_channels, read-only
@@ -83,7 +85,9 @@ export const ROUTE_SURFACE: Record<string, string> = {
   // same way the other real routes do — otherwise it paints the mockup's
   // fabricated business for a frame before the truth arrives.
   "admin/setup": "setup",
+  "admin/profile": "settings",
   "admin/workspace": "settings",
+  "admin/team": "settings",
   "admin/autonomy": "settings",
   "admin/notifications": "settings",
   "admin/integrations": "settings",

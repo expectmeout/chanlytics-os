@@ -122,7 +122,7 @@ test("navigating INSIDE a surface does not tear the surface down", () => {
   // be the safe one.
   assert.match(shell, /const PARAM_FOLLOWED_AS_PROP = new Set\(\["admin", "inbox"\]\);/);
   const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
-  assert.ok(settings.includes("const active = SET_TABS.find(t => t.id === tab)"), "Settings derives its tab every render");
+  assert.ok(settings.includes("const active = SET_TAB(tab);"), "Settings derives its tab every render");
   const inbox = readCode("apps/dashboard/src/legacy/pages/inbox.jsx");
   assert.ok(inbox.includes("}, [initialThreadId]);"), "the Inbox follows a later deep-link");
 });

@@ -5953,6 +5953,92 @@ function cleanDisplayName(raw) {
   return { ok: true, name };
 }
 
+// src/signup.ts
+import { z as z4 } from "zod";
+var SIGNUP_NAME_MIN = 2;
+var SIGNUP_NAME_MAX = 120;
+var SignupSchema = z4.object({
+  name: z4.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z4.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
+  timezone: z4.string().trim().min(1).max(64).optional(),
+  /** The invite code, when sign-up is by invitation. */
+  code: z4.string().trim().max(80).optional()
+}).strict();
+var SIGNUP_WORDS = {
+  title: "Create your workspace",
+  lead: "Your business gets its own workspace: the receptionist, the inbox, the numbers. You become its owner.",
+  sent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it on the next screen to open your workspace.`,
+  codeRequired: "Sign-up is by invitation right now. Enter the invite code you were given.",
+  codeWrong: "That invite code is not right.",
+  crossSite: "That request did not come from this site.",
+  haveOne: "Already have a workspace?",
+  newHere: "New to Chanlytics?",
+  clock: (tz) => `Your clock: ${tz}, read from this device. Change it later in Settings \u203A Workspace.`
+};
+function signupNext(email) {
+  return `/login?email=${encodeURIComponent(email.trim().toLowerCase())}&sent=1`;
+}
+function deviceTimezone(resolve = () => Intl.DateTimeFormat().resolvedOptions().timeZone) {
+  try {
+    const tz = resolve();
+    return tz && tz.length <= 64 ? tz : void 0;
+  } catch {
+    return void 0;
+  }
+}
+
+// src/workspace.ts
+var DEFAULT_TIMEZONE = "America/New_York";
+function isTimezone(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: raw });
+    return true;
+  } catch {
+    return false;
+  }
+}
+function cleanTimezone(raw) {
+  const tz = typeof raw === "string" ? raw.trim() : "";
+  if (!tz) return { ok: false, reason: "Pick the timezone your business runs on." };
+  if (!isTimezone(tz)) return { ok: false, reason: `${tz} is not a timezone this system knows.` };
+  return { ok: true, tz };
+}
+function timezoneCity(tz) {
+  const tail = tz.split("/").pop() || tz;
+  return tail.replace(/_/g, " ");
+}
+function timezoneWords(tz, nowMs = Date.now()) {
+  const zone = tz && isTimezone(tz) ? tz : DEFAULT_TIMEZONE;
+  const city = timezoneCity(zone);
+  let timeThere = null;
+  try {
+    timeThere = new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      hour: "numeric",
+      minute: "2-digit"
+    }).format(new Date(nowMs));
+  } catch {
+    timeThere = null;
+  }
+  return { city, zone, timeThere, line: timeThere ? `${city} \xB7 ${timeThere} there now` : city };
+}
+function knownTimezones() {
+  const intl = Intl;
+  try {
+    const all = intl.supportedValuesOf?.("timeZone");
+    if (all && all.length) return all;
+  } catch {
+  }
+  const here = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return [...new Set([here, DEFAULT_TIMEZONE].filter(isTimezone))];
+}
+function usableDeviceTimezone(resolve) {
+  const tz = deviceTimezone(resolve);
+  return tz && isTimezone(tz) ? tz : null;
+}
+
 // src/chrome.ts
 var THEME_OPTIONS = [
   { id: "light", label: "Light", icon: "sun" },
@@ -6305,41 +6391,6 @@ function businessRecordLine(r) {
   if (missing) return `${missing} thing${missing === 1 ? "" : "s"} still to fill in before this can be filed.`;
   return `${r.legal_name}${r.trade_name ? ` (${r.trade_name})` : ""} \xB7 ${r.city}, ${r.region} \xB7 on record.`;
 }
-
-// src/signup.ts
-import { z as z4 } from "zod";
-var SIGNUP_NAME_MIN = 2;
-var SIGNUP_NAME_MAX = 120;
-var SignupSchema = z4.object({
-  name: z4.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z4.string().trim().toLowerCase().email("Enter a work email address.").max(254),
-  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z4.string().trim().min(1).max(64).optional(),
-  /** The invite code, when sign-up is by invitation. */
-  code: z4.string().trim().max(80).optional()
-}).strict();
-var SIGNUP_WORDS = {
-  title: "Create your workspace",
-  lead: "Your business gets its own workspace: the receptionist, the inbox, the numbers. You become its owner.",
-  sent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it on the next screen to open your workspace.`,
-  codeRequired: "Sign-up is by invitation right now. Enter the invite code you were given.",
-  codeWrong: "That invite code is not right.",
-  crossSite: "That request did not come from this site.",
-  haveOne: "Already have a workspace?",
-  newHere: "New to Chanlytics?",
-  clock: (tz) => `Your clock: ${tz}, read from this device. Change it later in Settings \u203A Workspace.`
-};
-function signupNext(email) {
-  return `/login?email=${encodeURIComponent(email.trim().toLowerCase())}&sent=1`;
-}
-function deviceTimezone(resolve = () => Intl.DateTimeFormat().resolvedOptions().timeZone) {
-  try {
-    const tz = resolve();
-    return tz && tz.length <= 64 ? tz : void 0;
-  } catch {
-    return void 0;
-  }
-}
 export {
   ACTOR_TYPES,
   ALERT_KINDS,
@@ -6409,6 +6460,7 @@ export {
   DEFAULT_BUSINESS_TYPE,
   DEFAULT_COMPANY_TYPE,
   DEFAULT_INDUSTRY,
+  DEFAULT_TIMEZONE,
   DISCONNECTION_LABELS,
   DISPLAY_NAME_MAX,
   E164,
@@ -6544,6 +6596,7 @@ export {
   cleanDisplayName,
   cleanDraft,
   cleanParam,
+  cleanTimezone,
   clockInZone,
   clockLabel,
   closedOn,
@@ -6625,8 +6678,10 @@ export {
   isRealDate,
   isSidebarPref,
   isThemePref,
+  isTimezone,
   isTypingTarget,
   isUngrounded,
+  knownTimezones,
   listingLine,
   localDate,
   localHour,
@@ -6737,6 +6792,8 @@ export {
   tenantStatusFor,
   threadStanding,
   tidyCallSummary,
+  timezoneCity,
+  timezoneWords,
   toBillingVM,
   toBookingReportVM,
   toBroadcastVM,
@@ -6764,6 +6821,7 @@ export {
   trialWords,
   triggerOf,
   tzClock,
+  usableDeviceTimezone,
   validateTemplateDraft,
   verbForRoute,
   violatesNoPrices,

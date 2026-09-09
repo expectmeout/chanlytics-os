@@ -1,4 +1,5 @@
-import { withRoute, memberContext } from "@/server/with-route";
+import { withRoute, memberContext, requireRole } from "@/server/with-route";
+import { AppError, cleanTimezone } from "@chanlytics/contracts";
 import { acceptOpenInvites } from "@/server/service";
 import { isSameOrigin } from "@/server/request-guards";
 
@@ -78,4 +79,33 @@ export const GET = withRoute(async (_req, ctx) => {
     activeWorkspaceId: active.tenantId,
     user: { id: userId, email: email ?? null, role: active.role, display_name: displayName },
   };
+});
+
+/**
+ * PATCH /api/v1/workspaces — {timezone}. Owner-only.
+ *
+ * The one field on the tenant row a business owns rather than Chanlytics: the
+ * zone its day is measured in. Name, slug and status stay concierge operations
+ * -- a slug is a URL and a status is a billing state -- and 00084's column
+ * grant enforces that regardless of what this route asks for.
+ */
+export const PATCH = withRoute(async (req, ctx) => {
+  const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
+  requireRole(member, "owner");
+  const body = (await req.json().catch(() => null)) as { timezone?: unknown } | null;
+  const parsed = cleanTimezone(body?.timezone);
+  if (!parsed.ok) throw new AppError("validation", parsed.reason);
+
+  const { data, error } = await ctx.supabase
+    .from("tenants")
+    .update({ timezone: parsed.tz })
+    .eq("id", member.tenantId)
+    .select("id, slug, name, status, timezone");
+  if (error) throw new Error(error.message);
+  // A forbidden UPDATE comes back successful with zero rows in this stack, so
+  // the row count IS the permission check. Without this an owner whose policy
+  // or grant went missing would be told the zone was saved and see the old one
+  // on the next read.
+  if (!data?.length) throw new AppError("forbidden", "That workspace's timezone could not be changed.", 403);
+  return { workspace: data[0] };
 });

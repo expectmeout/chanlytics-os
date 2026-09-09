@@ -27,6 +27,17 @@
 .set-nav-row .icon { color: var(--ink-dim); }
 .set-nav-row.active .icon { color: var(--ink); }
 .set-nav-label { font-size: 12.5px; font-weight: 500; color: var(--ink); }
+/* Two groups, because the rail holds two different things: you, and the
+   workspace. Without them Profile read as one more workspace setting. */
+.set-nav-group {
+  padding: 12px 8px 4px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.set-nav-group:first-of-type { padding-top: 4px; }
 
 .set-pane {
   overflow-y: auto;
@@ -622,9 +633,26 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
 .setup-fw-note { margin: 0; font-size: 12.5px; color: var(--warn); }
 
 /* You, on the team card: the name you go by. */
-.set-you { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 0 12px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
-.set-you-label { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-muted); }
-.set-you-input { flex: 1; min-width: 180px; max-width: 320px; }
+/* Your name sits in a SetRow's control slot now, so it carries the input and
+   its Save and nothing else: the row supplies the label, the hint and the rule
+   above it, the same as every other control on this surface. It used to draw
+   its own uppercase label and its own bottom border inside the TEAM card,
+   which is what made it read as an orphan pasted above other people's rows. */
+.set-you { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.set-you-input { width: 240px; max-width: 100%; }
+
+/* Profile: who is signed in, stated once, at the top of the first thing you
+   see -- rather than only inside a popover over a page about a salon. */
+.set-me { display: flex; align-items: center; gap: 12px; padding: 2px 0 14px; }
+.set-me-avatar { width: 40px; height: 40px; font-size: 14px; flex: none; }
+.set-me-who { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.set-me-name { font-size: 15px; font-weight: 500; color: var(--ink); }
+.set-me-mail { font-size: 12px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-me-static { font-size: 12.5px; color: var(--ink-muted); }
+
+/* The zone the business runs on: a city and the time there, then the picker. */
+.set-tz { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.set-tz-select { min-width: 220px; max-width: 100%; }
 
 /* Back, when the create screen was opened from the workspace menu. */
 .cw-back { margin-top: 8px; align-self: center; font: inherit; font-size: 13px; color: var(--ink-muted); text-decoration: underline; text-underline-offset: 3px; }

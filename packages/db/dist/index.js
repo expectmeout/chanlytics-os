@@ -4520,8 +4520,6 @@ var BOOTSTRAP_MS = 3600 * 1e3;
 var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS3 = 7 * 864e5;
 var DATE_FMT6 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
-var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
 var SignupSchema = external_exports.object({
@@ -4532,6 +4530,8 @@ var SignupSchema = external_exports.object({
   /** The invite code, when sign-up is by invitation. */
   code: external_exports.string().trim().max(80).optional()
 }).strict();
+var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
+var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 
 // src/repositories/ingest.ts
 async function ingestInbound(db, p) {

@@ -83,7 +83,7 @@ test("F50: gates match doors — the business form is owner-only like PUT /setti
   assert.equal(ROLE_PERMS.owner.settings, true);
   assert.equal(ROLE_PERMS.operator.settings, false, "PUT /settings is owner-only; an operator's form opened on the autonomy gate and was refused at Save");
   assert.equal(ROLE_PERMS.viewer.settings, false);
-  assert.equal((pane.match(/window\.gate\("settings"\)/g) ?? []).length, 3, "Edit, Save and Set up");
+  assert.equal((pane.match(/window\.gate\("settings"\)/g) ?? []).length, 4, "Edit, Save, Set up, and Change timezone — every one of them a PUT an operator is refused");
   const editor = pane.slice(pane.indexOf("const BusinessEditor"), pane.indexOf("const PaneWorkspace"));
   assert.ok(!editor.includes('gate("autonomy")'), "the form no longer opens on a gate the door refuses");
   assert.ok(pane.includes('gate("autonomy")'), "the autonomy matrix keeps its own gate — PUT /policies is operator-or-owner");
@@ -96,4 +96,50 @@ test("F50: gates match doors — the business form is owner-only like PUT /setti
   assert.ok(verbsBridge.includes("...(mode !== undefined ? { mode } : {})"));
   // Invites.
   assert.ok(pane.includes("...(pending && realRoster ? [] : ["), "an open invitation has no membership row to change the role on");
+});
+
+test("Settings is ordered you, then the business, then the people", () => {
+  // It was one "Workspace" tab holding three audiences: the business your
+  // CUSTOMERS hear about, the workspace record, and YOU -- with your own name
+  // buried in the Team card underneath a roster of other people. The account
+  // menu's "Your name" item navigated there, so the one link that promised you
+  // delivered the business.
+  assert.match(pane, /\{ id: "profile",\s+label: "Profile",\s+icon: "user",\s+group: "You" \}/, "you come first");
+  assert.match(pane, /\{ id: "workspace",\s+label: "Business",/, "and the business is called what it is");
+  assert.match(pane, /\{ id: "team",\s+label: "Team",/, "with the people on their own tab");
+  // The route id stays `workspace`: the label is what a person reads, and
+  // renaming the id would break bookmarks, an Ask answer and four e2e specs.
+  assert.ok(pane.includes('{ active.id === "workspace" && <PaneWorkspace flash={flash} />}') || pane.includes('{active.id === "workspace" && <PaneWorkspace flash={flash} />}'), "the old route still lands on the business");
+
+  // Your name left the Team card entirely; the roster is other people.
+  const team = pane.slice(pane.indexOf("const TeamSection"), pane.indexOf("const PaneNotifications") + 1 || pane.length);
+  assert.ok(!team.includes("<YourName"), "the roster no longer opens with an input about you");
+  assert.ok(pane.includes("<YourName flash={flash} />"), "it is a row on Profile instead");
+  assert.ok(readCode("apps/dashboard/src/legacy/components/sidebar.jsx").includes('onNavigate("admin/profile")'), "and the account menu points where it says");
+
+  // AI memory is not in the rail: it renders the not-built pane for every real
+  // workspace, so as a rail item it promised nothing. The route still answers.
+  assert.ok(!/\{ id: "memory",[^\n]*group:/.test(pane), "no rail item that never becomes content");
+  assert.ok(pane.includes('const SET_TABS_UNLISTED = [{ id: "memory"'), "but an old link still lands somewhere honest");
+});
+
+test("the workspace timezone is visible and an owner can change it", () => {
+  // tenants.timezone decided what "today" meant in metrics (00009), which
+  // closures were upcoming and the hours the receptionist quoted -- with no
+  // write path anywhere, so every workspace sat on 00001's America/New_York
+  // default without being asked.
+  assert.ok(pane.includes('data-testid="set-timezone"'), "the row exists");
+  assert.ok(pane.includes("{real && <TimezoneRow flash={flash} />}"), "on the business card, beside the hours it qualifies");
+  assert.ok(pane.includes('window.gate("settings")') && /set-tz-change/.test(pane), "and changing it is a settings write, refused to an operator");
+
+  const mig = readRaw("supabase/migrations/00084_workspace_timezone.sql");
+  assert.ok(mig.includes("create policy tenants_owner_update on public.tenants"), "RLS is the row floor");
+  assert.ok(mig.includes("revoke update on public.tenants from authenticated, anon;"), "and the column grant is the door");
+  assert.ok(mig.includes("grant update (timezone) on public.tenants to authenticated;"), "one column, not the row");
+  assert.ok(!/grant update \([^)]*\b(name|slug|status)\b/.test(mig), "a slug is a URL and a status is a billing state; neither is a settings toggle");
+
+  const route = readCode("apps/dashboard/app/api/v1/workspaces/route.ts");
+  assert.ok(route.includes('requireRole(member, "owner")'), "owner-only");
+  assert.ok(route.includes("if (!data?.length) throw new AppError"), "a forbidden UPDATE returns success with zero rows here, so the count IS the check");
+  assert.ok(route.includes("cleanTimezone(body?.timezone)"), "and the zone is validated against Intl, not a list that goes stale");
 });

@@ -68,15 +68,37 @@ window.INT_STORE = window.INT_STORE || {
   isFixed(id) { return !!this.fixed[id]; },
 };
 
+/**
+ * Settings, in the order a person needs them: yourself, then the business, then
+ * the people, then what the receptionist is allowed to do, then the account.
+ *
+ * It used to be one "Workspace" tab holding three unrelated audiences -- the
+ * business your CUSTOMERS hear about, the workspace record, and YOU -- with
+ * your own name buried in the Team card underneath a roster of other people.
+ * The sidebar's own menu said "Your name" and navigated there, so the one link
+ * that promised you delivered the business instead.
+ *
+ * `workspace` keeps its route id: the label is what a person reads, and
+ * renaming the id would break every bookmark, the Ask answer that links to it
+ * and four e2e specs for a word.
+ *
+ * AI memory is not here on purpose. It renders the "not built" pane for every
+ * real workspace, so as a rail item it was a permanent promise of nothing --
+ * the route still answers, because an old link should land somewhere honest.
+ */
 const SET_TABS = [
-  { id: "setup",         label: "Setup",         icon: "flag" },
-  { id: "workspace",     label: "Workspace",     icon: "home" },
-  { id: "autonomy",      label: "Autonomy",      icon: "shield" },
-  { id: "integrations",  label: "Integrations",  icon: "external" },
-  { id: "memory",        label: "AI memory",     icon: "sparkle" },
-  { id: "notifications", label: "Notifications", icon: "bell" },
-  { id: "billing",       label: "Billing",       icon: "money" },
+  { id: "profile",       label: "Profile",       icon: "user",     group: "You" },
+  { id: "setup",         label: "Setup",         icon: "flag",     group: "Workspace" },
+  { id: "workspace",     label: "Business",      icon: "home",     group: "Workspace" },
+  { id: "team",          label: "Team",          icon: "users",    group: "Workspace" },
+  { id: "autonomy",      label: "Autonomy",      icon: "shield",   group: "Workspace" },
+  { id: "integrations",  label: "Integrations",  icon: "external", group: "Workspace" },
+  { id: "notifications", label: "Notifications", icon: "bell",     group: "Workspace" },
+  { id: "billing",       label: "Billing",       icon: "money",    group: "Workspace" },
 ];
+/** Routes that still answer but no longer earn a place in the rail. */
+const SET_TABS_UNLISTED = [{ id: "memory", label: "AI memory", icon: "sparkle" }];
+const SET_TAB = (id) => SET_TABS.find((t) => t.id === id) || SET_TABS_UNLISTED.find((t) => t.id === id) || SET_TABS[0];
 
 // ...rest carries the aria-labelledby SetRow hands down; without forwarding it
 // the switch is announced with no name at all.
@@ -177,9 +199,14 @@ const PolicyMatrix = () => {
 const ST_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const stInitials = (n) => n.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
 
-// You, on the team card: the name you go by, saved through the bridge
-// (/api/v1/me). Empty clears it; the chip and the roster read the same words.
-const YourName = ({ flash }) => {
+// The name you go by, saved through the bridge (/api/v1/me). Empty clears it;
+// the chip, the roster and the account menu read the same words.
+//
+// It used to live inside the Team card, under a roster of other people, on a
+// page titled Workspace whose first card was the business -- while the account
+// menu's own "Your name" item navigated there. It is the first row of Profile
+// now, which is where the menu points and where a person looks.
+const YourName = ({ flash, ...rest }) => {
   const me = window.__ME || {};
   const [name, setName] = React.useState(me.display_name || "");
   const [busy, setBusy] = React.useState(false);
@@ -192,9 +219,9 @@ const YourName = ({ flash }) => {
   };
   return (
     <div className="set-you" data-testid="set-you">
-      <span className="set-you-label">Your name</span>
       <input
         className="sd-input set-you-input"
+        {...rest}
         value={name}
         maxLength={80}
         placeholder="How your team sees you"
@@ -204,6 +231,120 @@ const YourName = ({ flash }) => {
       />
       {dirty && <button className="btn btn-primary btn-sm" onClick={save} disabled={busy} data-testid="set-you-save">{busy ? "Saving…" : "Save"}</button>}
     </div>
+  );
+};
+
+/**
+ * Profile — you, before anything about the business.
+ *
+ * Everything here already existed and was somewhere else: your name inside the
+ * Team card, your email only inside the account menu's popover, your role as a
+ * chip beside other people's. A person who wants to check which account they
+ * are signed in as should not have to open a menu over a page about a salon.
+ *
+ * Deliberately short. Theme, keyboard shortcuts and per-device alerts stay in
+ * the account menu, because they are properties of this BROWSER rather than of
+ * you, and moving them here would make one of the two wrong.
+ */
+/**
+ * The zone the business runs on.
+ *
+ * tenants.timezone decided what "today" meant in metrics (00009), which
+ * closures were still upcoming, and the hours the receptionist quoted -- and it
+ * had no write path in the product, so every workspace sat on 00001's
+ * America/New_York default without ever being asked. A salon two zones away
+ * was told the wrong opening hours by its own receptionist and had no way to
+ * find out why.
+ *
+ * Shown as a city and the time there NOW, because "America/New_York" tells an
+ * owner nothing and "New York, 3:42 PM there now" tells them in one glance
+ * whether it is theirs.
+ */
+const TimezoneRow = ({ flash }) => {
+  const ws = (window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || null;
+  const current = (ws && ws.timezone) || window.DEFAULT_TIMEZONE || "America/New_York";
+  const [editing, setEditing] = React.useState(false);
+  const [pick, setPick] = React.useState(current);
+  const [busy, setBusy] = React.useState(false);
+  const W = window.__tz || {};
+  const words = W.words ? W.words(current) : { line: current };
+  const zones = editing && W.known ? W.known() : [];
+  const device = W.device ? W.device() : null;
+  const save = async () => {
+    setBusy(true);
+    const r = await window.__workspace.setTimezone(pick);
+    setBusy(false);
+    if (r.ok) setEditing(false);
+    flash({ msg: r.ok ? <>Your day is measured in <b>{W.city ? W.city(r.tz) : r.tz}</b> now.</> : <>{r.message}</> });
+  };
+  return (
+    <div className="cl-prof-attr" data-testid="set-timezone">
+      <span className="cl-prof-attr-key">Timezone</span>
+      <span className="cl-prof-attr-val set-tz">
+        {editing ? (
+          <>
+            <select className="set-input set-tz-select" value={pick} onChange={(e) => setPick(e.target.value)} aria-label="Timezone" data-testid="set-tz-select">
+              {zones.map((z) => <option key={z} value={z}>{z.replace(/_/g, " ")}</option>)}
+            </select>
+            <button className="btn btn-primary btn-sm" onClick={save} disabled={busy || pick === current} data-testid="set-tz-save">{busy ? "Saving…" : "Save"}</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => { setPick(current); setEditing(false); }}>Cancel</button>
+            {device && device !== pick && (
+              <button className="cl-bucket-link" onClick={() => setPick(device)}>Use this device&rsquo;s ({W.city ? W.city(device) : device})</button>
+            )}
+          </>
+        ) : (
+          <>
+            {words.line}
+            <button className="cl-bucket-link" onClick={() => { setPick(current); setEditing(true); }} {...window.gate("settings")} data-testid="set-tz-change">Change</button>
+          </>
+        )}
+      </span>
+    </div>
+  );
+};
+
+const PaneProfile = ({ flash }) => {
+  const me = window.__ME || {};
+  const words = window.__identity ? window.__identity.words(me) : { name: me.display_name || "Your account", email: me.email || "" };
+  const role = ST_ROLE_META[me.role] || null;
+  const ws = (window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || null;
+  const signOut = () => {
+    if (window.__DEMO_MODE || !window.__shell) { flash({ msg: <>Nothing to sign out of in the demo.</> }); return; }
+    window.__shell.signOut();
+  };
+  return (
+    <>
+      <section className="fl-card set-card" data-testid="set-profile">
+        <div className="fl-card-head"><span className="fl-card-title">You</span></div>
+        <div className="set-me">
+          <div className="avatar set-me-avatar">{window.__identity ? window.__identity.initials(me.display_name, me.email) : "?"}</div>
+          <div className="set-me-who">
+            <div className="set-me-name">{words.name}</div>
+            <div className="set-me-mail">{words.email}</div>
+          </div>
+          {role && <RolePill role={me.role} />}
+        </div>
+        <SetRow label="Your name" hint="How your team sees you — clear it and your email stands in">
+          <YourName flash={flash} />
+        </SetRow>
+        <SetRow label="Signed in as" hint="Chanlytics signs you in by email; there is no password to change">
+          <span className="set-me-static">{words.email || "—"}</span>
+        </SetRow>
+        {role && (
+          <SetRow label={`Your role in ${(ws && ws.name) || "this workspace"}`} hint={role.can}>
+            <span className="set-me-static">{role.label}</span>
+          </SetRow>
+        )}
+      </section>
+      <section className="fl-card set-card">
+        <div className="fl-card-head"><span className="fl-card-title">This device</span></div>
+        <SetRow label="Sign out" hint="Ends this session on this browser only">
+          <button className="btn btn-sm" onClick={signOut} data-testid="set-profile-signout">
+            <Icon name="logout" size={12} /> Sign out
+          </button>
+        </SetRow>
+      </section>
+    </>
   );
 };
 
@@ -395,8 +536,6 @@ const TeamSection = ({ flash }) => {
           : <button className="btn btn-sm" disabled title="No seats left — remove someone or upgrade">Seats full</button>
         )}
       </div>
-
-      {Array.isArray(realTeam) && <YourName flash={flash} />}
 
       {isOwner && (
         <div className="set-viewas">
@@ -1345,7 +1484,6 @@ const PaneWorkspace = ({ flash }) => {
             <ul className="set-broken-issues">{settings.broken.issues.map((i) => <li key={i}>{i}</li>)}</ul>
           </div>
         </section>
-        <TeamSection flash={flash} />
       </>
     );
   }
@@ -1353,7 +1491,6 @@ const PaneWorkspace = ({ flash }) => {
     return (
       <>
         <BusinessEditor settings={settings} flash={flash} onDone={() => setEditing(false)} />
-        <TeamSection flash={flash} />
       </>
     );
   }
@@ -1402,6 +1539,7 @@ const PaneWorkspace = ({ flash }) => {
             )}
           </span>
         </div>
+        {real && <TimezoneRow flash={flash} />}
         <div className="cl-prof-attr"><span className="cl-prof-attr-key">Phone line</span><span className="cl-prof-attr-val">{real ? (S.phone_display || "—") : "+1 (415) 555-0100"}</span></div>
         {real ? (
           <div className="cl-prof-attr"><span className="cl-prof-attr-key">Booking link</span><span className="cl-prof-attr-val">{S.booking_link || "—"}</span></div>
@@ -1438,7 +1576,6 @@ const PaneWorkspace = ({ flash }) => {
       )}
     </section>
     {real && <PromptPreview />}
-    <TeamSection flash={flash} />
   </>
   );
 };
@@ -2206,20 +2343,34 @@ const PaneSoon = ({ which, onTab }) => {
 };
 
 const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
-  const active = SET_TABS.find(t => t.id === tab) || SET_TABS[0];
+  const active = SET_TAB(tab);
   const [toastNode, flash] = window.usePPToast();
+  // Grouped, and derived rather than written twice: the rail can only ever
+  // offer what SET_TABS holds, in the order it holds it.
+  const groups = SET_TABS.reduce((acc, t) => {
+    const g = acc[acc.length - 1];
+    if (g && g.name === t.group) g.tabs.push(t); else acc.push({ name: t.group, tabs: [t] });
+    return acc;
+  }, []);
   return (
     <div className="settings">
       <aside className="set-nav">
         <div className="fl-roster-head"><span className="fl-roster-label">Settings</span></div>
-        {SET_TABS.map(t => (
-          <button key={t.id} className={`fl-agent set-nav-row ${active.id === t.id ? "active" : ""}`} onClick={() => onTab(t.id)}>
-            <Icon name={t.icon} size={14} />
-            <span className="set-nav-label">{t.label}</span>
-          </button>
+        {groups.map(g => (
+          <React.Fragment key={g.name}>
+            <div className="set-nav-group">{g.name}</div>
+            {g.tabs.map(t => (
+              <button key={t.id} className={`fl-agent set-nav-row ${active.id === t.id ? "active" : ""}`} onClick={() => onTab(t.id)}>
+                <Icon name={t.icon} size={14} />
+                <span className="set-nav-label">{t.label}</span>
+              </button>
+            ))}
+          </React.Fragment>
         ))}
       </aside>
       <div className="set-pane" key={active.id}>
+        {active.id === "profile" && <PaneProfile flash={flash} />}
+        {active.id === "team" && <TeamSection flash={flash} />}
         {active.id === "setup" && window.PaneSetup && <window.PaneSetup />}
         {active.id === "workspace" && <PaneWorkspace flash={flash} />}
         {active.id === "autonomy" && (window.__POLICIES === undefined ? <PaneAutonomy flash={flash} /> : <PaneAutonomyReal flash={flash} />)}
