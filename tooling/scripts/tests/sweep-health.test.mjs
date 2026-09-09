@@ -8,9 +8,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { readCode, readRaw } from "./_source.mjs";
+import { ROOT, readCode, readRaw } from "./_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { chooseSweepAlerts, describeSweepTrouble, ALERT_SUPPRESSION_MS } = await import(
@@ -151,8 +152,18 @@ function sqlStatements(file) {
 }
 
 test("the CHECK is written in the form the house tooling can read", () => {
-  const sql = sqlStatements("supabase/migrations/00026_sweep_health.sql");
-  assert.match(sql, /check \(sweep in \('calls', 'deadman', 'health'\)\)/);
+  // The LAST migration to define it, not the first. Reading 00026 alone would
+  // keep passing while a later migration widened the set to something this
+  // never sees — the same first-vs-last trap enums-vs-checks.test.mjs was
+  // caught by twice. 00083 added 'jobs'.
+  const dir = path.join(ROOT, "supabase/migrations");
+  const defs = fs.readdirSync(dir)
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .filter((f) => /check \(sweep in \(/.test(fs.readFileSync(path.join(dir, f), "utf8")));
+  assert.ok(defs.length >= 1, "something defines the constraint");
+  const sql = sqlStatements(`supabase/migrations/${defs.at(-1)}`);
+  assert.match(sql, /check \(sweep in \('calls', 'deadman', 'health', 'jobs'\)\)/);
   assert.doesNotMatch(sql, /= any \(array\[/);
 });
 
