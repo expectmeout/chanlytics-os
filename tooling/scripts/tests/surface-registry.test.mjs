@@ -299,3 +299,33 @@ test("a failed team read still uses the REAL role, not the seed's opinion", () =
   assert.ok(settings.includes("teamUnavailable ? (serverRole || S.myRole())"));
   assert.ok(settings.includes("Array.isArray(realTeam) || teamUnavailable"), "owner-ness comes from the server");
 });
+
+test("the tab bar offers what the registry says is real, and only that", () => {
+  // These two files drifted apart in both directions at once. Lists went real
+  // in #123 and kept demoOnly, and because it was the only OTHER People tab the
+  // bar fell under its two-tab minimum and disappeared -- a shipped surface
+  // reachable in production only from a "New segment" button in a rail. The
+  // four Agents tabs went the other way: none flagged, all four "demo", so
+  // production offered four routes to the same Coming Soon pane.
+  //
+  // The registry is the source of truth for both, so this is the rule rather
+  // than two more corrections.
+  const tabsSrc = fs.readFileSync(path.join(DASH, "legacy/components/surface-tabs.jsx"), "utf8");
+  const rows = [...tabsSrc.matchAll(/\{ id: "([a-z-]+)", label: "[^"]+", to: "([a-z-]+)"([^}]*)\}/g)]
+    .map(([, id, to, rest]) => ({ id, to, demoOnly: /demoOnly: true/.test(rest) }));
+  assert.ok(rows.length >= 12, `parsed ${rows.length} tabs — the shape of the file changed`);
+
+  for (const t of rows) {
+    const state = SURFACE_STATES[t.to];
+    assert.ok(state, `the ${t.id} tab points at ${t.to}, which the registry does not classify`);
+    if (state === "demo") {
+      assert.ok(t.demoOnly, `${t.id} → ${t.to} is a demo surface but the tab is offered in production`);
+    } else {
+      assert.ok(!t.demoOnly, `${t.id} → ${t.to} is real but the tab is hidden outside a demo`);
+    }
+  }
+
+  // And the bar's own floor: a group whose real tabs number fewer than two
+  // renders nothing, so a group with exactly one real tab is a bar nobody sees.
+  assert.ok(tabsSrc.includes("if (tabs.length < 2) return null;"), "the two-tab minimum still holds");
+});
