@@ -428,7 +428,7 @@ export function isBrandNotReady(error: string): boolean {
 /** Twilio's brand and campaign statuses, in the words `lines.sms_state` uses. */
 export type SmsRegistrationState = "registering" | "approved" | "active" | "rejected" | "failed";
 
-export function smsStateFor(o: { brandStatus?: string | null; campaignStatus?: string | null }): SmsRegistrationState {
+export function smsStateFor(o: { brandStatus?: string | null; campaignStatus?: string | null; mock?: boolean }): SmsRegistrationState {
   const brand = (o.brandStatus ?? "").toUpperCase();
   const campaign = (o.campaignStatus ?? "").toUpperCase();
   if (brand === "FAILED" || campaign === "FAILED") return "rejected";
@@ -437,7 +437,15 @@ export function smsStateFor(o: { brandStatus?: string | null; campaignStatus?: s
   // Messaging Service, so the line can answer now. Returning "approved" here
   // left every text held for ever: the inbound path only answers on "active",
   // and nothing moved a line from one to the other.
-  if (campaign === "VERIFIED") return "active";
+  //
+  // Unless it is a REHEARSAL. `active` is not a badge, it is an instruction:
+  // the inbound path stops holding texts for a person and the receptionist
+  // starts answering them. A campaign filed against the test registry verifies
+  // itself within minutes and can carry nothing, so every one of those answers
+  // would be rejected by the carriers and the customer would get silence.
+  // A verified mock has proved everything a rehearsal can prove, which is what
+  // `approved` means.
+  if (campaign === "VERIFIED") return o.mock ? "approved" : "active";
   // Two quite different waits were one word. The business being approved is
   // the slow half and the half that can be refused; once it is through, what
   // is left is the campaign, which is days rather than weeks.

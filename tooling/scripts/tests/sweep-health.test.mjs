@@ -155,7 +155,8 @@ test("the CHECK is written in the form the house tooling can read", () => {
   // The LAST migration to define it, not the first. Reading 00026 alone would
   // keep passing while a later migration widened the set to something this
   // never sees — the same first-vs-last trap enums-vs-checks.test.mjs was
-  // caught by twice. 00083 added 'jobs'.
+  // caught by twice. 00083 added 'jobs'; 00086 added the four hourly sweeps
+  // that mutate state and were watched by nothing.
   const dir = path.join(ROOT, "supabase/migrations");
   const defs = fs.readdirSync(dir)
     .filter((f) => f.endsWith(".sql"))
@@ -163,7 +164,7 @@ test("the CHECK is written in the form the house tooling can read", () => {
     .filter((f) => /check \(sweep in \(/.test(fs.readFileSync(path.join(dir, f), "utf8")));
   assert.ok(defs.length >= 1, "something defines the constraint");
   const sql = sqlStatements(`supabase/migrations/${defs.at(-1)}`);
-  assert.match(sql, /check \(sweep in \('calls', 'deadman', 'health', 'jobs'\)\)/);
+  assert.match(sql, /check \(sweep in \('calls', 'deadman', 'health', 'jobs', 'registration', 'calendar', 'google', 'playbooks'\)\)/);
   assert.doesNotMatch(sql, /= any \(array\[/);
 });
 

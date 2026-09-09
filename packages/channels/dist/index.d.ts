@@ -1242,6 +1242,7 @@ type SmsRegistrationState = "registering" | "approved" | "active" | "rejected" |
 declare function smsStateFor(o: {
     brandStatus?: string | null;
     campaignStatus?: string | null;
+    mock?: boolean;
 }): SmsRegistrationState;
 /**
  * What the carriers just decided, in the owner's words — or nothing, when

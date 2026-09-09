@@ -295,14 +295,39 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<{ ok: boo
   const brand = line.brand_sid && sub ? await read(`https://messaging.twilio.com/v1/a2p/BrandRegistrations/${line.brand_sid}`, sub) : null;
   const campaign = line.messaging_service_sid && sub ? await read(`https://messaging.twilio.com/v1/Services/${line.messaging_service_sid}/Compliance/Usa2p`, sub) : null;
   const brandStatus = typeof brand?.status === "string" ? brand.status : null;
-  const campaignStatus = typeof campaign?.campaign_status === "string" ? campaign.campaign_status : null;
-  const smsState = smsStateFor({ brandStatus, campaignStatus });
+  // THE CAMPAIGN IS IN A LIST. `GET /Services/{MG}/Compliance/Usa2p` answers
+  // `{compliance: [ {campaign_status, mock, ...} ], meta}` -- there is no
+  // top-level campaign_status, so reading one gave null on every tick since
+  // this was written. Verified against the live API on 2026-09-09:
+  //
+  //   top-level keys: compliance, meta
+  //   b.campaign_status                 undefined
+  //   b.compliance[0].campaign_status   "VERIFIED"
+  //
+  // Which means no line could ever reach `active`, so the inbound path held
+  // every text for a person for ever -- the exact failure the comment on
+  // smsStateFor's VERIFIED branch says it was written to end. A field read one
+  // level too high does not fail; it reads as "the carriers have not answered",
+  // which is indistinguishable from a slow week.
+  const usa2p = Array.isArray(campaign?.compliance) ? (campaign.compliance[0] as Record<string, unknown> | undefined) : undefined;
+  const campaignStatus = typeof usa2p?.campaign_status === "string" ? usa2p.campaign_status : null;
+  // Twilio says whether the filing it holds is a rehearsal, so it -- not our
+  // column -- is the authority on it. A refile that made the campaign real is
+  // recorded here without anyone having to remember to write it.
+  const mock = typeof usa2p?.mock === "boolean" ? usa2p.mock : line.reg_mock;
+  const smsState = smsStateFor({ brandStatus, campaignStatus, mock });
   const failure = typeof brand?.failure_reason === "string" ? brand.failure_reason : null;
   const reason = smsState === "rejected" ? failure ?? "the carriers sent the registration back" : null;
+  const moved = smsState !== line.sms_state;
   await db.from("lines").update({
     sms_state: smsState,
+    reg_mock: mock,
     last_error: reason,
-    state_since: new Date().toISOString(),
+    // Only when the state actually MOVED. This sweep runs hourly and wrote it
+    // every time, so `state_since` meant "the last hour" rather than "when this
+    // wait began" -- and the Setup row reads it to say how long the carriers
+    // have had it, which therefore never got past an hour.
+    ...(moved ? { state_since: new Date().toISOString() } : {}),
   }).eq("id", line.id);
 
   // The carriers answering is the whole point of the wait, so the owner is

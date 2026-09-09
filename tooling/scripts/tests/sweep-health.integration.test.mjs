@@ -23,8 +23,10 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // The names, not a count: the LEFT JOINs make the count the same whatever
   // sweep_status holds, so a count assertion would be vacuous. 'jobs' joined
   // them in 00083 — the sweep that marks jobs failed, settles what they left
-  // behind and emails the workspace, watched by nothing until then.
-  assert.deepEqual(data.map((r) => r.sweep), ["calls", "deadman", "health", "jobs"]);
+  // behind and emails the workspace, watched by nothing until then. 00086
+  // finished the job: every sweep that changes state on its own is here, the
+  // last two of them SQL that never leaves the database.
+  assert.deepEqual(data.map((r) => r.sweep), ["calendar", "calls", "deadman", "google", "health", "jobs", "pauses", "playbooks", "registration", "snoozes"]);
   for (const r of data) assert.equal(r.scheduled, true, `${r.sweep}: ${r.detail}`);
 });
 
@@ -62,7 +64,9 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
   assert.notEqual(error, null, "an unwatched sweep name was accepted");
   assert.match(error.message, /sweep_status_sweep_check|violates check constraint/);
   const { data } = await db.from("sweep_status").select("sweep");
-  assert.deepEqual(data.map((r) => r.sweep).sort(), ["calls", "deadman", "health", "jobs"]);
+  // Eight, not ten: 'pauses' and 'snoozes' run inside Postgres, so they never
+  // enqueue anything and never write a row here.
+  assert.deepEqual(data.map((r) => r.sweep).sort(), ["calendar", "calls", "deadman", "google", "health", "jobs", "playbooks", "registration"]);
   // Belt and braces, in case a future migration ever widens the set.
   await db.from("sweep_status").delete().eq("sweep", "bogus");
 });
@@ -71,7 +75,12 @@ test("every schedule the watchdog depends on is present and active", { skip }, a
   const { data, error } = await db.rpc("sweep_schedules");
   assert.equal(error, null, error?.message);
   const byName = new Map(data.map((j) => [j.jobname, j]));
-  for (const n of ["deadman-sweep", "call-reconcile", "expire-stale-pauses", "sweep-health", "purge-cron-history"]) {
+  for (const n of [
+    "deadman-sweep", "call-reconcile", "expire-stale-pauses", "sweep-health", "purge-cron-history",
+    // Added with 00086, which is what made their absence something the
+    // watchdog would report rather than something nobody would ever see.
+    "registration-sweep", "calendar-people-sweep", "google-listings-sweep", "playbooks-sweep", "wake-stale-snoozes",
+  ]) {
     assert.ok(byName.has(n), `no cron job named ${n}`);
     assert.equal(byName.get(n).active, true, `${n} is disabled`);
   }
