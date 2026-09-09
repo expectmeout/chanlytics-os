@@ -104,3 +104,25 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
   for (const pin of [".sidebar.collapsed .nav-item { justify-content: center;", ".sb-menu { position: fixed;", ".sb-theme-seg {", ".sb-attn {", ".sb-sheet {"]) assert.ok(css.includes(pin), pin);
   assert.ok(readRaw("apps/dashboard/src/legacy/styles/mobile.css").includes(".side-wrap .sidebar.collapsed { width: min(300px, 84vw); }"), "the drawer is never a rail");
 });
+
+test("navigating INSIDE a surface does not tear the surface down", () => {
+  // The mount key and the gate key used to be the same string, so a second
+  // Settings tab or a second Inbox thread unmounted the whole surface and built
+  // it again: two 240ms route-in fades compounding (the shell's, and the pane's
+  // own) which reads as a flash, plus the surface's state, scroll position and
+  // fetches thrown away on a navigation that never left it.
+  const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
+  assert.ok(shell.includes('const routeKey = `${page}/${param || ""}`;'), "the GATE still asks per pane");
+  assert.ok(shell.includes("const mountKey = PARAM_FOLLOWED_AS_PROP.has(page) ? page : routeKey;"), "what it mounts under is a separate question");
+  assert.ok(shell.includes("<div key={mountKey}"), "and the surface is keyed on that, not on the gate key");
+  assert.ok(shell.includes('routeReady(page, param)'), "the readiness check still sees the param");
+
+  // Opt-IN, and only for a surface that follows its param. Getting this list
+  // wrong in the other direction shows the wrong entity, so the default has to
+  // be the safe one.
+  assert.match(shell, /const PARAM_FOLLOWED_AS_PROP = new Set\(\["admin", "inbox"\]\);/);
+  const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  assert.ok(settings.includes("const active = SET_TABS.find(t => t.id === tab)"), "Settings derives its tab every render");
+  const inbox = readCode("apps/dashboard/src/legacy/pages/inbox.jsx");
+  assert.ok(inbox.includes("}, [initialThreadId]);"), "the Inbox follows a later deep-link");
+});
