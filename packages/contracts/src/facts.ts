@@ -34,7 +34,7 @@
  * fixed. So the typed value is used, the disagreement is RECORDED, and a
  * person decides. Detect and expose; never guess.
  */
-import { normalizePhone } from "./phone";
+import { normalizePhone, formatPhoneDisplay } from "./phone";
 
 /** Where an answer came from, strongest claim first. */
 export type FactSource =
@@ -186,8 +186,18 @@ export function resolveFacts(typed: TypedFacts | null | undefined, known?: Known
       known?.listing?.name ? "verified" : "workspace",
       sameName,
     ),
-    // The one that matters. Compared against the line the receptionist answers.
-    phone_display: typedOverKnown(trimmed(typed?.phone_display), voice, "provisioned", samePhone),
+    // The one that matters, and the one that should usually be absent.
+    //
+    // The fallback is FORMATTED, not raw E.164: this value is spoken and
+    // written to customers -- "Phone: +13083368109" in a prompt becomes a
+    // receptionist reading digits aloud -- so the provisioned line arrives as
+    // "+1 (308) 336-8109", the way a person says a number.
+    phone_display: typedOverKnown(
+      trimmed(typed?.phone_display),
+      voice ? formatPhoneDisplay(voice) : null,
+      "provisioned",
+      samePhone,
+    ),
     booking_link: typedOverKnown(trimmed(typed?.booking_link), null, "absent", strEq),
     address: typedOverKnown(trimmed(p?.address), trimmed(known?.listing?.address), "verified", sameAddress),
     website: typedOverKnown(trimmed(p?.website), null, "absent", strEq),

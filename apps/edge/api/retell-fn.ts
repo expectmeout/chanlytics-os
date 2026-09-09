@@ -29,7 +29,7 @@ import { pg } from "../lib/pg.js";
 import { loadTenantRuntime, waCfgFor } from "../lib/tenant-runtime.js";
 import { effectiveReplyMode } from "../lib/reply-posture.js";
 import { resolveChannel, resolveOutboundTarget, recordOutbound, countSentToday, personReplyMode } from "../lib/workspace/db.js";
-import { isOptedOutContact, normalizePhone } from "../lib/workspace/contracts.js";
+import { isOptedOutContact, normalizePhone, resolveFacts } from "../lib/workspace/contracts.js";
 import { sendTemplate } from "../lib/workspace/channels.js";
 import { outboundGate, refusalScript } from "../lib/outbound-gate.js";
 
@@ -101,6 +101,11 @@ export async function POST(request: Request): Promise<Response> {
 
   const rt = await loadTenantRuntime(db, routed);
   const brain = rt.brain;
+  // The number a caller is told to ring, through the same resolver the prompt
+  // uses: the published override when a business set one, otherwise the line
+  // this receptionist answers. Reading brain.phone_display straight from the
+  // document is what let a salon send callers to its transfer number.
+  const publishedNumber = brain ? resolveFacts(brain, rt.known).phone_display.value : null;
   if (!brain) {
     // Same rule the receptionist follows: a business with no configured profile
     // does not speak in a voice we invented for it.
@@ -160,7 +165,7 @@ export async function POST(request: Request): Promise<Response> {
       log("retell_fn_refused", { tenant: routed.tenantId, reason: gate.refusal, mode: replyMode, person_mode: personMode });
       // The caller is on the line, so the agent is told what to SAY — never
       // that a colleague is mid-thread with them, or what our policy is.
-      return json(200, { result: refusalScript(gate.refusal!, brain.phone_display) });
+      return json(200, { result: refusalScript(gate.refusal!, publishedNumber) });
     }
 
     const params = [brain.business_name, brain.booking_link.replace(/^https?:[/][/]/, "")];
@@ -187,7 +192,9 @@ export async function POST(request: Request): Promise<Response> {
         meta: { source: VOICE_SEND_SOURCE, call_id: call.call_id ?? null, http_status: sent.status },
       }).catch((e) => console.error("retell_fn_record_failed", e instanceof Error ? e.message : e));
       return json(200, {
-        result: `The text could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach us on ${brain.phone_display}.`,
+        result: publishedNumber
+          ? `The text could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach us on ${publishedNumber}.`
+          : "The text could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, and take their name.",
       });
     }
 

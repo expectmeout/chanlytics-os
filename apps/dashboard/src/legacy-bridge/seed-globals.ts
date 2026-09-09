@@ -8,7 +8,7 @@
  */
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-import { ROLE_PERMS, SOURCE_WORDS, samePhone } from "@chanlytics/contracts";
+import { ROLE_PERMS, SOURCE_WORDS, samePhone, whyNotAPhone } from "@chanlytics/contracts";
 
 declare global {
   interface Window {
@@ -18,6 +18,7 @@ declare global {
     ROLE_PERMS: typeof ROLE_PERMS;
     __FACT_WORDS: typeof SOURCE_WORDS;
     __samePhone: typeof samePhone;
+    __whyNotAPhone: typeof whyNotAPhone;
   }
 }
 
@@ -42,6 +43,10 @@ if (typeof window !== "undefined") {
   // rolled its own comparison would accuse a workspace of a conflict for
   // writing its own number in a friendly format.
   window.__samePhone = samePhone;
+  // Why a typed number is not one anyone can be reached on, in the owner's
+  // words. The published number is now optional, so the only thing standing
+  // between a typo and a receptionist reading it aloud is this check.
+  window.__whyNotAPhone = whyNotAPhone;
 }
 
 export {};

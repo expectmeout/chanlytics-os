@@ -98,7 +98,12 @@ test("the form collects the three things a receptionist cannot exist without", (
     assert.ok(pane.includes(field), `${field} must be editable`);
   }
   assert.ok(pane.includes("business_name: name,"));
-  assert.ok(pane.includes("phone_display: phone,"));
+  // Written as undefined, never "". Absent is the schema's way of saying "use
+  // the line the receptionist answers", and it is the default: a required
+  // free-text copy of a provisioned number is how the first live salon came
+  // to publish the number it transfers to.
+  assert.ok(pane.includes("phone_display: phone || undefined,"));
+  assert.ok(pane.includes('(!phone && !voiceLine) ? "a phone number"'), "and only a workspace with no line AND nothing typed is missing one");
   assert.ok(pane.includes("booking_link: link,"));
 });
 

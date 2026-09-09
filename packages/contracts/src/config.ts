@@ -348,7 +348,24 @@ export type Closure = z.infer<typeof ClosureSchema>;
 export const BrainConfigSchema = z
   .object({
     business_name: z.string().min(1).max(120),
-    phone_display: z.string().min(3).max(40),
+    /**
+     * The number the receptionist tells customers to call — an OVERRIDE, and
+     * optional because it should almost never be set.
+     *
+     * It was required, free text, and named the same as the line the
+     * receptionist answers, so every workspace typed something into it and
+     * nothing checked what. On the first live salon that produced a
+     * receptionist publishing the number it transfers to: customers who rang
+     * it reached a person's mobile and never the receptionist standing by,
+     * and the same string went to Google.
+     *
+     * Absent is now the right answer and the default: resolveFacts falls back
+     * to the provisioned voice line, formatted for speech, so the number
+     * published is the number answered by construction. A value here means a
+     * business deliberately publishes something else — a tracking line, a
+     * shopfront — and the pane says so in those words.
+     */
+    phone_display: z.string().min(3).max(40).optional(),
     booking_link: z.string().url().max(500),
     /** The complete system prompt the model receives — the "AI memory" pane's
      *  one hard promise is that what it shows is EXACTLY this, nothing more. */
@@ -908,7 +925,7 @@ export function describeNow(
 }
 
 export function composeSystemPrompt(
-  base: { business_name: string; phone_display: string; booking_link: string },
+  base: { business_name: string; phone_display?: string | null; booking_link: string },
   profile: BusinessProfile,
   channel: "whatsapp" | "voice" = "whatsapp",
   /** IANA zone from `tenants.timezone`, so stated hours are unambiguous. */
@@ -928,7 +945,7 @@ export function composeSystemPrompt(
 }
 
 function composeSystemPromptWith(
-  base: { business_name: string; phone_display: string; booking_link: string },
+  base: { business_name: string; phone_display?: string | null; booking_link: string },
   profile: BusinessProfile,
   channel: "whatsapp" | "voice",
   tz: string | null | undefined,
@@ -949,7 +966,10 @@ function composeSystemPromptWith(
   }
 
   if (profile.address) s.push(`\nAddress: ${profile.address}`);
-  s.push(`Phone: ${base.phone_display}`);
+  // Omitted when there is none. A receptionist that has no number to give is
+  // not improved by being told to say "undefined"; it answers, offers the
+  // booking link, and does not invent a way to be phoned.
+  if (base.phone_display) s.push(`Phone: ${base.phone_display}`);
   s.push(`Booking link: ${base.booking_link}`);
   if (profile.website) s.push(`Website: ${profile.website}`);
 
@@ -1183,7 +1203,7 @@ export function resolveSystemPrompt(
   const facts = resolveFacts(brain, known);
   const resolved = {
     business_name: facts.business_name.value ?? brain.business_name,
-    phone_display: facts.phone_display.value ?? brain.phone_display,
+    phone_display: facts.phone_display.value,
     booking_link: facts.booking_link.value ?? brain.booking_link,
   };
   // NOTHING a workspace already had may be lost by filling in a form.
