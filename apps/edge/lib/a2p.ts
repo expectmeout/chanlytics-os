@@ -10,7 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./workspace/db.js";
 import {
-  runA2PSaga, smsStateFor, registrationVerdict, LOW_VOLUME_USECASE, deleteCampaignRequest,
+  runA2PSaga, smsStateFor, registrationVerdict, LOW_VOLUME_USECASE, deleteCampaignRequest, updateCampaignRequest,
   encodeForm, soleProprietorUnsupported, type A2PPorts, type A2PRequest, type A2PState, type BusinessRecord,
 } from "./workspace/channels.js";
 import { formatPhoneDisplay } from "./workspace/contracts.js";
@@ -166,41 +166,57 @@ export async function unfileMockRegistration(db: Db, line: LineRow): Promise<{ o
 }
 
 /**
- * Take a REJECTED campaign off a line so a corrected one can replace it.
+ * Correct a campaign the carriers sent back, and send it again. Free.
  *
- * A rejection is not a verdict on the business, it is a correction request:
- * the first real campaign this product filed came back with two of them --
- * a privacy page that never named the company behind it, and a description
- * naming a business that appeared on neither the brand nor the website. Both
- * were fixable in an afternoon. A line that could not then re-file would have
- * been permanently unable to text over a missing address.
+ * This replaced a delete-and-refile, which was the expensive way round and I
+ * had to be asked "why do we have to spend another $15?" to go and check.
+ * Twilio's own guidance:
  *
- * The BRAND stays. It was approved on its own, separately, it is the expensive
- * half of a registration, and the carriers did not refuse it. Only the campaign
- * is deleted and cleared -- which is exactly what they sent back.
+ *   "A vetting fee is assessed only once per Campaign. So if a Campaign is
+ *    rejected its important to resubmit it rather than deleting and recreating
+ *    a new campaign."
  *
- * `sms_state` returns to `approved`, because that is what is still true: the
- * business is through, the campaign is the step that has to happen again.
+ * So the QE resource stays and its three text fields are rewritten in place.
+ * Nothing is charged, the brand is untouched, and a rejection can be answered
+ * as many times as it takes -- which matters, because the corrections are
+ * usually a line of copy and a reviewer only tells you one round at a time.
+ *
+ * The row goes back to `registering`: it is with the carriers again.
  */
-export async function unfileRejectedCampaign(db: Db, line: LineRow): Promise<{ ok: boolean; error?: string; row?: LineRow }> {
+export async function resubmitRejectedCampaign(
+  db: Db,
+  line: LineRow,
+  facts: { description: string; messageFlow: string; samples: string[] },
+): Promise<{ ok: boolean; error?: string; row?: LineRow }> {
   const L = logger({ tenant_id: line.tenant_id, line_id: line.id });
-  if (line.messaging_service_sid && line.campaign_sid) {
-    const sub = await lineAccount(db, line).catch(() => null);
-    if (!sub) return { ok: false, error: "no_line_credentials" };
-    const req = deleteCampaignRequest(line.messaging_service_sid, line.campaign_sid);
-    const r = await fetch(req.url, {
-      method: req.method,
-      headers: { Authorization: `Basic ${Buffer.from(`${sub.sid}:${sub.token}`).toString("base64")}` },
-      signal: AbortSignal.timeout(20000),
-    }).catch(() => null);
-    const gone = !!r && (r.ok || r.status === 404);
-    L.info("a2p.rejected_campaign_deleted", { status: r?.status ?? 0, ok: gone });
-    if (!gone) return { ok: false, error: `the rejected campaign would not come off (HTTP ${r?.status ?? 0})` };
+  if (!line.messaging_service_sid || !line.campaign_sid) return { ok: false, error: "no_campaign_to_resubmit" };
+  const sub = await lineAccount(db, line).catch(() => null);
+  if (!sub) return { ok: false, error: "no_line_credentials" };
+
+  const req = updateCampaignRequest(line.messaging_service_sid, line.campaign_sid, {
+    description: facts.description,
+    messageFlow: facts.messageFlow,
+    samples: facts.samples,
+  });
+  const r = await fetch(req.url, {
+    method: req.method,
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${sub.sid}:${sub.token}`).toString("base64")}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: encodeForm(req.form ?? {}),
+    signal: AbortSignal.timeout(20000),
+  }).catch(() => null);
+  if (!r || !r.ok) {
+    const detail = r ? (await r.text().catch(() => "")).slice(0, 200) : "no answer";
+    L.error("a2p.campaign_resubmit_refused", { status: r?.status ?? 0, detail });
+    return { ok: false, error: `the campaign could not be resubmitted (HTTP ${r?.status ?? 0}) ${detail}` };
   }
+  L.info("a2p.campaign_resubmitted", { campaign: line.campaign_sid });
+
   const cleared = await db.from("lines").update({
-    campaign_sid: null,
+    sms_state: "registering",
     reg_step: null,
-    sms_state: "approved",
     last_error: null,
     state_since: new Date().toISOString(),
   }).eq("id", line.id).select("*").single();

@@ -382,6 +382,43 @@ export function campaignRequest(f: CampaignFacts): A2PRequest {
 }
 
 /**
+ * Correct a campaign the carriers sent back, and resubmit it.
+ *
+ * NOT a delete and a re-create, and the difference is money. Twilio assesses
+ * the campaign vetting fee ONCE PER CAMPAIGN, at its first vetting decision:
+ *
+ *   "A vetting fee is assessed only once per Campaign. So if a Campaign is
+ *    rejected its important to resubmit it rather than deleting and recreating
+ *    a new campaign."
+ *
+ * A replacement campaign is a new submission and is charged again ($15 on the
+ * first one this product filed). An edit of the same QE resource is not. So a
+ * rejection costs nothing to answer, however many times it takes -- which is
+ * the right shape anyway, because a rejection is a correction request and the
+ * corrections are usually one line of copy.
+ *
+ * All seven fields are required on every update, including the four booleans;
+ * a campaign TCR has already approved may not change those, so they are passed
+ * back exactly as they were sent.
+ */
+export function updateCampaignRequest(
+  messagingServiceSid: string,
+  campaignSid: string,
+  f: Pick<CampaignFacts, "description" | "messageFlow" | "samples">,
+): A2PRequest {
+  const form: Record<string, string | string[]> = {
+    Description: f.description,
+    MessageFlow: f.messageFlow,
+    HasEmbeddedLinks: "true",
+    HasEmbeddedPhone: "true",
+    AgeGated: "false",
+    DirectLending: "false",
+  };
+  form.MessageSamples = f.samples.slice(0, 5);
+  return { url: `${MESSAGING}/Services/${messagingServiceSid}/Compliance/Usa2p/${campaignSid}`, method: "POST", form };
+}
+
+/**
  * Take the campaign off a Messaging Service.
  *
  * A service holds ONE campaign, so a second POST is refused while the first is

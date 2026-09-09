@@ -21,7 +21,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "./_fake-db.mjs";
 import { readCode, readRaw } from "./_source.mjs";
-import { unfileMockRegistration, unfileRejectedCampaign } from "../../../apps/edge/lib/a2p.ts";
+import { unfileMockRegistration } from "../../../apps/edge/lib/a2p.ts";
 import { MOCK_TEXTING_SENTENCE } from "@chanlytics/contracts";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
@@ -141,7 +141,7 @@ test("the route's three answers: a real filing is final, a rehearsal is replacea
   assert.ok(route.includes('error: "already_registered"'));
   assert.ok(route.includes('error: "mock_registration"'), "a rehearsal says what it is instead");
   assert.ok(route.includes("if (!refile) {"), "and asks to be told before replacing it");
-  assert.ok(route.includes("? await unfileMockRegistration(db, row.data)"), "a rehearsal is undone by the mock path");
+  assert.ok(route.includes("const off = await unfileMockRegistration(db, row.data);"), "a rehearsal is undone by the mock path");
   assert.ok(route.includes("row.data = off.row;"), "the saga runs against the cleared row, not the stale one");
   assert.ok(
     route.includes("const mock = !refile && body.mock === true;"),
@@ -208,30 +208,36 @@ test("a question we could not ask is never reported as an answer", () => {
     "and something is watching this sweep to receive that 503");
 });
 
-test("a rejection is a correction request, not a dead end", async () => {
-  // The first real campaign came back FAILED with two reasons, both fixable in
-  // an afternoon:
+test("a rejection is answered by CORRECTING the campaign, not paying for a new one", async () => {
+  // Ruben asked "why do we have to spend another $15?" and the answer was that
+  // we do not. Twilio:
   //
-  //   [30919] the privacy page never named the company behind it
-  //   [30907] the description named a business that appeared on neither the
-  //           brand nor the registered website
+  //   "A vetting fee is assessed only once per Campaign. So if a Campaign is
+  //    rejected its important to resubmit it rather than deleting and
+  //    recreating a new campaign."
   //
-  // Under the old rule -- "a real filing is final" -- that line could never
-  // have texted, over a missing address.
-  const rejected = mockFiled({ reg_mock: false, sms_state: "rejected", messaging_service_sid: null, last_error: "the carriers sent the registration back" });
-  const lines = [rejected];
-  const db = fakeDb({ lines });
-  const r = await unfileRejectedCampaign(db, rejected);
-  assert.equal(r.ok, true);
-  assert.equal(lines[0].campaign_sid, null, "the campaign the carriers refused comes off");
-  assert.equal(lines[0].brand_sid, rejected.brand_sid, "the BRAND stays -- it was approved separately, and it is the expensive half");
-  assert.equal(lines[0].sms_state, "approved", "which is what is still true: the business is through, the campaign has to happen again");
-  assert.equal(lines[0].last_error, null);
+  // The first version of this path deleted the campaign and filed a new one,
+  // which answers a rejection by buying a second vetting -- $15, every time,
+  // for every workspace, on corrections that are usually one line of copy.
+  const chan = readCode("packages/channels/src/a2p.ts");
+  assert.ok(chan.includes("export function updateCampaignRequest("));
+  assert.ok(chan.includes("Compliance/Usa2p/${campaignSid}`, method: \"POST\""), "the INSTANCE url with POST is the edit");
+  // All seven are required on every update, and the four booleans may not
+  // change on a campaign TCR has approved, so they go back as they were sent.
+  for (const f of ["Description:", "MessageFlow:", "MessageSamples", "HasEmbeddedLinks:", "HasEmbeddedPhone:", "AgeGated:", "DirectLending:"]) {
+    assert.ok(chan.slice(chan.indexOf("export function updateCampaignRequest(")).includes(f), `the update sends ${f}`);
+  }
+  const lib = readCode("apps/edge/lib/a2p.ts");
+  assert.ok(lib.includes("export async function resubmitRejectedCampaign("));
+  assert.ok(!lib.includes("unfileRejectedCampaign"), "REGRESSION: the delete-and-pay-again path is gone");
+  assert.ok(lib.includes('sms_state: "registering",'), "and the row says it is back with the carriers");
 
   const route = readCode("apps/edge/api/admin/lines.ts");
+  assert.ok(route.includes("const again = await resubmitRejectedCampaign(db, row.data, facts);"));
+  assert.ok(route.includes("const t = await db.from(\"tenants\").select(\"name, slug\")"),
+    "the workspace is re-read at resubmit time -- the corrections are the point");
   assert.ok(route.includes('const rejected = row.data.sms_state === "rejected";'));
   assert.ok(route.includes("if (!row.data.reg_mock && !rejected) {"), "a filing that stands is still final");
-  assert.ok(route.includes('error: "campaign_rejected"') && route.includes("reason: row.data.last_error"), "and says what to correct");
-  assert.ok(route.includes("? await unfileMockRegistration(db, row.data)") && route.includes(": await unfileRejectedCampaign(db, row.data);"),
-    "a rehearsal and a rejection are undone differently: one keeps no brand, the other keeps its own");
+  assert.ok(readRaw("apps/edge/lib/a2p.ts").includes("vetting fee is assessed only once per Campaign"),
+    "and the reason is quoted where the next person will change it back");
 });

@@ -22,7 +22,7 @@ import { emitEvent } from "../../lib/workspace/db.js";
 import { formatPhoneDisplay } from "../../lib/workspace/contracts.js";
 import { runLineSaga, isAreaCode, isE164, LINE_COSTS, type LineRow } from "../../lib/workspace/channels.js";
 import { lineProviderFromEnv, linePorts, lineForClient, rowToLine, LINE_STEP_WORDS, type LineProviderChoice } from "../../lib/lines.js";
-import { registerLine, syncRegistration, unfileMockRegistration, unfileRejectedCampaign } from "../../lib/a2p.js";
+import { registerLine, syncRegistration, unfileMockRegistration, resubmitRejectedCampaign, campaignFactsFor } from "../../lib/a2p.js";
 import { businessTypeOf, companyTypeOf, industryOf } from "../../lib/workspace/contracts.js";
 import { dashboardOrigin } from "../../lib/billing.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -296,7 +296,7 @@ export async function POST(request: Request): Promise<Response> {
         return json(409, {
           ok: false,
           error: "campaign_rejected",
-          hint: "the carriers sent this campaign back; correct what they named, then send refile: true to file it again",
+          hint: "the carriers sent this campaign back; correct what they named, then send refile: true to resubmit it (an edit, so no second vetting fee)",
           reason: row.data.last_error,
           brand_sid: row.data.brand_sid, campaign_sid: row.data.campaign_sid,
         });
@@ -309,9 +309,30 @@ export async function POST(request: Request): Promise<Response> {
           brand_sid: row.data.brand_sid, campaign_sid: row.data.campaign_sid,
         });
       }
-      const off = row.data.reg_mock
-        ? await unfileMockRegistration(db, row.data)
-        : await unfileRejectedCampaign(db, row.data);
+      if (rejected) {
+        // CORRECTED IN PLACE, not replaced. Twilio assesses the campaign
+        // vetting fee once per campaign, at its first vetting decision, so an
+        // edit of the same QE resource costs nothing while a replacement is a
+        // fresh $15. This path used to delete and re-file, which answered a
+        // rejection by paying for it again -- every time, for every workspace.
+        // The workspace's own name and slug, read HERE rather than reused from
+        // the filing: a rejection is answered after the facts were corrected,
+        // and those corrections are exactly what has to reach the carriers.
+        const t = await db.from("tenants").select("name, slug").eq("id", tenantId).maybeSingle();
+        if (!t.data) return json(503, { ok: false, error: "no_workspace" });
+        const base = dashboardOrigin();
+        const facts = campaignFactsFor({
+          businessName: t.data.name,
+          optInUrl: `${base}/yes/${t.data.slug}`,
+          privacyUrl: `${base}/privacy`,
+          termsUrl: `${base}/terms`,
+        });
+        const again = await resubmitRejectedCampaign(db, row.data, facts);
+        if (!again.ok || !again.row) return json(502, { ok: false, error: again.error ?? "resubmit_failed" });
+        const after = await db.from("lines").select("*").eq("id", lineId).single();
+        return json(200, { ok: true, resubmitted: true, smsState: again.row.sms_state, line: after.data ? lineForClient(after.data) : null });
+      }
+      const off = await unfileMockRegistration(db, row.data);
       if (!off.ok || !off.row) return json(503, { ok: false, error: off.error ?? "unfile_failed" });
       row.data = off.row;
     }
