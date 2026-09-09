@@ -6,17 +6,19 @@
 
 **Reading order:** P0 items are the ones I would not open signup without. P1 items are what makes the business operable once people are in. P2 is polish that changes what a customer perceives, not whether the product works.
 
-| # | PRD | Priority | Size | Blocks signup? |
-|---|---|---|---|---|
-| 1 | Who may spend | P0 | ~1 day | **Yes** |
-| 2 | The front door | P0 | ~half day | **Yes** |
-| 3 | Sweeps that serve every tenant | P0 | ~1 day | Yes, at volume |
-| 4 | A green nightly and a true DR copy | P0 | ~half day | Yes |
-| 5 | The back office | P1 | ~2 days | No, but support is impossible without it |
-| 6 | An ops door a human can open | P1 | ~half day | No |
-| 7 | Businesses without an EIN | P1 | ~3 days | No — decides market size |
-| 8 | Registration a salon can complete | P1 | ~2–3 days | No — decides onboarding cost |
-| 9 | What a paying customer actually sees | P2 | ~1 day | No |
+> **Status, 9 September 2026: all four P0 gates are shipped and merged.** #291, #292, #293, #294. Migrations 00088 and 00089 applied; `sweep_health` reports 10 of 10 healthy. One decision is left with Ruben and is called out under gate 2: production still runs `open`, because closing somebody's front door is not a change to make without asking.
+
+| # | PRD | Priority | Size | Blocks signup? | State |
+|---|---|---|---|---|---|
+| 1 | Who may spend | P0 | ~1 day | **Yes** | **shipped** #291 |
+| 2 | The front door | P0 | ~half day | **Yes** | **shipped** #293 · *env not flipped* |
+| 3 | Sweeps that serve every tenant | P0 | ~1 day | Yes, at volume | **shipped** #294 |
+| 4 | A green nightly and a true DR copy | P0 | ~half day | Yes | **shipped** #292 |
+| 5 | The back office | P1 | ~2 days | No, but support is impossible without it | next |
+| 6 | An ops door a human can open | P1 | ~half day | No | |
+| 7 | Businesses without an EIN | P1 | ~3 days | No — decides market size | your call |
+| 8 | Registration a salon can complete | P1 | ~2–3 days | No — decides onboarding cost | |
+| 9 | What a paying customer actually sees | P2 | ~1 day | No | |
 
 ---
 
