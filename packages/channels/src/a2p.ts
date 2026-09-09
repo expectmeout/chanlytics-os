@@ -639,7 +639,11 @@ export interface CampaignError {
   fields?: readonly string[] | null;
 }
 
-const PREAMBLE = /^the campaign submission has been reviewed and (?:it was )?rejected because (?:of )?/i;
+// The trailing whitespace is \s* rather than a literal space: a description that
+// is ONLY the preamble did not match, so the boilerplate this exists to remove
+// was the one thing that survived it -- and with a code appended it read as a
+// rejection reason that says nothing at all.
+const PREAMBLE = /^the campaign submission has been reviewed and (?:it was )?rejected because\s*(?:of\s*)?/i;
 
 export function refusalWords(o: {
   brandFailureReason?: string | null;
@@ -649,10 +653,13 @@ export function refusalWords(o: {
   const brand = (o.brandFailureReason ?? "").trim();
   if (brand) parts.push(brand);
   for (const e of o.campaignErrors ?? []) {
-    const said = String(e?.description ?? "").trim();
-    if (!said) continue;
+    const said = String(e?.description ?? "");
     // A trailing full stop before the code reads as a false sentence end.
-    const body = said.replace(PREAMBLE, "").trim().replace(/\.$/, "");
+    const body = said.replace(PREAMBLE, "").trim().replace(/\.$/, "").trim();
+    // Nothing left once the boilerplate is gone: contributing an empty string
+    // here would make the whole result a non-null empty string, and every caller
+    // uses `?? fallback` -- which an empty string sails straight past.
+    if (!body) continue;
     // The code and the field are what a resubmit is aimed at, so they travel
     // with the sentence rather than in a log line nobody opens.
     const tags = [e?.error_code == null ? null : String(e.error_code), ...(e?.fields ?? [])].filter(Boolean);
@@ -722,11 +729,28 @@ export function registrationVerdict(
       event: "line.texting_approved",
     };
   }
-  if (after === "rejected" || after === "failed") {
+  // TWO different states, and one of them is not the owner's to fix. `rejected`
+  // is a correction request: change something and send it again. `failed` is a
+  // SUSPENDED brand (smsStateFor), which no owner can act on -- and telling them
+  // to "correct your business on record and file it again" sends somebody to
+  // edit a form that will change nothing, twice, before they call us. The rest
+  // of the product already says the right thing about `failed` (textingWords:
+  // "a person at Chanlytics has it"); this used to be the one place that did
+  // not.
+  if (after === "rejected") {
     return {
       kind: "alert",
       title: "The carriers sent your texting registration back",
       body: `${o.reason ? `They said: ${o.reason}. ` : ""}Open Connections, correct your business on record, and file it again. Calls and WhatsApp are unaffected.`,
+      route: "admin/integrations",
+      event: "line.texting_rejected",
+    };
+  }
+  if (after === "failed") {
+    return {
+      kind: "alert",
+      title: "Your texting registration stopped",
+      body: `${o.reason ? `The carriers said: ${o.reason}. ` : ""}A person at Chanlytics has it — there is nothing for you to do. Calls and WhatsApp are unaffected.`,
       route: "admin/integrations",
       event: "line.texting_rejected",
     };

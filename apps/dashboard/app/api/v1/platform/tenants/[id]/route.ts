@@ -1,7 +1,7 @@
 import { withRoute } from "@/server/with-route";
 import { AppError } from "@chanlytics/contracts";
 import { requireUuid } from "@/server/request-guards";
-import { requirePlatformAdmin, platformTenant, platformEvents, platformDb } from "@/server/platform";
+import { backOffice, platformTenant, platformEvents } from "@/server/platform";
 import { setupDtoFor } from "@/server/setup";
 
 /**
@@ -14,8 +14,10 @@ import { setupDtoFor } from "@/server/setup";
  * so the rows on this page and the rows the customer is staring at cannot
  * differ.
  *
- * `role: "owner"` because a support question is always about what the owner can
- * see and do -- the most complete view, and the one being asked about.
+ * The viewer is `back_office`, which is a different kind of reader rather than
+ * an owner-shaped one: it has no session, so its path must never reach an RPC
+ * that asks who is signed in. The first version passed the string "owner" and
+ * every detail read 500'd on `team_roster`, which checks `auth.uid()`.
  *
  * The events are the trail `emitEvent` has been writing all along on every
  * provisioning step, filing, connection and billing change, and which nothing
@@ -26,13 +28,13 @@ import { setupDtoFor } from "@/server/setup";
  * as a workspace's own verb.
  */
 export const GET = withRoute(async (_req, ctx) => {
-  await requirePlatformAdmin(ctx);
+  const office = await backOffice(ctx);
   const id = requireUuid(ctx.params.id, "workspace");
-  const tenant = await platformTenant(id);
+  const tenant = await platformTenant(office, id);
   if (!tenant) throw new AppError("not_found", "No such workspace.", 404);
   const [setup, events] = await Promise.all([
-    setupDtoFor(platformDb(), id, "owner"),
-    platformEvents(id),
+    setupDtoFor(office.db, id, { kind: "back_office" }),
+    platformEvents(office, id),
   ]);
   return { tenant, setup, events };
 });

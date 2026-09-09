@@ -6539,20 +6539,24 @@ var at = (iso) => {
 };
 var OURS_TO_FIX = ["failed"];
 var THEIRS_TO_FIX = ["needs_record", "otp_waiting", "rejected"];
+function billingBites(mode, status) {
+  if (mode !== "stripe") return false;
+  return !receptionistOn(status) || status === "past_due";
+}
 function verdictFor(r, nowMs) {
   if (r.status === "test") return "test";
-  if (r.status === "paused") return "paused";
   const mode = r.billing_mode ?? "direct";
   const status = r.billing_status ?? "none";
   const answering = r.voice_active === true || r.whatsapp_active === true;
   const age = nowMs - (at(r.created_at) ?? nowMs);
   if (r.voice_state === "failed" || OURS_TO_FIX.includes(r.sms_state ?? "")) return "broken";
-  if (mode === "stripe" && !receptionistOn(status)) return "billing";
-  if (mode === "stripe" && status === "past_due") return "billing";
+  if (billingBites(mode, status)) return "billing";
+  if (r.status === "paused") return "paused";
   if (r.reg_mock === true) return "rehearsal";
-  if (!answering) return age > PLATFORM_NEW_DAYS * DAY ? "stalled" : "new";
+  if (!answering && age <= PLATFORM_NEW_DAYS * DAY) return "new";
   if (THEIRS_TO_FIX.includes(r.sms_state ?? "")) return "waiting_owner";
   if (mode === "stripe" && !maySpend(mode, status)) return "waiting_owner";
+  if (!answering) return "stalled";
   const heard = at(r.last_inbound_at);
   if (heard === null) return age > PLATFORM_QUIET_DAYS * DAY ? "quiet" : "new";
   if (nowMs - heard > PLATFORM_QUIET_DAYS * DAY) return "quiet";
@@ -6571,13 +6575,18 @@ function sentenceFor(r, verdict, nowMs) {
     case "stalled":
       return `Set up ${agoWords(at(r.created_at) ?? nowMs, nowMs)} and nothing answers yet${r.members <= 1 ? ", with one person in the workspace" : ""}.`;
     case "waiting_owner": {
+      const mode = r.billing_mode ?? "direct";
+      const status = r.billing_status ?? "none";
+      if (!THEIRS_TO_FIX.includes(r.sms_state ?? "") && mode === "stripe") {
+        return whyCannotSpend(mode, status) ?? "Something about their billing needs them.";
+      }
       const words = textingWords({ sms_state: r.sms_state ?? "none", reg_mock: r.reg_mock ?? false, reg_sole_prop: r.reg_sole_prop ?? false }).sentence;
       return r.line_error ? `${words} \u2014 ${r.line_error}` : words;
     }
     case "quiet":
       return quietFor === null ? "Answering, and no customer has ever reached them." : `Answering, and no customer has reached them in ${quietFor} days.`;
     case "new":
-      return `Signed up ${agoWords(at(r.created_at) ?? nowMs, nowMs)}, still setting up.`;
+      return r.voice_active === true || r.whatsapp_active === true ? `Answering since ${agoWords(at(r.created_at) ?? nowMs, nowMs)}; no customer has reached them yet.` : `Signed up ${agoWords(at(r.created_at) ?? nowMs, nowMs)}, still setting up.`;
     case "live":
       return `Answering; last heard from ${heard === null ? "never" : agoWords(heard, nowMs)}.`;
     case "paused":

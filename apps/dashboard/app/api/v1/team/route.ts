@@ -9,5 +9,7 @@ import { teamRoster } from "@/server/service";
  */
 export const GET = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
-  return await teamRoster(ctx.supabase, member.tenantId, member.role);
+  // The role is not passed down: teamRoster echoed it back untouched and nothing
+  // in the app ever read it. The page learns who it is from /api/v1/workspaces.
+  return await teamRoster(ctx.supabase, member.tenantId);
 });

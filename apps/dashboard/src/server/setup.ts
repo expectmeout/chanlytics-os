@@ -18,30 +18,68 @@ import "server-only";
  * That is the whole point of the back office: support sees exactly what the
  * customer sees, not a second rendering that can disagree with it. Which is
  * only true while this is one function -- so it is one, and the client and the
- * tenant id are arguments.
+ * viewer are arguments.
+ *
+ * WHY THE VIEWER IS A DISCRIMINATED UNION AND NOT A ROLE STRING. The first
+ * version took `role: string` and the back office passed "owner". That looked
+ * harmless and broke the whole surface: the roster it fed goes through
+ * `team_roster`, a SECURITY DEFINER function whose first statement checks
+ * `auth.uid()` against memberships. On the service client `auth.uid()` is NULL,
+ * so the RPC raised 42501, teamRoster rethrew it, and EVERY detail read 500'd.
+ * It shipped that way because every test around it either called pure contract
+ * functions or stubbed the fetch.
+ *
+ * A string could not have prevented that; a type can. `back_office` is a
+ * different kind of viewer, not an owner-shaped one, and it reads the two
+ * numbers Setup actually needs -- how many members, how many open invitations --
+ * with plain counting queries. No roster, and therefore no member's email ever
+ * crosses the tenant boundary, which is the right answer on privacy grounds too.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import { getTenantConfig } from "@chanlytics/db";
 import { parseTenantConfigResult, starterByName, resolveFacts, factConflicts, type SetupDto } from "@chanlytics/contracts";
-import { calendarWeek } from "@/server/calendar";
-import { teamRoster } from "@/server/service";
-import { linesFor, linesStatus } from "@/server/lines";
-import { listingFor, connectionFor, googleReadiness } from "@/server/google";
-import { billingFor, billingReadiness } from "@/server/billing";
+import { calendarWeek } from "./calendar";
+import { teamRoster } from "./service";
+import { linesFor, linesStatus } from "./lines";
+import { listingFor, connectionFor, googleReadiness } from "./google";
+import { billingFor, billingReadiness } from "./billing";
+
+/**
+/**
+ * Who is looking, which decides what may be read and how.
+ *
+ * `member` is a signed-in person reading their own workspace on the session
+ * client, where RLS is the enforcement and definer RPCs can see `auth.uid()`.
+ * `back_office` is support reading somebody else's on the service client, where
+ * there is no session at all -- so nothing on that path may call a function that
+ * asks who is signed in.
+ */
+export type SetupViewer = { kind: "member" } | { kind: "back_office" };
+
+/** How many people are in the workspace and how many invitations are open -- the only two numbers Setup uses. */
+async function teamCounts(supabase: SupabaseClient<Database>, tenantId: string): Promise<{ members: number; invitesOpen: number }> {
+  const [members, invites] = await Promise.all([
+    supabase.from("memberships").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId),
+    supabase.from("invitations").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId)
+      .is("accepted_at", null).is("revoked_at", null),
+  ]);
+  if (members.error) throw new Error(members.error.message);
+  if (invites.error) throw new Error(invites.error.message);
+  return { members: members.count ?? 0, invitesOpen: invites.count ?? 0 };
+}
 
 /**
  * @param supabase the client to read with -- session-scoped for a workspace
  *   reading its own, service-role for the back office reading another's.
- * @param role the caller's role in that workspace, which the team roster needs
- *   to decide what it may show. The back office passes "owner": it is looking
- *   at what the owner would see, which is the most complete view and the one a
- *   support question is always about.
+ * @param viewer which of those two this is. It is not a preference: the back
+ *   office has no session, so the path it takes must never reach an RPC that
+ *   reads `auth.uid()`.
  */
 export async function setupDtoFor(
   supabase: SupabaseClient<Database>,
   tenantId: string,
-  role: string,
+  viewer: SetupViewer,
   now = new Date(),
 ): Promise<SetupDto> {
 
@@ -54,7 +92,7 @@ export async function setupDtoFor(
       .order("started_at", { ascending: false, nullsFirst: false }).limit(1).maybeSingle(),
     supabase.from("templates").select("name, meta_status, hidden_at").eq("tenant_id", tenantId),
     calendarWeek({ supabase }, tenantId, { from: null, days: 7 }, now, { canAct: false }).catch(() => null),
-    teamRoster(supabase, tenantId, role),
+    viewer.kind === "member" ? teamRoster(supabase, tenantId) : teamCounts(supabase, tenantId),
     supabase.from("contacts").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("consent", "opted_in").is("erased_at", null),
     supabase.from("notifications").select("created_at").eq("tenant_id", tenantId).eq("subject_type", "setup")
       .order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -130,8 +168,10 @@ export async function setupDtoFor(
     },
     calendar: { state: calendar?.feed.state ?? "none" },
     team: {
-      members: team.members.length,
-      invitesOpen: team.invites.length,
+      // Either shape answers the same two questions; the member path already
+      // has the roster in hand, the back office never asks for it.
+      members: "members" in team && Array.isArray(team.members) ? team.members.length : (team as { members: number }).members,
+      invitesOpen: "invites" in team ? team.invites.length : (team as { invitesOpen: number }).invitesOpen,
       alertEmails: cfg?.notifications?.escalation_emails?.length ?? 0,
     },
     consent: { yes: yes.count ?? 0 },

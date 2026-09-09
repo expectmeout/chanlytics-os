@@ -23,7 +23,10 @@ export interface PlatformEventVM {
   category: string;
   subject_type: string | null;
   created_at: string;
-  data: unknown;
+  // No `data`. The payload is unbounded -- emitEvent writes numbers, addresses
+  // and provider ids from every corner of the product -- and the page renders
+  // none of it. Shipping another business's payloads to a browser to be thrown
+  // away is not a thing a cross-tenant surface gets to do by accident.
 }
 
 export interface PlatformTenantDetail {

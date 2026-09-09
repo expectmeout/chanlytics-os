@@ -467,7 +467,15 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<{ ok: boo
   // `compliance[0].errors[]` -- one level below where the old code looked, the
   // same place the campaign's STATUS was once missed -- so every campaign
   // rejection stored the generic fallback and the actual causes were dropped.
-  const reason = smsState === "rejected"
+  //
+  // BOTH refusing states, not just `rejected`. smsStateFor maps a SUSPENDED
+  // brand to `failed`, and the first version computed the reason only for
+  // `rejected` -- so a suspension read its failure_reason, threw it away, and
+  // then wrote last_error: null over whatever was there. The one state where
+  // the carriers explain themselves at most length was the one that recorded
+  // nothing.
+  const refusing = smsState === "rejected" || smsState === "failed";
+  const reason = refusing
     ? refusalWords({
         brandFailureReason: typeof brand?.failure_reason === "string" ? brand.failure_reason : null,
         campaignErrors: Array.isArray(usa2p?.errors) ? (usa2p.errors as CampaignError[]) : null,
@@ -488,14 +496,19 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<{ ok: boo
   // The carriers answering is the whole point of the wait, so the owner is
   // told — once, on the change. The sweep runs hourly; a bell every hour
   // would bury the one that matters.
+  // `mock`, not `line.reg_mock`: the value read from Twilio a few lines above is
+  // the authority, and the column is what it was BEFORE this sync. Passing the
+  // stale one announced a refile that had just become real as "this was a test
+  // filing, so nothing routes" -- telling an owner their working texting does
+  // not work, in the one message that exists to tell them it does.
   const verdict = registrationVerdict(line.sms_state, smsState, {
     number: formatPhoneDisplay(line.e164) ?? line.e164,
     reason,
-    mock: line.reg_mock,
+    mock,
   });
   if (verdict) {
     await recordNotification(line.tenant_id, { kind: verdict.kind, title: verdict.title, body: verdict.body, route: verdict.route, about: { type: "line", id: line.id } });
-    await emitEvent(db, line.tenant_id, verdict.event, "setup", "line", line.id, { e164: line.e164, from: line.sms_state, to: smsState, mock: line.reg_mock }).catch(() => {});
+    await emitEvent(db, line.tenant_id, verdict.event, "setup", "line", line.id, { e164: line.e164, from: line.sms_state, to: smsState, mock }).catch(() => {});
   }
   return { ok: true, smsState, brand: brandStatus ?? undefined, campaign: campaignStatus ?? undefined, told: !!verdict };
 }

@@ -1,33 +1,34 @@
 import "server-only";
 
 /**
- * The back office's server side: who may look across workspaces, and the two
- * reads that do.
+ * The back office's server side: who may look across workspaces, and the reads
+ * that do.
  *
- * THE ONE RULE. Every path to cross-tenant data passes `requirePlatformAdmin`,
- * and that function asks the DATABASE — `is_platform_admin()`, which reads
+ * THE ONE RULE. Every path to cross-tenant data passes `backOffice(ctx)`, and
+ * that function asks the DATABASE — `is_platform_admin()`, which reads
  * `platform_admins` for `auth.uid()` and can answer about nobody else. There is
  * no env var, no key, and no list in this file: an answer that lives in two
  * places is an answer that can disagree with itself, and the copy that says
  * "yes" wins by accident.
  *
- * The list read (`platformOverview`) does not even need this helper -- the RPC
- * carries the same check as its first statement, so a route that forgot would
- * get a 403 from Postgres rather than somebody else's customers. It calls it
- * anyway, because the refusal should read the same on both routes.
+ * THE CAPABILITY IS THE CHECK. The first version exported `platformDb()` — a
+ * service-role client, no arguments, available to any module that imported it —
+ * and relied on a test walking one directory to prove nothing else did. That is
+ * the wrong shape for the one boundary in this product where reading another
+ * business's data is a feature: a grep cannot see a route that has not been
+ * written yet, and the route that matters is the one somewhere ELSE that
+ * imports it.
  *
- * The detail read DOES need it, and that is the honest asymmetry in the design.
- * Rendering another workspace's Setup means running the app's own assembly --
- * sixteen queries across a dozen tables -- which is TypeScript, so it cannot
- * live inside an RPC. It runs on the service client, and the only thing standing
- * between it and a customer's data is this function, called first. Which is why
- * a test asserts that every route under app/api/v1/platform calls it.
+ * So the client is unreachable except as a property of a `BackOffice` handle,
+ * and the only way to construct one is to await `backOffice(ctx)`, which throws
+ * unless the database says yes. The type is branded so it cannot be forged from
+ * an object literal either. Nothing is exported that hands out authority.
  */
 import { createServiceClient } from "@chanlytics/db";
 import type { Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError, type PlatformTenantDto } from "@chanlytics/contracts";
-import type { RouteContext } from "@/server/with-route";
+import type { RouteContext } from "./with-route";
 
 let svc: SupabaseClient<Database> | null = null;
 function serviceDb(): SupabaseClient<Database> {
@@ -38,45 +39,75 @@ function serviceDb(): SupabaseClient<Database> {
   return svc;
 }
 
+declare const backOfficeBrand: unique symbol;
+
 /**
- * Refuse anyone the database refuses.
+ * Proof that the database said this session is a platform admin, carrying the
+ * client that proof unlocks. Only `backOffice()` can make one.
+ */
+export interface BackOffice {
+  readonly [backOfficeBrand]: true;
+  /** Service-role, RLS off, every workspace. Reachable only through the check above it. */
+  readonly db: SupabaseClient<Database>;
+  /** The session client, for the reads whose own RPC carries the same check. */
+  readonly session: SupabaseClient<Database>;
+}
+
+/**
+ * Ask the database whether this session may look across workspaces.
+ *
+ * Three answers, not two, and the third is the one that was wrong: a database
+ * that cannot answer is not a "no". Telling a real admin "No such page" during
+ * a Postgres hiccup is exactly the moment they opened the back office for.
+ */
+async function admitted(ctx: RouteContext): Promise<boolean> {
+  const { data, error } = await ctx.supabase.rpc("is_platform_admin");
+  if (error) throw new AppError("internal", "Could not check that just now — try again in a moment.", 503);
+  return data === true;
+}
+
+/**
+ * The back office, or a refusal.
  *
  * 404, not 403: a customer who guessed the URL learns nothing about whether
  * there is a back office behind it. A real admin never sees this.
  */
-export async function requirePlatformAdmin(ctx: RouteContext): Promise<void> {
-  const { data, error } = await ctx.supabase.rpc("is_platform_admin");
-  if (error) throw new AppError("not_found", "No such page.", 404);
-  if (data !== true) throw new AppError("not_found", "No such page.", 404);
+export async function backOffice(ctx: RouteContext): Promise<BackOffice> {
+  if (!(await admitted(ctx))) throw new AppError("not_found", "No such page.", 404);
+  return { db: serviceDb(), session: ctx.supabase } as BackOffice;
 }
 
-/** Whether this session may see the back office at all. Never throws: the answer "no" is ordinary. */
+/** Whether the back office exists for this session. For the nav, which needs a boolean rather than a door. */
 export async function isPlatformAdmin(ctx: RouteContext): Promise<boolean> {
-  const { data, error } = await ctx.supabase.rpc("is_platform_admin");
-  return !error && data === true;
+  return admitted(ctx).catch(() => false);
 }
 
 /**
  * Every workspace, from the guarded RPC.
  *
  * Read on the SESSION client on purpose. The check inside the function is
- * `auth.uid()`, so it only passes for a real signed-in admin -- the service-role
+ * `auth.uid()`, so it only passes for a real signed-in admin — the service-role
  * key gets a 403 from it like everybody else, which is a property worth keeping
  * rather than routing around.
  */
-export async function platformOverview(ctx: RouteContext): Promise<PlatformTenantDto[]> {
-  const { data, error } = await ctx.supabase.rpc("platform_overview");
+export async function platformOverview(office: BackOffice): Promise<PlatformTenantDto[]> {
+  const { data, error } = await office.session.rpc("platform_overview");
   if (error) {
-    // 42501 is the function's own refusal. Anything else is ours to own.
+    // 42501 is the function's own refusal — which the caller has already been
+    // cleared past, so seeing it here means the two checks disagree.
     if (error.code === "42501") throw new AppError("not_found", "No such page.", 404);
     throw new Error(error.message);
   }
-  return (data ?? []) as PlatformTenantDto[];
+  // No cast: the generated Functions type is precise, so a column renamed in a
+  // future migration fails the build here rather than shipping `undefined` to
+  // the page.
+  const rows: PlatformTenantDto[] = data ?? [];
+  return rows;
 }
 
-/** One workspace's identity, for the detail view's heading. Service client: the admin check has already passed. */
-export async function platformTenant(tenantId: string): Promise<{ id: string; slug: string; name: string; status: string; timezone: string; created_at: string } | null> {
-  const { data, error } = await serviceDb()
+/** One workspace's identity, for the detail view's heading. */
+export async function platformTenant(office: BackOffice, tenantId: string): Promise<{ id: string; slug: string; name: string; status: string; timezone: string; created_at: string } | null> {
+  const { data, error } = await office.db
     .from("tenants")
     .select("id, slug, name, status, timezone, created_at")
     .eq("id", tenantId)
@@ -90,29 +121,30 @@ export interface PlatformEvent {
   category: string;
   subject_type: string | null;
   created_at: string;
-  data: unknown;
 }
 
 /**
  * What has happened in a workspace lately.
  *
  * The ledger `emitEvent` already writes on every provisioning step, filing,
- * connection and billing change -- the trail that was only ever readable by
+ * connection and billing change — the trail that was only ever readable by
  * hand. Capped and newest-first: this answers "what changed just before it
  * broke", which is a short question.
+ *
+ * `data` is deliberately NOT selected. It is the one unbounded field on this
+ * route — emitEvent's payloads carry numbers, addresses and provider ids from
+ * every corner of the product — and the page renders none of it. Sending
+ * another business's payloads to a browser to be thrown away is the kind of
+ * quiet over-reach a cross-tenant surface has no excuse for. If support ever
+ * needs one, it should be a deliberate per-event read with a named field list.
  */
-export async function platformEvents(tenantId: string, limit = 40): Promise<PlatformEvent[]> {
-  const { data, error } = await serviceDb()
+export async function platformEvents(office: BackOffice, tenantId: string, limit = 40): Promise<PlatformEvent[]> {
+  const { data, error } = await office.db
     .from("events")
-    .select("kind, category, subject_type, created_at, data")
+    .select("kind, category, subject_type, created_at")
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) throw new Error(error.message);
   return (data ?? []) as PlatformEvent[];
-}
-
-/** The client the detail view assembles Setup with. Only ever reached after requirePlatformAdmin. */
-export function platformDb(): SupabaseClient<Database> {
-  return serviceDb();
 }

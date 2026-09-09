@@ -1,5 +1,5 @@
 import { withRoute } from "@/server/with-route";
-import { requirePlatformAdmin, platformOverview } from "@/server/platform";
+import { backOffice, platformOverview } from "@/server/platform";
 
 /**
  * GET /api/v1/platform/overview — every workspace, for the back office.
@@ -11,11 +11,10 @@ import { requirePlatformAdmin, platformOverview } from "@/server/platform";
  *
  * No workspace scope, and so no `memberContext`: the question is not "which of
  * my workspaces" but "all of them". Authorization is `is_platform_admin()` in
- * the database, called twice on the way through -- once here so the refusal
- * reads the same as every other platform route, and once inside the RPC, where
- * it cannot be forgotten.
+ * the database, and `backOffice()` is the only way to obtain the handle the
+ * reads below take -- so a route cannot reach them without passing it.
  */
 export const GET = withRoute(async (_req, ctx) => {
-  await requirePlatformAdmin(ctx);
-  return { tenants: await platformOverview(ctx) };
+  const office = await backOffice(ctx);
+  return { tenants: await platformOverview(office) };
 });
