@@ -14,7 +14,11 @@ export default function SignupPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  const [codeRequired, setCodeRequired] = useState<boolean | null>(null);
+  // null until the server says which door this is. The button stays disabled
+  // meanwhile, because "Create workspace" on a page that is actually a waitlist
+  // is a promise the next screen breaks.
+  const [posture, setPosture] = useState<"open" | "waitlist" | "invite" | null>(null);
+  const [joined, setJoined] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tz, setTz] = useState<string | undefined>(undefined);
@@ -28,8 +32,11 @@ export default function SignupPage() {
     // person cannot fill.
     fetch("/api/v1/signup", { method: "GET", headers: { accept: "application/json" } })
       .then((r) => r.json())
-      .then((j: { data?: { code_required?: boolean } }) => setCodeRequired(!!j?.data?.code_required))
-      .catch(() => setCodeRequired(false));
+      .then((j: { data?: { posture?: "open" | "waitlist" | "invite"; code_required?: boolean } }) =>
+        // `posture` is what this page reads now; the boolean is the fallback for
+        // an API deployed before it, since the two ship separately.
+        setPosture(j?.data?.posture ?? (j?.data?.code_required ? "invite" : "open")))
+      .catch(() => setPosture("open"));
   }, []);
 
   async function submit(e: React.FormEvent) {
@@ -40,13 +47,17 @@ export default function SignupPage() {
       const res = await fetch("/api/v1/signup", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), ...(tz ? { timezone: tz } : {}), ...(codeRequired ? { code: code.trim() } : {}) }),
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), ...(tz ? { timezone: tz } : {}), ...(posture === "invite" ? { code: code.trim() } : {}) }),
       });
-      const j = (await res.json().catch(() => null)) as { ok?: boolean; data?: { next?: string }; error?: { message?: string } } | null;
+      const j = (await res.json().catch(() => null)) as { ok?: boolean; data?: { next?: string | null; waitlisted?: boolean }; error?: { message?: string } } | null;
       if (!res.ok || !j?.ok) {
         setError(j?.error?.message ?? "Something went wrong. Try again.");
         return;
       }
+      // A waitlist submission has nowhere to go: no code is coming and there is
+      // no screen to enter one on. Say so here rather than navigating somewhere
+      // that would ask for one.
+      if (j.data?.waitlisted) { setJoined(true); return; }
       window.location.assign(j.data?.next ?? `/login?email=${encodeURIComponent(email.trim())}&sent=1`);
     } catch {
       setError("Could not reach Chanlytics just now. Try again.");
@@ -55,25 +66,43 @@ export default function SignupPage() {
     }
   }
 
+  const waiting = posture === "waitlist";
+
+  if (joined) {
+    return (
+      <main className="auth-card" data-testid="signup-joined">
+        <h1>{SIGNUP_WORDS.waitlistTitle}</h1>
+        <p>{SIGNUP_WORDS.waitlistSent(email.trim())}</p>
+        <div className="hint">
+          Already have a workspace? <a href="/login">Sign in</a>
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <main className="auth-card" data-testid="signup">
-      <h1>{SIGNUP_WORDS.title}</h1>
-      <p>{SIGNUP_WORDS.lead}</p>
+    <main className="auth-card" data-testid="signup" data-posture={posture ?? "unknown"}>
+      <h1>{waiting ? SIGNUP_WORDS.waitlistTitle : SIGNUP_WORDS.title}</h1>
+      <p>{waiting ? SIGNUP_WORDS.waitlistLead : SIGNUP_WORDS.lead}</p>
       <form onSubmit={submit}>
         <label htmlFor="name">Business name</label>
         <input id="name" type="text" autoComplete="organization" required minLength={2} maxLength={120} ref={fieldRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="Luna Studio" />
         <label htmlFor="email">Work email</label>
         <input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" />
-        {codeRequired && (
+        {posture === "invite" && (
           <>
             <label htmlFor="code">Invite code</label>
             <input id="code" type="text" autoComplete="off" required value={code} onChange={(e) => setCode(e.target.value)} placeholder="From your Chanlytics contact" />
           </>
         )}
-        <button disabled={busy || codeRequired === null}>{busy ? "Creating your workspace…" : "Create workspace"}</button>
+        <button disabled={busy || posture === null}>
+          {busy ? (waiting ? "Adding you…" : "Creating your workspace…") : waiting ? SIGNUP_WORDS.waitlistCta : "Create workspace"}
+        </button>
       </form>
-      {tz && <div className="hint">{SIGNUP_WORDS.clock(tz)}</div>}
-      {codeRequired && <div className="hint">{SIGNUP_WORDS.codeRequired}</div>}
+      {/* The device clock is read to set the workspace's timezone. On the
+          waitlist there is no workspace yet, so saying so would be noise. */}
+      {tz && !waiting && <div className="hint">{SIGNUP_WORDS.clock(tz)}</div>}
+      {posture === "invite" && <div className="hint">{SIGNUP_WORDS.codeRequired}</div>}
       <div role="alert" aria-live="assertive">
         {error && <div className="error">{error}</div>}
       </div>

@@ -6179,11 +6179,26 @@ var SignupSchema = z4.object({
   /** The invite code, when sign-up is by invitation. */
   code: z4.string().trim().max(80).optional()
 }).strict();
+var SIGNUP_WAITLIST = "waitlist";
+function signupPosture(code2) {
+  if (!code2) return "open";
+  return code2 === SIGNUP_WAITLIST ? "waitlist" : "invite";
+}
 var SIGNUP_WORDS = {
   title: "Create your workspace",
   lead: "Your business gets its own workspace: the receptionist, the inbox, the numbers. You become its owner.",
   sent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it on the next screen to open your workspace.`,
   codeRequired: "Sign-up is by invitation right now. Enter the invite code you were given.",
+  /* ---------------------------------------------------------- the waitlist
+   * Said the way a person would say it: what is true, when they will hear,
+   * and no apology. "We are onboarding businesses in small groups" is the
+   * honest reason -- the product provisions phone numbers and files carrier
+   * registrations per customer, and doing that badly at volume is worse for
+   * the people already inside than making the next ones wait. */
+  waitlistTitle: "Join the list",
+  waitlistLead: "We are onboarding businesses in small groups, so every new workspace gets set up properly. Leave your details and we will send you an invite.",
+  waitlistSent: (email) => `You are on the list. We will write to ${email} when there is room \u2014 usually within a week.`,
+  waitlistCta: "Join the list",
   codeWrong: "That invite code is not right.",
   crossSite: "That request did not come from this site.",
   haveOne: "Already have a workspace?",
@@ -6764,6 +6779,7 @@ export {
   SHORTCUTS,
   SIGNUP_NAME_MAX,
   SIGNUP_NAME_MIN,
+  SIGNUP_WAITLIST,
   SIGNUP_WORDS,
   SOURCE_WORDS,
   STARTER_LANGUAGES,
@@ -6997,6 +7013,7 @@ export {
   shortcutGroups,
   shouldLandOnSetup,
   signupNext,
+  signupPosture,
   slotLabels,
   slugTemplateName,
   smsStateRow,
