@@ -171,3 +171,36 @@ test("one sentence for a rehearsal, wherever an owner meets it", () => {
   assert.ok(conn.includes("if (line?.reg_mock) {") && conn.includes("textingWords(line).sentence"));
   assert.ok(!/test registry/.test(conn), "and it holds no copy of the sentence");
 });
+
+test("a question we could not ask is never reported as an answer", () => {
+  // The live case, found the hard way: the subaccount's auth token was rotated
+  // in the provider's console, our Vault copy died, and every read in
+  // syncRegistration answered 401. The status was discarded, so 401 and "the
+  // carriers are still thinking" both became null -- and null means "no answer
+  // yet". The line would have sat in `registering` for ever with nothing wrong
+  // on any page and a cheerful 200 from the sweep every hour.
+  const lib = readCode("apps/edge/lib/a2p.ts");
+  assert.ok(lib.includes("return { status: r.status, body:"), "the read carries the status");
+  assert.ok(lib.includes("x.status === 401 || x.status === 403"), "and a refusal is recognised as one");
+  assert.ok(lib.includes('error: "provider_unauthorized"'), "and reported as a refusal, not as a state");
+  assert.ok(!/const brandStatus = typeof brand\?\.status === "string" \? brand\.status : null;[\s\S]{0,40}const campaignStatus[\s\S]{0,80}campaign\?\.campaign_status/.test(lib), "REGRESSION: statuses read straight off a possibly-refused body");
+
+  // The platform heals itself rather than waiting for somebody to paste a
+  // secret: the parent account can read its own subaccounts' tokens, which is
+  // how the saga got this one in the first place.
+  const sms = readCode("apps/edge/lib/sms.ts");
+  assert.ok(sms.includes("export async function refreshLineToken("));
+  assert.ok(sms.includes("Accounts/${line.subaccount_sid}.json"), "read as the parent");
+  assert.ok(sms.includes('db.rpc("put_line_credentials"'), "and written back through the one write path");
+  assert.ok(lib.includes("const fresh = await refreshLineToken(db, line);"));
+  assert.ok(readRaw("apps/edge/lib/sms.ts").includes("the platform's own Twilio credentials were refused"),
+    "a master-credential fault is named as itself, so nobody is sent looking at the subaccount");
+
+  // And the sweep says so out loud. Every line unreadable is OUR fault, not a
+  // quiet week, so it fails the request and sweep_health turns it red.
+  const sweep = readCode("apps/edge/api/cron/registrations.ts");
+  assert.ok(sweep.includes("let unreadable = 0;") && sweep.includes('error: "no_registration_readable"'));
+  assert.ok(sweep.includes("if (unreadable > 0 && unreadable === lines.length)"), "some readable is still a 200 -- those rows carry their own reason");
+  assert.ok(readRaw("supabase/migrations/00086_watch_every_sweep.sql").includes("('registration',  'registration-sweep'"),
+    "and something is watching this sweep to receive that 503");
+});

@@ -56,10 +56,21 @@ export async function POST(request: Request): Promise<Response> {
   const origin = dashboardOrigin();
   let filed = 0;
   let moved = 0;
+  // Lines we could not ASK about, as opposed to lines the carriers have not
+  // answered yet. The difference was invisible: a refused credential and a
+  // brand still in review both left the row exactly as it was, so a sweep that
+  // could see nothing looked identical to a quiet hour.
+  let unreadable = 0;
   for (const line of lines) {
     try {
       const r = await syncRegistration(db, line);
-      if (!r.ok) continue;
+      if (!r.ok) {
+        if (r.error === "provider_unauthorized" || r.error === "no_line_credentials" || /credentials/.test(r.error ?? "")) {
+          unreadable++;
+          L.error("registration_unreadable", { line_id: line.id, error: r.error });
+        }
+        continue;
+      }
       // Moved means CHANGED. Counting "not registering any more" called a
       // line that has sat in the same state for a week a move, every hour.
       if (r.smsState !== line.sms_state) moved++;
@@ -85,6 +96,14 @@ export async function POST(request: Request): Promise<Response> {
       L.error("registration_sweep_line_failed", { line_id: line.id, error: e instanceof Error ? e.message : String(e) });
     }
   }
-  L.info("registration_sweep", { checked: lines.length, campaigns_filed: filed, states_moved: moved });
-  return json(200, { ok: true, checked: lines.length, campaigns_filed: filed, states_moved: moved });
+  L.info("registration_sweep", { checked: lines.length, campaigns_filed: filed, states_moved: moved, unreadable });
+  // Every line unreadable means the sweep ran and learned nothing -- our
+  // credentials, not the carriers. 503 so sweep_health turns this red and the
+  // platform is told, instead of the sweep reporting a cheerful 200 for ever
+  // while a registration stands still. Some lines readable is a 200: the ones
+  // that failed carry their reason on the row.
+  if (unreadable > 0 && unreadable === lines.length) {
+    return json(503, { ok: false, error: "no_registration_readable", checked: lines.length, unreadable });
+  }
+  return json(200, { ok: true, checked: lines.length, campaigns_filed: filed, states_moved: moved, unreadable });
 }
