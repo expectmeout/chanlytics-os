@@ -6365,7 +6365,7 @@ function smsStateRow(line, nowMs) {
     case "needs_record":
       return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Texting needs your business on record for the carriers \u2014 two minutes, once.", verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
     case "otp_waiting":
-      return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Type the code the carriers sent to your mobile." };
+      return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "The carriers texted your mobile \u2014 reply to that message from your phone and texting switches on. The code expires after a day; ask for a new one from here if it does.", verb: { label: "Send it again", to: "verb:resend-otp", who: "owner" } };
     case "registering":
     case "hosting":
       return { ...base, state: "waiting_them", stateWords: "Waiting on carriers", sentence: `The carriers are registering your line, since ${since} \xB7 usually a week.` };

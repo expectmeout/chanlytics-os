@@ -1045,8 +1045,42 @@ declare const A2P_POLICIES: {
     readonly secondaryCustomerProfile: "RNdfbf3fae0e1107f8aded0e7cead80bf5";
     /** The messaging profile a brand is registered from. */
     readonly a2pMessaging: "RNb0d4771c2c98518d916a3d4cd70a8f8b";
-    /** A customer with no tax id registers on this one instead. */
+    /**
+     * A customer with no tax id registers on a PAIR of these instead, and it is
+     * a pair -- half of it was here for months and the other half was missing,
+     * which is why the path was refused rather than built.
+     *
+     * Verified against the live Policies API on 2026-09-09, because filing
+     * against the wrong policy produces a registration that is refused after it
+     * has been paid for:
+     *
+     *   RN806dd6... "Starter Customer Profile of type Business"
+     *   RN670d5d... "Sole Proprietor TrustProduct"
+     */
+    readonly starterCustomerProfile: "RN806dd6cd175f314e1f96a9727ee271f4";
     readonly soleProprietor: "RN670d5d2e282a6130ae063b234b6019c8";
+};
+/**
+ * What a sole-proprietor registration can do, from the carriers' own limits.
+ *
+ * Stated as data because every one of these has to be said to the owner BEFORE
+ * they register -- a business that finds out about 1,000 messages a day after
+ * committing has been mis-sold, and the number is not ours to soften.
+ */
+declare const SOLE_PROP_LIMITS: {
+    readonly campaignsPerBrand: 1;
+    readonly numbersPerCampaign: 1;
+    readonly messagesPerSecond: 1;
+    readonly perDayTMobile: 1000;
+    readonly perMinuteAtt: 15;
+    /**
+     * TCR counts these across EVERY vendor, not just Chanlytics -- a customer who
+     * tried this with another provider has already spent some. Neither is
+     * checkable by us in advance, so both are said out loud instead.
+     */
+    readonly mobileUsesEver: 3;
+    readonly emailUsesEver: 10;
+    readonly addressUsesEver: 10;
 };
 declare const TRUSTHUB = "https://trusthub.twilio.com/v1";
 declare const MESSAGING = "https://messaging.twilio.com/v1";
@@ -1078,6 +1112,13 @@ interface BusinessRecord {
     contactLastName: string;
     contactEmail: string;
     /** E.164. */
+    /**
+     * The owner's own mobile. The form has always labelled it "Mobile -- yours,
+     * not the business line", and on a sole-proprietor registration that label
+     * becomes load-bearing: the carriers TEXT this number and the owner has to
+     * reply from it, so it must be a real handset. TCR also caps it at three
+     * sole-proprietor registrations across every vendor, for ever.
+     */
     contactPhone: string;
     contactTitle: string;
     contactJobPosition: string;
@@ -1086,14 +1127,30 @@ type BrandType = "STANDARD" | "SOLE_PROPRIETOR";
 /** With a tax id a business is a standard brand; without one it is a sole proprietor. */
 declare function brandTypeFor(r: Pick<BusinessRecord, "ein">): BrandType;
 /**
- * A business with no tax id registers on a DIFFERENT path: a starter
- * profile on the sole-proprietor policy, and a one-time code the owner
- * reads off their own mobile. None of that is built here, and filing a
- * sole proprietor against the business policy produces a registration the
- * carriers reject — which, on a real filing, is a fee spent on nothing.
- * So it is refused before anything is created, by name.
+ * What a sole-proprietor registration still needs, in the owner's words, or an
+ * empty list when it can go.
+ *
+ * This REPLACED a flat refusal. `soleProprietorUnsupported` returned true for
+ * every business without a tax id and the route turned them away by name --
+ * which meant a solo barber, a chair renter, a one-person salon could have
+ * calls and WhatsApp and never texting, and only found out at the end of a
+ * form. They are customers; the path is narrower, and the narrowness is
+ * something to state rather than a reason to refuse.
+ *
+ * Everything here is a field WE can check. The three limits TCR counts across
+ * every vendor -- the mobile's three uses, the email's ten, the address's ten
+ * -- are not checkable by anyone but TCR, so they are said out loud in the
+ * form instead of pretended about here.
  */
-declare function soleProprietorUnsupported(r: Pick<BusinessRecord, "ein">): boolean;
+declare function whatSoleProprietorNeeds(r: Pick<BusinessRecord, "ein" | "contactPhone" | "contactFirstName" | "contactLastName" | "contactEmail" | "street" | "city" | "region" | "postalCode" | "country">, 
+/**
+ * The numbers this workspace was given BY US. A mobile that is one of them
+ * is a CPaaS number, which TCR refuses for a sole-proprietor brand -- and it
+ * is the mistake a business makes without noticing, because it is the number
+ * on their own website. Checkable, so checked, rather than discovered after
+ * the fee.
+ */
+ourNumbers?: readonly string[]): string[];
 interface A2PRequest {
     url: string;
     method: "GET" | "POST" | "DELETE";
@@ -1114,6 +1171,40 @@ declare function customerProfileRequest(o: {
     statusCallback?: string;
 }): A2PRequest;
 /** The business itself, in the carriers' vocabulary. */
+/**
+ * The customer profile a business with no tax id gets.
+ *
+ * Same shape as customerProfileRequest, different policy -- and the difference
+ * is the whole path: the Starter profile asks for a person (name, email,
+ * phone) and an address, where the Secondary asks for a company, a tax id, an
+ * authorised representative and a document proving the address.
+ */
+declare function starterProfileRequest(o: {
+    friendlyName: string;
+    email: string;
+    statusCallback?: string;
+}): A2PRequest;
+/**
+ * The person, for a starter profile. Four fields, verified from the policy's
+ * own requirements rather than a guess: first_name, last_name, email,
+ * phone_number.
+ */
+declare function starterEndUserRequest(r: BusinessRecord): A2PRequest;
+/** The messaging profile bundle a sole proprietor's brand is registered from. */
+declare function soleProprietorProfileRequest(o: {
+    friendlyName: string;
+    email: string;
+    statusCallback?: string;
+}): A2PRequest;
+/**
+ * The three facts the Sole Proprietor TrustProduct asks for, from its own
+ * policy: brand_name, mobile_phone_number, vertical.
+ *
+ * The mobile is the whole reason this end user exists -- it is where the
+ * carriers send the one-time code, and it is the field a business gets wrong
+ * by giving the number customers call.
+ */
+declare function soleProprietorEndUserRequest(r: BusinessRecord, industry: string): A2PRequest;
 declare function businessEndUserRequest(r: BusinessRecord): A2PRequest;
 /** The person who signs for it. */
 declare function representativeEndUserRequest(r: BusinessRecord): A2PRequest;
@@ -1134,6 +1225,8 @@ declare function supportingDocumentRequest(o: {
  */
 declare function updateEndUserRequest(sid: string, attributes: Record<string, unknown>): A2PRequest;
 declare function businessAttributes(r: BusinessRecord): Record<string, unknown>;
+/** The starter profile's one end user, refreshed the same way. */
+declare function starterAttributes(r: BusinessRecord): Record<string, unknown>;
 declare function representativeAttributes(r: BusinessRecord): Record<string, unknown>;
 /** Everything a bundle carries is attached the same way. */
 declare function assignRequest(bundleSid: string, objectSid: string): A2PRequest;
@@ -1213,10 +1306,11 @@ declare function keywordsFor(words: readonly string[]): string[];
 /**
  * Twilio's code for a small business sending a bit of everything.
  *
- * There is no sole-proprietor code here on purpose: that registration is
- * refused by name (soleProprietorUnsupported) until its own path is built,
- * and a constant kept for a path nobody can take is just something to
- * maintain.
+ * The same use case for both registrations. A sole proprietor's ceiling is set
+ * by the BRAND -- one campaign, one number, a thousand messages a day on
+ * T-Mobile (SOLE_PROP_LIMITS) -- not by the use case, so there is nothing to
+ * choose here and choosing anyway would be a second place for the two paths to
+ * disagree.
  */
 declare const LOW_VOLUME_USECASE = "LOW_VOLUME";
 declare function campaignRequest(f: CampaignFacts): A2PRequest;
@@ -1275,8 +1369,18 @@ interface A2PState {
     campaignSid: string | null;
 }
 declare const EMPTY_A2P_STATE: A2PState;
-/** The first step whose receipt is missing; null when the registration is filed. */
-declare function nextA2PStep(s: A2PState): A2PStep | null;
+/**
+ * The first step whose receipt is missing; null when the registration is filed.
+ *
+ * TWO LISTS, because there are two registrations. A business with a tax id
+ * files a company: its name, its EIN, an authorised representative who signs
+ * for it, and a document proving the address. A sole proprietor files a
+ * PERSON: their name, their email, their address, and the mobile the carriers
+ * will text. Neither is a subset of the other, so this is a fork rather than a
+ * flag -- and the shared steps (address, primary, submit, brand, campaign) are
+ * genuinely shared, which is why one function still answers for both.
+ */
+declare function nextA2PStep(s: A2PState, brandType?: BrandType): A2PStep | null;
 /**
  * The campaign cannot be filed until the carriers have finished with the
  * brand. That is a WAIT, not a refusal: everything asked for was accepted,
@@ -1341,6 +1445,8 @@ interface A2PPorts {
         name: string;
     };
     record: BusinessRecord;
+    /** Twilio's vertical enum. The sole-proprietor end user asks for it by name. */
+    industry: string;
     campaign: Omit<CampaignFacts, "brandSid" | "messagingServiceSid" | "useCase">;
     messagingServiceSid: string;
     useCase: string;
@@ -1714,4 +1820,4 @@ declare function verifyState(secret: string, state: string | null | undefined, n
 }>;
 declare function newNonce(): string;
 
-export { type A2PAnswer, type A2PPorts, type A2PRequest, type A2PResult, type A2PState, type A2PStep, A2P_POLICIES, A2P_STEPS, type AgentPlan, type AvailableNumber, type BrandType, type BusinessRecord, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, type CampaignFacts, DEFAULT_FN_URL, type DryCall, type DryProvider, EMPTY_A2P_STATE, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, GREETING_DEFAULT, type GbpAccount, type GbpLocation, type GbpReview, type GbpReviewsPage, HANDOFF_VAR, type KnownReview, LINE_COSTS, LINE_STEPS, LOW_VOLUME_USECASE, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, MESSAGING, type NormalizedCall, type NormalizedInbound, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type ProfileBefore, type ProfileSyncPlan, type ProviderAccount, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, RETELL_ORIGINATION, REVIEW_BELL_MAX, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, STATE_TTL_MS, type SagaResult, type SendResult, type SmsInbound, type SmsRegistrationState, type SmsSendResult, TRUSTHUB, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, a2pProfileEndUserRequest, a2pProfileRequest, accountsRequest, addressRequest, agentSettingsDrift, assignRequest, authorizeUrl, availabilityUrl, b64url, brandRequest, brandTypeFor, businessAttributes, businessEndUserRequest, callSummaryLine, campaignRequest, chooseLineProvider, cleanReply, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, customerProfileRequest, deleteCampaignRequest, deleteReplyRequest, desiredVoiceShell, dryProvider, encodeForm, evaluateRequest, evaluateTrustProductRequest, fetchMediaBytes, fetchRecording, fetchTwilio, getAgent, getAgentRaw, getCall, getPhoneNumber, getPlace, getRetellLlm, grantHasScope, idTokenClaims, importPhoneNumber, isAreaCode, isBrandNotReady, isE164, isValidSipPassword, keywordsFor, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, needsHydration, newNonce, nextA2PStep, nextLineStep, normalizeCall, normalizeInbound, parseAccounts, parseLocations, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, publishAgentVersion, registrationVerdict, replyRequest, replyToReview, representativeAttributes, representativeEndUserRequest, retellImportBody, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, runA2PSaga, runLineSaga, sameSignature, searchPlaces, sendTemplate, sendText, signState, sipPassword, sipUsername, smsAsWaMessage, smsBody, smsInboundFrom, smsInboundUrl, smsStateFor, soleProprietorUnsupported, starRatingNumber, stripKey, submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, trustProductAssignRequest, twilioProvider, twilioSignature, twilioSignedString, twilioUrls, unb64url, updateAgent, updateCampaignRequest, updateEndUserRequest, updateLiveCall, updatePhoneNumber, verifyRetellSignature, verifyState, verifyTwilioSignature, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withKey };
+export { type A2PAnswer, type A2PPorts, type A2PRequest, type A2PResult, type A2PState, type A2PStep, A2P_POLICIES, A2P_STEPS, type AgentPlan, type AvailableNumber, type BrandType, type BusinessRecord, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, type CampaignFacts, DEFAULT_FN_URL, type DryCall, type DryProvider, EMPTY_A2P_STATE, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, GREETING_DEFAULT, type GbpAccount, type GbpLocation, type GbpReview, type GbpReviewsPage, HANDOFF_VAR, type KnownReview, LINE_COSTS, LINE_STEPS, LOW_VOLUME_USECASE, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, MESSAGING, type NormalizedCall, type NormalizedInbound, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type ProfileBefore, type ProfileSyncPlan, type ProviderAccount, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, RETELL_ORIGINATION, REVIEW_BELL_MAX, type RecordingFetch, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, SOLE_PROP_LIMITS, STATE_TTL_MS, type SagaResult, type SendResult, type SmsInbound, type SmsRegistrationState, type SmsSendResult, TRUSTHUB, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, a2pProfileEndUserRequest, a2pProfileRequest, accountsRequest, addressRequest, agentSettingsDrift, assignRequest, authorizeUrl, availabilityUrl, b64url, brandRequest, brandTypeFor, businessAttributes, businessEndUserRequest, callSummaryLine, campaignRequest, chooseLineProvider, cleanReply, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, customerProfileRequest, deleteCampaignRequest, deleteReplyRequest, desiredVoiceShell, dryProvider, encodeForm, evaluateRequest, evaluateTrustProductRequest, fetchMediaBytes, fetchRecording, fetchTwilio, getAgent, getAgentRaw, getCall, getPhoneNumber, getPlace, getRetellLlm, grantHasScope, idTokenClaims, importPhoneNumber, isAreaCode, isBrandNotReady, isE164, isValidSipPassword, keywordsFor, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, needsHydration, newNonce, nextA2PStep, nextLineStep, normalizeCall, normalizeInbound, parseAccounts, parseLocations, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, publishAgentVersion, registrationVerdict, replyRequest, replyToReview, representativeAttributes, representativeEndUserRequest, retellImportBody, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, runA2PSaga, runLineSaga, sameSignature, searchPlaces, sendTemplate, sendText, signState, sipPassword, sipUsername, smsAsWaMessage, smsBody, smsInboundFrom, smsInboundUrl, smsStateFor, soleProprietorEndUserRequest, soleProprietorProfileRequest, starRatingNumber, starterAttributes, starterEndUserRequest, starterProfileRequest, stripKey, submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, trustProductAssignRequest, twilioProvider, twilioSignature, twilioSignedString, twilioUrls, unb64url, updateAgent, updateCampaignRequest, updateEndUserRequest, updateLiveCall, updatePhoneNumber, verifyRetellSignature, verifyState, verifyTwilioSignature, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, whatSoleProprietorNeeds, withKey };
