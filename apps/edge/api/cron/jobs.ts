@@ -36,7 +36,7 @@ import crypto from "node:crypto";
 import { Client } from "@upstash/qstash";
 import { json } from "../../lib/http.js";
 import { pg } from "../../lib/pg.js";
-import { logger } from "../../lib/log.js";
+import { logger, type Logger } from "../../lib/log.js";
 import { alertFor } from "../../lib/job-alert.js";
 import { FIRE_URL } from "../../lib/workspace/jobs.js";
 import { recoveryFor, OVERDUE_AFTER_MS } from "../../lib/jobs-recovery.js";
@@ -86,6 +86,34 @@ function secretsMatch(a: string, b: string): boolean {
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 }
 
+/**
+ * The two outward calls, substitutable.
+ *
+ * Both blockers in this sweep's history — the early return that made the
+ * overdue pass unreachable, and successful jobs never leaving 'fired' — passed
+ * every test on this file and a full CI run. They could not have been caught by
+ * asserting on source text, and across the suite 99 of 136 files do only that.
+ * So the loop below is reachable with a substitute database and substitutes for
+ * the two things it reaches outside itself, and nothing more: production
+ * control flow is unchanged, and the seam is two default parameters rather than
+ * a port object standing between this route and the work it does.
+ */
+export interface SweepSeams {
+  publish?: (db: Db, jobId: string) => Promise<void>;
+  alert?: typeof alertFor;
+}
+
+export interface SweepResult {
+  reaped: number;
+  messages: number;
+  broadcasts: number;
+  republished: number;
+  gaveUp: number;
+  seen: number;
+  /** Which halves of the ledger could not be read. Empty is the healthy case. */
+  unread: string[];
+}
+
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "jobs" });
   const db = pg();
@@ -94,6 +122,23 @@ export async function POST(request: Request): Promise<Response> {
   const { data: expected, error: keyErr } = await db.rpc("get_cron_sweep_key");
   if (keyErr || !expected) return json(503, { ok: false, error: "key_unavailable" });
   if (!presented || !secretsMatch(presented, expected as unknown as string)) return json(401, { ok: false, error: "unauthorized" });
+
+  const { unread, ...counts } = await sweepLedger(db, L);
+  // A sweep that could not read half the ledger did not sweep it, and 200 says
+  // it did. Both halves have run by now, so the failure costs nothing to
+  // report honestly — and the counts still come back, because what the working
+  // half achieved is true whatever the other half did. 503 is already this
+  // route's word for "the work could not be done" (see no_database above).
+  return json(unread.length ? 503 : 200, {
+    ok: unread.length === 0, ...counts,
+    ...(unread.length ? { unread } : {}),
+  });
+}
+
+/** Both halves of the ledger, once. Authentication is the caller's. */
+export async function sweepLedger(db: Db, L: Logger, seams: SweepSeams = {}): Promise<SweepResult> {
+  const publish = seams.publish ?? republishJob;
+  const alert = seams.alert ?? alertFor;
 
   const cutoff = new Date(Date.now() - STALE_AFTER_MS).toISOString();
   const { data: stale, error } = await db
@@ -153,7 +198,7 @@ export async function POST(request: Request): Promise<Response> {
 
     L.info("stale_job_reaped", { job_id: job.id, tenant_id: job.tenant_id, kind: job.kind, fired_at: job.fired_at });
     try {
-      await alertFor(db, job)(
+      await alert(db, job)(
         `A ${job.kind} job did not finish`,
         `Job ${job.id} (${job.kind}) started and never reported back, so ${RUN_INTERRUPTED}.\n\n` +
         (job.kind === "outbound_send"
@@ -212,7 +257,7 @@ export async function POST(request: Request): Promise<Response> {
         .select("id");
       if (cErr || !won?.length) continue;
       try {
-        await republishJob(db, job.id);
+        await publish(db, job.id);
         republished += 1;
         L.info("jobs_republished", { job_id: job.id, tenant_id: job.tenant_id, kind: job.kind, due_at: job.due_at, republishes: job.republishes + 1 });
       } catch (e) {
@@ -240,7 +285,7 @@ export async function POST(request: Request): Promise<Response> {
 
     L.info("jobs_gave_up", { job_id: job.id, tenant_id: job.tenant_id, kind: job.kind, due_at: job.due_at, republishes: job.republishes });
     try {
-      await alertFor(db, job)(
+      await alert(db, job)(
         `A ${job.kind} job never ran`,
         `Job ${job.id} (${job.kind}) was due ${job.due_at} and its delivery never arrived, after ${job.republishes} attempt${job.republishes === 1 ? "" : "s"} to send it again. ${NEVER_DELIVERED}.\n\n` +
         "Nothing else will run it." +
@@ -251,15 +296,9 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
-  // A sweep that could not read half the ledger did not sweep it, and 200 says
-  // it did. Both halves have run by now, so the failure costs nothing to
-  // report honestly — and the counts still come back, because what the working
-  // half achieved is true whatever the other half did. 503 is already this
-  // route's word for "the work could not be done" (see no_database above).
-  const failed = [error && "stuck", oErr && "overdue"].filter(Boolean) as string[];
-  return json(failed.length ? 503 : 200, {
-    ok: failed.length === 0, reaped, messages, republished, gaveUp, broadcasts,
+  return {
+    reaped, messages, broadcasts, republished, gaveUp,
     seen: (stale?.length ?? 0) + (overdue?.length ?? 0),
-    ...(failed.length ? { unread: failed } : {}),
-  });
+    unread: [error && "stuck", oErr && "overdue"].filter(Boolean) as string[],
+  };
 }

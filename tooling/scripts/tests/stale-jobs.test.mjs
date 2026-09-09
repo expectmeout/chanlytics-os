@@ -229,13 +229,14 @@ test("the sweep reads BOTH halves of the ledger", () => {
 test("a re-publish is bounded, recorded, and silent; giving up is loud", () => {
   assert.ok(sweep.includes("republishes: job.republishes + 1"), "the counter goes up with the publish");
   assert.ok(
-    sweep.indexOf("republishes: job.republishes + 1") < sweep.indexOf("await republishJob(db, job.id)"),
+    sweep.indexOf("republishes: job.republishes + 1") < sweep.indexOf("await publish(db, job.id)"),
     "and BEFORE it, so a publish that throws cannot loop for ever",
   );
   const republish = sweep.slice(sweep.indexOf('if (verdict === "republish")'), sweep.indexOf('const { data: won, error: fErr }'));
   assert.ok(!republish.includes("alertFor"), "a re-publish alerts nobody: it is self-healing");
   assert.ok(republish.includes("jobs_republished"), "but it is logged, so a pile-up is visible");
-  assert.ok(sweep.includes('alertFor(db, job)') && sweep.includes("never ran"), "giving up reaches the owner");
+  assert.ok(sweep.includes("alert(db, job)") && sweep.includes("never ran"), "giving up reaches the owner");
+  assert.ok(sweep.includes("seams.alert ?? alertFor"), "and by default that is the real alert, not a test's");
 });
 
 test("a re-publish is reserved, not raced", () => {
@@ -246,7 +247,7 @@ test("a re-publish is reserved, not raced", () => {
   assert.ok(sweep.includes('.eq("republishes", job.republishes)'), "the counter is a condition, not only the state");
   assert.ok(sweep.includes("last_republish_at: new Date().toISOString()"), "and the reservation stamps when it happened");
   assert.ok(
-    sweep.indexOf('.eq("republishes", job.republishes)') < sweep.indexOf("await republishJob(db, job.id)"),
+    sweep.indexOf('.eq("republishes", job.republishes)') < sweep.indexOf("await publish(db, job.id)"),
     "reserved before published, so the sweep that loses the race publishes nothing",
   );
 });
@@ -276,15 +277,15 @@ test("neither half can silence the other", () => {
   assert.ok(sweep.includes("for (const job of stale ?? [])"), "an empty first half is a loop that does nothing, not a return");
   assert.ok(sweep.includes('L.error("stuck_read_failed"'), "a failed read of one half is logged, not fatal to the other");
 
-  // ONE answer, after both passes. The overdue-read failure used to return
-  // early with its own 200 — the same bug wearing different clothes, and it
-  // also claimed the sweep was healthy while half of it had not run.
-  const body = sweep.slice(sweep.indexOf("const cutoff ="));
-  assert.equal((body.match(/return json\(/g) ?? []).length, 1, "the auth checks answer; after them, exactly one answer");
-  assert.ok(
-    sweep.lastIndexOf("return json(") > sweep.indexOf("recoveryFor(job)"),
-    "and it comes after the recovery loop, not before it",
-  );
+  // ONE exit, after both passes. The overdue-read failure used to return early
+  // with its own 200 — the same bug wearing different clothes, and it also
+  // claimed the sweep was healthy while half of it had not run. The sweep
+  // itself no longer speaks HTTP at all, so the shape to hold is that its body
+  // has exactly one return: the counts, at the end.
+  const loop = sweep.slice(sweep.indexOf("export async function sweepLedger"));
+  assert.equal((loop.match(/^ {2}return /gm) ?? []).length, 1, "one exit from the sweep, and it is the last thing it does");
+  assert.ok(!loop.includes("return json("), "the sweep counts; the route answers");
+  assert.ok(loop.lastIndexOf("return {") > loop.indexOf("recoveryFor(job)"), "and it comes after the recovery loop, not before it");
 });
 
 test("a snooze whose job was lost still wakes up", () => {
@@ -316,13 +317,13 @@ test("a sweep that could not read half the ledger does not answer 200", () => {
   // watching HTTP status read a half-broken sweep as healthy — and the stuck
   // read's failure did not reach the response at all.
   assert.ok(!sweep.includes("overdue_error"), "not a healthy answer with an error stapled to it");
-  assert.ok(sweep.includes('const failed = [error && "stuck", oErr && "overdue"]'), "both halves are accounted for");
-  assert.ok(sweep.includes("failed.length ? 503 : 200"), "and a failed read is not a 200");
-  assert.ok(sweep.includes("ok: failed.length === 0"), "nor an ok:true");
+  assert.ok(sweep.includes('unread: [error && "stuck", oErr && "overdue"]'), "both halves are accounted for");
+  assert.ok(sweep.includes("unread.length ? 503 : 200"), "and a failed read is not a 200");
+  assert.ok(sweep.includes("ok: unread.length === 0"), "nor an ok:true");
 
   // The counts still come back: what the working half achieved is true
   // whatever the other half did.
-  assert.ok(/reaped, messages, republished, gaveUp, broadcasts/.test(sweep), "the work that WAS done is still reported");
+  assert.ok(/reaped, messages, broadcasts, republished, gaveUp/.test(sweep), "the work that WAS done is still reported");
   // 503 is already this route's word for "the work could not be done".
   assert.ok(sweep.includes('json(503, { ok: false, error: "no_database" })'), "the same status the route already uses");
 });
