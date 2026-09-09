@@ -8722,6 +8722,17 @@ var OFFERS_OPT_IN_PHRASES2 = { en: "YES OFFERS", es: "SI OFERTAS" };
 function isOptedOutContact(c) {
   return c.consent === "opted_out" || c.dnc === true;
 }
+function mayMessageFor(c, purpose, opts = {}) {
+  if (isOptedOutContact(c)) return { ok: false, reason: "opted_out" };
+  if (purpose === "marketing") {
+    return c.marketing_consent === "opted_in" ? { ok: true, reason: null } : { ok: false, reason: "no_marketing_consent" };
+  }
+  if (opts.proactive && c.consent !== "opted_in") return { ok: false, reason: "not_opted_in" };
+  return { ok: true, reason: null };
+}
+function purposeOfTemplate(category) {
+  return category === "utility" || category === "authentication" ? "conversational" : "marketing";
+}
 var DAY_MS6 = 864e5;
 var WEEK_MS4 = 7 * DAY_MS6;
 var BRAIN_INTENTS2 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
@@ -14089,12 +14100,13 @@ async function broadcastSend(ctx, job) {
   if (b.state === "scheduled") {
     await ctx.db.from("broadcasts").update({ state: "sending", started_at: startedAt }).eq("id", b.id).eq("state", "scheduled");
   }
-  const { data: tpl } = await ctx.db.from("templates").select("meta_status, body_preview").eq("tenant_id", job.tenant_id).eq("channel", "whatsapp").eq("name", b.template_name).eq("language", b.template_language).maybeSingle();
+  const { data: tpl } = await ctx.db.from("templates").select("meta_status, body_preview, category").eq("tenant_id", job.tenant_id).eq("channel", "whatsapp").eq("name", b.template_name).eq("language", b.template_language).maybeSingle();
   if (!tpl || tpl.meta_status !== "approved") {
     await ctx.db.from("broadcasts").update({ state: "failed", failure: "template_not_approved", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", b.id);
     await ctx.alert(`Broadcast \u201C${b.name}\u201D stopped`, `The template \u201C${b.template_name}\u201D is no longer approved by WhatsApp, so nothing was sent.`);
     return;
   }
+  const purpose = purposeOfTemplate(tpl.category);
   const specs = Array.isArray(b.params) ? b.params.map((p2) => parseParamSpec(p2) ?? { kind: "text", value: String(p2) }) : [];
   const [{ data: tenantRow }, { data: cfgRow }] = await Promise.all([
     ctx.db.from("tenants").select("name").eq("id", job.tenant_id).maybeSingle(),
@@ -14107,7 +14119,7 @@ async function broadcastSend(ctx, job) {
   if (qErr) throw new Error(`broadcast_send: cannot read recipients: ${qErr.message}`);
   const mark = (contactId, patch) => ctx.db.from("broadcast_recipients").update({ ...patch, sent_at: patch.state === "sent" ? (/* @__PURE__ */ new Date()).toISOString() : null }).eq("broadcast_id", b.id).eq("contact_id", contactId);
   for (const r of batch ?? []) {
-    const { data: c, error: cErr } = await ctx.db.from("contacts").select("id, phone_e164, consent, dnc, erased_at, display_name, wa_profile_name").eq("id", r.contact_id).eq("tenant_id", job.tenant_id).maybeSingle();
+    const { data: c, error: cErr } = await ctx.db.from("contacts").select("id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name").eq("id", r.contact_id).eq("tenant_id", job.tenant_id).maybeSingle();
     if (cErr) {
       console.error("broadcast_contact_unreadable", r.contact_id, cErr.message);
       continue;
@@ -14120,12 +14132,9 @@ async function broadcastSend(ctx, job) {
       await mark(r.contact_id, { state: "skipped", reason: "no_phone" });
       continue;
     }
-    if (isOptedOutContact(c)) {
-      await mark(r.contact_id, { state: "skipped", reason: "opted_out" });
-      continue;
-    }
-    if (c.consent !== "opted_in") {
-      await mark(r.contact_id, { state: "skipped", reason: "not_opted_in" });
+    const allowed = mayMessageFor(c, purpose, { proactive: true });
+    if (!allowed.ok) {
+      await mark(r.contact_id, { state: "skipped", reason: allowed.reason ?? "not_opted_in" });
       continue;
     }
     const target = await resolveOutboundTarget(ctx.db, { tenantId: job.tenant_id, phoneE164: c.phone_e164, create: false });

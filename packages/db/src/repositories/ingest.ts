@@ -23,6 +23,15 @@ export interface IngestInboundParams {
   meta?: Json;
   optOut?: boolean;
   optIn?: boolean;
+  /**
+   * The customer texted the OFFERS keyword specifically.
+   *
+   * A second, separate answer -- see contracts/consent.ts. It is recorded after
+   * the ingest rather than inside it: `ingest_inbound` is the hot path for every
+   * inbound message in the product, and adding a parameter to it means
+   * recreating a hundred-and-sixty-line function to write one column.
+   */
+  optInMarketing?: boolean;
 }
 
 export interface IngestResult {
@@ -58,7 +67,32 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
     p_opt_in: p.optIn ?? false,
   } as never);
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
-  return data as unknown as IngestResult;
+  const out = data as unknown as IngestResult;
+
+  // The OTHER answer, if that is what arrived. Separate call, separate column,
+  // separate ledger entry -- which is the whole point: the carriers refused a
+  // campaign because one message gave one yes that covered both (error 30913).
+  //
+  // Best-effort on purpose. A customer who texts YES OFFERS has been received
+  // and answered by the time this runs; failing their message because a second
+  // write did not land would be a worse outcome than a consent record that has
+  // to be repaired. It is logged loudly instead.
+  if (p.optInMarketing && out?.contact_id) {
+    const { error: mErr } = await db.rpc("set_marketing_consent", {
+      p_tenant_id: p.tenantId,
+      p_contact_id: out.contact_id,
+      p_consent: "opted_in",
+      p_source: "customer_message",
+      p_note: null,
+    } as never);
+    if (mErr) {
+      console.error(JSON.stringify({
+        level: "error", event: "marketing_consent_write_failed",
+        tenant_id: p.tenantId, contact_id: out.contact_id, error: mErr.message,
+      }));
+    }
+  }
+  return out;
 }
 
 /** Stamp a message handled (replied / deliberately skipped) — retry no-ops after this.

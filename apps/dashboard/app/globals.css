@@ -81,6 +81,16 @@ body {
 }
 .yes h1 { font-size: 1.45rem; margin: 0 0 8px; text-wrap: balance; }
 .yes-lead { color: var(--auth-muted); font-size: 0.95rem; margin: 0 0 26px; }
+/* Two asks, visibly separate — which is the point the carriers are checking.
+   Each is its own bordered block with its own disclosures, so a reader can give
+   one and not the other without hunting for how. The optional one says so in
+   its own line rather than in small print under both. */
+.yes-ask { margin: 0 0 22px; padding: 18px; border: 1px solid var(--auth-line); border-radius: 14px; background: var(--auth-surface); }
+.yes-ask-title { font-size: 1.05rem; font-weight: 600; margin: 0 0 6px; }
+.yes-ask-lead { color: var(--auth-muted); font-size: 0.9rem; margin: 0 0 10px; }
+.yes-ask-optional { font-size: 0.85rem; margin: 0 0 12px; padding: 10px 12px; border-radius: 9px; background: rgba(255, 255, 255, 0.04); border: 1px dashed var(--auth-line); color: var(--auth-muted); }
+.yes-ask .yes-terms { margin: 14px 0 0; }
+.yes-ask .yes-way { background: transparent; }
 .yes-ways { display: flex; flex-direction: column; gap: 10px; }
 .yes-way {
   display: flex;

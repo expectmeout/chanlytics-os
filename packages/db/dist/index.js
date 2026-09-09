@@ -4584,7 +4584,26 @@ async function ingestInbound(db, p) {
     p_opt_in: p.optIn ?? false
   });
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
-  return data;
+  const out = data;
+  if (p.optInMarketing && out?.contact_id) {
+    const { error: mErr } = await db.rpc("set_marketing_consent", {
+      p_tenant_id: p.tenantId,
+      p_contact_id: out.contact_id,
+      p_consent: "opted_in",
+      p_source: "customer_message",
+      p_note: null
+    });
+    if (mErr) {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "marketing_consent_write_failed",
+        tenant_id: p.tenantId,
+        contact_id: out.contact_id,
+        error: mErr.message
+      }));
+    }
+  }
+  return out;
 }
 async function markProcessed(db, tenantId, messageId) {
   const { error } = await db.rpc("mark_processed", {

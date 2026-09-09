@@ -7,14 +7,25 @@
  * predicate for "may this person receive an offer", the same renderer for
  * the words, and the same pacing constants.
  *
- * What a broadcast is NOT: a message to people who have not said yes. The
- * category of the template (marketing, utility) changes Meta's price and its
- * rules, never ours — a proactive message needs the customer's recorded yes
- * whatever the template is called.
+ * What a broadcast is NOT: a message to people who have not said yes.
+ *
+ * WHICH yes, though, is a question this file used to answer wrongly. It said:
+ * "the category of the template changes Meta's price and its rules, never ours
+ * — a proactive message needs the customer's recorded yes whatever the template
+ * is called." That is a defensible-sounding rule and the carriers refused a live
+ * campaign over it (error 30913). Consent is per PURPOSE, not per direction:
+ * express written consent is required specifically for promotional messages
+ * (CTIA §5.1), and a single yes that covers both is what "marketing consent was
+ * combined with other consents" means.
+ *
+ * So the template's category is now load-bearing, through
+ * `purposeOfTemplate` — which fails CLOSED, because the column is null for
+ * exactly the rows most likely to matter.
  */
 import { templateTitle } from "./template-library";
 import { PEOPLE_LISTS, type PersonRowVM } from "./people";
 import type { ParamSpec } from "./templates";
+import type { SendPurpose } from "./consent";
 
 export const BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"] as const;
 export type BroadcastState = (typeof BROADCAST_STATES)[number];
@@ -54,9 +65,20 @@ export interface Audience {
 
 export const EVERYONE_LABEL = "Everyone who said yes";
 
-/** The one predicate: a recorded yes, no do-not-contact, and a number to send to. */
-export function mayReceiveOffers(r: Pick<PersonRowVM, "consent" | "phone">): boolean {
-  return r.consent.state === "opted_in" && !r.consent.dnc && !!r.phone;
+/**
+ * The one predicate: the yes THIS message needs, no do-not-contact, and a number
+ * to send to.
+ *
+ * The purpose defaults to marketing, which is what a broadcast has always been
+ * and is also the safe answer for a caller that has not thought about it: an
+ * omitted argument withholds an offer rather than sending one.
+ */
+export function mayReceiveOffers(
+  r: Pick<PersonRowVM, "consent" | "phone">,
+  purpose: SendPurpose = "marketing",
+): boolean {
+  if (!r.phone || r.consent.dnc || r.consent.state === "opted_out") return false;
+  return purpose === "marketing" ? r.consent.marketing === "opted_in" : r.consent.state === "opted_in";
 }
 
 /**
@@ -68,6 +90,8 @@ export function eligibleFor(
   kind: AudienceKind,
   id: string | null | undefined,
   savedIds: ReadonlySet<string> | null,
+  /** What kind of message this audience is for. Marketing unless the caller knows better. */
+  purpose: SendPurpose = "marketing",
 ): PersonRowVM[] {
   let pool: PersonRowVM[] = rows;
   if (kind === "list") {
@@ -78,7 +102,7 @@ export function eligibleFor(
     if (!savedIds) return [];
     pool = rows.filter((r) => savedIds.has(r.id));
   }
-  return pool.filter(mayReceiveOffers);
+  return pool.filter((r) => mayReceiveOffers(r, purpose));
 }
 
 /** The words a person will read: the body with its numbered slots filled. */

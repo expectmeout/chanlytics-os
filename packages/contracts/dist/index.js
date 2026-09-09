@@ -179,6 +179,13 @@ var EVENT_KINDS = [
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
+var MARKETING_OPT_IN_PATTERN = /^\s*(yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
+var CONVERSATION_OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta)\s*[.!]?\s*$/i;
+function optInPurposeOf(text) {
+  if (MARKETING_OPT_IN_PATTERN.test(text)) return "marketing";
+  if (CONVERSATION_OPT_IN_PATTERN.test(text)) return "conversational";
+  return null;
+}
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 function optInLink(numberE164, phrase = OFFERS_OPT_IN_PHRASES.en) {
   const digits2 = String(numberE164 ?? "").replace(/\D/g, "");
@@ -313,6 +320,25 @@ function isOptedOutContact(c) {
   return c.consent === "opted_out" || c.dnc === true;
 }
 var OPT_OUT_REFUSAL = "This customer asked to stop receiving messages. They can text START to opt back in.";
+function mayMessageFor(c, purpose, opts = {}) {
+  if (isOptedOutContact(c)) return { ok: false, reason: "opted_out" };
+  if (purpose === "marketing") {
+    return c.marketing_consent === "opted_in" ? { ok: true, reason: null } : { ok: false, reason: "no_marketing_consent" };
+  }
+  if (opts.proactive && c.consent !== "opted_in") return { ok: false, reason: "not_opted_in" };
+  return { ok: true, reason: null };
+}
+var PURPOSE_REFUSALS = {
+  opted_out: OPT_OUT_REFUSAL,
+  not_opted_in: "This customer has not said yes to messages yet.",
+  no_marketing_consent: "This customer has not said yes to OFFERS. Appointment messages are fine; promotions are not."
+};
+function purposeOfTemplate(category) {
+  return category === "utility" || category === "authentication" ? "conversational" : "marketing";
+}
+function purposeOfPlaybook(policyClass) {
+  return policyClass === "booking" ? "conversational" : "marketing";
+}
 
 // src/time.ts
 var MIN_MS = 6e4;
@@ -2856,12 +2882,19 @@ function consentOf(r, nowMs) {
   const date = when !== null ? fmtDate(when, nowMs) : "recorded";
   const how = consentSourceLabel(r.consent_source);
   const sub = state === "opted_out" ? r.consent_source === "customer_message" ? `STOP received${when !== null ? ` ${fmtDate(when, nowMs)}` : ""}` : `${how ? `${how} \xB7 ` : ""}${date}` : state === "opted_in" ? `${how ? `${how} \xB7 ` : ""}${date}` : "no opt-in recorded";
+  const marketing = dnc || r.consent === "opted_out" ? "opted_out" : r.marketing_consent === "opted_in" ? "opted_in" : r.marketing_consent === "opted_out" ? "opted_out" : "unknown";
+  const mWhen = ts(r.marketing_consent_updated_at ?? null);
+  const mHow = consentSourceLabel(r.marketing_consent_source ?? null);
+  const marketingSub = marketing === "opted_in" ? `${mHow ? `${mHow} \xB7 ` : ""}${mWhen !== null ? fmtDate(mWhen, nowMs) : "recorded"}` : marketing === "opted_out" ? "no offers" : "never asked about offers";
   return {
     state,
     dnc,
     label: state === "opted_out" ? "Opted out" : state === "opted_in" ? "Opted in" : "Unknown",
     sub,
-    source: r.consent_source ?? null
+    source: r.consent_source ?? null,
+    marketing,
+    marketingSource: r.marketing_consent_source ?? null,
+    marketingSub
   };
 }
 function receptionistOf(r, nowMs) {
@@ -4764,10 +4797,11 @@ var BROADCAST_SCHEDULE_MAX_DAYS = 30;
 var BROADCAST_NAME_MAX = 80;
 var AUDIENCE_KINDS = ["everyone", "list", "saved"];
 var EVERYONE_LABEL = "Everyone who said yes";
-function mayReceiveOffers(r) {
-  return r.consent.state === "opted_in" && !r.consent.dnc && !!r.phone;
+function mayReceiveOffers(r, purpose = "marketing") {
+  if (!r.phone || r.consent.dnc || r.consent.state === "opted_out") return false;
+  return purpose === "marketing" ? r.consent.marketing === "opted_in" : r.consent.state === "opted_in";
 }
-function eligibleFor(rows, kind, id, savedIds) {
+function eligibleFor(rows, kind, id, savedIds, purpose = "marketing") {
   let pool = rows;
   if (kind === "list") {
     const l = PEOPLE_LISTS.find((x) => x.id === id);
@@ -4777,7 +4811,7 @@ function eligibleFor(rows, kind, id, savedIds) {
     if (!savedIds) return [];
     pool = rows.filter((r) => savedIds.has(r.id));
   }
-  return pool.filter(mayReceiveOffers);
+  return pool.filter((r) => mayReceiveOffers(r, purpose));
 }
 function renderTemplate(body, params) {
   return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n) => {
@@ -4990,8 +5024,9 @@ function triggerOf(id) {
 function eligibleForPlaybook(rows, p, touches, nowMs) {
   const t = triggerOf(p.trigger);
   if (!t) return [];
+  const purpose = purposeOfPlaybook(t.cls);
   if (t.kind === "visit") {
-    const pool2 = eligibleFor(rows, "everyone", null, null).filter((r) => {
+    const pool2 = eligibleFor(rows, "everyone", null, null, purpose).filter((r) => {
       if (!r.calendarTz) return false;
       if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS4));
       return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS4)) && !r.booked;
@@ -4999,7 +5034,7 @@ function eligibleForPlaybook(rows, p, touches, nowMs) {
     pool2.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
     return pool2.slice(0, Math.max(1, p.cap_per_run));
   }
-  const pool = t.list ? eligibleFor(rows, "list", t.list, null) : eligibleFor(rows, "everyone", null, null);
+  const pool = t.list ? eligibleFor(rows, "list", t.list, null, purpose) : eligibleFor(rows, "everyone", null, null, purpose);
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS4;
   const picked = pool.filter((r) => {
     const mine = touches.byThis.get(r.id);
@@ -6641,16 +6676,16 @@ function platformNumber(e164) {
 // src/consent-page.ts
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
-function consentPageVM(f) {
-  const name = f.businessName.trim() || "This business";
+var CONVERSATION_PHRASE = "START";
+function waysFor(f, phrase) {
   const ways = [];
-  const waLink = optInLink(f.whatsappE164, CONSENT_PHRASE);
+  const waLink = optInLink(f.whatsappE164, phrase);
   if (waLink) {
     ways.push({
       kind: "whatsapp",
       title: "On WhatsApp",
-      sentence: `Tap to open WhatsApp with ${CONSENT_PHRASE} ready to send. Sending it is your yes.`,
-      phrase: CONSENT_PHRASE,
+      sentence: `Tap to open WhatsApp with ${phrase} ready to send. Sending it is your yes.`,
+      phrase,
       href: waLink,
       display: formatPhoneDisplay(f.whatsappE164)
     });
@@ -6660,25 +6695,55 @@ function consentPageVM(f) {
     ways.push({
       kind: "sms",
       title: "By text",
-      sentence: `Text ${CONSENT_PHRASE} to ${smsDisplay}. Sending it is your yes.`,
-      phrase: CONSENT_PHRASE,
-      href: `sms:${f.smsE164}?&body=${encodeURIComponent(CONSENT_PHRASE)}`,
+      sentence: `Text ${phrase} to ${smsDisplay}. Sending it is your yes.`,
+      phrase,
+      href: `sms:${f.smsE164}?&body=${encodeURIComponent(phrase)}`,
       display: smsDisplay
     });
   }
+  return ways;
+}
+function consentPageVM(f) {
+  const name = f.businessName.trim() || "This business";
+  const conversation = waysFor(f, CONVERSATION_PHRASE);
+  const offers = waysFor(f, CONSENT_PHRASE);
+  const empty = conversation.length === 0 && offers.length === 0;
+  const asks = empty ? [] : [
+    {
+      purpose: "conversational",
+      title: "Messages about your visit",
+      lead: `Appointment reminders and confirmations from ${name}, and a reply when you write to them.`,
+      optional: null,
+      ways: conversation,
+      terms: [
+        `You get appointment reminders and answers to what you ask ${name}. Message frequency varies.`,
+        "Message and data rates may apply.",
+        "Reply HELP for help. Reply STOP at any time to stop."
+      ]
+    },
+    {
+      purpose: "marketing",
+      title: "Offers and news",
+      lead: `Promotions and news from ${name}.`,
+      optional: `Separate, and entirely optional \u2014 you can have the messages above without this one, and saying no changes nothing about your appointments or anything you buy from ${name}.`,
+      ways: offers,
+      terms: [
+        `You get promotional offers and news from ${name}. A few messages a month, never daily.`,
+        "Message and data rates may apply.",
+        "Reply HELP for help. Reply STOP at any time to stop."
+      ]
+    }
+  ];
   return {
-    title: `Offers and news from ${name}`,
-    lead: ways.length ? `Say yes in your own message, from your own phone. ${name} then sends you offers, news and reminders \u2014 and never sells or shares your number.` : `${name} is not set up to take sign-ups here yet.`,
-    ways,
-    qrLink: waLink,
+    title: `Text messages from ${name}`,
+    lead: empty ? `${name} is not set up to take sign-ups here yet.` : `Two separate things you can say yes to, in your own message from your own phone. ${name} never sells or shares your number.`,
+    asks,
+    qrLink: optInLink(f.whatsappE164, CONSENT_PHRASE),
     terms: [
-      `You get offers, news and appointment reminders from ${name}. A few messages a month, never daily.`,
-      "Message and data rates may apply. Message frequency varies.",
-      `Reply STOP at any time to stop. Reply HELP for help.`,
       "No mobile information is shared with third parties or affiliates for marketing purposes.",
       `Consent is not a condition of any purchase from ${name}.`
     ],
-    empty: ways.length === 0
+    empty
   };
 }
 
@@ -6943,6 +7008,8 @@ export {
   CONSENT_RESET_SOURCE,
   CONSENT_SOURCES,
   CONSENT_STATES,
+  CONVERSATION_OPT_IN_PATTERN,
+  CONVERSATION_PHRASE,
   CONVERSATION_STATES,
   CalendarConfigSchema,
   ClosureSchema,
@@ -6978,6 +7045,7 @@ export {
   LINE_STEP_WORDS,
   LIVE_OVERLONG_MS,
   LIVE_STALE_MS,
+  MARKETING_OPT_IN_PATTERN,
   MAX_CLOSURES,
   MAX_INTERVALS_PER_DAY,
   MEMBERSHIP_ROLES,
@@ -7019,6 +7087,7 @@ export {
   POLICY_CLASS_WORDS,
   POLICY_MODES,
   PROPOSAL_GATE,
+  PURPOSE_REFUSALS,
   PolicyLimitsSchema,
   QUIET_AFTER_MS,
   RECENT_MAX,
@@ -7198,6 +7267,7 @@ export {
   localHour,
   localToUtcMs,
   matchPerson,
+  mayMessageFor,
   mayReceiveOffers,
   maySpend,
   mediaKind,
@@ -7218,6 +7288,7 @@ export {
   numberHealth,
   ok,
   optInLink,
+  optInPurposeOf,
   overLimitRefusal,
   paramLabel,
   parseAskFinish,
@@ -7248,6 +7319,8 @@ export {
   policyClassOfIntent,
   policyRules,
   priceWords,
+  purposeOfPlaybook,
+  purposeOfTemplate,
   quantile,
   ratingWords,
   reachedCustomer,

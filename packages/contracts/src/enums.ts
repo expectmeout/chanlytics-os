@@ -127,6 +127,38 @@ export const OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 export const OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
 
 /**
+ * The words that answer the MARKETING question, and only that one.
+ *
+ * THE DEFECT THIS SPLITS. OPT_IN_PATTERN above treats "YES OFFERS" and "START"
+ * as the same event: both set the single `consent` column, which then gates
+ * appointment reminders, the receptionist's replies and promotional broadcasts
+ * alike. So one message gave one yes that covered three purposes -- which is
+ * carrier error 30913 exactly: "marketing consent was combined with other
+ * consents. Marketing consent must be collected separately."
+ *
+ * These words say offers, in both languages this product speaks. Nothing here
+ * is a bare "yes": that is how a person answers an ordinary question, and it
+ * must never be read as express written consent to be marketed to.
+ */
+export const MARKETING_OPT_IN_PATTERN = /^\s*(yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
+
+/**
+ * The words that answer the CONVERSATIONAL question: messages about your own
+ * visit, and the receptionist writing back.
+ *
+ * START/UNSTOP/RESUME are the carriers' own standard words and are declared to
+ * them in the campaign's opt-in keywords. ALTA is their Spanish equivalent.
+ */
+export const CONVERSATION_OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta)\s*[.!]?\s*$/i;
+
+/** Which question a customer's message answers, or null when it answers neither. */
+export function optInPurposeOf(text: string): "conversational" | "marketing" | null {
+  if (MARKETING_OPT_IN_PATTERN.test(text)) return "marketing";
+  if (CONVERSATION_OPT_IN_PATTERN.test(text)) return "conversational";
+  return null;
+}
+
+/**
  * The phrase a customer sends to say yes to offers. Unambiguous on purpose,
  * so it can ride a wa.me link or a QR at the desk without "yes" to an
  * ordinary question ever counting; the ingest records it as their own

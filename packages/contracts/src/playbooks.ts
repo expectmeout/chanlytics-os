@@ -10,6 +10,7 @@ import { POLICY_CLASS_WORDS } from "./config";
  * once"; a playbook is "keep doing this".
  */
 import { eligibleFor } from "./broadcasts";
+import { purposeOfPlaybook } from "./consent";
 import type { PersonRowVM } from "./people";
 import type { ParamSpec } from "./templates";
 import { visitStartTime, type VisitDto } from "./calendar-people";
@@ -76,10 +77,20 @@ export interface Touches {
 }
 
 /**
- * The people a run may reach: the trigger's list crossed with who said yes,
- * minus anyone who heard from this playbook within its gap (its cadence, for
- * the month's offer), minus anyone who heard from any playbook this week;
- * the longest-unheard first; at most the cap.
+ * The people a run may reach: the trigger's list crossed with who said yes to
+ * THIS KIND of message, minus anyone who heard from this playbook within its
+ * gap (its cadence, for the month's offer), minus anyone who heard from any
+ * playbook this week; the longest-unheard first; at most the cap.
+ *
+ * The purpose is the trigger's own `cls`, which every trigger has always
+ * declared and which nothing has ever read. `booking` is a reminder about an
+ * appointment the customer made; everything else is promotional.
+ *
+ * That distinction fixes a real loss. `visit_tomorrow` sends the one utility
+ * template in the starter library to somebody with a visit on the calendar
+ * tomorrow -- and it was skipped with `not_opted_in` unless that person had
+ * given marketing-grade consent. A customer who booked an appointment was not
+ * reminded of it because they had never asked for offers.
  */
 export function eligibleForPlaybook(
   rows: PersonRowVM[],
@@ -89,13 +100,14 @@ export function eligibleForPlaybook(
 ): PersonRowVM[] {
   const t = triggerOf(p.trigger);
   if (!t) return [];
+  const purpose = purposeOfPlaybook(t.cls);
   if (t.kind === "visit") {
     // The calendar decides, one message per visit: the run is daily and a
     // visit is on one day, so the gap and the week's breath do not apply —
     // a reminder must go whatever else the person heard this week, and the
     // thank-you two days after it must go too. Day-keyed by the calendar's
     // own clock, never by hours: eleven at night tomorrow is still tomorrow.
-    const pool = eligibleFor(rows, "everyone", null, null).filter((r) => {
+    const pool = eligibleFor(rows, "everyone", null, null, purpose).filter((r) => {
       if (!r.calendarTz) return false;
       if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS));
       return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS)) && !r.booked;
@@ -103,7 +115,7 @@ export function eligibleForPlaybook(
     pool.sort((a, b) => (p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0)));
     return pool.slice(0, Math.max(1, p.cap_per_run));
   }
-  const pool = t.list ? eligibleFor(rows, "list", t.list, null) : eligibleFor(rows, "everyone", null, null);
+  const pool = t.list ? eligibleFor(rows, "list", t.list, null, purpose) : eligibleFor(rows, "everyone", null, null, purpose);
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS;
   const picked = pool.filter((r) => {
     const mine = touches.byThis.get(r.id);

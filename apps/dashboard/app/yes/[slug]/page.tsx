@@ -5,13 +5,20 @@ import { consentPageVM, CONSENT_PHRASE, CONSENT_PHRASE_ES } from "@chanlytics/co
 import { consentPageFor } from "@/server/consent-page";
 
 /**
- * A workspace's public "say yes to offers" page.
+ * A workspace's public "say yes" page.
  *
  * Two audiences, one page. A customer scans the QR at the desk or taps the
  * link in a bio, sees what they are agreeing to, and says yes in their own
  * message from their own phone — the strongest consent there is, and the
  * only kind this product records. A carrier reviewing the business's
  * registration opens the same URL and finds the wording they ask for.
+ *
+ * TWO ASKS. It used to be one — "Text YES OFFERS … Sending it is your yes" —
+ * covering offers, news AND appointment reminders together, and the carriers
+ * refused the campaign for exactly that (error 30913: "marketing consent was
+ * combined with other consents"). Each ask now stands on its own with its own
+ * keyword and its own disclosures, and the promotional one says in its own words
+ * that it is optional and changes nothing if declined.
  *
  * No form, no field, no write: a number typed into a box is not proof that
  * its owner agreed, and inventing one would be the only dishonest thing on
@@ -33,29 +40,39 @@ export default async function ConsentPage({ params }: { params: Promise<{ slug: 
       <h1>{vm.title}</h1>
       <p className="yes-lead">{vm.lead}</p>
 
-      {vm.ways.length > 0 && (
-        <div className="yes-ways">
-          {vm.ways.map((w) => (
-            <div className="yes-way" key={w.kind} data-testid={`yes-way-${w.kind}`}>
-              <div className="yes-way-body">
-                <span className="yes-way-title">{w.title}</span>
-                <span className="yes-way-sentence">{w.sentence}</span>
+      {vm.asks.map((ask) => (
+        <section className="yes-ask" key={ask.purpose} data-testid={`yes-ask-${ask.purpose}`}>
+          <h2 className="yes-ask-title">{ask.title}</h2>
+          <p className="yes-ask-lead">{ask.lead}</p>
+          {ask.optional && <p className="yes-ask-optional" data-testid="yes-optional">{ask.optional}</p>}
+          <div className="yes-ways">
+            {ask.ways.map((w) => (
+              <div className="yes-way" key={w.kind} data-testid={`yes-way-${ask.purpose}-${w.kind}`}>
+                <div className="yes-way-body">
+                  <span className="yes-way-title">{w.title}</span>
+                  <span className="yes-way-sentence">{w.sentence}</span>
+                </div>
+                {w.href && (
+                  <a className="yes-btn" href={w.href} target="_blank" rel="noreferrer">
+                    Say yes
+                  </a>
+                )}
               </div>
-              {w.href && (
-                <a className="yes-btn" href={w.href} target="_blank" rel="noreferrer">
-                  Say yes
-                </a>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+          <ul className="yes-terms" data-testid={`yes-terms-${ask.purpose}`}>
+            {ask.terms.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+        </section>
+      ))}
 
       {qr && (
         <div className="yes-qr" data-testid="yes-qr">
           <div className="yes-qr-code" role="img" aria-label={`QR code that opens WhatsApp with ${CONSENT_PHRASE} ready to send`} dangerouslySetInnerHTML={{ __html: qr }} />
           <p className="yes-qr-note">
-            Scanning this opens WhatsApp with the words ready to send. In Spanish, <b>{CONSENT_PHRASE_ES}</b> works too.
+            Scanning this opens WhatsApp with <b>{CONSENT_PHRASE}</b> ready to send — the offers one. In Spanish, <b>{CONSENT_PHRASE_ES}</b> works too.
           </p>
         </div>
       )}
