@@ -47,6 +47,26 @@
   --space-16: 64px;
   --space-20: 80px;
 
+  /* ---------- Measure (how wide a surface is allowed to be) ----------
+     There was no token for this and every surface invented its own: 720 on a
+     settings card and the Today brief, 1160 on Templates and Broadcasts, 1480
+     on Today's grid, and NOTHING on the Setup rows — which is why that one list
+     grew with the window while the two cards above it stayed put, and why the
+     gap between them got worse the wider the monitor.
+
+     Three measures, and a page picks one:
+       prose — a column of rows, forms or sentences read top to bottom
+       page  — a page with lists or tables that needs more than a column
+       wide  — a multi-column grid that would look empty any narrower
+     A surface with its own panes (Inbox, Calendar, Reports, Fleet, People)
+     takes none of these: it is full-bleed by design and the panes divide it. */
+  --measure-prose: 720px;
+  --measure-page: 1160px;
+  --measure-wide: 1480px;
+  /* The horizontal gutter a measured page keeps between its content and the
+     window. Panes set their own; this is for the measured surfaces. */
+  --gutter-page: 28px;
+
   /* ---------- Radii ---------- */
   --radius-xs: 4px;
   --radius-sm: 6px;

@@ -182,6 +182,9 @@ const SegmentDetail = ({ seg, meta, extraUsage = [], onAssign, onDuplicate, onAr
           <button
             className={`btn btn-icon btn-sm ${notify ? "" : "btn-ghost"} sg-notify ${notify ? "on" : ""}`}
             data-tip={notify ? "Notifying on entry & exit — click to mute" : "Get a bell notification when someone enters or leaves this list"}
+            // data-tip draws our own tooltip; it is not an accessible name, so
+            // this button announced as "button, pressed" and nothing else.
+            aria-label={notify ? "Mute notifications for this list" : "Notify me when someone enters or leaves this list"}
             aria-pressed={notify}
             onClick={onToggleNotify}
           >

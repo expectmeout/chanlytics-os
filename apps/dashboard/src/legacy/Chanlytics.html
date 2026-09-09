@@ -9,11 +9,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="styles/tokens.css?v=1" />
-  <link rel="stylesheet" href="styles/components.css?v=35" />
-  <link rel="stylesheet" href="styles/dashboard.css?v=4" />
-  <link rel="stylesheet" href="styles/dashboard-a-v2.css?v=20" />
-  <link rel="stylesheet" href="styles/inbox.css?v=15" />
+  <link rel="stylesheet" href="styles/tokens.css?v=2" />
+  <link rel="stylesheet" href="styles/components.css?v=36" />
+  <link rel="stylesheet" href="styles/dashboard.css?v=5" />
+  <link rel="stylesheet" href="styles/dashboard-a-v2.css?v=21" />
+  <link rel="stylesheet" href="styles/inbox.css?v=16" />
   <link rel="stylesheet" href="styles/clients.css?v=5" />
   <link rel="stylesheet" href="styles/people.css?v=12" />
   <link rel="stylesheet" href="styles/store.css?v=16" />
@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="styles/live.css?v=2" />
   <link rel="stylesheet" href="styles/calendar.css?v=9" />
   <link rel="stylesheet" href="styles/reports.css?v=3" />
-  <link rel="stylesheet" href="styles/settings.css?v=5" />
+  <link rel="stylesheet" href="styles/settings.css?v=6" />
   <link rel="stylesheet" href="styles/mobile.css?v=5" />
 
   <style>
@@ -43,6 +43,7 @@
   <script type="text/babel" src="components/surface-tabs.jsx?v=1"></script>
   <script type="text/babel" src="components/sidebar.jsx?v=20"></script>
   <script type="text/babel" src="components/topbar.jsx?v=22"></script>
+  <script type="text/babel" src="components/shortcuts.jsx"></script>
   <script type="text/babel" src="components/data-bits.jsx?v=18"></script>
 
   <!-- Data -->
@@ -61,6 +62,8 @@
   <script type="text/babel" src="data/people-data.jsx?v=13"></script>
 
   <!-- Today (Operator's brief — Agent Command primary) -->
+  <script type="text/babel" src="pages/dashboard-a-day.jsx"></script>
+  <script type="text/babel" src="pages/dashboard-a-week.jsx"></script>
   <script type="text/babel" src="pages/dashboard-a-brief.jsx?v=13"></script>
   <script type="text/babel" src="pages/dashboard-a-command.jsx?v=25"></script>
   <script type="text/babel" src="pages/dashboard-a-live.jsx?v=11"></script>
@@ -79,7 +82,7 @@
   <script type="text/babel" src="pages/clients-a.jsx?v=16"></script>
   <script type="text/babel" src="pages/client-profile.jsx?v=19"></script>
   <script type="text/babel" src="pages/leads.jsx?v=17"></script>
-  <script type="text/babel" src="pages/segments.jsx?v=16"></script>
+  <script type="text/babel" src="pages/segments.jsx?v=17"></script>
 
   <!-- Agent Store -->
   <script type="text/babel" src="pages/agent-store.jsx?v=19"></script>
@@ -94,11 +97,10 @@
   <script type="text/babel" src="pages/calendar.jsx?v=17"></script>
   <script type="text/babel" src="pages/reports.jsx?v=15"></script>
   <script type="text/babel" src="pages/tasks.jsx?v=19"></script>
-  <script type="text/babel" src="pages/settings.jsx?v=21"></script>
+  <script type="text/babel" src="pages/settings.jsx?v=22"></script>
 
   <!-- Shell -->
   <script type="text/babel" src="pages/app-shell.jsx?v=38"></script>
-  <script type="text/babel" src="tweaks-panel.jsx"></script>
 
   <script type="text/babel" data-presets="env,react">
     const { useEffect, useCallback } = React;
@@ -109,60 +111,31 @@
       "showInboxAgentRail": false
     }/*EDITMODE-END*/;
 
+    // The tweaks panel was removed with the rest of the unloaded mockup files
+    // (#89) and its <script> tag outlived it, so this harness has been throwing
+    // "useTweaks is not defined" on boot ever since. The two knobs it carried
+    // that the shell still reads are defaults here; theme is a real control
+    // because a design pass needs to see both.
     function App() {
-      const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
-      const theme = tweaks.theme;
-      const setTheme = useCallback((v) => setTweak("theme", v), [setTweak]);
-
+      const [theme, setTheme] = React.useState(TWEAK_DEFAULTS.theme);
+      useEffect(() => { document.documentElement.setAttribute("data-theme", theme); }, [theme]);
       useEffect(() => {
-        document.documentElement.setAttribute("data-theme", theme);
-      }, [theme]);
-
+        const onKey = (e) => {
+          if (e.key !== "t" || e.metaKey || e.ctrlKey || e.altKey) return;
+          const tag = (e.target.tagName || "").toLowerCase();
+          if (tag === "input" || tag === "textarea" || e.target.isContentEditable) return;
+          setTheme((v) => (v === "dark" ? "light" : "dark"));
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+      }, []);
       return (
-        <>
-          <ChanlyticsApp
-            theme={theme}
-            onTheme={setTheme}
-            inboxDensity={tweaks.inboxDensity}
-            showInboxAgentRail={tweaks.showInboxAgentRail}
-          />
-
-          <TweaksPanel title="Tweaks">
-            <TweakSection title="Appearance">
-              <TweakRadio
-                label="Theme"
-                value={theme}
-                options={[{ value: "light", label: "Light" }, { value: "dark", label: "Dark" }]}
-                onChange={setTheme}
-              />
-            </TweakSection>
-
-            <TweakSection title="Inbox">
-              <TweakRadio
-                label="Density"
-                value={tweaks.inboxDensity}
-                options={[
-                  { value: "compact", label: "Compact" },
-                  { value: "medium", label: "Medium" },
-                  { value: "rich", label: "Rich" }
-                ]}
-                onChange={(v) => setTweak("inboxDensity", v)}
-              />
-              <TweakToggle
-                label="Show agent context rail"
-                value={tweaks.showInboxAgentRail}
-                onChange={(v) => setTweak("showInboxAgentRail", v)}
-              />
-            </TweakSection>
-
-            <TweakSection title="About">
-              <div style={{ fontSize: 12, color: "var(--ink-muted)", lineHeight: 1.5 }}>
-                Live app shell — sidebar, bell, and every row navigate for real (⌘K opens Ask anywhere).
-                Unbuilt surfaces land on an in-design page instead of dead-ending.
-              </div>
-            </TweakSection>
-          </TweaksPanel>
-        </>
+        <ChanlyticsApp
+          theme={theme}
+          onTheme={setTheme}
+          inboxDensity={TWEAK_DEFAULTS.inboxDensity}
+          showInboxAgentRail={TWEAK_DEFAULTS.showInboxAgentRail}
+        />
       );
     }
 
