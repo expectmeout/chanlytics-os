@@ -45,7 +45,7 @@ test("the live workspace: the published number is the transfer number, and that 
   // worse bug than the one being fixed — but the disagreement is on the record.
   assert.equal(f.phone_display.value, "(646) 932-5775");
   assert.equal(f.phone_display.source, "typed");
-  assert.deepEqual(f.phone_display.disputed, { value: "+13083368109", source: "provisioned" });
+  assert.deepEqual(f.phone_display.disputed, { value: "+1 (308) 336-8109", source: "provisioned" });
 
   const [worst] = factConflicts(f);
   assert.equal(worst.fact, "phone_display");
@@ -53,7 +53,7 @@ test("the live workspace: the published number is the transfer number, and that 
   // It knows the published number IS the transfer number, so it says the thing
   // that is actually true rather than a generic mismatch warning.
   assert.match(worst.sentence, /the number it transfers to/);
-  assert.match(worst.sentence, /never the receptionist answering on \+13083368109/);
+  assert.match(worst.sentence, /never the receptionist answering on \+1 \(308\) 336-8109/);
   assert.equal(worst.to, "admin/workspace");
 });
 
@@ -78,7 +78,7 @@ test("a mismatch that is NOT the transfer number reads as the plain error it is"
 
 test("no typed value falls back to what the platform knows", () => {
   const f = resolveFacts({ business_name: "Melany’s Beauty Salon", profile: {} }, LIVE.known);
-  assert.deepEqual(f.phone_display, { value: "+13083368109", source: "provisioned" });
+  assert.deepEqual(f.phone_display, { value: "+1 (308) 336-8109", source: "provisioned" }, "formatted for speech: a prompt saying +13083368109 is a receptionist reading digits aloud");
   assert.equal(f.address.value, "2581 Pitkin Ave, Brooklyn, NY 11208, USA");
   assert.equal(f.address.source, "verified");
   assert.deepEqual(factConflicts(f), [], "agreeing with the only source there is is not a conflict");
@@ -158,7 +158,10 @@ test("the field that caused this says what it is", () => {
   const pane = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
   assert.ok(!/set-ident-key">Phone line</.test(pane), "REGRESSION: the editor called it the same thing as the line it answers");
   assert.ok(pane.includes('<span className="set-ident-key">Tell customers to call</span>'), "it is what goes in the words");
-  assert.ok(pane.includes('data-testid="set-use-line"'), "with one click to make it the real line");
+  // And not a text box at all any more: the line is the default, and publishing
+  // anything else is a deliberate act with a reason shown under it.
+  assert.ok(pane.includes('data-testid="set-pub-line"') && pane.includes('data-testid="set-pub-other"'), "two options, the line first");
+  assert.ok(pane.includes('phone_display: phone || undefined,'), "and choosing the line writes nothing, so it follows the line");
 
   // Three numbers, three names, and only the provisioned one links away.
   assert.ok(pane.includes('<FactRow label="Answers on" fact={F.voice_line} to="admin/integrations"'), "the line is Integrations' to own");
@@ -203,6 +206,6 @@ test("Setup stops saying ready while a customer-facing fact is wrong", async () 
   assert.match(factsRow.sentence, /the number it transfers to/, "and it borrows the resolver's sentence, which knows why");
   assert.equal(factsRow.verb.label, "Fix it in Business");
   // "Answering" and "answering correctly" are different claims.
-  assert.match(flagged.readiness.sentence, /never the receptionist answering on \+13083368109/);
+  assert.match(flagged.readiness.sentence, /never the receptionist answering on \+1 \(308\) 336-8109/);
   assert.ok(flagged.done < clean.done, "and the count of what is ready goes down, which is the point");
 });

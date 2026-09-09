@@ -1938,7 +1938,24 @@ type Interval = z.infer<typeof IntervalSchema>;
 type Closure = z.infer<typeof ClosureSchema>;
 declare const BrainConfigSchema: z.ZodObject<{
     business_name: z.ZodString;
-    phone_display: z.ZodString;
+    /**
+     * The number the receptionist tells customers to call — an OVERRIDE, and
+     * optional because it should almost never be set.
+     *
+     * It was required, free text, and named the same as the line the
+     * receptionist answers, so every workspace typed something into it and
+     * nothing checked what. On the first live salon that produced a
+     * receptionist publishing the number it transfers to: customers who rang
+     * it reached a person's mobile and never the receptionist standing by,
+     * and the same string went to Google.
+     *
+     * Absent is now the right answer and the default: resolveFacts falls back
+     * to the provisioned voice line, formatted for speech, so the number
+     * published is the number answered by construction. A value here means a
+     * business deliberately publishes something else — a tracking line, a
+     * shopfront — and the pane says so in those words.
+     */
+    phone_display: z.ZodOptional<z.ZodString>;
     booking_link: z.ZodString;
     /** The complete system prompt the model receives — the "AI memory" pane's
      *  one hard promise is that what it shows is EXACTLY this, nothing more. */
@@ -2210,7 +2227,6 @@ declare const BrainConfigSchema: z.ZodObject<{
     }>;
 }, "strict", z.ZodTypeAny, {
     business_name: string;
-    phone_display: string;
     booking_link: string;
     system_prompt: string;
     fallbacks: {
@@ -2218,6 +2234,7 @@ declare const BrainConfigSchema: z.ZodObject<{
         error: string;
         greeting: string;
     };
+    phone_display?: string | undefined;
     profile?: {
         hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
             open?: string | null | undefined;
@@ -2266,7 +2283,6 @@ declare const BrainConfigSchema: z.ZodObject<{
     } | undefined;
 }, {
     business_name: string;
-    phone_display: string;
     booking_link: string;
     system_prompt: string;
     fallbacks: {
@@ -2274,6 +2290,7 @@ declare const BrainConfigSchema: z.ZodObject<{
         error: string;
         greeting: string;
     };
+    phone_display?: string | undefined;
     profile?: {
         hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
             open?: string | null | undefined;
@@ -2404,7 +2421,24 @@ type FeaturesConfig = z.infer<typeof FeaturesConfigSchema>;
 declare const TenantConfigSchema: z.ZodObject<{
     brain: z.ZodOptional<z.ZodObject<{
         business_name: z.ZodString;
-        phone_display: z.ZodString;
+        /**
+         * The number the receptionist tells customers to call — an OVERRIDE, and
+         * optional because it should almost never be set.
+         *
+         * It was required, free text, and named the same as the line the
+         * receptionist answers, so every workspace typed something into it and
+         * nothing checked what. On the first live salon that produced a
+         * receptionist publishing the number it transfers to: customers who rang
+         * it reached a person's mobile and never the receptionist standing by,
+         * and the same string went to Google.
+         *
+         * Absent is now the right answer and the default: resolveFacts falls back
+         * to the provisioned voice line, formatted for speech, so the number
+         * published is the number answered by construction. A value here means a
+         * business deliberately publishes something else — a tracking line, a
+         * shopfront — and the pane says so in those words.
+         */
+        phone_display: z.ZodOptional<z.ZodString>;
         booking_link: z.ZodString;
         /** The complete system prompt the model receives — the "AI memory" pane's
          *  one hard promise is that what it shows is EXACTLY this, nothing more. */
@@ -2676,7 +2710,6 @@ declare const TenantConfigSchema: z.ZodObject<{
         }>;
     }, "strict", z.ZodTypeAny, {
         business_name: string;
-        phone_display: string;
         booking_link: string;
         system_prompt: string;
         fallbacks: {
@@ -2684,6 +2717,7 @@ declare const TenantConfigSchema: z.ZodObject<{
             error: string;
             greeting: string;
         };
+        phone_display?: string | undefined;
         profile?: {
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
@@ -2732,7 +2766,6 @@ declare const TenantConfigSchema: z.ZodObject<{
         } | undefined;
     }, {
         business_name: string;
-        phone_display: string;
         booking_link: string;
         system_prompt: string;
         fallbacks: {
@@ -2740,6 +2773,7 @@ declare const TenantConfigSchema: z.ZodObject<{
             error: string;
             greeting: string;
         };
+        phone_display?: string | undefined;
         profile?: {
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
@@ -2814,7 +2848,6 @@ declare const TenantConfigSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     brain?: {
         business_name: string;
-        phone_display: string;
         booking_link: string;
         system_prompt: string;
         fallbacks: {
@@ -2822,6 +2855,7 @@ declare const TenantConfigSchema: z.ZodObject<{
             error: string;
             greeting: string;
         };
+        phone_display?: string | undefined;
         profile?: {
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
@@ -2882,7 +2916,6 @@ declare const TenantConfigSchema: z.ZodObject<{
 }, {
     brain?: {
         business_name: string;
-        phone_display: string;
         booking_link: string;
         system_prompt: string;
         fallbacks: {
@@ -2890,6 +2923,7 @@ declare const TenantConfigSchema: z.ZodObject<{
             error: string;
             greeting: string;
         };
+        phone_display?: string | undefined;
         profile?: {
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
@@ -2965,7 +2999,24 @@ declare function isRealDate(key: string): boolean;
 declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
     brain: z.ZodOptional<z.ZodObject<{
         business_name: z.ZodString;
-        phone_display: z.ZodString;
+        /**
+         * The number the receptionist tells customers to call — an OVERRIDE, and
+         * optional because it should almost never be set.
+         *
+         * It was required, free text, and named the same as the line the
+         * receptionist answers, so every workspace typed something into it and
+         * nothing checked what. On the first live salon that produced a
+         * receptionist publishing the number it transfers to: customers who rang
+         * it reached a person's mobile and never the receptionist standing by,
+         * and the same string went to Google.
+         *
+         * Absent is now the right answer and the default: resolveFacts falls back
+         * to the provisioned voice line, formatted for speech, so the number
+         * published is the number answered by construction. A value here means a
+         * business deliberately publishes something else — a tracking line, a
+         * shopfront — and the pane says so in those words.
+         */
+        phone_display: z.ZodOptional<z.ZodString>;
         booking_link: z.ZodString;
         /** The complete system prompt the model receives — the "AI memory" pane's
          *  one hard promise is that what it shows is EXACTLY this, nothing more. */
@@ -3237,7 +3288,6 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
         }>;
     }, "strict", z.ZodTypeAny, {
         business_name: string;
-        phone_display: string;
         booking_link: string;
         system_prompt: string;
         fallbacks: {
@@ -3245,6 +3295,7 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
             error: string;
             greeting: string;
         };
+        phone_display?: string | undefined;
         profile?: {
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
@@ -3293,7 +3344,6 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
         } | undefined;
     }, {
         business_name: string;
-        phone_display: string;
         booking_link: string;
         system_prompt: string;
         fallbacks: {
@@ -3301,6 +3351,7 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
             error: string;
             greeting: string;
         };
+        phone_display?: string | undefined;
         profile?: {
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
@@ -3375,7 +3426,6 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     brain?: {
         business_name: string;
-        phone_display: string;
         booking_link: string;
         system_prompt: string;
         fallbacks: {
@@ -3383,6 +3433,7 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
             error: string;
             greeting: string;
         };
+        phone_display?: string | undefined;
         profile?: {
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
@@ -3443,7 +3494,6 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
 }, {
     brain?: {
         business_name: string;
-        phone_display: string;
         booking_link: string;
         system_prompt: string;
         fallbacks: {
@@ -3451,6 +3501,7 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
             error: string;
             greeting: string;
         };
+        phone_display?: string | undefined;
         profile?: {
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
@@ -3511,7 +3562,6 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
 }>, {
     brain?: {
         business_name: string;
-        phone_display: string;
         booking_link: string;
         system_prompt: string;
         fallbacks: {
@@ -3519,6 +3569,7 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
             error: string;
             greeting: string;
         };
+        phone_display?: string | undefined;
         profile?: {
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
@@ -3579,7 +3630,6 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
 }, {
     brain?: {
         business_name: string;
-        phone_display: string;
         booking_link: string;
         system_prompt: string;
         fallbacks: {
@@ -3587,6 +3637,7 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
             error: string;
             greeting: string;
         };
+        phone_display?: string | undefined;
         profile?: {
             hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
                 open?: string | null | undefined;
@@ -3701,7 +3752,7 @@ declare function describeNow(tz: string | null | undefined, now?: Date,
 closures?: Closure[]): string;
 declare function composeSystemPrompt(base: {
     business_name: string;
-    phone_display: string;
+    phone_display?: string | null;
     booking_link: string;
 }, profile: BusinessProfile, channel?: "whatsapp" | "voice", 
 /** IANA zone from `tenants.timezone`, so stated hours are unambiguous. */

@@ -1005,8 +1005,18 @@ function resolveFacts(typed, known) {
       known?.listing?.name ? "verified" : "workspace",
       sameName
     ),
-    // The one that matters. Compared against the line the receptionist answers.
-    phone_display: typedOverKnown(trimmed(typed?.phone_display), voice, "provisioned", samePhone),
+    // The one that matters, and the one that should usually be absent.
+    //
+    // The fallback is FORMATTED, not raw E.164: this value is spoken and
+    // written to customers -- "Phone: +13083368109" in a prompt becomes a
+    // receptionist reading digits aloud -- so the provisioned line arrives as
+    // "+1 (308) 336-8109", the way a person says a number.
+    phone_display: typedOverKnown(
+      trimmed(typed?.phone_display),
+      voice ? formatPhoneDisplay(voice) : null,
+      "provisioned",
+      samePhone
+    ),
     booking_link: typedOverKnown(trimmed(typed?.booking_link), null, "absent", strEq),
     address: typedOverKnown(trimmed(p?.address), trimmed(known?.listing?.address), "verified", sameAddress),
     website: typedOverKnown(trimmed(p?.website), null, "absent", strEq),
@@ -1241,7 +1251,24 @@ var BusinessProfileSchema = z2.object({
 }).strict();
 var BrainConfigSchema = z2.object({
   business_name: z2.string().min(1).max(120),
-  phone_display: z2.string().min(3).max(40),
+  /**
+   * The number the receptionist tells customers to call — an OVERRIDE, and
+   * optional because it should almost never be set.
+   *
+   * It was required, free text, and named the same as the line the
+   * receptionist answers, so every workspace typed something into it and
+   * nothing checked what. On the first live salon that produced a
+   * receptionist publishing the number it transfers to: customers who rang
+   * it reached a person's mobile and never the receptionist standing by,
+   * and the same string went to Google.
+   *
+   * Absent is now the right answer and the default: resolveFacts falls back
+   * to the provisioned voice line, formatted for speech, so the number
+   * published is the number answered by construction. A value here means a
+   * business deliberately publishes something else — a tracking line, a
+   * shopfront — and the pane says so in those words.
+   */
+  phone_display: z2.string().min(3).max(40).optional(),
   booking_link: z2.string().url().max(500),
   /** The complete system prompt the model receives — the "AI memory" pane's
    *  one hard promise is that what it shows is EXACTLY this, nothing more. */
@@ -1551,7 +1578,7 @@ function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
   }
   if (profile.address) s.push(`
 Address: ${profile.address}`);
-  s.push(`Phone: ${base.phone_display}`);
+  if (base.phone_display) s.push(`Phone: ${base.phone_display}`);
   s.push(`Booking link: ${base.booking_link}`);
   if (profile.website) s.push(`Website: ${profile.website}`);
   const hrs = hoursLines(profile.hours);
@@ -1681,7 +1708,7 @@ ${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
   const facts = resolveFacts(brain, known);
   const resolved = {
     business_name: facts.business_name.value ?? brain.business_name,
-    phone_display: facts.phone_display.value ?? brain.phone_display,
+    phone_display: facts.phone_display.value,
     booking_link: facts.booking_link.value ?? brain.booking_link
   };
   const carried = profile.extra_instructions?.trim() ? profile : { ...profile, extra_instructions: brain.system_prompt };

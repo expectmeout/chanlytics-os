@@ -654,6 +654,11 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
    The Business card was eight rows of identical text, three of them things the
    PLATFORM knows shown as if somebody had written them down -- which is how a
    salon came to publish the number it transfers to as the number to call. */
+/* The published number: a choice, not a text box. Defaulting to the line
+   is what stops it drifting from the number the receptionist answers. */
+.set-pub { align-items: start; }
+.set-pub-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.set-pub-body .set-input { max-width: 260px; }
 .set-ident-note { grid-column: 1 / -1; font-size: 11.5px; line-height: 1.5; color: var(--ink-muted); padding: 2px 0 2px 0; }
 .set-fact { display: inline-flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .set-fact-empty { color: var(--ink-dim); font-style: italic; }

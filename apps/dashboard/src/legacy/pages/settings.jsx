@@ -1055,23 +1055,32 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     const name = bizName.trim();
     const phone = phoneDisplay.trim();
     const link = bookingLink.trim();
-    const missing = !name ? "a business name" : !phone ? "a phone line" : !link ? "a booking link" : "";
+    // An empty published number is now the RIGHT answer, not a missing one: it
+    // resolves to the line the receptionist answers. Only a workspace with no
+    // line at all and nothing typed has nothing to give a customer.
+    const missing = !name ? "a business name" : (!phone && !voiceLine) ? "a phone number" : !link ? "a booking link" : "";
     if (missing) {
       flash({ msg: <>The receptionist needs {missing} before it can answer anyone.</> });
+      return;
+    }
+    const badPhone = phone && window.__whyNotAPhone ? window.__whyNotAPhone(phone) : null;
+    if (badPhone) {
+      flash({ msg: <>{badPhone}</> });
       return;
     }
     if (!/^https?:\/\/.+\..+/.test(link)) {
       flash({ msg: <>That booking link needs to be a full web address, starting with https://</> });
       return;
     }
-    const defaults = window.__receptionistDefaults(name, phone, link);
+    const defaults = window.__receptionistDefaults(name, phone || voiceLine || "", link);
 
     const next = {
       ...settings.config,
       brain: {
         ...brain,
         business_name: name,
-        phone_display: phone,
+        // undefined, not "": absent is the schema's way of saying "use the line".
+        phone_display: phone || undefined,
         booking_link: link,
         // Only invented when there is nothing there. An existing workspace keeps
         // every word it already had — these are the fields a customer actually
@@ -1134,40 +1143,70 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
               aria-label="Business name"
             />
           </label>
-          {/* NOT "Phone line". This field is what the receptionist TELLS
-              customers to call, and it was labelled the same as the line it
-              answers on -- a text box with a placeholder, checked against
-              nothing -- so a salon published its transfer number here and
-              every WhatsApp customer was sent to a person's mobile instead of
-              to the receptionist standing by. The line itself is provisioned
-              and belongs to Integrations; this row says which number goes in
-              the words, and shows the real one beside it. */}
-          <label className="set-ident-row">
+          {/* NOT "Phone line", and no longer a text box.
+              It was required, free text, and named the same as the line the
+              receptionist answers -- so every workspace typed something and
+              nothing checked what, and the first live salon ended up
+              publishing the number it transfers to. Customers who rang it
+              reached a person's mobile and never the receptionist standing by.
+              The line is the default now, and publishing anything else is a
+              deliberate act with a reason attached. */}
+          <div className="set-ident-row set-pub">
             <span className="set-ident-key">Tell customers to call</span>
-            <input
-              className="set-input"
-              value={phoneDisplay}
-              onChange={(e) => setPhoneDisplay(e.target.value)}
-              placeholder={voiceLine || "(555) 010-1234"}
-              inputMode="tel"
-              autoComplete="tel"
-              aria-label="The number to tell customers to call"
-            />
-          </label>
-          {voiceLine && (
-            <div className="set-ident-note" data-testid="set-line-note">
-              {window.__samePhone && window.__samePhone(phoneDisplay, voiceLine)
-                ? <>This is the line your receptionist answers.</>
-                : <>
-                    Your receptionist answers on <b className="tabular">{voiceLine}</b>
-                    {handoffLine && window.__samePhone && window.__samePhone(phoneDisplay, handoffLine)
-                      ? <> — what you have typed is the number it transfers to, so customers who call it reach a person and never the receptionist.</>
-                      : <> — customers who call what you typed will not reach it.</>}
-                    {" "}
-                    <button type="button" className="cl-bucket-link" onClick={() => setPhoneDisplay(voiceLine)} data-testid="set-use-line">Use my line</button>
-                  </>}
+            <div className="set-pub-body">
+              {voiceLine ? (
+                <>
+                  <div className="cl-tabs" role="radiogroup" aria-label="The number to tell customers to call">
+                    <button type="button" role="radio" aria-checked={!phoneDisplay} className={`cl-tab ${!phoneDisplay ? "active" : ""}`} onClick={() => setPhoneDisplay("")} data-testid="set-pub-line">
+                      Your line
+                    </button>
+                    <button type="button" role="radio" aria-checked={!!phoneDisplay} className={`cl-tab ${phoneDisplay ? "active" : ""}`} onClick={() => setPhoneDisplay(phoneDisplay || voiceLine)} data-testid="set-pub-other">
+                      A different number
+                    </button>
+                  </div>
+                  {phoneDisplay ? (
+                    <>
+                      <input
+                        className="set-input"
+                        value={phoneDisplay}
+                        onChange={(e) => setPhoneDisplay(e.target.value)}
+                        placeholder={voiceLine}
+                        inputMode="tel"
+                        autoComplete="tel"
+                        aria-label="The number to publish instead"
+                        data-testid="set-pub-input"
+                      />
+                      <div className="set-ident-note">
+                        {window.__samePhone && window.__samePhone(phoneDisplay, voiceLine)
+                          ? <>That is your line. Leave it on <b>Your line</b> and it stays right when the number changes.</>
+                          : handoffLine && window.__samePhone && window.__samePhone(phoneDisplay, handoffLine)
+                            ? <>This is the number the receptionist <b>transfers</b> to, so customers who ring it reach a person directly and never the receptionist answering on <b className="tabular">{voiceLine}</b>.</>
+                            : <>Customers who ring this will not reach your receptionist on <b className="tabular">{voiceLine}</b>.</>}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="set-ident-note" data-testid="set-pub-note">
+                      <b className="tabular">{voiceLine}</b> — the line your receptionist answers. It follows the line, so changing your number here changes nothing to keep in step.
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <input
+                    className="set-input"
+                    value={phoneDisplay}
+                    onChange={(e) => setPhoneDisplay(e.target.value)}
+                    placeholder="(555) 010-1234"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    aria-label="The number to tell customers to call"
+                    data-testid="set-pub-input"
+                  />
+                  <div className="set-ident-note">No phone line yet, so this is the only number the receptionist can give. It answers on WhatsApp; the number you type here is somewhere a person picks up.</div>
+                </>
+              )}
             </div>
-          )}
+          </div>
           <label className="set-ident-row">
             <span className="set-ident-key">Booking link</span>
             <input
