@@ -408,6 +408,17 @@
 .ix-th-scroll {
   flex: 1 1 auto;
   overflow-y: auto;
+  /* The pane's gutter, set ONCE here. Three children carried it themselves --
+     .ix-summary and .ix-approval as a margin, .ix-timeline as padding -- and
+     every other child carried none, so a bordered alert like .ix-take sat
+     flush against the divider this pane shares with the thread list on one
+     side and the agent rail on the other: a rounded red card with its corners
+     cut off by two hairlines. Spacing between siblings belongs to the parent
+     here, as everywhere else in this codebase. */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 24px;
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
 }
@@ -513,7 +524,7 @@
 
 /* === Narrative summary === */
 .ix-summary {
-  margin: 16px 24px 4px;
+  margin: 0;
   padding: 10px 14px;
   background: var(--bg-sunken);
   border: 1px solid var(--line);
@@ -536,7 +547,7 @@
 
 /* === Approval card v2 === */
 .ix-approval {
-  margin: 16px 24px 0;
+  margin: 0;
   padding: 16px 18px;
   background: var(--bg-raised);
   border: 1px solid var(--line);
@@ -887,7 +898,7 @@
 
 /* === Timeline === */
 .ix-timeline {
-  padding: 12px 24px 12px;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -1571,4 +1582,4 @@ button.ix-policy.pill-warn{border:1px solid transparent}
 }
 
 /* a deep link to a thread that is not in view: the first thread shows, with this */
-.ix-notice { padding: 8px 20px; font-size: 12px; color: var(--warn); border-bottom: 1px solid var(--line); }
+.ix-notice { padding: 8px 24px; font-size: 12px; color: var(--warn); border-bottom: 1px solid var(--line); }

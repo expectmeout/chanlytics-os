@@ -40,7 +40,12 @@
 }
 @media (prefers-reduced-motion: reduce) { .set-pane { animation: none; } }
 
-.set-card { max-width: 720px; }
+/* The settings column. Every section on this surface takes it -- including
+   the Setup rows, which had no measure at all and so ran to the pane edge
+   while the cards above and below them stopped at 720. Measured before
+   changing it: not one Setup row's sentence or status line clips at this
+   width, so the extra space it was using was empty. */
+.set-card, .setup-rows { max-width: var(--measure-prose); }
 
 /* Rows */
 .set-row {
@@ -203,7 +208,7 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
    rather than naming the database column. Built on the existing tokens and the
    existing .set-switch, not a second input language. */
 
-.set-editor { max-width: 720px; }
+.set-editor { max-width: var(--measure-prose); }
 
 .set-sec { padding: 16px 0; border-top: 1px solid var(--line); }
 .set-sec:first-of-type { border-top: none; padding-top: 8px; }

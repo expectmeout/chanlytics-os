@@ -78,24 +78,46 @@ const SET_TABS = [
   { id: "billing",       label: "Billing",       icon: "money" },
 ];
 
-const SetToggle = ({ on, onChange }) => (
-  <button className={`set-switch ${on ? "on" : ""}`} role="switch" aria-checked={on} onClick={() => onChange(!on)}>
+// ...rest carries the aria-labelledby SetRow hands down; without forwarding it
+// the switch is announced with no name at all.
+const SetToggle = ({ on, onChange, ...rest }) => (
+  <button className={`set-switch ${on ? "on" : ""}`} role="switch" aria-checked={on} onClick={() => onChange(!on)} {...rest}>
     <span className="set-knob" />
   </button>
 );
 
-const SetRow = ({ label, hint, children }) => (
-  <div className="set-row">
-    <div className="set-row-info">
-      <span className="set-row-label">{label}</span>
-      {hint && <span className="set-row-hint">{hint}</span>}
+/**
+ * A settings row: what it is on the left, the control on the right.
+ *
+ * The control is named FROM the row. Every switch on this surface rendered as
+ * an unlabelled `role="switch"` — the words that say what it does live in the
+ * left column, and nothing tied the two together, so a screen reader announced
+ * "switch, on" thirteen times down the Notifications tab. Naming it here rather
+ * than at each call site means a control added to a row tomorrow is named too,
+ * and a control that brings its own aria-label keeps it.
+ */
+const SetRow = ({ label, hint, children }) => {
+  const labelId = React.useId();
+  const named = React.Children.map(children, (kid) => (
+    React.isValidElement(kid) && !kid.props["aria-label"] && !kid.props["aria-labelledby"]
+      ? React.cloneElement(kid, { "aria-labelledby": labelId })
+      : kid
+  ));
+  return (
+    <div className="set-row">
+      <div className="set-row-info">
+        <span className="set-row-label" id={labelId}>{label}</span>
+        {hint && <span className="set-row-hint">{hint}</span>}
+      </div>
+      <div className="set-row-control">{named}</div>
     </div>
-    <div className="set-row-control">{children}</div>
-  </div>
-);
+  );
+};
 
-const SetSeg = ({ value, options, onChange }) => (
-  <div className="cl-tabs">
+const SetSeg = ({ value, options, onChange, ...rest }) => (
+  // role=group so the label SetRow supplies has something to name; the buttons
+  // inside stay plain buttons, which is what they already were.
+  <div className="cl-tabs" role="group" {...rest}>
     {options.map(o => (
       <button key={o} className={`cl-tab ${value === o ? "active" : ""}`} onClick={() => onChange(o)}>{o}</button>
     ))}

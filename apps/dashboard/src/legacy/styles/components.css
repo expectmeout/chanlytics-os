@@ -1038,10 +1038,23 @@
    NUANCE PASS — focus rings, disabled states, crumb links
    ============================================================ */
 
-.btn:focus-visible, .cl-tab:focus-visible, .fleet-filter-chip:focus-visible,
-.ix-bucket:focus-visible, .nav-item:focus-visible, .tb-ask:focus-visible,
-.cl-triage-tab:focus-visible, .ix-outcome:focus-visible, .set-switch:focus-visible,
-.fl-agent:focus-visible, .cv-row:focus-visible, .st-card:focus-visible, .pp-card:focus-visible {
+/* Every focusable thing gets the ring, by default.
+   This was an allowlist of thirteen class names, and an allowlist of focus
+   rings decays by construction: it named 29 selectors across the styles and
+   missed 39 more that are real controls -- calendar appointments, segment
+   rows, policy dots, decision buttons, every chip and inline link -- so a
+   keyboard user tabbing through them saw nothing move.
+   :where() carries zero specificity, so every rule below (and every component
+   that wants a different ring) still wins without !important. */
+:where(button, a[href], summary, [role="button"], [role="switch"], [role="tab"],
+       [role="option"], [tabindex="0"]):focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* Kept because these are not <button>s or are nested inside one, and because
+   naming them here documents that their ring is deliberate. */
+.cl-attn-row:focus-visible, .cv-row:focus-visible, .st-card:focus-visible,
+.pp-card:focus-visible, .fl-agent:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
 }
@@ -1364,7 +1377,7 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 @media (max-width: 900px) { .shared-banner { flex-wrap: wrap; row-gap: 6px; padding: 10px 14px; } }
 
 /* ---------- Campaigns: Content + Broadcasts ---------- */
-.ct-page, .bc-page { padding: 24px 28px 80px; max-width: 1160px; display: flex; flex-direction: column; gap: 20px; width: 100%; }
+.ct-page, .bc-page { padding: 24px var(--gutter-page) 80px; max-width: var(--measure-page); display: flex; flex-direction: column; gap: 20px; width: 100%; }
 .ct-h2 { font-size: 20px; font-weight: 500; letter-spacing: -0.02em; color: var(--ink); margin: 0; }
 .ct-sub { font-size: 12.5px; color: var(--ink-muted); margin: 4px 0 0; max-width: 560px; line-height: 1.5; }
 .ct-section { display: flex; flex-direction: column; gap: 10px; }
