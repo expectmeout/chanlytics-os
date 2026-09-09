@@ -40,6 +40,7 @@ import { logger } from "../../lib/log.js";
 import { alertFor } from "../../lib/job-alert.js";
 import { FIRE_URL } from "../../lib/workspace/jobs.js";
 import { recoveryFor, OVERDUE_AFTER_MS } from "../../lib/jobs-recovery.js";
+import { settle, saySettled, type Settled } from "../../lib/jobs-settle.js";
 
 export const config = { maxDuration: 60 };
 
@@ -79,28 +80,6 @@ async function republishJob(db: Db, jobId: string): Promise<void> {
   await db.from("jobs").update({ qstash_id: res.messageId }).eq("id", jobId);
 }
 
-/**
- * A broadcast whose chain broke sits in 'sending' with some recipients done
- * and nothing coming: broadcastSend schedules its own next batch, so one lost
- * link strands the whole run. Conditional on 'sending', so a broadcast that
- * finished between the read and here is left exactly as it finished.
- */
-async function releaseBroadcast(db: Db, job: { kind: string; tenant_id: string; payload: unknown }): Promise<boolean> {
-  if (job.kind !== "broadcast_send") return false;
-  const id = typeof job.payload === "object" && job.payload !== null
-    ? (job.payload as Record<string, unknown>).broadcast_id
-    : null;
-  if (typeof id !== "string") return false;
-  const { data } = await db
-    .from("broadcasts")
-    .update({ state: "failed", finished_at: new Date().toISOString() })
-    .eq("id", id)
-    .eq("tenant_id", job.tenant_id)
-    .eq("state", "sending")
-    .select("id");
-  return !!data?.length;
-}
-
 function secretsMatch(a: string, b: string): boolean {
   const x = Buffer.from(a);
   const y = Buffer.from(b);
@@ -132,6 +111,21 @@ export async function POST(request: Request): Promise<Response> {
 
   let reaped = 0;
   let messages = 0;
+  let broadcasts = 0;
+  /**
+   * Both terminal paths settle the same way and count the same way; they used
+   * to settle different halves each, which is how an outbound_send given up on
+   * said "Sending…" for ever. A settlement that could not be written is logged
+   * here and said in the alert — never dropped, which is what the old
+   * releaseBroadcast did with its error.
+   */
+  const record = (results: Settled[], jobId: string): void => {
+    for (const s of results) {
+      if (s.error) L.error("job_settle_failed", { job_id: jobId, what: s.what, error: s.error });
+      else if (s.changed) { if (s.what === "message") messages += 1; else broadcasts += 1; }
+    }
+  };
+
   for (const job of stale ?? []) {
     // `.eq("state", "fired")` is the gate, not a filter: two overlapping ticks,
     // or a handler that comes back late, must not both report the same job.
@@ -150,23 +144,12 @@ export async function POST(request: Request): Promise<Response> {
     if (!won?.length) continue;
     reaped += 1;
 
-    // The reply the operator is watching. Conditional on 'queued' for the same
-    // reason: if the handler DID record the send before dying, that row is
-    // already 'sent' and saying otherwise would be a lie about a message that
-    // reached someone. Only a row still claiming to be on its way is touched.
-    const messageId = typeof job.payload === "object" && job.payload !== null
-      ? (job.payload as Record<string, unknown>).message_id
-      : null;
-    if (job.kind === "outbound_send" && typeof messageId === "string") {
-      const { data: stuck } = await db
-        .from("messages")
-        .update({ status: "failed", error: { reason: "run_interrupted", note: RUN_INTERRUPTED } })
-        .eq("id", messageId)
-        .eq("tenant_id", job.tenant_id)
-        .eq("status", "queued")
-        .select("id");
-      if (stuck?.length) messages += 1;
-    }
+    // Not certain: this job WAS claimed, so the handler may have done the work
+    // before dying. Every write settle() makes is conditional on the row still
+    // claiming to be in flight, which is what makes that safe.
+    const settled = await settle(db, job, false);
+    record(settled, job.id);
+    const wreckage = saySettled(settled);
 
     L.info("stale_job_reaped", { job_id: job.id, tenant_id: job.tenant_id, kind: job.kind, fired_at: job.fired_at });
     try {
@@ -175,7 +158,8 @@ export async function POST(request: Request): Promise<Response> {
         `Job ${job.id} (${job.kind}) started and never reported back, so ${RUN_INTERRUPTED}.\n\n` +
         (job.kind === "outbound_send"
           ? "If this was a reply, it may or may not have reached the customer — check the conversation before sending it again."
-          : "Nothing retries it on its own."),
+          : "Nothing retries it on its own.") +
+        (wreckage ? `\n\n${wreckage}` : ""),
       );
     } catch (e) {
       // Alerting is best effort: it must not turn a recorded reaping into an
@@ -197,14 +181,14 @@ export async function POST(request: Request): Promise<Response> {
     .lt("due_at", overdueBefore)
     .order("due_at", { ascending: true })
     .limit(MAX_PER_TICK);
-  if (oErr) {
-    L.error("overdue_read_failed", { error: oErr.message });
-    return json(200, { ok: true, reaped, messages, overdue_error: oErr.message });
-  }
+  // No early return, for the reason recorded above the stuck read: an exit here
+  // is how #261 shipped inert. A failed read has nothing to iterate, so the
+  // loop below simply does not run and the status at the bottom tells the
+  // truth about it.
+  if (oErr) L.error("overdue_read_failed", { error: oErr.message });
 
   let republished = 0;
   let gaveUp = 0;
-  let broadcasts = 0;
   for (const job of overdue ?? []) {
     const verdict = recoveryFor(job);
     if (verdict === "wait") continue;
@@ -248,23 +232,34 @@ export async function POST(request: Request): Promise<Response> {
       .select("id");
     if (fErr || !won?.length) continue;
     gaveUp += 1;
-    if (await releaseBroadcast(db, job)) broadcasts += 1;
+    // Certain: nothing ever claimed this job, so the work provably never
+    // happened. Same settlement as the reap above, different words for it.
+    const settled = await settle(db, job, true);
+    record(settled, job.id);
+    const wreckage = saySettled(settled);
+
     L.info("jobs_gave_up", { job_id: job.id, tenant_id: job.tenant_id, kind: job.kind, due_at: job.due_at, republishes: job.republishes });
     try {
       await alertFor(db, job)(
         `A ${job.kind} job never ran`,
         `Job ${job.id} (${job.kind}) was due ${job.due_at} and its delivery never arrived, after ${job.republishes} attempt${job.republishes === 1 ? "" : "s"} to send it again. ${NEVER_DELIVERED}.\n\n` +
-        (job.kind === "broadcast_send"
-          ? "The broadcast has been marked failed; the people it had already reached still got it."
-          : "Nothing else will run it."),
+        "Nothing else will run it." +
+        (wreckage ? `\n\n${wreckage}` : ""),
       );
     } catch (e) {
       L.error("jobs_giveup_alert_failed", { job_id: job.id, error: e instanceof Error ? e.message : String(e) });
     }
   }
 
-  return json(200, {
-    ok: true, reaped, messages, republished, gaveUp, broadcasts,
+  // A sweep that could not read half the ledger did not sweep it, and 200 says
+  // it did. Both halves have run by now, so the failure costs nothing to
+  // report honestly — and the counts still come back, because what the working
+  // half achieved is true whatever the other half did. 503 is already this
+  // route's word for "the work could not be done" (see no_database above).
+  const failed = [error && "stuck", oErr && "overdue"].filter(Boolean) as string[];
+  return json(failed.length ? 503 : 200, {
+    ok: failed.length === 0, reaped, messages, republished, gaveUp, broadcasts,
     seen: (stale?.length ?? 0) + (overdue?.length ?? 0),
+    ...(failed.length ? { unread: failed } : {}),
   });
 }
