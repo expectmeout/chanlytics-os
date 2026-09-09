@@ -12,6 +12,19 @@
  * tell apart from the person they are already talking to; it kept sending after
  * a workspace switched its receptionist to 'ask'; and nothing capped it, so a
  * caller who phoned repeatedly got one billable template per attempt.
+ *
+ * AND IT ASKED HALF THE CONSENT QUESTION. The gate took a single `optedOut`
+ * boolean, so after 00095 split consent into two answers this path was back to a
+ * bar of its own -- the under-blocking half of the defect that migration names.
+ * It now takes the person's consent row and the message's PURPOSE and asks
+ * `mayMessageFor`, the same predicate the broadcast wire asks, which also lets it
+ * tell apart the two sends that used to look identical to it:
+ *
+ *   the caller's OWN number   answering somebody who just phoned in -- not
+ *                             proactive, so no prior opt-in is needed, which is
+ *                             what makes the feature work for a first-time caller
+ *   a THIRD party's number    a number merely spoken aloud, starting a
+ *                             conversation with somebody who asked for nothing
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -24,9 +37,13 @@ const { outboundGate, refusalScript } = await import(
 );
 
 const NOW = 1_800_000_000_000;
-/** A caller asking for their link, on an ordinary thread. */
+/** Nobody has been asked anything: the state every first-time caller is in. */
+const NEVER_ASKED = { consent: "unknown", dnc: false, marketing_consent: "unknown" };
+/** A caller asking for their own link, on an ordinary thread. */
 const base = {
-  optedOut: false,
+  contact: NEVER_ASKED,
+  purpose: "conversational",
+  proactive: false,
   pausedUntilMs: null,
   replyMode: "auto",
   sentToday: 0,
@@ -34,6 +51,9 @@ const base = {
   nowMs: NOW,
 };
 const gate = (over) => outboundGate({ ...base, ...over });
+/** The old shape's one knob, in the two ways a person can be stopped. */
+const stopped = { consent: "opted_out", dnc: false, marketing_consent: "unknown" };
+const doNotContact = { consent: "unknown", dnc: true, marketing_consent: "opted_in" };
 
 test("the ordinary case sends", () => {
   const d = gate({});
@@ -43,10 +63,53 @@ test("the ordinary case sends", () => {
 
 test("consent outranks a caller asking out loud", () => {
   // Someone who said stop said stop, whatever channel they said it on — asking
-  // on the phone is not a fresh opt-in.
-  const d = gate({ optedOut: true });
-  assert.equal(d.allowed, false);
-  assert.equal(d.refusal, "opted_out");
+  // on the phone is not a fresh opt-in. Both ways of being stopped, because
+  // `dnc` is the operator's override and outranks even a recorded yes to offers.
+  for (const contact of [stopped, doNotContact]) {
+    const d = gate({ contact });
+    assert.equal(d.allowed, false);
+    assert.equal(d.refusal, "opted_out");
+  }
+});
+
+test("a first-time caller's own link is not blocked by never having been asked", () => {
+  // THE FEATURE. A stranger phones, asks to be texted the booking link, and has
+  // no consent on record because nobody has ever asked them. Answering the person
+  // on the line is not a proactive send, so this must go out — reading it as one
+  // would refuse every first-time caller, which is the over-block 00095 exists to
+  // remove arriving in a new place.
+  assert.equal(gate({ contact: NEVER_ASKED, proactive: false }).allowed, true);
+});
+
+test("a THIRD party spoken aloud needs their own recorded yes", () => {
+  // The hole the single `optedOut` boolean could not see. A caller reads out
+  // somebody else's number; that person asked for nothing.
+  assert.equal(gate({ proactive: true }).refusal, "not_opted_in");
+  assert.equal(
+    gate({ proactive: true, contact: { consent: "opted_in", dnc: false, marketing_consent: "unknown" } }).allowed,
+    true,
+    "a third party who HAS said yes to messages may be texted",
+  );
+});
+
+test("a promotional message needs the offers answer, on either kind of send", () => {
+  // The purpose is the message's, not the direction's. A yes to conversation is
+  // not a yes to offers (error 30913), and it is refused with the reason that
+  // says which yes was missing.
+  const saidYesToMessages = { consent: "opted_in", dnc: false, marketing_consent: "unknown" };
+  assert.equal(gate({ purpose: "marketing", contact: saidYesToMessages }).refusal, "no_marketing_consent");
+  assert.equal(
+    gate({ purpose: "marketing", contact: { ...saidYesToMessages, marketing_consent: "opted_in" } }).allowed,
+    true,
+  );
+});
+
+test("marketing FAILS CLOSED on a row that never projected the column", () => {
+  // consent.ts's stated asymmetry, pinned here because this gate is the one that
+  // reads a row assembled by a resolver rather than selected for the send.
+  assert.equal(gate({ purpose: "marketing", contact: { consent: "opted_in", dnc: false } }).refusal, "no_marketing_consent");
+  assert.equal(gate({ purpose: "conversational", contact: { consent: "opted_in", dnc: false } }).allowed, true,
+    "and a missing column never silences a reply");
 });
 
 test("REGRESSION: a thread a human has taken over is not texted over", () => {
@@ -77,7 +140,7 @@ test("REGRESSION: repeated calls cannot send unlimited templates", () => {
 test("consent is reported before every other refusal", () => {
   // All four conditions at once. The reason is logged and shapes what the agent
   // says, so the ordering has to be the one an operator would expect.
-  const d = gate({ optedOut: true, pausedUntilMs: NOW + 1, replyMode: "ask", sentToday: 99 });
+  const d = gate({ contact: stopped, pausedUntilMs: NOW + 1, replyMode: "ask", sentToday: 99 });
   assert.equal(d.refusal, "opted_out");
 });
 
@@ -86,7 +149,7 @@ test("consent is reported before every other refusal", () => {
 test("no refusal leaks our internal state to the caller", () => {
   // The agent SPEAKS these. A caller must not be told a colleague is mid-thread
   // with them, nor hear the words for our policy machinery.
-  for (const r of ["opted_out", "human_has_it", "policy_hold", "daily_cap"]) {
+  for (const r of ["opted_out", "not_opted_in", "no_marketing_consent", "human_has_it", "policy_hold", "daily_cap"]) {
     const said = refusalScript(r, "(646) 932-5775");
     assert.ok(said.length > 20, `${r} must say something useful`);
     assert.doesNotMatch(said, /paused|policy_hold|opted_out|daily_cap|rate cap|tenant/i, r);
@@ -94,7 +157,7 @@ test("no refusal leaks our internal state to the caller", () => {
 });
 
 test("every refusal offers the caller a way forward", () => {
-  for (const r of ["opted_out", "human_has_it", "policy_hold", "daily_cap"]) {
+  for (const r of ["opted_out", "not_opted_in", "no_marketing_consent", "human_has_it", "policy_hold", "daily_cap"]) {
     assert.match(
       refusalScript(r, "(646) 932-5775"),
       /offer|tell the caller|book/i,

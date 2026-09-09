@@ -449,10 +449,17 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   assert.deepEqual(PEOPLE_LIST_GROUPS.map((g) => g.id), ["attention", "journey", "reach"]);
   assert.deepEqual(PEOPLE_LISTS.filter((l) => l.group === "journey").map((l) => l.id), ["new_week", "booked_week", "booked", "asked_never_booked", "lapsed"]);
   assert.deepEqual(PEOPLE_LISTS.filter((l) => l.group === "attention").map((l) => l.id), ["needs_you", "waiting_on_you"]);
+  assert.deepEqual(PEOPLE_LISTS.filter((l) => l.group === "reach").map((l) => l.id), ["quiet", "phoned_only", "opted_in", "offers_ok", "opted_out"], "two consent lists, because there are two answers");
   assert.ok(PEOPLE_LISTS.every((l) => ["attention", "journey", "reach"].includes(l.group)));
-  const yes = { ...lapsed, consent: { ...lapsed.consent, state: "opted_in" } };
-  assert.deepEqual(peopleListAction("lapsed", [lapsed, yes]), { text: "1 of 2 on this list said yes — a broadcast reaches them.", cta: "Win them back", to: "broadcasts/lapsed", enabled: true });
-  assert.deepEqual(peopleListAction("lapsed", [lapsed]), { text: "Nobody on this list has said yes yet — a broadcast reaches only a recorded yes.", cta: "Win them back", to: "broadcasts/lapsed", enabled: false });
+  // The step counts the MARKETING yes, because every one of these steps opens the
+  // composer on a promotional send. Counting the conversational answer promised an
+  // audience the composer would then refuse -- the same mismatch, one screen
+  // earlier. A person who said yes to messages and not to offers is NOT counted.
+  const yes = { ...lapsed, consent: { ...lapsed.consent, state: "opted_in", marketing: "opted_in" } };
+  const talkOnly = { ...lapsed, consent: { ...lapsed.consent, state: "opted_in", marketing: "unknown" } };
+  assert.deepEqual(peopleListAction("lapsed", [lapsed, yes]), { text: "1 of 2 on this list said yes to offers — a broadcast reaches them.", cta: "Win them back", to: "broadcasts/lapsed", enabled: true });
+  assert.deepEqual(peopleListAction("lapsed", [lapsed]), { text: "Nobody on this list has said yes to offers yet — a broadcast reaches only that answer. The phrase and the QR are on Broadcasts.", cta: "Win them back", to: "broadcasts/lapsed", enabled: false });
+  assert.equal(peopleListAction("lapsed", [talkOnly]).enabled, false, "a yes to messages is not a yes to offers");
   assert.equal(peopleListAction("lapsed", []).text, "Nobody here right now.");
   assert.deepEqual(peopleListAction("booked_week", [week]), { text: "Their appointments are on the Calendar.", cta: "See the week", to: "calendar", enabled: true });
   assert.equal(peopleListAction("asked_never_booked", [yes]).to, "broadcasts/asked_never_booked");
@@ -501,10 +508,17 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
   assert.ok(bridge.split("await refreshSurfaces([peopleOverride]);").length >= 3, "the single and the many both refresh, the many once");
   const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
   for (const id of ["select-all", "row-select", "bulk-bar", "bulk-list-name", "bulk-export", "bulk-clear", "save-shown", "save-shown-name"]) assert.ok(page.includes(`data-testid="${id}"`), id);
-  assert.ok(page.includes("window.__setPersonConsentMany(ids, { consent: \"opted_in\", source: source.id })"), "a yes says how it was given");
+  // WHICH yes, and how it was given. The bulk action was titled for offers and
+  // wrote the conversational column, so a salon recording thirty signed marketing
+  // consents changed the one field that does not authorise a promotion.
+  assert.ok(bridge.includes("export async function setPersonMarketingConsentMany(ids: string[], body: ConsentBody): Promise<ManyResult>"));
+  assert.ok(bridge.includes("window.__setPersonMarketingConsentMany = setPersonMarketingConsentMany;"));
+  assert.ok(page.includes("(purpose === \"marketing\" ? window.__setPersonMarketingConsentMany : window.__setPersonConsentMany)("), "one recorder, the door chosen by purpose");
+  assert.ok(page.includes('{ header: "Yes to messages about their visit\u2026" }') && page.includes('{ header: "Yes to offers and news\u2026" }'), "both asks are offered, and named");
+  assert.ok(page.includes('{ consent: "opted_in", source: source.id },'), "a yes says how it was given");
   assert.ok(page.includes('.filter((s) => s.id !== "customer_message")'), "their own message is not something a desk records for them");
   assert.ok(page.includes("React.useEffect(() => { setSel(new Set()); }, [tab, listId, savedId, q]);"), "a selection never outlives its view");
-  assert.ok(page.includes('const head = ["Name", "Phone", "State", "Last contact", "Consent", "Next visit", "First contact"];'), "the file holds the columns the page shows, nothing invented");
+  assert.ok(page.includes('const head = ["Name", "Phone", "State", "Last contact", "Consent", "Offers", "Next visit", "First contact"];'), "the file holds the columns the page shows, nothing invented");
   assert.ok(page.includes("selectable={canEditLists || canExport}"));
 });
 

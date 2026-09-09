@@ -3373,6 +3373,15 @@ interface OutboundTarget {
      *  without having been handed the consent state. */
     consent: string | null;
     dnc: boolean;
+    /**
+     * The OTHER answer: offers, specifically (00095).
+     *
+     * Carried for exactly the reason the two above are — a sender that is not
+     * handed the fact cannot honour it — and its absence is why the voice path
+     * could only ever ask half the question. The shape is now a `PurposeBearing`,
+     * so `mayMessageFor` can be asked about either purpose without a second read.
+     */
+    marketingConsent: string | null;
     /** A human has this thread until then. Carried for the same reason consent
      *  is: a sender that is not handed the fact cannot honour it. */
     pausedUntil: string | null;

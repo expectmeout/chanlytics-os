@@ -101,16 +101,38 @@ test("the CSV quotes what must be quoted and defuses what a spreadsheet would ru
   assert.equal(X.csvCell(0), "0");
   const rows = [{
     id: "p1", display_name: "Dani, Jr.", wa_profile_name: "=cmd", phone_e164: "+19175550100", consent: "opted_in", consent_source: "keyword",
-    consent_updated_at: "2026-08-01T12:00:00Z", dnc: false, channels: ["whatsapp", "voice"], conversation_count: 2, escalation_count: 0,
+    consent_updated_at: "2026-08-01T12:00:00Z",
+    // The OTHER answer. This person answers the business and has NOT asked for
+    // offers, which is the ordinary case and the one an audit needs to be able to
+    // tell apart -- and the columns this file carried could not.
+    marketing_consent: "unknown", marketing_consent_source: null, marketing_consent_updated_at: null,
+    dnc: false, channels: ["whatsapp", "voice"], conversation_count: 2, escalation_count: 0,
     call_count: 1, first_contact_at: "2026-07-01T12:00:00Z", last_message_at: "2026-09-01T12:00:00Z", last_inbound_at: null, last_call_at: null,
     effective_reply_mode: "auto",
   }];
   const csv = X.peopleCsv(rows, TZ);
   assert.equal(csv.charCodeAt(0), 0xfeff, "a BOM so a spreadsheet reads accents");
   const [head, row, tail] = csv.slice(1).split("\r\n");
-  assert.equal(head, "name,whatsapp_name,phone,consent,consent_source,consent_updated,do_not_contact,channels,conversations,calls,escalations,first_contact,last_message,last_inbound,last_call,receptionist");
-  assert.equal(row, `"Dani, Jr.",'=cmd,'+19175550100,opted_in,keyword,2026-08-01 08:00,no,whatsapp voice,2,1,0,2026-07-01 08:00,2026-09-01 08:00,,,auto`);
+  assert.equal(head, "name,whatsapp_name,phone,consent,consent_source,consent_updated,offers_consent,offers_consent_source,offers_consent_updated,do_not_contact,channels,conversations,calls,escalations,first_contact,last_message,last_inbound,last_call,receptionist");
+  assert.equal(row, `"Dani, Jr.",'=cmd,'+19175550100,opted_in,keyword,2026-08-01 08:00,unknown,,,no,whatsapp voice,2,1,0,2026-07-01 08:00,2026-09-01 08:00,,,auto`);
   assert.equal(tail, "", "CRLF rows, trailing newline");
+});
+
+test("the export carries the consent a carrier audit asks about", () => {
+  // A regulator or a carrier checking a promotional send wants express consent to
+  // receive MARKETING specifically (CTIA §5.1). Of the two axes this file carried
+  // only the one that does not answer that question, so the export could not
+  // evidence the very thing it would be requested for.
+  const names = X.PEOPLE_COLUMNS.map(([n]) => n);
+  for (const n of ["offers_consent", "offers_consent_source", "offers_consent_updated"]) {
+    assert.ok(names.includes(n), n);
+  }
+  assert.ok(names.indexOf("offers_consent") === names.indexOf("consent_updated") + 1, "beside the answer it is not");
+  // A row that never projected the columns reads "unknown", never blank: an empty
+  // cell in a consent export reads as "we lost it" rather than "never asked".
+  const bare = [{ id: "p1", display_name: "A", phone_e164: "+1", consent: "opted_in", dnc: false }];
+  const cells = X.peopleCsv(bare, TZ).slice(1).split("\r\n")[1].split(",");
+  assert.equal(cells[X.PEOPLE_COLUMNS.findIndex(([n]) => n === "offers_consent")], "unknown");
 });
 
 test("a download is an attachment, private, with a safe name and the real one", () => {

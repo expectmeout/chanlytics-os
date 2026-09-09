@@ -14,7 +14,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   BROADCAST_CHUNK, DECISION_SUBJECTS, DECISION_VERBS, EVERYONE_LABEL, PEOPLE_LISTS,
-  broadcastName, cleanParam, eligibleFor, mayReceiveOffers, renderTemplate, toBroadcastVM, whenLabel,
+  broadcastName, cleanParam, eligibleFor, emptyAudienceRefusal, mayReceive, renderTemplate, toBroadcastVM, whenLabel,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
@@ -39,10 +39,54 @@ test("the tables: the workspace's, members read, acting members enrol, only the 
 });
 
 test("the one predicate: the yes THIS message needs, no do-not-contact, a number", () => {
-  assert.equal(mayReceiveOffers(person()), true);
-  assert.equal(mayReceiveOffers(person({ consent: { state: "unknown", dnc: false } })), false, "not asked is not a yes");
-  assert.equal(mayReceiveOffers(person({ consent: { state: "opted_in", dnc: true } })), false, "the operator's block outranks a yes");
-  assert.equal(mayReceiveOffers(person({ phone: null })), false, "nowhere to send");
+  assert.equal(mayReceive(person(), "marketing"), true);
+  assert.equal(mayReceive(person({ consent: { state: "unknown", dnc: false } }), "marketing"), false, "not asked is not a yes");
+  assert.equal(mayReceive(person({ consent: { state: "opted_in", dnc: true } }), "marketing"), false, "the operator's block outranks a yes");
+  assert.equal(mayReceive(person({ phone: null }), "marketing"), false, "nowhere to send");
+});
+
+test("ONE rule, not a second copy of it: the VM predicate delegates to mayMessageFor", async () => {
+  // This function used to restate mayMessageFor's logic by hand, because the two
+  // halves of one pipeline hold the person in two different shapes. It duly
+  // drifted. The source is read rather than only the behaviour, because two
+  // implementations that happen to agree on today's fixtures is exactly the state
+  // that produced the defect.
+  const src = readCode("packages/contracts/src/broadcasts.ts");
+  assert.ok(src.includes("return mayMessageFor("), "the VM predicate asks the one predicate");
+  assert.ok(!/purpose === "marketing" \? r\.consent\.marketing/.test(src), "REGRESSION: a second hand-written copy of the consent rule");
+  // Every purpose, both shapes, same answer.
+  const { mayMessageFor } = await import("@chanlytics/contracts");
+  for (const state of ["unknown", "opted_in", "opted_out"]) {
+    for (const marketing of ["unknown", "opted_in", "opted_out"]) {
+      for (const purpose of ["conversational", "marketing"]) {
+        const vm = person({ consent: { state, dnc: false, marketing } });
+        assert.equal(
+          mayReceive(vm, purpose),
+          mayMessageFor({ consent: state, dnc: false, marketing_consent: marketing }, purpose, { proactive: true }).ok,
+          `${state}/${marketing}/${purpose}`,
+        );
+      }
+    }
+  }
+});
+
+test("THE PURPOSE IS REQUIRED, because a default is what broke this", () => {
+  // It defaulted to marketing, described as "the safe answer for a caller that has
+  // not thought about it". Every caller but one then failed to think about it, so a
+  // `utility` broadcast demanded marketing consent and the live workspace's seven
+  // recorded yeses became an audience of zero. A required argument is checked by
+  // the compiler at every call site; a default cannot be audited.
+  assert.equal(eligibleFor.length, 5, "REGRESSION: a defaulted parameter is not counted in .length");
+  assert.equal(mayReceive.length, 2, "REGRESSION: the purpose went back to being optional");
+  const src = readCode("packages/contracts/src/broadcasts.ts");
+  assert.ok(!/purpose: SendPurpose = /.test(src), "REGRESSION: the purpose has a default again");
+});
+
+test("the refusal names the yes that was actually missing", () => {
+  assert.match(emptyAudienceRefusal("marketing"), /offers/i);
+  assert.match(emptyAudienceRefusal("conversational"), /yes to messages/i);
+  assert.doesNotMatch(emptyAudienceRefusal("conversational"), /said yes to offers/i,
+    "a utility refusal must not send the owner to record a consent this message does not need");
 });
 
 test("a yes about appointments is not a yes about offers, which is what error 30913 says", () => {
@@ -51,26 +95,23 @@ test("a yes about appointments is not a yes about offers, which is what error 30
   // carriers refused a live campaign over it -- "marketing consent was combined
   // with other consents. Marketing consent must be collected separately."
   const appointmentsOnly = person({ consent: { state: "opted_in", dnc: false, marketing: "unknown" } });
-  assert.equal(mayReceiveOffers(appointmentsOnly, "marketing"), false, "no offer without a yes about offers");
-  assert.equal(mayReceiveOffers(appointmentsOnly, "conversational"), true, "but their own appointment still reaches them");
+  assert.equal(mayReceive(appointmentsOnly, "marketing"), false, "no offer without a yes about offers");
+  assert.equal(mayReceive(appointmentsOnly, "conversational"), true, "but their own appointment still reaches them");
 
   const offersToo = person();
-  assert.equal(mayReceiveOffers(offersToo, "marketing"), true);
-  assert.equal(mayReceiveOffers(offersToo, "conversational"), true);
+  assert.equal(mayReceive(offersToo, "marketing"), true);
+  assert.equal(mayReceive(offersToo, "conversational"), true);
 
   // Declining offers is not a request to stop hearing about your own visit.
   const noOffers = person({ consent: { state: "opted_in", dnc: false, marketing: "opted_out" } });
-  assert.equal(mayReceiveOffers(noOffers, "marketing"), false);
-  assert.equal(mayReceiveOffers(noOffers, "conversational"), true);
+  assert.equal(mayReceive(noOffers, "marketing"), false);
+  assert.equal(mayReceive(noOffers, "conversational"), true);
 
   // STOP is not symmetric with that: it stops everything.
   const stopped = person({ consent: { state: "opted_out", dnc: false, marketing: "opted_in" } });
-  assert.equal(mayReceiveOffers(stopped, "marketing"), false);
-  assert.equal(mayReceiveOffers(stopped, "conversational"), false);
+  assert.equal(mayReceive(stopped, "marketing"), false);
+  assert.equal(mayReceive(stopped, "conversational"), false);
 
-  // Marketing is the DEFAULT, so a caller that has not thought about purpose
-  // withholds an offer rather than sending one.
-  assert.equal(mayReceiveOffers(appointmentsOnly), false, "the unstated purpose is the careful one");
 });
 
 test("an audience is a People list, a list kept by hand, or everyone — each crossed with the predicate", () => {
@@ -160,8 +201,14 @@ test("the routes: an approved template, values Meta accepts, an audience crossed
   assert.ok(r.includes('requireRole(member, "operator");') && r.includes('takeRate(ctx.userId, "broadcast");'));
   assert.ok(r.includes('if (tpl.meta_status !== "approved") throw new AppError("conflict", "That template is not approved by WhatsApp, so it cannot be sent.", 409);'));
   assert.ok(r.includes("const v = cleanParam(spec.value);"), "typed text is cleaned; a source is itself");
-  assert.ok(r.includes("const eligible = eligibleFor(rows, kind as AudienceKind, audienceId, savedIds);"), "the same predicate the page counts with");
-  assert.ok(r.includes('"Nobody there has said yes to offers yet. Record their answer on their profile first."'));
+  // The PURPOSE, from the template read twenty lines earlier. The route used to
+  // omit it and take the marketing default, so enrolment asked for a consent the
+  // send job would not have asked for -- and this assertion pinned the wrong call
+  // as the invariant, which is why the suite stayed green through the defect.
+  assert.ok(r.includes("const purpose = purposeOfTemplate(tpl.category);"), "the route derives the purpose it already holds");
+  assert.ok(r.includes("const eligible = eligibleFor(rows, kind as AudienceKind, audienceId, savedIds, purpose);"), "the same predicate, and the same purpose, the wire will use");
+  assert.ok(r.includes('throw new AppError("conflict", emptyAudienceRefusal(purpose), 409);'), "and the refusal names which yes was missing");
+  assert.ok(r.includes('.select("id, name, language, meta_status, category, variables, body_preview, title")'), "category is selected, or the purpose above is always marketing");
   assert.ok(r.includes('await schedule(tenantId, "broadcast_send", when, { broadcast_id: made.id });'));
   assert.ok(r.includes('recordDecision(ctx, tenantId, "broadcast", made.id, "send_broadcast", {'));
   const c = readCode("apps/dashboard/app/api/v1/broadcasts/[id]/cancel/route.ts");
@@ -177,7 +224,14 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   assert.equal(reg.SURFACE_STATES.broadcasts, "real");
   assert.equal(reg.ROUTE_SURFACE.broadcasts, "broadcasts");
   const s = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
-  assert.ok(s.includes('key: "broadcasts",') && s.includes('count: eligibleFor(rows, "everyone", null, null).length'));
+  assert.ok(s.includes('key: "broadcasts",'));
+  // BOTH sizes per audience, because there is no one number any more: the chip's
+  // count depends on the purpose of the template the composer has selected, which
+  // the surface cannot know when it loads. A single count computed here promised an
+  // audience the route would then refuse.
+  assert.ok(s.includes('conversational: eligibleFor(rows, kind, id, ids, "conversational").length'));
+  assert.ok(s.includes('marketing: eligibleFor(rows, kind, id, ids, "marketing").length'));
+  assert.ok(s.includes(".map((t) => ({ ...t, purpose: purposeOfTemplate(t.category) }))"), "the purpose is stamped by the bridge, never decided in a .jsx");
   assert.ok(s.includes('.filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")'));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installBroadcasts();"));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/broadcasts-real.jsx";'));
@@ -186,7 +240,13 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   for (const id of ["broadcasts-real", "bc-audience", "bc-template", "bc-no-template", "bc-preview", "bc-send", "bc-nobody", "bc-open", "bc-history"]) {
     assert.ok(p.includes(`data-testid="${id}"`), id);
   }
-  assert.ok(p.includes("Nobody on “{active.label}” has said yes to offers yet."));
+  // The empty-audience line names WHICH yes is missing and where to record it. It
+  // used to say "said yes to offers" for every template, which for a `utility` one
+  // sent the owner to record a consent that message does not need.
+  assert.ok(p.includes('has said yes to offers yet — that is a separate answer from saying yes to messages'));
+  assert.ok(p.includes('purpose === "marketing"'), "the page reads the purpose the bridge stamped, and does not decide it");
+  assert.ok(p.includes("const sizeOf = (a) => (a && a.counts ? (a.counts[purpose] || 0) : 0);"), "one place reads the count, for the chosen purpose");
+  assert.ok(!/active\.count\b/.test(p), "REGRESSION: a single purpose-blind count is back");
   assert.ok(!/credits|Booked from broadcasts|\$\d/.test(p), "nothing invented: no credits, no revenue");
 });
 
@@ -260,11 +320,20 @@ test("Ask: a broadcast is read (list_audiences) and proposed (propose_broadcast)
   assert.equal(PROPOSAL_GATE.broadcast, "approve");
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(tools.includes('name: "list_audiences"') && tools.includes('case "list_audiences": out = await listAudiences(t); break;'));
-  assert.ok(tools.includes("said_yes: eligibleFor(rows, \"everyone\", null, null).length"), "the same predicate the route enrols with");
-  assert.ok(tools.includes('note: "Only people who said yes can be on a broadcast; the counts are exactly them."'));
+  // Both sizes, named for the yes each one counts. `said_yes` alone was the
+  // marketing count under a name that did not say so, so the assistant reported
+  // "nobody said yes" about a utility template that could reach everybody.
+  assert.ok(tools.includes('said_yes_to_offers: eligibleFor(rows, kind, id, ids, "marketing").length'));
+  assert.ok(tools.includes('said_yes_to_messages: eligibleFor(rows, kind, id, ids, "conversational").length'));
+  // The note the assistant reads before it proposes anything. "Only people who said
+  // yes can be on a broadcast; the counts are exactly them" was true of one number
+  // and there are two, so it would have quoted whichever it happened to read.
+  assert.ok(tools.includes("Two consents, two counts."));
+  assert.ok(tools.includes("never quote the larger one."));
   const pr = readCode("apps/dashboard/src/server/ask/proposals.ts");
   assert.ok(pr.includes('name: "propose_broadcast"') && pr.includes('case "propose_broadcast": return await proposeBroadcast(t, input);'));
-  assert.ok(pr.includes("if (count === 0) return refuse(`nobody on \"${label}\" has said yes to offers yet"), "a broadcast to nobody is refused, not proposed");
+  assert.ok(pr.includes("const purpose = purposeOfTemplate(tpl.category);"), "the proposal asks for the same yes the route will");
+  assert.ok(pr.includes("if (count === 0) return refuse(`nobody on \"${label}\" can receive this message: ${emptyAudienceRefusal(purpose)}"), "a broadcast to nobody is refused, not proposed");
   assert.ok(pr.includes('if (!tpl || tpl.meta_status !== "approved") return refuse('), "only an approved template");
   assert.ok(pr.includes('kind: "broadcast",') && pr.includes('needs: "operator",'));
   const c = readCode("apps/dashboard/src/legacy-bridge/ask/commit.ts");

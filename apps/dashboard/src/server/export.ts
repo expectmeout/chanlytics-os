@@ -166,6 +166,14 @@ export const PEOPLE_COLUMNS: ReadonlyArray<readonly [string, (r: PersonRowDto, t
   ["consent", (r) => r.consent],
   ["consent_source", (r) => r.consent_source],
   ["consent_updated", (r, tz) => stamp(r.consent_updated_at, tz)],
+  // The OTHER answer, which is the one an audit asks about. A carrier or a
+  // regulator checking a promotional send wants to see express consent to receive
+  // MARKETING specifically (CTIA §5.1) -- so of the two axes, this export carried
+  // only the one that does not answer the question. Kept beside its own source and
+  // timestamp, because "they said yes" without how and when is not a record.
+  ["offers_consent", (r) => r.marketing_consent ?? "unknown"],
+  ["offers_consent_source", (r) => r.marketing_consent_source ?? null],
+  ["offers_consent_updated", (r, tz) => stamp(r.marketing_consent_updated_at ?? null, tz)],
   ["do_not_contact", (r) => !!r.dnc],
   ["channels", (r) => (r.channels ?? []).join(" ")],
   ["conversations", (r) => r.conversation_count ?? 0],

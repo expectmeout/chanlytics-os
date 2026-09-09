@@ -712,6 +712,73 @@ const PersonTimeline = ({ items, initials }) => {
   );
 };
 
+/**
+ * ONE of the two consent questions: three buttons, then "how did they tell you?",
+ * then a line saying what is on record.
+ *
+ * It is a component because there are two of these now and they must look
+ * identical — the carriers' requirement (error 30913) is that a person can give
+ * one and not the other, and a reader can only see that if the two asks are
+ * plainly the same kind of control. The /yes page renders the same pair from
+ * `consentPageVM().asks`; this is the desk-side equivalent for an answer given in
+ * person, on the phone, or on a signed form.
+ *
+ * Its own `pick` state, so arming one ask never arms the other.
+ */
+const ConsentAsk = ({ label, value, sources, canRecord, hint, onRecord, testid }) => {
+  const [st, setSt] = useStateP({ busy: false, error: null, pick: null });
+  const pick = (state) => {
+    if (state === "unknown") {
+      // "Not asked" is a reset and needs no source, so it is written straight
+      // away — and only when it would change something.
+      if (value !== "unknown") record("unknown", null);
+      return;
+    }
+    setSt((c) => ({ ...c, pick: c.pick === state ? null : state, error: null }));
+  };
+  const record = async (consent, source) => {
+    if (st.busy) return;
+    setSt({ busy: true, error: null, pick: null });
+    const r = await onRecord(consent, source);
+    if (!r || !r.ok) { setSt({ busy: false, error: (r && r.message) || "Could not record this.", pick: null }); return; }
+    setSt({ busy: false, error: null, pick: null });
+  };
+  return (
+    <div className="cl-prof-rail-section" data-testid={testid}>
+      <div className="cl-prof-rail-label">{label}</div>
+      <div className="cl-prof-autonomy">
+        {[["opted_in", "Yes"], ["unknown", "Not asked"], ["opted_out", "No"]].map(([sv, text]) => (
+          <button
+            key={sv}
+            className={`cl-prof-aut-seg ${(st.pick ? st.pick === sv : value === sv) ? "active" : ""}`}
+            aria-pressed={value === sv}
+            disabled={!canRecord || st.busy}
+            onClick={() => pick(sv)}
+          >
+            {text}
+          </button>
+        ))}
+      </div>
+      {st.pick && (
+        <div data-testid={`${testid}-how`}>
+          <div className="cl-prof-aut-hint">How did they tell you?</div>
+          <div className="cl-prof-autonomy" style={{ flexWrap: "wrap" }}>
+            {sources.map((so) => (
+              <button key={so.id} className="cl-prof-aut-seg" disabled={st.busy} onClick={() => record(st.pick, so.id)}>{so.label}</button>
+            ))}
+          </div>
+          <button className="cl-bucket-link" disabled={st.busy} onClick={() => setSt({ busy: false, error: null, pick: null })}>Cancel</button>
+        </div>
+      )}
+      <div className="cl-prof-aut-hint">
+        {hint}
+        {!canRecord && " Only an owner or operator can change this."}
+      </div>
+      {st.error && <div className="cl-prof-aut-hint" style={{ color: "var(--danger)" }}>{st.error}</div>}
+    </div>
+  );
+};
+
 const PersonProfileFrame = ({ onBack, children }) => (
   <div className="cl-profile">
     <div className="cl-prof-main">
@@ -733,7 +800,6 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   // messages, media and recordings and cannot be undone.
   const [del, setDel] = useStateP({ open: false, typed: "", busy: false, error: null });
   const [rm, setRm] = useStateP({ busy: false, error: null });
-  const [cs, setCs] = useStateP({ busy: false, error: null, pick: null });
   const load = React.useCallback(() => {
     if (!window.__personDetail) return;
     setSt((s) => ({ ...s, loading: !s.vm, error: null }));
@@ -789,33 +855,32 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
     });
     load();
   };
-  // The customer's answer about offers by WhatsApp, recorded by whoever heard
-  // it. A yes or a no is not written until the page knows how it was given;
-  // "not asked" is a reset and needs no source.
+  // The customer's two answers, recorded by whoever heard them. A yes or a no is
+  // not written until the page knows how it was given; "not asked" is a reset and
+  // needs no source.
   const CS_SOURCES = window.__consentSources || [
     { id: "in_person", label: "In person" }, { id: "phone", label: "On the phone" },
     { id: "form", label: "Sign-up form" }, { id: "customer_message", label: "Their own message" },
   ];
-  const recordConsent = async (consent, source) => {
-    if (!window.__setPersonConsent || cs.busy) return;
-    setCs({ busy: true, error: null, pick: null });
-    const r = await window.__setPersonConsent(p.id, source ? { consent, source } : { consent });
-    if (!r.ok) { setCs({ busy: false, error: r.message || "Could not record this.", pick: null }); return; }
-    setCs({ busy: false, error: null, pick: null });
-    const who = first === "them" ? "This person" : first;
+  const who = first === "them" ? "This person" : first;
+  // One recorder per door. Both reload the person afterwards rather than assuming,
+  // because the lists and the Consent column are computed from the row.
+  const recordFor = (purpose) => async (consent, source) => {
+    const send = purpose === "marketing" ? window.__setPersonMarketingConsent : window.__setPersonConsent;
+    if (!send) return { ok: false, message: "That cannot be recorded here." };
+    const r = await send(p.id, source ? { consent, source } : { consent });
+    if (!r.ok) return r;
     ppFlash({
-      msg: consent === "opted_in" ? <><b>{who}</b> said yes to offers by WhatsApp</>
-        : consent === "opted_out" ? <><b>{who}</b> said no — nothing but replies to their own messages</>
-        : <><b>{who}</b> is back to "not asked"</>,
+      msg: purpose === "marketing"
+        ? (consent === "opted_in" ? <><b>{who}</b> said yes to offers and news</>
+          : consent === "opted_out" ? <><b>{who}</b> said no to offers — messages about their own visit still reach them</>
+          : <><b>{who}</b> has not been asked about offers</>)
+        : (consent === "opted_in" ? <><b>{who}</b> said yes to messages about their visit</>
+          : consent === "opted_out" ? <><b>{who}</b> said stop — nothing goes out to them at all</>
+          : <><b>{who}</b> is back to "not asked"</>),
     });
     load();
-  };
-  const pickConsent = (state) => {
-    if (state === "unknown") {
-      if (p.consent.state !== "unknown") recordConsent("unknown", null);
-      return;
-    }
-    setCs((c) => ({ ...c, pick: c.pick === state ? null : state, error: null }));
+    return r;
   };
   const confirmDelete = async () => {
     if (!window.__deletePerson || !typedMatches) return;
@@ -986,44 +1051,46 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
           )}
           {rm.error && <div className="cl-prof-aut-hint" style={{ color: "var(--danger)" }}>{rm.error}</div>}
         </div>
-        <div className="cl-prof-rail-section" data-testid="consent-control">
-          <div className="cl-prof-rail-label">Offers by WhatsApp</div>
-          <div className="cl-prof-autonomy">
-            {[["opted_in", "Yes"], ["unknown", "Not asked"], ["opted_out", "No"]].map(([s, label]) => (
-              <button
-                key={s}
-                className={`cl-prof-aut-seg ${(cs.pick ? cs.pick === s : p.consent.state === s) ? "active" : ""}`}
-                aria-pressed={p.consent.state === s}
-                disabled={!canRecord || cs.busy}
-                onClick={() => pickConsent(s)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          {cs.pick && (
-            <div data-testid="consent-how">
-              <div className="cl-prof-aut-hint">How did {first === "them" ? "they" : first} tell you?</div>
-              <div className="cl-prof-autonomy" style={{ flexWrap: "wrap" }}>
-                {CS_SOURCES.map((s) => (
-                  <button key={s.id} className="cl-prof-aut-seg" disabled={cs.busy} onClick={() => recordConsent(cs.pick, s.id)}>{s.label}</button>
-                ))}
-              </div>
-              <button className="cl-bucket-link" disabled={cs.busy} onClick={() => setCs({ busy: false, error: null, pick: null })}>Cancel</button>
-            </div>
-          )}
-          <div className="cl-prof-aut-hint">
-            {p.consent.state === "opted_in"
-              ? `Yes — ${p.consent.sub}. Offers and news may go to them by WhatsApp.`
+        {/*
+          TWO ASKS, the same pair the public /yes page renders. One control that
+          said "Offers by WhatsApp" and wrote the conversational column is what
+          made a signed marketing consent impossible to record: the profile then
+          claimed offers could go out, and the composer refused every one of them.
+        */}
+        <ConsentAsk
+          testid="consent-control"
+          label="Messages about their visit"
+          value={p.consent.state}
+          sources={CS_SOURCES}
+          canRecord={canRecord}
+          onRecord={recordFor("conversational")}
+          hint={
+            p.consent.state === "opted_in"
+              ? `Yes — ${p.consent.sub}. Reminders and confirmations about their own visit may go to them.`
               : p.consent.state === "opted_out"
                 ? (p.consent.source === "customer_message"
-                    ? `${p.consent.sub}. Record a yes only if they have asked again themselves.`
-                    : `No — ${p.consent.sub}. Nothing but replies to their own messages.`)
-                : "No answer recorded. Reminders about their own appointments are fine; offers need their yes."}
-            {!canRecord && " Only an owner or operator can change this."}
-          </div>
-          {cs.error && <div className="cl-prof-aut-hint" style={{ color: "var(--danger)" }}>{cs.error}</div>}
-        </div>
+                    ? `${p.consent.sub}. This stops everything, offers included. Record a yes only if they have asked again themselves.`
+                    : `No — ${p.consent.sub}. Nothing goes out to them, offers included.`)
+                : "No answer recorded. A reply to something they wrote is always fine; anything we start needs their yes."
+          }
+        />
+        <ConsentAsk
+          testid="consent-marketing"
+          label="Offers and news"
+          value={p.consent.marketing}
+          sources={CS_SOURCES}
+          canRecord={canRecord && p.consent.state !== "opted_out"}
+          onRecord={recordFor("marketing")}
+          hint={
+            p.consent.state === "opted_out"
+              ? "They asked us to stop, which stops offers too. Nothing to record here until that changes."
+              : p.consent.marketing === "opted_in"
+                ? `Yes — ${p.consent.marketingSub}. This is the answer a broadcast needs.`
+                : p.consent.marketing === "opted_out"
+                  ? `No — ${p.consent.marketingSub}. Messages about their own visit still reach them.`
+                  : "Separate and entirely optional, and the only answer a broadcast may be sent on. Record it only from their own words, or a form they signed."
+          }
+        />
         <div className="cl-prof-rail-section" data-testid="person-lists">
           <div className="cl-prof-rail-label">Lists</div>
           <PersonLists personId={p.id} canEdit={canRecord} first={first} flash={ppFlash} />
@@ -1070,3 +1137,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
 const ClientProfile = (props) => (window.__PEOPLE ? <ClientProfileReal {...props} /> : <ClientProfileSeed {...props} />);
 
 window.ClientProfile = ClientProfile;
+// Published for the same reason `PlatformLine` is: "does this control write the
+// column it is labelled for" is exactly the property that was broken here, and a
+// source scan answers it badly. consent-door.test.mjs renders it.
+window.ConsentAsk = ConsentAsk;

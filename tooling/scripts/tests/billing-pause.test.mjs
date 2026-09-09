@@ -15,9 +15,13 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 test("the gate: a paused workspace sends nothing, after consent and before the policy; the script takes a message", async () => {
   const mod = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/outbound-gate.ts")).href);
-  const base = { optedOut: false, pausedUntilMs: null, replyMode: "auto", sentToday: 0, dailyCap: 5, nowMs: 1 };
+  const base = { contact: { consent: "unknown", dnc: false, marketing_consent: "unknown" }, purpose: "conversational", proactive: false, pausedUntilMs: null, replyMode: "auto", sentToday: 0, dailyCap: 5, nowMs: 1 };
   assert.deepEqual(mod.outboundGate({ ...base, paused: true }), { allowed: false, refusal: "paused" });
-  assert.deepEqual(mod.outboundGate({ ...base, paused: true, optedOut: true }), { allowed: false, refusal: "opted_out" }, "consent still outranks everything");
+  assert.deepEqual(
+    mod.outboundGate({ ...base, paused: true, contact: { consent: "opted_out", dnc: false, marketing_consent: "unknown" } }),
+    { allowed: false, refusal: "opted_out" },
+    "consent still outranks everything",
+  );
   assert.deepEqual(mod.outboundGate({ ...base, paused: false }), { allowed: true, refusal: null });
   assert.deepEqual(mod.outboundGate(base), { allowed: true, refusal: null }, "callers that do not know about the pause are unchanged");
   assert.ok(mod.refusalScript("paused", "+1 646").includes("call them back") && !mod.refusalScript("paused", "+1 646").includes("billing"), "the caller hears an alternative, never our state");

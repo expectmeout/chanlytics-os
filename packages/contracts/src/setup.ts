@@ -39,7 +39,17 @@ export interface SetupDto {
   templates: { approved: number; pending: number; startersApproved: number };
   calendar: { state: "ok" | "unavailable" | "none" };
   team: { members: number; invitesOpen: number; alertEmails: number };
-  consent: { yes: number };
+  /**
+   * The two answers, counted separately.
+   *
+   * `yes` is the conversational one -- they answer and they hear about their own
+   * visit. `offers` is the promotional one, and it is the ONLY one that puts a
+   * person on a marketing broadcast. This row used to read `yes` and say "said
+   * yes to offers", so a workspace with seven people who had texted START was
+   * told it had seven people it could send an offer to, and the composer then
+   * refused all seven.
+   */
+  consent: { yes: number; offers: number };
   /**
    * Facts that disagree with what the platform knows (contracts/facts.ts).
    *
@@ -398,9 +408,19 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
   }
 
   // 8. The first yes — the only way onto a broadcast.
-  row(i.consent.yes > 0
-    ? { id: "yes", icon: "tag", title: "The first yes", state: "ready", required: false, sentence: `${plural(i.consent.yes, "person", "people")} said yes to offers.`, details: [], verb: { label: "Open Broadcasts", to: "broadcasts" } }
-    : { id: "yes", icon: "tag", title: "The first yes", state: "not_started", required: false, sentence: "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.", details: [], verb: { label: "Get their yes", to: "broadcasts" } });
+  //
+  // The OFFERS answer decides this row, because a marketing broadcast is what it
+  // sends people to. The conversational count rides along as a detail when the
+  // two differ, which is the common case and the useful one: "seven answer you,
+  // none has said yes to offers" tells the owner exactly what to go and ask for.
+  {
+    const offers = i.consent.offers;
+    const talk = i.consent.yes;
+    const alsoTalk = talk > offers ? [`${plural(talk, "person", "people")} said yes to messages about their own visit`] : [];
+    row(offers > 0
+      ? { id: "yes", icon: "tag", title: "The first yes", state: "ready", required: false, sentence: `${plural(offers, "person", "people")} said yes to offers.`, details: alsoTalk, verb: { label: "Open Broadcasts", to: "broadcasts" } }
+      : { id: "yes", icon: "tag", title: "The first yes", state: "not_started", required: false, sentence: "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.", details: alsoTalk, verb: { label: "Get their yes", to: "broadcasts" } });
+  }
 
   // 9. Your Google listing — public, found from the facts above; new reviews reach the bell and Reports.
   // Absent until this deployment can look listings up: a row must never draw a verb that cannot work.

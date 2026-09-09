@@ -2999,8 +2999,17 @@ var PEOPLE_LISTS = [
   { id: "quiet", label: "Quiet 30+ days", group: "reach", test: (v) => v.state === "quiet" },
   { id: "phoned_only", label: "Phoned only", group: "reach", test: (v) => !v.hasChat && v.calls > 0 },
   // A fact, not the state: someone who opted out AND needs you is in both lists.
-  // The only people a broadcast may reach: they said yes, and it is on record.
-  { id: "opted_in", label: "Can receive offers", group: "reach", test: (v) => v.consent.state === "opted_in" },
+  //
+  // TWO LISTS, BECAUSE THERE ARE TWO ANSWERS. This one was labelled "Can receive
+  // offers" and tested the CONVERSATIONAL column, which after 00095 is the one
+  // answer that says nothing about offers -- so the list a person opened to find
+  // their promotional audience showed everybody who had ever texted START. The id
+  // is unchanged on purpose: a saved broadcast's audience refers to it by id, and
+  // renaming it would repoint filings that have already gone out.
+  { id: "opted_in", label: "Said yes to messages", group: "reach", test: (v) => v.consent.state === "opted_in" },
+  // The promotional audience, on its own column. The only people a MARKETING
+  // broadcast may reach.
+  { id: "offers_ok", label: "Can receive offers", group: "reach", test: (v) => v.consent.marketing === "opted_in" },
   { id: "opted_out", label: "Opted out", group: "reach", test: (v) => v.consent.state === "opted_out" }
 ];
 var LIST_STEPS = {
@@ -3011,15 +3020,27 @@ var LIST_STEPS = {
   asked_never_booked: { cta: "Text the booking link", to: "broadcasts/asked_never_booked", broadcast: true },
   lapsed: { cta: "Win them back", to: "broadcasts/lapsed", broadcast: true },
   quiet: { cta: "Reach out", to: "broadcasts/quiet", broadcast: true },
-  opted_in: { cta: "New broadcast", to: "broadcasts", broadcast: true }
+  // The broadcast step belongs to the OFFERS list, not to this one: a person on
+  // this list has said yes to hearing from the business, which is not a yes to a
+  // promotion. Sending them here with "New broadcast" is what made the empty
+  // audience feel like a bug in the composer rather than a missing answer.
+  opted_in: { cta: "Get their yes to offers", to: "broadcasts", text: "They answer and hear about their own visits. Offers need a second, separate yes." },
+  offers_ok: { cta: "New broadcast", to: "broadcasts", broadcast: true }
 };
 function peopleListAction(id, members) {
   const step = LIST_STEPS[id];
   if (!step) return null;
   if (!step.broadcast) return { text: step.text ?? "", cta: step.cta, to: step.to, enabled: members.length > 0 };
-  const yes = members.filter((m) => m.consent.state === "opted_in").length;
-  if (yes === 0) return { text: members.length ? "Nobody on this list has said yes yet \u2014 a broadcast reaches only a recorded yes." : "Nobody here right now.", cta: step.cta, to: step.to, enabled: false };
-  return { text: `${yes} of ${members.length} on this list said yes \u2014 a broadcast reaches them.`, cta: step.cta, to: step.to, enabled: true };
+  const yes = members.filter((m) => m.consent.marketing === "opted_in").length;
+  if (yes === 0) {
+    return {
+      text: members.length ? "Nobody on this list has said yes to offers yet \u2014 a broadcast reaches only that answer. The phrase and the QR are on Broadcasts." : "Nobody here right now.",
+      cta: step.cta,
+      to: step.to,
+      enabled: false
+    };
+  }
+  return { text: `${yes} of ${members.length} on this list said yes to offers \u2014 a broadcast reaches them.`, cta: step.cta, to: step.to, enabled: true };
 }
 function peopleAggregates(rows, nowMs) {
   let needsYou = 0;
@@ -4806,11 +4827,15 @@ var BROADCAST_SCHEDULE_MAX_DAYS = 30;
 var BROADCAST_NAME_MAX = 80;
 var AUDIENCE_KINDS = ["everyone", "list", "saved"];
 var EVERYONE_LABEL = "Everyone who said yes";
-function mayReceiveOffers(r, purpose = "marketing") {
-  if (!r.phone || r.consent.dnc || r.consent.state === "opted_out") return false;
-  return purpose === "marketing" ? r.consent.marketing === "opted_in" : r.consent.state === "opted_in";
+function mayReceive(r, purpose) {
+  if (!r.phone) return false;
+  return mayMessageFor(
+    { consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing },
+    purpose,
+    { proactive: true }
+  ).ok;
 }
-function eligibleFor(rows, kind, id, savedIds, purpose = "marketing") {
+function eligibleFor(rows, kind, id, savedIds, purpose) {
   let pool = rows;
   if (kind === "list") {
     const l = PEOPLE_LISTS.find((x) => x.id === id);
@@ -4820,7 +4845,7 @@ function eligibleFor(rows, kind, id, savedIds, purpose = "marketing") {
     if (!savedIds) return [];
     pool = rows.filter((r) => savedIds.has(r.id));
   }
-  return pool.filter((r) => mayReceiveOffers(r, purpose));
+  return pool.filter((r) => mayReceive(r, purpose));
 }
 function renderTemplate(body, params) {
   return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n) => {
@@ -4864,12 +4889,21 @@ function toBroadcastVM(d, now = /* @__PURE__ */ new Date()) {
 var HELD_REASONS = {
   opted_out: "asked to stop",
   not_opted_in: "no recorded yes",
+  // The reason the send job writes when the OTHER yes is the missing one. It was
+  // added to the wire (00095) and not to these words, so the owner read the raw
+  // enum `no_marketing_consent` on the broadcast's own detail pane -- and the
+  // distinction it draws is the entire point of the split, so it is the last one
+  // that should have arrived untranslated.
+  no_marketing_consent: "no yes to offers",
   no_phone: "no number",
   human_has_it: "a person had the thread",
   erased: "deleted",
   send_failed: "WhatsApp refused",
   missing_value: "a value was missing"
 };
+function emptyAudienceRefusal(purpose) {
+  return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and QR on this page." : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and QR on this page.";
+}
 var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,
@@ -6194,7 +6228,12 @@ function setupSteps(i, nowMs = Date.now()) {
       verb: !t.alertEmails ? { label: "Set alerts", to: "admin/notifications" } : !people ? { label: "Invite", to: "admin/workspace" } : { label: "Open Team", to: "admin/workspace" }
     });
   }
-  row2(i.consent.yes > 0 ? { id: "yes", icon: "tag", title: "The first yes", state: "ready", required: false, sentence: `${plural3(i.consent.yes, "person", "people")} said yes to offers.`, details: [], verb: { label: "Open Broadcasts", to: "broadcasts" } } : { id: "yes", icon: "tag", title: "The first yes", state: "not_started", required: false, sentence: "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.", details: [], verb: { label: "Get their yes", to: "broadcasts" } });
+  {
+    const offers = i.consent.offers;
+    const talk = i.consent.yes;
+    const alsoTalk = talk > offers ? [`${plural3(talk, "person", "people")} said yes to messages about their own visit`] : [];
+    row2(offers > 0 ? { id: "yes", icon: "tag", title: "The first yes", state: "ready", required: false, sentence: `${plural3(offers, "person", "people")} said yes to offers.`, details: alsoTalk, verb: { label: "Open Broadcasts", to: "broadcasts" } } : { id: "yes", icon: "tag", title: "The first yes", state: "not_started", required: false, sentence: "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.", details: alsoTalk, verb: { label: "Get their yes", to: "broadcasts" } });
+  }
   if (i.google?.ready) {
     const g = i.google.listing;
     const title = "Your Google listing";
@@ -7356,6 +7395,7 @@ export {
   durationLabel,
   eligibleFor,
   eligibleForPlaybook,
+  emptyAudienceRefusal,
   emptyBusinessRecord,
   emptyReadSet,
   err,
@@ -7415,7 +7455,7 @@ export {
   localToUtcMs,
   matchPerson,
   mayMessageFor,
-  mayReceiveOffers,
+  mayReceive,
   maySpend,
   mediaKind,
   mediaVM,

@@ -61,7 +61,7 @@ test("voice: the booking-link send reads the person's mode, before the gate", ()
 });
 
 test("the gate: Veto sends a caller's link, Never and Ask hold it", () => {
-  const facts = { optedOut: false, pausedUntilMs: null, sentToday: 0, dailyCap: 3, nowMs: 1_800_000_000_000 };
+  const facts = { contact: { consent: "unknown", dnc: false, marketing_consent: "unknown" }, purpose: "conversational", proactive: false, pausedUntilMs: null, sentToday: 0, dailyCap: 3, nowMs: 1_800_000_000_000 };
   assert.equal(outboundGate({ ...facts, replyMode: "veto" }).allowed, true);
   assert.equal(outboundGate({ ...facts, replyMode: "auto" }).allowed, true);
   assert.equal(outboundGate({ ...facts, replyMode: "never" }).refusal, "policy_hold");

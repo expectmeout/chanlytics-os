@@ -25,7 +25,7 @@
 import { templateTitle } from "./template-library";
 import { PEOPLE_LISTS, type PersonRowVM } from "./people";
 import type { ParamSpec } from "./templates";
-import type { SendPurpose } from "./consent";
+import { mayMessageFor, type SendPurpose } from "./consent";
 
 export const BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"] as const;
 export type BroadcastState = (typeof BROADCAST_STATES)[number];
@@ -66,32 +66,54 @@ export interface Audience {
 export const EVERYONE_LABEL = "Everyone who said yes";
 
 /**
- * The one predicate: the yes THIS message needs, no do-not-contact, and a number
- * to send to.
+ * May a message of this purpose reach this person? A number to send to, and the
+ * yes THIS message needs.
  *
- * The purpose defaults to marketing, which is what a broadcast has always been
- * and is also the safe answer for a caller that has not thought about it: an
- * omitted argument withholds an offer rather than sending one.
+ * ONE RULE, NOT TWO. This used to restate `mayMessageFor`'s logic by hand,
+ * because the two sides of one pipeline hold the person in two different shapes:
+ * the route and the page hold a `PersonRowVM`, the send job holds the database
+ * row. Two hand-written copies of a consent rule is the thing this file's own
+ * header calls a defect, and it duly drifted -- the enrolment half asked for
+ * marketing consent while the sending half asked what the template implied. So
+ * the shape is adapted here and the QUESTION is answered in exactly one place.
+ *
+ * `proactive` is always true: a broadcast starts a conversation. Nobody wrote to
+ * us to ask for it.
+ *
+ * THE PURPOSE IS REQUIRED, and that is the fix rather than a detail of it. It
+ * used to default to marketing, described as "the safe answer for a caller that
+ * has not thought about it" -- and every caller but one then failed to think
+ * about it, so a utility message was refused to the very people migration 00095
+ * exists to reach. A default cannot be audited; a required argument is checked
+ * by the compiler at every call site, the way `businessRecordProblems` requires
+ * its registration path.
  */
-export function mayReceiveOffers(
+export function mayReceive(
   r: Pick<PersonRowVM, "consent" | "phone">,
-  purpose: SendPurpose = "marketing",
+  purpose: SendPurpose,
 ): boolean {
-  if (!r.phone || r.consent.dnc || r.consent.state === "opted_out") return false;
-  return purpose === "marketing" ? r.consent.marketing === "opted_in" : r.consent.state === "opted_in";
+  if (!r.phone) return false;
+  return mayMessageFor(
+    { consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing },
+    purpose,
+    { proactive: true },
+  ).ok;
 }
 
 /**
- * The people a broadcast may reach: the audience crossed with mayReceiveOffers.
+ * The people a broadcast may reach: the audience crossed with mayReceive.
  * The route enrols exactly these; the page shows exactly these counts.
+ *
+ * The purpose is required here for the same reason it is required above -- and
+ * because this is the function every caller actually reaches for.
  */
 export function eligibleFor(
   rows: PersonRowVM[],
   kind: AudienceKind,
   id: string | null | undefined,
   savedIds: ReadonlySet<string> | null,
-  /** What kind of message this audience is for. Marketing unless the caller knows better. */
-  purpose: SendPurpose = "marketing",
+  /** What kind of message this audience is for. From the template's category, never assumed. */
+  purpose: SendPurpose,
 ): PersonRowVM[] {
   let pool: PersonRowVM[] = rows;
   if (kind === "list") {
@@ -102,7 +124,7 @@ export function eligibleFor(
     if (!savedIds) return [];
     pool = rows.filter((r) => savedIds.has(r.id));
   }
-  return pool.filter((r) => mayReceiveOffers(r, purpose));
+  return pool.filter((r) => mayReceive(r, purpose));
 }
 
 /** The words a person will read: the body with its numbered slots filled. */
@@ -204,12 +226,40 @@ export function toBroadcastVM(d: BroadcastDto, now = new Date()): BroadcastVM {
 export const HELD_REASONS: Record<string, string> = {
   opted_out: "asked to stop",
   not_opted_in: "no recorded yes",
+  // The reason the send job writes when the OTHER yes is the missing one. It was
+  // added to the wire (00095) and not to these words, so the owner read the raw
+  // enum `no_marketing_consent` on the broadcast's own detail pane -- and the
+  // distinction it draws is the entire point of the split, so it is the last one
+  // that should have arrived untranslated.
+  no_marketing_consent: "no yes to offers",
   no_phone: "no number",
   human_has_it: "a person had the thread",
   erased: "deleted",
   send_failed: "WhatsApp refused",
   missing_value: "a value was missing",
 };
+
+/**
+ * Why an audience came out empty, in the owner's words, for the purpose they
+ * actually picked.
+ *
+ * The route used to refuse every empty audience with "Nobody there has said yes
+ * to offers yet" -- which for a `utility` template names a consent that message
+ * does not need and sends the owner to record an answer that would not help.
+ *
+ * Written out here rather than composed from `PURPOSE_REFUSALS`, and that is a
+ * decision rather than a duplication: those sentences are about ONE PERSON, for a
+ * reader looking at that person ("This customer has not said yes to OFFERS"), and
+ * splicing one into an audience-level refusal produces a sentence that repeats
+ * itself and calls an empty set "this customer". One source of truth is for FACTS.
+ * The fact here is the reason code, which both registries key on and which a test
+ * holds them both complete against; the prose is written for its own reader.
+ */
+export function emptyAudienceRefusal(purpose: SendPurpose): string {
+  return purpose === "marketing"
+    ? "Nobody there has said yes to offers yet — that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under “Offers and news” on a person's profile, or get their yes with the phrase and QR on this page."
+    : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and QR on this page.";
+}
 
 /* ---- The number's health: what WhatsApp has said about it, and what that permits ---- */
 

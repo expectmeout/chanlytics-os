@@ -94,7 +94,13 @@ const ListsReal = ({ initialId = null }) => {
   const current = kind === "saved" ? saved.find((s) => s.id === id) : kind === "list" ? smart.find((l) => l.id === id) : null;
   const memberIds = new Set(current ? current.ids : []);
   const members = rows.filter((p) => memberIds.has(p.id));
-  const yes = members.filter((p) => p.consent.state === "opted_in").length;
+  // WHICH yes, on a page whose only button opens a broadcast. This counted the
+  // CONVERSATIONAL answer and called it "said yes to offers", so a list of people
+  // who had texted START looked ready to broadcast to and the composer refused
+  // every one of them. Both are shown, because the gap between them is the thing
+  // the owner needs to see: it is exactly who to go and ask.
+  const yes = members.filter((p) => p.consent.marketing === "opted_in").length;
+  const talkYes = members.filter((p) => p.consent.state === "opted_in").length;
   const label = current ? (kind === "saved" ? current.name : current.label) : "";
 
   const run = async (fn, msg) => {
@@ -171,6 +177,7 @@ const ListsReal = ({ initialId = null }) => {
                 )}
                 <span className="cl-section-sub" style={{ marginLeft: 10 }}>
                   {members.length} {members.length === 1 ? "person" : "people"} · {yes} said yes to offers
+                  {talkYes > yes ? ` · ${talkYes} said yes to messages` : ""}
                   {kind === "list" ? " · keeps itself current" : " · kept by hand"}
                 </span>
               </div>
@@ -231,7 +238,11 @@ const ListsReal = ({ initialId = null }) => {
               </table>
             </div>
             {yes === 0 && members.length > 0 && (
-              <div className="cl-prof-aut-hint" style={{ marginTop: 8 }}>Nobody on this list has said yes to offers yet, so there is no one to broadcast to. Record their answer on their profile.</div>
+              <div className="cl-prof-aut-hint" style={{ marginTop: 8 }}>
+                {talkYes > 0
+                  ? <>Nobody on this list has said yes to OFFERS yet, so there is no one to send a promotion to — though {talkYes === 1 ? "one of them has" : `${talkYes} of them have`} said yes to messages about their own visit. Offers are a separate answer: record it under “Offers and news” on their profile, or get their yes with the phrase and QR on Broadcasts.</>
+                  : <>Nobody on this list has said yes to offers yet, so there is no one to broadcast to. Record their answer on their profile, or get their yes with the phrase and QR on Broadcasts.</>}
+              </div>
             )}
           </>
         )}

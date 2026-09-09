@@ -8,6 +8,8 @@ import {
   broadcastName,
   cleanParam,
   eligibleFor,
+  emptyAudienceRefusal,
+  purposeOfTemplate,
   exampleParams,
   parseParamSpec,
   renderTemplate,
@@ -364,7 +366,7 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
   const params = specs;
   const { data: tpl } = await t.ctx.supabase
     .from("templates")
-    .select("id, name, language, meta_status, variables, body_preview")
+    .select("id, name, language, meta_status, category, variables, body_preview")
     .eq("id", templateId)
     .eq("tenant_id", t.tenantId)
     .eq("channel", "whatsapp")
@@ -386,8 +388,12 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
   } else if (kind === "list") {
     label = PEOPLE_LISTS.find((l) => l.id === audienceId)!.label;
   }
-  const count = eligibleFor(rows, kind as AudienceKind, audienceId, savedIds).length;
-  if (count === 0) return refuse(`nobody on "${label}" has said yes to offers yet, so there is nobody to send to; say so and suggest recording their answer on their profile, or the YES OFFERS code on the Broadcasts page`);
+  // The same purpose the route will derive, from the same column of the same
+  // template row this function already read. An assistant that proposes a
+  // broadcast the route then refuses has wasted the operator's approval.
+  const purpose = purposeOfTemplate(tpl.category);
+  const count = eligibleFor(rows, kind as AudienceKind, audienceId, savedIds, purpose).length;
+  if (count === 0) return refuse(`nobody on "${label}" can receive this message: ${emptyAudienceRefusal(purpose)} Say so, and name what to do about it`);
   const when = str(input.scheduled_for, 40) || null;
   if (when && Number.isNaN(Date.parse(when))) return refuse("scheduled_for must be an ISO time");
   const values = params;

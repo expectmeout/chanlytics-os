@@ -13860,17 +13860,17 @@ async function recordOutbound(db, p) {
   return data.id;
 }
 async function getOrCreateContact(db, tenantId, phoneE164) {
-  const { data, error } = await db.from("contacts").insert({ tenant_id: tenantId, phone_e164: phoneE164, last_seen_at: (/* @__PURE__ */ new Date()).toISOString() }).select("id, consent, dnc").single();
+  const { data, error } = await db.from("contacts").insert({ tenant_id: tenantId, phone_e164: phoneE164, last_seen_at: (/* @__PURE__ */ new Date()).toISOString() }).select("id, consent, dnc, marketing_consent").single();
   if (!error && data) return data;
   if (error && error.code !== "23505") throw new Error(`get_or_create_contact: ${error.message}`);
-  const { data: raced, error: reErr } = await db.from("contacts").select("id, consent, dnc").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).single();
+  const { data: raced, error: reErr } = await db.from("contacts").select("id, consent, dnc, marketing_consent").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).single();
   if (reErr || !raced) throw new Error(`get_or_create_contact reselect: ${reErr?.message}`);
   return raced;
 }
 async function resolveOutboundTarget(db, p) {
   const phone = normalizePhone(p.phoneE164);
   if (!phone) return null;
-  const { data: existing, error: selErr } = await db.from("contacts").select("id, consent, dnc").eq("tenant_id", p.tenantId).eq("phone_e164", phone).maybeSingle();
+  const { data: existing, error: selErr } = await db.from("contacts").select("id, consent, dnc, marketing_consent").eq("tenant_id", p.tenantId).eq("phone_e164", phone).maybeSingle();
   if (selErr) throw new Error(`resolve_outbound_target: ${selErr.message}`);
   let contact = existing;
   if (!contact) {
@@ -13891,7 +13891,8 @@ async function resolveOutboundTarget(db, p) {
     conversationId: conv.id,
     pausedUntil: conv.paused_until ?? null,
     consent: contact.consent ?? null,
-    dnc: contact.dnc ?? false
+    dnc: contact.dnc ?? false,
+    marketingConsent: contact.marketing_consent ?? null
   };
 }
 async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, data = {}) {
