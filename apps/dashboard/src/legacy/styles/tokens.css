@@ -67,6 +67,21 @@
      window. Panes set their own; this is for the measured surfaces. */
   --gutter-page: 28px;
 
+  /* ---------- Rails (the left column of a pane surface) ----------
+     Eight widths were in use for one structural element: 208, 220, 220, 280,
+     320, 340, 340, 400. Two of them are the real kinds --
+
+       nav  -- a short menu of labels (Settings, People)
+       list -- rows you scan and pick from (Inbox, Conversations)
+
+     -- and a surface that needs another width should say why in a comment
+     rather than inventing a ninth. Segments (320), Fleet (280) and Live (400)
+     still carry literals: their rails hold composers and call cards, and
+     narrowing them clips (Segments measured: clean at 280, clips at 220), so
+     they are a design call rather than a rename. */
+  --rail-nav: 220px;
+  --rail-list: 340px;
+
   /* ---------- Radii ---------- */
   --radius-xs: 4px;
   --radius-sm: 6px;
