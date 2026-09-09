@@ -28,6 +28,7 @@ import { fileURLToPath } from "node:url";
 import {
   platformRows, platformSummary, platformNumber, textingWords,
   PLATFORM_VERDICTS, PLATFORM_QUIET_DAYS, PLATFORM_NEW_DAYS, setupSteps,
+  platformLineActions, platformActionWarning, EVENT_KINDS,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 import { fakeDb } from "./_fake-db.mjs";
@@ -463,6 +464,136 @@ test("the service-role client cannot be obtained without passing the check", () 
   assert.ok(!/select\("kind, category, subject_type, created_at, data"\)/.test(src));
 });
 
+/* ------------------------------- the ops door ------------------------------ *
+ * The write half. Until now every one of these actions was performed by
+ * importing the library into a local script and recovering four values from
+ * Twilio and the database by hand, because `/api/admin/lines` is gated on
+ * DIAG_KEY and Vercel holds that as a SENSITIVE variable -- write-only,
+ * unreadable by anybody. Fine once; not an operations model, and refiling a
+ * rejected campaign is the most common A2P support action there is.
+ * -------------------------------------------------------------------------- */
+
+const line = (over = {}) => ({
+  id: "l1", e164: "+19296566623", kind: "chanlytics", provider: "twilio", area_code: 929,
+  voice_state: "answering", sms_state: "active", reg_step: null, reg_mock: false, reg_sole_prop: false,
+  whatsapp_state: "none", port_state: "none", forwarding_state: "none",
+  step: null, last_error: null, state_since: ago(1), created_at: ago(80),
+  ...over,
+});
+
+test("an action that would be refused is not offered", () => {
+  // The edge answers 409 for a retry on a line that is not failed and for a
+  // refile on a filing that stands. A button that is going to be refused teaches
+  // somebody to ignore buttons.
+  const healthy = platformLineActions(line()).map((a) => a.action);
+  assert.deepEqual(healthy, ["release"], "a working line can only be given back");
+
+  assert.deepEqual(platformLineActions(line({ voice_state: "failed" })).map((a) => a.action), ["retry", "release"]);
+  assert.deepEqual(platformLineActions(line({ sms_state: "rejected" })).map((a) => a.action), ["refile", "release"]);
+  assert.deepEqual(platformLineActions(line({ reg_mock: true, sms_state: "approved" })).map((a) => a.action), ["refile", "release"]);
+  // Nothing to give back when there is no number.
+  assert.deepEqual(platformLineActions(line({ e164: null })).map((a) => a.action), []);
+});
+
+test("refile is two actions wearing one name, and the difference is money", () => {
+  // A REJECTED campaign is corrected in place: Twilio assesses the vetting fee
+  // once per campaign, so an edit is free. A REHEARSAL is replaced by a real
+  // filing: a new brand and a new campaign, and a brand cannot be withdrawn.
+  const [rejected] = platformLineActions(line({ sms_state: "rejected" }));
+  assert.equal(rejected.action, "refile");
+  assert.equal(rejected.cost, null, "an edit spends nothing");
+  assert.equal(rejected.permanent, false);
+  assert.match(platformActionWarning(rejected), /Nothing is spent/);
+
+  const [mock] = platformLineActions(line({ reg_mock: true, sms_state: "approved" }));
+  assert.equal(mock.action, "refile");
+  assert.match(mock.cost, /\$19\.50/, "a real filing spends, and says how much");
+  assert.equal(mock.permanent, true, "a registered brand cannot be withdrawn");
+  // The confirmation LEADS with the money, then the permanence.
+  const said = platformActionWarning(mock);
+  assert.ok(said.indexOf("$19.50") < said.indexOf("cannot be undone"));
+
+  // The two say different things, which is the entire point of deriving them.
+  assert.notEqual(rejected.label, mock.label);
+  assert.notEqual(platformActionWarning(rejected), platformActionWarning(mock));
+});
+
+test("every action says what it spends, or says that it spends nothing", () => {
+  for (const l of [line({ voice_state: "failed" }), line({ sms_state: "rejected" }), line({ reg_mock: true }), line()]) {
+    for (const a of platformLineActions(l)) {
+      assert.ok(a.label && a.sentence, a.action);
+      assert.ok(platformActionWarning(a).length > 10, `${a.action}: a confirmation that says nothing is not a confirmation`);
+    }
+  }
+  // Giving a number back is permanent and stops a charge rather than making one.
+  const [release] = platformLineActions(line()).filter((a) => a.action === "release");
+  assert.equal(release.permanent, true);
+  assert.match(release.cost, /Stops the/);
+  // A retry can spend, even though it usually does not: a saga that failed
+  // before the number was bought buys one when it resumes.
+  const [retry] = platformLineActions(line({ voice_state: "failed" }));
+  assert.match(retry.cost, /buys one/);
+});
+
+test("three named operations, and no way to send a fourth", () => {
+  // THE RISK THIS DESIGN REFUSES. A route that forwards an arbitrary `op` to
+  // /api/admin/lines is a back door with extra steps -- it would hand a
+  // platform admin's session the master key to every edge operation, including
+  // ones nobody reviewed for this surface.
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const dir = path.join(here, "../../../apps/dashboard/app/api/v1/platform/lines");
+  const routes = fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
+  assert.deepEqual(routes, ["refile", "release", "retry"]);
+
+  for (const action of routes) {
+    const src = fs.readFileSync(path.join(dir, action, "route.ts"), "utf8");
+    // Its own operation, named in its own file, not taken from the request.
+    assert.ok(src.includes(`platformLineAct(office, ctx, "${action}", tenantId, lineId)`), `${action}: the action is a literal`);
+    assert.ok(!/body\.(op|action)/.test(src), `${action}: the caller must not choose the operation`);
+    assert.ok(src.includes("const office = await backOffice(ctx);"), `${action}: no admin check`);
+    assert.ok(src.indexOf("const office = await backOffice(ctx);") < src.indexOf("platformLineAct("), `${action}: the check runs first`);
+    assert.ok(src.includes("await takeRate(ctx.userId,"), `${action}: rate-limited`);
+    assert.ok(src.includes('requireUuid(body.tenant_id, "workspace")') && src.includes('requireUuid(body.line_id, "line")'), `${action}: both ids are checked`);
+    assert.ok(!src.includes("memberContext("), `${action}: this surface is about workspaces the caller is not in`);
+  }
+
+  // And the edge operation each one maps to is a written-out list rather than a
+  // parameter somebody can widen by accident.
+  const server = readCode("apps/dashboard/src/server/platform.ts");
+  assert.match(server, /const EDGE_OP: Record<PlatformLineAction, \(tenantId: string, lineId: string\) => Record<string, unknown>>/);
+  assert.match(server, /refile: \(tenant_id, line_id\) => \(\{ op: "register", tenant_id, line_id, refile: true \}\)/);
+  assert.ok(!/op: (body|action|op)\b/.test(server), "the op is never taken from the caller");
+});
+
+test("no cross-tenant action happens that nobody can be held to", () => {
+  // The attribution is written BEFORE the action and the action is refused if it
+  // cannot be written. An action taken on somebody else's business that nobody
+  // can be held to is worse than an action that did not happen.
+  const server = readCode("apps/dashboard/src/server/platform.ts");
+  const fn = server.slice(server.indexOf("export async function platformLineAct"));
+  const audit = fn.indexOf('kind: "platform.acted"');
+  const act = fn.indexOf("await edgeLines(");
+  assert.ok(audit !== -1 && act !== -1 && audit < act, "recorded first, then done");
+  assert.match(fn, /if \(auditErr\) throw new AppError\("internal", .*503\);/, "and refused when it cannot be recorded");
+  assert.match(fn, /by: ctx\.userId, by_email: ctx\.email \?\? null/, "who, by id and by the address they signed in with");
+  assert.ok(fn.includes('subject_type: "line"') && fn.includes("subject_id: lineId"), "the line it was done to");
+  assert.ok(EVENT_KINDS.includes("platform.acted"), "the kind is in the closed set the rest of the product uses");
+});
+
+test("the page reads the cost out; it does not decide it", () => {
+  const page = readCode("apps/dashboard/src/legacy/pages/platform.jsx");
+  assert.ok(page.includes("const actions = P.actions(line);"), "which actions, from the contract");
+  assert.ok(page.includes("{P.warning(arm)}"), "and what each costs, from the contract");
+  assert.ok(!/\$\d/.test(page), "no money figure lives in the page");
+  assert.ok(!/reg_mock === true \?|sms_state === "rejected" \?/.test(page), "and no judgement about which refile this is");
+  // Arm-then-confirm: a cross-tenant write is never one click.
+  assert.ok(page.includes('data-testid={`platform-act-${a.action}`}') && page.includes('data-testid={`platform-do-${arm.action}`}'));
+  assert.ok(page.includes("P.act(a.action, tenantId, line.id)"), "the action is a name, not a request body");
+  // After one lands, both reads are stale.
+  assert.ok(page.includes("onChanged={() => { setDetail(null); load(); setReload((n) => n + 1); }}"));
+  assert.ok(page.includes("}, [P, openId, reload]);"), "so the detail re-reads on a change, not only on a new id");
+});
+
 test("the back office is read on demand, not published to every browser", () => {
   // A surface would make every customer's browser fetch a page it will never be
   // allowed to see, on every boot, for two accounts' benefit.
@@ -485,7 +616,12 @@ test("the back office is read on demand, not published to every browser", () => 
  * is a claim about what is on the screen.
  * -------------------------------------------------------------------------- */
 globalThis.React = { Fragment: "Fragment" };
-globalThis.window = { __ME: { email: "ruben@rjcapital.io", platform_admin: true }, canDo: () => true };
+globalThis.window = {
+  __ME: { email: "ruben@rjcapital.io", platform_admin: true },
+  canDo: () => true,
+  // The shared toast, as data-bits provides it: [node, flash].
+  usePPToast: () => [null, () => {}],
+};
 globalThis.Icon = () => null;
 // The shared attention row, and the pane that draws it.
 const ATTN = () => null;
@@ -606,6 +742,9 @@ function api(tenants, detail = null, calls = []) {
     quietDays: PLATFORM_QUIET_DAYS,
     number: platformNumber,
     steps: setupSteps,
+    actions: platformLineActions,
+    warning: platformActionWarning,
+    act: async (action, tenantId, lineId) => { calls.push(`act:${action}:${tenantId}:${lineId}`); return { ok: true, message: "Done." }; },
   };
 }
 
@@ -705,9 +844,58 @@ test("opening one shows the customer's own Setup rows, and no buttons that would
   assert.match(text, /the carriers refused it/, "and what the provider said");
 });
 
+test("acting on a line is never one click, and says the cost before it is", async () => {
+  // The line row, driven on its own: it holds the arm-then-confirm state, and a
+  // harness that re-invokes nested components cannot drive one from outside.
+  //
+  // This line's registration was REJECTED, so the action offered is the free
+  // edit -- and the confirmation has to say so rather than quoting the
+  // rehearsal's $19.50.
+  const calls = [];
+  globalThis.window.__platform = api([], null, calls);
+  const rejected = { ...SETUP_FIXTURE.lines.rows[0] };
+  assert.equal(rejected.sms_state, "rejected", "the fixture is the case this is about");
+
+  let reloaded = 0;
+  const row = mount(globalThis.window.PlatformLine, {
+    line: rejected, tenantId: "a", onDone: () => { reloaded += 1; }, flash: () => {},
+  });
+
+  // The buttons the contract offers for THIS line, and no others.
+  assert.ok(byId(row.tree, "platform-act-refile"), "a rejected campaign can be sent back");
+  assert.ok(byId(row.tree, "platform-act-release"));
+  assert.equal(byId(row.tree, "platform-act-retry"), null, "the line is answering, so there is nothing to retry");
+  assert.equal(calls.length, 0, "and nothing has happened yet");
+
+  // Arming shows the cost and does NOT act.
+  await row.press(byId(row.tree, "platform-act-refile").props.onClick);
+  const arm = byId(row.tree, "platform-arm-refile");
+  assert.ok(arm, "a cross-tenant write is never one click");
+  assert.match(textOf(arm), /Nothing is spent/, "this one is an edit, so it says so");
+  assert.ok(!textOf(arm).includes("19.50"), "REGRESSION: quoting the rehearsal's price for a free edit");
+  assert.equal(calls.length, 0, "arming is not doing");
+
+  // Confirming acts, once, with the workspace and line it was shown for.
+  await row.press(byId(row.tree, "platform-do-refile").props.onClick);
+  assert.deepEqual(calls, ["act:refile:a:l1"]);
+  assert.equal(reloaded, 1, "and the reads it made stale are re-read");
+});
+
+test("a rehearsal offers a different action, at a price, and says it cannot be undone", async () => {
+  const calls = [];
+  globalThis.window.__platform = api([], null, calls);
+  const mock = { ...SETUP_FIXTURE.lines.rows[0], sms_state: "approved", reg_mock: true };
+  const row = mount(globalThis.window.PlatformLine, { line: mock, tenantId: "a", onDone: () => {}, flash: () => {} });
+  await row.press(byId(row.tree, "platform-act-refile").props.onClick);
+  const said = textOf(byId(row.tree, "platform-arm-refile"));
+  assert.match(said, /\$19\.50/, "a real filing spends, and says how much");
+  assert.match(said, /cannot be undone/);
+  assert.ok(said.indexOf("$19.50") < said.indexOf("cannot be undone"), "money first");
+});
+
 test("the pane decides nothing: every verdict, word and row comes from the contract", () => {
   const src = readCode("apps/dashboard/src/legacy/pages/platform.jsx");
-  for (const call of ["P.rows(tenants)", "P.summary(rows)", "P.verdicts[r.verdict]", "P.steps({ ...detail.setup, later: [] })", "P.number(l.e164)"]) {
+  for (const call of ["P.rows(tenants)", "P.summary(rows)", "P.verdicts[r.verdict]", "P.steps({ ...detail.setup, later: [] })", "P.number(line.e164)", "P.actions(line)", "P.warning(arm)"]) {
     assert.ok(src.includes(call), `the page reads ${call} rather than deciding`);
   }
   // No thresholds, no state lists, no sorting of its own.

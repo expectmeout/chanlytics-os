@@ -21,7 +21,7 @@
  * and this file adds only the cross-workspace judgement that nobody else needs.
  */
 import { agoWords } from "./time";
-import { textingWords } from "./setup";
+import { textingWords, type LineDto } from "./setup";
 import { receptionistOn, maySpend, whyCannotSpend, type BillingMode, type BillingStatus } from "./billing";
 import { formatPhoneDisplay } from "./phone";
 
@@ -318,4 +318,104 @@ export function platformSummary(rows: readonly PlatformRowVM[]): { total: number
 /** A number as the back office shows it, or a dash. Support reads these aloud on calls. */
 export function platformNumber(e164: string | null | undefined): string {
   return formatPhoneDisplay(e164) ?? "—";
+}
+
+/* -------------------------------------------------------------------------- *
+ * What support may DO to a line, and what each one costs.
+ *
+ * The back office was read-only in v1 on purpose, and this is the smallest
+ * possible step off that: three actions that already exist as edge operations,
+ * named one at a time. Never a generic passthrough — a route that forwards an
+ * arbitrary `op` is a back door with extra steps.
+ *
+ * WHY THE COST LIVES HERE. `refile` is two different actions wearing one name,
+ * and the difference is money:
+ *
+ *   a REJECTED campaign  is corrected in place. Twilio assesses the vetting fee
+ *                        once per campaign, so an edit is FREE.
+ *   a REHEARSAL filing   is replaced by a real one. That is a new brand and a
+ *                        new campaign: about $19.50, and a brand cannot be
+ *                        withdrawn afterwards.
+ *
+ * A button that says "$19" when it is free is a button nobody presses; one that
+ * says nothing when it is $19 is worse. The judgement is here, where it can be
+ * tested, rather than in a page that would have to re-derive it.
+ * -------------------------------------------------------------------------- */
+
+export type PlatformLineAction = "retry" | "refile" | "release";
+
+export interface PlatformLineActionVM {
+  action: PlatformLineAction;
+  label: string;
+  /** What it does, in one line. */
+  sentence: string;
+  /** What it spends, or null when it spends nothing. Said FIRST in any confirmation. */
+  cost: string | null;
+  /** Cannot be undone. */
+  permanent: boolean;
+}
+
+/** About a dollar a month for as long as a number is held; the figures are this account's own invoices. */
+const NUMBER_MONTHLY = "$1.15 a month";
+const REAL_FILING = "about $19.50 once";
+
+/**
+ * The actions this line can actually take right now.
+ *
+ * An action that would be refused is not offered: the edge answers 409 for a
+ * retry on a line that is not failed, and for a refile on a filing that stands.
+ * Showing a button that is going to be refused teaches somebody to ignore
+ * buttons.
+ */
+export function platformLineActions(
+  l: Pick<LineDto, "e164" | "voice_state" | "sms_state" | "reg_mock">,
+): PlatformLineActionVM[] {
+  const out: PlatformLineActionVM[] = [];
+
+  if (l.voice_state === "failed") {
+    out.push({
+      action: "retry",
+      label: "Retry setting up",
+      sentence: "Resumes the line where it stopped, without repeating the steps that succeeded.",
+      // A saga that failed BEFORE the number was bought buys one when it
+      // resumes, so this can spend even though it usually does not.
+      cost: `If it stopped before the number was bought, this buys one — ${NUMBER_MONTHLY}.`,
+      permanent: false,
+    });
+  }
+
+  if (l.sms_state === "rejected") {
+    out.push({
+      action: "refile",
+      label: "Send the campaign back",
+      sentence: "Resubmits the corrected campaign to the carriers. Correct the business on record first — this sends what is there now.",
+      cost: null,
+      permanent: false,
+    });
+  } else if (l.reg_mock === true) {
+    out.push({
+      action: "refile",
+      label: "File it for real",
+      sentence: "Takes the rehearsal off and files a real registration with the carriers. The rehearsal delivers nothing and expires thirty days after it was filed.",
+      cost: `${REAL_FILING}, charged to Chanlytics.`,
+      permanent: true,
+    });
+  }
+
+  if (l.e164) {
+    out.push({
+      action: "release",
+      label: "Give the number back",
+      sentence: "Releases the number, drops the trunk and forgets the line. Calls keep their history; the routing row is switched off, never deleted.",
+      cost: `Stops the ${NUMBER_MONTHLY} this number costs.`,
+      permanent: true,
+    });
+  }
+  return out;
+}
+
+/** The one line a confirmation leads with: what it costs, then whether it can be undone. */
+export function platformActionWarning(a: PlatformLineActionVM): string {
+  const parts = [a.cost, a.permanent ? "This cannot be undone." : null].filter(Boolean);
+  return parts.length ? parts.join(" ") : "Nothing is spent, and it can be done again.";
 }

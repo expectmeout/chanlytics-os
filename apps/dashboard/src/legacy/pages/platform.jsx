@@ -25,10 +25,78 @@ const PLATFORM_TONE = { danger: "danger", warn: "escalated", accent: "queued", o
 const when = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—");
 
 /** One workspace, opened: the Setup its owner sees, its lines, and what has happened. */
-const PlatformDetail = ({ detail, onClose }) => {
+/**
+ * One line, and what may be done to it.
+ *
+ * Arm-then-confirm rather than a bare button, and the confirmation LEADS with
+ * what it spends -- because `refile` is two different actions wearing one name:
+ * a rejected campaign is corrected in place for nothing, a rehearsal is replaced
+ * by a real filing for about $19.50 that cannot be undone. Which one this line
+ * is offering, and what it costs, comes from the contract; the page only reads
+ * it out.
+ */
+const PlatformLine = ({ line, tenantId, onDone, flash }) => {
+  const P = window.__platform;
+  const [arm, setArm] = React.useState(null);
+  const [busy, setBusy] = React.useState(false);
+  const actions = P.actions(line);
+
+  const run = async (a) => {
+    setBusy(true);
+    const r = await P.act(a.action, tenantId, line.id);
+    setBusy(false);
+    setArm(null);
+    flash({ msg: <>{r.message}</> });
+    if (r.ok) onDone();
+  };
+
+  return (
+    <div className="set-row" data-testid={`platform-line-${line.id}`}>
+      <div className="set-row-info">
+        <span className="set-row-label">{P.number(line.e164)} · {line.kind}</span>
+        <span className="set-row-hint">
+          voice {line.voice_state} · texting {line.sms_state}
+          {line.reg_step ? ` · stopped at ${line.reg_step}` : ""}
+          {line.reg_mock ? " · rehearsal filing" : ""}
+          {line.reg_sole_prop ? " · sole proprietor" : ""}
+          {line.step ? ` · step ${line.step}` : ""}
+          {line.last_error ? ` — ${line.last_error}` : ""}
+        </span>
+        {arm && (
+          <span className="set-row-hint pf-arm" data-testid={`platform-arm-${arm.action}`}>
+            <b>{P.warning(arm)}</b> {arm.sentence}{" "}
+            <button className="cl-bucket-link" onClick={() => run(arm)} disabled={busy} data-testid={`platform-do-${arm.action}`}>
+              {busy ? "Working…" : `Yes, ${arm.label.toLowerCase()}`}
+            </button>{" "}
+            <button className="cl-bucket-link" onClick={() => setArm(null)} disabled={busy}>Not now</button>
+          </span>
+        )}
+      </div>
+      {actions.length > 0 && !arm && (
+        <span className="bc-chips">
+          {actions.map((a) => (
+            <button
+              key={a.action}
+              className="btn btn-sm"
+              onClick={() => setArm(a)}
+              disabled={busy}
+              data-testid={`platform-act-${a.action}`}
+            >
+              {a.label}
+            </button>
+          ))}
+        </span>
+      )}
+    </div>
+  );
+};
+
+const PlatformDetail = ({ detail, onClose, onChanged, flash }) => {
   const P = window.__platform;
   // The customer's own rows, from the customer's own function. No verbs: the
-  // buttons on Setup act on the SIGNED-IN workspace, and this is not it.
+  // buttons on Setup act on the SIGNED-IN workspace, and this is not it. The
+  // LINE rows below are different -- those are the ops door, and every one of
+  // them is recorded against the person who pressed it.
   const vm = P.steps({ ...detail.setup, later: [] });
   const lines = (detail.setup.lines && detail.setup.lines.rows) || [];
   return (
@@ -63,22 +131,10 @@ const PlatformDetail = ({ detail, onClose }) => {
         <div className="biz-group">
           <div className="biz-group-head">
             <span className="biz-group-title">Their lines</span>
-            <span className="biz-group-sub">where each one stopped, and what the provider said</span>
+            <span className="biz-group-sub">where each one stopped, what the provider said, and what can be done about it</span>
           </div>
           {lines.map((l) => (
-            <div className="set-row" key={l.id} data-testid={`platform-line-${l.id}`}>
-              <div className="set-row-info">
-                <span className="set-row-label">{P.number(l.e164)} · {l.kind}</span>
-                <span className="set-row-hint">
-                  voice {l.voice_state} · texting {l.sms_state}
-                  {l.reg_step ? ` · stopped at ${l.reg_step}` : ""}
-                  {l.reg_mock ? " · rehearsal filing" : ""}
-                  {l.reg_sole_prop ? " · sole proprietor" : ""}
-                  {l.step ? ` · step ${l.step}` : ""}
-                  {l.last_error ? ` — ${l.last_error}` : ""}
-                </span>
-              </div>
-            </div>
+            <PlatformLine key={l.id} line={l} tenantId={detail.tenant.id} onDone={onChanged} flash={flash} />
           ))}
         </div>
       )}
@@ -108,11 +164,13 @@ const PlatformDetail = ({ detail, onClose }) => {
 
 const PanePlatform = () => {
   const P = React.useMemo(() => window.__platform, []);
+  const [toastNode, flash] = window.usePPToast();
   const [tenants, setTenants] = React.useState(null);
   const [problem, setProblem] = React.useState(null);
   const [find, setFind] = React.useState("");
   const [openId, setOpenId] = React.useState(null);
   const [detail, setDetail] = React.useState(null);
+  const [reload, setReload] = React.useState(0);
   const [busy, setBusy] = React.useState(false);
 
   const load = React.useCallback(async () => {
@@ -132,7 +190,7 @@ const PanePlatform = () => {
     setDetail(null);
     P.one(openId).then((r) => { if (on) { setDetail(r.detail); if (!r.ok) setProblem(r.message); } });
     return () => { on = false; };
-  }, [P, openId]);
+  }, [P, openId, reload]);
 
   if (tenants === null) {
     return <section className="fl-card set-card"><div className="set-row"><div className="set-row-info"><span className="set-row-hint">Reading every workspace…</span></div></div></section>;
@@ -194,9 +252,24 @@ const PanePlatform = () => {
       {openId && !detail && (
         <section className="fl-card set-card"><div className="set-row"><div className="set-row-info"><span className="set-row-hint">Reading that workspace…</span></div></div></section>
       )}
-      {openId && detail && <PlatformDetail detail={detail} onClose={() => setOpenId(null)} />}
+      {openId && detail && (
+        <PlatformDetail
+          detail={detail}
+          onClose={() => setOpenId(null)}
+          // An action changes the line it was taken on, so both reads are stale
+          // the moment it lands: the list's verdict and the detail's own rows.
+          onChanged={() => { setDetail(null); load(); setReload((n) => n + 1); }}
+          flash={flash}
+        />
+      )}
+      {toastNode}
     </>
   );
 };
 
 window.PanePlatform = PanePlatform;
+// Published as well as used, the way AttnRow and SetToggle are: this is the
+// write half of a cross-tenant surface, and it holds its own arm-then-confirm
+// state, so it is worth being able to drive on its own rather than only through
+// the pane that contains it.
+window.PlatformLine = PlatformLine;

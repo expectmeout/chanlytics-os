@@ -13,8 +13,9 @@
  */
 import {
   platformRows, platformSummary, platformNumber, setupSteps,
+  platformLineActions, platformActionWarning,
   PLATFORM_VERDICTS, PLATFORM_QUIET_DAYS,
-  type PlatformTenantDto, type SetupDto,
+  type PlatformTenantDto, type SetupDto, type PlatformLineAction,
 } from "@chanlytics/contracts";
 import { scoped } from "./surface-data";
 
@@ -48,6 +49,14 @@ export interface PlatformApi {
   number: typeof platformNumber;
   /** The customer's own Setup rows, run for their workspace. The same function their page runs. */
   steps: typeof setupSteps;
+  /** What may be done to a line right now, and what each one spends. */
+  actions: typeof platformLineActions;
+  warning: typeof platformActionWarning;
+  /**
+   * Do one of them. Named actions only -- the routes each carry one operation,
+   * and this passes the name rather than anything the edge would execute.
+   */
+  act(action: PlatformLineAction, tenantId: string, lineId: string): Promise<{ ok: boolean; message: string }>;
 }
 
 declare global {
@@ -56,9 +65,13 @@ declare global {
   }
 }
 
-async function get<T>(path: string): Promise<{ ok: boolean; data: T | null; message: string }> {
+async function get<T>(path: string, body?: unknown): Promise<{ ok: boolean; data: T | null; message: string }> {
   try {
-    const res = await fetch(scoped(path));
+    const res = await fetch(scoped(path), body === undefined ? undefined : {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
     const j = (await res.json().catch(() => null)) as { ok?: boolean; data?: T; error?: { message?: string } } | null;
     if (!j || j.ok !== true) return { ok: false, data: null, message: j?.error?.message ?? "That did not load. Try again in a moment." };
     return { ok: true, data: (j.data ?? null) as T | null, message: "" };
@@ -77,11 +90,30 @@ export function installPlatform(win: Window = window): void {
       const r = await get<PlatformTenantDetail>(`/api/v1/platform/tenants/${encodeURIComponent(tenantId)}`);
       return { ok: r.ok, detail: r.data, message: r.message };
     },
+    async act(action, tenantId, lineId) {
+      const r = await get<{ ok: boolean; status: number; result: Record<string, unknown> | null }>(
+        `/api/v1/platform/lines/${action}`,
+        { tenant_id: tenantId, line_id: lineId },
+      );
+      if (!r.ok) return { ok: false, message: r.message };
+      // The edge's own words when it refused. `already_registered`,
+      // `the line is answering, not failed` -- these are facts about the line,
+      // and support needs the actual one rather than "that did not work".
+      const res = r.data?.result ?? null;
+      if (r.data?.ok !== true) {
+        const why = res && typeof res.error === "string" ? res.error : `HTTP ${r.data?.status ?? "?"}`;
+        const hint = res && typeof res.hint === "string" ? ` — ${res.hint}` : "";
+        return { ok: false, message: `${why}${hint}` };
+      }
+      return { ok: true, message: "Done. This page will show it on the next read." };
+    },
     rows: platformRows,
     summary: platformSummary,
     verdicts: PLATFORM_VERDICTS,
     quietDays: PLATFORM_QUIET_DAYS,
     number: platformNumber,
     steps: setupSteps,
+    actions: platformLineActions,
+    warning: platformActionWarning,
   };
 }

@@ -148,3 +148,72 @@ export async function platformEvents(office: BackOffice, tenantId: string, limit
   if (error) throw new Error(error.message);
   return (data ?? []) as PlatformEvent[];
 }
+
+/* -------------------------------------------------------------------------- *
+ * The ops door: the write half of the back office.
+ *
+ * WHY IT EXISTS. `/api/admin/lines` — retry, refile, release — is gated on
+ * DIAG_KEY, which Vercel holds as a SENSITIVE variable: write-only, unreadable
+ * by anyone including the person who set it. So every one of those actions has
+ * been performed by importing the library into a local script and recovering
+ * four values from Twilio and the database by hand. That is fine once. It is not
+ * an operations model, and refiling a rejected campaign is the single most
+ * common A2P support action there is.
+ *
+ * The key stays where it is and stays unreadable. What changes is that a
+ * PERSON'S SESSION can now authorise these, through the same `platform_admins`
+ * check as every other back-office read.
+ *
+ * NEVER A PASSTHROUGH. Each route names its own operation. A route that forwards
+ * an arbitrary `op` to the edge is a back door with extra steps, and this is the
+ * one surface in the product where that would be handing out the master key.
+ * -------------------------------------------------------------------------- */
+
+import { edgeLines } from "./lines";
+import type { PlatformLineAction } from "@chanlytics/contracts";
+
+/** The edge call each action makes. Written out so the set is a list somebody can read, not a parameter. */
+const EDGE_OP: Record<PlatformLineAction, (tenantId: string, lineId: string) => Record<string, unknown>> = {
+  retry: (tenant_id, line_id) => ({ op: "retry", tenant_id, line_id }),
+  // `refile` is the same edge operation as an owner's own registration, with the
+  // flag that lets it replace a rehearsal or resend a rejected campaign -- the
+  // two things an owner may not do and support must.
+  refile: (tenant_id, line_id) => ({ op: "register", tenant_id, line_id, refile: true }),
+  release: (tenant_id, line_id) => ({ op: "release", tenant_id, line_id }),
+};
+
+export interface PlatformActionResult {
+  ok: boolean;
+  status: number;
+  body: Record<string, unknown> | null;
+}
+
+/**
+ * Do one thing to one workspace's line, and record who asked before doing it.
+ *
+ * The order is the point. The attribution is written FIRST and the action is
+ * refused if it cannot be written — an action taken on somebody else's business
+ * that nobody can be held to is worse than an action that did not happen. What
+ * happened next is the line's own event, written by the edge moments later, so
+ * the pair reads in order in one ledger.
+ */
+export async function platformLineAct(
+  office: BackOffice,
+  ctx: RouteContext,
+  action: PlatformLineAction,
+  tenantId: string,
+  lineId: string,
+): Promise<PlatformActionResult> {
+  const { error: auditErr } = await office.db.from("events").insert({
+    tenant_id: tenantId,
+    kind: "platform.acted",
+    category: "platform",
+    subject_type: "line",
+    subject_id: lineId,
+    data: { action, by: ctx.userId, by_email: ctx.email ?? null },
+  });
+  if (auditErr) throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
+
+  const a = await edgeLines(EDGE_OP[action](tenantId, lineId), 60_000);
+  return { ok: a.status === 200, status: a.status, body: a.body };
+}

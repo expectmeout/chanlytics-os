@@ -90,6 +90,15 @@ export const EVENT_KINDS = [
   "line.failed",
   "line.released",
   "line.forwarding_verified",
+  /**
+   * Somebody at Chanlytics acted on a workspace they are not a member of.
+   *
+   * The back office's write half. Recorded BEFORE the action, and the action is
+   * refused if it cannot be recorded: a cross-tenant write that nobody can be
+   * held to is worse than one that did not happen. What happened next is the
+   * line's own event, written by the edge, immediately after this one.
+   */
+  "platform.acted",
   /** The carriers answered: texting is on, the business is through, or it came back. */
   "line.texting_on",
   "line.texting_approved",
