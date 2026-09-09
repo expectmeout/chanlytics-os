@@ -11,7 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./workspace/db.js";
 import {
   runA2PSaga, smsStateFor, registrationVerdict, LOW_VOLUME_USECASE, deleteCampaignRequest, updateCampaignRequest,
-  encodeForm, brandTypeFor, type A2PPorts, type A2PRequest, type A2PState, type BusinessRecord,
+  encodeForm, brandTypeFor, refusalWords, type A2PPorts, type A2PRequest, type A2PState, type BusinessRecord, type CampaignError,
 } from "./workspace/channels.js";
 import { formatPhoneDisplay, industryOf, businessRecordProblems, registrationPathOf } from "./workspace/contracts.js";
 import { emitEvent } from "./workspace/db.js";
@@ -462,8 +462,17 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<{ ok: boo
   // recorded here without anyone having to remember to write it.
   const mock = typeof usa2p?.mock === "boolean" ? usa2p.mock : line.reg_mock;
   const smsState = smsStateFor({ brandStatus, campaignStatus, mock });
-  const failure = typeof brand?.failure_reason === "string" ? brand.failure_reason : null;
-  const reason = smsState === "rejected" ? failure ?? "the carriers sent the registration back" : null;
+  // Both sides of the filing can be refused, and until now only one was read:
+  // the brand's `failure_reason`. A campaign's reasons live in
+  // `compliance[0].errors[]` -- one level below where the old code looked, the
+  // same place the campaign's STATUS was once missed -- so every campaign
+  // rejection stored the generic fallback and the actual causes were dropped.
+  const reason = smsState === "rejected"
+    ? refusalWords({
+        brandFailureReason: typeof brand?.failure_reason === "string" ? brand.failure_reason : null,
+        campaignErrors: Array.isArray(usa2p?.errors) ? (usa2p.errors as CampaignError[]) : null,
+      }) ?? "the carriers sent the registration back"
+    : null;
   const moved = smsState !== line.sms_state;
   await db.from("lines").update({
     sms_state: smsState,

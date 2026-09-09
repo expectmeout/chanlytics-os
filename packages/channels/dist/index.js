@@ -6218,6 +6218,21 @@ function nextA2PStep(s, brandType = "STANDARD") {
 function isBrandNotReady(error) {
   return /until Brand is registered|Brand.*Current status:\s*(IN_PROGRESS|PENDING)/i.test(error);
 }
+var PREAMBLE = /^the campaign submission has been reviewed and (?:it was )?rejected because (?:of )?/i;
+function refusalWords(o) {
+  const parts = [];
+  const brand = (o.brandFailureReason ?? "").trim();
+  if (brand) parts.push(brand);
+  for (const e of o.campaignErrors ?? []) {
+    const said = String(e?.description ?? "").trim();
+    if (!said) continue;
+    const body = said.replace(PREAMBLE, "").trim().replace(/\.$/, "");
+    const tags = [e?.error_code == null ? null : String(e.error_code), ...e?.fields ?? []].filter(Boolean);
+    parts.push(tags.length ? `${body} (${tags.join(" \xB7 ")})` : body);
+  }
+  if (!parts.length) return null;
+  return parts.join("; ");
+}
 function smsStateFor(o) {
   const brand = (o.brandStatus ?? "").toUpperCase();
   const campaign = (o.campaignStatus ?? "").toUpperCase();
@@ -6989,6 +7004,7 @@ export {
   planVoiceConvergence,
   planVoiceProvision,
   publishAgentVersion,
+  refusalWords,
   registrationVerdict,
   replyRequest,
   replyToReview,

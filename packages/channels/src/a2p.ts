@@ -613,6 +613,55 @@ export function isBrandNotReady(error: string): boolean {
   return /until Brand is registered|Brand.*Current status:\s*(IN_PROGRESS|PENDING)/i.test(error);
 }
 
+/**
+ * Why the carriers refused, in their own words -- or null when nothing was
+ * refused.
+ *
+ * THE DEFECT THIS EXISTS FOR. The sweep read `brand.failure_reason` and nothing
+ * else, so a refused CAMPAIGN -- which is most of them, and the only kind that
+ * can be fixed and resent -- fell through to the generic
+ * "the carriers sent the registration back". That sentence is what the owner's
+ * row showed, what the bell said, and what the back office had to work from:
+ * a rejection with the reason deleted, which is the same thing as no rejection
+ * notice at all. Twilio had the answer the whole time, in
+ * `compliance[0].errors[]`, one level below where anyone looked -- the same
+ * mistake, in the same object, that once left every text held for weeks.
+ *
+ * The carriers' own description is kept verbatim apart from their standard
+ * preamble ("The campaign submission has been reviewed and it was rejected
+ * because ..."), which repeats on every error and pushes the substance past
+ * where anybody reads. Stripped only when it matches exactly; anything
+ * unfamiliar is passed through untouched rather than mangled.
+ */
+export interface CampaignError {
+  description?: string | null;
+  error_code?: number | string | null;
+  fields?: readonly string[] | null;
+}
+
+const PREAMBLE = /^the campaign submission has been reviewed and (?:it was )?rejected because (?:of )?/i;
+
+export function refusalWords(o: {
+  brandFailureReason?: string | null;
+  campaignErrors?: readonly CampaignError[] | null;
+}): string | null {
+  const parts: string[] = [];
+  const brand = (o.brandFailureReason ?? "").trim();
+  if (brand) parts.push(brand);
+  for (const e of o.campaignErrors ?? []) {
+    const said = String(e?.description ?? "").trim();
+    if (!said) continue;
+    // A trailing full stop before the code reads as a false sentence end.
+    const body = said.replace(PREAMBLE, "").trim().replace(/\.$/, "");
+    // The code and the field are what a resubmit is aimed at, so they travel
+    // with the sentence rather than in a log line nobody opens.
+    const tags = [e?.error_code == null ? null : String(e.error_code), ...(e?.fields ?? [])].filter(Boolean);
+    parts.push(tags.length ? `${body} (${tags.join(" · ")})` : body);
+  }
+  if (!parts.length) return null;
+  return parts.join("; ");
+}
+
 /** Twilio's brand and campaign statuses, in the words `lines.sms_state` uses. */
 export type SmsRegistrationState = "registering" | "approved" | "active" | "rejected" | "failed";
 

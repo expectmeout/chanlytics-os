@@ -12,7 +12,7 @@ import {
   brandTypeFor, nextA2PStep, smsStateFor, registrationVerdict, runA2PSaga, isBrandNotReady,
   a2pProfileEndUserRequest, starterEndUserRequest, soleProprietorEndUserRequest,
   addressRequest, a2pProfileRequest, brandRequest, businessEndUserRequest, campaignRequest,
-  customerProfileRequest, evaluateRequest, representativeEndUserRequest, submitProfileRequest, supportingDocumentRequest, encodeForm, keywordsFor,
+  customerProfileRequest, evaluateRequest, representativeEndUserRequest, submitProfileRequest, supportingDocumentRequest, encodeForm, keywordsFor, refusalWords,
 } from "@chanlytics/channels";
 import { BUSINESS_INDUSTRIES, DEFAULT_INDUSTRY, industryOf, COMPANY_TYPES, companyTypeOf, businessTypeOf, businessFieldsFor, businessRecordProblems, businessRecordLine, emptyBusinessRecord, EVENT_KINDS } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
@@ -465,4 +465,45 @@ test("the wiring: filed as us, never twice, never real by default, and the recor
   assert.ok(sweep.includes('if (r.brand === "APPROVED" && !line.campaign_sid)'), "the sweep files the campaign the carriers were still holding");
   assert.ok(sweep.includes("secretsMatch(presented, expected"), "and it is the same door the other sweeps use");
   assert.ok(readRaw("supabase/migrations/00077_registration_truth.sql").includes("cron.schedule('registration-sweep'"), "REGRESSION: nothing called the status check, so 'waiting on carriers' was a state nothing ever left");
+});
+
+test("a refusal keeps the carriers' own reasons, from the side that was actually refused", () => {
+  // THE DEFECT. The sweep read brand.failure_reason and nothing else, so every
+  // CAMPAIGN rejection -- the kind that can be fixed and resent -- stored the
+  // generic "the carriers sent the registration back" and the causes were
+  // dropped. Twilio had them the whole time in compliance[0].errors[], one level
+  // below where anyone looked: the same mistake, in the same object, that once
+  // left every text held for weeks.
+  //
+  // These two are the real ones the live Chanlytics campaign came back with.
+  const said = refusalWords({
+    campaignErrors: [
+      { description: "The campaign submission has been reviewed and it was rejected because of invalid campaign description.", error_code: 30886, fields: ["USE_CASE_DESCRIPTION"] },
+      { description: "The campaign submission has been reviewed and rejected because marketing consent was combined with other consents. Marketing consent must be collected separately.", error_code: 30913, fields: ["MESSAGE_FLOW"] },
+    ],
+  });
+  assert.match(said, /invalid campaign description \(30886 · USE_CASE_DESCRIPTION\)/);
+  assert.match(said, /marketing consent was combined with other consents/);
+  assert.match(said, /\(30913 · MESSAGE_FLOW\)/);
+  // The preamble repeats on every error and pushes the substance past where
+  // anybody reads, so it goes -- and nothing else does.
+  assert.ok(!/campaign submission has been reviewed/i.test(said));
+  assert.equal(said.split("; ").length, 2, "both causes, not the first");
+
+  // A brand refusal still reads, and both together read together.
+  assert.equal(refusalWords({ brandFailureReason: "the tax id did not match the legal name" }), "the tax id did not match the legal name");
+  assert.match(refusalWords({ brandFailureReason: "brand refused", campaignErrors: [{ description: "and the campaign too", error_code: 30999 }] }), /^brand refused; and the campaign too \(30999\)/);
+
+  // Nothing refused says nothing: a caller must be able to tell "no reason"
+  // from "empty reason" and fall back to its own words.
+  assert.equal(refusalWords({}), null);
+  assert.equal(refusalWords({ brandFailureReason: "   ", campaignErrors: [] }), null);
+  assert.equal(refusalWords({ campaignErrors: [{ error_code: 30886 }] }), null, "a code with no description is not a sentence");
+  // An unfamiliar message is passed through rather than mangled.
+  assert.equal(refusalWords({ campaignErrors: [{ description: "Something new from TCR" }] }), "Something new from TCR");
+
+  // And the sweep reads the campaign side, not just the brand.
+  const lib = readCode("apps/edge/lib/a2p.ts");
+  assert.ok(lib.includes("campaignErrors: Array.isArray(usa2p?.errors)"), "REGRESSION: the campaign's own reasons were dropped");
+  assert.ok(lib.includes('?? "the carriers sent the registration back"'), "and the generic line survives as the fallback it always should have been");
 });
