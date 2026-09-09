@@ -6074,8 +6074,8 @@ function campaignRequest(f) {
   else delete form2.OptInMessage;
   return { url: `${MESSAGING2}/Services/${f.messagingServiceSid}/Compliance/Usa2p`, method: "POST", form: form2 };
 }
-function deleteCampaignRequest(messagingServiceSid) {
-  return { url: `${MESSAGING2}/Services/${messagingServiceSid}/Compliance/Usa2p`, method: "DELETE" };
+function deleteCampaignRequest(messagingServiceSid, campaignSid) {
+  return { url: `${MESSAGING2}/Services/${messagingServiceSid}/Compliance/Usa2p/${campaignSid}`, method: "DELETE" };
 }
 var A2P_STEPS = ["profile", "business", "representative", "address", "document", "primary", "submit", "a2p_profile", "brand", "campaign"];
 var EMPTY_A2P_STATE = {
