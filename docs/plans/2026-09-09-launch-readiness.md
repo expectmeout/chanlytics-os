@@ -8,6 +8,8 @@
 
 > **Status, 9 September 2026: all four P0 gates are shipped and merged.** #291, #292, #293, #294. Migrations 00088 and 00089 applied; `sweep_health` reports 10 of 10 healthy. One decision is left with Ruben and is called out under gate 2: production still runs `open`, because closing somebody's front door is not a change to make without asking.
 >
+> **The 30913 consent split is shipped** — #304 and #305, migrations 00095–00096 applied. Marketing consent is now a separate answer from conversational consent, the `/yes` page asks twice, and the campaign was **resubmitted free** (`200`, `IN_PROGRESS`, no errors). What remains of that thread is one thing money would fix and one thing nothing can; both are under *Open, and Ruben's* in PRD 5's neighbour below.
+>
 > **Gate 5 is shipped** — #299 (the boundary and the judgement), #300 (the page), #301 (the reason a refusal gives), migrations 00091–00093 applied. `platform_admins` is read for the first time since 00001, and Settings › Back office lists every workspace sorted by who needs a person. See the *Shipped* note under PRD 5.
 >
 > **Gate 7 is shipped too** — #296 (the machinery) and #297 (the product loop), migration 00090 applied. A business with no tax ID can now register for texting, is shown what that registration costs it before it commits, and is told the ceiling afterwards. One leg of it is specified and deliberately unbuilt; see the *Shipped* note under PRD 7, which names what it waits on and why.
@@ -326,7 +328,14 @@ This is the only surface that deliberately crosses tenant boundaries. Every path
 
 ### Open, and Ruben's
 
-The Chanlytics campaign is still refused, on two counts: `30886` (campaign description) and `30913` (marketing consent must be collected separately from other consents). Resubmitting is free, but 30913 means changing how consent is asked for on the `/yes` page rather than rewording a field — a product decision, not a tweak. The live campaign's opt-in message also still reads *"offers and news from Billing probe"*, a tenant name from before this workspace was renamed.
+**Both refusals are answered and the campaign is back under review** (#304, #305 — resubmitted 9 September, `200`, `campaign_status: IN_PROGRESS`, `errors: []`). Editing a failed campaign is free: *"a vetting fee is assessed only once per Campaign."*
+
+- `30886` (campaign description) — the description now states the separation outright, there are five samples rather than two, and the samples finally match the filing's own `HasEmbeddedLinks` / `HasEmbeddedPhone` declarations, which had always been `true` while no sample contained either.
+- `30913` (marketing consent combined with other consents) — fixed properly rather than reworded. `contacts.marketing_consent` is a second axis with its own door; the `/yes` page asks twice with separate disclosures; `templates.category` and `playbooks.policy_class` — both of which have existed for months with nothing reading them — now decide which consent a send needs, failing closed on a null.
+
+**One thing left, and it costs $15.** The opt-in confirmation message on the live campaign still reads *"You're subscribed to offers and news from Billing probe"* — a tenant name from before this workspace was renamed. Twilio's campaign UPDATE accepts the description, the message flow, the samples, four booleans and the two policy URLs, and nothing else: *"any parameters included in the original CREATE call, but not specifically mentioned in the update table, cannot be edited under any circumstances"*, naming opt-in, opt-out and help information. Changing it means deleting the campaign and creating a new one, which is a second vetting fee.
+
+That is a judgement call rather than a blocker: the current rejection did not cite the name, and Twilio's guidance only says the brand name "should be aligned with the campaign information". Wait for this review; spend the $15 only if TCR asks.
 
 Actions across tenants are deliberately absent from v1, and the PRD's rule holds for v2: only verbs that already exist as a workspace's own.
 
