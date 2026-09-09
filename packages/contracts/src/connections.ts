@@ -135,7 +135,17 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
       // the reply must come from that handset -- there is no code to bring back
       // here, and telling somebody to type one sends them looking for a field
       // that does not exist while a 24-hour window runs out.
-      return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "The carriers texted your mobile — reply to that message from your phone and texting switches on. The code expires after a day; ask for a new one from here if it does.", verb: { label: "Send it again", to: "verb:resend-otp", who: "owner" } };
+      //
+      // NO VERB, deliberately. This row used to offer "Send it again" pointing
+      // at `verb:resend-otp`, which no page handles -- the click did nothing at
+      // all, on the one row in this product where a person is against a
+      // 24-hour clock. Resending needs a call whose shape cannot be confirmed
+      // without a real sole-proprietor brand to make it against, and a brand
+      // costs money and cannot be withdrawn. So the sentence says who does it
+      // instead of pretending the owner can, and the button comes back the day
+      // the endpoint is verified rather than the day somebody thinks the row
+      // looks bare.
+      return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "The carriers texted your mobile — reply to that message from the handset itself and texting switches on. There is nothing to type here. The code lasts a day; if it runs out, Chanlytics asks the carriers for another." };
     case "registering":
     case "hosting":
       return { ...base, state: "waiting_them", stateWords: "Waiting on carriers", sentence: `The carriers are registering your line, since ${since} · usually a week.` };

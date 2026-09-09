@@ -7,6 +7,8 @@
 **Reading order:** P0 items are the ones I would not open signup without. P1 items are what makes the business operable once people are in. P2 is polish that changes what a customer perceives, not whether the product works.
 
 > **Status, 9 September 2026: all four P0 gates are shipped and merged.** #291, #292, #293, #294. Migrations 00088 and 00089 applied; `sweep_health` reports 10 of 10 healthy. One decision is left with Ruben and is called out under gate 2: production still runs `open`, because closing somebody's front door is not a change to make without asking.
+>
+> **Gate 7 is shipped too** — #296 (the machinery) and #297 (the product loop), migration 00090 applied. A business with no tax ID can now register for texting, is shown what that registration costs it before it commits, and is told the ceiling afterwards. One leg of it is specified and deliberately unbuilt; see the *Shipped* note under PRD 7, which names what it waits on and why.
 
 | # | PRD | Priority | Size | Blocks signup? | State |
 |---|---|---|---|---|---|
@@ -16,7 +18,7 @@
 | 4 | A green nightly and a true DR copy | P0 | ~half day | Yes | **shipped** #292 |
 | 5 | The back office | P1 | ~2 days | No, but support is impossible without it | next |
 | 6 | An ops door a human can open | P1 | ~half day | No | |
-| 7 | Businesses without an EIN | P1 | ~3 days | No — decides market size | your call |
+| 7 | Businesses without an EIN | P1 | ~3 days | No — decides market size | **shipped** #296 · #297 · *OTP leg held* |
 | 8 | Registration a salon can complete | P1 | ~2–3 days | No — decides onboarding cost | |
 | 9 | What a paying customer actually sees | P2 | ~1 day | No | |
 
@@ -389,6 +391,34 @@ The saga's shape already supports this: `nextA2PStep` is a list of steps over re
 ### Risk
 
 Building it and getting the OTP flow wrong strands a customer mid-registration with no way forward. The `otp_waiting` state must have a resend and an abandon path before it ships.
+
+### Shipped — 9 September 2026
+
+Ruben's answer was **build it**: *"of course businesses without ein are also customers if they cannot use certain features because of it until they provide what they need to then thats what it is."*
+
+**#296 — the machinery.** The starter customer profile and sole-proprietor TrustProduct policies, read back from Twilio's live Policies API rather than copied from a blog; the request builders for both; a second step list in the saga chosen by `brandTypeFor`, skipping the representative the standard path needs and a sole proprietor does not have.
+
+**#297 — the product loop.** `packages/contracts/src/registration-path.ts` is the fork, in one place:
+
+- The form **asks before it renders either registration**, because an empty tax-ID box means both "there is none" and "not typed yet", and one of those answers files a permanent, capped brand. Three states, not two — the same shape `/signup` uses for its posture.
+- **No new column for the answer.** A saved record already says which path it is on, held by an invariant the writers keep: a standard record cannot be saved without its tax ID, and a sole-proprietor record is never saved with one.
+- **One rule for fields**, stated and tested against the request builders: a field appears on a path if, and only if, something that path files reads it. So a sole proprietor is never asked for a legal form they do not have, or a required website their registration never sends.
+- **One validator, three writers.** `businessRecordProblems(record, path)` takes the path with no default; the route, the edge door and the filing all call it. The door's own hand-rolled list is gone, and so is `whatSoleProprietorNeeds`.
+- **What was filed is remembered** (00090, `lines.reg_sole_prop`), because the record can change after the brand cannot. A working sole-proprietor line says its ceiling on Setup and on Connections, from one sentence.
+- **The limits are said where the choice is made**, not after it — a registered brand cannot be withdrawn.
+
+No invented price: the standard path's ~$19 is off a real invoice; the sole-proprietor path says the shape of the cost, because no such filing has been billed here yet. Put the number in from the first invoice.
+
+### Still held: the OTP leg
+
+The `otp_waiting` row used to offer **"Send it again"** against `verb:resend-otp`, which no page handled — a button that did nothing, on the one row in this product where a person is against a 24-hour clock. #297 removed the button and made the sentence say who asks for a new code, and `connections.test.mjs` now pins the general invariant: *every verb a row can offer is a verb the page runs.*
+
+What it waits on, precisely:
+
+1. **Nothing sets `otp_waiting`.** Which field of a sole-proprietor `BrandRegistration` reports "the code is out, waiting on the handset" is not something to guess — mapping it wrong flips a customer's row to "reply to the text" when no text was sent.
+2. **The resend call's shape is unconfirmed.** Verifying either needs a real sole-proprietor brand to observe, and a brand costs money and cannot be withdrawn.
+
+So this is Ruben's gate, not an engineering one: **authorise one real sole-proprietor filing** (a few dollars) and both answers come from watching it. Until then the path files, the row tells the owner the one thing they must do — reply from the handset — and nothing in the product pretends otherwise.
 
 ---
 
