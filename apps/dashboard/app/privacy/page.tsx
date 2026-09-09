@@ -18,8 +18,25 @@ export default function PrivacyPage() {
 
       <p>Chanlytics OS is a receptionist for small businesses: it answers a business's customers on WhatsApp, by phone and by text, keeps the conversations where the owner can read them, and helps the owner reply to reviews and reach customers who asked to hear from them. This policy says what we hold to do that, why, who else touches it, and what you can do about it.</p>
 
+      {/*
+        The business, NAMED. A carrier reviewer rejected an A2P campaign
+        against this exact page with error 30919 — "the provided website does
+        not contain sufficient business information" — and they were right: it
+        explained the product thoroughly and never said who was behind it. A
+        privacy policy a carrier, a payment processor or a customer can act on
+        has to carry the legal entity, where it is, and how to reach a person.
+        A list rather than a sentence, because a reviewer is scanning for
+        exactly these four facts.
+      */}
       <h2>Who we are</h2>
-      <p>Chanlytics ("we", "us") operates Chanlytics OS at app.chanlytics.com. When a business ("the workspace owner") signs up, it is the controller of its customers' data; we process that data on its behalf and under its instructions. Questions about this policy go to <a href="mailto:hi@chanlytics.com">hi@chanlytics.com</a>.</p>
+      <p>Chanlytics ("we", "us") operates Chanlytics OS at app.chanlytics.com, and the site at chanlytics.com. When a business ("the workspace owner") signs up, it is the controller of its customers' data; we process that data on its behalf and under its instructions.</p>
+      <ul>
+        <li><b>Legal entity</b>: RJ Capital LLC, trading as Chanlytics</li>
+        <li><b>Address</b>: 193 Jamaica Ave, Brooklyn, NY 11207, United States</li>
+        <li><b>Email</b>: <a href="mailto:hi@chanlytics.com">hi@chanlytics.com</a></li>
+        <li><b>Phone</b>: <a href="tel:+19175746416">+1 (917) 574-6416</a></li>
+      </ul>
+      <p>Questions about this policy, and requests about your own data, go to either of those.</p>
 
       <h2>What we hold</h2>
       <ul>

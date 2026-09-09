@@ -66,8 +66,16 @@ export default async function ConsentPage({ params }: { params: Promise<{ slug: 
         ))}
       </ul>
 
+      {/*
+        Who is actually sending, spelled out. This page is the opt-in URL on
+        every carrier registration, and a reviewer landing here has to be able
+        to tell which business a customer is agreeing to hear from and who
+        operates the sending. One campaign was already rejected for a website
+        that "does not contain sufficient business information".
+      */}
       <p className="yes-foot">
-        Messages are answered by a receptionist from Chanlytics on behalf of {facts.businessName}.{" "}
+        Messages are answered by a receptionist operated by Chanlytics (RJ Capital LLC, 193 Jamaica Ave, Brooklyn, NY 11207,{" "}
+        <a href="tel:+19175746416">+1 (917) 574-6416</a>) on behalf of {facts.businessName}.{" "}
         <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a>
       </p>
     </main>
