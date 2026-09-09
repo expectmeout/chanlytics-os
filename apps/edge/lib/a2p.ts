@@ -11,9 +11,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./workspace/db.js";
 import {
   runA2PSaga, smsStateFor, registrationVerdict, LOW_VOLUME_USECASE, deleteCampaignRequest, updateCampaignRequest,
-  encodeForm, soleProprietorUnsupported, type A2PPorts, type A2PRequest, type A2PState, type BusinessRecord,
+  encodeForm, whatSoleProprietorNeeds, type A2PPorts, type A2PRequest, type A2PState, type BusinessRecord,
 } from "./workspace/channels.js";
-import { formatPhoneDisplay } from "./workspace/contracts.js";
+import { formatPhoneDisplay, industryOf } from "./workspace/contracts.js";
 import { emitEvent } from "./workspace/db.js";
 import { recordNotification } from "./notify.js";
 import { lineProviderFromEnv } from "./lines.js";
@@ -257,15 +257,26 @@ export async function registerLine(db: Db, o: {
   if (!primary) return { ok: false, error: "no_primary_profile", state, smsState: o.line.sms_state };
   if (!email) return { ok: false, error: "no_platform_mailbox", state, smsState: o.line.sms_state };
   if (!o.line.messaging_service_sid) return { ok: false, error: "no_messaging_service", state, smsState: o.line.sms_state };
-  // Refused before anything is created: on a real filing this would be a fee
-  // spent on a registration the carriers reject.
-  if (soleProprietorUnsupported(businessRecordFrom(o.record))) {
+  // A business with no tax id files the OTHER registration -- a person rather
+  // than a company. Refused here only when the record is missing something
+  // that path needs, and refused BEFORE anything is created, because on a real
+  // filing an incomplete record is a fee spent on a rejection.
+  //
+  // This used to refuse every sole proprietor by name. They are customers; the
+  // path is narrower, and the narrowness is something to state rather than a
+  // reason to turn a solo barber away.
+  // The numbers this workspace was given by us, so the check can tell an
+  // owner's handset from the line we answer on their behalf.
+  const ours = await db.from("lines").select("e164").eq("tenant_id", o.line.tenant_id);
+  const ourNumbers = (ours.data ?? []).map((r) => r.e164).filter((n): n is string => !!n);
+  const needs = whatSoleProprietorNeeds(businessRecordFrom(o.record), ourNumbers);
+  if (needs.length) {
     await db.from("lines").update({
-      sms_state: "failed",
-      last_error: "Texting for a business without a tax id needs a different registration, which Chanlytics has not built yet. A person at Chanlytics has this.",
+      sms_state: "needs_record",
+      last_error: `Texting registration needs ${needs.join(", ")}.`,
       state_since: new Date().toISOString(),
     }).eq("id", o.line.id);
-    return { ok: false, error: "sole_proprietor_unsupported", state, smsState: "failed" };
+    return { ok: false, error: "sole_proprietor_incomplete", state, smsState: "needs_record" };
   }
 
   const L = logger({ tenant_id: o.line.tenant_id, line_id: o.line.id });
@@ -320,6 +331,9 @@ export async function registerLine(db: Db, o: {
     ...(o.statusCallback ? { statusCallback: o.statusCallback } : {}),
     workspace: { name: o.workspaceName },
     record,
+    // Twilio's vertical enum. The sole-proprietor end user asks for it by
+    // name; the standard path carries it inside the business end user.
+    industry: industryOf(record.industry),
     campaign: campaignFactsFor({ businessName: o.workspaceName, optInUrl: o.optInUrl, privacyUrl: o.privacyUrl, termsUrl: o.termsUrl }),
     messagingServiceSid: o.line.messaging_service_sid,
     useCase: LOW_VOLUME_USECASE,

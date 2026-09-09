@@ -135,7 +135,13 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
   assert.equal(smsStateRow(line({ sms_state: "none", voice_state: "provisioning" }), NOW).state, "later", "a line that cannot answer a call yet cannot text either");
   assert.equal(words("needs_record").state, "waiting_you");
   assert.equal(words("needs_record").body, "business_record", "and the form is right there");
-  assert.equal(words("otp_waiting").sentence, "Type the code the carriers sent to your mobile.");
+  // REPLY to the text, never type a code here. The carriers message the
+  // owner's own handset and the reply must come from it; telling somebody to
+  // type a code sends them hunting for a field that does not exist while a
+  // 24-hour window runs out.
+  assert.match(words("otp_waiting").sentence, /reply to that message from your phone/);
+  assert.doesNotMatch(words("otp_waiting").sentence, /Type the code/);
+  assert.equal(words("otp_waiting").verb.to, "verb:resend-otp", "and there is a way to get a new one");
   const reg = words("registering", { state_since: ago(2 * 24 * H) });
   assert.equal(reg.state, "waiting_them");
   assert.equal(reg.stateWords, "Waiting on carriers");

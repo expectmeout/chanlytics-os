@@ -10,6 +10,7 @@
 import {
   A2P_POLICIES, EMPTY_A2P_STATE, brandTypeFor, nextA2PStep,
   addressRequest, assignRequest, a2pProfileEndUserRequest, a2pProfileRequest, brandRequest, businessEndUserRequest,
+  starterProfileRequest, starterEndUserRequest, starterAttributes, soleProprietorProfileRequest, soleProprietorEndUserRequest,
   campaignRequest, customerProfileRequest, evaluateRequest, evaluateTrustProductRequest, representativeEndUserRequest,
   submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, trustProductAssignRequest,
   businessAttributes, representativeAttributes, updateEndUserRequest, isBrandNotReady,
@@ -37,6 +38,8 @@ export interface A2PPorts {
   /** The workspace, for the names a reviewer reads. */
   workspace: { name: string };
   record: BusinessRecord;
+  /** Twilio's vertical enum. The sole-proprietor end user asks for it by name. */
+  industry: string;
   campaign: Omit<CampaignFacts, "brandSid" | "messagingServiceSid" | "useCase">;
   messagingServiceSid: string;
   useCase: string;
@@ -78,17 +81,37 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
     return id;
   };
 
+  // WHICH registration this is. A business with a tax id files a company; a
+  // sole proprietor files a person. The steps below share five of their nine
+  // stages, so this is a fork inside one saga rather than two sagas that would
+  // drift apart at the shared end.
+  const brandType = brandTypeFor(p.record);
+  const soleProp = brandType === "SOLE_PROPRIETOR";
+
   let step: A2PStep | null = null;
   try {
-    while ((step = nextA2PStep(state)) !== null) {
+    while ((step = nextA2PStep(state, brandType)) !== null) {
       switch (step) {
         case "profile":
-          await save({ profileSid: await need(customerProfileRequest({ friendlyName: p.workspace.name, email: p.email, statusCallback: p.statusCallback }), "creating the customer's profile") });
+          await save({
+            profileSid: await need(
+              (soleProp ? starterProfileRequest : customerProfileRequest)({ friendlyName: p.workspace.name, email: p.email, statusCallback: p.statusCallback }),
+              "creating the customer's profile",
+            ),
+          });
           break;
         case "business": {
-          const id = await need(businessEndUserRequest(p.record), "recording the business");
+          // The one end user each policy asks for. The starter profile wants a
+          // PERSON -- name, email, phone -- where the secondary wants a company
+          // and its tax id. Same slot in the state because both are "the thing
+          // the profile is about", and keeping one receipt keeps a resumed run
+          // from filing a second.
+          const id = await need(
+            soleProp ? starterEndUserRequest(p.record) : businessEndUserRequest(p.record),
+            soleProp ? "recording who you are" : "recording the business",
+          );
           const a = await p.send(assignRequest(state.profileSid!, id));
-          if (!ok(a)) throw new Error(refusal(a, "attaching the business"));
+          if (!ok(a)) throw new Error(refusal(a, soleProp ? "attaching your details" : "attaching the business"));
           await save({ businessSid: id });
           break;
         }
@@ -118,11 +141,16 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
         case "submit": {
           // What the owner last typed is what gets evaluated, even if they
           // corrected it after the first attempt failed.
-          for (const [sid, a] of [[state.businessSid!, businessAttributes(p.record)], [state.representativeSid!, representativeAttributes(p.record)]] as const) {
+          // A sole proprietor has one end user and no representative, so
+          // there is one thing to refresh rather than two.
+          const refresh = soleProp
+            ? ([[state.businessSid!, starterAttributes(p.record)]] as const)
+            : ([[state.businessSid!, businessAttributes(p.record)], [state.representativeSid!, representativeAttributes(p.record)]] as const);
+          for (const [sid, a] of refresh) {
             const up = await p.send(updateEndUserRequest(sid, a));
             if (!ok(up)) throw new Error(refusal(up, "refreshing the business on record"));
           }
-          const ev = await p.send(evaluateRequest(state.profileSid!, A2P_POLICIES.secondaryCustomerProfile));
+          const ev = await p.send(evaluateRequest(state.profileSid!, soleProp ? A2P_POLICIES.starterCustomerProfile : A2P_POLICIES.secondaryCustomerProfile));
           const status = typeof ev.body?.status === "string" ? ev.body.status : "";
           if (!ok(ev)) throw new Error(refusal(ev, "checking the profile"));
           if (status !== "compliant") throw new Error(`the profile is not complete yet: ${JSON.stringify(ev.body?.results ?? ev.body).slice(0, 300)}`);
@@ -132,8 +160,21 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
           break;
         }
         case "a2p_profile": {
-          const bundle = await need(a2pProfileRequest({ friendlyName: p.workspace.name, email: p.email, statusCallback: p.statusCallback }), "creating the messaging profile");
-          const endUser = await need(a2pProfileEndUserRequest({ friendlyName: p.workspace.name, companyType: p.record.companyType }), "recording the company type");
+          // The messaging profile is the OTHER half of the pair. A sole
+          // proprietor's is a different policy carrying a different end user:
+          // brand name, the owner's mobile, and the vertical. The mobile is
+          // the whole point -- it is where the carriers send the code the
+          // owner has to reply to.
+          const bundle = await need(
+            (soleProp ? soleProprietorProfileRequest : a2pProfileRequest)({ friendlyName: p.workspace.name, email: p.email, statusCallback: p.statusCallback }),
+            "creating the messaging profile",
+          );
+          const endUser = await need(
+            soleProp
+              ? soleProprietorEndUserRequest(p.record, p.industry)
+              : a2pProfileEndUserRequest({ friendlyName: p.workspace.name, companyType: p.record.companyType }),
+            soleProp ? "recording your mobile for the carriers' code" : "recording the company type",
+          );
           for (const objectSid of [endUser, state.profileSid!]) {
             const a = await p.send(trustProductAssignRequest(bundle, objectSid));
             if (!ok(a)) throw new Error(refusal(a, "attaching to the messaging profile"));

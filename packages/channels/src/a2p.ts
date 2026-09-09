@@ -33,8 +33,43 @@ export const A2P_POLICIES = {
   secondaryCustomerProfile: "RNdfbf3fae0e1107f8aded0e7cead80bf5",
   /** The messaging profile a brand is registered from. */
   a2pMessaging: "RNb0d4771c2c98518d916a3d4cd70a8f8b",
-  /** A customer with no tax id registers on this one instead. */
+  /**
+   * A customer with no tax id registers on a PAIR of these instead, and it is
+   * a pair -- half of it was here for months and the other half was missing,
+   * which is why the path was refused rather than built.
+   *
+   * Verified against the live Policies API on 2026-09-09, because filing
+   * against the wrong policy produces a registration that is refused after it
+   * has been paid for:
+   *
+   *   RN806dd6... "Starter Customer Profile of type Business"
+   *   RN670d5d... "Sole Proprietor TrustProduct"
+   */
+  starterCustomerProfile: "RN806dd6cd175f314e1f96a9727ee271f4",
   soleProprietor: "RN670d5d2e282a6130ae063b234b6019c8",
+} as const;
+
+/**
+ * What a sole-proprietor registration can do, from the carriers' own limits.
+ *
+ * Stated as data because every one of these has to be said to the owner BEFORE
+ * they register -- a business that finds out about 1,000 messages a day after
+ * committing has been mis-sold, and the number is not ours to soften.
+ */
+export const SOLE_PROP_LIMITS = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1000,
+  perMinuteAtt: 15,
+  /**
+   * TCR counts these across EVERY vendor, not just Chanlytics -- a customer who
+   * tried this with another provider has already spent some. Neither is
+   * checkable by us in advance, so both are said out loud instead.
+   */
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10,
 } as const;
 
 export const TRUSTHUB = "https://trusthub.twilio.com/v1";
@@ -68,6 +103,13 @@ export interface BusinessRecord {
   contactLastName: string;
   contactEmail: string;
   /** E.164. */
+  /**
+   * The owner's own mobile. The form has always labelled it "Mobile -- yours,
+   * not the business line", and on a sole-proprietor registration that label
+   * becomes load-bearing: the carriers TEXT this number and the owner has to
+   * reply from it, so it must be a real handset. TCR also caps it at three
+   * sole-proprietor registrations across every vendor, for ever.
+   */
   contactPhone: string;
   contactTitle: string;
   contactJobPosition: string;
@@ -81,16 +123,49 @@ export function brandTypeFor(r: Pick<BusinessRecord, "ein">): BrandType {
 }
 
 /**
- * A business with no tax id registers on a DIFFERENT path: a starter
- * profile on the sole-proprietor policy, and a one-time code the owner
- * reads off their own mobile. None of that is built here, and filing a
- * sole proprietor against the business policy produces a registration the
- * carriers reject — which, on a real filing, is a fee spent on nothing.
- * So it is refused before anything is created, by name.
+ * What a sole-proprietor registration still needs, in the owner's words, or an
+ * empty list when it can go.
+ *
+ * This REPLACED a flat refusal. `soleProprietorUnsupported` returned true for
+ * every business without a tax id and the route turned them away by name --
+ * which meant a solo barber, a chair renter, a one-person salon could have
+ * calls and WhatsApp and never texting, and only found out at the end of a
+ * form. They are customers; the path is narrower, and the narrowness is
+ * something to state rather than a reason to refuse.
+ *
+ * Everything here is a field WE can check. The three limits TCR counts across
+ * every vendor -- the mobile's three uses, the email's ten, the address's ten
+ * -- are not checkable by anyone but TCR, so they are said out loud in the
+ * form instead of pretended about here.
  */
-export function soleProprietorUnsupported(r: Pick<BusinessRecord, "ein">): boolean {
-  return brandTypeFor(r) === "SOLE_PROPRIETOR";
+export function whatSoleProprietorNeeds(
+  r: Pick<BusinessRecord, "ein" | "contactPhone" | "contactFirstName" | "contactLastName" | "contactEmail" | "street" | "city" | "region" | "postalCode" | "country">,
+  /**
+   * The numbers this workspace was given BY US. A mobile that is one of them
+   * is a CPaaS number, which TCR refuses for a sole-proprietor brand -- and it
+   * is the mistake a business makes without noticing, because it is the number
+   * on their own website. Checkable, so checked, rather than discovered after
+   * the fee.
+   */
+  ourNumbers: readonly string[] = [],
+): string[] {
+  if (r.ein && r.ein.trim()) return [];
+  const missing: string[] = [];
+  if (!r.contactFirstName?.trim() || !r.contactLastName?.trim()) missing.push("your first and last name");
+  if (!r.contactEmail?.trim()) missing.push("an email address");
+  if (!r.contactPhone?.trim()) {
+    missing.push("your own mobile number, so the carriers can text you a code to reply to");
+  } else if (ourNumbers.some((n) => normalizeDigits(n) === normalizeDigits(r.contactPhone))) {
+    missing.push("a mobile that is YOUR phone, not the number Chanlytics answers for you — the carriers text it and you have to reply from the handset");
+  }
+  if (!r.street?.trim() || !r.city?.trim() || !r.region?.trim() || !r.postalCode?.trim()) missing.push("your address");
+  if (r.country && !["US", "CA"].includes(r.country.toUpperCase())) {
+    missing.push("a US or Canadian address — texting registration is not open to businesses elsewhere");
+  }
+  return missing;
 }
+
+const normalizeDigits = (v: string | null | undefined): string => String(v ?? "").replace(/[^0-9]/g, "");
 
 export interface A2PRequest {
   url: string;
@@ -133,6 +208,87 @@ export function customerProfileRequest(o: { friendlyName: string; email: string;
 }
 
 /** The business itself, in the carriers' vocabulary. */
+/**
+ * The customer profile a business with no tax id gets.
+ *
+ * Same shape as customerProfileRequest, different policy -- and the difference
+ * is the whole path: the Starter profile asks for a person (name, email,
+ * phone) and an address, where the Secondary asks for a company, a tax id, an
+ * authorised representative and a document proving the address.
+ */
+export function starterProfileRequest(o: { friendlyName: string; email: string; statusCallback?: string }): A2PRequest {
+  return {
+    url: `${TRUSTHUB}/CustomerProfiles`,
+    method: "POST",
+    form: {
+      FriendlyName: o.friendlyName.slice(0, 64),
+      Email: o.email,
+      PolicySid: A2P_POLICIES.starterCustomerProfile,
+      ...(o.statusCallback ? { StatusCallback: o.statusCallback } : {}),
+    },
+  };
+}
+
+/**
+ * The person, for a starter profile. Four fields, verified from the policy's
+ * own requirements rather than a guess: first_name, last_name, email,
+ * phone_number.
+ */
+export function starterEndUserRequest(r: BusinessRecord): A2PRequest {
+  return {
+    url: `${TRUSTHUB}/EndUsers`,
+    method: "POST",
+    form: {
+      FriendlyName: `${r.contactFirstName} ${r.contactLastName}`.trim().slice(0, 64),
+      Type: "starter_customer_profile_information",
+      Attributes: attrs({
+        first_name: r.contactFirstName,
+        last_name: r.contactLastName,
+        email: r.contactEmail,
+        phone_number: r.contactPhone,
+      }),
+    },
+  };
+}
+
+/** The messaging profile bundle a sole proprietor's brand is registered from. */
+export function soleProprietorProfileRequest(o: { friendlyName: string; email: string; statusCallback?: string }): A2PRequest {
+  return {
+    url: `${TRUSTHUB}/TrustProducts`,
+    method: "POST",
+    form: {
+      FriendlyName: o.friendlyName.slice(0, 64),
+      Email: o.email,
+      PolicySid: A2P_POLICIES.soleProprietor,
+      ...(o.statusCallback ? { StatusCallback: o.statusCallback } : {}),
+    },
+  };
+}
+
+/**
+ * The three facts the Sole Proprietor TrustProduct asks for, from its own
+ * policy: brand_name, mobile_phone_number, vertical.
+ *
+ * The mobile is the whole reason this end user exists -- it is where the
+ * carriers send the one-time code, and it is the field a business gets wrong
+ * by giving the number customers call.
+ */
+export function soleProprietorEndUserRequest(r: BusinessRecord, industry: string): A2PRequest {
+  return {
+    url: `${TRUSTHUB}/EndUsers`,
+    method: "POST",
+    form: {
+      FriendlyName: `${r.tradeName || r.legalName} · sole proprietor`.slice(0, 64),
+      Type: "sole_proprietor_information",
+      Attributes: attrs({
+        brand_name: r.tradeName || r.legalName,
+        mobile_phone_number: r.contactPhone,
+        vertical: industry,
+      }),
+    },
+  };
+}
+
 export function businessEndUserRequest(r: BusinessRecord): A2PRequest {
   return {
     url: `${TRUSTHUB}/EndUsers`,
@@ -222,6 +378,10 @@ export function updateEndUserRequest(sid: string, attributes: Record<string, unk
 const parsed = (req: A2PRequest): Record<string, unknown> => JSON.parse(String(req.form?.Attributes ?? "{}")) as Record<string, unknown>;
 export function businessAttributes(r: BusinessRecord): Record<string, unknown> {
   return parsed(businessEndUserRequest(r));
+}
+/** The starter profile's one end user, refreshed the same way. */
+export function starterAttributes(r: BusinessRecord): Record<string, unknown> {
+  return parsed(starterEndUserRequest(r));
 }
 export function representativeAttributes(r: BusinessRecord): Record<string, unknown> {
   return parsed(representativeEndUserRequest(r));
@@ -351,10 +511,11 @@ export function keywordsFor(words: readonly string[]): string[] {
 /**
  * Twilio's code for a small business sending a bit of everything.
  *
- * There is no sole-proprietor code here on purpose: that registration is
- * refused by name (soleProprietorUnsupported) until its own path is built,
- * and a constant kept for a path nobody can take is just something to
- * maintain.
+ * The same use case for both registrations. A sole proprietor's ceiling is set
+ * by the BRAND -- one campaign, one number, a thousand messages a day on
+ * T-Mobile (SOLE_PROP_LIMITS) -- not by the use case, so there is nothing to
+ * choose here and choosing anyway would be a second place for the two paths to
+ * disagree.
  */
 export const LOW_VOLUME_USECASE = "LOW_VOLUME";
 
@@ -463,8 +624,32 @@ export const EMPTY_A2P_STATE: A2PState = {
   primaryAssigned: false, profileSubmitted: false, a2pProfileSid: null, brandSid: null, campaignSid: null,
 };
 
-/** The first step whose receipt is missing; null when the registration is filed. */
-export function nextA2PStep(s: A2PState): A2PStep | null {
+/**
+ * The first step whose receipt is missing; null when the registration is filed.
+ *
+ * TWO LISTS, because there are two registrations. A business with a tax id
+ * files a company: its name, its EIN, an authorised representative who signs
+ * for it, and a document proving the address. A sole proprietor files a
+ * PERSON: their name, their email, their address, and the mobile the carriers
+ * will text. Neither is a subset of the other, so this is a fork rather than a
+ * flag -- and the shared steps (address, primary, submit, brand, campaign) are
+ * genuinely shared, which is why one function still answers for both.
+ */
+export function nextA2PStep(s: A2PState, brandType: BrandType = "STANDARD"): A2PStep | null {
+  if (brandType === "SOLE_PROPRIETOR") {
+    if (!s.profileSid) return "profile";
+    // The person, not a business and not a representative: the starter policy
+    // asks for one end user carrying four fields.
+    if (!s.businessSid) return "business";
+    if (!s.addressSid) return "address";
+    if (!s.documentSid) return "document";
+    if (!s.primaryAssigned) return "primary";
+    if (!s.profileSubmitted) return "submit";
+    if (!s.a2pProfileSid) return "a2p_profile";
+    if (!s.brandSid) return "brand";
+    if (!s.campaignSid) return "campaign";
+    return null;
+  }
   if (!s.profileSid) return "profile";
   if (!s.businessSid) return "business";
   if (!s.representativeSid) return "representative";

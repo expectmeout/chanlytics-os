@@ -5885,17 +5885,58 @@ var A2P_POLICIES = {
   secondaryCustomerProfile: "RNdfbf3fae0e1107f8aded0e7cead80bf5",
   /** The messaging profile a brand is registered from. */
   a2pMessaging: "RNb0d4771c2c98518d916a3d4cd70a8f8b",
-  /** A customer with no tax id registers on this one instead. */
+  /**
+   * A customer with no tax id registers on a PAIR of these instead, and it is
+   * a pair -- half of it was here for months and the other half was missing,
+   * which is why the path was refused rather than built.
+   *
+   * Verified against the live Policies API on 2026-09-09, because filing
+   * against the wrong policy produces a registration that is refused after it
+   * has been paid for:
+   *
+   *   RN806dd6... "Starter Customer Profile of type Business"
+   *   RN670d5d... "Sole Proprietor TrustProduct"
+   */
+  starterCustomerProfile: "RN806dd6cd175f314e1f96a9727ee271f4",
   soleProprietor: "RN670d5d2e282a6130ae063b234b6019c8"
+};
+var SOLE_PROP_LIMITS = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  /**
+   * TCR counts these across EVERY vendor, not just Chanlytics -- a customer who
+   * tried this with another provider has already spent some. Neither is
+   * checkable by us in advance, so both are said out loud instead.
+   */
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
 };
 var TRUSTHUB = "https://trusthub.twilio.com/v1";
 var MESSAGING2 = "https://messaging.twilio.com/v1";
 function brandTypeFor(r) {
   return r.ein && r.ein.trim() ? "STANDARD" : "SOLE_PROPRIETOR";
 }
-function soleProprietorUnsupported(r) {
-  return brandTypeFor(r) === "SOLE_PROPRIETOR";
+function whatSoleProprietorNeeds(r, ourNumbers = []) {
+  if (r.ein && r.ein.trim()) return [];
+  const missing = [];
+  if (!r.contactFirstName?.trim() || !r.contactLastName?.trim()) missing.push("your first and last name");
+  if (!r.contactEmail?.trim()) missing.push("an email address");
+  if (!r.contactPhone?.trim()) {
+    missing.push("your own mobile number, so the carriers can text you a code to reply to");
+  } else if (ourNumbers.some((n) => normalizeDigits(n) === normalizeDigits(r.contactPhone))) {
+    missing.push("a mobile that is YOUR phone, not the number Chanlytics answers for you \u2014 the carriers text it and you have to reply from the handset");
+  }
+  if (!r.street?.trim() || !r.city?.trim() || !r.region?.trim() || !r.postalCode?.trim()) missing.push("your address");
+  if (r.country && !["US", "CA"].includes(r.country.toUpperCase())) {
+    missing.push("a US or Canadian address \u2014 texting registration is not open to businesses elsewhere");
+  }
+  return missing;
 }
+var normalizeDigits = (v) => String(v ?? "").replace(/[^0-9]/g, "");
 function encodeForm(form2) {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(form2)) {
@@ -5916,6 +5957,61 @@ function customerProfileRequest(o) {
       Email: o.email,
       PolicySid: A2P_POLICIES.secondaryCustomerProfile,
       ...o.statusCallback ? { StatusCallback: o.statusCallback } : {}
+    }
+  };
+}
+function starterProfileRequest(o) {
+  return {
+    url: `${TRUSTHUB}/CustomerProfiles`,
+    method: "POST",
+    form: {
+      FriendlyName: o.friendlyName.slice(0, 64),
+      Email: o.email,
+      PolicySid: A2P_POLICIES.starterCustomerProfile,
+      ...o.statusCallback ? { StatusCallback: o.statusCallback } : {}
+    }
+  };
+}
+function starterEndUserRequest(r) {
+  return {
+    url: `${TRUSTHUB}/EndUsers`,
+    method: "POST",
+    form: {
+      FriendlyName: `${r.contactFirstName} ${r.contactLastName}`.trim().slice(0, 64),
+      Type: "starter_customer_profile_information",
+      Attributes: attrs({
+        first_name: r.contactFirstName,
+        last_name: r.contactLastName,
+        email: r.contactEmail,
+        phone_number: r.contactPhone
+      })
+    }
+  };
+}
+function soleProprietorProfileRequest(o) {
+  return {
+    url: `${TRUSTHUB}/TrustProducts`,
+    method: "POST",
+    form: {
+      FriendlyName: o.friendlyName.slice(0, 64),
+      Email: o.email,
+      PolicySid: A2P_POLICIES.soleProprietor,
+      ...o.statusCallback ? { StatusCallback: o.statusCallback } : {}
+    }
+  };
+}
+function soleProprietorEndUserRequest(r, industry) {
+  return {
+    url: `${TRUSTHUB}/EndUsers`,
+    method: "POST",
+    form: {
+      FriendlyName: `${r.tradeName || r.legalName} \xB7 sole proprietor`.slice(0, 64),
+      Type: "sole_proprietor_information",
+      Attributes: attrs({
+        brand_name: r.tradeName || r.legalName,
+        mobile_phone_number: r.contactPhone,
+        vertical: industry
+      })
     }
   };
 }
@@ -5991,6 +6087,9 @@ function updateEndUserRequest(sid2, attributes) {
 var parsed = (req) => JSON.parse(String(req.form?.Attributes ?? "{}"));
 function businessAttributes(r) {
   return parsed(businessEndUserRequest(r));
+}
+function starterAttributes(r) {
+  return parsed(starterEndUserRequest(r));
 }
 function representativeAttributes(r) {
   return parsed(representativeEndUserRequest(r));
@@ -6103,7 +6202,19 @@ var EMPTY_A2P_STATE = {
   brandSid: null,
   campaignSid: null
 };
-function nextA2PStep(s) {
+function nextA2PStep(s, brandType = "STANDARD") {
+  if (brandType === "SOLE_PROPRIETOR") {
+    if (!s.profileSid) return "profile";
+    if (!s.businessSid) return "business";
+    if (!s.addressSid) return "address";
+    if (!s.documentSid) return "document";
+    if (!s.primaryAssigned) return "primary";
+    if (!s.profileSubmitted) return "submit";
+    if (!s.a2pProfileSid) return "a2p_profile";
+    if (!s.brandSid) return "brand";
+    if (!s.campaignSid) return "campaign";
+    return null;
+  }
   if (!s.profileSid) return "profile";
   if (!s.businessSid) return "business";
   if (!s.representativeSid) return "representative";
@@ -6182,17 +6293,27 @@ async function runA2PSaga(start, p) {
     if (!ok(a) || !id) throw new Error(refusal(a, what));
     return id;
   };
+  const brandType = brandTypeFor(p.record);
+  const soleProp = brandType === "SOLE_PROPRIETOR";
   let step = null;
   try {
-    while ((step = nextA2PStep(state)) !== null) {
+    while ((step = nextA2PStep(state, brandType)) !== null) {
       switch (step) {
         case "profile":
-          await save({ profileSid: await need2(customerProfileRequest({ friendlyName: p.workspace.name, email: p.email, statusCallback: p.statusCallback }), "creating the customer's profile") });
+          await save({
+            profileSid: await need2(
+              (soleProp ? starterProfileRequest : customerProfileRequest)({ friendlyName: p.workspace.name, email: p.email, statusCallback: p.statusCallback }),
+              "creating the customer's profile"
+            )
+          });
           break;
         case "business": {
-          const id = await need2(businessEndUserRequest(p.record), "recording the business");
+          const id = await need2(
+            soleProp ? starterEndUserRequest(p.record) : businessEndUserRequest(p.record),
+            soleProp ? "recording who you are" : "recording the business"
+          );
           const a = await p.send(assignRequest(state.profileSid, id));
-          if (!ok(a)) throw new Error(refusal(a, "attaching the business"));
+          if (!ok(a)) throw new Error(refusal(a, soleProp ? "attaching your details" : "attaching the business"));
           await save({ businessSid: id });
           break;
         }
@@ -6220,11 +6341,12 @@ async function runA2PSaga(start, p) {
           break;
         }
         case "submit": {
-          for (const [sid2, a] of [[state.businessSid, businessAttributes(p.record)], [state.representativeSid, representativeAttributes(p.record)]]) {
+          const refresh = soleProp ? [[state.businessSid, starterAttributes(p.record)]] : [[state.businessSid, businessAttributes(p.record)], [state.representativeSid, representativeAttributes(p.record)]];
+          for (const [sid2, a] of refresh) {
             const up = await p.send(updateEndUserRequest(sid2, a));
             if (!ok(up)) throw new Error(refusal(up, "refreshing the business on record"));
           }
-          const ev = await p.send(evaluateRequest(state.profileSid, A2P_POLICIES.secondaryCustomerProfile));
+          const ev = await p.send(evaluateRequest(state.profileSid, soleProp ? A2P_POLICIES.starterCustomerProfile : A2P_POLICIES.secondaryCustomerProfile));
           const status = typeof ev.body?.status === "string" ? ev.body.status : "";
           if (!ok(ev)) throw new Error(refusal(ev, "checking the profile"));
           if (status !== "compliant") throw new Error(`the profile is not complete yet: ${JSON.stringify(ev.body?.results ?? ev.body).slice(0, 300)}`);
@@ -6234,8 +6356,14 @@ async function runA2PSaga(start, p) {
           break;
         }
         case "a2p_profile": {
-          const bundle = await need2(a2pProfileRequest({ friendlyName: p.workspace.name, email: p.email, statusCallback: p.statusCallback }), "creating the messaging profile");
-          const endUser = await need2(a2pProfileEndUserRequest({ friendlyName: p.workspace.name, companyType: p.record.companyType }), "recording the company type");
+          const bundle = await need2(
+            (soleProp ? soleProprietorProfileRequest : a2pProfileRequest)({ friendlyName: p.workspace.name, email: p.email, statusCallback: p.statusCallback }),
+            "creating the messaging profile"
+          );
+          const endUser = await need2(
+            soleProp ? soleProprietorEndUserRequest(p.record, p.industry) : a2pProfileEndUserRequest({ friendlyName: p.workspace.name, companyType: p.record.companyType }),
+            soleProp ? "recording your mobile for the carriers' code" : "recording the company type"
+          );
           for (const objectSid of [endUser, state.profileSid]) {
             const a = await p.send(trustProductAssignRequest(bundle, objectSid));
             if (!ok(a)) throw new Error(refusal(a, "attaching to the messaging profile"));
@@ -6789,6 +6917,7 @@ export {
   SMS_HELD_DETAILS,
   SMS_HELD_REASON,
   SMS_MAX_CHARS,
+  SOLE_PROP_LIMITS,
   STATE_TTL_MS,
   TRUSTHUB,
   TwilioError,
@@ -6898,8 +7027,12 @@ export {
   smsInboundFrom,
   smsInboundUrl,
   smsStateFor,
-  soleProprietorUnsupported,
+  soleProprietorEndUserRequest,
+  soleProprietorProfileRequest,
   starRatingNumber,
+  starterAttributes,
+  starterEndUserRequest,
+  starterProfileRequest,
   stripKey,
   submitProfileRequest,
   submitTrustProductRequest,
@@ -6929,5 +7062,6 @@ export {
   voiceNumberCreateBody,
   voiceShellDrift,
   voiceShellTools,
+  whatSoleProprietorNeeds,
   withKey
 };

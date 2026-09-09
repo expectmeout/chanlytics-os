@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import {
   A2P_POLICIES, A2P_STEPS, EMPTY_A2P_STATE, LOW_VOLUME_USECASE,
   brandTypeFor, nextA2PStep, smsStateFor, registrationVerdict, runA2PSaga, isBrandNotReady,
-  soleProprietorUnsupported, a2pProfileEndUserRequest,
+  whatSoleProprietorNeeds, a2pProfileEndUserRequest, SOLE_PROP_LIMITS, starterEndUserRequest, soleProprietorEndUserRequest,
   addressRequest, a2pProfileRequest, brandRequest, businessEndUserRequest, campaignRequest,
   customerProfileRequest, evaluateRequest, representativeEndUserRequest, submitProfileRequest, supportingDocumentRequest, encodeForm, keywordsFor,
 } from "@chanlytics/channels";
@@ -265,12 +265,97 @@ test("a brand the carriers still hold is a WAIT, not a refusal, and the status c
   assert.ok(lines.includes('if (r.ok && r.brand === "APPROVED" && !row.data.campaign_sid) {'), "and the next status check files the campaign, so the wait finishes by itself");
 });
 
-test("a business with no tax id is refused by name, before anything is created", () => {
-  assert.equal(soleProprietorUnsupported({ ein: null }), true);
-  assert.equal(soleProprietorUnsupported({ ein: "12-3456789" }), false);
+test("a business with no tax id files the other registration, and is told what it still needs", () => {
+  // This test used to assert the opposite: that every sole proprietor was
+  // refused BY NAME. They are customers. The path is narrower -- one campaign,
+  // one number, a thousand messages a day -- and narrowness is something to
+  // state, not a reason to turn a solo barber away at the end of a form.
+  const full = {
+    ein: null, contactPhone: "+19175550123", contactFirstName: "Ada", contactLastName: "Lovelace",
+    contactEmail: "ada@example.com", street: "1 Main St", city: "Brooklyn", region: "NY", postalCode: "11207", country: "US",
+  };
+  assert.deepEqual(whatSoleProprietorNeeds(full), [], "a complete record can go");
+  assert.deepEqual(whatSoleProprietorNeeds({ ...full, ein: "12-3456789" }), [], "a business with a tax id is not on this path at all");
+
+  // Each missing field is named in the owner's words, so the form can say it.
+  assert.match(whatSoleProprietorNeeds({ ...full, contactPhone: "" })[0], /your own mobile number/);
+  assert.match(whatSoleProprietorNeeds({ ...full, contactPhone: "" })[0], /text you a code to reply to/, "and what it is FOR");
+  // The mistake a business makes without noticing: giving the number on their
+  // own website, which is the line WE answer for them. TCR refuses a CPaaS
+  // number for a sole-proprietor brand, and this is checkable, so it is checked
+  // rather than discovered after the fee. The live salon's own record had
+  // exactly this.
+  assert.match(
+    whatSoleProprietorNeeds(full, ["+1 917 555 0123"])[0],
+    /not the number Chanlytics answers for you/,
+    "a mobile that is one of ours is refused, however it is punctuated",
+  );
+  assert.deepEqual(whatSoleProprietorNeeds(full, ["+13055550100"]), [], "a number that is not ours is fine");
+  assert.match(whatSoleProprietorNeeds({ ...full, contactEmail: "" })[0], /email/);
+  assert.match(whatSoleProprietorNeeds({ ...full, street: "" })[0], /address/);
+  assert.match(whatSoleProprietorNeeds({ ...full, country: "GB" }).join(" "), /US or Canadian/, "the carriers do not register elsewhere");
+  assert.equal(whatSoleProprietorNeeds({ ...full, contactPhone: "", contactEmail: "" }).length, 2, "everything missing, not just the first");
+
+  // Refused before a single call, still: an incomplete record spends a fee on
+  // a rejection.
   const lib = readCode("apps/edge/lib/a2p.ts");
-  assert.ok(lib.includes('return { ok: false, error: "sole_proprietor_unsupported"'), "a sole proprietor filed on the business policy is rejected by the carriers — on a real filing, a fee spent on nothing");
-  assert.ok(lib.indexOf("soleProprietorUnsupported") < lib.indexOf("const send = async"), "refused before a single call is made");
+  assert.ok(lib.includes('return { ok: false, error: "sole_proprietor_incomplete"'));
+  assert.ok(lib.indexOf("whatSoleProprietorNeeds") < lib.indexOf("const send = async"), "checked before a single call is made");
+  assert.ok(lib.includes('sms_state: "needs_record"'), "and it is the owner's to fix, so the row says waiting on you");
+});
+
+test("the two registrations are two policies, verified against Twilio's own definitions", () => {
+  // Filing against the wrong policy produces a registration refused AFTER it
+  // is paid for. These four SIDs were read back from the live Policies API on
+  // 2026-09-09 rather than copied from a blog post:
+  //
+  //   RNdfbf3f...  Secondary Customer Profile of type Business
+  //   RNb0d477...  A2P Messaging: Local - Business
+  //   RN806dd6...  Starter Customer Profile of type Business
+  //   RN670d5d...  Sole Proprietor TrustProduct
+  assert.equal(A2P_POLICIES.starterCustomerProfile, "RN806dd6cd175f314e1f96a9727ee271f4");
+  assert.equal(A2P_POLICIES.soleProprietor, "RN670d5d2e282a6130ae063b234b6019c8");
+
+  // The starter profile asks for a PERSON; the secondary asks for a company.
+  const starter = starterEndUserRequest({ contactFirstName: "Ada", contactLastName: "Lovelace", contactEmail: "ada@example.com", contactPhone: "+19175550123" });
+  assert.equal(starter.form.Type, "starter_customer_profile_information");
+  assert.deepEqual(Object.keys(JSON.parse(starter.form.Attributes)).sort(), ["email", "first_name", "last_name", "phone_number"], "the four fields the policy names");
+
+  // The sole-proprietor trust product asks for the MOBILE, which is the field
+  // the whole path turns on: it is where the carriers text the code.
+  const sp = soleProprietorEndUserRequest({ tradeName: "Ada's Salon", legalName: "Ada Lovelace", contactPhone: "+19175550123" }, "PROFESSIONAL_SERVICES");
+  assert.equal(sp.form.Type, "sole_proprietor_information");
+  assert.deepEqual(Object.keys(JSON.parse(sp.form.Attributes)).sort(), ["brand_name", "mobile_phone_number", "vertical"]);
+  assert.equal(JSON.parse(sp.form.Attributes).mobile_phone_number, "+19175550123");
+});
+
+test("the step list forks: a company files a company, a person files a person", () => {
+  const done = {
+    profileSid: "BU1", businessSid: "IT1", representativeSid: null, addressSid: "AD1", documentSid: "RD1",
+    primaryAssigned: true, profileSubmitted: true, a2pProfileSid: "BU2", brandSid: null, campaignSid: null,
+  };
+  // A sole proprietor has no representative and must not be asked for one --
+  // that step would block the path for ever on a receipt that cannot exist.
+  assert.equal(nextA2PStep(done, "SOLE_PROPRIETOR"), "brand");
+  assert.equal(nextA2PStep(done, "STANDARD"), "representative", "a company still needs the person who signs");
+  // The default is the standard path, so nothing that omits the argument changes.
+  assert.equal(nextA2PStep(done), "representative");
+  assert.equal(nextA2PStep({ ...done, brandSid: "BN1", campaignSid: "QE1" }, "SOLE_PROPRIETOR"), null);
+});
+
+test("the limits a sole proprietor lives under are data, so the product can state them", () => {
+  // Every one of these has to be said BEFORE registering: a business that
+  // learns about a thousand messages a day afterwards has been mis-sold, and
+  // the number is not ours to soften.
+  assert.equal(SOLE_PROP_LIMITS.campaignsPerBrand, 1);
+  assert.equal(SOLE_PROP_LIMITS.numbersPerCampaign, 1);
+  assert.equal(SOLE_PROP_LIMITS.messagesPerSecond, 1);
+  assert.equal(SOLE_PROP_LIMITS.perDayTMobile, 1000);
+  assert.equal(SOLE_PROP_LIMITS.perMinuteAtt, 15);
+  // TCR counts these across EVERY vendor, so a customer may have spent some
+  // already with somebody else and we cannot check it. Said, not pretended.
+  assert.equal(SOLE_PROP_LIMITS.mobileUsesEver, 3);
+  assert.equal(SOLE_PROP_LIMITS.emailUsesEver, 10);
 });
 
 test("ownership is asked too, and a value Twilio rejects never reaches it", () => {
