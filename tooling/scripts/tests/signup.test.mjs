@@ -59,5 +59,7 @@ test("the wiring: two public paths, the guards on the route, the service role in
   const login = readCode("apps/dashboard/app/login/page.tsx");
   assert.ok(login.includes('q.get("sent") === "1"') && login.includes('href="/signup"'), "sign-in opens at the code step after sign-up, and points at sign-up");
   const page = readCode("apps/dashboard/app/signup/page.tsx");
-  assert.ok(page.includes('fetch("/api/v1/signup", { method: "GET"') && page.includes("codeRequired &&"), "the code field appears only when the server asks for it");
+  // The server says which of the three doors this is; the field belongs to
+  // exactly one of them.
+  assert.ok(page.includes('fetch("/api/v1/signup", { method: "GET"') && page.includes('{posture === "invite" && ('), "the code field appears only when the server asks for it");
 });

@@ -87,6 +87,30 @@ export async function signUp(input: SignupInput): Promise<SignupOutcome> {
 }
 
 /** The platform mailbox hears about a new workspace through the edge, which holds the email key. A failure is a shrug. */
+/**
+ * Put somebody on the waitlist. Idempotent by address.
+ *
+ * Writes NOTHING else: no auth user, no workspace, no billing row. A person on
+ * this list is not a customer yet, and creating half of one to hold their place
+ * would leave a workspace nobody owns and a trial nobody started.
+ *
+ * A repeat submission is the same person being impatient, so it updates what
+ * they told us and leaves their place in the queue alone -- their created_at is
+ * their position, and losing it would punish them for asking twice.
+ */
+export async function joinWaitlist(input: { email: string; name?: string; source?: string }): Promise<void> {
+  const db = serviceDb();
+  const { error } = await db
+    .from("waitlist")
+    .upsert(
+      { email: input.email, business: input.name ?? null, source: input.source ?? null },
+      { onConflict: "email", ignoreDuplicates: false },
+    );
+  // A duplicate is not a failure the person should ever see: they asked twice,
+  // and both times the answer is "you are on the list".
+  if (error && !/duplicate|unique/i.test(error.message)) throw new Error(`waitlist: ${error.message}`);
+}
+
 export async function notifyPlatformSignup(tenantId: string, email: string): Promise<void> {
   if (!process.env.DIAG_KEY || process.env.VERCEL_ENV !== "production") return;
   try {
