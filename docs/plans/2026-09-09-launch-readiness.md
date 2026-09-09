@@ -10,6 +10,8 @@
 >
 > **The 30913 consent split is shipped** — #304 and #305, migrations 00095–00096 applied. Marketing consent is now a separate answer from conversational consent, the `/yes` page asks twice, and the campaign was **resubmitted free** (`200`, `IN_PROGRESS`, no errors). What remains of that thread is one thing money would fix and one thing nothing can; both are under *Open, and Ruben's* in PRD 5's neighbour below.
 >
+> **Gates 6 and 8 are shipped** — #307 (the ops door), #309/#310/#311 (the hosted compliance page and the pre-flight). Eight of nine gates are done; **gate 9 is a walkthrough and it is Ruben's**, not an engineering task.
+>
 > **Gate 5 is shipped** — #299 (the boundary and the judgement), #300 (the page), #301 (the reason a refusal gives), migrations 00091–00093 applied. `platform_admins` is read for the first time since 00001, and Settings › Back office lists every workspace sorted by who needs a person. See the *Shipped* note under PRD 5.
 >
 > **Gate 7 is shipped too** — #296 (the machinery) and #297 (the product loop), migration 00090 applied. A business with no tax ID can now register for texting, is shown what that registration costs it before it commits, and is told the ceiling afterwards. One leg of it is specified and deliberately unbuilt; see the *Shipped* note under PRD 7, which names what it waits on and why.
@@ -23,7 +25,7 @@
 | 5 | The back office | P1 | ~2 days | No, but support is impossible without it | **shipped** #299 · #300 · #301 |
 | 6 | An ops door a human can open | P1 | ~half day | No | **shipped** #307 |
 | 7 | Businesses without an EIN | P1 | ~3 days | No — decides market size | **shipped** #296 · #297 · *OTP leg held* |
-| 8 | Registration a salon can complete | P1 | ~2–3 days | No — decides onboarding cost | |
+| 8 | Registration a salon can complete | P1 | ~2–3 days | No — decides onboarding cost | **shipped** #309 · #310 · #311 |
 | 9 | What a paying customer actually sees | P2 | ~1 day | No | |
 
 ---
@@ -510,6 +512,20 @@ Second half: **a pre-flight check**. Before a filing is sent, run what the revie
 1. `/b/<slug>` public page, built from `business_records` + `brain.profile`, with the SMS terms as a shared component with `/privacy` so they cannot drift.
 2. `campaignFactsFor` uses it when the workspace has no website of its own.
 3. `registrationPreflight(record, config)` in contracts: the four checks, each returning the owner's words for what to fix.
+
+### Shipped — 9 September 2026 (#309, #310, #311)
+
+**`/b/<slug>`**, built from `business_records` — the same facts the carriers vetted on the brand — plus the services the business told the receptionist. It carries who they are, what they do, the SMS clauses (from `SMS_CLAUSES` in contracts, which Chanlytics' own privacy policy now renders too, so the two cannot drift) and a *relative* link to `/yes/<slug>`, which is what puts both pages on one domain by construction. Indexed, unlike the opt-in page: a business a reviewer cannot look up is what 30919 was about.
+
+**The wall came down.** `website_url` was REQUIRED on the standard path, which turned "you need a website that identifies your legal entity" into a stop at field seven of a form. It is asked and not required now, and the filing substitutes the hosted page once, before any request is built.
+
+**`registrationPreflight`** runs the reviewer's checks before a fee is spent — the name the campaign will state against the name the brand registers (the "Billing probe" class, and the one whose consequence cannot be edited afterwards), whether the page we are about to file will actually render, whether anybody can say yes at all, and whether a given website is an address a reviewer can open. Loose enough on names not to nag about an apostrophe.
+
+**Found on production, not in CI:** `/b/<slug>` shipped answering `307 → /login`, because the middleware's public-prefix list had one entry. The list is pinned by value in `auth-gate.test.mjs` precisely so widening it is a deliberate reviewed edit; #310 is that edit.
+
+### Not done
+
+A pre-flight that FETCHES — does the website resolve, does it name the business, does the privacy URL carry the clauses. Those need the network and belong on the edge; the four above are the ones answerable from facts we hold, which is most of them.
 4. The business-record form runs it and blocks Submit on a failure with a fixable message.
 5. A test per known rejection code we have actually received (30919, 30907), asserting the preflight catches it.
 
