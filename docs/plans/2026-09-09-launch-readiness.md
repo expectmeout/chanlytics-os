@@ -209,7 +209,7 @@ Stamping the timestamp before the work completes would silently skip a tenant fo
 
 ### Why
 
-The nightly journey test is **red**, and has been alternating pass/fail across the last six runs. The failing case is not cosmetic:
+The nightly journey test is **red**. The failing case is not cosmetic:
 
 ```
 not ok 294 — GOLDEN: seeded Melany brain === the quarantined DR fallback, byte for byte
@@ -217,13 +217,15 @@ not ok 294 — GOLDEN: seeded Melany brain === the quarantined DR fallback, byte
 
 `tooling/scripts/tests/control-plane.integration.test.mjs:51` compares the live salon's stored config against `FALLBACK_BRAIN` in `apps/edge/lib/tenant-fallback.ts:21` — the copy the receptionist falls back to when the database cannot be read. Melany's config moved to v8 this morning (the published-number fix); the fallback did not.
 
-So **a disaster-recovery restore today would reinstate the bug we just fixed** — telling every customer to call the transfer number. And the alternating results mean the nightly currently certifies nothing: a red run is indistinguishable from the usual.
+So **a disaster-recovery restore today would reinstate the bug we just fixed** — telling every customer to call the transfer number.
+
+> **Correction, made while executing this gate.** I first wrote that the nightly was "alternating pass/fail across the last six runs", which was wrong: I had counted manual `workflow_dispatch` runs fired during development as nightly runs. Filtered to `event: schedule`, the actual nightly is **green on every run except today's**, and today's is the real drift above. The suite is reliable; only the DR copy was wrong. Judge this workflow's health by scheduled runs alone.
 
 ### Done means
 
 - The fallback matches the live config, and a drift between them fails a test the same day it happens rather than whenever someone looks.
 - The nightly is green, and a red nightly means something is actually wrong.
-- Whatever makes it flap is either fixed or quarantined with a reason.
+- Health is judged on scheduled runs, not on manual dispatches fired mid-development.
 
 ### Design
 
@@ -231,14 +233,14 @@ Two separate problems, deliberately not conflated:
 
 **The stale copy.** Regenerate `FALLBACK_BRAIN` from the live config, in the same PR as any change to that config from now on. Better: make it *derivable* — a script `tooling/scripts/refresh-dr-fallback.mjs` that reads the tenant and rewrites the literal between the existing `PROMPT-START` / `PROMPT-END` markers, so the update is mechanical and reviewable as a diff.
 
-**The flapping.** Read the last ten runs and classify each failure. Anything environmental (a slow cold start, a production deploy mid-run) gets a retry or a wait; anything real gets fixed. A test that cannot be made reliable is skipped **with a named reason**, never left to flap — a suite that cries wolf is worse than no suite, and this one is the only thing watching production end to end.
+**The reading of it.** Classified: of the four red runs in the last ten, three were `workflow_dispatch` fired against in-progress work and one was today's real drift. Nothing needs quarantining. What needs changing is how the workflow is read — by `event: schedule` only — and that the golden, when it fails, names its own remedy so whoever sees the red is not left diffing five thousand characters by eye.
 
 ### Work
 
-1. Classify the last ten nightly failures. One line each: environmental or real.
+1. ~~Classify the last ten nightly failures.~~ Done: three manual dispatches against in-progress work, one real. Nothing to quarantine.
 2. `refresh-dr-fallback.mjs`, dry-run by default (the production-script bar: dry run, idempotent, backup, `--apply`).
 3. Run it; commit the regenerated fallback; the golden goes green.
-4. Fix or quarantine each flapping case.
+4. ~~Fix or quarantine each flapping case.~~ Not needed — see the correction above.
 5. Add a guard: if the DR fallback is older than the tenant's `tenant_config.updated_at`, the golden fails with *"the DR copy is behind the live config; run refresh-dr-fallback"* rather than a byte diff nobody can read.
 
 ### Tests

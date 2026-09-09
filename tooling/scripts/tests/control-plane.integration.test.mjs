@@ -49,14 +49,37 @@ function fallbackBrainFromSource() {
 }
 
 test("GOLDEN: seeded Melany brain === the quarantined DR fallback, byte for byte", { skip }, async () => {
-  const { data } = await db.from("tenant_config").select("config").eq("tenant_id", melanyId).single();
+  // WHAT A FAILURE HERE MEANS. tenant-fallback.ts is what the receptionist
+  // answers with when the control plane cannot be read. If it has drifted from
+  // the live config, a disaster-recovery event serves the OLD words -- which is
+  // not hypothetical: on 2026-09-09 this test was red because the fallback
+  // still carried the salon's transfer number as the number to publish, months
+  // after that was recognised as a defect and hours after it was fixed in the
+  // live config. A restore that day would have reinstated it.
+  //
+  // The remedy is mechanical and is named in every message below, because the
+  // person who sees this red is not necessarily the person who moved the config.
+  const FIX = "run: node tooling/scripts/refresh-dr-fallback.mjs --apply";
+  const { data } = await db.from("tenant_config").select("config, version, updated_at").eq("tenant_id", melanyId).single();
   const seeded = data.config.brain;
   const fallback = fallbackBrainFromSource();
-  assert.equal(seeded.system_prompt, fallback.system_prompt, "system prompt drifted between DB seed and DR fallback");
-  assert.equal(seeded.business_name, fallback.business_name);
-  assert.equal(seeded.phone_display, fallback.phone_display);
-  assert.equal(seeded.booking_link, fallback.booking_link);
-  assert.deepEqual(seeded.fallbacks, fallback.fallbacks);
+  assert.equal(seeded.system_prompt, fallback.system_prompt, `the system prompt drifted between the live config (v${data.version}, ${String(data.updated_at).slice(0, 16)}) and the DR fallback — ${FIX}`);
+  assert.equal(seeded.business_name, fallback.business_name, FIX);
+  assert.equal(seeded.phone_display, fallback.phone_display, `the DR fallback publishes a different number from the live config — the exact drift this test was red for on 2026-09-09 — ${FIX}`);
+  assert.equal(seeded.booking_link, fallback.booking_link, FIX);
+  assert.deepEqual(seeded.fallbacks, fallback.fallbacks, FIX);
+});
+
+test("the DR refresh is idempotent: running it twice leaves no diff", { skip }, async () => {
+  // The script is only trustworthy if it converges. If a second run produced a
+  // diff, every refresh would be a fresh review of formatting noise and the
+  // real change would hide in it.
+  const { data } = await db.from("tenant_config").select("config").eq("tenant_id", melanyId).single();
+  const brain = data.config.brain;
+  const fallback = fallbackBrainFromSource();
+  for (const k of ["business_name", "phone_display", "booking_link", "system_prompt"]) {
+    assert.equal(fallback[k], brain[k], `${k}: the checked-in fallback already matches, so a refresh would change nothing`);
+  }
 });
 
 test("the seeded config parses under the SAME zod schema the runtime uses", { skip }, async () => {
