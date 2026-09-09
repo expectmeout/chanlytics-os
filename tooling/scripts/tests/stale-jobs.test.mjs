@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { ROOT, readCode, readRaw } from "./_source.mjs";
-import { recoveryFor, OVERDUE_AFTER_MS, MAX_REPUBLISHES, STALE_TO_A_PERSON_MS } from "../../../apps/edge/lib/jobs-recovery.ts";
+import { recoveryFor, OVERDUE_AFTER_MS, MAX_REPUBLISHES, STALE_TO_A_PERSON_MS, REPUBLISH_HORIZON_MS } from "../../../apps/edge/lib/jobs-recovery.ts";
 import { JOB_STATES } from "@chanlytics/contracts";
 
 const sweep = readCode("apps/edge/api/cron/jobs.ts");
@@ -143,6 +143,49 @@ test("what to do with a job whose message never arrived", () => {
   assert.equal(recoveryFor({ kind: "snooze_wake", due_at: "2026-01-01T11:50:00Z", republishes: 0 }, fixed), "wait");
 });
 
+test("a second publish waits for the first to exhaust itself", () => {
+  const ago = (mins) => new Date(Date.now() - mins * 60_000).toISOString();
+
+  // The budget used to burn in forty-five minutes. due_at was the only clock,
+  // so every quarter-hour tick published again while the previous delivery
+  // still had twenty minutes of QStash retries left: three publishes by T+75,
+  // failed at T+90 with two deliveries in flight, and claim_job then refusing
+  // both because the row was no longer 'scheduled'.
+  assert.equal(recoveryFor({ kind: "snooze_wake", due_at: ago(60), republishes: 1, last_republish_at: ago(15) }), "wait");
+  assert.equal(recoveryFor({ kind: "snooze_wake", due_at: ago(120), republishes: 1, last_republish_at: ago(70) }), "republish");
+  assert.ok(REPUBLISH_HORIZON_MS > 33 * 60_000, "past QStash's own retry horizon, or two publishes overlap");
+
+  // A job that has never been published still keys off due_at; there is no
+  // previous delivery to wait for.
+  assert.equal(recoveryFor({ kind: "snooze_wake", due_at: ago(50), republishes: 0, last_republish_at: null }), "republish");
+  assert.equal(recoveryFor({ kind: "snooze_wake", due_at: ago(50), republishes: 0 }), "republish");
+
+  // Pacing outranks the budget: a job that has spent every publish is WAITING,
+  // not failed, while the last one can still land. The reverse ordering is the
+  // original bug — it declared jobs dead underneath deliveries still in flight.
+  assert.equal(recoveryFor({ kind: "snooze_wake", due_at: ago(120), republishes: MAX_REPUBLISHES, last_republish_at: ago(15) }), "wait");
+  assert.equal(recoveryFor({ kind: "snooze_wake", due_at: ago(240), republishes: MAX_REPUBLISHES, last_republish_at: ago(70) }), "give_up");
+
+  // Nor does the six-hour rule get to skip the wait: an outbound_send long past
+  // being worth sending is still not declared dead while QStash may deliver it.
+  assert.equal(recoveryFor({ kind: "outbound_send", due_at: ago(7 * 60), republishes: 1, last_republish_at: ago(15) }), "wait");
+  assert.equal(recoveryFor({ kind: "outbound_send", due_at: ago(7 * 60), republishes: 1, last_republish_at: ago(70) }), "give_up");
+
+  // An unparseable stamp must not be read as "published infinitely long ago"
+  // and licence a publish; NaN fails the comparison and the job waits.
+  assert.equal(recoveryFor({ kind: "snooze_wake", due_at: ago(120), republishes: 1, last_republish_at: "not a date" }), "wait");
+});
+
+test("the pacing column is actually fetched", () => {
+  // recoveryFor reads job.last_republish_at, and this select names its columns.
+  // Leaving it out does not fail: the value is undefined, the pacing branch is
+  // skipped, and the fix ships inert — which is precisely how #261 shipped.
+  assert.ok(
+    sweep.includes("republishes, last_republish_at"),
+    "the overdue read fetches the pacing column, or recoveryFor paces nothing",
+  );
+});
+
 test("the sweep reads BOTH halves of the ledger", () => {
   // #256 closed 'fired' and left 'scheduled' open, which is the larger hole: a
   // message that never arrives needs only QStash to fail once, and rotated
@@ -164,6 +207,19 @@ test("a re-publish is bounded, recorded, and silent; giving up is loud", () => {
   assert.ok(!republish.includes("alertFor"), "a re-publish alerts nobody: it is self-healing");
   assert.ok(republish.includes("jobs_republished"), "but it is logged, so a pile-up is visible");
   assert.ok(sweep.includes('alertFor(db, job)') && sweep.includes("never ran"), "giving up reaches the owner");
+});
+
+test("a re-publish is reserved, not raced", () => {
+  // The update was conditional on the STATE but not on the counter it was
+  // incrementing, which is not a compare-and-swap: two overlapping ticks both
+  // read republishes 0, both wrote 1, both matched 'scheduled', and both
+  // published. Naming the value being replaced is the whole difference.
+  assert.ok(sweep.includes('.eq("republishes", job.republishes)'), "the counter is a condition, not only the state");
+  assert.ok(sweep.includes("last_republish_at: new Date().toISOString()"), "and the reservation stamps when it happened");
+  assert.ok(
+    sweep.indexOf('.eq("republishes", job.republishes)') < sweep.indexOf("await republishJob(db, job.id)"),
+    "reserved before published, so the sweep that loses the race publishes nothing",
+  );
 });
 
 test("a re-publish keeps the job's own row, and a stranded broadcast is released", () => {
