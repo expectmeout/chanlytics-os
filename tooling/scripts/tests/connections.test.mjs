@@ -139,9 +139,16 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
   // owner's own handset and the reply must come from it; telling somebody to
   // type a code sends them hunting for a field that does not exist while a
   // 24-hour window runs out.
-  assert.match(words("otp_waiting").sentence, /reply to that message from your phone/);
+  assert.match(words("otp_waiting").sentence, /reply to that message from the handset itself/);
   assert.doesNotMatch(words("otp_waiting").sentence, /Type the code/);
-  assert.equal(words("otp_waiting").verb.to, "verb:resend-otp", "and there is a way to get a new one");
+  // And NO verb. This row used to offer "Send it again" against a verb no page
+  // handled -- a button that did nothing, on the one row where a person is
+  // against a 24-hour clock. Resending needs a call whose shape cannot be
+  // confirmed without a real sole-proprietor brand, and a brand costs money and
+  // cannot be withdrawn, so the row says who asks for a new code instead of
+  // pretending the owner can.
+  assert.equal(words("otp_waiting").verb, null, "no dead button");
+  assert.match(words("otp_waiting").sentence, /Chanlytics asks the carriers for another/, "and it says who does it");
   const reg = words("registering", { state_since: ago(2 * 24 * H) });
   assert.equal(reg.state, "waiting_them");
   assert.equal(reg.stateWords, "Waiting on carriers");
@@ -209,4 +216,34 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
   assert.ok(route.includes("ready: { places: ready.places, profile: ready.profile, audience: ready.audience }"));
   const env = readRaw("apps/edge/.env.example");
   assert.ok(env.includes("GOOGLE_OAUTH_AUDIENCE="), "the manifest names the switch");
+});
+
+test("every verb a row can offer is a verb the page runs", () => {
+  // A button that does nothing is worse than no button, and this is where one
+  // shipped: the sole-proprietor OTP row offered "Send it again" pointing at
+  // `verb:resend-otp`, which no page ever handled. The click did nothing at
+  // all, on the one row in this product where a person is against a 24-hour
+  // clock -- and nothing failed, because a verb is a string on one side and a
+  // switch case on the other with no type between them.
+  //
+  // This is that missing type. Anything the contract can put on a row has to be
+  // answered by the page that renders it, or by a route the shell knows.
+  const rows = readRaw("packages/contracts/src/connections.ts");
+  const offered = [...rows.matchAll(/to:\s*"verb:([a-z-]+)"/g)].map((m) => m[1]);
+  assert.ok(offered.length >= 5, "the verbs were found at all");
+  const page = readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx");
+  const handled = [...page.matchAll(/case\s*"verb:([a-z-]+)":/g)].map((m) => m[1]);
+  for (const v of new Set(offered)) {
+    assert.ok(handled.includes(v), `verb:${v} is offered by a row and handled by nobody`);
+  }
+  assert.ok(!offered.includes("resend-otp"), "REGRESSION: the OTP row promised a resend this product cannot yet make");
+  // The row still tells the owner what to do -- reply from the handset -- and
+  // says who asks for a new code, rather than offering a button for it.
+  const otp = rows.slice(rows.indexOf('case "otp_waiting":'), rows.indexOf('case "registering":'));
+  assert.match(otp, /reply to that message from the handset itself/);
+  assert.match(otp, /nothing to type here/);
+  assert.match(otp, /Chanlytics asks the carriers for another/);
+  // That the row carries no verb at all is asserted on the RETURNED row above,
+  // where it is a fact rather than an absence of a substring -- this comment
+  // block itself names the retired verb, so a source scan here would match it.
 });
