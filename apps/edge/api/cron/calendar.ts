@@ -14,6 +14,7 @@ import crypto from "node:crypto";
 import { json } from "../../lib/http.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
+import { calendarDue, markCalendarChecked, noteBacklog, CALENDAR_PER_TICK } from "../../lib/sweep-rotation.js";
 import { feedItemsFor } from "../../lib/availability.js";
 import { addPeopleFromCalendar } from "../../lib/calendar-people.js";
 import { recordNotification } from "../../lib/notify.js";
@@ -37,14 +38,21 @@ export async function POST(request: Request): Promise<Response> {
   if (!presented || !secretsMatch(presented, expected as unknown as string)) return json(401, { ok: false, error: "unauthorized" });
 
   const now = new Date();
-  const { data: configs, error } = await db.from("tenant_config").select("tenant_id, config");
-  if (error) {
-    L.error("calendar_configs_read_failed", { error: error.message });
+  // A BOUNDED, ROTATING page rather than every row. This read every config and
+  // then fetched a feed per workspace, serially, inside a sixty-second
+  // function -- so past a few hundred tenants it ran out of tick part way
+  // through, and since the order never changed the same early workspaces were
+  // served every hour while the rest were never served at all.
+  let page;
+  try {
+    page = await calendarDue(db, now, CALENDAR_PER_TICK);
+  } catch (e) {
+    L.error("calendar_configs_read_failed", { error: e instanceof Error ? e.message : String(e) });
     return json(500, { ok: false });
   }
 
-  const out = { tenants: 0, seen: 0, added: 0, named: 0, failed: 0 };
-  for (const row of configs ?? []) {
+  const out = { tenants: 0, seen: 0, added: 0, named: 0, failed: 0, remaining: page.remaining };
+  for (const row of page.rows) {
     const cfg = parseTenantConfig(row.config);
     const url = cfg?.calendar?.ical_url ?? null;
     if (!url) continue;
@@ -57,6 +65,10 @@ export async function POST(request: Request): Promise<Response> {
       const people = peopleFromItems(items, (cfg?.brain?.profile?.services ?? []).map((s) => s.name), now.getTime());
       const r = await addPeopleFromCalendar(db, row.tenant_id, people);
       out.seen += r.seen; out.added += r.added; out.named += r.named;
+      // Stamped only on SUCCESS. A failure leaves the row due, so the next tick
+      // retries it instead of skipping a workspace for an hour because its feed
+      // was briefly unreachable.
+      await markCalendarChecked(db, row.tenant_id, now);
       if (r.added || r.named) L.info("calendar_people_added", { tenant_id: row.tenant_id, ...r });
       // A row on the bell, not an email: people arriving is good news, not an alarm.
       if (r.added) await recordNotification(row.tenant_id, { kind: "calendar_people", title: `${r.added} ${r.added === 1 ? "person" : "people"} added from your calendar`, body: `${r.added === 1 ? "An appointment" : "Appointments"} on your calendar carried a phone number nobody in People had. ${r.added === 1 ? "They are" : "They are all"} in People now, with consent unknown.`, route: "clients" });
@@ -65,6 +77,14 @@ export async function POST(request: Request): Promise<Response> {
       L.error("calendar_sweep_failed", { tenant_id: row.tenant_id, error: e instanceof Error ? e.message : String(e) });
     }
   }
-  L.info("calendar_sweep", out);
+  const backlog = await noteBacklog(db, "calendar", page.remaining);
+  L.info("calendar_sweep", { ...out, backlog_ticks: backlog.ticks });
+  // One tick with work left over is the cap doing its job. Three in a row is
+  // the queue growing faster than this sweep drains it, which sweep_health
+  // turns red and mails -- a capacity fact a person has to hear before a
+  // customer notices the receptionist offering times that are already taken.
+  if (backlog.alarm) {
+    return json(503, { ok: false, error: "calendar_backlog", backlog_ticks: backlog.ticks, ...out });
+  }
   return json(200, { ok: true, ...out });
 }
