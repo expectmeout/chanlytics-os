@@ -1732,6 +1732,7 @@ type Database = {
                     id: string;
                     kind: string;
                     last_error: string | null;
+                    last_republish_at: string | null;
                     payload: Json;
                     qstash_id: string | null;
                     republishes: number;
@@ -1748,6 +1749,7 @@ type Database = {
                     id?: string;
                     kind: string;
                     last_error?: string | null;
+                    last_republish_at?: string | null;
                     payload?: Json;
                     qstash_id?: string | null;
                     republishes?: number;
@@ -1764,6 +1766,7 @@ type Database = {
                     id?: string;
                     kind?: string;
                     last_error?: string | null;
+                    last_republish_at?: string | null;
                     payload?: Json;
                     qstash_id?: string | null;
                     republishes?: number;

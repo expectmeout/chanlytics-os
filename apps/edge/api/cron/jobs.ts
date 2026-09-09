@@ -188,7 +188,11 @@ export async function POST(request: Request): Promise<Response> {
   const overdueBefore = new Date(Date.now() - OVERDUE_AFTER_MS).toISOString();
   const { data: overdue, error: oErr } = await db
     .from("jobs")
-    .select("id, tenant_id, kind, payload, due_at, republishes")
+    // last_republish_at is what paces recovery. This select names its columns,
+    // so leaving it out does not fail — recoveryFor reads undefined, skips the
+    // pacing branch, and the fix is silently inert. That is exactly how #261
+    // shipped doing nothing; the column is pinned by a test for the same reason.
+    .select("id, tenant_id, kind, payload, due_at, republishes, last_republish_at")
     .eq("state", "scheduled")
     .lt("due_at", overdueBefore)
     .order("due_at", { ascending: true })
@@ -209,11 +213,18 @@ export async function POST(request: Request): Promise<Response> {
       // The counter first, conditional on the job still being unclaimed: a
       // delivery that lands between the read and here has already claimed it,
       // and publishing again would be asking for work nobody needs.
+      //
+      // Conditional on the COUNTER too, not only the state. Without that this
+      // is not a reservation: two sweeps reading the same row both saw
+      // republishes 0, both wrote 1, both matched 'scheduled' — and both
+      // published. Naming the value being replaced is what makes the update the
+      // compare-and-swap it was always described as.
       const { data: won, error: cErr } = await db
         .from("jobs")
-        .update({ republishes: job.republishes + 1 })
+        .update({ republishes: job.republishes + 1, last_republish_at: new Date().toISOString() })
         .eq("id", job.id)
         .eq("state", "scheduled")
+        .eq("republishes", job.republishes)
         .select("id");
       if (cErr || !won?.length) continue;
       try {

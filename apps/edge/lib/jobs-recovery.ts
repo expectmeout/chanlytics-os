@@ -23,6 +23,19 @@ export const OVERDUE_AFTER_MS = 45 * 60_000;
 export const MAX_REPUBLISHES = 3;
 
 /**
+ * How long a publish owns the job before another one is allowed.
+ *
+ * OVERDUE_AFTER_MS was derived from QStash's retry horizon correctly and then
+ * applied only to the FIRST publish, because due_at was the only clock here.
+ * Every subsequent tick saw the same overdue job and published again: three
+ * inside forty-five minutes, the budget spent, and the job marked failed at
+ * T+90 with two deliveries still being retried — which claim_job then refused,
+ * the row no longer being 'scheduled'. Each publish gets its own ~33 minutes of
+ * retries; sixty clears that with room for a missed tick.
+ */
+export const REPUBLISH_HORIZON_MS = 60 * 60_000;
+
+/**
  * A reply six hours late reaches someone who stopped waiting. Past this an
  * operator decides whether to say it again, rather than the system deciding
  * for them — so only the kinds that speak to a person are held to it. A snooze
@@ -38,6 +51,8 @@ export interface OverdueJob {
   kind: string;
   due_at: string;
   republishes: number;
+  /** Null until this job has been re-published once; see REPUBLISH_HORIZON_MS. */
+  last_republish_at?: string | null;
 }
 
 export function recoveryFor(job: OverdueJob, nowMs: number = Date.now()): Recovery {
@@ -46,6 +61,15 @@ export function recoveryFor(job: OverdueJob, nowMs: number = Date.now()): Recove
   // fails both comparisons — this way it waits rather than being treated as
   // infinitely overdue and published on every tick.
   if (!(overdueBy >= OVERDUE_AFTER_MS)) return "wait";
+  // BEFORE the budget check, deliberately. due_at says when recovery may BEGIN;
+  // it must not also say how often it may repeat, and a job whose last delivery
+  // is still being retried must not be declared dead underneath it. Ordering
+  // these the other way round is the whole bug: it is what let a job be failed
+  // while QStash still had two attempts to make on its behalf.
+  if (job.last_republish_at) {
+    const since = nowMs - Date.parse(job.last_republish_at);
+    if (!(since >= REPUBLISH_HORIZON_MS)) return "wait";
+  }
   if (job.republishes >= MAX_REPUBLISHES) return "give_up";
   if (SPEAKS_TO_A_PERSON.has(job.kind) && overdueBy > STALE_TO_A_PERSON_MS) return "give_up";
   return "republish";
