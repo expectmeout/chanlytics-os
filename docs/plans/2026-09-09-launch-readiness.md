@@ -8,6 +8,8 @@
 
 > **Status, 9 September 2026: all four P0 gates are shipped and merged.** #291, #292, #293, #294. Migrations 00088 and 00089 applied; `sweep_health` reports 10 of 10 healthy. One decision is left with Ruben and is called out under gate 2: production still runs `open`, because closing somebody's front door is not a change to make without asking.
 >
+> **Gate 5 is shipped** — #299 (the boundary and the judgement), #300 (the page), #301 (the reason a refusal gives), migrations 00091–00093 applied. `platform_admins` is read for the first time since 00001, and Settings › Back office lists every workspace sorted by who needs a person. See the *Shipped* note under PRD 5.
+>
 > **Gate 7 is shipped too** — #296 (the machinery) and #297 (the product loop), migration 00090 applied. A business with no tax ID can now register for texting, is shown what that registration costs it before it commits, and is told the ceiling afterwards. One leg of it is specified and deliberately unbuilt; see the *Shipped* note under PRD 7, which names what it waits on and why.
 
 | # | PRD | Priority | Size | Blocks signup? | State |
@@ -16,7 +18,7 @@
 | 2 | The front door | P0 | ~half day | **Yes** | **shipped** #293 · *env not flipped* |
 | 3 | Sweeps that serve every tenant | P0 | ~1 day | Yes, at volume | **shipped** #294 |
 | 4 | A green nightly and a true DR copy | P0 | ~half day | Yes | **shipped** #292 |
-| 5 | The back office | P1 | ~2 days | No, but support is impossible without it | next |
+| 5 | The back office | P1 | ~2 days | No, but support is impossible without it | **shipped** #299 · #300 · #301 |
 | 6 | An ops door a human can open | P1 | ~half day | No | |
 | 7 | Businesses without an EIN | P1 | ~3 days | No — decides market size | **shipped** #296 · #297 · *OTP leg held* |
 | 8 | Registration a salon can complete | P1 | ~2–3 days | No — decides onboarding cost | |
@@ -304,6 +306,29 @@ The detail view is the Setup view-model you already have (`setupSteps`) run for 
 ### Risk
 
 This is the only surface that deliberately crosses tenant boundaries. Every path to it goes through the RPC's own check, so there is one thing to review rather than one per route.
+
+### Shipped — 9 September 2026
+
+**#299 — the boundary and the judgement.** Three migrations, and the second and third exist because the first was checked with a real request rather than trusted:
+
+- `is_platform_admin()` answers only about the caller, so every session may ask — the nav needs the bit, and an env var would be a second answer able to disagree with this one.
+- `platform_overview()` is the cross-tenant read, with the check as its first statement. It turns the **service role** away too: the check is `auth.uid()`, not RLS, so a key alone opens nothing.
+- `00092` moved the join into a SQL-language function, because Postgres does not parse a plpgsql body until the first call — and the first call here is somebody in support opening the page, which is both the worst moment to find a mistyped column and a moment CI cannot reach without an admin's session. A typo now fails the deploy.
+- `00093` closed what `00092` left: `platform_overview_rows()` answered the service role `200` with every workspace in it, because Supabase grants `service_role` execute through default privileges and the revoke named the three roles I thought of. Not an escalation — that key already bypasses RLS — but a **second door**, named almost identically to the guarded one. The fix asks `pg_roles` rather than trusting a list, and the migration fails the deploy if a grant ever comes back.
+
+**One assembly, two callers.** The 100-line Setup assembly moved out of the route into `src/server/setup.ts`. The workspace reads its own on the session client; the back office reads another's on the service client, after the database has said the caller is an admin. That is what makes "support sees exactly what the customer sees" true rather than aspirational, and a test compares the rendered rows against `setupSteps` directly so a second rendering cannot creep in.
+
+**A verdict, not a table.** Ten verdicts, each a different next action — broken · billing · rehearsal · stalled · waiting on them · quiet · new · live · paused · test — sorted so the ones needing a person are at the top. `waiting on them` says the customer's own texting sentence, so support and customer cannot describe one state two ways.
+
+**#300 — the page.** Settings › Back office, in the attention-row grammar People, Today and Setup already share. The tab is not in `SET_TABS`: the rail appends it only for a platform admin and the route resolves only for the same people, so a customer who types `admin/platform` lands on Profile rather than on a locked door they now know about. Read-only, visibly — not one Setup row on it carries a button.
+
+**#301 — what a refusal says.** Reading the new page against the four live workspaces immediately turned up that the Chanlytics campaign had been refused again, and that all we had stored was the generic *"the carriers sent the registration back"*. `syncRegistration` read `brand.failure_reason` and nothing else, so every **campaign** rejection — the kind that can be fixed and resent for free — lost its causes. They were in `compliance[0].errors[]` the whole time, one level below where the code looked: the same mistake, in the same object, that once left every text held for weeks. `refusalWords()` now keeps both sides' reasons with their codes and fields.
+
+### Open, and Ruben's
+
+The Chanlytics campaign is still refused, on two counts: `30886` (campaign description) and `30913` (marketing consent must be collected separately from other consents). Resubmitting is free, but 30913 means changing how consent is asked for on the `/yes` page rather than rewording a field — a product decision, not a tweak. The live campaign's opt-in message also still reads *"offers and news from Billing probe"*, a tenant name from before this workspace was renamed.
+
+Actions across tenants are deliberately absent from v1, and the PRD's rule holds for v2: only verbs that already exist as a workspace's own.
 
 ---
 
