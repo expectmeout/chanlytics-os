@@ -165,6 +165,49 @@ export async function unfileMockRegistration(db: Db, line: LineRow): Promise<{ o
   return { ok: true, row: cleared.data };
 }
 
+/**
+ * Take a REJECTED campaign off a line so a corrected one can replace it.
+ *
+ * A rejection is not a verdict on the business, it is a correction request:
+ * the first real campaign this product filed came back with two of them --
+ * a privacy page that never named the company behind it, and a description
+ * naming a business that appeared on neither the brand nor the website. Both
+ * were fixable in an afternoon. A line that could not then re-file would have
+ * been permanently unable to text over a missing address.
+ *
+ * The BRAND stays. It was approved on its own, separately, it is the expensive
+ * half of a registration, and the carriers did not refuse it. Only the campaign
+ * is deleted and cleared -- which is exactly what they sent back.
+ *
+ * `sms_state` returns to `approved`, because that is what is still true: the
+ * business is through, the campaign is the step that has to happen again.
+ */
+export async function unfileRejectedCampaign(db: Db, line: LineRow): Promise<{ ok: boolean; error?: string; row?: LineRow }> {
+  const L = logger({ tenant_id: line.tenant_id, line_id: line.id });
+  if (line.messaging_service_sid && line.campaign_sid) {
+    const sub = await lineAccount(db, line).catch(() => null);
+    if (!sub) return { ok: false, error: "no_line_credentials" };
+    const req = deleteCampaignRequest(line.messaging_service_sid, line.campaign_sid);
+    const r = await fetch(req.url, {
+      method: req.method,
+      headers: { Authorization: `Basic ${Buffer.from(`${sub.sid}:${sub.token}`).toString("base64")}` },
+      signal: AbortSignal.timeout(20000),
+    }).catch(() => null);
+    const gone = !!r && (r.ok || r.status === 404);
+    L.info("a2p.rejected_campaign_deleted", { status: r?.status ?? 0, ok: gone });
+    if (!gone) return { ok: false, error: `the rejected campaign would not come off (HTTP ${r?.status ?? 0})` };
+  }
+  const cleared = await db.from("lines").update({
+    campaign_sid: null,
+    reg_step: null,
+    sms_state: "approved",
+    last_error: null,
+    state_since: new Date().toISOString(),
+  }).eq("id", line.id).select("*").single();
+  if (cleared.error) return { ok: false, error: cleared.error.message };
+  return { ok: true, row: cleared.data };
+}
+
 export interface RegisterResult {
   ok: boolean;
   /** Not a refusal: the carriers have not finished with the brand yet. */

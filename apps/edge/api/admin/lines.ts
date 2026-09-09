@@ -22,7 +22,7 @@ import { emitEvent } from "../../lib/workspace/db.js";
 import { formatPhoneDisplay } from "../../lib/workspace/contracts.js";
 import { runLineSaga, isAreaCode, isE164, LINE_COSTS, type LineRow } from "../../lib/workspace/channels.js";
 import { lineProviderFromEnv, linePorts, lineForClient, rowToLine, LINE_STEP_WORDS, type LineProviderChoice } from "../../lib/lines.js";
-import { registerLine, syncRegistration, unfileMockRegistration } from "../../lib/a2p.js";
+import { registerLine, syncRegistration, unfileMockRegistration, unfileRejectedCampaign } from "../../lib/a2p.js";
 import { businessTypeOf, companyTypeOf, industryOf } from "../../lib/workspace/contracts.js";
 import { dashboardOrigin } from "../../lib/billing.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -278,8 +278,28 @@ export async function POST(request: Request): Promise<Response> {
       // in thirty days -- and the only way out of one used to be a 409 with no
       // next step, which is how a line sat looking registered while every text
       // it received was held for a person.
-      if (!row.data.reg_mock) {
+      // A campaign the carriers SENT BACK is the exception, and it has to be:
+      // a rejection is a correction request, and refusing to re-send one means
+      // a workspace whose filing was refused for a fixable reason -- a privacy
+      // page missing its business address, a name that matched nothing -- can
+      // never text at all. The first real filing this product made was
+      // rejected on exactly that, twice over.
+      //
+      // The brand is kept: it was approved on its own, separately, and is the
+      // expensive half. Only the campaign is replaced, which is what the
+      // carriers actually refused.
+      const rejected = row.data.sms_state === "rejected";
+      if (!row.data.reg_mock && !rejected) {
         return json(409, { ok: false, error: "already_registered", brand_sid: row.data.brand_sid, campaign_sid: row.data.campaign_sid });
+      }
+      if (rejected && !refile) {
+        return json(409, {
+          ok: false,
+          error: "campaign_rejected",
+          hint: "the carriers sent this campaign back; correct what they named, then send refile: true to file it again",
+          reason: row.data.last_error,
+          brand_sid: row.data.brand_sid, campaign_sid: row.data.campaign_sid,
+        });
       }
       if (!refile) {
         return json(409, {
@@ -289,7 +309,9 @@ export async function POST(request: Request): Promise<Response> {
           brand_sid: row.data.brand_sid, campaign_sid: row.data.campaign_sid,
         });
       }
-      const off = await unfileMockRegistration(db, row.data);
+      const off = row.data.reg_mock
+        ? await unfileMockRegistration(db, row.data)
+        : await unfileRejectedCampaign(db, row.data);
       if (!off.ok || !off.row) return json(503, { ok: false, error: off.error ?? "unfile_failed" });
       row.data = off.row;
     }
