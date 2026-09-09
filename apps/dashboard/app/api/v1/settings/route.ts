@@ -1,5 +1,5 @@
 import { withRoute, memberContext, requireRole } from "@/server/with-route";
-import { AppError, parseTenantConfig, parseTenantConfigResult, TenantConfigWriteSchema, resolveFacts, factConflicts, type KnownFacts } from "@chanlytics/contracts";
+import { AppError, parseTenantConfig, parseTenantConfigResult, TenantConfigWriteSchema, resolveFacts, factConflicts, changedConfigFields, type KnownFacts } from "@chanlytics/contracts";
 import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
 import type { Json } from "@chanlytics/db";
 import { takeRate } from "@/server/rate-limit";
@@ -107,7 +107,8 @@ export const PUT = withRoute(async (req, ctx) => {
       `Config rejected — ${said.join(" ")}${more > 0 ? ` (and ${more} more)` : ""}`,
     );
   }
-  const result = await putTenantConfig(ctx.supabase, member.tenantId, parsed.data as Json, body.version);
+  const before = await getTenantConfig(ctx.supabase, member.tenantId);
+  const result = await putTenantConfig(ctx.supabase, member.tenantId, parsed.data as Json, body.version, ctx.userId);
   if (!result.ok) {
     // These are different failures and used to share one message. Telling an
     // owner "someone else saved settings" when the row simply does not exist
@@ -122,6 +123,21 @@ export const PUT = withRoute(async (req, ctx) => {
       );
     }
     throw new AppError("conflict", "Someone else saved settings after you loaded them — reload and reapply.", 409);
+  }
+  // The change, in the ledger every other consequential act lands in. Fields,
+  // never values -- see changedConfigFields. Best effort by design: an audit
+  // row that failed to write must not fail the save the owner just made and
+  // watched succeed.
+  const fields = changedConfigFields(before?.config, parsed.data);
+  if (fields.length) {
+    await ctx.supabase.from("events").insert({
+      tenant_id: member.tenantId,
+      kind: "settings.changed",
+      category: "system",
+      subject_type: "workspace",
+      subject_id: member.tenantId,
+      data: { fields, by: ctx.userId, version: result.row.version },
+    }).then(({ error }) => { if (error) console.error("settings_event_failed", error.message); });
   }
   return { config: parseTenantConfig(result.row.config) ?? {}, version: result.row.version };
 });

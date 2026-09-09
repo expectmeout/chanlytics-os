@@ -2529,18 +2529,21 @@ type Database = {
                     config: Json;
                     tenant_id: string;
                     updated_at: string;
+                    updated_by: string | null;
                     version: number;
                 };
                 Insert: {
                     config?: Json;
                     tenant_id: string;
                     updated_at?: string;
+                    updated_by?: string | null;
                     version?: number;
                 };
                 Update: {
                     config?: Json;
                     tenant_id?: string;
                     updated_at?: string;
+                    updated_by?: string | null;
                     version?: number;
                 };
                 Relationships: [
@@ -2784,6 +2787,12 @@ type Database = {
                 Returns: Json;
             };
             is_acting_member: {
+                Args: {
+                    p_tenant: string;
+                };
+                Returns: boolean;
+            };
+            is_workspace_owner: {
                 Args: {
                     p_tenant: string;
                 };
@@ -3500,7 +3509,9 @@ type PutTenantConfigResult = {
  * false in every particular — nobody saved anything, no colleague exists, and
  * reloading changes nothing.
  */
-declare function putTenantConfig(db: Db, tenantId: string, config: unknown, expectedVersion: number): Promise<PutTenantConfigResult>;
+declare function putTenantConfig(db: Db, tenantId: string, config: unknown, expectedVersion: number, 
+/** Who wrote it. This config IS what customers hear, so the row records its author (00085). */
+updatedBy?: string | null): Promise<PutTenantConfigResult>;
 interface PolicyRecord {
     id: string;
     class: string;

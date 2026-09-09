@@ -226,3 +226,25 @@ test("every voice line a caller hears comes through the resolver too", () => {
   assert.ok(gate.includes('"I cannot send texts automatically for this business right now. Tell the caller they can book online, and take their name."'), "and says something true instead");
   assert.ok(fn.includes('"The text could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, and take their name."'));
 });
+
+test("a config change records who and what, and neither is the values", async () => {
+  const { changedConfigFields } = await import("@chanlytics/contracts");
+  const before = { brain: { business_name: "A", booking_link: "https://x", profile: { address: "1 St", services: [{ name: "Cut" }], hours: { mon: {} } } } };
+  const after = { brain: { business_name: "A", booking_link: "https://y", profile: { address: "2 Ave", services: [{ name: "Cut" }], hours: { mon: {} } } } };
+
+  // Profile keys are named individually: "profile changed" is true of nearly
+  // every save and tells nobody anything.
+  assert.deepEqual(changedConfigFields(before, after), ["address", "booking_link"]);
+  assert.deepEqual(changedConfigFields(before, before), [], "a save that changed nothing writes no event");
+  assert.deepEqual(changedConfigFields(null, after).sort(), ["address", "booking_link", "business_name", "hours", "services"], "a first write names everything it set");
+
+  const route = readCode("apps/dashboard/app/api/v1/settings/route.ts");
+  assert.ok(route.includes('kind: "settings.changed"'), "the change lands in the ledger every other consequential act does");
+  assert.ok(route.includes("data: { fields, by: ctx.userId, version: result.row.version },"), "fields and author, never the values");
+  assert.ok(!/data: \{[^}]*config/.test(route), "REGRESSION: an audit row must not copy the business's own words into a second place");
+  assert.ok(route.includes("putTenantConfig(ctx.supabase, member.tenantId, parsed.data as Json, body.version, ctx.userId)"), "and the row itself records its author");
+
+  const mig = readRaw("supabase/migrations/00085_config_audit.sql");
+  assert.ok(mig.includes("add column if not exists updated_by uuid references auth.users (id) on delete set null"), "nullable, because rows written before this had no author to record");
+  assert.ok(mig.includes("grant update (updated_by) on public.tenant_config to authenticated"), "and the column needs its own door, or the UPDATE writes nothing");
+});

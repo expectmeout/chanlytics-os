@@ -292,3 +292,27 @@ export const SOURCE_WORDS: Record<FactSource, string> = {
   typed: "you set this",
   absent: "not set",
 };
+
+/**
+ * Which parts of a config a save actually moved.
+ *
+ * Recorded on the change rather than the values themselves: the config holds a
+ * business's own words, its booking link and its customers' escalation rules,
+ * and the events ledger is read by more people and for longer than a settings
+ * pane is. "hours, services" answers the question anybody actually asks —
+ * what changed, and who by — without copying the contents into a second place.
+ */
+export function changedConfigFields(before: unknown, after: unknown): string[] {
+  const top = (v: unknown): Record<string, unknown> => {
+    const brain = (v as { brain?: Record<string, unknown> } | null)?.brain ?? {};
+    const { profile, ...rest } = brain as Record<string, unknown> & { profile?: Record<string, unknown> };
+    // The profile is where most edits land, so its keys are named individually
+    // — "profile" changed is true of nearly every save and tells nobody
+    // anything.
+    return { ...rest, ...(profile ?? {}) };
+  };
+  const a = top(before);
+  const b = top(after);
+  const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
+  return keys.filter((k) => JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null));
+}

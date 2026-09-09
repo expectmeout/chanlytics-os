@@ -1072,6 +1072,17 @@ var SOURCE_WORDS = {
   typed: "you set this",
   absent: "not set"
 };
+function changedConfigFields(before, after) {
+  const top = (v) => {
+    const brain = v?.brain ?? {};
+    const { profile, ...rest } = brain;
+    return { ...rest, ...profile ?? {} };
+  };
+  const a = top(before);
+  const b = top(after);
+  const keys = [.../* @__PURE__ */ new Set([...Object.keys(a), ...Object.keys(b)])].sort();
+  return keys.filter((k) => JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null));
+}
 
 // src/config.ts
 import { z as z2 } from "zod";
@@ -6734,6 +6745,7 @@ export {
   businessTypeOf,
   callOutcomeOf,
   callOutcomeWords,
+  changedConfigFields,
   checkedWords,
   citationRoute,
   citationsToShow,

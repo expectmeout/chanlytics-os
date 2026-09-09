@@ -2534,18 +2534,21 @@ export type Database = {
           config: Json
           tenant_id: string
           updated_at: string
+          updated_by: string | null
           version: number
         }
         Insert: {
           config?: Json
           tenant_id: string
           updated_at?: string
+          updated_by?: string | null
           version?: number
         }
         Update: {
           config?: Json
           tenant_id?: string
           updated_at?: string
+          updated_by?: string | null
           version?: number
         }
         Relationships: [
@@ -2725,6 +2728,7 @@ export type Database = {
         Returns: Json
       }
       is_acting_member: { Args: { p_tenant: string }; Returns: boolean }
+      is_workspace_owner: { Args: { p_tenant: string }; Returns: boolean }
       line_forwarding_set: {
         Args: {
           p_carrier: string
