@@ -1739,6 +1739,7 @@ export type Database = {
           last_error: string | null
           payload: Json
           qstash_id: string | null
+          republishes: number
           state: string
           tenant_id: string
           updated_at: string
@@ -1754,6 +1755,7 @@ export type Database = {
           last_error?: string | null
           payload?: Json
           qstash_id?: string | null
+          republishes?: number
           state?: string
           tenant_id: string
           updated_at?: string
@@ -1769,6 +1771,7 @@ export type Database = {
           last_error?: string | null
           payload?: Json
           qstash_id?: string | null
+          republishes?: number
           state?: string
           tenant_id?: string
           updated_at?: string
@@ -2911,6 +2914,7 @@ export type Database = {
       trigger_google_sweep: { Args: never; Returns: number }
       trigger_playbooks_sweep: { Args: never; Returns: number }
       trigger_registration_sweep: { Args: never; Returns: number }
+      trigger_stale_jobs_sweep: { Args: never; Returns: number }
       trigger_sweep_health: { Args: never; Returns: number }
     }
     Enums: {

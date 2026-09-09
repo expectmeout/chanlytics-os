@@ -1734,6 +1734,7 @@ type Database = {
                     last_error: string | null;
                     payload: Json;
                     qstash_id: string | null;
+                    republishes: number;
                     state: string;
                     tenant_id: string;
                     updated_at: string;
@@ -1749,6 +1750,7 @@ type Database = {
                     last_error?: string | null;
                     payload?: Json;
                     qstash_id?: string | null;
+                    republishes?: number;
                     state?: string;
                     tenant_id: string;
                     updated_at?: string;
@@ -1764,6 +1766,7 @@ type Database = {
                     last_error?: string | null;
                     payload?: Json;
                     qstash_id?: string | null;
+                    republishes?: number;
                     state?: string;
                     tenant_id?: string;
                     updated_at?: string;
@@ -3090,6 +3093,10 @@ type Database = {
                 Returns: number;
             };
             trigger_registration_sweep: {
+                Args: never;
+                Returns: number;
+            };
+            trigger_stale_jobs_sweep: {
                 Args: never;
                 Returns: number;
             };

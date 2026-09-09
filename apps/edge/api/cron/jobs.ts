@@ -17,14 +17,28 @@
  * deliver it a second time to a real person. The honest report is that the
  * run did not finish and its outcome is unknown, said to the owner, once.
  *
+ * THE OTHER HALF. A job whose QStash message never arrived stays 'scheduled'
+ * past its time for ever: nothing reads due_at, and the pass above filters on
+ * 'fired'. Three causes, one bug — QStash exhausting its retries into the
+ * dead-letter queue, this endpoint answering 401, and the signing keys being
+ * rotated without the edge being told. The last of those puts EVERY job in the
+ * product here at once, and today that is indistinguishable from a quiet week.
+ *
+ * That half is re-published rather than marked, which is the opposite of the
+ * decision above and deliberately so: a job nothing ever claimed provably
+ * never ran, so the work still needs doing. See lib/jobs-recovery.ts.
+ *
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps;
  * pg_cron calls this from the database (migration 00078).
  */
 import crypto from "node:crypto";
+import { Client } from "@upstash/qstash";
 import { json } from "../../lib/http.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
 import { alertFor } from "../../lib/job-alert.js";
+import { FIRE_URL } from "../../lib/workspace/jobs.js";
+import { recoveryFor, OVERDUE_AFTER_MS } from "../../lib/jobs-recovery.js";
 
 export const config = { maxDuration: 60 };
 
@@ -39,6 +53,52 @@ export const STALE_AFTER_MS = 10 * 60_000;
 const MAX_PER_TICK = 50;
 
 export const RUN_INTERRUPTED = "the run did not finish; its outcome is unknown";
+export const NEVER_DELIVERED = "the job was scheduled but its delivery never arrived";
+
+type Db = NonNullable<ReturnType<typeof pg>>;
+
+/**
+ * Ask QStash to deliver this job again, on the row it already has.
+ *
+ * Not scheduleJob: that inserts a NEW row, and this job's row is the thing
+ * being rescued. `notBefore` is omitted because the job is already overdue —
+ * there is nothing left to wait for. The deduplication id is the job id and
+ * QStash's window is ten minutes, so at forty-five this is accepted rather
+ * than silently dropped; `claim_job` is what stops a late original and this
+ * one both firing.
+ */
+async function republishJob(db: Db, jobId: string): Promise<void> {
+  const token = process.env.QSTASH_TOKEN;
+  if (!token) throw new Error("no QSTASH_TOKEN");
+  const res = await new Client({ token }).publishJSON({
+    url: FIRE_URL,
+    body: { job_id: jobId },
+    deduplicationId: jobId,
+  });
+  await db.from("jobs").update({ qstash_id: res.messageId }).eq("id", jobId);
+}
+
+/**
+ * A broadcast whose chain broke sits in 'sending' with some recipients done
+ * and nothing coming: broadcastSend schedules its own next batch, so one lost
+ * link strands the whole run. Conditional on 'sending', so a broadcast that
+ * finished between the read and here is left exactly as it finished.
+ */
+async function releaseBroadcast(db: Db, job: { kind: string; tenant_id: string; payload: unknown }): Promise<boolean> {
+  if (job.kind !== "broadcast_send") return false;
+  const id = typeof job.payload === "object" && job.payload !== null
+    ? (job.payload as Record<string, unknown>).broadcast_id
+    : null;
+  if (typeof id !== "string") return false;
+  const { data } = await db
+    .from("broadcasts")
+    .update({ state: "failed", finished_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("tenant_id", job.tenant_id)
+    .eq("state", "sending")
+    .select("id");
+  return !!data?.length;
+}
 
 function secretsMatch(a: string, b: string): boolean {
   const x = Buffer.from(a);
@@ -120,5 +180,76 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
-  return json(200, { ok: true, reaped, messages, seen: stale.length });
+  // ---------------------------------------------------------------- the other half
+  const overdueBefore = new Date(Date.now() - OVERDUE_AFTER_MS).toISOString();
+  const { data: overdue, error: oErr } = await db
+    .from("jobs")
+    .select("id, tenant_id, kind, payload, due_at, republishes")
+    .eq("state", "scheduled")
+    .lt("due_at", overdueBefore)
+    .order("due_at", { ascending: true })
+    .limit(MAX_PER_TICK);
+  if (oErr) {
+    L.error("overdue_read_failed", { error: oErr.message });
+    return json(200, { ok: true, reaped, messages, overdue_error: oErr.message });
+  }
+
+  let republished = 0;
+  let gaveUp = 0;
+  let broadcasts = 0;
+  for (const job of overdue ?? []) {
+    const verdict = recoveryFor(job);
+    if (verdict === "wait") continue;
+
+    if (verdict === "republish") {
+      // The counter first, conditional on the job still being unclaimed: a
+      // delivery that lands between the read and here has already claimed it,
+      // and publishing again would be asking for work nobody needs.
+      const { data: won, error: cErr } = await db
+        .from("jobs")
+        .update({ republishes: job.republishes + 1 })
+        .eq("id", job.id)
+        .eq("state", "scheduled")
+        .select("id");
+      if (cErr || !won?.length) continue;
+      try {
+        await republishJob(db, job.id);
+        republished += 1;
+        L.info("jobs_republished", { job_id: job.id, tenant_id: job.tenant_id, kind: job.kind, due_at: job.due_at, republishes: job.republishes + 1 });
+      } catch (e) {
+        // A sweep that dies on the first bad publish rescues nothing. The
+        // counter has already gone up, so a QStash outage drains into give-ups
+        // rather than looping.
+        L.error("jobs_republish_failed", { job_id: job.id, error: e instanceof Error ? e.message : String(e) });
+      }
+      continue;
+    }
+
+    const { data: won, error: fErr } = await db
+      .from("jobs")
+      .update({ state: "failed", last_error: NEVER_DELIVERED })
+      .eq("id", job.id)
+      .eq("state", "scheduled")
+      .select("id");
+    if (fErr || !won?.length) continue;
+    gaveUp += 1;
+    if (await releaseBroadcast(db, job)) broadcasts += 1;
+    L.info("jobs_gave_up", { job_id: job.id, tenant_id: job.tenant_id, kind: job.kind, due_at: job.due_at, republishes: job.republishes });
+    try {
+      await alertFor(db, job)(
+        `A ${job.kind} job never ran`,
+        `Job ${job.id} (${job.kind}) was due ${job.due_at} and its delivery never arrived, after ${job.republishes} attempt${job.republishes === 1 ? "" : "s"} to send it again. ${NEVER_DELIVERED}.\n\n` +
+        (job.kind === "broadcast_send"
+          ? "The broadcast has been marked failed; the people it had already reached still got it."
+          : "Nothing else will run it."),
+      );
+    } catch (e) {
+      L.error("jobs_giveup_alert_failed", { job_id: job.id, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  return json(200, {
+    ok: true, reaped, messages, republished, gaveUp, broadcasts,
+    seen: stale.length + (overdue?.length ?? 0),
+  });
 }
