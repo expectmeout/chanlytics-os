@@ -13,7 +13,7 @@ import { POLICY_CLASS_WORDS } from "@chanlytics/contracts";
 
 import { clearSurfaceCache } from "./surface-cache";
 import { DEFAULT_REFRESH_TABLES, type RealtimeChange } from "./surface-realtime";
-import type { NotificationsDto } from "@chanlytics/contracts";
+import type { NotificationsDto, ResolvedFacts, FactConflict } from "@chanlytics/contracts";
 import type { PoliciesSurface, PolicyRecordLike } from "./policy-store";
 
 export interface SurfaceOverride {
@@ -526,11 +526,11 @@ export interface WorkspaceSettings {
 
 export const settingsOverride: SurfaceOverride = {
   key: "settings",
-  globals: ["__SETTINGS", "__TEAM", "__TEAM_INVITES", "__POLICIES", "__CHANNELS", "__TEMPLATES_ALL"],
+  globals: ["__SETTINGS", "__FACTS", "__TEAM", "__TEAM_INVITES", "__POLICIES", "__CHANNELS", "__TEMPLATES_ALL"],
   events: ["surface:settings"],
   apply: async () => {
     const [cfg, team, pol, ch, tpl] = await Promise.all([
-      fetchEnvelope<{ config: WorkspaceSettings | null; version: number; role: string; configBroken?: boolean; issues?: string[] }>("/api/v1/settings"),
+      fetchEnvelope<{ config: WorkspaceSettings | null; version: number; role: string; configBroken?: boolean; issues?: string[]; facts?: ResolvedFacts; conflicts?: FactConflict[] }>("/api/v1/settings"),
       // A team read that fails must not blank the business card beside it.
       fetchEnvelope<{ members: unknown[]; invites?: unknown[] }>("/api/v1/team").catch((e: unknown) => e as Error),
       // The autonomy matrix. Same rule: a failed read is its own state (null),
@@ -543,6 +543,7 @@ export const settingsOverride: SurfaceOverride = {
     ]);
     const w = window as unknown as {
       __SETTINGS?: { config: WorkspaceSettings | null; version: number; role: string; broken: { issues: string[] } | null };
+      __FACTS?: { facts: ResolvedFacts; conflicts: FactConflict[] } | null;
       __TEAM?: unknown[] | null;
       __TEAM_INVITES?: unknown[] | null;
       __POLICIES?: PoliciesSurface | null;
@@ -555,6 +556,10 @@ export const settingsOverride: SurfaceOverride = {
     w.__SETTINGS = cfg.configBroken
       ? { config: null, version: cfg.version, role: cfg.role, broken: { issues: cfg.issues ?? [] } }
       : { config: cfg.config ?? {}, version: cfg.version, role: cfg.role, broken: null };
+    // Resolved on the server, where the channel rows and the listing are. Null
+    // on a broken config for the same reason the forms close: there is nothing
+    // trustworthy to resolve against.
+    w.__FACTS = cfg.facts ? { facts: cfg.facts, conflicts: cfg.conflicts ?? [] } : null;
     if (ch instanceof Error) {
       w.__CHANNELS = null;
       console.error("settings_channels_fetch_failed", ch.message);

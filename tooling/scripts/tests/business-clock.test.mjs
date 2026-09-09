@@ -106,18 +106,18 @@ test("the clock is sent as its OWN system block, uncached", () => {
 
 test("both channels read the tenant's zone, and neither invents one", () => {
   const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
-  assert.ok(wa.includes('resolveSystemPrompt(brainCfg, "whatsapp", rt?.timezone, new Date(), rt?.policy)'));
+  assert.ok(wa.includes('resolveSystemPrompt(brainCfg, "whatsapp", rt?.timezone, new Date(), rt?.policy, rt?.known)'));
   // The clock also carries the closures, so it can state a shut day in the
   // block the model reads LAST — where the weekly grid cannot outrank it.
   assert.ok(wa.includes("describeNow(rt?.timezone, new Date(), brainCfg.profile?.closures)"));
 
   const voice = readCode("apps/edge/api/retell-inbound.ts");
-  assert.ok(voice.includes('resolveSystemPrompt(rt.brain, "voice", rt.timezone, new Date(), rt.policy)'));
+  assert.ok(voice.includes('resolveSystemPrompt(rt.brain, "voice", rt.timezone, new Date(), rt.policy, rt.known)'));
   assert.ok(voice.includes("describeNow(rt.timezone, new Date(), rt.brain.profile?.closures)"));
 
   const runtime = readCode("apps/edge/lib/tenant-runtime.ts");
   assert.ok(
-    runtime.includes('db.from("tenants").select("timezone, status")'),
+    runtime.includes('db.from("tenants").select("name, timezone, status")'),
     "read from the tenants row, not from config",
   );
   for (const src of [wa, voice, runtime]) {

@@ -260,6 +260,59 @@ const YourName = ({ flash, ...rest }) => {
  * owner nothing and "New York, 3:42 PM there now" tells them in one glance
  * whether it is theirs.
  */
+/**
+ * A fact, with where it came from.
+ *
+ * The Business card was eight rows of identical text, and three of them were
+ * things the PLATFORM knows -- the line it answers, the name Google lists, the
+ * address Google verified -- shown as if somebody had simply written them
+ * down. That is how the live salon ended up publishing its transfer number as
+ * its phone: a typed field with the same name as a real one, checked against
+ * nothing. A source beside the value is the smallest honest fix, and the link
+ * says who to go to when it is wrong.
+ */
+const FactRow = ({ label, fact, to, toLabel, empty = "—" }) => {
+  if (!fact) return null;
+  const words = (window.__FACT_WORDS || {})[fact.source] || "";
+  return (
+    <div className="cl-prof-attr" data-testid={`fact-${label.toLowerCase().replace(/[^a-z]+/g, "-")}`}>
+      <span className="cl-prof-attr-key">{label}</span>
+      <span className="cl-prof-attr-val set-fact">
+        <span className={fact.value ? "" : "set-fact-empty"}>{fact.value || empty}</span>
+        {fact.value && fact.source !== "typed" && <span className="set-fact-src">{words}</span>}
+        {fact.disputed && <span className="set-fact-src disputed" title={`The system has ${fact.disputed.value}`}>doesn&rsquo;t match</span>}
+        {to && <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(to)}>{toLabel} <Icon name="arrow-right" size={10} /></button>}
+      </span>
+    </div>
+  );
+};
+
+/**
+ * A disagreement between what was typed and what the system knows, said out
+ * loud, worst first.
+ *
+ * Not a toast and not a tooltip: the serious one means real customers are being
+ * sent to the wrong number, and it has been true for as long as the field has
+ * existed because nothing was comparing the two.
+ */
+const FactConflicts = () => {
+  const conflicts = ((window.__FACTS || {}).conflicts) || [];
+  if (!conflicts.length) return null;
+  return (
+    <>
+      {conflicts.map((k) => (
+        <div key={k.fact} className={`set-conflict ${k.severity}`} data-testid={`conflict-${k.fact}`} role="status">
+          <Icon name={k.severity === "serious" ? "flag" : "info"} size={13} />
+          <div className="set-conflict-body">
+            <div className="set-conflict-title">{k.severity === "serious" ? "Your receptionist is publishing a different number" : "This does not match what Google has"}</div>
+            <div className="set-conflict-sub">{k.sentence}</div>
+          </div>
+        </div>
+      ))}
+    </>
+  );
+};
+
 const TimezoneRow = ({ flash }) => {
   const ws = (window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || null;
   const current = (ws && ws.timezone) || window.DEFAULT_TIMEZONE || "America/New_York";
@@ -705,6 +758,11 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   const creating = !brain.business_name;
   const [bizName, setBizName] = useSetState(brain.business_name || "");
   const [phoneDisplay, setPhoneDisplay] = useSetState(brain.phone_display || "");
+  // Resolved on the server from tenant_channels. The editor shows it beside the
+  // field rather than trusting whatever was typed to be the same number.
+  const RF = ((window.__FACTS || {}).facts) || {};
+  const voiceLine = (RF.voice_line && RF.voice_line.value) || null;
+  const handoffLine = (RF.handoff_number && RF.handoff_number.value) || null;
   const [bookingLink, setBookingLink] = useSetState(brain.booking_link || "");
   const [address, setAddress] = useSetState(p0.address || "");
   const [tone, setTone] = useSetState(p0.tone || "");
@@ -1076,18 +1134,40 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
               aria-label="Business name"
             />
           </label>
+          {/* NOT "Phone line". This field is what the receptionist TELLS
+              customers to call, and it was labelled the same as the line it
+              answers on -- a text box with a placeholder, checked against
+              nothing -- so a salon published its transfer number here and
+              every WhatsApp customer was sent to a person's mobile instead of
+              to the receptionist standing by. The line itself is provisioned
+              and belongs to Integrations; this row says which number goes in
+              the words, and shows the real one beside it. */}
           <label className="set-ident-row">
-            <span className="set-ident-key">Phone line</span>
+            <span className="set-ident-key">Tell customers to call</span>
             <input
               className="set-input"
               value={phoneDisplay}
               onChange={(e) => setPhoneDisplay(e.target.value)}
-              placeholder="(555) 010-1234"
+              placeholder={voiceLine || "(555) 010-1234"}
               inputMode="tel"
               autoComplete="tel"
-              aria-label="Phone line"
+              aria-label="The number to tell customers to call"
             />
           </label>
+          {voiceLine && (
+            <div className="set-ident-note" data-testid="set-line-note">
+              {window.__samePhone && window.__samePhone(phoneDisplay, voiceLine)
+                ? <>This is the line your receptionist answers.</>
+                : <>
+                    Your receptionist answers on <b className="tabular">{voiceLine}</b>
+                    {handoffLine && window.__samePhone && window.__samePhone(phoneDisplay, handoffLine)
+                      ? <> — what you have typed is the number it transfers to, so customers who call it reach a person and never the receptionist.</>
+                      : <> — customers who call what you typed will not reach it.</>}
+                    {" "}
+                    <button type="button" className="cl-bucket-link" onClick={() => setPhoneDisplay(voiceLine)} data-testid="set-use-line">Use my line</button>
+                  </>}
+            </div>
+          )}
           <label className="set-ident-row">
             <span className="set-ident-key">Booking link</span>
             <input
@@ -1465,6 +1545,10 @@ const PaneWorkspace = ({ flash }) => {
   // save would have replaced the broken row with its few fields.
   const broken = !!(settings && settings.broken);
   const hrs = profile && hoursSummary(profile.hours);
+  // Resolved on the server, where the channel rows and the Google listing are.
+  // Absent (an older payload, a broken config) falls back to nothing rather
+  // than to a guess: a fact with no source is not a fact.
+  const F = ((window.__FACTS || {}).facts) || {};
   // `connected`, not `real`: a workspace with no receptionist is exactly the
   // one that most needs this form. It used to be the one case that could not
   // open it.
@@ -1496,6 +1580,7 @@ const PaneWorkspace = ({ flash }) => {
   }
   return (
   <>
+    <FactConflicts />
     <section className="fl-card set-card">
       <div className="fl-card-head"><span className="fl-card-title">Business</span>
         {/* On real data this opens the form. The mockup's compose flow asked
@@ -1525,7 +1610,9 @@ const PaneWorkspace = ({ flash }) => {
         </div>
       ) : (
       <div className="cl-prof-attr-list">
-        <div className="cl-prof-attr"><span className="cl-prof-attr-key">Name</span><span className="cl-prof-attr-val">{real ? (S.business_name || "—") : "Serenity Spa"}</span></div>
+        {real
+          ? <FactRow label="Name" fact={F.business_name} />
+          : <div className="cl-prof-attr"><span className="cl-prof-attr-key">Name</span><span className="cl-prof-attr-val">Serenity Spa</span></div>}
         <div className="cl-prof-attr"><span className="cl-prof-attr-key">Workspace</span><span className="cl-prof-attr-val">{real ? ((ws && ws.name) || "—") : "Chanlytics Sales · Professional"}</span></div>
         <div className="cl-prof-attr"><span className="cl-prof-attr-key">Hours</span>
           <span className="cl-prof-attr-val" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
@@ -1540,15 +1627,26 @@ const PaneWorkspace = ({ flash }) => {
           </span>
         </div>
         {real && <TimezoneRow flash={flash} />}
-        <div className="cl-prof-attr"><span className="cl-prof-attr-key">Phone line</span><span className="cl-prof-attr-val">{real ? (S.phone_display || "—") : "+1 (415) 555-0100"}</span></div>
+        {/* THREE numbers, named for what each one does. They were one row
+            called "Phone line" showing a typed string, which is how a salon
+            came to publish the number it transfers to as the number to call.
+            The line it answers is provisioned and belongs to Integrations; the
+            other two are the receptionist's behaviour and belong here. */}
+        {real ? (
+          <>
+            <FactRow label="Answers on" fact={F.voice_line} to="admin/integrations" toLabel="Integrations" empty="No phone line yet" />
+            <FactRow label="Tells customers to call" fact={F.phone_display} />
+            <FactRow label="Transfers a caller to" fact={F.handoff_number} empty="Takes a message instead" />
+          </>
+        ) : (
+          <div className="cl-prof-attr"><span className="cl-prof-attr-key">Phone line</span><span className="cl-prof-attr-val">+1 (415) 555-0100</span></div>
+        )}
         {real ? (
           <div className="cl-prof-attr"><span className="cl-prof-attr-key">Booking link</span><span className="cl-prof-attr-val">{S.booking_link || "—"}</span></div>
         ) : (
           <div className="cl-prof-attr"><span className="cl-prof-attr-key">Staff</span><span className="cl-prof-attr-val">Lena Park · Jay Rivera</span></div>
         )}
-        {real && profile && profile.address && (
-          <div className="cl-prof-attr"><span className="cl-prof-attr-key">Address</span><span className="cl-prof-attr-val">{profile.address}</span></div>
-        )}
+        {real && F.address.value && <FactRow label="Address" fact={F.address} />}
         {real && profile && profile.services && profile.services.length > 0 && (
           <div className="cl-prof-attr"><span className="cl-prof-attr-key">Services</span>
             <span className="cl-prof-attr-val">{profile.services.length} on record · {profile.services.slice(0, 3).map((x) => x.name).join(", ")}{profile.services.length > 3 ? "…" : ""}</span>

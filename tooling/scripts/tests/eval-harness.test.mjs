@@ -63,7 +63,7 @@ test("the endpoint keeps the door, runs the real prompt, sends nothing and write
   const src = readCode("apps/edge/api/admin/eval.ts");
   assert.ok(src.includes('request.headers.get("x-diag-key") !== process.env.DIAG_KEY'));
   assert.ok(src.includes("const MAX_CASES = 6;"), "sequential model calls inside the function's minute");
-  assert.ok(src.includes('resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, new Date(), rt.policy)'), "the same composed prompt the webhook uses");
+  assert.ok(src.includes('resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, new Date(), rt.policy, rt.known)'), "the same composed prompt the webhook uses");
   assert.ok(src.includes("describeNow(rt.timezone, new Date(), rt.brain.profile?.closures)"));
   assert.ok(src.includes("generateReply(c.history ?? [], c.text, system, rt.brain.fallbacks.error, undefined, nowNote)"));
   for (const forbidden of ["sendText(", "recordOutbound(", "ingestInbound(", ".insert(", ".update("]) assert.ok(!src.includes(forbidden), `${forbidden} has no place here`);

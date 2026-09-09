@@ -29,6 +29,7 @@ export * from "./reports";
 export * from "./live";
 export * from "./setup";
 export * from "./forwarding";
+export * from "./facts";
 export * from "./identity";
 export * from "./workspace";
 export * from "./chrome";

@@ -38,7 +38,7 @@ test("the sidebar's one line: a pause outranks a newer build, and points at Bill
 
 test("the wiring: the runtime reads the switch, every path honours it, the foot says so", () => {
   const rt = readCode("apps/edge/lib/tenant-runtime.ts");
-  assert.ok(rt.includes('db.from("tenants").select("timezone, status")') && rt.includes('paused: tzQ.data?.status === "paused",') && rt.includes("paused: false,"), "one read, the same query the clock uses");
+  assert.ok(rt.includes('db.from("tenants").select("name, timezone, status")') && rt.includes('paused: tzQ.data?.status === "paused",') && rt.includes("paused: false,"), "one read, the same query the clock uses");
   const inbound = readCode("apps/edge/lib/whatsapp/inbound.ts");
   assert.ok(inbound.includes("if (rt?.paused) {") && inbound.includes('sink.escalate("paused",'), "kept, held for a person, not answered");
   const inboundRaw = readRaw("apps/edge/lib/whatsapp/inbound.ts");

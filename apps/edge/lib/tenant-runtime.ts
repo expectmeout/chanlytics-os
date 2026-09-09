@@ -16,6 +16,7 @@ import {
   type BrainConfig,
   type NotificationsConfig,
   type PolicyLimits,
+  type KnownFacts,
 } from "./workspace/contracts.js";
 import type { RoutedChannel } from "./workspace/db.js";
 
@@ -47,6 +48,17 @@ export interface TenantRuntime {
    * is answered and nothing automated goes out until it resumes.
    */
   paused: boolean;
+  /**
+   * What the platform KNOWS, as opposed to what somebody typed: the channel
+   * rows it provisioned and the Google listing it verified.
+   *
+   * Carried on the runtime because the prompt is where these facts are spoken
+   * and the prompt is composed from here. Without it, resolveSystemPrompt
+   * resolves against nothing and the receptionist can go on telling customers
+   * to call a number it does not answer — which is what it was doing on the
+   * live salon (see contracts/facts.ts).
+   */
+  known: KnownFacts;
   /** True when the control plane could not be read (infra blip, not config
    *  absence) — the caller may apply its designated DR fallback. */
   loadFailed: boolean;
@@ -136,7 +148,7 @@ export async function loadTenantRuntime(
   }
 
   try {
-    const [cfgQ, polQ, credsQ, tzQ, stamp] = await Promise.all([
+    const [cfgQ, polQ, credsQ, tzQ, stamp, chanQ, listQ] = await Promise.all([
       db.from("tenant_config").select("config").eq("tenant_id", routed.tenantId).maybeSingle(),
       db
         .from("policies")
@@ -157,9 +169,14 @@ export async function loadTenantRuntime(
       // Resolving by tenant + kind makes the tenant-keyed cache correct by
       // construction and closes the voice path in the same change.
       resolveWaCredentials(db, routed),
-      db.from("tenants").select("timezone, status").eq("id", routed.tenantId).maybeSingle(),
+      db.from("tenants").select("name, timezone, status").eq("id", routed.tenantId).maybeSingle(),
       // Taken with the load, so the first re-check compares like with like.
       runtimeStamp(db, routed.tenantId),
+      // What the platform provisioned and what Google verified — the other half
+      // of every fact the prompt states. Two small reads on a load that already
+      // makes five, cached for the same ten minutes behind the same stamp.
+      db.from("tenant_channels").select("kind, number_e164, status").eq("tenant_id", routed.tenantId),
+      db.from("google_listings").select("name, address").eq("tenant_id", routed.tenantId).maybeSingle(),
     ]);
     if (cfgQ.error) throw new Error(cfgQ.error.message);
     if (polQ.error) throw new Error(polQ.error.message);
@@ -197,6 +214,15 @@ export async function loadTenantRuntime(
           ? { accessToken: rawCreds.access_token, phoneId: rawCreds.phone_id }
           : null,
       timezone: tzQ.data?.timezone ?? null,
+      // Deliberately not thrown on. A channel list that failed to read leaves
+      // the prompt exactly where it was before this existed — typed values,
+      // unresolved — which is degraded, not silent. Throwing would put the
+      // whole runtime into its DR posture over a fact it can live without.
+      known: {
+        workspace: { name: tzQ.data?.name ?? null, timezone: tzQ.data?.timezone ?? null },
+        channels: chanQ.error ? [] : (chanQ.data ?? []),
+        listing: listQ.error ? null : (listQ.data ?? null),
+      },
       paused: tzQ.data?.status === "paused",
       configBroken: !parseResult.ok,
       loadFailed: false,
@@ -217,6 +243,7 @@ export async function loadTenantRuntime(
       policy: {},
       waCreds: null,
       timezone: null,
+      known: { workspace: null, channels: [], listing: null },
       paused: false,
       loadFailed: true,
     };

@@ -956,6 +956,113 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
   };
 }
 
+// src/facts.ts
+var trimmed = (v) => {
+  const s = typeof v === "string" ? v.trim() : "";
+  return s || null;
+};
+var activeChannel = (known, kind) => {
+  const rows = known?.channels ?? [];
+  const row2 = rows.find((c) => c.kind === kind && (c.status ?? "active") === "active");
+  return trimmed(row2?.number_e164);
+};
+function samePhone(a, b) {
+  const x = normalizePhone(a);
+  const y = normalizePhone(b);
+  return !!x && !!y && x === y;
+}
+function sameAddress(a, b) {
+  const x = textKey(a).replace(/\b(usa|us|united states)\b/g, "").trim();
+  const y = textKey(b).replace(/\b(usa|us|united states)\b/g, "").trim();
+  if (!x || !y) return false;
+  return x === y || x.startsWith(y) || y.startsWith(x);
+}
+function sameName(a, b) {
+  const x = textKey(a);
+  const y = textKey(b);
+  return !!x && !!y && x === y;
+}
+function textKey(v) {
+  return String(v ?? "").toLowerCase().replace(/[’'.]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+function typedOverKnown(typed, known, knownSource, same) {
+  if (typed && known) {
+    return same(typed, known) ? { value: typed, source: "typed" } : { value: typed, source: "typed", disputed: { value: known, source: knownSource } };
+  }
+  if (typed) return { value: typed, source: "typed" };
+  if (known) return { value: known, source: knownSource };
+  return { value: null, source: "absent" };
+}
+function resolveFacts(typed, known) {
+  const p = typed?.profile ?? null;
+  const voice = activeChannel(known, "voice");
+  const whatsapp = activeChannel(known, "whatsapp");
+  const strEq = (a, b) => a === b;
+  return {
+    business_name: typedOverKnown(
+      trimmed(typed?.business_name),
+      trimmed(known?.listing?.name) ?? trimmed(known?.workspace?.name),
+      known?.listing?.name ? "verified" : "workspace",
+      sameName
+    ),
+    // The one that matters. Compared against the line the receptionist answers.
+    phone_display: typedOverKnown(trimmed(typed?.phone_display), voice, "provisioned", samePhone),
+    booking_link: typedOverKnown(trimmed(typed?.booking_link), null, "absent", strEq),
+    address: typedOverKnown(trimmed(p?.address), trimmed(known?.listing?.address), "verified", sameAddress),
+    website: typedOverKnown(trimmed(p?.website), null, "absent", strEq),
+    // Human-only by nature: nothing provisions "the person to put a caller through to".
+    handoff_number: p?.handoff_number ? { value: p.handoff_number, source: "typed" } : { value: null, source: "absent" },
+    voice_line: voice ? { value: voice, source: "provisioned" } : { value: null, source: "absent" },
+    whatsapp_line: whatsapp ? { value: whatsapp, source: "provisioned" } : { value: null, source: "absent" }
+  };
+}
+function factConflicts(f) {
+  const out = [];
+  const phone = f.phone_display;
+  if (phone.disputed && phone.value) {
+    const isHandoff = samePhone(phone.value, f.handoff_number.value);
+    out.push({
+      fact: "phone_display",
+      severity: "serious",
+      used: phone.value,
+      known: phone.disputed.value,
+      knownSource: phone.disputed.source,
+      sentence: isHandoff ? `Your receptionist tells customers to call ${phone.value}, which is the number it transfers to \u2014 so they reach a person directly and never the receptionist answering on ${phone.disputed.value}.` : `Your receptionist tells customers to call ${phone.value}, but it answers on ${phone.disputed.value}. Anyone who calls the published number does not reach it.`,
+      to: "admin/workspace"
+    });
+  }
+  if (f.address.disputed && f.address.value) {
+    out.push({
+      fact: "address",
+      severity: "minor",
+      used: f.address.value,
+      known: f.address.disputed.value,
+      knownSource: f.address.disputed.source,
+      sentence: `Your receptionist gives ${f.address.value}; Google has you at ${f.address.disputed.value}.`,
+      to: "admin/workspace"
+    });
+  }
+  if (f.business_name.disputed && f.business_name.value) {
+    out.push({
+      fact: "business_name",
+      severity: "minor",
+      used: f.business_name.value,
+      known: f.business_name.disputed.value,
+      knownSource: f.business_name.disputed.source,
+      sentence: `Your receptionist introduces the business as ${f.business_name.value}; ${f.business_name.disputed.source === "verified" ? "Google lists it" : "this workspace is named"} ${f.business_name.disputed.value}.`,
+      to: "admin/workspace"
+    });
+  }
+  return out.sort((a, b) => a.severity === b.severity ? 0 : a.severity === "serious" ? -1 : 1);
+}
+var SOURCE_WORDS = {
+  provisioned: "your line",
+  verified: "from Google",
+  workspace: "this workspace",
+  typed: "you set this",
+  absent: "not set"
+};
+
 // src/config.ts
 import { z as z2 } from "zod";
 var ROLES = MEMBERSHIP_ROLES;
@@ -1562,7 +1669,7 @@ Rules you must follow:
 ${rules.map((r) => `- ${r}`).join("\n")}`);
   return s.join("\n");
 }
-function resolveSystemPrompt(brain, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy) {
+function resolveSystemPrompt(brain, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy, known) {
   if (!hasProfile(brain.profile)) {
     const rules = policyRules(policy, channel);
     return rules.length ? `${brain.system_prompt}
@@ -1571,8 +1678,14 @@ Rules you must follow:
 ${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
   }
   const profile = brain.profile;
+  const facts = resolveFacts(brain, known);
+  const resolved = {
+    business_name: facts.business_name.value ?? brain.business_name,
+    phone_display: facts.phone_display.value ?? brain.phone_display,
+    booking_link: facts.booking_link.value ?? brain.booking_link
+  };
   const carried = profile.extra_instructions?.trim() ? profile : { ...profile, extra_instructions: brain.system_prompt };
-  return composeSystemPrompt(brain, carried, channel, tz, now, policy);
+  return composeSystemPrompt(resolved, carried, channel, tz, now, policy);
 }
 
 // src/availability.ts
@@ -6547,6 +6660,7 @@ export {
   SIGNUP_NAME_MAX,
   SIGNUP_NAME_MIN,
   SIGNUP_WORDS,
+  SOURCE_WORDS,
   STARTER_LANGUAGES,
   STARTER_TEMPLATES,
   ServiceSchema,
@@ -6637,6 +6751,7 @@ export {
   eventText,
   exampleParams,
   extractContacts,
+  factConflicts,
   fastPath,
   feedSourceLabel,
   filterOpenings,
@@ -6744,6 +6859,7 @@ export {
   renderTemplate,
   replyDelayMs,
   replyWhy,
+  resolveFacts,
   resolveParams,
   resolveSystemPrompt,
   resolveTheme,
@@ -6756,6 +6872,9 @@ export {
   rulesLine,
   runDueNow,
   safeNavigate,
+  sameAddress,
+  sameName,
+  samePhone,
   sameQuestion,
   scheduleLine,
   scopeFromRoute,

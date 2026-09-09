@@ -1280,6 +1280,114 @@ declare function todayAway<T extends {
     more: number;
 };
 
+/** Where an answer came from, strongest claim first. */
+type FactSource = 
+/** The platform provisioned it: a channel row, a bought number. */
+"provisioned"
+/** A third party verified it: the linked Google Business Profile. */
+ | "verified"
+/** The workspace record itself (tenants.name, tenants.timezone). */
+ | "workspace"
+/** Somebody typed it into the business form. */
+ | "typed"
+/** Nobody has said. */
+ | "absent";
+interface Fact<T> {
+    value: T | null;
+    source: FactSource;
+    /** Another source's answer for the same fact, when it differs. */
+    disputed?: {
+        value: T;
+        source: FactSource;
+    };
+}
+/** What the platform and its integrations know, independent of anything typed. */
+interface KnownFacts {
+    workspace?: {
+        name?: string | null;
+        timezone?: string | null;
+    } | null;
+    /** tenant_channels rows: what the receptionist actually answers on. */
+    channels?: ReadonlyArray<{
+        kind: string;
+        number_e164?: string | null;
+        status?: string | null;
+    }> | null;
+    /** The linked Google Business Profile, when there is one. */
+    listing?: {
+        name?: string | null;
+        address?: string | null;
+    } | null;
+}
+/** The brain fields this resolves over. A subset, so callers need not have parsed everything. */
+interface TypedFacts {
+    business_name?: string | null;
+    phone_display?: string | null;
+    booking_link?: string | null;
+    profile?: {
+        address?: string | null;
+        website?: string | null;
+        handoff_number?: string | null;
+    } | null;
+}
+interface ResolvedFacts {
+    business_name: Fact<string>;
+    /** What the receptionist tells customers to call. */
+    phone_display: Fact<string>;
+    booking_link: Fact<string>;
+    address: Fact<string>;
+    website: Fact<string>;
+    /** Where a caller who insists on a person is transferred. Human-only by nature. */
+    handoff_number: Fact<string>;
+    /** The line the receptionist ANSWERS. Provisioned or nothing — never typed. */
+    voice_line: Fact<string>;
+    /** The WhatsApp line. Provisioned or nothing. */
+    whatsapp_line: Fact<string>;
+}
+/** Two ways of writing one number. `(646) 932-5775` and `+16469325775` are the same fact. */
+declare function samePhone(a: string | null | undefined, b: string | null | undefined): boolean;
+/**
+ * Two ways of writing one address.
+ *
+ * Deliberately loose: Google returns "2581 Pitkin Ave, Brooklyn, NY 11208, USA"
+ * for an owner who typed the same thing without the country. Reporting that as
+ * a disagreement would train people to ignore the warning, which costs more
+ * than the warning is worth.
+ */
+declare function sameAddress(a: string | null | undefined, b: string | null | undefined): boolean;
+/** Same business, allowing for punctuation and case. */
+declare function sameName(a: string | null | undefined, b: string | null | undefined): boolean;
+/**
+ * The facts as the product should understand them: one answer each, its source,
+ * and whatever disagrees with it.
+ */
+declare function resolveFacts(typed: TypedFacts | null | undefined, known?: KnownFacts | null): ResolvedFacts;
+type ConflictSeverity = "serious" | "minor";
+interface FactConflict {
+    /** Which resolved fact disagrees. */
+    fact: keyof ResolvedFacts;
+    severity: ConflictSeverity;
+    /** What is being used. */
+    used: string;
+    /** What the system knows instead. */
+    known: string;
+    knownSource: FactSource;
+    /** Said the way this product says things: what it means for a customer. */
+    sentence: string;
+    /** Where a person goes to settle it. */
+    to: string;
+}
+/**
+ * The disagreements, worst first, in the words an owner needs.
+ *
+ * Severity is about the CUSTOMER, not about the data. A published number that
+ * is not the line being answered sends real people to the wrong place; an
+ * address that differs from Google's by a country suffix does not.
+ */
+declare function factConflicts(f: ResolvedFacts): FactConflict[];
+/** The words for a source, where one is shown beside a value. */
+declare const SOURCE_WORDS: Record<FactSource, string>;
+
 /**
  * Control plane types (PRD E1/E3/E4) — the single source every boundary
  * imports: the Settings form, the /v1 routes, and the edge runtime all parse
@@ -1746,11 +1854,13 @@ declare const BusinessProfileSchema: z.ZodObject<{
         duration_min?: number | undefined;
         price_note?: string | undefined;
     }[] | undefined;
+    address?: string | undefined;
+    website?: string | undefined;
+    handoff_number?: string | undefined;
     notes?: {
         text: string;
         title: string;
     }[] | undefined;
-    address?: string | undefined;
     closures?: {
         date: string;
         note?: string | undefined;
@@ -1765,8 +1875,6 @@ declare const BusinessProfileSchema: z.ZodObject<{
     } | undefined;
     escalate_when?: string[] | undefined;
     tone?: string | undefined;
-    handoff_number?: string | undefined;
-    website?: string | undefined;
     booking_rules?: {
         lead_hours?: number | undefined;
         buffer_min?: number | undefined;
@@ -1791,11 +1899,13 @@ declare const BusinessProfileSchema: z.ZodObject<{
         duration_min?: number | undefined;
         price_note?: string | undefined;
     }[] | undefined;
+    address?: string | undefined;
+    website?: string | undefined;
+    handoff_number?: string | undefined;
     notes?: {
         text: string;
         title: string;
     }[] | undefined;
-    address?: string | undefined;
     closures?: {
         date: string;
         note?: string | undefined;
@@ -1810,8 +1920,6 @@ declare const BusinessProfileSchema: z.ZodObject<{
     } | undefined;
     escalate_when?: string[] | undefined;
     tone?: string | undefined;
-    handoff_number?: string | undefined;
-    website?: string | undefined;
     booking_rules?: {
         lead_hours?: number | undefined;
         buffer_min?: number | undefined;
@@ -2007,11 +2115,13 @@ declare const BrainConfigSchema: z.ZodObject<{
             duration_min?: number | undefined;
             price_note?: string | undefined;
         }[] | undefined;
+        address?: string | undefined;
+        website?: string | undefined;
+        handoff_number?: string | undefined;
         notes?: {
             text: string;
             title: string;
         }[] | undefined;
-        address?: string | undefined;
         closures?: {
             date: string;
             note?: string | undefined;
@@ -2026,8 +2136,6 @@ declare const BrainConfigSchema: z.ZodObject<{
         } | undefined;
         escalate_when?: string[] | undefined;
         tone?: string | undefined;
-        handoff_number?: string | undefined;
-        website?: string | undefined;
         booking_rules?: {
             lead_hours?: number | undefined;
             buffer_min?: number | undefined;
@@ -2052,11 +2160,13 @@ declare const BrainConfigSchema: z.ZodObject<{
             duration_min?: number | undefined;
             price_note?: string | undefined;
         }[] | undefined;
+        address?: string | undefined;
+        website?: string | undefined;
+        handoff_number?: string | undefined;
         notes?: {
             text: string;
             title: string;
         }[] | undefined;
-        address?: string | undefined;
         closures?: {
             date: string;
             note?: string | undefined;
@@ -2071,8 +2181,6 @@ declare const BrainConfigSchema: z.ZodObject<{
         } | undefined;
         escalate_when?: string[] | undefined;
         tone?: string | undefined;
-        handoff_number?: string | undefined;
-        website?: string | undefined;
         booking_rules?: {
             lead_hours?: number | undefined;
             buffer_min?: number | undefined;
@@ -2124,11 +2232,13 @@ declare const BrainConfigSchema: z.ZodObject<{
             duration_min?: number | undefined;
             price_note?: string | undefined;
         }[] | undefined;
+        address?: string | undefined;
+        website?: string | undefined;
+        handoff_number?: string | undefined;
         notes?: {
             text: string;
             title: string;
         }[] | undefined;
-        address?: string | undefined;
         closures?: {
             date: string;
             note?: string | undefined;
@@ -2143,8 +2253,6 @@ declare const BrainConfigSchema: z.ZodObject<{
         } | undefined;
         escalate_when?: string[] | undefined;
         tone?: string | undefined;
-        handoff_number?: string | undefined;
-        website?: string | undefined;
         booking_rules?: {
             lead_hours?: number | undefined;
             buffer_min?: number | undefined;
@@ -2180,11 +2288,13 @@ declare const BrainConfigSchema: z.ZodObject<{
             duration_min?: number | undefined;
             price_note?: string | undefined;
         }[] | undefined;
+        address?: string | undefined;
+        website?: string | undefined;
+        handoff_number?: string | undefined;
         notes?: {
             text: string;
             title: string;
         }[] | undefined;
-        address?: string | undefined;
         closures?: {
             date: string;
             note?: string | undefined;
@@ -2199,8 +2309,6 @@ declare const BrainConfigSchema: z.ZodObject<{
         } | undefined;
         escalate_when?: string[] | undefined;
         tone?: string | undefined;
-        handoff_number?: string | undefined;
-        website?: string | undefined;
         booking_rules?: {
             lead_hours?: number | undefined;
             buffer_min?: number | undefined;
@@ -2473,11 +2581,13 @@ declare const TenantConfigSchema: z.ZodObject<{
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
             }[] | undefined;
+            address?: string | undefined;
+            website?: string | undefined;
+            handoff_number?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
             }[] | undefined;
-            address?: string | undefined;
             closures?: {
                 date: string;
                 note?: string | undefined;
@@ -2492,8 +2602,6 @@ declare const TenantConfigSchema: z.ZodObject<{
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
-            handoff_number?: string | undefined;
-            website?: string | undefined;
             booking_rules?: {
                 lead_hours?: number | undefined;
                 buffer_min?: number | undefined;
@@ -2518,11 +2626,13 @@ declare const TenantConfigSchema: z.ZodObject<{
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
             }[] | undefined;
+            address?: string | undefined;
+            website?: string | undefined;
+            handoff_number?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
             }[] | undefined;
-            address?: string | undefined;
             closures?: {
                 date: string;
                 note?: string | undefined;
@@ -2537,8 +2647,6 @@ declare const TenantConfigSchema: z.ZodObject<{
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
-            handoff_number?: string | undefined;
-            website?: string | undefined;
             booking_rules?: {
                 lead_hours?: number | undefined;
                 buffer_min?: number | undefined;
@@ -2590,11 +2698,13 @@ declare const TenantConfigSchema: z.ZodObject<{
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
             }[] | undefined;
+            address?: string | undefined;
+            website?: string | undefined;
+            handoff_number?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
             }[] | undefined;
-            address?: string | undefined;
             closures?: {
                 date: string;
                 note?: string | undefined;
@@ -2609,8 +2719,6 @@ declare const TenantConfigSchema: z.ZodObject<{
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
-            handoff_number?: string | undefined;
-            website?: string | undefined;
             booking_rules?: {
                 lead_hours?: number | undefined;
                 buffer_min?: number | undefined;
@@ -2646,11 +2754,13 @@ declare const TenantConfigSchema: z.ZodObject<{
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
             }[] | undefined;
+            address?: string | undefined;
+            website?: string | undefined;
+            handoff_number?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
             }[] | undefined;
-            address?: string | undefined;
             closures?: {
                 date: string;
                 note?: string | undefined;
@@ -2665,8 +2775,6 @@ declare const TenantConfigSchema: z.ZodObject<{
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
-            handoff_number?: string | undefined;
-            website?: string | undefined;
             booking_rules?: {
                 lead_hours?: number | undefined;
                 buffer_min?: number | undefined;
@@ -2728,11 +2836,13 @@ declare const TenantConfigSchema: z.ZodObject<{
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
             }[] | undefined;
+            address?: string | undefined;
+            website?: string | undefined;
+            handoff_number?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
             }[] | undefined;
-            address?: string | undefined;
             closures?: {
                 date: string;
                 note?: string | undefined;
@@ -2747,8 +2857,6 @@ declare const TenantConfigSchema: z.ZodObject<{
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
-            handoff_number?: string | undefined;
-            website?: string | undefined;
             booking_rules?: {
                 lead_hours?: number | undefined;
                 buffer_min?: number | undefined;
@@ -2796,11 +2904,13 @@ declare const TenantConfigSchema: z.ZodObject<{
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
             }[] | undefined;
+            address?: string | undefined;
+            website?: string | undefined;
+            handoff_number?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
             }[] | undefined;
-            address?: string | undefined;
             closures?: {
                 date: string;
                 note?: string | undefined;
@@ -2815,8 +2925,6 @@ declare const TenantConfigSchema: z.ZodObject<{
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
-            handoff_number?: string | undefined;
-            website?: string | undefined;
             booking_rules?: {
                 lead_hours?: number | undefined;
                 buffer_min?: number | undefined;
@@ -3034,11 +3142,13 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
             }[] | undefined;
+            address?: string | undefined;
+            website?: string | undefined;
+            handoff_number?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
             }[] | undefined;
-            address?: string | undefined;
             closures?: {
                 date: string;
                 note?: string | undefined;
@@ -3053,8 +3163,6 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
-            handoff_number?: string | undefined;
-            website?: string | undefined;
             booking_rules?: {
                 lead_hours?: number | undefined;
                 buffer_min?: number | undefined;
@@ -3079,11 +3187,13 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
             }[] | undefined;
+            address?: string | undefined;
+            website?: string | undefined;
+            handoff_number?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
             }[] | undefined;
-            address?: string | undefined;
             closures?: {
                 date: string;
                 note?: string | undefined;
@@ -3098,8 +3208,6 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
-            handoff_number?: string | undefined;
-            website?: string | undefined;
             booking_rules?: {
                 lead_hours?: number | undefined;
                 buffer_min?: number | undefined;
@@ -3151,11 +3259,13 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
             }[] | undefined;
+            address?: string | undefined;
+            website?: string | undefined;
+            handoff_number?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
             }[] | undefined;
-            address?: string | undefined;
             closures?: {
                 date: string;
                 note?: string | undefined;
@@ -3170,8 +3280,6 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
-            handoff_number?: string | undefined;
-            website?: string | undefined;
             booking_rules?: {
                 lead_hours?: number | undefined;
                 buffer_min?: number | undefined;
@@ -3207,11 +3315,13 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
             }[] | undefined;
+            address?: string | undefined;
+            website?: string | undefined;
+            handoff_number?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
             }[] | undefined;
-            address?: string | undefined;
             closures?: {
                 date: string;
                 note?: string | undefined;
@@ -3226,8 +3336,6 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
-            handoff_number?: string | undefined;
-            website?: string | undefined;
             booking_rules?: {
                 lead_hours?: number | undefined;
                 buffer_min?: number | undefined;
@@ -3289,11 +3397,13 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
             }[] | undefined;
+            address?: string | undefined;
+            website?: string | undefined;
+            handoff_number?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
             }[] | undefined;
-            address?: string | undefined;
             closures?: {
                 date: string;
                 note?: string | undefined;
@@ -3308,8 +3418,6 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
-            handoff_number?: string | undefined;
-            website?: string | undefined;
             booking_rules?: {
                 lead_hours?: number | undefined;
                 buffer_min?: number | undefined;
@@ -3357,11 +3465,13 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
             }[] | undefined;
+            address?: string | undefined;
+            website?: string | undefined;
+            handoff_number?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
             }[] | undefined;
-            address?: string | undefined;
             closures?: {
                 date: string;
                 note?: string | undefined;
@@ -3376,8 +3486,6 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
-            handoff_number?: string | undefined;
-            website?: string | undefined;
             booking_rules?: {
                 lead_hours?: number | undefined;
                 buffer_min?: number | undefined;
@@ -3425,11 +3533,13 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
             }[] | undefined;
+            address?: string | undefined;
+            website?: string | undefined;
+            handoff_number?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
             }[] | undefined;
-            address?: string | undefined;
             closures?: {
                 date: string;
                 note?: string | undefined;
@@ -3444,8 +3554,6 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
-            handoff_number?: string | undefined;
-            website?: string | undefined;
             booking_rules?: {
                 lead_hours?: number | undefined;
                 buffer_min?: number | undefined;
@@ -3493,11 +3601,13 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 duration_min?: number | undefined;
                 price_note?: string | undefined;
             }[] | undefined;
+            address?: string | undefined;
+            website?: string | undefined;
+            handoff_number?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
             }[] | undefined;
-            address?: string | undefined;
             closures?: {
                 date: string;
                 note?: string | undefined;
@@ -3512,8 +3622,6 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
             } | undefined;
             escalate_when?: string[] | undefined;
             tone?: string | undefined;
-            handoff_number?: string | undefined;
-            website?: string | undefined;
             booking_rules?: {
                 lead_hours?: number | undefined;
                 buffer_min?: number | undefined;
@@ -3630,7 +3738,19 @@ now?: Date,
 /** The workspace's Autonomy rows, so Booking and FAQ under "ask" reach a hand-written prompt too. */
 policy?: Record<string, {
     mode: string;
-}> | null): string;
+}> | null, 
+/**
+ * What the platform knows independently of what was typed: the channel rows
+ * it provisioned, the Google listing it verified.
+ *
+ * The prompt is the one place these facts are SPOKEN, so it is the one place
+ * they have to be resolved rather than read raw. Typed still wins — see
+ * facts.ts for why silently overriding a live receptionist's words would be
+ * the worse bug — but a workspace that never typed a number now says the line
+ * it actually answers instead of nothing, and the disagreement is nameable
+ * everywhere else because it is computed here.
+ */
+known?: KnownFacts | null): string;
 
 declare function frameWhisper(text: string): string;
 /**
@@ -7196,4 +7316,4 @@ declare function signupNext(email: string): string;
 /** The device's zone when the runtime knows one; otherwise nothing, and the database defaults it. */
 declare function deviceTimezone(resolve?: () => string | undefined): string | undefined;
 
-export { ACTOR_TYPES, ALERT_KINDS, ANALYSIS_GRACE_MS, ASK_CAPS, ASK_CITATION_KINDS, ASK_FINISH_JSON_SCHEMA, ASK_LANGUAGES, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_PAGES, ASK_PAGE_ROUTES, ASK_RETENTION_DAYS, ASK_TOKENS_DAY, ASK_TURN_BUDGET_MS, AUDIENCE_KINDS, type ActorType, AppError, type AskCitation, type AskCitationKind, type AskFinish, AskFinishSchema, type AskLanguage, type AskMessageVM, type AskProposal, type AskProposalOutcome, AskProposalOutcomeSchema, type AskReadSet, type AskRole, type AskScope, type AskSettingsChange, AskSettingsChangeSchema, type AskSuggestion, type AskSurface, type AskThreadVM, type AttentionRowVM, type Audience, type AudienceKind, BILLING_MODES, BILLING_STATUSES, BILLING_TRIAL_DAYS, BOOKING_DEFAULTS, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, BROADCAST_CHUNK, BROADCAST_GAP_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_STATES, BROADCAST_STATE_LABELS, BUSINESS_FIELDS, BUSINESS_GROUP_WORDS, BUSINESS_INDUSTRIES, BUSINESS_TYPES, type BillingAccountDto, type BillingBell, type BillingDto, type BillingInvoiceDto, type BillingMode, type BillingPlan, type BillingPriceDto, type BillingStatus, type BillingVM, type BookingReportDto, type BookingReportVM, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastRecipientDto, type BroadcastState, type BroadcastVM, type BusinessFieldVM, type BusinessIndustry, type BusinessProfile, BusinessProfileSchema, type BusinessRecordDto, type BusinessType, type BusyBlock, CALL_HEARTBEAT_MS, CALL_OUTCOMES, CALL_OUTCOME_WORDS, CAMPAIGN_REPORT_RANGES, CARRIERS, CARRIER_WORDS, CHANNEL_KINDS, CHECKOUT_OUTCOME_WORDS, COMPANY_TYPES, CONFIDENCE_STEPS, CONNECTION_GROUP_WORDS, CONNECTION_KINDS, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, CONVERSATION_STATES, type CalendarBandVM, type CalendarBlockVM, type CalendarClosureVM, type CalendarConfig, CalendarConfigSchema, type CalendarDayDto, type CalendarDayVM, type CalendarFeedDto, type CalendarItemDto, type CalendarLike, type CalendarPerson, type CalendarServiceDto, type CalendarServiceVM, type CalendarVM, type CalendarView, type CalendarWeekDto, type CalendarWindowVM, type CallDto, type CallOutcome, type CallVM, type CampaignDayDto, type CampaignPointVM, type CampaignReportDto, type CampaignReportVM, type CampaignSourceDto, type CampaignSourceVM, type CampaignTotals, type Carrier, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelVM, type Closure, ClosureSchema, type CompanyType, type ConnectionGroup, type ConnectionInputs, type ConnectionKind, type ConnectionRow, type ConnectionState, type ConnectionTone, type ConnectionVerb, type ConnectionWho, type ConsentBearing, type ConsentPageFacts, type ConsentPageVM, type ConsentState, type ConsentWay, type ConsentWayKind, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DEFAULT_BUSINESS_TYPE, DEFAULT_COMPANY_TYPE, DEFAULT_INDUSTRY, DEFAULT_TIMEZONE, DISCONNECTION_LABELS, DISPLAY_NAME_MAX, type DayFrameLike, type DecisionSubject, type DecisionVerb, E164, EMPTY_READ_STATE, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, EVERYONE_LABEL, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventContacts, type EventKind, FORWARDING_MODES, FORWARDING_TEST_WINDOW_MS, type FastCall, type FastContext, type FastPath, type FeaturesConfig, FeaturesConfigSchema, type FeedAttendee, type FeedCall, type FeedIndex, type FeedInput, type FeedInvite, type FeedItem, type FeedThread, type ForwardingCode, type ForwardingCodes, type ForwardingFacts, type ForwardingMode, type FreeWindowsInput, GOOGLE_SHOWN_REVIEWS, type GoogleAudience, type GoogleCandidateDto, type GoogleConnectionDto, type GoogleDayDto, type GoogleDto, type GoogleGainedPointVM, type GoogleListingDto, type GoogleLocationDto, type GoogleReviewDto, type GoogleReviewVM, type GoogleVM, GuardrailsSchema, HELD_REASONS, type Hours, type HoursRun, HoursSchema, INTENT_LABELS, type IdentityInput, type IdentityWords, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, type JourneyListLike, type JumpEntry, LIMIT_TIERS, LINE_STEP_WORDS, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LineDto, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, MODE_WORDS, type MediaVM, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type Note, NoteSchema, type NotificationDto, type NotificationItem, type NotificationKind, type NotificationReadState, type NotificationRow, type NotificationsConfig, NotificationsConfigSchema, type NotificationsDto, type NumberHealth, type NumberHealthInput, OFFERS_OPT_IN_PHRASES, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, type Opening, PARAM_SOURCES, PARAM_SOURCE_LABELS, PEOPLE_LISTS, PEOPLE_LIST_GROUPS, PEOPLE_TABS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_STATE_LABELS, PLAYBOOK_BREATH_MS, PLAYBOOK_CLASS_LABEL, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_NAME_MAX, PLAYBOOK_STATES, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, POLICY_CLASSES, POLICY_CLASS_MODES, POLICY_CLASS_WORDS, POLICY_MODES, PROPOSAL_GATE, type ParamFacts, type ParamSourceKind, type ParamSpec, type ParseOptions, type ParsedFeed, type PeopleAggregates, type PeopleListAction, type PeopleListGroup, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonLike, type PersonMatch, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PersonVisitsDto, type PlaybookCardLike, type PlaybookDto, type PlaybookPolicyClass, type PlaybookState, type PlaybookTrigger, type PlaybookTriggerKind, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, QUIET_AFTER_MS, RECENT_MAX, RECIPIENT_STATES, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPORT_RANGES, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS, REVIEW_NEWS_MAX_AGE_MS, REVIEW_NEWS_MS, REVIEW_REPLY_MAX_CHARS, REVIEW_REPLY_MAX_WORDS, ROLES, ROLE_PERMS, ROLE_WORDS, type ReceptionistTone, type RecipientState, type ReplyWhyVM, type ReportBarVM, type ReportDayDto, type ReportDto, type ReportPointVM, type ReportTileVM, type ReportVM, type ReportsLike, type ReviewOnRecord, type ReviewReplyFacts, type ReviewReplyMode, type ReviewToAnswer, type Role, type RunPlan, SERVER_KEY_PREFIX, SERVER_NOTIFICATION_KINDS, SETUP_STATE_WORDS, SHORTCUTS, SIGNUP_NAME_MAX, SIGNUP_NAME_MIN, SIGNUP_WORDS, STARTER_LANGUAGES, STARTER_TEMPLATES, type ServerNotificationKind, type Service, ServiceSchema, type SetupBillingFacts, type SetupDto, type SetupGoogleFacts, type SetupInputs, type SetupRowVM, type SetupState, type SetupVM, type SetupVerb, type ShellStatus, type Shortcut, type SidebarPref, type SignupInput, SignupSchema, type SpanUnits, type Standing, type StandingInput, type StandingVerdict, type StarterSlot, type StarterSlotKind, type StarterTemplate, type StarterText, type SubscriptionFacts, type SuggestionInput, TEMPLATE_BODY_MAX, TEMPLATE_CATEGORIES, TEMPLATE_EXAMPLE_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_LANGUAGES, TEMPLATE_NAME_MAX, TEMPLATE_STATUSES, TEMPLATE_TITLE_MAX, TENANT_STATUSES, THEME_OPTIONS, TODAY_QUEUE_MAX, type TemplateCategoryChoice, type TemplateDraft, type TemplateDraftCheck, type TemplateDraftInput, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type Theme, type ThemePref, type TimelineKind, type TodayCallRowVM, type TodayDayFrameVM, type TodayDayItemVM, type TodayDayVM, type TodayFactVM, type TodayJourneyVM, type TodayNeedsRowVM, type TodayQueueRowVM, type TodaySentenceVM, type TodayVM, type TodayWeekVM, type Touches, type Visit, type VisitDto, type Visits, WA_WINDOW_MS, type WaWindow, type WeekTileLike, afterPersonRefused, ago, agoLabel, agoShort, agoWords, allVisitsIn, applyReadState, applySettingsChange, asPersonMode, askJump, attentionRow, autoReplyBell, autoReplyCandidates, billingAccountDto, bookedAfterAsk, brainMetaOf, broadcastName, buildAskSuggestions, buildNotificationFeed, businessRecordLine, businessRecordProblems, businessTypeOf, callOutcomeOf, callOutcomeWords, checkedWords, citationRoute, citationsToShow, cleanAnswer, cleanDisplayName, cleanDraft, cleanParam, cleanTimezone, clockInZone, clockLabel, closedOn, companyTypeOf, compareTemplates, composeSystemPrompt, connectionRows, connectionWords, consentPageVM, consentSourceLabel, contactMeta, contactName, coversSpan, dailyLimit, dayDate, dayFromQuestion, dayInZone, dayIntervals, dayWords, dedupeFeed, defaultParamSpecs, defaultSlotKinds, defaultTemplate, deltaOf, describeNow, describeOpenings, describeSettingsChange, describeVisits, detectLanguage, deviceTimezone, draftSendsAtMs, durationLabel, eligibleFor, eligibleForPlaybook, emptyBusinessRecord, emptyReadSet, err, eventText, exampleParams, extractContacts, fastPath, feedSourceLabel, filterOpenings, firstNameOf, fmtClock, fmtDay, fmtSeconds, followupsToShow, formatPhoneDisplay, formatWaited, forwardingCodes, forwardingMatch, forwardingTestOpen, frameOf, frameSteer, frameWhisper, freeWindows, gainedOver, googleAudienceWords, groundCitations, guessName, guessSlotKind, hasProfile, hoursLines, hoursRuns, identityWords, indexFeed, industryOf, industryWords, initialsOf, isCarrier, isDayKey, isForwardingMode, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, isSidebarPref, isThemePref, isTimezone, isTypingTarget, isUngrounded, knownTimezones, listingLine, localDate, localHour, localToUtcMs, matchPerson, mayReceiveOffers, mediaKind, mediaVM, memberWords, messageAt, messageStatusLabel, messageText, mondayOf, moneyWords, monthLabelOf, monthSpan, navigateLabel, newReceptionistDefaults, nextRunLabel, normalizeNavigate, normalizePhone, numberHealth, ok, optInLink, overLimitRefusal, paramLabel, parseAskFinish, parseBrainOutput, parseIcs, parseParamSpec, parseTenantConfig, parseTenantConfigResult, partialAnswer, pausedVoiceFacts, peopleAggregates, peopleFromItems, peopleListAction, personInText, personInitials, personName, personStanding, personStateFor, placeholdersOf, placeholdersSequential, planBilling, planRun, pointsDelta, policyAskClass, policyClassOfIntent, policyRules, priceWords, quantile, ratingWords, reachedCustomer, readAgoLabel, reasonShort, recencyCells, receptionistOn, recoverCitations, renderTemplate, replyDelayMs, replyWhy, resolveParams, resolveSystemPrompt, resolveTheme, reviewIsNew, reviewReplyModeOf, reviewReplyPrompt, reviewReplyWords, reviewSnippet, reviewsWords, rulesLine, runDueNow, safeNavigate, sameQuestion, scheduleLine, scopeFromRoute, serverNotificationRows, setupRoute, setupSteps, shellStatusLine, shiftKey, shiftMonth, shortCode, shortTime, shortcutGroups, shouldLandOnSetup, signupNext, slotLabels, slugTemplateName, smsStateRow, spanForView, spanLabel, spanUnits, standingOf, starsOf, starterByKey, starterByName, starterDraft, starterForTrigger, starterIndex, starterPreview, starterText, telHref, templateComponents, templateNameOk, templateTitle, tenantStatusFor, threadStanding, tidyCallSummary, timezoneCity, timezoneWords, toBillingVM, toBookingReportVM, toBroadcastVM, toCalendarVM, toCallVM, toCampaignReportVM, toChannelVM, toConversationVM, toGoogleReviewVM, toGoogleVM, toInboxThreadVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, toVisitDto, todayAway, todayDay, todayDayFacts, todayJourney, todayWeek, trialOffer, trialWords, triggerOf, tzClock, usableDeviceTimezone, validateTemplateDraft, verbForRoute, violatesNoPrices, visitDateKey, visitDay, visitFactsFor, visitLine, visitStartTime, visitTime, visitsIn, visitsOf, waWindow, waitedLabel, whenLabel, whisperText, whyNotAPhone, windowFor, workspaceHotkey, zoneMidnight, zoneOffsetMs };
+export { ACTOR_TYPES, ALERT_KINDS, ANALYSIS_GRACE_MS, ASK_CAPS, ASK_CITATION_KINDS, ASK_FINISH_JSON_SCHEMA, ASK_LANGUAGES, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_PAGES, ASK_PAGE_ROUTES, ASK_RETENTION_DAYS, ASK_TOKENS_DAY, ASK_TURN_BUDGET_MS, AUDIENCE_KINDS, type ActorType, AppError, type AskCitation, type AskCitationKind, type AskFinish, AskFinishSchema, type AskLanguage, type AskMessageVM, type AskProposal, type AskProposalOutcome, AskProposalOutcomeSchema, type AskReadSet, type AskRole, type AskScope, type AskSettingsChange, AskSettingsChangeSchema, type AskSuggestion, type AskSurface, type AskThreadVM, type AttentionRowVM, type Audience, type AudienceKind, BILLING_MODES, BILLING_STATUSES, BILLING_TRIAL_DAYS, BOOKING_DEFAULTS, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, BROADCAST_CHUNK, BROADCAST_GAP_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_STATES, BROADCAST_STATE_LABELS, BUSINESS_FIELDS, BUSINESS_GROUP_WORDS, BUSINESS_INDUSTRIES, BUSINESS_TYPES, type BillingAccountDto, type BillingBell, type BillingDto, type BillingInvoiceDto, type BillingMode, type BillingPlan, type BillingPriceDto, type BillingStatus, type BillingVM, type BookingReportDto, type BookingReportVM, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastRecipientDto, type BroadcastState, type BroadcastVM, type BusinessFieldVM, type BusinessIndustry, type BusinessProfile, BusinessProfileSchema, type BusinessRecordDto, type BusinessType, type BusyBlock, CALL_HEARTBEAT_MS, CALL_OUTCOMES, CALL_OUTCOME_WORDS, CAMPAIGN_REPORT_RANGES, CARRIERS, CARRIER_WORDS, CHANNEL_KINDS, CHECKOUT_OUTCOME_WORDS, COMPANY_TYPES, CONFIDENCE_STEPS, CONNECTION_GROUP_WORDS, CONNECTION_KINDS, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, CONVERSATION_STATES, type CalendarBandVM, type CalendarBlockVM, type CalendarClosureVM, type CalendarConfig, CalendarConfigSchema, type CalendarDayDto, type CalendarDayVM, type CalendarFeedDto, type CalendarItemDto, type CalendarLike, type CalendarPerson, type CalendarServiceDto, type CalendarServiceVM, type CalendarVM, type CalendarView, type CalendarWeekDto, type CalendarWindowVM, type CallDto, type CallOutcome, type CallVM, type CampaignDayDto, type CampaignPointVM, type CampaignReportDto, type CampaignReportVM, type CampaignSourceDto, type CampaignSourceVM, type CampaignTotals, type Carrier, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelVM, type Closure, ClosureSchema, type CompanyType, type ConflictSeverity, type ConnectionGroup, type ConnectionInputs, type ConnectionKind, type ConnectionRow, type ConnectionState, type ConnectionTone, type ConnectionVerb, type ConnectionWho, type ConsentBearing, type ConsentPageFacts, type ConsentPageVM, type ConsentState, type ConsentWay, type ConsentWayKind, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DEFAULT_BUSINESS_TYPE, DEFAULT_COMPANY_TYPE, DEFAULT_INDUSTRY, DEFAULT_TIMEZONE, DISCONNECTION_LABELS, DISPLAY_NAME_MAX, type DayFrameLike, type DecisionSubject, type DecisionVerb, E164, EMPTY_READ_STATE, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, EVERYONE_LABEL, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventContacts, type EventKind, FORWARDING_MODES, FORWARDING_TEST_WINDOW_MS, type Fact, type FactConflict, type FactSource, type FastCall, type FastContext, type FastPath, type FeaturesConfig, FeaturesConfigSchema, type FeedAttendee, type FeedCall, type FeedIndex, type FeedInput, type FeedInvite, type FeedItem, type FeedThread, type ForwardingCode, type ForwardingCodes, type ForwardingFacts, type ForwardingMode, type FreeWindowsInput, GOOGLE_SHOWN_REVIEWS, type GoogleAudience, type GoogleCandidateDto, type GoogleConnectionDto, type GoogleDayDto, type GoogleDto, type GoogleGainedPointVM, type GoogleListingDto, type GoogleLocationDto, type GoogleReviewDto, type GoogleReviewVM, type GoogleVM, GuardrailsSchema, HELD_REASONS, type Hours, type HoursRun, HoursSchema, INTENT_LABELS, type IdentityInput, type IdentityWords, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, type JourneyListLike, type JumpEntry, type KnownFacts, LIMIT_TIERS, LINE_STEP_WORDS, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LineDto, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, MODE_WORDS, type MediaVM, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type Note, NoteSchema, type NotificationDto, type NotificationItem, type NotificationKind, type NotificationReadState, type NotificationRow, type NotificationsConfig, NotificationsConfigSchema, type NotificationsDto, type NumberHealth, type NumberHealthInput, OFFERS_OPT_IN_PHRASES, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, type Opening, PARAM_SOURCES, PARAM_SOURCE_LABELS, PEOPLE_LISTS, PEOPLE_LIST_GROUPS, PEOPLE_TABS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_STATE_LABELS, PLAYBOOK_BREATH_MS, PLAYBOOK_CLASS_LABEL, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_NAME_MAX, PLAYBOOK_STATES, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, POLICY_CLASSES, POLICY_CLASS_MODES, POLICY_CLASS_WORDS, POLICY_MODES, PROPOSAL_GATE, type ParamFacts, type ParamSourceKind, type ParamSpec, type ParseOptions, type ParsedFeed, type PeopleAggregates, type PeopleListAction, type PeopleListGroup, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonLike, type PersonMatch, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PersonVisitsDto, type PlaybookCardLike, type PlaybookDto, type PlaybookPolicyClass, type PlaybookState, type PlaybookTrigger, type PlaybookTriggerKind, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, QUIET_AFTER_MS, RECENT_MAX, RECIPIENT_STATES, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPORT_RANGES, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS, REVIEW_NEWS_MAX_AGE_MS, REVIEW_NEWS_MS, REVIEW_REPLY_MAX_CHARS, REVIEW_REPLY_MAX_WORDS, ROLES, ROLE_PERMS, ROLE_WORDS, type ReceptionistTone, type RecipientState, type ReplyWhyVM, type ReportBarVM, type ReportDayDto, type ReportDto, type ReportPointVM, type ReportTileVM, type ReportVM, type ReportsLike, type ResolvedFacts, type ReviewOnRecord, type ReviewReplyFacts, type ReviewReplyMode, type ReviewToAnswer, type Role, type RunPlan, SERVER_KEY_PREFIX, SERVER_NOTIFICATION_KINDS, SETUP_STATE_WORDS, SHORTCUTS, SIGNUP_NAME_MAX, SIGNUP_NAME_MIN, SIGNUP_WORDS, SOURCE_WORDS, STARTER_LANGUAGES, STARTER_TEMPLATES, type ServerNotificationKind, type Service, ServiceSchema, type SetupBillingFacts, type SetupDto, type SetupGoogleFacts, type SetupInputs, type SetupRowVM, type SetupState, type SetupVM, type SetupVerb, type ShellStatus, type Shortcut, type SidebarPref, type SignupInput, SignupSchema, type SpanUnits, type Standing, type StandingInput, type StandingVerdict, type StarterSlot, type StarterSlotKind, type StarterTemplate, type StarterText, type SubscriptionFacts, type SuggestionInput, TEMPLATE_BODY_MAX, TEMPLATE_CATEGORIES, TEMPLATE_EXAMPLE_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_LANGUAGES, TEMPLATE_NAME_MAX, TEMPLATE_STATUSES, TEMPLATE_TITLE_MAX, TENANT_STATUSES, THEME_OPTIONS, TODAY_QUEUE_MAX, type TemplateCategoryChoice, type TemplateDraft, type TemplateDraftCheck, type TemplateDraftInput, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type Theme, type ThemePref, type TimelineKind, type TodayCallRowVM, type TodayDayFrameVM, type TodayDayItemVM, type TodayDayVM, type TodayFactVM, type TodayJourneyVM, type TodayNeedsRowVM, type TodayQueueRowVM, type TodaySentenceVM, type TodayVM, type TodayWeekVM, type Touches, type TypedFacts, type Visit, type VisitDto, type Visits, WA_WINDOW_MS, type WaWindow, type WeekTileLike, afterPersonRefused, ago, agoLabel, agoShort, agoWords, allVisitsIn, applyReadState, applySettingsChange, asPersonMode, askJump, attentionRow, autoReplyBell, autoReplyCandidates, billingAccountDto, bookedAfterAsk, brainMetaOf, broadcastName, buildAskSuggestions, buildNotificationFeed, businessRecordLine, businessRecordProblems, businessTypeOf, callOutcomeOf, callOutcomeWords, checkedWords, citationRoute, citationsToShow, cleanAnswer, cleanDisplayName, cleanDraft, cleanParam, cleanTimezone, clockInZone, clockLabel, closedOn, companyTypeOf, compareTemplates, composeSystemPrompt, connectionRows, connectionWords, consentPageVM, consentSourceLabel, contactMeta, contactName, coversSpan, dailyLimit, dayDate, dayFromQuestion, dayInZone, dayIntervals, dayWords, dedupeFeed, defaultParamSpecs, defaultSlotKinds, defaultTemplate, deltaOf, describeNow, describeOpenings, describeSettingsChange, describeVisits, detectLanguage, deviceTimezone, draftSendsAtMs, durationLabel, eligibleFor, eligibleForPlaybook, emptyBusinessRecord, emptyReadSet, err, eventText, exampleParams, extractContacts, factConflicts, fastPath, feedSourceLabel, filterOpenings, firstNameOf, fmtClock, fmtDay, fmtSeconds, followupsToShow, formatPhoneDisplay, formatWaited, forwardingCodes, forwardingMatch, forwardingTestOpen, frameOf, frameSteer, frameWhisper, freeWindows, gainedOver, googleAudienceWords, groundCitations, guessName, guessSlotKind, hasProfile, hoursLines, hoursRuns, identityWords, indexFeed, industryOf, industryWords, initialsOf, isCarrier, isDayKey, isForwardingMode, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, isSidebarPref, isThemePref, isTimezone, isTypingTarget, isUngrounded, knownTimezones, listingLine, localDate, localHour, localToUtcMs, matchPerson, mayReceiveOffers, mediaKind, mediaVM, memberWords, messageAt, messageStatusLabel, messageText, mondayOf, moneyWords, monthLabelOf, monthSpan, navigateLabel, newReceptionistDefaults, nextRunLabel, normalizeNavigate, normalizePhone, numberHealth, ok, optInLink, overLimitRefusal, paramLabel, parseAskFinish, parseBrainOutput, parseIcs, parseParamSpec, parseTenantConfig, parseTenantConfigResult, partialAnswer, pausedVoiceFacts, peopleAggregates, peopleFromItems, peopleListAction, personInText, personInitials, personName, personStanding, personStateFor, placeholdersOf, placeholdersSequential, planBilling, planRun, pointsDelta, policyAskClass, policyClassOfIntent, policyRules, priceWords, quantile, ratingWords, reachedCustomer, readAgoLabel, reasonShort, recencyCells, receptionistOn, recoverCitations, renderTemplate, replyDelayMs, replyWhy, resolveFacts, resolveParams, resolveSystemPrompt, resolveTheme, reviewIsNew, reviewReplyModeOf, reviewReplyPrompt, reviewReplyWords, reviewSnippet, reviewsWords, rulesLine, runDueNow, safeNavigate, sameAddress, sameName, samePhone, sameQuestion, scheduleLine, scopeFromRoute, serverNotificationRows, setupRoute, setupSteps, shellStatusLine, shiftKey, shiftMonth, shortCode, shortTime, shortcutGroups, shouldLandOnSetup, signupNext, slotLabels, slugTemplateName, smsStateRow, spanForView, spanLabel, spanUnits, standingOf, starsOf, starterByKey, starterByName, starterDraft, starterForTrigger, starterIndex, starterPreview, starterText, telHref, templateComponents, templateNameOk, templateTitle, tenantStatusFor, threadStanding, tidyCallSummary, timezoneCity, timezoneWords, toBillingVM, toBookingReportVM, toBroadcastVM, toCalendarVM, toCallVM, toCampaignReportVM, toChannelVM, toConversationVM, toGoogleReviewVM, toGoogleVM, toInboxThreadVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, toVisitDto, todayAway, todayDay, todayDayFacts, todayJourney, todayWeek, trialOffer, trialWords, triggerOf, tzClock, usableDeviceTimezone, validateTemplateDraft, verbForRoute, violatesNoPrices, visitDateKey, visitDay, visitFactsFor, visitLine, visitStartTime, visitTime, visitsIn, visitsOf, waWindow, waitedLabel, whenLabel, whisperText, whyNotAPhone, windowFor, workspaceHotkey, zoneMidnight, zoneOffsetMs };
