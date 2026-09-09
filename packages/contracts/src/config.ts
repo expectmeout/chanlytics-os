@@ -4,6 +4,7 @@
  * the same schemas, so an option that exists in the UI exists in the runtime
  * by construction (anti-junk rule R1).
  */
+import { resolveFacts, type KnownFacts } from "./facts";
 import { z } from "zod";
 import { MEMBERSHIP_ROLES } from "./enums";
 
@@ -1161,12 +1162,30 @@ export function resolveSystemPrompt(
   now: Date = new Date(),
   /** The workspace's Autonomy rows, so Booking and FAQ under "ask" reach a hand-written prompt too. */
   policy?: Record<string, { mode: string }> | null,
+  /**
+   * What the platform knows independently of what was typed: the channel rows
+   * it provisioned, the Google listing it verified.
+   *
+   * The prompt is the one place these facts are SPOKEN, so it is the one place
+   * they have to be resolved rather than read raw. Typed still wins — see
+   * facts.ts for why silently overriding a live receptionist's words would be
+   * the worse bug — but a workspace that never typed a number now says the line
+   * it actually answers instead of nothing, and the disagreement is nameable
+   * everywhere else because it is computed here.
+   */
+  known?: KnownFacts | null,
 ): string {
   if (!hasProfile(brain.profile)) {
     const rules = policyRules(policy, channel);
     return rules.length ? `${brain.system_prompt}\n\nRules you must follow:\n${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
   }
   const profile = brain.profile as BusinessProfile;
+  const facts = resolveFacts(brain, known);
+  const resolved = {
+    business_name: facts.business_name.value ?? brain.business_name,
+    phone_display: facts.phone_display.value ?? brain.phone_display,
+    booking_link: facts.booking_link.value ?? brain.booking_link,
+  };
   // NOTHING a workspace already had may be lost by filling in a form.
   //
   // Filling in only the opening hours switched a live receptionist from a
@@ -1181,5 +1200,5 @@ export function resolveSystemPrompt(
   const carried = profile.extra_instructions?.trim()
     ? profile
     : { ...profile, extra_instructions: brain.system_prompt };
-  return composeSystemPrompt(brain, carried, channel, tz, now, policy);
+  return composeSystemPrompt(resolved, carried, channel, tz, now, policy);
 }

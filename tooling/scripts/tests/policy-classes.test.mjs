@@ -59,10 +59,10 @@ test("the prompt carries the rows on both channels — a composed profile and a 
 test("the wiring: the edge passes the rows to both prompts and checks after generation; the API refuses what a class cannot honour; the pane says so", () => {
   const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
   const steps = readCode("apps/edge/lib/whatsapp/steps.ts");
-  assert.ok(wa.includes('resolveSystemPrompt(brainCfg, "whatsapp", rt?.timezone, new Date(), rt?.policy)'));
+  assert.ok(wa.includes('resolveSystemPrompt(brainCfg, "whatsapp", rt?.timezone, new Date(), rt?.policy, rt?.known)'));
   assert.ok(steps.includes("const askClass = policyAskClass(x.policy, x.intent);") && steps.includes('escalationReason = "policy_ask";') && wa.includes("const two = layerTwo({"), "after generation, not only in the prompt");
   assert.ok(steps.includes("const carriesLink = !!x.brainCfg.booking_link && replyText.includes(x.brainCfg.booking_link);"), "a link the model sent anyway is taken back");
-  assert.ok(readCode("apps/edge/api/retell-inbound.ts").includes('resolveSystemPrompt(rt.brain, "voice", rt.timezone, new Date(), rt.policy)'), "the phone hears the same rules");
+  assert.ok(readCode("apps/edge/api/retell-inbound.ts").includes('resolveSystemPrompt(rt.brain, "voice", rt.timezone, new Date(), rt.policy, rt.known)'), "the phone hears the same rules");
   assert.ok(readCode("apps/edge/api/admin/eval.ts").includes("rt.policy") && readCode("apps/edge/api/admin/steer.ts").includes("rt.policy"), "the eval and the steer compose the same prompt");
   const route = readCode("apps/dashboard/app/api/v1/policies/route.ts");
   assert.ok(route.includes("if (!POLICY_CLASS_MODES[cls as PolicyClass].includes(mode as PolicyMode))"));

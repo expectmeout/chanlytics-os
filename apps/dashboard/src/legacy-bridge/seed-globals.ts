@@ -8,7 +8,7 @@
  */
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-import { ROLE_PERMS } from "@chanlytics/contracts";
+import { ROLE_PERMS, SOURCE_WORDS, samePhone } from "@chanlytics/contracts";
 
 declare global {
   interface Window {
@@ -16,6 +16,8 @@ declare global {
     ReactDOM: typeof ReactDOM;
     __DEMO_MODE: boolean;
     ROLE_PERMS: typeof ROLE_PERMS;
+    __FACT_WORDS: typeof SOURCE_WORDS;
+    __samePhone: typeof samePhone;
   }
 }
 
@@ -30,6 +32,16 @@ if (typeof window !== "undefined") {
   // maintained in two places is one edit away from the client offering a
   // control the server will refuse — or, worse, hiding one it would allow.
   window.ROLE_PERMS = ROLE_PERMS;
+  // How a fact's source is said beside its value. Published here for the same
+  // reason ROLE_PERMS is: the words belong to the contracts package, and a
+  // second copy in a page is one edit away from the surface claiming a
+  // provenance the resolver never gave it.
+  window.__FACT_WORDS = SOURCE_WORDS;
+  // "(646) 932-5775" and "+16469325775" are one number. The editor compares the
+  // typed value against the provisioned line as you type, and a page that
+  // rolled its own comparison would accuse a workspace of a conflict for
+  // writing its own number in a friendly format.
+  window.__samePhone = samePhone;
 }
 
 export {};

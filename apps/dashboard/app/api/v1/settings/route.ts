@@ -1,5 +1,5 @@
 import { withRoute, memberContext, requireRole } from "@/server/with-route";
-import { AppError, parseTenantConfig, parseTenantConfigResult, TenantConfigWriteSchema } from "@chanlytics/contracts";
+import { AppError, parseTenantConfig, parseTenantConfigResult, TenantConfigWriteSchema, resolveFacts, factConflicts, type KnownFacts } from "@chanlytics/contracts";
 import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
 import type { Json } from "@chanlytics/db";
 import { takeRate } from "@/server/rate-limit";
@@ -10,6 +10,30 @@ function maskFeedUrl(u: string): string {
 
 /** GET /api/v1/settings — the tenant's config, with the version the client
  *  must echo back on write. Members read; RLS scopes. */
+/**
+ * What the platform knows about this workspace, independent of what was typed.
+ *
+ * Resolved HERE rather than on the client: the server can read the channel rows
+ * and the Google listing under RLS in one round trip, while the browser only
+ * ever had a listing DTO with no address on it. One place that knows, so there
+ * is one answer — which is the whole point of facts.ts.
+ */
+async function knownFacts(ctx: Parameters<Parameters<typeof withRoute>[0]>[1], tenantId: string): Promise<KnownFacts> {
+  const [ws, ch, gl] = await Promise.all([
+    ctx.supabase.from("tenants").select("name, timezone").eq("id", tenantId).maybeSingle(),
+    ctx.supabase.from("tenant_channels").select("kind, number_e164, status").eq("tenant_id", tenantId),
+    ctx.supabase.from("google_listings").select("name, address").eq("tenant_id", tenantId).maybeSingle(),
+  ]);
+  // None of these is worth failing the settings read for. A workspace whose
+  // channels could not be listed sees its typed values unresolved, which is
+  // exactly where it was before any of this existed.
+  return {
+    workspace: ws.error ? null : ws.data,
+    channels: ch.error ? [] : (ch.data ?? []),
+    listing: gl.error ? null : gl.data,
+  };
+}
+
 export const GET = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
   const row = await getTenantConfig(ctx.supabase, member.tenantId);
@@ -27,7 +51,21 @@ export const GET = withRoute(async (req, ctx) => {
     const visible = member.role === "owner" || !cfg.calendar
       ? cfg
       : { ...cfg, calendar: { ical_url: maskFeedUrl(cfg.calendar.ical_url) } };
-    return { config: visible, version: row.version, role: member.role, configBroken: false };
+    const known = await knownFacts(ctx, member.tenantId);
+    const facts = resolveFacts(cfg.brain ?? null, known);
+    return {
+      config: visible,
+      version: row.version,
+      role: member.role,
+      configBroken: false,
+      // What each fact resolves to and where it came from, plus anything that
+      // disagrees. The pane shows a source beside every value instead of a
+      // column of identical-looking text boxes, and a serious disagreement --
+      // a published number that is not the line being answered -- is said out
+      // loud rather than sitting in a document nobody compares.
+      facts,
+      conflicts: factConflicts(facts),
+    };
   }
   return { config: null, version: row.version, role: member.role, configBroken: true, issues: parsed.issues };
 });

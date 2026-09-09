@@ -572,7 +572,7 @@ export async function handleInbound(
         // composes the SAME thing for the voice agent, which is the point:
         // two copies of the hours is how two channels start disagreeing
         // about when the business opens.
-        resolveSystemPrompt(brainCfg, "whatsapp", rt?.timezone, new Date(), rt?.policy),
+        resolveSystemPrompt(brainCfg, "whatsapp", rt?.timezone, new Date(), rt?.policy, rt?.known),
         brainCfg.fallbacks.error,
         leadNote,
         // "Are you open?" it could already answer. "Are you open RIGHT NOW?"

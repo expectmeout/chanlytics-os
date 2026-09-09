@@ -122,7 +122,7 @@ export async function POST(request: Request): Promise<Response> {
         // long, the feed is cached for five, and the agent needs them before
         // the caller asks "when could I come in?".
         const openings = await openingsFor(rt);
-        facts = `${resolveSystemPrompt(rt.brain, "voice", rt.timezone, new Date(), rt.policy)}\n\n${describeNow(rt.timezone, new Date(), rt.brain.profile?.closures)}${openings ? `\n\n${openings}` : ""}`;
+        facts = `${resolveSystemPrompt(rt.brain, "voice", rt.timezone, new Date(), rt.policy, rt.known)}\n\n${describeNow(rt.timezone, new Date(), rt.brain.profile?.closures)}${openings ? `\n\n${openings}` : ""}`;
         businessName = rt.brain.business_name;
         handoff = rt.brain.profile?.handoff_number ?? null;
       } else {
