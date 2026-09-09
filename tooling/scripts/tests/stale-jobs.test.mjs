@@ -313,6 +313,29 @@ test("a handler that cannot check consent fails loudly", () => {
   assert.ok(fire.includes("alertFor(db, job)"), "and told");
 });
 
+test("the sweep that marks jobs failed is watched", () => {
+  // sweep_health() judged three of the fourteen scheduled sweeps. This one
+  // marks jobs failed, settles the message or broadcast behind them and emails
+  // the workspace, and nothing watched whether it ran at all -- so pg_cron
+  // dropping it, or the Vault secret going missing, would look exactly like a
+  // quiet week.
+  const reg = readRaw("supabase/migrations/00083_sweep_health_jobs.sql");
+  assert.ok(reg.includes("check (sweep in ('calls', 'deadman', 'health', 'jobs'))"), "the name is admitted");
+  assert.ok(/insert into public\.sweep_status \(sweep, requested_at\)[\s\S]{0,80}values \('jobs', now\(\)\)/.test(reg), "seeded, so its first judgement is not a false alarm");
+  assert.ok(reg.includes("('jobs',          'stale-jobs-sweep',     interval '40 minutes')"), "two missed quarter-hour ticks plus slack");
+
+  // Registering a sweep is four things, and the one most easily forgotten is
+  // the trigger recording its own request id -- without it sweep_health says
+  // "has never enqueued a request" for ever, which is a watchdog crying wolf.
+  const trigger = reg.slice(reg.indexOf("function public.trigger_stale_jobs_sweep"));
+  assert.ok(trigger.includes("insert into public.sweep_status (sweep, request_id, requested_at, note)"), "the success path records what it enqueued");
+  assert.ok(trigger.includes("values ('jobs', 'missing cron_sweep_key or edge_base_url in Vault')"), "and the failure path records why it could not");
+  // Deliberately NOT refreshing requested_at on the failure path: its staleness
+  // is the backstop that catches a trigger replaced by an older version.
+  const fail = trigger.slice(trigger.indexOf("if v_key is null"), trigger.indexOf("select net.http_post"));
+  assert.ok(!fail.includes("requested_at"), "a permanently misconfigured sweep must not look freshly attempted");
+});
+
 test("a snooze whose job was lost still wakes up", () => {
   // 00006 gave pauses a sweeper for exactly this reason and snoozes never got
   // one: snooze_until is cleared by the job, by an inbound message (00005) and

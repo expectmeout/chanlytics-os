@@ -17,12 +17,14 @@ const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const skip = !URL_ || !KEY ? "no service-role credentials in env" : false;
 const db = skip ? null : createClient(URL_, KEY, { auth: { persistSession: false } });
 
-test("sweep_health() names all three sweeps and every schedule exists", { skip }, async () => {
+test("sweep_health() names every watched sweep and every schedule exists", { skip }, async () => {
   const { data, error } = await db.rpc("sweep_health");
   assert.equal(error, null, error?.message);
-  // The names, not a count: the LEFT JOINs make the count three whatever
-  // sweep_status holds, so a count assertion would be vacuous.
-  assert.deepEqual(data.map((r) => r.sweep), ["calls", "deadman", "health"]);
+  // The names, not a count: the LEFT JOINs make the count the same whatever
+  // sweep_status holds, so a count assertion would be vacuous. 'jobs' joined
+  // them in 00083 — the sweep that marks jobs failed, settles what they left
+  // behind and emails the workspace, watched by nothing until then.
+  assert.deepEqual(data.map((r) => r.sweep), ["calls", "deadman", "health", "jobs"]);
   for (const r of data) assert.equal(r.scheduled, true, `${r.sweep}: ${r.detail}`);
 });
 
@@ -55,12 +57,12 @@ test("the deadman trigger records what it enqueued", { skip }, async () => {
   );
 });
 
-test("a fourth sweep name cannot be added behind sweep_health()'s back", { skip }, async () => {
+test("an unexpected sweep name cannot be added behind sweep_health()'s back", { skip }, async () => {
   const { error } = await db.from("sweep_status").insert({ sweep: "bogus" });
-  assert.notEqual(error, null, "a fourth sweep name was accepted");
+  assert.notEqual(error, null, "an unwatched sweep name was accepted");
   assert.match(error.message, /sweep_status_sweep_check|violates check constraint/);
   const { data } = await db.from("sweep_status").select("sweep");
-  assert.deepEqual(data.map((r) => r.sweep).sort(), ["calls", "deadman", "health"]);
+  assert.deepEqual(data.map((r) => r.sweep).sort(), ["calls", "deadman", "health", "jobs"]);
   // Belt and braces, in case a future migration ever widens the set.
   await db.from("sweep_status").delete().eq("sweep", "bogus");
 });
