@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { ROOT, readCode, readRaw } from "./_source.mjs";
+import { recoveryFor, OVERDUE_AFTER_MS, MAX_REPUBLISHES, STALE_TO_A_PERSON_MS } from "../../../apps/edge/lib/jobs-recovery.ts";
 
 const sweep = readCode("apps/edge/api/cron/jobs.ts");
 const mig = readRaw("supabase/migrations/00078_stale_jobs.sql");
@@ -23,9 +24,18 @@ test("it marks, it never retries", () => {
   // a real person. Marking is the only honest move: the outcome is unknown,
   // and the owner is the one who can look.
   assert.ok(sweep.includes('.update({ state: "failed", last_error: RUN_INTERRUPTED })'), "a stale job is failed");
-  assert.ok(!sweep.includes('state: "scheduled"'), "it must never put a job back on the queue");
-  assert.ok(!sweep.includes("scheduleJob") && !sweep.includes("publishJSON"), "and never fire one itself");
   assert.ok(/its outcome is unknown/.test(sweep), "the reason says unknown, not failed");
+
+  // Scoped to the FIRED half. The other half re-publishes on purpose, because
+  // a job nothing ever claimed provably never ran — so this cannot be asserted
+  // over the whole file any more, only over the pass it is true of.
+  // Anchored on CODE, not a comment: readCode strips comments, so a marker
+  // comment slices to -1 and silently takes the whole rest of the file.
+  const fired = sweep.slice(sweep.indexOf("for (const job of stale)"), sweep.indexOf("const overdueBefore ="));
+  assert.ok(fired.length > 200 && sweep.indexOf("const overdueBefore =") > 0, "the two passes are actually separable");
+  assert.ok(!fired.includes('state: "scheduled"'), "a job that may have run is never put back on the queue");
+  assert.ok(!fired.includes("republishJob") && !fired.includes("publishJSON"), "and never fired again");
+  assert.ok(!sweep.includes("scheduleJob("), "neither half inserts a second row for the same work");
 });
 
 test("both writes are conditional, so two ticks cannot report the same job twice", () => {
@@ -99,4 +109,74 @@ test("the sweep keeps the same door as every other sweep", () => {
   assert.ok(sweep.includes("crypto.timingSafeEqual"), "compared in constant time, like the others");
   assert.ok(sweep.includes("MAX_PER_TICK") && sweep.includes(".limit(MAX_PER_TICK)"), "bounded per tick so a backlog drains over several");
   assert.ok(sweep.includes("stale_job_alert_failed"), "a failed alert must not turn a recorded reaping into an unrecorded one");
+});
+
+test("what to do with a job whose message never arrived", () => {
+  const due = (minsAgo) => new Date(Date.now() - minsAgo * 60_000).toISOString();
+
+  // QStash retries three times with backoff — 12s, 2m28s, 30m8s — so a message
+  // is exhausted and in the dead-letter queue at about 33 minutes. Sooner than
+  // that and this races a delivery still in flight.
+  assert.equal(recoveryFor({ kind: "snooze_wake", due_at: due(20), republishes: 0 }), "wait");
+  assert.equal(recoveryFor({ kind: "snooze_wake", due_at: due(50), republishes: 0 }), "republish");
+  assert.ok(OVERDUE_AFTER_MS > 33 * 60_000, "past QStash's last retry, or this races a delivery");
+
+  // Bounded: a message nobody will ever accept must not be published every
+  // quarter hour for ever.
+  assert.equal(recoveryFor({ kind: "snooze_wake", due_at: due(120), republishes: MAX_REPUBLISHES }), "give_up");
+
+  // A reply the customer stopped waiting for is not worth sending late; an
+  // operator decides whether to say it again.
+  assert.equal(recoveryFor({ kind: "outbound_send", due_at: due(60), republishes: 0 }), "republish");
+  assert.equal(recoveryFor({ kind: "outbound_send", due_at: due(7 * 60), republishes: 0 }), "give_up");
+  assert.equal(recoveryFor({ kind: "broadcast_send", due_at: due(7 * 60), republishes: 0 }), "give_up");
+
+  // Internal work is late, never pointless.
+  assert.equal(recoveryFor({ kind: "pause_expire", due_at: due(7 * 60), republishes: 0 }), "republish");
+  assert.equal(recoveryFor({ kind: "blob_thread_erase", due_at: due(48 * 60), republishes: 0 }), "republish");
+  assert.ok(STALE_TO_A_PERSON_MS > OVERDUE_AFTER_MS);
+
+  // The clock is injectable, so this reads the same in a year.
+  const fixed = Date.parse("2026-01-01T12:00:00Z");
+  assert.equal(recoveryFor({ kind: "snooze_wake", due_at: "2026-01-01T11:00:00Z", republishes: 0 }, fixed), "republish");
+  assert.equal(recoveryFor({ kind: "snooze_wake", due_at: "2026-01-01T11:50:00Z", republishes: 0 }, fixed), "wait");
+});
+
+test("the sweep reads BOTH halves of the ledger", () => {
+  // #256 closed 'fired' and left 'scheduled' open, which is the larger hole: a
+  // message that never arrives needs only QStash to fail once, and rotated
+  // signing keys put every job in the product here at once with no signal.
+  assert.ok(sweep.includes('.eq("state", "fired")'), "jobs whose handler never returned");
+  assert.ok(sweep.includes('.eq("state", "scheduled")') && sweep.includes('.lt("due_at", overdueBefore)'), "and jobs whose message never arrived");
+  assert.ok(sweep.includes("recoveryFor(job)"), "the rule decides; the sweep only carries it out");
+  // 00002 already has `jobs_due_scheduled on (due_at) where state = 'scheduled'`.
+  assert.ok(!readRaw("supabase/migrations/00079_job_republishes.sql").includes("create index"), "no second index for a query 00002 already covers");
+});
+
+test("a re-publish is bounded, recorded, and silent; giving up is loud", () => {
+  assert.ok(sweep.includes("republishes: job.republishes + 1"), "the counter goes up with the publish");
+  assert.ok(
+    sweep.indexOf("republishes: job.republishes + 1") < sweep.indexOf("await republishJob(db, job.id)"),
+    "and BEFORE it, so a publish that throws cannot loop for ever",
+  );
+  const republish = sweep.slice(sweep.indexOf('if (verdict === "republish")'), sweep.indexOf('const { data: won, error: fErr }'));
+  assert.ok(!republish.includes("alertFor"), "a re-publish alerts nobody: it is self-healing");
+  assert.ok(republish.includes("jobs_republished"), "but it is logged, so a pile-up is visible");
+  assert.ok(sweep.includes('alertFor(db, job)') && sweep.includes("never ran"), "giving up reaches the owner");
+});
+
+test("a re-publish keeps the job's own row, and a stranded broadcast is released", () => {
+  // QStash's dedup window is ten minutes and this fires at forty-five, so the
+  // message is accepted rather than dropped. claim_job, not the dedup id, is
+  // what stops a late original and this one both firing.
+  assert.ok(sweep.includes("deduplicationId: jobId"), "the job's own id");
+  assert.ok(!sweep.includes("notBefore:"), "already due: nothing left to hold it back for");
+  assert.ok(sweep.includes('.update({ qstash_id: res.messageId })'), "the new message id replaces the lost one");
+  assert.ok(!sweep.includes("scheduleJob("), "scheduleJob would insert a SECOND row for the same work");
+
+  // broadcastSend schedules its own next batch, so one lost link strands the run.
+  assert.ok(sweep.includes('job.kind !== "broadcast_send"'), "only a broadcast job releases a broadcast");
+  assert.ok(sweep.includes('.eq("state", "sending")'), "conditional, so a broadcast that finished is left alone");
+  const handlers = readCode("packages/jobs/src/handlers.ts");
+  assert.ok(handlers.includes('ctx.schedule("broadcast_send", new Date(), { broadcast_id: b.id })'), "the chain this repairs");
 });
