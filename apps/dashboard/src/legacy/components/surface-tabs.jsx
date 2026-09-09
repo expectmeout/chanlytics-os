@@ -16,7 +16,12 @@ const ST_GROUPS = {
       // hides itself rather than offering three Coming Soon panes.
       { id: "leads", label: "Leads", to: "leads", demoOnly: true, badge: () => (window.__DEMO_MODE ? ((window.LEADS || []).filter(l => l.stage === "ready").length) || null : null), tip: "Leads scored ready — your call to make" },
       { id: "pipeline", label: "Deal board", to: "pipeline", demoOnly: true, tip: "Deals are leads with money attached — same people, board view" },
-      { id: "segments", label: "Lists", to: "segments", demoOnly: true },
+      // NOT demoOnly: Lists has been real since #123 and the registry calls it
+      // "People > Lists". The flag outlived the surface being seed-only, and
+      // because it was the only other People tab, the bar fell under the
+      // two-tab minimum and vanished -- so a shipped surface was reachable in
+      // production only from a "New segment" button in a rail on People.
+      { id: "segments", label: "Lists", to: "segments", tip: "The lists kept by hand and the ones an agent keeps for you" },
     ],
   },
   conversations: {
@@ -47,10 +52,13 @@ const ST_GROUPS = {
   agents: {
     match: ["fleet", "store", "studio", "tasks"],
     tabs: [
-      { id: "fleet", label: "Fleet", to: "fleet" },
-      { id: "store", label: "Store", to: "store" },
-      { id: "studio", label: "Studio", to: "studio" },
-      { id: "tasks", label: "Tasks", to: "tasks", tip: "The work ledger — receipts for everything agents did" },
+      // Every tab in this group is a "demo" surface, so in production all four
+      // led to the same Coming Soon pane. One honest pane beats four ways to
+      // find it; they come back the day their slice ships.
+      { id: "fleet", label: "Fleet", to: "fleet", demoOnly: true },
+      { id: "store", label: "Store", to: "store", demoOnly: true },
+      { id: "studio", label: "Studio", to: "studio", demoOnly: true },
+      { id: "tasks", label: "Tasks", to: "tasks", demoOnly: true, tip: "The work ledger — receipts for everything agents did" },
     ],
   },
 };

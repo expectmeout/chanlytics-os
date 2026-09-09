@@ -15,6 +15,9 @@ const { useState: useShellState, useEffect: useShellEffect, useCallback: useShel
 // Is this route's data actually available? The bridge installs __surfaceGate
 // for flipped surfaces; unflipped ones are seeded and always ready.
 const routeReady = (page, param) => !window.__surfaceGate || window.__surfaceGate(page, param);
+
+/** Surfaces whose own route param is a prop they follow, not a new identity. */
+const PARAM_FOLLOWED_AS_PROP = new Set(["admin", "inbox"]);
 // A flipped surface whose fetch failed. Painting the mockup here would show
 // invented customers as real, so the shell says so instead.
 const routeFailed = (page, param) => !!window.__surfaceFailed && window.__surfaceFailed(page, param);
@@ -592,7 +595,25 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     if (retiredTo) window.location.hash = "/" + retiredTo;
   }, [retiredTo]);
 
+  // The gate is asked per PANE, so this key must carry the param.
   const routeKey = `${page}/${param || ""}`;
+  // What the surface is MOUNTED under, which is a different question.
+  //
+  // Both used to be routeKey, so changing a surface's own param tore the whole
+  // surface down and built it again: a second Settings tab, a second Inbox
+  // thread. The visible cost is two 240ms route-in fades compounding -- the
+  // shell's on .route-view and the pane's own -- which reads as a flash; the
+  // invisible cost is the surface's state, its scroll position and its fetches,
+  // thrown away on a navigation that never left the surface.
+  //
+  // A surface joins this list only once it FOLLOWS its param as a prop.
+  // Settings derives its active tab on every render; the Inbox has an effect on
+  // initialThreadId headed "Deep-link follows later navigations too" -- written
+  // for exactly this and defeated by the key. A surface that seeds state from
+  // the param and never looks again would show the wrong entity, so the default
+  // stays remount and this is opt-in: forgetting a surface costs the
+  // improvement, never correctness.
+  const mountKey = PARAM_FOLLOWED_AS_PROP.has(page) ? page : routeKey;
   useShellEffect(() => {
     setNavOpen(false);
     setRouteTimedOut(false);
@@ -665,7 +686,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
           right={primaryAction}
         />
         <SurfaceTabs page={page} param={param} onNavigate={navigate} />
-        <div key={routeKey} className={`main-scroll route-view ${pane ? "pane" : ""}`}>
+        <div key={mountKey} className={`main-scroll route-view ${pane ? "pane" : ""}`}>
           <ShellErrorBoundary>
             {routeLoading
               ? <RouteSkeleton pane={pane} />
