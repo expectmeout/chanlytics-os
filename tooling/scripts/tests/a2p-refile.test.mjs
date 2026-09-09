@@ -21,7 +21,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "./_fake-db.mjs";
 import { readCode, readRaw } from "./_source.mjs";
-import { unfileMockRegistration } from "../../../apps/edge/lib/a2p.ts";
+import { unfileMockRegistration, unfileRejectedCampaign } from "../../../apps/edge/lib/a2p.ts";
 import { MOCK_TEXTING_SENTENCE } from "@chanlytics/contracts";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
@@ -134,11 +134,14 @@ test("no provider call is made for a line with nothing to take off, and none is 
 
 test("the route's three answers: a real filing is final, a rehearsal is replaceable, and a refile is never itself a rehearsal", () => {
   const route = readCode("apps/edge/api/admin/lines.ts");
-  assert.ok(route.includes('if (!row.data.reg_mock) {'), "a real filing keeps its dead end");
+  // "Final" now means a filing that STANDS -- one the carriers accepted. A
+  // rejected one is a correction request and has its own path; see the case
+  // below.
+  assert.ok(route.includes("if (!row.data.reg_mock && !rejected) {"), "a real filing that stands keeps its dead end");
   assert.ok(route.includes('error: "already_registered"'));
   assert.ok(route.includes('error: "mock_registration"'), "a rehearsal says what it is instead");
   assert.ok(route.includes("if (!refile) {"), "and asks to be told before replacing it");
-  assert.ok(route.includes("const off = await unfileMockRegistration(db, row.data);"));
+  assert.ok(route.includes("? await unfileMockRegistration(db, row.data)"), "a rehearsal is undone by the mock path");
   assert.ok(route.includes("row.data = off.row;"), "the saga runs against the cleared row, not the stale one");
   assert.ok(
     route.includes("const mock = !refile && body.mock === true;"),
@@ -203,4 +206,32 @@ test("a question we could not ask is never reported as an answer", () => {
   assert.ok(sweep.includes("if (unreadable > 0 && unreadable === lines.length)"), "some readable is still a 200 -- those rows carry their own reason");
   assert.ok(readRaw("supabase/migrations/00086_watch_every_sweep.sql").includes("('registration',  'registration-sweep'"),
     "and something is watching this sweep to receive that 503");
+});
+
+test("a rejection is a correction request, not a dead end", async () => {
+  // The first real campaign came back FAILED with two reasons, both fixable in
+  // an afternoon:
+  //
+  //   [30919] the privacy page never named the company behind it
+  //   [30907] the description named a business that appeared on neither the
+  //           brand nor the registered website
+  //
+  // Under the old rule -- "a real filing is final" -- that line could never
+  // have texted, over a missing address.
+  const rejected = mockFiled({ reg_mock: false, sms_state: "rejected", messaging_service_sid: null, last_error: "the carriers sent the registration back" });
+  const lines = [rejected];
+  const db = fakeDb({ lines });
+  const r = await unfileRejectedCampaign(db, rejected);
+  assert.equal(r.ok, true);
+  assert.equal(lines[0].campaign_sid, null, "the campaign the carriers refused comes off");
+  assert.equal(lines[0].brand_sid, rejected.brand_sid, "the BRAND stays -- it was approved separately, and it is the expensive half");
+  assert.equal(lines[0].sms_state, "approved", "which is what is still true: the business is through, the campaign has to happen again");
+  assert.equal(lines[0].last_error, null);
+
+  const route = readCode("apps/edge/api/admin/lines.ts");
+  assert.ok(route.includes('const rejected = row.data.sms_state === "rejected";'));
+  assert.ok(route.includes("if (!row.data.reg_mock && !rejected) {"), "a filing that stands is still final");
+  assert.ok(route.includes('error: "campaign_rejected"') && route.includes("reason: row.data.last_error"), "and says what to correct");
+  assert.ok(route.includes("? await unfileMockRegistration(db, row.data)") && route.includes(": await unfileRejectedCampaign(db, row.data);"),
+    "a rehearsal and a rejection are undone differently: one keeps no brand, the other keeps its own");
 });
