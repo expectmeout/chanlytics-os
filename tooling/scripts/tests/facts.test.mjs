@@ -167,7 +167,7 @@ test("the field that caused this says what it is", () => {
   // two the receptionist DECIDES are edited in the row that states them: they
   // were sections nine and thirteen of a fourteen-section form, a page apart
   // from each other and from the card that reads them.
-  assert.ok(pane.includes('<FactRow label="Answers on" fact={F.voice_line} to="admin/integrations"'), "the line is Integrations' to own");
+  assert.ok(pane.includes('<FactRow label="Answers on" fact={F.voice_line} to="admin/integrations"'), "the line is Connections' to own");
   assert.ok(pane.includes('<PublishedNumberRow fact={F.phone_display} flash={flash} />'));
   assert.ok(pane.includes('<HandoffRow fact={F.handoff_number} flash={flash} />'));
   // One key, on top of what is stored -- PUT /settings is a whole-config CAS,

@@ -90,6 +90,30 @@ export async function GET(request: Request): Promise<Response> {
     out.sweeps = { error: String(e instanceof Error ? e.message : e).slice(0, 200) };
   }
 
+  // Where the two tables that model a number disagree.
+  //
+  // lines is the asset, tenant_channels is the routing derived from it, and
+  // until 00087 nothing said so or checked it. A channel row with no line is
+  // NOT drift -- a Retell-bought voice number or a Meta WhatsApp number
+  // legitimately has none -- so an empty list here means agreement, and a row
+  // means a number that rings into a workspace nobody can identify.
+  try {
+    const db = pg();
+    if (!db) {
+      out.numbers = { unavailable: "no database client (PG_WRITES is not 'on')" };
+    } else {
+      const { data, error } = await db.rpc("number_drift");
+      if (error) {
+        out.numbers = { error: error.message.slice(0, 200) };
+      } else {
+        const rows = (data ?? []) as unknown as { kind: string; tenant_id: string; detail: string }[];
+        out.numbers = { ok: rows.length === 0, drift: rows };
+      }
+    }
+  } catch (e) {
+    out.numbers = { error: String(e instanceof Error ? e.message : e).slice(0, 200) };
+  }
+
   // Token permanence: a temp WHATSAPP_ACCESS_TOKEN expiring mid-App-Review would
   // take the pilot dark with no code change to blame. expires_at=0 = permanent.
   if (process.env.WHATSAPP_ACCESS_TOKEN && process.env.META_APP_SECRET) {

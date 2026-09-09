@@ -210,8 +210,8 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
   handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   deadman: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   call: { icon: "phone", tone: "", action: "Open the calls", to: "conversations/phone" },
-  number: { icon: "shield", tone: "warn", action: "Open Integrations", to: "admin/integrations" },
-  sweep: { icon: "alert", tone: "warn", action: "Open Integrations", to: "admin/integrations" },
+  number: { icon: "shield", tone: "warn", action: "Open Connections", to: "admin/integrations" },
+  sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
   job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   playbook: { icon: "bolt", tone: "ok", action: "Open Playbooks", to: "outbound" },
   calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
@@ -225,7 +225,7 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
 /** The verb for a row that names its own route; the kind's verb otherwise. */
 const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^admin\/setup/, "Open Setup"],
-  [/^admin\/integrations/, "Open Integrations"],
+  [/^admin\/integrations/, "Open Connections"],
   [/^admin\/workspace/, "Open Workspace"],
   [/^admin\/notifications/, "Open Notifications"],
   [/^admin\/billing/, "Open Billing"],

@@ -48,7 +48,7 @@ const TASKS = [
     target: "Noah Williams", when: "Apr 25 · 4:02 PM", result: "Send deferred.",
     error: "Gmail token expiring — provider returned auth warning.",
     retry: "Queued · sends automatically once Gmail is reauthorized",
-    link: { label: "Fix in Integrations", to: "admin/integrations" } },
+    link: { label: "Fix in Connections", to: "admin/integrations" } },
 ];
 
 const TASKS_BASELINE = { completedToday: 41 }; // prior completions before the visible ledger

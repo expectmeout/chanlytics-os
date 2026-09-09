@@ -56,7 +56,7 @@ const TasksPage = () => {
         result: "Releasing — Gmail reconnected.",
         error: null,
         retry: "Sends today · Gmail reconnected ✓",
-        link: { label: "Integrations", to: "admin/integrations" },
+        link: { label: "Connections", to: "admin/integrations" },
       };
     }
     const d = t.threadId && decisions[t.threadId];

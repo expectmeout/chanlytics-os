@@ -18,7 +18,7 @@ const SAID: Record<string, string> = {
   not_connected: "Connect your Business Profile first — replies go through it.",
   not_from_profile: "This review was read from the public listing; replies need the Business Profile connected.",
   no_review: "That review is not on record.",
-  no_token: "The connection to Google was lost. Connect again from Integrations.",
+  no_token: "The connection to Google was lost. Connect again from Connections.",
   google_refused: "Google did not accept the reply.",
 };
 

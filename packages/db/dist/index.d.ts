@@ -2850,6 +2850,14 @@ type Database = {
                 };
                 Returns: Json;
             };
+            number_drift: {
+                Args: never;
+                Returns: {
+                    detail: string;
+                    kind: string;
+                    tenant_id: string;
+                }[];
+            };
             people_list: {
                 Args: {
                     p_contact_id?: string;
@@ -2957,6 +2965,14 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: Json;
+            };
+            request_sweep: {
+                Args: {
+                    p_path: string;
+                    p_sweep: string;
+                    p_timeout_ms?: number;
+                };
+                Returns: number;
             };
             runtime_stamp: {
                 Args: {

@@ -92,7 +92,13 @@ const SET_TABS = [
   { id: "workspace",     label: "Business",      icon: "home",     group: "Workspace" },
   { id: "team",          label: "Team",          icon: "users",    group: "Workspace" },
   { id: "autonomy",      label: "Autonomy",      icon: "shield",   group: "Workspace" },
-  { id: "integrations",  label: "Integrations",  icon: "external", group: "Workspace" },
+  // The tab reads Connections; its ROUTE id stays "integrations". Notification
+  // rows written before today carry route "admin/integrations" in the database,
+  // and a rename would turn every one of those bells into a dead link. The word
+  // an owner sees is worth changing -- Connections is what this list is, and
+  // what the contract behind it has always called them -- and the identifier is
+  // not worth breaking to match.
+  { id: "integrations",  label: "Connections",   icon: "external", group: "Workspace" },
   { id: "notifications", label: "Notifications", icon: "bell",     group: "Workspace" },
   { id: "billing",       label: "Billing",       icon: "money",    group: "Workspace" },
 ];
@@ -1809,14 +1815,14 @@ const PaneWorkspace = ({ flash }) => {
         {/* THREE numbers, named for what each one does. They were one row
             called "Phone line" showing a typed string, which is how a salon
             came to publish the number it transfers to as the number to call.
-            The line it answers is provisioned and belongs to Integrations; the
+            The line it answers is provisioned and belongs to Connections; the
             other two are the receptionist's behaviour, so they are edited HERE,
             in the row that states them -- they used to be sections nine and
             thirteen of a fourteen-section form, a page apart from each other
             and from the card that reads them. */}
         {real ? (
           <>
-            <FactRow label="Answers on" fact={F.voice_line} to="admin/integrations" toLabel="Integrations" empty="No phone line yet" />
+            <FactRow label="Answers on" fact={F.voice_line} to="admin/integrations" toLabel="Connections" empty="No phone line yet" />
             <PublishedNumberRow fact={F.phone_display} flash={flash} />
             <HandoffRow fact={F.handoff_number} flash={flash} />
           </>

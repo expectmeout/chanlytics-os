@@ -480,7 +480,7 @@ export const ASK_PAGES: JumpEntry[] = [
   { label: "Autonomy", to: "admin/autonomy", kind: "page", sub: "what the receptionist may do alone" },
   { label: "Team", to: "admin/workspace", kind: "page", sub: "members and invitations" },
   { label: "Notifications", to: "admin/notifications", kind: "page" },
-  { label: "Integrations", to: "admin/integrations", kind: "page", sub: "WhatsApp, phone line, calendar" },
+  { label: "Connections", to: "admin/integrations", kind: "page", sub: "WhatsApp, phone line, calendar" },
   { label: "Receptionist memory", to: "admin/memory", kind: "page", sub: "hours, services, notes" },
 ];
 
