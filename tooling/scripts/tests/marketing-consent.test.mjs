@@ -192,11 +192,18 @@ test("the samples match what the filing declares about them", () => {
   const src = readRaw("apps/edge/lib/a2p.ts");
   const samples = src.slice(src.indexOf("samples: ["), src.indexOf("optInMessage:"));
   assert.ok(samples.includes("${o.optInUrl}"), "a link, because the filing declares links");
-  assert.match(samples, /\+1 917 574 6416/, "a phone number, because the filing declares one");
+  assert.ok(samples.includes("${o.lineNumber}"), "a phone number, because the filing declares one -- and the WORKSPACE'S own");
   assert.ok((samples.match(/`/g) ?? []).length >= 10, "at least five samples: Twilio takes two to five and more is better reviewed");
   // The promotional sample is labelled as one, so a reviewer can see the
   // separation in the samples too.
   assert.match(samples, /for customers who asked for offers/);
+  // And it invents nothing. The rule this list already held itself to about
+  // opening times -- "an invented fact is a claim made in their name" -- applies
+  // to a discount, and to the platform's own support number standing in for the
+  // business's.
+  assert.ok(!/\d+% off/.test(samples), "REGRESSION: a made-up discount in a sample sent to a regulator");
+  assert.ok(!/\+1 917 574 6416/.test(samples), "REGRESSION: the platform's number presented as the business's");
+  assert.match(readCode("apps/edge/lib/a2p.ts"), /lineNumber\?: string \| null;/, "the workspace's own number is an input, not an invention");
 });
 
 test("the resubmit sends everything Twilio will accept, and says what it will not", () => {

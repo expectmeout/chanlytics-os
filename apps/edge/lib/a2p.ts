@@ -98,7 +98,21 @@ export function a2pStateFrom(l: LineRow): A2PState {
  * keyword that answers each — which is only true because the product now records
  * them as two different answers.
  */
-export function campaignFactsFor(o: { businessName: string; optInUrl: string; privacyUrl: string; termsUrl: string }) {
+export function campaignFactsFor(o: {
+  businessName: string;
+  optInUrl: string;
+  privacyUrl: string;
+  termsUrl: string;
+  /**
+   * The workspace's OWN line, as a person reads it. Used in the sample that
+   * shows a message containing a phone number -- which the filing declares it
+   * sends, and which therefore has to be a number that message could really
+   * contain. The platform's support line standing in for it would be a claim
+   * made in the business's name, which is the one thing these samples may not
+   * do.
+   */
+  lineNumber?: string | null;
+}) {
   return {
     // What the campaign IS, in the plainest terms, with the separation stated
     // rather than left to be inferred from the flow.
@@ -124,8 +138,14 @@ export function campaignFactsFor(o: { businessName: string; optInUrl: string; pr
       `Hi, thanks for writing ${o.businessName}. How can we help today?`,
       `Reminder from ${o.businessName}: you have an appointment tomorrow. Reply STOP to opt out.`,
       `${o.businessName}: you can book or change your appointment here: ${o.optInUrl}. Reply STOP to opt out, HELP for help.`,
-      `${o.businessName}: we could not reach you by phone. Call us back on +1 917 574 6416 or reply here. Reply STOP to opt out.`,
-      `Offer from ${o.businessName}: 15% off this month for customers who asked for offers. Msg frequency varies. Msg & data rates may apply. Reply STOP to opt out, HELP for help.`,
+      o.lineNumber
+        ? `${o.businessName}: we tried to reach you. Call us back on ${o.lineNumber} or reply here. Reply STOP to opt out.`
+        : `${o.businessName}: we tried to reach you. Reply here and we will pick it up. Reply STOP to opt out.`,
+      // The promotional sample, and it names NO offer. An invented discount is a
+      // claim made in the business's name, which is the rule this list already
+      // held itself to about opening times -- the sample shows the shape of a
+      // promotional message and points at the page where the real one lives.
+      `Offer from ${o.businessName} for customers who asked for offers — see ${o.optInUrl}. A few messages a month. Msg & data rates may apply. Reply STOP to opt out, HELP for help.`,
     ],
 
     // NOT correctable after the first filing: Twilio's campaign UPDATE accepts
@@ -393,7 +413,7 @@ export async function registerLine(db: Db, o: {
     // Twilio's vertical enum. The sole-proprietor end user asks for it by
     // name; the standard path carries it inside the business end user.
     industry: industryOf(record.industry),
-    campaign: campaignFactsFor({ businessName: o.workspaceName, optInUrl: o.optInUrl, privacyUrl: o.privacyUrl, termsUrl: o.termsUrl }),
+    campaign: campaignFactsFor({ businessName: o.workspaceName, optInUrl: o.optInUrl, privacyUrl: o.privacyUrl, termsUrl: o.termsUrl, lineNumber: formatPhoneDisplay(o.line.e164) }),
     messagingServiceSid: o.line.messaging_service_sid,
     useCase: LOW_VOLUME_USECASE,
     mock: o.mock,

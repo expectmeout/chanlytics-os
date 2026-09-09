@@ -381,6 +381,7 @@ export async function POST(request: Request): Promise<Response> {
         const base = dashboardOrigin();
         const facts = campaignFactsFor({
           businessName: t.data.name,
+          lineNumber: formatPhoneDisplay(row.data.e164),
           optInUrl: `${base}/yes/${t.data.slug}`,
           privacyUrl: `${base}/privacy`,
           termsUrl: `${base}/terms`,
