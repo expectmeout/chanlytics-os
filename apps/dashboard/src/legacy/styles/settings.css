@@ -819,3 +819,17 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
    list rather than a paragraph somebody skims. */
 .biz-limits { display: flex; flex-direction: column; gap: 4px; margin: 0; padding-left: 16px; font-size: 10.5px; line-height: 1.45; color: var(--ink-dim); }
 .biz-answer { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+
+/* The back office. Borrows the settings card and the attention row wholesale --
+   the only new shapes are the find box and the event trail. */
+.pf-find { max-width: 220px; }
+.pf-events {
+  display: flex; flex-direction: column; gap: 2px;
+  margin: 0; padding: 0; list-style: none;
+  font-size: 10.5px; line-height: 1.5; color: var(--ink-dim);
+  max-height: 260px; overflow-y: auto;
+}
+.pf-events li { display: grid; grid-template-columns: 116px 1fr auto; gap: 10px; align-items: baseline; }
+.pf-when { font-variant-numeric: tabular-nums; color: var(--ink-faint); }
+.pf-kind { color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-cat { color: var(--ink-faint); }

@@ -438,7 +438,11 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     );
     content = <SegmentsPage initialId={param} />;
   } else if (page === "admin") {
-    const tabMeta = (window.SET_TABS || []).find(t => t.id === param);
+    // The back office's tab is not in SET_TABS, and is only found for the
+    // people it exists for -- the same rule SET_TAB applies inside the shell, so
+    // the crumb and the pane cannot say different things about one route.
+    const tabMeta = (window.SET_TABS || []).find(t => t.id === param)
+      || ((window.__ME && window.__ME.platform_admin) ? (window.SET_TABS_PLATFORM || []).find(t => t.id === param) : null);
     activeNav = "admin";
     crumbs = tabMeta ? [{ label: "Settings", to: "admin" }, tabMeta.label] : ["Settings"];
     pane = true;

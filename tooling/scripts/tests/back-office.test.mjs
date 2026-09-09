@@ -27,7 +27,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   platformRows, platformSummary, platformNumber, textingWords,
-  PLATFORM_VERDICTS, PLATFORM_QUIET_DAYS, PLATFORM_NEW_DAYS,
+  PLATFORM_VERDICTS, PLATFORM_QUIET_DAYS, PLATFORM_NEW_DAYS, setupSteps,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
@@ -49,6 +49,33 @@ const live = (over = {}) => ({
   ...over,
 });
 const only = (over) => platformRows([live(over)], NOW)[0];
+
+/** A workspace's Setup facts, as /api/v1/setup assembles them. Enough for setupSteps to draw a real page. */
+const SETUP_FIXTURE = {
+  business: { name: "Harbor Moving", hours: true, services: 3, bookingLink: true, address: true, handoff: "+16465550123", broken: false },
+  conflicts: [],
+  channels: {
+    whatsapp: { present: true, active: true, number: "+19177724072", quality: "GREEN", lastInboundAt: ago(1) },
+    voice: { present: true, active: true, number: "+19296566623", lastInboundAt: ago(2) },
+  },
+  templates: { approved: 5, pending: 0, startersApproved: 5 },
+  calendar: { state: "ok" },
+  team: { members: 2, invitesOpen: 0, alertEmails: 1 },
+  consent: { yes: 12 },
+  requests: { line: null },
+  lines: {
+    rows: [{
+      id: "l1", e164: "+19296566623", kind: "chanlytics", provider: "twilio", area_code: 929,
+      voice_state: "answering", sms_state: "rejected", reg_step: "brand", reg_mock: false, reg_sole_prop: false,
+      whatsapp_state: "none", port_state: "none", forwarding_state: "none",
+      step: null, last_error: "the carriers refused it", state_since: ago(3), created_at: ago(80),
+    }],
+    ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 },
+  },
+  google: { ready: true, places: true, listing: null, connected: false },
+  billing: { ready: true, mode: "stripe", status: "active", trial_end: null, current_period_end: ago(-20), trial_days: 14, cancel_at: null, cancel_at_period_end: false },
+};
+
 
 test("a workspace that is fine says so, and says it last", () => {
   const r = only({});
@@ -332,4 +359,235 @@ test("the back office is read on demand, not published to every browser", () => 
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installPlatform();"));
   const registry = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
   assert.ok(!registry.includes("platform"), "and it is not in the surface registry");
+});
+
+/* -------------------------------------------------------------------------- *
+ * The pane, rendered without a browser.
+ *
+ * Same harness as registration-path.test.mjs: no jsdom and no React, just the
+ * hooks these two components use, so the component bodies run for real and what
+ * comes back is the element tree. Which matters more here than usual — the
+ * claim being tested is "support sees exactly what the customer sees", and that
+ * is a claim about what is on the screen.
+ * -------------------------------------------------------------------------- */
+globalThis.React = { Fragment: "Fragment" };
+globalThis.window = { __ME: { email: "ruben@rjcapital.io", platform_admin: true }, canDo: () => true };
+globalThis.Icon = () => null;
+// The shared attention row, and the pane that draws it.
+const ATTN = () => null;
+globalThis.window.AttnRow = ATTN;
+await import("../../../apps/dashboard/src/legacy/pages/platform.jsx");
+const Pane = globalThis.window.PanePlatform;
+
+function mount(Component, props = {}) {
+  const cells = [];
+  let seq = 0;
+  let effects = [];
+  Object.assign(globalThis.React, {
+    createElement: (type, p, ...kids) => ({ type, props: { ...(p || {}), children: kids.flat(Infinity) } }),
+    useMemo: (fn) => { const k = seq++; if (!(k in cells)) cells[k] = fn(); return cells[k]; },
+    useCallback: (fn) => fn,
+    useState: (init) => {
+      const k = seq++;
+      if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
+      return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }];
+    },
+    useEffect: (fn) => { effects.push(fn); },
+  });
+  const draw = () => { seq = 0; effects = []; return Component(props); };
+  let tree = draw();
+  const settle = async () => {
+    for (let i = 0; i < 3; i++) {
+      for (const e of effects) e();
+      await new Promise((r) => setImmediate(r));
+      tree = draw();
+    }
+  };
+  return {
+    get tree() { return tree; },
+    settle,
+    async act(node) { node.props.onClick(); tree = draw(); await new Promise((r) => setImmediate(r)); tree = draw(); await settle(); },
+    /** Press a handler the pane handed to a child component -- an attention row's cta, say. */
+    async press(fn) { fn(); tree = draw(); await new Promise((r) => setImmediate(r)); tree = draw(); await settle(); },
+    type(node, value) { node.props.onChange({ target: { value } }); tree = draw(); },
+  };
+}
+
+/**
+ * Walk the element tree, expanding nested components as it goes.
+ *
+ * `createElement` only records a component's function and props, so the detail
+ * pane's own markup would be invisible without this. Expanding it is safe here
+ * because the nested components in this file are pure -- no hooks, so nothing to
+ * confuse the cell counter above. The shared attention row is deliberately NOT
+ * expanded: it belongs to People and Today too, and what this pane owes it is
+ * the props, which is what the assertions read.
+ */
+const walk = (n, fn) => {
+  if (n == null || typeof n !== "object") return;
+  fn(n);
+  if (typeof n.type === "function" && n.type !== ATTN) walk(n.type(n.props), fn);
+  for (const k of n.props?.children ?? []) walk(k, fn);
+};
+const byId = (root, id) => { let hit = null; walk(root, (n) => { if (!hit && n.props?.["data-testid"] === id) hit = n; }); return hit; };
+/** Every attention row the pane drew, in order, as the props it handed the shared component. */
+const attnRows = (root) => { const out = []; walk(root, (n) => { if (n.type === ATTN) out.push(n); }); return out; };
+const ids = (root) => { const out = []; walk(root, (n) => { const t = n.props?.["data-testid"]; if (t) out.push(t); }); return out; };
+/** Everything a reader would see, expanding nested components the same way walk does. */
+const textOf = (n) => {
+  const out = [];
+  const rec = (x) => {
+    if (x == null || x === false || x === true) return;
+    if (typeof x === "string" || typeof x === "number") { out.push(String(x)); return; }
+    if (Array.isArray(x)) { x.forEach(rec); return; }
+    if (typeof x !== "object") return;
+    if (typeof x.type === "function" && x.type !== ATTN) { rec(x.type(x.props)); return; }
+    rec(x.props?.children);
+  };
+  rec(n);
+  return out.join(" ");
+};
+
+/** The window API, network stubbed, every judgement the real contract's. */
+function api(tenants, detail = null, calls = []) {
+  return {
+    list: async () => { calls.push("list"); return { ok: true, tenants, message: "" }; },
+    one: async (id) => { calls.push(`one:${id}`); return { ok: !!detail, detail, message: detail ? "" : "No such page." }; },
+    rows: platformRows,
+    summary: platformSummary,
+    verdicts: PLATFORM_VERDICTS,
+    quietDays: PLATFORM_QUIET_DAYS,
+    number: platformNumber,
+    steps: setupSteps,
+  };
+}
+
+test("the list is the contract's judgement, in the row grammar the rest of the app uses", async () => {
+  globalThis.window.__platform = api([
+    live({ tenant_id: "a", slug: "all-good", name: "All Good" }),
+    live({ tenant_id: "b", slug: "broken-co", name: "Broken Co", voice_state: "failed", line_error: "Twilio refused the number: 21422" }),
+    live({ tenant_id: "c", slug: "smoke", name: "Smoke", status: "test" }),
+  ]);
+  const page = mount(Pane);
+  assert.match(textOf(page.tree), /Reading every workspace/, "nothing is shown before it is read");
+  await page.settle();
+
+  // One attention row per workspace, in the contract's order: the broken one
+  // first, whatever it is called.
+  const rows = attnRows(page.tree);
+  assert.deepEqual(rows.map((r) => r.props.name), ["Broken Co", "All Good", "Smoke"]);
+  assert.deepEqual(rows.map((r) => r.props.testid), ["platform-row-broken-co", "platform-row-all-good", "platform-row-smoke"]);
+  // The sentence is the verdict's, unchanged -- the provider's own words reach
+  // the screen rather than a category.
+  assert.match(rows[0].props.sentence, /Twilio refused the number: 21422/);
+  // The verdict leads the status line and colours the row.
+  assert.equal(rows[0].props.status[0], "Broken");
+  assert.equal(rows[0].props.tone, "danger");
+  assert.equal(rows[1].props.tone, "");
+  // The four facts are all on the row, so the answer is on the page rather than
+  // one click away.
+  assert.match(rows[1].props.status.join(" · "), /active · phone \+ WhatsApp · texting On · heard 1d ago/);
+  assert.match(textOf(byId(page.tree, "platform-summary")), /2 workspaces · 1 live · 1 on us/);
+});
+
+test("a refusal is the ordinary answer, and it does not look like an empty platform", async () => {
+  globalThis.window.__platform = {
+    ...api([]),
+    list: async () => ({ ok: false, tenants: [], message: "No such page." }),
+  };
+  const page = mount(Pane);
+  await page.settle();
+  assert.match(textOf(page.tree), /No such page/, "what the route said, said plainly");
+  assert.equal(attnRows(page.tree).length, 0);
+});
+
+test("finding a workspace by name or slug, because that is what a support call starts with", async () => {
+  globalThis.window.__platform = api([
+    live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" }),
+    live({ tenant_id: "b", slug: "melanys-beauty-salon", name: "Melany's Beauty Salon" }),
+  ]);
+  const page = mount(Pane);
+  await page.settle();
+  assert.equal(attnRows(page.tree).length, 2);
+  page.type(byId(page.tree, "platform-find"), "melany");
+  assert.deepEqual(attnRows(page.tree).map((r) => r.props.name), ["Melany's Beauty Salon"]);
+  page.type(byId(page.tree, "platform-find"), "harbor-mov");
+  assert.deepEqual(attnRows(page.tree).map((r) => r.props.name), ["Harbor Moving"], "the slug matches too");
+  page.type(byId(page.tree, "platform-find"), "zzz");
+  assert.equal(attnRows(page.tree).length, 0);
+  assert.match(textOf(page.tree), /Nothing matches/);
+});
+
+test("opening one shows the customer's own Setup rows, and no buttons that would act on ours", async () => {
+  const calls = [];
+  const detail = {
+    tenant: { id: "a", slug: "harbor-moving", name: "Harbor Moving", status: "active", timezone: "America/New_York", created_at: ago(90) },
+    setup: SETUP_FIXTURE,
+    events: [
+      { kind: "line.provisioned", category: "setup", subject_type: "line", created_at: ago(2), data: {} },
+      { kind: "business.recorded", category: "setup", subject_type: "tenant", created_at: ago(1), data: {} },
+    ],
+  };
+  globalThis.window.__platform = api([live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" })], detail, calls);
+  const page = mount(Pane);
+  await page.settle();
+  await page.press(attnRows(page.tree)[0].props.cta.onClick);
+  assert.ok(calls.includes("one:a"), "it reads that workspace");
+  assert.ok(byId(page.tree, "platform-detail"), "the detail opens under the list");
+
+  // The rows are setupSteps' rows -- the customer's own view model, run for
+  // their workspace. Compared against the function directly, so a second
+  // rendering cannot creep in.
+  const want = setupSteps({ ...SETUP_FIXTURE, later: [] });
+  const shown = attnRows(page.tree).map((r) => r.props.testid).filter((t) => String(t).startsWith("platform-setup-"));
+  assert.deepEqual(shown, want.rows.map((r) => `platform-setup-${r.id}`));
+  assert.ok(want.rows.length >= 5, "a real set of rows, not an empty one");
+
+  // Read-only: not one of those rows offers a verb. Setup's buttons act on the
+  // SIGNED-IN workspace, and this is somebody else's.
+  for (const r of attnRows(page.tree).filter((r) => String(r.props["data-testid"]).startsWith("platform-setup-"))) {
+    assert.equal(r.props.cta ?? null, null, `${r.props["data-testid"]} offers a button`);
+    assert.equal(r.props.also ?? null, null);
+  }
+  // The trail, newest first, and the line's own step and error.
+  assert.ok(byId(page.tree, "platform-events"));
+  assert.match(textOf(byId(page.tree, "platform-events")), /line\.provisioned/);
+  const text = textOf(page.tree);
+  assert.match(text, /Their lines/);
+  assert.match(text, /stopped at brand/, "where the registration stopped");
+  assert.match(text, /the carriers refused it/, "and what the provider said");
+});
+
+test("the pane decides nothing: every verdict, word and row comes from the contract", () => {
+  const src = readCode("apps/dashboard/src/legacy/pages/platform.jsx");
+  for (const call of ["P.rows(tenants)", "P.summary(rows)", "P.verdicts[r.verdict]", "P.steps({ ...detail.setup, later: [] })", "P.number(l.e164)"]) {
+    assert.ok(src.includes(call), `the page reads ${call} rather than deciding`);
+  }
+  // No thresholds, no state lists, no sorting of its own.
+  assert.ok(!/\.sort\(/.test(src), "the contract sorts");
+  assert.ok(!/86_?400_?000|14 \* DAY|\bDAY\b/.test(src), "no clocks of its own");
+  assert.ok(!/needs_record|past_due|reg_mock === true/.test(src), "no state judgements of its own");
+  // It borrows the row grammar rather than inventing one.
+  assert.ok(src.includes("<window.AttnRow"), "the same row People, Today and Setup draw");
+  assert.ok(!/className="pf-row/.test(src));
+});
+
+test("the tab exists for the people it is for, and for nobody else", () => {
+  const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
+  // Not in SET_TABS: a customer who types the route lands on Profile rather
+  // than on a locked door they now know about.
+  assert.ok(!/id: "platform".*group: "Workspace"/.test(settings));
+  assert.match(settings, /const SET_TABS_PLATFORM = \[\{ id: "platform"/);
+  assert.match(settings, /const isPlatformAdmin = \(\) => !!\(window\.__ME && window\.__ME\.platform_admin\);/);
+  // The rail derives from the list, so the tab cannot appear where it may not.
+  assert.match(settings, /\[\.\.\.SET_TABS, \.\.\.\(isPlatformAdmin\(\) \? SET_TABS_PLATFORM : \[\]\)\]/);
+  // And the route resolves to it only for an admin -- otherwise SET_TAB falls
+  // through to the default, which is what makes the route a dead end.
+  assert.match(settings, /\|\| \(isPlatformAdmin\(\) \? SET_TABS_PLATFORM\.find\(\(t\) => t\.id === id\) : null\)/);
+  assert.match(settings, /\{active\.id === "platform" && window\.PanePlatform && <window\.PanePlatform \/>\}/);
+  // The crumb applies the same rule, so one route cannot be described two ways.
+  const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
+  assert.match(shell, /window\.__ME && window\.__ME\.platform_admin\) \? \(window\.SET_TABS_PLATFORM \|\| \[\]\)/);
+  // In both lists, in file order, like every other legacy page.
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/platform.jsx";'));
 });
