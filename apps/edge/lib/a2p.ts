@@ -10,7 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./workspace/db.js";
 import {
-  runA2PSaga, smsStateFor, registrationVerdict, LOW_VOLUME_USECASE,
+  runA2PSaga, smsStateFor, registrationVerdict, LOW_VOLUME_USECASE, deleteCampaignRequest,
   encodeForm, soleProprietorUnsupported, type A2PPorts, type A2PRequest, type A2PState, type BusinessRecord,
 } from "./workspace/channels.js";
 import { formatPhoneDisplay } from "./workspace/contracts.js";
@@ -94,6 +94,55 @@ export function campaignFactsFor(o: { businessName: string; optInUrl: string; pr
     privacyPolicyUrl: o.privacyUrl,
     termsUrl: o.termsUrl,
   };
+}
+
+/**
+ * Take a REHEARSAL off a line so a real filing can replace it.
+ *
+ * A brand filed with `Mock: true` goes to Twilio's free test registry: it
+ * reports itself approved, delivers nothing, and expires in thirty days. It is
+ * the right way to walk this path before a customer pays, and the wrong thing
+ * to leave behind afterwards -- a line carrying one looks registered from every
+ * angle while every text it receives is held for a person.
+ *
+ * Two things come off, and only two. The campaign is DELETED at Twilio because
+ * a Messaging Service holds exactly one and the real POST would be refused
+ * while the mock is there; the brand and campaign sids come off the row. The
+ * TrustHub profile, the business, the representative, the address and the
+ * document all STAY: only the brand ever carried Mock, so those receipts are
+ * real, and the saga skips every step it still holds one for.
+ *
+ * Never called for a real filing -- that one was paid for and vetted, and the
+ * caller refuses the whole operation before reaching here.
+ */
+export async function unfileMockRegistration(db: Db, line: LineRow): Promise<{ ok: boolean; error?: string; row?: LineRow }> {
+  const L = logger({ tenant_id: line.tenant_id, line_id: line.id });
+  if (line.messaging_service_sid) {
+    const sub = await lineAccount(db, line).catch(() => null);
+    if (!sub) return { ok: false, error: "no_line_credentials" };
+    const req = deleteCampaignRequest(line.messaging_service_sid);
+    // Best effort by design: a campaign that is already gone is the state we
+    // were asking for, and Twilio answers 404 for it.
+    const r = await fetch(req.url, {
+      method: req.method,
+      headers: { Authorization: `Basic ${Buffer.from(`${sub.sid}:${sub.token}`).toString("base64")}` },
+      signal: AbortSignal.timeout(20000),
+    }).catch(() => null);
+    L.info("a2p.mock_campaign_deleted", { status: r?.status ?? 0, ok: !r || r.ok || r.status === 404 });
+  }
+  // `single()` is the row count: a write that changed nothing errors here
+  // rather than returning a success the caller would file on top of.
+  const cleared = await db.from("lines").update({
+    brand_sid: null,
+    campaign_sid: null,
+    reg_mock: false,
+    reg_step: null,
+    sms_state: "registering",
+    last_error: null,
+    state_since: new Date().toISOString(),
+  }).eq("id", line.id).select("*").single();
+  if (cleared.error) return { ok: false, error: cleared.error.message };
+  return { ok: true, row: cleared.data };
 }
 
 export interface RegisterResult {

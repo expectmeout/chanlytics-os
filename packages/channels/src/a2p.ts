@@ -94,7 +94,7 @@ export function soleProprietorUnsupported(r: Pick<BusinessRecord, "ein">): boole
 
 export interface A2PRequest {
   url: string;
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "DELETE";
   /**
    * Form fields; the caller encodes them. A list is sent as REPEATED keys —
    * `MessageSamples=a&MessageSamples=b` — which is the only shape Twilio
@@ -360,6 +360,20 @@ export function campaignRequest(f: CampaignFacts): A2PRequest {
   if (keywords.length) form.OptInKeywords = keywords;
   else delete form.OptInMessage;
   return { url: `${MESSAGING}/Services/${f.messagingServiceSid}/Compliance/Usa2p`, method: "POST", form };
+}
+
+/**
+ * Take the campaign off a Messaging Service.
+ *
+ * A service holds ONE campaign, so a second POST is refused while the first is
+ * there. That is only a problem for the one case this exists for: a filing made
+ * against Twilio's mock registry, which never routes a real message and expires
+ * in thirty days, being replaced by a real one. A real campaign is never
+ * deleted from here — it was paid for and vetted, and the caller refuses the
+ * whole operation before reaching this.
+ */
+export function deleteCampaignRequest(messagingServiceSid: string): A2PRequest {
+  return { url: `${MESSAGING}/Services/${messagingServiceSid}/Compliance/Usa2p`, method: "DELETE" };
 }
 
 /* --------------------------- the state machine --------------------------- */

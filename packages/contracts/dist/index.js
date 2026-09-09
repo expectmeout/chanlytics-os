@@ -5901,6 +5901,25 @@ var SETUP_STATE_WORDS = {
   waiting_them: "Waiting on us",
   ready: "Ready"
 };
+var MOCK_TEXTING_SENTENCE = "Texting is filed against a test registry, so nothing is delivered \u2014 a person at Chanlytics is filing it with the carriers for real.";
+function textingWords(l) {
+  if (!l) return { sentence: "Texting is not available yet.", done: false };
+  if (l.reg_mock) return { sentence: MOCK_TEXTING_SENTENCE, done: false };
+  switch (l.sms_state) {
+    case "active":
+      return { sentence: "Texting is on.", done: true };
+    case "approved":
+      return { sentence: "Your business is approved; one last check on the line is with the carriers.", done: false };
+    case "registering":
+      return { sentence: "Texting is with the carriers.", done: false };
+    case "rejected":
+      return { sentence: "The carriers refused the texting registration.", done: false };
+    case "failed":
+      return { sentence: "The texting registration stopped; a person at Chanlytics has it.", done: false };
+    default:
+      return { sentence: "Texting is not available yet.", done: false };
+  }
+}
 var display = (e164) => e164 ? formatPhoneDisplay(e164) : null;
 var plural3 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 function setupSteps(i, nowMs = Date.now()) {
@@ -5949,9 +5968,10 @@ function setupSteps(i, nowMs = Date.now()) {
   row2(handoffNum ? { id: "handoff", icon: "phone", title: "A person to hand off to", state: "ready", required: false, sentence: `Callers who insist on a person are transferred to ${handoffNum}.`, details: [], verb: { label: "Change it", to: "admin/workspace" } } : { id: "handoff", icon: "phone", title: "A person to hand off to", state: "waiting_you", required: false, sentence: "Give the receptionist a number to hand callers to when they insist on a person.", details: [], verb: { label: "Add a number", to: "admin/workspace" } });
   const lines = i.lines ?? { rows: [], ready: false, provider: null, costs: { local_number_month_usd: 1.15 } };
   const ownLine = lines.rows.find((l) => l.voice_state !== "none") ?? null;
+  const texting = textingWords(ownLine);
   const lineNum = ownLine?.e164 ? display(ownLine.e164) ?? ownLine.e164 : "your number";
   if (voiceReady) {
-    row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "ready", required: !answering, sentence: `Calls are answered on ${voiceNum}. Texting is not available yet.`, details: [ownLine?.voice_state === "answering" ? "Your own number through Chanlytics" : "", "Texting arrives with lines that register with the carriers; this page will say when"].filter(Boolean), verb: { label: "Open Integrations", to: "admin/integrations" } });
+    row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "ready", required: !answering, sentence: `Calls are answered on ${voiceNum}. ${texting.sentence}`, details: [ownLine?.voice_state === "answering" ? "Your own number through Chanlytics" : "", texting.done ? "" : "Texting arrives with lines that register with the carriers; this page will say when"].filter(Boolean), verb: { label: "Open Integrations", to: "admin/integrations" } });
   } else if (voice.present) {
     row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: `Your line ${voice.number ? `${voiceNum} ` : ""}is switched off \u2014 the receptionist is not answering it.`, details: [], verb: { label: "Open Integrations", to: "admin/integrations" } });
   } else if (ownLine && ownLine.voice_state === "provisioning") {
@@ -6053,7 +6073,7 @@ function setupSteps(i, nowMs = Date.now()) {
   const next = nextRow && nextRow.verb ? { label: nextRow.verb.label, to: nextRow.verb.to, row: nextRow.id, title: nextRow.title } : null;
   const done = rows.filter((r) => r.state === "ready").length;
   const seriousConflict = (i.conflicts ?? []).find((k) => k.severity === "serious") ?? null;
-  const sentence = seriousConflict ? seriousConflict.sentence : waReady && voiceReady ? `Your receptionist answers calls on ${voiceNum} and WhatsApp on ${waNum}. Texting is not available yet.` : voiceReady ? `Your receptionist answers calls on ${voiceNum}. WhatsApp is not connected. Texting is not available yet.` : waReady ? `Your receptionist answers WhatsApp on ${waNum}. No phone line yet.` : "Your receptionist is not answering yet.";
+  const sentence = seriousConflict ? seriousConflict.sentence : waReady && voiceReady ? `Your receptionist answers calls on ${voiceNum} and WhatsApp on ${waNum}. ${texting.sentence}` : voiceReady ? `Your receptionist answers calls on ${voiceNum}. WhatsApp is not connected. ${texting.sentence}` : waReady ? `Your receptionist answers WhatsApp on ${waNum}. No phone line yet.` : "Your receptionist is not answering yet.";
   return {
     rows,
     readiness: { answering, sentence },
@@ -6279,6 +6299,9 @@ function smsStateRow(line, nowMs) {
   const ready = line?.voice_state === "answering";
   if (ready && (!line?.sms_state || line.sms_state === "none")) {
     return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Texting needs your business on record for the carriers \u2014 two minutes, once.", verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
+  }
+  if (line?.reg_mock) {
+    return { ...base, state: "attention", stateWords: "Waiting on us", sentence: textingWords(line).sentence };
   }
   switch (line?.sms_state) {
     case "active":
@@ -6649,6 +6672,7 @@ export {
   MESSAGE_SENDERS,
   MESSAGE_STATUSES,
   MESSAGE_TYPES,
+  MOCK_TEXTING_SENTENCE,
   MODE_WORDS,
   NEW_WINDOW_MS,
   NoteSchema,
@@ -6952,6 +6976,7 @@ export {
   templateNameOk,
   templateTitle,
   tenantStatusFor,
+  textingWords,
   threadStanding,
   tidyCallSummary,
   timezoneCity,

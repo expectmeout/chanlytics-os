@@ -263,6 +263,31 @@ test("the line row over the product's own line: get one when this deployment can
   assert.equal(setupSteps(empty({ lines: withLines([lineRow({ voice_state: "failed" })], false) }), NOW).next.row, "facts", "a stopped line is ours to fix, not the next thing to press");
 });
 
+test("Setup says what texting actually is, and names a mock filing as a mock filing", () => {
+  // The one that matters. A brand filed with Mock: true against Twilio's free
+  // test registry shows four green ticks in the console, says "Approved", and
+  // delivers nothing -- it expires in thirty days. Setup used to say the same
+  // words about it as about a line that had never been filed at all, and the
+  // same words about a line the carriers had genuinely approved.
+  const withState = (over) => setupSteps(live({ lines: withLines([lineRow({ voice_state: "answering", step: null, ...over })]) }), NOW);
+
+  const mock = withState({ sms_state: "approved", reg_mock: true, registered: true });
+  assert.match(row(mock, "line").sentence, /test registry, so nothing is delivered/);
+  assert.match(mock.readiness.sentence, /test registry, so nothing is delivered/);
+  assert.ok(!/Texting is on/.test(JSON.stringify(mock)), "a rehearsal is never reported as working texting");
+
+  const on = withState({ sms_state: "active" });
+  assert.ok(row(on, "line").sentence.endsWith("Texting is on."));
+  assert.ok(!row(on, "line").details.some((d) => /Texting arrives with lines/.test(d)), "nothing still to wait for once it is on");
+
+  const filed = withState({ sms_state: "registering" });
+  assert.ok(row(filed, "line").sentence.endsWith("Texting is with the carriers."));
+  const refused = withState({ sms_state: "rejected" });
+  assert.match(row(refused, "line").sentence, /refused the texting registration/);
+  // Unfiled stays what it always said: a line that can call and not text.
+  assert.ok(row(withState({}), "line").sentence.endsWith("Texting is not available yet."));
+});
+
 test("the wiring for lines: routes owner-only and rate-limited, the setup route carries them, the bridge repaints on a step, the page has the chooser", () => {
   for (const [file, bucket] of [["search", "lines_search"], ["buy", "lines_buy"], ["retry", "lines_retry"]]) {
     const src = readCode(`apps/dashboard/app/api/v1/lines/${file}/route.ts`);
@@ -274,6 +299,14 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   const server = readCode("apps/dashboard/src/server/lines.ts");
   assert.ok(server.includes('"x-diag-key": process.env.DIAG_KEY') && server.includes("${EDGE_BASE}/api/admin/lines"));
   assert.ok(!/_sid/.test(server.slice(server.indexOf("LINE_COLUMNS"), server.indexOf("export async function linesFor"))), "no provider id is selected for the page");
+  // Two hand-kept copies of one mapper: the edge builds a LineDto from the full
+  // row, the dashboard from the columns a member may read. A field added to the
+  // contract and forgotten on this side compiles cleanly and arrives undefined
+  // -- which is how Setup would have called a mock filing "approved".
+  for (const field of ["reg_mock", "reg_step"]) {
+    assert.ok(server.includes(`${field},`) || server.includes(`${field} `), `${field} is selected`);
+    assert.ok(server.includes(`${field}: r.${field},`), `${field} reaches the page`);
+  }
   assert.ok(readCode("apps/dashboard/app/api/v1/setup/route.ts").includes("lines: { rows: lineRows, ready: lineStatus.ready, provider: lineStatus.provider, costs: { local_number_month_usd: lineStatus.costs.local_number_month_usd } },"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/setup.ts");
   assert.ok(bridge.includes('refreshOnTables: ["lines", "notifications"]'));

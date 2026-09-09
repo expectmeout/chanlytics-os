@@ -22,7 +22,7 @@ import { emitEvent } from "../../lib/workspace/db.js";
 import { formatPhoneDisplay } from "../../lib/workspace/contracts.js";
 import { runLineSaga, isAreaCode, isE164, LINE_COSTS, type LineRow } from "../../lib/workspace/channels.js";
 import { lineProviderFromEnv, linePorts, lineForClient, rowToLine, LINE_STEP_WORDS, type LineProviderChoice } from "../../lib/lines.js";
-import { registerLine, syncRegistration } from "../../lib/a2p.js";
+import { registerLine, syncRegistration, unfileMockRegistration } from "../../lib/a2p.js";
 import { businessTypeOf, companyTypeOf, industryOf } from "../../lib/workspace/contracts.js";
 import { dashboardOrigin } from "../../lib/billing.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -38,6 +38,8 @@ interface Body {
   record?: unknown;
   /** File against Twilio's free test registry instead of the carriers. */
   mock?: boolean;
+  /** Replace a rehearsal filing with a real one. Refused on a real filing. */
+  refile?: boolean;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -262,6 +264,7 @@ export async function POST(request: Request): Promise<Response> {
       return json(r.ok ? 200 : 502, r);
     }
 
+    const refile = body.refile === true;
     const rec = await db.from("business_records").select("*").eq("tenant_id", tenantId).maybeSingle();
     if (rec.error) return json(503, { ok: false, error: rec.error.message });
     if (!rec.data) {
@@ -269,11 +272,32 @@ export async function POST(request: Request): Promise<Response> {
       return json(409, { ok: false, error: "no_business_record", hint: "op 'record' first" });
     }
     if (row.data.brand_sid && row.data.campaign_sid) {
-      return json(409, { ok: false, error: "already_registered", brand_sid: row.data.brand_sid, campaign_sid: row.data.campaign_sid });
+      // A REAL filing is final here: it cost the workspace money, the carriers
+      // vetted it, and re-filing would buy a second one. A MOCK filing is a
+      // rehearsal against Twilio's test registry -- free, routes nothing, gone
+      // in thirty days -- and the only way out of one used to be a 409 with no
+      // next step, which is how a line sat looking registered while every text
+      // it received was held for a person.
+      if (!row.data.reg_mock) {
+        return json(409, { ok: false, error: "already_registered", brand_sid: row.data.brand_sid, campaign_sid: row.data.campaign_sid });
+      }
+      if (!refile) {
+        return json(409, {
+          ok: false,
+          error: "mock_registration",
+          hint: "this line is registered against Twilio's test registry, which routes nothing; send refile: true to file a real one",
+          brand_sid: row.data.brand_sid, campaign_sid: row.data.campaign_sid,
+        });
+      }
+      const off = await unfileMockRegistration(db, row.data);
+      if (!off.ok || !off.row) return json(503, { ok: false, error: off.error ?? "unfile_failed" });
+      row.data = off.row;
     }
     // A mock registration is Twilio's free test registry; the real one costs
     // the workspace money, so it is never the default.
-    const mock = body.mock === true;
+    // Never the default: a real filing costs the workspace money. A refile is
+    // always real -- there is no reason to replace one rehearsal with another.
+    const mock = !refile && body.mock === true;
     const origin = dashboardOrigin();
     const result = await registerLine(db, {
       line: row.data,

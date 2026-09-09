@@ -1,5 +1,5 @@
 import { withRoute, memberContext, requireRole } from "@/server/with-route";
-import { AppError } from "@chanlytics/contracts";
+import { AppError, MOCK_TEXTING_SENTENCE } from "@chanlytics/contracts";
 import { takeRate } from "@/server/rate-limit";
 import { edgeLines } from "@/server/lines";
 
@@ -29,6 +29,12 @@ export const POST = withRoute(async (req, ctx) => {
   if (a.status === 404) throw new AppError("not_found", "That line does not exist.", 404);
   if (a.status === 409 && b.error === "no_business_record") throw new AppError("conflict", "Fill in your business on record first — the carriers ask who you are.", 409);
   if (a.status === 409 && b.error === "already_registered") throw new AppError("conflict", "This line is already registered with the carriers.", 409);
+  // A rehearsal filing, which this route deliberately cannot replace: making it
+  // real charges the workspace, so it is an operator's call with the record in
+  // front of them, not the outcome of an owner pressing resubmit. Without this
+  // case the catch-all below told them "the carriers did not answer", which was
+  // about nothing that had happened.
+  if (a.status === 409 && b.error === "mock_registration") throw new AppError("conflict", MOCK_TEXTING_SENTENCE, 409);
   if (a.status === 502 && b.error === "sole_proprietor_unsupported") {
     throw new AppError("conflict", "Texting for a business without a tax ID needs a different registration, which we do not offer yet. We have been told.", 409);
   }

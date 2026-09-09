@@ -142,6 +142,16 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
   assert.ok(reg.sentence.includes("since 2d ago"));
   assert.equal(words("rejected", { last_error: "the website could not be reached" }).sentence, "The carriers sent the registration back: the website could not be reached.");
   assert.equal(words("active").state, "connected");
+  // A filing made against the carriers' TEST registry: it reports itself
+  // approved and delivers nothing. This row read the state underneath it and
+  // told the owner their texting was days from switching itself on.
+  const mock = words("approved", { reg_mock: true });
+  assert.equal(mock.state, "attention", "joined, not working");
+  assert.equal(mock.stateWords, "Waiting on us");
+  assert.match(mock.sentence, /nothing is delivered/);
+  assert.match(mock.sentence, /a person at Chanlytics is filing it/);
+  assert.ok(!/switches itself on/.test(mock.sentence), "a rehearsal never switches itself on");
+  assert.ok(!/switches itself on/.test(words("registering", { reg_mock: true }).sentence), "whatever stage the rehearsal reached");
   assert.equal(smsStateRow(null, NOW).state, "later", "no line at all: nothing to offer");
   assert.equal(words("rejected", { last_error: "x" }).verb.to, "verb:business-record", "a rejection points at the thing to fix");
   assert.equal(words("failed", { last_error: "Texting for a business without a tax id needs a different registration." }).sentence, "Texting for a business without a tax id needs a different registration.", "and a refusal says what it actually was");

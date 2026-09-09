@@ -56,7 +56,10 @@ export function fakeDb(tables, faults = {}) {
       // already replaced matches nothing and comes back empty.
       const hit = rows().filter((r) => matches(r, q.filters));
       for (const r of hit) Object.assign(r, q.values);
-      return { data: hit.map((r) => ({ id: r.id })), error: null };
+      // `.select("*")` after an update reads the row BACK, which is how a
+      // caller that must act on what it just wrote avoids a second round trip;
+      // anything narrower keeps answering with ids, as PostgREST does.
+      return { data: hit.map((r) => (q.columns === "*" ? { ...r } : { id: r.id })), error: null };
     };
 
     const builder = {
@@ -67,7 +70,20 @@ export function fakeDb(tables, faults = {}) {
       lt(col, val) { q.filters.push(["lt", col, val]); return proxy; },
       order(col) { q.order = col; return proxy; },
       limit(n) { q.limit = n; return proxy; },
+      // One row, PostgREST's two ways of asking. `single()` treating "no rows"
+      // as an ERROR is the whole point of using it: a write that changed
+      // nothing must not come back as a success the caller writes on top of.
+      single() { return Promise.resolve().then(() => one(run(), true)); },
+      maybeSingle() { return Promise.resolve().then(() => one(run(), false)); },
       then(resolve, reject) { return Promise.resolve().then(run).then(resolve, reject); },
+    };
+
+    const one = (r, strict) => {
+      if (r.error) return r;
+      const rows = r.data ?? [];
+      if (rows.length === 1) return { data: rows[0], error: null };
+      if (rows.length === 0) return strict ? { data: null, error: { message: "JSON object requested, multiple (or no) rows returned", code: "PGRST116" } } : { data: null, error: null };
+      return { data: null, error: { message: "JSON object requested, multiple (or no) rows returned", code: "PGRST116" } };
     };
 
     const proxy = new Proxy(builder, {

@@ -11,7 +11,7 @@ import type { LineDto } from "@chanlytics/contracts";
 const EDGE_BASE = "https://chanlytics-messaging.vercel.app";
 
 /** The columns the page may see — the lines_member_select policy scopes the rows. */
-export const LINE_COLUMNS = "id, e164, kind, provider, area_code, voice_state, sms_state, whatsapp_state, port_state, forwarding_state, step, last_error, state_since, created_at, facts";
+export const LINE_COLUMNS = "id, e164, kind, provider, area_code, voice_state, sms_state, reg_step, reg_mock, whatsapp_state, port_state, forwarding_state, step, last_error, state_since, created_at, facts";
 
 /** A forwarded line's facts, in words only — never a provider id from a provisioned line's facts. */
 function forwardingOf(kind: string, facts: unknown): LineDto["forwarding"] {
@@ -32,6 +32,12 @@ export async function linesFor(db: SupabaseClient<Database>, tenantId: string): 
     area_code: r.area_code,
     voice_state: r.voice_state as LineDto["voice_state"],
     sms_state: r.sms_state,
+    // The registration, in words the page may hold. `registered` is NOT set
+    // here: it is derived from the brand and campaign SIDs, and no provider id
+    // crosses this boundary -- so anything the page decides must be decidable
+    // from reg_mock and sms_state alone.
+    reg_step: r.reg_step,
+    reg_mock: r.reg_mock,
     whatsapp_state: r.whatsapp_state,
     port_state: r.port_state,
     forwarding_state: r.forwarding_state,

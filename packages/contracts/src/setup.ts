@@ -144,6 +144,48 @@ export interface SetupVM {
   tryIt: { voice: string | null; voiceLabel: string | null; whatsapp: string | null; whatsappLabel: string | null } | null;
 }
 
+/**
+ * What this line's texting actually IS, in the owner's words.
+ *
+ * Every one of these sentences used to be the same sentence -- "Texting is not
+ * available yet" -- said whatever the line's registration had done, because
+ * nothing here read sms_state. That was honest while no line could text and a
+ * lie in both directions afterwards: a line the carriers had approved still
+ * read "not available", and a line filed against Twilio's MOCK registry -- free,
+ * routes nothing, gone in thirty days -- read exactly like one that was real.
+ *
+ * The mock case is named out loud because it is the one that looks finished
+ * from every angle: the console shows four green ticks, the brand says
+ * Approved, and not one message would ever be delivered.
+ */
+/**
+ * The one sentence a rehearsal filing gets, wherever an owner meets it: the
+ * Setup row, the Integrations texting row, and the refusal the register route
+ * answers with. Three surfaces said three different things about one state
+ * before this -- and one of them ("the carriers did not answer") was not even
+ * about the state it was describing.
+ */
+export const MOCK_TEXTING_SENTENCE =
+  "Texting is filed against a test registry, so nothing is delivered — a person at Chanlytics is filing it with the carriers for real.";
+
+export function textingWords(l: LineDto | null | undefined): { sentence: string; done: boolean } {
+  if (!l) return { sentence: "Texting is not available yet.", done: false };
+  // reg_mock alone, not reg_mock && registered: the flag is only ever set by a
+  // filing that WAS made against the test registry, so a mock brand still
+  // waiting on its mock campaign is just as undeliverable as a finished one --
+  // and `registered` is derived from the brand and campaign SIDs, which the
+  // dashboard's side of the line mapper deliberately never selects.
+  if (l.reg_mock) return { sentence: MOCK_TEXTING_SENTENCE, done: false };
+  switch (l.sms_state) {
+    case "active": return { sentence: "Texting is on.", done: true };
+    case "approved": return { sentence: "Your business is approved; one last check on the line is with the carriers.", done: false };
+    case "registering": return { sentence: "Texting is with the carriers.", done: false };
+    case "rejected": return { sentence: "The carriers refused the texting registration.", done: false };
+    case "failed": return { sentence: "The texting registration stopped; a person at Chanlytics has it.", done: false };
+    default: return { sentence: "Texting is not available yet.", done: false };
+  }
+}
+
 const display = (e164: string | null | undefined): string | null => (e164 ? formatPhoneDisplay(e164) : null);
 const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 
@@ -209,9 +251,10 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
   // 3. A line for calls and texts — the product's own line when this deployment can get one; a person at Chanlytics otherwise.
   const lines = i.lines ?? { rows: [], ready: false, provider: null, costs: { local_number_month_usd: 1.15 } };
   const ownLine = lines.rows.find((l) => l.voice_state !== "none") ?? null;
+  const texting = textingWords(ownLine);
   const lineNum = ownLine?.e164 ? display(ownLine.e164) ?? ownLine.e164 : "your number";
   if (voiceReady) {
-    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "ready", required: !answering, sentence: `Calls are answered on ${voiceNum}. Texting is not available yet.`, details: [ownLine?.voice_state === "answering" ? "Your own number through Chanlytics" : "", "Texting arrives with lines that register with the carriers; this page will say when"].filter(Boolean), verb: { label: "Open Integrations", to: "admin/integrations" } });
+    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "ready", required: !answering, sentence: `Calls are answered on ${voiceNum}. ${texting.sentence}`, details: [ownLine?.voice_state === "answering" ? "Your own number through Chanlytics" : "", texting.done ? "" : "Texting arrives with lines that register with the carriers; this page will say when"].filter(Boolean), verb: { label: "Open Integrations", to: "admin/integrations" } });
   } else if (voice.present) {
     row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: `Your line ${voice.number ? `${voiceNum} ` : ""}is switched off — the receptionist is not answering it.`, details: [], verb: { label: "Open Integrations", to: "admin/integrations" } });
   } else if (ownLine && ownLine.voice_state === "provisioning") {
@@ -345,9 +388,9 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
     // line of Setup is where an owner reads the second one.
     ? seriousConflict.sentence
     : waReady && voiceReady
-    ? `Your receptionist answers calls on ${voiceNum} and WhatsApp on ${waNum}. Texting is not available yet.`
+    ? `Your receptionist answers calls on ${voiceNum} and WhatsApp on ${waNum}. ${texting.sentence}`
     : voiceReady
-      ? `Your receptionist answers calls on ${voiceNum}. WhatsApp is not connected. Texting is not available yet.`
+      ? `Your receptionist answers calls on ${voiceNum}. WhatsApp is not connected. ${texting.sentence}`
       : waReady
         ? `Your receptionist answers WhatsApp on ${waNum}. No phone line yet.`
         : "Your receptionist is not answering yet.";

@@ -13,7 +13,7 @@
 import type { ChannelVM } from "./channels";
 import type { GoogleListingDto, GoogleConnectionDto, GoogleAudience } from "./google";
 import type { LineDto } from "./setup";
-import { LINE_STEP_WORDS } from "./setup";
+import { LINE_STEP_WORDS, textingWords } from "./setup";
 import { agoWords } from "./time";
 import { checkedWords, connectionWords, listingLine } from "./google";
 import { formatPhoneDisplay } from "./phone";
@@ -104,6 +104,16 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
   const ready = line?.voice_state === "answering";
   if (ready && (!line?.sms_state || line.sms_state === "none")) {
     return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Texting needs your business on record for the carriers — two minutes, once.", verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
+  }
+
+  // A filing made against the carriers' TEST registry, before any of the real
+  // states below: it reports itself as approved, delivers nothing, and expires
+  // in thirty days. This row used to read the state underneath it and tell the
+  // owner their texting was days from switching itself on. `attention` is
+  // exactly what it is -- joined, not working -- and the sentence is the one
+  // Setup says, from one function, so the two pages cannot drift apart.
+  if (line?.reg_mock) {
+    return { ...base, state: "attention", stateWords: "Waiting on us", sentence: textingWords(line).sentence };
   }
   switch (line?.sms_state) {
     case "active":
