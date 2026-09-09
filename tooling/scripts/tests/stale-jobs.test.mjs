@@ -17,6 +17,7 @@ import { recoveryFor, OVERDUE_AFTER_MS, MAX_REPUBLISHES, STALE_TO_A_PERSON_MS, R
 import { JOB_STATES } from "@chanlytics/contracts";
 
 const sweep = readCode("apps/edge/api/cron/jobs.ts");
+const settleSrc = readCode("apps/edge/lib/jobs-settle.ts");
 const mig = readRaw("supabase/migrations/00078_stale_jobs.sql");
 
 test("it marks, it never retries", () => {
@@ -48,10 +49,38 @@ test("both writes are conditional, so two ticks cannot report the same job twice
 
   // The message: if the handler DID record the send before dying, that row is
   // already 'sent', and saying otherwise would be a lie about a message that
-  // reached someone.
-  assert.ok(sweep.includes('.eq("status", "queued")'), "only a message still claiming to be on its way is touched");
-  assert.ok(sweep.includes('.eq("tenant_id", job.tenant_id)'), "and only within the job's own workspace");
-  assert.ok(sweep.includes('job.kind === "outbound_send" && typeof messageId === "string"'), "and only for the kind that has one");
+  // reached someone. The write lives in lib/jobs-settle.ts now, because both
+  // terminal paths need it and each used to do only half.
+  assert.ok(settleSrc.includes('.eq("status", "queued")'), "only a message still claiming to be on its way is touched");
+  assert.ok(settleSrc.includes('.eq("tenant_id", job.tenant_id)'), "and only within the job's own workspace");
+  assert.ok(settleSrc.includes('job.kind === "outbound_send"'), "and only for the kind that has one");
+});
+
+test("both terminal paths settle the same wreckage", () => {
+  // They used to settle a half each: the reap marked a stuck outbound_send's
+  // message failed and ignored broadcasts, the give-up released the broadcast
+  // and ignored messages. So an outbound_send given up on said "Sending…" for
+  // ever. One module, both callers, one set of conditions.
+  const calls = (sweep.match(/await settle\(db, job, (?:true|false)\)/g) ?? []).sort();
+  assert.deepEqual(calls, ["await settle(db, job, false)", "await settle(db, job, true)"], "each path settles, and they disagree only about certainty");
+
+  // Certain means the work provably never happened: nothing ever claimed the
+  // job. It changes the WORDS, never the conditions — every write is still
+  // conditional on the row claiming to be in flight.
+  const reap = sweep.slice(sweep.indexOf("for (const job of stale ?? [])"), sweep.indexOf("const overdueBefore ="));
+  assert.ok(reap.includes("await settle(db, job, false)"), "a job that was claimed may have done its work");
+  assert.ok(settleSrc.includes('.eq("status", "queued")') && settleSrc.includes('.eq("state", "sending")'), "both writes stay conditional either way");
+
+  // releaseBroadcast destructured `data` only, so a failed release was reported
+  // to the owner as a success. Nothing here discards an error.
+  assert.ok(settleSrc.includes("error: error.message"), "a settlement that could not be written says so");
+  assert.ok(sweep.includes('L.error("job_settle_failed"'), "and the sweep records it");
+  assert.ok(!sweep.includes("releaseBroadcast"), "the half-settlement it replaced is gone");
+
+  // The alert used to state the broadcast had been failed whether or not the
+  // write found anything. Now the sentence is built from what came back.
+  assert.ok(sweep.includes("const wreckage = saySettled(settled)"), "the owner is told what actually happened");
+  assert.ok(!sweep.includes("The broadcast has been marked failed;") || settleSrc.includes("The broadcast has been marked failed;"), "and that sentence lives with the write that earns it");
 });
 
 test("the staleness threshold sits between the longest honest run and the tick", () => {
@@ -232,8 +261,8 @@ test("a re-publish keeps the job's own row, and a stranded broadcast is released
   assert.ok(!sweep.includes("scheduleJob("), "scheduleJob would insert a SECOND row for the same work");
 
   // broadcastSend schedules its own next batch, so one lost link strands the run.
-  assert.ok(sweep.includes('job.kind !== "broadcast_send"'), "only a broadcast job releases a broadcast");
-  assert.ok(sweep.includes('.eq("state", "sending")'), "conditional, so a broadcast that finished is left alone");
+  assert.ok(settleSrc.includes('job.kind === "broadcast_send"'), "only a broadcast job releases a broadcast");
+  assert.ok(settleSrc.includes('.eq("state", "sending")'), "conditional, so a broadcast that finished is left alone");
   const handlers = readCode("packages/jobs/src/handlers.ts");
   assert.ok(handlers.includes('ctx.schedule("broadcast_send", new Date(), { broadcast_id: b.id })'), "the chain this repairs");
 });
@@ -247,14 +276,55 @@ test("neither half can silence the other", () => {
   assert.ok(sweep.includes("for (const job of stale ?? [])"), "an empty first half is a loop that does nothing, not a return");
   assert.ok(sweep.includes('L.error("stuck_read_failed"'), "a failed read of one half is logged, not fatal to the other");
 
-  // One answer, after both passes. A second 200 anywhere earlier is the same
-  // bug wearing different clothes.
-  const answers = (sweep.match(/return json\(200/g) ?? []).length;
-  assert.equal(answers, 2, "the overdue-read failure path, and the one at the end");
+  // ONE answer, after both passes. The overdue-read failure used to return
+  // early with its own 200 — the same bug wearing different clothes, and it
+  // also claimed the sweep was healthy while half of it had not run.
+  const body = sweep.slice(sweep.indexOf("const cutoff ="));
+  assert.equal((body.match(/return json\(/g) ?? []).length, 1, "the auth checks answer; after them, exactly one answer");
   assert.ok(
-    sweep.lastIndexOf("return json(200") > sweep.indexOf("recoveryFor(job)"),
-    "the final answer comes after the recovery loop, not before it",
+    sweep.lastIndexOf("return json(") > sweep.indexOf("recoveryFor(job)"),
+    "and it comes after the recovery loop, not before it",
   );
+});
+
+test("a snooze whose job was lost still wakes up", () => {
+  // 00006 gave pauses a sweeper for exactly this reason and snoozes never got
+  // one: snooze_until is cleared by the job, by an inbound message (00005) and
+  // by opt-out (00013), so a snooze whose job never arrives keeps a real
+  // conversation out of the inbox permanently, showing an hour that passed
+  // days ago, with nothing watching a row that looks freshly snoozed.
+  const wake = readRaw("supabase/migrations/00082_wake_stale_snoozes.sql");
+  assert.ok(wake.includes("c.state = 'snoozed'") && wake.includes("c.snooze_until < now()"), "expired snoozes only");
+  assert.ok(wake.includes("set state = 'open', snooze_until = null"), "the same edge the handler walks");
+  assert.ok(wake.includes("cron.schedule('wake-stale-snoozes'"), "on a clock of its own");
+  assert.ok(wake.includes("conversation.snooze_expired"), "and it leaves a trace, like its sibling");
+
+  // Deliberately the SAME rule as the handler, not a second policy that
+  // disagrees with the first. The handler has no escalation guard; 00006 does,
+  // because a paused thread a human owns is a different thing.
+  const handlers = readCode("packages/jobs/src/handlers.ts");
+  const snoozeWake = handlers.slice(handlers.indexOf("async function snoozeWake"));
+  assert.ok(snoozeWake.includes('conv.state !== "snoozed"') && snoozeWake.includes("snooze_until: null"), "the handler this mirrors");
+  assert.ok(!wake.includes("escalations"), "no guard the handler does not have");
+
+  // pause_expire needs nothing: 00006 has covered it since long before this.
+  assert.ok(readRaw("supabase/migrations/00006_expire_stale_pauses.sql").includes("cron.schedule('expire-stale-pauses'"), "the sibling that made this gap visible");
+});
+
+test("a sweep that could not read half the ledger does not answer 200", () => {
+  // A failed read used to be a 200 with an overdue_error field, so anything
+  // watching HTTP status read a half-broken sweep as healthy — and the stuck
+  // read's failure did not reach the response at all.
+  assert.ok(!sweep.includes("overdue_error"), "not a healthy answer with an error stapled to it");
+  assert.ok(sweep.includes('const failed = [error && "stuck", oErr && "overdue"]'), "both halves are accounted for");
+  assert.ok(sweep.includes("failed.length ? 503 : 200"), "and a failed read is not a 200");
+  assert.ok(sweep.includes("ok: failed.length === 0"), "nor an ok:true");
+
+  // The counts still come back: what the working half achieved is true
+  // whatever the other half did.
+  assert.ok(/reaped, messages, republished, gaveUp, broadcasts/.test(sweep), "the work that WAS done is still reported");
+  // 503 is already this route's word for "the work could not be done".
+  assert.ok(sweep.includes('json(503, { ok: false, error: "no_database" })'), "the same status the route already uses");
 });
 
 test("'fired' means claimed, not finished — or the sweep reaps every success", () => {

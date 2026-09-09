@@ -2919,6 +2919,7 @@ export type Database = {
       trigger_registration_sweep: { Args: never; Returns: number }
       trigger_stale_jobs_sweep: { Args: never; Returns: number }
       trigger_sweep_health: { Args: never; Returns: number }
+      wake_stale_snoozes: { Args: never; Returns: number }
     }
     Enums: {
       [_ in never]: never

@@ -3107,6 +3107,10 @@ type Database = {
                 Args: never;
                 Returns: number;
             };
+            wake_stale_snoozes: {
+                Args: never;
+                Returns: number;
+            };
         };
         Enums: {
             [_ in never]: never;
