@@ -20,7 +20,7 @@ const DAY = 86_400_000;
 const NOW = Date.parse("2026-09-06T15:00:00Z");
 const person = (id, over = {}) => ({
   id, state: "active", hasChat: true, calls: 0, phone: "+15551230001",
-  consent: { state: "opted_in", dnc: false, label: "Opted in", sub: "", source: "in_person" },
+  consent: { state: "opted_in", dnc: false, label: "Opted in", sub: "", source: "in_person", marketing: "opted_in", marketingSource: "in_person", marketingSub: "" },
   lastContact: { ts: NOW - 40 * DAY, label: "" },
   ...over,
 });

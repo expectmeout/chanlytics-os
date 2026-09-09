@@ -75,21 +75,68 @@ export function a2pStateFrom(l: LineRow): A2PState {
   };
 }
 
-/** What the workspace tells a reviewer about the messages it will send. */
+/**
+ * What the workspace tells a reviewer about the messages it will send.
+ *
+ * REWRITTEN AFTER TWO REFUSALS, both on the live Chanlytics campaign:
+ *
+ *   30886  USE_CASE_DESCRIPTION — "invalid campaign description"
+ *   30913  MESSAGE_FLOW — "marketing consent was combined with other consents.
+ *          Marketing consent must be collected separately."
+ *
+ * 30913 was earned. The old flow said customers "opt in by messaging the
+ * business first, or by sending the words YES OFFERS", and the page that
+ * sentence pointed at then promised "offers, news AND appointment reminders"
+ * for that one yes. One control, three purposes.
+ *
+ * Twilio's requirements for this field are specific, and error 30917 spells out
+ * what a passing answer contains: for EACH opt-in method, where it happens, what
+ * disclosure the consumer sees there, and what action confirms consent. Where
+ * there are several methods, all of them go in this one field.
+ *
+ * So the flow below walks a reviewer through both, separately, naming the
+ * keyword that answers each — which is only true because the product now records
+ * them as two different answers.
+ */
 export function campaignFactsFor(o: { businessName: string; optInUrl: string; privacyUrl: string; termsUrl: string }) {
   return {
-    description: `${o.businessName} answers its own customers and sends them appointment reminders and occasional offers. Messages are written or approved by the business; a customer starts every conversation or asks for offers first.`,
-    messageFlow: `Customers opt in by messaging the business first, or by sending the words YES OFFERS from the business's public sign-up page at ${o.optInUrl}, which states the message frequency, that rates may apply, and how to stop.`,
-    // Samples a reviewer reads. They must not state a fact about the
-    // business we were never given — an invented opening time is a claim
-    // made in their name.
+    // What the campaign IS, in the plainest terms, with the separation stated
+    // rather than left to be inferred from the flow.
+    description: `${o.businessName} uses this number to answer its own customers, to send them reminders about appointments they have booked, and — only for customers who ask for them separately — occasional offers. Every message is written or approved by the business. Conversational and transactional messages go to customers who have asked to hear about their appointments; promotional messages go only to customers who gave a separate, explicit yes to offers, and no customer is enrolled in both by a single action.`,
+
+    messageFlow: [
+      `Customers give consent at ${o.optInUrl}, a public page that presents TWO SEPARATE opt-ins, neither of which grants the other.`,
+      `(1) TRANSACTIONAL: under the heading "Messages about your visit", the page states that the customer will receive appointment reminders and confirmations from ${o.businessName}, that message frequency varies, that message and data rates may apply, to reply HELP for help and STOP to stop. The customer consents by sending the single word START to the business from their own phone, using the link or button shown there.`,
+      `(2) PROMOTIONAL: under a separate heading "Offers and news", the page states that the customer will receive promotional offers and news from ${o.businessName}, a few messages a month, that message and data rates may apply, to reply HELP for help and STOP to stop. It also states in its own words that this opt-in is optional, is not required for the messages above, and is not a condition of any purchase. The customer consents by sending the words YES OFFERS from their own phone.`,
+      `Sending the message is the action that confirms consent in each case, and each is recorded against that customer separately: a customer who sends START never receives promotional messages, and a customer who sends YES OFFERS is recorded as having consented to promotional messages specifically.`,
+      `Customers may also start a conversation by messaging the business directly, which is consent to be answered and to receive messages about their own appointments only.`,
+      `Replying STOP at any time ends all messages of both kinds.`,
+    ].join(" "),
+
+    // Samples a reviewer reads. They must not state a fact about the business we
+    // were never given -- an invented opening time is a claim made in their name.
+    //
+    // Both declared booleans are now TRUE OF THE SAMPLES. HasEmbeddedLinks and
+    // HasEmbeddedPhone have always been sent as "true" while neither sample
+    // contained a link or a number, which is exactly the declaration/sample
+    // mismatch reviewers reject -- and a plausible half of 30886.
     samples: [
       `Hi, thanks for writing ${o.businessName}. How can we help today?`,
       `Reminder from ${o.businessName}: you have an appointment tomorrow. Reply STOP to opt out.`,
+      `${o.businessName}: you can book or change your appointment here: ${o.optInUrl}. Reply STOP to opt out, HELP for help.`,
+      `${o.businessName}: we could not reach you by phone. Call us back on +1 917 574 6416 or reply here. Reply STOP to opt out.`,
+      `Offer from ${o.businessName}: 15% off this month for customers who asked for offers. Msg frequency varies. Msg & data rates may apply. Reply STOP to opt out, HELP for help.`,
     ],
-    optInMessage: `You're subscribed to offers and news from ${o.businessName}. Msg&data rates may apply. Reply STOP to opt out, HELP for help.`,
+
+    // NOT correctable after the first filing: Twilio's campaign UPDATE accepts
+    // description, message flow, samples, the four booleans and the two URLs,
+    // and nothing else. Opt-in, opt-out and help information can only be changed
+    // by deleting the campaign and creating a new one, which is a new vetting
+    // fee. Get this right the first time, per workspace.
+    optInMessage: `${o.businessName}: you're subscribed. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to cancel.`,
     // Single words only, and only ones the receptionist actually honours
-    // (contracts OPT_IN_PATTERN). The two-word phrase lives in the flow above.
+    // (contracts CONVERSATION_OPT_IN_PATTERN). The two-word offers phrase lives
+    // in the flow above, because a keyword field takes single words.
     optInKeywords: ["START", "UNSTOP", "RESUME"],
     privacyPolicyUrl: o.privacyUrl,
     termsUrl: o.termsUrl,
@@ -186,7 +233,15 @@ export async function unfileMockRegistration(db: Db, line: LineRow): Promise<{ o
 export async function resubmitRejectedCampaign(
   db: Db,
   line: LineRow,
-  facts: { description: string; messageFlow: string; samples: string[] },
+  // The five fields Twilio's update actually accepts. The narrower type this
+  // used to take silently DROPPED the other four the caller had already
+  // computed -- optInMessage, optInKeywords, privacyPolicyUrl, termsUrl -- with
+  // no compile error and no log line, so the next person to fix a rejection
+  // about the privacy URL would have edited the composer, redeployed, refiled,
+  // and seen nothing change at Twilio. Two of those four ARE editable and now
+  // travel; the other two are not editable by anyone and are named as such in
+  // updateCampaignRequest.
+  facts: { description: string; messageFlow: string; samples: string[]; privacyPolicyUrl: string; termsUrl: string },
 ): Promise<{ ok: boolean; error?: string; row?: LineRow }> {
   const L = logger({ tenant_id: line.tenant_id, line_id: line.id });
   if (!line.messaging_service_sid || !line.campaign_sid) return { ok: false, error: "no_campaign_to_resubmit" };
@@ -197,6 +252,8 @@ export async function resubmitRejectedCampaign(
     description: facts.description,
     messageFlow: facts.messageFlow,
     samples: facts.samples,
+    privacyPolicyUrl: facts.privacyPolicyUrl,
+    termsUrl: facts.termsUrl,
   });
   const r = await fetch(req.url, {
     method: req.method,

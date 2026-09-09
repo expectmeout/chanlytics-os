@@ -665,6 +665,9 @@ export type Database = {
           first_seen_at: string
           id: string
           last_seen_at: string
+          marketing_consent: string
+          marketing_consent_source: string | null
+          marketing_consent_updated_at: string | null
           merged_into_contact_id: string | null
           notes: string | null
           phone_e164: string | null
@@ -683,6 +686,9 @@ export type Database = {
           first_seen_at?: string
           id?: string
           last_seen_at?: string
+          marketing_consent?: string
+          marketing_consent_source?: string | null
+          marketing_consent_updated_at?: string | null
           merged_into_contact_id?: string | null
           notes?: string | null
           phone_e164?: string | null
@@ -701,6 +707,9 @@ export type Database = {
           first_seen_at?: string
           id?: string
           last_seen_at?: string
+          marketing_consent?: string
+          marketing_consent_source?: string | null
+          marketing_consent_updated_at?: string | null
           merged_into_contact_id?: string | null
           notes?: string | null
           phone_e164?: string | null
@@ -2698,6 +2707,10 @@ export type Database = {
         Args: { p_contact_id: string; p_legs?: Json }
         Returns: Json
       }
+      erase_marketing_consent: {
+        Args: { p_contact_id: string }
+        Returns: undefined
+      }
       expire_stale_pauses: { Args: never; Returns: number }
       fail_job: {
         Args: { p_error: string; p_job_id: string }
@@ -2844,6 +2857,9 @@ export type Database = {
           latest_snooze_until: string
           latest_state: string
           latest_wa_inbound_at: string
+          marketing_consent: string
+          marketing_consent_source: string
+          marketing_consent_updated_at: string
           needs_human: boolean
           open_escalation_reason: string
           open_escalation_since: string
@@ -2852,6 +2868,7 @@ export type Database = {
           wa_profile_name: string
         }[]
       }
+      platform_admin_add: { Args: { p_email: string }; Returns: string }
       platform_overview: {
         Args: never
         Returns: {
@@ -2951,6 +2968,16 @@ export type Database = {
           p_contact_id: string
           p_note?: string
           p_source: string
+        }
+        Returns: Json
+      }
+      set_marketing_consent: {
+        Args: {
+          p_consent: string
+          p_contact_id: string
+          p_note?: string
+          p_source: string
+          p_tenant_id: string
         }
         Returns: Json
       }

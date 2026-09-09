@@ -38,6 +38,9 @@ export interface PersonRowDto {
   phone_e164: string | null;
   consent: string | null;
   consent_source: string | null;
+  marketing_consent?: string | null;
+  marketing_consent_source?: string | null;
+  marketing_consent_updated_at?: string | null;
   consent_updated_at: string | null;
   dnc: boolean | null;
   channels: string[] | null;
@@ -347,6 +350,18 @@ export interface PersonConsent {
   sub: string;
   /** How the answer was given, raw: in_person | phone | form | customer_message | operator | null. */
   source: string | null;
+  /**
+   * The OTHER answer: offers, specifically.
+   *
+   * Separate because the carriers require it separate (error 30913) and because
+   * the two mean different things -- a person can want to hear about their own
+   * appointment and not want to hear about a sale. An opt-out or a do-not-call
+   * on the main answer overrides this one; the reverse does not.
+   */
+  marketing: "unknown" | "opted_in" | "opted_out";
+  marketingSource: string | null;
+  /** One line for the person's profile: what they said about offers, and when. */
+  marketingSub: string;
 }
 
 /**
@@ -385,11 +400,28 @@ function consentOf(r: PersonRowDto, nowMs: number): PersonConsent {
           : `${how ? `${how} · ` : ""}${date}`)
     : state === "opted_in" ? `${how ? `${how} · ` : ""}${date}`
     : "no opt-in recorded";
+  // The offers answer, judged on its own. A STOP or a do-not-call stops
+  // everything, so it shows here as opted_out too -- but declining offers never
+  // reads back as an opt-out of conversation.
+  const marketing: PersonConsent["marketing"] =
+    dnc || r.consent === "opted_out" ? "opted_out"
+    : r.marketing_consent === "opted_in" ? "opted_in"
+    : r.marketing_consent === "opted_out" ? "opted_out"
+    : "unknown";
+  const mWhen = ts(r.marketing_consent_updated_at ?? null);
+  const mHow = consentSourceLabel(r.marketing_consent_source ?? null);
+  const marketingSub =
+    marketing === "opted_in" ? `${mHow ? `${mHow} · ` : ""}${mWhen !== null ? fmtDate(mWhen, nowMs) : "recorded"}`
+    : marketing === "opted_out" ? "no offers"
+    : "never asked about offers";
   return {
     state, dnc,
     label: state === "opted_out" ? "Opted out" : state === "opted_in" ? "Opted in" : "Unknown",
     sub,
     source: r.consent_source ?? null,
+    marketing,
+    marketingSource: r.marketing_consent_source ?? null,
+    marketingSub,
   };
 }
 

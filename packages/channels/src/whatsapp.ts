@@ -3,7 +3,7 @@
  * canonical events and performs sends. No persistence, no decisions — the edge
  * wires this to the repositories. Config is passed in; env is never read here.
  */
-import { OPT_IN_PATTERN, OPT_OUT_PATTERN } from "@chanlytics/contracts";
+import { OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, OPT_OUT_PATTERN } from "@chanlytics/contracts";
 
 const GRAPH = "https://graph.facebook.com/v25.0";
 
@@ -89,6 +89,8 @@ export interface NormalizedInbound {
   optOut: boolean;
   /** An explicit START/ALTA — the only thing that lifts an opt-out. */
   optIn: boolean;
+  /** The words were the OFFERS ones specifically -- express written consent to be marketed to, which is a separate answer. */
+  optInMarketing: boolean;
 }
 
 /**
@@ -212,6 +214,10 @@ export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): Normali
       : null,
     optOut: isText && matches(OPT_OUT_PATTERN),
     optIn: isText && matches(OPT_IN_PATTERN),
+    // WHICH yes. OPT_IN_PATTERN above still matches both words, because
+    // texting OFFERS is also a way back in from a STOP -- but only these words
+    // are consent to be marketed to, and that is recorded separately.
+    optInMarketing: isText && matches(MARKETING_OPT_IN_PATTERN),
   };
 }
 

@@ -22,7 +22,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 const person = (over = {}) => ({
   id: over.id ?? "p1", state: "active", hasChat: true, calls: 0, phone: "+15551230001",
-  consent: { state: "opted_in", dnc: false, label: "Opted in", sub: "", source: "in_person" },
+  consent: { state: "opted_in", dnc: false, label: "Opted in", sub: "", source: "in_person", marketing: "opted_in", marketingSource: "in_person", marketingSub: "" },
   ...over,
 });
 
@@ -38,18 +38,46 @@ test("the tables: the workspace's, members read, acting members enrol, only the 
   assert.ok(DECISION_VERBS.includes("send_broadcast") && DECISION_VERBS.includes("cancel_broadcast") && DECISION_SUBJECTS.includes("broadcast"));
 });
 
-test("the one predicate: a recorded yes, no do-not-contact, a number", () => {
+test("the one predicate: the yes THIS message needs, no do-not-contact, a number", () => {
   assert.equal(mayReceiveOffers(person()), true);
   assert.equal(mayReceiveOffers(person({ consent: { state: "unknown", dnc: false } })), false, "not asked is not a yes");
   assert.equal(mayReceiveOffers(person({ consent: { state: "opted_in", dnc: true } })), false, "the operator's block outranks a yes");
   assert.equal(mayReceiveOffers(person({ phone: null })), false, "nowhere to send");
 });
 
+test("a yes about appointments is not a yes about offers, which is what error 30913 says", () => {
+  // THE CHANGE. This file used to state the opposite as doctrine: "the category
+  // of the template changes Meta's price and its rules, never ours". The
+  // carriers refused a live campaign over it -- "marketing consent was combined
+  // with other consents. Marketing consent must be collected separately."
+  const appointmentsOnly = person({ consent: { state: "opted_in", dnc: false, marketing: "unknown" } });
+  assert.equal(mayReceiveOffers(appointmentsOnly, "marketing"), false, "no offer without a yes about offers");
+  assert.equal(mayReceiveOffers(appointmentsOnly, "conversational"), true, "but their own appointment still reaches them");
+
+  const offersToo = person();
+  assert.equal(mayReceiveOffers(offersToo, "marketing"), true);
+  assert.equal(mayReceiveOffers(offersToo, "conversational"), true);
+
+  // Declining offers is not a request to stop hearing about your own visit.
+  const noOffers = person({ consent: { state: "opted_in", dnc: false, marketing: "opted_out" } });
+  assert.equal(mayReceiveOffers(noOffers, "marketing"), false);
+  assert.equal(mayReceiveOffers(noOffers, "conversational"), true);
+
+  // STOP is not symmetric with that: it stops everything.
+  const stopped = person({ consent: { state: "opted_out", dnc: false, marketing: "opted_in" } });
+  assert.equal(mayReceiveOffers(stopped, "marketing"), false);
+  assert.equal(mayReceiveOffers(stopped, "conversational"), false);
+
+  // Marketing is the DEFAULT, so a caller that has not thought about purpose
+  // withholds an offer rather than sending one.
+  assert.equal(mayReceiveOffers(appointmentsOnly), false, "the unstated purpose is the careful one");
+});
+
 test("an audience is a People list, a list kept by hand, or everyone — each crossed with the predicate", () => {
   const rows = [
     person({ id: "a" }),
     person({ id: "b", state: "quiet" }),
-    person({ id: "c", state: "quiet", consent: { state: "unknown", dnc: false } }),
+    person({ id: "c", state: "quiet", consent: { state: "unknown", dnc: false, marketing: "unknown" } }),
     person({ id: "d", hasChat: false, calls: 2 }),
   ];
   assert.deepEqual(eligibleFor(rows, "everyone", null, null).map((r) => r.id), ["a", "b", "d"]);
@@ -107,8 +135,15 @@ test("the job: state gates, the template still approved, every person re-checked
   assert.ok(h.includes('if (b.state !== "scheduled" && b.state !== "sending") return;'), "only a scheduled or sending broadcast goes out; a run waiting for a person has no job");
   assert.ok(h.includes('if (!tpl || tpl.meta_status !== "approved") {'), "a template Meta withdrew fails the broadcast before a single send");
   assert.ok(h.includes(".limit(BROADCAST_CHUNK);") && BROADCAST_CHUNK === 25);
-  assert.ok(h.includes('if (isOptedOutContact(c)) { await mark(r.contact_id, { state: "skipped", reason: "opted_out" }); continue; }'));
-  assert.ok(h.includes('if (c.consent !== "opted_in") { await mark(r.contact_id, { state: "skipped", reason: "not_opted_in" }); continue; }'), "the yes is re-checked at the wire, whatever the route found");
+  // The wire asks which yes THIS message needs. It used to demand
+  // `consent === "opted_in"` whatever the template was, which both let a
+  // promotional send reach somebody who had only agreed to hear about their own
+  // appointments and skipped an appointment reminder for somebody who had.
+  assert.ok(h.includes("const purpose = purposeOfTemplate(tpl.category);"), "Meta's category decides, and it fails closed on a null");
+  assert.ok(h.includes('.select("meta_status, body_preview, category")'), "which means the category has to be selected");
+  assert.ok(h.includes("const allowed = mayMessageFor(c, purpose, { proactive: true });"), "the yes is re-checked at the wire, whatever the route found");
+  assert.ok(h.includes('if (!allowed.ok) { await mark(r.contact_id, { state: "skipped", reason: allowed.reason ?? "not_opted_in" }); continue; }'), "and the skip reason says which yes was missing");
+  assert.ok(h.includes('.select("id, phone_e164, consent, dnc, marketing_consent, erased_at'), "a column the gate reads must be a column the query selects");
   assert.ok(h.includes('reason: "human_has_it"'), "a person mid-thread with a human is not interrupted");
   assert.ok(h.includes('if (cErr) { console.error("broadcast_contact_unreadable", r.contact_id, cErr.message); continue; }'), "fail closed: an unreadable person stays queued");
   assert.ok(h.includes('source: "broadcast", broadcast_id: b.id, broadcast_name: b.name,') && h.includes("playbook_name: String((b.audience as { label?: unknown } | null)?.label ?? b.name)"), "every message says which broadcast it came from, and a run's names its playbook");

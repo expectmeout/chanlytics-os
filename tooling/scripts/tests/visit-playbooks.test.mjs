@@ -22,7 +22,9 @@ const iso = (msAgo) => new Date(nowMs - msAgo).toISOString();
 function dto(id, over = {}) {
   return {
     id, display_name: `Person ${id}`, wa_profile_name: null, phone_e164: `+1305555${id.padStart(4, "0")}`,
-    consent: "opted_in", consent_source: "keyword", consent_updated_at: iso(30 * D), dnc: false, channels: ["whatsapp"],
+    consent: "opted_in", consent_source: "keyword", consent_updated_at: iso(30 * D), dnc: false,
+    marketing_consent: "opted_in", marketing_consent_source: "customer_message", marketing_consent_updated_at: iso(30 * D),
+    channels: ["whatsapp"],
     conversation_count: 1, escalation_count: 0, needs_human: false, open_escalation_reason: null, open_escalation_since: null,
     latest_conversation_id: `cv-${id}`, latest_state: "open", latest_paused_until: null, latest_assignee_user_id: null, latest_snooze_until: null,
     latest_wa_inbound_at: iso(3 * D), last_message_at: iso(3 * D), last_message_direction: "inbound", last_message_sender: "customer",
@@ -60,6 +62,13 @@ test("a visit's day is the calendar's day: eleven at night tomorrow is still tom
   assert.deepEqual(eligibleForPlaybook([noCalendar], p, untouched, nowMs), [], "no calendar, nobody");
   const notYes = withVisits("f", visit("2026-09-07T15:00:00Z", "Cut"), null, { consent: "unknown" });
   assert.deepEqual(eligibleForPlaybook([notYes], p, untouched, nowMs), [], "a reminder is still a message: only to people who said yes");
+
+  // AND the yes it needs is the one about appointments, not the one about
+  // offers. This is the loss the consent split repairs: a customer with a visit
+  // on the calendar tomorrow was skipped with `not_opted_in` unless they had
+  // also asked for promotions.
+  const noOffers = withVisits("g", visit("2026-09-07T15:00:00Z", "Cut"), null, { marketing_consent: "unknown" });
+  assert.deepEqual(eligibleForPlaybook([noOffers], p, untouched, nowMs).map((r) => r.id), ["g"], "their own appointment reaches them without a yes about offers");
 });
 
 test("after the visit: yesterday's visit with nothing booked next; the gap and the week's breath do not apply to either", () => {
@@ -72,6 +81,14 @@ test("after the visit: yesterday's visit with nothing booked next; the gap and t
   assert.deepEqual(eligibleForPlaybook([yesterday], p, heardThisWeek, nowMs).map((r) => r.id), ["a"], "the reminder two days ago does not hold the thank-you");
   const tomorrow = withVisits("d", visit("2026-09-07T19:00:00Z", "Cut"), null);
   assert.deepEqual(eligibleForPlaybook([tomorrow], { ...p, trigger: "visit_tomorrow" }, heardThisWeek, nowMs).map((r) => r.id), ["d"], "nor does the month's offer hold a reminder");
+
+  // The two visit playbooks are not the same kind of message, and the triggers
+  // have always said so: `visit_tomorrow` is classed `booking`, `visited` is
+  // classed `reengage` -- a nudge to come back, which is soliciting business.
+  // So the after-the-visit one needs the yes about offers and the reminder does
+  // not, and nothing had ever read that class before.
+  const noOffers = withVisits("e", null, visit("2026-09-06T00:00:00Z", "Balayage"), { marketing_consent: "unknown" });
+  assert.deepEqual(eligibleForPlaybook([noOffers], p, untouched, nowMs), [], "come back and rebook is promotional");
 });
 
 test("the visit's own words: when and what for, from the visit the run read", () => {

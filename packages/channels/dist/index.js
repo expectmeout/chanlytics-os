@@ -4048,6 +4048,7 @@ var NEVER = INVALID;
 // ../contracts/dist/index.js
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
+var MARKETING_OPT_IN_PATTERN = /^\s*(yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
@@ -4698,7 +4699,11 @@ function normalizeInbound(m, value) {
       };
     })() : null,
     optOut: isText && matches(OPT_OUT_PATTERN),
-    optIn: isText && matches(OPT_IN_PATTERN)
+    optIn: isText && matches(OPT_IN_PATTERN),
+    // WHICH yes. OPT_IN_PATTERN above still matches both words, because
+    // texting OFFERS is also a way back in from a STOP -- but only these words
+    // are consent to be marketed to, and that is recorded separately.
+    optInMarketing: isText && matches(MARKETING_OPT_IN_PATTERN)
   };
 }
 var SEND_TIMEOUT_MS = 15e3;
@@ -6169,7 +6174,9 @@ function updateCampaignRequest(messagingServiceSid, campaignSid, f) {
     HasEmbeddedLinks: "true",
     HasEmbeddedPhone: "true",
     AgeGated: "false",
-    DirectLending: "false"
+    DirectLending: "false",
+    PrivacyPolicyUrl: f.privacyPolicyUrl,
+    TermsAndConditionsUrl: f.termsUrl
   };
   form2.MessageSamples = f.samples.slice(0, 5);
   return { url: `${MESSAGING2}/Services/${messagingServiceSid}/Compliance/Usa2p/${campaignSid}`, method: "POST", form: form2 };

@@ -8,54 +8,85 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { consentPageVM, CONSENT_PHRASE, CONSENT_PHRASE_ES, OFFERS_OPT_IN_PHRASES, optInLink } from "@chanlytics/contracts";
+import { consentPageVM, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONVERSATION_PHRASE, OFFERS_OPT_IN_PHRASES, optInLink } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 const salon = { businessName: "Melany's Beauty Salon", whatsappE164: "+19177724072", smsE164: null };
 
-test("the ways to say yes are the ways the product already records one", () => {
+test("two asks, not one — which is what error 30913 required", () => {
+  // THE DEFECT. One control, three purposes: "Text YES OFFERS ... Sending it is
+  // your yes", and then "You get offers, news AND APPOINTMENT REMINDERS". The
+  // carriers refused the campaign in as many words -- "marketing consent was
+  // combined with other consents. Marketing consent must be collected
+  // separately."
   const vm = consentPageVM(salon);
-  assert.equal(vm.title, "Offers and news from Melany's Beauty Salon");
   assert.equal(vm.empty, false);
-  assert.deepEqual(vm.ways.map((w) => w.kind), ["whatsapp"]);
-  const wa = vm.ways[0];
-  assert.equal(wa.href, optInLink("+19177724072"), "the same link the QR on Broadcasts encodes");
-  assert.ok(wa.href.startsWith("https://wa.me/19177724072?text="));
-  assert.ok(wa.sentence.includes(CONSENT_PHRASE) && wa.sentence.endsWith("Sending it is your yes."));
-  assert.equal(wa.display, "+1 (917) 772-4072");
-  assert.equal(vm.qrLink, wa.href);
+  assert.deepEqual(vm.asks.map((a) => a.purpose), ["conversational", "marketing"], "the one most people came for, first");
+
+  const [visit, offers] = vm.asks;
+  // Different words, so they are different answers.
+  assert.notEqual(visit.ways[0].phrase, offers.ways[0].phrase);
+  assert.equal(visit.ways[0].phrase, CONVERSATION_PHRASE, "the carriers' own standard opt-in word, already declared to them");
+  assert.equal(offers.ways[0].phrase, CONSENT_PHRASE);
   assert.equal(CONSENT_PHRASE, OFFERS_OPT_IN_PHRASES.en, "one phrase, shared with the ingest that reads it");
   assert.equal(CONSENT_PHRASE_ES, OFFERS_OPT_IN_PHRASES.es);
+  // A bare "yes" is never a marketing opt-in: it is how a person answers an
+  // ordinary question.
+  for (const a of vm.asks) for (const w of a.ways) assert.notEqual(w.phrase.toLowerCase(), "yes");
+
+  // The promotional one is optional and says so, unprompted, in its own words.
+  assert.equal(visit.optional, null);
+  assert.match(offers.optional, /entirely optional/);
+  assert.match(offers.optional, /saying no changes nothing/);
+
+  // Neither ask's own words claim the other's territory. This is the exact
+  // sentence that was refused.
+  assert.ok(!/appointment reminder/i.test(offers.terms.join(" ")), "REGRESSION: offers claiming reminders is 30913");
+  assert.ok(!/offer|promotion/i.test(visit.terms.join(" ")), "REGRESSION: the appointment ask claiming offers is the same fault mirrored");
+
+  assert.equal(vm.qrLink, optInLink("+19177724072", CONSENT_PHRASE), "the QR at the desk is the offers one, and only that one");
 });
 
-test("a texting line adds a second way; both together keep their order", () => {
+test("each ask carries the disclosures the carriers require of it, separately", () => {
+  // Not once at the foot of the page: beside the control, so somebody giving
+  // ONE of the two has read what that one means. Twilio's own reference mockup
+  // repeats the whole disclosure on each checkbox for this reason.
+  for (const ask of consentPageVM(salon).asks) {
+    const said = ask.terms.join(" ");
+    assert.match(said, /Melany's Beauty Salon/, `${ask.purpose}: whose messages`);
+    assert.match(said, /frequency varies|A few messages a month/i, `${ask.purpose}: how often`);
+    assert.ok(said.includes("Message and data rates may apply"), `${ask.purpose}: verbatim, as the carriers require`);
+    assert.ok(!/standard (message|rates)/i.test(said), `${ask.purpose}: "standard" implies premium-rate messaging and is refused`);
+    assert.match(said, /Reply HELP/, `${ask.purpose}: help`);
+    assert.match(said, /Reply STOP/, `${ask.purpose}: stop`);
+  }
+  // What is true of both is said once, at the foot.
+  const terms = consentPageVM(salon).terms;
+  assert.ok(terms.some((t) => t.includes("No mobile information is shared with third parties")), "the line every 10DLC and toll-free review looks for");
+  assert.ok(terms.some((t) => t.includes("not a condition of any purchase")));
+});
+
+test("a texting line adds a second way to each ask; both together keep their order", () => {
   const vm = consentPageVM({ ...salon, smsE164: "+13055550100" });
-  assert.deepEqual(vm.ways.map((w) => w.kind), ["whatsapp", "sms"]);
-  const sms = vm.ways[1];
-  assert.equal(sms.sentence, `Text ${CONSENT_PHRASE} to +1 (305) 555-0100. Sending it is your yes.`);
-  assert.equal(sms.href, `sms:+13055550100?&body=${encodeURIComponent(CONSENT_PHRASE)}`);
+  for (const ask of vm.asks) {
+    assert.deepEqual(ask.ways.map((w) => w.kind), ["whatsapp", "sms"], ask.purpose);
+    const sms = ask.ways[1];
+    assert.equal(sms.sentence, `Text ${ask.ways[0].phrase} to +1 (305) 555-0100. Sending it is your yes.`);
+    assert.equal(sms.href, `sms:+13055550100?&body=${encodeURIComponent(ask.ways[0].phrase)}`);
+    assert.equal(ask.ways[0].display, "+1 (917) 772-4072");
+  }
   const only = consentPageVM({ ...salon, whatsappE164: null, smsE164: "+13055550100" });
-  assert.deepEqual(only.ways.map((w) => w.kind), ["sms"]);
+  for (const ask of only.asks) assert.deepEqual(ask.ways.map((w) => w.kind), ["sms"]);
   assert.equal(only.qrLink, null, "nothing to encode without WhatsApp");
 });
 
 test("a workspace with no number says so rather than showing a button that does nothing", () => {
   const vm = consentPageVM({ businessName: "Harbor Moving Co.", whatsappE164: null, smsE164: null });
   assert.equal(vm.empty, true);
-  assert.deepEqual(vm.ways, []);
+  assert.deepEqual(vm.asks, []);
   assert.equal(vm.qrLink, null);
   assert.equal(vm.lead, "Harbor Moving Co. is not set up to take sign-ups here yet.");
-  assert.equal(consentPageVM({ ...salon, businessName: "  " }).title, "Offers and news from This business");
-});
-
-test("the wording the carriers ask for is on the page, in their order", () => {
-  const terms = consentPageVM(salon).terms;
-  assert.equal(terms.length, 5);
-  assert.ok(terms[0].includes("Melany's Beauty Salon") && terms[0].includes("A few messages a month"), "what they get, how often");
-  assert.ok(terms[1].includes("Message and data rates may apply") && terms[1].includes("Message frequency varies"));
-  assert.ok(terms[2].includes("Reply STOP") && terms[2].includes("Reply HELP"));
-  assert.ok(terms[3].includes("No mobile information is shared with third parties"), "the line every 10DLC and toll-free review looks for");
-  assert.ok(terms[4].includes("not a condition of any purchase"));
+  assert.equal(consentPageVM({ ...salon, businessName: "  " }).title, "Text messages from This business");
 });
 
 test("the wiring: public by one prefix, read by slug, writes nothing, and the owner is given the link", () => {
@@ -73,7 +104,7 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes("const slug = workspaceOverride.current()?.slug ?? null;") && sd.includes("pageUrl: slug ? `${window.location.origin}/yes/${slug}` : null,"), "the address is built from the workspace being viewed");
   const css = readRaw("apps/dashboard/app/globals.css");
-  assert.ok(css.includes(".yes-terms {"), "the page has its own styles, not the auth card's");
+  assert.ok(css.includes(".yes-terms {") && css.includes(".yes-ask {"), "the page has its own styles, and the two asks are visibly separate blocks");
   assert.ok(css.includes(".yes a.yes-btn { color: #06231d;"), "REGRESSION: .yes a outranks .yes-btn and painted the button's label teal on teal");
 });
 

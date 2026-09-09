@@ -502,10 +502,30 @@ export function campaignRequest(f: CampaignFacts): A2PRequest {
  * a campaign TCR has already approved may not change those, so they are passed
  * back exactly as they were sent.
  */
+/**
+ * Correct a campaign in place, which is the whole remedy for a refused one.
+ *
+ * EVERYTHING TWILIO WILL ACCEPT, and no more. Their documentation is explicit
+ * about both halves: the update takes the description, the message flow, the
+ * samples, the four booleans and the two policy URLs -- and "any parameters
+ * included in the original Campaign CREATE call, but not specifically mentioned
+ * in the update table, cannot be edited under any circumstances", naming opt-in,
+ * opt-out and help information and the use case. Those need a delete and a
+ * recreate, which is a second vetting fee.
+ *
+ * The two URLs were being dropped, and the map of this file called that out:
+ * seven of the fourteen fields the create sends were written once and could
+ * never be corrected. Two of them can be, and now are. A campaign filed from an
+ * edge deployment whose DASHBOARD_ORIGIN was unset carries a wrong privacy URL
+ * permanently otherwise.
+ *
+ * Editing a FAILED campaign is free: "a vetting fee is assessed only once per
+ * Campaign."
+ */
 export function updateCampaignRequest(
   messagingServiceSid: string,
   campaignSid: string,
-  f: Pick<CampaignFacts, "description" | "messageFlow" | "samples">,
+  f: Pick<CampaignFacts, "description" | "messageFlow" | "samples" | "privacyPolicyUrl" | "termsUrl">,
 ): A2PRequest {
   const form: Record<string, string | string[]> = {
     Description: f.description,
@@ -514,6 +534,8 @@ export function updateCampaignRequest(
     HasEmbeddedPhone: "true",
     AgeGated: "false",
     DirectLending: "false",
+    PrivacyPolicyUrl: f.privacyPolicyUrl,
+    TermsAndConditionsUrl: f.termsUrl,
   };
   form.MessageSamples = f.samples.slice(0, 5);
   return { url: `${MESSAGING}/Services/${messagingServiceSid}/Compliance/Usa2p/${campaignSid}`, method: "POST", form };

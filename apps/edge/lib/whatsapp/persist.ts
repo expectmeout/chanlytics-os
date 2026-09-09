@@ -109,6 +109,7 @@ export async function pgIngest(tenantId: string | null, n: NormalizedInbound, ch
       meta: { raw_type: n.rawType } as Json,
       optOut: n.optOut,
       optIn: n.optIn,
+      optInMarketing: n.optInMarketing,
     });
   } catch (e) {
     console.error(JSON.stringify({ level: "error", event: "ingest_pg_failed", tenant_id: tenantId, error: errField(e) }));

@@ -5,7 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendText, sendTemplate, type WaConfig } from "@chanlytics/channels";
-import { BROADCAST_CHUNK, BROADCAST_GAP_MS, firstNameOf, isOptedOutContact, parseParamSpec, parseTenantConfig, renderTemplate, resolveParams, type JobKind, type ParamSpec } from "@chanlytics/contracts";
+import { BROADCAST_CHUNK, BROADCAST_GAP_MS, firstNameOf, isOptedOutContact, mayMessageFor, purposeOfTemplate, parseParamSpec, parseTenantConfig, renderTemplate, resolveParams, type JobKind, type ParamSpec } from "@chanlytics/contracts";
 import { recordOutbound, resolveOutboundTarget, type Database, type Json } from "@chanlytics/db";
 
 export interface JobContext {
@@ -402,7 +402,10 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   // The template must still be what Meta approved.
   const { data: tpl } = await ctx.db
     .from("templates")
-    .select("meta_status, body_preview")
+    // `category` is Meta's verdict on what kind of message this is, and it
+    // decides which consent the send needs. It was selected nowhere and read
+    // nowhere; the column has existed since 00045.
+    .select("meta_status, body_preview, category")
     .eq("tenant_id", job.tenant_id)
     .eq("channel", "whatsapp")
     .eq("name", b.template_name)
@@ -413,6 +416,12 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     await ctx.alert(`Broadcast “${b.name}” stopped`, `The template “${b.template_name}” is no longer approved by WhatsApp, so nothing was sent.`);
     return;
   }
+  // WHICH yes this send needs. Meta's category is the authority -- it can
+  // recategorise a live template -- and `purposeOfTemplate` fails closed, so a
+  // template whose category we do not have reads as marketing and needs the
+  // stronger consent rather than the weaker one.
+  const purpose = purposeOfTemplate(tpl.category);
+
   // What fills each slot: typed text once, the rest per person. The
   // workspace's own words for the slots that name it are read once.
   const specs: ParamSpec[] = Array.isArray(b.params)
@@ -446,15 +455,20 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     // next batch rather than guessing; "we could not check" is not "yes".
     const { data: c, error: cErr } = await ctx.db
       .from("contacts")
-      .select("id, phone_e164, consent, dnc, erased_at, display_name, wa_profile_name")
+      .select("id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name")
       .eq("id", r.contact_id)
       .eq("tenant_id", job.tenant_id)
       .maybeSingle();
     if (cErr) { console.error("broadcast_contact_unreadable", r.contact_id, cErr.message); continue; }
     if (!c || c.erased_at) { await mark(r.contact_id, { state: "skipped", reason: "erased" }); continue; }
     if (!c.phone_e164) { await mark(r.contact_id, { state: "skipped", reason: "no_phone" }); continue; }
-    if (isOptedOutContact(c)) { await mark(r.contact_id, { state: "skipped", reason: "opted_out" }); continue; }
-    if (c.consent !== "opted_in") { await mark(r.contact_id, { state: "skipped", reason: "not_opted_in" }); continue; }
+    // The wire's own check, asking the question this particular message raises.
+    // It used to demand `consent === "opted_in"` whatever the template was --
+    // which both let a promotional send reach somebody who had only agreed to
+    // hear about their appointments, and skipped an appointment reminder for
+    // somebody who had. The skip reason now says which yes was missing.
+    const allowed = mayMessageFor(c, purpose, { proactive: true });
+    if (!allowed.ok) { await mark(r.contact_id, { state: "skipped", reason: allowed.reason ?? "not_opted_in" }); continue; }
     const target = await resolveOutboundTarget(ctx.db, { tenantId: job.tenant_id, phoneE164: c.phone_e164, create: false });
     if (!target) { await mark(r.contact_id, { state: "skipped", reason: "no_phone" }); continue; }
     if (target.pausedUntil && Date.now() < new Date(target.pausedUntil).getTime()) {
