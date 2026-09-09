@@ -133,3 +133,105 @@ export function businessPageVM(f: BusinessPageFacts): BusinessPageVM {
     empty,
   };
 }
+
+/* -------------------------------------------------------------------------- *
+ * The pre-flight: what the reviewer will check, checked first.
+ *
+ * A carrier rejection arrives DAYS later and says one thing at a time. The
+ * first real campaign this product filed came back four times, and every one of
+ * those rounds was a week — for faults that were all visible before anything was
+ * sent:
+ *
+ *   30919  the page filed as the privacy policy did not identify a business
+ *   30907  the website did not match the brand and the campaign
+ *   30886  the description was refused
+ *   30913  one consent covered marketing and everything else
+ *
+ * These are the ones that are still checkable from facts we hold, in under a
+ * millisecond, with no network at all. Each answers in the OWNER'S words, saying
+ * what is wrong and what to do, because a refusal a person cannot act on is the
+ * thing that made the four rounds take a month.
+ * -------------------------------------------------------------------------- */
+
+export interface PreflightFacts {
+  /** The name the CAMPAIGN will state — `tenants.name`, which is not the record's name. */
+  workspaceName: string;
+  /** The names on the record, which is what the BRAND is registered as. */
+  legalName: string;
+  tradeName: string | null;
+  /** Enough of an address to identify a business on the hosted page. */
+  street: string;
+  city: string;
+  /** Their own site, when they gave one. */
+  websiteUrl: string | null;
+  /** Whether a customer has any way to say yes: a number the opt-in page can name. */
+  hasOptInNumber: boolean;
+}
+
+export interface PreflightProblem {
+  id: "name_mismatch" | "no_identity" | "no_opt_in_number" | "website_unusable";
+  /** What a reviewer will see, in the owner's words. */
+  what: string;
+  /** What to do about it. */
+  fix: string;
+}
+
+/** Loose enough that "Melany's Salon" and "Melanys Salon LLC" are the same business. */
+const loose = (s: string) => s.toLowerCase().replace(/\b(llc|inc|ltd|corp|co|the)\b/g, "").replace(/[^a-z0-9]/g, "");
+
+export function registrationPreflight(f: PreflightFacts): PreflightProblem[] {
+  const out: PreflightProblem[] = [];
+
+  // THE ONE THAT BIT US. The campaign states `tenants.name`; the brand
+  // registers `business_records.legal_name`. Chanlytics' own campaign went to
+  // the carriers describing a business called "Billing probe" — a workspace name
+  // from a Stripe test — while the brand said RJ Capital LLC. A reviewer reads
+  // that as two businesses, and the opt-in message that carried it can never be
+  // edited afterwards.
+  const said = loose(f.workspaceName);
+  const legal = loose(f.legalName);
+  const trade = loose(f.tradeName ?? "");
+  if (said && legal && said !== legal && (!trade || said !== trade)) {
+    out.push({
+      id: "name_mismatch",
+      what: `The carriers will be told this business is called “${f.workspaceName}”, but the business on record is “${f.tradeName?.trim() || f.legalName}”.`,
+      fix: "Make the workspace's name match the name on record before filing. The name goes into the confirmation message customers receive, and that message cannot be changed after a filing without registering a new campaign.",
+    });
+  }
+
+  // The page we file as their website and privacy policy renders from these. No
+  // legal name or no address and it answers 404, so the filing would name a URL
+  // that does not exist — which is 30919, arriving a week later.
+  if (!f.legalName.trim() || !f.street.trim() || !f.city.trim()) {
+    out.push({
+      id: "no_identity",
+      what: "The page the carriers will open to check who you are cannot be published: it needs your legal name and your address.",
+      fix: "Fill in the legal name and the street address above. They are the two facts a reviewer looks for first.",
+    });
+  }
+
+  // The message flow tells the carriers customers opt in by texting a keyword to
+  // this business. Without a number the opt-in page says the business is not set
+  // up to take sign-ups — so the flow would describe something that does not
+  // happen, which is a statement to a regulator that is not true.
+  if (!f.hasOptInNumber) {
+    out.push({
+      id: "no_opt_in_number",
+      what: "There is no number for customers to text to say yes, so the sign-up page has nothing to offer them.",
+      fix: "Connect WhatsApp or finish setting up the phone line first. The carriers are told customers opt in by texting this business, and that has to be true.",
+    });
+  }
+
+  // A website that is not a website is worse than none: with none we publish a
+  // page for them, with a broken one we file it.
+  const site = (f.websiteUrl ?? "").trim();
+  if (site && !/^https?:\/\/[^\s.]+\.[^\s]{2,}$/i.test(site)) {
+    out.push({
+      id: "website_unusable",
+      what: `“${site}” is not an address a reviewer can open.`,
+      fix: "Write it in full, starting with https:// — or clear it, and we will publish a page for you instead.",
+    });
+  }
+
+  return out;
+}

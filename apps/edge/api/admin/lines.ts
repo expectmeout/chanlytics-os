@@ -405,13 +405,19 @@ export async function POST(request: Request): Promise<Response> {
     // always real -- there is no reason to replace one rehearsal with another.
     const mock = !refile && body.mock === true;
     const origin = dashboardOrigin();
+    // Whether a customer has anywhere to say yes. The message flow filed with
+    // the carriers says they opt in by texting this business, and that has to be
+    // true of a workspace before it is said about one.
+    const saysYes = await db.from("tenant_channels").select("kind").eq("tenant_id", tenantId).eq("status", "active").in("kind", ["whatsapp", "sms"]);
     const result = await registerLine(db, {
       line: row.data,
       record: rec.data,
       workspaceName: tenant.name,
       optInUrl: `${origin}/yes/${tenant.slug}`,
+      hostedUrl: `${origin}/b/${tenant.slug}`,
       privacyUrl: `${origin}/privacy`,
       termsUrl: `${origin}/terms`,
+      hasOptInNumber: (saysYes.data ?? []).length > 0 || !!row.data.e164,
       mock,
     });
     const after = await db.from("lines").select("*").eq("id", lineId).single();

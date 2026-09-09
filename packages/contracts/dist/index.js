@@ -6848,6 +6848,43 @@ function businessPageVM(f) {
     empty
   };
 }
+var loose = (s) => s.toLowerCase().replace(/\b(llc|inc|ltd|corp|co|the)\b/g, "").replace(/[^a-z0-9]/g, "");
+function registrationPreflight(f) {
+  const out = [];
+  const said = loose(f.workspaceName);
+  const legal = loose(f.legalName);
+  const trade = loose(f.tradeName ?? "");
+  if (said && legal && said !== legal && (!trade || said !== trade)) {
+    out.push({
+      id: "name_mismatch",
+      what: `The carriers will be told this business is called \u201C${f.workspaceName}\u201D, but the business on record is \u201C${f.tradeName?.trim() || f.legalName}\u201D.`,
+      fix: "Make the workspace's name match the name on record before filing. The name goes into the confirmation message customers receive, and that message cannot be changed after a filing without registering a new campaign."
+    });
+  }
+  if (!f.legalName.trim() || !f.street.trim() || !f.city.trim()) {
+    out.push({
+      id: "no_identity",
+      what: "The page the carriers will open to check who you are cannot be published: it needs your legal name and your address.",
+      fix: "Fill in the legal name and the street address above. They are the two facts a reviewer looks for first."
+    });
+  }
+  if (!f.hasOptInNumber) {
+    out.push({
+      id: "no_opt_in_number",
+      what: "There is no number for customers to text to say yes, so the sign-up page has nothing to offer them.",
+      fix: "Connect WhatsApp or finish setting up the phone line first. The carriers are told customers opt in by texting this business, and that has to be true."
+    });
+  }
+  const site = (f.websiteUrl ?? "").trim();
+  if (site && !/^https?:\/\/[^\s.]+\.[^\s]{2,}$/i.test(site)) {
+    out.push({
+      id: "website_unusable",
+      what: `\u201C${site}\u201D is not an address a reviewer can open.`,
+      fix: "Write it in full, starting with https:// \u2014 or clear it, and we will publish a page for you instead."
+    });
+  }
+  return out;
+}
 
 // src/a2p-enums.ts
 var BUSINESS_INDUSTRIES = [
@@ -7442,6 +7479,7 @@ export {
   receptionistOn,
   recoverCitations,
   registrationPathOf,
+  registrationPreflight,
   renderTemplate,
   replyDelayMs,
   replyWhy,

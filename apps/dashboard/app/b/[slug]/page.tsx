@@ -26,7 +26,26 @@ import { businessPageFor } from "@/server/business-page";
  * INDEXED, unlike `/yes/<slug>`. This one is meant to be findable — a business
  * that cannot be looked up is what 30919 was complaining about.
  */
-export const metadata: Metadata = { robots: { index: true, follow: true } };
+/**
+ * The title is the BUSINESS, not the product.
+ *
+ * This page is indexed and it is filed with the carriers as a business's
+ * website. A reviewer's tab, a search result and a link preview all read the
+ * title first, and "Chanlytics OS" on a page that exists to identify Melany's
+ * Beauty Salon is the same failure as the page saying nothing at all.
+ */
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const facts = await businessPageFor(slug);
+  const name = facts ? (facts.tradeName?.trim() || facts.legalName.trim()) : null;
+  if (!name) return { robots: { index: false, follow: false } };
+  return {
+    title: name,
+    description: `${name} — who we are, what we do, and our text-message terms.`,
+    robots: { index: true, follow: true },
+  };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function BusinessPage({ params }: { params: Promise<{ slug: string }> }) {
