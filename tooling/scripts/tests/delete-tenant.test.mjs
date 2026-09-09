@@ -90,3 +90,41 @@ test("the two tables that do not cascade are handled, not discovered afterwards"
   assert.ok(script.includes('const KEPT = new Set(["billing_events"]);'), "the script says which rows survive");
   assert.ok(script.includes("kept, tenant_id set to null"), "and says so in the tally rather than in a comment nobody reads");
 });
+
+test("it refuses to strand what the cascade cannot reach", () => {
+  // The cascade is thorough inside Postgres and blind outside it. The very
+  // workspace this tool was written to delete turned out to own the product's
+  // first real phone line, answering, with two inbound texts on it, a Stripe
+  // trial and a live Retell agent. A dry run caught that; the hand-typed
+  // DELETE the plan originally proposed would have taken all of it.
+  for (const [what, needle] of [
+    ["the phone line and its Twilio estate", 'byTable.get("lines")'],
+    ["a Stripe customer or subscription", 'byTable.get("billing_accounts")'],
+    ["a Google grant", 'byTable.get("google_connections")'],
+    ["an active provider binding", 'byTable.get("tenant_channels")'],
+  ]) {
+    assert.ok(script.includes(needle), `${what} must be counted as an orphan`);
+  }
+  assert.ok(script.includes("WOULD BE STRANDED OUTSIDE THE DATABASE"), "and named, not merely counted");
+  assert.ok(script.includes("IT IS ANSWERING CALLS RIGHT NOW"), "a live line says so loudly");
+  assert.ok(script.includes("Vault secret"), "the Vault secrets have no foreign key and are named too");
+});
+
+test("the refusal comes before anything is deleted", () => {
+  // The order is the whole guarantee. A check after the first delete is not a
+  // guard, it is a post-mortem.
+  const refuse = script.indexOf("REFUSING: this workspace still holds");
+  assert.ok(refuse > -1, "an apply that would strand something refuses");
+  assert.ok(refuse < script.indexOf('from("events").delete()'), "before the events delete");
+  assert.ok(refuse < script.indexOf('from("tenants").delete()'), "and before the tenant delete");
+  assert.ok(script.includes("orphans.length && !orphansOk"), "and only --orphans-ok gets past it");
+});
+
+test("a dry run reports the orphans and still finishes", () => {
+  // Refusing the dry run too would hide the tally, which is the thing that
+  // tells you what you are about to lose.
+  const report = script.indexOf("WOULD BE STRANDED OUTSIDE THE DATABASE");
+  const dryExit = script.indexOf("Dry run only. Re-run with --apply");
+  assert.ok(report < dryExit, "the list is printed before the dry run exits");
+  assert.ok(dryExit < script.indexOf("REFUSING: this workspace still holds"), "and the dry run exits 0 rather than refusing");
+});

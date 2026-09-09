@@ -16,6 +16,18 @@
  *     has to outlive the workspace or a redelivered event would be processed
  *     twice. Those rows are backed up and reported, never deleted.
  *
+ * And the cascade is blind outside Postgres. A workspace that owns a phone line
+ * owns a Twilio subaccount, a number still being billed, a trunk, a messaging
+ * service and a registered campaign; one with a Google connection holds a grant
+ * at Google; each has Vault secrets keyed by name that no foreign key reaches.
+ * Deleting the rows leaves all of it running with nothing pointing at it. So an
+ * apply REFUSES when the workspace still holds any of it, and says what to
+ * release first. --orphans-ok proceeds anyway, deliberately and out loud.
+ *
+ * This is not hypothetical: the workspace this tool was written for turned out
+ * to own the product's first real phone line, answering, with two inbound texts
+ * on it. A dry run is what caught that; a hand-typed DELETE would not have.
+ *
  * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  * Usage:
  *   node tooling/scripts/delete-tenant.mjs --tenant <uuid> --expect-name "<name>"
@@ -40,6 +52,7 @@ const arg = (name) => {
 const tenantId = arg("--tenant");
 const expectName = arg("--expect-name");
 const apply = process.argv.includes("--apply");
+const orphansOk = process.argv.includes("--orphans-ok");
 if (!tenantId || !expectName) {
   console.error('usage: --tenant <uuid> --expect-name "<name>" [--apply]');
   process.exit(2);
@@ -93,6 +106,7 @@ const backupPath = join(backupsDir, `tenant-${tenantId}-${stamp}.jsonl`);
 
 const lines = [];
 const tally = [];
+const byTable = new Map();
 let total = 0;
 for (const table of TABLES) {
   const { data, error } = await db.from(table).select("*").eq("tenant_id", tenantId);
@@ -103,6 +117,7 @@ for (const table of TABLES) {
     process.exit(1);
   }
   const rows = data ?? [];
+  byTable.set(table, rows);
   if (rows.length) {
     for (const row of rows) lines.push(JSON.stringify({ table, row }));
     tally.push([table, rows.length]);
@@ -116,9 +131,55 @@ for (const [table, n] of tally) {
   console.log(`  ${table.padEnd(22)} ${String(n).padStart(6)}${KEPT.has(table) ? "   kept, tenant_id set to null" : ""}`);
 }
 
+/**
+ * What this delete cannot reach. Each entry is something that keeps running,
+ * and in two cases keeps being billed, after every row here is gone.
+ */
+const orphans = [];
+for (const line of byTable.get("lines") ?? []) {
+  orphans.push(
+    `the phone line ${line.e164 ?? "(no number)"} — Twilio subaccount ${line.subaccount_sid ?? "—"}, ` +
+    `number ${line.number_sid ?? "—"}${line.trunk_sid ? `, trunk ${line.trunk_sid}` : ""}` +
+    `${line.messaging_service_sid ? `, messaging service ${line.messaging_service_sid}` : ""}` +
+    `${line.brand_sid ? `, and a registered A2P brand` : ""}` +
+    ` — plus its line-creds Vault secret. Release the number and close the subaccount first, or move the line to another workspace.` +
+    (line.voice_state === "answering" ? "\n      IT IS ANSWERING CALLS RIGHT NOW." : ""),
+  );
+}
+for (const b of byTable.get("billing_accounts") ?? []) {
+  if (b.stripe_subscription_id || b.stripe_customer_id) {
+    orphans.push(
+      `a Stripe ${b.status === "trialing" ? "trial" : b.status} — customer ${b.stripe_customer_id ?? "—"}` +
+      `${b.stripe_subscription_id ? `, subscription ${b.stripe_subscription_id}` : ""}. Cancel it in Stripe first.`,
+    );
+  }
+}
+for (const g of byTable.get("google_connections") ?? []) {
+  orphans.push(`a Google Business Profile grant for ${g.google_email ?? "an account"}, and its google-creds Vault secret. Disconnect it in the product first, which hands the grant back to Google.`);
+}
+for (const c of byTable.get("tenant_channels") ?? []) {
+  if (c.status === "active") orphans.push(`an active channel binding ${c.external_id ?? "(no id)"} at its provider, and its channel-credentials Vault secret.`);
+}
+
+if (orphans.length) {
+  console.log(`\nWOULD BE STRANDED OUTSIDE THE DATABASE (${orphans.length}):`);
+  for (const o of orphans) console.log(`  · ${o}`);
+}
+
 if (!apply) {
   console.log(`\nDry run only. Re-run with --apply to delete ${JSON.stringify(tenant.name)} and everything above.`);
   process.exit(0);
+}
+
+if (orphans.length && !orphansOk) {
+  console.error(
+    `\nREFUSING: this workspace still holds ${orphans.length} thing${orphans.length === 1 ? "" : "s"} ` +
+    `the delete cannot reach, listed above. Release them first, or pass --orphans-ok to strand them deliberately.`,
+  );
+  process.exit(1);
+}
+if (orphans.length) {
+  console.log(`\n--orphans-ok: stranding ${orphans.length} provider-side thing${orphans.length === 1 ? "" : "s"} on purpose.`);
 }
 
 // ------------------------------------------------------------------ 3. apply
