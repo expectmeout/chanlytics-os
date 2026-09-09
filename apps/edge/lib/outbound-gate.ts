@@ -85,7 +85,7 @@ export function outboundGate(f: OutboundFacts): OutboundDecision {
  * rather than describing our internal state. The caller must never hear "policy
  * hold" or learn that a colleague is mid-thread with them elsewhere.
  */
-export function refusalScript(refusal: OutboundRefusal, phoneDisplay: string): string {
+export function refusalScript(refusal: OutboundRefusal, phoneDisplay: string | null | undefined): string {
   switch (refusal) {
     case "opted_out":
       return "That number has asked us to stop sending messages, so I cannot text them. Offer to book them on the call instead.";
@@ -94,7 +94,12 @@ export function refusalScript(refusal: OutboundRefusal, phoneDisplay: string): s
     case "human_has_it":
       return "Someone from the team is already messaging that number, so I will not text over them. Tell the caller a person is on it and will follow up there.";
     case "policy_hold":
-      return `I cannot send texts automatically for this business right now. Tell the caller they can book online, or reach the team on ${phoneDisplay}.`;
+      // The published number is optional now (it defaults to the line), so a
+      // workspace can genuinely have none. Reading "reach the team on
+      // undefined" to a caller is worse than not offering a number at all.
+      return phoneDisplay
+        ? `I cannot send texts automatically for this business right now. Tell the caller they can book online, or reach the team on ${phoneDisplay}.`
+        : "I cannot send texts automatically for this business right now. Tell the caller they can book online, and take their name.";
     case "daily_cap":
       return "I have already texted that number several times today, so I will not send another. Tell the caller to check their WhatsApp for the earlier message.";
   }
