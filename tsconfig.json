@@ -1,0 +1,27 @@
+{
+  "//": [
+    "Not a build config. Nothing compiles against this: each package and app has",
+    "its own tsconfig, and `pnpm -r typecheck` runs those.",
+    "",
+    "This exists so the NODE TEST RUNNER can import the dashboard's server layer.",
+    "tsx resolves `paths` from the tsconfig at the working directory, and the",
+    "tests run from the repo root -- so without this, `import { setupDtoFor } from",
+    "'apps/dashboard/src/server/setup.ts'` dies on the first `@/server/...` it",
+    "meets, and every module under src/server is untestable by anything except a",
+    "regex over its source.",
+    "",
+    "That was not a theoretical limit. The back office's detail route shipped",
+    "500ing on every workspace -- it called a SECURITY DEFINER RPC that reads",
+    "auth.uid() from a service-role client -- and the whole test suite passed,",
+    "because not one test could execute the module. Source-reading tests found",
+    "nothing because there was nothing textually wrong with it.",
+    "",
+    "The other half of the same fix is `--conditions=react-server` on the test",
+    "script, which resolves the `server-only` marker package to its empty module",
+    "instead of the one that throws."
+  ],
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": { "@/*": ["./apps/dashboard/src/*"] }
+  }
+}

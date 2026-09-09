@@ -281,7 +281,6 @@ async function noteTeamChange(
 export async function teamRoster(
   db: SupabaseClient<Database>,
   tenantId: string,
-  callerRole: string,
 ) {
   const [members, invites] = await Promise.all([
     db.rpc("team_roster", { p_tenant_id: tenantId }),
@@ -305,7 +304,7 @@ export async function teamRoster(
     displayName: m.display_name,
     role: m.role,
   }));
-  return { members: roster, invites: (invites.data ?? []) as OpenInvite[], callerRole };
+  return { members: roster, invites: (invites.data ?? []) as OpenInvite[] };
 }
 
 export async function inviteMember(

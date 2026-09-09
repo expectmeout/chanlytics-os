@@ -30,6 +30,8 @@ import {
   PLATFORM_VERDICTS, PLATFORM_QUIET_DAYS, PLATFORM_NEW_DAYS, setupSteps,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
+import { fakeDb } from "./_fake-db.mjs";
+import { setupDtoFor } from "../../../apps/dashboard/src/server/setup.ts";
 
 const NOW = Date.parse("2026-09-09T18:00:00Z");
 const DAY = 86_400_000;
@@ -292,11 +294,12 @@ test("every route under /api/v1/platform asks the database who is calling", () =
   assert.ok(routes.length >= 2, `found ${routes.length} platform routes`);
   for (const file of routes) {
     const src = fs.readFileSync(file, "utf8");
-    assert.ok(src.includes("await requirePlatformAdmin(ctx);"), `${path.basename(path.dirname(file))}: no admin check`);
-    // And it is the FIRST thing, before any read: a check after a query has
-    // already run has leaked whatever the query returned into a log line.
-    const guard = src.indexOf("await requirePlatformAdmin(ctx);");
-    for (const read of ["platformOverview(", "platformTenant(", "platformEvents(", "setupDtoFor(", "platformDb("]) {
+    // Obtaining the handle IS the check: `backOffice(ctx)` throws unless the
+    // database says yes, and nothing cross-tenant can be read without one. A
+    // route that forgot would not compile rather than not being caught here.
+    assert.ok(src.includes("const office = await backOffice(ctx);"), `${path.basename(path.dirname(file))}: no admin check`);
+    const guard = src.indexOf("const office = await backOffice(ctx);");
+    for (const read of ["platformOverview(", "platformTenant(", "platformEvents(", "setupDtoFor("]) {
       const i = src.indexOf(read);
       if (i !== -1) assert.ok(guard < i, `${path.basename(path.dirname(file))}: ${read} runs before the check`);
     }
@@ -316,7 +319,7 @@ test("the guard asks the database, and answers 404 rather than 403", () => {
   assert.ok(!/AppError\("forbidden"/.test(src), "403 would confirm the surface exists");
   // The list read runs on the SESSION client on purpose: the RPC's check is
   // auth.uid(), so the service-role key opens nothing.
-  assert.match(src, /export async function platformOverview\(ctx: RouteContext\)[\s\S]*?ctx\.supabase\.rpc\("platform_overview"\)/);
+  assert.match(src, /office\.session\.rpc\("platform_overview"\)/);
   // Nothing anywhere calls the inner join by name.
   assert.ok(!/platform_overview_rows/.test(src));
 });
@@ -330,12 +333,15 @@ test("support sees the customer's own Setup, from the customer's own function", 
   assert.match(assembly, /supabase: SupabaseClient<Database>/, "the client is an argument, so either caller may pass its own");
 
   const own = readCode("apps/dashboard/app/api/v1/setup/route.ts");
-  assert.match(own, /setupDtoFor\(ctx\.supabase, member\.tenantId, member\.role\)/, "the customer reads their own on the session client");
+  assert.match(own, /setupDtoFor\(ctx\.supabase, member\.tenantId, \{ kind: "member" \}\)/, "the customer reads their own on the session client");
   assert.ok(!own.includes("getTenantConfig"), "REGRESSION: the assembly is back inside the route, where a second copy can grow");
 
   const office = readCode("apps/dashboard/app/api/v1/platform/tenants/[id]/route.ts");
-  assert.match(office, /setupDtoFor\(platformDb\(\), id, "owner"\)/, "and support reads theirs through the same function");
-  assert.match(office, /platformEvents\(id\)/, "with the trail emitEvent has been writing all along");
+  assert.match(office, /setupDtoFor\(office\.db, id, \{ kind: "back_office" \}\)/, "and support reads theirs through the same function");
+  // The viewer is a TYPE, not a role string. "owner" was a lie the type system
+  // could not catch, and it 500'd every detail read on team_roster.
+  assert.ok(!/setupDtoFor\([^)]*"owner"/.test(office), "REGRESSION: the back office claiming to be an owner");
+  assert.match(office, /platformEvents\(office, id\)/, "with the trail emitEvent has been writing all along");
   assert.ok(!office.includes("supabase.from(\"tenant_config\")"), "no second assembly");
 });
 
@@ -352,6 +358,109 @@ test("the nav's one bit rides on the payload the seam already fetches", () => {
   // It is not the authorization, and the comment says so where somebody would
   // otherwise be tempted to trust it.
   assert.match(readRaw("apps/dashboard/app/api/v1/workspaces/route.ts"), /NOT the authorization/);
+});
+
+/* ----------------------------- the boundary, executed ---------------------- *
+ * Everything above this line is a pure function over a fixture, a regex over
+ * SQL text, or a page with the fetch stubbed. All of it passed while the detail
+ * route 500'd on every workspace, because none of it ever ran the server path.
+ *
+ * `fakeDb` throws on any RPC it has not been told about, which is exactly the
+ * property this needs: the cross-tenant path has no session, so `auth.uid()` is
+ * null, so it may not call a SECURITY DEFINER function that asks who is signed
+ * in. Naming the RPCs it is allowed to use makes that a decision rather than an
+ * accident.
+ * -------------------------------------------------------------------------- */
+
+const TENANT = "6a4405d1-1e68-4fcd-bc55-eef0df8e689a";
+
+/** Enough of a workspace for the Setup assembly to have real work to do. */
+const workspaceTables = () => ({
+  tenant_config: [{ tenant_id: TENANT, config: { brain: { business_name: "Harbor Moving" } } }],
+  tenant_channels: [{ tenant_id: TENANT, kind: "voice", status: "active", number_e164: "+19296566623", config: {} }],
+  messages: [{ tenant_id: TENANT, direction: "inbound", channel: "whatsapp", channel_ts: ago(1), created_at: ago(1) }],
+  calls: [{ tenant_id: TENANT, direction: "inbound", started_at: ago(2) }],
+  templates: [{ tenant_id: TENANT, name: "visit_reminder", meta_status: "approved", hidden_at: null }],
+  memberships: [{ id: "m1", tenant_id: TENANT }, { id: "m2", tenant_id: TENANT }],
+  invitations: [{ id: "i1", tenant_id: TENANT, email: "new@example.com", role: "operator", created_at: ago(1), expires_at: ago(-6), accepted_at: null, revoked_at: null }],
+  contacts: [{ id: "c1", tenant_id: TENANT, consent: "opted_in", erased_at: null }],
+  notifications: [],
+  lines: [{ id: "l1", tenant_id: TENANT, e164: "+19296566623", kind: "chanlytics", provider: "twilio", area_code: 929, voice_state: "answering", sms_state: "active", reg_step: null, reg_mock: false, reg_sole_prop: false, whatsapp_state: "none", port_state: "none", forwarding_state: "none", step: null, last_error: null, state_since: ago(3), created_at: ago(80), facts: {} }],
+  google_listings: [],
+  google_connections: [],
+  billing_accounts: [{ tenant_id: TENANT, mode: "direct", status: "none", trial_end: null, current_period_end: null, cancel_at: null, cancel_at_period_end: false }],
+});
+
+test("the back office's Setup read touches no function that asks who is signed in", async () => {
+  // THE DEFECT. setupDtoFor took a `role: string` and the back office passed
+  // "owner", which routed it through teamRoster -> the `team_roster` RPC, whose
+  // FIRST statement checks auth.uid() against memberships. On the service client
+  // that is null, so Postgres raised 42501, teamRoster rethrew, and every single
+  // /api/v1/platform/tenants/:id request 500'd. Verified against production: the
+  // RPC answers `{"code":"42501","message":"Not a member of this workspace."}`
+  // to the service role.
+  //
+  // No RPCs are modelled here, so fakeDb throws on any call — which is the
+  // assertion.
+  const db = fakeDb(workspaceTables());
+  const setup = await setupDtoFor(db, TENANT, { kind: "back_office" });
+  // The fixture's config does not satisfy the brain schema, and a config the
+  // parser refuses is its own fact rather than an error -- so this asserts the
+  // assembly ran and reported it, which is what the DTO says it does.
+  assert.equal(setup.business.broken, true, "it read and judged the config row");
+  assert.equal(setup.team.members, 2, "counted the members without asking for the roster");
+  assert.equal(setup.team.invitesOpen, 1, "and the open invitations");
+  assert.equal(setup.consent.yes, 1);
+  assert.equal(setup.lines.rows.length, 1);
+  assert.equal(setup.channels.voice.number, "+19296566623");
+});
+
+test("no member's email crosses the tenant boundary, because the roster is never read", async () => {
+  // The privacy half of the same fix. SetupDto.team is three integers; the
+  // roster it used to build carried every member's email address out of a
+  // workspace the reader is not in.
+  const db = fakeDb(workspaceTables());
+  const setup = await setupDtoFor(db, TENANT, { kind: "back_office" });
+  assert.ok(!JSON.stringify(setup).includes("new@example.com"), "the invited address stays in the workspace");
+  assert.deepEqual(Object.keys(setup.team).sort(), ["alertEmails", "invitesOpen", "members"]);
+});
+
+test("a workspace reading its own Setup still gets the roster, on its own client", async () => {
+  // The other half of the union: with a session, team_roster is exactly right —
+  // it is the door that lets an owner see who is in their workspace.
+  let asked = null;
+  const db = fakeDb(workspaceTables(), {}, {
+    team_roster: (args) => { asked = args; return [{ membership_id: "m1", member_user_id: "u1", email: "owner@example.com", role: "owner", joined_at: ago(90), display_name: "Ada" }]; },
+  });
+  const setup = await setupDtoFor(db, TENANT, { kind: "member" });
+  assert.deepEqual(asked, { p_tenant_id: TENANT }, "the member path calls the roster RPC");
+  assert.equal(setup.team.members, 1);
+  assert.equal(setup.team.invitesOpen, 1);
+});
+
+test("the service-role client cannot be obtained without passing the check", () => {
+  // The first version exported `platformDb()` — no arguments, no relationship to
+  // the guard — and relied on a test walking ONE directory to prove nothing else
+  // imported it. A grep cannot see the route that has not been written yet.
+  const src = readCode("apps/dashboard/src/server/platform.ts");
+  assert.ok(!/export function platformDb|export async function platformDb/.test(src), "REGRESSION: a service-role client handed to any importer");
+  assert.match(src, /function serviceDb\(\)/, "the client is module-private");
+  assert.ok(!/export .*serviceDb/.test(src));
+  // The only way to a client is a handle only the check can make, and the brand
+  // stops an object literal standing in for one.
+  assert.match(src, /declare const backOfficeBrand: unique symbol;/);
+  assert.match(src, /export async function backOffice\(ctx: RouteContext\): Promise<BackOffice>/);
+  assert.match(src, /if \(!\(await admitted\(ctx\)\)\) throw new AppError\("not_found", "No such page\.", 404\);/);
+  // Every cross-tenant read takes the handle rather than reaching for a client.
+  for (const fn of ["platformOverview(office: BackOffice)", "platformTenant(office: BackOffice", "platformEvents(office: BackOffice"]) {
+    assert.ok(src.includes(`export async function ${fn}`), fn);
+  }
+  // A database that cannot answer is not a "no". Telling a real admin "No such
+  // page" during a Postgres hiccup is the moment they opened this for.
+  assert.match(src, /if \(error\) throw new AppError\("internal", .*503\);/);
+  // And the unbounded event payload does not go to the browser to be discarded.
+  assert.match(src, /\.select\("kind, category, subject_type, created_at"\)/);
+  assert.ok(!/select\("kind, category, subject_type, created_at, data"\)/.test(src));
 });
 
 test("the back office is read on demand, not published to every browser", () => {
@@ -384,29 +493,63 @@ globalThis.window.AttnRow = ATTN;
 await import("../../../apps/dashboard/src/legacy/pages/platform.jsx");
 const Pane = globalThis.window.PanePlatform;
 
+/** Whether a dependency array differs from the one an effect or memo last saw. Undefined deps mean "every render", as in React. */
+const changed = (before, after) =>
+  before === undefined || after === undefined || before.length !== after.length || after.some((d, i) => !Object.is(d, before[i]));
+
 function mount(Component, props = {}) {
   const cells = [];
   let seq = 0;
-  let effects = [];
+  /** What each effect slot last ran with, and its cleanup. */
+  const effects = {};
+  let pending = [];
   Object.assign(globalThis.React, {
     createElement: (type, p, ...kids) => ({ type, props: { ...(p || {}), children: kids.flat(Infinity) } }),
-    useMemo: (fn) => { const k = seq++; if (!(k in cells)) cells[k] = fn(); return cells[k]; },
-    useCallback: (fn) => fn,
+    // Dependency arrays are HONOURED. The first version ignored them, which made
+    // the harness unable to fail: changing the effect below from [P, openId] to
+    // [P] — which in a browser means clicking Open never loads anything — left
+    // every test passing. A harness that cannot distinguish working code from
+    // broken code is worse than no harness, because it is reported as coverage.
+    useMemo: (fn, deps) => {
+      const k = seq++;
+      const cell = cells[k];
+      if (!cell || changed(cell.deps, deps)) cells[k] = { value: fn(), deps };
+      return cells[k].value;
+    },
+    useCallback: (fn, deps) => {
+      const k = seq++;
+      const cell = cells[k];
+      if (!cell || changed(cell.deps, deps)) cells[k] = { value: fn, deps };
+      return cells[k].value;
+    },
     useState: (init) => {
       const k = seq++;
-      if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-      return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }];
+      if (!(k in cells)) cells[k] = { value: typeof init === "function" ? init() : init };
+      return [cells[k].value, (v) => { cells[k] = { value: typeof v === "function" ? v(cells[k].value) : v }; }];
     },
-    useEffect: (fn) => { effects.push(fn); },
+    useEffect: (fn, deps) => { pending.push({ fn, deps, key: seq++ }); },
   });
-  const draw = () => { seq = 0; effects = []; return Component(props); };
+  const draw = () => { seq = 0; pending = []; return Component(props); };
   let tree = draw();
+  /**
+   * Run the effects whose deps changed, then redraw, until nothing changes --
+   * rather than a fixed three passes, which both re-ran effects that should not
+   * have fired and could stop before a real chain had settled.
+   */
   const settle = async () => {
-    for (let i = 0; i < 3; i++) {
-      for (const e of effects) e();
+    for (let pass = 0; pass < 12; pass++) {
+      const due = pending.filter((e) => changed(effects[e.key]?.deps, e.deps));
+      if (!due.length) return;
+      for (const e of due) {
+        const previous = effects[e.key];
+        if (previous?.cleanup) previous.cleanup();
+        const cleanup = e.fn();
+        effects[e.key] = { deps: e.deps, cleanup: typeof cleanup === "function" ? cleanup : null };
+      }
       await new Promise((r) => setImmediate(r));
       tree = draw();
     }
+    throw new Error("the page never settled: an effect keeps re-firing");
   };
   return {
     get tree() { return tree; },

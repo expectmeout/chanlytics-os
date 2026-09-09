@@ -11,6 +11,6 @@ import { setupDtoFor } from "@/server/setup";
  */
 export const GET = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
-  const setup = await setupDtoFor(ctx.supabase, member.tenantId, member.role);
+  const setup = await setupDtoFor(ctx.supabase, member.tenantId, { kind: "member" });
   return { setup, role: member.role };
 });

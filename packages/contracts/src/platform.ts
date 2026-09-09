@@ -22,7 +22,7 @@
  */
 import { agoWords } from "./time";
 import { textingWords } from "./setup";
-import { receptionistOn, maySpend, type BillingMode, type BillingStatus } from "./billing";
+import { receptionistOn, maySpend, whyCannotSpend, type BillingMode, type BillingStatus } from "./billing";
 import { formatPhoneDisplay } from "./phone";
 
 /** One workspace as `platform_overview()` returns it. Every field is a fact something else already recorded. */
@@ -124,33 +124,70 @@ const OURS_TO_FIX = ["failed"];
 /** The states that mean the next move is the owner's. */
 const THEIRS_TO_FIX = ["needs_record", "otp_waiting", "rejected"];
 
+/** Whether the money, on its own, is the thing that needs a person. */
+function billingBites(mode: BillingMode, status: BillingStatus): boolean {
+  if (mode !== "stripe") return false;
+  // `past_due` still answers -- Stripe has not given up yet -- which is exactly
+  // why it needs a person before it becomes `unpaid`.
+  return !receptionistOn(status) || status === "past_due";
+}
+
+/**
+ * What is up with this workspace.
+ *
+ * THE ORDER IS THE DESIGN, and it was wrong twice on the first pass:
+ *
+ *   `paused` came first, and `paused` is what the BILLING APPLIER writes -- it
+ *   is the only thing in this codebase that ever sets tenants.status to it
+ *   (edge/lib/billing.ts via tenantStatusFor). So every workspace whose card
+ *   stopped working read "Paused. Nothing answers, by design", which is the
+ *   opposite of true and files a paying customer's emergency under a shrug.
+ *
+ *   `!answering` came before the owner-action states, so a workspace whose
+ *   registration the carriers REFUSED read "nothing answers yet" -- burying the
+ *   one sentence support needed, which is the carriers' reason.
+ *
+ * The order now runs most-urgent to least, and each check is written so the one
+ * below it can assume the one above did not fire.
+ */
 function verdictFor(r: PlatformTenantDto, nowMs: number): PlatformVerdict {
+  // Not a customer: nothing below means anything about it.
   if (r.status === "test") return "test";
-  if (r.status === "paused") return "paused";
 
   const mode = (r.billing_mode ?? "direct") as BillingMode;
   const status = (r.billing_status ?? "none") as BillingStatus;
   const answering = r.voice_active === true || r.whatsapp_active === true;
   const age = nowMs - (at(r.created_at) ?? nowMs);
 
-  // Broken first: a failed line or a suspended registration is ours, and a
-  // customer waiting on us must never be filed under anything softer.
+  // Ours: a failed line or a suspended registration. A customer waiting on US
+  // must never be filed under anything softer.
   if (r.voice_state === "failed" || OURS_TO_FIX.includes(r.sms_state ?? "")) return "broken";
 
-  // Money next, but only where it can actually stop the receptionist. A `none`
-  // that is simply pre-card is `waiting_owner`, below: unpaid and past due are
-  // the ones with a clock on them.
-  if (mode === "stripe" && !receptionistOn(status)) return "billing";
-  if (mode === "stripe" && status === "past_due") return "billing";
+  // Money, where it can actually stop the receptionist -- and BEFORE `paused`,
+  // because a billing pause arrives as exactly that status.
+  if (billingBites(mode, status)) return "billing";
 
-  // A rehearsal filing reports itself as approved and delivers nothing. It is
-  // the state most likely to be mistaken for working, so it outranks the
-  // states that merely look unfinished.
+  // Paused for some other reason, then: deliberate, and nothing to chase.
+  if (r.status === "paused") return "paused";
+
+  // A rehearsal filing reports itself approved and delivers nothing. It is the
+  // state most likely to be mistaken for working, so it outranks everything
+  // that merely looks unfinished.
   if (r.reg_mock === true) return "rehearsal";
 
-  if (!answering) return age > PLATFORM_NEW_DAYS * DAY ? "stalled" : "new";
+  // Too young for "nothing is set up" to be a fact about anything. Held above
+  // the owner-action states on purpose: `needs_record` is the ordinary state of
+  // every workspace on its first day, and calling that "waiting on them" would
+  // put the whole signup queue at the top of the page.
+  if (!answering && age <= PLATFORM_NEW_DAYS * DAY) return "new";
+
+  // Theirs: a state the owner has to act on, whether or not anything answers
+  // yet. A refused registration is the owner's next move even on a workspace
+  // that never got its phone line up.
   if (THEIRS_TO_FIX.includes(r.sms_state ?? "")) return "waiting_owner";
   if (mode === "stripe" && !maySpend(mode, status)) return "waiting_owner";
+
+  if (!answering) return "stalled";
 
   const heard = at(r.last_inbound_at);
   if (heard === null) return age > PLATFORM_QUIET_DAYS * DAY ? "quiet" : "new";
@@ -175,6 +212,14 @@ function sentenceFor(r: PlatformTenantDto, verdict: PlatformVerdict, nowMs: numb
     case "stalled":
       return `Set up ${agoWords(at(r.created_at) ?? nowMs, nowMs)} and nothing answers yet${r.members <= 1 ? ", with one person in the workspace" : ""}.`;
     case "waiting_owner": {
+      // TWO causes reach this verdict, and rendering one sentence for both told
+      // a workspace with no card on file that its texting was fine. Each cause
+      // gets the owner's own words for that cause.
+      const mode = (r.billing_mode ?? "direct") as BillingMode;
+      const status = (r.billing_status ?? "none") as BillingStatus;
+      if (!THEIRS_TO_FIX.includes(r.sms_state ?? "") && mode === "stripe") {
+        return whyCannotSpend(mode, status) ?? "Something about their billing needs them.";
+      }
       // The customer's own sentence, plus the carriers' reason where there is
       // one. Setup's version deliberately leaves the reason out -- the owner has
       // it on their texting row -- but the reason is the entire content of a
@@ -187,7 +232,12 @@ function sentenceFor(r: PlatformTenantDto, verdict: PlatformVerdict, nowMs: numb
         ? "Answering, and no customer has ever reached them."
         : `Answering, and no customer has reached them in ${quietFor} days.`;
     case "new":
-      return `Signed up ${agoWords(at(r.created_at) ?? nowMs, nowMs)}, still setting up.`;
+      // `new` is reached two ways: nothing set up yet, or set up and answering
+      // with nobody having reached them. "Still setting up" is a lie about the
+      // second one.
+      return r.voice_active === true || r.whatsapp_active === true
+        ? `Answering since ${agoWords(at(r.created_at) ?? nowMs, nowMs)}; no customer has reached them yet.`
+        : `Signed up ${agoWords(at(r.created_at) ?? nowMs, nowMs)}, still setting up.`;
     case "live":
       return `Answering; last heard from ${heard === null ? "never" : agoWords(heard, nowMs)}.`;
     case "paused":

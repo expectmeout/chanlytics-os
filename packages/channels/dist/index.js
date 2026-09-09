@@ -6218,15 +6218,15 @@ function nextA2PStep(s, brandType = "STANDARD") {
 function isBrandNotReady(error) {
   return /until Brand is registered|Brand.*Current status:\s*(IN_PROGRESS|PENDING)/i.test(error);
 }
-var PREAMBLE = /^the campaign submission has been reviewed and (?:it was )?rejected because (?:of )?/i;
+var PREAMBLE = /^the campaign submission has been reviewed and (?:it was )?rejected because\s*(?:of\s*)?/i;
 function refusalWords(o) {
   const parts = [];
   const brand = (o.brandFailureReason ?? "").trim();
   if (brand) parts.push(brand);
   for (const e of o.campaignErrors ?? []) {
-    const said = String(e?.description ?? "").trim();
-    if (!said) continue;
-    const body = said.replace(PREAMBLE, "").trim().replace(/\.$/, "");
+    const said = String(e?.description ?? "");
+    const body = said.replace(PREAMBLE, "").trim().replace(/\.$/, "").trim();
+    if (!body) continue;
     const tags = [e?.error_code == null ? null : String(e.error_code), ...e?.fields ?? []].filter(Boolean);
     parts.push(tags.length ? `${body} (${tags.join(" \xB7 ")})` : body);
   }
@@ -6264,11 +6264,20 @@ function registrationVerdict(before, after, o) {
       event: "line.texting_approved"
     };
   }
-  if (after === "rejected" || after === "failed") {
+  if (after === "rejected") {
     return {
       kind: "alert",
       title: "The carriers sent your texting registration back",
       body: `${o.reason ? `They said: ${o.reason}. ` : ""}Open Connections, correct your business on record, and file it again. Calls and WhatsApp are unaffected.`,
+      route: "admin/integrations",
+      event: "line.texting_rejected"
+    };
+  }
+  if (after === "failed") {
+    return {
+      kind: "alert",
+      title: "Your texting registration stopped",
+      body: `${o.reason ? `The carriers said: ${o.reason}. ` : ""}A person at Chanlytics has it \u2014 there is nothing for you to do. Calls and WhatsApp are unaffected.`,
       route: "admin/integrations",
       event: "line.texting_rejected"
     };

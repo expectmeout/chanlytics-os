@@ -15,11 +15,15 @@
  * a chain quietly evaluate to nothing.
  */
 
-/** Rows a filter selects. `eq` is strict, `lt` is whatever `<` does — ISO timestamps sort as text. */
+/** Rows a filter selects. `eq` is strict, `is` is the NULL test, `lt` is whatever `<` does — ISO timestamps sort as text. */
 function matches(row, filters) {
   return filters.every(([op, col, val]) =>
     op === "eq" ? row[col] === val
     : op === "lt" ? row[col] != null && row[col] < val
+    // PostgREST's `.is(col, null)`: the only way to ask for NULL, and what
+    // every "not erased", "not accepted", "not revoked" read in this codebase
+    // is written with. `eq` would not do -- SQL NULL is not equal to anything.
+    : op === "is" ? (val === null ? row[col] == null : row[col] === val)
     // PostgREST's `.or("a.is.null,a.lt.x")`: any ONE of the clauses. Modelled
     // because a rotating sweep's whole correctness is "never-done first, then
     // the oldest" -- and that is a filter, not a shape a source scan can see.
@@ -91,6 +95,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}) {
       update(values) { q.op = "update"; q.values = values; return proxy; },
       insert() { throw new Error("fakeDb: nothing under test inserts; model it before using it"); },
       eq(col, val) { q.filters.push(["eq", col, val]); return proxy; },
+      is(col, val) { q.filters.push(["is", col, val]); return proxy; },
       lt(col, val) { q.filters.push(["lt", col, val]); return proxy; },
       or(expr) { q.filters.push(["or", null, expr]); return proxy; },
       // nullsFirst matters: a workspace that has never been swept must go
