@@ -6746,6 +6746,16 @@ interface SetupDto {
     consent: {
         yes: number;
     };
+    /**
+     * Facts that disagree with what the platform knows (contracts/facts.ts).
+     *
+     * The checklist called Business facts "ready" on a workspace whose
+     * receptionist was publishing the number it transfers to instead of the line
+     * it answers -- because "ready" only ever meant "the fields are filled in",
+     * and nothing compared a filled-in field to anything. A checklist that says
+     * ready while a customer-facing fact is wrong is worse than no checklist.
+     */
+    conflicts?: FactConflict[];
     /** What the owner has asked a person at Chanlytics for, and when. */
     requests: {
         line: string | null;
