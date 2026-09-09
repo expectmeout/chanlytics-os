@@ -21,7 +21,7 @@
 | 3 | Sweeps that serve every tenant | P0 | ~1 day | Yes, at volume | **shipped** #294 |
 | 4 | A green nightly and a true DR copy | P0 | ~half day | Yes | **shipped** #292 |
 | 5 | The back office | P1 | ~2 days | No, but support is impossible without it | **shipped** #299 · #300 · #301 |
-| 6 | An ops door a human can open | P1 | ~half day | No | |
+| 6 | An ops door a human can open | P1 | ~half day | No | **shipped** #307 |
 | 7 | Businesses without an EIN | P1 | ~3 days | No — decides market size | **shipped** #296 · #297 · *OTP leg held* |
 | 8 | Registration a salon can complete | P1 | ~2–3 days | No — decides onboarding cost | |
 | 9 | What a paying customer actually sees | P2 | ~1 day | No | |
@@ -378,6 +378,16 @@ Keep every one of these actions writing an `events` row naming the admin who did
 ### Risk
 
 This is a privilege escalation surface by design. Keep it to actions that already exist, never a generic passthrough to the edge — a route that forwards an arbitrary `op` is a back door with extra steps.
+
+### Shipped — 9 September 2026 (#307)
+
+Three routes under `/api/v1/platform/lines/*`, each its own file carrying its own literal operation. The risk above is answered structurally rather than by care: a test walks the directory and asserts there are exactly three, that none reads the operation from the request body, and that `backOffice(ctx)` runs before the action in every one. The edge-operation mapping is a written-out table, not a parameter.
+
+**Attribution is a precondition, not a side effect.** `platform.acted` — the admin's user id and the address they signed in with, against the line — is written BEFORE the action, and the action is refused if it cannot be written. What happened next is the line's own event from the edge, so the pair reads in order in one ledger.
+
+**The cost lives in the contract.** `refile` is two actions wearing one name: a rejected campaign is corrected in place for nothing, a rehearsal is replaced by a real filing for ~$19.50 that cannot be undone. `platformLineActions` decides which one a line is offering and what it says; the page has no money figure in it at all, and a test asserts that. Actions the edge would refuse are not offered, and when it does refuse, its own words reach the screen unchanged.
+
+Arm-then-confirm, cost said first. Verified on production: all three routes answer `401` without a session.
 
 ---
 
