@@ -316,6 +316,35 @@ test("the carriers' verdicts become the words the row uses", () => {
   assert.equal(smsStateFor({ brandStatus: "FAILED", campaignStatus: null }), "rejected");
   assert.equal(smsStateFor({ brandStatus: "APPROVED", campaignStatus: "FAILED" }), "rejected");
   assert.equal(smsStateFor({ brandStatus: "SUSPENDED" }), "failed");
+  // A REHEARSAL never reaches active, whatever the test registry says about
+  // it. `active` is an instruction, not a badge: the line above is the inbound
+  // path reading it to decide whether to stop holding texts for a person, and a
+  // mock campaign can carry nothing -- so the receptionist would answer, the
+  // carriers would reject every reply, and the customer would get silence.
+  assert.equal(smsStateFor({ brandStatus: "APPROVED", campaignStatus: "VERIFIED", mock: true }), "approved");
+  assert.equal(smsStateFor({ brandStatus: "FAILED", campaignStatus: "VERIFIED", mock: true }), "rejected", "a refusal is still a refusal");
+});
+
+test("the campaign's status is read from the list Twilio answers with, and a wait's clock starts when the wait does", () => {
+  const edge = readCode("apps/edge/lib/a2p.ts");
+  // Verified against the live API on 2026-09-09: the Usa2p endpoint answers
+  // {compliance: [{campaign_status, mock, ...}], meta} and has NO top-level
+  // campaign_status. Reading one gave null on every tick, so smsStateFor never
+  // saw VERIFIED, so no line could ever reach active, so every inbound text was
+  // held for a person for ever -- on a code path whose own comment says it
+  // exists to end exactly that.
+  assert.ok(!/campaign\?\.campaign_status/.test(edge), "REGRESSION: the top-level read is always null");
+  assert.ok(edge.includes("Array.isArray(campaign?.compliance)") && edge.includes("usa2p?.campaign_status"));
+  // Twilio, not our column, is the authority on whether the filing it holds is
+  // a rehearsal -- so a refile that made it real is recorded without anyone
+  // remembering to.
+  assert.ok(edge.includes("typeof usa2p?.mock === \"boolean\" ? usa2p.mock : line.reg_mock"));
+  assert.ok(edge.includes("smsStateFor({ brandStatus, campaignStatus, mock })"));
+  // state_since means "when this state began". Written unconditionally by an
+  // hourly sweep it meant "within the last hour", for ever -- and the Setup row
+  // reads it to tell the owner how long the carriers have had their filing.
+  assert.ok(edge.includes("const moved = smsState !== line.sms_state;"));
+  assert.ok(edge.includes("...(moved ? { state_since: new Date().toISOString() } : {}),"));
 });
 
 test("everything is filed as the workspace's own subaccount, with our primary profile referenced by sid", () => {
