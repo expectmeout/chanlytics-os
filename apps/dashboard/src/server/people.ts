@@ -11,7 +11,7 @@ import type { RouteContext } from "./with-route";
  * `people_list` under the caller's own RLS. Shared by the People list and the
  * CSV export so the two never disagree about who exists.
  */
-export async function listPeople(ctx: RouteContext, tenantId: string): Promise<PersonRowDto[]> {
+export async function listPeople(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<PersonRowDto[]> {
   const { data, error } = await ctx.supabase.rpc("people_list", { p_tenant_id: tenantId });
   if (error) throw new Error(error.message);
   const { data: pols, error: polErr } = await ctx.supabase

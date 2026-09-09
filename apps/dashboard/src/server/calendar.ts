@@ -129,7 +129,7 @@ export function itemsToDays(items: FeedItem[], from: string, days: number, tz: s
  * `canAct` says; a viewer's read changes nothing. Capped per read: the
  * hourly sweep on the edge takes the rest. Never fatal to the board.
  */
-async function addPeopleSeen(ctx: RouteContext, tenantId: string, items: FeedItem[], services: string[], people: PersonLike[], now: Date): Promise<PersonLike[]> {
+async function addPeopleSeen(ctx: Pick<RouteContext, "supabase">, tenantId: string, items: FeedItem[], services: string[], people: PersonLike[], now: Date): Promise<PersonLike[]> {
   const have = new Set(people.map((p) => p.phone).filter(Boolean));
   const rows = peopleFromItems(items, services, now.getTime()).filter((r) => !have.has(r.phone)).slice(0, 40);
   const added: PersonLike[] = [];
@@ -162,7 +162,12 @@ async function addPeopleSeen(ctx: RouteContext, tenantId: string, items: FeedIte
   return added;
 }
 
-export async function calendarWeek(ctx: RouteContext, tenantId: string, by: { from: string | null; days: number }, now = new Date(), opts: { canAct?: boolean } = {}): Promise<CalendarWeekDto> {
+/**
+ * Takes only the client it reads with, not a whole RouteContext: Setup's
+ * assembly calls this for a workspace that is not the caller's own -- the back
+ * office reading somebody else's -- and there is no request behind that.
+ */
+export async function calendarWeek(ctx: Pick<RouteContext, "supabase">, tenantId: string, by: { from: string | null; days: number }, now = new Date(), opts: { canAct?: boolean } = {}): Promise<CalendarWeekDto> {
   const { timezone } = await tenantFacts(ctx.supabase, tenantId);
   const span = spanFor(by.from, by.days, timezone, now);
   const { data: row, error } = await ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle();

@@ -190,7 +190,13 @@ export const SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SE
 export const MOCK_TEXTING_SENTENCE =
   "Texting is filed against a test registry, so nothing is delivered — a person at Chanlytics is filing it with the carriers for real.";
 
-export function textingWords(l: LineDto | null | undefined): { sentence: string; done: boolean } {
+/**
+ * Takes only the three fields it reads. The back office renders the same
+ * sentence for another workspace's line, and it has the registration facts
+ * without the rest of a LineDto -- a synthetic one filled with plausible
+ * blanks would be a second answer waiting to drift from this one.
+ */
+export function textingWords(l: Pick<LineDto, "sms_state" | "reg_mock" | "reg_sole_prop"> | null | undefined): { sentence: string; done: boolean } {
   if (!l) return { sentence: "Texting is not available yet.", done: false };
   // reg_mock alone, not reg_mock && registered: the flag is only ever set by a
   // filing that WAS made against the test registry, so a mock brand still

@@ -194,7 +194,9 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   assert.ok(server.includes('export const BILLING_COLUMNS = "mode, status, price_id, current_period_end, trial_end, cancel_at, cancel_at_period_end, card_brand, card_last4, last_payment_failed_at, last_paid_at, updated_at";'), "never a customer or subscription id");
   assert.ok(!server.includes("STRIPE_SECRET_KEY"), "the dashboard never holds the key");
   assert.ok(readCode("apps/dashboard/src/server/rate-limit.ts").includes("billing: {"));
-  const setup = readCode("apps/dashboard/app/api/v1/setup/route.ts");
+  // The assembly lives in src/server/setup.ts: the back office reads another
+  // workspace's through the same function, so support sees what the customer sees.
+  const setup = readCode("apps/dashboard/src/server/setup.ts");
   assert.ok(setup.includes("billingFor(supabase, tenantId),") && setup.includes("billingReadiness(),") && setup.includes("trial_days: billingReady.trial_days, cancel_at: billingRow.cancel_at"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/billing.ts");
   assert.ok(bridge.includes('key: "billing",') && bridge.includes('refreshOnTables: ["billing_accounts"],') && bridge.includes("win.location.assign(r.data.url)"));

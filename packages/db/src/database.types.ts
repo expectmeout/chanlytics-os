@@ -2767,6 +2767,7 @@ export type Database = {
         Returns: Json
       }
       is_acting_member: { Args: { p_tenant: string }; Returns: boolean }
+      is_platform_admin: { Args: never; Returns: boolean }
       is_workspace_owner: { Args: { p_tenant: string }; Returns: boolean }
       line_forwarding_set: {
         Args: {
@@ -2849,6 +2850,64 @@ export type Database = {
           phone_e164: string
           queued_reply_at: string
           wa_profile_name: string
+        }[]
+      }
+      platform_overview: {
+        Args: never
+        Returns: {
+          billing_mode: string
+          billing_status: string
+          created_at: string
+          current_period_end: string
+          last_inbound_at: string
+          line_e164: string
+          line_error: string
+          line_kind: string
+          members: number
+          name: string
+          reg_mock: boolean
+          reg_sole_prop: boolean
+          reg_step: string
+          slug: string
+          sms_state: string
+          status: string
+          tenant_id: string
+          timezone: string
+          trial_end: string
+          voice_active: boolean
+          voice_number: string
+          voice_state: string
+          whatsapp_active: boolean
+          whatsapp_number: string
+        }[]
+      }
+      platform_overview_rows: {
+        Args: never
+        Returns: {
+          billing_mode: string
+          billing_status: string
+          created_at: string
+          current_period_end: string
+          last_inbound_at: string
+          line_e164: string
+          line_error: string
+          line_kind: string
+          members: number
+          name: string
+          reg_mock: boolean
+          reg_sole_prop: boolean
+          reg_step: string
+          slug: string
+          sms_state: string
+          status: string
+          tenant_id: string
+          timezone: string
+          trial_end: string
+          voice_active: boolean
+          voice_number: string
+          voice_state: string
+          whatsapp_active: boolean
+          whatsapp_number: string
         }[]
       }
       profile_set: { Args: { p_display_name: string }; Returns: Json }
