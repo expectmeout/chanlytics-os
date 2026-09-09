@@ -1136,12 +1136,26 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
   animation: skel-sweep 1.1s var(--ease-in-out) infinite;
 }
 @keyframes skel-sweep { to { transform: translateX(100%); } }
+/* The skeleton stands where the surface will stand, so it has to sit where the
+   surface sits. It carried a page's 28px gutter and a 16px grid gap onto PANE
+   surfaces, which have neither -- every one of them is a full-bleed grid whose
+   rail starts at x=0 -- so the moment real content replaced it, everything
+   jumped 28px left and the rail changed width. A loading state that moves the
+   page when it leaves is worse than no loading state. */
 .skel-page { padding: 20px 28px; display: flex; flex-direction: column; gap: 16px; flex: 1; min-width: 0; }
+.skel-page.pane { padding: 0; gap: 0; }
 .skel-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
 .skel-title { width: 160px; height: 24px; }
 .skel-sub { width: 300px; max-width: 60vw; height: 12px; margin-top: 8px; border-radius: 4px; }
 .skel-stats { width: 340px; height: 58px; border-radius: var(--radius-md); flex-shrink: 0; }
-.skel-pane { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 16px; flex: 1; min-height: 0; }
+.skel-pane { display: grid; grid-template-columns: var(--rail-list) minmax(0, 1fr); gap: 0; flex: 1; min-height: 0; }
+/* Settings and People are the narrow kind. Named here rather than guessed
+   because the skeleton cannot ask the surface, and a rail that resizes on load
+   is the same jump in a different direction. */
+.skel-page[data-surface="admin"] .skel-pane,
+.skel-page[data-surface="clients"] .skel-pane { grid-template-columns: var(--rail-nav) minmax(0, 1fr); }
+.skel-page.pane .skel-rail { padding: 8px; }
+.skel-page.pane .skel-main { padding: 16px 24px; }
 .skel-rail { display: flex; flex-direction: column; gap: 8px; }
 .skel-row { height: 56px; }
 .skel-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }

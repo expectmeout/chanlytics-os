@@ -4,13 +4,13 @@
 
 .inbox {
   display: grid;
-  grid-template-columns: 340px minmax(0, 1fr);
+  grid-template-columns: var(--rail-list) minmax(0, 1fr);
   height: 100%;
   background: var(--bg);
   overflow: hidden;
 }
 .inbox.with-rail {
-  grid-template-columns: 340px minmax(0, 1fr) 320px;
+  grid-template-columns: var(--rail-list) minmax(0, 1fr) 320px;
 }
 
 /* ====================================================================

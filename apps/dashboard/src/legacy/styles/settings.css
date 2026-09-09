@@ -7,7 +7,7 @@
 .settings {
   flex: 1;
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: var(--rail-nav) minmax(0, 1fr);
   min-width: 0;
   overflow: hidden;
 }

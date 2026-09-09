@@ -7,7 +7,7 @@
 .conversations {
   flex: 1;
   display: grid;
-  grid-template-columns: 340px minmax(0, 1fr);
+  grid-template-columns: var(--rail-list) minmax(0, 1fr);
   min-width: 0;
   overflow: hidden;
 }

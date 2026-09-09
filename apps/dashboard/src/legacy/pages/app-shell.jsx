@@ -178,8 +178,11 @@ const ClientNotFound = ({ onNavigate }) => (
 );
 
 // ---- Route skeleton (perceived loading on navigation) -------------------
-const RouteSkeleton = ({ pane }) => (
-  <div className="skel-page" aria-hidden="true">
+const RouteSkeleton = ({ pane, surface }) => (
+  // data-surface, so the skeleton's rail can be the width the surface's rail
+  // will be. Without it Settings loaded behind a 340px rail and settled into a
+  // 220px one.
+  <div className={`skel-page ${pane ? "pane" : ""}`} data-surface={surface} aria-hidden="true">
     <div className="skel-head">
       <div>
         <div className="skel skel-title" />
@@ -689,7 +692,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
         <div key={mountKey} className={`main-scroll route-view ${pane ? "pane" : ""}`}>
           <ShellErrorBoundary>
             {routeLoading
-              ? <RouteSkeleton pane={pane} />
+              ? <RouteSkeleton pane={pane} surface={page} />
               : surfaceUnavailable
                 ? <SurfaceUnavailable onNavigate={navigate} />
                 : content}

@@ -20,7 +20,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { ROOT, readRaw } from "./_source.mjs";
+import { ROOT, readCode, readRaw } from "./_source.mjs";
 
 const STYLES = path.join(ROOT, "apps/dashboard/src/legacy/styles");
 const sheets = fs.readdirSync(STYLES).filter((f) => f.endsWith(".css"));
@@ -110,4 +110,37 @@ test("a settings control is named by the row it sits in", () => {
   // The controls have to forward it or the name never lands on the element.
   assert.ok(/const SetToggle = \(\{ on, onChange, \.\.\.rest \}\)/.test(settings), "SetToggle forwards it");
   assert.ok(/const SetSeg = \(\{ value, options, onChange, \.\.\.rest \}\)/.test(settings), "SetSeg forwards it");
+});
+
+test("the loading skeleton stands where the surface will stand", () => {
+  // It carried a page's 28px gutter and a 16px grid gap onto PANE surfaces,
+  // which have neither -- every one is a full-bleed grid whose rail starts at
+  // x=0 -- so the instant real content replaced it the whole page jumped 28px
+  // left and the rail changed width. A loading state that moves the page when
+  // it leaves is worse than no loading state.
+  const components = readRaw("apps/dashboard/src/legacy/styles/components.css");
+  assert.match(components, /\.skel-page\.pane \{ padding: 0; gap: 0; \}/, "a pane skeleton has no page gutter, because pane surfaces have none");
+  assert.match(components, /\.skel-pane \{[^}]*grid-template-columns: var\(--rail-list\)/, "and its rail is a real rail width");
+
+  // The rails themselves: eight literals for one structural element, of which
+  // these four agreed already and now say so.
+  const tokens = readRaw("apps/dashboard/src/legacy/styles/tokens.css");
+  assert.ok(tokens.includes("--rail-nav: 220px") && tokens.includes("--rail-list: 340px"), "the two kinds of rail are named");
+  for (const [file, sel] of [["settings.css", ".settings"], ["clients.css", ".clients"]]) {
+    assert.match(readRaw(`apps/dashboard/src/legacy/styles/${file}`), /grid-template-columns: var\(--rail-nav\) minmax\(0, 1fr\);/, `${sel} takes the nav rail`);
+  }
+  for (const file of ["inbox.css", "conversations.css"]) {
+    assert.match(readRaw(`apps/dashboard/src/legacy/styles/${file}`), /grid-template-columns: var\(--rail-list\) minmax\(0, 1fr\)/, `${file} takes the list rail`);
+  }
+
+  // The skeleton cannot ask the surface how wide its rail is, so the two
+  // narrow ones are named -- and named in BOTH places or the rail resizes on
+  // load, which is the same jump in a different direction.
+  const narrowInSkeleton = /\.skel-page\[data-surface="([a-z-]+)"\]/g;
+  const named = [...components.matchAll(narrowInSkeleton)].map((m) => m[1]).sort();
+  assert.deepEqual(named, ["admin", "clients"], "exactly the surfaces whose rail is --rail-nav");
+
+  const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
+  assert.ok(shell.includes("<RouteSkeleton pane={pane} surface={page} />"), "the shell tells the skeleton which surface it is standing in for");
+  assert.ok(shell.includes('data-surface={surface}'), "and the skeleton wears it");
 });
