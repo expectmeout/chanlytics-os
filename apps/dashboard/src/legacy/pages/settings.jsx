@@ -104,7 +104,23 @@ const SET_TABS = [
 ];
 /** Routes that still answer but no longer earn a place in the rail. */
 const SET_TABS_UNLISTED = [{ id: "memory", label: "AI memory", icon: "sparkle" }];
-const SET_TAB = (id) => SET_TABS.find((t) => t.id === id) || SET_TABS_UNLISTED.find((t) => t.id === id) || SET_TABS[0];
+/**
+ * The back office. Not in SET_TABS: it exists for the two or three people who
+ * run Chanlytics and for nobody else, and a customer who types the route lands
+ * on Profile rather than on a locked door they now know about.
+ *
+ * `window.__ME.platform_admin` rides on the workspace payload the seam already
+ * fetches at boot, so the rail knows synchronously and never flickers a tab in.
+ * It is NOT the authorization -- every platform route asks the database again,
+ * and both answer 404 to everyone else.
+ */
+const SET_TABS_PLATFORM = [{ id: "platform", label: "Back office", icon: "monitor", group: "Chanlytics" }];
+const isPlatformAdmin = () => !!(window.__ME && window.__ME.platform_admin);
+const SET_TAB = (id) =>
+  SET_TABS.find((t) => t.id === id)
+  || (isPlatformAdmin() ? SET_TABS_PLATFORM.find((t) => t.id === id) : null)
+  || SET_TABS_UNLISTED.find((t) => t.id === id)
+  || SET_TABS[0];
 
 // ...rest carries the aria-labelledby SetRow hands down; without forwarding it
 // the switch is announced with no name at all.
@@ -2633,7 +2649,7 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
   const [toastNode, flash] = window.usePPToast();
   // Grouped, and derived rather than written twice: the rail can only ever
   // offer what SET_TABS holds, in the order it holds it.
-  const groups = SET_TABS.reduce((acc, t) => {
+  const groups = [...SET_TABS, ...(isPlatformAdmin() ? SET_TABS_PLATFORM : [])].reduce((acc, t) => {
     const g = acc[acc.length - 1];
     if (g && g.name === t.group) g.tabs.push(t); else acc.push({ name: t.group, tabs: [t] });
     return acc;
@@ -2664,6 +2680,7 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
         {active.id === "memory" && (window.__SETTINGS === undefined ? <PaneMemory flash={flash} /> : <PaneSoon which="memory" onTab={onTab} />)}
         {active.id === "notifications" && (window.__SETTINGS === undefined ? <PaneNotifications /> : <PaneNotificationsReal flash={flash} />)}
         {active.id === "billing" && (window.__SETTINGS === undefined ? <PaneBilling flash={flash} /> : <window.PaneBillingReal flash={flash} />)}
+        {active.id === "platform" && window.PanePlatform && <window.PanePlatform />}
       </div>
 
       {toastNode}
@@ -2673,4 +2690,5 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
 
 window.SettingsPage = SettingsPage;
 window.SET_TABS = SET_TABS;
+window.SET_TABS_PLATFORM = SET_TABS_PLATFORM; // the shell names the crumb; the rail above decides who sees it
 window.SetToggle = SetToggle; // consumed by calendar.jsx + reports.jsx (module-scope port fix)

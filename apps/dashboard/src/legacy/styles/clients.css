@@ -1653,6 +1653,9 @@
 .cl-attn-status .lead { color: var(--ink-muted); }
 .cl-attn-row.tone-escalated .cl-attn-status .lead { color: var(--warn); }
 .cl-attn-row.tone-queued .cl-attn-status .lead { color: var(--info); }
+/* The back office needs a third: a workspace whose line failed or whose card
+   stopped working is not the same kind of amber as one waiting on a person. */
+.cl-attn-row.tone-danger .cl-attn-status .lead { color: var(--danger); }
 .cl-attn-cta {
   align-self: center;
   font-size: 11px; font-weight: 500;
