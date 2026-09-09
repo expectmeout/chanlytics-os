@@ -8,21 +8,41 @@
  * costs the workspace money the moment it is pressed, so it is asked for
  * plainly and never chained onto the save.
  */
-import { businessRecordProblems, emptyBusinessRecord, BUSINESS_FIELDS, BUSINESS_GROUP_WORDS, businessRecordLine, industryWords, type BusinessRecordDto } from "@chanlytics/contracts";
+import {
+  businessRecordProblems, emptyBusinessRecord, businessFieldsFor, businessGroupWordsFor, businessRecordLine,
+  registrationPathOf, businessRecordForPath, soleProprietorLimits, industryWords,
+  REGISTRATION_PATHS, REGISTRATION_QUESTION, REGISTRATION_PATH_WORDS, REGISTRATION_COST_WORDS,
+  type BusinessRecordDto, type RegistrationPath,
+} from "@chanlytics/contracts";
 import { scoped } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 import { setupOverride } from "./setup";
 
 export interface BusinessRecordApi {
-  /** What is on record, and what is still wrong with it. */
-  read(): Promise<{ ok: boolean; record: BusinessRecordDto | null; problems: Record<string, string>; message: string }>;
-  /** Keep it. Owners only; the route says so. */
-  save(record: BusinessRecordDto): Promise<{ ok: boolean; message: string }>;
+  /**
+   * What is on record, what is still wrong with it, and which registration it
+   * is for — `path: null` when there is nothing on file and nobody has answered
+   * the question yet.
+   */
+  read(): Promise<{ ok: boolean; record: BusinessRecordDto | null; path: RegistrationPath | null; problems: Record<string, string>; message: string }>;
+  /** Keep it, for the registration the owner said it is for. Owners only; the route says so. */
+  save(record: BusinessRecordDto, path: RegistrationPath): Promise<{ ok: boolean; message: string }>;
   /** File this line with the carriers. Costs money, so the page asks first. */
   register(lineId: string): Promise<{ ok: boolean; pending: boolean; message: string }>;
-  /** The fields, their words and their closed lists. */
-  fields: typeof BUSINESS_FIELDS;
-  groups: typeof BUSINESS_GROUP_WORDS;
+  /** The fields this registration asks for, their words and their closed lists. */
+  fieldsFor: typeof businessFieldsFor;
+  groupsFor: typeof businessGroupWordsFor;
+  /** The fork: the question, the two answers, and what each one means. */
+  paths: typeof REGISTRATION_PATHS;
+  question: typeof REGISTRATION_QUESTION;
+  pathWords: typeof REGISTRATION_PATH_WORDS;
+  costWords: typeof REGISTRATION_COST_WORDS;
+  /** What the narrow registration gives up — said before it is filed, never after. */
+  limits: typeof soleProprietorLimits;
+  /** Which registration a saved record is on. */
+  pathOf: typeof registrationPathOf;
+  /** The record as a path files it — the same normalising the save does, so the form never shows a problem on a box it does not render. */
+  forPath: typeof businessRecordForPath;
   empty: typeof emptyBusinessRecord;
   problems: typeof businessRecordProblems;
   line: typeof businessRecordLine;
@@ -53,11 +73,11 @@ async function send<T>(path: string, method: string, body?: unknown): Promise<{ 
 export function installBusinessRecord(win: Window = window): void {
   win.__businessRecord = {
     async read() {
-      const r = await send<{ record: BusinessRecordDto | null; problems: Record<string, string> }>("/api/v1/business-record", "GET");
-      return { ok: r.ok, record: r.data?.record ?? null, problems: r.data?.problems ?? {}, message: r.message };
+      const r = await send<{ record: BusinessRecordDto | null; path: RegistrationPath | null; problems: Record<string, string> }>("/api/v1/business-record", "GET");
+      return { ok: r.ok, record: r.data?.record ?? null, path: r.data?.path ?? null, problems: r.data?.problems ?? {}, message: r.message };
     },
-    async save(record) {
-      const r = await send<{ record: unknown }>("/api/v1/business-record", "PUT", record);
+    async save(record, path) {
+      const r = await send<{ record: unknown }>("/api/v1/business-record", "PUT", { record, path });
       if (r.ok) await refreshSurfaces([setupOverride]);
       return { ok: r.ok, message: r.ok ? "Saved. The carriers see this when you file." : r.message };
     },
@@ -77,8 +97,15 @@ export function installBusinessRecord(win: Window = window): void {
               : r.data?.error ?? "The carriers did not accept it.",
       };
     },
-    fields: BUSINESS_FIELDS,
-    groups: BUSINESS_GROUP_WORDS,
+    fieldsFor: businessFieldsFor,
+    groupsFor: businessGroupWordsFor,
+    paths: REGISTRATION_PATHS,
+    question: REGISTRATION_QUESTION,
+    pathWords: REGISTRATION_PATH_WORDS,
+    costWords: REGISTRATION_COST_WORDS,
+    limits: soleProprietorLimits,
+    pathOf: registrationPathOf,
+    forPath: businessRecordForPath,
     empty: emptyBusinessRecord,
     problems: businessRecordProblems,
     line: businessRecordLine,

@@ -23,7 +23,10 @@ import { formatPhoneDisplay, whyCannotSpend, type BillingMode, type BillingStatu
 import { runLineSaga, isAreaCode, isE164, LINE_COSTS, type LineRow } from "../../lib/workspace/channels.js";
 import { lineProviderFromEnv, linePorts, lineForClient, rowToLine, LINE_STEP_WORDS, type LineProviderChoice } from "../../lib/lines.js";
 import { registerLine, syncRegistration, unfileMockRegistration, resubmitRejectedCampaign, campaignFactsFor } from "../../lib/a2p.js";
-import { businessTypeOf, companyTypeOf, industryOf } from "../../lib/workspace/contracts.js";
+import {
+  businessTypeOf, companyTypeOf, industryOf, businessRecordProblems, businessRecordForPath,
+  registrationPathOf, REGISTRATION_PATHS, type RegistrationPath,
+} from "../../lib/workspace/contracts.js";
 import { dashboardOrigin } from "../../lib/billing.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../lib/workspace/db.js";
@@ -36,6 +39,14 @@ interface Body {
   line_id?: string;
   /** The business on record, as the form sends it; validated field by field below. */
   record?: unknown;
+  /**
+   * Which registration the record is for: "standard" or "sole_proprietor".
+   *
+   * Sent because it cannot be safely inferred -- an empty tax id is both "there
+   * is none" and "not typed yet", and one of those answers leads to a filing
+   * that cannot be withdrawn. Absent, it is derived from the tax id.
+   */
+  path?: string;
   /** File against Twilio's free test registry instead of the carriers. */
   mock?: boolean;
   /** Replace a rehearsal filing with a real one. Refused on a real filing. */
@@ -224,10 +235,23 @@ export async function POST(request: Request): Promise<Response> {
     const b = body.record && typeof body.record === "object" ? (body.record as Record<string, unknown>) : null;
     if (!b) return json(400, { ok: false, error: "record is required" });
     const str = (k: string) => (typeof b[k] === "string" ? (b[k] as string).trim() : "");
-    const need = ["legal_name", "street", "city", "region", "postal_code", "website_url", "contact_first_name", "contact_last_name", "contact_email", "contact_phone"];
-    const missing = need.filter((k) => !str(k));
-    if (missing.length) return json(400, { ok: false, error: `missing: ${missing.join(", ")}` });
-    const row = {
+
+    // WHICH registration this record is for. Taken from the caller when it says,
+    // derived from the tax id when it does not.
+    //
+    // It has to be said rather than inferred, because an absent tax id means two
+    // different things -- "this business has none" and "the owner did not type
+    // it" -- and inferring the first from the second files the SOLE-PROPRIETOR
+    // brand, which allows one number and about one message a second and cannot
+    // be withdrawn. Derivation is the fallback for a caller that predates the
+    // field, and it is exact for a record that has already been saved: see
+    // registrationPathOf in contracts for the invariant that makes it so.
+    const asked = typeof body.path === "string" ? body.path : "";
+    const path: RegistrationPath = (REGISTRATION_PATHS as readonly string[]).includes(asked)
+      ? (asked as RegistrationPath)
+      : registrationPathOf({ ein: str("ein") }) ?? "standard";
+
+    const draft = {
       tenant_id: tenantId,
       legal_name: str("legal_name"),
       trade_name: str("trade_name") || null,
@@ -249,10 +273,25 @@ export async function POST(request: Request): Promise<Response> {
       contact_title: str("contact_title") || "Owner",
       contact_job_position: str("contact_job_position") || "Director",
     };
+    // Stored as the path files it: a sole-proprietor record keeps NO tax id, so
+    // it reads back on the path it was saved on for ever.
+    const row = businessRecordForPath(draft, path);
+
+    // The same validator the form ran and the dashboard route ran, on the
+    // normalised row rather than the raw body. Three callers, one list of what
+    // each registration needs -- this door used to keep its own, and a list that
+    // required a website of a sole proprietor whose filing never sends one is a
+    // door that refuses a customer for a field nobody reads.
+    const ours = await db.from("lines").select("e164").eq("tenant_id", tenantId);
+    const ourNumbers = (ours.data ?? []).map((r) => r.e164).filter((n): n is string => !!n);
+    const problems = businessRecordProblems(row, path, { ourNumbers });
+    const first = Object.values(problems)[0];
+    if (first) return json(400, { ok: false, error: first });
+
     const up = await db.from("business_records").upsert(row, { onConflict: "tenant_id" }).select("*").single();
     if (up.error) return json(503, { ok: false, error: up.error.message });
-    await emitEvent(db, tenantId, "business.recorded", "setup", "tenant", tenantId, { legal_name: row.legal_name, sole_proprietor: !row.ein }).catch(() => {});
-    return json(200, { ok: true, record: { legal_name: up.data.legal_name, sole_proprietor: !up.data.ein, updated_at: up.data.updated_at } });
+    await emitEvent(db, tenantId, "business.recorded", "setup", "tenant", tenantId, { legal_name: row.legal_name, path }).catch(() => {});
+    return json(200, { ok: true, record: { legal_name: up.data.legal_name, path: registrationPathOf(up.data), sole_proprietor: !up.data.ein, updated_at: up.data.updated_at } });
   }
 
   if (op === "register" || op === "registration-status") {

@@ -4560,6 +4560,22 @@ var BOOTSTRAP_MS = 3600 * 1e3;
 var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS3 = 7 * 864e5;
 var DATE_FMT6 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SOLE_PROP_LIMITS = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+var REGISTRATION_COST_WORDS = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
+};
+var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
 var SignupSchema = external_exports.object({
@@ -9237,6 +9253,22 @@ var BOOTSTRAP_MS2 = 3600 * 1e3;
 var DATE_FMT52 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS32 = 7 * 864e5;
 var DATE_FMT62 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SOLE_PROP_LIMITS2 = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+var REGISTRATION_COST_WORDS2 = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS2.messagesPerSecond} message a second.`
+};
+var SOLE_PROP_CEILING_SENTENCE2 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS2.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE2 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE2}`;
 var SIGNUP_NAME_MIN2 = 2;
 var SIGNUP_NAME_MAX2 = 120;
 var SignupSchema2 = external_exports2.object({
@@ -13283,10 +13315,10 @@ var coerce3 = {
 var NEVER3 = INVALID3;
 function normalizePhone(raw) {
   if (raw == null) return null;
-  const digits = String(raw).replace(/[^\d]/g, "");
-  if (!digits) return null;
-  if (digits.length === 10) return `+1${digits}`;
-  if (digits.length >= 8 && digits.length <= 15) return `+${digits}`;
+  const digits2 = String(raw).replace(/[^\d]/g, "");
+  if (!digits2) return null;
+  if (digits2.length === 10) return `+1${digits2}`;
+  if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
   return null;
 }
 var OFFERS_OPT_IN_PHRASES3 = { en: "YES OFFERS", es: "SI OFERTAS" };
@@ -13764,6 +13796,22 @@ var BOOTSTRAP_MS3 = 3600 * 1e3;
 var DATE_FMT53 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS33 = 7 * 864e5;
 var DATE_FMT63 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SOLE_PROP_LIMITS3 = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+var REGISTRATION_COST_WORDS3 = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second.`
+};
+var SOLE_PROP_CEILING_SENTENCE3 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE3 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE3}`;
 var SIGNUP_NAME_MIN3 = 2;
 var SIGNUP_NAME_MAX3 = 120;
 var SignupSchema3 = external_exports3.object({

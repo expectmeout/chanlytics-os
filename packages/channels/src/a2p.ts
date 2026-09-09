@@ -25,7 +25,7 @@
  * subaccount; it is REFERENCED by sid, and that reference is the whole
  * declaration that this business is ours.
  */
-import { businessTypeOf, companyTypeOf, industryOf } from "@chanlytics/contracts";
+import { businessTypeOf, companyTypeOf, industryOf, registrationPathOf } from "@chanlytics/contracts";
 
 /** Trust Hub policies, by the names Twilio gives them. */
 export const A2P_POLICIES = {
@@ -47,29 +47,6 @@ export const A2P_POLICIES = {
    */
   starterCustomerProfile: "RN806dd6cd175f314e1f96a9727ee271f4",
   soleProprietor: "RN670d5d2e282a6130ae063b234b6019c8",
-} as const;
-
-/**
- * What a sole-proprietor registration can do, from the carriers' own limits.
- *
- * Stated as data because every one of these has to be said to the owner BEFORE
- * they register -- a business that finds out about 1,000 messages a day after
- * committing has been mis-sold, and the number is not ours to soften.
- */
-export const SOLE_PROP_LIMITS = {
-  campaignsPerBrand: 1,
-  numbersPerCampaign: 1,
-  messagesPerSecond: 1,
-  perDayTMobile: 1000,
-  perMinuteAtt: 15,
-  /**
-   * TCR counts these across EVERY vendor, not just Chanlytics -- a customer who
-   * tried this with another provider has already spent some. Neither is
-   * checkable by us in advance, so both are said out loud instead.
-   */
-  mobileUsesEver: 3,
-  emailUsesEver: 10,
-  addressUsesEver: 10,
 } as const;
 
 export const TRUSTHUB = "https://trusthub.twilio.com/v1";
@@ -117,55 +94,18 @@ export interface BusinessRecord {
 
 export type BrandType = "STANDARD" | "SOLE_PROPRIETOR";
 
-/** With a tax id a business is a standard brand; without one it is a sole proprietor. */
-export function brandTypeFor(r: Pick<BusinessRecord, "ein">): BrandType {
-  return r.ein && r.ein.trim() ? "STANDARD" : "SOLE_PROPRIETOR";
-}
-
 /**
- * What a sole-proprietor registration still needs, in the owner's words, or an
- * empty list when it can go.
+ * The carriers' word for the path this record is on.
  *
- * This REPLACED a flat refusal. `soleProprietorUnsupported` returned true for
- * every business without a tax id and the route turned them away by name --
- * which meant a solo barber, a chair renter, a one-person salon could have
- * calls and WhatsApp and never texting, and only found out at the end of a
- * form. They are customers; the path is narrower, and the narrowness is
- * something to state rather than a reason to refuse.
- *
- * Everything here is a field WE can check. The three limits TCR counts across
- * every vendor -- the mobile's three uses, the email's ten, the address's ten
- * -- are not checkable by anyone but TCR, so they are said out loud in the
- * form instead of pretended about here.
+ * Delegates rather than deciding: the fork is `registrationPathOf` in
+ * contracts, which the form and both validators also read, and a second
+ * `r.ein && r.ein.trim()` here would be a second place for the two to
+ * disagree about the same tax id. This maps one vocabulary onto the other and
+ * nothing else.
  */
-export function whatSoleProprietorNeeds(
-  r: Pick<BusinessRecord, "ein" | "contactPhone" | "contactFirstName" | "contactLastName" | "contactEmail" | "street" | "city" | "region" | "postalCode" | "country">,
-  /**
-   * The numbers this workspace was given BY US. A mobile that is one of them
-   * is a CPaaS number, which TCR refuses for a sole-proprietor brand -- and it
-   * is the mistake a business makes without noticing, because it is the number
-   * on their own website. Checkable, so checked, rather than discovered after
-   * the fee.
-   */
-  ourNumbers: readonly string[] = [],
-): string[] {
-  if (r.ein && r.ein.trim()) return [];
-  const missing: string[] = [];
-  if (!r.contactFirstName?.trim() || !r.contactLastName?.trim()) missing.push("your first and last name");
-  if (!r.contactEmail?.trim()) missing.push("an email address");
-  if (!r.contactPhone?.trim()) {
-    missing.push("your own mobile number, so the carriers can text you a code to reply to");
-  } else if (ourNumbers.some((n) => normalizeDigits(n) === normalizeDigits(r.contactPhone))) {
-    missing.push("a mobile that is YOUR phone, not the number Chanlytics answers for you — the carriers text it and you have to reply from the handset");
-  }
-  if (!r.street?.trim() || !r.city?.trim() || !r.region?.trim() || !r.postalCode?.trim()) missing.push("your address");
-  if (r.country && !["US", "CA"].includes(r.country.toUpperCase())) {
-    missing.push("a US or Canadian address — texting registration is not open to businesses elsewhere");
-  }
-  return missing;
+export function brandTypeFor(r: Pick<BusinessRecord, "ein">): BrandType {
+  return registrationPathOf(r) === "sole_proprietor" ? "SOLE_PROPRIETOR" : "STANDARD";
 }
-
-const normalizeDigits = (v: string | null | undefined): string => String(v ?? "").replace(/[^0-9]/g, "");
 
 export interface A2PRequest {
   url: string;
@@ -513,9 +453,9 @@ export function keywordsFor(words: readonly string[]): string[] {
  *
  * The same use case for both registrations. A sole proprietor's ceiling is set
  * by the BRAND -- one campaign, one number, a thousand messages a day on
- * T-Mobile (SOLE_PROP_LIMITS) -- not by the use case, so there is nothing to
- * choose here and choosing anyway would be a second place for the two paths to
- * disagree.
+ * T-Mobile: SOLE_PROP_LIMITS, in contracts -- not by the use case, so there is
+ * nothing to choose here, and choosing anyway would be a second place for the
+ * two paths to disagree.
  */
 export const LOW_VOLUME_USECASE = "LOW_VOLUME";
 

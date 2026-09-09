@@ -108,6 +108,7 @@ export function lineForClient(r: Row): LineDto {
     sms_state: r.sms_state,
     reg_step: r.reg_step,
     reg_mock: r.reg_mock,
+    reg_sole_prop: r.reg_sole_prop,
     registered: isRegistered(r),
     whatsapp_state: r.whatsapp_state,
     port_state: r.port_state,
