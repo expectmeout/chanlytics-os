@@ -10,6 +10,7 @@ import crypto from "node:crypto";
 import { json } from "../../lib/http.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
+import { playbooksDue, noteBacklog, PLAYBOOKS_PER_TICK } from "../../lib/sweep-rotation.js";
 import { loadTenantRunContext, runPlaybook, type PlaybookRow } from "../../lib/playbooks.js";
 import { localDate, runDueNow, type PlaybookDto } from "../../lib/workspace/contracts.js";
 
@@ -31,15 +32,22 @@ export async function POST(request: Request): Promise<Response> {
   if (!presented || !secretsMatch(presented, expected as unknown as string)) return json(401, { ok: false, error: "unauthorized" });
 
   const now = new Date();
-  const { data: playbooks, error } = await db.from("playbooks").select("*").eq("state", "running");
-  if (error) {
-    L.error("playbooks_read_failed", { error: error.message });
+  // A BOUNDED, ROTATING page, least-recently-run first. This read every running
+  // playbook and iterated, serially, inside a sixty-second function -- and it
+  // SENDS, so running out of tick past a few hundred workspaces meant the ones
+  // at the end of an unchanging order never ran at all. last_run_at has been on
+  // this table since 00048; it simply was not used to order anything.
+  let page;
+  try {
+    page = await playbooksDue(db, PLAYBOOKS_PER_TICK);
+  } catch (e) {
+    L.error("playbooks_read_failed", { error: e instanceof Error ? e.message : String(e) });
     return json(500, { ok: false });
   }
   const byTenant = new Map<string, PlaybookRow[]>();
-  for (const p of (playbooks ?? []) as PlaybookRow[]) byTenant.set(p.tenant_id, [...(byTenant.get(p.tenant_id) ?? []), p]);
+  for (const p of page.rows as PlaybookRow[]) byTenant.set(p.tenant_id, [...(byTenant.get(p.tenant_id) ?? []), p]);
 
-  const out = { tenants: 0, due: 0, sent: 0, held: 0, empty: 0, off: 0, failed: 0 };
+  const out = { tenants: 0, due: 0, sent: 0, held: 0, empty: 0, off: 0, failed: 0, remaining: page.remaining };
   for (const [tenantId, rows] of byTenant) {
     const { data: tenant } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
     const tz = tenant?.timezone || "America/New_York";
@@ -65,6 +73,12 @@ export async function POST(request: Request): Promise<Response> {
       out[r.outcome] += 1;
     }
   }
-  L.info("playbooks_swept", out);
+  const backlog = await noteBacklog(db, "playbooks", page.remaining);
+  L.info("playbooks_swept", { ...out, backlog_ticks: backlog.ticks });
+  // Three consecutive ticks with playbooks left unread is a campaign nobody
+  // sent. sweep_health turns that red and mails the platform.
+  if (backlog.alarm) {
+    return json(503, { ok: false, error: "playbooks_backlog", backlog_ticks: backlog.ticks, ...out });
+  }
   return json(200, { ok: true, ...out });
 }

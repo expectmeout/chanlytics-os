@@ -20,6 +20,16 @@ function matches(row, filters) {
   return filters.every(([op, col, val]) =>
     op === "eq" ? row[col] === val
     : op === "lt" ? row[col] != null && row[col] < val
+    // PostgREST's `.or("a.is.null,a.lt.x")`: any ONE of the clauses. Modelled
+    // because a rotating sweep's whole correctness is "never-done first, then
+    // the oldest" -- and that is a filter, not a shape a source scan can see.
+    : op === "or" ? val.split(",").some((clause) => {
+        const [c, o, v] = clause.split(".");
+        if (o === "is") return v === "null" ? row[c] == null : String(row[c]) === v;
+        if (o === "lt") return row[c] != null && row[c] < v;
+        if (o === "eq") return String(row[c]) === v;
+        throw new Error(`fakeDb: or() clause ${clause} is not modelled`);
+      })
     : (() => { throw new Error(`fakeDb: no filter called ${op}()`); })());
 }
 
@@ -29,7 +39,7 @@ function matches(row, filters) {
  * @param faults {Record<string, {message: string}>} `"<table>.select"` or
  *   `"<table>.update"` to make that call fail the way PostgREST fails.
  */
-export function fakeDb(tables, faults = {}) {
+export function fakeDb(tables, faults = {}, rpcs = {}) {
   const seen = [];
 
   const from = (table) => {
@@ -43,11 +53,25 @@ export function fakeDb(tables, faults = {}) {
 
       if (q.op === "select") {
         let out = rows().filter((r) => matches(r, q.filters));
-        if (q.order) out = [...out].sort((a, b) => (a[q.order] < b[q.order] ? -1 : a[q.order] > b[q.order] ? 1 : 0));
+        if (q.order) {
+          // Sentinels of the SAME TYPE as the values, because the columns this
+          // orders on hold ISO timestamps: comparing -Infinity against a string
+          // coerces to NaN, every comparison is false, and nulls silently do
+          // not sort at all -- which looks exactly like a rotation that works.
+          const rank = (v) => (v == null ? (q.nullsFirst ? "" : "￿") : String(v));
+          out = [...out].sort((a, b) => {
+            const x = rank(a[q.order]), y = rank(b[q.order]);
+            const d = x < y ? -1 : x > y ? 1 : 0;
+            return q.desc ? -d : d;
+          });
+        }
+        // `{ count: "exact" }` counts the MATCHES, before the limit -- which is
+        // how a sweep knows what it could not reach this tick.
+        const matched = out.length;
         if (q.limit != null) out = out.slice(0, q.limit);
         // Deliberately a copy: the sweep must not be able to mutate the ledger
         // by holding on to a row it read.
-        return { data: out.map((r) => ({ ...r })), error: null };
+        return { data: out.map((r) => ({ ...r })), error: null, count: q.counted ? matched : null };
       }
 
       // The update is the interesting one. It applies to whatever matches the
@@ -63,12 +87,15 @@ export function fakeDb(tables, faults = {}) {
     };
 
     const builder = {
-      select(columns) { q.columns = columns; return proxy; },
+      select(columns, opts) { q.columns = columns; q.counted = opts?.count === "exact"; return proxy; },
       update(values) { q.op = "update"; q.values = values; return proxy; },
       insert() { throw new Error("fakeDb: nothing under test inserts; model it before using it"); },
       eq(col, val) { q.filters.push(["eq", col, val]); return proxy; },
       lt(col, val) { q.filters.push(["lt", col, val]); return proxy; },
-      order(col) { q.order = col; return proxy; },
+      or(expr) { q.filters.push(["or", null, expr]); return proxy; },
+      // nullsFirst matters: a workspace that has never been swept must go
+      // ahead of one swept an hour ago, or a new tenant waits behind the queue.
+      order(col, opts) { q.order = col; q.nullsFirst = opts?.nullsFirst === true; q.desc = opts?.ascending === false; return proxy; },
       limit(n) { q.limit = n; return proxy; },
       // One row, PostgREST's two ways of asking. `single()` treating "no rows"
       // as an ERROR is the whole point of using it: a write that changed
@@ -97,7 +124,27 @@ export function fakeDb(tables, faults = {}) {
 
   return {
     from,
-    rpc(name) { throw new Error(`fakeDb: rpc(${name}) belongs to the caller, not the code under test`); },
+    /**
+     * @param handlers {Record<string, (args) => any>} the RPCs the code under
+     *   test is allowed to call. Anything else still throws by name: a sweep
+     *   that quietly called an unmodelled function would otherwise pass.
+     */
+    rpc(name, args) {
+      const fn = rpcs[name];
+      if (!fn) throw new Error(`fakeDb: rpc(${name}) is not modelled; add it to fakeDb's third argument`);
+      seen.push({ rpc: name, args });
+      // The ENVELOPE, not the value. supabase-js hands back { data, error } and
+      // callers destructure it; returning the bare value makes every caller
+      // read `undefined` and take its own error branch -- which is a test that
+      // exercises the failure path while claiming to exercise the happy one.
+      // A handler that throws is the test saying "the database refused", so it
+      // becomes an error envelope rather than a rejected promise.
+      try {
+        return Promise.resolve({ data: fn(args), error: null });
+      } catch (e) {
+        return Promise.resolve({ data: null, error: { message: e instanceof Error ? e.message : String(e) } });
+      }
+    },
     /** Every query that reached the double, in order. */
     seen,
   };

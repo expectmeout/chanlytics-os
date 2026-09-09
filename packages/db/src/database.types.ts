@@ -2381,6 +2381,7 @@ export type Database = {
       sweep_status: {
         Row: {
           alerted_at: string | null
+          backlog_ticks: number
           note: string | null
           request_id: number | null
           requested_at: string | null
@@ -2388,6 +2389,7 @@ export type Database = {
         }
         Insert: {
           alerted_at?: string | null
+          backlog_ticks?: number
           note?: string | null
           request_id?: number | null
           requested_at?: string | null
@@ -2395,6 +2397,7 @@ export type Database = {
         }
         Update: {
           alerted_at?: string | null
+          backlog_ticks?: number
           note?: string | null
           request_id?: number | null
           requested_at?: string | null
@@ -2531,6 +2534,7 @@ export type Database = {
       }
       tenant_config: {
         Row: {
+          calendar_checked_at: string | null
           config: Json
           tenant_id: string
           updated_at: string
@@ -2538,6 +2542,7 @@ export type Database = {
           version: number
         }
         Insert: {
+          calendar_checked_at?: string | null
           config?: Json
           tenant_id: string
           updated_at?: string
@@ -2545,6 +2550,7 @@ export type Database = {
           version?: number
         }
         Update: {
+          calendar_checked_at?: string | null
           config?: Json
           tenant_id?: string
           updated_at?: string
@@ -2784,6 +2790,10 @@ export type Database = {
       metrics_summary: {
         Args: { p_days?: number; p_tenant_id: string }
         Returns: Json
+      }
+      note_sweep_backlog: {
+        Args: { p_remaining: number; p_sweep: string }
+        Returns: number
       }
       notification_mark: {
         Args: { p_dismissed?: boolean; p_id: string; p_read?: boolean }

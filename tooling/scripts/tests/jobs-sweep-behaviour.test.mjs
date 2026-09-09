@@ -196,5 +196,10 @@ test("the double refuses to answer a call it does not model", () => {
   // passing one, which is the failure mode this whole file exists to avoid.
   const db = fakeDb({ jobs: [] });
   assert.throws(() => db.from("jobs").ilike("kind", "%send%"), /does not model/);
-  assert.throws(() => db.rpc("claim_job"), /belongs to the caller/);
+  // An RPC is answered only when the test says which ones exist. Before, every
+  // rpc threw; now an unlisted one still does, so a sweep that quietly started
+  // calling a function nobody modelled cannot pass.
+  assert.throws(() => db.rpc("claim_job"), /is not modelled/);
+  const withRpc = fakeDb({ jobs: [] }, {}, { claim_job: () => 7 });
+  assert.throws(() => withRpc.rpc("some_other_fn"), /is not modelled/);
 });
