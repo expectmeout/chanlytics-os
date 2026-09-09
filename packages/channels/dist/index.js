@@ -6075,6 +6075,18 @@ function campaignRequest(f) {
   else delete form2.OptInMessage;
   return { url: `${MESSAGING2}/Services/${f.messagingServiceSid}/Compliance/Usa2p`, method: "POST", form: form2 };
 }
+function updateCampaignRequest(messagingServiceSid, campaignSid, f) {
+  const form2 = {
+    Description: f.description,
+    MessageFlow: f.messageFlow,
+    HasEmbeddedLinks: "true",
+    HasEmbeddedPhone: "true",
+    AgeGated: "false",
+    DirectLending: "false"
+  };
+  form2.MessageSamples = f.samples.slice(0, 5);
+  return { url: `${MESSAGING2}/Services/${messagingServiceSid}/Compliance/Usa2p/${campaignSid}`, method: "POST", form: form2 };
+}
 function deleteCampaignRequest(messagingServiceSid, campaignSid) {
   return { url: `${MESSAGING2}/Services/${messagingServiceSid}/Compliance/Usa2p/${campaignSid}`, method: "DELETE" };
 }
@@ -6902,6 +6914,7 @@ export {
   twilioUrls,
   unb64url,
   updateAgent,
+  updateCampaignRequest,
   updateEndUserRequest,
   updateLiveCall,
   updatePhoneNumber,
