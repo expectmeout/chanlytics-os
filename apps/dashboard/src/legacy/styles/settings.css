@@ -650,6 +650,55 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
 .set-me-mail { font-size: 12px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .set-me-static { font-size: 12.5px; color: var(--ink-muted); }
 
+/* The editor, as four steps rather than fourteen headings in a row.
+   Hours and the days they do not apply to were four sections apart; the number
+   to publish and the number to transfer to were under headings a person had to
+   read twice to tell apart. A group says what the next few fields are FOR. */
+.set-group { display: flex; flex-direction: column; gap: 18px; padding: 18px 0 4px; border-top: 1px solid var(--line); }
+.set-group:first-of-type { border-top: none; padding-top: 4px; }
+.set-group-head { display: flex; flex-direction: column; gap: 2px; }
+.set-group-name { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink); }
+.set-group-hint { font-size: 11.5px; color: var(--ink-dim); }
+
+/* One control for a set of words.
+   Languages was a grid of every language we could think of -- most of them off
+   -- plus a second field underneath to add one that was not in the grid. Two
+   widgets for one job, with the two chosen sitting among fourteen unchosen. */
+.set-tokens {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-height: 34px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  max-width: 420px;
+}
+.set-tokens:focus-within { border-color: var(--accent); }
+.set-token {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; color: var(--ink);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  padding: 2px 4px 2px 9px;
+}
+.set-token-x { display: inline-flex; align-items: center; color: var(--ink-faint); border-radius: var(--radius-full); padding: 2px; }
+.set-token-x:hover { color: var(--ink); background: var(--bg-hover); }
+.set-token-input { flex: 1; min-width: 110px; border: none; background: none; outline: none; font: inherit; font-size: 12.5px; color: var(--ink); padding: 2px 0; }
+.set-token-input::placeholder { color: var(--ink-faint); }
+.set-token-offer { display: flex; flex-wrap: wrap; gap: 6px; }
+.set-token-add {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; color: var(--ink-dim);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-full);
+  padding: 3px 9px;
+}
+.set-token-add:hover { color: var(--ink); border-color: var(--ink-faint); border-style: solid; }
+
 /* A fact, and where it came from.
    The Business card was eight rows of identical text, three of them things the
    PLATFORM knows shown as if somebody had written them down -- which is how a
