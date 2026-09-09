@@ -48,13 +48,15 @@ export async function putTenantConfig(
   tenantId: string,
   config: unknown,
   expectedVersion: number,
+  /** Who wrote it. This config IS what customers hear, so the row records its author (00085). */
+  updatedBy?: string | null,
 ): Promise<PutTenantConfigResult> {
   const { data, error } = await db
     .from("tenant_config")
-    .update({ config: config as Json, version: expectedVersion + 1 })
+    .update({ config: config as Json, version: expectedVersion + 1, ...(updatedBy ? { updated_by: updatedBy } : {}) })
     .eq("tenant_id", tenantId)
     .eq("version", expectedVersion)
-    .select("tenant_id, config, version, updated_at")
+    .select("tenant_id, config, version, updated_at, updated_by")
     .maybeSingle();
   if (error) throw new Error(`putTenantConfig: ${error.message}`);
   if (data) return { ok: true, row: data };

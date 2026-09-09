@@ -4917,8 +4917,8 @@ async function getTenantConfig(db, tenantId) {
   if (error) throw new Error(`getTenantConfig: ${error.message}`);
   return data;
 }
-async function putTenantConfig(db, tenantId, config, expectedVersion) {
-  const { data, error } = await db.from("tenant_config").update({ config, version: expectedVersion + 1 }).eq("tenant_id", tenantId).eq("version", expectedVersion).select("tenant_id, config, version, updated_at").maybeSingle();
+async function putTenantConfig(db, tenantId, config, expectedVersion, updatedBy) {
+  const { data, error } = await db.from("tenant_config").update({ config, version: expectedVersion + 1, ...updatedBy ? { updated_by: updatedBy } : {} }).eq("tenant_id", tenantId).eq("version", expectedVersion).select("tenant_id, config, version, updated_at, updated_by").maybeSingle();
   if (error) throw new Error(`putTenantConfig: ${error.message}`);
   if (data) return { ok: true, row: data };
   const existing = await getTenantConfig(db, tenantId);
