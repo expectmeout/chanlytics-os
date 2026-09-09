@@ -20,7 +20,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "./_fake-db.mjs";
-import { readCode } from "./_source.mjs";
+import { readCode, readRaw } from "./_source.mjs";
 import { unfileMockRegistration } from "../../../apps/edge/lib/a2p.ts";
 import { MOCK_TEXTING_SENTENCE } from "@chanlytics/contracts";
 
@@ -49,6 +49,36 @@ const mockFiled = (over = {}) => ({
   last_error: "something old",
   state_since: "2026-09-01T00:00:00Z",
   ...over,
+});
+
+test("a mock brand cannot be deleted, so the messaging profile is what changes", async () => {
+  // The two things running it taught us, and neither was guessable from the
+  // docs alone:
+  //
+  //   DELETE /v1/a2p/BrandRegistrations/{sid}  -> 405, error 20004. Brands are
+  //     permanent, mock or not.
+  //   POST a second brand for the same pair    -> 20409 "Duplicate Brand can
+  //     not be saved".
+  //
+  // So a refile must change the (customer profile, messaging profile) pair, and
+  // the cheap half to change is the messaging profile: the customer profile
+  // carries the business, the representative, the address and the document, all
+  // of which are real and none of which needs redoing.
+  const lines = [mockFiled()];
+  const db = fakeDb({ lines });
+  const r = await unfileMockRegistration(db, lines[0]);
+  assert.equal(r.ok, true);
+  assert.equal(lines[0].a2p_profile_sid, null, "cleared, so the saga resumes at a2p_profile with a fresh bundle");
+  assert.ok(lines[0].profile_sid, "the customer profile is untouched -- it is the expensive half");
+  const lib = readCode("apps/edge/lib/a2p.ts");
+  assert.ok(lib.includes("a2p_profile_sid: null,"));
+  assert.ok(readRaw("apps/edge/lib/a2p.ts").includes("Duplicate Brand can not be saved"), "and says why, where the next person will look");
+  // The campaign delete is the INSTANCE url. The collection answers 405, which
+  // the first version swallowed as best-effort -- so the mock campaign stayed
+  // on the service and the refile was refused a step later, about the brand.
+  const chan = readCode("packages/channels/src/a2p.ts");
+  assert.ok(chan.includes("Compliance/Usa2p/${campaignSid}`, method: \"DELETE\""));
+  assert.ok(lib.includes("if (!gone) return { ok: false, error:"), "a campaign that will not come off stops the refile");
 });
 
 test("the rehearsal comes off the row and the expensive receipts stay on it", async () => {
@@ -91,13 +121,13 @@ test("a write that changed nothing is an error, not a success to file on top of"
   assert.equal(r.row, undefined);
 });
 
-test("no provider call is made for a line that has no messaging service, and none is needed", async () => {
+test("no provider call is made for a line with nothing to take off, and none is needed", async () => {
   // The DELETE exists because a Messaging Service holds exactly ONE campaign,
   // so the mock has to come off before the real POST is accepted. A line with
-  // no service has nothing to take off, and reaching for credentials it may not
-  // have would fail the refile for no reason.
+  // no service -- or no campaign on it -- has nothing to take off, and reaching
+  // for credentials it may not have would fail the refile for no reason.
   const db = fakeDb({ lines: [mockFiled()] });
-  const r = await unfileMockRegistration(db, mockFiled({ messaging_service_sid: null }));
+  const r = await unfileMockRegistration(db, mockFiled({ messaging_service_sid: null, campaign_sid: null }));
   assert.equal(r.ok, true);
   assert.ok(!db.seen.some((q) => q.table !== "lines"), "only the line's own row is touched");
 });

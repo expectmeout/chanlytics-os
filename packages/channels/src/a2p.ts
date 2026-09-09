@@ -371,9 +371,16 @@ export function campaignRequest(f: CampaignFacts): A2PRequest {
  * in thirty days, being replaced by a real one. A real campaign is never
  * deleted from here — it was paid for and vetted, and the caller refuses the
  * whole operation before reaching this.
+ *
+ * The INSTANCE url, not the collection. The collection answers 405 with error
+ * 20004 ("does not support the attempted HTTP method DELETE"), which the caller
+ * treated as best-effort and swallowed — so the mock campaign stayed on the
+ * service and the refile went on to be refused a step later. Verified against
+ * the live API on 2026-09-09: the instance url answers 204 and the service's
+ * compliance list is then empty.
  */
-export function deleteCampaignRequest(messagingServiceSid: string): A2PRequest {
-  return { url: `${MESSAGING}/Services/${messagingServiceSid}/Compliance/Usa2p`, method: "DELETE" };
+export function deleteCampaignRequest(messagingServiceSid: string, campaignSid: string): A2PRequest {
+  return { url: `${MESSAGING}/Services/${messagingServiceSid}/Compliance/Usa2p/${campaignSid}`, method: "DELETE" };
 }
 
 /* --------------------------- the state machine --------------------------- */

@@ -105,36 +105,56 @@ export function campaignFactsFor(o: { businessName: string; optInUrl: string; pr
  * to leave behind afterwards -- a line carrying one looks registered from every
  * angle while every text it receives is held for a person.
  *
- * Two things come off, and only two. The campaign is DELETED at Twilio because
- * a Messaging Service holds exactly one and the real POST would be refused
- * while the mock is there; the brand and campaign sids come off the row. The
- * TrustHub profile, the business, the representative, the address and the
- * document all STAY: only the brand ever carried Mock, so those receipts are
- * real, and the saga skips every step it still holds one for.
+ * What comes off, and what does not. The campaign is DELETED at Twilio because
+ * a Messaging Service holds exactly one. The brand is NOT, because Twilio does
+ * not allow it -- see the note on a2p_profile_sid below, which is the whole
+ * reason this function has to throw away one more receipt than it looks like it
+ * should. The TrustHub customer profile, the business, the representative, the
+ * address and the document all STAY: only the brand ever carried Mock, so those
+ * receipts are real, and the saga skips every step it still holds one for.
  *
  * Never called for a real filing -- that one was paid for and vetted, and the
  * caller refuses the whole operation before reaching here.
  */
 export async function unfileMockRegistration(db: Db, line: LineRow): Promise<{ ok: boolean; error?: string; row?: LineRow }> {
   const L = logger({ tenant_id: line.tenant_id, line_id: line.id });
-  if (line.messaging_service_sid) {
+  if (line.messaging_service_sid && line.campaign_sid) {
     const sub = await lineAccount(db, line).catch(() => null);
     if (!sub) return { ok: false, error: "no_line_credentials" };
-    const req = deleteCampaignRequest(line.messaging_service_sid);
-    // Best effort by design: a campaign that is already gone is the state we
-    // were asking for, and Twilio answers 404 for it.
+    const req = deleteCampaignRequest(line.messaging_service_sid, line.campaign_sid);
     const r = await fetch(req.url, {
       method: req.method,
       headers: { Authorization: `Basic ${Buffer.from(`${sub.sid}:${sub.token}`).toString("base64")}` },
       signal: AbortSignal.timeout(20000),
     }).catch(() => null);
-    L.info("a2p.mock_campaign_deleted", { status: r?.status ?? 0, ok: !r || r.ok || r.status === 404 });
+    const gone = !!r && (r.ok || r.status === 404);
+    L.info("a2p.mock_campaign_deleted", { status: r?.status ?? 0, ok: gone });
+    // NOT best effort. A campaign left on the service makes the real POST fail
+    // one step later with a message about the wrong thing, and the row by then
+    // says nothing is filed. 404 is the state we were asking for; anything else
+    // stops here, with the row untouched and the reason on the caller.
+    if (!gone) return { ok: false, error: `the mock campaign would not come off (HTTP ${r?.status ?? 0})` };
   }
   // `single()` is the row count: a write that changed nothing errors here
   // rather than returning a success the caller would file on top of.
   const cleared = await db.from("lines").update({
     brand_sid: null,
     campaign_sid: null,
+    // The MOCK BRAND CANNOT BE DELETED. Twilio answers 405/20004 on
+    // DELETE /v1/a2p/BrandRegistrations/{sid} -- brands are permanent, mock or
+    // not -- and it then refuses a second brand for the same (customer profile,
+    // messaging profile) pair with "Duplicate Brand can not be saved" (20409).
+    // So the pair has to change, and the cheap half to change is the messaging
+    // profile: clearing this resumes the saga at `a2p_profile`, which creates a
+    // fresh bundle, re-attaches the SAME customer profile and company-type end
+    // user to it, and submits it. Nothing that cost anything is redone -- the
+    // business, the representative, the address and the document all stay on
+    // the customer profile, which is the expensive half.
+    //
+    // Without this the refile was refused at the brand step every time, and the
+    // row was left saying nothing was filed while Twilio still held a mock
+    // brand and campaign. Found by running it.
+    a2p_profile_sid: null,
     reg_mock: false,
     reg_step: null,
     sms_state: "registering",

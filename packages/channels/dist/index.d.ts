@@ -1210,8 +1210,15 @@ declare function campaignRequest(f: CampaignFacts): A2PRequest;
  * in thirty days, being replaced by a real one. A real campaign is never
  * deleted from here — it was paid for and vetted, and the caller refuses the
  * whole operation before reaching this.
+ *
+ * The INSTANCE url, not the collection. The collection answers 405 with error
+ * 20004 ("does not support the attempted HTTP method DELETE"), which the caller
+ * treated as best-effort and swallowed — so the mock campaign stayed on the
+ * service and the refile went on to be refused a step later. Verified against
+ * the live API on 2026-09-09: the instance url answers 204 and the service's
+ * compliance list is then empty.
  */
-declare function deleteCampaignRequest(messagingServiceSid: string): A2PRequest;
+declare function deleteCampaignRequest(messagingServiceSid: string, campaignSid: string): A2PRequest;
 type A2PStep = "profile" | "business" | "representative" | "address" | "document" | "primary" | "submit" | "a2p_profile" | "brand" | "campaign";
 declare const A2P_STEPS: readonly A2PStep[];
 /** What the registration has made so far. Every field is a receipt for one step. */
