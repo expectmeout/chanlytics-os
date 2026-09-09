@@ -17,7 +17,7 @@ import { formatPhoneDisplay } from "./workspace/contracts.js";
 import { emitEvent } from "./workspace/db.js";
 import { recordNotification } from "./notify.js";
 import { lineProviderFromEnv } from "./lines.js";
-import { lineAccount } from "./sms.js";
+import { lineAccount, refreshLineToken } from "./sms.js";
 import { logger } from "./log.js";
 
 type Db = SupabaseClient<Database>;
@@ -306,14 +306,48 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<{ ok: boo
   const choice = lineProviderFromEnv();
   if (!choice || choice.name !== "twilio") return { ok: false, smsState: line.sms_state, error: "no_provider" };
   const basic = (a: { sid: string; token: string }) => `Basic ${Buffer.from(`${a.sid}:${a.token}`).toString("base64")}`;
+  // The STATUS comes back too. It used to be discarded, and that is the whole
+  // defect below: a 401 and a brand the carriers are still thinking about
+  // produced the same value -- null -- and null means "no answer yet".
   const read = async (url: string, acct: { sid: string; token: string }) => {
     const r = await fetch(url, { headers: { Authorization: basic(acct) }, signal: AbortSignal.timeout(15000) });
-    return (await r.json().catch(() => null)) as Record<string, unknown> | null;
+    return { status: r.status, body: (await r.json().catch(() => null)) as Record<string, unknown> | null };
   };
   // Both are the workspace's own, so both are read as its subaccount.
   const sub = await lineAccount(db, line).catch(() => null);
-  const brand = line.brand_sid && sub ? await read(`https://messaging.twilio.com/v1/a2p/BrandRegistrations/${line.brand_sid}`, sub) : null;
-  const campaign = line.messaging_service_sid && sub ? await read(`https://messaging.twilio.com/v1/Services/${line.messaging_service_sid}/Compliance/Usa2p`, sub) : null;
+  if (!sub) return { ok: false, smsState: line.sms_state, error: "no_line_credentials" };
+
+  // One attempt, then heal, then one more.
+  //
+  // A subaccount token rotated in the provider's console leaves our copy dead,
+  // and every read here answers 401 for ever. The platform can re-read the
+  // token as the parent, so it does that once rather than reporting a state it
+  // could not actually see. Anything still refused is reported AS a refusal:
+  // "we could not ask" is a different fact from "they have not answered", and
+  // conflating the two is how a registration sits still for a week looking
+  // exactly like one that is progressing.
+  const ask = async (acct: { sid: string; token: string }) => ({
+    brand: line.brand_sid ? await read(`https://messaging.twilio.com/v1/a2p/BrandRegistrations/${line.brand_sid}`, acct) : null,
+    campaign: line.messaging_service_sid ? await read(`https://messaging.twilio.com/v1/Services/${line.messaging_service_sid}/Compliance/Usa2p`, acct) : null,
+  });
+  const refused = (a: { brand: { status: number } | null; campaign: { status: number } | null }) =>
+    [a.brand, a.campaign].some((x) => x && (x.status === 401 || x.status === 403));
+
+  let answers = await ask(sub);
+  if (refused(answers)) {
+    const fresh = await refreshLineToken(db, line);
+    if (!fresh.ok || !fresh.account) {
+      await db.from("lines").update({ last_error: `could not read the registration: ${fresh.error ?? "the provider refused our credentials"}` }).eq("id", line.id);
+      return { ok: false, smsState: line.sms_state, error: fresh.error ?? "provider_unauthorized" };
+    }
+    answers = await ask(fresh.account);
+    if (refused(answers)) {
+      await db.from("lines").update({ last_error: "could not read the registration: the provider refused the line's credentials even after a refresh" }).eq("id", line.id);
+      return { ok: false, smsState: line.sms_state, error: "provider_unauthorized" };
+    }
+  }
+  const brand = answers.brand?.body ?? null;
+  const campaign = answers.campaign?.body ?? null;
   const brandStatus = typeof brand?.status === "string" ? brand.status : null;
   // THE CAMPAIGN IS IN A LIST. `GET /Services/{MG}/Compliance/Usa2p` answers
   // `{compliance: [ {campaign_status, mock, ...} ], meta}` -- there is no

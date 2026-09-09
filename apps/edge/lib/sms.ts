@@ -6,7 +6,7 @@
  * provider on a preview sends nothing and says so.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./workspace/db.js";
+import type { Database, Json } from "./workspace/db.js";
 import type { LineSecrets, ProviderAccount } from "./workspace/channels.js";
 import { lineProviderFromEnv } from "./lines.js";
 import { logger } from "./log.js";
@@ -38,6 +38,49 @@ export async function lineAccount(db: Db, line: SmsLine): Promise<ProviderAccoun
   if (error) throw new Error(`reading the line's credentials: ${error.message}`);
   const s = (data && typeof data === "object" && !Array.isArray(data) ? data : {}) as LineSecrets;
   return s.auth_token ? { sid: line.subaccount_sid, token: s.auth_token } : null;
+}
+
+/**
+ * Re-read a line's subaccount token from the provider and put it back in the Vault.
+ *
+ * A subaccount's auth token can be rotated in the Twilio console at any moment,
+ * and our copy is dead the instant it is. Nothing noticed: every provider call
+ * for that line answers 401, and the call that mattered most -- the hourly read
+ * of where the carrier registration stands -- turned an unanswerable question
+ * into "the carriers have not answered yet". The line would have sat in
+ * `registering` for ever with nothing wrong on any page.
+ *
+ * The parent account can read its own subaccounts' tokens, which is how the
+ * saga obtained this one in the first place. So the platform can heal itself
+ * rather than wait for somebody to notice and paste a secret.
+ *
+ * Returns the new account on success. Never throws: a failure is a verdict the
+ * caller reports.
+ */
+export async function refreshLineToken(db: Db, line: SmsLine): Promise<{ ok: boolean; account?: ProviderAccount; error?: string }> {
+  if (!line.subaccount_sid) return { ok: false, error: "no_subaccount" };
+  const choice = lineProviderFromEnv();
+  if (!choice || choice.name !== "twilio") return { ok: false, error: "no_provider" };
+  const L = logger({ tenant_id: line.tenant_id, line_id: line.id });
+  const master = choice.master;
+  const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${line.subaccount_sid}.json`, {
+    headers: { Authorization: `Basic ${Buffer.from(`${master.sid}:${master.token}`).toString("base64")}` },
+    signal: AbortSignal.timeout(15000),
+  }).catch(() => null);
+  if (!r || !r.ok) {
+    // The MASTER credentials are wrong, which is a different and worse fault:
+    // nothing can be provisioned either. Said in those words so whoever reads
+    // the log is not sent looking at the subaccount.
+    L.error("line_token_refresh_refused", { status: r?.status ?? 0, note: "the platform's own Twilio credentials were refused" });
+    return { ok: false, error: `the provider refused the platform's credentials (HTTP ${r?.status ?? 0})` };
+  }
+  const body = (await r.json().catch(() => null)) as { auth_token?: unknown } | null;
+  const token = typeof body?.auth_token === "string" && body.auth_token ? body.auth_token : null;
+  if (!token) return { ok: false, error: "the provider did not return a token for this subaccount" };
+  const { error } = await db.rpc("put_line_credentials", { p_line_id: line.id, p_secret: { auth_token: token } as unknown as Json });
+  if (error) return { ok: false, error: `storing the refreshed token: ${error.message}` };
+  L.info("line_token_refreshed", { subaccount: line.subaccount_sid });
+  return { ok: true, account: { sid: line.subaccount_sid, token } };
 }
 
 export interface SmsSender {
