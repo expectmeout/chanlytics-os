@@ -6045,6 +6045,7 @@ function brandRequest(o) {
       CustomerProfileBundleSid: o.customerProfileBundleSid,
       A2PProfileBundleSid: o.a2pProfileBundleSid,
       BrandType: o.brandType,
+      ...o.skipVetting ? { SkipAutomaticSecVet: "true" } : {},
       ...o.mock ? { Mock: "true" } : {}
     }
   };
@@ -6237,7 +6238,7 @@ async function runA2PSaga(start, p) {
         case "brand":
           await save({
             brandSid: await need2(
-              brandRequest({ customerProfileBundleSid: state.profileSid, a2pProfileBundleSid: state.a2pProfileSid, brandType: brandTypeFor(p.record), mock: p.mock }),
+              brandRequest({ customerProfileBundleSid: state.profileSid, a2pProfileBundleSid: state.a2pProfileSid, brandType: brandTypeFor(p.record), mock: p.mock, skipVetting: p.skipVetting }),
               "registering the brand"
             )
           });

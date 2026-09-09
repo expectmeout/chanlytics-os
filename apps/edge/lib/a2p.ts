@@ -265,6 +265,13 @@ export async function registerLine(db: Db, o: {
     messagingServiceSid: o.line.messaging_service_sid,
     useCase: LOW_VOLUME_USECASE,
     mock: o.mock,
+    // Tied to the use case above, deliberately: everything this product files
+    // is LOW_VOLUME, and secondary vetting only buys throughput a low-volume
+    // campaign cannot use. It is the expensive half of a registration -- $46
+    // for the first real one, against $4 for the brand itself -- so a caller
+    // that ever files something bigger should turn it back on with its eyes
+    // open rather than inherit it by silence.
+    skipVetting: true,
     async save(patch) {
       const row: Record<string, unknown> = {};
       let touchedFacts = false;

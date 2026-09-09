@@ -72,10 +72,27 @@ test("every request is the documented URL and the documented fields", () => {
   assert.deepEqual(submitProfileRequest("BU1"), { url: "https://trusthub.twilio.com/v1/CustomerProfiles/BU1", method: "POST", form: { Status: "pending-review" } });
   assert.equal(a2pProfileRequest({ friendlyName: "Harbor Moving", email: "hi@chanlytics.com" }).form.PolicySid, A2P_POLICIES.a2pMessaging);
 
-  const brand = brandRequest({ customerProfileBundleSid: "BU1", a2pProfileBundleSid: "BU2", brandType: "STANDARD", mock: true });
+  const brand = brandRequest({ customerProfileBundleSid: "BU1", a2pProfileBundleSid: "BU2", brandType: "STANDARD", mock: true, skipVetting: false });
   assert.equal(brand.url, "https://messaging.twilio.com/v1/a2p/BrandRegistrations");
   assert.deepEqual(brand.form, { CustomerProfileBundleSid: "BU1", A2PProfileBundleSid: "BU2", BrandType: "STANDARD", Mock: "true" });
-  assert.equal(brandRequest({ customerProfileBundleSid: "BU1", a2pProfileBundleSid: "BU2", brandType: "SOLE_PROPRIETOR", mock: false }).form.Mock, undefined, "a real filing never says Mock");
+  assert.equal(brandRequest({ customerProfileBundleSid: "BU1", a2pProfileBundleSid: "BU2", brandType: "SOLE_PROPRIETOR", mock: false, skipVetting: true }).form.Mock, undefined, "a real filing never says Mock");
+});
+
+test("the brand does not buy a vetting a low-volume campaign cannot use", () => {
+  // The first real filing this product made cost $46.00 in two one-time events
+  // -- $4 of brand registration and the rest an automatic secondary vetting
+  // nobody asked for. What a vetting buys is a brand SCORE, and a score buys
+  // T-Mobile throughput. That one came back 46, below the tier threshold, on a
+  // LOW_VOLUME campaign that sends a handful of messages a day. It bought
+  // nothing, and it would have done so for every customer, for ever.
+  const skipped = brandRequest({ customerProfileBundleSid: "BU1", a2pProfileBundleSid: "BU2", brandType: "STANDARD", mock: false, skipVetting: true });
+  assert.equal(skipped.form.SkipAutomaticSecVet, "true");
+  const vetted = brandRequest({ customerProfileBundleSid: "BU1", a2pProfileBundleSid: "BU2", brandType: "STANDARD", mock: false, skipVetting: false });
+  assert.equal(vetted.form.SkipAutomaticSecVet, undefined, "asking for it stays possible, and stays a decision");
+  // Tied to the use case, in one place, where both are visible at once.
+  const edge = readCode("apps/edge/lib/a2p.ts");
+  assert.ok(edge.includes("useCase: LOW_VOLUME_USECASE,") && edge.includes("skipVetting: true,"));
+  assert.ok(readRaw("packages/channels/src/a2p.ts").includes("A brand can be vetted later"), "and says how to get it when a workspace needs it");
 });
 
 test("the industry is Twilio's enum: an unknown value becomes the default rather than a refusal", () => {
