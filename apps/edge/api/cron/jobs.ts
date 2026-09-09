@@ -1,9 +1,10 @@
 /**
  * The sweep for jobs that never came back.
  *
- * `claim_job` flips a job to 'fired' and the handler runs. If the lambda dies
- * in between — a timeout, a cold-start failure, a deploy mid-flight — the row
- * stays 'fired' for ever. Nothing swept it, nothing retried it, and fire.ts
+ * `claim_job` flips a job to 'fired' and the handler runs; fire.ts moves it to
+ * 'done' when that handler returns (00080). If the lambda dies in between — a
+ * timeout, a cold-start failure, a deploy mid-flight — the row stays 'fired'
+ * for ever. Nothing swept it, nothing retried it, and fire.ts
  * deliberately answers 200 so QStash will not either ("our ledger owns retry
  * policy"). So the one state a job could not leave was the one nobody chose.
  *

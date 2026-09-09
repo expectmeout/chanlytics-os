@@ -99,7 +99,12 @@ type ConsentState = (typeof CONSENT_STATES)[number];
  */
 declare const JOB_KINDS: readonly ["outbound_send", "snooze_wake", "pause_expire", "broadcast_send", "blob_thread_erase"];
 type JobKind = (typeof JOB_KINDS)[number];
-declare const JOB_STATES: readonly ["scheduled", "fired", "canceled", "failed"];
+/**
+ * `fired` means CLAIMED, not finished: claim_job sets it and fire.ts moves the
+ * job to `done` when the handler returns. A job left in `fired` is one whose
+ * run never reported back, which is what the stale-jobs sweep reaps.
+ */
+declare const JOB_STATES: readonly ["scheduled", "fired", "done", "canceled", "failed"];
 type JobState = (typeof JOB_STATES)[number];
 /** Dot-namespaced event kinds emitted so far (grows per slice). */
 declare const EVENT_KINDS: readonly ["message.received", "message.sent", "message.status", "escalation.opened", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.unreachable_sender", "ingest.pg_failed", "message.send_failed", "message.send_blocked", "message.send_raced_cancel", "conversation.reopened", "conversation.pause_expired", "contact.erased", "contact.blob_erased", "setup.requested", "voice.provisioned", "line.answering", "line.failed", "line.released", "line.forwarding_verified", "line.texting_on", "line.texting_approved", "line.texting_rejected", "business.recorded", "google.linked", "google.unlinked", "google.reviews", "google.connected", "google.disconnected", "google.replied", "workspace.created", "billing.updated", "billing.paused", "billing.resumed"];

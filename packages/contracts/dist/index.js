@@ -107,7 +107,7 @@ var JOB_KINDS = [
    */
   "blob_thread_erase"
 ];
-var JOB_STATES = ["scheduled", "fired", "canceled", "failed"];
+var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
 var EVENT_KINDS = [
   "message.received",
   "message.sent",

@@ -14,6 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { ROOT, readCode, readRaw } from "./_source.mjs";
 import { recoveryFor, OVERDUE_AFTER_MS, MAX_REPUBLISHES, STALE_TO_A_PERSON_MS } from "../../../apps/edge/lib/jobs-recovery.ts";
+import { JOB_STATES } from "@chanlytics/contracts";
 
 const sweep = readCode("apps/edge/api/cron/jobs.ts");
 const mig = readRaw("supabase/migrations/00078_stale_jobs.sql");
@@ -198,4 +199,27 @@ test("neither half can silence the other", () => {
     sweep.lastIndexOf("return json(200") > sweep.indexOf("recoveryFor(job)"),
     "the final answer comes after the recovery loop, not before it",
   );
+});
+
+test("'fired' means claimed, not finished — or the sweep reaps every success", () => {
+  // jobs.state had four values and none meant "this ran and returned".
+  // claim_job set 'fired'; on success fire.ts logged, answered 200, and left
+  // it there. Harmless while nothing read the column — and, the moment this
+  // sweep did, a false alarm emailed to the owner ten minutes after every
+  // successful job in the product. Caught by a probe, not by any test here.
+  const fire = readCode("apps/edge/api/jobs/fire.ts");
+  assert.ok(
+    fire.includes('.update({ state: "done" }).eq("id", jobId).eq("state", "fired")'),
+    "a handler that returns moves the job out of 'fired'",
+  );
+  assert.ok(
+    fire.indexOf('state: "done"') > fire.indexOf("dispatchJob("),
+    "and only after the handler actually returned",
+  );
+  assert.ok(JOB_STATES.includes("done"), "the ledger can say a job finished");
+  assert.ok(readRaw("supabase/migrations/00080_job_done.sql").includes("set state = 'done'"), "and history was backfilled, not judged");
+
+  // The sweep still reads 'fired', which now means exactly what it reaps for.
+  assert.ok(sweep.includes('.eq("state", "fired")'));
+  assert.ok(!sweep.includes('.eq("state", "done")'), "a finished job is not the sweep's business");
 });
