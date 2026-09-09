@@ -313,6 +313,168 @@ const FactConflicts = () => {
   );
 };
 
+/**
+ * One brain field, saved from the row it is shown in.
+ *
+ * The two numbers below used to be sections nine and thirteen of a fourteen-
+ * section form -- "Tell customers to call" near the top of one step, "How
+ * callers reach a person" most of a page later in another, both of them read
+ * from the Business card five rows apart. Editing one meant opening a form,
+ * finding it among twelve fields that had nothing to do with it, and pressing
+ * a Save that wrote the entire configuration.
+ *
+ * It still writes the entire configuration -- PUT /settings is a versioned
+ * compare-and-swap, and sending a fragment would delete the rest -- but it
+ * starts from what is stored and changes ONE key, which is the same discipline
+ * the big form's `save` learned after a rebuild lost a workspace its prompt.
+ */
+function useFieldSave(flash) {
+  const [busy, setBusy] = React.useState(false);
+  const settings = window.__SETTINGS || null;
+  const save = (change, said, done) => {
+    if (busy || !window.__saveSettings || !settings || !settings.config) return;
+    const cfg = settings.config;
+    const brain = cfg.brain || {};
+    setBusy(true);
+    const next = { ...cfg, brain: change({ ...brain }, { ...(brain.profile || {}) }) };
+    window.__saveSettings(next, settings.version, () => {
+      setBusy(false);
+      done();
+      flash({ msg: said });
+    }).then((r) => {
+      if (r.ok) return;
+      setBusy(false);
+      flash({ msg: <>{r.message}</> });
+    });
+  };
+  return [busy, save];
+}
+
+/**
+ * What the receptionist tells customers to call.
+ *
+ * Absent means "the line it answers", which is the answer for nearly every
+ * workspace and the one that stays right when the number changes. Publishing
+ * anything else is a deliberate act, and the note says what it costs -- because
+ * the live salon published its transfer number here and every customer who
+ * rang it reached a person's mobile instead of the receptionist standing by.
+ */
+const PublishedNumberRow = ({ fact, flash }) => {
+  const line = ((window.__FACTS || {}).facts || {}).voice_line || null;
+  const voiceLine = (line && line.value) || "";
+  const handoff = (((window.__FACTS || {}).facts || {}).handoff_number || {}).value || null;
+  const stored = ((window.__SETTINGS || {}).config || {}).brain || {};
+  const [editing, setEditing] = React.useState(false);
+  const [own, setOwn] = React.useState(!stored.phone_display);
+  const [typed, setTyped] = React.useState(stored.phone_display || "");
+  const [busy, save] = useFieldSave(flash);
+  const open = () => { setOwn(!stored.phone_display); setTyped(stored.phone_display || ""); setEditing(true); };
+  const commit = () => {
+    const value = own ? "" : typed.trim();
+    const bad = value && window.__whyNotAPhone ? window.__whyNotAPhone(value) : null;
+    if (bad) { flash({ msg: <>{bad}</> }); return; }
+    if (!value && !voiceLine) { flash({ msg: <>There is no line yet, so the receptionist needs a number to give out.</> }); return; }
+    save(
+      (brain) => { if (value) brain.phone_display = value; else delete brain.phone_display; return brain; },
+      value ? <>Customers are told to call <b className="tabular">{value}</b> now.</> : <>Customers are told to call your line.</>,
+      () => setEditing(false),
+    );
+  };
+  if (!editing) {
+    return (
+      <div className="cl-prof-attr" data-testid="fact-tells-customers-to-call">
+        <span className="cl-prof-attr-key">Tells customers to call</span>
+        <span className="cl-prof-attr-val set-fact">
+          <span className={fact && fact.value ? "" : "set-fact-empty"}>{(fact && fact.value) || "No number to give out"}</span>
+          {fact && fact.value && fact.source !== "typed" && <span className="set-fact-src">{(window.__FACT_WORDS || {})[fact.source] || ""}</span>}
+          {fact && fact.disputed && <span className="set-fact-src disputed" title={`The system has ${fact.disputed.value}`}>doesn&rsquo;t match</span>}
+          <button className="cl-bucket-link" onClick={open} {...window.gate("settings")} data-testid="set-pub-change">Change</button>
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="cl-prof-attr set-row-editing" data-testid="fact-tells-customers-to-call">
+      <span className="cl-prof-attr-key">Tells customers to call</span>
+      <span className="cl-prof-attr-val set-pub-inline">
+        {voiceLine && (
+          <div className="cl-tabs" role="radiogroup" aria-label="The number to tell customers to call">
+            <button type="button" role="radio" aria-checked={own} className={`cl-tab ${own ? "active" : ""}`} onClick={() => setOwn(true)} data-testid="set-pub-line">Your line</button>
+            <button type="button" role="radio" aria-checked={!own} className={`cl-tab ${!own ? "active" : ""}`} onClick={() => { setOwn(false); setTyped(typed || voiceLine); }} data-testid="set-pub-other">A different number</button>
+          </div>
+        )}
+        {!own || !voiceLine ? (
+          <input className="set-input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={voiceLine || "+1 646 932 5775"} inputMode="tel" autoComplete="tel" aria-label="The number to publish" data-testid="set-pub-input" />
+        ) : null}
+        <div className="set-ident-note">
+          {own && voiceLine
+            ? <><b className="tabular">{voiceLine}</b> — the line your receptionist answers. It follows the line, so changing your number changes nothing to keep in step.</>
+            : window.__samePhone && window.__samePhone(typed, voiceLine)
+              ? <>That is your line. Choose <b>Your line</b> and it stays right when the number changes.</>
+              : handoff && window.__samePhone && window.__samePhone(typed, handoff)
+                ? <>This is the number the receptionist <b>transfers</b> to, so customers who ring it reach a person directly and never the receptionist answering on <b className="tabular">{voiceLine}</b>.</>
+                : voiceLine
+                  ? <>Customers who ring this will not reach your receptionist on <b className="tabular">{voiceLine}</b>.</>
+                  : <>The receptionist has no line of its own yet, so this is the number it gives out.</>}
+        </div>
+        <div className="set-row-actions">
+          <button className="btn btn-primary btn-sm" onClick={commit} disabled={busy} data-testid="set-pub-save">{busy ? "Saving…" : "Save"}</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setEditing(false)}>Cancel</button>
+        </div>
+      </span>
+    </div>
+  );
+};
+
+/** Where a caller who insists on a person is transferred. Empty is a choice. */
+const HandoffRow = ({ fact, flash }) => {
+  const voiceLine = ((((window.__FACTS || {}).facts || {}).voice_line) || {}).value || "";
+  const stored = (((window.__SETTINGS || {}).config || {}).brain || {}).profile || {};
+  const [editing, setEditing] = React.useState(false);
+  const [typed, setTyped] = React.useState(stored.handoff_number || "");
+  const [busy, save] = useFieldSave(flash);
+  const commit = () => {
+    const bad = window.__whyNotAHandoff ? window.__whyNotAHandoff(typed, voiceLine) : null;
+    if (bad) { flash({ msg: <>{bad}</> }); return; }
+    const value = window.__handoffE164 ? window.__handoffE164(typed) : (typed.trim() || null);
+    save(
+      (brain, profile) => {
+        if (value) profile.handoff_number = value; else delete profile.handoff_number;
+        brain.profile = profile;
+        return brain;
+      },
+      value ? <>Callers who insist on a person reach <b className="tabular">{value}</b>.</> : <>The receptionist takes a message instead of transferring.</>,
+      () => setEditing(false),
+    );
+  };
+  if (!editing) {
+    return (
+      <div className="cl-prof-attr" data-testid="fact-transfers-a-caller-to">
+        <span className="cl-prof-attr-key">Transfers a caller to</span>
+        <span className="cl-prof-attr-val set-fact">
+          <span className={fact && fact.value ? "" : "set-fact-empty"}>{(fact && fact.value) || "Takes a message instead"}</span>
+          <button className="cl-bucket-link" onClick={() => { setTyped(stored.handoff_number || ""); setEditing(true); }} {...window.gate("settings")} data-testid="set-handoff-change">Change</button>
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="cl-prof-attr set-row-editing" data-testid="fact-transfers-a-caller-to">
+      <span className="cl-prof-attr-key">Transfers a caller to</span>
+      <span className="cl-prof-attr-val set-pub-inline">
+        <input className="set-input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="+1 646 932 5775" inputMode="tel" autoComplete="tel" aria-label="Transfer number" data-testid="set-handoff-input" />
+        <div className="set-ident-note">
+          A line a person answers, with the country code. Empty and the phone receptionist takes a message instead of transferring — which is better than a number nobody picks up.
+        </div>
+        <div className="set-row-actions">
+          <button className="btn btn-primary btn-sm" onClick={commit} disabled={busy} data-testid="set-handoff-save">{busy ? "Saving…" : "Save"}</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setEditing(false)}>Cancel</button>
+        </div>
+      </span>
+    </div>
+  );
+};
+
 const TimezoneRow = ({ flash }) => {
   const ws = (window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || null;
   const current = (ws && ws.timezone) || window.DEFAULT_TIMEZONE || "America/New_York";
@@ -769,7 +931,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   const [langs, setLangs] = useSetState(() => (p0.languages || []).slice());
   const [langAdd, setLangAdd] = useSetState("");
   const [escalate, setEscalate] = useSetState((p0.escalate_when || []).join("\n"));
-  const [handoff, setHandoff] = useSetState(p0.handoff_number || "");
+
   const [website, setWebsite] = useSetState(p0.website || "");
   const [notes, setNotes] = useSetState(() => (p0.notes || []).map((x) => ({ ...x })));
   const br0 = p0.booking_rules || {};
@@ -953,25 +1115,11 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     const esc = escalate.split("\n").map((x) => x.trim()).filter(Boolean);
     put("escalate_when", esc.length ? esc : undefined);
     put("extra_instructions", extra.trim() || undefined);
-    // The handoff line is stored as E.164 whatever was typed — "(646) 932-5775"
-    // becomes +16469325775 only if a country code was given, because a bare
-    // ten-digit number is a guess about the country and a transfer tool
-    // dialling a guess rings a stranger.
-    const handoffRaw = handoff.trim();
-    const handoffNorm = handoffRaw ? "+" + handoffRaw.replace(/[^0-9]/g, "") : "";
-    if (handoffRaw && !(/^\+/.test(handoffRaw) && /^\+[1-9][0-9]{6,14}$/.test(handoffNorm))) {
-      flash({ msg: <>The handoff number needs the country code, like +1 646 932 5775.</> });
-      return;
-    }
-    // The receptionist's OWN line is the voice channel's number, not the
-    // number the business tells customers — that one is usually the line a
-    // person answers, which is exactly where a handoff should go.
-    const ownLine = (((window.__CHANNELS || []).find((c) => c.kind === "voice") || {}).number || "").replace(/[^0-9]/g, "");
-    if (handoffNorm && ownLine && handoffNorm === "+" + ownLine) {
-      flash({ msg: <>The handoff number is the receptionist's own line — it would ring itself. Use a line a person answers.</> });
-      return;
-    }
-    put("handoff_number", handoffNorm || undefined);
+    // handoff_number is deliberately NOT written here. It is edited in the row
+    // that states it, on the Business card, and `profile` starts from what is
+    // stored -- so not touching the key preserves it. Its two refusals (the
+    // country code, and never the receptionist's own line) moved to
+    // contracts/phone.ts, beside the row that now enforces them.
     const site = website.trim();
     if (site && !/^https?:\/\/.+\..+/.test(site)) {
       flash({ msg: <>The website needs to be a full web address, starting with https://</> });
@@ -1145,14 +1293,12 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
               aria-label="Business name"
             />
           </label>
-          {/* NOT "Phone line", and no longer a text box.
-              It was required, free text, and named the same as the line the
-              receptionist answers -- so every workspace typed something and
-              nothing checked what, and the first live salon ended up
-              publishing the number it transfers to. Customers who rang it
-              reached a person's mobile and never the receptionist standing by.
-              The line is the default now, and publishing anything else is a
-              deliberate act with a reason attached. */}
+        {/* Only while CREATING. Afterwards this number is edited in the
+            row that states it, on the Business card -- the same fact in one
+            place instead of a form field and a read-only row five rows
+            apart. The create form still asks, because a workspace with no
+            line has nothing to give a customer until somebody types it. */}
+        {creating && (
           <div className="set-ident-row set-pub">
             <span className="set-ident-key">Tell customers to call</span>
             <div className="set-pub-body">
@@ -1209,6 +1355,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
               )}
             </div>
           </div>
+        )}
           <label className="set-ident-row">
             <span className="set-ident-key">Booking link</span>
             <input
@@ -1523,22 +1670,6 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         <textarea className="set-input set-textarea" rows={3} value={escalate} onChange={(e) => setEscalate(e.target.value)} placeholder={"They ask for the owner by name\nThey are unhappy about a previous visit"} aria-label="Escalation triggers" />
       </div>
       <div className="set-sec">
-        <SetSectionHead title="How callers reach a person" hint="The phone receptionist transfers here during opening hours" />
-        <input
-          className="set-input"
-          value={handoff}
-          onChange={(e) => setHandoff(e.target.value)}
-          placeholder="+1 646 932 5775"
-          inputMode="tel"
-          autoComplete="tel"
-          aria-label="Handoff number"
-        />
-        <div className="set-sec-note">
-          A line a person answers, with the country code. Leave it empty and the phone
-          receptionist takes a message instead of transferring. Never the receptionist's own line.
-        </div>
-      </div>
-      <div className="set-sec">
         <SetSectionHead title="Other things it should know" hint="One topic each — parking, gift cards, a second location. Both receptionists say these." />
         {notes.map((n, i) => (
           <div key={i} className="set-note-row">
@@ -1679,12 +1810,15 @@ const PaneWorkspace = ({ flash }) => {
             called "Phone line" showing a typed string, which is how a salon
             came to publish the number it transfers to as the number to call.
             The line it answers is provisioned and belongs to Integrations; the
-            other two are the receptionist's behaviour and belong here. */}
+            other two are the receptionist's behaviour, so they are edited HERE,
+            in the row that states them -- they used to be sections nine and
+            thirteen of a fourteen-section form, a page apart from each other
+            and from the card that reads them. */}
         {real ? (
           <>
             <FactRow label="Answers on" fact={F.voice_line} to="admin/integrations" toLabel="Integrations" empty="No phone line yet" />
-            <FactRow label="Tells customers to call" fact={F.phone_display} />
-            <FactRow label="Transfers a caller to" fact={F.handoff_number} empty="Takes a message instead" />
+            <PublishedNumberRow fact={F.phone_display} flash={flash} />
+            <HandoffRow fact={F.handoff_number} flash={flash} />
           </>
         ) : (
           <div className="cl-prof-attr"><span className="cl-prof-attr-key">Phone line</span><span className="cl-prof-attr-val">+1 (415) 555-0100</span></div>

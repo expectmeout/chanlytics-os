@@ -55,6 +55,43 @@ export function whyNotAPhone(raw: string | null | undefined): string | null {
   return "That is not a phone number anyone can be reached on.";
 }
 
+
+/**
+ * The transfer number, checked the way a dialler would need it.
+ *
+ * Stricter than whyNotAPhone on purpose: a handoff is DIALLED by the phone
+ * receptionist mid-call, so a bare ten-digit number is a guess about the
+ * country and a transfer tool dialling a guess rings a stranger. The country
+ * code is required, in writing.
+ *
+ * The second refusal is the one an owner would never think of: the
+ * receptionist's OWN line. A caller who insists on a person would be
+ * transferred to the number they are already on, which answers as the
+ * receptionist again.
+ *
+ * Returns the owner's sentence, or null when the number is usable. Lives here
+ * rather than in the form because the number is now edited where it is read.
+ */
+export function whyNotAHandoff(raw: string | null | undefined, ownLine?: string | null): string | null {
+  const typed = String(raw ?? "").trim();
+  if (!typed) return null; // Empty is a choice: take a message instead.
+  const norm = "+" + typed.replace(/[^0-9]/g, "");
+  if (!(/^\+/.test(typed) && /^\+[1-9][0-9]{6,14}$/.test(norm))) {
+    return "The transfer number needs the country code, like +1 646 932 5775.";
+  }
+  if (ownLine && normalizePhone(norm) && normalizePhone(norm) === normalizePhone(ownLine)) {
+    return "That is the receptionist's own line — it would ring itself. Use a line a person answers.";
+  }
+  return null;
+}
+
+/** What a typed handoff is STORED as: E.164, or nothing at all. */
+export function handoffE164(raw: string | null | undefined): string | null {
+  const typed = String(raw ?? "").trim();
+  if (!typed) return null;
+  return "+" + typed.replace(/[^0-9]/g, "");
+}
+
 /** Human-readable phone for display: NANP gets +1 (XXX) XXX-XXXX; others get spaced groups. */
 export function formatPhoneDisplay(e164: string | null | undefined): string | null {
   if (!e164) return null;
