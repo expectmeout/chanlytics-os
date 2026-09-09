@@ -18,6 +18,14 @@
  * appointment tomorrow was not reminded of it unless they had asked for offers,
  * while the voice path sent a template to somebody whose consent was `unknown`.
  *
+ * THE SECOND HALF ARRIVED LATE, and this comment claimed it was here before it
+ * was. The split landed in the database, in `people_list`, in the view model and
+ * in two send gates, and then stopped — so every read of "said yes to offers" was
+ * still pointed at the old column, the fact had no write path outside the edge's
+ * ingest, and the voice path kept its own lower bar. On the live workspace that
+ * turned seven recorded yeses into an audience of nought. The tests below now read
+ * the paths this header describes rather than describing them.
+ *
  * These are the properties that have to hold for the new message flow filed with
  * the carriers to be TRUE — which matters more than usual, because that filing
  * is a statement to a regulator about how this product behaves.
@@ -27,7 +35,7 @@ import assert from "node:assert/strict";
 import {
   mayMessageFor, purposeOfTemplate, purposeOfPlaybook, isOptedOutContact,
   optInPurposeOf, MARKETING_OPT_IN_PATTERN, CONVERSATION_OPT_IN_PATTERN, OPT_IN_PATTERN,
-  PURPOSE_REFUSALS, consentPageVM, CONSENT_PHRASE, CONVERSATION_PHRASE,
+  PURPOSE_REFUSALS, HELD_REASONS, consentPageVM, CONSENT_PHRASE, CONVERSATION_PHRASE,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
@@ -182,7 +190,19 @@ test("the message flow filed with the carriers describes both opt-ins, separatel
   // The description says the separation too, because 30886 refused the old one.
   const desc = src.slice(src.indexOf("description: `"), src.indexOf("messageFlow: ["));
   assert.match(desc, /separate, explicit yes to offers/);
-  assert.match(desc, /no customer is enrolled in both by a single action/);
+  // THE CLAIM HAS TO BE TRUE, and this one was not. It said "no customer is
+  // enrolled in both by a single action" while `OPT_IN_PATTERN` deliberately
+  // matches YES OFFERS as well as START -- so texting the offers keyword set both
+  // answers, and the filing said it could not. The behaviour is right (asking for
+  // offers plainly also agrees to be replied to, and it is how somebody comes back
+  // from a STOP); the sentence was wrong. 30913 is about the OTHER direction.
+  assert.match(desc, /Agreeing to hear about appointments never enrols anyone in promotional messaging/);
+  assert.doesNotMatch(desc, /no customer is enrolled in both by a single action/,
+    "REGRESSION: a claim to a regulator that this product's own keyword table contradicts");
+  // The contradiction, pinned where it lives, so the sentence and the code cannot
+  // drift apart again in either direction.
+  assert.equal(OPT_IN_PATTERN.test("YES OFFERS"), true, "the offers keyword also opens conversation");
+  assert.equal(MARKETING_OPT_IN_PATTERN.test("START"), false, "but conversation never opens offers -- which is the direction 30913 is about");
 });
 
 test("the samples match what the filing declares about them", () => {
@@ -226,4 +246,107 @@ test("the resubmit sends everything Twilio will accept, and says what it will no
   assert.match(edge, /privacyPolicyUrl: facts\.privacyPolicyUrl,/);
   // The one that cannot be corrected says so where somebody would look for it.
   assert.match(readRaw("apps/edge/lib/a2p.ts"), /NOT correctable after the first filing/);
+});
+
+/* ========================================================================== *
+ * The half that arrived late: every place that SPENDS the fact, and the one
+ * place that WRITES it.
+ * ========================================================================== */
+
+test("UNDER-BLOCKING, pinned: the voice path asks the one predicate, with the message's purpose", () => {
+  // 00095's own header names this path: "The voice agent's booking-link text is
+  // gated on opted_out alone, so 'consent = unknown' sails through. Two proactive
+  // sends, two different bars, decided per call site rather than by anything about
+  // the message." The broadcast wire was moved to `mayMessageFor`; this was not, so
+  // for a while the product had two bars again. Nothing in this file read it.
+  const gate = readCode("apps/edge/lib/outbound-gate.ts");
+  assert.match(gate, /import \{ mayMessageFor/, "the gate asks the one predicate rather than holding a copy");
+  assert.match(gate, /const may = mayMessageFor\(f\.contact, f\.purpose, \{ proactive: f\.proactive \}\);/);
+  assert.ok(!/optedOut: boolean/.test(gate), "REGRESSION: a pre-decided boolean cannot answer a per-purpose question");
+
+  const fn = readCode("apps/edge/api/retell-fn.ts");
+  // The purpose is STATED as a fact about the message, not read from a column that
+  // is NULL for this very row -- `purposeOfTemplate(null)` is "marketing", which
+  // would refuse a booking link to every caller who has not asked for offers.
+  assert.match(fn, /purpose: "conversational" as const/);
+  assert.match(fn, /purpose: BOOKING_TEMPLATE\.purpose,/);
+  // And WHOSE number decides whether it is proactive: answering the caller on the
+  // line is not a proactive send; texting a number they merely spoke aloud is.
+  assert.match(fn, /proactive: !isCaller,/);
+  assert.match(fn, /marketing_consent: contact\.marketingConsent/, "the row carries both answers to the gate");
+  assert.ok(!/optedOut: isOptedOutContact\(contact\)/.test(fn), "REGRESSION: half the consent question");
+
+  // The resolver has to project the column, or the gate above reads undefined and
+  // fails closed on every promotional send it is ever asked about.
+  const repo = readCode("packages/db/src/repositories/ingest.ts");
+  assert.match(repo, /\.select\("id, consent, dnc, marketing_consent"\)/);
+  assert.match(repo, /marketingConsent: contact\.marketing_consent \?\? null,/);
+});
+
+test("the fact has a WRITE path: two callers, which is what 00095 designed for", () => {
+  // "ONE function, two callers ... a text from the customer and a person at the
+  // desk recording a form the customer signed." Only the first existed, so a salon
+  // holding thirty signed consent slips had no way to record any of them -- and
+  // both controls that looked like they did wrote the conversational column.
+  const ingest = readCode("packages/db/src/repositories/ingest.ts");
+  assert.match(ingest, /rpc\("set_marketing_consent"/, "the customer's own message");
+  const door = readCode("apps/dashboard/app/api/v1/contacts/[id]/marketing-consent/route.ts");
+  assert.match(door, /rpc\("set_marketing_consent"/, "and a person at the desk");
+  assert.match(door, /requireRole\(member, "operator"\);/);
+  // The tenant is the one the contact was READ from under RLS, never from the body:
+  // this RPC takes it as a parameter because the edge calls it with no session.
+  assert.match(door, /p_tenant_id: contact\.tenant_id,/);
+
+  // The bulk sibling, because a signed-form yes usually arrives for a class at once.
+  const bridge = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");
+  assert.match(bridge, /export async function setPersonMarketingConsentMany/);
+  assert.match(bridge, /const take = \[\.\.\.new Set\(ids\)\]\.slice\(0, 50\);/, "fifty at most, one refresh at the end");
+});
+
+test("every read of \"said yes to offers\" points at the offers column", () => {
+  // Six of these were still on the old column after the split, and each one lied
+  // in the same direction: it counted people who had said yes to SOMETHING and
+  // called them a promotional audience.
+  const people = readCode("packages/contracts/src/people.ts");
+  assert.match(people, /\{ id: "offers_ok", label: "Can receive offers", group: "reach", test: \(v\) => v\.consent\.marketing === "opted_in" \}/);
+  assert.match(people, /const yes = members\.filter\(\(m\) => m\.consent\.marketing === "opted_in"\)\.length;/);
+
+  const setup = readCode("packages/contracts/src/setup.ts");
+  assert.match(setup, /const offers = i\.consent\.offers;/, "the Setup row reads the offers count");
+  const server = readCode("apps/dashboard/src/server/setup.ts");
+  assert.match(server, /\.eq\("marketing_consent", "opted_in"\)\.eq\("dnc", false\)/, "and it is counted the way the reachable view counts it");
+
+  const clients = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
+  assert.match(clients, /PL_OFFERS\[p\.consent\.marketing\]/, "the column titled Offers");
+  assert.match(clients, /rank\[a\.consent\.marketing\]/, "and sorting by it sorts by it");
+
+  const exp = readCode("apps/dashboard/src/server/export.ts");
+  assert.match(exp, /\["offers_consent", \(r\) => r\.marketing_consent \?\? "unknown"\]/);
+});
+
+test("every reason the wire can write has words the owner can read", () => {
+  // `no_marketing_consent` was added to the wire and not to these words, so a
+  // broadcast's detail pane showed the raw enum -- and the distinction it draws is
+  // the entire point of the split, making it the last one to leave untranslated.
+  // Written as a property over the predicate rather than a list, so the next reason
+  // added to `mayMessageFor` fails here instead of reaching a person.
+  const reasons = new Set();
+  for (const consent of ["unknown", "opted_in", "opted_out"]) {
+    for (const marketing_consent of ["unknown", "opted_in", "opted_out"]) {
+      for (const dnc of [true, false]) {
+        for (const purpose of ["conversational", "marketing"]) {
+          for (const proactive of [true, false]) {
+            const r = mayMessageFor({ consent, dnc, marketing_consent }, purpose, { proactive }).reason;
+            if (r) reasons.add(r);
+          }
+        }
+      }
+    }
+  }
+  assert.ok(reasons.size >= 3, "the predicate refuses for at least three distinct reasons");
+  for (const r of reasons) {
+    assert.ok(HELD_REASONS[r], `HELD_REASONS is missing "${r}" — the owner would read the enum`);
+    assert.ok(PURPOSE_REFUSALS[r], `PURPOSE_REFUSALS is missing "${r}"`);
+    assert.ok(!/_/.test(HELD_REASONS[r]), `"${r}" reads like an enum, not like words`);
+  }
 });

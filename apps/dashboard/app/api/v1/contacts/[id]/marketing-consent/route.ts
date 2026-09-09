@@ -1,0 +1,82 @@
+import { AppError, CONSENT_RESET_SOURCE, CONSENT_SOURCES } from "@chanlytics/contracts";
+import { withRoute, memberContext, requireRole } from "@/server/with-route";
+import { jsonBody, requireUuid } from "@/server/request-guards";
+import { recordDecision } from "@/server/verbs";
+import { takeRate } from "@/server/rate-limit";
+
+const STATES = ["opted_in", "opted_out", "unknown"] as const;
+
+/**
+ * PUT /api/v1/contacts/:id/marketing-consent — { consent, source?, note? }
+ *
+ * THE SECOND DOOR, and the reason this file exists. Migration 00095 split
+ * consent into two answers and wrote `set_marketing_consent` for "ONE function,
+ * two callers ... a text from the customer and a person at the desk recording a
+ * form the customer signed". Only the first caller was ever built: the edge's
+ * ingest, when somebody texts YES OFFERS. There was no door at all for the
+ * second, so a salon holding thirty signed consent slips had no way to record
+ * them — and both controls that looked like they did wrote the OTHER column,
+ * leaving the owner in a loop where the broadcast composer refused the audience
+ * and pointed at the button that had just failed to fix it.
+ *
+ * It is a sibling of ../consent/route.ts and deliberately shaped the same way:
+ * the same states, the same four sources, the same 200-character note, the same
+ * RLS-scoped read so a contact the caller cannot see is a 404 rather than a leak,
+ * the same operator role, the same decision ledger. Two routes rather than one
+ * with a `purpose` parameter, because the two answers have different rules
+ * underneath — the conversational door derives `dnc` from an opt-out, and this one
+ * must never touch it: declining offers is not a request to stop hearing about
+ * your own appointment.
+ *
+ * The RPC takes the tenant explicitly (it is also called with no session, by the
+ * edge), so the tenant passed here is the one the contact was READ from under
+ * RLS, never one from the request body.
+ */
+export const PUT = withRoute(async (req, ctx) => {
+  await takeRate(ctx.userId, "consent");
+  const id = requireUuid(ctx.params.id, "contact");
+  const body = (await jsonBody(req)) as { consent?: unknown; source?: unknown; note?: unknown } | null;
+  const consent = body?.consent;
+  if (typeof consent !== "string" || !(STATES as readonly string[]).includes(consent)) {
+    throw new AppError("validation", "Consent must be one of: opted_in, opted_out, unknown.");
+  }
+  const source = consent === "unknown" ? CONSENT_RESET_SOURCE : body?.source;
+  if (typeof source !== "string" || (consent !== "unknown" && !CONSENT_SOURCES.some((s) => s.id === source))) {
+    throw new AppError("validation", "Say how they told you: in person, on the phone, on a form, or in their own message.");
+  }
+  const note = typeof body?.note === "string" && body.note.trim() ? body.note.trim().slice(0, 200) : null;
+
+  const { data: contact, error } = await ctx.supabase
+    .from("contacts")
+    .select("id, tenant_id, erased_at, marketing_consent")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!contact || contact.erased_at) throw new AppError("not_found", "Contact not found.", 404);
+  const member = await memberContext(ctx, contact.tenant_id);
+  requireRole(member, "operator");
+
+  const { data, error: doorErr } = await ctx.supabase.rpc("set_marketing_consent", {
+    p_tenant_id: contact.tenant_id,
+    p_contact_id: id,
+    p_consent: consent,
+    p_source: source,
+    ...(note ? { p_note: note } : {}),
+  });
+  if (doorErr) throw new AppError("validation", doorErr.message);
+  const r = (data ?? {}) as { marketing_consent?: string | null; marketing_consent_updated_at?: string | null };
+
+  // The ledger row says who recorded it and how, and names the purpose — so one
+  // query over `events` answers "what has this person agreed to, and when".
+  const decisionId = await recordDecision(ctx, contact.tenant_id, "contact", id, "consent_change", {
+    purpose: "marketing", consent, source, note, previous: contact.marketing_consent ?? null,
+  });
+  return {
+    contact_id: id,
+    purpose: "marketing" as const,
+    consent: r.marketing_consent ?? consent,
+    source,
+    updated_at: r.marketing_consent_updated_at ?? null,
+    decision_id: decisionId,
+  };
+});

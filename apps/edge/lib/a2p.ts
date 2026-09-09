@@ -127,7 +127,18 @@ export function campaignFactsFor(o: {
   return {
     // What the campaign IS, in the plainest terms, with the separation stated
     // rather than left to be inferred from the flow.
-    description: `${o.businessName} uses this number to answer its own customers, to send them reminders about appointments they have booked, and — only for customers who ask for them separately — occasional offers. Every message is written or approved by the business. Conversational and transactional messages go to customers who have asked to hear about their appointments; promotional messages go only to customers who gave a separate, explicit yes to offers, and no customer is enrolled in both by a single action.`,
+    // THE CLAIM HAS TO BE TRUE, because this is a statement to a regulator about
+    // how this product behaves. It used to end "and no customer is enrolled in both
+    // by a single action", and the product's own keyword table says otherwise:
+    // `OPT_IN_PATTERN` matches YES OFFERS as well as START, deliberately (texting
+    // OFFERS is also a way back in from a STOP), so that one message sets both
+    // answers. That is defensible -- a customer who explicitly asks for offers has
+    // plainly also agreed to be replied to -- but it is not what the sentence said.
+    //
+    // What 30913 actually forbids is the OTHER direction: a yes to conversation
+    // being spent as a yes to marketing. That direction is what the wording now
+    // states, and it is the direction the code enforces.
+    description: `${o.businessName} uses this number to answer its own customers, to send them reminders about appointments they have booked, and — only for customers who ask for them separately — occasional offers. Every message is written or approved by the business. Conversational and transactional messages go to customers who have asked to hear about their appointments; promotional messages go only to customers who gave a separate, explicit yes to offers. Agreeing to hear about appointments never enrols anyone in promotional messaging: that requires its own opt-in, with its own disclosure, which a customer can decline while keeping everything else.`,
 
     messageFlow: [
       `Customers give consent at ${o.optInUrl}, a public page that presents TWO SEPARATE opt-ins, neither of which grants the other.`,

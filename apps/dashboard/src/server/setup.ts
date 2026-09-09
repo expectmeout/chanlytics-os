@@ -83,7 +83,7 @@ export async function setupDtoFor(
   now = new Date(),
 ): Promise<SetupDto> {
 
-  const [cfgRow, channels, lastMsg, lastCall, templates, calendar, team, yes, requested, lineRows, lineStatus, listing, google, connection, billingRow, billingReady] = await Promise.all([
+  const [cfgRow, channels, lastMsg, lastCall, templates, calendar, team, yes, offersYes, requested, lineRows, lineStatus, listing, google, connection, billingRow, billingReady] = await Promise.all([
     getTenantConfig(supabase, tenantId),
     supabase.from("tenant_channels").select("kind, status, number_e164, config").eq("tenant_id", tenantId),
     supabase.from("messages").select("channel_ts, created_at").eq("tenant_id", tenantId).eq("direction", "inbound").eq("channel", "whatsapp")
@@ -94,6 +94,12 @@ export async function setupDtoFor(
     calendarWeek({ supabase }, tenantId, { from: null, days: 7 }, now, { canAct: false }).catch(() => null),
     viewer.kind === "member" ? teamRoster(supabase, tenantId) : teamCounts(supabase, tenantId),
     supabase.from("contacts").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("consent", "opted_in").is("erased_at", null),
+    // The OTHER answer, counted on its own column. `dnc` is excluded here and not
+    // above because a do-not-contact blocks a promotion outright, and the row this
+    // feeds is the one that says whether a broadcast can go out at all -- the same
+    // condition `contacts_marketing_reachable` (00095) uses.
+    supabase.from("contacts").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId)
+      .eq("marketing_consent", "opted_in").eq("dnc", false).is("erased_at", null),
     supabase.from("notifications").select("created_at").eq("tenant_id", tenantId).eq("subject_type", "setup")
       .order("created_at", { ascending: false }).limit(1).maybeSingle(),
     linesFor(supabase, tenantId),
@@ -174,7 +180,7 @@ export async function setupDtoFor(
       invitesOpen: "invites" in team ? team.invites.length : (team as { invitesOpen: number }).invitesOpen,
       alertEmails: cfg?.notifications?.escalation_emails?.length ?? 0,
     },
-    consent: { yes: yes.count ?? 0 },
+    consent: { yes: yes.count ?? 0, offers: offersYes.count ?? 0 },
     requests: { line: requested.data?.created_at ?? null },
     lines: { rows: lineRows, ready: lineStatus.ready, provider: lineStatus.provider, costs: { local_number_month_usd: lineStatus.costs.local_number_month_usd } },
     google: {

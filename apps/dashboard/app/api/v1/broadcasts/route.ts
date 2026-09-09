@@ -9,11 +9,13 @@ import {
   broadcastName,
   cleanParam,
   eligibleFor,
+  emptyAudienceRefusal,
   numberHealth,
   overLimitRefusal,
   paramLabel,
   parseParamSpec,
   parseTenantConfig,
+  purposeOfTemplate,
   toPersonRowVM,
   type ParamSpec,
   type Audience,
@@ -125,8 +127,15 @@ export const POST = withRoute(async (req, ctx) => {
   } else if (kind === "list") {
     label = PEOPLE_LISTS.find((l) => l.id === audienceId)!.label;
   }
-  const eligible = eligibleFor(rows, kind as AudienceKind, audienceId, savedIds);
-  if (eligible.length === 0) throw new AppError("conflict", "Nobody there has said yes to offers yet. Record their answer on their profile first.", 409);
+  // WHICH yes this send needs, from the template read twenty lines above. The
+  // route used to omit it and take the default, so enrolment demanded marketing
+  // consent for every message -- including `visit_reminder`, the one `utility`
+  // starter, whose whole purpose is reaching somebody about a visit they booked.
+  // The send job derives the same purpose from the same column, so the audience
+  // the route enrols is now the audience the wire will accept.
+  const purpose = purposeOfTemplate(tpl.category);
+  const eligible = eligibleFor(rows, kind as AudienceKind, audienceId, savedIds, purpose);
+  if (eligible.length === 0) throw new AppError("conflict", emptyAudienceRefusal(purpose), 409);
   if (eligible.length > BROADCAST_MAX_RECIPIENTS) throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
 
   // 3b. The number, as WhatsApp has rated it. A flagged number does not

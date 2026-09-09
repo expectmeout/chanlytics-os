@@ -116,11 +116,21 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   }, [templates, tplId]);
 
   const active = audiences.find((a) => bcKey(a) === aud) || audiences[0] || null;
-  // After `active`: the limit check reads the chosen audience's count.
+  // The template comes BEFORE the counts now, because the counts depend on it.
+  //
+  // An audience has two sizes, not one: a `utility` template reaches everybody who
+  // said yes to hearing from the business, a marketing one reaches only those who
+  // separately said yes to offers. The chip used to show a single number computed
+  // before any template was picked, which meant the composer promised an audience
+  // the enrolment route would then refuse. `purpose` is stamped on each template by
+  // the bridge from Meta's own category, so the page never decides it.
+  const tpl = templates.find((t) => t.id === tplId) || null;
+  const purpose = (tpl && tpl.purpose) || "marketing";
+  const sizeOf = (a) => (a && a.counts ? (a.counts[purpose] || 0) : 0);
+  const activeCount = sizeOf(active);
   const number = data.number || null;
   const numberOk = !!(number && number.present && number.health.canSend);
-  const overLimit = !!(active && number && number.health.limitPerDay !== null && active.count > number.health.limitPerDay);
-  const tpl = templates.find((t) => t.id === tplId) || null;
+  const overLimit = !!(active && number && number.health.limitPerDay !== null && activeCount > number.health.limitPerDay);
   const vars = tpl && Array.isArray(tpl.variables) ? tpl.variables : [];
   const SRC = window.TC_SOURCES || { text: "Type it", first_name: "Their first name", business_name: "The business name", booking_link: "The booking link" };
   // A starter's slots come filled in; a template written elsewhere gets a
@@ -136,7 +146,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   // The preview shows an unfilled slot by its name, never as {{n}}.
   const previewValues = vars.map((v, i) => (srcOf(i) === "text" ? (typed[i].trim() || `[${labels[i]}]`) : exampleOf(srcOf(i))));
   const specs = vars.map((v, i) => (srcOf(i) === "text" ? typed[i].trim() : { kind: srcOf(i) }));
-  const ready = !!tpl && !!active && active.count > 0 && filled.every((v) => String(v).trim()) && !busy && numberOk && !overLimit;
+  const ready = !!tpl && !!active && activeCount > 0 && filled.every((v) => String(v).trim()) && !busy && numberOk && !overLimit;
   const preview = tpl ? bcRender(tpl.body_preview, previewValues.map((v) => String(v).trim())) : "";
 
   const rows = data.rows || [];
@@ -210,7 +220,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
           <div className="bc-chips" style={{ flexWrap: "wrap" }}>
             {audiences.map((a) => (
               <button key={bcKey(a)} className={"bc-chip" + (active && bcKey(active) === bcKey(a) ? " active" : "")} onClick={() => setAud(bcKey(a))} title={a.hint} data-testid="bc-audience">
-                {a.label} <span className="bc-chip-count tabular">{a.count}</span>
+                {a.label} <span className="bc-chip-count tabular">{sizeOf(a)}</span>
               </button>
             ))}
           </div>
@@ -274,7 +284,9 @@ const BroadcastsReal = ({ initialSegment = null }) => {
         <div className="bc-meta">
           <Icon name="shield" size={11} />
           <span>
-            {active ? `${active.count} ${active.count === 1 ? "person" : "people"} on “${active.label}” said yes` : "Pick who this goes to"}
+            {active
+              ? `${activeCount} ${activeCount === 1 ? "person" : "people"} on “${active.label}” said yes${purpose === "marketing" ? " to offers" : " to messages"}`
+              : "Pick who this goes to"}
             {" · "}people who asked to stop, have no number, or are mid-thread with a person are held back at the wire · sent 25 at a time
           </span>
         </div>
@@ -286,7 +298,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
         )}
         {number && number.present && !number.health.canSend && <div className="bc-excl-hint" data-testid="bc-number-refusal">{number.health.refusal}</div>}
         {overLimit && active && number && (
-          <div className="bc-excl-hint" data-testid="bc-over-limit">This number can start up to {number.health.limitPerDay.toLocaleString()} new conversations a day; “{active.label}” is {active.count.toLocaleString()}. Send to a smaller list or split it.</div>
+          <div className="bc-excl-hint" data-testid="bc-over-limit">This number can start up to {number.health.limitPerDay.toLocaleString()} new conversations a day; “{active.label}” is {activeCount.toLocaleString()}. Send to a smaller list or split it.</div>
         )}
         <div className="bc-actions">
           <input className="bc-subject" type="text" placeholder="Name this broadcast (optional)" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} style={{ flex: 1 }} />
@@ -295,8 +307,12 @@ const BroadcastsReal = ({ initialSegment = null }) => {
           <button className="btn btn-primary btn-sm" disabled={!ready || !canSend} onClick={() => submit(false)} data-testid="bc-send">Send now</button>
         </div>
         {!canSend && <div className="bc-excl-hint">Only an owner or operator can send.</div>}
-        {canSend && active && active.count === 0 && (
-          <div className="bc-excl-hint" data-testid="bc-nobody">Nobody on “{active.label}” has said yes to offers yet. Record their answer on their profile first.</div>
+        {canSend && active && activeCount === 0 && (
+          <div className="bc-excl-hint" data-testid="bc-nobody">
+            {purpose === "marketing"
+              ? <>Nobody on “{active.label}” has said yes to offers yet — that is a separate answer from saying yes to messages. Record it under “Offers and news” on their profile, or get their yes with the phrase and QR below.</>
+              : <>Nobody on “{active.label}” has said yes to messages yet. Record it on their profile, or get their yes with the phrase and QR below.</>}
+          </div>
         )}
       </section>
 

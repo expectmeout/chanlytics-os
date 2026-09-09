@@ -35,14 +35,49 @@ test("sources: four a person can pick, one reset that is never offered, words fo
   assert.equal(consentSourceLabel("import"), "import", "an unknown source is shown as itself, never hidden");
 });
 
-test("the offers list is exactly the people who said yes, and sits beside the opted-out", () => {
-  const offers = PEOPLE_LISTS.find((l) => l.id === "opted_in");
+test("TWO lists, because there are two answers: one for messages, one for offers", () => {
+  // THE DEFECT. One list was labelled "Can receive offers" and tested the
+  // CONVERSATIONAL column -- which after 00095 is the one answer that says nothing
+  // about offers. A person opening it to find their promotional audience was shown
+  // everybody who had ever texted START, and the composer then refused all of them.
+  // The id is unchanged: a saved broadcast's audience refers to it by id.
+  const talk = PEOPLE_LISTS.find((l) => l.id === "opted_in");
+  assert.equal(talk.label, "Said yes to messages");
+  assert.equal(talk.test({ consent: { state: "opted_in", marketing: "unknown" } }), true);
+  assert.equal(talk.test({ consent: { state: "unknown", marketing: "opted_in" } }), false, "not asked is not a yes");
+
+  const offers = PEOPLE_LISTS.find((l) => l.id === "offers_ok");
   assert.equal(offers.label, "Can receive offers");
-  assert.equal(offers.test({ consent: { state: "opted_in" } }), true);
-  assert.equal(offers.test({ consent: { state: "unknown" } }), false, "not asked is not a yes");
-  assert.equal(offers.test({ consent: { state: "opted_out" } }), false);
-  assert.ok(PEOPLE_LISTS.findIndex((l) => l.id === "opted_in") < PEOPLE_LISTS.findIndex((l) => l.id === "opted_out"));
-  assert.ok(readCode("apps/dashboard/src/legacy/pages/clients-a.jsx").includes('opted_in: "Said yes to offers by WhatsApp'), "the rail explains the list");
+  assert.equal(offers.test({ consent: { state: "opted_in", marketing: "opted_in" } }), true);
+  assert.equal(offers.test({ consent: { state: "opted_in", marketing: "unknown" } }), false, "a yes to messages is not a yes to offers");
+  assert.equal(offers.test({ consent: { state: "opted_in", marketing: "opted_out" } }), false);
+  // consentOf folds a STOP or a do-not-contact into BOTH answers, so this list can
+  // never hold somebody who asked us to stop.
+  assert.equal(offers.test({ consent: { state: "opted_out", marketing: "opted_out" } }), false);
+
+  const at = (id) => PEOPLE_LISTS.findIndex((l) => l.id === id);
+  assert.ok(at("opted_in") < at("offers_ok") && at("offers_ok") < at("opted_out"), "the two yeses, then the no");
+  const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
+  assert.ok(page.includes('offers_ok: "Said yes to OFFERS, separately'), "the rail explains which yes");
+  // And the column titled Offers reads the offers answer.
+  assert.ok(page.includes("const offers = PL_OFFERS[p.consent.marketing] || PL_OFFERS.unknown;"));
+  assert.ok(page.includes('title={p.consent.marketingSub}'), "and its tooltip is that answer's own history");
+});
+
+test("the second door: an operator can record a signed marketing consent", () => {
+  // 00095 designed `set_marketing_consent` for "ONE function, two callers ... a
+  // text from the customer and a person at the desk recording a form the customer
+  // signed". Only the first was ever built, so the second was impossible -- and
+  // both controls that looked like they did it wrote the other column.
+  const r = readCode("apps/dashboard/app/api/v1/contacts/[id]/marketing-consent/route.ts");
+  assert.ok(r.includes('requireRole(member, "operator");'), "the front desk records answers");
+  assert.ok(r.includes('takeRate(ctx.userId, "consent");'));
+  assert.ok(r.includes('const source = consent === "unknown" ? CONSENT_RESET_SOURCE : body?.source;'), "the same four sources and the same reset as its sibling");
+  assert.ok(r.includes('ctx.supabase.rpc("set_marketing_consent", {'), "the session client, so is_acting_member inside the door sees the caller");
+  assert.ok(r.includes("p_tenant_id: contact.tenant_id,"), "the tenant is the one the contact was READ from under RLS, never from the body");
+  assert.ok(r.includes('if (!contact || contact.erased_at) throw new AppError("not_found", "Contact not found.", 404);'));
+  assert.ok(r.includes('purpose: "marketing", consent, source, note, previous: contact.marketing_consent ?? null,'), "the ledger names the purpose");
+  assert.ok(!/set_contact_consent|p_note: null/.test(r), "REGRESSION: the marketing door must never write the conversational column");
 });
 
 test("the route: operator or owner, a yes or a no needs its source, the reset needs none, the ledger keeps who and how", () => {
@@ -55,13 +90,187 @@ test("the route: operator or owner, a yes or a no needs its source, the reset ne
   assert.ok(readCode("apps/dashboard/src/server/rate-limit.ts").includes('consent: { limit: 60, windowMs: 60_000, noun: "consent changes" }'));
 });
 
-test("the page: the control asks how before it writes, the bridge carries it, a STOP is not undone by the desk", () => {
+test("the page: TWO asks, each asking how before it writes, a STOP is not undone by the desk", () => {
   const b = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");
   assert.ok(b.includes("window.__setPersonConsent = setPersonConsent;") && b.includes("window.__consentSources = CONSENT_SOURCES;"));
-  assert.ok(b.includes("/consent`"));
+  assert.ok(b.includes("window.__setPersonMarketingConsent = setPersonMarketingConsent;"));
+  // One transport, the path chosen by purpose, so neither answer can be posted to
+  // the other's door by a typo in a page.
+  assert.ok(b.includes('conversational: "consent",') && b.includes('marketing: "marketing-consent",'));
+  assert.ok(b.includes("${CONSENT_PATH[purpose]}`"));
+
   const p = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
-  assert.ok(p.includes('data-testid="consent-control"') && p.includes('data-testid="consent-how"'));
+  // The same pair the public /yes page renders, so a reader can see that one may be
+  // given without the other -- which is what error 30913 asked us to show.
+  assert.ok(p.includes('testid="consent-control"') && p.includes('label="Messages about their visit"'));
+  assert.ok(p.includes('testid="consent-marketing"') && p.includes('label="Offers and news"'));
+  assert.ok(p.includes("value={p.consent.state}") && p.includes("value={p.consent.marketing}"), "each ask reads its OWN column");
+  assert.ok(p.includes('onRecord={recordFor("conversational")}') && p.includes('onRecord={recordFor("marketing")}'));
+  assert.ok(p.includes('data-testid={`${testid}-how`}'), "a yes is not written until the page knows how it was given");
   assert.ok(p.includes('window.__ME.role === "operator"'), "operators record answers too");
-  assert.ok(p.includes('if (p.consent.state !== "unknown") recordConsent("unknown", null);'), "the reset writes nothing when there is nothing to reset");
+  assert.ok(p.includes('if (value !== "unknown") record("unknown", null);'), "the reset writes nothing when there is nothing to reset");
   assert.ok(p.includes("Record a yes only if they have asked again themselves."), "a STOP is not undone by the desk");
+  // A STOP stops offers too, so the offers ask has nothing to record while it stands.
+  assert.ok(p.includes("canRecord={canRecord && p.consent.state !== \"opted_out\"}"));
+  assert.ok(p.includes("They asked us to stop, which stops offers too."));
+  assert.ok(!/Offers by WhatsApp/.test(p), "REGRESSION: one control labelled for offers, writing the other column");
+});
+
+/* -------------------------------------------------------------------------- *
+ * The two asks, RENDERED — no browser, no jsdom, no React.
+ *
+ * The two hooks below are the two this component uses, so its body runs for
+ * real: real branching, real clicks, real calls into whatever recorder it was
+ * handed. registration-path.test.mjs names the same tradeoff — a source scan
+ * answers "does this control write the column it is labelled for" badly, and
+ * that is precisely the property that was broken. So it is executed instead.
+ *
+ * What was broken: ONE control labelled "Offers by WhatsApp" calling the
+ * conversational door. Every string in the file agreed it was about offers; the
+ * one line that mattered wrote `contacts.consent`. Only running it and watching
+ * where the write goes catches that.
+ * -------------------------------------------------------------------------- */
+// The hooks are installed BEFORE the import and never replaced, because this file
+// aliases them at module scope (`const { useState: useStateP } = React`). A harness
+// that assigns them inside mount() -- as registration-path.test.mjs does, correctly
+// for a page that calls `React.useState` at its use site -- hands this one
+// `undefined`. So the globals are stable indirections and only what they DELEGATE to
+// is swapped per mount.
+let HOOKS = null;
+globalThis.React = {
+  Fragment: "Fragment",
+  createElement: (type, p, ...kids) => ({ type, props: { ...(p || {}), children: kids.flat(Infinity) } }),
+  useState: (init) => HOOKS.useState(init),
+  useEffect: (fn) => HOOKS.useEffect(fn),
+  useMemo: (fn) => HOOKS.useMemo(fn),
+};
+globalThis.window = { __ME: { role: "operator" } };
+await import("../../../apps/dashboard/src/legacy/pages/client-profile.jsx");
+const Ask = globalThis.window.ConsentAsk;
+assert.equal(typeof Ask, "function", "the ask is published, or nothing below tests anything");
+
+const SOURCES = [
+  { id: "in_person", label: "In person" },
+  { id: "form", label: "Sign-up form" },
+];
+
+function mount(props) {
+  const cells = [];
+  let seq = 0;
+  const hooks = {
+    useState: (init) => {
+      const k = seq++;
+      if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
+      return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }];
+    },
+    useEffect: () => {},
+    useMemo: (fn) => { const k = seq++; if (!(k in cells)) cells[k] = fn(); return cells[k]; },
+  };
+  const draw = () => { HOOKS = hooks; seq = 0; return Ask(props); };
+  let tree = draw();
+  return {
+    get tree() { return tree; },
+    async click(node) {
+      await node.props.onClick();
+      tree = draw();
+      await new Promise((r) => setImmediate(r));
+      tree = draw();
+    },
+  };
+}
+
+const walk = (n, fn) => {
+  if (n == null || typeof n !== "object") return;
+  fn(n);
+  for (const k of n.props?.children ?? []) walk(k, fn);
+};
+const buttons = (root) => { const out = []; walk(root, (n) => { if (n.type === "button") out.push(n); }); return out; };
+const byLabel = (root, text) => buttons(root).find((b) => textOf(b) === text) ?? null;
+const byId = (root, id) => { let hit = null; walk(root, (n) => { if (!hit && n.props?.["data-testid"] === id) hit = n; }); return hit; };
+const textOf = (n) => {
+  const out = [];
+  const rec = (x) => {
+    if (x == null || x === false || x === true) return;
+    if (typeof x === "string" || typeof x === "number") { out.push(String(x)); return; }
+    if (Array.isArray(x)) { x.forEach(rec); return; }
+    if (typeof x === "object") rec(x.props?.children);
+  };
+  rec(n);
+  return out.join(" ").trim();
+};
+
+test("an ask asks HOW before it writes anything, and a yes carries its source", async () => {
+  const wrote = [];
+  const m = mount({
+    label: "Offers and news", value: "unknown", sources: SOURCES, canRecord: true,
+    hint: "h", testid: "t", onRecord: async (consent, source) => { wrote.push({ consent, source }); return { ok: true }; },
+  });
+
+  // Arming is not writing. This is the property the control has always had and the
+  // one a rewrite is most likely to lose.
+  assert.equal(byId(m.tree, "t-how"), null, "not armed yet");
+  await m.click(byLabel(m.tree, "Yes"));
+  assert.deepEqual(wrote, [], "arming a yes writes nothing");
+  assert.ok(byId(m.tree, "t-how"), "it asks how instead");
+
+  await m.click(byLabel(m.tree, "Sign-up form"));
+  assert.deepEqual(wrote, [{ consent: "opted_in", source: "form" }], "and the source rides with it");
+  assert.equal(byId(m.tree, "t-how"), null, "the ask closes after it lands");
+});
+
+test("the reset needs no source, and writes nothing when there is nothing to reset", async () => {
+  const wrote = [];
+  const rec = async (consent, source) => { wrote.push({ consent, source }); return { ok: true }; };
+
+  const already = mount({ label: "L", value: "unknown", sources: SOURCES, canRecord: true, hint: "h", testid: "t", onRecord: rec });
+  await already.click(byLabel(already.tree, "Not asked"));
+  assert.deepEqual(wrote, [], "already 'not asked': nothing to do");
+
+  const set = mount({ label: "L", value: "opted_in", sources: SOURCES, canRecord: true, hint: "h", testid: "t", onRecord: rec });
+  await set.click(byLabel(set.tree, "Not asked"));
+  assert.deepEqual(wrote, [{ consent: "unknown", source: null }], "a reset is immediate and carries no source");
+});
+
+test("a failed write leaves the answer alone and says so", async () => {
+  const m = mount({
+    label: "L", value: "unknown", sources: SOURCES, canRecord: true, hint: "h", testid: "t",
+    onRecord: async () => ({ ok: false, message: "The carriers refused that." }),
+  });
+  await m.click(byLabel(m.tree, "Yes"));
+  await m.click(byLabel(m.tree, "In person"));
+  assert.match(textOf(m.tree), /The carriers refused that\./);
+  // aria-pressed follows the SERVER's value, never the click, so a failed write
+  // cannot leave the control claiming an answer nobody recorded.
+  const yes = byLabel(m.tree, "Yes");
+  assert.equal(yes.props["aria-pressed"], false);
+});
+
+test("a viewer cannot record, and the ask says who can", () => {
+  const m = mount({ label: "L", value: "unknown", sources: SOURCES, canRecord: false, hint: "Nothing recorded.", testid: "t", onRecord: async () => ({ ok: true }) });
+  for (const b of ["Yes", "No", "Not asked"]) assert.equal(byLabel(m.tree, b).props.disabled, true, b);
+  assert.match(textOf(m.tree), /Only an owner or operator can change this\./);
+});
+
+test("THE DEFECT: each ask writes the column it is labelled for", async () => {
+  // The whole point. Two asks, two recorders, and the offers one must reach the
+  // offers door -- which is what one control labelled "Offers by WhatsApp" and
+  // wired to `__setPersonConsent` did not do.
+  const calls = [];
+  const askFor = (label, purpose, value) => mount({
+    label, value, sources: SOURCES, canRecord: true, hint: "h", testid: purpose,
+    onRecord: async (consent, source) => { calls.push({ purpose, consent, source }); return { ok: true }; },
+  });
+
+  const talk = askFor("Messages about their visit", "conversational", "unknown");
+  await talk.click(byLabel(talk.tree, "Yes"));
+  await talk.click(byLabel(talk.tree, "In person"));
+
+  const offers = askFor("Offers and news", "marketing", "unknown");
+  await offers.click(byLabel(offers.tree, "Yes"));
+  await offers.click(byLabel(offers.tree, "Sign-up form"));
+
+  assert.deepEqual(calls, [
+    { purpose: "conversational", consent: "opted_in", source: "in_person" },
+    { purpose: "marketing", consent: "opted_in", source: "form" },
+  ], "each ask reached its own door, in the register it is labelled for");
 });

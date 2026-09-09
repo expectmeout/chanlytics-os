@@ -5,6 +5,7 @@ import {
   EVERYONE_LABEL,
   PEOPLE_LISTS,
   eligibleFor,
+  type AudienceKind,
   numberHealth,
   toPersonRowVM,
   ESCALATION_REASON_LABELS,
@@ -128,7 +129,7 @@ export const READ_TOOLS: ToolDef[] = [
   },
   {
     name: "list_audiences",
-    description: "The audiences a broadcast may go to — everyone who said yes, every People list, every list kept by hand — each with how many said yes to offers and have a number; the approved WhatsApp templates with their values; and whether the number may send. Read this before proposing a broadcast.",
+    description: "The audiences a broadcast may go to — everyone who said yes, every People list, every list kept by hand — each with TWO counts, because there are two consents: said_yes_to_offers (what a promotional template needs) and said_yes_to_messages (what a utility or authentication one needs). Also the approved WhatsApp templates with their category and values, and whether the number may send. Read this before proposing a broadcast, and match the count to the template.",
     input_schema: obj({}, []),
   },
   {
@@ -623,10 +624,19 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     s.add(m.contact_id);
     byList.set(m.segment_id, s);
   }
+  // BOTH sizes for every audience, because this listing is read BEFORE a template
+  // is chosen and the two answers differ. A single `said_yes` here was the
+  // marketing count under a name that did not say so, so the assistant would
+  // report "nobody said yes" about a utility template that could reach everybody
+  // who had ever texted START.
+  const sizes = (kind: AudienceKind, id: string | null, ids: Set<string> | null) => ({
+    said_yes_to_offers: eligibleFor(rows, kind, id, ids, "marketing").length,
+    said_yes_to_messages: eligibleFor(rows, kind, id, ids, "conversational").length,
+  });
   const audiences = [
-    { kind: "everyone", audience_id: null, label: EVERYONE_LABEL, said_yes: eligibleFor(rows, "everyone", null, null).length },
-    ...PEOPLE_LISTS.filter((l) => l.id !== "opted_in" && l.id !== "opted_out").map((l) => ({ kind: "list", audience_id: l.id, label: l.label, said_yes: eligibleFor(rows, "list", l.id, null).length })),
-    ...(segs.data ?? []).map((s) => ({ kind: "saved", audience_id: s.id, label: s.name, said_yes: eligibleFor(rows, "saved", null, byList.get(s.id) ?? new Set<string>()).length })),
+    { kind: "everyone", audience_id: null, label: EVERYONE_LABEL, ...sizes("everyone", null, null) },
+    ...PEOPLE_LISTS.filter((l) => l.id !== "opted_in" && l.id !== "offers_ok" && l.id !== "opted_out").map((l) => ({ kind: "list", audience_id: l.id, label: l.label, ...sizes("list", l.id, null) })),
+    ...(segs.data ?? []).map((s) => ({ kind: "saved", audience_id: s.id, label: s.name, ...sizes("saved", null, byList.get(s.id) ?? new Set<string>()) })),
   ];
   const cfg = (ch.data?.config && typeof ch.data.config === "object" && !Array.isArray(ch.data.config) ? ch.data.config : {}) as Record<string, unknown>;
   const s = (k: string) => (typeof cfg[k] === "string" ? (cfg[k] as string) : null);
@@ -640,7 +650,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
       body: x.body_preview,
     })),
     number: { present: !!ch.data, health: health.label, can_send: health.canSend, limit_per_day: health.limitPerDay === Number.POSITIVE_INFINITY ? null : health.limitPerDay },
-    note: "Only people who said yes can be on a broadcast; the counts are exactly them.",
+    note: "Two consents, two counts. A promotional template reaches said_yes_to_offers; a utility or authentication one reaches said_yes_to_messages. Pick the template first, then read the matching count -- never quote the larger one.",
   };
 }
 

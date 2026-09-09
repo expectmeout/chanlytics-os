@@ -23,7 +23,7 @@ const empty = (over = {}) => ({
   templates: { approved: 0, pending: 0, startersApproved: 0 },
   calendar: { state: "none" },
   team: { members: 1, invitesOpen: 0, alertEmails: 0 },
-  consent: { yes: 0 },
+  consent: { yes: 0, offers: 0 },
   requests: { line: null },
   later: [],
   ...over,
@@ -38,7 +38,7 @@ const live = (over = {}) => empty({
   templates: { approved: 6, pending: 0, startersApproved: 5 },
   calendar: { state: "ok" },
   team: { members: 2, invitesOpen: 0, alertEmails: 1 },
-  consent: { yes: 3 },
+  consent: { yes: 3, offers: 1 },
   ...over,
 });
 const row = (vm, id) => vm.rows.find((r) => r.id === id);
@@ -101,7 +101,18 @@ test("a workspace that answers everywhere: eight of nine — the kept number is 
   assert.ok(row(vm, "whatsapp").details.includes("Quality green"));
   assert.ok(row(vm, "whatsapp").details.includes("6 approved messages"));
   assert.equal(row(vm, "team").sentence, "2 people · alerts go to 1 address.");
-  assert.equal(row(vm, "yes").sentence, "3 people said yes to offers.");
+  // The OFFERS answer decides this row, because a marketing broadcast is what its
+  // verb opens. It used to read the conversational count and call it "said yes to
+  // offers", so a workspace with three people who had texted START was told it had
+  // three it could send an offer to, and the composer then refused all three.
+  assert.equal(row(vm, "yes").sentence, "1 person said yes to offers.");
+  assert.deepEqual(row(vm, "yes").details, ["3 people said yes to messages about their own visit"],
+    "and the other count rides along, so the owner knows what to go and ask for");
+  const none = setupSteps({ ...live(), consent: { yes: 3, offers: 0 } }, NOW);
+  assert.equal(row(none, "yes").sentence, "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.");
+  assert.equal(row(none, "yes").state, "not_started", "three conversational yeses do not make this row ready");
+  const both = setupSteps({ ...live(), consent: { yes: 3, offers: 3 } }, NOW);
+  assert.deepEqual(row(both, "yes").details, [], "nothing to add when the two agree");
   assert.equal(vm.rows.every((r) => !r.later), true);
 });
 

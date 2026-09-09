@@ -670,8 +670,9 @@ const PL_LIST_TIP = {
   new_week: "First contact in the last 7 days, by evidence — imported history never counts",
   quiet: "No message or call in 30 days",
   phoned_only: "Only ever phoned — no WhatsApp thread",
-  opted_in: "Said yes to offers by WhatsApp — the only people a broadcast may reach",
-  opted_out: "Asked to stop; the receptionist stays silent",
+  opted_in: "Said yes to hearing from you — replies and messages about their own visit",
+  offers_ok: "Said yes to OFFERS, separately — the only people a promotional broadcast may reach",
+  opted_out: "Asked to stop; the receptionist stays silent, offers included",
   booked: "An appointment ahead on your calendar — the booking is the conversion",
   booked_week: "An appointment in the next seven days",
   asked_never_booked: "Wrote or called in the last 30 days, and your calendar has never had them — the people you can still win",
@@ -685,10 +686,16 @@ const plLoadView = () => {
 };
 const plSaveView = (v) => { try { localStorage.setItem(PL_VIEW_KEY, JSON.stringify(v)); } catch { /* private mode */ } };
 // A selection as a CSV, in the columns the page shows — nothing the schema does not hold.
+// The "Offers" column reads the OFFERS answer. It read `consent.state` -- the
+// conversational one -- so the column titled Offers showed Yes for everybody who
+// had ever texted START, and the composer then refused every one of them.
+const PL_OFFERS = { opted_in: ["Yes", "yes"], opted_out: ["No", "no"], unknown: ["Not asked", "unasked"] };
 const plCsv = (rows) => {
   const esc = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
-  const head = ["Name", "Phone", "State", "Last contact", "Consent", "Next visit", "First contact"];
-  const lines = rows.map((p) => [p.name, p.phone || "", p.stateLabel, p.lastContact.label, p.consent.label, p.nextVisit || "", p.firstContact.label].map(esc).join(","));
+  // Both answers, because "Consent" alone cannot say which one it means -- and the
+  // one an audit asks about is the offers column, which this file did not carry.
+  const head = ["Name", "Phone", "State", "Last contact", "Consent", "Offers", "Next visit", "First contact"];
+  const lines = rows.map((p) => [p.name, p.phone || "", p.stateLabel, p.lastContact.label, p.consent.label, (PL_OFFERS[p.consent.marketing] || PL_OFFERS.unknown)[0], p.nextVisit || "", p.firstContact.label].map(esc).join(","));
   return [head.map(esc).join(","), ...lines].join("\r\n");
 };
 const plDownload = (name, text) => {
@@ -949,7 +956,6 @@ const PL_SORT_KEYS = ["last", "name", "state", "visits", "offers"];
 
 const plIsNumber = (name) => /^[+\d(]/.test(name || "");
 const plWhen = (iso) => { if (!iso) return undefined; const d = new Date(iso); return Number.isNaN(d.getTime()) ? undefined : d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" }); };
-const PL_OFFERS = { opted_in: ["Yes", "yes"], opted_out: ["No", "no"], unknown: ["Not asked", "unasked"] };
 
 // The row's own next steps, on hover: the thread, and the booking link when
 // there is one — a reply carried in inside the 24-hour window, the template
@@ -994,7 +1000,7 @@ const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, o
       <tbody>
         {rows.map((p) => {
           const numbered = plIsNumber(p.name);
-          const offers = PL_OFFERS[p.consent.state] || PL_OFFERS.unknown;
+          const offers = PL_OFFERS[p.consent.marketing] || PL_OFFERS.unknown;
           return (
             <tr key={p.id} id={`person-${p.id}`} className={`${sel.has(p.id) ? "selected" : ""} ${cursor === p.id ? "focused" : ""}`} onClick={() => onOpen(p.id)}>
               {selectable && (
@@ -1039,7 +1045,7 @@ const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, o
                   </td>
                 )
                 : <td className="cl-recept-cell"><PeopleReceptionist r={p.receptionist} /></td>}
-              <td className="shrink cl-offers-cell" title={p.consent.sub} data-testid="row-offers"><span className={`cl-row-offers ${offers[1]}`}>{offers[0]}</span></td>
+              <td className="shrink cl-offers-cell" title={p.consent.marketingSub} data-testid="row-offers"><span className={`cl-row-offers ${offers[1]}`}>{offers[0]}</span></td>
               <td className="shrink cl-actions-cell"><PeopleRowActions p={p} bookingLink={bookingLink} /></td>
             </tr>
           );
@@ -1099,9 +1105,22 @@ const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash })
     setBusy(false); setNaming(false); setName("");
     flash({ msg: a.ok ? <>{ids.length} on the new list <b>{n}</b></> : <>{a.message}</> });
   };
-  const yes = (source) => run(
-    () => window.__setPersonConsentMany(ids, { consent: "opted_in", source: source.id }),
-    (r) => <>A yes on record for <b>{r.done}</b>{r.failed ? ` · ${r.failed} not recorded` : ""} · {source.label.toLowerCase()}</>,
+  // A yes recorded for a whole class at once — and WHICH yes, because they are two
+  // separate answers and only one of them puts a person on a broadcast. This
+  // control was titled for offers and wrote the conversational column, so a salon
+  // recording thirty signed marketing consents changed the one field that does not
+  // authorise a promotion, and the composer then refused all thirty.
+  const yes = (purpose, source) => run(
+    () => (purpose === "marketing" ? window.__setPersonMarketingConsentMany : window.__setPersonConsentMany)(
+      ids,
+      { consent: "opted_in", source: source.id },
+    ),
+    (r) => (
+      <>
+        {purpose === "marketing" ? "A yes to offers" : "A yes to messages"} on record for <b>{r.done}</b>
+        {r.failed ? ` · ${r.failed} not recorded` : ""} · {source.label.toLowerCase()}
+      </>
+    ),
   );
   const exportCsv = () => { plDownload(`people-${new Date().toISOString().slice(0, 10)}.csv`, plCsv(picked)); flash({ msg: <>{picked.length} exported as a CSV</> }); };
   const sources = (window.__consentSources || []).filter((s) => s.id !== "customer_message");
@@ -1131,9 +1150,14 @@ const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash })
         <MoreMenu
           btnClass="btn btn-sm"
           label="Record a yes"
-          title="A yes to offers by WhatsApp — say how it was given"
+          title="Which yes, and how it was given — the two are separate answers"
           gated={busy ? "One moment — the last change is still saving" : null}
-          items={[{ header: "They said yes…" }, ...sources.map((s) => ({ label: s.label, icon: "check", onClick: () => yes(s) }))]}
+          items={[
+            { header: "Yes to messages about their visit…" },
+            ...sources.map((s) => ({ label: s.label, icon: "check", onClick: () => yes("conversational", s) })),
+            { header: "Yes to offers and news…" },
+            ...sources.map((s) => ({ label: s.label, icon: "tag", onClick: () => yes("marketing", s) })),
+          ]}
         />
       )}
       {canExport && <button className="btn btn-sm" disabled={busy} onClick={exportCsv} data-testid="bulk-export"><Icon name="external" size={12} /> Export CSV</button>}
@@ -1261,7 +1285,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         case "state": av = order[a.state]; bv = order[b.state]; break;
         // Ahead first (soonest), then the most recent visit, then never.
         case "visits": { const none = sortDir === "asc" ? Infinity : -Infinity; av = a.nextVisitMs ?? (a.lastVisitMs !== null ? 1e15 + (1e15 - a.lastVisitMs) : none); bv = b.nextVisitMs ?? (b.lastVisitMs !== null ? 1e15 + (1e15 - b.lastVisitMs) : none); break; }
-        case "offers": { const rank = { opted_in: 0, unknown: 1, opted_out: 2 }; av = rank[a.consent.state] ?? 1; bv = rank[b.consent.state] ?? 1; if (av === bv) { av = a.lastContact.ts ?? -Infinity; bv = b.lastContact.ts ?? -Infinity; } break; }
+        case "offers": { const rank = { opted_in: 0, unknown: 1, opted_out: 2 }; av = rank[a.consent.marketing] ?? 1; bv = rank[b.consent.marketing] ?? 1; if (av === bv) { av = a.lastContact.ts ?? -Infinity; bv = b.lastContact.ts ?? -Infinity; } break; }
         default: av = a.lastContact.ts ?? -Infinity; bv = b.lastContact.ts ?? -Infinity;
       }
       if (av < bv) return sortDir === "asc" ? -1 : 1;

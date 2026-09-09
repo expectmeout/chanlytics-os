@@ -613,8 +613,17 @@ export const PEOPLE_LISTS: readonly { id: string; label: string; group: PeopleLi
   { id: "quiet", label: "Quiet 30+ days", group: "reach", test: (v) => v.state === "quiet" },
   { id: "phoned_only", label: "Phoned only", group: "reach", test: (v) => !v.hasChat && v.calls > 0 },
   // A fact, not the state: someone who opted out AND needs you is in both lists.
-  // The only people a broadcast may reach: they said yes, and it is on record.
-  { id: "opted_in", label: "Can receive offers", group: "reach", test: (v) => v.consent.state === "opted_in" },
+  //
+  // TWO LISTS, BECAUSE THERE ARE TWO ANSWERS. This one was labelled "Can receive
+  // offers" and tested the CONVERSATIONAL column, which after 00095 is the one
+  // answer that says nothing about offers -- so the list a person opened to find
+  // their promotional audience showed everybody who had ever texted START. The id
+  // is unchanged on purpose: a saved broadcast's audience refers to it by id, and
+  // renaming it would repoint filings that have already gone out.
+  { id: "opted_in", label: "Said yes to messages", group: "reach", test: (v) => v.consent.state === "opted_in" },
+  // The promotional audience, on its own column. The only people a MARKETING
+  // broadcast may reach.
+  { id: "offers_ok", label: "Can receive offers", group: "reach", test: (v) => v.consent.marketing === "opted_in" },
   { id: "opted_out", label: "Opted out", group: "reach", test: (v) => v.consent.state === "opted_out" },
 ];
 
@@ -636,21 +645,38 @@ const LIST_STEPS: Record<string, { cta: string; to: string; broadcast?: boolean;
   asked_never_booked: { cta: "Text the booking link", to: "broadcasts/asked_never_booked", broadcast: true },
   lapsed: { cta: "Win them back", to: "broadcasts/lapsed", broadcast: true },
   quiet: { cta: "Reach out", to: "broadcasts/quiet", broadcast: true },
-  opted_in: { cta: "New broadcast", to: "broadcasts", broadcast: true },
+  // The broadcast step belongs to the OFFERS list, not to this one: a person on
+  // this list has said yes to hearing from the business, which is not a yes to a
+  // promotion. Sending them here with "New broadcast" is what made the empty
+  // audience feel like a bug in the composer rather than a missing answer.
+  opted_in: { cta: "Get their yes to offers", to: "broadcasts", text: "They answer and hear about their own visits. Offers need a second, separate yes." },
+  offers_ok: { cta: "New broadcast", to: "broadcasts", broadcast: true },
 };
 
 /**
  * The obvious next step for a list, when it has one. A broadcast reaches
  * only a recorded yes, so the sentence says how many of the list said it,
  * and the button waits until someone has.
+ *
+ * WHICH yes it counts is the MARKETING one, because these steps all open the
+ * composer on a promotional send (win them back, reach the quiet ones, run an
+ * offer). Counting the conversational answer here promised an audience the
+ * composer would then refuse -- the same mismatch, one screen earlier.
  */
 export function peopleListAction(id: string, members: PersonRowVM[]): PeopleListAction | null {
   const step = LIST_STEPS[id];
   if (!step) return null;
   if (!step.broadcast) return { text: step.text ?? "", cta: step.cta, to: step.to, enabled: members.length > 0 };
-  const yes = members.filter((m) => m.consent.state === "opted_in").length;
-  if (yes === 0) return { text: members.length ? "Nobody on this list has said yes yet — a broadcast reaches only a recorded yes." : "Nobody here right now.", cta: step.cta, to: step.to, enabled: false };
-  return { text: `${yes} of ${members.length} on this list said yes — a broadcast reaches them.`, cta: step.cta, to: step.to, enabled: true };
+  const yes = members.filter((m) => m.consent.marketing === "opted_in").length;
+  if (yes === 0) {
+    return {
+      text: members.length
+        ? "Nobody on this list has said yes to offers yet — a broadcast reaches only that answer. The phrase and the QR are on Broadcasts."
+        : "Nobody here right now.",
+      cta: step.cta, to: step.to, enabled: false,
+    };
+  }
+  return { text: `${yes} of ${members.length} on this list said yes to offers — a broadcast reaches them.`, cta: step.cta, to: step.to, enabled: true };
 }
 
 export interface PeopleAggregates {

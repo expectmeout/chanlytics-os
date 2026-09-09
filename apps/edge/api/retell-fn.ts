@@ -16,7 +16,9 @@
  *   agent_id -> tenant_channels(kind='voice')  (the routing every voice
  *               endpoint already used; this one simply never asked)
  *   -> tenant runtime for the persona facts and the per-tenant credentials
- *   -> consent, checked with the same predicate as the send job
+ *   -> consent, checked with the same predicate as the send job — `mayMessageFor`,
+ *      asked with this message's purpose, so the bar is the message's and not
+ *      this file's
  *   -> sendTemplate (bounded by the adapter's timeout, returns instead of throwing)
  *   -> recorded in messages, so the business can see what it sent
  *
@@ -29,11 +31,41 @@ import { pg } from "../lib/pg.js";
 import { loadTenantRuntime, waCfgFor } from "../lib/tenant-runtime.js";
 import { effectiveReplyMode } from "../lib/reply-posture.js";
 import { resolveChannel, resolveOutboundTarget, recordOutbound, countSentToday, personReplyMode } from "../lib/workspace/db.js";
-import { isOptedOutContact, normalizePhone, resolveFacts } from "../lib/workspace/contracts.js";
+import { normalizePhone, resolveFacts } from "../lib/workspace/contracts.js";
 import { sendTemplate } from "../lib/workspace/channels.js";
 import { outboundGate, refusalScript } from "../lib/outbound-gate.js";
 
-const BOOKING_TEMPLATE = { name: "booking_link_v1", language: "en_US" };
+/**
+ * The one template this path sends.
+ *
+ * `purpose` IS STATED HERE, and deliberately not read from `templates.category`.
+ * On the live workspace that row's category is `marketing`, so
+ * `purposeOfTemplate` would call this send promotional and refuse it to every
+ * caller who has not separately asked for offers - which is every first-time
+ * caller, and which is the over-block migration 00095 exists to remove arriving in
+ * a new place.
+ *
+ * The two are answering different questions and only one of them is about consent.
+ * Meta's `category` is a WhatsApp PRICING and template-policy label; it is not a
+ * statement about US carrier consent, and WhatsApp is not 10DLC. The consent
+ * question here is answered by the call itself: the customer placed it, asked out
+ * loud for this link, and the number it goes to is the one they are calling from
+ * (which is why `resolveOutboundTarget` is given `create: isCaller`). A message
+ * containing exactly what its recipient just requested is solicited, whatever
+ * Meta's billing tier calls it.
+ *
+ * So the BROADCAST path and this path treat the same template differently, on
+ * purpose: a booking link sent to a list nobody asked from is promotional and needs
+ * the offers answer; the same words sent to the person who just asked for them are
+ * not. Before this, the two differed because one of them had simply never been
+ * asked the question - now they differ because the purpose does, declared at each
+ * site with its reason.
+ *
+ * (Recategorising `booking_link_v1` to `utility` at Meta would make the label agree
+ * with the use, and is worth doing - but the consent decision above does not wait
+ * on it, and must not be silently reversed by a template sync.)
+ */
+const BOOKING_TEMPLATE = { name: "booking_link_v1", language: "en_US", purpose: "conversational" as const };
 /** meta.source stamped on voice-initiated sends — also the key the daily cap counts. */
 const VOICE_SEND_SOURCE = "voice_booking_link";
 /** Per THREAD per day. A caller asking twice in one call is normal; thirty is not. */
@@ -147,8 +179,19 @@ export async function POST(request: Request): Promise<Response> {
     // exists to prevent — and it kept sending after a workspace had switched
     // its receptionist to 'ask'. Both are the same class of bug: a second
     // sender assembled by hand instead of going through the same door.
+    //
+    // WHOSE NUMBER decides whether this send is proactive, and it is the last
+    // hole in this path. Texting the person on the line ANSWERS them: they placed
+    // the call, they asked for the link, and the number is the one they are
+    // calling from — `resolveOutboundTarget` was given `create: isCaller` for
+    // that same reason. Texting a number somebody merely spoke aloud STARTS a
+    // conversation with a third party who has not asked for anything, and that
+    // needs their own recorded yes. Passing `optedOut` alone could not tell the
+    // two apart, so it let the second case through.
     const gate = outboundGate({
-      optedOut: isOptedOutContact(contact),
+      contact: { consent: contact.consent, dnc: contact.dnc, marketing_consent: contact.marketingConsent },
+      purpose: BOOKING_TEMPLATE.purpose,
+      proactive: !isCaller,
       paused: rt.paused,
       pausedUntilMs: contact.pausedUntil ? new Date(contact.pausedUntil).getTime() : null,
       replyMode,

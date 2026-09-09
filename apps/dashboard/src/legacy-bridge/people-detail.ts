@@ -104,11 +104,22 @@ export async function setPersonReceptionist(id: string, mode: "auto" | "ask" | "
 }
 
 /**
- * The customer's answer about offers by WhatsApp: `window.__setPersonConsent(id, body)`.
+ * A customer's answer, recorded by whoever heard it.
+ *
+ * TWO QUESTIONS, TWO DOORS, and they are never interchangeable:
+ *
+ *   "conversational"  messages about their own visit, and a reply when they
+ *                     write. `window.__setPersonConsent(id, body)`.
+ *   "marketing"       offers and news. `window.__setPersonMarketingConsent(...)`.
+ *
+ * The carriers require them collected separately (error 30913) and the database
+ * keeps them in separate columns (00095). Both controls in this product used to
+ * say "offers" and write the conversational column, so a signed marketing consent
+ * could not be recorded at all — which is what this second door fixes.
  *
  * { consent: "opted_in" | "opted_out", source } or { consent: "unknown" }.
- * Owner or operator on the server. The list is re-fetched afterwards because
- * the Consent column and the "Can receive offers" list read from it.
+ * Owner or operator on the server. The list is re-fetched afterwards because the
+ * Consent column and both consent lists read from it.
  */
 export interface ConsentBody {
   consent: "opted_in" | "opted_out" | "unknown";
@@ -116,9 +127,17 @@ export interface ConsentBody {
   note?: string;
 }
 
-async function putConsent(id: string, body: ConsentBody): Promise<DeleteResult> {
+/** Which answer is being recorded, and therefore which door it goes through. */
+export type ConsentPurpose = "conversational" | "marketing";
+
+const CONSENT_PATH: Record<ConsentPurpose, string> = {
+  conversational: "consent",
+  marketing: "marketing-consent",
+};
+
+async function putConsent(id: string, body: ConsentBody, purpose: ConsentPurpose): Promise<DeleteResult> {
   try {
-    const res = await fetch(scoped(`/api/v1/contacts/${encodeURIComponent(id)}/consent`), {
+    const res = await fetch(scoped(`/api/v1/contacts/${encodeURIComponent(id)}/${CONSENT_PATH[purpose]}`), {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
@@ -138,12 +157,21 @@ async function putConsent(id: string, body: ConsentBody): Promise<DeleteResult> 
   }
 }
 
-export async function setPersonConsent(id: string, body: ConsentBody): Promise<DeleteResult> {
-  const r = await putConsent(id, body);
+async function recordOne(id: string, body: ConsentBody, purpose: ConsentPurpose): Promise<DeleteResult> {
+  const r = await putConsent(id, body, purpose);
   if (!r.ok) return r;
   invalidateInFlight();
   await refreshSurfaces([peopleOverride]);
   return r;
+}
+
+export async function setPersonConsent(id: string, body: ConsentBody): Promise<DeleteResult> {
+  return recordOne(id, body, "conversational");
+}
+
+/** Their answer about OFFERS, on its own column and its own ledger entry. */
+export async function setPersonMarketingConsent(id: string, body: ConsentBody): Promise<DeleteResult> {
+  return recordOne(id, body, "marketing");
 }
 
 /**
@@ -154,13 +182,13 @@ export async function setPersonConsent(id: string, body: ConsentBody): Promise<D
  */
 export interface ManyResult { ok: boolean; done: number; failed: number; message?: string }
 
-export async function setPersonConsentMany(ids: string[], body: ConsentBody): Promise<ManyResult> {
+async function recordMany(ids: string[], body: ConsentBody, purpose: ConsentPurpose): Promise<ManyResult> {
   const take = [...new Set(ids)].slice(0, 50);
   let done = 0;
   let failed = 0;
   let message: string | undefined;
   for (const id of take) {
-    const r = await putConsent(id, body);
+    const r = await putConsent(id, body, purpose);
     if (r.ok) done += 1;
     else { failed += 1; message = message ?? r.message; }
   }
@@ -169,11 +197,22 @@ export async function setPersonConsentMany(ids: string[], body: ConsentBody): Pr
   return { ok: failed === 0, done, failed, message: failed ? `${failed} could not be recorded${message ? ` — ${message}` : ""}` : undefined };
 }
 
+export async function setPersonConsentMany(ids: string[], body: ConsentBody): Promise<ManyResult> {
+  return recordMany(ids, body, "conversational");
+}
+
+/** A signed marketing consent recorded for a whole class at once. */
+export async function setPersonMarketingConsentMany(ids: string[], body: ConsentBody): Promise<ManyResult> {
+  return recordMany(ids, body, "marketing");
+}
+
 declare global {
   interface Window {
     __personDetail?: (id: string) => Promise<PersonVM | null>;
     __setPersonConsent?: (id: string, body: ConsentBody) => Promise<DeleteResult>;
     __setPersonConsentMany?: (ids: string[], body: ConsentBody) => Promise<ManyResult>;
+    __setPersonMarketingConsent?: (id: string, body: ConsentBody) => Promise<DeleteResult>;
+    __setPersonMarketingConsentMany?: (ids: string[], body: ConsentBody) => Promise<ManyResult>;
     __consentSources?: readonly { id: string; label: string }[];
     __deletePerson?: (id: string) => Promise<DeleteResult>;
     __setPersonDetails?: (id: string, body: DetailsBody) => Promise<DeleteResult>;
@@ -219,5 +258,7 @@ export function installPeopleCourier(): void {
   window.__deletePerson = deletePerson;
   window.__setPersonReceptionist = setPersonReceptionist;
   window.__setPersonConsent = setPersonConsent;
+  window.__setPersonMarketingConsent = setPersonMarketingConsent;
+  window.__setPersonMarketingConsentMany = setPersonMarketingConsentMany;
   window.__consentSources = CONSENT_SOURCES;
 }

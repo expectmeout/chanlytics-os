@@ -172,18 +172,22 @@ async function getOrCreateContact(
   db: Db,
   tenantId: string,
   phoneE164: string,
-): Promise<{ id: string; consent: string; dnc: boolean }> {
+): Promise<{ id: string; consent: string; dnc: boolean; marketing_consent: string }> {
   const { data, error } = await db
     .from("contacts")
     .insert({ tenant_id: tenantId, phone_e164: phoneE164, last_seen_at: new Date().toISOString() })
-    .select("id, consent, dnc")
+    // `marketing_consent` rides along so every caller holding this row can answer
+    // BOTH consent questions without a second read. On the insert path it is the
+    // column default, 'unknown' -- which is the honest answer for somebody who has
+    // never been asked, and the one that fails closed on a promotion.
+    .select("id, consent, dnc, marketing_consent")
     .single();
   if (!error && data) return data;
   if (error && error.code !== "23505") throw new Error(`get_or_create_contact: ${error.message}`);
 
   const { data: raced, error: reErr } = await db
     .from("contacts")
-    .select("id, consent, dnc")
+    .select("id, consent, dnc, marketing_consent")
     .eq("tenant_id", tenantId)
     .eq("phone_e164", phoneE164)
     .single();
@@ -198,6 +202,15 @@ export interface OutboundTarget {
    *  without having been handed the consent state. */
   consent: string | null;
   dnc: boolean;
+  /**
+   * The OTHER answer: offers, specifically (00095).
+   *
+   * Carried for exactly the reason the two above are — a sender that is not
+   * handed the fact cannot honour it — and its absence is why the voice path
+   * could only ever ask half the question. The shape is now a `PurposeBearing`,
+   * so `mayMessageFor` can be asked about either purpose without a second read.
+   */
+  marketingConsent: string | null;
   /** A human has this thread until then. Carried for the same reason consent
    *  is: a sender that is not handed the fact cannot honour it. */
   pausedUntil: string | null;
@@ -227,7 +240,7 @@ export async function resolveOutboundTarget(
   if (!phone) return null;
   const { data: existing, error: selErr } = await db
     .from("contacts")
-    .select("id, consent, dnc")
+    .select("id, consent, dnc, marketing_consent")
     .eq("tenant_id", p.tenantId)
     .eq("phone_e164", phone)
     .maybeSingle();
@@ -263,6 +276,7 @@ export async function resolveOutboundTarget(
     pausedUntil: conv.paused_until ?? null,
     consent: contact.consent ?? null,
     dnc: contact.dnc ?? false,
+    marketingConsent: contact.marketing_consent ?? null,
   };
 }
 

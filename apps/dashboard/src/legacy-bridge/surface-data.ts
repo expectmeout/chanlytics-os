@@ -286,7 +286,7 @@ import {
   type CalendarWeekDto,
   type CalendarVM,
 } from "@chanlytics/contracts";
-import { EVERYONE_LABEL, HELD_REASONS, OFFERS_OPT_IN_PHRASES, eligibleFor, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, type AudienceKind, type BroadcastDto, type BroadcastVM, type NumberHealth } from "@chanlytics/contracts";
+import { EVERYONE_LABEL, HELD_REASONS, OFFERS_OPT_IN_PHRASES, eligibleFor, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, purposeOfTemplate, type AudienceKind, type BroadcastDto, type BroadcastVM, type NumberHealth, type SendPurpose } from "@chanlytics/contracts";
 import { PLAYBOOK_TRIGGERS, eligibleForPlaybook, nextRunLabel, scheduleLine, triggerOf, type PlaybookDto } from "@chanlytics/contracts";
 
 /**
@@ -687,15 +687,36 @@ export interface AudienceOption {
   kind: AudienceKind;
   id: string | null;
   label: string;
-  /** How many of them may receive an offer: a recorded yes and a number. */
-  count: number;
+  /**
+   * How many of them this audience reaches, PER PURPOSE, because there is no one
+   * number any more: a `utility` template needs their yes to messages, a
+   * marketing one needs their separate yes to offers, and the same list has two
+   * different sizes depending on which is picked.
+   *
+   * This used to be a single `count` computed once per surface load, with a
+   * comment promising it was "the number the route will find". The route reads
+   * the chosen template's category; the chip could not, so the promise held only
+   * while both were wrong in the same direction. The page now indexes by the
+   * purpose of the template actually selected.
+   */
+  counts: Record<SendPurpose, number>;
   hint: string;
 }
 
+/**
+ * An approved template with the one thing the composer cannot work out for
+ * itself: WHICH consent sending it needs.
+ *
+ * Stamped here rather than derived in the page, so the composer, the enrolment
+ * route and the send job all read `purposeOfTemplate` of the same column and no
+ * third rule can appear in a `.jsx` file where the compiler cannot see it.
+ */
+export type BroadcastTemplate = TemplateDto & { purpose: SendPurpose };
+
 export interface BroadcastsSurface {
   rows: BroadcastVM[];
-  /** The approved WhatsApp templates, with their variables. */
-  templates: TemplateDto[];
+  /** The approved WhatsApp templates, with their variables and their purpose. */
+  templates: BroadcastTemplate[];
   audiences: AudienceOption[];
   /** The WhatsApp number a broadcast goes out on, and what WhatsApp has said about it. */
   number: { present: boolean; display: string | null; health: NumberHealth };
@@ -737,14 +758,23 @@ export const broadcastsOverride: SurfaceOverride = {
     if (ch instanceof Error) console.error("broadcasts_channels_fetch_failed", ch.message);
     const now = new Date();
     const rows = people.people.map((r) => toPersonRowVM(r, now));
+    // Both purposes, for every audience, so picking a template re-reads a number
+    // rather than recomputing a list. Two passes over the people already in hand.
+    const countsFor = (kind: AudienceKind, id: string | null, ids: Set<string> | null): Record<SendPurpose, number> => ({
+      conversational: eligibleFor(rows, kind, id, ids, "conversational").length,
+      marketing: eligibleFor(rows, kind, id, ids, "marketing").length,
+    });
     const audiences: AudienceOption[] = [
-      { kind: "everyone", id: null, label: EVERYONE_LABEL, count: eligibleFor(rows, "everyone", null, null).length, hint: "Every person with a recorded yes and a number" },
-      // The calendar lists are audiences only when there is a calendar to read them from.
-      ...PEOPLE_LISTS.filter((l) => l.id !== "opted_in" && l.id !== "opted_out" && (!l.needsCalendar || people.calendar?.state === "ok")).map((l) => ({
-        kind: "list" as const, id: l.id, label: l.label, count: eligibleFor(rows, "list", l.id, null).length, hint: `${l.label} — of those who said yes`,
+      { kind: "everyone", id: null, label: EVERYONE_LABEL, counts: countsFor("everyone", null, null), hint: "Everyone with a number whose yes covers the message you pick" },
+      // The calendar lists are audiences only when there is a calendar to read them
+      // from. The three consent lists are never audiences: each is a restatement of
+      // the eligibility filter this list is already crossed with, so picking one
+      // would read as narrowing while changing nothing.
+      ...PEOPLE_LISTS.filter((l) => l.id !== "opted_in" && l.id !== "offers_ok" && l.id !== "opted_out" && (!l.needsCalendar || people.calendar?.state === "ok")).map((l) => ({
+        kind: "list" as const, id: l.id, label: l.label, counts: countsFor("list", l.id, null), hint: `${l.label} — of those whose yes covers this message`,
       })),
       ...(saved instanceof Error ? [] : saved.lists.map((s) => ({
-        kind: "saved" as const, id: s.id, label: s.name, count: eligibleFor(rows, "saved", null, new Set(s.ids)).length, hint: "A list kept by hand — of those who said yes",
+        kind: "saved" as const, id: s.id, label: s.name, counts: countsFor("saved", null, new Set(s.ids)), hint: "A list kept by hand — of those whose yes covers this message",
       }))),
     ];
     if (saved instanceof Error) console.error("broadcasts_lists_fetch_failed", saved.message);
@@ -753,7 +783,11 @@ export const broadcastsOverride: SurfaceOverride = {
     const slug = workspaceOverride.current()?.slug ?? null;
     (window as unknown as { __BROADCASTS?: BroadcastsSurface }).__BROADCASTS = {
       rows: bc.broadcasts.map((b) => toBroadcastVM(b, now)),
-      templates: tpl instanceof Error ? [] : (tpl.templates ?? []).filter((t) => t.channel === "whatsapp" && t.meta_status === "approved"),
+      templates: tpl instanceof Error
+        ? []
+        : (tpl.templates ?? [])
+            .filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")
+            .map((t) => ({ ...t, purpose: purposeOfTemplate(t.category) })),
       audiences,
       number: {
         present: !!wa,
@@ -879,7 +913,11 @@ export const playbooksOverride: SurfaceOverride = {
       timezone: tz,
       calendar: people.calendar?.state ?? "none",
       triggers: PLAYBOOK_TRIGGERS.map((t) => ({ id: t.id, label: t.label, hint: t.hint, cls: t.cls, list: t.list, kind: t.kind, candidates: pool(t.id) })),
-      templates: tpl instanceof Error ? [] : (tpl.templates ?? []).filter((t) => t.channel === "whatsapp" && t.meta_status === "approved"),
+      templates: tpl instanceof Error
+        ? []
+        : (tpl.templates ?? [])
+            .filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")
+            .map((t) => ({ ...t, purpose: purposeOfTemplate(t.category) })),
       number: {
         present: !!wa,
         health: numberHealth({ quality: wa?.quality ?? null, event: wa?.quality_event ?? null, limit: wa?.messaging_limit ?? null }),
