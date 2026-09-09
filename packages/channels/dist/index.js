@@ -4551,6 +4551,26 @@ function reviewSnippet(body, max = 90) {
 var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS3 = 7 * 864e5;
 var DATE_FMT6 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+function registrationPathOf(saved) {
+  if (!saved) return null;
+  return String(saved.ein ?? "").trim() ? "standard" : "sole_proprietor";
+}
+var SOLE_PROP_LIMITS = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+var REGISTRATION_COST_WORDS = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
+};
+var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
 var SignupSchema = external_exports.object({
@@ -5900,43 +5920,11 @@ var A2P_POLICIES = {
   starterCustomerProfile: "RN806dd6cd175f314e1f96a9727ee271f4",
   soleProprietor: "RN670d5d2e282a6130ae063b234b6019c8"
 };
-var SOLE_PROP_LIMITS = {
-  campaignsPerBrand: 1,
-  numbersPerCampaign: 1,
-  messagesPerSecond: 1,
-  perDayTMobile: 1e3,
-  perMinuteAtt: 15,
-  /**
-   * TCR counts these across EVERY vendor, not just Chanlytics -- a customer who
-   * tried this with another provider has already spent some. Neither is
-   * checkable by us in advance, so both are said out loud instead.
-   */
-  mobileUsesEver: 3,
-  emailUsesEver: 10,
-  addressUsesEver: 10
-};
 var TRUSTHUB = "https://trusthub.twilio.com/v1";
 var MESSAGING2 = "https://messaging.twilio.com/v1";
 function brandTypeFor(r) {
-  return r.ein && r.ein.trim() ? "STANDARD" : "SOLE_PROPRIETOR";
+  return registrationPathOf(r) === "sole_proprietor" ? "SOLE_PROPRIETOR" : "STANDARD";
 }
-function whatSoleProprietorNeeds(r, ourNumbers = []) {
-  if (r.ein && r.ein.trim()) return [];
-  const missing = [];
-  if (!r.contactFirstName?.trim() || !r.contactLastName?.trim()) missing.push("your first and last name");
-  if (!r.contactEmail?.trim()) missing.push("an email address");
-  if (!r.contactPhone?.trim()) {
-    missing.push("your own mobile number, so the carriers can text you a code to reply to");
-  } else if (ourNumbers.some((n) => normalizeDigits(n) === normalizeDigits(r.contactPhone))) {
-    missing.push("a mobile that is YOUR phone, not the number Chanlytics answers for you \u2014 the carriers text it and you have to reply from the handset");
-  }
-  if (!r.street?.trim() || !r.city?.trim() || !r.region?.trim() || !r.postalCode?.trim()) missing.push("your address");
-  if (r.country && !["US", "CA"].includes(r.country.toUpperCase())) {
-    missing.push("a US or Canadian address \u2014 texting registration is not open to businesses elsewhere");
-  }
-  return missing;
-}
-var normalizeDigits = (v) => String(v ?? "").replace(/[^0-9]/g, "");
 function encodeForm(form2) {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(form2)) {
@@ -6917,7 +6905,6 @@ export {
   SMS_HELD_DETAILS,
   SMS_HELD_REASON,
   SMS_MAX_CHARS,
-  SOLE_PROP_LIMITS,
   STATE_TTL_MS,
   TRUSTHUB,
   TwilioError,
@@ -7062,6 +7049,5 @@ export {
   voiceNumberCreateBody,
   voiceShellDrift,
   voiceShellTools,
-  whatSoleProprietorNeeds,
   withKey
 };

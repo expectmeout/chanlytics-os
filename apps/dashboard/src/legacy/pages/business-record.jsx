@@ -7,15 +7,25 @@
 // come from contracts (business-record.ts) through window.__businessRecord,
 // so the form offers exactly what the carriers accept and nothing else.
 //
-// Opened from the Texting row, filled once, and reused by every later
-// registration. Nothing here says "brand" or "campaign": the owner is
-// telling us who they are, and what that is for is said in one line.
-// Filing is its own button, because it is the only thing in this product
-// that costs money the moment it is pressed.
+// ONE QUESTION FIRST. There are two registrations, they ask different things,
+// and the narrow one cannot be withdrawn — so nothing is rendered until it is
+// known which one this is. That is three states, not two: a path, or the
+// question, or "still reading". A form that guessed from an empty tax-id box
+// would either demand an EIN of a business that has none, or quietly file the
+// permanent one-message-a-second registration for a business that does not
+// need it.
+//
+// Nothing here decides anything: which fields, what counts as complete, and
+// what the narrow path costs all come from the contract, so this page and the
+// route and the filing cannot disagree. Filing is its own button, because it
+// is the only thing in this product that costs money the moment it is pressed.
 const BusinessRecordForm = ({ line, flash }) => {
   // Read once, from the window the bridge installed before this page mounted.
   const API = React.useMemo(() => window.__businessRecord, []);
   const [record, setRecord] = React.useState(null);
+  // null = nobody has answered. Seeded by the server for a record on file.
+  const [path, setPath] = React.useState(null);
+  const [asking, setAsking] = React.useState(false);
   const [problems, setProblems] = React.useState({});
   const [busy, setBusy] = React.useState(false);
   const [arm, setArm] = React.useState(false);
@@ -26,6 +36,7 @@ const BusinessRecordForm = ({ line, flash }) => {
     API.read().then((r) => {
       if (!on) return;
       setRecord(r.record ?? API.empty({ websiteUrl: window.location.origin + "/yes/" + (window.__WORKSPACES?.[0]?.slug ?? ""), email: window.__ME?.email ?? "" }));
+      setPath(r.path ?? null);
       setProblems(r.problems || {});
     });
     return () => { on = false; };
@@ -33,13 +44,24 @@ const BusinessRecordForm = ({ line, flash }) => {
 
   if (!record) return <div className="set-row"><div className="set-row-info"><span className="set-row-hint">Reading what is on record…</span></div></div>;
 
+  // A registration already with the carriers. It cannot be withdrawn, so the
+  // answer stops being a choice and becomes a fact — one that can still be
+  // changed, at the price of a second filing.
+  const filedPath = line && line.sms_state && line.sms_state !== "none" && line.sms_state !== "needs_record"
+    ? (line.reg_sole_prop ? "sole_proprietor" : "standard")
+    : null;
+
   const set = (name, value) => setRecord((r) => ({ ...r, [name]: value }));
+  // Picking the narrow path drops the tax id from the form, the same way the
+  // save drops it from the row: a leftover value would keep failing a format
+  // check on a box this path does not render.
+  const choose = (p) => { setRecord((r) => API.forPath(r, p)); setProblems({}); setPath(p); setAsking(false); };
   const save = async () => {
-    const found = API.problems(record);
+    const found = API.problems(record, path);
     setProblems(found);
     if (Object.keys(found).length) { flash({ msg: <>{Object.values(found)[0]}</> }); return; }
     setBusy(true);
-    const r = await API.save(record);
+    const r = await API.save(record, path);
     setBusy(false);
     flash({ msg: <>{r.message}</> });
   };
@@ -51,44 +73,102 @@ const BusinessRecordForm = ({ line, flash }) => {
     flash({ msg: <>{r.message}</> });
   };
 
+  const head = (
+    <div className="set-row-info">
+      <span className="set-row-label">Your business, as the carriers need it</span>
+      <span className="set-row-hint">{API.line(record.legal_name ? record : null)} The phone carriers ask this of every business before they let a number send texts. It is asked once and reused.</span>
+    </div>
+  );
+
+  // The fork. Shown until it is answered, and again when an owner reopens it.
+  if (path === null || asking) {
+    return (
+      <div className="set-row set-row-stack biz" data-testid="business-record">
+        {head}
+        <div className="biz-group" data-testid="biz-fork">
+          <div className="biz-group-head">
+            <span className="biz-group-title">{API.question.title}</span>
+            <span className="biz-group-sub">{API.question.sub}</span>
+          </div>
+          {owner ? (
+            <div className="biz-choices">
+              {API.paths.map((p) => (
+                <button
+                  key={p}
+                  className={`biz-choice${p === path ? " biz-choice-on" : ""}`}
+                  onClick={() => choose(p)}
+                  disabled={busy}
+                  data-testid={`biz-path-${p}`}
+                >
+                  <span className="biz-choice-label">{API.pathWords[p].choice}</span>
+                  <span className="biz-hint">{API.pathWords[p].sub}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <span className="set-row-hint">An owner answers this.</span>
+          )}
+          <span className="biz-hint">{API.question.nudge}</span>
+          <ul className="biz-limits" data-testid="biz-limits">
+            {API.limits().map((l) => <li key={l}>{l}</li>)}
+          </ul>
+          {filedPath && (
+            <span className="set-row-hint">
+              A registration is already filed as {API.pathWords[filedPath].filed.toLowerCase()}. It cannot be withdrawn — changing this answer means a second filing, and a second fee.
+            </span>
+          )}
+          {asking && <button className="cl-bucket-link" onClick={() => setAsking(false)} data-testid="biz-fork-back">Back to the form</button>}
+        </div>
+      </div>
+    );
+  }
+
+  const words = API.groupsFor(path);
+  const fields = API.fieldsFor(path);
   const groups = ["business", "address", "contact"];
-  const ready = Object.keys(API.problems(record)).length === 0;
+  const ready = Object.keys(API.problems(record, path)).length === 0;
   return (
     <div className="set-row set-row-stack biz" data-testid="business-record">
-      <div className="set-row-info">
-        <span className="set-row-label">Your business, as the carriers need it</span>
-        <span className="set-row-hint">{API.line(record.legal_name ? record : null)} The phone carriers ask this of every business before they let a number send texts. It is asked once and reused.</span>
+      {head}
+
+      <div className="biz-answer" data-testid="biz-answer">
+        <span className="biz-hint">{API.pathWords[path].filed}. {API.pathWords[path].sub}</span>
+        {owner && <button className="cl-bucket-link" onClick={() => setAsking(true)} disabled={busy} data-testid="biz-path-change">Not right?</button>}
       </div>
 
-      {groups.map((g) => (
-        <div className="biz-group" key={g}>
-          <div className="biz-group-head">
-            <span className="biz-group-title">{API.groups[g].title}</span>
-            <span className="biz-group-sub">{API.groups[g].sub}</span>
+      {groups.map((g) => {
+        const mine = fields.filter((f) => f.group === g);
+        if (!mine.length) return null;
+        return (
+          <div className="biz-group" key={g}>
+            <div className="biz-group-head">
+              <span className="biz-group-title">{words[g].title}</span>
+              <span className="biz-group-sub">{words[g].sub}</span>
+            </div>
+            <div className="biz-fields">
+              {mine.map((f) => (
+                <label className="biz-field" key={f.name} data-testid={`biz-${f.name}`}>
+                  <span className="biz-label">{f.label}{f.required ? "" : <span className="dim"> · optional</span>}</span>
+                  {f.options ? (
+                    <select className="biz-input" value={record[f.name] ?? ""} disabled={!owner || busy} onChange={(e) => set(f.name, e.target.value)}>
+                      {f.options.map((o) => <option key={o} value={o}>{API.optionWords(o)}</option>)}
+                    </select>
+                  ) : (
+                    <input
+                      className={`biz-input${problems[f.name] ? " biz-bad" : ""}`}
+                      value={record[f.name] ?? ""}
+                      placeholder={f.placeholder || ""}
+                      disabled={!owner || busy}
+                      onChange={(e) => set(f.name, e.target.value)}
+                    />
+                  )}
+                  {problems[f.name] ? <span className="biz-problem">{problems[f.name]}</span> : f.hint ? <span className="biz-hint">{f.hint}</span> : null}
+                </label>
+              ))}
+            </div>
           </div>
-          <div className="biz-fields">
-            {API.fields.filter((f) => f.group === g).map((f) => (
-              <label className="biz-field" key={f.name} data-testid={`biz-${f.name}`}>
-                <span className="biz-label">{f.label}{f.required ? "" : <span className="dim"> · optional</span>}</span>
-                {f.options ? (
-                  <select className="biz-input" value={record[f.name] ?? ""} disabled={!owner || busy} onChange={(e) => set(f.name, e.target.value)}>
-                    {f.options.map((o) => <option key={o} value={o}>{API.optionWords(o)}</option>)}
-                  </select>
-                ) : (
-                  <input
-                    className={`biz-input${problems[f.name] ? " biz-bad" : ""}`}
-                    value={record[f.name] ?? ""}
-                    placeholder={f.placeholder || ""}
-                    disabled={!owner || busy}
-                    onChange={(e) => set(f.name, e.target.value)}
-                  />
-                )}
-                {problems[f.name] ? <span className="biz-problem">{problems[f.name]}</span> : f.hint ? <span className="biz-hint">{f.hint}</span> : null}
-              </label>
-            ))}
-          </div>
-        </div>
-      ))}
+        );
+      })}
 
       {owner ? (
         <div className="bc-chips">
@@ -97,8 +177,8 @@ const BusinessRecordForm = ({ line, flash }) => {
             <button className="btn btn-sm" onClick={() => setArm(true)} disabled={busy} data-testid="biz-file">File with the carriers</button>
           )}
           {arm && (
-            <span className="set-row-hint">
-              Filing costs about $19 once and a few dollars a month, and cannot be undone.{" "}
+            <span className="set-row-hint" data-testid="biz-arm">
+              {API.costWords[path]}{" "}
               <button className="cl-bucket-link" onClick={file} disabled={busy} data-testid="biz-file-yes">Yes, file it</button>{" "}
               <button className="cl-bucket-link" onClick={() => setArm(false)}>Not yet</button>
             </span>

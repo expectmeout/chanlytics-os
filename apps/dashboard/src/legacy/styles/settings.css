@@ -791,3 +791,31 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
 .biz-hint, .biz-problem { font-size: 10.5px; line-height: 1.4; }
 .biz-hint { color: var(--ink-dim); }
 .biz-problem { color: var(--danger); }
+
+/* The fork: which of the two carrier registrations this business is on. Two
+   answers, side by side on a desk and stacked on a phone, each carrying what
+   it means -- an answer whose consequence is out of sight is not a choice. */
+.biz-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 640px) { .biz-choices { grid-template-columns: 1fr; } }
+.biz-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+.biz-choice:hover:not(:disabled) { border-color: var(--accent); }
+.biz-choice:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.biz-choice:disabled { opacity: 0.6; cursor: default; }
+.biz-choice-on { border-color: var(--accent); }
+.biz-choice-label { font-size: 12.5px; font-weight: 600; }
+/* What the narrow path gives up. Read once, before it is filed, so it is a
+   list rather than a paragraph somebody skims. */
+.biz-limits { display: flex; flex-direction: column; gap: 4px; margin: 0; padding-left: 16px; font-size: 10.5px; line-height: 1.45; color: var(--ink-dim); }
+.biz-answer { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }

@@ -18,6 +18,7 @@ import { agoWords, spanLabel } from "./time";
 import { CARRIER_WORDS, MODE_WORDS, forwardingTestOpen, type Carrier, type ForwardingMode } from "./forwarding";
 import { listingLine, type SetupGoogleFacts } from "./google";
 import { dayWords, trialWords, maySpend, type SetupBillingFacts } from "./billing";
+import { SOLE_PROP_LIMITS } from "./registration-path";
 
 export interface SetupDto {
   business: {
@@ -72,6 +73,13 @@ export interface LineDto {
   reg_step?: string | null;
   /** Filed against Twilio's free test registry rather than the carriers. */
   reg_mock?: boolean;
+  /**
+   * The registration on this line is the sole-proprietor one: one number, one
+   * campaign, about one message a second. A fact about the FILING, so it is
+   * read from the row and never re-derived from the business record, which can
+   * change after the brand is registered.
+   */
+  reg_sole_prop?: boolean;
   /** Both the brand and the campaign are on record. */
   registered?: boolean;
   whatsapp_state: string;
@@ -165,6 +173,20 @@ export interface SetupVM {
  * before this -- and one of them ("the carriers did not answer") was not even
  * about the state it was describing.
  */
+/**
+ * The ceiling a working sole-proprietor line lives under, in one clause that
+ * reads correctly after any sentence.
+ *
+ * It quotes SOLE_PROP_LIMITS rather than repeating its numbers, so what is said
+ * to a working line and what was said before the owner committed to that
+ * registration cannot drift apart.
+ */
+export const SOLE_PROP_CEILING_SENTENCE =
+  `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+
+/** Setup's version: the good news, then the ceiling. */
+export const SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
+
 export const MOCK_TEXTING_SENTENCE =
   "Texting is filed against a test registry, so nothing is delivered — a person at Chanlytics is filing it with the carriers for real.";
 
@@ -177,7 +199,11 @@ export function textingWords(l: LineDto | null | undefined): { sentence: string;
   // dashboard's side of the line mapper deliberately never selects.
   if (l.reg_mock) return { sentence: MOCK_TEXTING_SENTENCE, done: false };
   switch (l.sms_state) {
-    case "active": return { sentence: "Texting is on.", done: true };
+    // Working, and on the narrow registration: the ceiling belongs in the same
+    // sentence as the good news, because the moment it bites is a broadcast
+    // that trickles out over minutes with no explanation anywhere in the
+    // product. `done` stays true -- it IS on, and there is nothing left to do.
+    case "active": return { sentence: l.reg_sole_prop ? SOLE_PROP_TEXTING_SENTENCE : "Texting is on.", done: true };
     case "approved": return { sentence: "Your business is approved; one last check on the line is with the carriers.", done: false };
     case "registering": return { sentence: "Texting is with the carriers.", done: false };
     case "rejected": return { sentence: "The carriers refused the texting registration.", done: false };

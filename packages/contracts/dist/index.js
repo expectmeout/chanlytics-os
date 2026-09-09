@@ -62,24 +62,24 @@ var DEFAULT_STATUS = {
 // src/phone.ts
 function normalizePhone(raw) {
   if (raw == null) return null;
-  const digits = String(raw).replace(/[^\d]/g, "");
-  if (!digits) return null;
-  if (digits.length === 10) return `+1${digits}`;
-  if (digits.length >= 8 && digits.length <= 15) return `+${digits}`;
+  const digits2 = String(raw).replace(/[^\d]/g, "");
+  if (!digits2) return null;
+  if (digits2.length === 10) return `+1${digits2}`;
+  if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
   return null;
 }
 function shortCode(raw) {
-  const digits = String(raw ?? "").replace(/[^\d]/g, "");
-  return digits.length >= 3 && digits.length <= 6;
+  const digits2 = String(raw ?? "").replace(/[^\d]/g, "");
+  return digits2.length >= 3 && digits2.length <= 6;
 }
 function whyNotAPhone(raw) {
   if (normalizePhone(raw)) return null;
-  const digits = String(raw ?? "").replace(/[^\d]/g, "");
-  if (!digits) return "A phone number is needed to add a person.";
-  if (shortCode(digits)) {
+  const digits2 = String(raw ?? "").replace(/[^\d]/g, "");
+  if (!digits2) return "A phone number is needed to add a person.";
+  if (shortCode(digits2)) {
     return "That is a short code, not a phone number \u2014 nobody can be reached on one.";
   }
-  if (digits.length === 7) return "That looks like a local number. Add the area code.";
+  if (digits2.length === 7) return "That looks like a local number. Add the area code.";
   return "That is not a phone number anyone can be reached on.";
 }
 function whyNotAHandoff(raw, ownLine) {
@@ -101,12 +101,12 @@ function handoffE164(raw) {
 }
 function formatPhoneDisplay(e164) {
   if (!e164) return null;
-  const digits = String(e164).replace(/[^\d]/g, "");
-  if (digits.length === 11 && digits.startsWith("1")) {
-    return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  const digits2 = String(e164).replace(/[^\d]/g, "");
+  if (digits2.length === 11 && digits2.startsWith("1")) {
+    return `+1 (${digits2.slice(1, 4)}) ${digits2.slice(4, 7)}-${digits2.slice(7)}`;
   }
-  if (digits.length < 7) return `+${digits}`;
-  return `+${digits.replace(/(\d{1,3})(?=(\d{3})+$)/g, "$1 ").trim()}`;
+  if (digits2.length < 7) return `+${digits2}`;
+  return `+${digits2.replace(/(\d{1,3})(?=(\d{3})+$)/g, "$1 ").trim()}`;
 }
 
 // src/enums.ts
@@ -181,9 +181,9 @@ var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 function optInLink(numberE164, phrase = OFFERS_OPT_IN_PHRASES.en) {
-  const digits = String(numberE164 ?? "").replace(/\D/g, "");
-  if (digits.length < 8) return null;
-  return `https://wa.me/${digits}?text=${encodeURIComponent(phrase)}`;
+  const digits2 = String(numberE164 ?? "").replace(/\D/g, "");
+  if (digits2.length < 8) return null;
+  return `https://wa.me/${digits2}?text=${encodeURIComponent(phrase)}`;
 }
 var ESCALATION_REASONS = [
   "human_token",
@@ -602,8 +602,8 @@ function contactMeta(dto, channel = "WhatsApp") {
   return contactName(dto) === phone ? `${channel} \xB7 no name saved` : `${channel} \xB7 ${phone ?? "no phone"}`;
 }
 function initialsOf(name) {
-  const digits = name.replace(/[^\d]/g, "");
-  if (digits.length >= 7 && /^[+\d\s()-]+$/.test(name)) return digits.slice(-2);
+  const digits2 = name.replace(/[^\d]/g, "");
+  if (digits2.length >= 7 && /^[+\d\s()-]+$/.test(name)) return digits2.slice(-2);
   const parts2 = name.replace(/[^\p{L}\p{N} ]/gu, "").trim().split(/\s+/);
   if (parts2.length >= 2 && parts2[0] && parts2[1]) return (parts2[0][0] + parts2[1][0]).toUpperCase();
   const p = parts2[0] || "?";
@@ -2481,11 +2481,11 @@ var ISO_DATE_RE = /^\d{4}[-./]\d{2}[-./]\d{2}/;
 function phoneFrom(raw) {
   const s = raw.trim();
   if (ISO_DATE_RE.test(s)) return null;
-  const digits = s.replace(/\D/g, "");
-  if (digits.length < 10 || digits.length > 15) return null;
+  const digits2 = s.replace(/\D/g, "");
+  if (digits2.length < 10 || digits2.length > 15) return null;
   const bare = /^\+?\d+$/.test(s);
-  if (bare && !s.startsWith("+") && !(digits.length === 10 || digits.length === 11 && digits.startsWith("1"))) return null;
-  return normalizePhone(s.startsWith("+") ? `+${digits}` : digits);
+  if (bare && !s.startsWith("+") && !(digits2.length === 10 || digits2.length === 11 && digits2.startsWith("1"))) return null;
+  return normalizePhone(s.startsWith("+") ? `+${digits2}` : digits2);
 }
 function extractContacts(item) {
   const text = [item.title, item.description ?? "", item.location ?? ""].join("\n");
@@ -5923,6 +5923,59 @@ function pausedVoiceFacts(businessName) {
   ].join("\n");
 }
 
+// src/registration-path.ts
+var REGISTRATION_PATHS = ["standard", "sole_proprietor"];
+function registrationPathOf(saved) {
+  if (!saved) return null;
+  return String(saved.ein ?? "").trim() ? "standard" : "sole_proprietor";
+}
+var SOLE_PROP_LIMITS = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+function grouped(n) {
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+function soleProprietorLimits() {
+  const L = SOLE_PROP_LIMITS;
+  return [
+    `One number and one campaign: a second number cannot text on this registration.`,
+    `About ${L.messagesPerSecond} message a second, so a hundred texts go out over a minute or two rather than at once.`,
+    `T-Mobile takes ${grouped(L.perDayTMobile)} a day from you, AT&T ${L.perMinuteAtt} a minute.`,
+    `The carriers text a code to your own mobile and you reply from that handset \u2014 there is no code to bring back here.`,
+    `That mobile can be used on ${L.mobileUsesEver} of these registrations ever, across every provider; your email and address on ${L.emailUsesEver} each. Only the carriers can count what you have already spent.`,
+    `It cannot be withdrawn once filed. If you get a tax id later, the standard registration is a new filing.`
+  ];
+}
+var REGISTRATION_QUESTION = {
+  title: "Does the business have a tax ID?",
+  sub: "It decides which registration the carriers run, and the two are not the same. Asked once.",
+  /** Said under the answers, because the narrow path is a real cost and the choice is permanent. */
+  nudge: "If there is an EIN, use it \u2014 none of the limits below apply to that registration."
+};
+var REGISTRATION_PATH_WORDS = {
+  standard: {
+    choice: "Yes, it has an EIN",
+    sub: "The usual registration. Nothing about your texting is capped.",
+    filed: "Registered as a business"
+  },
+  sole_proprietor: {
+    choice: "No, it is just me",
+    sub: "The carriers' registration for a one-person business. It works, and it is narrower.",
+    filed: "Registered as a sole proprietor"
+  }
+};
+var REGISTRATION_COST_WORDS = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
+};
+
 // src/setup.ts
 var LINE_STEP_WORDS = {
   subaccount: "opening your account with the carrier",
@@ -5939,13 +5992,19 @@ var SETUP_STATE_WORDS = {
   waiting_them: "Waiting on us",
   ready: "Ready"
 };
+var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 var MOCK_TEXTING_SENTENCE = "Texting is filed against a test registry, so nothing is delivered \u2014 a person at Chanlytics is filing it with the carriers for real.";
 function textingWords(l) {
   if (!l) return { sentence: "Texting is not available yet.", done: false };
   if (l.reg_mock) return { sentence: MOCK_TEXTING_SENTENCE, done: false };
   switch (l.sms_state) {
+    // Working, and on the narrow registration: the ceiling belongs in the same
+    // sentence as the good news, because the moment it bites is a broadcast
+    // that trickles out over minutes with no explanation anywhere in the
+    // product. `done` stays true -- it IS on, and there is nothing left to do.
     case "active":
-      return { sentence: "Texting is on.", done: true };
+      return { sentence: l.reg_sole_prop ? SOLE_PROP_TEXTING_SENTENCE : "Texting is on.", done: true };
     case "approved":
       return { sentence: "Your business is approved; one last check on the line is with the carriers.", done: false };
     case "registering":
@@ -6359,7 +6418,12 @@ function smsStateRow(line, nowMs) {
   }
   switch (line?.sms_state) {
     case "active":
-      return { ...base, state: "connected", stateWords: "On", sentence: `Customers text ${num ?? "this number"}; the receptionist answers inside your hours.` };
+      return {
+        ...base,
+        state: "connected",
+        stateWords: "On",
+        sentence: line?.reg_sole_prop ? `Customers text ${num ?? "this number"} and the receptionist answers inside your hours. ${SOLE_PROP_CEILING_SENTENCE}` : `Customers text ${num ?? "this number"}; the receptionist answers inside your hours.`
+      };
     case "approved":
       return { ...base, state: "waiting_them", stateWords: "Waiting on carriers", sentence: `Your business is approved. One last check on the line is with the carriers \u2014 usually days, and texting switches itself on${since ? `; approved ${since}` : ""}.` };
     case "needs_record":
@@ -6554,30 +6618,93 @@ function industryWords(v) {
 }
 
 // src/business-record.ts
-var BUSINESS_FIELDS = [
-  { name: "legal_name", label: "Legal name", hint: "Exactly as it appears on your tax filing, not your trading name.", required: true, placeholder: "Harbor Moving LLC", group: "business" },
-  { name: "trade_name", label: "Trading name", hint: "What customers call you, if it differs.", required: false, placeholder: "Harbor Moving", group: "business" },
-  { name: "ein", label: "Tax ID (EIN)", hint: "Nine digits from the IRS. Without one the carriers use a different registration, which we do not offer yet.", required: true, placeholder: "12-3456789", group: "business" },
-  { name: "business_type", label: "Legal form", options: BUSINESS_TYPES, required: true, group: "business" },
-  { name: "company_type", label: "Ownership", options: COMPANY_TYPES, required: true, group: "business" },
-  { name: "industry", label: "Industry", options: BUSINESS_INDUSTRIES, required: true, group: "business" },
-  { name: "website_url", label: "Website", hint: "A page a reviewer can open. Your sign-up page works if you have no site.", required: true, placeholder: "https://", group: "business" },
-  { name: "street", label: "Street", required: true, placeholder: "193 Jamaica Ave", group: "address" },
-  { name: "street_secondary", label: "Suite or floor", required: false, group: "address" },
-  { name: "city", label: "City", required: true, placeholder: "Brooklyn", group: "address" },
-  { name: "region", label: "State", required: true, placeholder: "NY", group: "address" },
-  { name: "postal_code", label: "ZIP", required: true, placeholder: "11207", group: "address" },
-  { name: "contact_first_name", label: "First name", required: true, group: "contact" },
-  { name: "contact_last_name", label: "Last name", required: true, group: "contact" },
-  { name: "contact_email", label: "Email", hint: "The carriers write here if they need something.", required: true, placeholder: "you@business.com", group: "contact" },
-  { name: "contact_phone", label: "Mobile", hint: "Yours, not the business line.", required: true, placeholder: "+1 646 555 0123", group: "contact" },
-  { name: "contact_title", label: "Title", required: false, placeholder: "Owner", group: "contact" }
-];
-var BUSINESS_GROUP_WORDS = {
-  business: { title: "The business", sub: "as the tax authorities know it" },
-  address: { title: "Where it is registered", sub: "the address on the filing, not a mailbox" },
-  contact: { title: "Who signs for it", sub: "a person the carriers can reach" }
+var FIELD = {
+  legal_name: { label: "Legal name", hint: "Exactly as it appears on your tax filing, not your trading name.", placeholder: "Harbor Moving LLC", group: "business" },
+  trade_name: { label: "Trading name", hint: "What customers call you, if it differs.", placeholder: "Harbor Moving", group: "business" },
+  ein: { label: "Tax ID (EIN)", hint: "Nine digits from the IRS \u2014 on the letter that issued it, or any filing you have made with it.", placeholder: "12-3456789", group: "business" },
+  business_type: { label: "Legal form", options: BUSINESS_TYPES, group: "business" },
+  company_type: { label: "Ownership", options: COMPANY_TYPES, group: "business" },
+  industry: { label: "Industry", options: BUSINESS_INDUSTRIES, group: "business" },
+  website_url: { label: "Website", hint: "A page a reviewer can open. Your sign-up page works if you have no site.", placeholder: "https://", group: "business" },
+  street: { label: "Street", placeholder: "193 Jamaica Ave", group: "address" },
+  street_secondary: { label: "Suite or floor", group: "address" },
+  city: { label: "City", placeholder: "Brooklyn", group: "address" },
+  region: { label: "State", placeholder: "NY", group: "address" },
+  postal_code: { label: "ZIP", placeholder: "11207", group: "address" },
+  contact_first_name: { label: "First name", group: "contact" },
+  contact_last_name: { label: "Last name", group: "contact" },
+  contact_email: { label: "Email", hint: "The carriers write here if they need something.", placeholder: "you@business.com", group: "contact" },
+  contact_phone: { label: "Mobile", hint: "Yours, not the business line.", placeholder: "+1 646 555 0123", group: "contact" },
+  contact_title: { label: "Title", placeholder: "Owner", group: "contact" }
 };
+var PATH_FIELDS = {
+  standard: [
+    { name: "legal_name", required: true },
+    { name: "trade_name", required: false },
+    { name: "ein", required: true },
+    { name: "business_type", required: true },
+    { name: "company_type", required: true },
+    { name: "industry", required: true },
+    { name: "website_url", required: true },
+    { name: "street", required: true },
+    { name: "street_secondary", required: false },
+    { name: "city", required: true },
+    { name: "region", required: true },
+    { name: "postal_code", required: true },
+    { name: "contact_first_name", required: true },
+    { name: "contact_last_name", required: true },
+    { name: "contact_email", required: true },
+    { name: "contact_phone", required: true },
+    { name: "contact_title", required: false }
+  ],
+  // No tax id, no legal form, no ownership: there is no registered entity to
+  // describe, only a person trading under a name. One name box rather than
+  // two, because the filing sends one name. The website is asked and not
+  // required because nothing in this registration sends it — a required box
+  // whose answer goes nowhere is how a form loses somebody at field fifteen.
+  sole_proprietor: [
+    { name: "legal_name", required: true, label: "Business name", hint: "What customers call you. There is no filing to match \u2014 this is the name the carriers show beside your texts." },
+    { name: "industry", required: true },
+    { name: "website_url", required: false, hint: "Optional: nothing in this registration sends it. Worth having anyway, if a customer ever looks you up." },
+    { name: "street", required: true },
+    { name: "street_secondary", required: false },
+    { name: "city", required: true },
+    { name: "region", required: true },
+    { name: "postal_code", required: true },
+    { name: "contact_first_name", required: true },
+    { name: "contact_last_name", required: true },
+    { name: "contact_email", required: true },
+    { name: "contact_phone", required: true, label: "Your mobile", hint: "Your own handset, not the number Chanlytics answers for you. The carriers text a code to it and you reply from that phone." }
+  ]
+};
+var BUILT = {};
+function businessFieldsFor(path) {
+  const built = BUILT[path];
+  if (built) return built;
+  const made = PATH_FIELDS[path].map((a) => ({
+    ...FIELD[a.name],
+    name: a.name,
+    required: a.required,
+    ...a.label ? { label: a.label } : {},
+    ...a.hint ? { hint: a.hint } : {}
+  }));
+  BUILT[path] = made;
+  return made;
+}
+function businessGroupWordsFor(path) {
+  if (path === "sole_proprietor") {
+    return {
+      business: { title: "What you do", sub: "as customers know it" },
+      address: { title: "Where you are", sub: "your own address \u2014 the carriers check it" },
+      contact: { title: "You", sub: "the carriers text this mobile, and you answer from it" }
+    };
+  }
+  return {
+    business: { title: "The business", sub: "as the tax authorities know it" },
+    address: { title: "Where it is registered", sub: "the address on the filing, not a mailbox" },
+    contact: { title: "Who signs for it", sub: "a person the carriers can reach" }
+  };
+}
 function emptyBusinessRecord(o = {}) {
   return {
     legal_name: "",
@@ -6605,23 +6732,36 @@ var EIN = /^\d{2}-?\d{7}$/;
 var EMAIL = /^[^@\s]+@[^@\s.]+\.[^@\s]+$/;
 var E1642 = /^\+[1-9]\d{6,14}$/;
 var REGION = /^[A-Za-z]{2}$/;
-function businessRecordProblems(r) {
+var REGISTERABLE_COUNTRIES = ["US", "CA"];
+var digits = (s) => s.replace(/\D/g, "");
+function businessRecordProblems(r, path, facts = {}) {
   const out = {};
   const has = (k) => String(r[k] ?? "").trim().length > 0;
-  for (const f of BUSINESS_FIELDS) if (f.required && !has(f.name)) out[f.name] = `${f.label} is needed.`;
+  for (const f of businessFieldsFor(path)) if (f.required && !has(f.name)) out[f.name] = `${f.label} is needed.`;
   if (has("ein") && !EIN.test(String(r.ein).trim())) out.ein = "A tax ID is nine digits, like 12-3456789.";
   if (has("contact_email") && !EMAIL.test(String(r.contact_email).trim())) out.contact_email = "That does not look like an email address.";
   if (has("contact_phone") && !E1642.test(String(r.contact_phone).replace(/[\s()-]/g, ""))) out.contact_phone = "Write it with the country code, like +1 646 555 0123.";
   if (has("region") && !REGION.test(String(r.region).trim())) out.region = "Two letters, like NY.";
   if (has("website_url") && !/^https?:\/\/\S+\.\S+/.test(String(r.website_url).trim())) out.website_url = "A full address a reviewer can open, starting with https://";
+  if (has("country") && !REGISTERABLE_COUNTRIES.includes(String(r.country).trim().toUpperCase())) {
+    out.country = "The carriers register US and Canadian businesses only. Ours is not a door we can open.";
+  }
+  if (path === "sole_proprietor" && has("contact_phone") && (facts.ourNumbers ?? []).some((n) => digits(String(n)) === digits(String(r.contact_phone)))) {
+    out.contact_phone = "This is the number Chanlytics answers for you. The carriers need YOUR handset \u2014 they text a code to it and you reply from the phone in your hand.";
+  }
   return out;
+}
+function businessRecordForPath(r, path) {
+  return path === "standard" ? r : { ...r, ein: null };
 }
 function businessRecordLine(r) {
   if (!r) return "The carriers ask who you are before they let a number text. It takes two minutes, once.";
-  const problems = businessRecordProblems(r);
+  const path = registrationPathOf(r) ?? "standard";
+  const problems = businessRecordProblems(r, path);
   const missing = Object.keys(problems).length;
   if (missing) return `${missing} thing${missing === 1 ? "" : "s"} still to fill in before this can be filed.`;
-  return `${r.legal_name}${r.trade_name ? ` (${r.trade_name})` : ""} \xB7 ${r.city}, ${r.region} \xB7 on record.`;
+  const capped = path === "sole_proprietor" ? ` \xB7 one number, about ${SOLE_PROP_LIMITS.messagesPerSecond} text a second` : "";
+  return `${r.legal_name}${r.trade_name ? ` (${r.trade_name})` : ""} \xB7 ${r.city}, ${r.region} \xB7 on record${capped}.`;
 }
 export {
   ACTOR_TYPES,
@@ -6658,8 +6798,6 @@ export {
   BROADCAST_SCHEDULE_MAX_DAYS,
   BROADCAST_STATES,
   BROADCAST_STATE_LABELS,
-  BUSINESS_FIELDS,
-  BUSINESS_GROUP_WORDS,
   BUSINESS_INDUSTRIES,
   BUSINESS_TYPES,
   BookingRulesSchema,
@@ -6760,6 +6898,10 @@ export {
   QUIET_AFTER_MS,
   RECENT_MAX,
   RECIPIENT_STATES,
+  REGISTRATION_COST_WORDS,
+  REGISTRATION_PATHS,
+  REGISTRATION_PATH_WORDS,
+  REGISTRATION_QUESTION,
   REPLY_DELAY_DEFAULT_MS,
   REPLY_DELAY_MAX_MS,
   REPLY_DELAY_MIN_MS,
@@ -6781,6 +6923,9 @@ export {
   SIGNUP_NAME_MIN,
   SIGNUP_WAITLIST,
   SIGNUP_WORDS,
+  SOLE_PROP_CEILING_SENTENCE,
+  SOLE_PROP_LIMITS,
+  SOLE_PROP_TEXTING_SENTENCE,
   SOURCE_WORDS,
   STARTER_LANGUAGES,
   STARTER_TEMPLATES,
@@ -6819,6 +6964,9 @@ export {
   broadcastName,
   buildAskSuggestions,
   buildNotificationFeed,
+  businessFieldsFor,
+  businessGroupWordsFor,
+  businessRecordForPath,
   businessRecordLine,
   businessRecordProblems,
   businessTypeOf,
@@ -6980,6 +7128,7 @@ export {
   recencyCells,
   receptionistOn,
   recoverCitations,
+  registrationPathOf,
   renderTemplate,
   replyDelayMs,
   replyWhy,
@@ -7017,6 +7166,7 @@ export {
   slotLabels,
   slugTemplateName,
   smsStateRow,
+  soleProprietorLimits,
   spanForView,
   spanLabel,
   spanUnits,

@@ -13,7 +13,7 @@
 import type { ChannelVM } from "./channels";
 import type { GoogleListingDto, GoogleConnectionDto, GoogleAudience } from "./google";
 import type { LineDto } from "./setup";
-import { LINE_STEP_WORDS, textingWords } from "./setup";
+import { LINE_STEP_WORDS, textingWords, SOLE_PROP_CEILING_SENTENCE } from "./setup";
 import { agoWords } from "./time";
 import { checkedWords, connectionWords, listingLine } from "./google";
 import { formatPhoneDisplay } from "./phone";
@@ -117,7 +117,15 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
   }
   switch (line?.sms_state) {
     case "active":
-      return { ...base, state: "connected", stateWords: "On", sentence: `Customers text ${num ?? "this number"}; the receptionist answers inside your hours.` };
+      // The narrow registration says so here too, from the same sentence Setup
+      // uses: a workspace that can send about one message a second has to be
+      // able to read that somewhere it will actually look.
+      return {
+        ...base, state: "connected", stateWords: "On",
+        sentence: line?.reg_sole_prop
+          ? `Customers text ${num ?? "this number"} and the receptionist answers inside your hours. ${SOLE_PROP_CEILING_SENTENCE}`
+          : `Customers text ${num ?? "this number"}; the receptionist answers inside your hours.`,
+      };
     case "approved":
       return { ...base, state: "waiting_them", stateWords: "Waiting on carriers", sentence: `Your business is approved. One last check on the line is with the carriers — usually days, and texting switches itself on${since ? `; approved ${since}` : ""}.` };
     case "needs_record":

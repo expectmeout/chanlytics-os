@@ -1810,6 +1810,7 @@ export type Database = {
           profile_sid: string | null
           provider: string
           reg_mock: boolean
+          reg_sole_prop: boolean
           reg_step: string | null
           retell_agent_id: string | null
           sms_state: string
@@ -1843,6 +1844,7 @@ export type Database = {
           profile_sid?: string | null
           provider: string
           reg_mock?: boolean
+          reg_sole_prop?: boolean
           reg_step?: string | null
           retell_agent_id?: string | null
           sms_state?: string
@@ -1876,6 +1878,7 @@ export type Database = {
           profile_sid?: string | null
           provider?: string
           reg_mock?: boolean
+          reg_sole_prop?: boolean
           reg_step?: string | null
           retell_agent_id?: string | null
           sms_state?: string

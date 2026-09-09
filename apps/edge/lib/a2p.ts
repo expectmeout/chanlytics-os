@@ -11,9 +11,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./workspace/db.js";
 import {
   runA2PSaga, smsStateFor, registrationVerdict, LOW_VOLUME_USECASE, deleteCampaignRequest, updateCampaignRequest,
-  encodeForm, whatSoleProprietorNeeds, type A2PPorts, type A2PRequest, type A2PState, type BusinessRecord,
+  encodeForm, brandTypeFor, type A2PPorts, type A2PRequest, type A2PState, type BusinessRecord,
 } from "./workspace/channels.js";
-import { formatPhoneDisplay, industryOf } from "./workspace/contracts.js";
+import { formatPhoneDisplay, industryOf, businessRecordProblems, registrationPathOf } from "./workspace/contracts.js";
 import { emitEvent } from "./workspace/db.js";
 import { recordNotification } from "./notify.js";
 import { lineProviderFromEnv } from "./lines.js";
@@ -257,26 +257,28 @@ export async function registerLine(db: Db, o: {
   if (!primary) return { ok: false, error: "no_primary_profile", state, smsState: o.line.sms_state };
   if (!email) return { ok: false, error: "no_platform_mailbox", state, smsState: o.line.sms_state };
   if (!o.line.messaging_service_sid) return { ok: false, error: "no_messaging_service", state, smsState: o.line.sms_state };
-  // A business with no tax id files the OTHER registration -- a person rather
-  // than a company. Refused here only when the record is missing something
-  // that path needs, and refused BEFORE anything is created, because on a real
-  // filing an incomplete record is a fee spent on a rejection.
+  // WHICH registration, and is the record complete FOR IT -- checked before a
+  // single call is made, because on a real filing an incomplete record is a fee
+  // spent on a rejection that arrives days later.
   //
-  // This used to refuse every sole proprietor by name. They are customers; the
-  // path is narrower, and the narrowness is something to state rather than a
-  // reason to turn a solo barber away.
+  // The same validator the form and the dashboard route use, on the row as it
+  // is stored: `business_records` is already the DTO's shape, so there is
+  // nothing to map and nothing to drift. This replaced a second, channels-side
+  // list of what a sole proprietor needs -- two lists answering one question,
+  // which is how a form comes to accept what the filing then refuses.
+  const path = registrationPathOf(o.record) ?? "standard";
   // The numbers this workspace was given by us, so the check can tell an
   // owner's handset from the line we answer on their behalf.
   const ours = await db.from("lines").select("e164").eq("tenant_id", o.line.tenant_id);
   const ourNumbers = (ours.data ?? []).map((r) => r.e164).filter((n): n is string => !!n);
-  const needs = whatSoleProprietorNeeds(businessRecordFrom(o.record), ourNumbers);
-  if (needs.length) {
+  const problems = Object.values(businessRecordProblems(o.record, path, { ourNumbers }));
+  if (problems.length) {
     await db.from("lines").update({
       sms_state: "needs_record",
-      last_error: `Texting registration needs ${needs.join(", ")}.`,
+      last_error: problems.join(" "),
       state_since: new Date().toISOString(),
     }).eq("id", o.line.id);
-    return { ok: false, error: "sole_proprietor_incomplete", state, smsState: "needs_record" };
+    return { ok: false, error: path === "sole_proprietor" ? "sole_proprietor_incomplete" : "record_incomplete", state, smsState: "needs_record" };
   }
 
   const L = logger({ tenant_id: o.line.tenant_id, line_id: o.line.id });
@@ -360,7 +362,17 @@ export async function registerLine(db: Db, o: {
     },
   };
 
-  await db.from("lines").update({ sms_state: "registering", reg_mock: o.mock, last_error: null, state_since: new Date().toISOString() }).eq("id", o.line.id);
+  // reg_sole_prop is written HERE, with reg_mock, and never derived later: an
+  // owner who incorporates and types their new tax id would otherwise read
+  // back as a standard brand while the carriers still hold the narrow one --
+  // promising throughput the line does not have.
+  await db.from("lines").update({
+    sms_state: "registering",
+    reg_mock: o.mock,
+    reg_sole_prop: brandTypeFor(record) === "SOLE_PROPRIETOR",
+    last_error: null,
+    state_since: new Date().toISOString(),
+  }).eq("id", o.line.id);
   const result = await runA2PSaga(state, ports);
   // A campaign that cannot be filed until the carriers finish with the brand
   // is a WAIT: everything asked for was accepted. The row says "waiting on

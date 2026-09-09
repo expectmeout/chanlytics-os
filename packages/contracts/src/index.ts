@@ -37,6 +37,7 @@ export * from "./google";
 export * from "./connections";
 export * from "./consent-page";
 export * from "./a2p-enums";
+export * from "./registration-path";
 export * from "./business-record";
 export * from "./review-reply";
 export * from "./signup";
