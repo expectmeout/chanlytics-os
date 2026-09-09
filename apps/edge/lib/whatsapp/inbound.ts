@@ -16,6 +16,7 @@
 import { getThread, isThreadUnknown, saveThread, storeBackend, threadNamespace, type ThreadState } from "../store.js";
 import { pg } from "../pg.js";
 import { normalizeInbound, type WaChangeValue, type WaRawMessage } from "../workspace/channels.js";
+import { shortCode } from "../workspace/contracts.js";
 import { readLeadContext, describeLead, personReplyMode, type IngestResult } from "../workspace/db.js";
 import type { RoutedChannel } from "../workspace/db.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
@@ -122,6 +123,23 @@ export async function handleInbound(
   //
   // A tenant that brought its own number, and every text on a line this
   // product bought, is never gated by it.
+  // A short code is a sender, never a person. A carrier notice, a two-factor
+  // code or a bank alert lands on a business's line like any other text, and
+  // nothing can be sent back to one from a ten-digit number — so composing a
+  // reply spends a model call to produce a message Twilio will refuse, and the
+  // failure then raises "Reply delivery failed" at an owner who never wrote it.
+  //
+  // Recorded, exactly like any other message, because an owner should be able
+  // to see what arrived on their line. Not answered. This gates the REPLY, not
+  // the persist, for the same reason the allowlist below does.
+  if (shortCode(from)) {
+    const ing = await pgIngest(tenantId, n, channel);
+    const sink = pgSink(db, tenantId, ing, rt, channel);
+    await sink.unreachableSender();
+    await sink.processed();
+    return;
+  }
+
   const allow = (process.env.WHATSAPP_TEST_ALLOWLIST || "").split(",").map((s) => s.trim()).filter(Boolean);
   if (isEnvDefault && allow.length && !allow.includes(from)) {
     // §4 delta (deliberate): allowlist gates the REPLY, not the persist.

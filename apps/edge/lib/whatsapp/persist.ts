@@ -159,6 +159,15 @@ export function pgSink(
             emitEvent(db!, tenantId!, "ingest.allowlist_skip", "ingest", "message", ing!.message_id))
         : Promise.resolve(),
     /**
+     * The sender cannot receive a reply. Recorded like any other message, and
+     * not answered — see the guard in inbound.ts.
+     */
+    unreachableSender: () =>
+      on
+        ? pgSafe("unreachable_evt", () =>
+            emitEvent(db!, tenantId!, "ingest.unreachable_sender", "ingest", "message", ing!.message_id))
+        : Promise.resolve(),
+    /**
      * A veto window this workspace CONFIGURED did not happen, and the customer
      * has the receptionist's words already. The reply itself is fine — the
      * promise the setting made is what broke, and a setting that quietly stops

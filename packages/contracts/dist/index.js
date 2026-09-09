@@ -60,11 +60,15 @@ function normalizePhone(raw) {
   if (digits.length >= 8 && digits.length <= 15) return `+${digits}`;
   return null;
 }
+function shortCode(raw) {
+  const digits = String(raw ?? "").replace(/[^\d]/g, "");
+  return digits.length >= 3 && digits.length <= 6;
+}
 function whyNotAPhone(raw) {
   if (normalizePhone(raw)) return null;
   const digits = String(raw ?? "").replace(/[^\d]/g, "");
   if (!digits) return "A phone number is needed to add a person.";
-  if (digits.length >= 3 && digits.length <= 6) {
+  if (shortCode(digits)) {
     return "That is a short code, not a phone number \u2014 nobody can be reached on one.";
   }
   if (digits.length === 7) return "That looks like a local number. Add the area code.";
@@ -113,6 +117,8 @@ var EVENT_KINDS = [
   "usage.llm_tokens",
   "usage.wa_conversation",
   "ingest.allowlist_skip",
+  /** The sender cannot receive a reply — a short code. Recorded, never answered. */
+  "ingest.unreachable_sender",
   "ingest.pg_failed",
   "message.send_failed",
   "message.send_blocked",
@@ -6704,6 +6710,7 @@ export {
   shellStatusLine,
   shiftKey,
   shiftMonth,
+  shortCode,
   shortTime,
   shortcutGroups,
   shouldLandOnSetup,

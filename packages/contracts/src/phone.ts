@@ -31,11 +31,24 @@ export function normalizePhone(raw: string | null | undefined): string | null {
  * number missing its area code, and calling it a short code would be a
  * confident wrong answer where an accurate one costs nothing.
  */
+/**
+ * Three to six digits: a short code. A sender, never a person.
+ *
+ * Nothing can be sent back to one from a ten-digit number, so a carrier notice
+ * or a two-factor code arriving on a business's line is a message to read and
+ * never a conversation to have. Seven digits is deliberately NOT one: that is
+ * a local number missing its area code.
+ */
+export function shortCode(raw: string | null | undefined): boolean {
+  const digits = String(raw ?? "").replace(/[^\d]/g, "");
+  return digits.length >= 3 && digits.length <= 6;
+}
+
 export function whyNotAPhone(raw: string | null | undefined): string | null {
   if (normalizePhone(raw)) return null;
   const digits = String(raw ?? "").replace(/[^\d]/g, "");
   if (!digits) return "A phone number is needed to add a person.";
-  if (digits.length >= 3 && digits.length <= 6) {
+  if (shortCode(digits)) {
     return "That is a short code, not a phone number — nobody can be reached on one.";
   }
   if (digits.length === 7) return "That looks like a local number. Add the area code.";

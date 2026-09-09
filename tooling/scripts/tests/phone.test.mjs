@@ -17,7 +17,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizePhone, formatPhoneDisplay, whyNotAPhone } from "@chanlytics/contracts";
+import { normalizePhone, formatPhoneDisplay, whyNotAPhone, shortCode, EVENT_KINDS } from "@chanlytics/contracts";
 import { readCode } from "./_source.mjs";
 
 test("normalizePhone, pinned by value so the four layers can be compared", () => {
@@ -81,4 +81,48 @@ test("the shared normalizer is NOT tightened, because two of its callers fail op
   // these two first.
   assert.equal(normalizePhone("+012345678"), "+012345678", "a leading zero is still accepted, deliberately");
   assert.equal(formatPhoneDisplay("+15551234567"), "+1 (555) 123-4567");
+});
+
+test("a short code is a sender, never a person", () => {
+  for (const n of ["12345", "+12345", "622622", "911", "1234"]) {
+    assert.equal(shortCode(n), true, n);
+  }
+  // Seven digits is a local number missing its area code, not a short code.
+  assert.equal(shortCode("5551234"), false);
+  assert.equal(shortCode("5551234567"), false);
+  assert.equal(shortCode("+15551234567"), false);
+  assert.equal(shortCode(""), false, "an empty field is not a short code either");
+  assert.equal(shortCode("ab"), false);
+  // One definition of the range: the sentence and the predicate cannot drift.
+  assert.match(whyNotAPhone("12345"), /short code/);
+});
+
+test("the receptionist records a short code and does not answer it", () => {
+  // A carrier notice, a two-factor code or a bank alert lands on a business's
+  // line like any other text. Nothing can be sent back to one from a ten-digit
+  // number, so composing a reply spends a model call to produce a message
+  // Twilio will refuse — and the failure then raises "Reply delivery failed"
+  // at an owner who never wrote it.
+  const inbound = readCode("apps/edge/lib/whatsapp/inbound.ts");
+  assert.ok(inbound.includes("if (shortCode(from)) {"), "the guard reads the sender");
+
+  // It gates the REPLY, not the persist: an owner should be able to see what
+  // arrived on their line.
+  const guard = inbound.slice(inbound.indexOf("if (shortCode(from)) {"));
+  const body = guard.slice(0, guard.indexOf("return;") + "return;".length);
+  assert.ok(body.includes("await pgIngest(tenantId, n, channel)"), "the message is still recorded");
+  assert.ok(body.includes("await sink.unreachableSender()"), "with a reason of its own");
+  assert.ok(body.includes("await sink.processed()"), "and marked handled, so nothing retries it");
+  assert.ok(body.includes("return;"), "and no reply is composed");
+
+  // Before the allowlist, which is the other reply-only gate, so the two
+  // cannot disagree about a sender that is both.
+  assert.ok(
+    inbound.indexOf("if (shortCode(from)) {") < inbound.indexOf("WHATSAPP_TEST_ALLOWLIST"),
+    "the unreachable check comes first",
+  );
+
+  assert.ok(EVENT_KINDS.includes("ingest.unreachable_sender"), "the event is one the product knows");
+  const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
+  assert.ok(persist.includes('emitEvent(db!, tenantId!, "ingest.unreachable_sender", "ingest", "message", ing!.message_id)'));
 });
