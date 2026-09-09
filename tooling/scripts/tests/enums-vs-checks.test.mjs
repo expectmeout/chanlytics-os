@@ -105,7 +105,12 @@ test("status sets match (messages + jobs + tenants + conversations + consent)", 
     m[1].split(",").map((s) => s.trim().replace(/^'|'$/g, "")).sort(),
   );
   assert.deepEqual(stateSets.find((s) => s.includes("needs_human")), [...CONVERSATION_STATES].sort());
-  assert.deepEqual(stateSets.find((s) => s.includes("scheduled")), [...JOB_STATES].sort());
+  // The LAST set containing 'fired', not the first containing 'scheduled' —
+  // the same trap already fixed for jobs.kind above, and it sprang the moment
+  // jobs.state was widened with 'done' in 00080: find() compared the ORIGINAL
+  // 00002 constraint to the current enum. Content-addressed on 'fired' because
+  // broadcasts.state also has 'scheduled'.
+  assert.deepEqual(stateSets.filter((s) => s.includes("fired")).at(-1), [...JOB_STATES].sort());
   assert.deepEqual(sqlSet("consent"), [...CONSENT_STATES].sort());
   // role exists on memberships AND invitations (0012) — content-addressed
   const roleSets = sqlSets("role");

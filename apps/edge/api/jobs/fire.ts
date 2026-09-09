@@ -90,6 +90,13 @@ export async function POST(request: Request): Promise<Response> {
     console.log("job_fired", JSON.stringify({ id: c.id, kind: c.kind, outcome }));
     if (outcome === "unknown_kind") {
       await db.rpc("fail_job", { p_job_id: jobId, p_error: "unknown_kind" } as never);
+    } else {
+      // The ledger records that this FINISHED. Without it a completed job sat
+      // in 'fired' for ever, indistinguishable from one whose lambda died
+      // mid-handler — harmless while nothing read the column, and a false
+      // alarm on every successful job once the stale-jobs sweep did.
+      // Conditional on 'fired' so a cancel racing this is not overwritten.
+      await db.from("jobs").update({ state: "done" }).eq("id", jobId).eq("state", "fired");
     }
     return json(200, { ok: true, outcome });
   } catch (e) {

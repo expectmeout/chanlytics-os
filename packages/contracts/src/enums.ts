@@ -56,7 +56,12 @@ export const JOB_KINDS = [
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
-export const JOB_STATES = ["scheduled", "fired", "canceled", "failed"] as const;
+/**
+ * `fired` means CLAIMED, not finished: claim_job sets it and fire.ts moves the
+ * job to `done` when the handler returns. A job left in `fired` is one whose
+ * run never reported back, which is what the stale-jobs sweep reaps.
+ */
+export const JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"] as const;
 export type JobState = (typeof JOB_STATES)[number];
 
 /** Dot-namespaced event kinds emitted so far (grows per slice). */
