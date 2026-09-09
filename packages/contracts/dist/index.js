@@ -74,6 +74,23 @@ function whyNotAPhone(raw) {
   if (digits.length === 7) return "That looks like a local number. Add the area code.";
   return "That is not a phone number anyone can be reached on.";
 }
+function whyNotAHandoff(raw, ownLine) {
+  const typed = String(raw ?? "").trim();
+  if (!typed) return null;
+  const norm = "+" + typed.replace(/[^0-9]/g, "");
+  if (!(/^\+/.test(typed) && /^\+[1-9][0-9]{6,14}$/.test(norm))) {
+    return "The transfer number needs the country code, like +1 646 932 5775.";
+  }
+  if (ownLine && normalizePhone(norm) && normalizePhone(norm) === normalizePhone(ownLine)) {
+    return "That is the receptionist's own line \u2014 it would ring itself. Use a line a person answers.";
+  }
+  return null;
+}
+function handoffE164(raw) {
+  const typed = String(raw ?? "").trim();
+  if (!typed) return null;
+  return "+" + typed.replace(/[^0-9]/g, "");
+}
 function formatPhoneDisplay(e164) {
   if (!e164) return null;
   const digits = String(e164).replace(/[^\d]/g, "");
@@ -6841,6 +6858,7 @@ export {
   groundCitations,
   guessName,
   guessSlotKind,
+  handoffE164,
   hasProfile,
   hoursLines2 as hoursLines,
   hoursRuns,
@@ -7024,6 +7042,7 @@ export {
   waitedLabel,
   whenLabel,
   whisperText,
+  whyNotAHandoff,
   whyNotAPhone,
   windowFor,
   workspaceHotkey,

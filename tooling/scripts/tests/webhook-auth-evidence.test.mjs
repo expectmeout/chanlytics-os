@@ -56,10 +56,16 @@ test("every delivery leaves a readable row saying which credential it passed; th
   assert.ok(diag.includes('.eq("kind", "webhook.auth")'));
 });
 
-test("Settings compares the handoff number with the receptionist's own line, not the number customers are told", () => {
+test("The transfer number is compared with the receptionist's own line, not the number customers are told", () => {
   const pane = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
-  assert.ok(pane.includes('(window.__CHANNELS || []).find((c) => c.kind === "voice")'));
-  assert.ok(pane.includes('handoffNorm === "+" + ownLine'));
-  assert.ok(!pane.includes('handoffNorm === "+" + phoneDisplay'), "REGRESSION: the salon's own human line was refused as the receptionist's");
+  // The comparison moved into contracts with the field it guards. What the row
+  // hands it is still the LINE -- the number customers are told is usually the
+  // one a person answers, which is exactly where a transfer should go, so
+  // comparing against that refused the very number the owner wanted.
+  assert.ok(pane.includes("window.__whyNotAHandoff(typed, voiceLine)"));
+  assert.ok(pane.includes('const voiceLine = ((((window.__FACTS || {}).facts || {}).voice_line) || {}).value || "";'), "the provisioned line, not phone_display");
+  const phone = readCode("packages/contracts/src/phone.ts");
+  assert.ok(phone.includes("normalizePhone(norm) === normalizePhone(ownLine)"));
+  assert.ok(!/phone_?[Dd]isplay/.test(phone), "REGRESSION: the salon's own human line was refused as the receptionist's");
   assert.ok(pane.includes('"every phone call, composed when the call starts"'), "the phone tab is true now that the line runs the shell");
 });

@@ -748,6 +748,17 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
 .set-tz { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .set-tz-select { min-width: 220px; max-width: 100%; }
 
+/* A fact edited in the row that states it.
+   Same shape as the timezone row above, one step up in ambition: a control, the
+   sentence that says what choosing it costs, and the two buttons. The row grows
+   to hold them rather than the value being replaced by a bare input, so the
+   label a person was reading stays where it was. */
+.set-row-editing { align-items: start; padding: 10px 0; }
+.set-pub-inline { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.set-pub-inline .set-input { max-width: 260px; }
+.set-pub-inline .cl-tabs { align-self: start; }
+.set-row-actions { display: flex; align-items: center; gap: 8px; }
+
 /* Back, when the create screen was opened from the workspace menu. */
 .cw-back { margin-top: 8px; align-self: center; font: inherit; font-size: 13px; color: var(--ink-muted); text-decoration: underline; text-underline-offset: 3px; }
 .cw-back:hover { color: var(--ink); }

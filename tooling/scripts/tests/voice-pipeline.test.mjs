@@ -157,15 +157,23 @@ test("the converger's plan is complete against the hand-typed agent, and idempot
 
 /* --------------------------- the settings form ---------------------------- */
 
-test("Settings collects the handoff line, the website and the notes, and normalises the number", () => {
+test("Settings collects the website and the notes; the transfer line is edited in its own row and normalised in one place", () => {
   const pane = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
-  assert.ok(pane.includes('put("handoff_number", handoffNorm || undefined);'));
   assert.ok(pane.includes('put("website", site || undefined);'));
   assert.ok(pane.includes('put("notes", noteRows.length ? noteRows : undefined);'));
   assert.ok(pane.includes('"no_health_advice"'));
   assert.ok(pane.includes("no_health_advice: (p0.guardrails || {}).no_health_advice === true"), "opt-in, unlike the three rules that default on");
-  assert.ok(pane.includes("The handoff number needs the country code"));
-  assert.ok(pane.includes("Never the receptionist's own line"));
+  // The transfer number left the form for the row that states it, so the form
+  // must NOT write the key -- `profile` starts from what is stored, and not
+  // touching it is what preserves it.
+  assert.ok(!pane.includes('put("handoff_number"'), "the form no longer owns it");
+  assert.ok(pane.includes("handoff_number is deliberately NOT written here"), "and says so where somebody would look for it");
+  assert.ok(pane.includes("window.__handoffE164 ? window.__handoffE164(typed)"), "one normaliser, in contracts");
+  // Its two refusals moved with it, and are now shared rather than retyped.
+  const phone = readCode("packages/contracts/src/phone.ts");
+  assert.ok(phone.includes("export function whyNotAHandoff("));
+  assert.ok(phone.includes("The transfer number needs the country code"));
+  assert.ok(phone.includes("it would ring itself"), "the receptionist's own line is still refused");
   const converge = readRaw("tooling/scripts/voice-converge.mjs");
   assert.ok(converge.includes('const apply = process.argv.includes("--apply");'));
   assert.ok(converge.indexOf("writeFileSync(") < converge.indexOf("if (!apply)"), "the backup is written before the dry run can exit");

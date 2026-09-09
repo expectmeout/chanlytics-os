@@ -8,7 +8,7 @@
  */
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-import { ROLE_PERMS, SOURCE_WORDS, samePhone, whyNotAPhone } from "@chanlytics/contracts";
+import { ROLE_PERMS, SOURCE_WORDS, samePhone, whyNotAPhone, whyNotAHandoff, handoffE164 } from "@chanlytics/contracts";
 
 declare global {
   interface Window {
@@ -19,6 +19,8 @@ declare global {
     __FACT_WORDS: typeof SOURCE_WORDS;
     __samePhone: typeof samePhone;
     __whyNotAPhone: typeof whyNotAPhone;
+    __whyNotAHandoff: typeof whyNotAHandoff;
+    __handoffE164: typeof handoffE164;
   }
 }
 
@@ -47,6 +49,8 @@ if (typeof window !== "undefined") {
   // words. The published number is now optional, so the only thing standing
   // between a typo and a receptionist reading it aloud is this check.
   window.__whyNotAPhone = whyNotAPhone;
+  window.__whyNotAHandoff = whyNotAHandoff;
+  window.__handoffE164 = handoffE164;
 }
 
 export {};

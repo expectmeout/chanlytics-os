@@ -163,10 +163,17 @@ test("the field that caused this says what it is", () => {
   assert.ok(pane.includes('data-testid="set-pub-line"') && pane.includes('data-testid="set-pub-other"'), "two options, the line first");
   assert.ok(pane.includes('phone_display: phone || undefined,'), "and choosing the line writes nothing, so it follows the line");
 
-  // Three numbers, three names, and only the provisioned one links away.
+  // Three numbers, three names, and only the provisioned one links away. The
+  // two the receptionist DECIDES are edited in the row that states them: they
+  // were sections nine and thirteen of a fourteen-section form, a page apart
+  // from each other and from the card that reads them.
   assert.ok(pane.includes('<FactRow label="Answers on" fact={F.voice_line} to="admin/integrations"'), "the line is Integrations' to own");
-  assert.ok(pane.includes('<FactRow label="Tells customers to call" fact={F.phone_display} />'));
-  assert.ok(pane.includes('<FactRow label="Transfers a caller to" fact={F.handoff_number}'));
+  assert.ok(pane.includes('<PublishedNumberRow fact={F.phone_display} flash={flash} />'));
+  assert.ok(pane.includes('<HandoffRow fact={F.handoff_number} flash={flash} />'));
+  // One key, on top of what is stored -- PUT /settings is a whole-config CAS,
+  // and a fragment would delete the rest.
+  assert.ok(pane.includes("function useFieldSave(flash)") && pane.includes("window.__saveSettings(next, settings.version"));
+  assert.ok(pane.includes("if (value) brain.phone_display = value; else delete brain.phone_display;"), "absent means the line, so clearing it removes the key");
   assert.ok(pane.includes("<FactConflicts />"), "and a serious disagreement is said out loud, not left in a document");
 });
 
