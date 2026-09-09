@@ -166,3 +166,43 @@ test("the field that caused this says what it is", () => {
   assert.ok(pane.includes('<FactRow label="Transfers a caller to" fact={F.handoff_number}'));
   assert.ok(pane.includes("<FactConflicts />"), "and a serious disagreement is said out loud, not left in a document");
 });
+
+test("Setup stops saying ready while a customer-facing fact is wrong", async () => {
+  const { setupSteps } = await import("@chanlytics/contracts");
+  const base = {
+    business: { name: "Melany's Beauty Salon", hours: true, services: 33, bookingLink: true, address: true, handoff: "+16469325775", broken: false },
+    channels: {
+      whatsapp: { present: true, active: true, number: "+19177724072", quality: "GREEN", lastInboundAt: null },
+      voice: { present: true, active: true, number: "+13083368109", lastInboundAt: null },
+    },
+    templates: { approved: 6, pending: 0, startersApproved: 5 },
+    calendar: { state: "ok" },
+    team: { members: 3, invitesOpen: 0, alertEmails: 1 },
+    consent: { yes: 0 },
+    requests: { line: null },
+    lines: { rows: [], costs: { local_number_month_usd: 1.15 }, ready: true },
+    later: [],
+  };
+
+  // Every field filled in. Before this, that was the whole test of "ready".
+  const clean = setupSteps({ ...base, conflicts: [] });
+  const cleanFacts = clean.rows.find((r) => r.id === "facts");
+  assert.equal(cleanFacts.state, "ready");
+  assert.match(clean.readiness.sentence, /answers calls on/);
+
+  // The same workspace, with the disagreement the resolver finds on it.
+  const conflicts = factConflicts(resolveFacts(
+    { business_name: "Melany's Beauty Salon", phone_display: "(646) 932-5775", profile: { handoff_number: "+16469325775" } },
+    { channels: [{ kind: "voice", number_e164: "+13083368109", status: "active" }] },
+  ));
+  assert.equal(conflicts.length, 1);
+
+  const flagged = setupSteps({ ...base, conflicts });
+  const factsRow = flagged.rows.find((r) => r.id === "facts");
+  assert.equal(factsRow.state, "waiting_you", "filled in is not the same as right");
+  assert.match(factsRow.sentence, /the number it transfers to/, "and it borrows the resolver's sentence, which knows why");
+  assert.equal(factsRow.verb.label, "Fix it in Business");
+  // "Answering" and "answering correctly" are different claims.
+  assert.match(flagged.readiness.sentence, /never the receptionist answering on \+13083368109/);
+  assert.ok(flagged.done < clean.done, "and the count of what is ready goes down, which is the point");
+});

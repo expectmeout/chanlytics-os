@@ -1,6 +1,6 @@
 import { withRoute, memberContext } from "@/server/with-route";
 import { getTenantConfig } from "@chanlytics/db";
-import { parseTenantConfigResult, starterByName, type SetupDto } from "@chanlytics/contracts";
+import { parseTenantConfigResult, starterByName, resolveFacts, factConflicts, type SetupDto } from "@chanlytics/contracts";
 import { calendarWeek } from "@/server/calendar";
 import { teamRoster } from "@/server/service";
 import { linesFor, linesStatus } from "@/server/lines";
@@ -75,8 +75,18 @@ export const GET = withRoute(async (req, ctx) => {
   const approved = (templates.data ?? []).filter((t) => t.meta_status === "approved" && !t.hidden_at);
   const pending = (templates.data ?? []).filter((t) => t.meta_status === "pending" && !t.hidden_at);
 
+  // The same resolver the prompt and the Business pane use. Setup called the
+  // facts row "ready" whenever the fields were filled in, on a workspace whose
+  // receptionist was publishing the number it transfers to.
+  const conflicts = factConflicts(resolveFacts(brain, {
+    workspace: null,
+    channels: channels.data ?? [],
+    listing: listing ? { name: listing.name, address: listing.address } : null,
+  }));
+
   const setup: SetupDto = {
     business,
+    conflicts,
     channels: {
       whatsapp: {
         present: !!wa,

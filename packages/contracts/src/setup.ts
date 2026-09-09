@@ -13,6 +13,7 @@
  * Chanlytics until lines provision themselves (plan, step 3).
  */
 import { formatPhoneDisplay } from "./phone";
+import type { FactConflict } from "./facts";
 import { agoWords, spanLabel } from "./time";
 import { CARRIER_WORDS, MODE_WORDS, forwardingTestOpen, type Carrier, type ForwardingMode } from "./forwarding";
 import { listingLine, type SetupGoogleFacts } from "./google";
@@ -38,6 +39,16 @@ export interface SetupDto {
   calendar: { state: "ok" | "unavailable" | "none" };
   team: { members: number; invitesOpen: number; alertEmails: number };
   consent: { yes: number };
+  /**
+   * Facts that disagree with what the platform knows (contracts/facts.ts).
+   *
+   * The checklist called Business facts "ready" on a workspace whose
+   * receptionist was publishing the number it transfers to instead of the line
+   * it answers -- because "ready" only ever meant "the fields are filled in",
+   * and nothing compared a filled-in field to anything. A checklist that says
+   * ready while a customer-facing fact is wrong is worse than no checklist.
+   */
+  conflicts?: FactConflict[];
   /** What the owner has asked a person at Chanlytics for, and when. */
   requests: { line: string | null };
   /** The workspace's own lines, and whether this deployment can get one. */
@@ -175,8 +186,13 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
   {
     const b = i.business;
     const missing = [!b.name ? "a name" : "", !b.hours ? "hours" : "", b.services === 0 ? "services" : ""].filter(Boolean);
+    const serious = (i.conflicts ?? []).find((k) => k.severity === "serious") ?? null;
     if (b.broken) {
       row({ id: "facts", icon: "home", title: "Business facts", state: "waiting_you", required: true, sentence: "Your settings could not be read. Open Workspace to repair them before anything else.", details: [], verb: { label: "Open Workspace", to: "admin/workspace" } });
+    } else if (serious) {
+      // Filled in, and wrong in a way a customer feels. The sentence is the
+      // resolver's, because it is the one that knows WHY the two disagree.
+      row({ id: "facts", icon: "home", title: "Business facts", state: "waiting_you", required: true, sentence: serious.sentence, details: [`${b.name} · hours set · ${plural(b.services, "service")} on record`], verb: { label: "Fix it in Business", to: serious.to } });
     } else if (missing.length === 0) {
       row({ id: "facts", icon: "home", title: "Business facts", state: "ready", required: true, sentence: `${b.name} · hours set · ${plural(b.services, "service")} on record`, details: [b.bookingLink ? "Booking link on record" : "No booking link — the receptionist answers, but cannot send one", b.address ? "Address on record" : "No address yet"], verb: { label: "Edit in Workspace", to: "admin/workspace" } });
     } else {
@@ -323,7 +339,12 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
   const nextRow = open.find((r) => r.verb) ?? null;
   const next = nextRow && nextRow.verb ? { label: nextRow.verb.label, to: nextRow.verb.to, row: nextRow.id, title: nextRow.title } : null;
   const done = rows.filter((r) => r.state === "ready").length;
-  const sentence = waReady && voiceReady
+  const seriousConflict = (i.conflicts ?? []).find((k) => k.severity === "serious") ?? null;
+  const sentence = seriousConflict
+    // "Answering" and "answering correctly" are different claims, and the top
+    // line of Setup is where an owner reads the second one.
+    ? seriousConflict.sentence
+    : waReady && voiceReady
     ? `Your receptionist answers calls on ${voiceNum} and WhatsApp on ${waNum}. Texting is not available yet.`
     : voiceReady
       ? `Your receptionist answers calls on ${voiceNum}. WhatsApp is not connected. Texting is not available yet.`
