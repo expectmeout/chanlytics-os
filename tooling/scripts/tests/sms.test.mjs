@@ -150,7 +150,14 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   const road = readRaw("apps/edge/lib/whatsapp/inbound.ts");
   assert.ok(road.indexOf("if (carrier?.held) {") > road.indexOf("if (optedOut) {") && road.indexOf("if (carrier?.held) {") < road.indexOf("// Routing is on the NORMALIZED type"), "after consent, before any branch that speaks");
   const code = readCode("apps/edge/lib/whatsapp/inbound.ts");
-  assert.equal((code.match(/pgIngest\(tenantId, n, channel\)/g) ?? []).length, 3, "every ingest carries the channel");
+  // EVERY ingest, not three of them: a count breaks whenever a legitimate new
+  // ingest is added (the unreachable-sender guard was the fourth) and says
+  // nothing about the one that might have dropped the channel.
+  assert.equal(
+    (code.match(/pgIngest\(/g) ?? []).length,
+    (code.match(/pgIngest\(tenantId, n, channel\)/g) ?? []).length,
+    "every ingest carries the channel",
+  );
   assert.ok(code.includes("const send = (text: string) => (carrier ? carrier.send(from, wire(text)) : sendText(from, text, rt));") && !code.includes("await sendText(from, replyText, rt)"), "one door out");
   assert.ok(code.includes("queueReply(db, tenantId, ing, from, wire(replyText), delayMs, L, plan.source, brainMeta, channel)"), "a held draft is written for its wire");
   const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
