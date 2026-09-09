@@ -61,9 +61,62 @@ export interface BillingInvoiceDto {
   pdf_url: string | null;
 }
 
+/**
+ * ANSWERING and SPENDING are two questions, and this file used to answer only
+ * the first — which is how a workspace that had never entered a card came to
+ * be entitled to buy a phone number and file a carrier registration on
+ * Chanlytics' account.
+ *
+ * Keep them apart and each can be tuned for what it actually risks:
+ *
+ *   receptionistOn   generous. Getting it wrong drops a live conversation,
+ *                    which the customer feels immediately and we cannot undo.
+ *   maySpend         strict. Getting it wrong costs real money on our account,
+ *                    and the customer feels nothing at all.
+ */
+
 /** What Stripe's word means for the receptionist: on, or paused. incomplete is the minutes between Checkout and the first payment; never a pause. */
 export function receptionistOn(status: BillingStatus): boolean {
   return status === "trialing" || status === "active" || status === "past_due" || status === "incomplete" || status === "none";
+}
+
+/**
+ * May this workspace incur a cost on Chanlytics' own account?
+ *
+ * Buying a number is $1.15 a month for as long as it is held; a carrier
+ * registration is $4.50 for the brand and $15.00 for the campaign, one time
+ * and non-refundable. All of it lands on the platform's Twilio balance
+ * whatever the workspace does next.
+ *
+ * `direct` is every workspace that predates Stripe. They are invoiced by hand
+ * and are not asked for a card, so the question does not apply — the same
+ * carve-out tenantStatusFor already makes.
+ *
+ * `none` and `incomplete` are deliberately ABSENT while receptionistOn admits
+ * them. `none` is a workspace that has never entered a card; `incomplete` is
+ * the minutes between Checkout opening and the first payment, which is exactly
+ * the window an abandoned Checkout leaves behind. Both are fine reasons to keep
+ * answering an existing conversation. Neither is a reason to spend.
+ */
+export function maySpend(mode: BillingMode, status: BillingStatus): boolean {
+  if (mode !== "stripe") return true;
+  return status === "trialing" || status === "active" || status === "past_due";
+}
+
+/**
+ * Why a workspace may not spend, in the owner's words, or null when it may.
+ *
+ * A refusal at the moment somebody is trying to give you money has to say what
+ * to do about it, so this is a sentence and a destination rather than a code.
+ */
+export function whyCannotSpend(mode: BillingMode, status: BillingStatus): string | null {
+  if (maySpend(mode, status)) return null;
+  if (status === "none") return "Add a card before buying a number — nothing is charged until your trial ends.";
+  if (status === "incomplete") return "Your card is not confirmed yet. Finish checkout in Billing, then try again.";
+  if (status === "paused" || status === "canceled" || status === "incomplete_expired") {
+    return "This workspace is not subscribed. Start it again from Billing before buying a number.";
+  }
+  return "Billing needs attention before this workspace can buy a number. Open Billing to sort it out.";
 }
 
 /** The switch the runtime reads, for a stripe-mode workspace. A direct one is never touched. */

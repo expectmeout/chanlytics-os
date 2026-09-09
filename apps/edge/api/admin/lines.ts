@@ -19,7 +19,7 @@ import { json } from "../../lib/http.js";
 import { pg } from "../../lib/pg.js";
 import { notify, recordNotification } from "../../lib/notify.js";
 import { emitEvent } from "../../lib/workspace/db.js";
-import { formatPhoneDisplay } from "../../lib/workspace/contracts.js";
+import { formatPhoneDisplay, whyCannotSpend, type BillingMode, type BillingStatus } from "../../lib/workspace/contracts.js";
 import { runLineSaga, isAreaCode, isE164, LINE_COSTS, type LineRow } from "../../lib/workspace/channels.js";
 import { lineProviderFromEnv, linePorts, lineForClient, rowToLine, LINE_STEP_WORDS, type LineProviderChoice } from "../../lib/lines.js";
 import { registerLine, syncRegistration, unfileMockRegistration, resubmitRejectedCampaign, campaignFactsFor } from "../../lib/a2p.js";
@@ -137,6 +137,25 @@ export async function POST(request: Request): Promise<Response> {
   if (!tenant) return json(404, { ok: false, error: "no such workspace" });
   const cfg = { apiKey };
   const secrets = { fnSecret };
+
+  // THE SAME RULE, ON THIS SIDE OF THE WIRE.
+  //
+  // The dashboard checks it before forwarding, and this endpoint is reachable
+  // with the diagnostic key alone, so it must not take the caller's word for
+  // whether the workspace may spend. Both ops below land a charge on
+  // Chanlytics' Twilio account: a number is $1.15 a month for as long as it is
+  // held, a registration is $19.50 one time and non-refundable.
+  //
+  // `refile` is deliberately exempt: it corrects a filing already paid for and
+  // costs nothing (a campaign edit, not a replacement), and a workspace whose
+  // card lapsed mid-review must still be able to answer the carriers.
+  if (op === "buy" || (op === "register" && body.refile !== true)) {
+    const bill = await db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle();
+    if (bill.error) return json(503, { ok: false, error: bill.error.message });
+    if (!bill.data) return json(402, { ok: false, error: "no_billing_record" });
+    const why = whyCannotSpend(bill.data.mode as BillingMode, bill.data.status as BillingStatus);
+    if (why) return json(402, { ok: false, error: "payment_required", detail: why, status: bill.data.status });
+  }
 
   if (op === "buy") {
     const number = typeof body.number === "string" ? body.number.trim() : "";

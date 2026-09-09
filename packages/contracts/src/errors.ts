@@ -6,6 +6,13 @@ export const ERROR_CODES = [
   "validation",
   "conflict",
   "rate_limited",
+  /**
+   * The workspace itself may not do this until it pays — not the caller, and
+   * not their role. Its own code because the fix is a card rather than a
+   * different account, and a client that shows "forbidden" for it sends the
+   * owner to the wrong page.
+   */
+  "payment_required",
   "window_closed",
   "upstream_meta",
   "upstream_retell",
@@ -40,6 +47,7 @@ const DEFAULT_STATUS: Record<ErrorCode, number> = {
   validation: 400,
   conflict: 409,
   rate_limited: 429,
+  payment_required: 402,
   window_closed: 409,
   upstream_meta: 502,
   upstream_retell: 502,
