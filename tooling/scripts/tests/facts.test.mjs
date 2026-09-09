@@ -248,3 +248,29 @@ test("a config change records who and what, and neither is the values", async ()
   assert.ok(mig.includes("add column if not exists updated_by uuid references auth.users (id) on delete set null"), "nullable, because rows written before this had no author to record");
   assert.ok(mig.includes("grant update (updated_by) on public.tenant_config to authenticated"), "and the column needs its own door, or the UPDATE writes nothing");
 });
+
+test("the editor is four steps, and the days sit beside the hours they qualify", () => {
+  const pane = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
+  const groups = [...pane.matchAll(/className="set-group-name">([^<]+)</g)].map((m) => m[1]);
+  assert.deepEqual(groups, ["Your business", "When you are open", "What you offer", "How it answers"]);
+
+  // Fourteen headings in a row, in an order nobody chose: the weekly grid was
+  // four sections above the days it does not apply to, with the services and
+  // the calendar feed in between.
+  const order = [...pane.matchAll(/title="([^"]+)"/g)].map((m) => m[1]);
+  const at = (t) => order.indexOf(t);
+  assert.equal(at("Days you are closed"), at("When you are open") + 1, "the closures follow the hours");
+  assert.ok(at("Where you are") < at("When you are open"), "who and where, then when");
+  assert.ok(at("Languages") > at("Booking rules"), "and how it answers comes last, after what it answers about");
+});
+
+test("languages is one control, not a grid plus a second control", () => {
+  const pane = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
+  assert.ok(pane.includes('data-testid="set-langs"') && pane.includes("set-token-input"), "a token field");
+  assert.ok(!/className={`set-chip \$\{langs\.includes/.test(pane), "REGRESSION: fourteen languages shouting, two of them chosen");
+  assert.ok(!pane.includes('placeholder="Another language"'), "and no second field underneath to add a fifteenth");
+  // The common ones are an OFFER, shown only while there is room to consider
+  // them — not a wall that has to be read before the field can be used.
+  assert.ok(pane.includes("SET_LANGS.filter((l) => !langs.includes(l)).slice(0, 6)"), "at most six suggestions, and only unchosen ones");
+  assert.ok(pane.includes('ev.key === "Backspace" && !langAdd && langs.length'), "backspace takes the last one back, as every token field does");
+});

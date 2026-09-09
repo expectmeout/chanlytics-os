@@ -1127,6 +1127,8 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
 
       {/* First, because without these there is no receptionist — and because
           until now there was no way to change your own booking link at all. */}
+      <div className="set-group">
+        <div className="set-group-head"><span className="set-group-name">Your business</span><span className="set-group-hint">The facts a customer asks for by name.</span></div>
       <div className="set-sec">
         <SetSectionHead
           title="Who you are"
@@ -1225,7 +1227,6 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
           The receptionist sends this link instead of confirming appointments itself.
         </div>
       </div>
-
       <div className="set-sec">
         <SetSectionHead title="Where you are" hint="Given when someone asks how to find you" />
         <input
@@ -1238,24 +1239,6 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
           aria-label="Business address"
         />
       </div>
-
-      <div className="set-sec">
-        <SetSectionHead title="How callers reach a person" hint="The phone receptionist transfers here during opening hours" />
-        <input
-          className="set-input"
-          value={handoff}
-          onChange={(e) => setHandoff(e.target.value)}
-          placeholder="+1 646 932 5775"
-          inputMode="tel"
-          autoComplete="tel"
-          aria-label="Handoff number"
-        />
-        <div className="set-sec-note">
-          A line a person answers, with the country code. Leave it empty and the phone
-          receptionist takes a message instead of transferring. Never the receptionist's own line.
-        </div>
-      </div>
-
       <div className="set-sec">
         <SetSectionHead title="Website" hint="Optional — given when someone asks" />
         <input
@@ -1268,7 +1251,9 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
           aria-label="Website"
         />
       </div>
-
+      </div>
+      <div className="set-group">
+        <div className="set-group-head"><span className="set-group-name">When you are open</span><span className="set-group-hint">The weekly grid, the days it does not apply to, and the calendar it reads.</span></div>
       <div className="set-sec">
         <SetSectionHead
           title="When you are open"
@@ -1334,79 +1319,6 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
           ))}
         </div>
       </div>
-
-      <div className="set-sec">
-        <SetSectionHead title="What you offer" hint="Names and rough timings — a price only if you can state it flatly" />
-        {services.length > 0 && (
-          <div className="set-svc-head">
-            <span>Service</span><span>Takes</span><span>Price</span><span />
-          </div>
-        )}
-        {services.map((sv, i) => (
-          <div key={i} className="set-svc-row">
-            <input className="set-input" value={sv.name || ""} placeholder="What customers call it" aria-label="Service name" onChange={(e) => setSvc(i, "name", e.target.value)} />
-            <span className="set-svc-mins">
-              <input className="set-input" inputMode="numeric" value={sv.duration_min || ""} placeholder="45" aria-label="Minutes" onChange={(e) => setSvc(i, "duration_min", e.target.value.replace(/[^0-9]/g, ""))} />
-              <span className="set-svc-unit">min</span>
-            </span>
-            <input className="set-input" value={sv.price_note || ""} placeholder="quoted at consult" aria-label="Price note" onChange={(e) => setSvc(i, "price_note", e.target.value)} />
-            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${sv.name || "service"}`} onClick={() => setServices((l) => l.filter((_, j) => j !== i))}><Icon name="x" size={12} /></button>
-          </div>
-        ))}
-        <button type="button" className="btn btn-sm" onClick={() => setServices((l) => [...l, { name: "" }])}><Icon name="plus" size={12} /> Add a service</button>
-      </div>
-
-      <div className="set-sec">
-        <SetSectionHead title="Booking rules" hint="How open times are offered — the receptionist never books; it sends the link" />
-        <div className="set-br-grid">
-          <label className="set-br-field"><span className="set-br-label">Least notice (hours)</span><input className="set-input" inputMode="numeric" value={leadHours} placeholder="2" aria-label="Least notice in hours" onChange={(e) => setLeadHours(e.target.value.replace(/[^0-9]/g, ""))} /></label>
-          <label className="set-br-field"><span className="set-br-label">Gap between appointments (minutes)</span><input className="set-input" inputMode="numeric" value={bufferMin} placeholder="0" aria-label="Gap between appointments in minutes" onChange={(e) => setBufferMin(e.target.value.replace(/[^0-9]/g, ""))} /></label>
-          <label className="set-br-field"><span className="set-br-label">Offer times up to (days ahead)</span><input className="set-input" inputMode="numeric" value={daysAhead} placeholder="14" aria-label="Days ahead" onChange={(e) => setDaysAhead(e.target.value.replace(/[^0-9]/g, ""))} /></label>
-          <label className="set-br-field"><span className="set-br-label">Most people per booking</span><input className="set-input" inputMode="numeric" value={partyMax} placeholder="4" aria-label="Most people per booking" onChange={(e) => setPartyMax(e.target.value.replace(/[^0-9]/g, ""))} /></label>
-        </div>
-        <textarea className="set-input set-textarea" rows={2} value={consultFirst} onChange={(e) => setConsultFirst(e.target.value)} placeholder={"Color correction\nExtensions"} aria-label="Services that need a consultation first" />
-        <div className="set-sec-note">Services that need a consultation before they can be booked, one per line.</div>
-        <textarea className="set-input set-textarea" rows={2} value={bookingNotes} onChange={(e) => setBookingNotes(e.target.value)} placeholder={"No chemical services after 4 PM\nBridal parties are booked by phone"} aria-label="Booking notes" />
-      </div>
-
-      <div className="set-sec">
-        <SetSectionHead title="Calendar it may look at" hint="Read-only — so it can say which times are open before sending the link" />
-        <input
-          className="set-input"
-          value={icalUrl}
-          onChange={(e) => setIcalUrl(e.target.value)}
-          placeholder="https://calendar.google.com/calendar/ical/…/private-…/basic.ics"
-          inputMode="url"
-          autoComplete="off"
-          aria-label="Calendar feed address"
-        />
-        <div className="set-sec-note">
-          The private iCal address of the calendar your appointments land in (Google, Apple or Outlook — Booksy, Calendly and the rest sync into one).
-          It is only ever read. Nothing is booked from here; the booking link does that, whichever tool is behind it.
-        </div>
-        <div className="set-cal-check">
-          <button className="btn btn-sm" disabled={!icalUrl.trim() || calChecking || !window.__calendar} onClick={async () => {
-            if (!window.__calendar) return;
-            setCalChecking(true);
-            setCalCheck(null);
-            const r = await window.__calendar.previewFeed(icalUrl.trim());
-            setCalChecking(false);
-            setCalCheck(r.ok ? { ok: true, ...r.data } : { ok: false, message: r.message });
-          }} data-testid="cal-check">{calChecking ? "Reading…" : "Check the link"}</button>
-          {calCheck && (
-            <span className={`set-row-hint ${calCheck.ok ? "" : "warn"}`} data-testid="cal-check-result">
-              {calCheck.ok
-                ? <>Read it: <b>{calCheck.events}</b> event{calCheck.events === 1 ? "" : "s"}{calCheck.recurring_expanded ? `, ${calCheck.recurring_expanded} repeating` : ""}{calCheck.skipped_recurring ? `, ${calCheck.skipped_recurring} repeating rule${calCheck.skipped_recurring === 1 ? "" : "s"} read once` : ""}.{calCheck.next.length ? <> Next: {calCheck.next.map((n) => `${n.title} · ${n.start}`).join(" · ")}.</> : " Nothing taken in the next 30 days."} Save to let the receptionist read it.</>
-                : calCheck.message}
-            </span>
-          )}
-          {cal0.ical_url && <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("calendar")}>Open the calendar</button>}
-        </div>
-      </div>
-
-      {/* Holidays. Kept next to the hours because that is the question they
-          answer — "are you open on the 24th" — and separate because a closure
-          overrides the weekly grid rather than editing it. */}
       <div className="set-sec">
         <SetSectionHead
           title="Days you are closed"
@@ -1452,55 +1364,120 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
           on their own — there is nothing to tidy up.
         </div>
       </div>
-
       <div className="set-sec">
-        <SetSectionHead title="Languages it can answer in" hint="Tap to choose" />
-        <div className="set-chips">
-          {SET_LANGS.map((l) => (
-            <button
-              key={l}
-              type="button"
-              className={`set-chip ${langs.includes(l) ? "on" : ""}`}
-              aria-pressed={langs.includes(l)}
-              onClick={() => toggleLang(l)}
-            >{l}</button>
-          ))}
-          {langs.filter((l) => !SET_LANGS.includes(l)).map((l) => (
-            <button key={l} type="button" className="set-chip on" aria-pressed="true" onClick={() => toggleLang(l)}>{l}</button>
-          ))}
+        <SetSectionHead title="Calendar it may look at" hint="Read-only — so it can say which times are open before sending the link" />
+        <input
+          className="set-input"
+          value={icalUrl}
+          onChange={(e) => setIcalUrl(e.target.value)}
+          placeholder="https://calendar.google.com/calendar/ical/…/private-…/basic.ics"
+          inputMode="url"
+          autoComplete="off"
+          aria-label="Calendar feed address"
+        />
+        <div className="set-sec-note">
+          The private iCal address of the calendar your appointments land in (Google, Apple or Outlook — Booksy, Calendly and the rest sync into one).
+          It is only ever read. Nothing is booked from here; the booking link does that, whichever tool is behind it.
         </div>
-        <div className="set-chip-add">
-          <input
-            className="set-input"
-            value={langAdd}
-            placeholder="Another language"
-            aria-label="Add another language"
-            onChange={(e) => setLangAdd(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addLang(); } }}
-          />
-          <button type="button" className="btn btn-sm" onClick={addLang} disabled={!langAdd.trim()}>Add</button>
+        <div className="set-cal-check">
+          <button className="btn btn-sm" disabled={!icalUrl.trim() || calChecking || !window.__calendar} onClick={async () => {
+            if (!window.__calendar) return;
+            setCalChecking(true);
+            setCalCheck(null);
+            const r = await window.__calendar.previewFeed(icalUrl.trim());
+            setCalChecking(false);
+            setCalCheck(r.ok ? { ok: true, ...r.data } : { ok: false, message: r.message });
+          }} data-testid="cal-check">{calChecking ? "Reading…" : "Check the link"}</button>
+          {calCheck && (
+            <span className={`set-row-hint ${calCheck.ok ? "" : "warn"}`} data-testid="cal-check-result">
+              {calCheck.ok
+                ? <>Read it: <b>{calCheck.events}</b> event{calCheck.events === 1 ? "" : "s"}{calCheck.recurring_expanded ? `, ${calCheck.recurring_expanded} repeating` : ""}{calCheck.skipped_recurring ? `, ${calCheck.skipped_recurring} repeating rule${calCheck.skipped_recurring === 1 ? "" : "s"} read once` : ""}.{calCheck.next.length ? <> Next: {calCheck.next.map((n) => `${n.title} · ${n.start}`).join(" · ")}.</> : " Nothing taken in the next 30 days."} Save to let the receptionist read it.</>
+                : calCheck.message}
+            </span>
+          )}
+          {cal0.ical_url && <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("calendar")}>Open the calendar</button>}
         </div>
       </div>
-
-      <div className="set-sec">
-        <SetSectionHead title="Hand over to a person when" hint="One per line" />
-        <textarea className="set-input set-textarea" rows={3} value={escalate} onChange={(e) => setEscalate(e.target.value)} placeholder={"They ask for the owner by name\nThey are unhappy about a previous visit"} aria-label="Escalation triggers" />
       </div>
-
+      <div className="set-group">
+        <div className="set-group-head"><span className="set-group-name">What you offer</span><span className="set-group-hint">What can be booked, and the rules for offering it.</span></div>
       <div className="set-sec">
-        <SetSectionHead title="Other things it should know" hint="One topic each — parking, gift cards, a second location. Both receptionists say these." />
-        {notes.map((n, i) => (
-          <div key={i} className="set-note-row">
-            <input className="set-input" value={n.title || ""} placeholder="Gift cards" aria-label="Note title" onChange={(e) => setNote(i, "title", e.target.value)} />
-            <textarea className="set-input set-textarea" rows={2} value={n.text || ""} placeholder="Gift cards are sold at the front desk, any amount — ask for the owner." aria-label="Note text" onChange={(e) => setNote(i, "text", e.target.value)} />
-            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${n.title || "note"}`} onClick={() => setNotes((l) => l.filter((_, j) => j !== i))}><Icon name="x" size={12} /></button>
+        <SetSectionHead title="What you offer" hint="Names and rough timings — a price only if you can state it flatly" />
+        {services.length > 0 && (
+          <div className="set-svc-head">
+            <span>Service</span><span>Takes</span><span>Price</span><span />
+          </div>
+        )}
+        {services.map((sv, i) => (
+          <div key={i} className="set-svc-row">
+            <input className="set-input" value={sv.name || ""} placeholder="What customers call it" aria-label="Service name" onChange={(e) => setSvc(i, "name", e.target.value)} />
+            <span className="set-svc-mins">
+              <input className="set-input" inputMode="numeric" value={sv.duration_min || ""} placeholder="45" aria-label="Minutes" onChange={(e) => setSvc(i, "duration_min", e.target.value.replace(/[^0-9]/g, ""))} />
+              <span className="set-svc-unit">min</span>
+            </span>
+            <input className="set-input" value={sv.price_note || ""} placeholder="quoted at consult" aria-label="Price note" onChange={(e) => setSvc(i, "price_note", e.target.value)} />
+            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${sv.name || "service"}`} onClick={() => setServices((l) => l.filter((_, j) => j !== i))}><Icon name="x" size={12} /></button>
           </div>
         ))}
-        {notes.length < 10 && (
-          <button type="button" className="btn btn-sm" onClick={() => setNotes((l) => [...l, { title: "", text: "" }])}><Icon name="plus" size={12} /> Add a note</button>
+        <button type="button" className="btn btn-sm" onClick={() => setServices((l) => [...l, { name: "" }])}><Icon name="plus" size={12} /> Add a service</button>
+      </div>
+      <div className="set-sec">
+        <SetSectionHead title="Booking rules" hint="How open times are offered — the receptionist never books; it sends the link" />
+        <div className="set-br-grid">
+          <label className="set-br-field"><span className="set-br-label">Least notice (hours)</span><input className="set-input" inputMode="numeric" value={leadHours} placeholder="2" aria-label="Least notice in hours" onChange={(e) => setLeadHours(e.target.value.replace(/[^0-9]/g, ""))} /></label>
+          <label className="set-br-field"><span className="set-br-label">Gap between appointments (minutes)</span><input className="set-input" inputMode="numeric" value={bufferMin} placeholder="0" aria-label="Gap between appointments in minutes" onChange={(e) => setBufferMin(e.target.value.replace(/[^0-9]/g, ""))} /></label>
+          <label className="set-br-field"><span className="set-br-label">Offer times up to (days ahead)</span><input className="set-input" inputMode="numeric" value={daysAhead} placeholder="14" aria-label="Days ahead" onChange={(e) => setDaysAhead(e.target.value.replace(/[^0-9]/g, ""))} /></label>
+          <label className="set-br-field"><span className="set-br-label">Most people per booking</span><input className="set-input" inputMode="numeric" value={partyMax} placeholder="4" aria-label="Most people per booking" onChange={(e) => setPartyMax(e.target.value.replace(/[^0-9]/g, ""))} /></label>
+        </div>
+        <textarea className="set-input set-textarea" rows={2} value={consultFirst} onChange={(e) => setConsultFirst(e.target.value)} placeholder={"Color correction\nExtensions"} aria-label="Services that need a consultation first" />
+        <div className="set-sec-note">Services that need a consultation before they can be booked, one per line.</div>
+        <textarea className="set-input set-textarea" rows={2} value={bookingNotes} onChange={(e) => setBookingNotes(e.target.value)} placeholder={"No chemical services after 4 PM\nBridal parties are booked by phone"} aria-label="Booking notes" />
+      </div>
+      </div>
+      <div className="set-group">
+        <div className="set-group-head"><span className="set-group-name">How it answers</span><span className="set-group-hint">The voice, the limits, and everything that fits no field.</span></div>
+      <div className="set-sec">
+        <SetSectionHead title="Languages" hint="It answers in whichever of these the customer uses" />
+        {/* ONE control. This was a grid of every language we could think of --
+            most of them off, all of them shouting for attention -- and then a
+            SECOND control underneath to add one that was not in the grid. Two
+            widgets for one job, and the chosen two sat among fourteen unchosen.
+            A token field shows what is chosen, and offers the common ones only
+            while there is room to consider them. */}
+        <div className="set-tokens" data-testid="set-langs">
+          {langs.map((l) => (
+            <span key={l} className="set-token">
+              {l}
+              <button type="button" className="set-token-x" aria-label={`Remove ${l}`} onClick={() => toggleLang(l)}>
+                <Icon name="x" size={10} />
+              </button>
+            </span>
+          ))}
+          <input
+            className="set-token-input"
+            value={langAdd}
+            placeholder={langs.length ? "Add another" : "English, Spanish…"}
+            aria-label="Add a language"
+            onChange={(ev) => setLangAdd(ev.target.value)}
+            onKeyDown={(ev) => {
+              if (ev.key === "Enter" || ev.key === ",") { ev.preventDefault(); addLang(); }
+              // Backspace on an empty field takes the last one back, which is
+              // what every token field does and what a hand expects.
+              else if (ev.key === "Backspace" && !langAdd && langs.length) toggleLang(langs[langs.length - 1]);
+            }}
+            onBlur={() => addLang()}
+          />
+        </div>
+        {SET_LANGS.some((l) => !langs.includes(l)) && (
+          <div className="set-token-offer">
+            {SET_LANGS.filter((l) => !langs.includes(l)).slice(0, 6).map((l) => (
+              <button key={l} type="button" className="set-token-add" onClick={() => toggleLang(l)}>
+                <Icon name="plus" size={9} /> {l}
+              </button>
+            ))}
+          </div>
         )}
       </div>
-
       <div className="set-sec">
         <SetSectionHead title="Rules it always follows" hint="These stay in force whatever else you write below" />
         {[
@@ -1541,12 +1518,44 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
           </span>
         </div>
       </div>
-
+      <div className="set-sec">
+        <SetSectionHead title="Hand over to a person when" hint="One per line" />
+        <textarea className="set-input set-textarea" rows={3} value={escalate} onChange={(e) => setEscalate(e.target.value)} placeholder={"They ask for the owner by name\nThey are unhappy about a previous visit"} aria-label="Escalation triggers" />
+      </div>
+      <div className="set-sec">
+        <SetSectionHead title="How callers reach a person" hint="The phone receptionist transfers here during opening hours" />
+        <input
+          className="set-input"
+          value={handoff}
+          onChange={(e) => setHandoff(e.target.value)}
+          placeholder="+1 646 932 5775"
+          inputMode="tel"
+          autoComplete="tel"
+          aria-label="Handoff number"
+        />
+        <div className="set-sec-note">
+          A line a person answers, with the country code. Leave it empty and the phone
+          receptionist takes a message instead of transferring. Never the receptionist's own line.
+        </div>
+      </div>
+      <div className="set-sec">
+        <SetSectionHead title="Other things it should know" hint="One topic each — parking, gift cards, a second location. Both receptionists say these." />
+        {notes.map((n, i) => (
+          <div key={i} className="set-note-row">
+            <input className="set-input" value={n.title || ""} placeholder="Gift cards" aria-label="Note title" onChange={(e) => setNote(i, "title", e.target.value)} />
+            <textarea className="set-input set-textarea" rows={2} value={n.text || ""} placeholder="Gift cards are sold at the front desk, any amount — ask for the owner." aria-label="Note text" onChange={(e) => setNote(i, "text", e.target.value)} />
+            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${n.title || "note"}`} onClick={() => setNotes((l) => l.filter((_, j) => j !== i))}><Icon name="x" size={12} /></button>
+          </div>
+        ))}
+        {notes.length < 10 && (
+          <button type="button" className="btn btn-sm" onClick={() => setNotes((l) => [...l, { title: "", text: "" }])}><Icon name="plus" size={12} /> Add a note</button>
+        )}
+      </div>
       <div className="set-sec">
         <SetSectionHead title="Anything else it should know" hint="Optional — written in your own words" />
         <textarea className="set-input set-textarea" rows={4} value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="Parking is behind the building. We do not take walk-ins after 5pm." aria-label="Extra instructions" />
       </div>
-
+      </div>
       <div className="set-editor-foot">
         <span className="set-editor-note">Saved changes reach the receptionist within a minute. A call already in progress finishes on the old details.</span>
         <button type="button" className="btn btn-ghost btn-sm" onClick={onDone} disabled={saving}>Cancel</button>
