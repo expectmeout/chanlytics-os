@@ -1,4 +1,4 @@
-import { AppError, normalizePhone } from "@chanlytics/contracts";
+import { AppError, normalizePhone, whyNotAPhone } from "@chanlytics/contracts";
 import { withRoute, memberContext, requireRole } from "@/server/with-route";
 import { listPeople } from "@/server/people";
 import { withVisits } from "@/server/calendar";
@@ -33,8 +33,12 @@ export const GET = withRoute(async (req, ctx) => {
  */
 export const POST = withRoute(async (req, ctx) => {
   const body = (await req.json().catch(() => null)) as { phone?: unknown; name?: unknown; source?: unknown } | null;
-  const phone = normalizePhone(typeof body?.phone === "string" ? body.phone : null);
-  if (!phone) throw new AppError("validation", "A phone number is needed to add a person.");
+  const raw = typeof body?.phone === "string" ? body.phone : null;
+  const phone = normalizePhone(raw);
+  // One sentence for every refusal told an owner looking at a short code on
+  // their own screen that "a phone number is needed". whyNotAPhone says which
+  // kind of not-a-number it was given.
+  if (!phone) throw new AppError("validation", whyNotAPhone(raw) ?? "A phone number is needed to add a person.");
   const name = typeof body?.name === "string" ? body.name.trim().slice(0, 80) : "";
   const source = typeof body?.source === "string" && /^[a-z_]{1,24}$/.test(body.source) ? body.source : "manual";
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));

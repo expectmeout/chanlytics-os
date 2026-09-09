@@ -16,6 +16,32 @@ export function normalizePhone(raw: string | null | undefined): string | null {
   return null;
 }
 
+/**
+ * Why this is not a number anyone can be reached on — in the owner's words —
+ * or null when it is one.
+ *
+ * "A phone number is needed to add a person" was said to every refusal alike,
+ * including to an owner looking at the number on their own screen. A short
+ * code is the case that matters: the product STORES them, because a carrier
+ * or a two-factor message arriving on the line is written to contacts as
+ * `+12345` by the inbound path, and it can never be a person — nothing can
+ * be sent back to one from a ten-digit number.
+ *
+ * Seven digits is told apart from a short code on purpose: that is a local
+ * number missing its area code, and calling it a short code would be a
+ * confident wrong answer where an accurate one costs nothing.
+ */
+export function whyNotAPhone(raw: string | null | undefined): string | null {
+  if (normalizePhone(raw)) return null;
+  const digits = String(raw ?? "").replace(/[^\d]/g, "");
+  if (!digits) return "A phone number is needed to add a person.";
+  if (digits.length >= 3 && digits.length <= 6) {
+    return "That is a short code, not a phone number — nobody can be reached on one.";
+  }
+  if (digits.length === 7) return "That looks like a local number. Add the area code.";
+  return "That is not a phone number anyone can be reached on.";
+}
+
 /** Human-readable phone for display: NANP gets +1 (XXX) XXX-XXXX; others get spaced groups. */
 export function formatPhoneDisplay(e164: string | null | undefined): string | null {
   if (!e164) return null;

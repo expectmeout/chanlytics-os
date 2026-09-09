@@ -60,6 +60,16 @@ function normalizePhone(raw) {
   if (digits.length >= 8 && digits.length <= 15) return `+${digits}`;
   return null;
 }
+function whyNotAPhone(raw) {
+  if (normalizePhone(raw)) return null;
+  const digits = String(raw ?? "").replace(/[^\d]/g, "");
+  if (!digits) return "A phone number is needed to add a person.";
+  if (digits.length >= 3 && digits.length <= 6) {
+    return "That is a short code, not a phone number \u2014 nobody can be reached on one.";
+  }
+  if (digits.length === 7) return "That looks like a local number. Add the area code.";
+  return "That is not a phone number anyone can be reached on.";
+}
 function formatPhoneDisplay(e164) {
   if (!e164) return null;
   const digits = String(e164).replace(/[^\d]/g, "");
@@ -6762,6 +6772,7 @@ export {
   waitedLabel,
   whenLabel,
   whisperText,
+  whyNotAPhone,
   windowFor,
   workspaceHotkey,
   zoneMidnight,
