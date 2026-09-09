@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { consentPageVM, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONVERSATION_PHRASE, OFFERS_OPT_IN_PHRASES, optInLink } from "@chanlytics/contracts";
+import { consentPageVM, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONVERSATION_PHRASE, OFFERS_OPT_IN_PHRASES, optInLink, SMS_CLAUSES } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 const salon = { businessName: "Melany's Beauty Salon", whatsappE164: "+19177724072", smsE164: null };
@@ -124,9 +124,15 @@ test("the pages a carrier reviewer lands on say who the business is", () => {
   for (const fact of ["RJ Capital LLC", "193 Jamaica Ave, Brooklyn, NY 11207", "hi@chanlytics.com", "+1 (917) 574-6416"]) {
     assert.ok(privacy.includes(fact), `the privacy policy names ${fact}`);
   }
-  // The SMS clauses that were already right, kept from regressing out.
-  assert.ok(/Reply STOP to stop and HELP for help/.test(privacy));
-  assert.ok(/No mobile information will be shared with third parties/.test(privacy));
+  // The SMS clauses that were already right, kept from regressing out -- and now
+  // rendered from ONE source, because every workspace's own page at /b/<slug>
+  // publishes the same ones. Two copies of a compliance sentence is one copy
+  // that will be edited and one that will not.
+  assert.ok(privacy.includes("{SMS_CLAUSES.join(\" \")}"), "the policy renders the shared clauses");
+  assert.ok(SMS_CLAUSES.some((c) => /Reply STOP to stop and HELP for help/.test(c)));
+  assert.ok(SMS_CLAUSES.some((c) => /No mobile information will be shared with third parties/.test(c)));
+  assert.ok(SMS_CLAUSES.some((c) => /Message and data rates may apply/.test(c)));
+  assert.ok(!SMS_CLAUSES.some((c) => /standard rates/i.test(c)), "carriers refuse \"standard\" -- it implies premium-rate messaging");
 
   // The opt-in page is the URL on every registration, so a reviewer lands
   // there too and has to be able to tell who is sending.

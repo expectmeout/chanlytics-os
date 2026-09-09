@@ -85,6 +85,7 @@ export async function POST(request: Request): Promise<Response> {
             record: rec.data,
             workspaceName: tenant.data.name,
             optInUrl: `${origin}/yes/${tenant.data.slug}`,
+            hostedUrl: `${origin}/b/${tenant.data.slug}`,
             privacyUrl: `${origin}/privacy`,
             termsUrl: `${origin}/terms`,
             mock: fresh.data.reg_mock,

@@ -106,8 +106,19 @@ test("each path asks exactly what its own filing sends", () => {
   assert.equal(stdAttrs.website_url, RECORD.website_url);
   for (const name of ["ein", "business_type", "website_url"]) {
     assert.ok(asked("standard").includes(name), `standard asks for ${name}`);
+  }
+  for (const name of ["ein", "business_type"]) {
     assert.ok(businessFieldsFor("standard").find((f) => f.name === name).required, `standard requires ${name}, because it sends it`);
   }
+  // The website is ASKED and not REQUIRED on either path now, and that is gate
+  // 8: a carrier registration needs a site that identifies the business, on a
+  // domain matching the brand, and most salons have a Facebook page and a
+  // Booksy link. We publish `/b/<slug>` from the facts on this very form and
+  // file that instead, so a missing URL is no longer a wall at field seven.
+  for (const path of ["standard", "sole_proprietor"]) {
+    assert.equal(businessFieldsFor(path).find((f) => f.name === "website_url").required, false, path);
+  }
+  assert.match(businessFieldsFor("standard").find((f) => f.name === "website_url").hint, /we publish a page for you/);
 
   // SOLE PROPRIETOR: two end users and an address, and between them they send
   // one name, the person, their mobile and the vertical. Nothing else.
@@ -130,9 +141,7 @@ test("each path asks exactly what its own filing sends", () => {
     assert.ok(!asked("sole_proprietor").includes(name), `sole proprietor is never asked for ${name}`);
   }
   assert.ok(!sent.includes(RECORD.ein), "and no request on this path carries a tax id");
-  // Asked, not required: the website is genuinely useful and genuinely unsent.
-  assert.equal(businessFieldsFor("sole_proprietor").find((f) => f.name === "website_url").required, false);
-  assert.ok(!sent.includes(RECORD.website_url), "which is why it is not required");
+  assert.ok(!sent.includes(RECORD.website_url), "and nothing on this path sends the website at all");
   // One name box, because the filing sends one name.
   assert.ok(!asked("sole_proprietor").includes("trade_name"));
 });
@@ -141,7 +150,8 @@ test("complete for one registration is incomplete for the other", () => {
   const sp = soleProp({ website_url: "" });
   assert.deepEqual(businessRecordProblems(sp, "sole_proprietor"), {}, "no tax id and no website: ready to file as a sole proprietor");
   const asStandard = businessRecordProblems(sp, "standard");
-  assert.ok(asStandard.ein && asStandard.website_url, "the same record, as a business, is missing two things");
+  assert.ok(asStandard.ein, "the same record, as a business, is missing its tax id");
+  assert.equal(asStandard.website_url, undefined, "but NOT the website: we publish one for them");
   // And the words change with the path, because "as the tax authorities know
   // it" is a lie told to somebody with no filing.
   assert.notEqual(businessGroupWordsFor("sole_proprietor").business.sub, businessGroupWordsFor("standard").business.sub);
