@@ -20,7 +20,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { businessPageVM, smsConsentSentence, SMS_CLAUSES } from "@chanlytics/contracts";
+import { businessPageVM, smsConsentSentence, registrationPreflight, SMS_CLAUSES } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 const salon = {
@@ -179,4 +179,103 @@ test("Chanlytics' own policy and a workspace's page cannot drift", () => {
   // policy speaks about businesses in general, a workspace's page names one.
   assert.ok(privacy.includes("A business&rsquo;s customers receive texts only when"));
   assert.ok(!privacy.includes("No mobile information will be shared with third parties or affiliates for marketing"), "REGRESSION: a second copy of a compliance clause");
+});
+
+/* -------------------------------------------------------------------------- *
+ * The pre-flight.
+ *
+ * A carrier rejection arrives DAYS later and says one thing at a time. The first
+ * real campaign this product filed came back FOUR times — four weeks — for
+ * faults that were every one of them visible before anything was sent.
+ * -------------------------------------------------------------------------- */
+
+const ready = (over = {}) => ({
+  workspaceName: "Melany's Beauty Salon",
+  legalName: "Melany Beauty Corp",
+  tradeName: "Melany's Beauty Salon",
+  street: "2581 Pitkin Ave",
+  city: "Brooklyn",
+  websiteUrl: null,
+  hasOptInNumber: true,
+  ...over,
+});
+
+test("a workspace that is ready has nothing to fix", () => {
+  assert.deepEqual(registrationPreflight(ready()), []);
+  // Their own site is fine, and so is no site at all.
+  assert.deepEqual(registrationPreflight(ready({ websiteUrl: "https://melanys.example" })), []);
+});
+
+test("the name the carriers are told, against the name the brand registers", () => {
+  // THE ONE THAT BIT US. The campaign states `tenants.name`; the brand registers
+  // `business_records.legal_name`. A live campaign went to the carriers
+  // describing a business called "Billing probe" — a workspace name from a
+  // Stripe test — while the brand said RJ Capital LLC. The opt-in message that
+  // carried it can NEVER be edited afterwards; correcting it needs a new
+  // campaign and a second vetting fee.
+  const [p] = registrationPreflight(ready({ workspaceName: "Billing probe" }));
+  assert.equal(p.id, "name_mismatch");
+  assert.match(p.what, /Billing probe/);
+  assert.match(p.what, /Melany's Beauty Salon/);
+  assert.match(p.fix, /cannot be changed after a filing/, "because that is the part that costs money to get wrong");
+
+  // Either name matching is enough: a business is known by its trading name and
+  // registered under its legal one.
+  assert.deepEqual(registrationPreflight(ready({ workspaceName: "Melany Beauty Corp" })), []);
+  assert.deepEqual(registrationPreflight(ready({ workspaceName: "Melany's Beauty Salon" })), []);
+  // And the comparison is loose enough not to nag about punctuation or a suffix.
+  for (const near of ["Melanys Beauty Salon", "MELANY'S BEAUTY SALON", "Melany Beauty Corp LLC", "The Melany Beauty Corp"]) {
+    assert.deepEqual(registrationPreflight(ready({ workspaceName: near })), [], near);
+  }
+});
+
+test("the page the carriers will open has to exist", () => {
+  // We file `/b/<slug>` as the website and the privacy policy. It renders from
+  // the legal name and the address; without them it answers 404, so the filing
+  // would name a URL that does not exist — which is 30919, a week later.
+  for (const missing of [{ legalName: "" }, { street: "" }, { city: "" }]) {
+    const ids = registrationPreflight(ready(missing)).map((p) => p.id);
+    assert.ok(ids.includes("no_identity"), JSON.stringify(missing));
+  }
+  const [p] = registrationPreflight(ready({ street: "" })).filter((x) => x.id === "no_identity");
+  assert.match(p.what, /cannot be published/);
+  assert.match(p.fix, /legal name and the street address/);
+});
+
+test("the message flow must be true: somewhere for a customer to say yes", () => {
+  // The flow tells the carriers customers opt in by texting this business.
+  // Without a number the opt-in page says the business is not set up to take
+  // sign-ups — so the flow would describe something that does not happen, which
+  // is a statement to a regulator that is not true.
+  const [p] = registrationPreflight(ready({ hasOptInNumber: false }));
+  assert.equal(p.id, "no_opt_in_number");
+  assert.match(p.fix, /has to be true/);
+});
+
+test("a website that is not a website is worse than none", () => {
+  // With none we publish a page for them. With a broken one we file it.
+  for (const bad of ["melanys", "www melanys com", "http://", "ftp://melanys.example"]) {
+    const ids = registrationPreflight(ready({ websiteUrl: bad })).map((x) => x.id);
+    assert.ok(ids.includes("website_unusable"), bad);
+  }
+  const [p] = registrationPreflight(ready({ websiteUrl: "melanys" }));
+  assert.match(p.fix, /or clear it, and we will publish a page for you/);
+  for (const good of ["https://melanys.example", "http://melanys.example/salon", "https://www.melanys.example"]) {
+    assert.deepEqual(registrationPreflight(ready({ websiteUrl: good })), [], good);
+  }
+});
+
+test("nothing is filed until they are answered, and the words reach the row", () => {
+  const edge = readCode("apps/edge/lib/a2p.ts");
+  // Same moment as the record check, and before anything is created: on a real
+  // filing each of these is a week of waiting and a fee already spent.
+  assert.match(edge, /for \(const p of registrationPreflight\(\{/);
+  assert.ok(edge.indexOf("registrationPreflight({") < edge.indexOf("const send = async"), "before a single call is made");
+  assert.match(edge, /problems\.push\(`\$\{p\.what\} \$\{p\.fix\}`\)/, "what is wrong AND what to do, on the row the page reads");
+  // The workspace's name is what the campaign will say, so it is what gets
+  // checked -- not the record's, which is what the brand says.
+  assert.match(edge, /workspaceName: o\.workspaceName,/);
+  // And the door tells it whether anybody can say yes.
+  const door = readCode("apps/edge/api/admin/lines.ts");
+  assert.match(door, /hasOptInNumber: \(saysYes\.data \?\? \[\]\)\.length > 0 \|\| !!row\.data\.e164,/);
 });

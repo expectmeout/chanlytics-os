@@ -13,7 +13,7 @@ import {
   runA2PSaga, smsStateFor, registrationVerdict, LOW_VOLUME_USECASE, deleteCampaignRequest, updateCampaignRequest,
   encodeForm, brandTypeFor, refusalWords, type A2PPorts, type A2PRequest, type A2PState, type BusinessRecord, type CampaignError,
 } from "./workspace/channels.js";
-import { formatPhoneDisplay, industryOf, businessRecordProblems, registrationPathOf } from "./workspace/contracts.js";
+import { formatPhoneDisplay, industryOf, businessRecordProblems, registrationPathOf, registrationPreflight } from "./workspace/contracts.js";
 import { emitEvent } from "./workspace/db.js";
 import { recordNotification } from "./notify.js";
 import { lineProviderFromEnv } from "./lines.js";
@@ -339,6 +339,16 @@ export async function registerLine(db: Db, o: {
   termsUrl: string;
   /** The workspace's own hosted page, `/b/<slug>`: its website and privacy policy when it has none. */
   hostedUrl?: string | null;
+  /**
+   * Whether a customer has any way to say yes yet.
+   *
+   * The message flow tells the carriers customers opt in by texting this
+   * business. Absent a number, the opt-in page says the business is not set up
+   * to take sign-ups — so the flow would describe something that does not
+   * happen. Defaults to true so a caller that does not know does not block a
+   * filing on a fact it never looked up.
+   */
+  hasOptInNumber?: boolean;
   mock: boolean;
   statusCallback?: string;
 }): Promise<RegisterResult> {
@@ -365,6 +375,26 @@ export async function registerLine(db: Db, o: {
   const ours = await db.from("lines").select("e164").eq("tenant_id", o.line.tenant_id);
   const ourNumbers = (ours.data ?? []).map((r) => r.e164).filter((n): n is string => !!n);
   const problems = Object.values(businessRecordProblems(o.record, path, { ourNumbers }));
+
+  // And the things a REVIEWER will check, which a complete record does not
+  // guarantee. Same moment, same refusal: before anything is created, because on
+  // a real filing each of these is a week of waiting and a fee already spent.
+  //
+  // The name check is the one that bit this product: the campaign states the
+  // WORKSPACE'S name and the brand registers the RECORD'S, and a live campaign
+  // went to the carriers describing a business called "Billing probe".
+  for (const p of registrationPreflight({
+    workspaceName: o.workspaceName,
+    legalName: o.record.legal_name,
+    tradeName: o.record.trade_name,
+    street: o.record.street,
+    city: o.record.city,
+    websiteUrl: o.record.website_url,
+    hasOptInNumber: o.hasOptInNumber ?? true,
+  })) {
+    problems.push(`${p.what} ${p.fix}`);
+  }
+
   if (problems.length) {
     await db.from("lines").update({
       sms_state: "needs_record",
