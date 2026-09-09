@@ -307,7 +307,14 @@ test("the words: four states, no jargon, no trade", () => {
 
 test("wiring: Settings tab, manifest, bridge, routes, registry, rate bucket, event kind, migration, Today line", () => {
   const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
-  assert.ok(settings.includes('const SET_TABS = [\n  { id: "setup",         label: "Setup",         icon: "flag" },'), "Setup is the first Settings tab");
+  // First in the WORKSPACE group. Profile opens the rail now, because the
+  // first thing a person needs from settings is which account they are in —
+  // Setup is still the first thing they do TO the workspace.
+  assert.match(
+    settings,
+    /\{ id: "profile",[^\n]*group: "You" \},\s*\{ id: "setup",[^\n]*group: "Workspace" \}/,
+    "Setup is the first thing you do to the workspace",
+  );
   assert.ok(settings.includes('{active.id === "setup" && window.PaneSetup && <window.PaneSetup />}'), "the pane is the page's component");
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/setup.jsx";'));
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");

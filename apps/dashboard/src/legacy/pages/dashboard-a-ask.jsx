@@ -544,7 +544,7 @@ const AskBarSeed = ({ open, onClose }) => {
   const runAction = (a) => {
     // Role gate — denied actions explain themselves and change nothing
     if (a.gateAction && window.canDo && !window.canDo(a.gateAction)) {
-      a = { run: null, done: window.gateTitle(a.gateAction) + " — nothing was changed.", doneLinks: [{ label: "Workspace roles", to: "admin/workspace" }] };
+      a = { run: null, done: window.gateTitle(a.gateAction) + " — nothing was changed.", doneLinks: [{ label: "Workspace roles", to: "admin/team" }] };
     }
     try { a.run && a.run(); } catch (e) {}
     if (!active) return;
