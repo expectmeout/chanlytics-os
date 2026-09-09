@@ -89,18 +89,26 @@ test("one address: the deploy alias redirects, and a preview never does", () => 
   assert.ok(before > 0 && before < middleware.indexOf("PUBLIC_PATHS.has(path)"), "before the auth gate: the redirect is not a place to leak whether a path exists");
 });
 
-test("exactly one public PREFIX, and only the opt-in page lives under it", () => {
+test("two public PREFIXES, and only a workspace's own two pages live under them", () => {
   const block = /PUBLIC_PREFIXES\s*=\s*\[([^\]]*)\]/.exec(middleware);
   assert.ok(block, "PUBLIC_PREFIXES must be a literal array so this test can read it");
   const prefixes = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]);
-  // Pinned BY VALUE like the paths above: a prefix opens EVERY path beneath
-  // it, so widening this is a deliberate edit here, reviewed, and never a
-  // side effect of adding a route.
-  assert.deepEqual(prefixes, ["/yes/"]);
+  // Pinned BY VALUE like the paths above: a prefix opens EVERY path beneath it,
+  // so widening this is a deliberate edit HERE, reviewed, and never a side
+  // effect of adding a route.
+  //
+  // `/b/` was added when a workspace's own page shipped, and it had to be: the
+  // page is filed with the carriers as a campaign's website and privacy policy,
+  // so its reader is often a REVIEWER — and a reviewer who gets a login screen
+  // has been shown a business that cannot be looked up, which is error 30919
+  // with extra steps. Caught on production, where the page 307'd to /login.
+  assert.deepEqual(prefixes, ["/yes/", "/b/"]);
   assert.match(middleware, /PUBLIC_PREFIXES\.some\(\(p\) => path\.startsWith\(p\)\)/);
-  const dir = path.join(ROOT, "apps/dashboard/app/yes");
-  assert.deepEqual(fs.readdirSync(dir), ["[slug]"], "nothing but the opt-in page may live under the public prefix");
-  assert.deepEqual(fs.readdirSync(path.join(dir, "[slug]")), ["page.tsx"], "and it is a page, not a route that takes input");
+  for (const [dir, what] of [["yes", "the opt-in page"], ["b", "the workspace's own page"]]) {
+    const at = path.join(ROOT, "apps/dashboard/app", dir);
+    assert.deepEqual(fs.readdirSync(at), ["[slug]"], `nothing but ${what} may live under its public prefix`);
+    assert.deepEqual(fs.readdirSync(path.join(at, "[slug]")), ["page.tsx"], `and ${what} is a page, not a route that takes input`);
+  }
 });
 
 test("only these nine paths are reachable without a session", () => {

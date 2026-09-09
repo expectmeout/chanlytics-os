@@ -20,12 +20,21 @@ import { isRetryableAuthError } from "@/server/auth-errors";
 const PUBLIC_PATHS = new Set(["/login", "/auth/signout", "/api/version", "/manifest.webmanifest", "/signup", "/api/v1/signup", "/privacy", "/terms", "/data-deletion"]);
 
 /**
- * The one public PREFIX. A workspace's "say yes to offers" page is opened by
- * a customer from a QR at the desk, so it carries the workspace's slug and
- * cannot be an exact path. Nothing else lives under it, it takes no input
- * and it writes nothing — see app/yes/[slug]/page.tsx.
+ * The public PREFIXES. Both carry a workspace's slug, so neither can be an exact
+ * path; both take no input, write nothing, and read only what they display.
+ *
+ *   /yes/   the "say yes" page, opened by a customer from a QR at the desk.
+ *   /b/     the workspace's own page: who they are, what they do, their text
+ *           terms. It is filed with the carriers as a campaign's website and
+ *           privacy policy, which means the reader is often a REVIEWER — and a
+ *           reviewer who gets a login screen has been shown a business that
+ *           cannot be looked up, which is error 30919 with extra steps.
+ *
+ * Adding one here is adding a page anybody on the internet may read. Both were
+ * built for exactly that; nothing else goes on this list without the same
+ * argument.
  */
-const PUBLIC_PREFIXES = ["/yes/"];
+const PUBLIC_PREFIXES = ["/yes/", "/b/"];
 
 /**
  * An auth redirect must never be stored. These responses depend entirely on a
