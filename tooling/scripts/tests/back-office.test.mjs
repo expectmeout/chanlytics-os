@@ -146,13 +146,18 @@ test("nothing answering is 'new' for a day and 'stalled' after", () => {
 
 test("the states whose next move is the owner's say the words the owner is being shown", () => {
   for (const sms_state of ["needs_record", "otp_waiting", "rejected"]) {
-    const r = only({ sms_state, line_error: sms_state === "rejected" ? "the website could not be reached" : null });
+    const r = only({ sms_state, line_error: null });
     assert.equal(r.verdict, "waiting_owner", sms_state);
     // THE point of the whole surface: not a paraphrase. The literal sentence
     // on the customer's own texting row, so support and customer cannot end up
     // describing the same state differently on the same call.
     assert.equal(r.sentence, textingWords({ sms_state, reg_mock: false, reg_sole_prop: false }).sentence, sms_state);
   }
+  // Plus the carriers' reason where there is one. Setup leaves it out -- the
+  // owner has it on their own row -- but the reason IS the support question, and
+  // the live Chanlytics campaign came back with two of them.
+  const refused = only({ sms_state: "rejected", line_error: "invalid campaign description (30886 · USE_CASE_DESCRIPTION)" });
+  assert.match(refused.sentence, /refused the texting registration\. — invalid campaign description \(30886/);
 });
 
 test("quiet means answering with nobody reaching them, and says for how long", () => {
@@ -432,7 +437,6 @@ const walk = (n, fn) => {
 const byId = (root, id) => { let hit = null; walk(root, (n) => { if (!hit && n.props?.["data-testid"] === id) hit = n; }); return hit; };
 /** Every attention row the pane drew, in order, as the props it handed the shared component. */
 const attnRows = (root) => { const out = []; walk(root, (n) => { if (n.type === ATTN) out.push(n); }); return out; };
-const ids = (root) => { const out = []; walk(root, (n) => { const t = n.props?.["data-testid"]; if (t) out.push(t); }); return out; };
 /** Everything a reader would see, expanding nested components the same way walk does. */
 const textOf = (n) => {
   const out = [];

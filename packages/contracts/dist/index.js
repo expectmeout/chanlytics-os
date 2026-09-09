@@ -6570,8 +6570,10 @@ function sentenceFor(r, verdict, nowMs) {
       return "Texting is filed against the test registry: it reports itself approved, delivers nothing, and expires thirty days after filing.";
     case "stalled":
       return `Set up ${agoWords(at(r.created_at) ?? nowMs, nowMs)} and nothing answers yet${r.members <= 1 ? ", with one person in the workspace" : ""}.`;
-    case "waiting_owner":
-      return textingWords({ sms_state: r.sms_state ?? "none", reg_mock: r.reg_mock ?? false, reg_sole_prop: r.reg_sole_prop ?? false }).sentence;
+    case "waiting_owner": {
+      const words = textingWords({ sms_state: r.sms_state ?? "none", reg_mock: r.reg_mock ?? false, reg_sole_prop: r.reg_sole_prop ?? false }).sentence;
+      return r.line_error ? `${words} \u2014 ${r.line_error}` : words;
+    }
     case "quiet":
       return quietFor === null ? "Answering, and no customer has ever reached them." : `Answering, and no customer has reached them in ${quietFor} days.`;
     case "new":
