@@ -366,7 +366,10 @@ test("the owner's form: every field the carriers ask, checked in the owner's wor
 test("the wiring: filed as us, never twice, never real by default, and the record is asked for first", () => {
   const edge = readCode("apps/edge/api/admin/lines.ts");
   assert.ok(edge.includes('if (op === "record") {') && edge.includes('if (op === "register" || op === "registration-status") {'));
-  assert.ok(edge.includes('const mock = body.mock === true;'), "a real filing costs money, so it is never the default");
+  // Two directions, one line: a real filing costs money so it is never the
+  // default, and a refile is always real -- there is no reason to replace one
+  // rehearsal with another. See a2p-refile.test.mjs for what a refile clears.
+  assert.ok(edge.includes('const mock = !refile && body.mock === true;'), "a real filing costs money, so it is never the default");
   assert.ok(edge.includes('if (!rec.data) {') && edge.includes('error: "no_business_record"'), "no record, no registration");
   assert.ok(edge.includes('error: "already_registered"'), "a second filing is refused rather than paid for");
   assert.ok(edge.includes("optInUrl: `${origin}/yes/${tenant.slug}`") && edge.includes("privacyUrl: `${origin}/privacy`"), "the reviewer is sent to pages that exist");
