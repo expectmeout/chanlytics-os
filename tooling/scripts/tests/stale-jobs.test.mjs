@@ -31,7 +31,7 @@ test("it marks, it never retries", () => {
   // over the whole file any more, only over the pass it is true of.
   // Anchored on CODE, not a comment: readCode strips comments, so a marker
   // comment slices to -1 and silently takes the whole rest of the file.
-  const fired = sweep.slice(sweep.indexOf("for (const job of stale)"), sweep.indexOf("const overdueBefore ="));
+  const fired = sweep.slice(sweep.indexOf("for (const job of stale ?? [])"), sweep.indexOf("const overdueBefore ="));
   assert.ok(fired.length > 200 && sweep.indexOf("const overdueBefore =") > 0, "the two passes are actually separable");
   assert.ok(!fired.includes('state: "scheduled"'), "a job that may have run is never put back on the queue");
   assert.ok(!fired.includes("republishJob") && !fired.includes("publishJSON"), "and never fired again");
@@ -179,4 +179,23 @@ test("a re-publish keeps the job's own row, and a stranded broadcast is released
   assert.ok(sweep.includes('.eq("state", "sending")'), "conditional, so a broadcast that finished is left alone");
   const handlers = readCode("packages/jobs/src/handlers.ts");
   assert.ok(handlers.includes('ctx.schedule("broadcast_send", new Date(), { broadcast_id: b.id })'), "the chain this repairs");
+});
+
+test("neither half can silence the other", () => {
+  // This shipped once and did nothing. #256's `if (!stale?.length) return`
+  // was right while there was one pass; with two it meant the overdue half
+  // ran only on the rare tick that ALSO found a stuck job. Every test here
+  // reads source, so none of them noticed — a probe job in production did.
+  assert.ok(!sweep.includes("if (!stale?.length) return"), "no early exit between the passes");
+  assert.ok(sweep.includes("for (const job of stale ?? [])"), "an empty first half is a loop that does nothing, not a return");
+  assert.ok(sweep.includes('L.error("stuck_read_failed"'), "a failed read of one half is logged, not fatal to the other");
+
+  // One answer, after both passes. A second 200 anywhere earlier is the same
+  // bug wearing different clothes.
+  const answers = (sweep.match(/return json\(200/g) ?? []).length;
+  assert.equal(answers, 2, "the overdue-read failure path, and the one at the end");
+  assert.ok(
+    sweep.lastIndexOf("return json(200") > sweep.indexOf("recoveryFor(job)"),
+    "the final answer comes after the recovery loop, not before it",
+  );
 });
