@@ -6111,7 +6111,7 @@ function smsStateFor(o) {
   const campaign = (o.campaignStatus ?? "").toUpperCase();
   if (brand === "FAILED" || campaign === "FAILED") return "rejected";
   if (brand === "SUSPENDED") return "failed";
-  if (campaign === "VERIFIED") return "active";
+  if (campaign === "VERIFIED") return o.mock ? "approved" : "active";
   if (brand === "APPROVED") return "approved";
   return "registering";
 }
