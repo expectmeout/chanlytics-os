@@ -13818,14 +13818,15 @@ async function outboundSend(ctx, job) {
   if (!msg || msg.status !== "queued") return;
   const { data: convRow, error: consentErr } = await ctx.db.from("conversations").select("contacts (consent, dnc)").eq("id", p.conversation_id).eq("tenant_id", job.tenant_id).maybeSingle();
   if (consentErr || !convRow) {
+    const why = consentErr?.message ?? "conversation not found";
     console.error(JSON.stringify({
       level: "error",
       event: "outbound_consent_unreadable",
       tenant_id: job.tenant_id,
       message_id: p.message_id,
-      error: consentErr?.message ?? "conversation not found"
+      error: why
     }));
-    return;
+    throw new Error(`outbound_send: cannot read consent for conversation ${p.conversation_id}: ${why}`);
   }
   const contact = convRow.contacts;
   if (contact && isOptedOutContact(contact)) {

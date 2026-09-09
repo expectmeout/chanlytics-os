@@ -288,6 +288,31 @@ test("neither half can silence the other", () => {
   assert.ok(loop.lastIndexOf("return {") > loop.indexOf("recoveryFor(job)"), "and it comes after the recovery loop, not before it");
 });
 
+test("a handler that cannot check consent fails loudly", () => {
+  // Failing closed is right and is not the question; who finds out is. This
+  // RETURNED, which consumed the claim -- and since 00080 a handler that
+  // returns moves the job to 'done'. So the message sat 'queued' for ever with
+  // the job recorded as a success and no sweep left that would look at it
+  // again. Before 'done' existed it stayed 'fired' until the sweep above
+  // reaped it and told the owner: making success visible made this failure
+  // invisible, which is a regression this work introduced and this closes.
+  const handlers = readCode("packages/jobs/src/handlers.ts");
+  const gate = handlers.slice(handlers.indexOf("const { data: convRow, error: consentErr }"));
+  const branch = gate.slice(0, gate.indexOf("const contact = convRow.contacts"));
+  assert.ok(branch.includes("throw new Error("), "an unreadable consent row reaches fail_job and the alert");
+  assert.ok(!/^\s*return;\s*$/m.test(branch), "and does not quietly consume the claim");
+
+  // The MESSAGE row is deliberately left queued either way: it was not sent,
+  // and marking it failed on our own inability to check would be a second
+  // untruth. Only the job fails.
+  assert.ok(!branch.includes('status: "failed"'), "the message is not judged on a check we could not make");
+
+  // fire.ts is what turns the throw into something an owner sees.
+  const fire = readCode("apps/edge/api/jobs/fire.ts");
+  assert.ok(fire.includes('await db.rpc("fail_job"'), "a thrown handler is recorded");
+  assert.ok(fire.includes("alertFor(db, job)"), "and told");
+});
+
 test("a snooze whose job was lost still wakes up", () => {
   // 00006 gave pauses a sweeper for exactly this reason and snoozes never got
   // one: snooze_until is cleared by the job, by an inbound message (00005) and
