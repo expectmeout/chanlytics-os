@@ -76,3 +76,30 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
   assert.ok(css.includes(".yes-terms {"), "the page has its own styles, not the auth card's");
   assert.ok(css.includes(".yes a.yes-btn { color: #06231d;"), "REGRESSION: .yes a outranks .yes-btn and painted the button's label teal on teal");
 });
+
+test("the pages a carrier reviewer lands on say who the business is", () => {
+  // A real rejection, on the first real campaign this product filed:
+  //
+  //   [30919] PRIVACY_POLICY_URL — "the campaign submission has been reviewed
+  //           and rejected because the provided website does not contain
+  //           sufficient business information"
+  //
+  // The privacy policy was thorough about the PRODUCT — what it holds, who
+  // processes it, the STOP/HELP language, the mobile-information clause — and
+  // never once said which company was behind it. A reviewer, a payment
+  // processor and a customer all need the same four facts, and none of them
+  // were there.
+  const privacy = readRaw("apps/dashboard/app/privacy/page.tsx");
+  for (const fact of ["RJ Capital LLC", "193 Jamaica Ave, Brooklyn, NY 11207", "hi@chanlytics.com", "+1 (917) 574-6416"]) {
+    assert.ok(privacy.includes(fact), `the privacy policy names ${fact}`);
+  }
+  // The SMS clauses that were already right, kept from regressing out.
+  assert.ok(/Reply STOP to stop and HELP for help/.test(privacy));
+  assert.ok(/No mobile information will be shared with third parties/.test(privacy));
+
+  // The opt-in page is the URL on every registration, so a reviewer lands
+  // there too and has to be able to tell who is sending.
+  const yes = readRaw("apps/dashboard/app/yes/[slug]/page.tsx");
+  assert.ok(yes.includes("RJ Capital LLC") && yes.includes("193 Jamaica Ave"), "the opt-in page names the operator");
+  assert.ok(yes.includes("on behalf of {facts.businessName}"), "and still names the business the customer is agreeing to hear from");
+});
