@@ -148,7 +148,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
         <span className="bc-row-label">Send</span>
         <div className="bc-chips" style={{ flexWrap: "wrap" }}>
           {templates.length === 0 && (
-            <span className="bc-excl-hint" data-testid="pb-no-template">No approved template yet — write one on Broadcasts, or in WhatsApp Manager and sync it in Settings › Integrations.</span>
+            <span className="bc-excl-hint" data-testid="pb-no-template">No approved template yet — write one on Broadcasts, or in WhatsApp Manager and sync it in Settings › Connections.</span>
           )}
           {templates.map((t) => (
             <button key={t.id} className={"bc-chip" + (t.id === tplId ? " active" : "")} onClick={() => { setPicked(true); setTplId(t.id); }} title={t.body_preview || ""} data-testid="pb-template">
@@ -162,7 +162,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
           {starterRow
             ? <>Written for this moment: <b>{starter.title}</b>{tplId === starterRow.id ? " — picked for you; change it above if you like" : " — it's above if you'd rather use it"}</>
             : starterAny
-              ? <><b>{starter.title}</b> is {starterAny.meta_status === "pending" ? "in review at WhatsApp — it appears here once approved, usually within minutes" : `${starterAny.meta_status} at WhatsApp — see Settings › Integrations`}</>
+              ? <><b>{starter.title}</b> is {starterAny.meta_status === "pending" ? "in review at WhatsApp — it appears here once approved, usually within minutes" : `${starterAny.meta_status} at WhatsApp — see Settings › Connections`}</>
               : <>
                   The <b>{starter.title}</b> starter is written for this moment.{" "}
                   {canEdit && window.__templates && window.__templates.addStarters
@@ -226,7 +226,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
           : "Only people with a recorded yes and a number · never twice within the gap · one playbook message per person per week, across playbooks · people who asked to stop or are mid-thread with a person are held back at the wire"}</span>
       </div>
       {data.number && data.number.present && !data.number.health.canSend && <div className="bc-excl-hint">{data.number.health.refusal}</div>}
-      {data.number && !data.number.present && <div className="bc-excl-hint">No WhatsApp number connected — connect one in Settings › Integrations before a run can send.</div>}
+      {data.number && !data.number.present && <div className="bc-excl-hint">No WhatsApp number connected — connect one in Settings › Connections before a run can send.</div>}
       {error && <div className="bc-excl-hint" data-testid="pb-error">{error}</div>}
       <div className="bc-actions">
         <input className="bc-subject" type="text" placeholder="Name it (optional)" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} style={{ flex: 1 }} data-testid="pb-name" />

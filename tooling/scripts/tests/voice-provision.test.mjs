@@ -132,7 +132,7 @@ test("idempotent: a workspace with a voice row plans nothing, and says why", () 
   const off = planVoiceProvision({ tenant, channel: { id: "c1", status: "disabled", agentId: "agent_live", number: null }, request: {} });
   assert.equal(off.nothing, true);
   assert.match(off.reason, /disabled/);
-  assert.match(off.reason, /Integrations/);
+  assert.match(off.reason, /Connections/, "the pane an owner is sent to, by the name the tab now has");
 });
 
 test("the request is checked before anything is planned", () => {

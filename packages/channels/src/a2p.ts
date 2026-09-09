@@ -489,7 +489,7 @@ export function registrationVerdict(
     return {
       kind: "alert",
       title: "The carriers sent your texting registration back",
-      body: `${o.reason ? `They said: ${o.reason}. ` : ""}Open Integrations, correct your business on record, and file it again. Calls and WhatsApp are unaffected.`,
+      body: `${o.reason ? `They said: ${o.reason}. ` : ""}Open Connections, correct your business on record, and file it again. Calls and WhatsApp are unaffected.`,
       route: "admin/integrations",
       event: "line.texting_rejected",
     };

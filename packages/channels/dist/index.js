@@ -5334,7 +5334,7 @@ function planVoiceProvision(st) {
       ok: true,
       errors,
       nothing: true,
-      reason: on ? `already answering on ${st.channel.number ?? "its number"} (agent ${st.channel.agentId}); voice-converge keeps it on the shell` : `a voice line exists but is ${st.channel.status} (agent ${st.channel.agentId}); switch it on in Integrations rather than provisioning another`,
+      reason: on ? `already answering on ${st.channel.number ?? "its number"} (agent ${st.channel.agentId}); voice-converge keeps it on the shell` : `a voice line exists but is ${st.channel.status} (agent ${st.channel.agentId}); switch it on in Connections rather than provisioning another`,
       steps: [],
       names
     };
@@ -6141,7 +6141,7 @@ function registrationVerdict(before, after, o) {
     return {
       kind: "alert",
       title: "The carriers sent your texting registration back",
-      body: `${o.reason ? `They said: ${o.reason}. ` : ""}Open Integrations, correct your business on record, and file it again. Calls and WhatsApp are unaffected.`,
+      body: `${o.reason ? `They said: ${o.reason}. ` : ""}Open Connections, correct your business on record, and file it again. Calls and WhatsApp are unaffected.`,
       route: "admin/integrations",
       event: "line.texting_rejected"
     };

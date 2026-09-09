@@ -222,7 +222,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
               <span className="bc-excl-hint" data-testid="bc-no-template">
                 {starterPending > 0
                   ? `Your starter templates are in review at WhatsApp (${starterPending}) — they appear here once approved, usually within minutes.`
-                  : "No approved template yet — add the starter set, write one here, or sync one from WhatsApp Manager in Settings › Integrations."}
+                  : "No approved template yet — add the starter set, write one here, or sync one from WhatsApp Manager in Settings › Connections."}
               </span>
             )}
             {templates.length === 0 && canSend && starterPending === 0 && window.__templates && window.__templates.addStarters && (
@@ -281,7 +281,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
         {number && (
           <div className={`bc-number bc-number-${number.health.tone}`} data-testid="bc-number">
             <Icon name="chat" size={11} />
-            <span>{number.present ? `WhatsApp ${number.display || ""} · ${number.health.label}` : "No WhatsApp number connected — connect one in Settings › Integrations."}</span>
+            <span>{number.present ? `WhatsApp ${number.display || ""} · ${number.health.label}` : "No WhatsApp number connected — connect one in Settings › Connections."}</span>
           </div>
         )}
         {number && number.present && !number.health.canSend && <div className="bc-excl-hint" data-testid="bc-number-refusal">{number.health.refusal}</div>}

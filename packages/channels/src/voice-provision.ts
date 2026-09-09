@@ -200,7 +200,7 @@ export function planVoiceProvision(st: VoiceProvisionState): VoiceProvisionPlan 
       nothing: true,
       reason: on
         ? `already answering on ${st.channel.number ?? "its number"} (agent ${st.channel.agentId}); voice-converge keeps it on the shell`
-        : `a voice line exists but is ${st.channel.status} (agent ${st.channel.agentId}); switch it on in Integrations rather than provisioning another`,
+        : `a voice line exists but is ${st.channel.status} (agent ${st.channel.agentId}); switch it on in Connections rather than provisioning another`,
       steps: [],
       names,
     };

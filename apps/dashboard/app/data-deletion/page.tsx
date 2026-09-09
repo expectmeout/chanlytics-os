@@ -30,7 +30,7 @@ export default function DataDeletionPage() {
       <p>To stop receiving messages without deleting anything, reply <b>STOP</b> to any text or WhatsApp message from the business. That takes effect immediately, whatever else is happening.</p>
 
       <h2>Disconnecting a service</h2>
-      <p>Disconnecting WhatsApp, a phone line or a Google Business Profile in Settings › Integrations removes what that connection gave us. Disconnecting Google also gives the permission back to Google and deletes the reviews we had read. Disconnecting is not the same as deleting the workspace: the conversations already in the product stay until the workspace is deleted.</p>
+      <p>Disconnecting WhatsApp, a phone line or a Google Business Profile in Settings › Connections removes what that connection gave us. Disconnecting Google also gives the permission back to Google and deletes the reviews we had read. Disconnecting is not the same as deleting the workspace: the conversations already in the product stay until the workspace is deleted.</p>
 
       <h2>How long it takes</h2>
       <p>We answer a deletion request within 30 days and usually within a few days. Backups roll off on their own schedule, so a copy can survive in an encrypted backup for a short while after the live data is gone; it is never restored into the product.</p>

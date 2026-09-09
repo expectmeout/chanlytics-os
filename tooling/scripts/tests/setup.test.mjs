@@ -156,7 +156,9 @@ test("WhatsApp waits on Meta while the first messages are with them, or while th
   const inactive = setupSteps(empty({ channels: { ...empty().channels, whatsapp: { present: true, active: false, number: WA, quality: null, lastInboundAt: null } } }), NOW);
   assert.equal(row(inactive, "whatsapp").stateWords, "Waiting on you");
   assert.equal(row(inactive, "whatsapp").sentence, `${formatPhoneDisplay(WA)} is connected but switched off.`);
-  assert.deepEqual(row(inactive, "whatsapp").verb, { label: "Open Integrations", to: "admin/integrations" });
+  // The label is Connections; the ROUTE stays admin/integrations, because
+  // notification rows already written in production carry it.
+  assert.deepEqual(row(inactive, "whatsapp").verb, { label: "Open Connections", to: "admin/integrations" });
   const few = setupSteps(live({ templates: { approved: 2, pending: 0, startersApproved: 2 } }), NOW);
   assert.deepEqual(row(few, "whatsapp").verb, { label: "Add the starters", to: "outbound" });
   assert.ok(row(few, "whatsapp").details.includes("Add the starter messages: welcome, win-back, the month's offer"));

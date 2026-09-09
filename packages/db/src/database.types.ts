@@ -2760,6 +2760,14 @@ export type Database = {
         Returns: Json
       }
       notifications_seen: { Args: { p_tenant_id: string }; Returns: Json }
+      number_drift: {
+        Args: never
+        Returns: {
+          detail: string
+          kind: string
+          tenant_id: string
+        }[]
+      }
       people_list: {
         Args: { p_contact_id?: string; p_tenant_id: string }
         Returns: {
@@ -2824,6 +2832,10 @@ export type Database = {
       report_series: {
         Args: { p_days?: number; p_tenant_id: string }
         Returns: Json
+      }
+      request_sweep: {
+        Args: { p_path: string; p_sweep: string; p_timeout_ms?: number }
+        Returns: number
       }
       runtime_stamp: { Args: { p_tenant_id: string }; Returns: string }
       scrub_ask_for_contact: {

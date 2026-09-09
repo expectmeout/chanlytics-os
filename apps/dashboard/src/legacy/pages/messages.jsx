@@ -220,7 +220,7 @@ const MessagesReal = () => {
       <div className="rp-body">
         {!hasWhatsApp && (
           <section className="fl-card rp2-card" data-testid="messages-no-number">
-            <div className="rp2-empty">Connect a WhatsApp number first — messages belong to a number&rsquo;s account. <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("admin/integrations")}>Open Integrations</button></div>
+            <div className="rp2-empty">Connect a WhatsApp number first — messages belong to a number&rsquo;s account. <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("admin/integrations")}>Open Connections</button></div>
           </section>
         )}
         {composing && window.TemplateComposer && (
