@@ -123,12 +123,15 @@ export async function POST(request: Request): Promise<Response> {
     .lt("fired_at", cutoff)
     .order("fired_at", { ascending: true })
     .limit(MAX_PER_TICK);
-  if (error) return json(503, { ok: false, error: error.message });
-  if (!stale?.length) return json(200, { ok: true, reaped: 0 });
+  // NEITHER of these returns. There are two passes over two halves of the
+  // ledger, and an early exit here means the overdue half runs only on the
+  // rare tick that also finds a stuck job — which is how this shipped green
+  // and did nothing, until a probe job proved otherwise.
+  if (error) L.error("stuck_read_failed", { error: error.message });
 
   let reaped = 0;
   let messages = 0;
-  for (const job of stale) {
+  for (const job of stale ?? []) {
     // `.eq("state", "fired")` is the gate, not a filter: two overlapping ticks,
     // or a handler that comes back late, must not both report the same job.
     // Zero rows means somebody else got there first, and there is nothing to
@@ -250,6 +253,6 @@ export async function POST(request: Request): Promise<Response> {
 
   return json(200, {
     ok: true, reaped, messages, republished, gaveUp, broadcasts,
-    seen: stale.length + (overdue?.length ?? 0),
+    seen: (stale?.length ?? 0) + (overdue?.length ?? 0),
   });
 }
