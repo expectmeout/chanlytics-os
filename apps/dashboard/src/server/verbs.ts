@@ -8,6 +8,7 @@ import { AppError, isOptedOutContact, OPT_OUT_REFUSAL, type DecisionVerb, type D
 import type { Json } from "@chanlytics/db";
 import { memberContext, requireRole, type RouteContext } from "./with-route";
 import { requireUuid } from "./request-guards";
+import { row } from "./route";
 
 /**
  * Every committing verb goes through here first.
@@ -66,6 +67,15 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
     dnc: data.contacts?.dnc ?? false,
   };
 }
+
+/**
+ * The conversation a verb acts on, as a route scope (see route.ts): loaded
+ * through loadConversation under RLS, so a thread the caller cannot see is a
+ * 404, and judged in its own workspace, which for a member of two is the one
+ * that matters. What `requireOperator(ctx, conv.tenant_id)` did by hand in
+ * every verb, declared once.
+ */
+export const conversationScope = row((ctx, params) => loadConversation(ctx, String(params.id ?? "")));
 
 /**
  * The channel a reply goes out on: where the customer last wrote. A
