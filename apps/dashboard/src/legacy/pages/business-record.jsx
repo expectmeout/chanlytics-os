@@ -35,7 +35,11 @@ const BusinessRecordForm = ({ line, flash }) => {
     let on = true;
     API.read().then((r) => {
       if (!on) return;
-      setRecord(r.record ?? API.empty({ websiteUrl: window.location.origin + "/yes/" + (window.__WORKSPACES?.[0]?.slug ?? ""), email: window.__ME?.email ?? "" }));
+      // No website is guessed. Left empty, the filing names the page this
+      // product publishes for the workspace (/b/<slug>), as the field's hint
+      // says. The guess this replaced was saved as the website and filed with
+      // the carriers: the opt-in page, of whichever workspace sorted first.
+      setRecord(r.record ?? API.empty({ email: window.__ME?.email ?? "" }));
       setPath(r.path ?? null);
       setProblems(r.problems || {});
     });
