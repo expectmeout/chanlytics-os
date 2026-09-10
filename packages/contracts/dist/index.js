@@ -5458,6 +5458,14 @@ function toCampaignReportVM(dto) {
 var CAMPAIGN_REPORT_RANGES = REPORT_RANGES;
 
 // src/channels.ts
+var channelIsOn = (c) => typeof c.on === "boolean" ? c.on : (c.status ?? "active") === "active";
+function channelFor(rows, kind) {
+  const mine = rows.filter((c) => c.kind === kind);
+  if (mine.length === 0) return null;
+  const on = mine.filter(channelIsOn);
+  const pool = on.length > 0 ? on : mine;
+  return [...pool].sort((a, b) => Date.parse(a.created_at ?? "") - Date.parse(b.created_at ?? ""))[0] ?? pool[0];
+}
 var DAY_MS5 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS5;
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -5501,7 +5509,8 @@ function toChannelVM(dto, now = /* @__PURE__ */ new Date()) {
     on,
     health,
     healthLabel,
-    lastInboundMs: last
+    lastInboundMs: last,
+    created_at: dto.created_at
   };
 }
 
@@ -6055,6 +6064,12 @@ var REGISTRATION_COST_WORDS = {
 };
 
 // src/setup.ts
+var PROVISIONING_DEADLINE_MS = 5 * 6e4;
+function lineStuckProvisioning(l, nowMs) {
+  if (!l || l.voice_state !== "provisioning") return false;
+  const since = Date.parse(l.state_since);
+  return Number.isFinite(since) && nowMs - since > PROVISIONING_DEADLINE_MS;
+}
 var LINE_STEP_WORDS = {
   subaccount: "opening your account with the carrier",
   number: "buying the number",
@@ -6164,6 +6179,8 @@ function setupSteps(i, nowMs = Date.now()) {
     row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "ready", required: !answering, sentence: `Calls are answered on ${voiceNum}. ${texting.sentence}`, details: [ownLine?.voice_state === "answering" ? "Your own number through Chanlytics" : "", texting.done ? "" : "Texting arrives with lines that register with the carriers; this page will say when"].filter(Boolean), verb: { label: "Open Connections", to: "admin/integrations" } });
   } else if (voice.present) {
     row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: `Your line ${voice.number ? `${voiceNum} ` : ""}is switched off \u2014 the receptionist is not answering it.`, details: [], verb: { label: "Open Connections", to: "admin/integrations" } });
+  } else if (ownLine && lineStuckProvisioning(ownLine, nowMs)) {
+    row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Setting up ${lineNum} stopped while ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}, ${agoWords(Date.parse(ownLine.state_since), nowMs)}. A person at Chanlytics has it.`, details: ["Retry from here \u2014 it picks up where it stopped and buys nothing twice", "We have been told, and it is retried automatically too"], verb: { label: "Retry", to: `verb:retry-line:${ownLine.id}` } });
   } else if (ownLine && ownLine.voice_state === "provisioning") {
     row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Setting up ${lineNum} \u2014 ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}, since ${agoWords(Date.parse(ownLine.state_since), nowMs)}.`, details: ["Usually a minute or two; this page updates by itself"], verb: null });
   } else if (ownLine && ownLine.voice_state === "failed") {
@@ -6547,7 +6564,7 @@ function smsStateRow(line, nowMs) {
 }
 function connectionRows(i, nowMs = Date.now()) {
   const out = [];
-  const channel = (kind) => i.channels.find((c2) => c2.kind === kind) ?? null;
+  const channel = (kind) => channelFor(i.channels, kind);
   const wa = channel("whatsapp");
   if (wa) {
     out.push(row({ kind: "whatsapp", icon: "chat", title: "WhatsApp Business", detail: wa.number, state: wa.on ? "connected" : "off", stateWords: wa.on ? "On" : "Off", sentence: wa.healthLabel, verb: { label: "Messages", to: "messages", who: "operator" } }));
@@ -6743,13 +6760,13 @@ function platformNumber(e164) {
 }
 var NUMBER_MONTHLY = "$1.15 a month";
 var REAL_FILING = "about $19.50 once";
-function platformLineActions(l) {
+function platformLineActions(l, nowMs = Date.now()) {
   const out = [];
-  if (l.voice_state === "failed") {
+  if (l.voice_state === "failed" || lineStuckProvisioning(l, nowMs)) {
     out.push({
       action: "retry",
       label: "Retry setting up",
-      sentence: "Resumes the line where it stopped, without repeating the steps that succeeded.",
+      sentence: "Resumes the line where it stopped, without repeating the steps that succeeded. The saga reads its own receipts, so nothing is bought twice.",
       // A saga that failed BEFORE the number was bought buys one when it
       // resumes, so this can spend even though it usually does not.
       cost: `If it stopped before the number was bought, this buys one \u2014 ${NUMBER_MONTHLY}.`,
@@ -7297,6 +7314,7 @@ export {
   POLICY_CLASS_WORDS,
   POLICY_MODES,
   PROPOSAL_GATE,
+  PROVISIONING_DEADLINE_MS,
   PURPOSE_REFUSALS,
   PolicyLimitsSchema,
   QUIET_AFTER_MS,
@@ -7379,6 +7397,7 @@ export {
   callOutcomeOf,
   callOutcomeWords,
   changedConfigFields,
+  channelFor,
   checkedWords,
   citationRoute,
   citationsToShow,
@@ -7475,6 +7494,7 @@ export {
   isTypingTarget,
   isUngrounded,
   knownTimezones,
+  lineStuckProvisioning,
   listingLine,
   localDate,
   localHour,

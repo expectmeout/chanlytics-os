@@ -27,6 +27,46 @@ export interface ChannelDto {
   quality_at?: string | null;
 }
 
+/**
+ * The row that speaks for a kind.
+ *
+ * A workspace can legitimately hold more than one row of a kind, and the way it
+ * gets there is the escape from a line that stopped: `release` "switches off, never
+ * deletes" the routing row so calls keep their history, so a released-then-rebought
+ * number leaves a `disabled` voice row beside the new active one. Postgres row
+ * order is unspecified, so a bare `.find(c => c.kind === kind)` picks arbitrarily
+ * between them — and picking the disabled one made Setup say "your line is
+ * switched off" about a line that was answering, drop `tryIt`, and bounce the owner
+ * back onto Setup.
+ *
+ * `facts.ts` already resolved this correctly for the receptionist's own facts, and
+ * `ensureVoiceAgent`, `line_forwarding_set` and `businessPageFor` all filter and
+ * order too. This is that same rule where the two page-facing readers can share it.
+ *
+ * ACTIVE FIRST, then the oldest of them — deterministic, and the oldest active row
+ * is the one every other resolver in this repo chooses. Falling back to any row of
+ * the kind keeps "is there a row at all" answerable, which is what `present` means.
+ */
+export interface ChannelPickable {
+  kind: string;
+  /** `tenant_channels.status`. Absent on a shape that has already resolved it. */
+  status?: string | null;
+  /** The resolved form of the same fact, as `ChannelVM` carries it. */
+  on?: boolean;
+  created_at?: string | null;
+}
+
+const channelIsOn = (c: ChannelPickable): boolean =>
+  typeof c.on === "boolean" ? c.on : (c.status ?? "active") === "active";
+
+export function channelFor<T extends ChannelPickable>(rows: readonly T[], kind: string): T | null {
+  const mine = rows.filter((c) => c.kind === kind);
+  if (mine.length === 0) return null;
+  const on = mine.filter(channelIsOn);
+  const pool = on.length > 0 ? on : mine;
+  return [...pool].sort((a, b) => Date.parse(a.created_at ?? "") - Date.parse(b.created_at ?? ""))[0] ?? pool[0];
+}
+
 export type ChannelHealth = "receiving" | "quiet" | "off" | "unused";
 
 export interface ChannelVM {
@@ -43,6 +83,9 @@ export interface ChannelVM {
   /** "Receiving · last message 2h ago" and the like. */
   healthLabel: string;
   lastInboundMs: number | null;
+  /** When the row was made. Carried so `channelFor` can break a tie the same way on
+   *  either shape; the DTO has always had it. */
+  created_at: string;
 }
 
 const DAY_MS = 86_400_000;
@@ -92,5 +135,6 @@ export function toChannelVM(dto: ChannelDto, now = new Date()): ChannelVM {
     health,
     healthLabel,
     lastInboundMs: last,
+    created_at: dto.created_at,
   };
 }

@@ -17,12 +17,12 @@
  */
 import { json } from "../../lib/http.js";
 import { pg } from "../../lib/pg.js";
-import { notify, recordNotification } from "../../lib/notify.js";
 import { emitEvent } from "../../lib/workspace/db.js";
-import { formatPhoneDisplay, whyCannotSpend, type BillingMode, type BillingStatus } from "../../lib/workspace/contracts.js";
-import { runLineSaga, isAreaCode, isE164, LINE_COSTS, type LineRow } from "../../lib/workspace/channels.js";
-import { lineProviderFromEnv, linePorts, lineForClient, rowToLine, LINE_STEP_WORDS, type LineProviderChoice } from "../../lib/lines.js";
+import { formatPhoneDisplay, whyCannotSpend, lineStuckProvisioning, type BillingMode, type BillingStatus } from "../../lib/workspace/contracts.js";
+import { isAreaCode, isE164, LINE_COSTS } from "../../lib/workspace/channels.js";
+import { lineProviderFromEnv, lineForClient, rowToLine } from "../../lib/lines.js";
 import { registerLine, syncRegistration, unfileMockRegistration, resubmitRejectedCampaign, campaignFactsFor } from "../../lib/a2p.js";
+import { provisionLine } from "../../lib/provision.js";
 import {
   businessTypeOf, companyTypeOf, industryOf, businessRecordProblems, businessRecordForPath,
   registrationPathOf, REGISTRATION_PATHS, type RegistrationPath,
@@ -65,49 +65,6 @@ async function tenantOf(db: SupabaseClient<Database>, id: string) {
   const r = await db.from("tenants").select("id, name, slug").eq("id", id).maybeSingle();
   if (r.error) throw new Error(r.error.message);
   return r.data;
-}
-
-/** Run the saga on a row, then tell the workspace and the platform what happened. */
-async function provision(
-  db: SupabaseClient<Database>,
-  choice: LineProviderChoice,
-  cfg: { apiKey: string },
-  secrets: { fnSecret: string },
-  tenant: { id: string; name: string },
-  line: LineRow,
-) {
-  const result = await runLineSaga(line, linePorts(db, cfg, secrets, tenant, line, choice));
-  const shown = formatPhoneDisplay(result.line.e164) ?? result.line.e164 ?? "your number";
-  if (result.ok) {
-    await recordNotification(tenant.id, {
-      kind: "number",
-      title: `Your phone line is ready: ${shown}`,
-      body: `The receptionist answers calls on ${shown}. Call it from your own phone to hear it; the Live page shows the call as it happens. Texting arrives once the carriers register the line.`,
-      route: "admin/setup",
-      about: { type: "line", id: line.id },
-    });
-    await emitEvent(db, tenant.id, "line.answering", "setup", "line", line.id, { e164: result.line.e164, provider: choice.name, agent_id: result.line.retell_agent_id }).catch(() => {});
-  } else {
-    const at = LINE_STEP_WORDS[result.step] ?? result.step;
-    await recordNotification(tenant.id, {
-      kind: "alert",
-      title: "Your phone line hit a snag — a person at Chanlytics has it",
-      body: `Setting up ${shown} stopped while ${at}. You can retry from Setup; we have been told and will finish it with you if the retry does not.`,
-      route: "admin/setup",
-      about: { type: "line", id: line.id },
-    });
-    await notify(
-      { tenantId: null, notifications: null, isEnvDefault: true },
-      {
-        kind: "alert",
-        subject: `Line failed · ${tenant.name}`,
-        body: `${tenant.name} (${tenant.id}) — line ${line.id} for ${result.line.e164 ?? "no number"} stopped at step "${result.step}" (${at}).\n\n${result.error}\n\nRetry: POST /api/admin/lines { "op": "retry", "tenant_id": "${tenant.id}", "line_id": "${line.id}" } (x-diag-key).`,
-      },
-    );
-    await emitEvent(db, tenant.id, "line.failed", "setup", "line", line.id, { step: result.step, error: result.error.slice(0, 300), provider: choice.name }).catch(() => {});
-  }
-  console.log("line_saga", JSON.stringify({ tenant: tenant.id, line: line.id, ok: result.ok, step: result.ok ? null : result.step, provider: choice.name }));
-  return result;
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -184,7 +141,7 @@ export async function POST(request: Request): Promise<Response> {
       .select("*")
       .single();
     if (ins.error) return json(503, { ok: false, error: ins.error.message });
-    const result = await provision(db, choice, cfg, secrets, tenant, rowToLine(ins.data));
+    const result = await provisionLine(db, choice, cfg, secrets, tenant, rowToLine(ins.data), "owner");
     const after = await db.from("lines").select("*").eq("id", ins.data.id).single();
     return json(result.ok ? 200 : 502, { ok: result.ok, provider: choice.name, line: after.data ? lineForClient(after.data) : null, ...(result.ok ? {} : { step: result.step, error: result.error }) });
   }
@@ -197,8 +154,29 @@ export async function POST(request: Request): Promise<Response> {
     if (!row.data) return json(404, { ok: false, error: "no such line" });
 
     if (op === "retry") {
-      if (row.data.voice_state !== "failed") return json(409, { ok: false, error: `the line is ${row.data.voice_state}, not failed`, line: lineForClient(row.data) });
-      const result = await provision(db, choice, cfg, secrets, tenant, rowToLine(row.data));
+      // A LINE STILL "SETTING UP" PAST THE DEADLINE IS RETRYABLE, and this guard
+      // used to be the reason it was not. The saga's worst case is about three
+      // times its own 60-second lambda ceiling, so a slow afternoon at the provider
+      // kills it mid-run -- and a killed run never reaches the `catch` that would
+      // have written `failed`. The row sat at `provisioning`, this refused it, `buy`
+      // refused it as `line_exists`, and the only exit anyone had was handing the
+      // number back permanently.
+      //
+      // Safe because the saga reads its own receipts: `nextLineStep` derives the
+      // plan from the SIDs and facts already on the row, so a resume repeats
+      // nothing. The deadline is `lineStuckProvisioning`, the same one the Setup
+      // row, the back office and the sweep use.
+      const stuck = lineStuckProvisioning(lineForClient(row.data), Date.now());
+      if (row.data.voice_state !== "failed" && !stuck) {
+        return json(409, {
+          ok: false,
+          error: row.data.voice_state === "provisioning"
+            ? "the line is still setting up — give it a few minutes, and it is retried automatically after that"
+            : `the line is ${row.data.voice_state}, not failed`,
+          line: lineForClient(row.data),
+        });
+      }
+      const result = await provisionLine(db, choice, cfg, secrets, tenant, rowToLine(row.data), "support");
       const after = await db.from("lines").select("*").eq("id", lineId).single();
       return json(result.ok ? 200 : 502, { ok: result.ok, provider: choice.name, line: after.data ? lineForClient(after.data) : null, ...(result.ok ? {} : { step: result.step, error: result.error }) });
     }
@@ -212,7 +190,18 @@ export async function POST(request: Request): Promise<Response> {
       const token = creds.data && typeof creds.data === "object" && !Array.isArray(creds.data) ? (creds.data as { auth_token?: string }).auth_token : undefined;
       if (line.subaccount_sid && token) {
         const acct = { sid: line.subaccount_sid, token };
-        if (line.number_sid) { await choice.provider.releaseNumber(acct, line.number_sid); released.number = line.number_sid; }
+        // A NUMBER WE MAY OWN WITHOUT KNOWING. The row's `number_sid` is written
+        // after the purchase answers, so a saga killed in that window leaves the
+        // number bought and the row silent -- and this used to skip straight past
+        // it and delete the row, so we paid for it every month with nothing left
+        // pointing at it. `number_drift()` compares `lines` to `tenant_channels`
+        // and never asks the provider, so nothing would ever have noticed.
+        const sid = line.number_sid ?? (line.e164 ? (await choice.provider.ownedNumber(acct, line.e164))?.sid ?? null : null);
+        if (sid) {
+          await choice.provider.releaseNumber(acct, sid);
+          released.number = sid;
+          if (!line.number_sid) released.number_found_by_lookup = true;
+        }
         if (line.trunk_sid) { await choice.provider.deleteTrunk(acct, line.trunk_sid); released.trunk = line.trunk_sid; }
       }
     } catch (e) {

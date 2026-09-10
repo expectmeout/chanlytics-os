@@ -38,7 +38,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import { getTenantConfig } from "@chanlytics/db";
-import { parseTenantConfigResult, starterByName, resolveFacts, factConflicts, type SetupDto } from "@chanlytics/contracts";
+import { parseTenantConfigResult, starterByName, resolveFacts, factConflicts, channelFor, type SetupDto } from "@chanlytics/contracts";
 import { calendarWeek } from "./calendar";
 import { teamRoster } from "./service";
 import { linesFor, linesStatus } from "./lines";
@@ -85,7 +85,7 @@ export async function setupDtoFor(
 
   const [cfgRow, channels, lastMsg, lastCall, templates, calendar, team, yes, offersYes, requested, lineRows, lineStatus, listing, google, connection, billingRow, billingReady] = await Promise.all([
     getTenantConfig(supabase, tenantId),
-    supabase.from("tenant_channels").select("kind, status, number_e164, config").eq("tenant_id", tenantId),
+    supabase.from("tenant_channels").select("kind, status, number_e164, config, created_at").eq("tenant_id", tenantId),
     supabase.from("messages").select("channel_ts, created_at").eq("tenant_id", tenantId).eq("direction", "inbound").eq("channel", "whatsapp")
       .order("channel_ts", { ascending: false, nullsFirst: false }).limit(1).maybeSingle(),
     supabase.from("calls").select("started_at").eq("tenant_id", tenantId).eq("direction", "inbound")
@@ -132,7 +132,18 @@ export async function setupDtoFor(
     broken: !!parsed && !parsed.ok,
   };
 
-  const byKind = (kind: string) => (channels.data ?? []).find((c) => c.kind === kind) ?? null;
+  // `channelFor`, not a bare `.find`. The query has no status filter and no order,
+  // and Postgres row order is unspecified -- so with two rows of one kind the pick
+  // was arbitrary. A workspace gets two exactly by escaping a stuck line: `release`
+  // switches the routing row off rather than deleting it (calls keep their history),
+  // so a released-then-rebought number leaves a disabled voice row beside the active
+  // one. Picking the disabled one made `voice.active` false, which made `answering`
+  // false, which read "your line is switched off", removed `tryIt` and bounced the
+  // owner back onto Setup -- all while the line was answering.
+  //
+  // Nine lines below, the same array goes to `resolveFacts`, whose `activeChannel`
+  // has always done this correctly. This is that rule, shared.
+  const byKind = (kind: string) => channelFor(channels.data ?? [], kind);
   const wa = byKind("whatsapp");
   const voice = byKind("voice");
   const waCfg = (wa?.config && typeof wa.config === "object" && !Array.isArray(wa.config) ? wa.config : {}) as Record<string, unknown>;

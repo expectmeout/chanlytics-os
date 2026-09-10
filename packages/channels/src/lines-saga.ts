@@ -158,7 +158,15 @@ export async function runLineSaga(start: LineRow, ports: LinePorts): Promise<Sag
           break;
         }
         case "number": {
-          const bought = await ports.provider.buyNumber(sub(), line.e164, `${ports.tenant.name} · Chanlytics`);
+          // LOOK BEFORE BUYING. This is the only step that spends, and the only one
+          // whose effect the row could not vouch for: the receipt is written after
+          // the provider answers, and a saga killed in that window left a number
+          // bought, unpaid-attention-to and unreachable -- a retry would ask to buy
+          // it again and be refused for ever, because the account already owns it.
+          //
+          // Idempotent now, which is the property every other step already had.
+          const held = await ports.provider.ownedNumber(sub(), line.e164);
+          const bought = held ?? (await ports.provider.buyNumber(sub(), line.e164, `${ports.tenant.name} · Chanlytics`));
           await save({ number_sid: bought.sid, e164: bought.e164 });
           break;
         }

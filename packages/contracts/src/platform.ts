@@ -21,7 +21,7 @@
  * and this file adds only the cross-workspace judgement that nobody else needs.
  */
 import { agoWords } from "./time";
-import { textingWords, type LineDto } from "./setup";
+import { textingWords, lineStuckProvisioning, type LineDto } from "./setup";
 import { receptionistOn, maySpend, whyCannotSpend, type BillingMode, type BillingStatus } from "./billing";
 import { formatPhoneDisplay } from "./phone";
 
@@ -368,15 +368,21 @@ const REAL_FILING = "about $19.50 once";
  * buttons.
  */
 export function platformLineActions(
-  l: Pick<LineDto, "e164" | "voice_state" | "sms_state" | "reg_mock">,
+  l: Pick<LineDto, "e164" | "voice_state" | "sms_state" | "reg_mock" | "state_since">,
+  nowMs: number = Date.now(),
 ): PlatformLineActionVM[] {
   const out: PlatformLineActionVM[] = [];
 
-  if (l.voice_state === "failed") {
+  // A line still SETTING UP past the deadline is the same situation as a failed
+  // one and support needs the same button: the saga was killed mid-run (its worst
+  // case is three times its own lambda ceiling), so no `catch` ever wrote
+  // `failed`. This list offered nothing at all for that row, which is why the only
+  // exit anyone had was handing the number back — permanently — and buying another.
+  if (l.voice_state === "failed" || lineStuckProvisioning(l, nowMs)) {
     out.push({
       action: "retry",
       label: "Retry setting up",
-      sentence: "Resumes the line where it stopped, without repeating the steps that succeeded.",
+      sentence: "Resumes the line where it stopped, without repeating the steps that succeeded. The saga reads its own receipts, so nothing is bought twice.",
       // A saga that failed BEFORE the number was bought buys one when it
       // resumes, so this can spend even though it usually does not.
       cost: `If it stopped before the number was bought, this buys one — ${NUMBER_MONTHLY}.`,

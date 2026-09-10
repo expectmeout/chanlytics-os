@@ -91,11 +91,18 @@ test("a fresh line runs every step in order and answers; secrets go to the vault
     { trunk_ready: true, imported: true, type: "custom", channel: "ch1", pinned: true, attached: true, cl: true },
   );
   assert.match(String(l.facts.origination_sid), /^OU/);
-  assert.deepEqual(ops(f.provider), ["createSubaccount", "buyNumber", "createTrunk", "createCredentialList", "addCredential", "attachCredentialList", "addOrigination", "attachNumber", "createMessagingService", "addNumberToService"]);
+  // `ownedNumber` BEFORE `buyNumber`, and that is the point of it: buying is the
+  // only step that spends, and the only one whose effect the row could not vouch
+  // for. The receipt is written after the provider answers, so a saga killed in that
+  // window left a number bought and the row silent -- paid for monthly, skipped by
+  // `release`, invisible to `number_drift()`, and unbuyable on a retry because the
+  // account already held it. One lookup closes all four.
+  assert.deepEqual(ops(f.provider), ["createSubaccount", "ownedNumber", "buyNumber", "createTrunk", "createCredentialList", "addCredential", "attachCredentialList", "addOrigination", "attachNumber", "createMessagingService", "addNumberToService"]);
   // The subaccount, not the master, buys and trunks.
   assert.equal(f.provider.calls[0].args[0], "ACmaster");
   for (const c of f.provider.calls.slice(1)) assert.equal(c.args[0], l.subaccount_sid, `${c.op} acts as the subaccount`);
-  assert.equal(f.provider.calls[6].args[2].sipUrl, RETELL_ORIGINATION, "calls go to Retell's SIP door");
+  const origination = f.provider.calls.find((c) => c.op === "addOrigination");
+  assert.equal(origination.args[2].sipUrl, RETELL_ORIGINATION, "calls go to Retell's SIP door");
   // Secrets.
   const s = f.secrets();
   assert.match(s.auth_token, /^tok/);
@@ -140,12 +147,16 @@ test("a refusal at the import leaves the step and the provider's words; a retry 
   assert.equal(first.line.last_error, first.error);
   assert.ok(first.line.number_sid && first.line.trunk_sid, "what was bought and built stays on the row");
   assert.equal(nextLineStep(first.line), "import");
-  assert.equal(f.provider.calls.length, 8);
+  assert.equal(f.provider.calls.length, 9, "eight provider calls plus the look-before-buying");
   refuse = false;
   const again = await runLineSaga(first.line, f.ports);
   assert.equal(again.ok, true);
   assert.equal(again.line.voice_state, "answering");
-  assert.equal(f.provider.calls.length, 10, "no provider call repeated; the two messaging calls follow the import");
+  assert.equal(f.provider.calls.length, 11, "no provider call repeated; the two messaging calls follow the import");
+  // And the number step is skipped whole on the resume: `nextLineStep` sees the SID
+  // on the row, so neither the lookup nor the purchase runs a second time.
+  assert.equal(f.provider.calls.filter((c) => c.op === "ownedNumber").length, 1, "looked once, before the only purchase");
+  assert.equal(f.provider.calls.filter((c) => c.op === "buyNumber").length, 1, "and bought once");
   assert.equal(f.imports.length, 2);
   assert.deepEqual(f.imports[1], f.imports[0], "the same import, retried");
 });
@@ -276,10 +287,22 @@ test("wiring: the edge endpoint, its ports, the receptionist shared with voice-p
   assert.ok(edge.includes('request.headers.get("x-diag-key") !== process.env.DIAG_KEY'));
   for (const op of ['op === "status"', 'op === "search"', 'op === "buy"', 'op === "retry" || op === "release"']) assert.ok(edge.includes(op), op);
   assert.ok(edge.includes("const choice = lineProviderFromEnv();"));
-  assert.ok(edge.includes("runLineSaga(line, linePorts(db, cfg, secrets, tenant, line, choice))"));
-  assert.ok(edge.includes('kind: "number",') && edge.includes('title: `Your phone line is ready: ${shown}`'), "the bell on success");
-  assert.ok(edge.includes("Your phone line hit a snag — a person at Chanlytics has it"), "the bell on failure");
-  assert.ok(edge.includes("{ tenantId: null, notifications: null, isEnvDefault: true }"), "the platform hears a failure");
+  // The saga and everything it has to tell people moved to lib/provision.ts, because
+  // two things provision a line now: a person pressing a button, and the sweep that
+  // resumes one the lambda killed. A sweep that assembled its own version of "and
+  // then tell everybody" would be a second answer to what a customer is told about
+  // their own phone number -- and the half it would most likely get wrong is the
+  // failure half, which is the half that matters.
+  const prov = readCode("apps/edge/lib/provision.ts");
+  assert.ok(prov.includes("runLineSaga(line, linePorts(db, cfg, secrets, tenant, line, choice))"));
+  assert.ok(prov.includes('kind: "number",') && prov.includes('title: `Your phone line is ready: ${shown}`'), "the bell on success");
+  assert.ok(prov.includes("Your phone line hit a snag — a person at Chanlytics has it"), "the bell on failure");
+  assert.ok(prov.includes("{ tenantId: null, notifications: null, isEnvDefault: true }"), "the platform hears a failure");
+  assert.ok(!edge.includes("runLineSaga("), "REGRESSION: a second copy of the saga's aftermath in the route");
+  // Every caller says who started it, so the platform email distinguishes a person
+  // pressing Retry from nobody asking at all.
+  for (const by of ['"owner"', '"support"']) assert.ok(edge.includes(`, ${by});`), `the route names ${by}`);
+  assert.ok(readCode("apps/edge/api/cron/lines.ts").includes('"sweep");'), "and the sweep names itself");
   assert.ok(edge.includes('error: "line_exists"') && edge.includes('error: "line_failed_retry"'), "one line per workspace in v1");
   for (const k of ["line.answering", "line.failed", "line.released"]) assert.ok(EVENT_KINDS.includes(k), k);
   const lib = readCode("apps/edge/lib/lines.ts");

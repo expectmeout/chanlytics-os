@@ -4570,6 +4570,7 @@ var REGISTRATION_COST_WORDS = {
   standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
 };
+var PROVISIONING_DEADLINE_MS = 5 * 6e4;
 var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 var SIGNUP_NAME_MIN = 2;
@@ -5522,6 +5523,24 @@ function twilioProvider(http = fetchTwilio) {
       if (!sid2) throw new TwilioError(200, b, "buy number answered without a sid");
       return { sid: sid2, e164: str(b, "phone_number") ?? e164 };
     },
+    // A number this subaccount already holds. Twilio filters IncomingPhoneNumbers by
+    // exact E.164, so this is one GET and no guessing.
+    //
+    // A read that FAILS must not be reported as "we do not own it": that answer sends
+    // the saga on to buy a second number. So a non-200 throws, and the step retries
+    // rather than spending.
+    async ownedNumber(acct, e164) {
+      const a = await http(acct, "GET", `${twilioUrls.incomingNumbers(acct.sid)}?PhoneNumber=${encodeURIComponent(e164)}&PageSize=1`);
+      if (a.status === 404) return null;
+      const b = need(a, "list owned numbers");
+      const list = Array.isArray(b.incoming_phone_numbers) ? b.incoming_phone_numbers : [];
+      for (const row of list) {
+        if (!row || typeof row !== "object") continue;
+        const sid2 = str(row, "sid");
+        if (sid2) return { sid: sid2, e164: str(row, "phone_number") ?? e164 };
+      }
+      return null;
+    },
     async releaseNumber(acct, numberSid) {
       const a = await http(acct, "DELETE", twilioUrls.incomingNumber(acct.sid, numberSid));
       if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "release number");
@@ -5639,6 +5658,13 @@ function dryProvider(seed = 1) {
       owned.set(sid2, e164);
       return { sid: sid2, e164 };
     },
+    // The dry provider already keeps what it "sold", so it can answer honestly --
+    // which is what makes the saga's lookup-before-buy testable without a carrier.
+    async ownedNumber(acct, e164) {
+      rec("ownedNumber", acctOf(acct), e164);
+      for (const [sid2, held] of owned) if (held === e164) return { sid: sid2, e164 };
+      return null;
+    },
     async releaseNumber(acct, numberSid) {
       rec("releaseNumber", acctOf(acct), numberSid);
       owned.delete(numberSid);
@@ -5743,7 +5769,8 @@ async function runLineSaga(start, ports) {
           break;
         }
         case "number": {
-          const bought = await ports.provider.buyNumber(sub(), line.e164, `${ports.tenant.name} \xB7 Chanlytics`);
+          const held = await ports.provider.ownedNumber(sub(), line.e164);
+          const bought = held ?? await ports.provider.buyNumber(sub(), line.e164, `${ports.tenant.name} \xB7 Chanlytics`);
           await save({ number_sid: bought.sid, e164: bought.e164 });
           break;
         }
