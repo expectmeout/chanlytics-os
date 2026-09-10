@@ -22,7 +22,7 @@ import {
   describeSettingsChange,
   isHeldDraft,
   violatesNoPrices,
-  waWindow,
+  replyWindow,
   type AskProposal,
   PLAYBOOK_CLASS_LABEL,
   PLAYBOOK_TRIGGERS,
@@ -38,6 +38,7 @@ import { listPolicies } from "@chanlytics/db";
 import type { ToolContext, ToolDef } from "./tools";
 import { listPeople } from "../people";
 import { checkPlaybookInput } from "../playbooks";
+import { replyChannelOf } from "../verbs";
 
 /**
  * What the assistant may propose, and how a proposal is checked.
@@ -162,14 +163,16 @@ async function draftReply(t: ToolContext, input: Record<string, unknown>): Promi
   if (!text) return refuse("text is required");
   const { data: conv, error } = await t.ctx.supabase
     .from("conversations")
-    .select("id, state, last_wa_inbound_at, contacts (id, display_name, wa_profile_name, phone_e164, consent, dnc)")
+    .select("id, tenant_id, state, last_wa_inbound_at, contacts (id, display_name, wa_profile_name, phone_e164, consent, dnc)")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!conv) return refuse("no such conversation in this workspace");
   const who = contactName({ contact: { id: conv.contacts?.id ?? "", display_name: conv.contacts?.display_name ?? null, wa_profile_name: conv.contacts?.wa_profile_name ?? null, phone_e164: conv.contacts?.phone_e164 ?? null, consent: null, dnc: false } } as Parameters<typeof contactName>[0]);
   if (conv.contacts?.dnc) return refuse(`${who} opted out; nothing can be sent to them`);
-  const win = waWindow(conv.last_wa_inbound_at, t.now);
+  // The window the reply route will enforce, on the channel it will send on:
+  // a texting thread has none, and this card used to call one closed.
+  const win = replyWindow(await replyChannelOf(t.ctx, conv), conv.last_wa_inbound_at, t.now);
   const price = violatesNoPrices(text);
   t.read.thread.add(id);
   return propose({

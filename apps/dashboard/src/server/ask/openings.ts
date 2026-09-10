@@ -3,6 +3,7 @@ import {
   describeOpenings,
   filterOpenings,
   freeWindows,
+  matchService,
   parseIcs,
   parseTenantConfig,
   type Opening,
@@ -51,27 +52,6 @@ export interface OpeningsResult {
   tz: string;
   days: Array<{ key: string; label: string; windows: string[] }>;
   service: { name: string; duration_min?: number } | null;
-}
-
-interface ServiceLike { name: string; duration_min?: number }
-
-/** The same match the phone tool uses: exact, contains, then shared long words. */
-export function matchService(services: ServiceLike[] | undefined, asked: string | null | undefined): ServiceLike | null {
-  const q = (asked ?? "").trim().toLowerCase();
-  if (!q || !services?.length) return null;
-  const exact = services.find((s) => s.name.toLowerCase() === q);
-  if (exact) return exact;
-  const contains = services.find((s) => s.name.toLowerCase().includes(q) || q.includes(s.name.toLowerCase()));
-  if (contains) return contains;
-  const words = q.split(/[^a-z0-9áéíóúñ]+/).filter((w) => w.length >= 4);
-  let best: ServiceLike | null = null;
-  let bestScore = 0;
-  for (const s of services) {
-    const own = s.name.toLowerCase().split(/[^a-z0-9áéíóúñ]+/);
-    const score = words.filter((w) => own.includes(w)).length;
-    if (score > bestScore) { best = s; bestScore = score; }
-  }
-  return best;
 }
 
 function fmtWindow(start: number, end: number, tz: string): string {

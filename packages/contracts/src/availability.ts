@@ -501,3 +501,39 @@ export function describeOpenings(openings: Opening[], tz: string, opts: { maxDay
     `Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides.`
   );
 }
+
+/** A service the business lists, as far as matching one needs it. */
+export interface ServiceLike { name: string; duration_min?: number }
+
+// Accents off and case folded: "unas" finds "Uñas de gel", and a caller who
+// says "depilacion" means the service written "Depilación".
+const foldName = (s: string): string => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+const wordsOf = (s: string): string[] => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+
+/**
+ * The listed service somebody means, from what they said ("a haircut", "the
+ * balayage thing", "uñas"): exact first, then one name containing the other,
+ * then the service sharing the most words of four letters or more.
+ *
+ * One function for the phone tool and the assistant. The two copies it
+ * replaced split words differently, and the phone's cut "uñas" at the ñ into
+ * two pieces too short to count, so a caller asking for nails matched nothing.
+ */
+export function matchService<S extends ServiceLike>(services: readonly S[] | undefined, asked: unknown): S | null {
+  const q = typeof asked === "string" ? foldName(asked.trim()) : "";
+  if (!q || !services?.length) return null;
+  const named = services.map((s) => ({ s, n: foldName(s.name) }));
+  const exact = named.find((x) => x.n === q);
+  if (exact) return exact.s;
+  const contains = named.find((x) => x.n && (x.n.includes(q) || q.includes(x.n)));
+  if (contains) return contains.s;
+  const asks = wordsOf(q).filter((w) => w.length >= 4);
+  let best: S | null = null;
+  let bestScore = 0;
+  for (const { s, n } of named) {
+    const own = wordsOf(n);
+    const score = asks.filter((w) => own.includes(w)).length;
+    if (score > bestScore) { best = s; bestScore = score; }
+  }
+  return best;
+}

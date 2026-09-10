@@ -142,7 +142,7 @@ import { whisperText } from "./whisper";
 import { replyWhy, type ReplyWhyVM } from "./brain";
 import { formatPhoneDisplay } from "./phone";
 import { isOptedOutContact } from "./consent";
-import { waWindow, isLiveCall } from "./policy";
+import { replyWindow, isLiveCall } from "./policy";
 import { callOutcomeWords, tidyCallSummary } from "./call-words";
 
 const AGENT = { glyph: "W", name: "WhatsApp Receptionist" };
@@ -530,13 +530,12 @@ export function toInboxThreadVM(
   const reasonLabel = escalation ? (ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason) : null;
   const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
-  // waWindow(), not a hand-rolled copy. This decides whether the composer tells
-  // the operator they can write freely, and the reply route decides whether the
-  // send is legal — with two expressions those answers drift the moment either
-  // moves, and the operator is told they can send something the server refuses.
-  // A text has no window: where the customer last wrote by SMS the composer
-  // is open, exactly as the reply route decides it.
-  const win = lastInbound?.channel === "sms" ? true : waWindow(dto.last_wa_inbound_at, now).open;
+  // replyWindow(), the rule the reply route enforces, not a copy of it. This
+  // decides whether the composer tells the operator they can write freely; with
+  // two expressions those answers drift the moment either moves, and the
+  // operator is told they can send something the server refuses. A text has no
+  // window, so where the customer last wrote by SMS the composer is open.
+  const win = replyWindow(lastInbound?.channel, dto.last_wa_inbound_at, now).open;
   // The channels the thread has actually used: a call note is the phone, any
   // other row is WhatsApp. A caller with no thread on WhatsApp gets phone
   // verbs, not a notice about a reply window that never opened.

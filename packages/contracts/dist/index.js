@@ -531,6 +531,9 @@ function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
   const closes = new Date(lastWaInboundAtIso).getTime() + WA_WINDOW_MS;
   return { open: closes > now.getTime(), closesAtIso: new Date(closes).toISOString() };
 }
+function replyWindow(replyChannel, lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
+  return replyChannel === "sms" ? { open: true, closesAtIso: null } : waWindow(lastWaInboundAtIso, now);
+}
 var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
 function isLiveCall(call, now = /* @__PURE__ */ new Date()) {
   if (call.status !== "ongoing") return false;
@@ -770,7 +773,7 @@ function toInboxThreadVM(dto, escalation, now = /* @__PURE__ */ new Date()) {
   const reasonLabel = escalation ? ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason : null;
   const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
-  const win = lastInbound?.channel === "sms" ? true : waWindow(dto.last_wa_inbound_at, now).open;
+  const win = replyWindow(lastInbound?.channel, dto.last_wa_inbound_at, now).open;
   const hasCalls = dto.messages.some((m) => m.type === "call_summary");
   const hasChat = !!dto.last_wa_inbound_at || dto.messages.some((m) => m.type !== "call_summary");
   const primaryChannel = hasChat || !hasCalls ? "whatsapp" : "phone";
@@ -2159,6 +2162,29 @@ function describeOpenings(openings, tz, opts = {}) {
   return `Open times (from the calendar, checked just now \u2014 these change as bookings come in):
 ${lines.join("\n")}
 Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides.`;
+}
+var foldName = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+var wordsOf = (s) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+function matchService(services, asked) {
+  const q = typeof asked === "string" ? foldName(asked.trim()) : "";
+  if (!q || !services?.length) return null;
+  const named = services.map((s) => ({ s, n: foldName(s.name) }));
+  const exact = named.find((x) => x.n === q);
+  if (exact) return exact.s;
+  const contains = named.find((x) => x.n && (x.n.includes(q) || q.includes(x.n)));
+  if (contains) return contains.s;
+  const asks = wordsOf(q).filter((w) => w.length >= 4);
+  let best = null;
+  let bestScore = 0;
+  for (const { s, n } of named) {
+    const own = wordsOf(n);
+    const score = asks.filter((w) => own.includes(w)).length;
+    if (score > bestScore) {
+      best = s;
+      bestScore = score;
+    }
+  }
+  return best;
 }
 
 // src/calendar.ts
@@ -7750,6 +7776,7 @@ export {
   localHour,
   localToUtcMs,
   matchPerson,
+  matchService,
   mayMessageFor,
   mayReceive,
   maySpend,
@@ -7820,6 +7847,7 @@ export {
   renderTemplate,
   replyDelayMs,
   replyWhy,
+  replyWindow,
   resolveFacts,
   resolveParams,
   resolveSystemPrompt,
