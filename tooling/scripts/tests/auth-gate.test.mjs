@@ -183,7 +183,12 @@ test("every /api/v1 route verifies the user itself", () => {
   })(dir);
 
   assert.ok(routes.length >= 20, `expected the v1 surface, found ${routes.length} routes`);
-  const raw = routes.filter((f) => !fs.readFileSync(f, "utf8").includes("withRoute"));
+  // route()'s read() and write() are withRoute underneath: a route declared
+  // through them verifies the user exactly as a bare withRoute does.
+  const raw = routes.filter((f) => {
+    const src = fs.readFileSync(f, "utf8");
+    return !src.includes("withRoute") && !src.includes('from "@/server/route"');
+  });
   assert.deepEqual(
     raw.map((f) => path.relative(DASH, f)),
     [],

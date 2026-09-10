@@ -34,6 +34,13 @@ export const RATE = {
   invite: { limit: 10, windowMs: 3_600_000, noun: "invitations" },
   /** A reply reaches a real person. */
   reply: { limit: 30, windowMs: 60_000, noun: "replies" },
+  /**
+   * Taking a thread over, handing it back, snoozing, waking, archiving,
+   * resolving, calling back a send. None had a limit and nothing said why.
+   * One person working an inbox stays well under two a second; a script
+   * flipping a thread between the receptionist and a person does not.
+   */
+  thread_state: { limit: 120, windowMs: 60_000, noun: "conversation changes" },
   /** Irreversible, and a job per erasure. */
   erase: { limit: 5, windowMs: 3_600_000, noun: "erasures" },
   /** A sentence into a live call. */

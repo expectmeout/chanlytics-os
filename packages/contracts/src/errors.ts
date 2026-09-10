@@ -4,6 +4,13 @@ export const ERROR_CODES = [
   "forbidden",
   "not_found",
   "validation",
+  /**
+   * The caller belongs to more than one workspace and the request did not say
+   * which. Its own code, not `validation`, because the answer is a question to
+   * the person ("which business?") rather than a field to fix, and a nightly
+   * once read the generic 400 as a billing bug and a phone-number bug for a day.
+   */
+  "choose_workspace",
   "conflict",
   "rate_limited",
   /**
@@ -45,6 +52,7 @@ const DEFAULT_STATUS: Record<ErrorCode, number> = {
   forbidden: 403,
   not_found: 404,
   validation: 400,
+  choose_workspace: 400,
   conflict: 409,
   rate_limited: 429,
   payment_required: 402,

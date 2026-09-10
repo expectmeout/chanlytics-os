@@ -177,9 +177,11 @@ export function requireRole(member: MemberContext, atLeast: MemberContext["role"
   // COMMIT under the same fallback would silently change the wrong business's
   // settings, team or policy. Every mutating path already calls requireRole, so
   // the guard lives here rather than being re-remembered per route.
+  // `choose_workspace`, not `validation`: the fix is naming the business, and
+  // route()'s workspace scope refuses an unnamed write with the same code.
   if (member.ambiguous) {
     throw new AppError(
-      "validation",
+      "choose_workspace",
       "This account belongs to more than one workspace — say which one before changing anything.",
     );
   }
