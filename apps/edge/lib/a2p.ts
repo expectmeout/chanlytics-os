@@ -140,11 +140,25 @@ export function campaignFactsFor(o: {
     // states, and it is the direction the code enforces.
     description: `${o.businessName} uses this number to answer its own customers, to send them reminders about appointments they have booked, and — only for customers who ask for them separately — occasional offers. Every message is written or approved by the business. Conversational and transactional messages go to customers who have asked to hear about their appointments; promotional messages go only to customers who gave a separate, explicit yes to offers. Agreeing to hear about appointments never enrols anyone in promotional messaging: that requires its own opt-in, with its own disclosure, which a customer can decline while keeping everything else.`,
 
+    // THE CLAIM HAS TO BE TRUE, and one half of it was not. This flow used to open
+    // by calling the two opt-ins symmetric -- that giving either left the other
+    // ungiven -- which this product's own keyword table contradicts:
+    // `OPT_IN_PATTERN` matches the promotional keyword as well as the
+    // transactional one, deliberately (it is also how somebody returns from a
+    // STOP), so asking for offers records both answers. The campaign DESCRIPTION
+    // was corrected for exactly this; MESSAGE_FLOW -- the field error 30913 names
+    // -- was not, so the untrue half survived in the one place the carriers were
+    // reading and refusing.
+    //
+    // What 30913 forbids is the other direction, and that direction IS absolute
+    // here: a yes to conversation is never spent as a yes to marketing. So the
+    // flow states that absolutely, and names the one-way implication as the
+    // deliberate thing it is rather than denying it.
     messageFlow: [
-      `Customers give consent at ${o.optInUrl}, a public page that presents TWO SEPARATE opt-ins, neither of which grants the other.`,
+      `Customers give consent at ${o.optInUrl}, a public page presenting TWO SEPARATE opt-ins, each with its own heading, its own disclosures and its own keyword. Agreeing to the transactional messages NEVER enrols anyone in promotional messaging: that needs its own opt-in, which a customer can decline while keeping everything else.`,
       `(1) TRANSACTIONAL: under the heading "Messages about your visit", the page states that the customer will receive appointment reminders and confirmations from ${o.businessName}, that message frequency varies, that message and data rates may apply, to reply HELP for help and STOP to stop. The customer consents by sending the single word START to the business from their own phone, using the link or button shown there.`,
       `(2) PROMOTIONAL: under a separate heading "Offers and news", the page states that the customer will receive promotional offers and news from ${o.businessName}, a few messages a month, that message and data rates may apply, to reply HELP for help and STOP to stop. It also states in its own words that this opt-in is optional, is not required for the messages above, and is not a condition of any purchase. The customer consents by sending the words YES OFFERS from their own phone.`,
-      `Sending the message is the action that confirms consent in each case, and each is recorded against that customer separately: a customer who sends START never receives promotional messages, and a customer who sends YES OFFERS is recorded as having consented to promotional messages specifically.`,
+      `Sending the message is the action that confirms consent in each case, and each is recorded against that customer separately, in its own field, with its own timestamp and source. A customer who sends START never receives promotional messages. A customer who sends YES OFFERS is recorded as having consented to promotional messages specifically, and -- having written to the business from their own handset to ask for them -- is recorded as reachable for the transactional messages too; that is the only direction in which one answer implies the other, and it is the direction that adds nothing a customer did not just ask for.`,
       `Customers may also start a conversation by messaging the business directly, which is consent to be answered and to receive messages about their own appointments only.`,
       `Replying STOP at any time ends all messages of both kinds.`,
     ].join(" "),
