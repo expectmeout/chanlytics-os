@@ -1,16 +1,19 @@
-import { AppError, CONSENT_RESET_SOURCE, CONSENT_SOURCES } from "@chanlytics/contracts";
+import { AppError, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES } from "@chanlytics/contracts";
 import { withRoute, memberContext, requireRole } from "@/server/with-route";
 import { jsonBody, requireUuid } from "@/server/request-guards";
 import { recordDecision } from "@/server/verbs";
 import { takeRate } from "@/server/rate-limit";
 
-const STATES = ["opted_in", "opted_out", "unknown"] as const;
 
 /**
  * PUT /api/v1/contacts/:id/consent — { consent, source?, note? }
  *
- * The customer's answer about marketing messages, recorded by the person who
- * heard it. "opted_in" and "opted_out" need a source that says how — in
+ * The customer's CONVERSATIONAL answer -- messages about their own visit, and a
+ * reply when they write -- recorded by the person who heard it. Not offers: those
+ * are a separate answer with their own door, ../marketing-consent/route.ts, since
+ * 00095 split the two because the carriers require them collected separately. This
+ * comment used to call this the answer "about marketing messages", which after
+ * that split is exactly the one thing it is not. "opted_in" and "opted_out" need a source that says how — in
  * person, on the phone, on a form, or in their own message; "unknown" is the
  * reset to "not asked" and carries no source. Owner or operator: the front
  * desk is where the answer is usually given. The door is one definer
@@ -22,7 +25,7 @@ export const PUT = withRoute(async (req, ctx) => {
   const id = requireUuid(ctx.params.id, "contact");
   const body = (await jsonBody(req)) as { consent?: unknown; source?: unknown; note?: unknown } | null;
   const consent = body?.consent;
-  if (typeof consent !== "string" || !(STATES as readonly string[]).includes(consent)) {
+  if (typeof consent !== "string" || !(CONSENT_STATES as readonly string[]).includes(consent)) {
     throw new AppError("validation", "Consent must be one of: opted_in, opted_out, unknown.");
   }
   const source = consent === "unknown" ? CONSENT_RESET_SOURCE : body?.source;

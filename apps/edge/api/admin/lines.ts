@@ -23,6 +23,7 @@ import { isAreaCode, isE164, LINE_COSTS } from "../../lib/workspace/channels.js"
 import { lineProviderFromEnv, lineForClient, rowToLine } from "../../lib/lines.js";
 import { registerLine, syncRegistration, unfileMockRegistration, resubmitRejectedCampaign, campaignFactsFor } from "../../lib/a2p.js";
 import { provisionLine } from "../../lib/provision.js";
+import { claimLineForResume, retryRequestedBy } from "../../lib/line-resume.js";
 import {
   businessTypeOf, companyTypeOf, industryOf, businessRecordProblems, businessRecordForPath,
   registrationPathOf, REGISTRATION_PATHS, type RegistrationPath,
@@ -37,6 +38,8 @@ interface Body {
   area_code?: number | string;
   number?: string;
   line_id?: string;
+  /** Who pressed Retry: "owner" from the owner's route, "support" from the back office. */
+  by?: string;
   /** The business on record, as the form sends it; validated field by field below. */
   record?: unknown;
   /**
@@ -164,7 +167,21 @@ export async function POST(request: Request): Promise<Response> {
       // row, so nothing is repeated.
       const refusal = lineRetryRefusal(lineForClient(row.data), Date.now());
       if (refusal) return json(409, { ok: false, error: refusal, line: lineForClient(row.data) });
-      const result = await provisionLine(db, choice, cfg, secrets, tenant, rowToLine(row.data), "support");
+      // TAKE THE ROW before running anything on it. The check above reads a
+      // snapshot; between it and the saga, the sweep or a second person can have
+      // restarted the same line, and two sagas on one row is two trunks at the
+      // carrier. The take is a compare-and-swap, so exactly one caller wins it.
+      const by = retryRequestedBy(body.by);
+      let taken;
+      try {
+        taken = await claimLineForResume(db, row.data, Date.now(), by);
+      } catch (e) {
+        return json(503, { ok: false, error: e instanceof Error ? e.message : String(e) });
+      }
+      if (!taken) {
+        return json(409, { ok: false, error: "somebody restarted this line a moment ago — it is setting up now, and this page updates by itself", line: lineForClient(row.data) });
+      }
+      const result = await provisionLine(db, choice, cfg, secrets, tenant, rowToLine(taken), by);
       const after = await db.from("lines").select("*").eq("id", lineId).single();
       return json(result.ok ? 200 : 502, { ok: result.ok, provider: choice.name, line: after.data ? lineForClient(after.data) : null, ...(result.ok ? {} : { step: result.step, error: result.error }) });
     }
@@ -393,7 +410,10 @@ export async function POST(request: Request): Promise<Response> {
         const after = await db.from("lines").select("*").eq("id", lineId).single();
         return json(200, { ok: true, resubmitted: true, smsState: again.row.sms_state, line: after.data ? lineForClient(after.data) : null });
       }
-      const off = await unfileMockRegistration(db, row.data);
+      // The rehearsal comes off only for a real filing that would pass: the check
+      // runs inside, before anything at the carrier is touched.
+      const off = await unfileMockRegistration(db, row.data, filingCheck);
+      if (off.problems?.length) return json(409, { ok: false, error: off.error ?? "record_incomplete", problems: off.problems });
       if (!off.ok || !off.row) return json(503, { ok: false, error: off.error ?? "unfile_failed" });
       row.data = off.row;
     }

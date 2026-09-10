@@ -36,6 +36,7 @@ import {
   mayMessageFor, purposeOfTemplate, purposeOfPlaybook, isOptedOutContact,
   optInPurposeOf, MARKETING_OPT_IN_PATTERN, CONVERSATION_OPT_IN_PATTERN, OPT_IN_PATTERN,
   PURPOSE_REFUSALS, HELD_REASONS, consentPageVM, CONSENT_PHRASE, CONVERSATION_PHRASE,
+  PEOPLE_LISTS, peopleListAction,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
@@ -281,14 +282,14 @@ test("UNDER-BLOCKING, pinned: the voice path asks the one predicate, with the me
   // And WHOSE number decides whether it is proactive: answering the caller on the
   // line is not a proactive send; texting a number they merely spoke aloud is.
   assert.match(fn, /proactive: !isCaller,/);
-  assert.match(fn, /marketing_consent: contact\.marketingConsent/, "the row carries both answers to the gate");
+  // The row is handed over WHOLE now: `OutboundTarget extends PurposeBearing`, so the
+  // compiler, not a pattern here, holds its consent fields to the names the gate reads.
   assert.ok(!/optedOut: isOptedOutContact\(contact\)/.test(fn), "REGRESSION: half the consent question");
 
   // The resolver has to project the column, or the gate above reads undefined and
   // fails closed on every promotional send it is ever asked about.
   const repo = readCode("packages/db/src/repositories/ingest.ts");
   assert.match(repo, /\.select\("id, consent, dnc, marketing_consent"\)/);
-  assert.match(repo, /marketingConsent: contact\.marketing_consent \?\? null,/);
 });
 
 test("the fact has a WRITE path: two callers, which is what 00095 designed for", () => {
@@ -315,9 +316,17 @@ test("every read of \"said yes to offers\" points at the offers column", () => {
   // Six of these were still on the old column after the split, and each one lied
   // in the same direction: it counted people who had said yes to SOMETHING and
   // called them a promotional audience.
-  const people = readCode("packages/contracts/src/people.ts");
-  assert.match(people, /\{ id: "offers_ok", label: "Can receive offers", group: "reach", test: \(v\) => v\.consent\.marketing === "opted_in" \}/);
-  assert.match(people, /const yes = members\.filter\(\(m\) => m\.consent\.marketing === "opted_in"\)\.length;/);
+  // Run, not read. Both lists answer with the broadcast's OWN rule, `mayReceive`:
+  // the yes to offers AND a number. They spelled it by hand without the number, so
+  // a list could promise people the route then left out.
+  const reachable = { id: "a", phone: "+13055550100", consent: { state: "opted_in", dnc: false, marketing: "opted_in" } };
+  const noNumber = { id: "b", phone: null, consent: { state: "opted_in", dnc: false, marketing: "opted_in" } };
+  const talkOnly = { id: "c", phone: "+13055550101", consent: { state: "opted_in", dnc: false, marketing: "unknown" } };
+  const offersList = PEOPLE_LISTS.find((l) => l.id === "offers_ok");
+  assert.deepEqual([reachable, noNumber, talkOnly].filter(offersList.test).map((p) => p.id), ["a"]);
+  assert.match(peopleListAction("lapsed", [reachable, noNumber, talkOnly]).text, /^1 of 3 on this list said yes to offers/,
+    "the count under a list is the audience the route will enrol");
+  assert.equal(peopleListAction("lapsed", [noNumber, talkOnly]).enabled, false, "and nobody reachable means no button");
 
   const setup = readCode("packages/contracts/src/setup.ts");
   assert.match(setup, /const offers = i\.consent\.offers;/, "the Setup row reads the offers count");

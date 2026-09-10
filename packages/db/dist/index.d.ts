@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { SchemaSet } from '@chanlytics/contracts';
+import { PurposeBearing, SchemaSet } from '@chanlytics/contracts';
 
 type Json = string | number | boolean | null | {
     [key: string]: Json | undefined;
@@ -3376,7 +3376,11 @@ declare function recordOutbound(db: Db$3, p: {
     /** The wire it goes out on: where the person last wrote. WhatsApp unless said. */
     channel?: "whatsapp" | "sms";
 }): Promise<string | null>;
-interface OutboundTarget {
+/**
+ * `extends PurposeBearing` so the claim below is the compiler's and not only the
+ * comment's: this row can be handed to `mayMessageFor` whole.
+ */
+interface OutboundTarget extends PurposeBearing {
     contactId: string;
     conversationId: string;
     /** 'unknown' | 'opted_in' | 'opted_out' — carried so no caller can send
@@ -3391,7 +3395,7 @@ interface OutboundTarget {
      * could only ever ask half the question. The shape is now a `PurposeBearing`,
      * so `mayMessageFor` can be asked about either purpose without a second read.
      */
-    marketingConsent: string | null;
+    marketing_consent: string | null;
     /** A human has this thread until then. Carried for the same reason consent
      *  is: a sender that is not handed the fact cannot honour it. */
     pausedUntil: string | null;

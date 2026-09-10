@@ -1,4 +1,4 @@
-import { CONSENT_SOURCES, toPersonVM, type PersonDetailDto, type PersonVM } from "@chanlytics/contracts";
+import { CONSENT_SOURCES, mayReceive, toPersonVM, type PersonDetailDto, type PersonVM, type SendPurpose } from "@chanlytics/contracts";
 import {
   conversationsOverride,
   fetchEnvelope,
@@ -127,15 +127,12 @@ export interface ConsentBody {
   note?: string;
 }
 
-/** Which answer is being recorded, and therefore which door it goes through. */
-export type ConsentPurpose = "conversational" | "marketing";
-
-const CONSENT_PATH: Record<ConsentPurpose, string> = {
+const CONSENT_PATH: Record<SendPurpose, string> = {
   conversational: "consent",
   marketing: "marketing-consent",
 };
 
-async function putConsent(id: string, body: ConsentBody, purpose: ConsentPurpose): Promise<DeleteResult> {
+async function putConsent(id: string, body: ConsentBody, purpose: SendPurpose): Promise<DeleteResult> {
   try {
     const res = await fetch(scoped(`/api/v1/contacts/${encodeURIComponent(id)}/${CONSENT_PATH[purpose]}`), {
       method: "PUT",
@@ -157,7 +154,7 @@ async function putConsent(id: string, body: ConsentBody, purpose: ConsentPurpose
   }
 }
 
-async function recordOne(id: string, body: ConsentBody, purpose: ConsentPurpose): Promise<DeleteResult> {
+async function recordOne(id: string, body: ConsentBody, purpose: SendPurpose): Promise<DeleteResult> {
   const r = await putConsent(id, body, purpose);
   if (!r.ok) return r;
   invalidateInFlight();
@@ -182,7 +179,7 @@ export async function setPersonMarketingConsent(id: string, body: ConsentBody): 
  */
 export interface ManyResult { ok: boolean; done: number; failed: number; message?: string }
 
-async function recordMany(ids: string[], body: ConsentBody, purpose: ConsentPurpose): Promise<ManyResult> {
+async function recordMany(ids: string[], body: ConsentBody, purpose: SendPurpose): Promise<ManyResult> {
   const take = [...new Set(ids)].slice(0, 50);
   let done = 0;
   let failed = 0;
@@ -214,6 +211,8 @@ declare global {
     __setPersonMarketingConsent?: (id: string, body: ConsentBody) => Promise<DeleteResult>;
     __setPersonMarketingConsentMany?: (ids: string[], body: ConsentBody) => Promise<ManyResult>;
     __consentSources?: readonly { id: string; label: string }[];
+    /** The broadcast's own "may this person be reached", for pages that count people. */
+    __mayReceive?: typeof mayReceive;
     __deletePerson?: (id: string) => Promise<DeleteResult>;
     __setPersonDetails?: (id: string, body: DetailsBody) => Promise<DeleteResult>;
     __setPersonReceptionist?: (id: string, mode: "auto" | "ask" | "never" | "inherit") => Promise<DeleteResult>;
@@ -261,4 +260,7 @@ export function installPeopleCourier(): void {
   window.__setPersonMarketingConsent = setPersonMarketingConsent;
   window.__setPersonMarketingConsentMany = setPersonMarketingConsentMany;
   window.__consentSources = CONSENT_SOURCES;
+  // The rule, not a copy of it: the Lists page counts who a broadcast reaches, and
+  // it was spelling that by hand -- without the phone the route requires.
+  window.__mayReceive = mayReceive;
 }

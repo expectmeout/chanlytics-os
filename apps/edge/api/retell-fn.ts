@@ -189,7 +189,9 @@ export async function POST(request: Request): Promise<Response> {
     // needs their own recorded yes. Passing `optedOut` alone could not tell the
     // two apart, so it let the second case through.
     const gate = outboundGate({
-      contact: { consent: contact.consent, dnc: contact.dnc, marketing_consent: contact.marketingConsent },
+      // The row whole: `OutboundTarget` is a `PurposeBearing`, checked by the compiler,
+      // so there is no hand re-mapping here to get one field's name wrong.
+      contact,
       purpose: BOOKING_TEMPLATE.purpose,
       proactive: !isCaller,
       paused: rt.paused,

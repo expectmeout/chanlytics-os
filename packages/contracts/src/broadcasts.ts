@@ -23,9 +23,9 @@
  * exactly the rows most likely to matter.
  */
 import { templateTitle } from "./template-library";
-import { PEOPLE_LISTS, type PersonRowVM } from "./people";
+import { PEOPLE_LISTS, mayReceive, type PersonRowVM } from "./people";
 import type { ParamSpec } from "./templates";
-import { mayMessageFor, type SendPurpose } from "./consent";
+import type { SendPurpose } from "./consent";
 
 export const BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"] as const;
 export type BroadcastState = (typeof BROADCAST_STATES)[number];
@@ -64,41 +64,6 @@ export interface Audience {
 }
 
 export const EVERYONE_LABEL = "Everyone who said yes";
-
-/**
- * May a message of this purpose reach this person? A number to send to, and the
- * yes THIS message needs.
- *
- * ONE RULE, NOT TWO. This used to restate `mayMessageFor`'s logic by hand,
- * because the two sides of one pipeline hold the person in two different shapes:
- * the route and the page hold a `PersonRowVM`, the send job holds the database
- * row. Two hand-written copies of a consent rule is the thing this file's own
- * header calls a defect, and it duly drifted -- the enrolment half asked for
- * marketing consent while the sending half asked what the template implied. So
- * the shape is adapted here and the QUESTION is answered in exactly one place.
- *
- * `proactive` is always true: a broadcast starts a conversation. Nobody wrote to
- * us to ask for it.
- *
- * THE PURPOSE IS REQUIRED, and that is the fix rather than a detail of it. It
- * used to default to marketing, described as "the safe answer for a caller that
- * has not thought about it" -- and every caller but one then failed to think
- * about it, so a utility message was refused to the very people migration 00095
- * exists to reach. A default cannot be audited; a required argument is checked
- * by the compiler at every call site, the way `businessRecordProblems` requires
- * its registration path.
- */
-export function mayReceive(
-  r: Pick<PersonRowVM, "consent" | "phone">,
-  purpose: SendPurpose,
-): boolean {
-  if (!r.phone) return false;
-  return mayMessageFor(
-    { consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing },
-    purpose,
-    { proactive: true },
-  ).ok;
-}
 
 /**
  * The people a broadcast may reach: the audience crossed with mayReceive.

@@ -299,10 +299,9 @@ test("wiring: the edge endpoint, its ports, the receptionist shared with voice-p
   assert.ok(prov.includes("Your phone line hit a snag — a person at Chanlytics has it"), "the bell on failure");
   assert.ok(prov.includes("{ tenantId: null, notifications: null, isEnvDefault: true }"), "the platform hears a failure");
   assert.ok(!edge.includes("runLineSaga("), "REGRESSION: a second copy of the saga's aftermath in the route");
-  // Every caller says who started it, so the platform email distinguishes a person
-  // pressing Retry from nobody asking at all.
-  for (const by of ['"owner"', '"support"']) assert.ok(edge.includes(`, ${by});`), `the route names ${by}`);
-  assert.ok(readCode("apps/edge/api/cron/lines.ts").includes('"sweep");'), "and the sweep names itself");
+  // Who started a run is read from the request now (`retryRequestedBy`, run in
+  // line-recovery.test.mjs) and `provisionLine` requires it, so the compiler holds
+  // every caller to naming one -- these two text pins were retired with that.
   assert.ok(edge.includes('error: "line_exists"') && edge.includes('error: "line_failed_retry"'), "one line per workspace in v1");
   for (const k of ["line.answering", "line.failed", "line.released"]) assert.ok(EVENT_KINDS.includes(k), k);
   const lib = readCode("apps/edge/lib/lines.ts");

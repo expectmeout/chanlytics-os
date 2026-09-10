@@ -14,6 +14,7 @@ import { standingOf, type StandingVerdict } from "./standing";
  * evidence-based first contact, recency.
  */
 import { formatPhoneDisplay } from "./phone";
+import { mayMessageFor, type SendPurpose } from "./consent";
 import { waWindow } from "./policy";
 import { tidyCallSummary } from "./call-words";
 import { visitDateKey, visitDay, visitLine, visitTime, type PersonVisitsDto } from "./calendar-people";
@@ -425,6 +426,49 @@ function consentOf(r: PersonRowDto, nowMs: number): PersonConsent {
   };
 }
 
+/**
+ * May a message of this purpose reach this person? A number to send to, and the
+ * yes THIS message needs.
+ *
+ * IT LIVES HERE, beside `consentOf`, because it is a question about a person, and
+ * because this module's own lists were answering it by hand. `offers_ok` and
+ * `peopleListAction` each spelled "said yes to offers" as a bare
+ * `consent.marketing === "opted_in"` -- no phone check -- while the broadcast route
+ * enrolled with this. So a list could promise "4 said yes to offers -- a broadcast
+ * reaches them" about people with no number the route would then leave out. It was
+ * one rule in the commit message and three in the code.
+ *
+ * ONE RULE, NOT TWO. This used to restate `mayMessageFor`'s logic by hand,
+ * because the two sides of one pipeline hold the person in two different shapes:
+ * the route and the page hold a `PersonRowVM`, the send job holds the database
+ * row. Two hand-written copies of a consent rule is the thing this file's own
+ * header calls a defect, and it duly drifted -- the enrolment half asked for
+ * marketing consent while the sending half asked what the template implied. So
+ * the shape is adapted here and the QUESTION is answered in exactly one place.
+ *
+ * `proactive` is always true: a broadcast starts a conversation. Nobody wrote to
+ * us to ask for it.
+ *
+ * THE PURPOSE IS REQUIRED, and that is the fix rather than a detail of it. It
+ * used to default to marketing, described as "the safe answer for a caller that
+ * has not thought about it" -- and every caller but one then failed to think
+ * about it, so a utility message was refused to the very people migration 00095
+ * exists to reach. A default cannot be audited; a required argument is checked
+ * by the compiler at every call site, the way `businessRecordProblems` requires
+ * its registration path.
+ */
+export function mayReceive(
+  r: Pick<PersonRowVM, "consent" | "phone">,
+  purpose: SendPurpose,
+): boolean {
+  if (!r.phone) return false;
+  return mayMessageFor(
+    { consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing },
+    purpose,
+    { proactive: true },
+  ).ok;
+}
+
 export type ReceptionistTone = "answering" | "escalated" | "queued" | "snoozed" | "paused" | "silent";
 
 export interface PersonReceptionist {
@@ -623,7 +667,10 @@ export const PEOPLE_LISTS: readonly { id: string; label: string; group: PeopleLi
   { id: "opted_in", label: "Said yes to messages", group: "reach", test: (v) => v.consent.state === "opted_in" },
   // The promotional audience, on its own column. The only people a MARKETING
   // broadcast may reach.
-  { id: "offers_ok", label: "Can receive offers", group: "reach", test: (v) => v.consent.marketing === "opted_in" },
+  // CAN receive, so it is the broadcast's own rule -- a yes to offers AND a number --
+  // not the bare answer, which was the difference between this list and what the
+  // route would actually enrol.
+  { id: "offers_ok", label: "Can receive offers", group: "reach", test: (v) => mayReceive(v, "marketing") },
   { id: "opted_out", label: "Opted out", group: "reach", test: (v) => v.consent.state === "opted_out" },
 ];
 
@@ -667,8 +714,8 @@ export function peopleListAction(id: string, members: PersonRowVM[]): PeopleList
   const step = LIST_STEPS[id];
   if (!step) return null;
   if (!step.broadcast) return { text: step.text ?? "", cta: step.cta, to: step.to, enabled: members.length > 0 };
-  const yes = members.filter((m) => m.consent.marketing === "opted_in").length;
-  if (yes === 0) {
+  const offersYes = members.filter((m) => mayReceive(m, "marketing")).length;
+  if (offersYes === 0) {
     return {
       text: members.length
         ? "Nobody on this list has said yes to offers yet — a broadcast reaches only that answer. The phrase and the QR are on Broadcasts."
@@ -676,7 +723,7 @@ export function peopleListAction(id: string, members: PersonRowVM[]): PeopleList
       cta: step.cta, to: step.to, enabled: false,
     };
   }
-  return { text: `${yes} of ${members.length} on this list said yes to offers — a broadcast reaches them.`, cta: step.cta, to: step.to, enabled: true };
+  return { text: `${offersYes} of ${members.length} on this list said yes to offers — a broadcast reaches them.`, cta: step.cta, to: step.to, enabled: true };
 }
 
 export interface PeopleAggregates {

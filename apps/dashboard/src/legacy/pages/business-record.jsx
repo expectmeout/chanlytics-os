@@ -173,8 +173,17 @@ const BusinessRecordForm = ({ line, flash }) => {
       {owner ? (
         <div className="bc-chips">
           <button className="btn btn-primary btn-sm" onClick={save} disabled={busy} data-testid="biz-save">{busy ? "Saving…" : "Save"}</button>
-          {ready && line && !arm && (
+          {/*
+            Not on a line the carriers SENT BACK. Resubmitting one is support's action
+            (gate 6), so this button could only be refused there -- a dead button on the
+            row a person opens straight after being told their filing was rejected.
+            Saving their corrections is still theirs, and is what unblocks it.
+          */}
+          {ready && line && !arm && line.sms_state !== "rejected" && (
             <button className="btn btn-sm" onClick={() => setArm(true)} disabled={busy} data-testid="biz-file">File with the carriers</button>
+          )}
+          {line && line.sms_state === "rejected" && (
+            <span className="set-row-hint" data-testid="biz-rejected">Save your corrections here — Chanlytics sends the registration back to the carriers for you, at no cost.</span>
           )}
           {arm && (
             <span className="set-row-hint" data-testid="biz-arm">

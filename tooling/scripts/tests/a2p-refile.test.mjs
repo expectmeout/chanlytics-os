@@ -21,8 +21,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "./_fake-db.mjs";
 import { readCode, readRaw } from "./_source.mjs";
-import { unfileMockRegistration } from "../../../apps/edge/lib/a2p.ts";
-import { MOCK_TEXTING_SENTENCE } from "@chanlytics/contracts";
+import { unfileMockRegistration, resubmitRejectedCampaign, filingProblems } from "../../../apps/edge/lib/a2p.ts";
+import { MOCK_TEXTING_SENTENCE, emptyBusinessRecord } from "@chanlytics/contracts";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
 const LINE = "22222222-2222-2222-2222-222222222222";
@@ -51,6 +51,25 @@ const mockFiled = (over = {}) => ({
   ...over,
 });
 
+/**
+ * The business on record, complete for the standard registration and named as the
+ * workspace is: a filing the pre-flight passes. Every replacement below is handed
+ * one, because taking a rehearsal off is now conditional on the real filing that
+ * replaces it being one the carriers would accept.
+ */
+const RECORD = {
+  ...emptyBusinessRecord({ websiteUrl: "https://harbormoving.example", email: "ada@example.com" }),
+  legal_name: "Harbor Moving LLC",
+  trade_name: "Harbor Moving",
+  ein: "12-3456789",
+  street: "193 Jamaica Ave", city: "Brooklyn", region: "NY", postal_code: "11207", country: "US",
+  contact_first_name: "Ada", contact_last_name: "Lovelace",
+  contact_email: "ada@example.com", contact_phone: "+19175550123",
+};
+const READY = { record: RECORD, workspaceName: "Harbor Moving" };
+/** The live campaign's own fault: the workspace and the record name two different businesses. */
+const MISNAMED = { record: RECORD, workspaceName: "Billing probe" };
+
 test("a mock brand cannot be deleted, so the messaging profile is what changes", async () => {
   // The two things running it taught us, and neither was guessable from the
   // docs alone:
@@ -66,7 +85,7 @@ test("a mock brand cannot be deleted, so the messaging profile is what changes",
   // of which are real and none of which needs redoing.
   const lines = [mockFiled()];
   const db = fakeDb({ lines });
-  const r = await unfileMockRegistration(db, lines[0]);
+  const r = await unfileMockRegistration(db, lines[0], READY);
   assert.equal(r.ok, true);
   assert.equal(lines[0].a2p_profile_sid, null, "cleared, so the saga resumes at a2p_profile with a fresh bundle");
   assert.ok(lines[0].profile_sid, "the customer profile is untouched -- it is the expensive half");
@@ -84,7 +103,7 @@ test("a mock brand cannot be deleted, so the messaging profile is what changes",
 test("the rehearsal comes off the row and the expensive receipts stay on it", async () => {
   const lines = [mockFiled()];
   const db = fakeDb({ lines });
-  const r = await unfileMockRegistration(db, lines[0]);
+  const r = await unfileMockRegistration(db, lines[0], READY);
   assert.equal(r.ok, true);
 
   const row = lines[0];
@@ -115,7 +134,7 @@ test("a write that changed nothing is an error, not a success to file on top of"
   // back 200 with zero rows. Filing on top of that would leave the row saying
   // one thing and the carriers holding another.
   const db = fakeDb({ lines: [mockFiled({ id: "someone-else" })] });
-  const r = await unfileMockRegistration(db, mockFiled());
+  const r = await unfileMockRegistration(db, mockFiled(), READY);
   assert.equal(r.ok, false);
   assert.ok(r.error, "and it says why");
   assert.equal(r.row, undefined);
@@ -127,7 +146,7 @@ test("no provider call is made for a line with nothing to take off, and none is 
   // no service -- or no campaign on it -- has nothing to take off, and reaching
   // for credentials it may not have would fail the refile for no reason.
   const db = fakeDb({ lines: [mockFiled()] });
-  const r = await unfileMockRegistration(db, mockFiled({ messaging_service_sid: null, campaign_sid: null }));
+  const r = await unfileMockRegistration(db, mockFiled({ messaging_service_sid: null, campaign_sid: null }), READY);
   assert.equal(r.ok, true);
   assert.ok(!db.seen.some((q) => q.table !== "lines"), "only the line's own row is touched");
 });
@@ -141,7 +160,8 @@ test("the route's three answers: a real filing is final, a rehearsal is replacea
   assert.ok(route.includes('error: "already_registered"'));
   assert.ok(route.includes('error: "mock_registration"'), "a rehearsal says what it is instead");
   assert.ok(route.includes("if (!refile) {"), "and asks to be told before replacing it");
-  assert.ok(route.includes("const off = await unfileMockRegistration(db, row.data);"), "a rehearsal is undone by the mock path");
+  // Which check a rehearsal's removal is handed is the compiler's to hold now --
+  // `check` is required -- and what it does with a failing one is run below.
   assert.ok(route.includes("row.data = off.row;"), "the saga runs against the cleared row, not the stale one");
   assert.ok(
     route.includes("const mock = !refile && body.mock === true;"),
@@ -246,49 +266,76 @@ test("a rejection is answered by CORRECTING the campaign, not paying for a new o
 });
 
 
-test("BOTH senders ask before they send: the pre-flight cannot be skipped by using the other door", () => {
-  // THE DEFECT. Gate 8's pre-flight lived inside `registerLine`. The refile door
-  // reaches the carriers through `resubmitRejectedCampaign`, which ran no check at
-  // all -- and a rejected campaign is the case that door exists for. So support
-  // pressed Refile on a campaign the carriers had sent back over a name mismatch,
-  // the same mismatch went out again, and the same rejection arrived a week later.
+test("EVERY door that talks to the carriers asks first, and a refusal reaches neither the vault nor the wire", async () => {
+  // THE DEFECT, twice. Gate 8's pre-flight lived inside `registerLine`; the refile
+  // door reached the carriers through `resubmitRejectedCampaign`, which ran no
+  // check -- so a campaign rejected over a name mismatch went out again with the
+  // same mismatch (#314). Then the review of #314 found a third door: replacing a
+  // rehearsal took the mock campaign OFF at the carrier and only afterwards asked
+  // whether the real filing would pass, so a refused refile left the line with
+  // neither.
   //
-  // The test that was supposed to cover this compared whole-FILE string indices
-  // (`edge.indexOf("registrationPreflight({") < edge.indexOf("const send = async")`),
-  // which is true of a file where one function checks and another does not. This
-  // slices each sender out and asks of each one separately.
-  const lib = readCode("apps/edge/lib/a2p.ts");
-  const bodyOf = (name) => {
-    const start = lib.indexOf(`export async function ${name}(`);
-    assert.notEqual(start, -1, `${name} exists`);
-    const next = lib.indexOf("\nexport ", start + 1);
-    return lib.slice(start, next === -1 ? undefined : next);
-  };
+  // This was a source scan comparing where `filingProblems(` sat against
+  // `lineAccount(` and `fetch(` in each function's text. It is run now: the vault
+  // read and the network are stubbed to record being reached, and the row is read
+  // back afterwards. (`registerLine`, the first door, is run the same way in
+  // registration-path.test.mjs, "an incomplete sole-proprietor record spends
+  // nothing".)
+  const reached = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => { reached.push(`wire: ${url}`); throw new Error("a refused filing must not reach the provider"); };
+  const vault = { get_line_credentials: () => { reached.push("vault"); return { auth_token: "t" }; } };
+  try {
+    // The refile door, on a campaign the carriers sent back.
+    const reason = "30913: the message flow does not say how a customer agrees to offers";
+    const sentBack = mockFiled({ reg_mock: false, sms_state: "rejected", subaccount_sid: "ACsub", messaging_service_sid: "MG1", last_error: reason });
+    const rows = [{ ...sentBack }];
+    const db = fakeDb({ lines: rows }, {}, vault);
+    const facts = { description: "d", messageFlow: "f", samples: ["a", "b"], privacyPolicyUrl: "https://x/privacy", termsUrl: "https://x/terms" };
+    const again = await resubmitRejectedCampaign(db, sentBack, facts, MISNAMED);
+    assert.equal(again.ok, false);
+    assert.equal(again.error, "record_incomplete");
+    assert.ok(again.problems.some((p) => /Billing probe/.test(p)), "with the owner's sentence about what is wrong");
+    // That row carries the CARRIERS' verdict and their words, and our own pre-check
+    // must not overwrite the only record of what they said.
+    assert.equal(rows[0].sms_state, "rejected");
+    assert.equal(rows[0].last_error, reason);
+    assert.ok(!db.seen.some((q) => q.op === "update"), "nothing written on the way to the refusal");
 
-  for (const sender of ["registerLine", "resubmitRejectedCampaign"]) {
-    const body = bodyOf(sender);
-    const check = body.indexOf("filingProblems(");
-    assert.notEqual(check, -1, `${sender} asks whether the filing is ready`);
-    // And asks BEFORE it reaches for credentials or the network. `lineAccount`
-    // reads the workspace's Twilio token out of Vault; `fetch` is the wire.
-    for (const after of ["lineAccount(", "fetch("]) {
-      const i = body.indexOf(after);
-      if (i !== -1) assert.ok(check < i, `${sender}: ${after} runs before the check`);
-    }
+    // The replace-the-rehearsal door, with a mock campaign still on the service.
+    const rehearsal = mockFiled({ subaccount_sid: "ACsub", messaging_service_sid: "MG1" });
+    const lines = [{ ...rehearsal }];
+    const db2 = fakeDb({ lines }, {}, vault);
+    const off = await unfileMockRegistration(db2, rehearsal, MISNAMED);
+    assert.equal(off.ok, false);
+    assert.equal(off.error, "record_incomplete");
+    assert.ok(off.problems.some((p) => /Billing probe/.test(p)));
+    // A line keeps the filing it has until the one replacing it would pass.
+    assert.equal(lines[0].brand_sid, rehearsal.brand_sid, "the rehearsal is still filed");
+    assert.equal(lines[0].campaign_sid, rehearsal.campaign_sid);
+    assert.equal(lines[0].reg_mock, true);
+    assert.ok(!db2.seen.some((q) => q.op === "update"));
+
+    assert.deepEqual(reached, [], "neither refusal reached for a credential or the network");
+  } finally {
+    globalThis.fetch = realFetch;
   }
+});
 
-  // The decider itself writes nothing, because what a refusal MEANS differs by
-  // path: a first filing has sent nothing (so `needs_record` is the truth about
-  // that row), while a refile's row is carrying the CARRIERS' verdict and their
-  // reason -- and overwriting that with our own pre-check would erase the only
-  // record of what they actually said.
-  const decider = bodyOf("filingProblems");
-  assert.ok(!/\.update\(/.test(decider), "the decider does not write");
-  assert.ok(!/sms_state/.test(decider), "and does not decide what the row should say");
-  const resubmit = bodyOf("resubmitRejectedCampaign");
-  const refused = resubmit.indexOf('return { ok: false, error: "record_incomplete", problems }');
-  assert.notEqual(refused, -1, "a refused refile says so, with the sentences");
-  assert.ok(!resubmit.slice(0, refused).includes(".update("), "and has changed nothing on the way there");
+test("the decider only reads: what a refusal means for the row is each door's to say", async () => {
+  // A first filing has sent nothing, so `needs_record` is the truth about that row;
+  // a refile's row carries the carriers' verdict. So the one function every door
+  // asks writes nothing -- run here, where this used to read its source for the
+  // absence of `.update(`.
+  const rows = [mockFiled({ sms_state: "rejected", last_error: "their words" })];
+  const db = fakeDb({ lines: rows });
+  const problems = await filingProblems(db, rows[0], MISNAMED);
+  assert.ok(problems.some((p) => /Billing probe/.test(p)));
+  assert.deepEqual(db.seen.map((q) => `${q.table}.${q.op}`), ["lines.select"], "one read, of the numbers that are ours");
+  assert.equal(rows[0].sms_state, "rejected");
+  assert.equal(rows[0].last_error, "their words");
+  assert.deepEqual(await filingProblems(fakeDb({ lines: [mockFiled()] }), mockFiled(), READY), [],
+    "and a filing that would pass has nothing to say");
 });
 
 test("a rejection reaches every person who can act on it, in words about what happened", () => {

@@ -13861,7 +13861,7 @@ async function resolveOutboundTarget(db, p) {
     pausedUntil: conv.paused_until ?? null,
     consent: contact.consent ?? null,
     dnc: contact.dnc ?? false,
-    marketingConsent: contact.marketing_consent ?? null
+    marketing_consent: contact.marketing_consent ?? null
   };
 }
 async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, data = {}) {

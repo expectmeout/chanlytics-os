@@ -222,8 +222,24 @@ export function campaignFactsFor(o: {
  * Never called for a real filing -- that one was paid for and vetted, and the
  * caller refuses the whole operation before reaching here.
  */
-export async function unfileMockRegistration(db: Db, line: LineRow): Promise<{ ok: boolean; error?: string; row?: LineRow }> {
+export async function unfileMockRegistration(
+  db: Db,
+  line: LineRow,
+  /**
+   * What the REAL filing that replaces the rehearsal must pass. Required, and
+   * asked before anything is deleted: this takes the rehearsal off at the carrier,
+   * and taking it off for a filing the pre-flight then refuses leaves the line with
+   * neither. #314 said "every path through op:register passes the pre-flight"; on
+   * this path the rehearsal was already gone by the time it did.
+   */
+  check: { record: RecordRow; workspaceName: string; hasOptInNumber?: boolean },
+): Promise<{ ok: boolean; error?: string; problems?: string[]; row?: LineRow }> {
   const L = logger({ tenant_id: line.tenant_id, line_id: line.id });
+  const problems = await filingProblems(db, line, check);
+  if (problems.length) {
+    L.warn("a2p_unfile_refused", { problems: problems.length });
+    return { ok: false, error: "record_incomplete", problems };
+  }
   if (line.messaging_service_sid && line.campaign_sid) {
     const sub = await lineAccount(db, line).catch(() => null);
     if (!sub) return { ok: false, error: "no_line_credentials" };

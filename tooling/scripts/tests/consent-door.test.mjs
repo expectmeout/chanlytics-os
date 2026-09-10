@@ -48,12 +48,18 @@ test("TWO lists, because there are two answers: one for messages, one for offers
 
   const offers = PEOPLE_LISTS.find((l) => l.id === "offers_ok");
   assert.equal(offers.label, "Can receive offers");
-  assert.equal(offers.test({ consent: { state: "opted_in", marketing: "opted_in" } }), true);
-  assert.equal(offers.test({ consent: { state: "opted_in", marketing: "unknown" } }), false, "a yes to messages is not a yes to offers");
-  assert.equal(offers.test({ consent: { state: "opted_in", marketing: "opted_out" } }), false);
+  const phone = "+13055550100";
+  assert.equal(offers.test({ phone, consent: { state: "opted_in", marketing: "opted_in" } }), true);
+  assert.equal(offers.test({ phone, consent: { state: "opted_in", marketing: "unknown" } }), false, "a yes to messages is not a yes to offers");
+  assert.equal(offers.test({ phone, consent: { state: "opted_in", marketing: "opted_out" } }), false);
   // consentOf folds a STOP or a do-not-contact into BOTH answers, so this list can
   // never hold somebody who asked us to stop.
-  assert.equal(offers.test({ consent: { state: "opted_out", marketing: "opted_out" } }), false);
+  assert.equal(offers.test({ phone, consent: { state: "opted_out", marketing: "opted_out" } }), false);
+  // CAN receive: the broadcast's own rule, number included. This list tested the
+  // bare answer, so it showed people the route would then leave out of the very
+  // broadcast the list's own button opens.
+  assert.equal(offers.test({ phone: null, consent: { state: "opted_in", marketing: "opted_in" } }), false,
+    "a yes to offers with no number to send to is not somebody a broadcast can reach");
 
   const at = (id) => PEOPLE_LISTS.findIndex((l) => l.id === id);
   assert.ok(at("opted_in") < at("offers_ok") && at("offers_ok") < at("opted_out"), "the two yeses, then the no");

@@ -48,23 +48,24 @@ test("the one predicate: the yes THIS message needs, no do-not-contact, a number
 test("ONE rule, not a second copy of it: the VM predicate delegates to mayMessageFor", async () => {
   // This function used to restate mayMessageFor's logic by hand, because the two
   // halves of one pipeline hold the person in two different shapes. It duly
-  // drifted. The source is read rather than only the behaviour, because two
-  // implementations that happen to agree on today's fixtures is exactly the state
-  // that produced the defect.
-  const src = readCode("packages/contracts/src/broadcasts.ts");
-  assert.ok(src.includes("return mayMessageFor("), "the VM predicate asks the one predicate");
-  assert.ok(!/purpose === "marketing" \? r\.consent\.marketing/.test(src), "REGRESSION: a second hand-written copy of the consent rule");
-  // Every purpose, both shapes, same answer.
+  // drifted. This read the source for that reason: two implementations that agree
+  // on today's fixtures is exactly the state that produced the defect. So it is
+  // run over the rule's WHOLE domain instead -- every consent, every offers answer,
+  // do-not-contact either way, both purposes (a missing number is the case above).
+  // An implementation that agrees on every input the rule can be given IS the rule,
+  // which a sample never shows and a text scan cannot.
   const { mayMessageFor } = await import("@chanlytics/contracts");
   for (const state of ["unknown", "opted_in", "opted_out"]) {
     for (const marketing of ["unknown", "opted_in", "opted_out"]) {
-      for (const purpose of ["conversational", "marketing"]) {
-        const vm = person({ consent: { state, dnc: false, marketing } });
-        assert.equal(
-          mayReceive(vm, purpose),
-          mayMessageFor({ consent: state, dnc: false, marketing_consent: marketing }, purpose, { proactive: true }).ok,
-          `${state}/${marketing}/${purpose}`,
-        );
+      for (const dnc of [false, true]) {
+        for (const purpose of ["conversational", "marketing"]) {
+          const vm = person({ consent: { state, dnc, marketing } });
+          assert.equal(
+            mayReceive(vm, purpose),
+            mayMessageFor({ consent: state, dnc, marketing_consent: marketing }, purpose, { proactive: true }).ok,
+            `${state}/${marketing}/dnc:${dnc}/${purpose}`,
+          );
+        }
       }
     }
   }
@@ -78,8 +79,6 @@ test("THE PURPOSE IS REQUIRED, because a default is what broke this", () => {
   // the compiler at every call site; a default cannot be audited.
   assert.equal(eligibleFor.length, 5, "REGRESSION: a defaulted parameter is not counted in .length");
   assert.equal(mayReceive.length, 2, "REGRESSION: the purpose went back to being optional");
-  const src = readCode("packages/contracts/src/broadcasts.ts");
-  assert.ok(!/purpose: SendPurpose = /.test(src), "REGRESSION: the purpose has a default again");
 });
 
 test("the refusal names the yes that was actually missing", () => {

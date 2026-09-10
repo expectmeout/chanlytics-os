@@ -1,10 +1,9 @@
-import { AppError, CONSENT_RESET_SOURCE, CONSENT_SOURCES } from "@chanlytics/contracts";
+import { AppError, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES } from "@chanlytics/contracts";
 import { withRoute, memberContext, requireRole } from "@/server/with-route";
 import { jsonBody, requireUuid } from "@/server/request-guards";
 import { recordDecision } from "@/server/verbs";
 import { takeRate } from "@/server/rate-limit";
 
-const STATES = ["opted_in", "opted_out", "unknown"] as const;
 
 /**
  * PUT /api/v1/contacts/:id/marketing-consent — { consent, source?, note? }
@@ -37,7 +36,7 @@ export const PUT = withRoute(async (req, ctx) => {
   const id = requireUuid(ctx.params.id, "contact");
   const body = (await jsonBody(req)) as { consent?: unknown; source?: unknown; note?: unknown } | null;
   const consent = body?.consent;
-  if (typeof consent !== "string" || !(STATES as readonly string[]).includes(consent)) {
+  if (typeof consent !== "string" || !(CONSENT_STATES as readonly string[]).includes(consent)) {
     throw new AppError("validation", "Consent must be one of: opted_in, opted_out, unknown.");
   }
   const source = consent === "unknown" ? CONSENT_RESET_SOURCE : body?.source;
