@@ -2940,7 +2940,11 @@ export type Database = {
       provision_tenant: { Args: { p_tenant_id: string }; Returns: undefined }
       purge_ask: { Args: { p_keep?: string }; Returns: number }
       purge_cron_history: {
-        Args: { p_keep?: string; p_keep_per_job?: number }
+        Args: {
+          p_keep?: string
+          p_keep_frequent?: string
+          p_keep_per_job?: number
+        }
         Returns: number
       }
       purge_events: { Args: { p_keep?: string }; Returns: number }
