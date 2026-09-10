@@ -148,10 +148,10 @@ export async function POST(request: Request): Promise<Response> {
   if (cancelErr) {
     log.error("steer_retire_failed", { message_id: m.id, error: cancelErr.message });
     await db.from("messages").update({ status: "canceled", error: { reason: "steer_rolled_back" } }).eq("id", newId).eq("status", "queued");
-    await cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", newId, process.env.QSTASH_TOKEN);
+    await cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", newId);
     return json(500, { ok: false, error: "could_not_retire_old_draft" });
   }
-  await cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", m.id, process.env.QSTASH_TOKEN);
+  await cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", m.id);
 
   // The words are the owner's and the model's and stay out of the log.
   console.log("admin_steer", JSON.stringify({ message_id: m.id, new_message_id: newId, chars: text.length, ms: Date.now() - t0, escalate: r.escalate, delay_ms: delayMs }));

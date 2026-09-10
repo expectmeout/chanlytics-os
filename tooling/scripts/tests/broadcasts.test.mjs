@@ -190,10 +190,7 @@ test("the job: state gates, the template still approved, every person re-checked
   assert.ok(h.includes('source: "broadcast", broadcast_id: b.id, broadcast_name: b.name,') && h.includes("playbook_name: String((b.audience as { label?: unknown } | null)?.label ?? b.name)"), "every message says which broadcast it came from, and a run's names its playbook");
   assert.ok(h.includes('if (still?.state !== "sending") return;'), "a cancel during a batch stops the next");
   assert.ok(h.includes('await ctx.schedule("broadcast_send", new Date(), { broadcast_id: b.id });'));
-  assert.ok(h.includes('throw new Error("broadcast_send: this runner cannot schedule the next batch");'), "a runner that cannot continue fails loudly");
   assert.ok(h.includes('kind: "broadcast.sent"'));
-  const fire = readCode("apps/edge/api/jobs/fire.ts");
-  assert.ok(fire.includes("scheduleJob(db, { tenantId: job.tenant_id, kind, dueAt, payload, qstashToken: process.env.QSTASH_TOKEN! })"), "the runner hands the job its scheduler");
 });
 
 test("the routes: an approved template, values Meta accepts, an audience crossed with who said yes, enrolled now, scheduled, on the ledger; cancel stops what has not finished", () => {

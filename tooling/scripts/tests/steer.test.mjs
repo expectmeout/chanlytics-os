@@ -53,7 +53,7 @@ test("the steer endpoint: the door, the draft's state, new before old, the price
   const retired = s.indexOf('.update({ status: "canceled", error: { reason: "steered", replaced_by: newId } })');
   assert.ok(queued > 0 && retired > queued, "the new draft is queued before the old one is retired");
   assert.ok(s.includes('error: { reason: "steer_rolled_back" }'), "and taken back if the old one could not be retired");
-  assert.ok(s.includes('cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", m.id, process.env.QSTASH_TOKEN)'));
+  assert.ok(s.includes('cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", m.id)'));
   assert.ok(s.includes('source: "steered",') && s.includes("extra: { steer: text, steered_from: m.id, escalate: r.escalate },"));
   for (const forbidden of ["sendText(", "waSendText("]) assert.ok(!s.includes(forbidden), "nothing is sent from here");
 });

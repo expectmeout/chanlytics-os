@@ -165,7 +165,7 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   assert.ok(readCode("packages/db/src/repositories/ingest.ts").includes('channel: p.channel ?? "whatsapp",'), "an outbound row says its wire");
   const jobs = readCode("packages/jobs/src/handlers.ts");
   assert.ok(jobs.includes("sms: (ctx, to, p) =>") && jobs.includes('errorBody: "no texting line"'), "no line = a loud failure, never the other wire");
-  assert.ok(readCode("apps/edge/api/jobs/fire.ts").includes("sms: await smsSenderForTenant(db, job.tenant_id),"));
+  assert.ok(readCode("apps/edge/api/jobs/tick.ts").includes("sms: await smsSenderForTenant(db, job.tenant_id),"));
   const reply = readCode("apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts");
   assert.ok(reply.includes('const replyChannel: "whatsapp" | "sms" = lastIn?.channel === "sms" ? "sms" : "whatsapp";') && reply.includes("channel: replyChannel,") && reply.includes('replyChannel === "sms" ? { open: true, closesAtIso: null }'), "a person replies where the customer last wrote, with no window on a text");
   const sql = readRaw("supabase/migrations/00074_texting.sql");

@@ -1,0 +1,11 @@
+-- Local and CI only. `supabase start` and `supabase db reset` run this after the
+-- migrations; `supabase db push` never does.
+--
+-- 00018 seeds Vault with the PRODUCTION edge's address, so a new production
+-- database is wired up the moment it exists. On any other database that same
+-- seed means every pg_cron sweep -- and, since 00098, the ledger's heartbeat
+-- every ten seconds -- posts to production with a key production does not
+-- hold. A database with no edge of its own is told so instead: without the
+-- address, request_sweep() records "missing cron_sweep_key or edge_base_url in
+-- Vault" and sends nothing, which is the truth about it.
+delete from vault.secrets where name = 'edge_base_url';

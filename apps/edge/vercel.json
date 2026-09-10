@@ -35,6 +35,9 @@
     },
     "api/cron/lines.ts": {
       "maxDuration": 60
+    },
+    "api/jobs/tick.ts": {
+      "maxDuration": 60
     }
   }
 }

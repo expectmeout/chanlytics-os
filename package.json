@@ -5,6 +5,7 @@
   "scripts": {
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "node --conditions=react-server --import tsx --test tooling/scripts/tests/*.test.mjs",
+    "test:db": "node --import tsx --test tooling/scripts/tests/*.db.test.mjs",
     "check:dist": "node tooling/scripts/check-dist.mjs",
     "lint": "eslint .",
     "e2e": "playwright test",

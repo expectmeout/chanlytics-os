@@ -55,9 +55,9 @@ const waCfg = waCfgFor;
  *
  * Returns false when it could not be queued, and the caller then sends
  * immediately. That fallback is deliberate: an un-vetoed reply is a worse
- * outcome than a vetoed one, and no reply at all is worse than both. A missing
- * QSTASH_TOKEN, an unreachable database, a scheduling failure — none of them
- * should leave a customer waiting on an answer that was already written.
+ * outcome than a vetoed one, and no reply at all is worse than both. An
+ * unreachable database or a scheduling failure must not leave a customer
+ * waiting on an answer that was already written.
  */
 export async function queueReply(
   db: ReturnType<typeof pg>,
@@ -76,7 +76,7 @@ export async function queueReply(
 ): Promise<boolean> {
   if (!db || !tenantId || !ing) {
     L.warn("wa_queue_unavailable", {
-      has_db: !!db, has_tenant: !!tenantId, has_ingest: !!ing, has_qstash: !!process.env.QSTASH_TOKEN,
+      has_db: !!db, has_tenant: !!tenantId, has_ingest: !!ing,
     });
     return false;
   }
@@ -174,13 +174,13 @@ export function pgSink(
      * promise the setting made is what broke, and a setting that quietly stops
      * applying is the failure mode this project keeps finding.
      */
-    vetoFallback: (delayMs: number, hasQstash: boolean) =>
+    vetoFallback: (delayMs: number) =>
       on
         ? pgSafe("veto_fallback_evt", () =>
             emitEvent(db!, tenantId!, "policy.veto_window_skipped", "policy", "conversation", ing!.conversation_id, {
               delay_ms: delayMs,
-              // The usual cause, named: the edge cannot schedule without it.
-              reason: hasQstash ? "scheduling_failed" : "scheduler_not_configured",
+              // Scheduling is one insert now, so there is one cause left to name.
+              reason: "scheduling_failed",
             } as Json))
         : Promise.resolve(),
     pause: (iso: string) =>

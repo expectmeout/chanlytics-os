@@ -23,7 +23,7 @@ export interface SubscribeOptions {
 /** Tables whose changes must repaint the live surfaces (Blueprint §5). */
 const WATCHED: Array<{ table: string; event: "INSERT" | "*" }> = [
   { table: "messages", event: "INSERT" },
-  { table: "conversations", event: "*" },   // pause_expire, snooze_wake, other tabs
+  { table: "conversations", event: "*" },   // the pause and snooze clocks, other tabs
   { table: "escalations", event: "*" },     // opened by the edge, resolved elsewhere
   { table: "calls", event: "*" },           // a call starting, each live turn, its end, its analysis
   { table: "notifications", event: "INSERT" }, // an alert the edge kept: the bell repaints

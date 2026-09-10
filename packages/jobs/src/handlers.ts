@@ -1,7 +1,8 @@
 /**
- * Job handlers — dispatched by the edge's /api/jobs/fire AFTER the claim_job
- * gate (exactly-once scheduled->fired). Handlers are idempotent against
- * re-dispatch and receive their environment injected (no env reads here).
+ * Job handlers — dispatched by the edge's api/jobs/tick.ts once
+ * claim_due_jobs() has made the job this run's (00098). Handlers are
+ * idempotent against a second run and receive their environment injected
+ * (no env reads here).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendText, sendTemplate, type WaConfig } from "@chanlytics/channels";
@@ -19,18 +20,21 @@ export interface JobContext {
    *
    * INJECTED, not imported. The store is apps/edge/lib/store.ts because the
    * edge is the runtime that holds BLOB_READ_WRITE_TOKEN, and a package must
-   * not reach into an app. Optional because the type is shared with any future
-   * runner; a runner that cannot do it must FAIL, never succeed quietly —
-   * see blobThreadErase.
+   * not reach into an app.
    */
-  eraseThread?: (namespace: string, threadId: string) => Promise<boolean>;
+  eraseThread: (namespace: string, threadId: string) => Promise<boolean>;
   /**
    * Schedule a job of this tenant — how a broadcast continues itself, one
-   * batch after another, through the same door the dashboard uses. Optional
-   * for the same reason eraseThread is; a runner without it must FAIL a
-   * broadcast that has more to send, never end it quietly.
+   * batch after another, through the same door the dashboard uses.
    */
-  schedule?: (kind: JobKind, dueAt: Date, payload: Json) => Promise<void>;
+  schedule: (kind: JobKind, dueAt: Date, payload: Json) => Promise<void>;
+  /**
+   * Epoch ms. A handler that loops over outward work starts no new send after
+   * this and leaves the rest to a follow-up job through `schedule`. The runner
+   * is killed at a fixed ceiling, and a send cut off mid-flight is a send
+   * whose outcome nobody knows.
+   */
+  deadline: number;
 }
 
 export interface ClaimedJob {
@@ -86,8 +90,8 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   // A read that FAILED and a message that is genuinely gone are different
   // facts, and collapsing them is how an operator's reply disappears: the
   // error was discarded, a transient PostgREST blip looked exactly like
-  // "already canceled", the handler returned success, claim_job had already
-  // consumed the job, and the row sat `queued` forever with nothing left to
+  // "already canceled", the handler returned success, the job had already
+  // been claimed, and the row sat `queued` forever with nothing left to
   // send it and nobody told. maybeSingle() reports the absent row as
   // `data: null` without an error, so the two cases stay separable.
   const { data: msg, error: readErr } = await ctx.db
@@ -97,8 +101,8 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     .eq("tenant_id", job.tenant_id)
     .maybeSingle();
   if (readErr) {
-    // Throw: the fire callback records fail_job and alerts the tenant, so the
-    // message is visibly stuck rather than invisibly lost.
+    // Throw: the tick fails the job, settles the message and tells the
+    // tenant, so it is visibly stuck rather than invisibly lost.
     throw new Error(`outbound_send: cannot read message ${p.message_id}: ${readErr.message}`);
   }
   if (!msg || msg.status !== "queued") return; // canceled or already handled — no-op
@@ -138,11 +142,9 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     // stayed 'fired' until the stale-jobs sweep reaped it and told the owner;
     // making success visible accidentally made this failure invisible.
     //
-    // Throwing reaches fail_job and the alert fire.ts already builds. The
-    // message row itself is deliberately left 'queued' either way: it was not
-    // sent, and marking it failed on our own inability to check would be a
-    // second untruth on top of the first. Only the job fails, which is the part
-    // an owner can act on.
+    // Throwing reaches the tick's failure path: the job is failed, the message
+    // is taken out of "Sending…" (nothing will send it now), and the owner is
+    // told why, which is the part they can act on.
     throw new Error(`outbound_send: cannot read consent for conversation ${p.conversation_id}: ${why}`);
   }
   const contact = convRow.contacts;
@@ -230,37 +232,6 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   }
 }
 
-/** pause_expire: the state machine's timed edge needs_human -> open (P4). */
-async function pauseExpire(ctx: JobContext, job: ClaimedJob): Promise<void> {
-  const p = job.payload as { conversation_id: string };
-  const { data: conv } = await ctx.db
-    .from("conversations")
-    .select("id, state, paused_until")
-    .eq("id", p.conversation_id)
-    .single();
-  if (!conv || conv.state !== "needs_human") return;
-  // a later pause supersedes this job — only clear when the clock really ran out
-  if (conv.paused_until && new Date(conv.paused_until).getTime() > Date.now() + 1000) return;
-  await ctx.db.from("conversations")
-    .update({ state: "open", paused_until: null })
-    .eq("id", p.conversation_id);
-}
-
-/** snooze_wake: snoozed -> open when the timer lands. */
-async function snoozeWake(ctx: JobContext, job: ClaimedJob): Promise<void> {
-  const p = job.payload as { conversation_id: string };
-  const { data: conv } = await ctx.db
-    .from("conversations")
-    .select("id, state, snooze_until")
-    .eq("id", p.conversation_id)
-    .single();
-  if (!conv || conv.state !== "snoozed") return;
-  if (conv.snooze_until && new Date(conv.snooze_until).getTime() > Date.now() + 1000) return;
-  await ctx.db.from("conversations")
-    .update({ state: "open", snooze_until: null })
-    .eq("id", p.conversation_id);
-}
-
 /**
  * blob_thread_erase: the copy Postgres cannot reach.
  *
@@ -283,12 +254,6 @@ async function blobThreadErase(ctx: JobContext, job: ClaimedJob): Promise<void> 
   if (!p.namespace) throw new Error("blob_thread_erase: payload has no namespace");
   const ids = (Array.isArray(p.thread_ids) ? p.thread_ids : [])
     .filter((t): t is string => typeof t === "string" && t.length > 0);
-
-  // THROW, never return. A handler that reported "done" without a store would
-  // tell the owner the customer's conversation was deleted while it sat in
-  // Blob — the exact lie this whole change exists to remove. Throwing makes
-  // fire.ts record fail_job and alert the workspace.
-  if (!ctx.eraseThread) throw new Error("blob_thread_erase: no thread store on this runner");
 
   const failed: string[] = [];
   for (const id of ids) {
@@ -450,7 +415,13 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       .eq("broadcast_id", b.id)
       .eq("contact_id", contactId);
 
+  let begun = 0;
   for (const r of batch ?? []) {
+    // Yield before the runner's ceiling rather than be killed mid-send: no new
+    // send starts after the deadline, and the follow-up job below carries the
+    // rest. One person at least, so a batch that starts late still moves on.
+    if (begun > 0 && Date.now() >= ctx.deadline) break;
+    begun += 1;
     // FAIL CLOSED per person: a read that fails leaves them queued for the
     // next batch rather than guessing; "we could not check" is not "yes".
     const { data: c, error: cErr } = await ctx.db
@@ -526,7 +497,6 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     // Still wanted? A cancel during this batch stops here.
     const { data: still } = await ctx.db.from("broadcasts").select("state").eq("id", b.id).maybeSingle();
     if (still?.state !== "sending") return;
-    if (!ctx.schedule) throw new Error("broadcast_send: this runner cannot schedule the next batch");
     await ctx.schedule("broadcast_send", new Date(), { broadcast_id: b.id });
     return;
   }
@@ -548,9 +518,7 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
 const HANDLERS: Record<string, (ctx: JobContext, job: ClaimedJob) => Promise<void>> = {
   outbound_send: outboundSend,
   broadcast_send: broadcastSend,
-  pause_expire: pauseExpire,
-  snooze_wake: snoozeWake,
-blob_thread_erase: blobThreadErase,
+  blob_thread_erase: blobThreadErase,
 };
 
 export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind"> {

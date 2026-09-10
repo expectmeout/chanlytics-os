@@ -747,7 +747,10 @@ function api(tenants, detail = null, calls = []) {
   return {
     list: async () => { calls.push("list"); return { ok: true, tenants, message: "" }; },
     one: async (id) => { calls.push(`one:${id}`); return { ok: !!detail, detail, message: detail ? "" : "No such page." }; },
-    rows: platformRows,
+    // The bridge reads the real clock; these fixtures are written against NOW,
+    // so the stand-in reads NOW too. It used the real one, and "heard 1d ago"
+    // became "2d ago" the morning after it was written.
+    rows: (tenants) => platformRows(tenants, NOW),
     summary: platformSummary,
     verdicts: PLATFORM_VERDICTS,
     quietDays: PLATFORM_QUIET_DAYS,

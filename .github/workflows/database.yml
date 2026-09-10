@@ -1,0 +1,35 @@
+name: Database
+
+# Every migration replayed from zero on a fresh Postgres, then the rules that
+# live in SQL proved against it. ci.yml runs the unit suite against fakes, which
+# cannot see a CHECK, a trigger or a SKIP LOCKED; this can. It is also the only
+# place the migrations are applied to anything but production before they are.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  replay:
+    name: Migrations replay, SQL rules hold
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.116.0
+      - run: pnpm install --frozen-lockfile
+      - run: supabase start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector
+      # The local stack's service key is the published demo key, not a secret.
+      - name: Point the suite at the local database
+        run: |
+          echo "SUPABASE_URL=http://127.0.0.1:54321" >> "$GITHUB_ENV"
+          echo "SUPABASE_SERVICE_ROLE_KEY=$(supabase status -o env | sed -n 's/^SERVICE_ROLE_KEY="\(.*\)"$/\1/p')" >> "$GITHUB_ENV"
+      - run: pnpm test:db
+      - if: always()
+        run: supabase stop --no-backup

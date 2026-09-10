@@ -19,8 +19,7 @@
   "dependencies": {
     "@chanlytics/channels": "workspace:*",
     "@chanlytics/contracts": "workspace:*",
-    "@chanlytics/db": "workspace:*",
-    "@upstash/qstash": "^2.7.0"
+    "@chanlytics/db": "workspace:*"
   },
   "devDependencies": {
     "tsup": "^8.3.0",

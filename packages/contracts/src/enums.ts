@@ -39,27 +39,28 @@ export type ConsentState = (typeof CONSENT_STATES)[number];
  * caller that schedules it. Kinds declared ahead of their slice (veto_fire,
  * media_fetch, rollup_daily, deadman, report_weekly) are gone — a vetoed reply
  * is an outbound_send with a delay, the deadman is a pg_cron sweep, media is
- * fetched inline. A new kind arrives with its handler, its caller and the
- * jobs.kind CHECK, together.
+ * fetched inline — and so are the two timers (snooze_wake, pause_expire): a
+ * snooze or a pause wakes from its own timestamp on the conversation (00098).
+ * A new kind arrives with its handler, its caller and the jobs.kind CHECK,
+ * together.
  */
 export const JOB_KINDS = [
   "outbound_send",
-  "snooze_wake",
-  "pause_expire",
   "broadcast_send",
   /**
    * Erase one customer's stored Blob thread. The DASHBOARD orchestrates
    * erasure and cannot reach Blob; the EDGE holds BLOB_READ_WRITE_TOKEN and
-   * cannot publish QStash jobs. This kind is the seam.
+   * runs the ledger. This kind is the seam.
    */
   "blob_thread_erase",
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
 /**
- * `fired` means CLAIMED, not finished: claim_job sets it and fire.ts moves the
- * job to `done` when the handler returns. A job left in `fired` is one whose
- * run never reported back, which is what the stale-jobs sweep reaps.
+ * `fired` means CLAIMED, not finished: claim_due_jobs() sets it with a lease,
+ * and the tick moves the job to `done` or `failed` when its handler returns or
+ * throws. A job still `fired` past its lease is one whose run never reported
+ * back, and the next claim takes it again (packages/jobs/src/ledger.ts).
  */
 export const JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"] as const;
 export type JobState = (typeof JOB_STATES)[number];

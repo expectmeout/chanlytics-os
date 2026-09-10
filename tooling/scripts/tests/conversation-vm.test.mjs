@@ -105,7 +105,7 @@ test("the summary counts messages and calls separately", () => {
   });
 
   test("waking a thread puts the request back in the queue", () => {
-    // snooze_wake flips state to open and touches nothing else, so the
+    // wake_stale_snoozes() flips state to open and touches nothing else, so the
     // escalation that survived the snooze is what brings it back.
     const s = threadStanding(conv({ state: "open" }), esc);
     assert.equal(s.state, "escalated");

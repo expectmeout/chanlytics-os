@@ -1,33 +1,21 @@
 /**
- * What a job leaves behind when it will not run.
+ * What a job leaves behind when it will not finish.
  *
- * The ledger row is only half the truth. A job that reaches a terminal state
- * was in the middle of something, and until this module existed each of the
- * sweep's two terminal paths settled exactly the half the other ignored: the
- * `fired` reap marked a stuck outbound_send's message failed and left the
- * broadcast alone, and the overdue give-up released the broadcast and left the
- * message alone. So an outbound_send given up on said "Sending…" for ever, and
- * a broadcast whose lambda died sat in 'sending' with half its recipients
- * reached and nothing coming. Two half-settlements are not one settlement.
+ * The ledger row is only half the truth. A job that fails was in the middle of
+ * something: an outbound_send that never ran left its message saying "Sending…"
+ * for ever, and a broadcast whose run died sat in 'sending' with half its
+ * recipients reached and nothing coming. Only the kind knows what it was in the
+ * middle of, so settlement is per kind.
  *
- * `certain` says whether the work provably never happened: a job nothing ever
- * claimed is certain, one claimed and never heard from again is not. It changes
- * the words recorded, never the conditions — every write here is conditional on
- * the downstream row still claiming to be in flight, so a handler that DID
- * record its send before dying is left exactly as it left it either way. That
- * condition, not `certain`, is what makes this safe to run on a job whose
- * outcome is unknown.
- *
- * Only the two kinds that leave something behind are here. `pause_expire` needs
- * nothing: expire_stale_pauses() (00006) has reopened any conversation whose
- * pause ran out, whoever set it, every fifteen minutes since. `snooze_wake` is
- * the same shape of gap and gets the same shape of answer — a sweeper of its
- * own (00082) — because a snooze is stranded by a job that never ran for any
- * reason, not only by this sweep giving up on it.
+ * `certain` says whether the work provably never happened: a job whose kind no
+ * runner knows is certain; one that ran and threw, or ran and never came back,
+ * is not. It changes the words recorded, never the conditions. Every write here
+ * is conditional on the downstream row still claiming to be in flight, so a
+ * handler that DID record its send before dying is left exactly as it left it
+ * either way. That condition, not `certain`, is what makes this safe to run on
+ * a job whose outcome is unknown.
  */
-import type { pg } from "./pg.js";
-
-type Db = NonNullable<ReturnType<typeof pg>>;
+import type { Db } from "./ledger";
 
 export interface TerminalJob {
   id: string;
@@ -65,14 +53,14 @@ function idFrom(payload: unknown, key: string): string | null {
  * cannot be written is reported in its own row, because the caller's job is to
  * tell an owner the truth and "we could not check" is part of the truth.
  */
-export async function settle(db: Db, job: TerminalJob, certain: boolean): Promise<Settled[]> {
+export async function settleJob(db: Db, job: TerminalJob, certain: boolean): Promise<Settled[]> {
   const reason = certain ? "never_delivered" : "run_interrupted";
 
   if (job.kind === "outbound_send") {
     const messageId = idFrom(job.payload, "message_id");
     if (!messageId) return [{ what: "message", changed: false, error: "no message_id on the job" }];
     // Conditional on 'queued': if the handler did record the send before dying,
-    // that row is already 'sent', and saying otherwise would be a lie about a
+    // that row already says 'sent', and saying otherwise would be a lie about a
     // message that reached a real person. Only a row still claiming to be on
     // its way is touched.
     const { data, error } = await db
@@ -101,17 +89,16 @@ export async function settle(db: Db, job: TerminalJob, certain: boolean): Promis
     return [{ what: "broadcast", changed: !!data?.length, ...(error ? { error: error.message } : {}) }];
   }
 
+  // blob_thread_erase leaves nothing behind that says it is still going: the
+  // stored copy either went or did not, and the erasure's own retry handle is
+  // the job's unscrubbed payload (see rescheduleBlobErase in the dashboard).
   return [];
 }
 
 /**
  * The sentence an owner reads about the wreckage, or null when there is none.
- *
- * The give-up alert used to state flatly that the broadcast had been marked
- * failed, whether or not the write had found anything to mark — and
- * releaseBroadcast discarded its own error, so "whether or not" included
- * "whether or not it worked". The words are built from what the writes actually
- * returned, which is the only version an owner can act on.
+ * Built from what the writes actually returned, which is the only version an
+ * owner can act on.
  */
 export function saySettled(results: Settled[]): string | null {
   const lines: string[] = [];

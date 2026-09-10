@@ -1,0 +1,207 @@
+/**
+ * The heartbeat, run against fakes of everything it touches.
+ *
+ * Each case is a behaviour the old runner and sweep got wrong at least once, or
+ * one this design exists to keep: a job claimed is a job started; a send whose
+ * run died is never sent again; a failure is recorded even when telling
+ * somebody about it fails.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { runTick } from "../../../packages/jobs/src/tick.ts";
+import { RUN_INTERRUPTED, MAX_ATTEMPTS } from "../../../packages/jobs/src/ledger.ts";
+
+const job = (id, kind = "blob_thread_erase", attempts = 1) =>
+  ({ id, tenant_id: "t1", kind, payload: {}, due_at: "2026-01-01T00:00:00Z", attempts });
+
+const OPTS = { claimForMs: 20_000, yieldAtMs: 45_000, leaseSeconds: 90 };
+
+/**
+ * The ledger as a queue, and every port recorded. `claim` hands out one job per
+ * call, in order, which is the contract claim_due_jobs(1, ...) keeps.
+ */
+function fakes(jobs, o = {}) {
+  const queue = [...jobs];
+  const trail = [];
+  const calls = { claim: [], dispatch: [], complete: [], fail: [], settle: [], alert: [], log: [] };
+  const has = (set, id) => (set ?? new Set()).has(id);
+  let reading = 0;
+  const ports = {
+    claim: async (lease) => {
+      calls.claim.push(lease);
+      const j = queue.shift() ?? null;
+      trail.push(j ? `claim ${j.id}` : "claim nothing");
+      return j;
+    },
+    dispatch: async (j, deadline) => {
+      trail.push(`run ${j.id}`);
+      calls.dispatch.push([j.id, deadline]);
+      if (has(o.throwOn, j.id)) throw new Error(`boom ${j.id}`);
+      return has(o.unknown, j.id) ? "unknown_kind" : "done";
+    },
+    complete: async (j) => {
+      calls.complete.push(j.id);
+      if (has(o.completeThrows, j.id)) throw new Error("connection reset");
+      return !has(o.completeLost, j.id);
+    },
+    fail: async (j, reason) => {
+      calls.fail.push([j.id, reason]);
+      return !has(o.failLost, j.id);
+    },
+    settle: async (j, certain) => {
+      calls.settle.push([j.id, certain]);
+      return o.settled ?? [{ what: "message", changed: true }];
+    },
+    alert: async (j, subject, body) => {
+      if (o.alertThrows) throw new Error("mail down");
+      calls.alert.push({ id: j.id, subject, body });
+    },
+    log: {
+      info: (e, f) => calls.log.push(["info", e, f]),
+      warn: (e, f) => calls.log.push(["warn", e, f]),
+      error: (e, f) => calls.log.push(["error", e, f]),
+    },
+    now: () => (o.clock ? o.clock(reading++) : 0),
+  };
+  const logged = (level, event) => calls.log.some(([l, e]) => l === level && e === event);
+  return { ports, calls, queue, trail, logged };
+}
+
+test("every due job runs once, in order, and is recorded done; the tick ends when nothing is due", async () => {
+  const { ports, calls } = fakes([job("a"), job("b"), job("c")]);
+  const counts = await runTick(ports, OPTS);
+  assert.deepEqual(calls.dispatch.map(([id]) => id), ["a", "b", "c"]);
+  assert.deepEqual(calls.complete, ["a", "b", "c"]);
+  assert.deepEqual(calls.claim, [90, 90, 90, 90], "each claim carries the lease; the fourth finds nothing");
+  assert.deepEqual(counts, { claimed: 3, done: 3, failed: 0, gaveUp: 0 });
+});
+
+test("a job is claimed only when it is about to run", async () => {
+  // Claiming a batch and working through it is the tempting shape. Kill the
+  // function halfway and every job behind the running one comes back looking
+  // like a run that died mid-send, so a reply nobody ever tried to send is
+  // failed as "outcome unknown". One claim, one run, then the next claim.
+  const { ports, trail } = fakes([job("a"), job("b")]);
+  await runTick(ports, OPTS);
+  assert.deepEqual(trail, ["claim a", "run a", "claim b", "run b", "claim nothing"]);
+});
+
+test("a handler that throws is failed, settled as an unknown outcome and reported; the rest still run", async () => {
+  const { ports, calls } = fakes(
+    [job("a", "outbound_send"), job("b", "outbound_send"), job("c", "outbound_send")],
+    { throwOn: new Set(["b"]) },
+  );
+  const counts = await runTick(ports, OPTS);
+  assert.deepEqual(calls.dispatch.map(([id]) => id), ["a", "b", "c"]);
+  assert.deepEqual(calls.fail, [["b", "boom b"]]);
+  assert.deepEqual(calls.settle, [["b", false]], "it ran, so whether it sent is not known");
+  assert.equal(calls.alert.length, 1);
+  assert.equal(calls.alert[0].subject, "A outbound_send job failed");
+  assert.match(calls.alert[0].body, /boom b/);
+  assert.match(calls.alert[0].body, /marked failed, so it is no longer shown as on its way/, "and what became of the message");
+  assert.deepEqual(counts, { claimed: 3, done: 2, failed: 1, gaveUp: 0 });
+});
+
+test("a kind no runner knows is failed as never run, and never recorded done", async () => {
+  const { ports, calls } = fakes([job("a", "made_up")], { unknown: new Set(["a"]) });
+  await runTick(ports, OPTS);
+  assert.deepEqual(calls.complete, []);
+  assert.deepEqual(calls.fail, [["a", "unknown job kind made_up"]]);
+  assert.deepEqual(calls.settle, [["a", true]], "nothing ran, so that much is certain");
+  assert.match(calls.alert[0].subject, /could not run/);
+});
+
+test("a send whose run died is never run a second time", async () => {
+  for (const kind of ["outbound_send", "broadcast_send"]) {
+    const { ports, calls } = fakes([job("a", kind, 2)]);
+    const counts = await runTick(ports, OPTS);
+    assert.deepEqual(calls.dispatch, [], `${kind}: running it again could reach a real person twice`);
+    assert.deepEqual(calls.fail, [["a", RUN_INTERRUPTED]]);
+    assert.deepEqual(calls.settle, [["a", false]]);
+    assert.match(calls.alert[0].subject, /did not finish/);
+    assert.equal(counts.gaveUp, 1);
+  }
+  const { ports, calls } = fakes([job("a", "outbound_send", 2)]);
+  await runTick(ports, OPTS);
+  assert.match(calls.alert[0].body, /may or may not have reached the customer/, "the owner is told to look before sending again");
+});
+
+test("internal work whose run died is run again, and given up past the cap", async () => {
+  const { ports, calls } = fakes([job("a", "blob_thread_erase", 2), job("b", "blob_thread_erase", MAX_ATTEMPTS + 1)]);
+  const counts = await runTick(ports, OPTS);
+  assert.deepEqual(calls.dispatch.map(([id]) => id), ["a"]);
+  assert.deepEqual(calls.complete, ["a"]);
+  assert.deepEqual(calls.fail, [["b", RUN_INTERRUPTED]]);
+  assert.equal(counts.done, 1);
+  assert.equal(counts.gaveUp, 1);
+});
+
+test("claiming stops when the window closes, and every handler gets the same yield deadline", async () => {
+  // now(): the start, then one reading before each claim.
+  const readings = [1_000, 1_000, 5_000, 21_001];
+  const { ports, calls, queue } = fakes([job("a"), job("b"), job("c")], {
+    clock: (i) => readings[Math.min(i, readings.length - 1)],
+  });
+  await runTick(ports, OPTS);
+  assert.deepEqual(calls.dispatch, [["a", 46_000], ["b", 46_000]], "start + yieldAtMs, for everything this tick runs");
+  assert.deepEqual(queue.map((j) => j.id), ["c"], "c was never claimed, so it is simply still due for the next tick");
+});
+
+test("a completion that matched no row is logged, not thrown, and not counted done", async () => {
+  const { ports, calls, logged } = fakes([job("a")], { completeLost: new Set(["a"]) });
+  const counts = await runTick(ports, OPTS);
+  assert.equal(counts.done, 0);
+  assert.ok(logged("warn", "job_complete_lost_race"));
+  assert.deepEqual(calls.fail, []);
+});
+
+test("a completion that could not be written is not reported as the job failing", async () => {
+  // The work was done. Calling it failed would send an owner a false alarm and
+  // mark a delivered message failed; the lease brings the row back instead.
+  const { ports, calls, logged } = fakes([job("a", "outbound_send")], { completeThrows: new Set(["a"]) });
+  const counts = await runTick(ports, OPTS);
+  assert.deepEqual(calls.fail, []);
+  assert.deepEqual(calls.alert, []);
+  assert.ok(logged("error", "job_complete_write_failed"));
+  assert.deepEqual(counts, { claimed: 1, done: 0, failed: 0, gaveUp: 0 });
+});
+
+test("a failure another run already recorded is not settled or announced twice", async () => {
+  const { ports, calls, logged } = fakes([job("a")], { throwOn: new Set(["a"]), failLost: new Set(["a"]) });
+  await runTick(ports, OPTS);
+  assert.deepEqual(calls.settle, []);
+  assert.deepEqual(calls.alert, []);
+  assert.ok(logged("warn", "job_fail_lost_race"));
+});
+
+test("an alert that cannot be sent does not un-record the failure", async () => {
+  const { ports, calls, logged } = fakes([job("a")], { throwOn: new Set(["a"]), alertThrows: true });
+  const counts = await runTick(ports, OPTS);
+  assert.deepEqual(calls.fail.map(([id]) => id), ["a"]);
+  assert.equal(counts.failed, 1);
+  assert.ok(logged("error", "job_alert_failed"));
+});
+
+test("a settlement that could not be written reaches the owner as exactly that", async () => {
+  const { ports, calls, logged } = fakes([job("a", "outbound_send")], {
+    throwOn: new Set(["a"]),
+    settled: [{ what: "message", changed: false, error: "permission denied" }],
+  });
+  await runTick(ports, OPTS);
+  assert.match(calls.alert[0].body, /could not be updated \(permission denied\)/);
+  assert.ok(logged("error", "job_settle_failed"));
+});
+
+test("a settlement that throws still leaves the owner told", async () => {
+  const { ports, calls, logged } = fakes([job("a", "outbound_send")], { throwOn: new Set(["a"]) });
+  ports.settle = async () => { throw new Error("socket hang up"); };
+  await runTick(ports, OPTS);
+  assert.match(calls.alert[0].body, /could not be checked/);
+  assert.ok(logged("error", "job_settle_failed"));
+});
+
+test("a ledger that cannot be claimed from ends the tick with the error", async () => {
+  const { ports } = fakes([]);
+  ports.claim = async () => { throw new Error("claim_due_jobs: connection refused"); };
+  await assert.rejects(runTick(ports, OPTS), /connection refused/, "the route answers 503, which sweep_health() reads");
+});
