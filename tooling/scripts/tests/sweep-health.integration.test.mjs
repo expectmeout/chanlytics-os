@@ -25,8 +25,9 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // them in 00083 — the sweep that marks jobs failed, settles what they left
   // behind and emails the workspace, watched by nothing until then. 00086
   // finished the job: every sweep that changes state on its own is here, the
-  // last two of them SQL that never leaves the database.
-  assert.deepEqual(data.map((r) => r.sweep), ["calendar", "calls", "deadman", "google", "health", "jobs", "pauses", "playbooks", "registration", "snoozes"]);
+  // last two of them SQL that never leaves the database. 00098 added 'lines',
+  // which 00097 had registered with sweep_status and never here.
+  assert.deepEqual(data.map((r) => r.sweep), ["calendar", "calls", "deadman", "google", "health", "jobs", "lines", "pauses", "playbooks", "registration", "snoozes"]);
   for (const r of data) assert.equal(r.scheduled, true, `${r.sweep}: ${r.detail}`);
 });
 
@@ -64,9 +65,9 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
   assert.notEqual(error, null, "an unwatched sweep name was accepted");
   assert.match(error.message, /sweep_status_sweep_check|violates check constraint/);
   const { data } = await db.from("sweep_status").select("sweep");
-  // Eight, not ten: 'pauses' and 'snoozes' run inside Postgres, so they never
-  // enqueue anything and never write a row here.
-  assert.deepEqual(data.map((r) => r.sweep).sort(), ["calendar", "calls", "deadman", "google", "health", "jobs", "playbooks", "registration"]);
+  // Nine, not eleven: 'pauses' and 'snoozes' run inside Postgres, so they
+  // never enqueue anything and never write a row here.
+  assert.deepEqual(data.map((r) => r.sweep).sort(), ["calendar", "calls", "deadman", "google", "health", "jobs", "lines", "playbooks", "registration"]);
   // Belt and braces, in case a future migration ever widens the set.
   await db.from("sweep_status").delete().eq("sweep", "bogus");
 });
@@ -80,6 +81,8 @@ test("every schedule the watchdog depends on is present and active", { skip }, a
     // Added with 00086, which is what made their absence something the
     // watchdog would report rather than something nobody would ever see.
     "registration-sweep", "calendar-people-sweep", "google-listings-sweep", "playbooks-sweep", "wake-stale-snoozes",
+    // 00098: the ledger's heartbeat, and the lines sweep 00097 left unwatched.
+    "jobs-tick", "lines-sweep",
   ]) {
     assert.ok(byName.has(n), `no cron job named ${n}`);
     assert.equal(byName.get(n).active, true, `${n} is disabled`);

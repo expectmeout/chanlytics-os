@@ -1,6 +1,6 @@
 import { withRoute } from "@/server/with-route";
 import { requireOperator, loadConversation, recordDecision, cancelPendingAiReply, pauseMsFor } from "@/server/verbs";
-import { schedule, cancelKindFor, mirrorBlobPause } from "@/server/service";
+import { cancelKindFor, mirrorBlobPause } from "@/server/service";
 import { AppError } from "@chanlytics/contracts";
 
 /** Take over: pause the AI, claim the thread. The open escalation stays open (§4). */
@@ -33,9 +33,7 @@ export const POST = withRoute(async (_req, ctx) => {
   // the exact case the veto window exists to prevent.
   const withdrawn = await cancelPendingAiReply(ctx, conv, (tid, k, v) =>
     cancelKindFor(tid, "outbound_send", k, v));
-  await cancelKindFor(conv.tenant_id, "snooze_wake", "conversation_id", conv.id);
-  await cancelKindFor(conv.tenant_id, "pause_expire", "conversation_id", conv.id); // supersede, don't accumulate
-  await schedule(conv.tenant_id, "pause_expire", new Date(until), { conversation_id: conv.id });
+  // No timer to set: expire_stale_pauses() ends the pause from paused_until (00098).
   const decisionId = await recordDecision(ctx, conv.tenant_id, "conversation", conv.id, "take_over", {
     paused_until: new Date(until).toISOString(),
   });

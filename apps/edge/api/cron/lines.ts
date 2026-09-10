@@ -16,7 +16,7 @@
  * handing the number back — permanently — so the owner could buy a different one.
  *
  * WHY A SWEEP RATHER THAN A JOB. The jobs ledger would have been the tidier home,
- * and its stale-jobs recovery already exists. But `JobContext` is `{ db, waCfg,
+ * and it already takes back a run that died. But `JobContext` is `{ db, waCfg,
  * sms, alert }` — it holds no master carrier account, no line provider and no
  * access to a line's credentials in Vault. Putting the saga there means moving
  * provider credentials out of the edge, which is the one place they deliberately

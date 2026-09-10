@@ -12,7 +12,6 @@
     "@chanlytics/db": "workspace:*",
     "@chanlytics/jobs": "workspace:*",
     "@supabase/supabase-js": "^2.49.0",
-    "@upstash/qstash": "^2.7.0",
     "@vercel/blob": "^2",
     "stripe": "22.6.1"
   },

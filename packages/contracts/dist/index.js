@@ -122,13 +122,11 @@ var MESSAGE_STATUSES = ["received", "queued", "sent", "delivered", "read", "fail
 var CONSENT_STATES = ["unknown", "opted_in", "opted_out"];
 var JOB_KINDS = [
   "outbound_send",
-  "snooze_wake",
-  "pause_expire",
   "broadcast_send",
   /**
    * Erase one customer's stored Blob thread. The DASHBOARD orchestrates
    * erasure and cannot reach Blob; the EDGE holds BLOB_READ_WRITE_TOKEN and
-   * cannot publish QStash jobs. This kind is the seam.
+   * runs the ledger. This kind is the seam.
    */
   "blob_thread_erase"
 ];

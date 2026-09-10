@@ -1739,51 +1739,42 @@ export type Database = {
       jobs: {
         Row: {
           attempts: number
-          cancel_token: string
           created_at: string
           due_at: string
           fired_at: string | null
           id: string
           kind: string
           last_error: string | null
-          last_republish_at: string | null
+          lease_until: string | null
           payload: Json
-          qstash_id: string | null
-          republishes: number
           state: string
           tenant_id: string
           updated_at: string
         }
         Insert: {
           attempts?: number
-          cancel_token?: string
           created_at?: string
           due_at: string
           fired_at?: string | null
           id?: string
           kind: string
           last_error?: string | null
-          last_republish_at?: string | null
+          lease_until?: string | null
           payload?: Json
-          qstash_id?: string | null
-          republishes?: number
           state?: string
           tenant_id: string
           updated_at?: string
         }
         Update: {
           attempts?: number
-          cancel_token?: string
           created_at?: string
           due_at?: string
           fired_at?: string | null
           id?: string
           kind?: string
           last_error?: string | null
-          last_republish_at?: string | null
+          lease_until?: string | null
           payload?: Json
-          qstash_id?: string | null
-          republishes?: number
           state?: string
           tenant_id?: string
           updated_at?: string
@@ -2652,7 +2643,29 @@ export type Database = {
         Args: { p_days?: number; p_tenant_id: string }
         Returns: Json
       }
-      claim_job: { Args: { p_job_id: string }; Returns: Json }
+      claim_due_jobs: {
+        Args: { p_lease_seconds: number; p_limit: number }
+        Returns: {
+          attempts: number
+          created_at: string
+          due_at: string
+          fired_at: string | null
+          id: string
+          kind: string
+          last_error: string | null
+          lease_until: string | null
+          payload: Json
+          state: string
+          tenant_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       create_person: {
         Args: {
           p_display_name: string
@@ -2712,10 +2725,6 @@ export type Database = {
         Returns: undefined
       }
       expire_stale_pauses: { Args: never; Returns: number }
-      fail_job: {
-        Args: { p_error: string; p_job_id: string }
-        Returns: undefined
-      }
       first_replies: {
         Args: { p_start: string; p_tenant_id: string }
         Returns: {
@@ -3060,9 +3069,10 @@ export type Database = {
       trigger_call_reconcile: { Args: never; Returns: number }
       trigger_deadman_sweep: { Args: never; Returns: number }
       trigger_google_sweep: { Args: never; Returns: number }
+      trigger_jobs_tick: { Args: never; Returns: number }
+      trigger_lines_sweep: { Args: never; Returns: number }
       trigger_playbooks_sweep: { Args: never; Returns: number }
       trigger_registration_sweep: { Args: never; Returns: number }
-      trigger_stale_jobs_sweep: { Args: never; Returns: number }
       trigger_sweep_health: { Args: never; Returns: number }
       wake_stale_snoozes: { Args: never; Returns: number }
     }

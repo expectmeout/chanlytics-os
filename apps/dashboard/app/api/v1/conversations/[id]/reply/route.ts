@@ -210,7 +210,7 @@ export const POST = withRoute(async (req, ctx) => {
       409,
     );
   }
-  await schedule(conv.tenant_id, "pause_expire", new Date(pauseUntil), { conversation_id: conv.id });
+  // paused_until is the pause's only clock: expire_stale_pauses() ends it (00098).
 
   // The operator is REPLACING the receptionist's held reply, not queueing
   // behind it. Withdraw the draft before writing their own, or the customer

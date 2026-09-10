@@ -69,9 +69,8 @@ test("erasure does not cancel the job that finishes it", () => {
   // The route queues blob_thread_erase BEFORE the RPC runs, because after the
   // tombstone the thread key cannot be recomputed. The RPC then cancels every
   // scheduled job naming this conversation — which matched the erase job
-  // itself, so the Blob copy was never deleted. claim_job refuses anything not
-  // 'scheduled', and the job is published with notBefore=now, so whether it
-  // survived was a race.
+  // itself, so the Blob copy was never deleted. The job is due at once and
+  // only a 'scheduled' job can be claimed, so whether it survived was a race.
   assert.ok(
     statements.includes("and kind <> 'blob_thread_erase'"),
     "the erase job must be excluded from the cancellation",
@@ -175,12 +174,12 @@ test("the handler erases every thread, scrubs the digits, and writes the ledger"
 });
 
 test("a runner with no thread store FAILS rather than reporting success", async () => {
-  // The important one. Returning "done" without a store makes fire.ts log
-  // outcome "done", write no fail_job and send no alert — leaving the
+  // The important one. Reporting "done" without a store would leave the
   // customer's verbatim conversation in Blob while the owner has been told it
-  // was erased. That is the exact lie this whole change exists to remove.
+  // was erased. The type requires the store now; this is what a runner that
+  // got past the type anyway must still do.
   const ctx = { db: stubDb(), waCfg: {}, alert: async () => {} };
-  await assert.rejects(dispatchJob(ctx, job), /no thread store/);
+  await assert.rejects(dispatchJob(ctx, job));
 });
 
 test("one undeleted thread fails the job and writes no ledger row", async () => {

@@ -651,7 +651,7 @@ export async function handleInbound(
   // Recorded per tenant on the event stream, so 'my veto window is not
   // working' has an answer that does not require reading lambda logs.
   if (delayMs > 0 && !queued) {
-    await sink.vetoFallback(delayMs, !!process.env.QSTASH_TOKEN);
+    await sink.vetoFallback(delayMs);
   }
   if (queued) {
     thread.history.push({ role: "user", content: bodyText });

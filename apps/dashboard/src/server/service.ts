@@ -27,10 +27,7 @@ export async function schedule(
   dueAt: Date,
   payload: Json,
 ): Promise<{ jobId: string }> {
-  const { jobId } = await scheduleJob(serviceDb(), {
-    tenantId, kind, dueAt, payload,
-    qstashToken: process.env.QSTASH_TOKEN!,
-  });
+  const { jobId } = await scheduleJob(serviceDb(), { tenantId, kind, dueAt, payload });
   return { jobId };
 }
 
@@ -40,7 +37,7 @@ export async function cancelKindFor(
   payloadKey: string,
   payloadValue: string,
 ): Promise<number> {
-  return cancelJobsFor(serviceDb(), tenantId, kind, payloadKey, payloadValue, process.env.QSTASH_TOKEN);
+  return cancelJobsFor(serviceDb(), tenantId, kind, payloadKey, payloadValue);
 }
 
 /** Short-lived signed URL for a private media object (call recordings). */
@@ -80,12 +77,12 @@ export async function removeMediaObjects(
  * is nowhere left to recompute it — so a failed erase job's own payload is the
  * only thing that can drive the retry.
  *
- * The decision is made on the PAYLOAD, not the state. claim_job flips
- * scheduled -> fired BEFORE dispatch and fail_job runs only from fire.ts's
- * catch block, so a lambda timeout or a hard crash leaves the row at 'fired'
- * with its thread_ids intact — and reading 'fired' as "already done" would
- * strand that transcript forever. The handler scrubs the payload on success,
- * so an unscrubbed payload means unfinished, whatever the state says.
+ * The decision is made on the PAYLOAD, not the state. A job is 'fired' from
+ * the moment it is claimed until its run reports back, and a run that dies
+ * leaves it there with its thread_ids intact until the lease runs out — so
+ * reading 'fired' as "already done" would strand that transcript. The handler
+ * scrubs the payload on success, so an unscrubbed payload means unfinished,
+ * whatever the state says.
  */
 export async function rescheduleBlobErase(
   tenantId: string,

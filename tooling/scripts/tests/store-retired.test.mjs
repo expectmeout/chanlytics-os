@@ -68,11 +68,11 @@ test("every caller that used the store as a mirror steps aside when it is retire
   assert.ok(readRaw("README.md").includes("BLOB_SHADOW=off"), "and in the runbook");
 });
 
-test("the queue's kinds: each one handled, each one scheduled somewhere, and the CHECK agrees", () => {
-  assert.deepEqual([...JOB_KINDS], ["outbound_send", "snooze_wake", "pause_expire", "broadcast_send", "blob_thread_erase"]);
+test("the queue's kinds: each one handled and each one scheduled somewhere", () => {
+  assert.deepEqual([...JOB_KINDS], ["outbound_send", "broadcast_send", "blob_thread_erase"]);
   const handlers = readCode("packages/jobs/src/handlers.ts");
   for (const k of JOB_KINDS) assert.ok(new RegExp(`^\\s*${k}: \\w+,`, "m").test(handlers), `${k} has a handler in the dispatch map`);
-  for (const dead of ["veto_fire", "media_fetch", "rollup_daily", "report_weekly"]) assert.ok(!handlers.includes(`${dead}:`), `${dead} is not handled and not declared`);
+  for (const dead of ["veto_fire", "media_fetch", "rollup_daily", "report_weekly", "snooze_wake", "pause_expire"]) assert.ok(!handlers.includes(`${dead}:`), `${dead} is not handled and not declared`);
   // Something schedules each kind: a `schedule(...)` / `scheduleJob(...)` /
   // `ctx.schedule(...)` call, or the draft queue's row, naming it.
   const src = sourceTree(["apps/edge", "apps/dashboard/app", "apps/dashboard/src", "packages/jobs/src"]);
@@ -80,6 +80,6 @@ test("the queue's kinds: each one handled, each one scheduled somewhere, and the
     const named = new RegExp(`(schedule(?:Job)?\\([^;]*"${k}"|kind: "${k}")`, "s");
     assert.ok(named.test(src), `${k} is scheduled by something`);
   }
-  const mig = readCode("supabase/migrations/00058_job_kinds_truth.sql");
-  assert.ok(mig.includes("check (kind in ('outbound_send', 'snooze_wake', 'pause_expire', 'broadcast_send', 'blob_thread_erase'))"));
+  // That the CHECK agrees is enums-vs-checks.test.mjs's to prove: it compares
+  // JOB_KINDS with the last jobs.kind CHECK in migration order.
 });

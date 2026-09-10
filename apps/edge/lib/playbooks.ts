@@ -228,7 +228,7 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
 
   if (plan.kind === "send") {
     try {
-      await scheduleJob(db, { tenantId, kind: "broadcast_send", dueAt: plan.at, payload: { broadcast_id: made.id }, qstashToken: process.env.QSTASH_TOKEN! });
+      await scheduleJob(db, { tenantId, kind: "broadcast_send", dueAt: plan.at, payload: { broadcast_id: made.id } });
     } catch (e) {
       await db.from("broadcasts").update({ state: "failed", failure: "schedule_failed" }).eq("id", made.id);
       return { outcome: "failed", error: e instanceof Error ? e.message : String(e) };

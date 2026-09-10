@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { readCode } from "./_source.mjs";
 
 const runtime = readCode("apps/edge/lib/tenant-runtime.ts");
-const fire = readCode("apps/edge/api/jobs/fire.ts");
+const runner = readCode("apps/edge/api/jobs/tick.ts");
 const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
 const sink = readCode("apps/edge/lib/whatsapp/persist.ts");
 
@@ -42,9 +42,9 @@ test("a credential lookup failure falls back rather than silencing the tenant", 
 });
 
 test("the job runner sends on the job's own tenant credentials", () => {
-  assert.match(fire, /waCfg: await waCredentialsForTenant\(db, job\.tenant_id\)/);
+  assert.match(runner, /waCfg: await waCredentialsForTenant\(db, job\.tenant_id\)/);
   assert.ok(
-    !/waCfg: \{ phoneId: process\.env/.test(fire),
+    !/waCfg: \{ phoneId: process\.env/.test(runner),
     "the environment pair must not be handed to every tenant's job",
   );
 });

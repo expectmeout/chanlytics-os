@@ -5,52 +5,18 @@ var __export = (target, all) => {
 };
 
 // src/schedule.ts
-import { Client } from "@upstash/qstash";
-var FIRE_URL = "https://chanlytics-messaging.vercel.app/api/jobs/fire";
 async function scheduleJob(db, p) {
-  const { data: job, error } = await db.from("jobs").insert({
-    tenant_id: p.tenantId,
-    kind: p.kind,
-    due_at: p.dueAt.toISOString(),
-    payload: p.payload
-  }).select("id, cancel_token").single();
-  if (error || !job) throw new Error(`schedule_job: ${error?.message}`);
-  const qstash = new Client({ token: p.qstashToken });
-  let res;
-  try {
-    res = await qstash.publishJSON({
-      url: FIRE_URL,
-      body: { job_id: job.id },
-      notBefore: Math.ceil(p.dueAt.getTime() / 1e3),
-      deduplicationId: job.id
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    await db.from("jobs").update({ state: "failed", last_error: `publish: ${msg}` }).eq("id", job.id);
-    throw new Error(`schedule_job publish: ${msg}`);
-  }
-  const { error: linkErr } = await db.from("jobs").update({ qstash_id: res.messageId }).eq("id", job.id);
-  if (linkErr) console.error("schedule_job_link_failed", job.id, linkErr.message);
-  return { jobId: job.id, cancelToken: job.cancel_token };
+  const { data, error } = await db.from("jobs").insert({ tenant_id: p.tenantId, kind: p.kind, due_at: p.dueAt.toISOString(), payload: p.payload }).select("id").single();
+  if (error || !data) throw new Error(`schedule_job: ${error?.message ?? "no row"}`);
+  return { jobId: data.id };
 }
-async function cancelJob(db, jobId, qstashToken) {
-  const { data, error } = await db.from("jobs").update({ state: "canceled" }).eq("id", jobId).eq("state", "scheduled").select("qstash_id").maybeSingle();
-  if (error || !data) return false;
-  if (qstashToken && data.qstash_id) {
-    try {
-      await new Client({ token: qstashToken }).messages.delete(data.qstash_id);
-    } catch {
-    }
+async function cancelJobsFor(db, tenantId, kind, payloadKey, payloadValue) {
+  const { data, error } = await db.from("jobs").update({ state: "canceled" }).eq("tenant_id", tenantId).eq("kind", kind).eq("state", "scheduled").eq(`payload->>${payloadKey}`, payloadValue).select("id");
+  if (error) {
+    console.error(JSON.stringify({ level: "error", event: "cancel_jobs_failed", tenant_id: tenantId, kind, error: error.message }));
+    return 0;
   }
-  return true;
-}
-async function cancelJobsFor(db, tenantId, kind, payloadKey, payloadValue, qstashToken) {
-  const { data } = await db.from("jobs").select("id").eq("tenant_id", tenantId).eq("kind", kind).eq("state", "scheduled").eq(`payload->>${payloadKey}`, payloadValue);
-  let n = 0;
-  for (const j of data ?? []) {
-    if (await cancelJob(db, j.id, qstashToken)) n++;
-  }
-  return n;
+  return data?.length ?? 0;
 }
 
 // ../channels/dist/index.js
@@ -14018,26 +13984,11 @@ async function outboundSend(ctx, job) {
     );
   }
 }
-async function pauseExpire(ctx, job) {
-  const p = job.payload;
-  const { data: conv } = await ctx.db.from("conversations").select("id, state, paused_until").eq("id", p.conversation_id).single();
-  if (!conv || conv.state !== "needs_human") return;
-  if (conv.paused_until && new Date(conv.paused_until).getTime() > Date.now() + 1e3) return;
-  await ctx.db.from("conversations").update({ state: "open", paused_until: null }).eq("id", p.conversation_id);
-}
-async function snoozeWake(ctx, job) {
-  const p = job.payload;
-  const { data: conv } = await ctx.db.from("conversations").select("id, state, snooze_until").eq("id", p.conversation_id).single();
-  if (!conv || conv.state !== "snoozed") return;
-  if (conv.snooze_until && new Date(conv.snooze_until).getTime() > Date.now() + 1e3) return;
-  await ctx.db.from("conversations").update({ state: "open", snooze_until: null }).eq("id", p.conversation_id);
-}
 async function blobThreadErase(ctx, job) {
   const p = job.payload;
   if (p.scrubbed) return;
   if (!p.namespace) throw new Error("blob_thread_erase: payload has no namespace");
   const ids = (Array.isArray(p.thread_ids) ? p.thread_ids : []).filter((t) => typeof t === "string" && t.length > 0);
-  if (!ctx.eraseThread) throw new Error("blob_thread_erase: no thread store on this runner");
   const failed = [];
   for (const id of ids) {
     if (!await ctx.eraseThread(p.namespace, id)) failed.push(id);
@@ -14122,7 +14073,10 @@ async function broadcastSend(ctx, job) {
   const { data: batch, error: qErr } = await ctx.db.from("broadcast_recipients").select("contact_id, facts").eq("broadcast_id", b.id).eq("state", "queued").limit(BROADCAST_CHUNK);
   if (qErr) throw new Error(`broadcast_send: cannot read recipients: ${qErr.message}`);
   const mark = (contactId, patch) => ctx.db.from("broadcast_recipients").update({ ...patch, sent_at: patch.state === "sent" ? (/* @__PURE__ */ new Date()).toISOString() : null }).eq("broadcast_id", b.id).eq("contact_id", contactId);
+  let begun = 0;
   for (const r of batch ?? []) {
+    if (begun > 0 && Date.now() >= ctx.deadline) break;
+    begun += 1;
     const { data: c, error: cErr } = await ctx.db.from("contacts").select("id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name").eq("id", r.contact_id).eq("tenant_id", job.tenant_id).maybeSingle();
     if (cErr) {
       console.error("broadcast_contact_unreadable", r.contact_id, cErr.message);
@@ -14198,7 +14152,6 @@ async function broadcastSend(ctx, job) {
   if ((remaining ?? 0) > 0) {
     const { data: still } = await ctx.db.from("broadcasts").select("state").eq("id", b.id).maybeSingle();
     if (still?.state !== "sending") return;
-    if (!ctx.schedule) throw new Error("broadcast_send: this runner cannot schedule the next batch");
     await ctx.schedule("broadcast_send", /* @__PURE__ */ new Date(), { broadcast_id: b.id });
     return;
   }
@@ -14222,8 +14175,6 @@ async function broadcastSend(ctx, job) {
 var HANDLERS = {
   outbound_send: outboundSend,
   broadcast_send: broadcastSend,
-  pause_expire: pauseExpire,
-  snooze_wake: snoozeWake,
   blob_thread_erase: blobThreadErase
 };
 async function dispatchJob(ctx, job) {
@@ -14232,11 +14183,181 @@ async function dispatchJob(ctx, job) {
   await handler(ctx, job);
   return "done";
 }
+
+// src/ledger.ts
+var LEASE_SECONDS = 90;
+var CLAIM_FOR_MS = 2e4;
+var YIELD_AT_MS = 45e3;
+var MAX_ATTEMPTS = 3;
+var SPEAKS_TO_A_PERSON = /* @__PURE__ */ new Set(["outbound_send", "broadcast_send"]);
+var RUN_INTERRUPTED = "the run did not finish; its outcome is unknown";
+function verdictFor(job) {
+  if (job.attempts <= 1) return "run";
+  if (SPEAKS_TO_A_PERSON.has(job.kind)) return "give_up";
+  return job.attempts > MAX_ATTEMPTS ? "give_up" : "run";
+}
+async function claimNext(db, leaseSeconds) {
+  const { data, error } = await db.rpc("claim_due_jobs", { p_limit: 1, p_lease_seconds: leaseSeconds });
+  if (error) throw new Error(`claim_due_jobs: ${error.message}`);
+  const rows = data ?? [];
+  return rows[0] ?? null;
+}
+async function completeJob(db, job) {
+  const { data, error } = await db.from("jobs").update({ state: "done", lease_until: null }).eq("id", job.id).eq("state", "fired").eq("attempts", job.attempts).select("id");
+  if (error) throw new Error(`complete_job: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+async function failJob(db, job, reason) {
+  const { data, error } = await db.from("jobs").update({ state: "failed", last_error: reason.slice(0, 500), lease_until: null }).eq("id", job.id).eq("state", "fired").eq("attempts", job.attempts).select("id");
+  if (error) throw new Error(`fail_job: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+
+// src/settle.ts
+var NEVER_SENT = "the job that would have sent this never ran";
+var MAY_HAVE_SENT = "the run that was sending this did not finish";
+function idFrom(payload, key) {
+  if (typeof payload !== "object" || payload === null) return null;
+  const v = payload[key];
+  return typeof v === "string" ? v : null;
+}
+async function settleJob(db, job, certain) {
+  const reason = certain ? "never_delivered" : "run_interrupted";
+  if (job.kind === "outbound_send") {
+    const messageId = idFrom(job.payload, "message_id");
+    if (!messageId) return [{ what: "message", changed: false, error: "no message_id on the job" }];
+    const { data, error } = await db.from("messages").update({ status: "failed", error: { reason, note: certain ? NEVER_SENT : MAY_HAVE_SENT } }).eq("id", messageId).eq("tenant_id", job.tenant_id).eq("status", "queued").select("id");
+    return [{ what: "message", changed: !!data?.length, ...error ? { error: error.message } : {} }];
+  }
+  if (job.kind === "broadcast_send") {
+    const broadcastId = idFrom(job.payload, "broadcast_id");
+    if (!broadcastId) return [{ what: "broadcast", changed: false, error: "no broadcast_id on the job" }];
+    const { data, error } = await db.from("broadcasts").update({ state: "failed", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", broadcastId).eq("tenant_id", job.tenant_id).eq("state", "sending").select("id");
+    return [{ what: "broadcast", changed: !!data?.length, ...error ? { error: error.message } : {} }];
+  }
+  return [];
+}
+function saySettled(results) {
+  const lines = [];
+  for (const r of results) {
+    if (r.error) {
+      lines.push(r.what === "message" ? `The message it was sending could not be updated (${r.error}), so it may still show as sending.` : `The broadcast could not be updated (${r.error}), so it may still show as sending.`);
+    } else if (r.changed) {
+      lines.push(r.what === "message" ? "The message has been marked failed, so it is no longer shown as on its way." : "The broadcast has been marked failed; the people it had already reached still got it.");
+    }
+  }
+  return lines.length ? lines.join(" ") : null;
+}
+
+// src/tick.ts
+var errText = (e) => e instanceof Error ? e.message : String(e);
+async function runTick(ports, opts) {
+  const started = ports.now();
+  const deadline = started + opts.yieldAtMs;
+  const c = { claimed: 0, done: 0, failed: 0, gaveUp: 0 };
+  while (ports.now() - started < opts.claimForMs) {
+    const job = await ports.claim(opts.leaseSeconds);
+    if (!job) break;
+    c.claimed += 1;
+    if (verdictFor(job) === "give_up") {
+      await conclude(
+        ports,
+        job,
+        RUN_INTERRUPTED,
+        false,
+        `A ${job.kind} job did not finish`,
+        `Job ${job.id} (${job.kind}) started and never reported back, so ${RUN_INTERRUPTED}.` + (job.kind === "outbound_send" ? " If this was a reply, it may or may not have reached the customer; check the conversation before sending it again." : "")
+      );
+      c.gaveUp += 1;
+      continue;
+    }
+    let outcome;
+    try {
+      outcome = await ports.dispatch(job, deadline);
+    } catch (e) {
+      const msg = errText(e);
+      await conclude(
+        ports,
+        job,
+        msg,
+        false,
+        `A ${job.kind} job failed`,
+        `Job ${job.id} (${job.kind}) failed and will not retry on its own.
+
+${msg}`
+      );
+      c.failed += 1;
+      continue;
+    }
+    if (outcome === "unknown_kind") {
+      await conclude(
+        ports,
+        job,
+        `unknown job kind ${job.kind}`,
+        true,
+        `A ${job.kind} job could not run`,
+        `Job ${job.id} has a kind this runner does not know (${job.kind}), so nothing ran.`
+      );
+      c.failed += 1;
+      continue;
+    }
+    try {
+      if (await ports.complete(job)) c.done += 1;
+      else ports.log.warn("job_complete_lost_race", { job_id: job.id, kind: job.kind, attempts: job.attempts });
+    } catch (e) {
+      ports.log.error("job_complete_write_failed", { job_id: job.id, kind: job.kind, error: errText(e) });
+    }
+  }
+  return c;
+}
+async function conclude(ports, job, reason, certain, subject, lead) {
+  let failed;
+  try {
+    failed = await ports.fail(job, reason);
+  } catch (e) {
+    ports.log.error("job_fail_write_failed", { job_id: job.id, kind: job.kind, error: errText(e) });
+    return;
+  }
+  if (!failed) {
+    ports.log.warn("job_fail_lost_race", { job_id: job.id, kind: job.kind, attempts: job.attempts });
+    return;
+  }
+  let wreckage;
+  try {
+    const settled = await ports.settle(job, certain);
+    for (const s of settled) {
+      if (s.error) ports.log.error("job_settle_failed", { job_id: job.id, what: s.what, error: s.error });
+    }
+    wreckage = saySettled(settled);
+  } catch (e) {
+    ports.log.error("job_settle_failed", { job_id: job.id, error: errText(e) });
+    wreckage = "What it was in the middle of could not be checked, so a message or broadcast may still show as sending.";
+  }
+  ports.log.info("job_failed", { job_id: job.id, tenant_id: job.tenant_id, kind: job.kind, attempts: job.attempts, reason });
+  try {
+    await ports.alert(job, subject, wreckage ? `${lead}
+
+${wreckage}` : lead);
+  } catch (e) {
+    ports.log.error("job_alert_failed", { job_id: job.id, error: errText(e) });
+  }
+}
 export {
-  FIRE_URL,
-  cancelJob,
+  CLAIM_FOR_MS,
+  LEASE_SECONDS,
+  MAX_ATTEMPTS,
+  RUN_INTERRUPTED,
+  SPEAKS_TO_A_PERSON,
+  YIELD_AT_MS,
   cancelJobsFor,
+  claimNext,
+  completeJob,
   dispatchJob,
+  failJob,
+  runTick,
+  saySettled,
   scheduleJob,
-  upsertEscalation
+  settleJob,
+  upsertEscalation,
+  verdictFor
 };

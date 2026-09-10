@@ -156,14 +156,6 @@ test("a veto draft that could not be scheduled is retired, not left pending", ()
   );
 });
 
-test("a job row is never left scheduled for a publish that did not happen", () => {
-  // An orphan `scheduled` row is worse than no row: nothing will ever fire it,
-  // cancelJobsFor dutifully cancels a job that does not exist, and a snoozed
-  // thread stays hidden until the customer writes again.
-  const schedule = read("packages/jobs/src/schedule.ts");
-  assert.match(schedule, /catch[\s\S]{0,300}?state: "failed"[\s\S]{0,80}?last_error/);
-});
-
 test("a delayed bot reply is not recorded as a human's", () => {
   // The queue used to carry only human replies. Stamping every send 'human'
   // would make the metrics report the bot's words as a person's.
@@ -181,13 +173,7 @@ test("a configured veto window that did not happen is RECORDED, not just logged"
 });
 
 test("the event names the usual cause rather than making someone guess", () => {
-  assert.match(sink, /scheduler_not_configured/);
   assert.match(sink, /scheduling_failed/);
-});
-
-test("diag reports whether the edge can hold a reply at all", () => {
-  const diag = read("apps/edge/api/diag.ts");
-  assert.match(diag, /qstashToken: !!process\.env\.QSTASH_TOKEN/);
 });
 
 /* ---- the closed-window send uses the workspace's OWN approved template ---- */

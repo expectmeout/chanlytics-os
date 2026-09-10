@@ -1,7 +1,6 @@
 import { AppError } from "@chanlytics/contracts";
 import { withRoute } from "@/server/with-route";
 import { requireOperator, loadConversation, recordDecision } from "@/server/verbs";
-import { cancelKindFor } from "@/server/service";
 
 /**
  * Wake now: end a snooze early and put the thread back exactly as it was.
@@ -38,9 +37,6 @@ export const POST = withRoute(async (_req, ctx) => {
     throw new AppError("conflict", "Could not wake this thread — reload and try again.", 409);
   }
 
-  // The timer would otherwise fire later and find nothing to do. Harmless, but
-  // a job that exists for a state that has passed is how ledgers start lying.
-  await cancelKindFor(conv.tenant_id, "snooze_wake", "conversation_id", conv.id);
   const decisionId = await recordDecision(ctx, conv.tenant_id, "conversation", conv.id, "wake", {});
   return { state: "open", decision_id: decisionId };
 });

@@ -4998,7 +4998,7 @@ async function setPersonReplyMode(db, tenantId, contactId, mode) {
 var WATCHED = [
   { table: "messages", event: "INSERT" },
   { table: "conversations", event: "*" },
-  // pause_expire, snooze_wake, other tabs
+  // the pause and snooze clocks, other tabs
   { table: "escalations", event: "*" },
   // opened by the edge, resolved elsewhere
   { table: "calls", event: "*" },

@@ -7,7 +7,7 @@
  * tenant would deliver one business's delivery failure, naming its customer's
  * number, to a different business's owner.
  *
- * It lives here rather than in fire.ts because there are now two places a job
+ * It lives here rather than in the runner because there are two places a job
  * can fail: inside the handler, and by never coming back at all. Two copies of
  * "who may be told what" is how the bug above happens twice.
  */

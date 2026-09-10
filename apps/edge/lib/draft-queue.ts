@@ -1,5 +1,5 @@
 /**
- * Write the receptionist's reply as a DRAFT and schedule it to fire.
+ * Write the receptionist's reply as a DRAFT and schedule its send.
  *
  * Two callers: the WhatsApp handler when the reply waits (the hold window or
  * the confidence dial), and the steer endpoint when an owner has a held
@@ -40,17 +40,12 @@ export interface DraftLog {
 }
 
 export async function queueDraft(db: SupabaseClient<Database>, a: DraftArgs, L: DraftLog): Promise<string | null> {
-  const token = process.env.QSTASH_TOKEN;
-  if (!token) {
-    L.warn("wa_queue_unavailable", { has_qstash: false });
-    return null;
-  }
-  // Declared out here so the catch can undo it. The row is written before the
-  // job is published, so a scheduling failure used to leave a `queued` message
-  // behind while the caller — correctly — sent the same words immediately: the
-  // Inbox then showed a held draft with Edit and Hold controls for a reply the
-  // customer already had, and if QStash had in fact accepted the publish before
-  // timing out, the job later found the row still queued and sent it twice.
+  // Declared out here so the catch can undo it. The message is written before
+  // the job, so a scheduling failure used to leave a `queued` message behind
+  // while the caller — correctly — sent the same words immediately: the Inbox
+  // then showed a held draft with Edit and Hold controls for a reply the
+  // customer already had, and a job that had in fact been written before the
+  // error surfaced later found the message still queued and sent it twice.
   let messageId: string | null = null;
   try {
     messageId = await recordOutbound(db, {
@@ -76,7 +71,6 @@ export async function queueDraft(db: SupabaseClient<Database>, a: DraftArgs, L: 
         to_phone: `+${a.toPhone.replace(/^\+/, "")}`,
         body: a.body,
       },
-      qstashToken: token,
     });
     return messageId;
   } catch (e) {
