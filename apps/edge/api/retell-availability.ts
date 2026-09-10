@@ -16,38 +16,12 @@ import { pg } from "../lib/pg.js";
 import { resolveChannel } from "../lib/workspace/db.js";
 import { loadTenantRuntime } from "../lib/tenant-runtime.js";
 import { openingsData } from "../lib/availability.js";
-import { describeOpenings, filterOpenings } from "../lib/workspace/contracts.js";
+import { describeOpenings, filterOpenings, matchService, type ServiceLike } from "../lib/workspace/contracts.js";
 
 const CANNOT_SEE =
   "I can't see the calendar right now. Offer to text the booking link — it shows the open times — or to have someone call back.";
 const NO_CALENDAR =
   "There is no calendar to check. Offer to text the booking link — it shows the open times.";
-
-interface ServiceLike { name: string; duration_min?: number }
-
-/**
- * The listed service the caller means. The name as the model passes it is
- * whatever the caller SAID ("a haircut", "the balayage thing"): exact first,
- * then one containing the other, then the service sharing the most words of
- * four letters or more — "haircut" finds "Short haircut".
- */
-export function matchService(services: ServiceLike[] | undefined, asked: unknown): ServiceLike | null {
-  const q = typeof asked === "string" ? asked.trim().toLowerCase() : "";
-  if (!q || !services?.length) return null;
-  const exact = services.find((s) => s.name.toLowerCase() === q);
-  if (exact) return exact;
-  const contains = services.find((s) => s.name.toLowerCase().includes(q) || q.includes(s.name.toLowerCase()));
-  if (contains) return contains;
-  const words = q.split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
-  let best: ServiceLike | null = null;
-  let bestScore = 0;
-  for (const s of services) {
-    const own = s.name.toLowerCase().split(/[^a-z0-9]+/);
-    const score = words.filter((w) => own.includes(w)).length;
-    if (score > bestScore) { best = s; bestScore = score; }
-  }
-  return best;
-}
 
 /** The prompt block, folded into one spoken paragraph. */
 export function spoken(text: string, service: ServiceLike | null): string {

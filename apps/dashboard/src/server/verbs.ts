@@ -67,6 +67,26 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
   };
 }
 
+/**
+ * The channel a reply goes out on: where the customer last wrote. A
+ * conversation is one per person and its messages carry the channel. The reply
+ * route sends on it and the assistant's reply card shows its window, so both
+ * read it here.
+ */
+export async function replyChannelOf(ctx: RouteContext, conv: { id: string; tenant_id: string }): Promise<"whatsapp" | "sms"> {
+  const { data, error } = await ctx.supabase
+    .from("messages")
+    .select("channel")
+    .eq("conversation_id", conv.id)
+    .eq("tenant_id", conv.tenant_id)
+    .eq("direction", "inbound")
+    .order("channel_ts", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`reading the last inbound: ${error.message}`);
+  return data?.channel === "sms" ? "sms" : "whatsapp";
+}
+
 /** The customer asked not to be contacted. The rule itself lives in
  *  contracts/consent so this route and every other send path cannot drift. */
 export function assertCanSend(conv: VerbConversation): void {

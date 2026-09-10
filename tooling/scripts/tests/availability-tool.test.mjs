@@ -14,12 +14,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { parseIcs, filterOpenings, freeWindows, localToUtcMs, composeSystemPrompt } from "@chanlytics/contracts";
+import { parseIcs, filterOpenings, freeWindows, localToUtcMs, composeSystemPrompt, matchService } from "@chanlytics/contracts";
 import { desiredVoiceShell, availabilityUrl, voiceLlmCreateBody } from "@chanlytics/channels";
 import { readCode } from "./_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const { matchService, spoken } = await import(pathToFileURL(path.join(here, "../../../apps/edge/api/retell-availability.ts")).href);
+const { spoken } = await import(pathToFileURL(path.join(here, "../../../apps/edge/api/retell-availability.ts")).href);
 
 const TZ = "America/New_York";
 const ny = (y, m, d, hh, mm = 0) => localToUtcMs(TZ, y, m, d, hh, mm);
@@ -104,6 +104,14 @@ test("the tool speaks one paragraph, names the service's length, and matches a s
   assert.equal(matchService(services, "a haircut").name, "Short haircut", "either way round");
   assert.equal(matchService(services, "massage"), null);
   assert.equal(matchService(undefined, "Balayage"), null);
+  // One match for the phone and the assistant, and it reads Spanish. The phone's
+  // copy cut "uñas" at the ñ into "u" and "as", too short to count, so a caller
+  // asking for nails matched nothing while the assistant found the service.
+  const salon = [{ name: "Uñas de gel", duration_min: 75 }, { name: "Depilación de cejas", duration_min: 20 }];
+  assert.equal(matchService(salon, "uñas acrílicas")?.name, "Uñas de gel", "a shared word with an ñ in it");
+  assert.equal(matchService(salon, "unas")?.name, "Uñas de gel", "and without the tilde, the way a caller's words can arrive");
+  assert.equal(matchService(salon, "depilacion de cejas")?.name, "Depilación de cejas", "accents are not the name");
+  assert.equal(matchService(salon, "pedicure"), null);
   const text = spoken("Open times (from the calendar):\n- Wednesday, September 9: 10:00 AM – 11:00 AM\n- Friday, September 11: 9:30 AM – 12:00 PM\nOffer up to three.", services[0]);
   assert.equal(text, "For Balayage (about 180 minutes): Open times (from the calendar): Wednesday, September 9: 10:00 AM – 11:00 AM Friday, September 11: 9:30 AM – 12:00 PM Offer up to three.");
   assert.ok(!spoken("x", null).startsWith("For "), "no length known, no preface");

@@ -32,6 +32,23 @@ export function waWindow(lastWaInboundAtIso: string | null | undefined, now = ne
   return { open: closes > now.getTime(), closesAtIso: new Date(closes).toISOString() };
 }
 
+/**
+ * Whether a reply may be written freely, on the channel it goes out on.
+ *
+ * A reply goes back where the customer last wrote. A text has no window and no
+ * templates; WhatsApp's is 24 hours from the customer's last WhatsApp message.
+ * The reply route enforces it and the composer and the assistant display it,
+ * so all three ask here: with separate expressions, the assistant's card told
+ * an operator a texting thread was closed while the route would have sent.
+ */
+export function replyWindow(
+  replyChannel: string | null | undefined,
+  lastWaInboundAtIso: string | null | undefined,
+  now = new Date(),
+): WaWindow {
+  return replyChannel === "sms" ? { open: true, closesAtIso: null } : waWindow(lastWaInboundAtIso, now);
+}
+
 /* ----------------------------- live calls -------------------------------- */
 
 /**
