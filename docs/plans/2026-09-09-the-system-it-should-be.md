@@ -1580,6 +1580,25 @@ git add -A && git -c core.safecrlf=false commit -m "The enum-versus-check test i
 
 ## Phase 3: Tenancy by construction
 
+> **Reviewed against the code, 2026-09-10: execute the corrected shape below, not the design that follows it.**
+>
+> What still holds: one workspace per request, resolved by construction, and a named `choose_workspace` error. Today an ambiguous write is refused as a generic `validation` 400, which a nightly read as a billing bug and a phone-number bug for a day.
+>
+> Where the code says otherwise:
+>
+> 1. **No global resolution in `withRoute`.** Twenty-two routes go through it and must not require a workspace: `GET /workspaces` (the switcher's own source, which picks the boot default), `me`, `signup`, `workspaces/create`, the five platform routes, and the routes that act on one row. The Google callback takes its workspace from signed OAuth state. Two tests already pin this: identity.test.mjs ("your name needs no workspace") and back-office.test.mjs (`memberContext` on a platform route is "a category error"). Resolution has to be lazy: a route that needs a workspace asks for one.
+> 2. **No cookie, and no `POST /workspaces/select`.** The selection is per tab today. Each tab holds its workspace in memory, and `scoped()` sends it with every request. `scoped()` is the single fetch chokepoint: 145 of the 149 client call sites go through it, and the other four need no workspace. It also scopes `<img src>` and download links, which cannot carry a header. A cookie is shared by every tab, so an open tab's writes would follow whichever tab last switched. The proposed 409 covered only routes that act on one row; a settings form or a new broadcast would land in the wrong business silently.
+> 3. **`requireMember` does not exist, and is not needed.** Routes that act on one row already resolve membership from that row: `memberContext(ctx, row.tenant_id)` (15 calls), and `requireOperator(ctx, tenantId)` for the conversation verbs. With per-tab selection there is no second workspace for the row to disagree with.
+> 4. **The premise was overstated.** e2e-shape.test.mjs records two nightly failures, not six of seven, and both were specs calling `page.request` directly, bypassing `scoped()`. The product client was not the source. The real gap is on the server: 73 calls read `?workspace=` by hand, and an ambiguous READ silently uses the oldest membership, because `requireRole` refuses only writes. Every production account belongs to two workspaces, so that is the ordinary path, not an edge case.
+>
+> **The corrected phase.** No migration, and three or four PRs rather than one per directory.
+>
+> - **Fix first, independent of the rest.** `pages/business-record.jsx:38` pre-fills an empty business record's website with `/yes/` plus `__WORKSPACES[0].slug`: the workspace that sorts first by name, not the active one. An owner of two businesses is offered the other business's opt-in page as their website, on the form that files with the carriers.
+> - **3.1 Server.** `withRoute` gains a lazy, memoized `ctx.workspace()`, which becomes the only reader of `?workspace=`, and `ctx.memberOf(tenantId)` for routes that act on one row. Both resolve through one pure `resolveWorkspace(rows, wanted)`, tested by running it. A caller with several memberships who names none gets 400 `choose_workspace`, on reads and writes alike, and the `ambiguous` flag goes. `GET /workspaces` keeps the one legitimate default (the stored preference, else the oldest membership), because answering "which workspace should this tab open" is its job.
+> - **3.2 Routes.** The 73 hand-read parameters become `await ctx.workspace()`, and the 15 row lookups become `ctx.memberOf(row.tenant_id)`. Retire the text pins on the old expression (exports.test.mjs, media.test.mjs) and rewrite the workspace-scoping lint to the new shape.
+> - **3.3 Client.** When no workspace is known yet (a first visit, or blocked storage), boot waits for the workspace surface before the other fourteen fire. Today they fire together, and once reads refuse ambiguity they would all fail. A `choose_workspace` answer clears the stored preference and reloads. Drop the `__WORKSPACES[0]` fallbacks. Subscribe realtime with the active tenant: packages/db supports the filter and nothing passes it, so every workspace's changes trigger refetches in every tab.
+> - **Out of the phase:** the cookie, the select endpoint, the 409, removing `?workspace=`, and deleting `scoped()`. `e2e/workspace.ts` stays. The e2e-shape lint can go once a forgotten workspace fails loudly as `choose_workspace`.
+
 **Files:**
 - Modify: `apps/dashboard/src/server/with-route.ts`
 - Create: `apps/dashboard/app/api/v1/workspaces/select/route.ts`
