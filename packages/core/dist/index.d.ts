@@ -90,8 +90,8 @@ type Delivered = {
     messageId: string | null;
 } | {
     outcome: "failed";
-    /** Ours: no wire for the channel, no credentials for it, or the provider said no. */
-    reason: "no_sender_for_channel" | "no_credentials" | "provider";
+    /** Ours: no wire for the channel, no credentials for it, the provider said no, or the facts could not be read. */
+    reason: "no_sender_for_channel" | "no_credentials" | "provider" | "wire_unreadable";
     status: number;
     errorBody: string | null;
     messageId: string | null;
@@ -113,5 +113,12 @@ declare function templatePurpose(db: Db, tenantId: string, template: {
     name: string;
     language: string;
 } | undefined | null): Promise<SendPurpose>;
+/**
+ * The door for a caller that must never see it throw: the webhook, whose
+ * outer catch only logs, so a thrown read used to be a customer's reply lost
+ * with nobody told. A wire that cannot be read is a failure with its own
+ * name, and the caller alerts a person the way it does for a provider's no.
+ */
+declare function deliverSafely(ports: DeliverPorts, d: Delivery): Promise<Delivered>;
 
-export { type Channel, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Sender, type TemplateSend, type Wire, type WirePayload, deliver, templatePurpose, whatsappSender };
+export { type Channel, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Sender, type TemplateSend, type Wire, type WirePayload, deliver, deliverSafely, templatePurpose, whatsappSender };

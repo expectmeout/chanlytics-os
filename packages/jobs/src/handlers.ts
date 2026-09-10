@@ -412,14 +412,24 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   );
 }
 
-const HANDLERS: Record<string, (ctx: JobContext, job: ClaimedJob) => Promise<void>> = {
+type Handler = (ctx: JobContext, job: ClaimedJob) => Promise<void>;
+
+/**
+ * Every declared kind, and only those. `Record<JobKind, Handler>` is the
+ * compiler's promise that a kind added to JOB_KINDS without a handler does
+ * not build, rather than sitting on the ledger until a row of it is claimed
+ * and comes back "unknown_kind" in production.
+ */
+const HANDLERS: Record<JobKind, Handler> = {
   outbound_send: outboundSend,
   broadcast_send: broadcastSend,
   blob_thread_erase: blobThreadErase,
 };
 
 export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind"> {
-  const handler = HANDLERS[job.kind];
+  // The row's kind is text; a kind this build does not declare is unknown,
+  // and the tick fails the job loudly rather than guessing.
+  const handler = (HANDLERS as Record<string, Handler | undefined>)[job.kind];
   if (!handler) return "unknown_kind";
   await handler(ctx, job);
   return "done";

@@ -4538,10 +4538,6 @@ var SignupSchema = external_exports.object({
   /** The invite code, when sign-up is by invitation. */
   code: external_exports.string().trim().max(80).optional()
 }).strict();
-var PendingWorkspaceSchema = external_exports.object({
-  name: external_exports.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
-  timezone: external_exports.string().trim().min(1).max(64).nullish().transform((v) => v ?? null)
-});
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var GRAPH = "https://graph.facebook.com/v25.0";
@@ -9190,10 +9186,6 @@ var SignupSchema2 = external_exports2.object({
   /** The invite code, when sign-up is by invitation. */
   code: external_exports2.string().trim().max(80).optional()
 }).strict();
-var PendingWorkspaceSchema2 = external_exports2.object({
-  name: external_exports2.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
-  timezone: external_exports2.string().trim().min(1).max(64).nullish().transform((v) => v ?? null)
-});
 var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
 var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
 
@@ -13730,10 +13722,6 @@ var SignupSchema3 = external_exports3.object({
   /** The invite code, when sign-up is by invitation. */
   code: external_exports3.string().trim().max(80).optional()
 }).strict();
-var PendingWorkspaceSchema3 = external_exports3.object({
-  name: external_exports3.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
-  timezone: external_exports3.string().trim().min(1).max(64).nullish().transform((v) => v ?? null)
-});
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
 var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
 async function recordOutbound(db, p) {
@@ -13798,9 +13786,9 @@ function refusalFor(d, f, nowMs) {
   if (f.contact.erased_at) return "erased";
   const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive });
   if (!may.ok) return may.reason ?? "opted_out";
-  if (d.sender === "human") return null;
+  if (d.sender === "human" && !d.proactive) return null;
   if (f.tenantStatus === "paused") return "paused";
-  if (f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()) return "human_has_it";
+  if (!d.messageId && f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()) return "human_has_it";
   return null;
 }
 async function overtakenByHuman(db, d) {
@@ -13899,8 +13887,18 @@ async function templatePurpose(db, tenantId, template) {
   if (error) throw new Error(`deliver: cannot read template ${template.name}: ${error.message}`);
   return purposeOfTemplate(data?.category);
 }
+async function deliverSafely(ports, d) {
+  try {
+    return await deliver(ports, d);
+  } catch (e) {
+    const errorBody = e instanceof Error ? e.message : String(e);
+    console.error("deliver_threw", JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: errorBody }));
+    return { outcome: "failed", reason: "wire_unreadable", status: 0, errorBody, messageId: d.messageId ?? null };
+  }
+}
 export {
   deliver,
+  deliverSafely,
   templatePurpose,
   whatsappSender
 };

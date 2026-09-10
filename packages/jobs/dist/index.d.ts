@@ -1,7 +1,7 @@
 import { Database, Json } from '@chanlytics/db';
 import { JobKind } from '@chanlytics/contracts';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { WaConfig } from '@chanlytics/channels';
+import { Wire } from '@chanlytics/core';
 
 /**
  * The jobs ledger: the rules a row moves by, and the writes that move it.
@@ -113,17 +113,13 @@ declare function cancelJobsFor(db: Db, tenantId: string, kind: JobKind, payloadK
 
 interface JobContext {
     db: SupabaseClient<Database>;
-    /** The job's own tenant's WhatsApp credentials; null = none, and every WhatsApp send is refused. */
-    waCfg: WaConfig | null;
-    /** The workspace's texting line, when it has one — injected by the edge like waCfg; null = no line. */
-    sms?: {
-        send(to: string, body: string): Promise<{
-            ok: boolean;
-            wamid: string | null;
-            status: number;
-            errorBody?: string;
-        }>;
-    } | null;
+    /**
+     * The job's own tenant's wires, bound by the edge where the credentials
+     * are: WhatsApp on the tenant's credentials, the texting line when the
+     * workspace has one. A null wire is a refusal at the door, never a guess
+     * from the environment.
+     */
+    wire: Wire;
     alert: (subject: string, body: string) => Promise<void>;
     /**
      * Delete one customer's stored Blob thread.

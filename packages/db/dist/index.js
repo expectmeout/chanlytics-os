@@ -4858,6 +4858,7 @@ var DELIVERED = ["sent", "delivered", "read"];
 var DAY_MS6 = 24 * 3600 * 1e3;
 var BLOB_CALL_NOTE = /^\[voice call note /;
 var isBackfill = (m) => !!m.meta && typeof m.meta === "object" && m.meta.backfill === true;
+var isAcknowledgement = (m) => !!m.meta && typeof m.meta === "object" && m.meta.ack === true;
 var effectiveAt = (m) => new Date(m.channel_ts ?? m.created_at).getTime();
 function assembleHistory(rows, limit) {
   const kept = rows.filter((m) => {
@@ -4893,7 +4894,7 @@ async function readThreadState(db, tenantId, conversationId, pausedUntilIso, his
     // Imported rows carry the timestamp of the IMPORT, not of a send. Counting
     // them would let a backfill silence the bot for a day against a cap it
     // never actually spent.
-    replies: (replies.data ?? []).filter((r) => !isBackfill(r)).map((r) => new Date(r.created_at).getTime())
+    replies: (replies.data ?? []).filter((r) => !isBackfill(r) && !isAcknowledgement(r)).map((r) => new Date(r.created_at).getTime())
   };
 }
 var EMPTY_LEAD = {
