@@ -358,6 +358,29 @@ test("answering picks the fields, and they are the contract's", async () => {
   assert.ok(byId(std.tree, "biz-ein"), "a business is asked for its tax id");
 });
 
+test("an empty record guesses no website: left empty, the filing names this workspace's own page", async () => {
+  // Two workspaces, and the one open is not the one that sorts first. The form
+  // used to pre-fill the website with `/yes/` + the FIRST workspace's slug; the
+  // owner saved it without a glance, and the filing sent another business's
+  // opt-in page to the carriers as this business's website.
+  const was = { list: globalThis.window.__WORKSPACES, active: globalThis.window.__ACTIVE_WORKSPACE };
+  globalThis.window.__WORKSPACES = [{ id: "w-a", slug: "aardvark-autos" }, { id: "w-h", slug: "harbor" }];
+  globalThis.window.__ACTIVE_WORKSPACE = "w-h";
+  try {
+    globalThis.window.__businessRecord = api({ ok: true, record: null, path: null, problems: {} });
+    const page = mount({ line: null, flash: () => {} });
+    await page.flush();
+    await page.act(byId(page.tree, "biz-path-standard"));
+    let input = null;
+    walk(byId(page.tree, "biz-website_url"), (n) => { if (!input && n.type === "input") input = n; });
+    assert.ok(input, "the website is asked");
+    assert.equal(input.props.value, "", "and nothing is guessed for it");
+  } finally {
+    globalThis.window.__WORKSPACES = was.list;
+    globalThis.window.__ACTIVE_WORKSPACE = was.active;
+  }
+});
+
 test("a record on file skips the question, and switching answer drops the tax id", async () => {
   // The server said which registration this is, so the owner is not asked
   // something they have already answered.
