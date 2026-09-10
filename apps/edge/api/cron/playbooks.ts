@@ -6,8 +6,8 @@
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps.
  * Same-origin is not a question here; pg_cron calls this from the database.
  */
-import crypto from "node:crypto";
 import { json } from "../../lib/http.js";
+import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
 import { playbooksDue, noteBacklog, PLAYBOOKS_PER_TICK } from "../../lib/sweep-rotation.js";
@@ -16,20 +16,12 @@ import { localDate, runDueNow, type PlaybookDto } from "../../lib/workspace/cont
 
 export const config = { maxDuration: 60 };
 
-function secretsMatch(a: string, b: string): boolean {
-  const x = Buffer.from(a);
-  const y = Buffer.from(b);
-  return x.length === y.length && crypto.timingSafeEqual(x, y);
-}
-
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "playbooks" });
   const db = pg();
   if (!db) return json(503, { ok: false, error: "no_database" });
-  const presented = request.headers.get("x-cron-key") || "";
-  const { data: expected, error: keyErr } = await db.rpc("get_cron_sweep_key");
-  if (keyErr || !expected) return json(503, { ok: false, error: "key_unavailable" });
-  if (!presented || !secretsMatch(presented, expected as unknown as string)) return json(401, { ok: false, error: "unauthorized" });
+  const denied = await authorizeCron(request, db, L);
+  if (denied) return denied;
 
   const now = new Date();
   // A BOUNDED, ROTATING page, least-recently-run first. This read every running

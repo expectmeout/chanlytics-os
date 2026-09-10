@@ -11,6 +11,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { toLiveCallVM, toCallVM } from "@chanlytics/contracts";
@@ -94,4 +95,21 @@ test("F15: the list route ships each turn's start, not every word's timing, and 
   assert.equal(toCallVM(dto([{ role: "user", content: "x", words: [{ start: 61 }] }]), now).transcript[0].t, "1:01", "and the raw provider shape still works");
   const route = readCode("apps/dashboard/src/server/dto.ts");
   assert.ok(route.includes("transcript_object: stripWordTimings(c.transcript_object),"));
+});
+
+test("every route pg_cron calls stands behind the one door", () => {
+  // apps/edge/lib/cron-auth.ts is proved by running it (cron-auth.test.mjs).
+  // This holds each scheduled route to it, so a route written tomorrow cannot
+  // carry a tenth copy of the comparison that drifts from the others.
+  const dir = path.join(here, "../../../apps/edge/api/cron");
+  const routes = [
+    ...fs.readdirSync(dir).filter((f) => f.endsWith(".ts")).map((f) => `apps/edge/api/cron/${f}`),
+    "apps/edge/api/jobs/tick.ts",
+  ];
+  assert.ok(routes.length >= 9, `found ${routes.length} scheduled routes`);
+  for (const r of routes) {
+    const src = readCode(r);
+    assert.ok(src.includes("await authorizeCron(request, db, L)"), `${r} stands behind authorizeCron`);
+    assert.ok(!src.includes("timingSafeEqual") && !src.includes('rpc("get_cron_sweep_key")'), `${r} keeps no door of its own`);
+  }
 });

@@ -15,20 +15,14 @@
  * two-minute grace in sweep_health() exempts — a watchdog that can only ever
  * report healthy.
  */
-import crypto from "node:crypto";
 import { json } from "../../lib/http.js";
+import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { notify } from "../../lib/notify.js";
 import { logger } from "../../lib/log.js";
 import { chooseSweepAlerts, describeSweepTrouble, type SweepHealthRow } from "../../lib/sweep-health.js";
 
 export const config = { maxDuration: 60 };
-
-function secretsMatch(a: string, b: string): boolean {
-  const x = Buffer.from(a);
-  const y = Buffer.from(b);
-  return x.length === y.length && crypto.timingSafeEqual(x, y);
-}
 
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "health" });
@@ -38,15 +32,8 @@ export async function POST(request: Request): Promise<Response> {
     return json(503, { ok: false, error: "no_database" });
   }
 
-  const presented = request.headers.get("x-cron-key") || "";
-  const { data: expected, error: keyErr } = await db.rpc("get_cron_sweep_key");
-  if (keyErr || !expected) {
-    L.error("sweep_health_key_unavailable", { error: keyErr?.message });
-    return json(503, { ok: false, error: "key_unavailable" });
-  }
-  if (!presented || !secretsMatch(presented, expected as unknown as string)) {
-    return json(401, { ok: false, error: "unauthorized" });
-  }
+  const denied = await authorizeCron(request, db, L);
+  if (denied) return denied;
 
   const { data, error } = await db.rpc("sweep_health");
   if (error) {
