@@ -9,7 +9,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CONSENT_RESET_SOURCE, CONSENT_SOURCES, DECISION_VERBS, PEOPLE_LISTS, consentSourceLabel } from "@chanlytics/contracts";
+import { CONSENT_RESET_SOURCE, CONSENT_SOURCES, DECISION_VERBS, PEOPLE_LISTS, consentSourceLabel, OFFERS_YES_SOURCES, offersYesRefusal } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 test("the door: owner or operator, the three columns together, the ingest's own event, nothing for anon", () => {
@@ -338,4 +338,51 @@ test("a real profile renders once its person loads", async () => {
   const asks = [];
   walk(tree, (n) => { if (n.type === Ask) asks.push(n.props.testid); });
   assert.deepEqual(asks, ["consent-control", "consent-marketing"], "it reached the consent rail, which it used to throw before drawing");
+});
+
+test("a yes to offers is written or it is not recorded; a no is honoured however it is said", () => {
+  // Twilio lists "the opt-in process relies on verbal consent instead of written
+  // consent" among the causes of 30913, and CTIA requires express written consent
+  // for marketing. 00095's own comment said both of its callers were written
+  // consent; its check let a spoken yes through. The rule, the route, the menus and
+  // the database (00100) now say one thing.
+  assert.deepEqual([...OFFERS_YES_SOURCES], ["form", "customer_message"]);
+  assert.equal(offersYesRefusal("form"), null, "a form they signed");
+  assert.equal(offersYesRefusal("customer_message"), null, "their own message");
+  for (const spoken of ["in_person", "phone"]) {
+    assert.match(offersYesRefusal(spoken), /in writing/, `${spoken}: a spoken yes is not one to offers`);
+    assert.match(offersYesRefusal(spoken), /covers messages about their visit/, "and it says what a spoken yes IS good for");
+  }
+  for (const other of ["operator", "", null, undefined, "import"]) assert.ok(offersYesRefusal(other), `${String(other)} is not a written yes`);
+  // Every way a desk can say a yes was given is on one side of the line or the
+  // other: a new source has to be put somewhere on purpose.
+  for (const s of CONSENT_SOURCES) {
+    assert.ok(OFFERS_YES_SOURCES.includes(s.id) || ["in_person", "phone"].includes(s.id), `${s.id} is neither written nor spoken`);
+  }
+});
+
+test("on the loaded profile, the offers ask offers only written ways to say yes; a no, any way", async () => {
+  // Rendered on the page, because that is where the narrowed sources are chosen --
+  // and where the first version of this line crashed every profile by being put in
+  // the wrong component, which this helper exists to catch.
+  const tree = await renderLoadedProfile();
+  const asks = [];
+  walk(tree, (n) => { if (n.type === Ask) asks.push(n.props); });
+  assert.deepEqual(asks.map((a) => a.testid), ["consent-control", "consent-marketing"]);
+  const [talk, offers] = asks;
+  const all = CONSENT_SOURCES.map((s) => s.id);
+  assert.deepEqual(talk.sources.map((s) => s.id), all, "a yes to messages about a visit may be given any way");
+  assert.equal(talk.yesSources, undefined);
+  assert.deepEqual(offers.sources.map((s) => s.id), all, "a NO to offers may be given any way, and is honoured");
+  assert.deepEqual(offers.yesSources.map((s) => s.id), ["form", "customer_message"], "a YES to offers, only in writing");
+
+  // And the ask, given exactly those props, offers exactly that.
+  const yes = mount({ ...offers, onRecord: async () => ({ ok: true }) });
+  await yes.click(byLabel(yes.tree, "Yes"));
+  const how = byId(yes.tree, "consent-marketing-how");
+  assert.deepEqual(buttons(how).map(textOf).filter((t) => t !== "Cancel"), ["Sign-up form", "Their own message"]);
+  assert.match(textOf(how), /A spoken yes is not enough for offers/);
+  const no = mount({ ...offers, onRecord: async () => ({ ok: true }) });
+  await no.click(byLabel(no.tree, "No"));
+  assert.deepEqual(buttons(byId(no.tree, "consent-marketing-how")).map(textOf).filter((t) => t !== "Cancel"), ["In person", "On the phone", "Sign-up form", "Their own message"]);
 });

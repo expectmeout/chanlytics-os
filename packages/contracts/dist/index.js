@@ -2876,6 +2876,11 @@ var CONSENT_SOURCES = [
   { id: "customer_message", label: "Their own message" }
 ];
 var CONSENT_RESET_SOURCE = "operator";
+var OFFERS_YES_SOURCES = ["form", "customer_message"];
+function offersYesRefusal(source) {
+  if (source && OFFERS_YES_SOURCES.includes(source)) return null;
+  return "A yes to offers has to be in writing: a sign-up form they signed, or their own message. A spoken yes covers messages about their visit, not offers.";
+}
 function consentSourceLabel(source) {
   if (!source) return null;
   const known = CONSENT_SOURCES.find((s) => s.id === source);
@@ -6876,47 +6881,68 @@ function waysFor(f, phrase) {
   }
   return ways;
 }
-function consentPageVM(f) {
-  const name = f.businessName.trim() || "This business";
-  const conversation = waysFor(f, CONVERSATION_PHRASE);
-  const offers = waysFor(f, CONSENT_PHRASE);
-  const empty = conversation.length === 0 && offers.length === 0;
-  const asks = empty ? [] : [
-    {
-      purpose: "conversational",
+function askWords(name) {
+  return {
+    conversational: {
       title: "Messages about your visit",
       lead: `Appointment reminders and confirmations from ${name}, and a reply when you write to them.`,
       optional: null,
-      ways: conversation,
       terms: [
         `You get appointment reminders and answers to what you ask ${name}. Message frequency varies.`,
         "Message and data rates may apply.",
         "Reply HELP for help. Reply STOP at any time to stop."
       ]
     },
-    {
-      purpose: "marketing",
+    marketing: {
       title: "Offers and news",
       lead: `Promotions and news from ${name}.`,
       optional: `Separate, and entirely optional \u2014 you can have the messages above without this one, and saying no changes nothing about your appointments or anything you buy from ${name}.`,
-      ways: offers,
       terms: [
         `You get promotional offers and news from ${name}. A few messages a month, never daily.`,
         "Message and data rates may apply.",
         "Reply HELP for help. Reply STOP at any time to stop."
       ]
     }
+  };
+}
+function bothTerms(name) {
+  return [
+    "No mobile information is shared with third parties or affiliates for marketing purposes.",
+    `Consent is not a condition of any purchase from ${name}.`
+  ];
+}
+function consentPageVM(f) {
+  const name = f.businessName.trim() || "This business";
+  const conversation = waysFor(f, CONVERSATION_PHRASE);
+  const offers = waysFor(f, CONSENT_PHRASE);
+  const empty = conversation.length === 0 && offers.length === 0;
+  const words = askWords(name);
+  const asks = empty ? [] : [
+    { purpose: "conversational", ...words.conversational, ways: conversation },
+    { purpose: "marketing", ...words.marketing, ways: offers }
   ];
   return {
     title: `Text messages from ${name}`,
     lead: empty ? `${name} is not set up to take sign-ups here yet.` : `Two separate things you can say yes to, in your own message from your own phone. ${name} never sells or shares your number.`,
     asks,
     qrLink: optInLink(f.whatsappE164, CONSENT_PHRASE),
-    terms: [
-      "No mobile information is shared with third parties or affiliates for marketing purposes.",
-      `Consent is not a condition of any purchase from ${name}.`
-    ],
+    terms: bothTerms(name),
     empty
+  };
+}
+function consentFormVM(f) {
+  const name = f.businessName.trim() || "This business";
+  const words = askWords(name);
+  return {
+    title: `Text messages from ${name}`,
+    lead: "Two separate boxes. Tick and sign only the ones you want: signing one does not sign you up for the other, and either one can be had without the other.",
+    fields: ["Name", "Mobile number"],
+    sections: [
+      { purpose: "conversational", ...words.conversational, box: `Yes, text me about my appointments with ${name}.`, sign: "Signature for this box" },
+      { purpose: "marketing", ...words.marketing, box: `Yes, text me offers and news from ${name}.`, sign: "Signature for this box" }
+    ],
+    terms: bothTerms(name),
+    office: `For ${name}: record each signed box on the customer's profile, under its own answer, as \u201CSign-up form\u201D, and keep this sheet. Recorded on __________ by __________`
   };
 }
 
@@ -7506,6 +7532,7 @@ export {
   NoteSchema,
   NotificationsConfigSchema,
   OFFERS_OPT_IN_PHRASES,
+  OFFERS_YES_SOURCES,
   OPT_IN_PATTERN,
   OPT_OUT_PATTERN,
   OPT_OUT_REFUSAL,
@@ -7635,6 +7662,7 @@ export {
   composeSystemPrompt,
   connectionRows,
   connectionWords,
+  consentFormVM,
   consentPageVM,
   consentSourceLabel,
   contactMeta,
@@ -7741,6 +7769,7 @@ export {
   normalizeNavigate,
   normalizePhone,
   numberHealth,
+  offersYesRefusal,
   ok,
   optInLink,
   optInPurposeOf,

@@ -1,4 +1,4 @@
-import { AppError, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES } from "@chanlytics/contracts";
+import { AppError, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, offersYesRefusal } from "@chanlytics/contracts";
 import { withRoute, memberContext, requireRole } from "@/server/with-route";
 import { jsonBody, requireUuid } from "@/server/request-guards";
 import { recordDecision } from "@/server/verbs";
@@ -42,6 +42,14 @@ export const PUT = withRoute(async (req, ctx) => {
   const source = consent === "unknown" ? CONSENT_RESET_SOURCE : body?.source;
   if (typeof source !== "string" || (consent !== "unknown" && !CONSENT_SOURCES.some((s) => s.id === source))) {
     throw new AppError("validation", "Say how they told you: in person, on the phone, on a form, or in their own message.");
+  }
+  // A yes to OFFERS is written or it is not recorded. The database refuses a spoken
+  // one as well (00100); asking here first hands the person a sentence instead of
+  // the database's. A NO is never narrowed: "no more offers" said at the desk is
+  // honoured as it was said.
+  if (consent === "opted_in") {
+    const refusal = offersYesRefusal(source);
+    if (refusal) throw new AppError("validation", refusal);
   }
   const note = typeof body?.note === "string" && body.note.trim() ? body.note.trim().slice(0, 200) : null;
 

@@ -725,7 +725,10 @@ const PersonTimeline = ({ items, initials }) => {
  *
  * Its own `pick` state, so arming one ask never arms the other.
  */
-const ConsentAsk = ({ label, value, sources, canRecord, hint, onRecord, testid }) => {
+// `yesSources` narrows the ways a YES may have been given, for the ask that has to
+// be written (offers); a no keeps every source, because a no is honoured however
+// it is said.
+const ConsentAsk = ({ label, value, sources, yesSources, yesHow, canRecord, hint, onRecord, testid }) => {
   const [st, setSt] = useStateP({ busy: false, error: null, pick: null });
   const pick = (state) => {
     if (state === "unknown") {
@@ -761,9 +764,9 @@ const ConsentAsk = ({ label, value, sources, canRecord, hint, onRecord, testid }
       </div>
       {st.pick && (
         <div data-testid={`${testid}-how`}>
-          <div className="cl-prof-aut-hint">How did they tell you?</div>
+          <div className="cl-prof-aut-hint">{st.pick === "opted_in" && yesHow ? yesHow : "How did they tell you?"}</div>
           <div className="cl-prof-autonomy" style={{ flexWrap: "wrap" }}>
-            {sources.map((so) => (
+            {(st.pick === "opted_in" && yesSources ? yesSources : sources).map((so) => (
               <button key={so.id} className="cl-prof-aut-seg" disabled={st.busy} onClick={() => record(st.pick, so.id)}>{so.label}</button>
             ))}
           </div>
@@ -862,6 +865,10 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
     { id: "in_person", label: "In person" }, { id: "phone", label: "On the phone" },
     { id: "form", label: "Sign-up form" }, { id: "customer_message", label: "Their own message" },
   ];
+  // A yes to OFFERS is written or it is not recorded (00100): a sign-up form they
+  // signed, or their own message. The fallback is the same rule, for a page opened
+  // before the bridge installs it.
+  const OFFERS_YES = window.__offersYesSources || CS_SOURCES.filter((s) => s.id === "form" || s.id === "customer_message");
   // One recorder per door. Both reload the person afterwards rather than assuming,
   // because the lists and the Consent column are computed from the row.
   const recordFor = (purpose) => async (consent, source) => {
@@ -1082,6 +1089,8 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
           label="Offers and news"
           value={p.consent.marketing}
           sources={CS_SOURCES}
+          yesSources={OFFERS_YES}
+          yesHow="How did they give it in writing? A spoken yes is not enough for offers."
           canRecord={canRecord && p.consent.state !== "opted_out"}
           onRecord={recordFor("marketing")}
           hint={
@@ -1091,7 +1100,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
                 ? `Yes — ${p.consent.marketingSub}. This is the answer a broadcast needs.`
                 : p.consent.marketing === "opted_out"
                   ? `No — ${p.consent.marketingSub}. Messages about their own visit still reach them.`
-                  : "Separate and entirely optional, and the only answer a broadcast may be sent on. Record it only from their own words, or a form they signed."
+                  : "Separate and entirely optional, and the only answer a broadcast may be sent on. It has to be in writing: their own message, or a sign-up form they signed — print one from Broadcasts."
           }
         />
         <div className="cl-prof-rail-section" data-testid="person-lists">

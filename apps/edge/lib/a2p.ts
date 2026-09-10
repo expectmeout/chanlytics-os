@@ -100,6 +100,14 @@ export function a2pStateFrom(l: LineRow): A2PState {
  */
 export function campaignFactsFor(o: {
   businessName: string;
+  /**
+   * The name the brand was registered and vetted under (`business_records.legal_name`),
+   * said beside the trade name so a reviewer can match the campaign to the brand.
+   * Error 30886 counts "misalignment ... with your registered brand details" among
+   * its causes, and a campaign that only ever says "Chanlytics" leaves the reviewer
+   * to guess that it and "RJ Capital LLC" are one business.
+   */
+  legalName?: string | null;
   optInUrl: string;
   privacyUrl: string;
   termsUrl: string;
@@ -124,6 +132,14 @@ export function campaignFactsFor(o: {
    */
   lineNumber?: string | null;
 }) {
+  const name = o.businessName;
+  // The registered name beside the trade name -- once, and not when they are the
+  // same business said twice.
+  const legal = (o.legalName ?? "").trim();
+  const who = legal && legal.toLowerCase() !== name.trim().toLowerCase() ? `${name} (${legal})` : name;
+  // The paper version of the opt-in page. Named in the flow because a reviewer can
+  // only accept a form they can see.
+  const formUrl = `${o.optInUrl}/form`;
   return {
     // What the campaign IS, in the plainest terms, with the separation stated
     // rather than left to be inferred from the flow.
@@ -138,7 +154,15 @@ export function campaignFactsFor(o: {
     // What 30913 actually forbids is the OTHER direction: a yes to conversation
     // being spent as a yes to marketing. That direction is what the wording now
     // states, and it is the direction the code enforces.
-    description: `${o.businessName} uses this number to answer its own customers, to send them reminders about appointments they have booked, and — only for customers who ask for them separately — occasional offers. Every message is written or approved by the business. Conversational and transactional messages go to customers who have asked to hear about their appointments; promotional messages go only to customers who gave a separate, explicit yes to offers. Agreeing to hear about appointments never enrols anyone in promotional messaging: that requires its own opt-in, with its own disclosure, which a customer can decline while keeping everything else.`,
+    //
+    // AND IT HAS TO SAY WHO, TO WHOM AND WHY. Error 30886 was the second refusal on
+    // the live campaign, and its own text asks for exactly that -- "describe who
+    // sends messages, who receives them, and why", in the registered brand's name --
+    // listing among its causes a platform named instead of the business sending. So
+    // the business is named with its registered name, the messages are said to be
+    // sent on its own behalf, and the recipients are said to be people who came to
+    // it: by writing, on its sign-up page, or on its signed paper form.
+    description: `${who} uses this number to text its own customers: to answer what they write, to confirm and remind them about appointments they have booked, and — only for customers who separately asked for them in writing — occasional offers and news. Every message is sent by ${name} on its own behalf and is written or approved by the business; the recipients are people who contacted ${name} themselves or gave their consent on its sign-up page or its signed sign-up form. Appointment messages go only to customers who agreed to hear about their appointments; promotional messages go only to customers who gave a separate, written yes to offers. Agreeing to hear about appointments never enrols anyone in promotional messaging: that requires its own opt-in, with its own disclosure, which a customer can decline while keeping everything else.`,
 
     // THE CLAIM HAS TO BE TRUE, and one half of it was not. This flow used to open
     // by calling the two opt-ins symmetric -- that giving either left the other
@@ -154,13 +178,22 @@ export function campaignFactsFor(o: {
     // here: a yes to conversation is never spent as a yes to marketing. So the
     // flow states that absolutely, and names the one-way implication as the
     // deliberate thing it is rather than denying it.
+    //
+    // EVERY WAY IN, and now there are two places. Error 30917 wants, for each opt-in
+    // method, where it happens, what is disclosed there and what action confirms it.
+    // The paper form is one of those methods now -- a yes to offers must be written,
+    // and a signed box is written -- so it is named, with the URL a reviewer can open.
+    // And the one thing a spoken yes may never be is a yes to offers: 30913 lists
+    // "relies on verbal consent instead of written consent" among its causes, so the
+    // flow says so, and the database refuses one (00100).
+    //
+    // Twilio takes 40 to 2048 characters here, and a long name on a long slug has to
+    // fit; the tests file one to be sure.
     messageFlow: [
-      `Customers give consent at ${o.optInUrl}, a public page presenting TWO SEPARATE opt-ins, each with its own heading, its own disclosures and its own keyword. Agreeing to the transactional messages NEVER enrols anyone in promotional messaging: that needs its own opt-in, which a customer can decline while keeping everything else.`,
-      `(1) TRANSACTIONAL: under the heading "Messages about your visit", the page states that the customer will receive appointment reminders and confirmations from ${o.businessName}, that message frequency varies, that message and data rates may apply, to reply HELP for help and STOP to stop. The customer consents by sending the single word START to the business from their own phone, using the link or button shown there.`,
-      `(2) PROMOTIONAL: under a separate heading "Offers and news", the page states that the customer will receive promotional offers and news from ${o.businessName}, a few messages a month, that message and data rates may apply, to reply HELP for help and STOP to stop. It also states in its own words that this opt-in is optional, is not required for the messages above, and is not a condition of any purchase. The customer consents by sending the words YES OFFERS from their own phone.`,
-      `Sending the message is the action that confirms consent in each case, and each is recorded against that customer separately, in its own field, with its own timestamp and source. A customer who sends START never receives promotional messages. A customer who sends YES OFFERS is recorded as having consented to promotional messages specifically, and -- having written to the business from their own handset to ask for them -- is recorded as reachable for the transactional messages too; that is the only direction in which one answer implies the other, and it is the direction that adds nothing a customer did not just ask for.`,
-      `Customers may also start a conversation by messaging the business directly, which is consent to be answered and to receive messages about their own appointments only.`,
-      `Replying STOP at any time ends all messages of both kinds.`,
+      `Customers consent in writing in one of two places, each asking two SEPARATE questions: appointment messages and promotional messages. Agreeing to appointment messages NEVER enrols anyone in promotional messaging.`,
+      `WEB PAGE (${o.optInUrl}): under the heading "Messages about your visit" it states that they will receive appointment reminders and confirmations from ${name}, that message frequency varies, that message and data rates may apply, to reply HELP for help and STOP to stop; the customer consents by texting START from their own phone. Under a separate heading "Offers and news" it states that they will receive promotional offers and news from ${name}, a few messages a month, that message and data rates may apply, to reply HELP for help and STOP to stop, and that this is optional and not a condition of any purchase; the customer consents by texting YES OFFERS.`,
+      `PAPER FORM (${formUrl}): the same two questions as two separate, unticked boxes, each with the same disclosures and its own signature. Staff record each signed box in the business's dashboard as "Sign-up form", with the date and who recorded it, and keep the sheet. A yes to offers is recorded only from a signed form or the customer's own text, never from a spoken answer.`,
+      `Each answer is stored separately, with its own timestamp and source. A customer who texts YES OFFERS is also recorded as reachable for appointment messages, having written to the business to ask; that is the only answer that implies another. Messaging the business first is consent only to be answered and to hear about one's own appointments, and staff may record a spoken yes for appointment messages only. Replying STOP at any time ends all messages of both kinds.`,
     ].join(" "),
 
     // Samples a reviewer reads. They must not state a fact about the business we
@@ -189,7 +222,14 @@ export function campaignFactsFor(o: {
     // and nothing else. Opt-in, opt-out and help information can only be changed
     // by deleting the campaign and creating a new one, which is a new vetting
     // fee. Get this right the first time, per workspace.
-    optInMessage: `${o.businessName}: you're subscribed. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to cancel.`,
+    //
+    // It is sent for START, UNSTOP and RESUME -- the APPOINTMENT keywords -- so it
+    // confirms appointment texts and names nothing else. The live Chanlytics
+    // campaign's, filed before the split, reads "You're subscribed to offers and news
+    // from Billing probe": the appointment keyword confirming a promotional
+    // subscription, which is 30913 in one line, under a name the workspace dropped
+    // long ago. No resubmit can reach it.
+    optInMessage: `${name}: you'll get texts about your appointments. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to cancel.`,
     // Single words only, and only ones the receptionist actually honours
     // (contracts CONVERSATION_OPT_IN_PATTERN). The two-word offers phrase lives
     // in the flow above, because a keyword field takes single words.
@@ -578,7 +618,7 @@ export async function registerLine(db: Db, o: {
     // Twilio's vertical enum. The sole-proprietor end user asks for it by
     // name; the standard path carries it inside the business end user.
     industry: industryOf(record.industry),
-    campaign: campaignFactsFor({ businessName: o.workspaceName, optInUrl: o.optInUrl, privacyUrl: o.privacyUrl, termsUrl: o.termsUrl, hostedUrl: o.hostedUrl, lineNumber: formatPhoneDisplay(o.line.e164) }),
+    campaign: campaignFactsFor({ businessName: o.workspaceName, legalName: o.record.legal_name, optInUrl: o.optInUrl, privacyUrl: o.privacyUrl, termsUrl: o.termsUrl, hostedUrl: o.hostedUrl, lineNumber: formatPhoneDisplay(o.line.e164) }),
     messagingServiceSid: o.line.messaging_service_sid,
     useCase: LOW_VOLUME_USECASE,
     mock: o.mock,

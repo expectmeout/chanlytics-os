@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { consentPageVM, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONVERSATION_PHRASE, OFFERS_OPT_IN_PHRASES, optInLink, SMS_CLAUSES } from "@chanlytics/contracts";
+import { consentPageVM, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONVERSATION_PHRASE, OFFERS_OPT_IN_PHRASES, optInLink, SMS_CLAUSES, consentFormVM } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 const salon = { businessName: "Melany's Beauty Salon", whatsappE164: "+19177724072", smsE164: null };
@@ -87,6 +87,40 @@ test("a workspace with no number says so rather than showing a button that does 
   assert.equal(vm.qrLink, null);
   assert.equal(vm.lead, "Harbor Moving Co. is not set up to take sign-ups here yet.");
   assert.equal(consentPageVM({ ...salon, businessName: "  " }).title, "Text messages from This business");
+});
+
+test("the paper form asks the same two questions, each its own unticked box with its own signature", () => {
+  // A yes to offers must be WRITTEN (00100), and a customer at the desk may not
+  // want to text anything. Twilio names "a signed form section" as a control that
+  // qualifies -- provided it is its own section. So this is the page's two asks on
+  // paper, in the page's own words: a second copy of a disclosure would be one
+  // that is edited and one that is not.
+  const form = consentFormVM(salon);
+  const page = consentPageVM(salon);
+  assert.deepEqual(form.sections.map((s) => s.purpose), ["conversational", "marketing"]);
+  for (const [i, s] of form.sections.entries()) {
+    assert.equal(s.title, page.asks[i].title, `${s.purpose}: the page's words`);
+    assert.equal(s.lead, page.asks[i].lead);
+    assert.equal(s.optional, page.asks[i].optional);
+    assert.deepEqual(s.terms, page.asks[i].terms, `${s.purpose}: the page's disclosures, not a copy of them`);
+    assert.ok(s.box.includes("Melany's Beauty Salon"), `${s.purpose}: whose texts`);
+    assert.ok(s.sign, `${s.purpose}: signed on its own`);
+    // Printed, not filled in here: nothing on it is an input or arrives ticked.
+    assert.ok(!("checked" in s) && !("value" in s), `${s.purpose}: a box that arrives ticked is not a yes`);
+  }
+  const [visit, offers] = form.sections;
+  assert.match(visit.box, /appointments/);
+  assert.doesNotMatch(visit.box, /offer/i, "REGRESSION: one box, two purposes, is 30913");
+  assert.match(offers.box, /offers and news/);
+  assert.match(offers.optional, /entirely optional/);
+  assert.match(form.lead, /signing one does not sign you up for the other/);
+  assert.deepEqual(form.terms, page.terms, "the foot is the page's foot");
+  assert.match(form.office, /Sign-up form/, "and it tells the business how to record the sheet");
+  // Paper needs no number: a business can take signed forms before its line is
+  // approved for texting, while its page has nothing to offer yet.
+  const bare = consentFormVM({ businessName: "Harbor Moving Co.", whatsappE164: null, smsE164: null });
+  assert.equal(bare.sections.length, 2);
+  assert.equal(consentFormVM({ businessName: "  " }).title, "Text messages from This business");
 });
 
 test("the wiring: public by one prefix, read by slug, writes nothing, and the owner is given the link", () => {

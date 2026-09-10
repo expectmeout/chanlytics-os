@@ -1131,6 +1131,9 @@ const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash })
   };
   const exportCsv = () => { plDownload(`people-${new Date().toISOString().slice(0, 10)}.csv`, plCsv(picked)); flash({ msg: <>{picked.length} exported as a CSV</> }); };
   const sources = (window.__consentSources || []).filter((s) => s.id !== "customer_message");
+  // A yes to offers is written (00100), so the only way a desk records one for a
+  // whole selection is the form they signed.
+  const offersSources = (window.__offersYesSources || []).filter((s) => s.id !== "customer_message");
   return (
     <div className="cl-bulk" role="toolbar" aria-label="Selected people" data-testid="bulk-bar">
       <span className="cl-bulk-count"><b>{sel.size}</b> selected</span>
@@ -1162,8 +1165,8 @@ const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash })
           items={[
             { header: "Yes to messages about their visit…" },
             ...sources.map((s) => ({ label: s.label, icon: "check", onClick: () => yes("conversational", s) })),
-            ...(window.__setPersonMarketingConsentMany
-              ? [{ header: "Yes to offers and news…" }, ...sources.map((s) => ({ label: s.label, icon: "tag", onClick: () => yes("marketing", s) }))]
+            ...(window.__setPersonMarketingConsentMany && offersSources.length > 0
+              ? [{ header: "Yes to offers and news…" }, ...offersSources.map((s) => ({ label: s.label, icon: "tag", onClick: () => yes("marketing", s) }))]
               : []),
           ]}
         />

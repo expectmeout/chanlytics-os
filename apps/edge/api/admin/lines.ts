@@ -392,6 +392,7 @@ export async function POST(request: Request): Promise<Response> {
         // second query for a row already in hand and freshly loaded.)
         const facts = campaignFactsFor({
           businessName: tenant.name,
+          legalName: filingCheck.record.legal_name,
           lineNumber: formatPhoneDisplay(row.data.e164),
           optInUrl: `${origin}/yes/${tenant.slug}`,
           hostedUrl: `${origin}/b/${tenant.slug}`,

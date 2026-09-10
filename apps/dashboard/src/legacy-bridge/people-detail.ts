@@ -1,4 +1,4 @@
-import { CONSENT_SOURCES, mayReceive, toPersonVM, type PersonDetailDto, type PersonVM, type SendPurpose } from "@chanlytics/contracts";
+import { CONSENT_SOURCES, mayReceive, offersYesRefusal, toPersonVM, type PersonDetailDto, type PersonVM, type SendPurpose } from "@chanlytics/contracts";
 import {
   conversationsOverride,
   fetchEnvelope,
@@ -213,6 +213,8 @@ declare global {
     __consentSources?: readonly { id: string; label: string }[];
     /** The broadcast's own "may this person be reached", for pages that count people. */
     __mayReceive?: typeof mayReceive;
+    /** The ways a yes to OFFERS may be recorded: in writing only (00100). A no keeps every source. */
+    __offersYesSources?: readonly { id: string; label: string }[];
     __deletePerson?: (id: string) => Promise<DeleteResult>;
     __setPersonDetails?: (id: string, body: DetailsBody) => Promise<DeleteResult>;
     __setPersonReceptionist?: (id: string, mode: "auto" | "ask" | "never" | "inherit") => Promise<DeleteResult>;
@@ -263,4 +265,6 @@ export function installPeopleCourier(): void {
   // The rule, not a copy of it: the Lists page counts who a broadcast reaches, and
   // it was spelling that by hand -- without the phone the route requires.
   window.__mayReceive = mayReceive;
+  // The rule, applied once, so the profile and the bulk menu offer the same ways.
+  window.__offersYesSources = CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null);
 }
