@@ -98,6 +98,32 @@ export function receptionistOn(status: BillingStatus): boolean {
  * the window an abandoned Checkout leaves behind. Both are fine reasons to keep
  * answering an existing conversation. Neither is a reason to spend.
  */
+/**
+ * Is there a card door to send anybody to?
+ *
+ * `maySpend` answers whether this workspace MAY put a charge on our account.
+ * This answers something different and easily confused with it: whether a page
+ * exists that a person could do anything on. They came apart on the deployment
+ * that matters most — a brand-new self-serve workspace.
+ *
+ * `provision_tenant` gives every workspace `billing_accounts(mode='stripe',
+ * status='none')`. With the Stripe keys unset, `billingReadiness()` is false, so
+ * `toBillingVM` returns "Billing is not available on this deployment yet" with
+ * every action false. Setup's billing ROW already knew that and drew nothing —
+ * "a closed door draws nothing". The LINE row did not: it read `canSpend` alone,
+ * concluded "cannot spend, so tell them to add a card", and sent the owner to a
+ * page with no buttons on it. Nothing in the product could put the workspace on
+ * a direct arrangement, so the only escape was a hand-written SQL UPDATE.
+ *
+ * Two rows deciding the same thing from the same facts, disagreeing. One
+ * predicate, read by both.
+ */
+export function billingDoorOpen<T extends { mode: BillingMode; ready: boolean }>(
+  b: T | null | undefined,
+): b is T {
+  return !!b && b.mode === "stripe" && b.ready;
+}
+
 export function maySpend(mode: BillingMode, status: BillingStatus): boolean {
   if (mode !== "stripe") return true;
   return status === "trialing" || status === "active" || status === "past_due";

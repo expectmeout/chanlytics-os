@@ -389,3 +389,66 @@ test("wiring: Settings tab, manifest, bridge, routes, registry, rate bucket, eve
   assert.ok(brief.includes('data-testid="brief-setup"') && brief.includes("<SetupLine nav={nav} />"), "Today carries the one line");
   assert.ok(readCode("packages/contracts/src/index.ts").includes('export * from "./setup";'));
 });
+
+test("a workspace that cannot spend AND has no card door is offered the thing that is true", () => {
+  // THE GATE-9 WALL. `provision_tenant` gives every new workspace
+  // `billing_accounts(mode='stripe', status='none')`. With the Stripe keys unset
+  // on a deployment, `billingReadiness()` is false and the Billing page returns
+  // every action false — so the line row's "Add a card, then get a number" sent a
+  // brand-new self-serve owner to a page with nothing on it, and NOTHING in the
+  // product could put the workspace on a direct arrangement. The only escape was
+  // a hand-written SQL UPDATE by somebody holding the service role.
+  //
+  // Setup's BILLING row already knew this and drew nothing ("a closed door draws
+  // nothing"); the LINE row read `canSpend` alone and did not. Two rows deciding
+  // one thing from one fact, disagreeing.
+  // A workspace with NO channel answering yet and no line: the state a brand-new
+  // self-serve signup is actually in, which is the whole point. `live()` has a
+  // voice channel, so its line row takes the "Open Connections" branch and never
+  // reaches the spend decision this test is about.
+  const withBilling = (billing) => setupSteps(
+    empty({ business: facts, billing, lines: { rows: [], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } } }),
+    NOW,
+  );
+  const lineRow = (vm) => vm.rows.find((r) => r.id === "line");
+  const billingRow = (vm) => vm.rows.find((r) => r.id === "billing");
+
+  // 1. CAN SPEND: the number is the next step.
+  const trialing = withBilling({ mode: "stripe", status: "trialing", ready: true, trial_days: 14 });
+  assert.equal(lineRow(trialing).verb.to, "verb:choose-line");
+
+  // 2. CANNOT SPEND, but a card door exists: the card is the honest next step.
+  const noCard = withBilling({ mode: "stripe", status: "none", ready: true, trial_days: 14 });
+  assert.match(lineRow(noCard).sentence, /Add a card/);
+  assert.equal(lineRow(noCard).verb.to, "admin/billing");
+  assert.ok(billingRow(noCard), "and the billing row is drawn, so the destination exists");
+
+  // 3. CANNOT SPEND AND NO DOOR: neither row may send anybody to Billing.
+  const closed = withBilling({ mode: "stripe", status: "none", ready: false, trial_days: 14 });
+  assert.equal(billingRow(closed), undefined, "a closed door draws nothing — unchanged");
+  assert.doesNotMatch(lineRow(closed).sentence, /Add a card/, "REGRESSION: sent to a page with no buttons");
+  assert.notEqual(lineRow(closed).verb.to, "admin/billing", "REGRESSION: the dead end");
+  assert.equal(lineRow(closed).verb.to, "verb:request-line");
+  assert.match(lineRow(closed).sentence, /We set up your phone line with you/);
+  assert.ok(lineRow(closed).details.some((d) => /Billing is not open on this deployment/.test(d)),
+    "and it says why, so the owner is not left wondering where the card went");
+
+  // THE INVARIANT the two rows now share: whenever the billing row is absent, no
+  // row may point at Billing. Walked across every status rather than asserted for
+  // the one that broke.
+  for (const status of ["none", "trialing", "active", "past_due", "paused", "unpaid", "incomplete"]) {
+    for (const ready of [true, false]) {
+      const vm = withBilling({ mode: "stripe", status, ready, trial_days: 14 });
+      if (billingRow(vm)) continue;
+      const to = lineRow(vm).verb?.to ?? "";
+      assert.ok(!/billing/i.test(to), `${status}/ready=${ready}: line row points at ${to} with no billing row drawn`);
+    }
+  }
+
+  // A direct arrangement is unaffected: it has no billing row by design and has
+  // always been allowed to spend.
+  const direct = withBilling({ mode: "direct", status: "active", ready: false, trial_days: 0 });
+  assert.equal(billingRow(direct), undefined);
+  assert.equal(lineRow(direct).verb.to, "verb:choose-line");
+});
+
