@@ -89,7 +89,7 @@
     "steer.test.mjs": 9,
     "store-retired.test.mjs": 9,
     "surface-seam.test.mjs": 6,
-    "sweep-health.test.mjs": 5,
+    "sweep-health.test.mjs": 4,
     "sweep-rotation.test.mjs": 3,
     "team-audit-and-invites.test.mjs": 9,
     "team-reads.test.mjs": 4,
