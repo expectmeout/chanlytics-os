@@ -3059,6 +3059,7 @@ type Database = {
             purge_cron_history: {
                 Args: {
                     p_keep?: string;
+                    p_keep_frequent?: string;
                     p_keep_per_job?: number;
                 };
                 Returns: number;

@@ -94,7 +94,7 @@ test("every schedule the watchdog depends on is present and active", { skip }, a
 
 test("the cron-history purge exists and is callable, without deleting anything", { skip }, async () => {
   // Proved without removing a row: nothing here is 9,999 days old.
-  const { data, error } = await db.rpc("purge_cron_history", { p_keep: "9999 days", p_keep_per_job: 30 });
+  const { data, error } = await db.rpc("purge_cron_history", { p_keep: "9999 days", p_keep_per_job: 30, p_keep_frequent: "9999 days" });
   assert.equal(error, null, error?.message);
   assert.equal(data, 0);
 });
