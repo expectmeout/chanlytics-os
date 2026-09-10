@@ -1580,6 +1580,8 @@ git add -A && git -c core.safecrlf=false commit -m "The enum-versus-check test i
 
 ## Phase 3: Tenancy by construction
 
+> **Superseded, 2026-09-10 (evening): execute [`2026-09-10-the-route-definition.md`](2026-09-10-the-route-definition.md).** Tenancy becomes the first field of a route that declares its whole policy (scope, role, rate, spend, input), enforced in one place and recorded in one file. Every rule in the review block below survives there as the inside of the `workspace` scope; the review and the original design stay here as history.
+
 > **Reviewed against the code, 2026-09-10: execute the corrected shape below, not the design that follows it.**
 >
 > What still holds: one workspace per request, resolved by construction, and a named `choose_workspace` error. Today an ambiguous write is refused as a generic `validation` 400, which a nightly read as a billing bug and a phone-number bug for a day.
