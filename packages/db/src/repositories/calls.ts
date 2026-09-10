@@ -4,6 +4,7 @@
  * (tenant_id, retell_call_id) so webhook stages and the history backfill
  * converge on one row.
  */
+import type { SchemaSet } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";
 
@@ -17,7 +18,7 @@ export interface NormalizedCallInput {
   fromE164: string | null;
   fromRaw: string | null;
   toE164: string | null;
-  status: "registered" | "ongoing" | "ended" | "error" | "not_connected";
+  status: SchemaSet<"calls.status">;
   startedAtIso: string | null;
   endedAtIso: string | null;
   durationMs: number | null;

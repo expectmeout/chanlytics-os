@@ -9,6 +9,7 @@
  * being written. The route that runs the model lives in the dashboard; the
  * palette that shows the answer lives in the mockup; both read from here.
  */
+import type { SchemaSet } from "./schema-sets";
 import { z } from "zod";
 import type { NotificationItem } from "./notifications";
 
@@ -351,7 +352,7 @@ function partialString(prefix: string, key: number): string {
 
 /* ------------------------------------------------------------ the message */
 
-export type AskRole = "user" | "assistant";
+export type AskRole = SchemaSet<"ask_messages.role">;
 
 /** A proposal the model made; a card the person may approve. Executed by the client through the verbs. */
 export interface AskProposal {

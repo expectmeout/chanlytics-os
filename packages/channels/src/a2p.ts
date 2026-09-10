@@ -25,6 +25,7 @@
  * subaccount; it is REFERENCED by sid, and that reference is the whole
  * declaration that this business is ours.
  */
+import type { SchemaSet } from "@chanlytics/contracts";
 import { businessTypeOf, companyTypeOf, industryOf, registrationPathOf } from "@chanlytics/contracts";
 
 /** Trust Hub policies, by the names Twilio gives them. */
@@ -564,8 +565,9 @@ export function deleteCampaignRequest(messagingServiceSid: string, campaignSid: 
 
 /* --------------------------- the state machine --------------------------- */
 
-export type A2PStep = "profile" | "business" | "representative" | "address" | "document" | "primary" | "submit" | "a2p_profile" | "brand" | "campaign";
-export const A2P_STEPS: readonly A2PStep[] = ["profile", "business", "representative", "address", "document", "primary", "submit", "a2p_profile", "brand", "campaign"];
+export type A2PStep = SchemaSet<"lines.reg_step">;
+/** In the order the saga walks them; schema-agreement.ts holds them to the column. */
+export const A2P_STEPS = ["profile", "business", "representative", "address", "document", "primary", "submit", "a2p_profile", "brand", "campaign"] as const;
 
 /** What the registration has made so far. Every field is a receipt for one step. */
 export interface A2PState {

@@ -25,6 +25,8 @@ import {
   waWindow,
   type AskProposal,
   PLAYBOOK_CLASS_LABEL,
+  PLAYBOOK_TRIGGERS,
+  SCHEMA_SETS,
   defaultParamSpecs,
   eligibleForPlaybook,
   scheduleLine,
@@ -114,7 +116,8 @@ export const ACT_TOOLS: ToolDef[] = [
     name: "propose_playbook",
     description: "Propose a playbook: a standing rule that sends one approved WhatsApp template to newly eligible people who said yes. trigger: quiet_30 (win-back), new_week (welcome), phoned_only (save our number) or everyone_monthly (the month's offer). template_id: an approved template, or omit it for the trigger's starter when the workspace holds it. params: the template's values in order (typed text, or @first_name, @business_name, @booking_link); a starter's are filled in, except a typed one such as the month's offer. run_hour 9–20 by the business's clock (default 10), cap_per_run (default 25). Read list_playbooks first. It becomes a card the person approves; it then runs under its class's autonomy mode.",
     input_schema: obj({
-      trigger: { type: "string", enum: ["quiet_30", "new_week", "phoned_only", "everyone_monthly"] },
+      // Every trigger except the two that follow the calendar.
+      trigger: { type: "string", enum: PLAYBOOK_TRIGGERS.filter((t) => t.kind !== "visit").map((t) => t.id) },
       template_id: { type: "string" },
       params: { type: "array", items: { type: "string" } },
       run_hour: { type: "number" },
@@ -125,7 +128,7 @@ export const ACT_TOOLS: ToolDef[] = [
   {
     name: "propose_invite",
     description: "Propose inviting someone to the workspace by email, as operator or viewer. Owner-only.",
-    input_schema: obj({ email: { type: "string" }, role: { type: "string", enum: ["operator", "viewer"] } }, ["email", "role"]),
+    input_schema: obj({ email: { type: "string" }, role: { type: "string", enum: [...SCHEMA_SETS["invitations.role"]] } }, ["email", "role"]),
   },
 ];
 

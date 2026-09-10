@@ -1,3 +1,4 @@
+import type { SchemaSet } from "./schema-sets";
 import { POLICY_CLASS_WORDS } from "./config";
 /**
  * Playbooks: a standing rule that sends one approved template to newly
@@ -34,7 +35,7 @@ export const PLAYBOOK_TRIGGERS = [
 ] as const;
 export type PlaybookTrigger = (typeof PLAYBOOK_TRIGGERS)[number]["id"];
 export type PlaybookTriggerKind = (typeof PLAYBOOK_TRIGGERS)[number]["kind"];
-export type PlaybookPolicyClass = "reengage" | "campaign" | "booking";
+export type PlaybookPolicyClass = SchemaSet<"playbooks.policy_class">;
 
 export const PLAYBOOK_STATES = ["running", "paused"] as const;
 export type PlaybookState = (typeof PLAYBOOK_STATES)[number];

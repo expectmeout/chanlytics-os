@@ -156,6 +156,8 @@ git -c core.safecrlf=false commit -m "Source-scan assertions may only get fewer"
 
 ## Phase 1: The outbox — time lives in the row
 
+> **As built: #320 (migration 00098), live 2026-09-10.** Four departures from the text below, each because the text was wrong against the code or the schema of the day. Jobs are claimed ONE at a time: a batch leaves claimed-but-unstarted jobs that come back looking like runs that died mid-send. A looping handler gets a yield deadline, because a shared function no longer gives each broadcast batch its own sixty seconds. The two row clocks stay separate 10-second cron jobs rather than folding into the tick, so one failing cannot stop the other or the ledger. And `sweep_health()` was rebuilt from 00086, with `sweep_status_sweep_check` left at its nine sweeps. Found on the way: 00018 seeds the production edge address into every Vault; `supabase/seed.sql` removes it on local and CI databases.
+
 **Files:**
 - Create: `supabase/migrations/00081_jobs_outbox.sql` (use the next free number if Round Two shipped; update the one test that names it)
 - Rewrite: `packages/jobs/src/schedule.ts`
@@ -1423,6 +1425,8 @@ Expected: `requested_at` within the last ten seconds and `note: null`.
 ---
 
 ## Phase 2: Enums from the schema
+
+> **As built, 2026-09-10: not Postgres enums.** The live database has 53 value-set CHECKs. The text below converts five, then deletes the only test that watched about twenty, which would leave the rest unguarded. Converting all of them would make every new value a two-migration change, rewrite large tables under an exclusive lock, and break any plpgsql body that assigns a text variable to a converted column. Instead `tooling/scripts/gen-schema-sets.mjs` generates every set from the CHECKs themselves into `packages/contracts/src/schema-sets.generated.ts`; `schema-sets.ts` and `channels/src/schema-agreement.ts` hold every hand-kept list to its column at compile time; and the Database workflow regenerates the file on every PR and fails when it is stale. The same guarantee, drift cannot merge, for all 53 sets, with no schema change.
 
 **Files:**
 - Create: `supabase/migrations/00082_enums_jobs.sql`, `00083_enums_conversations_messages.sql`, `00084_enums_broadcasts.sql`
