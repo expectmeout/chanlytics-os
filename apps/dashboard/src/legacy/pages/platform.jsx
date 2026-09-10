@@ -2,8 +2,11 @@
 // Chanlytics — the back office. Every workspace, and what is up with each one.
 //
 // The only surface in this product that deliberately crosses tenant
-// boundaries. Read-only: actions come later, and only ones that already exist
-// as a workspace's own verb.
+// boundaries. The LIST is read-only; the line rows on an opened workspace are
+// not -- gate 6 put Retry, Refile and Release here, each one arming before it
+// confirms, each one recorded against the person who pressed it before it runs.
+// This comment used to say "actions come later", which stopped being true in the
+// same commit that added them two screens below.
 //
 // It decides nothing. The verdict, the sorting, the sentence and the four facts
 // all come from contracts/platform.ts through window.__platform, and the detail
@@ -214,7 +217,7 @@ const PanePlatform = () => {
         )}
         <div className="set-row">
           <div className="set-row-info">
-            <span className="set-row-hint">Sorted by who needs a person, not by name: work down the page. Read-only — nothing here changes a workspace.</span>
+            <span className="set-row-hint">Sorted by who needs a person, not by name: work down the page. This list changes nothing; open a workspace and its lines can be retried, resent to the carriers, or handed back — each one asks twice, and each is recorded against you.</span>
           </div>
           <input
             className="biz-input pf-find"

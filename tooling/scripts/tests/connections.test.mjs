@@ -135,6 +135,18 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
   assert.equal(smsStateRow(line({ sms_state: "none", voice_state: "provisioning" }), NOW).state, "later", "a line that cannot answer a call yet cannot text either");
   assert.equal(words("needs_record").state, "waiting_you");
   assert.equal(words("needs_record").body, "business_record", "and the form is right there");
+  // THE PRE-FLIGHT'S OWN SENTENCES, when the row has them. Gate 8's argument is
+  // that a refusal must say what to fix; the edge duly writes "what is wrong AND
+  // what to do" onto `last_error` -- and this row threw it away for a fixed
+  // "two minutes, once", which for a workspace whose NAME does not match its
+  // record is false twice over: the record is complete, and the form it points at
+  // cannot rename a workspace.
+  assert.equal(
+    words("needs_record", { last_error: "The carriers will be told this business is called \u201cBilling probe\u201d. Make the workspace's name match." }).sentence,
+    "The carriers will be told this business is called \u201cBilling probe\u201d. Make the workspace's name match.",
+  );
+  assert.match(words("needs_record", { last_error: "x" }).verb.label, /record/i, "and the button opens the thing to change");
+  assert.match(words("needs_record").sentence, /two minutes, once/, "with no reason on file it keeps the invitation it always had");
   // REPLY to the text, never type a code here. The carriers message the
   // owner's own handset and the reply must come from it; telling somebody to
   // type a code sends them hunting for a field that does not exist while a
@@ -153,7 +165,17 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
   assert.equal(reg.state, "waiting_them");
   assert.equal(reg.stateWords, "Waiting on carriers");
   assert.ok(reg.sentence.includes("since 2d ago"));
-  assert.equal(words("rejected", { last_error: "the website could not be reached" }).sentence, "The carriers sent the registration back: the website could not be reached.");
+  // A rejection says what they said, then WHO sends it again -- because that is
+  // not the owner. Gate 6 put resubmitting behind `platform_admins` on purpose (a
+  // rejection needs somebody who can read what the carriers said), so `refile:
+  // true` is never sent by the owner's route. This row used to offer them "Fix and
+  // resubmit", and the button behind it was guaranteed to answer "The carriers did
+  // not answer" -- about a message the carriers had explicitly sent.
+  const sentBack = words("rejected", { last_error: "the website could not be reached" });
+  assert.match(sentBack.sentence, /^The carriers sent the registration back: the website could not be reached\./);
+  assert.match(sentBack.sentence, /Chanlytics sends it again/, "and it says who does");
+  assert.match(sentBack.sentence, /costs nothing/, "correcting a rejection is free, and an owner should not fear pressing it");
+  assert.doesNotMatch(sentBack.sentence, /resubmit it|you resubmit/i, "never told to do the thing they cannot");
   assert.equal(words("active").state, "connected");
   // A filing made against the carriers' TEST registry: it reports itself
   // approved and delivers nothing. This row read the state underneath it and
@@ -167,6 +189,7 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
   assert.ok(!/switches itself on/.test(words("registering", { reg_mock: true }).sentence), "whatever stage the rehearsal reached");
   assert.equal(smsStateRow(null, NOW).state, "later", "no line at all: nothing to offer");
   assert.equal(words("rejected", { last_error: "x" }).verb.to, "verb:business-record", "a rejection points at the thing to fix");
+  assert.doesNotMatch(words("rejected", { last_error: "x" }).verb.label, /resubmit/i, "but the button does not claim to send it");
   assert.equal(words("failed", { last_error: "Texting for a business without a tax id needs a different registration." }).sentence, "Texting for a business without a tax id needs a different registration.", "and a refusal says what it actually was");
   for (const s of ["none", "needs_record", "otp_waiting", "registering", "rejected", "failed", "active", "approved"]) {
     const t = `${words(s).sentence} ${words(s).stateWords}`;

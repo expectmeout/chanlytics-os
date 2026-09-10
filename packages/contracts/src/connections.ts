@@ -129,7 +129,16 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
     case "approved":
       return { ...base, state: "waiting_them", stateWords: "Waiting on carriers", sentence: `Your business is approved. One last check on the line is with the carriers — usually days, and texting switches itself on${since ? `; approved ${since}` : ""}.` };
     case "needs_record":
-      return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Texting needs your business on record for the carriers — two minutes, once.", verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
+      // The pre-flight's own sentences when it has them, exactly as `rejected` and
+      // `failed` two cases below already do. Gate 8's whole argument is that a
+      // refusal must say what to fix; the edge duly writes "what is wrong AND what
+      // to do" onto `last_error` — and this row threw it away and said "two
+      // minutes, once" instead. For a workspace whose NAME does not match its
+      // record, that sentence is also false twice over: the record is complete,
+      // and the form it points at cannot fix the workspace's name.
+      return line?.last_error
+        ? { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: line.last_error, verb: { label: "Open the record", to: "verb:business-record", who: "owner" }, body: "business_record" }
+        : { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Texting needs your business on record for the carriers — two minutes, once.", verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
     case "otp_waiting":
       // REPLY to it, not type it. The carriers text the owner's own mobile and
       // the reply must come from that handset -- there is no code to bring back
@@ -150,7 +159,21 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
     case "hosting":
       return { ...base, state: "waiting_them", stateWords: "Waiting on carriers", sentence: `The carriers are registering your line, since ${since} · usually a week.` };
     case "rejected":
-      return { ...base, state: "attention", stateWords: "Sent back", sentence: `The carriers sent the registration back${line?.last_error ? `: ${line.last_error}` : ""}.`, verb: { label: "Fix and resubmit", to: "verb:business-record", who: "owner" }, body: "business_record" };
+      // NO "resubmit" VERB, and for the same reason `otp_waiting` above has none:
+      // the button did not work. Gate 6 put resubmitting behind `platform_admins`
+      // on purpose — a rejection needs somebody who can read what the carriers
+      // said — so `refile: true` is never sent by the owner's route, and an owner
+      // who corrected their record and pressed "Fix and resubmit" got "The
+      // carriers did not answer" about a message the carriers had explicitly sent.
+      //
+      // Correcting the record IS still theirs, and it is the thing that unblocks
+      // the resubmit, so the row still opens the form — it just no longer claims
+      // that pressing File sends it, and it says who does.
+      return {
+        ...base, state: "attention", stateWords: "Sent back",
+        sentence: `The carriers sent the registration back${line?.last_error ? `: ${line.last_error}` : ""}. Correct what they named and Chanlytics sends it again — resubmitting is ours to do, and it costs nothing.`,
+        verb: { label: "Open the record", to: "verb:business-record", who: "owner" }, body: "business_record",
+      };
     case "failed":
       return { ...base, state: "attention", stateWords: "Waiting on us", sentence: line?.last_error || "Registering stopped. A person at Chanlytics has it." };
     default:

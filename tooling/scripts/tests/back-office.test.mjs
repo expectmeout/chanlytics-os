@@ -300,9 +300,20 @@ test("every route under /api/v1/platform asks the database who is calling", () =
     // route that forgot would not compile rather than not being caught here.
     assert.ok(src.includes("const office = await backOffice(ctx);"), `${path.basename(path.dirname(file))}: no admin check`);
     const guard = src.indexOf("const office = await backOffice(ctx);");
-    for (const read of ["platformOverview(", "platformTenant(", "platformEvents(", "setupDtoFor("]) {
-      const i = src.indexOf(read);
-      if (i !== -1) assert.ok(guard < i, `${path.basename(path.dirname(file))}: ${read} runs before the check`);
+    // DERIVED, not listed. This was a hardcoded array of four READS, so
+    // `platformLineAct(` -- the only WRITE on this surface, and the one that
+    // touches another business's carrier registration and phone number -- was not
+    // in it. A write added tomorrow with its guard below the call would have
+    // passed, which is the opposite of what this test's own header promises.
+    // Every helper the route imports from the platform module has to come after
+    // the handle it needs.
+    const imported = /import\s*\{([^}]+)\}\s*from\s*"@\/server\/platform"/.exec(src);
+    assert.ok(imported, `${path.basename(path.dirname(file))}: nothing imported from @/server/platform`);
+    const helpers = imported[1].split(",").map((x) => x.trim()).filter((x) => x && x !== "backOffice");
+    assert.ok(helpers.length > 0, `${path.basename(path.dirname(file))}: only the guard is imported`);
+    for (const fn of helpers) {
+      const i = src.indexOf(`${fn}(`, guard === -1 ? 0 : 0);
+      if (i !== -1) assert.ok(guard < i, `${path.basename(path.dirname(file))}: ${fn}() runs before the check`);
     }
     // No workspace scoping: this surface is about workspaces the caller is not
     // in, so memberContext would be a category error rather than a safeguard.
@@ -926,3 +937,57 @@ test("the tab exists for the people it is for, and for nobody else", () => {
   // In both lists, in file order, like every other legacy page.
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/platform.jsx";'));
 });
+
+test("the ops routes have their own ceilings, sized for a support shift and named for what they do", async () => {
+  // RATE's own rule is "One rule per bucket. Named by what the route DOES, not by
+  // its path." The three platform routes borrowed the OWNER buckets, and three
+  // things followed, all wrong in the same direction:
+  //
+  //   * `takeRate` counts per PERSON, so an admin's refiles for three different
+  //     customers drew down the same three-an-hour as filings for their own line.
+  //   * correcting a REJECTED campaign is free and reversible -- Twilio charges the
+  //     vetting fee once per campaign -- yet it was capped by a ceiling sized for an
+  //     irreversible $19.50 spend, so a shift clearing four rejections failed on the
+  //     fourth. It is described in server/platform.ts as the most common A2P
+  //     support action there is.
+  //   * the refusal reads from `noun`, so handing a number BACK was refused with
+  //     "Too many lines in a short time".
+  const { RATE } = await import("../../../apps/dashboard/src/server/rate-limit.ts");
+  for (const [bucket, route, min] of [
+    ["platform_line_retry", "retry", 10],
+    ["platform_line_refile", "refile", 10],
+    ["platform_line_release", "release", 1],
+  ]) {
+    const rule = RATE[bucket];
+    assert.ok(rule, `${bucket} exists`);
+    assert.ok(rule.limit >= min, `${bucket}: ${rule.limit} is a support shift, not one owner's wallet`);
+    assert.match(rule.noun, /workspaces|handed back/, `${bucket}: the noun says whose thing this is`);
+    const src = readCode(`apps/dashboard/app/api/v1/platform/lines/${route}/route.ts`);
+    assert.ok(src.includes(`takeRate(ctx.userId, "${bucket}")`), `${route} spends its own bucket`);
+    for (const owner of ["lines_register", "lines_buy", "lines_retry"]) {
+      assert.ok(!src.includes(`"${owner}"`), `${route}: REGRESSION: back on the owner's bucket ${owner}`);
+    }
+  }
+  // Release stays the tightest: it is permanent, and a number handed back cannot
+  // be reclaimed.
+  assert.ok(RATE.platform_line_release.limit < RATE.platform_line_refile.limit, "the irreversible one is the tightest");
+});
+
+test("the back office does not tell the reader it changes nothing, in the file that changes things", () => {
+  // Gate 6 added Retry / Refile / Release to this page. Two claims in it were not
+  // updated, and one of them is user-visible copy sitting directly above rows
+  // whose Open reveals a button that permanently releases a customer's number.
+  const page = readCode("apps/dashboard/src/legacy/pages/platform.jsx");
+  assert.ok(!/Read-only — nothing here changes a workspace/.test(page), "REGRESSION: the page claims to be read-only");
+  assert.ok(!/Read-only: actions come later/.test(page), "REGRESSION: a comment describing the opposite of the file");
+  assert.match(page, /This list changes nothing; open a workspace and its lines can be/, "it says which half is read-only");
+  assert.match(page, /each one asks twice, and each is recorded against you/);
+  // And those two claims are true: arm-then-confirm, and the ledger row goes in
+  // before the action runs.
+  assert.match(page, /const \[arm, setArm\] = React\.useState\(null\);/);
+  const server = readCode("apps/dashboard/src/server/platform.ts");
+  const audit = server.indexOf('kind: "platform.acted"');
+  const edge = server.indexOf("await edgeLines(EDGE_OP[action]");
+  assert.ok(audit !== -1 && edge !== -1 && audit < edge, "attribution is written before the action, not after it");
+});
+

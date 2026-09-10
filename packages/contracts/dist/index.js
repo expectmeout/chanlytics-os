@@ -6087,6 +6087,20 @@ function textingWords(l) {
       return { sentence: "Your business is approved; one last check on the line is with the carriers.", done: false };
     case "registering":
       return { sentence: "Texting is with the carriers.", done: false };
+    // The state the pre-flight writes, which had no case here at all -- so a
+    // workspace stopped BEFORE anything was filed read the default, "Texting is
+    // not available yet", which says nothing about what is in the way and nothing
+    // about it being theirs to fix.
+    //
+    // It deliberately does NOT name the fault, for the same reason none of these
+    // do: this is one clause inside a composed Setup sentence, the reason can be a
+    // paragraph, and the owner's texting row on Connections renders `last_error`
+    // in full. What this has to do is stop saying "not available" about something
+    // that is waiting on them. It also cannot say "fill in your record" -- a
+    // record that is COMPLETE but names a different business than the workspace
+    // does trips the same state, and that fix is a rename, not a field.
+    case "needs_record":
+      return { sentence: "Texting needs something on your business record put right \u2014 Connections says what.", done: false };
     case "rejected":
       return { sentence: "The carriers refused the texting registration.", done: false };
     case "failed":
@@ -6510,14 +6524,21 @@ function smsStateRow(line, nowMs) {
     case "approved":
       return { ...base, state: "waiting_them", stateWords: "Waiting on carriers", sentence: `Your business is approved. One last check on the line is with the carriers \u2014 usually days, and texting switches itself on${since ? `; approved ${since}` : ""}.` };
     case "needs_record":
-      return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Texting needs your business on record for the carriers \u2014 two minutes, once.", verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
+      return line?.last_error ? { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: line.last_error, verb: { label: "Open the record", to: "verb:business-record", who: "owner" }, body: "business_record" } : { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Texting needs your business on record for the carriers \u2014 two minutes, once.", verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
     case "otp_waiting":
       return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "The carriers texted your mobile \u2014 reply to that message from the handset itself and texting switches on. There is nothing to type here. The code lasts a day; if it runs out, Chanlytics asks the carriers for another." };
     case "registering":
     case "hosting":
       return { ...base, state: "waiting_them", stateWords: "Waiting on carriers", sentence: `The carriers are registering your line, since ${since} \xB7 usually a week.` };
     case "rejected":
-      return { ...base, state: "attention", stateWords: "Sent back", sentence: `The carriers sent the registration back${line?.last_error ? `: ${line.last_error}` : ""}.`, verb: { label: "Fix and resubmit", to: "verb:business-record", who: "owner" }, body: "business_record" };
+      return {
+        ...base,
+        state: "attention",
+        stateWords: "Sent back",
+        sentence: `The carriers sent the registration back${line?.last_error ? `: ${line.last_error}` : ""}. Correct what they named and Chanlytics sends it again \u2014 resubmitting is ours to do, and it costs nothing.`,
+        verb: { label: "Open the record", to: "verb:business-record", who: "owner" },
+        body: "business_record"
+      };
     case "failed":
       return { ...base, state: "attention", stateWords: "Waiting on us", sentence: line?.last_error || "Registering stopped. A person at Chanlytics has it." };
     default:
@@ -6739,7 +6760,12 @@ function platformLineActions(l) {
     out.push({
       action: "refile",
       label: "Send the campaign back",
-      sentence: "Resubmits the corrected campaign to the carriers. Correct the business on record first \u2014 this sends what is there now.",
+      // It used to say "Correct the business on record first — this sends what is
+      // there now", which was true and was the whole problem: nothing verified
+      // that anyone had, so a rejection could be answered with the fault that
+      // caused it. Both senders now run the same pre-flight, so the honest
+      // sentence is that this REFUSES rather than repeats.
+      sentence: "Resubmits the campaign to the carriers, free \u2014 the vetting fee is charged once per campaign. It refuses, with the reason, if the record or the workspace's name still would not pass review.",
       cost: null,
       permanent: false
     });

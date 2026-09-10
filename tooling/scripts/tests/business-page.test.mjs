@@ -270,8 +270,24 @@ test("nothing is filed until they are answered, and the words reach the row", ()
   // Same moment as the record check, and before anything is created: on a real
   // filing each of these is a week of waiting and a fee already spent.
   assert.match(edge, /for \(const p of registrationPreflight\(\{/);
-  assert.ok(edge.indexOf("registrationPreflight({") < edge.indexOf("const send = async"), "before a single call is made");
+  // WHICH function checks, not merely whether the file mentions it anywhere. This
+  // used to compare whole-FILE indices -- `registrationPreflight({` before
+  // `const send = async` -- which is trivially true of a file where one sender
+  // checks and another does not, and that is exactly what the file was: the refile
+  // path reached the carriers through `resubmitRejectedCampaign`, which asked
+  // nothing. a2p-refile.test.mjs now slices each sender and asks of each.
+  assert.match(edge, /export async function filingProblems\(/, "one decider, so both senders can ask the same question");
+  const inRegister = edge.slice(edge.indexOf("export async function registerLine("));
+  assert.ok(inRegister.indexOf("filingProblems(") < inRegister.indexOf("const send = async"), "before a single call is made");
   assert.match(edge, /problems\.push\(`\$\{p\.what\} \$\{p\.fix\}`\)/, "what is wrong AND what to do, on the row the page reads");
+  // And they REACH the owner. The sentences used to be stored and then dropped:
+  // the edge returned a token, the dashboard passed the token through, and the
+  // bridge printed `record_incomplete` at the person who pressed the button.
+  assert.ok(inRegister.slice(0, inRegister.indexOf("const send = async")).includes("problems,"), "returned as well as stored");
+  const owner = readCode("apps/dashboard/app/api/v1/lines/register/route.ts");
+  assert.match(owner, /b\.error === "record_incomplete" \|\| b\.error === "sole_proprietor_incomplete"/);
+  assert.match(owner, /problems\.length\s*\?\s*problems\.join\(" "\)/, "and become the refusal the owner reads");
+  assert.ok(!owner.includes("sole_proprietor_unsupported"), "REGRESSION: a refusal for an error nothing can return since gate 7");
   // The workspace's name is what the campaign will say, so it is what gets
   // checked -- not the record's, which is what the brand says.
   assert.match(edge, /workspaceName: o\.workspaceName,/);

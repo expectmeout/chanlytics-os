@@ -332,6 +332,21 @@ export async function POST(request: Request): Promise<Response> {
       await db.from("lines").update({ sms_state: "needs_record", state_since: new Date().toISOString() }).eq("id", lineId);
       return json(409, { ok: false, error: "no_business_record", hint: "op 'record' first" });
     }
+    const origin = dashboardOrigin();
+    // Whether a customer has anywhere to say yes. The message flow filed with the
+    // carriers says they opt in by texting this business, and that has to be true
+    // of a workspace before it is said about one.
+    //
+    // Read HERE, above the branch, because BOTH ways out of this handler state it
+    // to the carriers -- a first filing and a resubmitted one. It used to sit
+    // below, on the first-filing path only, which is a fair summary of the whole
+    // defect this change is about.
+    const saysYes = await db.from("tenant_channels").select("kind").eq("tenant_id", tenantId).eq("status", "active").in("kind", ["whatsapp", "sms"]);
+    const filingCheck = {
+      record: rec.data,
+      workspaceName: tenant.name,
+      hasOptInNumber: (saysYes.data ?? []).length > 0 || !!row.data.e164,
+    };
     if (row.data.brand_sid && row.data.campaign_sid) {
       // A REAL filing is final here: it cost the workspace money, the carriers
       // vetted it, and re-filing would buy a second one. A MOCK filing is a
@@ -376,21 +391,27 @@ export async function POST(request: Request): Promise<Response> {
         // edit of the same QE resource costs nothing while a replacement is a
         // fresh $15. This path used to delete and re-file, which answered a
         // rejection by paying for it again -- every time, for every workspace.
-        // The workspace's own name and slug, read HERE rather than reused from
-        // the filing: a rejection is answered after the facts were corrected,
-        // and those corrections are exactly what has to reach the carriers.
-        const t = await db.from("tenants").select("name, slug").eq("id", tenantId).maybeSingle();
-        if (!t.data) return json(503, { ok: false, error: "no_workspace" });
-        const base = dashboardOrigin();
+        // The workspace's own name and slug, from the read this request already
+        // made at its top: a rejection is answered after the facts were
+        // corrected, and those corrections are exactly what has to reach the
+        // carriers. (This used to re-read `tenants` here to say so, which was a
+        // second query for a row already in hand and freshly loaded.)
         const facts = campaignFactsFor({
-          businessName: t.data.name,
+          businessName: tenant.name,
           lineNumber: formatPhoneDisplay(row.data.e164),
-          optInUrl: `${base}/yes/${t.data.slug}`,
-          hostedUrl: `${base}/b/${t.data.slug}`,
-          privacyUrl: `${base}/privacy`,
-          termsUrl: `${base}/terms`,
+          optInUrl: `${origin}/yes/${tenant.slug}`,
+          hostedUrl: `${origin}/b/${tenant.slug}`,
+          privacyUrl: `${origin}/privacy`,
+          termsUrl: `${origin}/terms`,
         });
-        const again = await resubmitRejectedCampaign(db, row.data, facts);
+        const again = await resubmitRejectedCampaign(db, row.data, facts, filingCheck);
+        // A pre-flight refusal is a 409 and carries the sentences: it is a fact
+        // about this workspace that a person can act on, not a provider outage.
+        // A 502 is what it used to answer for both, which told support to try
+        // again -- the one thing that cannot help.
+        if (again.problems?.length) {
+          return json(409, { ok: false, error: again.error ?? "record_incomplete", problems: again.problems });
+        }
         if (!again.ok || !again.row) return json(502, { ok: false, error: again.error ?? "resubmit_failed" });
         const after = await db.from("lines").select("*").eq("id", lineId).single();
         return json(200, { ok: true, resubmitted: true, smsState: again.row.sms_state, line: after.data ? lineForClient(after.data) : null });
@@ -404,24 +425,22 @@ export async function POST(request: Request): Promise<Response> {
     // Never the default: a real filing costs the workspace money. A refile is
     // always real -- there is no reason to replace one rehearsal with another.
     const mock = !refile && body.mock === true;
-    const origin = dashboardOrigin();
-    // Whether a customer has anywhere to say yes. The message flow filed with
-    // the carriers says they opt in by texting this business, and that has to be
-    // true of a workspace before it is said about one.
-    const saysYes = await db.from("tenant_channels").select("kind").eq("tenant_id", tenantId).eq("status", "active").in("kind", ["whatsapp", "sms"]);
     const result = await registerLine(db, {
       line: row.data,
       record: rec.data,
-      workspaceName: tenant.name,
+      workspaceName: filingCheck.workspaceName,
       optInUrl: `${origin}/yes/${tenant.slug}`,
       hostedUrl: `${origin}/b/${tenant.slug}`,
       privacyUrl: `${origin}/privacy`,
       termsUrl: `${origin}/terms`,
-      hasOptInNumber: (saysYes.data ?? []).length > 0 || !!row.data.e164,
+      hasOptInNumber: filingCheck.hasOptInNumber,
       mock,
     });
     const after = await db.from("lines").select("*").eq("id", lineId).single();
-    return json(result.ok ? 200 : 502, { ...result, mock, line: after.data ? lineForClient(after.data) : null });
+    // Same distinction as the refile path above: a record the pre-flight refused
+    // is a 409 about this workspace, not a 502 about the carriers.
+    const status = result.ok ? 200 : result.problems?.length ? 409 : 502;
+    return json(status, { ...result, mock, line: after.data ? lineForClient(after.data) : null });
   }
 
   return json(400, { ok: false, error: "op must be status, search, buy, retry, release, record, register or registration-status" });

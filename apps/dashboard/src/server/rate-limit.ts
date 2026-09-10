@@ -73,6 +73,29 @@ export const RATE = {
   business_record: { limit: 20, windowMs: 3_600_000, noun: "changes to your business record" },
   /** Filing with the carriers costs money and cannot be undone. */
   lines_register: { limit: 3, windowMs: 3_600_000, noun: "registrations" },
+  /*
+   * THE BACK OFFICE'S OWN CEILINGS, because the three ops routes were borrowing
+   * the owner buckets above and this table's own rule is "named by what the route
+   * DOES, not by its path".
+   *
+   * Three things followed from the borrowing, all of them wrong in the same
+   * direction. `takeRate` counts per PERSON, so a support engineer's refiles for
+   * three different customers drew down the same three-an-hour as filings for
+   * their own workspace. Refiling a REJECTED campaign is free and reversible --
+   * Twilio assesses the vetting fee once per campaign -- so the most common A2P
+   * support action there is was capped by a ceiling sized for an irreversible
+   * $19.50 spend, and a shift clearing four rejections was refused on the fourth.
+   * And the refusal reads from `noun`, so giving a number BACK was refused with
+   * "Too many lines in a short time".
+   *
+   * These are sized for a support session rather than for one owner's wallet, and
+   * they are still ceilings: a runaway loop against another business's carrier
+   * registration is exactly what a limit is for. Release stays the tightest --
+   * it is permanent, and a number handed back cannot be reclaimed.
+   */
+  platform_line_retry: { limit: 30, windowMs: 3_600_000, noun: "line retries for other workspaces" },
+  platform_line_refile: { limit: 20, windowMs: 3_600_000, noun: "registrations resent for other workspaces" },
+  platform_line_release: { limit: 5, windowMs: 3_600_000, noun: "numbers handed back" },
   profile_set: { limit: 10, windowMs: 3_600_000, noun: "name changes" },
   /** A stranger at the door: per network they came from and per address they typed. */
   signup_ip: { limit: 5, windowMs: 3_600_000, noun: "sign-ups" },

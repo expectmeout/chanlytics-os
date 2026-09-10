@@ -15,7 +15,8 @@ import { backOffice, platformLineAct } from "@/server/platform";
  */
 export const POST = withRoute(async (req, ctx) => {
   const office = await backOffice(ctx);
-  await takeRate(ctx.userId, "lines_buy");
+  // Its own ceiling, and the tightest of the three: this is permanent. It used to borrow `lines_buy`, so a fourth release in an hour was refused with a sentence about buying lines.
+  await takeRate(ctx.userId, "platform_line_release");
   const body = (await req.json().catch(() => ({}))) as { tenant_id?: unknown; line_id?: unknown };
   const tenantId = requireUuid(body.tenant_id, "workspace");
   const lineId = requireUuid(body.line_id, "line");
