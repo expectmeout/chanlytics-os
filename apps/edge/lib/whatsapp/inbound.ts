@@ -19,7 +19,7 @@ import { normalizeInbound, withCarrierConsent, type CarrierConsent, type WaChang
 import { shortCode } from "../workspace/contracts.js";
 import { readLeadContext, describeLead, personReplyMode, type IngestResult } from "../workspace/db.js";
 import type { RoutedChannel } from "../workspace/db.js";
-import { loadTenantRuntime } from "../tenant-runtime.js";
+import { loadTenantRuntime, waCfgFor } from "../tenant-runtime.js";
 import { openingsFor, visitsFor } from "../availability.js";
 import { isVisionMime, photoUserText, toBase64, VISION_MAX_BYTES } from "../vision.js";
 import { tokensLast24h } from "../budget.js";
@@ -31,7 +31,8 @@ import { logger, errField } from "../log.js";
 import type { NotifyTarget } from "../notify.js";
 import { FALLBACK_BRAIN, FALLBACK_NOTIFICATIONS } from "../tenant-fallback.js";
 import { PG_MISS, pgThread, pgIngest, pgSink, queueReply } from "./persist.js";
-import { sendText, alertStaff } from "./alerts.js";
+import { alertStaff } from "./alerts.js";
+import { whatsappSender, type Wire } from "../workspace/core.js";
 import { MAX_REPLIES_PER_DAY, PAUSE_MS, ageVerdict, threadVerdict, holdPlan, layerTwo, holdCopy } from "./steps.js";
 
 /** Gate 1b: read the bot's memory from Postgres instead of Blob. */
@@ -175,13 +176,21 @@ export async function handleInbound(
       [IngestResult | null, ThreadState];
   }
   const ingestMs = Date.now() - t0;
-  const sink = pgSink(db, tenantId, ing, rt, channel);
-  // One door out for this message's channel: WhatsApp on the tenant's
-  // credentials, or the carrier that brought the text in, which shapes the
-  // words for its wire (the footer on the first reply to a person).
+  // This message's wires: WhatsApp on the tenant's credentials (the
+  // environment's pair only for the environment's own number), or the
+  // carrier that brought the text in. Bound here, where the credentials
+  // are; the door refuses when the wire for this channel is missing.
+  const wires: Wire = {
+    whatsapp: whatsappSender(waCfgFor(rt, isEnvDefault)),
+    ...(carrier ? { sms: (to: string, p: { body: string }) => carrier.send(to, p.body) } : {}),
+  };
+  const sink = pgSink(db, tenantId, ing, rt, channel, wires);
+  // One door out: the carrier shapes the words for its wire (the footer on
+  // the first reply to a person), and the sink's door sends them -- re-reading
+  // consent, the pause and the workspace's status the moment before.
   const firstReply = thread.replies.length === 0 && !thread.history.some((h) => h.role === "assistant");
   const wire = (text: string) => (carrier ? carrier.body(text, firstReply) : text);
-  const send = (text: string) => (carrier ? carrier.send(from, wire(text)) : sendText(from, text, rt, isEnvDefault));
+  const send = (text: string, meta?: BrainMeta) => sink.deliver(from, wire(text), meta);
 
   // Atomic concurrent-redelivery gate. PG_READS implies it: Postgres-sourced
   // memory carries no `seen` list, so is_new IS the dedupe — and it is stronger
@@ -676,13 +685,14 @@ export async function handleInbound(
     return;
   }
 
-  const sent = await send(replyText);
+  const sent = await send(replyText, brainMeta);
   const tSent = Date.now();
-  if (sent.ok) {
+  if (sent.outcome === "sent") {
     thread.history.push({ role: "user", content: bodyText });
     thread.history.push({ role: "assistant", content: replyText });
     thread.replies.push(Date.now());
-    const post: Promise<unknown>[] = [sink.outbound(replyText, sent.wamid, brainMeta)];
+    // The door recorded the row; what is left is the usage and the handoff.
+    const post: Promise<unknown>[] = [];
     if (usage) post.push(sink.usage({ ...usage, ...replyQuality }));
     if (escalate) {
       thread.pausedUntil = Date.now() + pauseMs;
@@ -693,18 +703,25 @@ export async function handleInbound(
     await Promise.all(post);
     await saveThread(ns, from, thread);
     await sink.processed();
+  } else if (sent.outcome === "refused") {
+    // The wire found what the gates above could not see a moment ago: the
+    // person asked to stop, a human took the thread, the workspace paused.
+    // Each of those already has its person; the message is kept and done.
+    await saveThread(ns, from, thread);
+    L.info("wa_refused_at_wire", { reason: sent.reason });
+    await sink.processed();
   } else {
     // The customer got NO reply and Meta already has its 200 — this must be
     // loud, and the message must stay visibly unprocessed for reconciliation.
+    // The door wrote the failed row and its event; the people are told here.
     await saveThread(ns, from, thread);
     await Promise.all([
       alertStaff(from, bodyText, "(send failed — the customer received no reply)", "wa_send_failed", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
-      sink.sendFailed(sent.status),
       sink.escalate("send_failed", `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`),
     ]);
   }
   L.info("wa_replied", {
-    escalate, sent: sent.ok, store: storeBackend(), memory,
+    escalate, sent: sent.outcome === "sent", store: storeBackend(), memory,
     ingest_ms: ingestMs, post_ms: Date.now() - tSent,
   });
 }

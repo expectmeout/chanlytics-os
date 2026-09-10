@@ -97,9 +97,11 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
   const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
   for (const s of ["export async function pgIngest(", "export async function pgSafe<T>(", "export function pgSink(", "export async function queueReply(", "export async function pgThread("]) assert.ok(persist.includes(s), s);
   const alerts = readCode("apps/edge/lib/whatsapp/alerts.ts");
-  for (const s of ["export async function sendText(", "export async function alertStaff(", "export async function alertUnroutable("]) assert.ok(alerts.includes(s), s);
+  for (const s of ["export async function alertStaff(", "export async function alertUnroutable("]) assert.ok(alerts.includes(s), s);
+  assert.ok(!alerts.includes("sendText("), "the customer is not texted from the alerts module: the door does that");
   // The tenant's credentials or none: waCfgFor answers null for a tenant with
-  // nothing in the vault, and the send is refused rather than made on the
-  // environment's pair (per-tenant-credentials.test.mjs runs the resolver).
-  assert.ok(alerts.includes("const cfg = waCfgFor(rt, arrivedOnEnvNumber);") && alerts.includes("waSendText(cfg, to, body)"), "the customer is texted on the tenant's credentials, or not at all");
+  // nothing in the vault, and the door refuses rather than sending on the
+  // environment's pair (per-tenant-credentials.test.mjs runs the resolver,
+  // deliver.test.mjs runs the door).
+  assert.ok(inbound.includes("whatsapp: whatsappSender(waCfgFor(rt, isEnvDefault)),") && inbound.includes("const send = (text: string, meta?: BrainMeta) => sink.deliver(from, wire(text), meta);"), "the customer is texted on the tenant's credentials, through the door, or not at all");
 });
