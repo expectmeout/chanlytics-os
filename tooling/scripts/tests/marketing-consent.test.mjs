@@ -176,7 +176,15 @@ test("the message flow filed with the carriers describes both opt-ins, separatel
   assert.match(flow, /TWO SEPARATE opt-ins/);
   assert.match(flow, /TRANSACTIONAL/);
   assert.match(flow, /PROMOTIONAL/);
-  assert.match(flow, /neither of which grants the other/);
+  // A TEST THAT PINNED A FALSE STATEMENT. It asserted "neither of which grants
+  // the other" -- which this product's own keyword table contradicts, and which
+  // sat in MESSAGE_FLOW, the field error 30913 names. The description's copy of
+  // the same claim was corrected and this one was missed, so the suite went green
+  // over a sentence the carriers were reading and refusing.
+  assert.doesNotMatch(flow, /neither of which grants the other/,
+    "REGRESSION: a claim to a regulator that OPT_IN_PATTERN contradicts");
+  assert.match(flow, /NEVER enrols anyone in promotional messaging/, "the direction 30913 is about, stated absolutely");
+  assert.match(flow, /the only direction in which one answer implies the other/, "and the asymmetry named rather than hidden");
   assert.match(flow, /is not a condition of any purchase/);
   assert.match(flow, /recorded against that customer separately/);
   // Both keywords are named, and they are the ones the product actually honours.
