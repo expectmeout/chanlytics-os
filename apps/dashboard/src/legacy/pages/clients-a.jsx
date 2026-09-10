@@ -1110,8 +1110,14 @@ const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash })
   // control was titled for offers and wrote the conversational column, so a salon
   // recording thirty signed marketing consents changed the one field that does not
   // authorise a promotion, and the composer then refused all thirty.
-  const yes = (purpose, source) => run(
-    () => (purpose === "marketing" ? window.__setPersonMarketingConsentMany : window.__setPersonConsentMany)(
+  // Each door checked before it is called (Window contracts): the menu below only
+  // gates on the conversational one, and a missing global inside `run` would leave
+  // `busy` set for good.
+  const yes = (purpose, source) => {
+    const send = purpose === "marketing" ? window.__setPersonMarketingConsentMany : window.__setPersonConsentMany;
+    if (!send) { flash({ msg: <>That answer cannot be recorded here.</> }); return; }
+    return run(
+    () => send(
       ids,
       { consent: "opted_in", source: source.id },
     ),
@@ -1121,7 +1127,8 @@ const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash })
         {r.failed ? ` · ${r.failed} not recorded` : ""} · {source.label.toLowerCase()}
       </>
     ),
-  );
+    );
+  };
   const exportCsv = () => { plDownload(`people-${new Date().toISOString().slice(0, 10)}.csv`, plCsv(picked)); flash({ msg: <>{picked.length} exported as a CSV</> }); };
   const sources = (window.__consentSources || []).filter((s) => s.id !== "customer_message");
   return (
@@ -1155,8 +1162,9 @@ const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash })
           items={[
             { header: "Yes to messages about their visit…" },
             ...sources.map((s) => ({ label: s.label, icon: "check", onClick: () => yes("conversational", s) })),
-            { header: "Yes to offers and news…" },
-            ...sources.map((s) => ({ label: s.label, icon: "tag", onClick: () => yes("marketing", s) })),
+            ...(window.__setPersonMarketingConsentMany
+              ? [{ header: "Yes to offers and news…" }, ...sources.map((s) => ({ label: s.label, icon: "tag", onClick: () => yes("marketing", s) }))]
+              : []),
           ]}
         />
       )}

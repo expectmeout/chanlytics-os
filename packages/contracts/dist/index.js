@@ -2904,6 +2904,14 @@ function consentOf(r, nowMs) {
     marketingSub
   };
 }
+function mayReceive(r, purpose) {
+  if (!r.phone) return false;
+  return mayMessageFor(
+    { consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing },
+    purpose,
+    { proactive: true }
+  ).ok;
+}
 function receptionistOf(r, nowMs) {
   if (isOwned(r, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
   if (r.open_escalation_reason) return { tone: "escalated", label: `Escalated, ${reasonShort(r.open_escalation_reason)}` };
@@ -3007,7 +3015,10 @@ var PEOPLE_LISTS = [
   { id: "opted_in", label: "Said yes to messages", group: "reach", test: (v) => v.consent.state === "opted_in" },
   // The promotional audience, on its own column. The only people a MARKETING
   // broadcast may reach.
-  { id: "offers_ok", label: "Can receive offers", group: "reach", test: (v) => v.consent.marketing === "opted_in" },
+  // CAN receive, so it is the broadcast's own rule -- a yes to offers AND a number --
+  // not the bare answer, which was the difference between this list and what the
+  // route would actually enrol.
+  { id: "offers_ok", label: "Can receive offers", group: "reach", test: (v) => mayReceive(v, "marketing") },
   { id: "opted_out", label: "Opted out", group: "reach", test: (v) => v.consent.state === "opted_out" }
 ];
 var LIST_STEPS = {
@@ -3029,8 +3040,8 @@ function peopleListAction(id, members) {
   const step = LIST_STEPS[id];
   if (!step) return null;
   if (!step.broadcast) return { text: step.text ?? "", cta: step.cta, to: step.to, enabled: members.length > 0 };
-  const yes = members.filter((m) => m.consent.marketing === "opted_in").length;
-  if (yes === 0) {
+  const offersYes = members.filter((m) => mayReceive(m, "marketing")).length;
+  if (offersYes === 0) {
     return {
       text: members.length ? "Nobody on this list has said yes to offers yet \u2014 a broadcast reaches only that answer. The phrase and the QR are on Broadcasts." : "Nobody here right now.",
       cta: step.cta,
@@ -3038,7 +3049,7 @@ function peopleListAction(id, members) {
       enabled: false
     };
   }
-  return { text: `${yes} of ${members.length} on this list said yes to offers \u2014 a broadcast reaches them.`, cta: step.cta, to: step.to, enabled: true };
+  return { text: `${offersYes} of ${members.length} on this list said yes to offers \u2014 a broadcast reaches them.`, cta: step.cta, to: step.to, enabled: true };
 }
 function peopleAggregates(rows, nowMs) {
   let needsYou = 0;
@@ -4825,14 +4836,6 @@ var BROADCAST_SCHEDULE_MAX_DAYS = 30;
 var BROADCAST_NAME_MAX = 80;
 var AUDIENCE_KINDS = ["everyone", "list", "saved"];
 var EVERYONE_LABEL = "Everyone who said yes";
-function mayReceive(r, purpose) {
-  if (!r.phone) return false;
-  return mayMessageFor(
-    { consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing },
-    purpose,
-    { proactive: true }
-  ).ok;
-}
 function eligibleFor(rows, kind, id, savedIds, purpose) {
   let pool = rows;
   if (kind === "list") {
@@ -6187,7 +6190,7 @@ function setupSteps(i, nowMs = Date.now()) {
   } else if (voice.present) {
     row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: `Your line ${voice.number ? `${voiceNum} ` : ""}is switched off \u2014 the receptionist is not answering it.`, details: [], verb: { label: "Open Connections", to: "admin/integrations" } });
   } else if (ownLine && lineStuckProvisioning(ownLine, nowMs)) {
-    row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Setting up ${lineNum} stopped while ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}, ${agoWords(Date.parse(ownLine.state_since), nowMs)}. A person at Chanlytics has it.`, details: ["Retry from here \u2014 it picks up where it stopped and buys nothing twice", "We have been told, and it is retried automatically too"], verb: { label: "Retry", to: `verb:retry-line:${ownLine.id}` } });
+    row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Setting up ${lineNum} stopped while ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}, ${agoWords(Date.parse(ownLine.state_since), nowMs)}.`, details: ["It is retried automatically, usually within a quarter of an hour, and Chanlytics is told when it is", "Retry from here \u2014 it picks up where it stopped and buys nothing twice"], verb: { label: "Retry", to: `verb:retry-line:${ownLine.id}` } });
   } else if (ownLine && ownLine.voice_state === "provisioning") {
     row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Setting up ${lineNum} \u2014 ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}, since ${agoWords(Date.parse(ownLine.state_since), nowMs)}.`, details: ["Usually a minute or two; this page updates by itself"], verb: null });
   } else if (ownLine && ownLine.voice_state === "failed") {

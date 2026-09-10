@@ -99,8 +99,13 @@ const ListsReal = ({ initialId = null }) => {
   // who had texted START looked ready to broadcast to and the composer refused
   // every one of them. Both are shown, because the gap between them is the thing
   // the owner needs to see: it is exactly who to go and ask.
-  const yes = members.filter((p) => p.consent.marketing === "opted_in").length;
-  const talkYes = members.filter((p) => p.consent.state === "opted_in").length;
+  // Who a broadcast from here would REACH -- the route's own rule, so this count and
+  // the audience the composer enrols are the same number. The answer alone left out
+  // the number to send to. A missing rule shows nobody, which hides the button
+  // rather than offering one that the route would refuse.
+  const reach = window.__mayReceive;
+  const offersYes = reach ? members.filter((p) => reach(p, "marketing")).length : 0;
+  const messagesYes = members.filter((p) => p.consent.state === "opted_in").length;
   const label = current ? (kind === "saved" ? current.name : current.label) : "";
 
   const run = async (fn, msg) => {
@@ -176,13 +181,13 @@ const ListsReal = ({ initialId = null }) => {
                   </span>
                 )}
                 <span className="cl-section-sub" style={{ marginLeft: 10 }}>
-                  {members.length} {members.length === 1 ? "person" : "people"} · {yes} said yes to offers
-                  {talkYes > yes ? ` · ${talkYes} said yes to messages` : ""}
+                  {members.length} {members.length === 1 ? "person" : "people"} · {offersYes} said yes to offers
+                  {messagesYes > offersYes ? ` · ${messagesYes} said yes to messages` : ""}
                   {kind === "list" ? " · keeps itself current" : " · kept by hand"}
                 </span>
               </div>
               <div className="bc-chips">
-                {yes > 0 && (
+                {offersYes > 0 && (
                   <button className="btn btn-primary btn-sm" onClick={useInBroadcast} data-testid="lists-use-in-broadcast">
                     <Icon name="wave" size={11} /> Use in a broadcast
                   </button>
@@ -237,10 +242,10 @@ const ListsReal = ({ initialId = null }) => {
                 </tbody>
               </table>
             </div>
-            {yes === 0 && members.length > 0 && (
+            {offersYes === 0 && members.length > 0 && (
               <div className="cl-prof-aut-hint" style={{ marginTop: 8 }}>
-                {talkYes > 0
-                  ? <>Nobody on this list has said yes to OFFERS yet, so there is no one to send a promotion to — though {talkYes === 1 ? "one of them has" : `${talkYes} of them have`} said yes to messages about their own visit. Offers are a separate answer: record it under “Offers and news” on their profile, or get their yes with the phrase and QR on Broadcasts.</>
+                {messagesYes > 0
+                  ? <>Nobody on this list has said yes to OFFERS yet, so there is no one to send a promotion to — though {messagesYes === 1 ? "one of them has" : `${messagesYes} of them have`} said yes to messages about their own visit. Offers are a separate answer: record it under “Offers and news” on their profile, or get their yes with the phrase and QR on Broadcasts.</>
                   : <>Nobody on this list has said yes to offers yet, so there is no one to broadcast to. Record their answer on their profile, or get their yes with the phrase and QR on Broadcasts.</>}
               </div>
             )}

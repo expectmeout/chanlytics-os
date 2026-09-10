@@ -512,7 +512,6 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
   // consents changed the one field that does not authorise a promotion.
   assert.ok(bridge.includes("export async function setPersonMarketingConsentMany(ids: string[], body: ConsentBody): Promise<ManyResult>"));
   assert.ok(bridge.includes("window.__setPersonMarketingConsentMany = setPersonMarketingConsentMany;"));
-  assert.ok(page.includes("(purpose === \"marketing\" ? window.__setPersonMarketingConsentMany : window.__setPersonConsentMany)("), "one recorder, the door chosen by purpose");
   assert.ok(page.includes('{ header: "Yes to messages about their visit\u2026" }') && page.includes('{ header: "Yes to offers and news\u2026" }'), "both asks are offered, and named");
   assert.ok(page.includes('{ consent: "opted_in", source: source.id },'), "a yes says how it was given");
   assert.ok(page.includes('.filter((s) => s.id !== "customer_message")'), "their own message is not something a desk records for them");

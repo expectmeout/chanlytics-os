@@ -26,6 +26,8 @@ import {
   PROVISIONING_DEADLINE_MS, lineStuckProvisioning, lineRetryRefusal, setupSteps, platformLineActions, channelFor, toChannelVM,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
+import { fakeDb, fakeLog } from "./_fake-db.mjs";
+import { claimLineForResume, sweepStuckLines, retryRequestedBy, automaticResumesOf, MAX_AUTOMATIC_RESUMES } from "../../../apps/edge/lib/line-resume.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const NOW = 1_800_000_000_000;
@@ -93,7 +95,14 @@ test("THE OWNER: past the deadline the row stops saying 'a minute or two' and of
   const stuck = setupSteps(setupDto([line({ state_since: ago(30 * 60_000) })]), NOW);
   const r = rowOf(stuck, "line");
   assert.match(r.sentence, /stopped while/, "it says it stopped");
-  assert.match(r.sentence, /A person at Chanlytics has it/);
+  // It says what WILL happen, not what has. This row used to claim "A person at
+  // Chanlytics has it" and "We have been told" -- and nothing had told anybody: a
+  // saga cut off by its lambda returns nothing, so the failure email never fires.
+  // The sweep's first pickup is what tells the platform now, and that comes after
+  // this row first shows.
+  assert.doesNotMatch(r.sentence, /A person at Chanlytics has it/, "REGRESSION: a claim nothing had made true");
+  assert.ok(!r.details.some((d) => /We have been told/.test(d)), "REGRESSION: 'we have been told' before anybody was");
+  assert.ok(r.details.some((d) => /Chanlytics is told when it is/.test(d)), "and it says when somebody will be");
   assert.ok(!/minute or two/.test(r.details.join(" ")), "REGRESSION: 'usually a minute or two', half an hour in");
   assert.equal(r.verb.label, "Retry");
   assert.match(r.verb.to, /^verb:retry-line:/, "the same verb the failed branch has always had");
@@ -152,14 +161,12 @@ test("the retry rule accepts a line the wall killed, and refuses one that is sti
   }
 });
 
-test("the sweep resumes them unasked, through the same function the buttons call", () => {
+test("the sweep's route: its own preconditions, its bound, its schedule, and its 60 seconds", () => {
+  // What the sweep DECIDES -- which lines, the take, the count, when the platform
+  // hears -- moved to lib/line-resume.ts and is run below against a fake database;
+  // the pins that read those decisions off the route went with it. What stays is
+  // what nothing runs: the route's own refusals, and configuration.
   const sweep = readCode("apps/edge/api/cron/lines.ts");
-  // The deadline, in SQL for the read and in the predicate for the decision.
-  assert.match(sweep, /PROVISIONING_DEADLINE_MS/);
-  assert.match(sweep, /\.eq\("voice_state", "provisioning"\)/);
-  assert.match(sweep, /\.lt\("state_since", cutoff\)/);
-  assert.match(sweep, /lineStuckProvisioning\(lineForClient\(r\), Date\.now\(\)\)/);
-  assert.match(sweep, /\.order\("state_since", \{ ascending: true \}\)/, "oldest first, so a backlog drains in order");
   // A small bound, because each item is a whole saga and this sweep exists to clean
   // up a half-run saga rather than to create more of them.
   assert.match(sweep, /const MAX_PER_TICK = 2;/);
@@ -167,8 +174,6 @@ test("the sweep resumes them unasked, through the same function the buttons call
   // provision says so instead of reporting a clean sweep over lines it never touched.
   assert.match(sweep, /no_line_provider/);
   assert.match(sweep, /no_provider_key/);
-  // And the ONE function that also tells the workspace and the platform.
-  assert.match(sweep, /provisionLine\(db, choice, \{ apiKey \}, \{ fnSecret \}, t\.data, rowToLine\(row\), "sweep"\)/);
 
   // Registered, scheduled, and watched from its first tick.
   const m = readRaw("supabase/migrations/00097_a_line_stops_being_stuck.sql");
@@ -178,6 +183,171 @@ test("the sweep resumes them unasked, through the same function the buttons call
   assert.match(m, /cron\.schedule\('lines-sweep', '8,23,38,53 \* \* \* \*'/);
   assert.doesNotMatch(m, /cron\.schedule\('lines-sweep', '13,43/, "never onto the health check's own grid");
   assert.match(readRaw("apps/edge/vercel.json"), /"api\/cron\/lines\.ts"/, "or Vercel gives it ten seconds");
+});
+
+/* ---------------------- taking a line, and the sweep, run ---------------------- */
+
+const TENANT = { id: "22222222-2222-4222-8222-222222222222", name: "Northside Movers" };
+/** A row as the database holds it: the columns line-resume reads, and its facts. */
+const dbRow = (over = {}) => ({
+  id: "33333333-3333-4333-8333-333333333333",
+  tenant_id: TENANT.id,
+  e164: "+13055550100",
+  voice_state: "provisioning",
+  step: "trunk",
+  last_error: null,
+  state_since: ago(30 * 60_000),
+  facts: {},
+  ...over,
+});
+/** What the sweep is handed, recording every call. */
+function deps({ resume = async () => ({ ok: true }) } = {}) {
+  const calls = { resume: [], alert: [], failed: [] };
+  return {
+    calls,
+    deps: {
+      resume: async (tenant, row) => { calls.resume.push({ tenant, row }); return resume(tenant, row); },
+      alert: async (subject, body) => { calls.alert.push({ subject, body }); },
+      reportFailed: async (tenant, row, error) => { calls.failed.push({ tenant, row, error }); },
+      now: () => NOW,
+      log: fakeLog(),
+    },
+  };
+}
+
+test("taking a line is exclusive: two callers, one line, exactly one of them wins", async () => {
+  // THE RACE. A resume used to be read-check-run. The sweep and an owner's Retry --
+  // or an owner and support at once -- could both read the line stuck and both run
+  // the same saga on one row: two trunks at the carrier, two writers on the row.
+  // Taking it is now one compare-and-swap, and the fake applies it the way Postgres
+  // does: to whatever matches at the moment it runs.
+  for (const start of [dbRow(), dbRow({ voice_state: "failed" })]) {
+    // Both callers read the SAME row before either acts -- that is the race.
+    const read = { ...start };
+    const db = fakeDb({ lines: [{ ...start }] });
+    const first = await claimLineForResume(db, read, NOW, "owner");
+    const second = await claimLineForResume(db, read, NOW, "support");
+    assert.ok(first, `${start.voice_state}: the first caller takes it`);
+    assert.equal(first.voice_state, "provisioning", "and the take is visible on the row");
+    assert.equal(first.state_since, new Date(NOW).toISOString(), "with a clock that restarts now");
+    assert.equal(second, null, `${start.voice_state}: the second caller's filters match nothing, so it learns somebody has it`);
+  }
+  // A saga that is genuinely still running is never taken from underneath itself.
+  const running = dbRow({ state_since: ago(60_000) });
+  assert.equal(await claimLineForResume(fakeDb({ lines: [{ ...running }] }), running, NOW, "sweep"), null);
+  // Nor is a line that answers.
+  const answering = dbRow({ voice_state: "answering" });
+  assert.equal(await claimLineForResume(fakeDb({ lines: [{ ...answering }] }), answering, NOW, "owner"), null);
+});
+
+test("a person's Retry clears the automatic count; the sweep's own tries are what it counts", async () => {
+  const worn = dbRow({ voice_state: "failed", facts: { automatic_resumes: MAX_AUTOMATIC_RESUMES, trunk_ready: true } });
+  const byOwner = await claimLineForResume(fakeDb({ lines: [{ ...worn }] }), worn, NOW, "owner");
+  assert.equal(automaticResumesOf(byOwner), 0, "a person pressing Retry is a fresh decision to try");
+  assert.equal(byOwner.facts.trunk_ready, true, "and every receipt the saga reads survives the take");
+
+  const stuck = dbRow({ facts: { automatic_resumes: 2 } });
+  const bySweep = await claimLineForResume(fakeDb({ lines: [{ ...stuck }] }), stuck, NOW, "sweep");
+  assert.equal(automaticResumesOf(bySweep), 2, "the sweep leaves its own count alone at the take");
+});
+
+test("who pressed Retry is who the platform is told pressed it", () => {
+  // The edge wrote "support" for every retry, so an owner pressing the button on
+  // their own Setup page reached the platform mailbox as "started by support".
+  assert.equal(retryRequestedBy("owner"), "owner");
+  for (const raw of ["support", undefined, null, "", "sweep", "OWNER"]) {
+    assert.equal(retryRequestedBy(raw), "support", `${JSON.stringify(raw)} came from somebody holding the diagnostic key`);
+  }
+});
+
+test("the sweep resumes a stuck line from the row it TOOK, counts the try, and tells the platform once", async () => {
+  const lines = [dbRow()];
+  const db = fakeDb({ lines, tenants: [{ ...TENANT }] });
+  const { calls, deps: d } = deps();
+  const out = await sweepStuckLines(db, d, 2);
+
+  assert.deepEqual(out, { stuck: 1, resumed: 1, failed: 0, gaveUp: 0, skipped: 0, unreadable: 0 });
+  assert.equal(calls.resume.length, 1);
+  // The saga starts from the row as it is after the take, never from the snapshot
+  // the sweep read -- which can predate steps another run finished.
+  assert.equal(calls.resume[0].row.state_since, new Date(NOW).toISOString());
+  assert.equal(automaticResumesOf(calls.resume[0].row), 1, "the saga is handed the counted row");
+  assert.equal(automaticResumesOf(lines[0]), 1, "and the count is on the row itself, for the next tick");
+  // "We have been told" is made TRUE here: this is the first moment anything in the
+  // product knows the line is stuck.
+  assert.equal(calls.alert.length, 1);
+  assert.match(calls.alert[0].subject, /^Line stuck · Northside Movers$/);
+  assert.match(calls.alert[0].body, /try 1 of 3/);
+  assert.equal(calls.failed.length, 0);
+});
+
+test("later tries go to the ledger, not the mailbox", async () => {
+  const lines = [dbRow({ facts: { automatic_resumes: 1 } })];
+  const { calls, deps: d } = deps();
+  const out = await sweepStuckLines(fakeDb({ lines, tenants: [{ ...TENANT }] }), d, 2);
+  assert.equal(out.resumed, 1);
+  assert.equal(calls.alert.length, 0, "the platform heard at the first try, and hears again only if it is handed a person");
+  assert.equal(automaticResumesOf(lines[0]), 2);
+});
+
+test("past the ceiling a line is handed to a person, in the same words a returned failure uses", async () => {
+  // Without a ceiling, a line that can never finish inside its lambda would be
+  // resumed and killed every quarter hour for ever.
+  const lines = [dbRow({ facts: { automatic_resumes: MAX_AUTOMATIC_RESUMES } })];
+  const { calls, deps: d } = deps();
+  const out = await sweepStuckLines(fakeDb({ lines, tenants: [{ ...TENANT }] }), d, 2);
+  assert.deepEqual(out, { stuck: 1, resumed: 0, failed: 0, gaveUp: 1, skipped: 0, unreadable: 0 });
+  assert.equal(calls.resume.length, 0, "no fourth automatic try");
+  assert.equal(lines[0].voice_state, "failed", "failed is the state every Retry button already knows");
+  assert.match(lines[0].last_error, /3 automatic tries did not finish it/);
+  assert.equal(calls.failed.length, 1, "told through reportLineFailed: the bell, the platform, the ledger");
+  assert.equal(calls.alert.length, 0);
+});
+
+test("a line somebody restarted between the sweep's read and its take is left to them", async () => {
+  // The race, run. The sweep reads two stuck lines; while it is resuming the first,
+  // somebody presses Retry on the second. The sweep's take of the second names a
+  // `state_since` that is no longer there, so it matches nothing.
+  const lines = [dbRow(), dbRow({ id: "44444444-4444-4444-8444-444444444444", state_since: ago(40 * 60_000) })];
+  const db = fakeDb({ lines, tenants: [{ ...TENANT }] });
+  const { calls, deps: d } = deps({
+    resume: async (_tenant, row) => {
+      const other = lines.find((l) => l.id !== row.id);
+      Object.assign(other, { state_since: new Date(NOW).toISOString(), voice_state: "provisioning" });
+      return { ok: true };
+    },
+  });
+  const out = await sweepStuckLines(db, d, 2);
+  assert.equal(out.resumed, 1);
+  assert.equal(out.skipped, 1, "the second line was somebody else's by then");
+  assert.equal(calls.resume.length, 1, "and exactly one saga ran");
+});
+
+test("a workspace that cannot be read leaves its line untouched for the next tick", async () => {
+  const lines = [dbRow()];
+  const before = { ...lines[0] };
+  const { calls, deps: d } = deps();
+  const out = await sweepStuckLines(fakeDb({ lines, tenants: [] }), d, 2);
+  assert.equal(out.unreadable, 1);
+  assert.equal(lines[0].state_since, before.state_since, "not taken and then abandoned");
+  assert.equal(calls.resume.length, 0);
+});
+
+test("a resume that dies outside its own error handling is counted, and the line stays taken", async () => {
+  const lines = [dbRow()];
+  const { deps: d } = deps({ resume: async () => { throw new Error("socket hang up"); } });
+  const out = await sweepStuckLines(fakeDb({ lines, tenants: [{ ...TENANT }] }), d, 2);
+  assert.equal(out.failed, 1);
+  assert.equal(automaticResumesOf(lines[0]), 1, "the try counts, so a line that always dies still reaches the ceiling");
+  assert.equal(lines[0].voice_state, "provisioning", "and the next tick after the deadline takes it again");
+});
+
+test("a sweep that cannot read the lines says so, instead of reporting a clean pass", async () => {
+  const { deps: d } = deps();
+  await assert.rejects(
+    sweepStuckLines(fakeDb({ lines: [dbRow()] }, { "lines.select": { message: "permission denied" } }), d, 2),
+    /lines_sweep_read: permission denied/,
+  );
 });
 
 /* ------------------- the money the row did not know about ------------------ */

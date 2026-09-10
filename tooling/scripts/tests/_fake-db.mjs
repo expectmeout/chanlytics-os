@@ -24,6 +24,15 @@ function matches(row, filters) {
     // every "not erased", "not accepted", "not revoked" read in this codebase
     // is written with. `eq` would not do -- SQL NULL is not equal to anything.
     : op === "is" ? (val === null ? row[col] == null : row[col] === val)
+    // PostgREST's `.not(col, "is", null)`: "has one". Modelled for Setup's count of
+    // who a broadcast can reach, which requires a number to send to -- the same rule
+    // `mayReceive` applies to a list, spelled in SQL because that one is a count.
+    : op === "not" ? (() => {
+        const [o, v] = val;
+        if (o === "is") return v === null ? row[col] != null : row[col] !== v;
+        if (o === "eq") return row[col] !== v;
+        throw new Error(`fakeDb: not(${col}, ${o}) is not modelled`);
+      })()
     // PostgREST's `.or("a.is.null,a.lt.x")`: any ONE of the clauses. Modelled
     // because a rotating sweep's whole correctness is "never-done first, then
     // the oldest" -- and that is a filter, not a shape a source scan can see.
@@ -98,6 +107,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}) {
       is(col, val) { q.filters.push(["is", col, val]); return proxy; },
       lt(col, val) { q.filters.push(["lt", col, val]); return proxy; },
       or(expr) { q.filters.push(["or", null, expr]); return proxy; },
+      not(col, operator, val) { q.filters.push(["not", col, [operator, val]]); return proxy; },
       // nullsFirst matters: a workspace that has never been swept must go
       // ahead of one swept an hour ago, or a new tenant waits behind the queue.
       order(col, opts) { q.order = col; q.nullsFirst = opts?.nullsFirst === true; q.desc = opts?.ascending === false; return proxy; },

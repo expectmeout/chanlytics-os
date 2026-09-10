@@ -99,7 +99,10 @@ export async function setupDtoFor(
     // feeds is the one that says whether a broadcast can go out at all -- the same
     // condition `contacts_marketing_reachable` (00095) uses.
     supabase.from("contacts").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId)
-      .eq("marketing_consent", "opted_in").eq("dnc", false).is("erased_at", null),
+      // `mayReceive(r, "marketing")` in SQL, because this is a count and not a list:
+      // the yes to offers, no do-not-contact, and a number to send to. The number was
+      // missing, so this row counted people the broadcast route would not enrol.
+      .eq("marketing_consent", "opted_in").eq("dnc", false).is("erased_at", null).not("phone_e164", "is", null),
     supabase.from("notifications").select("created_at").eq("tenant_id", tenantId).eq("subject_type", "setup")
       .order("created_at", { ascending: false }).limit(1).maybeSingle(),
     linesFor(supabase, tenantId),

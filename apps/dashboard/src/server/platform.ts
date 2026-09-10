@@ -174,7 +174,7 @@ import type { PlatformLineAction } from "@chanlytics/contracts";
 
 /** The edge call each action makes. Written out so the set is a list somebody can read, not a parameter. */
 const EDGE_OP: Record<PlatformLineAction, (tenantId: string, lineId: string) => Record<string, unknown>> = {
-  retry: (tenant_id, line_id) => ({ op: "retry", tenant_id, line_id }),
+  retry: (tenant_id, line_id) => ({ op: "retry", tenant_id, line_id, by: "support" }),
   // `refile` is the same edge operation as an owner's own registration, with the
   // flag that lets it replace a rehearsal or resend a rejected campaign -- the
   // two things an owner may not do and support must.

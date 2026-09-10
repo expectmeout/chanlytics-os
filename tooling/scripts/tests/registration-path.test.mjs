@@ -312,7 +312,7 @@ function api(read, saved = []) {
 }
 
 /** The field boxes on screen, by column, in the order they are rendered. */
-const boxes = (tree) => ids(tree).filter((t) => /^biz-[a-z_]+$/.test(t) && !["biz-fork", "biz-limits", "biz-answer", "biz-save", "biz-file", "biz-arm"].includes(t));
+const boxes = (tree) => ids(tree).filter((t) => /^biz-[a-z_]+$/.test(t) && !["biz-fork", "biz-limits", "biz-answer", "biz-save", "biz-file", "biz-arm", "biz-rejected"].includes(t));
 
 test("the form asks the question before it renders either registration", async () => {
   globalThis.window.__businessRecord = api({ ok: true, record: null, path: null, problems: {} });
@@ -391,6 +391,28 @@ test("the price asked at the button is the price of the registration being filed
     assert.ok(textOf(byId(page.tree, "biz-arm")).includes(REGISTRATION_COST_WORDS[path]), path);
     assert.ok(byId(page.tree, "biz-file-yes"), "and it is asked once, plainly");
   }
+});
+
+test("a filing the carriers sent back offers no button that can only be refused", async () => {
+  // Resubmitting a campaign the carriers rejected is support's action (gate 6): the
+  // owner's route never sends `refile: true`. So on a rejected line "File with the
+  // carriers" could only be refused -- a dead button on the form an owner opens
+  // straight after being told their filing came back. Saving corrections stays
+  // theirs, and is what unblocks the resubmit.
+  const record = businessRecordForPath({ ...RECORD }, "standard");
+  globalThis.window.__businessRecord = api({ ok: true, record, path: "standard", problems: {} });
+  const sentBack = mount({ line: { id: LINE, sms_state: "rejected" }, flash: () => {} });
+  await sentBack.flush();
+  assert.equal(byId(sentBack.tree, "biz-file"), null, "no File button on a line the carriers sent back");
+  assert.match(textOf(byId(sentBack.tree, "biz-rejected")), /Chanlytics sends the registration back to the carriers for you/);
+  assert.ok(byId(sentBack.tree, "biz-save"), "and saving the corrections is still theirs");
+
+  // Every other state keeps the button it had.
+  globalThis.window.__businessRecord = api({ ok: true, record, path: "standard", problems: {} });
+  const fresh = mount({ line: { id: LINE, sms_state: "none" }, flash: () => {} });
+  await fresh.flush();
+  assert.ok(byId(fresh.tree, "biz-file"));
+  assert.equal(byId(fresh.tree, "biz-rejected"), null);
 });
 
 test("a filing already with the carriers says so, because it cannot be withdrawn", async () => {

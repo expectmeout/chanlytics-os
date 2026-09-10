@@ -393,12 +393,19 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
   } else if (voice.present) {
     row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: `Your line ${voice.number ? `${voiceNum} ` : ""}is switched off — the receptionist is not answering it.`, details: [], verb: { label: "Open Connections", to: "admin/integrations" } });
   } else if (ownLine && lineStuckProvisioning(ownLine, nowMs)) {
+    // IT SAYS WHAT WILL HAPPEN, NOT WHAT HAS. This row used to read "A person at
+    // Chanlytics has it" and "We have been told" -- and nothing had been: a saga
+    // cut off by its lambda returns nothing, and the failure email only fires on a
+    // returned failure. Now the lines sweep tells the platform the first time it
+    // picks a stuck line up (edge/lib/line-resume.ts), which is usually within a
+    // quarter of an hour of the deadline and not before it. So until then the true
+    // sentence is the one about the future.
     // PAST THE DEADLINE. The same words and the same button the `failed` branch
     // below gives, because it is the same situation: the setup stopped and a
     // person can restart it. It used to read "usually a minute or two; this page
     // updates by itself" with no verb, which after an hour is untrue twice over —
     // and the retry it withheld is the only thing that would have finished the job.
-    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Setting up ${lineNum} stopped while ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}, ${agoWords(Date.parse(ownLine.state_since), nowMs)}. A person at Chanlytics has it.`, details: ["Retry from here — it picks up where it stopped and buys nothing twice", "We have been told, and it is retried automatically too"], verb: { label: "Retry", to: `verb:retry-line:${ownLine.id}` } });
+    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Setting up ${lineNum} stopped while ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}, ${agoWords(Date.parse(ownLine.state_since), nowMs)}.`, details: ["It is retried automatically, usually within a quarter of an hour, and Chanlytics is told when it is", "Retry from here — it picks up where it stopped and buys nothing twice"], verb: { label: "Retry", to: `verb:retry-line:${ownLine.id}` } });
   } else if (ownLine && ownLine.voice_state === "provisioning") {
     row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Setting up ${lineNum} — ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}, since ${agoWords(Date.parse(ownLine.state_since), nowMs)}.`, details: ["Usually a minute or two; this page updates by itself"], verb: null });
   } else if (ownLine && ownLine.voice_state === "failed") {
@@ -515,7 +522,9 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
     });
   }
 
-  // 8. The first yes — the only way onto a broadcast.
+  // 8. The first yes to OFFERS — the only answer a promotional broadcast may be
+  //    sent on. (A utility template reaches the conversational yes instead; this
+  //    row is about the one that gates a promotion.)
   //
   // The OFFERS answer decides this row, because a marketing broadcast is what it
   // sends people to. The conversational count rides along as a detail when the

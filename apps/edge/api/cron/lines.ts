@@ -31,9 +31,10 @@ import { json } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
-import { lineProviderFromEnv, lineForClient, rowToLine } from "../../lib/lines.js";
-import { lineStuckProvisioning, PROVISIONING_DEADLINE_MS } from "../../lib/workspace/contracts.js";
-import { provisionLine } from "../../lib/provision.js";
+import { lineProviderFromEnv, rowToLine } from "../../lib/lines.js";
+import { notify } from "../../lib/notify.js";
+import { provisionLine, reportLineFailed } from "../../lib/provision.js";
+import { sweepStuckLines } from "../../lib/line-resume.js";
 
 export const config = { maxDuration: 60 };
 
@@ -63,60 +64,28 @@ export async function POST(request: Request): Promise<Response> {
   if (!choice) return json(503, { ok: false, error: "no_line_provider" });
   if (!apiKey || !fnSecret) return json(503, { ok: false, error: !apiKey ? "no_provider_key" : "no_fn_secret" });
 
-  // Oldest first, so a backlog drains in the order it built up. The deadline is
-  // applied in SQL as well as in the predicate below: filtering here keeps the read
-  // small, and `lineStuckProvisioning` is what actually decides — one rule, and the
-  // page, the button and this all read it.
-  const cutoff = new Date(Date.now() - PROVISIONING_DEADLINE_MS).toISOString();
-  const { data: rows, error } = await db
-    .from("lines")
-    .select("*")
-    .eq("voice_state", "provisioning")
-    .lt("state_since", cutoff)
-    .order("state_since", { ascending: true })
-    .limit(MAX_PER_TICK);
-  if (error) return json(503, { ok: false, error: error.message });
-
-  const stuck = (rows ?? []).filter((r) => lineStuckProvisioning(lineForClient(r), Date.now()));
-  if (stuck.length === 0) {
-    L.info("lines_sweep_clear", { checked: (rows ?? []).length });
-    return json(200, { ok: true, stuck: 0, resumed: 0, failed: 0 });
+  // The decisions -- which lines, whether each is still owed an automatic try, the
+  // take that makes a resume exclusive, when the platform hears -- live in
+  // lib/line-resume.ts and run against a fake database in the tests. This route only
+  // wires the real provider in.
+  let result;
+  try {
+    result = await sweepStuckLines(db, {
+      resume: (tenant, row) => provisionLine(db, choice, { apiKey }, { fnSecret }, tenant, rowToLine(row), "sweep"),
+      alert: (subject, body) => notify({ tenantId: null, notifications: null, isEnvDefault: true }, { kind: "alert", subject, body }),
+      reportFailed: (tenant, row, error) => reportLineFailed(db, choice.name, tenant, row, row.step ?? "setting up", error, "sweep"),
+      now: () => Date.now(),
+      log: L,
+    }, MAX_PER_TICK);
+  } catch (e) {
+    return json(503, { ok: false, error: e instanceof Error ? e.message : String(e) });
   }
 
-  let resumed = 0;
-  let failed = 0;
-  let unreadable = 0;
-  for (const row of stuck) {
-    // The workspace, per line: this sweep crosses tenants, so there is no one
-    // tenant to have read at the top.
-    const t = await db.from("tenants").select("id, name").eq("id", row.tenant_id).maybeSingle();
-    if (t.error || !t.data) {
-      unreadable += 1;
-      L.error("lines_sweep_no_workspace", { line_id: row.id, tenant_id: row.tenant_id, error: t.error?.message ?? "not found" });
-      continue;
-    }
-    try {
-      // The same function the owner's button and support's button call, so the bell
-      // row, the platform email and the ledger event are the same three things a
-      // person pressing Retry would have produced. `by: "sweep"` is the only
-      // difference, and it is in the email so somebody reading it knows nobody asked.
-      const r = await provisionLine(db, choice, { apiKey }, { fnSecret }, t.data, rowToLine(row), "sweep");
-      if (r.ok) resumed += 1;
-      else failed += 1;
-    } catch (e) {
-      // A throw here means the saga died outside its own error handling. The row
-      // keeps `provisioning` and this sweep will find it again next tick, which is
-      // the behaviour that was missing in the first place.
-      failed += 1;
-      L.error("lines_sweep_threw", { line_id: row.id, error: e instanceof Error ? e.message : String(e) });
-    }
-  }
-
-  L.info("lines_sweep_done", { stuck: stuck.length, resumed, failed, unreadable });
+  L.info("lines_sweep_done", { ...result });
   // Every workspace unreadable is a database problem, not a line problem, and the
-  // sweep watcher should hear about it — the same shape cron/registrations uses.
-  if (unreadable > 0 && unreadable === stuck.length) {
-    return json(503, { ok: false, error: "no_workspace_readable", stuck: stuck.length });
+  // sweep watcher should hear about it -- the same shape cron/registrations uses.
+  if (result.unreadable > 0 && result.unreadable === result.stuck) {
+    return json(503, { ok: false, error: "no_workspace_readable", stuck: result.stuck });
   }
-  return json(200, { ok: true, stuck: stuck.length, resumed, failed, unreadable });
+  return json(200, { ok: true, ...result });
 }

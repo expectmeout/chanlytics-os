@@ -4,7 +4,7 @@
  * plain row work. All writes are ADDITIVE to the Blob path during dual-write.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { normalizePhone } from "@chanlytics/contracts";
+import { normalizePhone, type PurposeBearing } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -195,7 +195,11 @@ async function getOrCreateContact(
   return raced;
 }
 
-export interface OutboundTarget {
+/**
+ * `extends PurposeBearing` so the claim below is the compiler's and not only the
+ * comment's: this row can be handed to `mayMessageFor` whole.
+ */
+export interface OutboundTarget extends PurposeBearing {
   contactId: string;
   conversationId: string;
   /** 'unknown' | 'opted_in' | 'opted_out' — carried so no caller can send
@@ -210,7 +214,12 @@ export interface OutboundTarget {
    * could only ever ask half the question. The shape is now a `PurposeBearing`,
    * so `mayMessageFor` can be asked about either purpose without a second read.
    */
-  marketingConsent: string | null;
+  //
+  // Named as the column and `PurposeBearing` name it. It was `marketingConsent`,
+  // under a comment saying the row "is now a PurposeBearing" -- so handing it over
+  // whole compiled, read `marketing_consent` as absent, and failed CLOSED: every
+  // promotion silently refused, with no error anywhere to say why.
+  marketing_consent: string | null;
   /** A human has this thread until then. Carried for the same reason consent
    *  is: a sender that is not handed the fact cannot honour it. */
   pausedUntil: string | null;
@@ -276,7 +285,7 @@ export async function resolveOutboundTarget(
     pausedUntil: conv.paused_until ?? null,
     consent: contact.consent ?? null,
     dnc: contact.dnc ?? false,
-    marketingConsent: contact.marketing_consent ?? null,
+    marketing_consent: contact.marketing_consent ?? null,
   };
 }
 
