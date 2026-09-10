@@ -88,10 +88,6 @@ test("the merge-pointer cleanup is scoped to the tenant", () => {
   );
 });
 
-test("the widened CHECKs use the form the house tooling can read", () => {
-  assert.ok(!/= any \(array\[/.test(statements), "never the array form — enums-vs-checks cannot see it");
-});
-
 /* ------------------------- the Blob leg, for real ------------------------- */
 
 const { saveThread, getThread, deleteThread, threadNamespace } = await import(

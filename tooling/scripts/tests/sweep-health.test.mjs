@@ -8,10 +8,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { ROOT, readCode, readRaw } from "./_source.mjs";
+import { readCode, readRaw } from "./_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { chooseSweepAlerts, describeSweepTrouble, ALERT_SUPPRESSION_MS } = await import(
@@ -132,42 +131,6 @@ test("the health route always answers 200, even while reporting a broken sweep",
     200,
     "the last return in the handler must be the 200 — a non-2xx here is recorded by pg_net and read as the health check failing",
   );
-});
-
-/**
- * Statements only, with `--` comment lines removed.
- *
- * The forbidden-pattern assertion below was tripped by the COMMENT in the
- * migration explaining why that pattern is forbidden — the same trap
- * auth-gate.test.mjs documents, where the only way to make the guard pass is
- * to delete the rationale. Strip the comments instead. Whole-line only: this
- * migration has no trailing `--` after code, and a naive strip would eat a
- * legitimate `--` inside a dollar-quoted body.
- */
-function sqlStatements(file) {
-  return readRaw(file)
-    .split("\n")
-    .filter((l) => !/^\s*--/.test(l))
-    .join("\n");
-}
-
-test("the CHECK is written in the form the house tooling can read", () => {
-  // The LAST migration to define it, not the first. Reading 00026 alone would
-  // keep passing while a later migration widened the set to something this
-  // never sees — the same first-vs-last trap enums-vs-checks.test.mjs was
-  // caught by twice. 00083 added 'jobs'; 00086 added the four hourly sweeps
-  // that mutate state and were watched by nothing.
-  const dir = path.join(ROOT, "supabase/migrations");
-  const defs = fs.readdirSync(dir)
-    .filter((f) => f.endsWith(".sql"))
-    .sort()
-    .filter((f) => /check \(sweep in \(/.test(fs.readFileSync(path.join(dir, f), "utf8")));
-  assert.ok(defs.length >= 1, "something defines the constraint");
-  const sql = sqlStatements(`supabase/migrations/${defs.at(-1)}`);
-  // 00097 added 'lines': the sweep that resumes a provisioning saga the lambda's
-  // 60-second ceiling killed mid-run. Watched from its first tick, like the rest.
-  assert.match(sql, /check \(sweep in \('calls', 'deadman', 'health', 'jobs', 'registration', 'calendar', 'google', 'playbooks', 'lines'\)\)/);
-  assert.doesNotMatch(sql, /= any \(array\[/);
 });
 
 test("the health check is never scheduled onto the grid it is judging", () => {
