@@ -5867,6 +5867,9 @@ var BILLING_TRIAL_DAYS = 14;
 function receptionistOn(status) {
   return status === "trialing" || status === "active" || status === "past_due" || status === "incomplete" || status === "none";
 }
+function billingDoorOpen(b) {
+  return !!b && b.mode === "stripe" && b.ready;
+}
 function maySpend(mode, status) {
   if (mode !== "stripe") return true;
   return status === "trialing" || status === "active" || status === "past_due";
@@ -6144,7 +6147,7 @@ function setupSteps(i, nowMs = Date.now()) {
   const handoffNum = display(i.business.handoff);
   const rows = [];
   const row2 = (r) => rows.push({ ...r, stateWords: r.stateWords ?? SETUP_STATE_WORDS[r.state], later: !r.required && later.has(r.id) });
-  if (i.billing && i.billing.mode === "stripe" && i.billing.ready) {
+  if (billingDoorOpen(i.billing)) {
     const b = i.billing;
     if (b.status === "trialing" && (b.cancel_at || b.cancel_at_period_end)) {
       row2({ id: "billing", icon: "money", title: "Billing", state: "ready", required: true, sentence: `On trial, cancelled: the receptionist answers until ${dayWords(b.cancel_at ?? b.trial_end) || "the trial ends"}, then stops.`, details: ["Nothing is charged; undo the cancellation from Billing before then to keep it"], verb: { label: "Open Billing", to: "admin/billing" } });
@@ -6196,7 +6199,7 @@ function setupSteps(i, nowMs = Date.now()) {
   } else if (i.requests.line) {
     row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Requested ${agoWords(Date.parse(i.requests.line), nowMs)} \u2014 a person at Chanlytics will set up your line with you and reach you by email.`, details: [], verb: null });
   } else if (lines.ready) {
-    canSpend ? row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "Get a number for calls, or keep the one you have.", details: [`A local number is about $${lines.costs.local_number_month_usd.toFixed(2)} a month \xB7 your receptionist answers it \xB7 texting arrives when the carriers register it`], verb: { label: "Get a line", to: "verb:choose-line" } }) : row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "Add a card, then get a number for calls.", details: [`A local number is about $${lines.costs.local_number_month_usd.toFixed(2)} a month, billed with your subscription`, "Nothing is charged until your trial ends"], verb: { label: "Open Billing", to: "admin/billing" } });
+    canSpend ? row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "Get a number for calls, or keep the one you have.", details: [`A local number is about $${lines.costs.local_number_month_usd.toFixed(2)} a month \xB7 your receptionist answers it \xB7 texting arrives when the carriers register it`], verb: { label: "Get a line", to: "verb:choose-line" } }) : billingDoorOpen(i.billing) ? row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "Add a card, then get a number for calls.", details: [`A local number is about $${lines.costs.local_number_month_usd.toFixed(2)} a month, billed with your subscription`, "Nothing is charged until your trial ends"], verb: { label: "Open Billing", to: "admin/billing" } }) : row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "We set up your phone line with you.", details: ["A number, the receptionist answering it, and forwarding from the number you have", "Billing is not open on this deployment yet, so there is nothing to add a card to"], verb: { label: "Ask for a line", to: "verb:request-line" } });
   } else {
     row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "We set up your phone line with you.", details: ["A number, the receptionist answering it, and forwarding from the number you have"], verb: { label: "Ask for a line", to: "verb:request-line" } });
   }
@@ -7388,6 +7391,7 @@ export {
   autoReplyBell,
   autoReplyCandidates,
   billingAccountDto,
+  billingDoorOpen,
   bookedAfterAsk,
   brainMetaOf,
   broadcastName,

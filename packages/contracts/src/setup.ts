@@ -17,7 +17,7 @@ import type { FactConflict } from "./facts";
 import { agoWords, spanLabel } from "./time";
 import { CARRIER_WORDS, MODE_WORDS, forwardingTestOpen, type Carrier, type ForwardingMode } from "./forwarding";
 import { listingLine, type SetupGoogleFacts } from "./google";
-import { dayWords, trialWords, maySpend, type SetupBillingFacts } from "./billing";
+import { dayWords, trialWords, maySpend, billingDoorOpen, type SetupBillingFacts } from "./billing";
 import { SOLE_PROP_LIMITS } from "./registration-path";
 
 export interface SetupDto {
@@ -337,7 +337,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
 
   // 0. Billing — first, for a workspace that pays by card: the door before
   // the desk. A direct arrangement has no row; a closed door draws nothing.
-  if (i.billing && i.billing.mode === "stripe" && i.billing.ready) {
+  if (billingDoorOpen(i.billing)) {
     const b = i.billing;
     if (b.status === "trialing" && (b.cancel_at || b.cancel_at_period_end)) {
       row({ id: "billing", icon: "money", title: "Billing", state: "ready", required: true, sentence: `On trial, cancelled: the receptionist answers until ${dayWords(b.cancel_at ?? b.trial_end) || "the trial ends"}, then stops.`, details: ["Nothing is charged; undo the cancellation from Billing before then to keep it"], verb: { label: "Open Billing", to: "admin/billing" } });
@@ -414,7 +414,19 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
     // and reading a 402 they did not expect.
     canSpend
       ? row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "Get a number for calls, or keep the one you have.", details: [`A local number is about $${lines.costs.local_number_month_usd.toFixed(2)} a month · your receptionist answers it · texting arrives when the carriers register it`], verb: { label: "Get a line", to: "verb:choose-line" } })
-      : row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "Add a card, then get a number for calls.", details: [`A local number is about $${lines.costs.local_number_month_usd.toFixed(2)} a month, billed with your subscription`, "Nothing is charged until your trial ends"], verb: { label: "Open Billing", to: "admin/billing" } });
+      : billingDoorOpen(i.billing)
+        ? row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "Add a card, then get a number for calls.", details: [`A local number is about $${lines.costs.local_number_month_usd.toFixed(2)} a month, billed with your subscription`, "Nothing is charged until your trial ends"], verb: { label: "Open Billing", to: "admin/billing" } })
+        // CANNOT SPEND, AND THERE IS NO CARD TO ADD. Three states, not two: this
+        // row used to collapse the last into the middle one and send a brand-new
+        // self-serve workspace to a Billing page with every action false. The
+        // billing row above already drew nothing for exactly this case, so the two
+        // rows disagreed about one fact — which is why they now read one predicate.
+        //
+        // The honest offer is the one the branch below already makes for a
+        // deployment that cannot provision at all: a person sets the line up with
+        // them. It is true, it is actionable, and it does not require the owner to
+        // discover on a dead page that the product cannot take their money yet.
+        : row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "We set up your phone line with you.", details: ["A number, the receptionist answering it, and forwarding from the number you have", "Billing is not open on this deployment yet, so there is nothing to add a card to"], verb: { label: "Ask for a line", to: "verb:request-line" } });
   } else {
     // Until lines provision themselves, the ask is the owner's move; from then on it is ours.
     row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: "We set up your phone line with you.", details: ["A number, the receptionist answering it, and forwarding from the number you have"], verb: { label: "Ask for a line", to: "verb:request-line" } });
