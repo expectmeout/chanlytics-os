@@ -44,3 +44,5 @@ export * from "./business-record";
 export * from "./review-reply";
 export * from "./signup";
 export * from "./billing";
+export * from "./schema-sets";
+export * from "./schema-sets.generated";

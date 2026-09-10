@@ -1,3 +1,5 @@
+import { SchemaSet } from '@chanlytics/contracts';
+
 interface WaConfig {
     phoneId: string;
     accessToken: string;
@@ -164,6 +166,15 @@ declare function fetchMediaBytes(cfg: WaConfig, providerMediaId: string): Promis
     mime: string | null;
 } | null>;
 
+/**
+ * Retell voice adapter (Blueprint P2) — the second channel, mirroring the
+ * WhatsApp adapter's shape: normalize provider payloads into a canonical
+ * object, expose provider I/O, own provider-specific crypto. No persistence,
+ * no decisions, no tenant facts: config is passed in.
+ *
+ * Field names verified against the LIVE Retell account (2026-08-27).
+ */
+
 interface RetellConfig {
     apiKey: string;
 }
@@ -221,7 +232,7 @@ interface NormalizedCall {
     toE164: string | null;
     /** Retell's own lifecycle. not_connected: the dial never connected — it
      *  is recorded as an attempt, never counted as a call. */
-    status: "registered" | "ongoing" | "ended" | "error" | "not_connected";
+    status: SchemaSet<"calls.status">;
     startedAtIso: string | null;
     endedAtIso: string | null;
     durationMs: number | null;
@@ -888,9 +899,27 @@ interface DryProvider extends LineProvider {
 }
 declare function dryProvider(seed?: number): DryProvider;
 
-type LineStep = "subaccount" | "number" | "trunk" | "agent" | "import" | "messaging" | "channel";
+/**
+ * Getting a line: a saga of idempotent steps, each recorded on the row
+ * before the next runs (plan §5).
+ *
+ *   subaccount → number → trunk → agent → import → channel
+ *
+ * A step checks its own effect on the row first and skips what exists, so
+ * a retry resumes at the step that failed instead of buying twice. A
+ * failure leaves voice_state = failed with the step and the provider's
+ * words in last_error; success leaves answering. The saga is pure over its
+ * ports — the provider, the row store, the vault, the agent, Retell, the
+ * channel row — so the whole thing runs in a test with the dry provider
+ * and fakes, and the edge wires the real ones.
+ *
+ * Secrets (the subaccount token, the SIP password) go to the vault port
+ * and never onto the row's facts.
+ */
+
+type LineStep = SchemaSet<"lines.step">;
 declare const LINE_STEPS: readonly LineStep[];
-type LineVoiceState = "none" | "provisioning" | "answering" | "failed";
+type LineVoiceState = SchemaSet<"lines.voice_state">;
 /** The columns the saga reads and writes — a projection of the `lines` row. */
 interface LineRow {
     id: string;
@@ -1059,6 +1088,34 @@ declare function twilioSignature(authToken: string, url: string, form: Record<st
 /** Constant-time equality on the two base64 strings. */
 declare function sameSignature(a: string, b: string): boolean;
 declare function verifyTwilioSignature(authToken: string, url: string, form: Record<string, string>, header: string | null): Promise<boolean>;
+
+/**
+ * A2P 10DLC: registering one workspace with the carriers, as pure parts.
+ *
+ * The shape of it, from Twilio's ISV walkthrough: the business on record
+ * becomes a secondary customer profile under Chanlytics' own approved
+ * primary profile, that profile carries the business, the person who
+ * signs for it and the address, it is evaluated and submitted, an A2P
+ * messaging profile is built beside it, a brand is registered from the
+ * two, and a campaign is attached to the line's Messaging Service. Each
+ * step records what it made before the next runs, so a resumed
+ * registration repeats nothing and pays nothing twice.
+ *
+ * Policy ids read from Twilio's own Policies endpoint on 2026-09-08, not
+ * copied from a blog. Request shapes verified the same day against the
+ * ISV onboarding guide, the BrandRegistrations resource and the
+ * UsAppToPerson resource.
+ *
+ * WHOSE ACCOUNT. Every call here is made as the WORKSPACE'S OWN subaccount,
+ * which is what Twilio's ISV guide asks for: "create a Secondary Customer
+ * Profile under the customer's subaccount and register a Brand under the
+ * customer's subaccount". A brand registered on the parent is not shared
+ * with the subaccount that owns the Messaging Service, and the campaign is
+ * refused with 21717 — after the brand is registered and, on a real filing,
+ * paid for. Chanlytics' own primary profile is not moved into the
+ * subaccount; it is REFERENCED by sid, and that reference is the whole
+ * declaration that this business is ours.
+ */
 
 /** Trust Hub policies, by the names Twilio gives them. */
 declare const A2P_POLICIES: {
@@ -1355,8 +1412,9 @@ declare function updateCampaignRequest(messagingServiceSid: string, campaignSid:
  * compliance list is then empty.
  */
 declare function deleteCampaignRequest(messagingServiceSid: string, campaignSid: string): A2PRequest;
-type A2PStep = "profile" | "business" | "representative" | "address" | "document" | "primary" | "submit" | "a2p_profile" | "brand" | "campaign";
-declare const A2P_STEPS: readonly A2PStep[];
+type A2PStep = SchemaSet<"lines.reg_step">;
+/** In the order the saga walks them; schema-agreement.ts holds them to the column. */
+declare const A2P_STEPS: readonly ["profile", "business", "representative", "address", "document", "primary", "submit", "a2p_profile", "brand", "campaign"];
 /** What the registration has made so far. Every field is a receipt for one step. */
 interface A2PState {
     profileSid: string | null;

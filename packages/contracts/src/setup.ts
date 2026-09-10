@@ -12,6 +12,7 @@
  * us) · Ready. "Waiting on us" is real: a line is set up by a person at
  * Chanlytics until lines provision themselves (plan, step 3).
  */
+import type { SchemaSet } from "./schema-sets";
 import { formatPhoneDisplay } from "./phone";
 import type { FactConflict } from "./facts";
 import { agoWords, spanLabel } from "./time";
@@ -77,7 +78,7 @@ export interface LineDto {
   kind: string;
   provider: string;
   area_code: number | null;
-  voice_state: "none" | "provisioning" | "answering" | "failed";
+  voice_state: SchemaSet<"lines.voice_state">;
   sms_state: string;
   /** Where a carrier registration stopped, when one did. */
   reg_step?: string | null;

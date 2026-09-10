@@ -1,0 +1,99 @@
+/**
+ * The database's closed sets, and every hand-kept copy held to them.
+ *
+ * SCHEMA_SETS is generated from the CHECK constraints themselves
+ * (schema-sets.generated.ts, written by tooling/scripts/gen-schema-sets.mjs).
+ * The lists written by hand stay where they are, because they carry an order, a
+ * comment per value, or a narrower meaning. Each is held here to its column:
+ * exactly where it mirrors it, as a subset where it is narrower on purpose. When
+ * a migration changes a set and the file is regenerated, a stale copy stops
+ * compiling on the line below that names it. packages/channels holds its own two
+ * copies the same way, in channels/src/schema-agreement.ts.
+ *
+ * This replaced a test that read the migrations as text and had to guess which
+ * CHECK was the latest -- it guessed wrong twice, and it could see 20 of the 53
+ * sets. The database cannot be wrong about its own constraints.
+ */
+import type { SCHEMA_SETS } from "./schema-sets.generated";
+import type {
+  ACTOR_TYPES, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_STATES, DECISION_SUBJECTS, DECISION_VERBS,
+  ESCALATION_REASONS, ESCALATION_STATES, JOB_KINDS, JOB_STATES, MEMBERSHIP_ROLES, MESSAGE_CHANNELS,
+  MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, TEMPLATE_STATUSES, TENANT_STATUSES,
+} from "./enums";
+import type { BUSINESS_TYPES, COMPANY_TYPES } from "./a2p-enums";
+import type { BILLING_MODES, BILLING_STATUSES } from "./billing";
+import type { BROADCAST_STATES, RECIPIENT_STATES } from "./broadcasts";
+import type { CALL_OUTCOMES } from "./call-words";
+import type { POLICY_CLASSES, POLICY_MODES } from "./config";
+import type { SERVER_NOTIFICATION_KINDS } from "./notifications";
+import type { PLAYBOOK_STATES, PLAYBOOK_TRIGGERS } from "./playbooks";
+import type { TEMPLATE_CATEGORIES } from "./templates";
+
+export type SchemaSetKey = keyof typeof SCHEMA_SETS;
+/** The values one column's CHECK allows, e.g. SchemaSet<"lines.voice_state">. */
+export type SchemaSet<K extends SchemaSetKey> = (typeof SCHEMA_SETS)[K][number];
+
+/** true when A and B are the same set of literals. */
+export type Exactly<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+/** true when every literal in A is also in B. */
+export type Within<A, B> = [A] extends [B] ? true : false;
+/** Compiles only when T is true, so the failing line names the pair that drifted. */
+export type Holds<T extends true> = T;
+
+type Of<T extends readonly unknown[]> = T[number];
+
+export type SchemaAgreement = [
+  // Workspaces and the people in them. Nobody is invited as an owner.
+  Holds<Exactly<Of<typeof TENANT_STATUSES>, SchemaSet<"tenants.status">>>,
+  Holds<Exactly<Of<typeof MEMBERSHIP_ROLES>, SchemaSet<"memberships.role">>>,
+  Holds<Within<SchemaSet<"invitations.role">, Of<typeof MEMBERSHIP_ROLES>>>,
+
+  // Channels and the people on them.
+  Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"tenant_channels.kind">>>,
+  Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"contact_identities.channel">>>,
+  Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"templates.channel">>>,
+  Holds<Exactly<Of<typeof CONSENT_STATES>, SchemaSet<"contacts.consent">>>,
+  Holds<Exactly<Of<typeof CONSENT_STATES>, SchemaSet<"contacts.marketing_consent">>>,
+
+  // Conversations and messages.
+  Holds<Exactly<Of<typeof CONVERSATION_STATES>, SchemaSet<"conversations.state">>>,
+  Holds<Exactly<Of<typeof MESSAGE_CHANNELS>, SchemaSet<"messages.channel">>>,
+  Holds<Exactly<Of<typeof MESSAGE_DIRECTIONS>, SchemaSet<"messages.direction">>>,
+  Holds<Exactly<Of<typeof MESSAGE_SENDERS>, SchemaSet<"messages.sender">>>,
+  Holds<Exactly<Of<typeof MESSAGE_TYPES>, SchemaSet<"messages.type">>>,
+  Holds<Exactly<Of<typeof MESSAGE_STATUSES>, SchemaSet<"messages.status">>>,
+
+  // The jobs ledger.
+  Holds<Exactly<Of<typeof JOB_KINDS>, SchemaSet<"jobs.kind">>>,
+  Holds<Exactly<Of<typeof JOB_STATES>, SchemaSet<"jobs.state">>>,
+
+  // The inbox, and the ledger of who decided what.
+  Holds<Exactly<Of<typeof ESCALATION_REASONS>, SchemaSet<"escalations.reason">>>,
+  Holds<Exactly<Of<typeof ESCALATION_STATES>, SchemaSet<"escalations.state">>>,
+  Holds<Exactly<Of<typeof DECISION_VERBS>, SchemaSet<"decisions.verb">>>,
+  Holds<Exactly<Of<typeof DECISION_SUBJECTS>, SchemaSet<"decisions.subject_type">>>,
+  Holds<Exactly<Of<typeof ACTOR_TYPES>, SchemaSet<"decisions.actor_type">>>,
+
+  // Templates, policies and the bell. A template is authored as marketing or
+  // utility here; Meta also files authentication templates, which sync in.
+  Holds<Exactly<Of<typeof TEMPLATE_STATUSES>, SchemaSet<"templates.meta_status">>>,
+  Holds<Within<Of<typeof TEMPLATE_CATEGORIES>, SchemaSet<"templates.category">>>,
+  Holds<Exactly<Of<typeof POLICY_CLASSES>, SchemaSet<"policies.class">>>,
+  Holds<Exactly<Of<typeof POLICY_MODES>, SchemaSet<"policies.mode">>>,
+  Holds<Exactly<Of<typeof SERVER_NOTIFICATION_KINDS>, SchemaSet<"notifications.kind">>>,
+
+  // Broadcasts and playbooks. A playbook runs under one of the policy classes.
+  Holds<Exactly<Of<typeof BROADCAST_STATES>, SchemaSet<"broadcasts.state">>>,
+  Holds<Exactly<Of<typeof RECIPIENT_STATES>, SchemaSet<"broadcast_recipients.state">>>,
+  Holds<Exactly<Of<typeof PLAYBOOK_STATES>, SchemaSet<"playbooks.state">>>,
+  Holds<Exactly<(typeof PLAYBOOK_TRIGGERS)[number]["id"], SchemaSet<"playbooks.trigger">>>,
+  Holds<Within<SchemaSet<"playbooks.policy_class">, Of<typeof POLICY_CLASSES>>>,
+
+  // Calls, billing, and the business on record with the carriers.
+  Holds<Exactly<Of<typeof MESSAGE_DIRECTIONS>, SchemaSet<"calls.direction">>>,
+  Holds<Exactly<Of<typeof CALL_OUTCOMES>, SchemaSet<"calls.outcome">>>,
+  Holds<Exactly<Of<typeof BILLING_MODES>, SchemaSet<"billing_accounts.mode">>>,
+  Holds<Exactly<Of<typeof BILLING_STATUSES>, SchemaSet<"billing_accounts.status">>>,
+  Holds<Exactly<Of<typeof BUSINESS_TYPES>, SchemaSet<"business_records.business_type">>>,
+  Holds<Exactly<Of<typeof COMPANY_TYPES>, SchemaSet<"business_records.company_type">>>,
+];

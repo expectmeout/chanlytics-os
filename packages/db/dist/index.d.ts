@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import { SchemaSet } from '@chanlytics/contracts';
 
 type Json = string | number | boolean | null | {
     [key: string]: Json | undefined;
@@ -3499,7 +3500,7 @@ interface NormalizedCallInput {
     fromE164: string | null;
     fromRaw: string | null;
     toE164: string | null;
-    status: "registered" | "ongoing" | "ended" | "error" | "not_connected";
+    status: SchemaSet<"calls.status">;
     startedAtIso: string | null;
     endedAtIso: string | null;
     durationMs: number | null;

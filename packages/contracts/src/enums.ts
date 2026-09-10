@@ -1,6 +1,7 @@
 /**
- * Closed sets shared with the database CHECK constraints.
- * A unit test diffs these against the migrations (Blueprint P5) — grow per slice.
+ * Closed sets shared with the database CHECK constraints. Each is held to its
+ * column at compile time by schema-sets.ts, against sets generated from the
+ * database itself (tooling/scripts/gen-schema-sets.mjs).
  */
 export const TENANT_STATUSES = ["active", "paused", "test"] as const;
 export type TenantStatus = (typeof TENANT_STATUSES)[number];

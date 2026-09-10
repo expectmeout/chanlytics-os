@@ -80,6 +80,5 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
     const named = new RegExp(`(schedule(?:Job)?\\([^;]*"${k}"|kind: "${k}")`, "s");
     assert.ok(named.test(src), `${k} is scheduled by something`);
   }
-  // That the CHECK agrees is enums-vs-checks.test.mjs's to prove: it compares
-  // JOB_KINDS with the last jobs.kind CHECK in migration order.
+  // That the CHECK agrees is held at compile time by contracts/src/schema-sets.ts.
 });

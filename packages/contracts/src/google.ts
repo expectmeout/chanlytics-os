@@ -14,6 +14,7 @@
  * exact; and fewer than two days of reading cannot say what a period
  * gained. Pure: the routes feed it rows, the tests feed it fixtures.
  */
+import type { SchemaSet } from "./schema-sets";
 import { agoWords } from "./time";
 import { reviewReplyWords, type ReviewReplyMode } from "./review-reply";
 import { dayDate, fmtDay, deltaOf, type ReportTileVM } from "./reports";
@@ -36,7 +37,7 @@ export interface GoogleListingDto {
 export interface GoogleReviewDto {
   id: string;
   review_id: string;
-  origin: "places" | "profile";
+  origin: SchemaSet<"google_reviews.origin">;
   rating: number | null;
   author: string | null;
   author_uri: string | null;

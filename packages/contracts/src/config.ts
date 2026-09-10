@@ -4,6 +4,7 @@
  * the same schemas, so an option that exists in the UI exists in the runtime
  * by construction (anti-junk rule R1).
  */
+import type { SchemaSet } from "./schema-sets";
 import { resolveFacts, type KnownFacts } from "./facts";
 import { z } from "zod";
 import { MEMBERSHIP_ROLES } from "./enums";
@@ -153,7 +154,7 @@ export interface PolicyRow {
   id: string;
   class: PolicyClass;
   mode: PolicyMode;
-  subject_type: "segment" | "contact" | null;
+  subject_type: SchemaSet<"policies.subject_type"> | null;
   subject_id: string | null;
   limits: PolicyLimits;
   updated_at: string;

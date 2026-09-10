@@ -25,6 +25,10 @@ jobs:
           version: 2.116.0
       - run: pnpm install --frozen-lockfile
       - run: supabase start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector
+      # Every closed set the migrations declare, regenerated from the database.
+      # A migration that changed one without regenerating fails here, and the
+      # compiler then names every copy the change left behind.
+      - run: node tooling/scripts/gen-schema-sets.mjs --check
       # The local stack's service key is the published demo key, not a secret.
       - name: Point the suite at the local database
         run: |

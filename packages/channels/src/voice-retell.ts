@@ -6,6 +6,7 @@
  *
  * Field names verified against the LIVE Retell account (2026-08-27).
  */
+import type { SchemaSet } from "@chanlytics/contracts";
 import crypto from "node:crypto";
 import { callOutcomeWords } from "@chanlytics/contracts";
 
@@ -71,7 +72,7 @@ export interface NormalizedCall {
   toE164: string | null;
   /** Retell's own lifecycle. not_connected: the dial never connected — it
    *  is recorded as an attempt, never counted as a call. */
-  status: "registered" | "ongoing" | "ended" | "error" | "not_connected";
+  status: SchemaSet<"calls.status">;
   startedAtIso: string | null;
   endedAtIso: string | null;
   durationMs: number | null;

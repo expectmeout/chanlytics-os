@@ -15,13 +15,14 @@
  * Secrets (the subaccount token, the SIP password) go to the vault port
  * and never onto the row's facts.
  */
+import type { SchemaSet } from "@chanlytics/contracts";
 import { RETELL_ORIGINATION, isValidSipPassword, sipPassword, sipUsername, trunkDomain } from "./lines";
 import type { LineProvider, ProviderAccount } from "./lines";
 
-export type LineStep = "subaccount" | "number" | "trunk" | "agent" | "import" | "messaging" | "channel";
+export type LineStep = SchemaSet<"lines.step">;
 export const LINE_STEPS: readonly LineStep[] = ["subaccount", "number", "trunk", "agent", "import", "messaging", "channel"];
 
-export type LineVoiceState = "none" | "provisioning" | "answering" | "failed";
+export type LineVoiceState = SchemaSet<"lines.voice_state">;
 
 /** The columns the saga reads and writes — a projection of the `lines` row. */
 export interface LineRow {

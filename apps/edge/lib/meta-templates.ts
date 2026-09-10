@@ -11,6 +11,7 @@
  * when the positions still match; a sync never makes a template less
  * legible than it was.
  */
+import type { SchemaSet, TemplateStatus } from "./workspace/contracts.js";
 import { GRAPH_VERSION } from "./meta-graph.js";
 
 export interface MetaTemplateComponent {
@@ -32,8 +33,9 @@ export interface MetaTemplate {
   rejected_reason?: string;
 }
 
-export type TemplateStatus = "approved" | "pending" | "rejected" | "paused" | "disabled";
-export type TemplateCategory = "marketing" | "utility" | "authentication";
+/** The columns' own sets (templates.meta_status, templates.category), not copies of them. */
+export type { TemplateStatus };
+export type TemplateCategory = SchemaSet<"templates.category">;
 
 export interface TemplateVariable {
   position: number;
