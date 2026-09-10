@@ -164,7 +164,9 @@ test("the CHECK is written in the form the house tooling can read", () => {
     .filter((f) => /check \(sweep in \(/.test(fs.readFileSync(path.join(dir, f), "utf8")));
   assert.ok(defs.length >= 1, "something defines the constraint");
   const sql = sqlStatements(`supabase/migrations/${defs.at(-1)}`);
-  assert.match(sql, /check \(sweep in \('calls', 'deadman', 'health', 'jobs', 'registration', 'calendar', 'google', 'playbooks'\)\)/);
+  // 00097 added 'lines': the sweep that resumes a provisioning saga the lambda's
+  // 60-second ceiling killed mid-run. Watched from its first tick, like the rest.
+  assert.match(sql, /check \(sweep in \('calls', 'deadman', 'health', 'jobs', 'registration', 'calendar', 'google', 'playbooks', 'lines'\)\)/);
   assert.doesNotMatch(sql, /= any \(array\[/);
 });
 

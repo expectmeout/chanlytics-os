@@ -4574,6 +4574,7 @@ var REGISTRATION_COST_WORDS = {
   standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
 };
+var PROVISIONING_DEADLINE_MS = 5 * 6e4;
 var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 var SIGNUP_NAME_MIN = 2;
@@ -9278,6 +9279,7 @@ var REGISTRATION_COST_WORDS2 = {
   standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS2.messagesPerSecond} message a second.`
 };
+var PROVISIONING_DEADLINE_MS2 = 5 * 6e4;
 var SOLE_PROP_CEILING_SENTENCE2 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS2.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE2 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE2}`;
 var SIGNUP_NAME_MIN2 = 2;
@@ -13821,6 +13823,7 @@ var REGISTRATION_COST_WORDS3 = {
   standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second.`
 };
+var PROVISIONING_DEADLINE_MS3 = 5 * 6e4;
 var SOLE_PROP_CEILING_SENTENCE3 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE3 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE3}`;
 var SIGNUP_NAME_MIN3 = 2;

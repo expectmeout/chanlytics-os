@@ -10,7 +10,7 @@
  * this says what is joined. Both derive from the same facts and cannot
  * disagree. Pure: the page feeds it window globals, the tests fixtures.
  */
-import type { ChannelVM } from "./channels";
+import { channelFor, type ChannelVM } from "./channels";
 import type { GoogleListingDto, GoogleConnectionDto, GoogleAudience } from "./google";
 import type { LineDto } from "./setup";
 import { LINE_STEP_WORDS, textingWords, SOLE_PROP_CEILING_SENTENCE } from "./setup";
@@ -183,7 +183,10 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
 
 export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): ConnectionRow[] {
   const out: ConnectionRow[] = [];
-  const channel = (kind: string) => i.channels.find((c) => c.kind === kind) ?? null;
+  // `channelFor`, not `.find`: a workspace that released a line keeps its disabled
+  // voice row beside the new active one, and an arbitrary pick between them draws
+  // "Off" over a channel that is answering.
+  const channel = (kind: string) => channelFor(i.channels, kind);
 
   // WhatsApp: the channel row when there is one; Meta's door when there is not.
   const wa = channel("whatsapp");

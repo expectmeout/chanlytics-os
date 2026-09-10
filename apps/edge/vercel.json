@@ -32,6 +32,9 @@
     },
     "api/cron/registrations.ts": {
       "maxDuration": 60
+    },
+    "api/cron/lines.ts": {
+      "maxDuration": 60
     }
   }
 }

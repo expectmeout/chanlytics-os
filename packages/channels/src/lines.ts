@@ -36,6 +36,22 @@ export interface LineProvider {
   createSubaccount(master: ProviderAccount, friendlyName: string): Promise<ProviderAccount & { status: string }>;
   searchLocal(acct: ProviderAccount, q: { areaCode: number; limit: number }): Promise<AvailableNumber[]>;
   buyNumber(acct: ProviderAccount, e164: string, friendlyName: string): Promise<{ sid: string; e164: string }>;
+  /**
+   * The number this account ALREADY owns, if it owns it. Null when it does not.
+   *
+   * Buying is the one step of the saga that spends money and the only one whose
+   * effect was not checked before it ran. Every other step reads its own receipt --
+   * `nextLineStep` derives the whole plan from SIDs and facts on the row -- but a
+   * receipt is only written AFTER the provider answers, and the saga's worst case is
+   * three times its own lambda ceiling. Killed in that window, the number is bought
+   * and the row does not know: we pay for it every month, `release` skips releasing
+   * it (`if (line.number_sid)`), `number_drift()` never asks the provider, and a
+   * retry can never succeed because a carrier will not sell you a number you
+   * already hold.
+   *
+   * One lookup before the purchase closes all four.
+   */
+  ownedNumber(acct: ProviderAccount, e164: string): Promise<{ sid: string; e164: string } | null>;
   releaseNumber(acct: ProviderAccount, numberSid: string): Promise<void>;
   createTrunk(acct: ProviderAccount, o: { friendlyName: string; domainName: string }): Promise<{ sid: string; domainName: string }>;
   deleteTrunk(acct: ProviderAccount, trunkSid: string): Promise<void>;

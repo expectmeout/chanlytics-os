@@ -56,6 +56,13 @@ export function dryProvider(seed = 1): DryProvider {
       owned.set(sid, e164);
       return { sid, e164 };
     },
+    // The dry provider already keeps what it "sold", so it can answer honestly --
+    // which is what makes the saga's lookup-before-buy testable without a carrier.
+    async ownedNumber(acct, e164) {
+      rec("ownedNumber", acctOf(acct), e164);
+      for (const [sid, held] of owned) if (held === e164) return { sid, e164 };
+      return null;
+    },
     async releaseNumber(acct, numberSid) {
       rec("releaseNumber", acctOf(acct), numberSid);
       owned.delete(numberSid);

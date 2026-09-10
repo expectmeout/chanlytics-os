@@ -103,6 +103,46 @@ export interface LineDto {
   forwarding?: { carrier: string; mode: string; destination_e164: string | null; test_from: string | null; test_until: string | null; verified_at: string | null } | null;
 }
 
+/**
+ * How long a line may be "setting up" before something has gone wrong.
+ *
+ * THE SAGA CANNOT ALWAYS FINISH INSIDE ITS OWN LAMBDA. `api/admin/lines.ts` is
+ * capped at 60 seconds (apps/edge/vercel.json) and the saga makes ten Twilio
+ * calls at a 15-second timeout each plus four Retell calls at eight — about 180
+ * seconds worst case, three times the ceiling. So a run is killed not by a crash
+ * but by a slow afternoon at the provider, and when it is killed the `catch` that
+ * would write `voice_state: 'failed'` never runs. The row stays `provisioning`.
+ *
+ * Nothing used to move it again: no sweep reads `lines` for this, `retry` demanded
+ * `failed`, `buy` refused because a line already existed, and `number_drift()`
+ * deliberately exempts a line still being set up. The owner's Setup row said
+ * "usually a minute or two" with no button, for ever. The only exit was a platform
+ * admin handing the number back.
+ *
+ * Five minutes, because the honest worst case is three and a state that is
+ * genuinely still running must never be declared dead underneath itself.
+ */
+export const PROVISIONING_DEADLINE_MS = 5 * 60_000;
+
+/**
+ * Has this line been setting up longer than a line can legitimately take?
+ *
+ * One predicate, because four places have to agree about it: the Setup row that
+ * offers the owner a Retry, the back office's action list, the route that accepts
+ * that Retry, and the sweep that resumes them unasked. A deadline that each of
+ * them spelled out for itself is a deadline they would drift apart on.
+ */
+export function lineStuckProvisioning(
+  l: Pick<LineDto, "voice_state" | "state_since"> | null | undefined,
+  nowMs: number,
+): boolean {
+  if (!l || l.voice_state !== "provisioning") return false;
+  const since = Date.parse(l.state_since);
+  // An unparseable stamp is not evidence of being stuck. Reading it as stuck would
+  // let a bad clock or a null restart a saga that is running right now.
+  return Number.isFinite(since) && nowMs - since > PROVISIONING_DEADLINE_MS;
+}
+
 /** The saga's step, in the owner's words — the row, the bell and the platform email say the same thing. */
 export const LINE_STEP_WORDS: Record<string, string> = {
   subaccount: "opening your account with the carrier",
@@ -316,6 +356,13 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
     row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "ready", required: !answering, sentence: `Calls are answered on ${voiceNum}. ${texting.sentence}`, details: [ownLine?.voice_state === "answering" ? "Your own number through Chanlytics" : "", texting.done ? "" : "Texting arrives with lines that register with the carriers; this page will say when"].filter(Boolean), verb: { label: "Open Connections", to: "admin/integrations" } });
   } else if (voice.present) {
     row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: `Your line ${voice.number ? `${voiceNum} ` : ""}is switched off — the receptionist is not answering it.`, details: [], verb: { label: "Open Connections", to: "admin/integrations" } });
+  } else if (ownLine && lineStuckProvisioning(ownLine, nowMs)) {
+    // PAST THE DEADLINE. The same words and the same button the `failed` branch
+    // below gives, because it is the same situation: the setup stopped and a
+    // person can restart it. It used to read "usually a minute or two; this page
+    // updates by itself" with no verb, which after an hour is untrue twice over —
+    // and the retry it withheld is the only thing that would have finished the job.
+    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Setting up ${lineNum} stopped while ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}, ${agoWords(Date.parse(ownLine.state_since), nowMs)}. A person at Chanlytics has it.`, details: ["Retry from here — it picks up where it stopped and buys nothing twice", "We have been told, and it is retried automatically too"], verb: { label: "Retry", to: `verb:retry-line:${ownLine.id}` } });
   } else if (ownLine && ownLine.voice_state === "provisioning") {
     row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Setting up ${lineNum} — ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}, since ${agoWords(Date.parse(ownLine.state_since), nowMs)}.`, details: ["Usually a minute or two; this page updates by itself"], verb: null });
   } else if (ownLine && ownLine.voice_state === "failed") {

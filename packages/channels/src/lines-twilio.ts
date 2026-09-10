@@ -130,6 +130,27 @@ export function twilioProvider(http: TwilioHttp = fetchTwilio): LineProvider {
       return { sid, e164: str(b, "phone_number") ?? e164 };
     },
 
+    // A number this subaccount already holds. Twilio filters IncomingPhoneNumbers by
+    // exact E.164, so this is one GET and no guessing.
+    //
+    // A read that FAILS must not be reported as "we do not own it": that answer sends
+    // the saga on to buy a second number. So a non-200 throws, and the step retries
+    // rather than spending.
+    async ownedNumber(acct, e164) {
+      const a = await http(acct, "GET", `${twilioUrls.incomingNumbers(acct.sid)}?PhoneNumber=${encodeURIComponent(e164)}&PageSize=1`);
+      if (a.status === 404) return null;
+      const b = need(a, "list owned numbers");
+      const list = Array.isArray((b as { incoming_phone_numbers?: unknown }).incoming_phone_numbers)
+        ? ((b as { incoming_phone_numbers: unknown[] }).incoming_phone_numbers)
+        : [];
+      for (const row of list) {
+        if (!row || typeof row !== "object") continue;
+        const sid = str(row as Record<string, unknown>, "sid");
+        if (sid) return { sid, e164: str(row as Record<string, unknown>, "phone_number") ?? e164 };
+      }
+      return null;
+    },
+
     async releaseNumber(acct, numberSid) {
       const a = await http(acct, "DELETE", twilioUrls.incomingNumber(acct.sid, numberSid));
       if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "release number");
