@@ -49,7 +49,6 @@
     "inbox-channels.test.mjs": 3,
     "layout-measure.test.mjs": 12,
     "lead-context.test.mjs": 1,
-    "legacy-harness.test.mjs": 4,
     "line-recovery.test.mjs": 8,
     "lines-saga.test.mjs": 12,
     "live-page-polish.test.mjs": 2,

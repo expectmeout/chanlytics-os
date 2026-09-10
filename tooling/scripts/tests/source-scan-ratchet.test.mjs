@@ -25,6 +25,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { ROOT, readCode } from "./_source.mjs";
@@ -33,7 +34,35 @@ const DIR = "tooling/scripts/tests";
 const BASELINE = path.join(ROOT, DIR, "source-scan-baseline.json");
 const SELF = "source-scan-ratchet.test.mjs";
 
-const files = fs.readdirSync(path.join(ROOT, DIR)).filter((f) => f.endsWith(".test.mjs") && f !== SELF);
+/**
+ * The files the REPOSITORY has, not the files this laptop has.
+ *
+ * Learned from CI, on this file's own first run. The baseline was seeded from a
+ * working tree that happened to contain another session's UNTRACKED test file;
+ * CI checked out the repo, found four fewer source reads than the baseline
+ * claimed, and failed with `legacy-harness.test.mjs: now 0, baseline 4`.
+ *
+ * A number that differs between a checkout and a desk is not a ratchet — it is a
+ * number two people can argue about. So the measurement is over `git ls-files`,
+ * which is the same set everywhere, and an untracked scratch test cannot move a
+ * repo-wide count in either direction.
+ *
+ * Falls back to the directory when git is unavailable, because a test that cannot
+ * run at all is worse than one measuring a slightly wider set.
+ */
+function repoTestFiles() {
+  try {
+    return execFileSync("git", ["ls-files", DIR], { cwd: ROOT, encoding: "utf8" })
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.endsWith(".test.mjs"))
+      .map((l) => path.basename(l));
+  } catch {
+    return fs.readdirSync(path.join(ROOT, DIR)).filter((f) => f.endsWith(".test.mjs"));
+  }
+}
+
+const files = repoTestFiles().filter((f) => f !== SELF && fs.existsSync(path.join(ROOT, DIR, f)));
 const counts = Object.fromEntries(
   files
     .map((f) => [f, (readCode(`${DIR}/${f}`).match(/\b(readCode|readRaw)\(/g) ?? []).length])
@@ -59,9 +88,19 @@ test("no test file reads more source than it did yesterday", () => {
 
 test("the baseline is not stale", () => {
   // A reduction that is not banked is a reduction the next PR can spend.
-  const better = Object.entries(baseline.counts).filter(([f, n]) => (counts[f] ?? 0) < n);
-  assert.deepEqual(better.map(([f, n]) => `${f}: now ${counts[f] ?? 0}, baseline ${n}`), [],
-    "good — now lower the baseline: UPDATE_SOURCE_SCAN_BASELINE=1 pnpm test");
+  //
+  // "Shrank" and "gone" are reported apart because they need different actions,
+  // and conflating them is what made this file's first CI run unreadable: a
+  // deleted test read as a reduction to bank rather than as an entry to remove.
+  const known = new Set(files);
+  const shrank = [];
+  const gone = [];
+  for (const [f, n] of Object.entries(baseline.counts)) {
+    if (!known.has(f)) { gone.push(`${f} (baseline ${n})`); continue; }
+    if ((counts[f] ?? 0) < n) shrank.push(`${f}: now ${counts[f] ?? 0}, baseline ${n}`);
+  }
+  assert.deepEqual(gone, [], "these files are baselined but not in the repo — remove them: UPDATE_SOURCE_SCAN_BASELINE=1 pnpm test");
+  assert.deepEqual(shrank, [], "good — now lower the baseline: UPDATE_SOURCE_SCAN_BASELINE=1 pnpm test");
 });
 
 test("the exemption list names files that are repo-wide lints, and stays small", () => {
