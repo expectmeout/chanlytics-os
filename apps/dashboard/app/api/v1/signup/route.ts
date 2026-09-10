@@ -78,7 +78,17 @@ export async function POST(req: Request): Promise<Response> {
     if (required && !codeMatches(input.code, required)) throw new AppError("forbidden", SIGNUP_WORDS.codeWrong);
     const out = await signUp(input);
     if (out.created && out.tenantId) await notifyPlatformSignup(out.tenantId, input.email);
-    console.log(JSON.stringify({ level: "info", event: "signup", created: out.created, tenant: out.tenantId, ms: Date.now() - started }));
+    console.log(JSON.stringify({ level: "info", event: "signup", created: out.created, code_unsent: out.codeUnsent, tenant: out.tenantId, ms: Date.now() - started }));
+    // THE CODE IS THE ONLY WAY IN, so a send WE could not make is worth saying.
+    // The usual answer stays deliberately opaque -- whether an address is already
+    // registered is not a stranger's to learn from this form -- but "we are over
+    // our mail budget" is about us, discloses nothing about any address, and is
+    // the difference between waiting usefully and waiting for ever with a
+    // workspace you own and cannot enter. `next` is null because /login has
+    // nothing to show them yet.
+    if (out.codeUnsent) {
+      return NextResponse.json(ok({ sent: false, next: null, message: SIGNUP_WORDS.notSent }), { headers: PRIVATE });
+    }
     return NextResponse.json(ok({ sent: true, next: signupNext(input.email) }), { headers: PRIVATE });
   } catch (e) {
     if (e instanceof AppError) return NextResponse.json(err(e.code, e.message), { status: e.status, headers: PRIVATE });

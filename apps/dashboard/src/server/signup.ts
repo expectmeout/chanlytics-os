@@ -2,7 +2,7 @@ import "server-only";
 import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient, emitEvent, type Database } from "@chanlytics/db";
-import type { SignupInput } from "@chanlytics/contracts";
+import { sendFailureIsOurs, type SignupInput } from "@chanlytics/contracts";
 
 /**
  * Sign-up, the half that knows who exists.
@@ -33,6 +33,12 @@ export interface SignupOutcome {
   created: boolean;
   tenantId: string | null;
   userId: string | null;
+  /**
+   * The sign-in code did not go out, and it was OUR doing -- the mail budget, or
+   * no mail provider configured. Never set for an address we simply do not know
+   * about: that stays opaque.
+   */
+  codeUnsent: boolean;
 }
 
 /** Supabase's own word for an address it already has. */
@@ -52,14 +58,24 @@ async function workspaceFor(db: SupabaseClient<Database>, userId: string, input:
   return r.data.id;
 }
 
-async function sendCode(email: string): Promise<void> {
+/**
+ * Send the one credential that opens the workspace.
+ *
+ * Returns whether the failure was OURS. An unknown or already-registered address
+ * stays opaque -- that answer is an account-enumeration oracle on a public form --
+ * but a send we could not make says nothing about any address, and swallowing it
+ * is how somebody ends up owning a workspace they cannot enter with the page
+ * cheerfully telling them a code is on its way.
+ */
+async function sendCode(email: string): Promise<{ ourFault: boolean }> {
   const anon = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
   const { error } = await anon.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
-  // A rate-limited or unknown address is not the caller's to learn from here;
-  // the page says the same sentence. The log keeps the reason.
-  if (error) console.warn("signup_code_not_sent", JSON.stringify({ message: error.message.slice(0, 120) }));
+  if (!error) return { ourFault: false };
+  const ourFault = sendFailureIsOurs(error as { code?: string; status?: number; message?: string });
+  console.warn("signup_code_not_sent", JSON.stringify({ ourFault, message: error.message.slice(0, 120) }));
+  return { ourFault };
 }
 
 export async function signUp(input: SignupInput): Promise<SignupOutcome> {
@@ -82,8 +98,8 @@ export async function signUp(input: SignupInput): Promise<SignupOutcome> {
     }
     await emitEvent(db, tenantId, "workspace.created", "signup", "tenant", tenantId, { by: userId, email: input.email, timezone: input.timezone ?? null }).catch(() => {});
   }
-  await sendCode(input.email);
-  return { created, tenantId, userId };
+  const { ourFault } = await sendCode(input.email);
+  return { created, tenantId, userId, codeUnsent: ourFault };
 }
 
 /** The platform mailbox hears about a new workspace through the edge, which holds the email key. A failure is a shrug. */

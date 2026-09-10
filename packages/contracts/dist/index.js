@@ -6371,6 +6371,25 @@ var SIGNUP_WORDS = {
   lead: "Your business gets its own workspace: the receptionist, the inbox, the numbers. You become its owner.",
   sent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it on the next screen to open your workspace.`,
   codeRequired: "Sign-up is by invitation right now. Enter the invite code you were given.",
+  /*
+   * WHEN THE CODE DID NOT GO OUT, and it is our fault rather than theirs.
+   *
+   * `sent` above is deliberately opaque -- "if this address can receive email" --
+   * because whether an address is already registered is not a stranger's to learn
+   * from a sign-up form. That is right, and it stays.
+   *
+   * But it was answering for a second case it does not fit. The auth mailer has a
+   * declared budget of two an hour and no SMTP configured, so the third person to
+   * sign up in an hour got the same "a code is on its way" and was sent to /login
+   * to wait for something that would never arrive. Their workspace, membership and
+   * billing row all exist by then: they own a workspace they cannot enter, and
+   * nothing in the product tells them why.
+   *
+   * A send WE could not make says nothing about whether the address is known, so
+   * saying so leaks nothing -- and it is the difference between waiting usefully
+   * and waiting for ever.
+   */
+  notSent: "Your workspace is made, but we could not send the sign-in code just now. Wait a few minutes and ask for it again from the sign-in page \u2014 nothing is lost.",
   /* ---------------------------------------------------------- the waitlist
    * Said the way a person would say it: what is true, when they will hear,
    * and no apology. "We are onboarding businesses in small groups" is the
@@ -6387,6 +6406,12 @@ var SIGNUP_WORDS = {
   newHere: "New to Chanlytics?",
   clock: (tz) => `Your clock: ${tz}, read from this device. Change it later in Settings \u203A Workspace.`
 };
+function sendFailureIsOurs(e) {
+  if (!e) return false;
+  if (e.code === "over_email_send_rate_limit" || e.code === "email_provider_disabled") return true;
+  if (e.status === 429) return true;
+  return /rate limit|too many requests|email provider|smtp/i.test(e.message ?? "");
+}
 function signupNext(email) {
   return `/login?email=${encodeURIComponent(email.trim().toLowerCase())}&sent=1`;
 }
@@ -7599,6 +7624,7 @@ export {
   sameQuestion,
   scheduleLine,
   scopeFromRoute,
+  sendFailureIsOurs,
   serverNotificationRows,
   setupRoute,
   setupSteps,

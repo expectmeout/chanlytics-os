@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SignupSchema, SIGNUP_WORDS, signupNext, deviceTimezone, EVENT_KINDS } from "@chanlytics/contracts";
+import { SignupSchema, SIGNUP_WORDS, signupNext, deviceTimezone, sendFailureIsOurs, EVENT_KINDS } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 test("the form's shape: a name, a lower-cased address, an optional zone and code, nothing else", () => {
@@ -63,3 +63,53 @@ test("the wiring: two public paths, the guards on the route, the service role in
   // exactly one of them.
   assert.ok(page.includes('fetch("/api/v1/signup", { method: "GET"') && page.includes('{posture === "invite" && ('), "the code field appears only when the server asks for it");
 });
+
+test("a send WE could not make is admitted; one about an ADDRESS is not", () => {
+  // THE SECOND WALL IN THE GATE-9 WALKTHROUGH. The auth mailer has a declared
+  // budget of two an hour (`[auth.rate_limit] email_sent = 2`) with no SMTP
+  // configured, and the sign-in code is the ONLY way into a new workspace. The
+  // third person to sign up in an hour had their workspace, membership and
+  // billing row created, was told "a 6-digit code is on its way", and was sent to
+  // /login to wait for something that would never arrive.
+  //
+  // The swallow was right about one thing and wrong about the other. Whether an
+  // address is already registered is not a stranger's to learn from a public
+  // form — answering differently for known and unknown addresses is an account
+  // enumeration oracle. But "we are over our mail budget" is about US. It
+  // discloses nothing about any address, and it is the only half a person can act
+  // on.
+  //
+  // OURS — say so.
+  assert.equal(sendFailureIsOurs({ code: "over_email_send_rate_limit" }), true);
+  assert.equal(sendFailureIsOurs({ code: "email_provider_disabled" }), true);
+  assert.equal(sendFailureIsOurs({ status: 429, message: "Request rate limit reached" }), true);
+  assert.equal(sendFailureIsOurs({ message: "SMTP server not configured" }), true);
+  assert.equal(sendFailureIsOurs({ message: "Email provider is disabled" }), true);
+
+  // THEIRS — stay opaque. These are the answers that would turn the form into an
+  // oracle, and the fallback for anything unrecognised leans this way on purpose.
+  for (const e of [
+    { code: "email_exists", message: "User already registered" },
+    { code: "user_not_found", message: "User not found" },
+    { code: "validation_failed", message: "Unable to validate email address" },
+    { status: 400, message: "Invalid login credentials" },
+    { message: "something nobody has seen before" },
+    {},
+    null,
+    undefined,
+  ]) {
+    assert.equal(sendFailureIsOurs(e), false, JSON.stringify(e));
+  }
+
+  // The sentence the person reads says three things: the workspace exists, the
+  // code did not go out, and nothing is lost. It must NOT hint at the address.
+  assert.match(SIGNUP_WORDS.notSent, /workspace is made/);
+  assert.match(SIGNUP_WORDS.notSent, /could not send/);
+  assert.match(SIGNUP_WORDS.notSent, /nothing is lost/);
+  assert.doesNotMatch(SIGNUP_WORDS.notSent, /registered|exists|unknown|not found/i,
+    "REGRESSION: a refusal that says whether we know the address");
+
+  // And the opaque sentence is untouched: it still speaks conditionally.
+  assert.match(SIGNUP_WORDS.sent("o@example.com"), /^If o@example\.com can receive email/);
+});
+
