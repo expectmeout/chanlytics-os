@@ -233,11 +233,109 @@ test("a rejection is answered by CORRECTING the campaign, not paying for a new o
   assert.ok(lib.includes('sms_state: "registering",'), "and the row says it is back with the carriers");
 
   const route = readCode("apps/edge/api/admin/lines.ts");
-  assert.ok(route.includes("const again = await resubmitRejectedCampaign(db, row.data, facts);"));
-  assert.ok(route.includes("const t = await db.from(\"tenants\").select(\"name, slug\")"),
-    "the workspace is re-read at resubmit time -- the corrections are the point");
+  assert.ok(route.includes("const again = await resubmitRejectedCampaign(db, row.data, facts, filingCheck);"),
+    "and it is handed what the pre-flight needs, not just what to send");
+  assert.ok(route.includes("businessName: tenant.name,"),
+    "the workspace's CURRENT name reaches the campaign -- the corrections are the point");
+  assert.ok(!route.includes("const t = await db.from(\"tenants\").select(\"name, slug\")"),
+    "and it comes from the read this request already made, not a second one");
   assert.ok(route.includes('const rejected = row.data.sms_state === "rejected";'));
   assert.ok(route.includes("if (!row.data.reg_mock && !rejected) {"), "a filing that stands is still final");
   assert.ok(readRaw("apps/edge/lib/a2p.ts").includes("vetting fee is assessed only once per Campaign"),
     "and the reason is quoted where the next person will change it back");
 });
+
+
+test("BOTH senders ask before they send: the pre-flight cannot be skipped by using the other door", () => {
+  // THE DEFECT. Gate 8's pre-flight lived inside `registerLine`. The refile door
+  // reaches the carriers through `resubmitRejectedCampaign`, which ran no check at
+  // all -- and a rejected campaign is the case that door exists for. So support
+  // pressed Refile on a campaign the carriers had sent back over a name mismatch,
+  // the same mismatch went out again, and the same rejection arrived a week later.
+  //
+  // The test that was supposed to cover this compared whole-FILE string indices
+  // (`edge.indexOf("registrationPreflight({") < edge.indexOf("const send = async")`),
+  // which is true of a file where one function checks and another does not. This
+  // slices each sender out and asks of each one separately.
+  const lib = readCode("apps/edge/lib/a2p.ts");
+  const bodyOf = (name) => {
+    const start = lib.indexOf(`export async function ${name}(`);
+    assert.notEqual(start, -1, `${name} exists`);
+    const next = lib.indexOf("\nexport ", start + 1);
+    return lib.slice(start, next === -1 ? undefined : next);
+  };
+
+  for (const sender of ["registerLine", "resubmitRejectedCampaign"]) {
+    const body = bodyOf(sender);
+    const check = body.indexOf("filingProblems(");
+    assert.notEqual(check, -1, `${sender} asks whether the filing is ready`);
+    // And asks BEFORE it reaches for credentials or the network. `lineAccount`
+    // reads the workspace's Twilio token out of Vault; `fetch` is the wire.
+    for (const after of ["lineAccount(", "fetch("]) {
+      const i = body.indexOf(after);
+      if (i !== -1) assert.ok(check < i, `${sender}: ${after} runs before the check`);
+    }
+  }
+
+  // The decider itself writes nothing, because what a refusal MEANS differs by
+  // path: a first filing has sent nothing (so `needs_record` is the truth about
+  // that row), while a refile's row is carrying the CARRIERS' verdict and their
+  // reason -- and overwriting that with our own pre-check would erase the only
+  // record of what they actually said.
+  const decider = bodyOf("filingProblems");
+  assert.ok(!/\.update\(/.test(decider), "the decider does not write");
+  assert.ok(!/sms_state/.test(decider), "and does not decide what the row should say");
+  const resubmit = bodyOf("resubmitRejectedCampaign");
+  const refused = resubmit.indexOf('return { ok: false, error: "record_incomplete", problems }');
+  assert.notEqual(refused, -1, "a refused refile says so, with the sentences");
+  assert.ok(!resubmit.slice(0, refused).includes(".update("), "and has changed nothing on the way there");
+});
+
+test("a rejection reaches every person who can act on it, in words about what happened", () => {
+  // THE DEAD END. The two route families disagreed about `rejected`. The platform
+  // family handled it; the owner family did not -- the edge answers a rejected
+  // campaign with a 409, the owner route mapped three errors by name and fell
+  // through to `if (a.status !== 200 && a.status !== 502) ... "The carriers did not
+  // answer"`. A 409 is neither, so an owner was told the carriers had not answered
+  // about a message the carriers had explicitly sent. And the Connections row
+  // offered them "Fix and resubmit", pointing at the only button guaranteed to
+  // produce it.
+  const owner = readCode("apps/dashboard/app/api/v1/lines/register/route.ts");
+  assert.match(owner, /b\.error === "campaign_rejected"/, "the owner route knows this answer exists");
+  assert.match(owner, /The carriers sent this registration back\./);
+  assert.match(owner, /Chanlytics resubmits it/, "and says who sends it again, because it is not them");
+  assert.match(owner, /b\.reason/, "carrying what the carriers actually said");
+
+  // The row no longer promises the action gate 6 took away from owners.
+  const conn = readCode("packages/contracts/src/connections.ts");
+  const rejected = conn.slice(conn.indexOf('case "rejected":'), conn.indexOf('case "failed":'));
+  assert.ok(!/Fix and resubmit/.test(rejected), "REGRESSION: a button an owner may not press");
+  assert.match(rejected, /Chanlytics sends it again/);
+  assert.match(rejected, /Open the record/, "correcting the record IS theirs, and it is what unblocks the resubmit");
+
+  // And SUPPORT, pressing the button, reads the reason rather than a token. The
+  // ops surface would otherwise have repeated the exact defect this fixed for
+  // owners: `record_incomplete` where two sentences belong.
+  const bridge = readCode("apps/dashboard/src/legacy-bridge/platform.ts");
+  assert.match(bridge, /Array\.isArray\(res\?\.problems\)/);
+  assert.match(bridge, /if \(problems\.length\) return \{ ok: false, message: problems\.join\(" "\) \};/);
+  const act = readCode("packages/contracts/src/platform.ts");
+  assert.match(act, /It refuses, with the reason, if the record or the workspace's name still would not pass review\./,
+    "the button says it refuses rather than that it sends whatever is there");
+});
+
+test("a refile refused by the pre-flight is a 409 about this workspace, not a 502 about the carriers", () => {
+  // "Try again in a moment" is the one thing that cannot help a name mismatch, and
+  // it is what a 502 tells every layer above to say.
+  const door = readCode("apps/edge/api/admin/lines.ts");
+  assert.match(door, /if \(again\.problems\?\.length\) \{\n\s+return json\(409, \{ ok: false, error: again\.error \?\? "record_incomplete", problems: again\.problems \}\);/);
+  assert.match(door, /const status = result\.ok \? 200 : result\.problems\?\.length \? 409 : 502;/,
+    "and the first-filing path draws the same line");
+  // One read of "can anybody say yes", above the branch, because BOTH ways out of
+  // this handler state it to the carriers. It used to sit on the first-filing path
+  // only, which is a fair summary of the whole defect.
+  const hoisted = door.indexOf("const filingCheck = {");
+  const branch = door.indexOf("if (row.data.brand_sid && row.data.campaign_sid) {");
+  assert.ok(hoisted !== -1 && branch !== -1 && hoisted < branch, "the check's facts are gathered before the branch that chooses a door");
+});
+

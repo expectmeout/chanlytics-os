@@ -15,6 +15,18 @@ import { edgeLines } from "@/server/lines";
  * `mock` files against the provider's free test registry instead — nothing
  * is charged and nothing routes. It is not offered to owners; it is how
  * this path is exercised before anyone pays.
+ *
+ * Every refusal the edge can give this route is named here, and each says what
+ * happened in the owner's words. Two were missing and both reached the owner as
+ * something untrue: a campaign the carriers SENT BACK fell through to "the
+ * carriers did not answer", and a record the pre-flight refused arrived as the
+ * literal string `record_incomplete`. A refusal a person cannot act on is what
+ * made the first real filing take four rounds and a month.
+ *
+ * `sole_proprietor_unsupported` was handled here too — "a different registration,
+ * which we do not offer yet". Gate 7 built that registration; nothing has produced
+ * that token since, and the sentence was no longer true of the product, so it is
+ * gone rather than left as a claim nobody can trigger.
  */
 export const POST = withRoute(async (req, ctx) => {
   const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
@@ -38,8 +50,30 @@ export const POST = withRoute(async (req, ctx) => {
   // case the catch-all below told them "the carriers did not answer", which was
   // about nothing that had happened.
   if (a.status === 409 && b.error === "mock_registration") throw new AppError("conflict", MOCK_TEXTING_SENTENCE, 409);
-  if (a.status === 502 && b.error === "sole_proprietor_unsupported") {
-    throw new AppError("conflict", "Texting for a business without a tax ID needs a different registration, which we do not offer yet. We have been told.", 409);
+  // THE CARRIERS SENT IT BACK, which is a message they explicitly sent — and this
+  // route answered "the carriers did not answer" about it, because a 409 is
+  // neither of the two statuses the catch-all below lets through. Resubmitting is
+  // deliberately not an owner's action (gate 6 put it behind `platform_admins`,
+  // because a rejection needs somebody who can read what the carriers said), so
+  // this says what happened and who has it rather than offering a button that
+  // cannot work.
+  if (a.status === 409 && b.error === "campaign_rejected") {
+    const said = typeof b.reason === "string" && b.reason.trim() ? ` They said: ${b.reason.trim()}` : "";
+    throw new AppError("conflict", `The carriers sent this registration back.${said} Chanlytics resubmits it once the business on record answers what they named — correct it here and we take it from there.`, 409);
+  }
+  // The pre-flight refused, and it has SENTENCES: what is wrong and what to do,
+  // in the owner's words. They used to be dropped — the edge stored them on the
+  // row and returned a token, this route passed the token through, and the bridge
+  // printed `record_incomplete` at the person who had just pressed the button.
+  if (a.status === 409 && (b.error === "record_incomplete" || b.error === "sole_proprietor_incomplete")) {
+    const problems = Array.isArray(b.problems) ? b.problems.filter((x: unknown): x is string => typeof x === "string" && !!x.trim()) : [];
+    throw new AppError(
+      "conflict",
+      problems.length
+        ? problems.join(" ")
+        : "Something on your business record is not ready for the carriers yet. Open it and the form will say which field.",
+      409,
+    );
   }
   if (a.status !== 200 && a.status !== 502) throw new AppError("internal", "The carriers did not answer. Try again in a moment.", 502);
   return {

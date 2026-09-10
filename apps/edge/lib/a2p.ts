@@ -258,6 +258,69 @@ export async function unfileMockRegistration(db: Db, line: LineRow): Promise<{ o
 }
 
 /**
+ * Is this filing ready to reach the carriers?
+ *
+ * ONE DECIDER, extracted because there are TWO functions in this file that send a
+ * filing out and only one of them was asking. `registerLine` ran these checks;
+ * `resubmitRejectedCampaign` did not -- and a rejected campaign is the case the
+ * back office's refile door exists for, described in its own doc as "the single
+ * most common A2P support action there is". So support pressed Refile on a
+ * campaign the carriers had sent back for a name mismatch, the same mismatch went
+ * out again unchecked, and the same rejection arrived a week later. The contract's
+ * button even says "Correct the business on record first -- this sends what is
+ * there now"; nothing verified that anyone had.
+ *
+ * Hoisting the call into the route would have fixed the one path that was broken.
+ * Both senders calling it THEMSELVES fixes the shape: a future third caller
+ * cannot reintroduce the gap by being written in the wrong order, and the
+ * invariant becomes "every function that talks to the carriers asks first" rather
+ * than "every route remembers to".
+ *
+ * A DECIDER, not an enforcer: it returns the owner's sentences and writes
+ * nothing. What a refusal MEANS for the row differs by path -- a first filing has
+ * sent nothing, so `needs_record` is the truth about it; a refile's row is
+ * carrying the CARRIERS' verdict and their reason, and overwriting that with our
+ * own pre-check would erase the only record of what they actually said.
+ */
+export async function filingProblems(db: Db, line: LineRow, o: {
+  record: RecordRow;
+  /** What the CAMPAIGN will state. Not the record's name, which is what the brand states. */
+  workspaceName: string;
+  /** Whether a customer has any way to say yes yet. Defaults to true: a caller that never looked it up must not block a filing on it. */
+  hasOptInNumber?: boolean;
+}): Promise<string[]> {
+  // WHICH registration, and is the record complete FOR IT. The same validator the
+  // form and the dashboard route use, on the row as it is stored:
+  // `business_records` is already the DTO's shape, so there is nothing to map and
+  // nothing to drift. This replaced a second, channels-side list of what a sole
+  // proprietor needs -- two lists answering one question, which is how a form
+  // comes to accept what the filing then refuses.
+  const path = registrationPathOf(o.record) ?? "standard";
+  // The numbers this workspace was given by us, so the check can tell an owner's
+  // handset from the line we answer on their behalf.
+  const ours = await db.from("lines").select("e164").eq("tenant_id", line.tenant_id);
+  const ourNumbers = (ours.data ?? []).map((r) => r.e164).filter((n): n is string => !!n);
+  const problems = Object.values(businessRecordProblems(o.record, path, { ourNumbers }));
+
+  // And the things a REVIEWER will check, which a complete record does not
+  // guarantee. The name check is the one that bit this product: the campaign
+  // states the WORKSPACE'S name and the brand registers the RECORD'S, and a live
+  // campaign went to the carriers describing a business called "Billing probe".
+  for (const p of registrationPreflight({
+    workspaceName: o.workspaceName,
+    legalName: o.record.legal_name,
+    tradeName: o.record.trade_name,
+    street: o.record.street,
+    city: o.record.city,
+    websiteUrl: o.record.website_url,
+    hasOptInNumber: o.hasOptInNumber ?? true,
+  })) {
+    problems.push(`${p.what} ${p.fix}`);
+  }
+  return problems;
+}
+
+/**
  * Correct a campaign the carriers sent back, and send it again. Free.
  *
  * This replaced a delete-and-refile, which was the expensive way round and I
@@ -287,9 +350,26 @@ export async function resubmitRejectedCampaign(
   // travel; the other two are not editable by anyone and are named as such in
   // updateCampaignRequest.
   facts: { description: string; messageFlow: string; samples: string[]; privacyPolicyUrl: string; termsUrl: string },
-): Promise<{ ok: boolean; error?: string; row?: LineRow }> {
+  /**
+   * What `filingProblems` needs to answer "is this ready to go out". Required, not
+   * optional: this function used to send whatever it was handed, which is how a
+   * rejection came to be answered with the fault that caused it.
+   */
+  check: { record: RecordRow; workspaceName: string; hasOptInNumber?: boolean },
+): Promise<{ ok: boolean; error?: string; problems?: string[]; row?: LineRow }> {
   const L = logger({ tenant_id: line.tenant_id, line_id: line.id });
   if (!line.messaging_service_sid || !line.campaign_sid) return { ok: false, error: "no_campaign_to_resubmit" };
+
+  // THE SAME CHECK THE FIRST FILING MAKES, before this one leaves. The row is NOT
+  // touched: it is carrying the carriers' verdict and their words, and replacing
+  // those with our own pre-check would destroy the only record of what they said
+  // -- while a resubmit that goes out with a known fault costs another week.
+  const problems = await filingProblems(db, line, check);
+  if (problems.length) {
+    L.warn("a2p_refile_refused", { problems: problems.length });
+    return { ok: false, error: "record_incomplete", problems };
+  }
+
   const sub = await lineAccount(db, line).catch(() => null);
   if (!sub) return { ok: false, error: "no_line_credentials" };
 
@@ -332,6 +412,14 @@ export interface RegisterResult {
   pending?: boolean;
   step?: string;
   error?: string;
+  /**
+   * What is wrong and what to do about it, in the OWNER'S words, when the
+   * pre-flight refused. Returned as well as stored on the row: an error TOKEN was
+   * all the owner used to get -- the dashboard passed `record_incomplete` through
+   * and the bridge printed it verbatim -- while the sentences that would have told
+   * them sat in the database being read by nothing but the back office.
+   */
+  problems?: string[];
   state: A2PState;
   smsState: string;
 }
@@ -371,48 +459,33 @@ export async function registerLine(db: Db, o: {
   if (!primary) return { ok: false, error: "no_primary_profile", state, smsState: o.line.sms_state };
   if (!email) return { ok: false, error: "no_platform_mailbox", state, smsState: o.line.sms_state };
   if (!o.line.messaging_service_sid) return { ok: false, error: "no_messaging_service", state, smsState: o.line.sms_state };
-  // WHICH registration, and is the record complete FOR IT -- checked before a
-  // single call is made, because on a real filing an incomplete record is a fee
-  // spent on a rejection that arrives days later.
-  //
-  // The same validator the form and the dashboard route use, on the row as it
-  // is stored: `business_records` is already the DTO's shape, so there is
-  // nothing to map and nothing to drift. This replaced a second, channels-side
-  // list of what a sole proprietor needs -- two lists answering one question,
-  // which is how a form comes to accept what the filing then refuses.
+  // Checked before a single call is made, because on a real filing an incomplete
+  // record is a fee spent on a rejection that arrives days later. The decision
+  // itself lives in `filingProblems` above, which the refile path asks too -- so
+  // the check cannot be skipped by reaching the carriers through the other door.
   const path = registrationPathOf(o.record) ?? "standard";
-  // The numbers this workspace was given by us, so the check can tell an
-  // owner's handset from the line we answer on their behalf.
-  const ours = await db.from("lines").select("e164").eq("tenant_id", o.line.tenant_id);
-  const ourNumbers = (ours.data ?? []).map((r) => r.e164).filter((n): n is string => !!n);
-  const problems = Object.values(businessRecordProblems(o.record, path, { ourNumbers }));
-
-  // And the things a REVIEWER will check, which a complete record does not
-  // guarantee. Same moment, same refusal: before anything is created, because on
-  // a real filing each of these is a week of waiting and a fee already spent.
-  //
-  // The name check is the one that bit this product: the campaign states the
-  // WORKSPACE'S name and the brand registers the RECORD'S, and a live campaign
-  // went to the carriers describing a business called "Billing probe".
-  for (const p of registrationPreflight({
+  const problems = await filingProblems(db, o.line, {
+    record: o.record,
     workspaceName: o.workspaceName,
-    legalName: o.record.legal_name,
-    tradeName: o.record.trade_name,
-    street: o.record.street,
-    city: o.record.city,
-    websiteUrl: o.record.website_url,
-    hasOptInNumber: o.hasOptInNumber ?? true,
-  })) {
-    problems.push(`${p.what} ${p.fix}`);
-  }
+    hasOptInNumber: o.hasOptInNumber,
+  });
 
   if (problems.length) {
+    // NOTHING HAS BEEN SENT, so `needs_record` is the truth about this row and the
+    // sentences are what the owner has to act on. They are RETURNED as well as
+    // stored: the row is read by a page that reloads, and the person who just
+    // pressed the button is owed the answer now rather than an error token.
     await db.from("lines").update({
       sms_state: "needs_record",
       last_error: problems.join(" "),
       state_since: new Date().toISOString(),
     }).eq("id", o.line.id);
-    return { ok: false, error: path === "sole_proprietor" ? "sole_proprietor_incomplete" : "record_incomplete", state, smsState: "needs_record" };
+    return {
+      ok: false,
+      error: path === "sole_proprietor" ? "sole_proprietor_incomplete" : "record_incomplete",
+      problems,
+      state, smsState: "needs_record",
+    };
   }
 
   const L = logger({ tenant_id: o.line.tenant_id, line_id: o.line.id });

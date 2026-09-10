@@ -16,7 +16,8 @@ import { backOffice, platformLineAct } from "@/server/platform";
  */
 export const POST = withRoute(async (req, ctx) => {
   const office = await backOffice(ctx);
-  await takeRate(ctx.userId, "lines_retry");
+  // A support ceiling, not the owner's: `lines_retry` is one workspace's budget for its own line, and this route is worked down a list of other people's.
+  await takeRate(ctx.userId, "platform_line_retry");
   const body = (await req.json().catch(() => ({}))) as { tenant_id?: unknown; line_id?: unknown };
   const tenantId = requireUuid(body.tenant_id, "workspace");
   const lineId = requireUuid(body.line_id, "line");

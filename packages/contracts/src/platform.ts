@@ -388,7 +388,12 @@ export function platformLineActions(
     out.push({
       action: "refile",
       label: "Send the campaign back",
-      sentence: "Resubmits the corrected campaign to the carriers. Correct the business on record first — this sends what is there now.",
+      // It used to say "Correct the business on record first — this sends what is
+      // there now", which was true and was the whole problem: nothing verified
+      // that anyone had, so a rejection could be answered with the fault that
+      // caused it. Both senders now run the same pre-flight, so the honest
+      // sentence is that this REFUSES rather than repeats.
+      sentence: "Resubmits the campaign to the carriers, free — the vetting fee is charged once per campaign. It refuses, with the reason, if the record or the workspace's name still would not pass review.",
       cost: null,
       permanent: false,
     });

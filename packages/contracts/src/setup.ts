@@ -222,6 +222,19 @@ export function textingWords(l: Pick<LineDto, "sms_state" | "reg_mock" | "reg_so
     case "active": return { sentence: l.reg_sole_prop ? SOLE_PROP_TEXTING_SENTENCE : "Texting is on.", done: true };
     case "approved": return { sentence: "Your business is approved; one last check on the line is with the carriers.", done: false };
     case "registering": return { sentence: "Texting is with the carriers.", done: false };
+    // The state the pre-flight writes, which had no case here at all -- so a
+    // workspace stopped BEFORE anything was filed read the default, "Texting is
+    // not available yet", which says nothing about what is in the way and nothing
+    // about it being theirs to fix.
+    //
+    // It deliberately does NOT name the fault, for the same reason none of these
+    // do: this is one clause inside a composed Setup sentence, the reason can be a
+    // paragraph, and the owner's texting row on Connections renders `last_error`
+    // in full. What this has to do is stop saying "not available" about something
+    // that is waiting on them. It also cannot say "fill in your record" -- a
+    // record that is COMPLETE but names a different business than the workspace
+    // does trips the same state, and that fix is a rename, not a field.
+    case "needs_record": return { sentence: "Texting needs something on your business record put right — Connections says what.", done: false };
     case "rejected": return { sentence: "The carriers refused the texting registration.", done: false };
     case "failed": return { sentence: "The texting registration stopped; a person at Chanlytics has it.", done: false };
     default: return { sentence: "Texting is not available yet.", done: false };

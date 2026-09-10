@@ -101,6 +101,16 @@ export function installPlatform(win: Window = window): void {
       // and support needs the actual one rather than "that did not work".
       const res = r.data?.result ?? null;
       if (r.data?.ok !== true) {
+        // THE PRE-FLIGHT'S SENTENCES FIRST, when the refusal has them. A refile
+        // stopped because the workspace's name does not match its record is not an
+        // `record_incomplete` -- it is one sentence naming the mismatch and one
+        // naming the rename that fixes it, and support pressing this button is
+        // exactly who needs to read them. Showing the token here would have
+        // repeated, on the ops surface, the defect this change fixed for owners.
+        const problems = Array.isArray(res?.problems)
+          ? (res.problems as unknown[]).filter((x): x is string => typeof x === "string" && !!x.trim())
+          : [];
+        if (problems.length) return { ok: false, message: problems.join(" ") };
         const why = res && typeof res.error === "string" ? res.error : `HTTP ${r.data?.status ?? "?"}`;
         const hint = res && typeof res.hint === "string" ? ` — ${res.hint}` : "";
         return { ok: false, message: `${why}${hint}` };

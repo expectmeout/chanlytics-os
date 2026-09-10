@@ -22,7 +22,8 @@ import { backOffice, platformLineAct } from "@/server/platform";
  */
 export const POST = withRoute(async (req, ctx) => {
   const office = await backOffice(ctx);
-  await takeRate(ctx.userId, "lines_register");
+  // A support ceiling, not the owner's. `lines_register` is three an hour because a first filing spends about $19.50 and cannot be undone; correcting a REJECTED campaign is free and is the most common thing this door is opened for.
+  await takeRate(ctx.userId, "platform_line_refile");
   const body = (await req.json().catch(() => ({}))) as { tenant_id?: unknown; line_id?: unknown };
   const tenantId = requireUuid(body.tenant_id, "workspace");
   const lineId = requireUuid(body.line_id, "line");
