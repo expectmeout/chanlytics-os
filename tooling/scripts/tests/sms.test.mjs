@@ -194,9 +194,11 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
   assert.ok(persist.includes('channel: "whatsapp" | "sms" = "whatsapp"') && persist.includes("sender: \"ai\", body, externalId: wamid, channel,"));
   assert.ok(readCode("packages/db/src/repositories/ingest.ts").includes('channel: p.channel ?? "whatsapp",'), "an outbound row says its wire");
-  const jobs = readCode("packages/jobs/src/handlers.ts");
-  assert.ok(jobs.includes("sms: (ctx, to, p) =>") && jobs.includes('errorBody: "no texting line"'), "no line = a loud failure, never the other wire");
-  assert.ok(readCode("apps/edge/api/jobs/tick.ts").includes("sms: await smsSenderForTenant(db, job.tenant_id),"));
+  // The job's wires are bound by the edge where the credentials are, and a
+  // missing one is a refusal at the door (deliver.test.mjs runs that door).
+  const door = readCode("packages/core/src/deliver.ts");
+  assert.ok(door.includes('send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" }'), "no line = a loud failure at the door, never the other wire");
+  assert.ok(readCode("apps/edge/api/jobs/tick.ts").includes("sms: line ? (to: string, p: { body: string }) => line.send(to.startsWith(\"+\") ? to : `+${to}`, p.body) : null,"), "the texting line is the job's sms wire");
   const reply = readCode("apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts");
   // The channel and the window are rules that return values now (replyChannelOf
   // in verbs, replyWindow in contracts), and reply-window.test.mjs runs both.

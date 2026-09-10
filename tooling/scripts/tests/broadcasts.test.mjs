@@ -181,10 +181,13 @@ test("the job: state gates, the template still approved, every person re-checked
   // appointments and skipped an appointment reminder for somebody who had.
   assert.ok(h.includes("const purpose = purposeOfTemplate(tpl.category);"), "Meta's category decides, and it fails closed on a null");
   assert.ok(h.includes('.select("meta_status, body_preview, category")'), "which means the category has to be selected");
-  assert.ok(h.includes("const allowed = mayMessageFor(c, purpose, { proactive: true });"), "the yes is re-checked at the wire, whatever the route found");
-  assert.ok(h.includes('if (!allowed.ok) { await mark(r.contact_id, { state: "skipped", reason: allowed.reason ?? "not_opted_in" }); continue; }'), "and the skip reason says which yes was missing");
-  assert.ok(h.includes('.select("id, phone_e164, consent, dnc, marketing_consent, erased_at'), "a column the gate reads must be a column the query selects");
-  assert.ok(h.includes('reason: "human_has_it"'), "a person mid-thread with a human is not interrupted");
+  // The yes is re-checked at the wire by the one door every send leaves
+  // through, with THIS template's purpose and as a proactive send; the skip
+  // reason is the door's own. deliver.test.mjs runs the door.
+  assert.ok(h.includes("const out = await deliver(") && h.includes("proactive: true,"), "the door is asked, proactively, with the template's purpose");
+  assert.ok(h.includes('else if (out.outcome === "refused") await mark(r.contact_id, { state: "skipped", reason: out.reason });'), "and the skip reason says which yes was missing, or who has the thread");
+  assert.ok(h.includes('.select("id, phone_e164, consent, dnc, marketing_consent, erased_at'), "the person's row still carries what the run needs");
+  assert.ok(h.includes('if (out.outcome === "sent") await mark(r.contact_id, { state: "sent", message_id: out.messageId });'), "a send is marked by the row the door wrote");
   assert.ok(h.includes('if (cErr) { console.error("broadcast_contact_unreadable", r.contact_id, cErr.message); continue; }'), "fail closed: an unreadable person stays queued");
   assert.ok(h.includes('source: "broadcast", broadcast_id: b.id, broadcast_name: b.name,') && h.includes("playbook_name: String((b.audience as { label?: unknown } | null)?.label ?? b.name)"), "every message says which broadcast it came from, and a run's names its playbook");
   assert.ok(h.includes('if (still?.state !== "sending") return;'), "a cancel during a batch stops the next");

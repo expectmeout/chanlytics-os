@@ -1,5 +1,5 @@
 /**
- * The send job, executed: the last gate before the wire.
+ * The send job, executed: the outbox through the one door.
  *
  * outbound_send is where every queued message -- a person's reply, the
  * receptionist's held draft, a template outside the window -- becomes a text
@@ -8,9 +8,9 @@
  * template queued from the Inbox reached somebody who had said yes to their
  * appointments and no to offers. And a draft the receptionist held for review
  * fired underneath the owner's own reply from the WhatsApp Business app, which
- * only paused the thread. Both are rules about what may reach a person, so
- * both are proved by running the handler against a fake database and a fake
- * Graph API, never by reading it.
+ * only paused the thread. Both are rules about what may reach a person; the
+ * door (packages/core, deliver.test.mjs) holds them, and this proves the job
+ * walks through it -- against a fake database and a fake Graph API.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -20,12 +20,13 @@ import { fakeDb } from "./_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const { dispatchJob } = await import(pathToFileURL(path.join(ROOT, "packages/jobs/dist/index.js")).href);
+const { whatsappSender } = await import(pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href);
 
 const T = "t1";
 const WRITTEN = "2026-09-10T10:00:00.000Z";
 const tables = (over = {}) => ({
   messages: [{ id: "m1", tenant_id: T, conversation_id: "c1", status: "queued", body: "See you at 3", sender: "human", channel: "whatsapp", direction: "outbound", created_at: WRITTEN }],
-  conversations: [{ id: "c1", tenant_id: T, contacts: { consent: "opted_in", dnc: false, marketing_consent: "opted_out" } }],
+  conversations: [{ id: "c1", tenant_id: T, paused_until: null, contacts: { consent: "opted_in", dnc: false, marketing_consent: "opted_out", erased_at: null }, tenants: { status: "active" } }],
   templates: [
     { tenant_id: T, channel: "whatsapp", name: "month_offer", language: "en_US", category: "marketing" },
     { tenant_id: T, channel: "whatsapp", name: "visit_reminder", language: "en_US", category: "utility" },
@@ -42,7 +43,7 @@ function ctxFor(db, over = {}) {
   const alerts = [];
   return {
     ctx: {
-      db, waCfg: { phoneId: "p1", accessToken: "tok" }, sms: null,
+      db, wire: { whatsapp: whatsappSender({ phoneId: "p1", accessToken: "tok" }), sms: null },
       alert: async (subject, body) => { alerts.push({ subject, body }); },
       eraseThread: async () => true, schedule: async () => {}, deadline: Date.now() + 60_000,
       ...over,
@@ -119,7 +120,7 @@ test("a template whose row cannot be read fails the job rather than guessing its
 
 test("STOP still means stop, on every purpose", async () => {
   graph.length = 0;
-  const db = wrap(tables({ conversations: [{ id: "c1", tenant_id: T, contacts: { consent: "opted_out", dnc: true, marketing_consent: "opted_in" } }] }));
+  const db = wrap(tables({ conversations: [{ id: "c1", tenant_id: T, paused_until: null, contacts: { consent: "opted_out", dnc: true, marketing_consent: "opted_in", erased_at: null }, tenants: { status: "active" } }] }));
   await dispatchJob(ctxFor(db).ctx, job());
   assert.equal(graph.length, 0);
   assert.equal(message(db).error.reason, "opted_out");
@@ -138,7 +139,27 @@ test("the receptionist's held draft is retired when a person answered after it w
   assert.equal(graph.length, 0, "the customer does not get both");
   assert.equal(message(db).status, "canceled");
   assert.deepEqual(message(db).error, { reason: "superseded_by_human" });
-  assert.deepEqual(blocked(db), [{ reason: "human_has_it", after: "m2" }]);
+  assert.deepEqual(blocked(db), [{ reason: "superseded_by_human", purpose: "conversational", consent: "opted_in", dnc: false, marketing_consent: "opted_out", after: "m2" }]);
+});
+
+test("the receptionist's draft is retired while a person holds the thread; the person's own words are not", async () => {
+  // THE PAUSE, RE-READ AT THE WIRE. The Business-app echo and a take-over
+  // from the Inbox pause the thread and cancel nothing; the draft used to
+  // fire underneath. The door reads paused_until the moment before the send.
+  graph.length = 0;
+  const held = (sender) => wrap(tables({
+    messages: [{ id: "m1", tenant_id: T, conversation_id: "c1", status: "queued", body: "We open at 9!", sender, channel: "whatsapp", direction: "outbound", created_at: WRITTEN }],
+    conversations: [{ id: "c1", tenant_id: T, paused_until: "2999-01-01T00:00:00.000Z", contacts: { consent: "opted_in", dnc: false, marketing_consent: "opted_out", erased_at: null }, tenants: { status: "active" } }],
+  }));
+  const draft = held("ai");
+  await dispatchJob(ctxFor(draft).ctx, job({ body: "We open at 9!" }));
+  assert.equal(graph.length, 0);
+  assert.equal(message(draft).status, "canceled");
+  assert.equal(message(draft).error.reason, "human_has_it");
+  const person = held("human");
+  await dispatchJob(ctxFor(person).ctx, job({ body: "We open at 9!" }));
+  assert.equal(graph.length, 1, "the pause exists for the person's own words");
+  assert.equal(message(person).status, "sent");
 });
 
 test("a person's OLDER words do not retire the draft, and a person's own reply is never retired by another's", async () => {
@@ -165,11 +186,11 @@ test("a person's OLDER words do not retire the draft, and a person's own reply i
 test("no credentials is a refusal at the wire, said to the owner, never a send on the environment's pair", async () => {
   graph.length = 0;
   const db = wrap(tables());
-  const { ctx, alerts } = ctxFor(db, { waCfg: null });
+  const { ctx, alerts } = ctxFor(db, { wire: { whatsapp: null, sms: null } });
   assert.equal(await dispatchJob(ctx, job()), "done");
   assert.equal(graph.length, 0);
   assert.equal(message(db).status, "failed");
-  assert.equal(message(db).error.body, "no_whatsapp_credentials");
+  assert.equal(message(db).error.body, "no_credentials");
   assert.equal(db.tables.escalations.length, 1, "the thread is flagged for a person");
   assert.equal(alerts.length, 1, "and the owner is told");
 });

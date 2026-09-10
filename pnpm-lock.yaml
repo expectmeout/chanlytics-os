@@ -97,6 +97,9 @@ importers:
       '@chanlytics/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@chanlytics/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@chanlytics/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -146,6 +149,25 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
 
+  packages/core:
+    dependencies:
+      '@chanlytics/channels':
+        specifier: workspace:*
+        version: link:../channels
+      '@chanlytics/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@chanlytics/db':
+        specifier: workspace:*
+        version: link:../db
+    devDependencies:
+      tsup:
+        specifier: ^8.3.0
+        version: 8.5.1(postcss@8.4.31)(tsx@4.23.13)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
   packages/db:
     dependencies:
       '@chanlytics/contracts':
@@ -170,6 +192,9 @@ importers:
       '@chanlytics/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@chanlytics/core':
+        specifier: workspace:*
+        version: link:../core
       '@chanlytics/db':
         specifier: workspace:*
         version: link:../db
