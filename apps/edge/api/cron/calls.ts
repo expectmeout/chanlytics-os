@@ -21,8 +21,8 @@
  * more than N minutes means ended" would eventually mark a genuinely long call
  * as finished and file a summary for a conversation still in progress.
  */
-import crypto from "node:crypto";
 import { json } from "../../lib/http.js";
+import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger, errField } from "../../lib/log.js";
 import { getCall, normalizeCall, callSummaryLine, type NormalizedCall } from "../../lib/workspace/channels.js";
@@ -53,12 +53,6 @@ const MAX_RECORDINGS_PER_TICK = 2;
 
 export const config = { maxDuration: 60 };
 
-function secretsMatch(a: string, b: string): boolean {
-  const x = Buffer.from(a);
-  const y = Buffer.from(b);
-  return x.length === y.length && crypto.timingSafeEqual(x, y);
-}
-
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "calls" });
   const db = pg();
@@ -67,15 +61,8 @@ export async function POST(request: Request): Promise<Response> {
     return json(503, { ok: false, error: "no_database" });
   }
 
-  const presented = request.headers.get("x-cron-key") || "";
-  const { data: expected, error: keyErr } = await db.rpc("get_cron_sweep_key");
-  if (keyErr || !expected) {
-    L.error("calls_sweep_key_unavailable", { error: keyErr?.message });
-    return json(503, { ok: false, error: "key_unavailable" });
-  }
-  if (!presented || !secretsMatch(presented, expected as unknown as string)) {
-    return json(401, { ok: false, error: "unauthorized" });
-  }
+  const denied = await authorizeCron(request, db, L);
+  if (denied) return denied;
 
   const apiKey = process.env.RETELL_API_KEY;
   if (!apiKey) {

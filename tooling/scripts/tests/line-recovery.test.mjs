@@ -154,10 +154,6 @@ test("the retry rule accepts a line the wall killed, and refuses one that is sti
 
 test("the sweep resumes them unasked, through the same function the buttons call", () => {
   const sweep = readCode("apps/edge/api/cron/lines.ts");
-  // Same auth as every other sweep: the Vault-held key, compared in constant time.
-  assert.match(sweep, /crypto\.timingSafeEqual/);
-  assert.match(sweep, /db\.rpc\("get_cron_sweep_key"\)/);
-  assert.match(sweep, /request\.headers\.get\("x-cron-key"\)/);
   // The deadline, in SQL for the read and in the predicate for the decision.
   assert.match(sweep, /PROVISIONING_DEADLINE_MS/);
   assert.match(sweep, /\.eq\("voice_state", "provisioning"\)/);

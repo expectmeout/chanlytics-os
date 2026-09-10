@@ -22,8 +22,8 @@
  * request: a lost or duplicated call finds the same candidates next tick, and
  * an escalation is flagged at most once however long it stays open.
  */
-import crypto from "node:crypto";
 import { json } from "../../lib/http.js";
+import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { notify } from "../../lib/notify.js";
 import { loadTenantNotifications } from "../../lib/tenant-runtime.js";
@@ -44,12 +44,6 @@ interface Candidate {
   phone_e164: string | null;
 }
 
-function secretsMatch(a: string, b: string): boolean {
-  const x = Buffer.from(a);
-  const y = Buffer.from(b);
-  return x.length === y.length && crypto.timingSafeEqual(x, y);
-}
-
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "deadman" });
   const db = pg();
@@ -58,15 +52,8 @@ export async function POST(request: Request): Promise<Response> {
     return json(503, { ok: false, error: "no_database" });
   }
 
-  const presented = request.headers.get("x-cron-key") || "";
-  const { data: expected, error: keyErr } = await db.rpc("get_cron_sweep_key");
-  if (keyErr || !expected) {
-    L.error("deadman_key_unavailable", { error: keyErr?.message });
-    return json(503, { ok: false, error: "key_unavailable" });
-  }
-  if (!presented || !secretsMatch(presented, expected as unknown as string)) {
-    return json(401, { ok: false, error: "unauthorized" });
-  }
+  const denied = await authorizeCron(request, db, L);
+  if (denied) return denied;
 
   const { data, error } = await db.rpc("deadman_candidates", { p_older_than: UNANSWERED_AFTER });
   if (error) {

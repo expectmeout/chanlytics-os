@@ -44,7 +44,7 @@
     "forwarding.test.mjs": 10,
     "google-profile.test.mjs": 15,
     "google.test.mjs": 22,
-    "hygiene.test.mjs": 4,
+    "hygiene.test.mjs": 5,
     "identity.test.mjs": 10,
     "inbox-channels.test.mjs": 3,
     "layout-measure.test.mjs": 12,

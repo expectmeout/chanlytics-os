@@ -28,7 +28,7 @@ export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "jobs" });
   const db = pg();
   if (!db) return json(503, { ok: false, error: "no_database" });
-  const denied = await authorizeCron(request, db);
+  const denied = await authorizeCron(request, db, L);
   if (denied) return denied;
 
   try {

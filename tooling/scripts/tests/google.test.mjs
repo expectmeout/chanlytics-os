@@ -316,7 +316,6 @@ test("the edge: the key alone on the edge, diag-key verbs, the cron-key sweep, o
   assert.ok(lib.includes('onConflict: "tenant_id,review_id"') && !lib.includes("first_seen_at"), "an existing review keeps its first_seen_at");
   assert.ok(lib.includes('"google.reviews"'));
   const cron = readCode("apps/edge/api/cron/google.ts");
-  assert.ok(cron.includes('db.rpc("get_cron_sweep_key")') && cron.includes("timingSafeEqual"));
   assert.ok(cron.includes('skipped: "no_places_key"'));
   assert.ok(cron.includes("const MAX_PER_TICK = 40;"));
   const vercel = JSON.parse(readRaw("apps/edge/vercel.json"));

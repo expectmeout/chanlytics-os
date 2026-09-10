@@ -113,7 +113,6 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   assert.ok(m.includes("'start_playbook', 'pause_playbook'") && m.includes("'broadcast', 'playbook'"));
   assert.ok(!/create table public.playbook_touches/.test(m), "touches are derived from the runs' recipient rows");
   const s = readCode("apps/edge/api/cron/playbooks.ts");
-  assert.ok(s.includes('request.headers.get("x-cron-key")') && s.includes('db.rpc("get_cron_sweep_key")'));
   assert.ok(s.includes("runDueNow(p as unknown as PlaybookDto, tz, now)"), "by the business's clock");
   assert.ok(s.includes('await runPlaybook(ctx, p, { runFor, by: { kind: "system" } })'), "the sweep runs the one implementation");
   const r = readCode("apps/edge/lib/playbooks.ts");
