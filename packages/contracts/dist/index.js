@@ -6070,6 +6070,12 @@ function lineStuckProvisioning(l, nowMs) {
   const since = Date.parse(l.state_since);
   return Number.isFinite(since) && nowMs - since > PROVISIONING_DEADLINE_MS;
 }
+function lineRetryRefusal(l, nowMs) {
+  if (!l) return "no such line";
+  if (l.voice_state === "failed") return null;
+  if (lineStuckProvisioning(l, nowMs)) return null;
+  return l.voice_state === "provisioning" ? "the line is still setting up \u2014 give it a few minutes, and it is retried automatically after that" : `the line is ${l.voice_state}, not failed`;
+}
 var LINE_STEP_WORDS = {
   subaccount: "opening your account with the carrier",
   number: "buying the number",
@@ -7494,6 +7500,7 @@ export {
   isTypingTarget,
   isUngrounded,
   knownTimezones,
+  lineRetryRefusal,
   lineStuckProvisioning,
   listingLine,
   localDate,

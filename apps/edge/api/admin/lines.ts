@@ -18,7 +18,7 @@
 import { json } from "../../lib/http.js";
 import { pg } from "../../lib/pg.js";
 import { emitEvent } from "../../lib/workspace/db.js";
-import { formatPhoneDisplay, whyCannotSpend, lineStuckProvisioning, type BillingMode, type BillingStatus } from "../../lib/workspace/contracts.js";
+import { formatPhoneDisplay, whyCannotSpend, lineRetryRefusal, type BillingMode, type BillingStatus } from "../../lib/workspace/contracts.js";
 import { isAreaCode, isE164, LINE_COSTS } from "../../lib/workspace/channels.js";
 import { lineProviderFromEnv, lineForClient, rowToLine } from "../../lib/lines.js";
 import { registerLine, syncRegistration, unfileMockRegistration, resubmitRejectedCampaign, campaignFactsFor } from "../../lib/a2p.js";
@@ -154,28 +154,16 @@ export async function POST(request: Request): Promise<Response> {
     if (!row.data) return json(404, { ok: false, error: "no such line" });
 
     if (op === "retry") {
-      // A LINE STILL "SETTING UP" PAST THE DEADLINE IS RETRYABLE, and this guard
-      // used to be the reason it was not. The saga's worst case is about three
-      // times its own 60-second lambda ceiling, so a slow afternoon at the provider
-      // kills it mid-run -- and a killed run never reaches the `catch` that would
-      // have written `failed`. The row sat at `provisioning`, this refused it, `buy`
-      // refused it as `line_exists`, and the only exit anyone had was handing the
-      // number back permanently.
-      //
-      // Safe because the saga reads its own receipts: `nextLineStep` derives the
-      // plan from the SIDs and facts already on the row, so a resume repeats
-      // nothing. The deadline is `lineStuckProvisioning`, the same one the Setup
-      // row, the back office and the sweep use.
-      const stuck = lineStuckProvisioning(lineForClient(row.data), Date.now());
-      if (row.data.voice_state !== "failed" && !stuck) {
-        return json(409, {
-          ok: false,
-          error: row.data.voice_state === "provisioning"
-            ? "the line is still setting up — give it a few minutes, and it is retried automatically after that"
-            : `the line is ${row.data.voice_state}, not failed`,
-          line: lineForClient(row.data),
-        });
-      }
+      // The rule is `lineRetryRefusal`, in contracts beside the deadline it reads.
+      // A line still SETTING UP past that deadline is retryable, and the guard that
+      // used to live here inline was the reason it was not: the saga's worst case is
+      // about three times its own 60-second lambda ceiling, so a slow afternoon at
+      // the provider kills it mid-run, and a killed run never reaches the `catch`
+      // that would have written `failed`. Safe to resume because the saga reads its
+      // own receipts -- `nextLineStep` derives the plan from the SIDs already on the
+      // row, so nothing is repeated.
+      const refusal = lineRetryRefusal(lineForClient(row.data), Date.now());
+      if (refusal) return json(409, { ok: false, error: refusal, line: lineForClient(row.data) });
       const result = await provisionLine(db, choice, cfg, secrets, tenant, rowToLine(row.data), "support");
       const after = await db.from("lines").select("*").eq("id", lineId).single();
       return json(result.ok ? 200 : 502, { ok: result.ok, provider: choice.name, line: after.data ? lineForClient(after.data) : null, ...(result.ok ? {} : { step: result.step, error: result.error }) });
