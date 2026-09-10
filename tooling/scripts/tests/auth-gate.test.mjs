@@ -104,11 +104,21 @@ test("two public PREFIXES, and only a workspace's own two pages live under them"
   // with extra steps. Caught on production, where the page 307'd to /login.
   assert.deepEqual(prefixes, ["/yes/", "/b/"]);
   assert.match(middleware, /PUBLIC_PREFIXES\.some\(\(p\) => path\.startsWith\(p\)\)/);
-  for (const [dir, what] of [["yes", "the opt-in page"], ["b", "the workspace's own page"]]) {
+  //
+  // `/yes/<slug>/form` joined the opt-in page when a yes to offers had to be
+  // WRITTEN (00100): the filing names the printable form as one way to give it,
+  // and a reviewer who gets a login screen instead of the form has been shown a
+  // consent method nobody can check. It is a page like its neighbour -- printed
+  // and signed by hand, it takes no input -- and it is the only thing that joined.
+  for (const [dir, what, beneath] of [
+    ["yes", "the opt-in page and its paper form", ["form", "page.tsx"]],
+    ["b", "the workspace's own page", ["page.tsx"]],
+  ]) {
     const at = path.join(ROOT, "apps/dashboard/app", dir);
     assert.deepEqual(fs.readdirSync(at), ["[slug]"], `nothing but ${what} may live under its public prefix`);
-    assert.deepEqual(fs.readdirSync(path.join(at, "[slug]")), ["page.tsx"], `and ${what} is a page, not a route that takes input`);
+    assert.deepEqual(fs.readdirSync(path.join(at, "[slug]")).sort(), beneath, `and ${what} are pages, not routes that take input`);
   }
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/yes/[slug]/form")), ["page.tsx"], "the paper form is a page, not a route that takes input");
 });
 
 test("only these nine paths are reachable without a session", () => {

@@ -188,6 +188,11 @@ export async function POST(request: Request): Promise<Response> {
     // conversation with a third party who has not asked for anything, and that
     // needs their own recorded yes. Passing `optedOut` alone could not tell the
     // two apart, so it let the second case through.
+    //
+    // KEPT BY THE OWNER'S DECISION (2026-09-10), after the review of #313 asked
+    // whether a caller should need a recorded yes as well. Requiring one would block
+    // the booking link on almost every first call, and texting the person who asked
+    // for it, at the number they are calling from, is a reply rather than outreach.
     const gate = outboundGate({
       // The row whole: `OutboundTarget` is a `PurposeBearing`, checked by the compiler,
       // so there is no hand re-mapping here to get one field's name wrong.

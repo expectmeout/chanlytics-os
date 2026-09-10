@@ -139,37 +139,55 @@ function waysFor(f: ConsentPageFacts, phrase: string): ConsentWay[] {
   return ways;
 }
 
-export function consentPageVM(f: ConsentPageFacts): ConsentPageVM {
-  const name = f.businessName.trim() || "This business";
-  const conversation = waysFor(f, CONVERSATION_PHRASE);
-  const offers = waysFor(f, CONSENT_PHRASE);
-  const empty = conversation.length === 0 && offers.length === 0;
-
-  const asks: ConsentAsk[] = empty ? [] : [
-    {
-      purpose: "conversational",
+/**
+ * The words of each ask, said ONCE for the page and for its paper form. Two copies
+ * of a disclosure are one that will be edited and one that will not -- and the
+ * paper form is the version a customer signs, so it may not drift from the page a
+ * reviewer reads.
+ */
+function askWords(name: string): Record<SendPurpose, { title: string; lead: string; optional: string | null; terms: string[] }> {
+  return {
+    conversational: {
       title: "Messages about your visit",
       lead: `Appointment reminders and confirmations from ${name}, and a reply when you write to them.`,
       optional: null,
-      ways: conversation,
       terms: [
         `You get appointment reminders and answers to what you ask ${name}. Message frequency varies.`,
         "Message and data rates may apply.",
         "Reply HELP for help. Reply STOP at any time to stop.",
       ],
     },
-    {
-      purpose: "marketing",
+    marketing: {
       title: "Offers and news",
       lead: `Promotions and news from ${name}.`,
       optional: `Separate, and entirely optional — you can have the messages above without this one, and saying no changes nothing about your appointments or anything you buy from ${name}.`,
-      ways: offers,
       terms: [
         `You get promotional offers and news from ${name}. A few messages a month, never daily.`,
         "Message and data rates may apply.",
         "Reply HELP for help. Reply STOP at any time to stop.",
       ],
     },
+  };
+}
+
+/** What is true of both asks, said once at the foot of the page and of the form. */
+function bothTerms(name: string): string[] {
+  return [
+    "No mobile information is shared with third parties or affiliates for marketing purposes.",
+    `Consent is not a condition of any purchase from ${name}.`,
+  ];
+}
+
+export function consentPageVM(f: ConsentPageFacts): ConsentPageVM {
+  const name = f.businessName.trim() || "This business";
+  const conversation = waysFor(f, CONVERSATION_PHRASE);
+  const offers = waysFor(f, CONSENT_PHRASE);
+  const empty = conversation.length === 0 && offers.length === 0;
+  const words = askWords(name);
+
+  const asks: ConsentAsk[] = empty ? [] : [
+    { purpose: "conversational", ...words.conversational, ways: conversation },
+    { purpose: "marketing", ...words.marketing, ways: offers },
   ];
 
   return {
@@ -179,10 +197,67 @@ export function consentPageVM(f: ConsentPageFacts): ConsentPageVM {
       : `Two separate things you can say yes to, in your own message from your own phone. ${name} never sells or shares your number.`,
     asks,
     qrLink: optInLink(f.whatsappE164, CONSENT_PHRASE),
-    terms: [
-      "No mobile information is shared with third parties or affiliates for marketing purposes.",
-      `Consent is not a condition of any purchase from ${name}.`,
-    ],
+    terms: bothTerms(name),
     empty,
+  };
+}
+
+/**
+ * One of the two questions on the paper form: its own box, its own disclosures,
+ * its own signature.
+ */
+export interface ConsentFormSection {
+  purpose: SendPurpose;
+  title: string;
+  lead: string;
+  /** What ticking the box says, in the customer's own voice. Printed unticked: a box that arrives ticked is not a yes. */
+  box: string;
+  optional: string | null;
+  terms: string[];
+  /** The line signed for THIS box only. */
+  sign: string;
+}
+
+export interface ConsentFormVM {
+  title: string;
+  lead: string;
+  /** Filled in once, above both boxes. */
+  fields: string[];
+  sections: ConsentFormSection[];
+  terms: string[];
+  /** The line the business fills in when it records the sheet: its own audit trail. */
+  office: string;
+}
+
+/**
+ * The same two asks, on paper: `/yes/<slug>/form`.
+ *
+ * A yes to offers has to be WRITTEN -- the carriers refuse a campaign whose
+ * marketing opt-in relies on a spoken yes (Twilio lists it among the causes of
+ * error 30913) -- and a customer at the desk may not want to text anything.
+ * Twilio names "a signed form section" as one of the three controls that qualify,
+ * provided it is its own section. So each ask is its own box, printed unticked,
+ * in the page's own words, with its own signature; the business records each
+ * signed box as "Sign-up form" and keeps the sheet.
+ *
+ * It is also what a reviewer is shown. The filing names this URL as the paper way
+ * to say yes, and a reviewer can only accept a form they can see.
+ *
+ * Unlike the page it needs no number: a business can take signed forms before its
+ * line is approved for texting.
+ */
+export function consentFormVM(f: Pick<ConsentPageFacts, "businessName">): ConsentFormVM {
+  const name = f.businessName.trim() || "This business";
+  const words = askWords(name);
+  return {
+    title: `Text messages from ${name}`,
+    lead: "Two separate boxes. Tick and sign only the ones you want: signing one does not sign you up for the other, and either one can be had without the other.",
+    fields: ["Name", "Mobile number"],
+    sections: [
+      { purpose: "conversational", ...words.conversational, box: `Yes, text me about my appointments with ${name}.`, sign: "Signature for this box" },
+      { purpose: "marketing", ...words.marketing, box: `Yes, text me offers and news from ${name}.`, sign: "Signature for this box" },
+    ],
+    terms: bothTerms(name),
+    office: `For ${name}: record each signed box on the customer's profile, under its own answer, as “Sign-up form”, and keep this sheet. Recorded on __________ by __________`,
   };
 }

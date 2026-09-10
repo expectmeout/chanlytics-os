@@ -379,6 +379,30 @@ export const CONSENT_SOURCES: readonly { id: string; label: string }[] = [
 ];
 export const CONSENT_RESET_SOURCE = "operator";
 
+/**
+ * The ways a yes to OFFERS may have been given: in writing, and only in writing.
+ *
+ * Promotional texts need the customer's express WRITTEN consent. The carriers
+ * refuse a campaign whose opt-in "relies on verbal consent instead of written
+ * consent" -- Twilio lists it among the causes of error 30913 -- and CTIA's
+ * principles require written consent for marketing. So a yes to offers is a
+ * sign-up form the customer signed, or their own message; a spoken yes, in person
+ * or on the phone, is a yes to messages about their visit and nothing more.
+ *
+ * 00095 said this in its own comment ("both are express written consent") while
+ * its check let a spoken yes through. 00100 closes that in the database; this is
+ * the same rule for the route and the menus, so all three say one thing.
+ *
+ * Only the YES is narrowed. A "no more offers" is honoured however it is said.
+ */
+export const OFFERS_YES_SOURCES: readonly string[] = ["form", "customer_message"];
+
+/** Why a yes to offers given this way cannot be recorded -- or null when it can. */
+export function offersYesRefusal(source: string | null | undefined): string | null {
+  if (source && OFFERS_YES_SOURCES.includes(source)) return null;
+  return "A yes to offers has to be in writing: a sign-up form they signed, or their own message. A spoken yes covers messages about their visit, not offers.";
+}
+
 /** The words for a source; the reset has none, an unknown one is shown as itself. */
 export function consentSourceLabel(source: string | null | undefined): string | null {
   if (!source) return null;

@@ -336,7 +336,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
               </div>
               {data.optIn.pageUrl && (
                 <p className="bc-optin-page" data-testid="bc-optin-page">
-                  Or share your sign-up page: <a className="cl-bucket-link" href={data.optIn.pageUrl} target="_blank" rel="noreferrer">{data.optIn.pageUrl.replace("https://", "")}</a>. It shows the same QR and the wording the phone carriers ask for before they let a business text.
+                  Or share your sign-up page: <a className="cl-bucket-link" href={data.optIn.pageUrl} target="_blank" rel="noreferrer">{data.optIn.pageUrl.replace("https://", "")}</a>. It shows the same QR and the wording the phone carriers ask for before they let a business text. For a customer who would rather sign on paper, print <a className="cl-bucket-link" href={`${data.optIn.pageUrl}/form`} target="_blank" rel="noreferrer" data-testid="bc-optin-form">the sign-up form</a> — two separate boxes, each signed on its own — and record each signed box on their profile as “Sign-up form”.
                 </p>
               )}
             </div>

@@ -134,6 +134,23 @@ body {
 /* Specificity, deliberately: the link rule above is (0,1,1) and would
    otherwise paint the button's label teal on teal — invisible. */
 .yes a.yes-btn { color: #06231d; text-decoration: none; }
+/* The paper form, /yes/<slug>/form. Printed and signed by hand: every ask its own
+   box, nothing interactive, and black on white once it reaches paper. */
+.yes-paper-fields { display: grid; gap: 6px; margin: 0 0 22px; }
+.yes-paper-line { border-bottom: 1px solid var(--auth-muted); padding: 22px 0 4px; font-size: 0.78rem; color: var(--auth-muted); }
+.yes-paper-box { display: flex; gap: 10px; align-items: flex-start; font-weight: 600; margin: 4px 0 12px; }
+.yes-paper-tick { flex: none; width: 18px; height: 18px; margin-top: 2px; border: 1.5px solid var(--auth-ink); border-radius: 3px; }
+.yes-paper-sign { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; margin: 12px 0 0; }
+.yes-paper-office { color: var(--auth-muted); font-size: 0.75rem; margin: 22px 0 0; }
+@media print {
+  body { background: #fff; color: #000; }
+  .yes-paper { max-width: none; margin: 0; padding: 0; }
+  .yes-paper .yes-ask { background: #fff; border-color: #000; break-inside: avoid; }
+  .yes-paper .yes-lead, .yes-paper .yes-ask-optional, .yes-paper .yes-terms, .yes-paper .yes-foot, .yes-paper-line, .yes-paper-office { color: #000; border-color: #000; background: none; }
+  .yes-paper-tick { border-color: #000; }
+  .yes-paper a { color: #000; text-decoration: none; }
+  .yes-paper-noprint { display: none; }
+}
 
 .legal .legal-foot { border-top: 1px solid var(--auth-line); margin-top: 36px; padding-top: 16px; color: var(--auth-muted); font-size: 0.85rem; }
 .auth-card .error { color: var(--auth-danger); font-size: 0.85rem; margin-top: 10px; }

@@ -84,6 +84,14 @@ export default async function ConsentPage({ params }: { params: Promise<{ slug: 
       </ul>
 
       {/*
+        The same two questions on paper, for a customer who would rather sign than
+        text. It is also where a reviewer finds the paper form the filing describes.
+      */}
+      <p className="yes-foot" data-testid="yes-paper-link">
+        Rather sign on paper? <a href={`/yes/${slug}/form`}>Print the sign-up form</a> — the same two questions, each box signed on its own.
+      </p>
+
+      {/*
         Who is actually sending, spelled out. This page is the opt-in URL on
         every carrier registration, and a reviewer landing here has to be able
         to tell which business a customer is agreeing to hear from and who
