@@ -143,6 +143,41 @@ export function lineStuckProvisioning(
   return Number.isFinite(since) && nowMs - since > PROVISIONING_DEADLINE_MS;
 }
 
+/**
+ * May this line be retried, and if not, what does the person hear?
+ *
+ * `null` means go ahead. A string is the refusal, already in words.
+ *
+ * EXTRACTED, and this is the pattern rather than a one-off. The decision lived
+ * inline in a 400-line route handler, which meant the only way to test it was to
+ * read the handler's text and assert the text was still there — three
+ * `readCode` assertions pinning an `if` statement. That is the trade the refactor
+ * program calls a debt: a rule with no seam gets pinned by its source, the pin
+ * passes whether or not the rule is right, and the count of such pins only ever
+ * grows.
+ *
+ * A rule that returns a value has a seam by construction. The route maps a
+ * request to a command and a result to a response; the decision is here, and the
+ * test below calls it with rows instead of reading a file.
+ *
+ * WHY THE TWO REFUSALS DIFFER. "Not failed" is true of an answering line and of
+ * one still setting up, and it is useless to both. A line mid-saga is not a
+ * mistake anyone made — it needs a few minutes, and after those minutes the
+ * sweep takes it whether or not anybody comes back. Saying so is the difference
+ * between a person waiting usefully and a person pressing the button again.
+ */
+export function lineRetryRefusal(
+  l: Pick<LineDto, "voice_state" | "state_since"> | null | undefined,
+  nowMs: number,
+): string | null {
+  if (!l) return "no such line";
+  if (l.voice_state === "failed") return null;
+  if (lineStuckProvisioning(l, nowMs)) return null;
+  return l.voice_state === "provisioning"
+    ? "the line is still setting up — give it a few minutes, and it is retried automatically after that"
+    : `the line is ${l.voice_state}, not failed`;
+}
+
 /** The saga's step, in the owner's words — the row, the bell and the platform email say the same thing. */
 export const LINE_STEP_WORDS: Record<string, string> = {
   subaccount: "opening your account with the carrier",

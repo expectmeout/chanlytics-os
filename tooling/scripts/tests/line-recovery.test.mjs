@@ -23,7 +23,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
-  PROVISIONING_DEADLINE_MS, lineStuckProvisioning, setupSteps, platformLineActions, channelFor, toChannelVM,
+  PROVISIONING_DEADLINE_MS, lineStuckProvisioning, lineRetryRefusal, setupSteps, platformLineActions, channelFor, toChannelVM,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
@@ -120,15 +120,36 @@ test("SUPPORT: the back office offers the same retry, which it offered for nothi
 
 /* ----------------------------- the two doors ------------------------------ */
 
-test("the retry route accepts a line the wall killed, and refuses one that is still running", () => {
-  const edge = readCode("apps/edge/api/admin/lines.ts");
-  assert.match(edge, /const stuck = lineStuckProvisioning\(lineForClient\(row\.data\), Date\.now\(\)\);/);
-  assert.match(edge, /if \(row\.data\.voice_state !== "failed" && !stuck\) \{/);
-  // The refusal for a line that IS still running says what to do about it, rather
-  // than the old "the line is provisioning, not failed" — which was true and useless.
-  assert.match(edge, /the line is still setting up — give it a few minutes/);
-  assert.match(edge, /retried automatically after that/);
-  assert.ok(!/if \(row\.data\.voice_state !== "failed"\) return json\(409/.test(edge), "REGRESSION: the guard that made this state terminal");
+test("the retry rule accepts a line the wall killed, and refuses one that is still running", () => {
+  // BEHAVIOUR, not text. This test used to read `apps/edge/api/admin/lines.ts` and
+  // assert five regexes against an `if` statement buried in a 400-line handler —
+  // it passed whether or not the rule was right, and it was one of thirty-six such
+  // assertions added in a single day. The rule now returns a value, so it has a
+  // seam, so it can simply be called.
+  assert.equal(lineRetryRefusal(line({ voice_state: "failed" }), NOW), null, "a failed line has always been retryable");
+  assert.equal(lineRetryRefusal(line({ state_since: ago(30 * 60_000) }), NOW), null, "and now so is one the wall killed");
+
+  // Still running: refused, but with something a person can act on. "Not failed"
+  // is true of this and useless to it.
+  const running = lineRetryRefusal(line({ state_since: ago(60_000) }), NOW);
+  assert.match(running, /still setting up/);
+  assert.match(running, /retried automatically after that/, "so nobody sits refreshing");
+  assert.doesNotMatch(running, /not failed/, "REGRESSION: the sentence that told a waiting person nothing");
+
+  // Every other state names itself, which is what support needs to see.
+  assert.equal(lineRetryRefusal(line({ voice_state: "answering" }), NOW), "the line is answering, not failed");
+  assert.equal(lineRetryRefusal(line({ voice_state: "none" }), NOW), "the line is none, not failed");
+  assert.equal(lineRetryRefusal(null, NOW), "no such line");
+
+  // The refusal and the deadline agree by construction: one reads the other.
+  for (const age of [0, 60_000, PROVISIONING_DEADLINE_MS - 1, PROVISIONING_DEADLINE_MS + 1, 99 * 60_000]) {
+    const l = line({ state_since: ago(age) });
+    assert.equal(
+      lineRetryRefusal(l, NOW) === null,
+      lineStuckProvisioning(l, NOW),
+      `a provisioning line is retryable exactly when it is stuck (age ${age}ms)`,
+    );
+  }
 });
 
 test("the sweep resumes them unasked, through the same function the buttons call", () => {
