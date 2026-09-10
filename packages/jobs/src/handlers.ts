@@ -6,7 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendText, sendTemplate, type WaConfig } from "@chanlytics/channels";
-import { BROADCAST_CHUNK, BROADCAST_GAP_MS, firstNameOf, isOptedOutContact, mayMessageFor, purposeOfTemplate, parseParamSpec, parseTenantConfig, renderTemplate, resolveParams, type JobKind, type ParamSpec } from "@chanlytics/contracts";
+import { BROADCAST_CHUNK, BROADCAST_GAP_MS, firstNameOf, mayMessageFor, purposeOfTemplate, parseParamSpec, parseTenantConfig, renderTemplate, resolveParams, type JobKind, type ParamSpec, type SendPurpose } from "@chanlytics/contracts";
 import { recordOutbound, resolveOutboundTarget, type Database, type Json } from "@chanlytics/db";
 
 export interface JobContext {
@@ -100,7 +100,7 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   // `data: null` without an error, so the two cases stay separable.
   const { data: msg, error: readErr } = await ctx.db
     .from("messages")
-    .select("id, status, body, template_name, channel, sender")
+    .select("id, status, body, template_name, channel, sender, created_at")
     .eq("id", p.message_id)
     .eq("tenant_id", job.tenant_id)
     .maybeSingle();
@@ -128,7 +128,7 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   // costs a delay; a send that should not have happened cannot be taken back.
   const { data: convRow, error: consentErr } = await ctx.db
     .from("conversations")
-    .select("contacts (consent, dnc)")
+    .select("contacts (consent, dnc, marketing_consent)")
     .eq("id", p.conversation_id)
     .eq("tenant_id", job.tenant_id)
     .maybeSingle();
@@ -151,17 +151,74 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     // told why, which is the part they can act on.
     throw new Error(`outbound_send: cannot read consent for conversation ${p.conversation_id}: ${why}`);
   }
-  const contact = convRow.contacts;
-  if (contact && isOptedOutContact(contact)) {
+  const contact = convRow.contacts ?? {};
+
+  // THE ONE PREDICATE, ASKED WITH THIS MESSAGE'S PURPOSE. This gate asked only
+  // "have they opted out?", while the broadcast wire asked mayMessageFor with
+  // the template's purpose -- so a promotional template queued from the Inbox
+  // reached a person who had said yes to their appointments and no to offers.
+  // A template's purpose is what Meta says it is (purposeOfTemplate fails
+  // closed to marketing when the row is missing or its category unknown);
+  // words in a conversation are conversational. Never proactive: everything
+  // on this queue answers a thread that exists.
+  let purpose: SendPurpose = "conversational";
+  if (p.template) {
+    const { data: tpl, error: tplErr } = await ctx.db
+      .from("templates")
+      .select("category")
+      .eq("tenant_id", job.tenant_id)
+      .eq("channel", "whatsapp")
+      .eq("name", p.template.name)
+      .eq("language", p.template.language)
+      .maybeSingle();
+    // Fail closed, and loudly: a purpose that cannot be read is not "utility".
+    if (tplErr) throw new Error(`outbound_send: cannot read template ${p.template.name}: ${tplErr.message}`);
+    purpose = purposeOfTemplate(tpl?.category);
+  }
+  const may = mayMessageFor(contact, purpose, { proactive: false });
+  if (!may.ok) {
+    const reason = may.reason ?? "opted_out";
     await ctx.db.from("messages")
-      .update({ status: "canceled", error: { reason: "opted_out" } })
-      .eq("id", p.message_id);
+      .update({ status: "canceled", error: { reason } })
+      .eq("id", p.message_id)
+      .eq("status", "queued");
     await ctx.db.from("events").insert({
       tenant_id: job.tenant_id, kind: "message.send_blocked", category: "message",
       subject_type: "message", subject_id: p.message_id,
-      data: { reason: "opted_out", consent: contact.consent, dnc: contact.dnc },
+      data: { reason, purpose, consent: contact.consent ?? null, dnc: contact.dnc ?? null, marketing_consent: contact.marketing_consent ?? null },
     });
     return;
+  }
+
+  // A PERSON SPOKE AFTER THIS DRAFT WAS WRITTEN. A held reply exists so a human
+  // can get there first. From the Inbox, the reply route withdraws the draft
+  // itself; from the WhatsApp Business app, the echo only paused the thread,
+  // and the draft then fired underneath the owner's own words, so the customer
+  // received both. The fact is a newer human message on the thread; the draft
+  // is retired, never sent.
+  if (msg.sender === "ai") {
+    const { data: newer, error: newerErr } = await ctx.db
+      .from("messages")
+      .select("id")
+      .eq("conversation_id", p.conversation_id)
+      .eq("tenant_id", job.tenant_id)
+      .eq("direction", "outbound")
+      .eq("sender", "human")
+      .gt("created_at", msg.created_at)
+      .limit(1);
+    if (newerErr) throw new Error(`outbound_send: cannot read the thread for ${p.message_id}: ${newerErr.message}`);
+    if (newer && newer.length > 0) {
+      await ctx.db.from("messages")
+        .update({ status: "canceled", error: { reason: "superseded_by_human" } })
+        .eq("id", p.message_id)
+        .eq("status", "queued");
+      await ctx.db.from("events").insert({
+        tenant_id: job.tenant_id, kind: "message.send_blocked", category: "message",
+        subject_type: "message", subject_id: p.message_id,
+        data: { reason: "human_has_it", after: newer[0].id },
+      });
+      return;
+    }
   }
 
   // The ONE channel-specific step in an otherwise channel-agnostic pipeline.
