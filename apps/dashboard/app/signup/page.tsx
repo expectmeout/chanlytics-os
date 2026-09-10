@@ -19,6 +19,7 @@ export default function SignupPage() {
   // is a promise the next screen breaks.
   const [posture, setPosture] = useState<"open" | "waitlist" | "invite" | null>(null);
   const [joined, setJoined] = useState(false);
+  const [unsent, setUnsent] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tz, setTz] = useState<string | undefined>(undefined);
@@ -49,7 +50,7 @@ export default function SignupPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: name.trim(), email: email.trim(), ...(tz ? { timezone: tz } : {}), ...(posture === "invite" ? { code: code.trim() } : {}) }),
       });
-      const j = (await res.json().catch(() => null)) as { ok?: boolean; data?: { next?: string | null; waitlisted?: boolean }; error?: { message?: string } } | null;
+      const j = (await res.json().catch(() => null)) as { ok?: boolean; data?: { next?: string | null; waitlisted?: boolean; sent?: boolean; message?: string }; error?: { message?: string } } | null;
       if (!res.ok || !j?.ok) {
         setError(j?.error?.message ?? "Something went wrong. Try again.");
         return;
@@ -58,6 +59,12 @@ export default function SignupPage() {
       // no screen to enter one on. Say so here rather than navigating somewhere
       // that would ask for one.
       if (j.data?.waitlisted) { setJoined(true); return; }
+      // THE CODE DID NOT GO OUT, and the workspace exists anyway. Navigating to
+      // /login?sent=1 would put a person in front of a box asking for six digits
+      // that are not coming — the same reason a waitlist submission stops here
+      // rather than going somewhere that asks for one. The fallback destination
+      // below hardcodes `sent=1`, so this has to come first.
+      if (j.data?.sent === false) { setUnsent(j.data.message ?? SIGNUP_WORDS.notSent); return; }
       window.location.assign(j.data?.next ?? `/login?email=${encodeURIComponent(email.trim())}&sent=1`);
     } catch {
       setError("Could not reach Chanlytics just now. Try again.");
@@ -67,6 +74,18 @@ export default function SignupPage() {
   }
 
   const waiting = posture === "waitlist";
+
+  if (unsent) {
+    return (
+      <main className="auth-card" data-testid="signup-unsent">
+        <h1>Your workspace is ready</h1>
+        <p>{unsent}</p>
+        <div className="hint">
+          <a href={`/login?email=${encodeURIComponent(email.trim())}`}>Go to sign-in</a> and ask for the code there.
+        </div>
+      </main>
+    );
+  }
 
   if (joined) {
     return (

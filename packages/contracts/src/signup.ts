@@ -50,6 +50,25 @@ export const SIGNUP_WORDS = {
   lead: "Your business gets its own workspace: the receptionist, the inbox, the numbers. You become its owner.",
   sent: (email: string) => `If ${email} can receive email, a 6-digit code is on its way. Enter it on the next screen to open your workspace.`,
   codeRequired: "Sign-up is by invitation right now. Enter the invite code you were given.",
+  /*
+   * WHEN THE CODE DID NOT GO OUT, and it is our fault rather than theirs.
+   *
+   * `sent` above is deliberately opaque -- "if this address can receive email" --
+   * because whether an address is already registered is not a stranger's to learn
+   * from a sign-up form. That is right, and it stays.
+   *
+   * But it was answering for a second case it does not fit. The auth mailer has a
+   * declared budget of two an hour and no SMTP configured, so the third person to
+   * sign up in an hour got the same "a code is on its way" and was sent to /login
+   * to wait for something that would never arrive. Their workspace, membership and
+   * billing row all exist by then: they own a workspace they cannot enter, and
+   * nothing in the product tells them why.
+   *
+   * A send WE could not make says nothing about whether the address is known, so
+   * saying so leaks nothing -- and it is the difference between waiting usefully
+   * and waiting for ever.
+   */
+  notSent: "Your workspace is made, but we could not send the sign-in code just now. Wait a few minutes and ask for it again from the sign-in page — nothing is lost.",
   /* ---------------------------------------------------------- the waitlist
    * Said the way a person would say it: what is true, when they will hear,
    * and no apology. "We are onboarding businesses in small groups" is the
@@ -66,6 +85,27 @@ export const SIGNUP_WORDS = {
   newHere: "New to Chanlytics?",
   clock: (tz: string) => `Your clock: ${tz}, read from this device. Change it later in Settings › Workspace.`,
 } as const;
+
+/**
+ * Is a failed send OURS to admit, or the caller's not to learn?
+ *
+ * Two failures wear one shape. "This address is unknown / already registered" is
+ * about THEM and must stay opaque: answering differently is an account-enumeration
+ * oracle on a public form. "We are over our mail budget" or "no mail provider is
+ * configured" is about US, discloses nothing about any address, and is the only
+ * one a person can act on.
+ *
+ * Matched on Supabase's own codes and statuses first, with a message fallback,
+ * because the code is the stable half and the wording is not. Anything
+ * unrecognised is treated as THEIRS -- the safe direction, since a wrong guess
+ * here leaks whether an account exists.
+ */
+export function sendFailureIsOurs(e: { code?: string; status?: number; message?: string } | null | undefined): boolean {
+  if (!e) return false;
+  if (e.code === "over_email_send_rate_limit" || e.code === "email_provider_disabled") return true;
+  if (e.status === 429) return true;
+  return /rate limit|too many requests|email provider|smtp/i.test(e.message ?? "");
+}
 
 /** Where the page goes once the code is on its way: sign-in, at the code step, for this address. */
 export function signupNext(email: string): string {
