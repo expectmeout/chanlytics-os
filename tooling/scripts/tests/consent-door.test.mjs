@@ -280,3 +280,62 @@ test("THE DEFECT: each ask writes the column it is labelled for", async () => {
     { purpose: "marketing", consent: "opted_in", source: "form" },
   ], "each ask reached its own door, in the register it is labelled for");
 });
+
+/**
+ * The real profile, rendered the way a person opens it: the shell's globals, a
+ * person's view model from the real mapper, the load effect run, then drawn again.
+ * The harness above renders one control; nothing rendered the page that holds it.
+ */
+async function renderLoadedProfile() {
+  const { toPersonVM, CONSENT_SOURCES } = await import("@chanlytics/contracts");
+  const row = {
+    id: "p-maria", display_name: "Maria Lopez", wa_profile_name: null, phone_e164: "+13055550134",
+    consent: "unknown", consent_source: null, consent_updated_at: null,
+    marketing_consent: "unknown", marketing_consent_source: null, marketing_consent_updated_at: null,
+    dnc: false, channels: ["whatsapp"], conversation_count: 0, escalation_count: 0, needs_human: false, open_escalation_reason: null, open_escalation_since: null,
+    latest_conversation_id: null, latest_state: null, latest_paused_until: null, latest_assignee_user_id: null, latest_snooze_until: null, latest_wa_inbound_at: null,
+    last_message_at: null, last_message_direction: null, last_message_sender: null, last_inbound_text: null, last_inbound_at: null, last_call_at: null, last_inbound_call_at: null, call_count: 0, call_seconds: 0,
+    first_contact_at: null, earliest_row_at: null, has_backfill: false, has_chat: false, queued_reply_at: null,
+  };
+  const vm = toPersonVM({ row, identities: [], conversations: [], calls: [], escalations: [], decisions: [], receptionist_mode: null, workspace_reply_mode: "auto" }, new Date("2026-09-10T12:00:00.000Z"));
+  // What the shell provides around a page: the real-workspace flag, who is signed in,
+  // the sources, the loader, the toast, and the few components other files define.
+  Object.assign(globalThis.window, {
+    __PEOPLE: {}, __ME: { role: "operator" }, __consentSources: CONSENT_SOURCES,
+    __personDetail: async () => vm, addEventListener: () => {}, removeEventListener: () => {},
+    usePPToast: () => [null, () => {}],
+  });
+  for (const g of ["Icon", "ChannelGlyph", "ClientTag", "StatCell", "StatStrip", "MoreMenu", "TempBar"]) globalThis[g] ??= g;
+  globalThis.React.useCallback ??= (fn) => fn;
+  const Profile = globalThis.window.ClientProfile({ id: "p-maria" }).type;
+  assert.equal(typeof Profile, "function", "a real workspace renders the real profile");
+
+  const cells = [];
+  let seq = 0;
+  let effects = [];
+  const hooks = {
+    useState: (init) => {
+      const k = seq++;
+      if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
+      return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }];
+    },
+    useEffect: (fn) => { effects.push(fn); },
+    useMemo: (fn) => { const k = seq++; if (!(k in cells)) cells[k] = fn(); return cells[k]; },
+  };
+  const draw = () => { HOOKS = hooks; seq = 0; effects = []; return Profile({ id: "p-maria" }); };
+  draw();
+  for (const e of effects) e();
+  await new Promise((r) => setImmediate(r));
+  return draw();
+}
+
+test("a real profile renders once its person loads", async () => {
+  // THE CRASH. #313 declared `who` from `first` thirty-four lines above the line
+  // that declares `first`, so every real profile threw the moment its person
+  // loaded -- a const read before its line runs. Lint does not see it and the
+  // build does not run it, so it is rendered here, loaded, with a real view model.
+  const tree = await renderLoadedProfile();
+  const asks = [];
+  walk(tree, (n) => { if (n.type === Ask) asks.push(n.props.testid); });
+  assert.deepEqual(asks, ["consent-control", "consent-marketing"], "it reached the consent rail, which it used to throw before drawing");
+});

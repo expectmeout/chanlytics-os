@@ -862,7 +862,6 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
     { id: "in_person", label: "In person" }, { id: "phone", label: "On the phone" },
     { id: "form", label: "Sign-up form" }, { id: "customer_message", label: "Their own message" },
   ];
-  const who = first === "them" ? "This person" : first;
   // One recorder per door. Both reload the person afterwards rather than assuming,
   // because the lists and the Consent column are computed from the row.
   const recordFor = (purpose) => async (consent, source) => {
@@ -897,6 +896,10 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   // and their full number where a speaker is named.
   const phoneOnly = /^[+\d(]/.test(p.name);
   const first = phoneOnly ? "them" : p.name.split(" ")[0];
+  // After `first`, not above it. The recorders above read `who` only when a button
+  // is pressed, but it was DECLARED above `first` itself -- a const read before its
+  // line runs -- so every real profile threw the moment its person loaded (#313).
+  const who = first === "them" ? "This person" : first;
   const speaker = phoneOnly ? p.name : first;
   const hot = tone === "escalated" || tone === "queued";
   return (
