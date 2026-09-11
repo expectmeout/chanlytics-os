@@ -1,79 +1,37 @@
 /**
- * One playbook's run, the one implementation.
- *
- * The hourly sweep runs every playbook whose hour it is; "Run now" on the
- * page runs one at a person's request. Both come here. A run is a broadcast
- * for the people who became eligible since the last run — the trigger's
- * list crossed with who said yes, minus anyone who heard from this playbook
- * within its gap, minus anyone who heard from any playbook this week, the
- * longest-unheard first, at most the cap. What the run then does is the
- * class's autonomy mode: auto schedules the send now, veto schedules it half
- * an hour ahead with a Stop, ask leaves it waiting for a person, never does
- * nothing. A person who asks for a run now has decided: it sends now, unless
- * the class is set to never. Every run is recorded as an event, a run that
- * found nobody included.
+ * One playbook's run: the rules are core's (packages/core/src/campaigns/
+ * run-playbook.ts); this file is the edge's side of them. It reads the
+ * workspace once per tenant — the people, the modes, the number, the
+ * touches, the calendar — and builds the run's ports over the edge's
+ * database and services. The hourly sweep and "Run now" on the page both
+ * come here.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { emitEvent, listPolicies, type Database, type Json } from "./workspace/db.js";
 import { scheduleJob } from "./workspace/jobs.js";
+import { runPlaybook as runOverPorts, type PlaybookRow, type RunBy, type RunContext, type RunOutcome } from "./workspace/core.js";
 import { notify } from "./notify.js";
 import { loadTenantNotifications } from "./tenant-runtime.js";
 import {
-  eligibleForPlaybook,
   indexFeed,
-  localDate,
   numberHealth,
   parseTenantConfig,
-  planRun,
   toPersonRowVM,
   toVisitDto,
-  triggerOf,
-  visitFactsFor,
   visitsIn,
-  type NumberHealth,
-  type ParamSpec,
   type PersonRowDto,
-  type PersonRowVM,
   type PersonVisitsDto,
-  type PlaybookDto,
-  type RunPlan,
 } from "./workspace/contracts.js";
 import { feedItemsFor } from "./availability.js";
 
 type Db = SupabaseClient<Database>;
 
-export interface PlaybookRow {
-  id: string;
-  tenant_id: string;
-  name: string;
-  trigger: string;
-  template_id: string;
-  template_name: string;
-  template_language: string;
-  params: unknown;
-  policy_class: string;
-  state: string;
-  run_hour: number;
-  cap_per_run: number;
-  gap_days: number;
-  cadence_days: number;
-  created_by: string | null;
-  last_run_for: string | null;
-}
+export type { PlaybookRow, RunOutcome };
 
-export interface TenantRunContext {
+/** The run's context, with the client and the tenant the ports close over. */
+export interface TenantRunContext extends RunContext {
   db: Db;
   tenantId: string;
-  tz: string;
-  now: Date;
-  people: PersonRowVM[];
-  modes: Map<string, string>;
-  health: NumberHealth;
-  touches: { byThis: Map<string, Map<string, number>>; byAny: Map<string, number> };
-  /** The workspace's calendar: a visit playbook runs only when it is "ok". */
-  calendar: "ok" | "unavailable" | "none";
-  /** Each person's next and last visit from that calendar, for the words a visit run keeps. */
-  visits: Map<string, PersonVisitsDto>;
 }
 
 /** Read once per tenant: the people, the modes, the number, the touches. */
@@ -150,114 +108,67 @@ export async function loadTenantRunContext(db: Db, tenantId: string, now: Date):
   };
 }
 
-export type RunOutcome =
-  | { outcome: "sent" | "held"; broadcast_id: string; eligible: number; mode: string; state: string }
-  | { outcome: "empty"; eligible: 0; mode: string }
-  | { outcome: "off"; mode: string; skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar" }
-  | { outcome: "failed"; error: string };
-
 export interface RunRequest {
   /** The local day the run is for; one run per playbook per day. */
   runFor?: string;
   /** Who asked: the sweep (system) or a person (their decision, sends now unless the class is never). */
-  by: { kind: "system" } | { kind: "user"; userId: string };
+  by: RunBy;
 }
 
+/** The run over this runtime's ports: the rules are core's. */
 export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: RunRequest): Promise<RunOutcome> {
-  const { db, tenantId, now } = ctx;
-  const runFor = req.runFor ?? localDate(ctx.tz, now);
-  const record = async (data: Record<string, unknown>) => {
-    await emitEvent(db, tenantId, "playbook.run", "message", "playbook", p.id, { run_for: runFor, by: req.by.kind, ...data } as Json).catch(() => {});
-    await db.from("playbooks").update({ last_run_for: runFor, last_run_at: now.toISOString() }).eq("id", p.id);
-  };
-  const mode = ctx.modes.get(p.policy_class) ?? "ask";
-  const plan: RunPlan = req.by.kind === "user"
-    ? (mode === "never" ? { kind: "off" } : { kind: "send", state: "scheduled", at: now })
-    : planRun(mode, now);
-  if (plan.kind === "off") { await record({ mode, skipped: "never" }); return { outcome: "off", mode, skipped: "never" }; }
-
-  const { data: tpl } = await db.from("templates").select("meta_status").eq("tenant_id", tenantId).eq("channel", "whatsapp").eq("name", p.template_name).eq("language", p.template_language).maybeSingle();
-  if (!tpl || tpl.meta_status !== "approved") { await record({ mode, skipped: "template_not_approved" }); return { outcome: "off", mode, skipped: "template_not_approved" }; }
-  if (!ctx.health.canSend) { await record({ mode, skipped: "number_flagged" }); return { outcome: "off", mode, skipped: "number_flagged" }; }
-
-  const { data: already } = await db.from("broadcasts").select("id").eq("playbook_id", p.id).eq("run_for", runFor).maybeSingle();
-  if (already) return { outcome: "off", mode, skipped: "already_ran_today" };
-  // A visit playbook without a calendar has nothing to read: off, and the run says so.
-  if (triggerOf(p.trigger)?.kind === "visit" && ctx.calendar !== "ok") { await record({ mode, skipped: "no_calendar" }); return { outcome: "off", mode, skipped: "no_calendar" }; }
-
-  let eligible = eligibleForPlaybook(ctx.people, p as unknown as PlaybookDto, { byThis: ctx.touches.byThis.get(p.id) ?? new Map(), byAny: ctx.touches.byAny }, now.getTime());
-  if (ctx.health.limitPerDay !== null && eligible.length > ctx.health.limitPerDay) eligible = eligible.slice(0, Math.max(0, Math.floor(ctx.health.limitPerDay)));
-  if (eligible.length === 0) { await record({ mode, eligible: 0 }); return { outcome: "empty", eligible: 0, mode }; }
-
-  const specs: ParamSpec[] = Array.isArray(p.params) ? (p.params as ParamSpec[]) : [];
-  const { data: made, error: bErr } = await db
-    .from("broadcasts")
-    .insert({
-      tenant_id: tenantId,
-      name: `${p.name} · ${runFor}`,
-      template_id: p.template_id,
-      template_name: p.template_name,
-      template_language: p.template_language,
-      params: specs as unknown as Json,
-      audience: { kind: "playbook", id: p.id, label: p.name } as unknown as Json,
-      state: plan.state,
-      scheduled_for: plan.kind === "send" ? plan.at.toISOString() : now.toISOString(),
-      recipient_count: eligible.length,
-      created_by: req.by.kind === "user" ? req.by.userId : p.created_by,
-      playbook_id: p.id,
-      run_for: runFor,
-    })
-    .select("id")
-    .single();
-  if (bErr || !made) return { outcome: "failed", error: bErr?.message ?? "run not created" };
-  // A visit run keeps each person's words on their row — the visit's time
-  // and service as the calendar said them now — so the send fills the slots
-  // without reading the calendar again.
-  const factsOf = (r: PersonRowVM) => {
-    const v = ctx.visits.get(r.id);
-    return visitFactsFor(p.trigger, p.trigger === "visit_tomorrow" ? (v?.next ?? null) : (v?.last ?? null), ctx.tz);
-  };
-  const { error: rErr } = await db.from("broadcast_recipients").insert(eligible.map((r) => {
-    const facts = factsOf(r);
-    return { broadcast_id: made.id, contact_id: r.id, tenant_id: tenantId, ...(facts ? { facts: facts as unknown as Json } : {}) };
-  }));
-  if (rErr) {
-    await db.from("broadcasts").update({ state: "failed", failure: "recipients_write_failed" }).eq("id", made.id);
-    return { outcome: "failed", error: rErr.message };
-  }
-
-  if (plan.kind === "send") {
-    try {
-      await scheduleJob(db, { tenantId, kind: "broadcast_send", dueAt: plan.at, payload: { broadcast_id: made.id } });
-    } catch (e) {
-      await db.from("broadcasts").update({ state: "failed", failure: "schedule_failed" }).eq("id", made.id);
-      return { outcome: "failed", error: e instanceof Error ? e.message : String(e) };
-    }
-    // The ledger: a run the sweep sends is the system's decision under the
-    // mode the owner chose; a run a person asked for is theirs.
-    await db.from("decisions").insert({
-      tenant_id: tenantId,
-      subject_type: "broadcast",
-      subject_id: made.id,
-      verb: "send_broadcast",
-      actor_type: req.by.kind === "user" ? "user" : "system",
-      actor_user_id: req.by.kind === "user" ? req.by.userId : null,
-      payload: { playbook_id: p.id, playbook: p.name, mode, recipients: eligible.length, scheduled_for: plan.at.toISOString(), run_now: req.by.kind === "user" } as unknown as Json,
-    });
-    await record({ mode, eligible: eligible.length, broadcast_id: made.id, state: plan.state });
-    return { outcome: "sent", broadcast_id: made.id, eligible: eligible.length, mode, state: plan.state };
-  }
-
-  const target = await loadTenantNotifications(db, tenantId);
-  await notify(
-    { tenantId, notifications: target.notifications, isEnvDefault: target.isEnvDefault },
+  const { db, tenantId } = ctx;
+  return runOverPorts(
     {
-      kind: "playbook",
-      route: "outbound",
-      subject: `Playbook “${p.name}” is ready: ${eligible.length} ${eligible.length === 1 ? "person" : "people"}`,
-      body: `${eligible.length} ${eligible.length === 1 ? "person has" : "people have"} become eligible for “${p.name}”. Approve or skip the run on Today or in Campaigns › Playbooks. Nothing is sent until you do.`,
+      template: async (name, language) => {
+        const { data } = await db.from("templates").select("meta_status").eq("tenant_id", tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle();
+        return data ?? null;
+      },
+      alreadyRan: async (playbookId, runFor) => {
+        const { data } = await db.from("broadcasts").select("id").eq("playbook_id", playbookId).eq("run_for", runFor).maybeSingle();
+        return !!data;
+      },
+      record: async (playbookId, runFor, at, data) => {
+        await emitEvent(db, tenantId, "playbook.run", "message", "playbook", playbookId, data as Json).catch(() => {});
+        await db.from("playbooks").update({ last_run_for: runFor, last_run_at: at.toISOString() }).eq("id", playbookId);
+      },
+      create: async (row) => {
+        const { data, error } = await db
+          .from("broadcasts")
+          .insert({ tenant_id: tenantId, ...row, params: row.params as unknown as Json, audience: row.audience as unknown as Json })
+          .select("id")
+          .single();
+        if (error || !data) throw new Error(error?.message ?? "run not created");
+        return data.id;
+      },
+      enrol: async (id, rows) => {
+        const { error } = await db.from("broadcast_recipients").insert(rows.map((r) => ({ broadcast_id: id, contact_id: r.contact_id, tenant_id: tenantId, ...(r.facts ? { facts: r.facts as unknown as Json } : {}) })));
+        if (error) throw new Error(error.message);
+      },
+      fail: async (id, failure) => {
+        await db.from("broadcasts").update({ state: "failed", failure }).eq("id", id);
+      },
+      schedule: async (id, at) => {
+        await scheduleJob(db, { tenantId, kind: "broadcast_send", dueAt: at, payload: { broadcast_id: id } });
+      },
+      // The ledger: a run the sweep sends is the system's decision under the
+      // mode the owner chose; a run a person asked for is theirs.
+      decide: async ({ broadcastId, by, payload }) => {
+        await db.from("decisions").insert({
+          tenant_id: tenantId,
+          subject_type: "broadcast",
+          subject_id: broadcastId,
+          verb: "send_broadcast",
+          actor_type: by.kind === "user" ? "user" : "system",
+          actor_user_id: by.kind === "user" ? by.userId : null,
+          payload: payload as unknown as Json,
+        });
+      },
+      notify: async (subject, body) => {
+        const target = await loadTenantNotifications(db, tenantId);
+        await notify({ tenantId, notifications: target.notifications, isEnvDefault: target.isEnvDefault }, { kind: "playbook", route: "outbound", subject, body });
+      },
     },
+    { playbook: p, ctx, runFor: req.runFor, by: req.by },
   );
-  await record({ mode, eligible: eligible.length, broadcast_id: made.id, state: plan.state });
-  return { outcome: "held", broadcast_id: made.id, eligible: eligible.length, mode, state: plan.state };
 }
