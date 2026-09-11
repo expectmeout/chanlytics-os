@@ -155,6 +155,12 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
     if (guardTenant()) return;
     if (!realtimeOverrides.length) return;
     const supabase = createClient();
+    // Scoped to the workspace this tab shows. RLS authorises the events
+    // server-side; the filter is what makes the subscription this
+    // workspace's and nobody else's, so a member of two workspaces neither
+    // receives nor repaints on the other one's rows. The topic carries the
+    // workspace too, so a switch is a new channel, never a shared one.
+    const ws = tenantId();
     unsubscribe = subscribeMessagesInserts(
       supabase,
       // Routed by table: a live call's transcript turns repaint Live, not the
@@ -164,7 +170,8 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
           .filter((o) => wantsRefresh(o, table, { table, event: event ?? "*", row: row as Record<string, unknown> }))
           .forEach(scheduleRefresh),
       {
-        topic,
+        topic: ws ? `${topic}:${ws}` : topic,
+        tenantId: ws ?? undefined,
         onStatus: (status) => {
           if (status === "SUBSCRIBED") {
             // reconnect after sleep/offline: postgres_changes has no backfill,
