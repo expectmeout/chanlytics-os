@@ -34,7 +34,7 @@ test("the whole matrix: two modes by nine statuses, stated rather than inferred"
   const SPEND = {
     stripe: {
       none: false, incomplete: false, incomplete_expired: false,
-      trialing: true, active: true, past_due: true,
+      trialing: true, active: true, past_due: false,
       canceled: false, unpaid: false, paused: false,
     },
     // Every workspace that predates Stripe. Invoiced by hand, never asked for
@@ -55,12 +55,15 @@ test("answering is generous where spending is strict, and the gap is the point",
   // opening and the first payment, which is exactly what an abandoned Checkout
   // leaves behind. Both are fine reasons to keep answering someone who is
   // mid-conversation. Neither is a reason to spend.
-  for (const status of ["none", "incomplete"]) {
+  // past_due joins them: the last charge failed and Stripe is retrying, so the
+  // receptionist keeps answering while nothing new is bought on our account.
+  for (const status of ["none", "incomplete", "past_due"]) {
     assert.equal(receptionistOn(status), true, `${status}: still answers`);
     assert.equal(maySpend("stripe", status), false, `${status}: does not spend`);
   }
+  assert.equal(whyCannotSpend("stripe", "past_due"), "Your last payment did not go through. Update the card in Billing, then try again.");
   // And where they agree, they agree for the same reason.
-  for (const status of ["trialing", "active", "past_due"]) {
+  for (const status of ["trialing", "active"]) {
     assert.equal(receptionistOn(status), true);
     assert.equal(maySpend("stripe", status), true);
   }
