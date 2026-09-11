@@ -137,3 +137,36 @@ export function holdCopy(x: {
     : x.configBroken ? "settings could not be read" : "no persona configured";
   return { personHold, reason: personHold ? "person_hold" : "policy_block", details, botText, why };
 }
+
+/**
+ * What the receptionist does when it has no model to think with (PRD AI-04).
+ * A canned greeting passed off as an answer would be the quiet failure: the
+ * workspace's own greeting still goes, labelled a fallback so nobody counts
+ * it as an answer, the thread is handed to a person, and the platform is
+ * paged once per window, because the condition is the platform's, not this
+ * workspace's. The escalation reason is brain_error, the closed set's word
+ * for "the receptionist could not answer and a holding message went out".
+ */
+export const NO_MODEL_PAGE = {
+  key: "brain_unavailable",
+  subject: "The receptionist has no model key",
+  body: "ANTHROPIC_API_KEY is not set on the edge. Every reply is the workspace's generic greeting, labelled a fallback, and every thread is handed to a person until the key is back.",
+} as const;
+
+export function noModelPlan(fallbacks: { greeting: string }): {
+  replyText: string;
+  meta: { ack: true; fallback: "no_model" };
+  escalate: true;
+  escalationReason: "brain_error";
+  escalationDetails: (customerText: string) => string;
+  alertReason: "no model";
+} {
+  return {
+    replyText: fallbacks.greeting,
+    meta: { ack: true, fallback: "no_model" },
+    escalate: true,
+    escalationReason: "brain_error",
+    escalationDetails: (customerText) => `the receptionist has no model key — "${customerText}"`,
+    alertReason: "no model",
+  };
+}
