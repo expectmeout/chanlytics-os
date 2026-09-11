@@ -26,7 +26,7 @@ const DASH = path.join(here, "../../../apps/dashboard/src");
 const registry = await import(
   pathToFileURL(path.join(DASH, "legacy-bridge/surface-registry.ts")).href
 );
-const { SURFACE_STATES, ROUTE_SURFACE } = await import(
+const { SURFACE_STATES, ROUTE_SURFACE, surfaceStateFor, routeSurfaceFor } = await import(
   pathToFileURL(path.join(DASH, "legacy-bridge/surface-registry.ts")).href
 );
 
@@ -86,7 +86,12 @@ test("the real set is exactly the converted surfaces", () => {
     .filter(([, v]) => v === "real")
     .map(([k]) => k)
     .sort();
-  assert.deepEqual(real, ["admin/autonomy", "admin/billing", "admin/integrations", "admin/memory", "admin/notifications", "admin/profile", "admin/setup", "admin/team", "admin/workspace", "broadcasts", "calendar", "clients", "conversations", "inbox", "live", "messages", "outbound", "reports", "segments", "today"]);
+  assert.deepEqual(real, ["admin/autonomy", "admin/billing", "admin/integrations", "admin/memory", "admin/notifications", "admin/platform", "admin/profile", "admin/setup", "admin/team", "admin/workspace", "broadcasts", "calendar", "clients", "conversations", "inbox", "live", "messages", "outbound", "reports", "segments", "today"]);
+  // The back office tab, asked the way the shell asks: by page and pane. It
+  // was never listed, fell through to the page's "demo", and a platform admin
+  // who clicked Back office got the Not-in-this-release card.
+  assert.equal(surfaceStateFor("admin", "platform"), "real");
+  assert.equal(routeSurfaceFor("admin", "platform"), "settings", "and the gate waits for the settings surface, like every pane");
 });
 
 test("the shell consults the registry through one interception, not per-route conditionals", () => {
