@@ -1,4 +1,5 @@
-import { withRoute, memberContext } from "@/server/with-route";
+import { read, account } from "@/server/route";
+import { memberContext } from "@/server/with-route";
 import { verifyState } from "@chanlytics/channels";
 import { afterGoogle, edgeGoogle, stateSecret } from "@/server/google";
 
@@ -11,38 +12,47 @@ import { afterGoogle, edgeGoogle, stateSecret } from "@/server/google";
  * does the exchange. Every outcome is a redirect to Integrations with one
  * word the card reads once — the browser is a person's browser, not a
  * client that reads JSON.
+ *
+ * Declared as a read of the account: no workspace is resolved at the door,
+ * because the signed state IS the credential here. It names the workspace
+ * chosen at connect time, and this person's standing in it is judged below,
+ * after the state has proved itself — its own door, in the order the proof
+ * demands.
  */
-export const GET = withRoute(async (req, ctx) => {
-  const url = new URL(req.url);
-  const origin = url.origin;
-  const back = (outcome: string, why?: string) => new Response(null, { status: 302, headers: { location: afterGoogle(origin, outcome, why) } });
+export const GET = read({
+  scope: account,
+  handle: async ({ ctx, req }) => {
+    const url = new URL(req.url);
+    const origin = url.origin;
+    const back = (outcome: string, why?: string) => new Response(null, { status: 302, headers: { location: afterGoogle(origin, outcome, why) } });
 
-  const refused = url.searchParams.get("error");
-  if (refused) return back("error", refused === "access_denied" ? "declined" : refused.slice(0, 60));
-  const secret = stateSecret();
-  if (!secret) return back("error", "not_available");
-  const proof = await verifyState(secret, url.searchParams.get("state"), Date.now());
-  if (!proof.ok) return back("error", `state_${proof.reason}`);
-  if (proof.state.u !== ctx.userId) return back("error", "someone_else");
-  const code = url.searchParams.get("code") ?? "";
-  if (!code) return back("error", "no_code");
+    const refused = url.searchParams.get("error");
+    if (refused) return back("error", refused === "access_denied" ? "declined" : refused.slice(0, 60));
+    const secret = stateSecret();
+    if (!secret) return back("error", "not_available");
+    const proof = await verifyState(secret, url.searchParams.get("state"), Date.now());
+    if (!proof.ok) return back("error", `state_${proof.reason}`);
+    if (proof.state.u !== ctx.userId) return back("error", "someone_else");
+    const code = url.searchParams.get("code") ?? "";
+    if (!code) return back("error", "no_code");
 
-  // The workspace named at connect time, and this person's standing in it now.
-  let tenantId: string;
-  try {
-    const member = await memberContext(ctx, proof.state.t);
-    if (member.role !== "owner") return back("error", "not_owner");
-    tenantId = member.tenantId;
-  } catch {
-    return back("error", "no_workspace");
-  }
+    // The workspace named at connect time, and this person's standing in it now.
+    let tenantId: string;
+    try {
+      const member = await memberContext(ctx, proof.state.t);
+      if (member.role !== "owner") return back("error", "not_owner");
+      tenantId = member.tenantId;
+    } catch {
+      return back("error", "no_workspace");
+    }
 
-  const a = await edgeGoogle({ op: "connect", tenant_id: tenantId, user_id: ctx.userId, code }, 55_000);
-  const b = a.body ?? {};
-  if (a.status !== 200 || b.ok !== true) {
-    const reason = typeof b.error === "string" ? b.error : `edge_${a.status}`;
-    console.error("google_connect_failed", JSON.stringify({ tenant: tenantId, reason, detail: typeof b.detail === "string" ? b.detail.slice(0, 200) : null }));
-    return back("error", reason);
-  }
-  return back(b.pending === true ? "choose" : "connected");
+    const a = await edgeGoogle({ op: "connect", tenant_id: tenantId, user_id: ctx.userId, code }, 55_000);
+    const b = a.body ?? {};
+    if (a.status !== 200 || b.ok !== true) {
+      const reason = typeof b.error === "string" ? b.error : `edge_${a.status}`;
+      console.error("google_connect_failed", JSON.stringify({ tenant: tenantId, reason, detail: typeof b.detail === "string" ? b.detail.slice(0, 200) : null }));
+      return back("error", reason);
+    }
+    return back(b.pending === true ? "choose" : "connected");
+  },
 });
