@@ -915,6 +915,9 @@ const hoursSummary = (hours) => {
 // Published by the bridge; the literal is the standalone mockup fallback and
 // a test pins it to MAX_INTERVALS_PER_DAY.
 const MAX_SHIFTS = ((window.__configLimits || {}).maxIntervalsPerDay) || 4;
+// The same cap the write schema enforces (contracts MAX_CLOSURES), so the form
+// stops at the number the save would refuse, instead of refusing at Save.
+const MAX_CLOSURE_ROWS = ((window.__configLimits || {}).maxClosures) || 60;
 
 const SET_DAYS = [["mon","Monday"],["tue","Tuesday"],["wed","Wednesday"],["thu","Thursday"],["fri","Friday"],["sat","Saturday"],["sun","Sunday"]];
 
@@ -1525,9 +1528,10 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
             ><Icon name="x" size={12} /></button>
           </div>
         ))}
-        <button type="button" className="btn btn-sm" onClick={() => setClosures((l) => [...l, { date: "", note: "" }])}>
+        <button type="button" className="btn btn-sm" disabled={closures.length >= MAX_CLOSURE_ROWS} title={closures.length >= MAX_CLOSURE_ROWS ? `At most ${MAX_CLOSURE_ROWS} closures` : undefined} onClick={() => setClosures((l) => (l.length >= MAX_CLOSURE_ROWS ? l : [...l, { date: "", note: "" }]))}>
           <Icon name="plus" size={12} /> Add a closed day
         </button>
+        {closures.length >= MAX_CLOSURE_ROWS && <div className="set-sec-note">That is the most closures the receptionist keeps ({MAX_CLOSURE_ROWS}). Dates that have passed can go.</div>}
         {/* The one case this cannot express, said plainly rather than left for
             an owner to discover by picking the only option and turning away an
             afternoon of bookings. */}
@@ -1788,6 +1792,9 @@ const PaneWorkspace = ({ flash }) => {
     <FactConflicts />
     <section className="fl-card set-card">
       <div className="fl-card-head"><span className="fl-card-title">Business</span>
+        {/* Who last changed it and when, from the row itself (00085): the one
+            audit question a workspace with three people eventually asks. */}
+        {real && window.__lastChanged && window.__lastChanged() ? <span className="fl-card-sub">{window.__lastChanged()}</span> : null}
         {/* On real data this opens the form. The mockup's compose flow asked
             an assistant to update details it had no way to write. */}
         {real

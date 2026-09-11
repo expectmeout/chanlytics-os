@@ -3751,6 +3751,8 @@ interface TenantConfigRow {
     config: unknown;
     version: number;
     updated_at: string;
+    /** Who last wrote it; null for rows written before 00085 kept track, and for the platform's own writes. */
+    updated_by?: string | null;
 }
 declare function getTenantConfig(db: Db, tenantId: string): Promise<TenantConfigRow | null>;
 type PutTenantConfigResult = {

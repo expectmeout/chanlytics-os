@@ -17,7 +17,8 @@ import {
 import { refreshSurfaces } from "./surface-runner";
 import { api } from "./api";
 import type { ApiResult, Params, RouteKey } from "../client/api";
-import { MAX_INTERVALS_PER_DAY, hoursRuns, inviteState, newReceptionistDefaults } from "@chanlytics/contracts";
+import { MAX_CLOSURES, MAX_INTERVALS_PER_DAY, hoursRuns, inviteState, lastChangedWords, newReceptionistDefaults } from "@chanlytics/contracts";
+import type { Api } from "../client/api";
 import type { PromptPreviewDto } from "../server/prompt-preview";
 
 interface RealThread {
@@ -298,7 +299,9 @@ declare global {
     __composedPrompt: typeof composedPrompt;
     __receptionistDefaults: typeof newReceptionistDefaults;
     __hoursRuns: typeof hoursRuns;
-    __configLimits: { maxIntervalsPerDay: number };
+    __configLimits: { maxIntervalsPerDay: number; maxClosures: number };
+    /** "Last changed by Ada, two days ago", from the settings row's own author and stamp; "" when there is no stamp. */
+    __lastChanged: () => string;
     /** An open invitation's state for the Team card: pending with its expiry, or expired. */
     __inviteState: (expiresAt: string | null | undefined) => { expired: boolean; words: string };
   }
@@ -376,7 +379,8 @@ export function installInboxVerbs(): void {
   window.__inviteState = (expiresAt) => inviteState(expiresAt, Date.now());
   // The editor must not offer a shift the write schema will refuse, so the
   // cap is published rather than retyped.
-  window.__configLimits = { maxIntervalsPerDay: MAX_INTERVALS_PER_DAY };
+  window.__configLimits = { maxIntervalsPerDay: MAX_INTERVALS_PER_DAY, maxClosures: MAX_CLOSURES };
+  window.__lastChanged = () => lastChangedFor(window as unknown as LastChangedWindow, Date.now());
 }
 
 /**
@@ -402,11 +406,37 @@ export async function saveSettings(
    * meantime, and pressing Save looked like it had done nothing.
    */
   onAccepted?: () => void,
+  /** The tab's own client and refresh, or a test's stand-ins. */
+  deps: { client?: Api; refresh?: () => Promise<void> } = {},
 ): Promise<VerbResult> {
   // The refresh map re-reads the settings surface FIRST: it carries the
   // version the next save has to send. The generic thread refresh never
   // re-read this pane, so the second save in a row once went out with the
   // version from before the first and came back as "someone else saved
   // settings after you loaded them". Today and the Calendar follow.
-  return api()("PUT settings", { body: { config, version }, onAccepted });
+  const r = await (deps.client ?? api())("PUT settings", { body: { config, version }, onAccepted });
+  // A conflict means the row moved under this tab. Re-read the settings
+  // surface now, so the version the NEXT save sends is the current one: a
+  // refusal used to leave the stale version in place, and every later save
+  // from the tab failed the same way until a reload. The message still says
+  // to reapply, because the form's words are the person's.
+  if (!r.ok && r.code === "conflict") await (deps.refresh ?? (() => refreshSurfaces([settingsOverride])))();
+  return r;
+}
+
+interface LastChangedWindow {
+  __SETTINGS?: { updatedAt?: string | null; updatedBy?: string | null } | null;
+  __TEAM?: Array<{ userId: string; email: string | null; displayName: string }> | null;
+  __identity?: { member: (m: { email: string | null; display_name: string | null }) => { name: string } };
+}
+
+/** The Business card's "last changed" line: the author named from the roster, or said to be gone from it. */
+export function lastChangedFor(w: LastChangedWindow, nowMs: number): string {
+  const s = w.__SETTINGS;
+  if (!s) return "";
+  const who = s.updatedBy ? (w.__TEAM ?? []).find((m) => m.userId === s.updatedBy) ?? null : null;
+  const name = who
+    ? (w.__identity ? w.__identity.member({ email: who.email, display_name: who.displayName || null }).name : who.displayName || who.email || "a member")
+    : s.updatedBy ? "someone no longer on the team" : null;
+  return lastChangedWords(s.updatedAt, name, nowMs);
 }

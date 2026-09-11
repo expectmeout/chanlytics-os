@@ -1158,14 +1158,21 @@ var SOURCE_WORDS = {
 };
 function changedConfigFields(before, after) {
   const top = (v) => {
-    const brain = v?.brain ?? {};
+    const cfg = v ?? {};
+    const brain = cfg.brain ?? {};
     const { profile, ...rest } = brain;
-    return { ...rest, ...profile ?? {} };
+    return { ...rest, ...profile ?? {}, calendar: cfg.calendar ?? null, notifications: cfg.notifications ?? null, features: cfg.features ?? null };
   };
   const a = top(before);
   const b = top(after);
   const keys = [.../* @__PURE__ */ new Set([...Object.keys(a), ...Object.keys(b)])].sort();
   return keys.filter((k) => JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null));
+}
+function lastChangedWords(updatedAt, byName, nowMs) {
+  const at2 = updatedAt ? Date.parse(updatedAt) : NaN;
+  if (Number.isNaN(at2)) return "";
+  const when = agoWords(at2, nowMs);
+  return byName ? `Last changed by ${byName}, ${when}` : `Last changed ${when}, before we kept track of who`;
 }
 
 // src/config.ts
@@ -7953,6 +7960,7 @@ export {
   isTypingTarget,
   isUngrounded,
   knownTimezones,
+  lastChangedWords,
   lineRetryRefusal,
   lineStuckProvisioning,
   listingLine,

@@ -244,6 +244,18 @@ test("a config change records who and what, and neither is the values", async ()
   assert.deepEqual(changedConfigFields(before, after), ["address", "booking_link"]);
   assert.deepEqual(changedConfigFields(before, before), [], "a save that changed nothing writes no event");
   assert.deepEqual(changedConfigFields(null, after).sort(), ["address", "booking_link", "business_name", "hours", "services"], "a first write names everything it set");
+  // The other sections are one key each: the feed address and the alert
+  // addresses are values, so only the section is named.
+  const withFeed = { ...after, calendar: { ical_url: "https://cal.example/private/abc.ics" } };
+  assert.deepEqual(changedConfigFields(after, withFeed), ["calendar"], "swapping the calendar feed leaves a trace, without the address");
+  assert.deepEqual(changedConfigFields(withFeed, { ...withFeed, notifications: { escalation_emails: ["owner@example.com"] }, features: { reviews: true } }).sort(), ["features", "notifications"]);
+  assert.deepEqual(changedConfigFields(withFeed, withFeed), []);
+  const { lastChangedWords, agoWords } = await import("@chanlytics/contracts");
+  const now = Date.parse("2026-09-11T12:00:00Z");
+  const at = "2026-09-09T12:00:00Z";
+  assert.equal(lastChangedWords(at, "Ada", now), `Last changed by Ada, ${agoWords(Date.parse(at), now)}`);
+  assert.equal(lastChangedWords(at, null, now), `Last changed ${agoWords(Date.parse(at), now)}, before we kept track of who`);
+  assert.equal(lastChangedWords(null, "Ada", now), "", "no stamp, nothing said");
 
   const route = readCode("apps/dashboard/app/api/v1/settings/route.ts");
   assert.ok(route.includes('kind: "settings.changed"'), "the change lands in the ledger every other consequential act does");

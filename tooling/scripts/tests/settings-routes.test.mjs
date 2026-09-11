@@ -88,6 +88,9 @@ test("the settings read: the workspace the tab named, with its version and the r
   };
   const harbor = await settings.GET.run(get(inA), ctxFor(tables));
   assert.deepEqual([harbor.version, harbor.role, harbor.configBroken], [3, "viewer", false]);
+  assert.deepEqual([harbor.updatedBy, harbor.updatedAt], [null, "2026-09-01T00:00:00Z"], "a row written before the author was kept says so with null");
+  const authored = await settings.GET.run(get(inB), ctxFor({ ...tables, tenant_config: [{ tenant_id: B, config: {}, version: 1, updated_at: "2026-09-02T00:00:00Z", updated_by: "u7" }] }));
+  assert.deepEqual([authored.updatedBy, authored.updatedAt], ["u7", "2026-09-02T00:00:00Z"], "who last changed it rides with the config");
   assert.ok(harbor.config.calendar.ical_url.includes("…") && !harbor.config.calendar.ical_url.includes("abcdef123456"), "a viewer learns that a feed is set, not its address");
   assert.ok(harbor.facts && harbor.conflicts, "the resolved facts and their disagreements ride along");
   const bayside = await settings.GET.run(get(inB), ctxFor(tables));
