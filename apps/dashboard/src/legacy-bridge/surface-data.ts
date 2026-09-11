@@ -448,7 +448,7 @@ export const settingsOverride: SurfaceOverride = {
       read("GET templates", { query: { all: "1" } }).catch((e: unknown) => e as Error),
     ]);
     const w = window as unknown as {
-      __SETTINGS?: { config: WorkspaceSettings | null; version: number; role: string; broken: { issues: string[] } | null; prompt: PromptPreviewDto | null };
+      __SETTINGS?: { config: WorkspaceSettings | null; version: number; role: string; broken: { issues: string[] } | null; prompt: PromptPreviewDto | null; updatedBy: string | null; updatedAt: string | null };
       __FACTS?: { facts: ResolvedFacts; conflicts: FactConflict[] } | null;
       __TEAM?: unknown[] | null;
       __TEAM_INVITES?: unknown[] | null;
@@ -462,8 +462,8 @@ export const settingsOverride: SurfaceOverride = {
     // The prompt rides with the config: composed on the server from inputs the
     // browser cannot see, null when there is no receptionist to compose for.
     w.__SETTINGS = cfg.configBroken
-      ? { config: null, version: cfg.version, role: cfg.role, broken: { issues: cfg.issues ?? [] }, prompt: null }
-      : { config: cfg.config ?? {}, version: cfg.version, role: cfg.role, broken: null, prompt: cfg.prompt ?? null };
+      ? { config: null, version: cfg.version, role: cfg.role, broken: { issues: cfg.issues ?? [] }, prompt: null, updatedBy: null, updatedAt: null }
+      : { config: cfg.config ?? {}, version: cfg.version, role: cfg.role, broken: null, prompt: cfg.prompt ?? null, updatedBy: cfg.updatedBy ?? null, updatedAt: cfg.updatedAt ?? null };
     // Resolved on the server, where the channel rows and the listing are. Null
     // on a broken config for the same reason the forms close: there is nothing
     // trustworthy to resolve against.

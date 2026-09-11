@@ -4967,7 +4967,7 @@ function describeLead(lead, now = /* @__PURE__ */ new Date()) {
 
 // src/repositories/control-plane.ts
 async function getTenantConfig(db, tenantId) {
-  const { data, error } = await db.from("tenant_config").select("tenant_id, config, version, updated_at").eq("tenant_id", tenantId).maybeSingle();
+  const { data, error } = await db.from("tenant_config").select("tenant_id, config, version, updated_at, updated_by").eq("tenant_id", tenantId).maybeSingle();
   if (error) throw new Error(`getTenantConfig: ${error.message}`);
   return data;
 }
