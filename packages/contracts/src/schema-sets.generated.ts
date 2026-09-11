@@ -23,6 +23,7 @@ export const SCHEMA_SETS = {
   "calls.direction": ["inbound", "outbound"],
   "calls.outcome": ["answered", "booking_link_sent", "callback_needed", "voicemail", "no_request", "other"],
   "calls.status": ["registered", "ongoing", "ended", "error", "not_connected"],
+  "capability_activations.capability": ["voice", "whatsapp", "sms"],
   "contact_identities.channel": ["whatsapp", "voice", "sms", "email", "instagram"],
   "contacts.consent": ["unknown", "opted_in", "opted_out"],
   "contacts.marketing_consent": ["unknown", "opted_in", "opted_out"],

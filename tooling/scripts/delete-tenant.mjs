@@ -69,7 +69,7 @@ if (!tenantId || !expectName) {
  */
 const TABLES = [
   "ask_messages", "ask_threads", "billing_accounts", "billing_events", "broadcast_recipients",
-  "broadcasts", "business_records", "calls", "contact_identities", "contacts", "conversations",
+  "broadcasts", "business_records", "calls", "capability_activations", "contact_identities", "contacts", "conversations",
   "decisions", "escalations", "events", "google_connections", "google_listing_days",
   "google_listings", "google_reviews", "idempotency_keys", "invitations", "jobs", "lines",
   "memberships", "messages", "notification_reads", "notifications", "playbooks", "policies",

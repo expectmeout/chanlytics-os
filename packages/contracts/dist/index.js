@@ -6107,6 +6107,56 @@ var REGISTRATION_COST_WORDS = {
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
 };
 
+// src/capabilities.ts
+var CAPABILITY_KINDS = ["voice", "whatsapp", "sms"];
+function activationOf(i, kind) {
+  const r = (i.activations ?? []).find((a) => a.capability === kind && !a.deactivated_at);
+  return r ? { at: r.activated_at, by: r.activated_by } : null;
+}
+var factsMissing = (i) => !i.business.name || !i.business.hours ? { code: "no_business_facts", words: "The receptionist has no facts to answer with yet: the business name and hours first." } : null;
+function capabilityStatus(kind, i, nowMs = Date.now()) {
+  const blockers = [];
+  let tested = null;
+  if (kind === "voice") {
+    const v = i.channels.voice;
+    const own = i.lines?.rows.find((l) => l.provider !== "carrier") ?? null;
+    if (v.present && v.active) {
+      const f = factsMissing(i);
+      if (f) blockers.push(f);
+    } else if (v.present) {
+      blockers.push({ code: "channel_off", words: "Your line is switched off." });
+    } else if (own && own.voice_state === "provisioning") {
+      blockers.push({ code: "line_provisioning", words: "Your line is being set up; it answers the moment it is." });
+    } else if (own && own.voice_state === "failed") {
+      blockers.push({ code: "line_failed", words: "Setting up your line stopped; a person at Chanlytics has it, and Retry is on the row." });
+    } else {
+      blockers.push({ code: "no_line", words: "No line yet: get a number, or keep the one you have." });
+    }
+    if (v.lastInboundAt) tested = { at: v.lastInboundAt, what: "a call was answered" };
+  } else if (kind === "whatsapp") {
+    const w = i.channels.whatsapp;
+    if (w.present && w.active) {
+      const t = i.templates;
+      if (t.approved === 0 && t.pending > 0) blockers.push({ code: "meta_waiting", words: "Your first messages are with Meta for approval." });
+      const f = factsMissing(i);
+      if (f) blockers.push(f);
+    } else if (w.present) {
+      blockers.push({ code: "channel_off", words: "Your WhatsApp number is connected but switched off." });
+    } else {
+      blockers.push({ code: "not_connected", words: "Connect the WhatsApp number customers write to." });
+    }
+    if (w.lastInboundAt) tested = { at: w.lastInboundAt, what: "a message was answered" };
+  } else {
+    const line = i.lines?.rows.find((l) => l.sms_state === "active" && !l.reg_mock) ?? null;
+    if (!line) blockers.push({ code: "texting_not_sold", words: "Texting is not part of what is sold yet: it arrives with a line the carriers have approved." });
+  }
+  const ready = blockers.length === 0;
+  const activated = activationOf(i, kind);
+  const live = ready && !!tested && !!activated;
+  const words = live ? `Active since ${agoWords(Date.parse(activated.at), nowMs)}.` : activated && !ready ? `Activated, but not ready: ${blockers[0].words}` : ready && tested ? `Tested (${tested.what} ${agoWords(Date.parse(tested.at), nowMs)}). Activate it to say it is yours.` : ready ? "Ready. Try it from your own phone, then activate it." : blockers[0].words;
+  return { kind, ready, blockers, tested, activated, live, words };
+}
+
 // src/setup.ts
 var PROVISIONING_DEADLINE_MS = 5 * 6e4;
 function lineStuckProvisioning(l, nowMs) {
@@ -6176,6 +6226,11 @@ function textingWords(l) {
 }
 var display = (e164) => e164 ? formatPhoneDisplay(e164) : null;
 var plural3 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+function activationWords(cap, nowMs) {
+  if (cap.live && cap.activated) return `Activated ${agoWords(Date.parse(cap.activated.at), nowMs)}`;
+  if (cap.tested) return "Tested \u2014 activate it to say it is yours";
+  return "Not tested yet \u2014 try it from your own phone";
+}
 function setupSteps(i, nowMs = Date.now()) {
   const later = new Set(i.later ?? []);
   const wa = i.channels.whatsapp;
@@ -6246,10 +6301,11 @@ function setupSteps(i, nowMs = Date.now()) {
   }
   if (voiceReady) {
     const last = voice.lastInboundAt ? `Last call ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}` : "No calls yet";
+    const cap = capabilityStatus("voice", i, nowMs);
     if (!i.business.name || !i.business.hours) {
       row2({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "waiting_you", required: !answering, sentence: `Picking up on ${voiceNum}, but it has no facts to answer with yet.`, details: ["Callers are told someone will confirm and are offered to leave a message", "Fill in your name, hours and services and it answers properly from the next call"], verb: { label: "Add your facts", to: "admin/workspace" } });
     } else {
-      row2({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "ready", required: !answering, sentence: `Answering on ${voiceNum}.`, details: [handoffNum ? `Transfers to ${handoffNum} when a caller insists on a person` : "No hand-off number yet \u2014 callers who insist on a person are told someone will call back", last], verb: voice.number ? { label: "Call it", to: `tel:${voice.number}` } : null });
+      row2({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "ready", required: !answering, sentence: `Answering on ${voiceNum}.`, details: [handoffNum ? `Transfers to ${handoffNum} when a caller insists on a person` : "No hand-off number yet \u2014 callers who insist on a person are told someone will call back", last, activationWords(cap, nowMs)], verb: cap.tested && !cap.live ? { label: "Activate", to: "verb:activate:voice" } : voice.number ? { label: "Call it", to: `tel:${voice.number}` } : null });
     }
   } else if (voice.present) {
     row2({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "waiting_you", required: !answering, sentence: "Switched off with the line.", details: [], verb: null });
@@ -6280,13 +6336,15 @@ function setupSteps(i, nowMs = Date.now()) {
   if (waReady) {
     const t = i.templates;
     const metaWaits = t.approved === 0 && t.pending > 0;
+    const cap = capabilityStatus("whatsapp", i, nowMs);
     const details = [
       wa.quality ? `Quality ${wa.quality.toLowerCase()}` : "",
       t.approved ? `${plural3(t.approved, "approved message")}` : t.pending ? `${plural3(t.pending, "message")} with Meta for approval` : "No approved messages yet",
       t.startersApproved < 5 ? "Add the starter messages: welcome, win-back, the month's offer" : "",
       wa.lastInboundAt ? `Last message ${agoWords(Date.parse(wa.lastInboundAt), nowMs)}` : ""
     ].filter(Boolean);
-    row2({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: metaWaits ? "waiting_them" : "ready", stateWords: metaWaits ? "Waiting on Meta" : void 0, required: !answering, sentence: metaWaits ? `Connected on ${waNum} \u2014 your first messages are with Meta for approval.` : `Connected on ${waNum}.`, details, verb: t.startersApproved < 5 && !metaWaits ? { label: "Add the starters", to: "outbound" } : { label: "Open the Inbox", to: "inbox" } });
+    if (!metaWaits) details.push(activationWords(cap, nowMs));
+    row2({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: metaWaits ? "waiting_them" : "ready", stateWords: metaWaits ? "Waiting on Meta" : void 0, required: !answering, sentence: metaWaits ? `Connected on ${waNum} \u2014 your first messages are with Meta for approval.` : `Connected on ${waNum}.`, details, verb: cap.tested && !cap.live && !metaWaits ? { label: "Activate", to: "verb:activate:whatsapp" } : t.startersApproved < 5 && !metaWaits ? { label: "Add the starters", to: "outbound" } : { label: "Open the Inbox", to: "inbox" } });
   } else if (wa.present) {
     row2({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: "waiting_you", required: !answering, sentence: `${waNum ?? "Your number"} is connected but switched off.`, details: [], verb: { label: "Open Connections", to: "admin/integrations" } });
   } else {
@@ -7315,6 +7373,7 @@ var SCHEMA_SETS = {
   "calls.direction": ["inbound", "outbound"],
   "calls.outcome": ["answered", "booking_link_sent", "callback_needed", "voicemail", "no_request", "other"],
   "calls.status": ["registered", "ongoing", "ended", "error", "not_connected"],
+  "capability_activations.capability": ["voice", "whatsapp", "sms"],
   "contact_identities.channel": ["whatsapp", "voice", "sms", "email", "instagram"],
   "contacts.consent": ["unknown", "opted_in", "opted_out"],
   "contacts.marketing_consent": ["unknown", "opted_in", "opted_out"],
@@ -7505,6 +7564,7 @@ export {
   CALL_OUTCOMES,
   CALL_OUTCOME_WORDS,
   CAMPAIGN_REPORT_RANGES,
+  CAPABILITY_KINDS,
   CARRIERS,
   CARRIER_WORDS,
   CHANNEL_KINDS,
@@ -7685,6 +7745,7 @@ export {
   businessTypeOf,
   callOutcomeOf,
   callOutcomeWords,
+  capabilityStatus,
   changedConfigFields,
   channelFor,
   checkedWords,

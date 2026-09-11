@@ -20,6 +20,7 @@ import { CARRIER_WORDS, MODE_WORDS, forwardingTestOpen, type Carrier, type Forwa
 import { listingLine, type SetupGoogleFacts } from "./google";
 import { dayWords, trialWords, maySpend, billingDoorOpen, type SetupBillingFacts } from "./billing";
 import { SOLE_PROP_LIMITS } from "./registration-path";
+import { capabilityStatus, type ActivationRecord, type CapabilityStatus } from "./capabilities";
 
 export interface SetupDto {
   business: {
@@ -69,6 +70,8 @@ export interface SetupDto {
   google?: SetupGoogleFacts;
   /** How the workspace pays, when it pays by card and this deployment can charge. */
   billing?: SetupBillingFacts;
+  /** The owner's activations (00108), one per capability, as recorded. */
+  activations?: ActivationRecord[];
 }
 
 /** A line as the page may see it — states in words, never a provider id. */
@@ -320,6 +323,18 @@ export function textingWords(l: Pick<LineDto, "sms_state" | "reg_mock" | "reg_so
 const display = (e164: string | null | undefined): string | null => (e164 ? formatPhoneDisplay(e164) : null);
 const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 
+/**
+ * The third claim a capability row makes, beside readiness and evidence: the
+ * owner's own act, in words. A row says "Answering" (ready), "Tested" (a real
+ * interaction happened) and "Activated" (the owner said so) as three things,
+ * because they are three things (PRD ON-02).
+ */
+function activationWords(cap: CapabilityStatus, nowMs: number): string {
+  if (cap.live && cap.activated) return `Activated ${agoWords(Date.parse(cap.activated.at), nowMs)}`;
+  if (cap.tested) return "Tested — activate it to say it is yours";
+  return "Not tested yet — try it from your own phone";
+}
+
 export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
   const later = new Set(i.later ?? []);
   const wa = i.channels.whatsapp;
@@ -443,6 +458,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
   // 4. The phone receptionist — answering on the line, transferring to a person.
   if (voiceReady) {
     const last = voice.lastInboundAt ? `Last call ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}` : "No calls yet";
+    const cap = capabilityStatus("voice", i, nowMs);
     // A line can be bought in a minute and the facts take longer, so a
     // receptionist can be answering with nothing to answer WITH. It does not
     // invent — it says someone will confirm and takes a message — but the
@@ -451,7 +467,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
     if (!i.business.name || !i.business.hours) {
       row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "waiting_you", required: !answering, sentence: `Picking up on ${voiceNum}, but it has no facts to answer with yet.`, details: ["Callers are told someone will confirm and are offered to leave a message", "Fill in your name, hours and services and it answers properly from the next call"], verb: { label: "Add your facts", to: "admin/workspace" } });
     } else {
-      row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "ready", required: !answering, sentence: `Answering on ${voiceNum}.`, details: [handoffNum ? `Transfers to ${handoffNum} when a caller insists on a person` : "No hand-off number yet — callers who insist on a person are told someone will call back", last], verb: voice.number ? { label: "Call it", to: `tel:${voice.number}` } : null });
+      row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "ready", required: !answering, sentence: `Answering on ${voiceNum}.`, details: [handoffNum ? `Transfers to ${handoffNum} when a caller insists on a person` : "No hand-off number yet — callers who insist on a person are told someone will call back", last, activationWords(cap, nowMs)], verb: cap.tested && !cap.live ? { label: "Activate", to: "verb:activate:voice" } : voice.number ? { label: "Call it", to: `tel:${voice.number}` } : null });
     }
   } else if (voice.present) {
     row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "waiting_you", required: !answering, sentence: "Switched off with the line.", details: [], verb: null });
@@ -486,13 +502,15 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
   if (waReady) {
     const t = i.templates;
     const metaWaits = t.approved === 0 && t.pending > 0;
+    const cap = capabilityStatus("whatsapp", i, nowMs);
     const details = [
       wa.quality ? `Quality ${wa.quality.toLowerCase()}` : "",
       t.approved ? `${plural(t.approved, "approved message")}` : t.pending ? `${plural(t.pending, "message")} with Meta for approval` : "No approved messages yet",
       t.startersApproved < 5 ? "Add the starter messages: welcome, win-back, the month's offer" : "",
       wa.lastInboundAt ? `Last message ${agoWords(Date.parse(wa.lastInboundAt), nowMs)}` : "",
     ].filter(Boolean);
-    row({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: metaWaits ? "waiting_them" : "ready", stateWords: metaWaits ? "Waiting on Meta" : undefined, required: !answering, sentence: metaWaits ? `Connected on ${waNum} — your first messages are with Meta for approval.` : `Connected on ${waNum}.`, details, verb: t.startersApproved < 5 && !metaWaits ? { label: "Add the starters", to: "outbound" } : { label: "Open the Inbox", to: "inbox" } });
+    if (!metaWaits) details.push(activationWords(cap, nowMs));
+    row({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: metaWaits ? "waiting_them" : "ready", stateWords: metaWaits ? "Waiting on Meta" : undefined, required: !answering, sentence: metaWaits ? `Connected on ${waNum} — your first messages are with Meta for approval.` : `Connected on ${waNum}.`, details, verb: cap.tested && !cap.live && !metaWaits ? { label: "Activate", to: "verb:activate:whatsapp" } : t.startersApproved < 5 && !metaWaits ? { label: "Add the starters", to: "outbound" } : { label: "Open the Inbox", to: "inbox" } });
   } else if (wa.present) {
     row({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: "waiting_you", required: !answering, sentence: `${waNum ?? "Your number"} is connected but switched off.`, details: [], verb: { label: "Open Connections", to: "admin/integrations" } });
   } else {

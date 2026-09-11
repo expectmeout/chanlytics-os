@@ -320,6 +320,12 @@ const PaneSetup = () => {
       flash({ msg: r.ok ? <>Your line answers now.</> : <>{r.message || "It stopped again — a person at Chanlytics has it."}</> });
       return;
     }
+    if (verb.to.startsWith("verb:activate:")) {
+      if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can activate a capability.</> }); return; }
+      const r = await window.__setup.activate(verb.to.slice("verb:activate:".length));
+      flash({ msg: r.ok ? <>Activated — it is yours to use, and Setup says so.</> : <>{r.message}</> });
+      return;
+    }
     if (verb.to.startsWith("tel:")) { window.location.href = verb.to; return; }
     nav(verb.to);
   };

@@ -38,7 +38,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import { getTenantConfig } from "@chanlytics/db";
-import { parseTenantConfigResult, starterByName, resolveFacts, factConflicts, channelFor, type SetupDto } from "@chanlytics/contracts";
+import { parseTenantConfigResult, starterByName, resolveFacts, factConflicts, channelFor, type SetupDto, type CapabilityKind } from "@chanlytics/contracts";
 import { calendarWeek } from "./calendar";
 import { teamRoster } from "./service";
 import { linesFor, linesStatus } from "./lines";
@@ -83,7 +83,7 @@ export async function setupDtoFor(
   now = new Date(),
 ): Promise<SetupDto> {
 
-  const [cfgRow, channels, lastMsg, lastCall, templates, calendar, team, yes, offersYes, requested, lineRows, lineStatus, listing, google, connection, billingRow, billingReady] = await Promise.all([
+  const [cfgRow, channels, lastMsg, lastCall, templates, calendar, team, yes, offersYes, requested, lineRows, lineStatus, listing, google, connection, billingRow, billingReady, activations] = await Promise.all([
     getTenantConfig(supabase, tenantId),
     supabase.from("tenant_channels").select("kind, status, number_e164, config, created_at").eq("tenant_id", tenantId),
     supabase.from("messages").select("channel_ts, created_at").eq("tenant_id", tenantId).eq("direction", "inbound").eq("channel", "whatsapp")
@@ -112,6 +112,8 @@ export async function setupDtoFor(
     connectionFor(supabase, tenantId),
     billingFor(supabase, tenantId),
     billingReadiness(),
+    // The owner's own act, per capability (00108).
+    supabase.from("capability_activations").select("capability, activated_at, activated_by, deactivated_at").eq("tenant_id", tenantId),
   ]);
   if (channels.error) throw new Error(channels.error.message);
   if (lastMsg.error) throw new Error(lastMsg.error.message);
@@ -119,6 +121,7 @@ export async function setupDtoFor(
   if (templates.error) throw new Error(templates.error.message);
   if (yes.error) throw new Error(yes.error.message);
   if (requested.error) throw new Error(requested.error.message);
+  if (activations.error) throw new Error(activations.error.message);
 
   // The config, as the parser reads it — a broken row is its own fact.
   const parsed = cfgRow ? parseTenantConfigResult(cfgRow.config) : null;
@@ -206,6 +209,7 @@ export async function setupDtoFor(
     billing: billingRow
       ? { ready: billingReady.ready, mode: billingRow.mode, status: billingRow.status, trial_end: billingRow.trial_end, current_period_end: billingRow.current_period_end, trial_days: billingReady.trial_days, cancel_at: billingRow.cancel_at, cancel_at_period_end: billingRow.cancel_at_period_end }
       : undefined,
+    activations: (activations.data ?? []).map((a) => ({ capability: a.capability as CapabilityKind, activated_at: a.activated_at, activated_by: a.activated_by, deactivated_at: a.deactivated_at })),
   };
   return setup;
 }

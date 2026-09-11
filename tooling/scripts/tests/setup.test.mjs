@@ -39,6 +39,11 @@ const live = (over = {}) => empty({
   calendar: { state: "ok" },
   team: { members: 2, invitesOpen: 0, alertEmails: 1 },
   consent: { yes: 3, offers: 1 },
+  // The owner's own act (00108): a workspace that answers everywhere has said so.
+  activations: [
+    { capability: "voice", activated_at: "2026-09-08T09:00:00Z", activated_by: "u-owner", deactivated_at: null },
+    { capability: "whatsapp", activated_at: "2026-09-08T09:00:00Z", activated_by: "u-owner", deactivated_at: null },
+  ],
   ...over,
 });
 const row = (vm, id) => vm.rows.find((r) => r.id === id);
@@ -97,6 +102,13 @@ test("a workspace that answers everywhere: eight of nine — the kept number is 
   assert.equal(row(vm, "facts").sentence, "Northside Movers · hours set · 4 services on record");
   assert.equal(row(vm, "handoff").sentence, `Callers who insist on a person are transferred to ${formatPhoneDisplay(HANDOFF)}.`);
   assert.deepEqual(row(vm, "receptionist").verb, { label: "Call it", to: `tel:${VOICE}` });
+  // Three claims, kept apart (PRD ON-02): answering is readiness, a call
+  // answered is evidence, and "Activated" is the owner's own act.
+  assert.ok(row(vm, "receptionist").details.some((d) => d.startsWith("Activated ")), "an activated capability says so");
+  const untouched = setupSteps({ ...live(), activations: [] }, NOW);
+  assert.deepEqual(row(untouched, "receptionist").verb, { label: "Activate", to: "verb:activate:voice" }, "tested but not activated: the one verb left is the owner's");
+  assert.ok(row(untouched, "receptionist").details.includes("Tested — activate it to say it is yours"));
+  assert.deepEqual(row(untouched, "whatsapp").verb, { label: "Activate", to: "verb:activate:whatsapp" });
   assert.ok(row(vm, "receptionist").details.includes(`Last call ${agoWords(Date.parse("2026-09-06T14:30:00Z"), NOW)}`));
   assert.ok(row(vm, "whatsapp").details.includes("Quality green"));
   assert.ok(row(vm, "whatsapp").details.includes("6 approved messages"));
