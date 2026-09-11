@@ -1,8 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SIGNUP_WORDS, googleCallbackUrl } from "@chanlytics/contracts";
 import { createClient } from "@/lib/supabase/client";
+
+/**
+ * Whether the hosted project has the Google provider switched on. Supabase's
+ * public settings say (`external.google`), so the door is shown only when it
+ * opens: the button ships before the client id and secret are in the
+ * dashboard, and a button that can only fail teaches somebody to ignore
+ * buttons. Asked once per page load, and "could not ask" is "not shown".
+ */
+let known: Promise<boolean> | null = null;
+function googleEnabled(): Promise<boolean> {
+  known ??= fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/settings`, {
+    headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY! },
+  })
+    .then((r) => r.json())
+    .then((j: { external?: { google?: boolean } }) => j?.external?.google === true)
+    .catch(() => false);
+  return known;
+}
 
 /**
  * Sign in with Google, on both doors.
@@ -20,6 +38,13 @@ import { createClient } from "@/lib/supabase/client";
 export default function GoogleSignIn({ next = "/", hint }: { next?: string | (() => string); hint?: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void googleEnabled().then((on) => { if (alive) setEnabled(on); });
+    return () => { alive = false; };
+  }, []);
+  if (!enabled) return null;
 
   async function go() {
     setBusy(true);

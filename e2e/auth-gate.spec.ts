@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { googleProviderOn } from "./providers";
 
 /**
  * The session gate, exercised from outside.
@@ -101,7 +102,11 @@ test.describe("unauthenticated", () => {
   test("the login page renders its own form, not a shell of the app", async ({ page }) => {
     await page.goto("/login");
     await expect(page.locator("input[type=email]")).toBeVisible();
-    await expect(page.getByTestId("google-sign-in")).toBeVisible();
+    // Google's door is shown exactly when the hosted project has the provider
+    // on, which its public settings say; a button that can only fail is not shown.
+    const google = await googleProviderOn();
+    if (google === true) await expect(page.getByTestId("google-sign-in")).toBeVisible();
+    if (google === false) await expect(page.getByTestId("google-sign-in")).toHaveCount(0);
     // Nothing behind the gate may be painted to someone who is not through it.
     await expect(page.locator("body")).not.toContainText("Melany");
   });
