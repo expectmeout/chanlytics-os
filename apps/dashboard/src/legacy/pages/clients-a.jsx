@@ -1345,7 +1345,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     return () => window.removeEventListener("keydown", onKey);
   });
   const toggleAll = () => setSel((s) => (shownIds.length && shownIds.every((id) => s.has(id)) ? new Set() : new Set(shownIds)));
-  const ws = (window.__WORKSPACES || []).find((w) => w.id === window.__ACTIVE_WORKSPACE) || (window.__WORKSPACES || [])[0];
+  const ws = (window.__WORKSPACES || []).find((w) => w.id === window.__ACTIVE_WORKSPACE) || null;
 
   return (
     <div className="clients">

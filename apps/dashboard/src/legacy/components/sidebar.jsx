@@ -126,11 +126,11 @@ const sbMe = () => window.__ME || null;
 // Every data surface and Settings resolve by __ACTIVE_WORKSPACE; membership
 // order and name order diverge the moment anyone belongs to two workspaces,
 // and the result is one business's name standing over another's
-// conversations. [0] survives only as the fallback for a boot that has not
-// resolved an active workspace yet.
+// conversations. A boot that has not resolved the active workspace yet shows
+// "Workspace" until it has, never the first name on the list.
 const sbWorkspace = () => {
   const all = window.__WORKSPACES || [];
-  return all.find((w) => w.id === window.__ACTIVE_WORKSPACE) || all[0] || null;
+  return all.find((w) => w.id === window.__ACTIVE_WORKSPACE) || null;
 };
 const sbWorkspaceName = () => {
   const ws = sbWorkspace();
@@ -200,7 +200,7 @@ const SbMenu = ({ menu, side = "down", collapsed, label, testid, children }) => 
 // settings. Switching goes through the shell, which re-runs every surface.
 const WorkspaceMenu = ({ onNavigate, close }) => {
   const all = window.__WORKSPACES || (window.__DEMO_MODE ? [{ id: "demo", name: sbWorkspaceName() }] : []);
-  const active = sbWorkspace() || all[0] || null;
+  const active = sbWorkspace() || (window.__DEMO_MODE ? all[0] : null) || null;
   const role = sbWho().role;
   const hotkey = (i) => (all.length > 1 && window.__chrome ? window.__chrome.workspaceHotkey(i) : null);
   return (

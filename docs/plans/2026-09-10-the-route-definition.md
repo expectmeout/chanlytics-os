@@ -255,15 +255,15 @@ That is 104 handlers, plus Task 3.1's seven verbs and signup's two (which stay o
 
 ## Task 3.3: the client names its workspace, or waits for it
 
-- [ ] **Boot.** When no workspace is known (a first visit, or blocked storage), `surface-runner.ts` awaits the workspace surface before the other fourteen fire.
-- [ ] **The four `__WORKSPACES[0]` fallbacks** become the active workspace or nothing:
+- [x] **Boot.** When no workspace is known (a first visit, or blocked storage), `surface-runner.ts` awaits the workspace surface before the other fourteen fire.
+- [x] **The four `__WORKSPACES[0]` fallbacks** become the active workspace or nothing:
   - `surface-data.ts:197`
   - `inbox-verbs.ts:279`
   - `surface-runner.ts:70`
   - `pages/clients-a.jsx:1348`
-- [ ] **A `choose_workspace` answer** clears `chanlytics.workspace` and reloads. This is the first `error.code` the client reads.
+- [x] **A `choose_workspace` answer** clears `chanlytics.workspace` and reloads. This is the first `error.code` the client reads.
 - [x] **Realtime.** `subscribeMessagesInserts(..., { tenantId })`, which `packages/db` already supports.
-- [ ] **Tests.** A loaded render of the boot order (the `consent-door` harness pattern), and the error-code branch run with a stubbed fetch.
+- [x] **Tests.** A loaded render of the boot order (the `consent-door` harness pattern), and the error-code branch run with a stubbed fetch.
 
 ## Task 3.4: reads refuse ambiguity too
 

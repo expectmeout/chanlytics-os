@@ -230,8 +230,7 @@ export function composedPrompt(
   };
   const brain = w.__SETTINGS?.config?.brain;
   if (!brain) return null;
-  const ws =
-    w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE) ?? w.__WORKSPACES?.[0] ?? null;
+  const ws = w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE) ?? null;
   const tz = ws?.timezone ?? null;
   try {
     return {

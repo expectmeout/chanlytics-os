@@ -95,7 +95,7 @@ export function askPalette(win: Window, storage: Storage | null) {
   };
   const activeWorkspace = (): Workspace | null => {
     const id = w.__ACTIVE_WORKSPACE ?? null;
-    return (w.__WORKSPACES ?? []).find((x) => x.id === id) ?? (w.__WORKSPACES ?? [])[0] ?? null;
+    return (w.__WORKSPACES ?? []).find((x) => x.id === id) ?? null;
   };
   const calls = () => [...(w.__LIVE?.now ?? []), ...(w.__LIVE?.recent ?? [])];
   const rightNow = (): NotificationItem[] => feedFromGlobals(w as Parameters<typeof feedFromGlobals>[0], Date.now());
