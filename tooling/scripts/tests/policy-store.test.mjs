@@ -35,9 +35,12 @@ test("modes round-trip between the database's spelling and the mockup's, and unk
   assert.deepEqual([...UI_MODES], ["Auto", "Veto", "Ask", "Never"]);
 });
 
-test("only the classes the runtime consults are offered as switches", () => {
-  const enforced = UI_ROWS.filter((r) => r.enforced).map((r) => r.id).sort();
-  assert.deepEqual(enforced, ["book", "campaign", "faq", "money", "reengage", "reply", "reviews"], "reply by the handlers; booking and faq in both prompts and after generation; reengage and campaign by the playbooks sweep; reviews by the profile sync and the draft route; money is locked in the database");
+test("every class offered is one the runtime consults, and each offers only the modes its enforcer honours", () => {
+  // The rows used to carry an enforced flag, back when the receptionist read
+  // one class. Every class has an enforcer now, so the flag and the pane text
+  // that hung on it are gone: the list itself is the claim.
+  assert.deepEqual(UI_ROWS.map((r) => r.id).sort(), ["book", "campaign", "faq", "money", "reengage", "reply", "reviews"], "reply by the handlers; booking and faq in both prompts and after generation; reengage and campaign by the playbooks sweep; reviews by the profile sync and the draft route; money is locked in the database");
+  assert.ok(UI_ROWS.every((r) => !("enforced" in r)), "no row is stored-but-unenforced, so no row says so");
   assert.deepEqual(UI_ROWS.find((r) => r.id === "reviews").modes, ["Auto", "Ask", "Never"], "answered, drafted for a person, or left alone — no countdown to hold");
   assert.deepEqual(UI_ROWS.find((r) => r.id === "book").modes, ["Auto", "Ask"], "no never for a salon that takes bookings, no draft to hold for review");
   assert.deepEqual(UI_ROWS.find((r) => r.id === "faq").modes, ["Auto", "Ask"]);

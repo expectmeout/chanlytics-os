@@ -2055,15 +2055,23 @@ const PaneAutonomy = ({ flash }) => {
 };
 
 // ====== Real branch — Settings · Autonomy on the workspace's policies table ======
-// Same cards and classes as the seeded pane. The reply row is the only class
-// the receptionist consults today, so it is the only live switch; money is
-// locked in the database; the other four say plainly that they are stored
-// but not enforced. Hard limits are the runtime's actual numbers.
+// Same cards and classes as the seeded pane. Every row is a class with an
+// enforcer -- the receptionist (replies, questions, bookings), the playbooks
+// (re-engage, offers), the review sweep, and for money a database trigger --
+// so every switch shown is one something honours, offering only the modes it
+// honours. The three dials write the reply row's limits through one route.
+// The limits card shows the runtime's actual numbers: two the charter's,
+// two this workspace's own.
 
 const AUT_DELAYS = [["15s", 15000], ["30s", 30000], ["1m", 60000], ["2m", 120000], ["5m", 300000]];
 // The confidence dial. Under Auto, a reply the receptionist is less sure
 // about than this waits in the hold window for a person. Off sends everything.
 const AUT_CONF = [["Off", 0], ["60%", 0.6], ["75%", 0.75], ["90%", 0.9]];
+// The day's model budget: tokens in and out over a rolling 24 hours, from
+// the usage events every reply writes. Over it the receptionist stops for
+// the day and each new message lands in Needs you, as at the reply cap.
+// The route and the edge already honoured it; this is its handle.
+const AUT_BUDGET = [["Off", 0], ["100k", 100000], ["250k", 250000], ["500k", 500000], ["1M", 1000000]];
 const AUT_MODE_HINT = {
   Auto: "sends right away",
   Veto: "writes the reply, waits, then sends unless you stop it",
@@ -2101,11 +2109,13 @@ const PaneAutonomyReal = ({ flash }) => {
   const pauseH = Number(limits.pause_hours) || 24;
   const minConf = Number(limits.min_confidence) || 0;
   const confLabel = (AUT_CONF.find((c) => c[1] === minConf) || [`${Math.round(minConf * 100)}%`])[0];
+  const budget = Number(limits.max_llm_tokens_day) || 0;
+  const budgetLabel = (AUT_BUDGET.find((b) => b[1] === budget) || [`${Math.round(budget / 1000)}k`])[0];
 
-  const put = async (r, mode, replyDelayMs, minConfidence) => {
+  const put = async (r, mode, replyDelayMs, minConfidence, maxTokensDay) => {
     if (!window.__setPolicy) return;
     setBusy(r.cls);
-    const res = await window.__setPolicy(r.cls, mode, replyDelayMs, minConfidence);
+    const res = await window.__setPolicy(r.cls, mode, replyDelayMs, minConfidence, maxTokensDay);
     setBusy(null);
     if (!res.ok) { flash({ msg: <><b>Not changed</b> — {res.message}</> }); return; }
     flash({
@@ -2113,7 +2123,9 @@ const PaneAutonomyReal = ({ flash }) => {
         ? <><b>Hold window</b> → {(AUT_DELAYS.find((d) => d[1] === replyDelayMs) || [`${replyDelayMs / 1000}s`])[0]} — from the next reply</>
         : minConfidence !== undefined
           ? <><b>Confidence dial</b> → {(AUT_CONF.find((c) => c[1] === minConfidence) || [`${Math.round(minConfidence * 100)}%`])[0]} — from the next reply</>
-          : <><b>{r.label}</b> → {mode.charAt(0).toUpperCase() + mode.slice(1)} — from the next message</>,
+          : maxTokensDay !== undefined
+            ? <><b>Day's model budget</b> → {(AUT_BUDGET.find((b) => b[1] === maxTokensDay) || [`${Math.round(maxTokensDay / 1000)}k`])[0]} — from the next reply</>
+            : <><b>{r.label}</b> → {mode.charAt(0).toUpperCase() + mode.slice(1)} — from the next message</>,
     });
   };
 
@@ -2128,22 +2140,20 @@ const PaneAutonomyReal = ({ flash }) => {
           <thead><tr><th>Action class</th>{MODES.map((m) => <th key={m} className="pol-mode" title={AUT_MODE_HINT[m]}>{m}</th>)}</tr></thead>
           <tbody>
             {rows.map((r) => {
-              const live = r.enforced && !r.locked;
               return (
                 <tr key={r.id} className={r.locked ? "pol-locked" : ""}>
                   <td>
                     <span className="pol-label">{r.label}</span>
                     <span className="pol-note">{r.note}</span>
                     {r.locked && <span className="pol-evidence">Locked by charter — enforced in the database</span>}
-                    {!r.enforced && <span className="pol-evidence">Stored · not enforced yet — the receptionist does not consult this class</span>}
                   </td>
                   {MODES.map((m) => (
                     <td key={m} className="pol-cell">
                       {(r.locked && m !== "Never") || (r.modes && !r.modes.includes(m)) ? <span className="pol-dash" title={r.locked ? "Charter — fixed" : m === "Veto" ? "Nothing to hold for review here" : "Answered by the receptionist or by you — there is no never"}>—</span> : (
                         <button
                           className={`pol-dot ${r.mode === m ? "on" : ""}`}
-                          title={r.locked ? "Charter — fixed" : live ? (r.hints && r.hints[m]) || AUT_MODE_HINT[m] : "Not enforced yet"}
-                          disabled={r.locked || !live || busy === r.cls}
+                          title={r.locked ? "Charter — fixed" : (r.hints && r.hints[m]) || AUT_MODE_HINT[m]}
+                          disabled={r.locked || busy === r.cls}
                           onClick={() => put(r, m.toLowerCase())}
                           {...window.gate("autonomy")}
                         >
@@ -2161,8 +2171,8 @@ const PaneAutonomyReal = ({ flash }) => {
 
       <section className="fl-card set-card">
         <div className="fl-card-head">
-          <span className="fl-card-title">Reply timing</span>
-          <span className="fl-card-sub">The hold window applies under Veto, and under Auto for a reply below the confidence dial</span>
+          <span className="fl-card-title">Reply timing and budget</span>
+          <span className="fl-card-sub">The hold window applies under Veto, and under Auto for a reply below the confidence dial; the budget stops the receptionist for the day</span>
         </div>
         <SetRow label="Hold window" hint="The receptionist writes its reply and waits this long before sending, so you can stop or change it from the Inbox. A booking link a caller asks for on the phone is texted right away — there is nothing to hold.">
           <SetSeg
@@ -2171,17 +2181,24 @@ const PaneAutonomyReal = ({ flash }) => {
             onChange={(v) => { const d = AUT_DELAYS.find((x) => x[0] === v); if (d && reply) put(reply, undefined, d[1]); }}
           />
         </SetRow>
-        <SetRow label="Send on its own only when it's sure" hint="Under Auto, a reply the receptionist is less sure about than this waits in the hold window for you instead of going straight out. Off sends everything.">
+        <SetRow label="Send on its own only when it's sure" hint="Under Auto, a reply the receptionist is less sure about than this waits in the hold window for you instead of going straight out. Off sends everything, and so does a reply with no confidence on record.">
           <SetSeg
             value={confLabel}
             options={AUT_CONF.map((c) => c[0])}
             onChange={(v) => { const c = AUT_CONF.find((x) => x[0] === v); if (c && reply) put(reply, undefined, undefined, c[1]); }}
           />
         </SetRow>
+        <SetRow label="Day's model budget" hint="Model tokens the receptionist may use in a rolling 24 hours, in and out. Over it, it stops answering for the day and each new message lands in Needs you. Off is no budget.">
+          <SetSeg
+            value={budgetLabel}
+            options={AUT_BUDGET.map((b) => b[0])}
+            onChange={(v) => { const b = AUT_BUDGET.find((x) => x[0] === v); if (b && reply) put(reply, undefined, undefined, undefined, b[1]); }}
+          />
+        </SetRow>
       </section>
 
       <section className="fl-card set-card">
-        <div className="fl-card-head"><span className="fl-card-title">Hard limits</span><span className="fl-card-sub">Never crossed, whatever the matrix says</span></div>
+        <div className="fl-card-head"><span className="fl-card-title">Hard limits</span><span className="fl-card-sub">The first two never change. The last two are this workspace's own values</span></div>
         <ul className="st-bullets">
           <li><Icon name="check" size={11} /><span>Never messages a customer who asked to stop</span></li>
           <li><Icon name="check" size={11} /><span>Refunds, rates and negotiation always go to you — locked in the database</span></li>
