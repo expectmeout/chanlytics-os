@@ -283,7 +283,7 @@ test("the edge: the secret alone on the edge, a read before a row, the grant giv
 
 test("the dashboard: the way there is signed, the way back is proven before anything is trusted, and a reply is a ledger entry", () => {
   const connect = readCode("apps/dashboard/app/api/v1/google/connect/route.ts");
-  assert.ok(connect.includes('requireRole(member, "owner")') && connect.includes("signState(secret, { t: member.tenantId, u: ctx.userId, n: newNonce(), exp: Date.now() + STATE_TTL_MS })"));
+  assert.ok(connect.includes('role: "owner",') && connect.includes("signState(secret, { t: member.tenantId, u: ctx.userId, n: newNonce(), exp: Date.now() + STATE_TTL_MS })"));
   assert.ok(connect.includes("new Response(null, { status: 302, headers: { location: url } })"));
   const cb = readCode("apps/dashboard/app/api/v1/google/callback/route.ts");
   assert.ok(cb.indexOf("verifyState(secret, url.searchParams.get(\"state\"), Date.now())") < cb.indexOf('op: "connect"'), "the state before the code");
@@ -294,10 +294,10 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
   assert.ok(server.includes("return process.env.GOOGLE_OAUTH_STATE_SECRET || process.env.DIAG_KEY || null;"), "the state's key is the one the dashboard already shares with the edge");
   assert.ok(server.includes('export const CONNECTION_COLUMNS = "google_email, account_title, location_name, location_title, connected_at, last_synced_at, sync_error";'), "never credentials_ref");
   const reply = readCode("apps/dashboard/app/api/v1/google/reviews/[id]/reply/route.ts");
-  assert.ok(reply.includes('requireRole(member, "operator")') && reply.includes('takeRate(ctx.userId, "google_reply")'));
+  assert.ok(reply.includes('role: "operator",') && reply.includes('rate: "google_reply",'));
   assert.ok(reply.includes('recordDecision(ctx, member.tenantId, "review", id, "reply_review", { comment, replied_at: repliedAt })'));
   const locations = readCode("apps/dashboard/app/api/v1/google/locations/route.ts");
-  assert.equal((locations.match(/requireRole\(member, "owner"\)/g) ?? []).length, 2);
+  assert.equal((locations.match(/role: "owner",/g) ?? []).length, 2);
   const connection = readCode("apps/dashboard/app/api/v1/google/connection/route.ts");
   assert.ok(connection.includes("export const DELETE") && connection.includes('op: "disconnect"'));
   const rate = readCode("apps/dashboard/src/server/rate-limit.ts");

@@ -327,14 +327,14 @@ test("the edge: the key alone on the edge, diag-key verbs, the cron-key sweep, o
 
 test("the dashboard: owners link and search, operators read, members look; the pages read one surface", () => {
   const search = readCode("apps/dashboard/app/api/v1/google/search/route.ts");
-  assert.ok(search.includes('requireRole(member, "owner")') && search.includes('takeRate(ctx.userId, "google_search")'));
+  assert.ok(search.includes('role: "owner",') && search.includes('rate: "google_search",'));
   assert.ok(search.includes("cfg?.brain?.business_name") && search.includes("cfg?.brain?.profile?.address"), "the facts on record are the default query");
   const link = readCode("apps/dashboard/app/api/v1/google/link/route.ts");
   assert.ok(link.includes("export const POST") && link.includes("export const DELETE"));
-  assert.equal((link.match(/requireRole\(member, "owner"\)/g) ?? []).length, 2);
+  assert.equal((link.match(/role: "owner",/g) ?? []).length, 2);
   assert.ok(link.includes('op: "link", tenant_id: member.tenantId, user_id: ctx.userId, place_id: placeId'));
   const refresh = readCode("apps/dashboard/app/api/v1/google/refresh/route.ts");
-  assert.ok(refresh.includes('requireRole(member, "operator")') && refresh.includes('takeRate(ctx.userId, "google_refresh")'));
+  assert.ok(refresh.includes('role: "operator",') && refresh.includes('rate: "google_refresh",'));
   const get = readCode("apps/dashboard/app/api/v1/google/route.ts");
   assert.ok(get.includes("googleFor(ctx.supabase, member.tenantId), googleReadiness()"));
   const server = readCode("apps/dashboard/src/server/google.ts");

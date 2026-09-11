@@ -122,7 +122,7 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
   assert.ok(admin.includes('if (op === "draft") {') && admin.includes('if (mode === "never") return json(409, { ok: false, error: "policy_never", mode });'));
 
   const route = readCode("apps/dashboard/app/api/v1/google/reviews/[id]/draft/route.ts");
-  assert.ok(route.includes('requireRole(member, "operator")') && route.includes('takeRate(ctx.userId, "google_draft")') && route.includes('op: "draft"'));
+  assert.ok(route.includes('role: "operator",') && route.includes('rate: "google_draft",') && route.includes('op: "draft"'));
   assert.ok(route.includes("policy_never:") && !route.includes("recordDecision"), "a draft is not a decision; sending is");
   assert.ok(readCode("apps/dashboard/src/server/rate-limit.ts").includes("google_draft: {"));
   const get = readCode("apps/dashboard/app/api/v1/google/route.ts");

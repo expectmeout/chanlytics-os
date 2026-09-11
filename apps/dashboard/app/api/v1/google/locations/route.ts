@@ -1,6 +1,5 @@
-import { withRoute, memberContext, requireRole } from "@/server/with-route";
+import { read, write, workspace } from "@/server/route";
 import { AppError, type GoogleLocationDto } from "@chanlytics/contracts";
-import { takeRate } from "@/server/rate-limit";
 import { edgeGoogle } from "@/server/google";
 
 /**
@@ -29,30 +28,34 @@ function locations(raw: unknown): GoogleLocationDto[] {
   }).filter((l) => l.account_name && l.location_name);
 }
 
-export const GET = withRoute(async (req, ctx) => {
-  const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
-  requireRole(member, "owner");
-  await takeRate(ctx.userId, "google_search");
-  const a = await edgeGoogle({ op: "locations", tenant_id: member.tenantId }, 25_000);
-  const b = a.body ?? {};
-  if (a.status === 404) throw new AppError("not_found", SAID.not_connected, 404);
-  if (a.status !== 200 || b.ok !== true) throw new AppError("internal", typeof b.error === "string" ? SAID[b.error] ?? `Google could not be read: ${b.error}` : "Google could not be read. Try again in a moment.", 502);
-  return { locations: locations(b.locations) };
+export const GET = read({
+  scope: workspace,
+  role: "owner",
+  rate: "google_search",
+  handle: async ({ member }) => {
+    const a = await edgeGoogle({ op: "locations", tenant_id: member.tenantId }, 25_000);
+    const b = a.body ?? {};
+    if (a.status === 404) throw new AppError("not_found", SAID.not_connected, 404);
+    if (a.status !== 200 || b.ok !== true) throw new AppError("internal", typeof b.error === "string" ? SAID[b.error] ?? `Google could not be read: ${b.error}` : "Google could not be read. Try again in a moment.", 502);
+    return { locations: locations(b.locations) };
+  },
 });
 
-export const POST = withRoute(async (req, ctx) => {
-  const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
-  requireRole(member, "owner");
-  await takeRate(ctx.userId, "google_link");
-  const body = (await req.json().catch(() => ({}))) as { account_name?: unknown; location_name?: unknown };
-  const accountName = typeof body.account_name === "string" ? body.account_name.trim() : "";
-  const locationName = typeof body.location_name === "string" ? body.location_name.trim() : "";
-  if (!ACCOUNT.test(accountName) || !LOCATION.test(locationName)) throw new AppError("validation", "Pick a location from the list first.", 400);
-  const a = await edgeGoogle({ op: "choose", tenant_id: member.tenantId, user_id: ctx.userId, account_name: accountName, location_name: locationName }, 55_000);
-  const b = a.body ?? {};
-  if (a.status !== 200 || b.ok !== true) {
-    const reason = typeof b.error === "string" ? b.error : "failed";
-    throw new AppError(a.status === 404 ? "not_found" : "internal", SAID[reason] ?? `The location could not be chosen (${reason}).`, a.status === 404 ? 404 : 502);
-  }
-  return { connection: b.connection ?? null, listing: b.listing ?? null, read: b.read ?? null };
+export const POST = write({
+  scope: workspace,
+  role: "owner",
+  rate: "google_link",
+  handle: async ({ ctx, req, member }) => {
+    const body = (await req.json().catch(() => ({}))) as { account_name?: unknown; location_name?: unknown };
+    const accountName = typeof body.account_name === "string" ? body.account_name.trim() : "";
+    const locationName = typeof body.location_name === "string" ? body.location_name.trim() : "";
+    if (!ACCOUNT.test(accountName) || !LOCATION.test(locationName)) throw new AppError("validation", "Pick a location from the list first.", 400);
+    const a = await edgeGoogle({ op: "choose", tenant_id: member.tenantId, user_id: ctx.userId, account_name: accountName, location_name: locationName }, 55_000);
+    const b = a.body ?? {};
+    if (a.status !== 200 || b.ok !== true) {
+      const reason = typeof b.error === "string" ? b.error : "failed";
+      throw new AppError(a.status === 404 ? "not_found" : "internal", SAID[reason] ?? `The location could not be chosen (${reason}).`, a.status === 404 ? 404 : 502);
+    }
+    return { connection: b.connection ?? null, listing: b.listing ?? null, read: b.read ?? null };
+  },
 });

@@ -9,15 +9,6 @@
     "billing/invoices",
     "billing/resume",
     "billing/sync",
-    "google/callback",
-    "google/connect",
-    "google/connection",
-    "google/link",
-    "google/locations",
-    "google/refresh",
-    "google/reviews/[id]/draft",
-    "google/reviews/[id]/reply",
-    "google/search",
     "me",
     "metrics",
     "platform/lines/refile",
@@ -327,11 +318,88 @@
       "rate": null,
       "spend": false
     },
+    "GET google/callback": {
+      "kind": "read",
+      "scope": "account",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET google/connect": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "google_link",
+      "spend": false
+    },
+    "DELETE google/connection": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "google_link",
+      "spend": false
+    },
+    "POST google/link": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "google_link",
+      "spend": false
+    },
+    "DELETE google/link": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "google_link",
+      "spend": false
+    },
+    "GET google/locations": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "google_search",
+      "spend": false
+    },
+    "POST google/locations": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "google_link",
+      "spend": false
+    },
+    "POST google/refresh": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "google_refresh",
+      "spend": false
+    },
+    "POST google/reviews/[id]/draft": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "google_draft",
+      "spend": false
+    },
+    "POST google/reviews/[id]/reply": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "google_reply",
+      "spend": false
+    },
     "GET google": {
       "kind": "read",
       "scope": "workspace",
       "role": null,
       "rate": null,
+      "spend": false
+    },
+    "POST google/search": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "google_search",
       "spend": false
     },
     "POST lines/buy": {
