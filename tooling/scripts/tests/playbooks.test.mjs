@@ -94,7 +94,7 @@ test("a run that waits for a person is open, never sent by the job, approved thr
   const vm = toBroadcastVM({ id: "b", name: "n", template_id: "t", template_name: "x", template_language: "en", params: [], audience: { kind: "playbook", id: "p", label: "Win-back" }, state: "pending_approval", scheduled_for: "2026-09-06T15:00:00Z", started_at: null, finished_at: null, recipient_count: 3, failure: null, created_at: "2026-09-06T15:00:00Z", playbook_id: "p", run_for: "2026-09-06", counts: { queued: 3, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 } });
   assert.equal(vm.open, true);
   assert.equal(vm.stateLabel, "Needs you");
-  const h = readCode("packages/jobs/src/handlers.ts");
+  const h = readCode("packages/core/src/messages/broadcast.ts");
   assert.ok(h.includes('if (b.state !== "scheduled" && b.state !== "sending") return;'), "only a scheduled or sending broadcast goes out");
   const a = readCode("apps/dashboard/app/api/v1/broadcasts/[id]/approve/route.ts");
   assert.ok(a.includes('if (b.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);'));
@@ -181,7 +181,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   assert.ok(sug.some((x) => x.kind === "act" && x.q === "Start a win-back playbook for the quiet clients"), "an Act suggestion on People");
   const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
   assert.ok(brief.includes('data-testid="brief-run-done"') && brief.includes('{r.playbook_id ? "ran" : "went out"}'), "Today says what went out today");
-  const h = readCode("packages/jobs/src/handlers.ts");
+  const h = readCode("packages/core/src/messages/broadcast.ts");
   assert.ok(h.includes("playbook_name: String((b.audience as { label?: unknown } | null)?.label ?? b.name)"), "a run's message names its playbook");
   assert.ok(readCode("packages/contracts/src/viewmodels.ts").includes('{ kind: "playbook" as const, name: String(m.meta.playbook_name) }'));
   assert.ok(readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx").includes("`the ${entry.via.name} playbook`"));

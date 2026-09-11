@@ -365,7 +365,7 @@ The queued read's `maybeSingle()` reports an absent row as `data: null` without 
 
 **Files:** `packages/core/src/messages/broadcast.ts` (+ its ports in `ports.ts`), `packages/jobs/src/handlers.ts`, `tooling/scripts/tests/core-broadcast.test.mjs`.
 
-- [ ] **Step 1: The ports**, added to `ports.ts`:
+- [x] **Step 1: The ports**, added to `ports.ts`:
 
 ```typescript
 export interface BroadcastRow { id: string; state: string; name: string; template_name: string; template_language: string; params: unknown; recipient_count: number | null; playbook_id: string | null; audience: unknown }
@@ -406,21 +406,30 @@ export interface BroadcastBatchPorts {
 export interface BroadcastBatchCommand { tenantId: string; broadcastId: string; deadline: number }
 ```
 
-- [ ] **Step 2: The failing test.** `core-broadcast.test.mjs`, every branch: gone → nothing; a state other than scheduled or sending → nothing; a paused workspace → `fail(id, "paused")` and the owner's words; scheduled → `startSending` first; a template withdrawn → `fail(id, "template_not_approved")`, nothing sent; a person whose row cannot be read → left queued, nothing marked; erased → `skipped/erased`; no phone → `skipped/no_phone`; no target → `skipped/no_phone`; a slot nothing can fill → `skipped/missing_value` and no send; the door's sent/refused/failed → `sent`/`skipped(reason)`/`failed(send_failed)`, with the delivery carrying `purpose` from the category, `proactive: true`, `sender: "human"`, the template's rendered words and the playbook's name in `meta`; the deadline: with two people and `now()` past the deadline after the first, one send, then the follow-up is scheduled; remaining > 0 and still sending → `scheduleNext`; remaining > 0 but canceled meanwhile → nothing; remaining 0 → `finish` with the tally and the owner told with the held count.
+- [x] **Step 2: The failing test.** `core-broadcast.test.mjs`, every branch: gone → nothing; a state other than scheduled or sending → nothing; a paused workspace → `fail(id, "paused")` and the owner's words; scheduled → `startSending` first; a template withdrawn → `fail(id, "template_not_approved")`, nothing sent; a person whose row cannot be read → left queued, nothing marked; erased → `skipped/erased`; no phone → `skipped/no_phone`; no target → `skipped/no_phone`; a slot nothing can fill → `skipped/missing_value` and no send; the door's sent/refused/failed → `sent`/`skipped(reason)`/`failed(send_failed)`, with the delivery carrying `purpose` from the category, `proactive: true`, `sender: "human"`, the template's rendered words and the playbook's name in `meta`; the deadline: with two people and `now()` past the deadline after the first, one send, then the follow-up is scheduled; remaining > 0 and still sending → `scheduleNext`; remaining > 0 but canceled meanwhile → nothing; remaining 0 → `finish` with the tally and the owner told with the held count.
 
-- [ ] **Step 3: Run it and watch it fail.**
+- [x] **Step 3: Run it and watch it fail.**
 
-- [ ] **Step 4: The verb**, `broadcast.ts`: `broadcastSend`'s body with `ports.*` in place of the queries, `BROADCAST_CHUNK`, `BROADCAST_GAP_MS`, `parseParamSpec`, `resolveParams`, `renderTemplate`, `firstNameOf` and `purposeOfTemplate` from contracts as today, `ports.now()` and `cmd.deadline` for the yield, `ports.sleep(BROADCAST_GAP_MS)` between people. A person whose row cannot be read is caught and left queued (`console.error("broadcast_contact_unreadable", …)`), as today.
+- [x] **Step 4: The verb**, `broadcast.ts`: `broadcastSend`'s body with `ports.*` in place of the queries, `BROADCAST_CHUNK`, `BROADCAST_GAP_MS`, `parseParamSpec`, `resolveParams`, `renderTemplate`, `firstNameOf` and `purposeOfTemplate` from contracts as today, `ports.now()` and `cmd.deadline` for the yield, `ports.sleep(BROADCAST_GAP_MS)` between people. A person whose row cannot be read is caught and left queued (`console.error("broadcast_contact_unreadable", …)`), as today.
 
-- [ ] **Step 5: Run it green**, then prove it: move the template check below the first send and watch the withdrawn-template case fail; put it back.
+- [x] **Step 5: Run it green**, then prove it: move the template check below the first send and watch the withdrawn-template case fail; put it back.
 
-- [ ] **Step 6: The adapter.** `broadcastSend` in `handlers.ts` builds the ports: `broadcast` (the select with `.eq("tenant_id")`, throwing on error), `workspacePaused` (`tenants.status === "paused"`), `fail` (state, failure, finished_at), `startSending` (`.eq("state", "scheduled")`), `template` (the four-column select), `facts` (`tenants.name` and `parseTenantConfig(config).brain`), `batch` (`.eq("state", "queued").limit(limit)`), `contact`, `target` (`resolveOutboundTarget(db, { tenantId, phoneE164, create: false })`), `mark` (with `sent_at`), `deliver`, `remaining` (the head count), `state`, `scheduleNext` (`ctx.schedule("broadcast_send", new Date(), { broadcast_id })`), `finish` (state sent + the `broadcast.sent` event), `alert: ctx.alert`, `now: Date.now`, `sleep`.
+- [x] **Step 6: The adapter.** `broadcastSend` in `handlers.ts` builds the ports: `broadcast` (the select with `.eq("tenant_id")`, throwing on error), `workspacePaused` (`tenants.status === "paused"`), `fail` (state, failure, finished_at), `startSending` (`.eq("state", "scheduled")`), `template` (the four-column select), `facts` (`tenants.name` and `parseTenantConfig(config).brain`), `batch` (`.eq("state", "queued").limit(limit)`), `contact`, `target` (`resolveOutboundTarget(db, { tenantId, phoneE164, create: false })`), `mark` (with `sent_at`), `deliver`, `remaining` (the head count), `state`, `scheduleNext` (`ctx.schedule("broadcast_send", new Date(), { broadcast_id })`), `finish` (state sent + the `broadcast.sent` event), `alert: ctx.alert`, `now: Date.now`, `sleep`.
 
-- [ ] **Step 7: The pins.** `broadcasts.test.mjs:173`, `playbooks.test.mjs:97` and `:184`, `templates-made-here.test.mjs:100`, `visit-playbooks.test.mjs:131`, `billing-pause.test.mjs:53`: each names a branch that `core-broadcast.test.mjs` now runs. Delete the assertion, or where it pins wording the owner reads (the paused message, the playbook's name in `meta`), point it at `packages/core/src/messages/broadcast.ts`. Bank the ratchet.
+- [x] **Step 7: The pins.** `broadcasts.test.mjs:173`, `playbooks.test.mjs:97` and `:184`, `templates-made-here.test.mjs:100`, `visit-playbooks.test.mjs:131`, `billing-pause.test.mjs:53`: each names a branch that `core-broadcast.test.mjs` now runs. Delete the assertion, or where it pins wording the owner reads (the paused message, the playbook's name in `meta`), point it at `packages/core/src/messages/broadcast.ts`. Bank the ratchet.
 
-- [ ] **Step 8: Build, typecheck, suite, lint, PR, merge when green.** Commit: `The broadcast batch lives in core and every branch is run`.
+- [x] **Step 8: Build, typecheck, suite, lint, PR, merge when green.** Commit: `The broadcast batch lives in core and every branch is run`.
 
 ---
+
+## Status, 2026-09-11
+
+| PR | What | Merged |
+|---|---|---|
+| 1 | `sendQueued`, `eraseBlobThread`, `provisionLine` and their ports; `handlers.ts` as the adapter; the wall over `messages` | #379 |
+| 2 | `sendBroadcastBatch` over seventeen ports; `core-broadcast.test.mjs` running every branch of the batch; the six pins moved | #380 |
+
+Departures from the plan: `tally(id)` is a port of its own, since the recipient states are the adapter's to count, and `finish(id, tally)` writes the event with it; the verb catches an unreadable person around `contact()` (the adapter throws), so "we could not check" still leaves them queued for the next batch; in the test the slot no row can fill is a visit run's word, because a first name nobody has on file reads "there" and is never missing; `broadcasts.test.mjs` keeps the adapter's queries (the batch limit, the category, the person's columns, the next row, the event) and the rules it used to name are run instead. `packages/jobs` bundles core, so its dist is rebuilt with core's.
 
 ## Definition of done
 

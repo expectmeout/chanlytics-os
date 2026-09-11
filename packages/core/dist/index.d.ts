@@ -1,7 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SendResult, WaConfig } from '@chanlytics/channels';
 import { SendPurpose, DecisionSubject, DecisionVerb } from '@chanlytics/contracts';
-import { Database, Json } from '@chanlytics/db';
+import { Json, Database } from '@chanlytics/db';
 
 /**
  * deliver(): the one door a message leaves through.
@@ -429,6 +429,85 @@ interface ProvisionLinePorts {
         error?: string;
     }>;
 }
+interface BroadcastRow {
+    id: string;
+    state: string;
+    name: string;
+    template_name: string;
+    template_language: string;
+    params: unknown;
+    recipient_count: number | null;
+    playbook_id: string | null;
+    audience: unknown;
+}
+interface RecipientRow {
+    contact_id: string;
+    facts: unknown;
+}
+interface ContactRow {
+    id: string;
+    phone_e164: string | null;
+    erased_at: string | null;
+    display_name: string | null;
+    wa_profile_name: string | null;
+}
+type RecipientMark = {
+    state: "sent" | "skipped" | "failed";
+    reason?: string | null;
+    message_id?: string | null;
+};
+interface BroadcastBatchPorts {
+    /** The broadcast, or null when it is gone; throws when it cannot be read. */
+    broadcast(id: string): Promise<BroadcastRow | null>;
+    workspacePaused(): Promise<boolean>;
+    fail(id: string, failure: string): Promise<void>;
+    /** scheduled → sending, only while scheduled. */
+    startSending(id: string): Promise<void>;
+    /** The template as Meta has it: its status, its words, its category. */
+    template(name: string, language: string): Promise<{
+        meta_status: string | null;
+        body_preview: string | null;
+        category: string | null;
+    } | null>;
+    /** The workspace's own words for the slots that name it. */
+    facts(): Promise<{
+        businessName: string;
+        bookingLink: string | null;
+    }>;
+    /** Up to `limit` people still queued; throws when it cannot be read. */
+    batch(id: string, limit: number): Promise<RecipientRow[]>;
+    /** One person's row, null when gone; throws when it cannot be read. */
+    contact(contactId: string): Promise<ContactRow | null>;
+    /** The thread this send belongs to, never created here. */
+    target(phoneE164: string): Promise<{
+        conversationId: string;
+    } | null>;
+    mark(id: string, contactId: string, patch: RecipientMark): Promise<void>;
+    deliver: Door;
+    /** How many are still queued; throws when it cannot be counted. */
+    remaining(id: string): Promise<number>;
+    state(id: string): Promise<string | null>;
+    /** The next batch, as this tenant, through the same door the dashboard uses. */
+    scheduleNext(id: string): Promise<void>;
+    /** Who got it and who was held, once nobody is queued. */
+    tally(id: string): Promise<{
+        sent: number;
+        held: number;
+    }>;
+    /** sending → sent, and the event with the tally. */
+    finish(id: string, tally: {
+        sent: number;
+        held: number;
+    }): Promise<void>;
+    alert(subject: string, body: string): Promise<void>;
+    now(): number;
+    sleep(ms: number): Promise<void>;
+}
+interface BroadcastBatchCommand {
+    tenantId: string;
+    broadcastId: string;
+    deadline: number;
+}
 
 interface SendQueuedCommand {
     tenantId: string;
@@ -486,4 +565,16 @@ declare function provisionLine(ports: ProvisionLinePorts, cmd: {
     payload: Record<string, unknown>;
 }): Promise<void>;
 
-export { type ArchivePorts, type CancelSendPorts, type Channel, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, MAX_SNOOZE_MS, NEEDS_UNTIL, type ProvisionLinePorts, type QueuedReply, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, SEND_GRACE_MS, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type TakeOverPorts, type TakeOverResult, type TemplateSend, type Thread, type ThreadPorts, type WakePorts, type Wire, type WirePayload, archive, cancelSend, deliver, deliverSafely, eraseBlobThread, handBack, provisionLine, replyToConversation, resolveEscalation, sendQueued, snooze, takeOver, templatePurpose, wake, whatsappSender };
+/**
+ * broadcast_send: one batch of a broadcast, then the next.
+ *
+ * The route enrolled the recipients; this sends to up to BROADCAST_CHUNK of
+ * them, re-checking each person at the wire — the one place a miss is
+ * unrecoverable — and records why anyone was held back. Then it schedules
+ * itself again for the rest, or closes the broadcast and tells the
+ * workspace. A canceled broadcast stops at the next batch; a template that
+ * is no longer approved fails it before a single send.
+ */
+declare function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: BroadcastBatchCommand): Promise<void>;
+
+export { type ArchivePorts, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastRow, type CancelSendPorts, type Channel, type ContactRow, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, MAX_SNOOZE_MS, NEEDS_UNTIL, type ProvisionLinePorts, type QueuedReply, type RecipientMark, type RecipientRow, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, SEND_GRACE_MS, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type TakeOverPorts, type TakeOverResult, type TemplateSend, type Thread, type ThreadPorts, type WakePorts, type Wire, type WirePayload, archive, cancelSend, deliver, deliverSafely, eraseBlobThread, handBack, provisionLine, replyToConversation, resolveEscalation, sendBroadcastBatch, sendQueued, snooze, takeOver, templatePurpose, wake, whatsappSender };
