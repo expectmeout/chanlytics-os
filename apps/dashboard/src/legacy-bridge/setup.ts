@@ -28,8 +28,8 @@ export interface SetupApi {
   /** The product's own line: numbers to choose from, the one chosen, a retry. Owners only; the route says so. */
   lines: {
     search(areaCode: string): Promise<{ ok: boolean; numbers: LineChoice[]; message: string }>;
-    buy(number: string, areaCode: string): Promise<{ ok: boolean; message: string }>;
-    retry(lineId: string): Promise<{ ok: boolean; message: string }>;
+    buy(number: string, areaCode: string): Promise<{ ok: boolean; queued: boolean; message: string }>;
+    retry(lineId: string): Promise<{ ok: boolean; queued: boolean; message: string }>;
   };
   /** Keep the number you have: save the carrier and the mode, then open the test window. Owners only; the route says so. */
   forwarding: {
@@ -145,16 +145,16 @@ export function installSetup(win: Window = window): void {
         return { ok: r.ok, numbers: r.ok ? (r.data?.numbers ?? []) : [], message: r.message };
       },
       async buy(number, areaCode) {
-        const r = await post<{ ok?: boolean; error?: string | null }>("/api/v1/lines/buy", { number, area_code: areaCode });
+        const r = await post<{ ok?: boolean; queued?: boolean; error?: string | null }>("/api/v1/lines/buy", { number, area_code: areaCode });
         await refreshSurfaces([setupOverride]);
-        if (!r.ok) return { ok: false, message: r.message };
-        return { ok: r.data?.ok === true, message: r.data?.ok ? "" : "" };
+        if (!r.ok) return { ok: false, queued: false, message: r.message };
+        return { ok: r.data?.ok === true, queued: r.data?.queued === true, message: "" };
       },
       async retry(lineId) {
-        const r = await post<{ ok?: boolean; error?: string | null }>("/api/v1/lines/retry", { line_id: lineId });
+        const r = await post<{ ok?: boolean; queued?: boolean; error?: string | null }>("/api/v1/lines/retry", { line_id: lineId });
         await refreshSurfaces([setupOverride]);
-        if (!r.ok) return { ok: false, message: r.message };
-        return { ok: r.data?.ok === true, message: r.data?.ok ? "" : "It stopped again — a person at Chanlytics has it." };
+        if (!r.ok) return { ok: false, queued: false, message: r.message };
+        return { ok: r.data?.ok === true, queued: r.data?.queued === true, message: r.data?.ok ? "" : "It stopped again — a person at Chanlytics has it." };
       },
     },
     forwarding: {

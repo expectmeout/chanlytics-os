@@ -47,7 +47,7 @@ export const SCHEMA_SETS = {
   "escalations.state": ["open", "resolved"],
   "google_reviews.origin": ["places", "profile"],
   "invitations.role": ["operator", "viewer"],
-  "jobs.kind": ["outbound_send", "broadcast_send", "blob_thread_erase"],
+  "jobs.kind": ["outbound_send", "broadcast_send", "blob_thread_erase", "line_provision"],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lines.forwarding_state": ["none", "instructed", "verified"],
   "lines.kind": ["chanlytics", "hosted", "ported", "forwarded"],

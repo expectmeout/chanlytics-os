@@ -136,6 +136,19 @@ interface JobContext {
      */
     eraseThread: (namespace: string, threadId: string) => Promise<boolean>;
     /**
+     * Run a line's provisioning saga, or resume it. INJECTED like eraseThread:
+     * the provider and the receptionist's credentials live on the edge. The
+     * saga reads its own receipts, so a second run repeats nothing. Optional
+     * so a test context need not supply one; a job of this kind in a runtime
+     * without it fails loudly rather than guessing.
+     */
+    provisionLine?: (lineId: string, by: "owner" | "support" | "sweep") => Promise<{
+        ok: boolean;
+        step?: string;
+        error?: string;
+        did?: string;
+    }>;
+    /**
      * Schedule a job of this tenant — how a broadcast continues itself, one
      * batch after another, through the same door the dashboard uses.
      */

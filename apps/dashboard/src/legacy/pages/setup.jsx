@@ -46,7 +46,9 @@ const LineChooser = ({ S, flash, onDone, onKeep }) => {
     setBusy(false);
     if (!r.ok && r.message) { flash({ msg: <>{r.message}</> }); return; }
     flash({ msg: r.ok
-      ? <>{chosen.friendly} is yours — the receptionist answers it. Call it from your phone.</>
+      ? (r.queued
+        ? <>{chosen.friendly} is yours — setting it up now, usually a minute or two. This page updates by itself.</>
+        : <>{chosen.friendly} is yours — the receptionist answers it. Call it from your phone.</>)
       : <>Setting up {chosen.friendly} stopped part-way — a person at Chanlytics has it, and Retry is on the row.</> });
     onDone();
   };
@@ -317,7 +319,7 @@ const PaneSetup = () => {
       if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can retry a line.</> }); return; }
       flash({ msg: <>Retrying — usually a minute or two.</> });
       const r = await window.__setup.lines.retry(verb.to.slice("verb:retry-line:".length));
-      flash({ msg: r.ok ? <>Your line answers now.</> : <>{r.message || "It stopped again — a person at Chanlytics has it."}</> });
+      flash({ msg: r.ok ? (r.queued ? <>Setting up again — this page updates by itself.</> : <>Your line answers now.</>) : <>{r.message || "It stopped again — a person at Chanlytics has it."}</> });
       return;
     }
     if (verb.to.startsWith("verb:activate:")) {

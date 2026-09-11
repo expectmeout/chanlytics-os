@@ -119,7 +119,7 @@ type ConsentState = (typeof CONSENT_STATES)[number];
  * A new kind arrives with its handler, its caller and the jobs.kind CHECK,
  * together.
  */
-declare const JOB_KINDS: readonly ["outbound_send", "broadcast_send", "blob_thread_erase"];
+declare const JOB_KINDS: readonly ["outbound_send", "broadcast_send", "blob_thread_erase", "line_provision"];
 type JobKind = (typeof JOB_KINDS)[number];
 /**
  * `fired` means CLAIMED, not finished: claim_due_jobs() sets it with a lease,
@@ -1434,7 +1434,7 @@ declare const SCHEMA_SETS: {
     readonly "escalations.state": readonly ["open", "resolved"];
     readonly "google_reviews.origin": readonly ["places", "profile"];
     readonly "invitations.role": readonly ["operator", "viewer"];
-    readonly "jobs.kind": readonly ["outbound_send", "broadcast_send", "blob_thread_erase"];
+    readonly "jobs.kind": readonly ["outbound_send", "broadcast_send", "blob_thread_erase", "line_provision"];
     readonly "jobs.state": readonly ["scheduled", "fired", "done", "canceled", "failed"];
     readonly "lines.forwarding_state": readonly ["none", "instructed", "verified"];
     readonly "lines.kind": readonly ["chanlytics", "hosted", "ported", "forwarded"];

@@ -23,7 +23,7 @@ import { formatPhoneDisplay, whyCannotSpend, lineRetryRefusal, type BillingMode,
 import { isAreaCode, isE164, LINE_COSTS } from "../../lib/workspace/channels.js";
 import { lineProviderFromEnv, lineForClient, rowToLine } from "../../lib/lines.js";
 import { registerLine, syncRegistration, unfileMockRegistration, resubmitRejectedCampaign, campaignFactsFor } from "../../lib/a2p.js";
-import { provisionLine } from "../../lib/provision.js";
+import { scheduleJob } from "../../lib/workspace/jobs.js";
 import { claimLineForResume, retryRequestedBy } from "../../lib/line-resume.js";
 import {
   businessTypeOf, companyTypeOf, industryOf, businessRecordProblems, businessRecordForPath,
@@ -109,8 +109,6 @@ export async function POST(request: Request): Promise<Response> {
   let tenant: { id: string; name: string; slug: string } | null;
   try { tenant = await tenantOf(db, tenantId); } catch (e) { return json(503, { ok: false, error: e instanceof Error ? e.message : String(e) }); }
   if (!tenant) return json(404, { ok: false, error: "no such workspace" });
-  const cfg = { apiKey };
-  const secrets = { fnSecret };
 
   // THE SAME RULE, ON THIS SIDE OF THE WIRE.
   //
@@ -147,9 +145,15 @@ export async function POST(request: Request): Promise<Response> {
       .select("*")
       .single();
     if (ins.error) return json(503, { ok: false, error: ins.error.message });
-    const result = await provisionLine(db, choice, cfg, secrets, tenant, rowToLine(ins.data), "owner");
-    const after = await db.from("lines").select("*").eq("id", ins.data.id).single();
-    return json(result.ok ? 200 : 502, { ok: result.ok, provider: choice.name, line: after.data ? lineForClient(after.data) : null, ...(result.ok ? {} : { step: result.step, error: result.error }) });
+    // On the ledger (00109): claimed under a lease within ten seconds, resumed
+    // by the heartbeat if a worker dies, tried up to the cap. The page repaints
+    // from the row through realtime as each step lands its receipt.
+    try {
+      await scheduleJob(db, { tenantId, kind: "line_provision", dueAt: new Date(), payload: { line_id: ins.data.id, by: "owner" } });
+    } catch (e) {
+      return json(503, { ok: false, error: e instanceof Error ? e.message : String(e), line: lineForClient(ins.data) });
+    }
+    return json(202, { ok: true, queued: true, provider: choice.name, line: lineForClient(ins.data) });
   }
 
   if (op === "retry" || op === "release") {
@@ -184,9 +188,13 @@ export async function POST(request: Request): Promise<Response> {
       if (!taken) {
         return json(409, { ok: false, error: "somebody restarted this line a moment ago — it is setting up now, and this page updates by itself", line: lineForClient(row.data) });
       }
-      const result = await provisionLine(db, choice, cfg, secrets, tenant, rowToLine(taken), by);
-      const after = await db.from("lines").select("*").eq("id", lineId).single();
-      return json(result.ok ? 200 : 502, { ok: result.ok, provider: choice.name, line: after.data ? lineForClient(after.data) : null, ...(result.ok ? {} : { step: result.step, error: result.error }) });
+      try {
+        await scheduleJob(db, { tenantId, kind: "line_provision", dueAt: new Date(), payload: { line_id: lineId, by } });
+      } catch (e) {
+        // The take stands; the lines sweep resumes it once it is past the deadline.
+        return json(503, { ok: false, error: e instanceof Error ? e.message : String(e), line: lineForClient(taken) });
+      }
+      return json(202, { ok: true, queued: true, provider: choice.name, line: lineForClient(taken) });
     }
 
     // release: give the number back, drop the trunk, forget the line; the

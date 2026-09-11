@@ -136,7 +136,13 @@ var JOB_KINDS = [
    * erasure and cannot reach Blob; the EDGE holds BLOB_READ_WRITE_TOKEN and
    * runs the ledger. This kind is the seam.
    */
-  "blob_thread_erase"
+  "blob_thread_erase",
+  /**
+   * A line's provisioning saga, run under the ledger's lease and resumed by
+   * the heartbeat if a worker dies (00109). The saga itself stays on the
+   * edge with the provider's credentials and is injected into the tick.
+   */
+  "line_provision"
 ];
 var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
 var EVENT_KINDS = [
@@ -7446,7 +7452,7 @@ var SCHEMA_SETS = {
   "escalations.state": ["open", "resolved"],
   "google_reviews.origin": ["places", "profile"],
   "invitations.role": ["operator", "viewer"],
-  "jobs.kind": ["outbound_send", "broadcast_send", "blob_thread_erase"],
+  "jobs.kind": ["outbound_send", "broadcast_send", "blob_thread_erase", "line_provision"],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lines.forwarding_state": ["none", "instructed", "verified"],
   "lines.kind": ["chanlytics", "hosted", "ported", "forwarded"],

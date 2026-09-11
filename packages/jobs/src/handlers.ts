@@ -34,6 +34,14 @@ export interface JobContext {
    */
   eraseThread: (namespace: string, threadId: string) => Promise<boolean>;
   /**
+   * Run a line's provisioning saga, or resume it. INJECTED like eraseThread:
+   * the provider and the receptionist's credentials live on the edge. The
+   * saga reads its own receipts, so a second run repeats nothing. Optional
+   * so a test context need not supply one; a job of this kind in a runtime
+   * without it fails loudly rather than guessing.
+   */
+  provisionLine?: (lineId: string, by: "owner" | "support" | "sweep") => Promise<{ ok: boolean; step?: string; error?: string; did?: string }>;
+  /**
    * Schedule a job of this tenant — how a broadcast continues itself, one
    * batch after another, through the same door the dashboard uses.
    */
@@ -423,6 +431,22 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   );
 }
 
+/**
+ * A line's provisioning, on the ledger (00109). This is the durable part --
+ * claimed under a lease, resumed by the heartbeat when a worker dies, tried
+ * up to MAX_ATTEMPTS and then given up loudly -- and the saga is the edge's
+ * (apps/edge/lib/line-provision-job.ts). A saga that stopped fails the job
+ * with the step it stopped at, so the next try resumes there.
+ */
+async function lineProvision(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  const lineId = typeof job.payload.line_id === "string" ? job.payload.line_id : "";
+  const by = job.payload.by === "sweep" || job.payload.by === "support" ? job.payload.by : "owner";
+  if (!lineId) throw new Error("line_provision: payload.line_id is required");
+  if (!ctx.provisionLine) throw new Error("line_provision: this runtime holds no line provider");
+  const r = await ctx.provisionLine(lineId, by);
+  if (!r.ok) throw new Error(`line_provision: stopped at ${r.step ?? "?"}: ${r.error ?? "unknown"}`);
+}
+
 type Handler = (ctx: JobContext, job: ClaimedJob) => Promise<void>;
 
 /**
@@ -435,6 +459,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   outbound_send: outboundSend,
   broadcast_send: broadcastSend,
   blob_thread_erase: blobThreadErase,
+  line_provision: lineProvision,
 };
 
 export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind"> {

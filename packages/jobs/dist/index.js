@@ -23331,10 +23331,19 @@ async function broadcastSend(ctx, job) {
     `${sentN} ${sentN === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, or a person had the thread)` : ""}. Replies land in the Inbox.`
   );
 }
+async function lineProvision(ctx, job) {
+  const lineId = typeof job.payload.line_id === "string" ? job.payload.line_id : "";
+  const by = job.payload.by === "sweep" || job.payload.by === "support" ? job.payload.by : "owner";
+  if (!lineId) throw new Error("line_provision: payload.line_id is required");
+  if (!ctx.provisionLine) throw new Error("line_provision: this runtime holds no line provider");
+  const r = await ctx.provisionLine(lineId, by);
+  if (!r.ok) throw new Error(`line_provision: stopped at ${r.step ?? "?"}: ${r.error ?? "unknown"}`);
+}
 var HANDLERS = {
   outbound_send: outboundSend,
   broadcast_send: broadcastSend,
-  blob_thread_erase: blobThreadErase
+  blob_thread_erase: blobThreadErase,
+  line_provision: lineProvision
 };
 async function dispatchJob(ctx, job) {
   const handler = HANDLERS[job.kind];

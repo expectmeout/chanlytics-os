@@ -54,6 +54,12 @@ export const JOB_KINDS = [
    * runs the ledger. This kind is the seam.
    */
   "blob_thread_erase",
+  /**
+   * A line's provisioning saga, run under the ledger's lease and resumed by
+   * the heartbeat if a worker dies (00109). The saga itself stays on the
+   * edge with the provider's credentials and is injected into the tick.
+   */
+  "line_provision",
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
