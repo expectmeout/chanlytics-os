@@ -110,7 +110,7 @@ test("the receptionist records a short code and does not answer it", () => {
   // arrived on their line.
   const guard = inbound.slice(inbound.indexOf("if (shortCode(from)) {"));
   const body = guard.slice(0, guard.indexOf("return;") + "return;".length);
-  assert.ok(body.includes("await pgIngest(tenantId, n, channel)"), "the message is still recorded");
+  assert.ok(body.includes("await recordOrSay()"), "the message is still recorded");
   assert.ok(body.includes("await sink.unreachableSender()"), "with a reason of its own");
   assert.ok(body.includes("await sink.processed()"), "and marked handled, so nothing retries it");
   assert.ok(body.includes("return;"), "and no reply is composed");

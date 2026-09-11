@@ -3,7 +3,8 @@
  * customer's message is never lost to a later failure), the memory read, the
  * held draft, and the sink every branch of inbound.ts reports through. Every
  * method no-ops when Postgres is unconfigured and never throws into the
- * handling path.
+ * handling path, with one exception: pgIngest throws IngestFailed when the
+ * write itself failed, because that is the one loss the provider can undo.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { pg } from "../pg.js";
@@ -90,9 +91,21 @@ export async function queueReply(
   return !!id;
 }
 
-/** Additive PG ingest — never throws into the handling path. */
-export async function pgIngest(tenantId: string | null, n: NormalizedInbound, channel: "whatsapp" | "sms" = "whatsapp"): Promise<IngestResult | null> {
-  const db = pg();
+/** The ingest write itself failed. The message is NOT recorded, and the provider must be told so it retries. */
+export class IngestFailed extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "IngestFailed";
+  }
+}
+
+/**
+ * Persist first. Null when there is no database or no tenant to record for,
+ * which is a fact about the deployment and by design. A write that FAILED is
+ * IngestFailed: the caller says so to the provider, which retries, rather
+ * than acknowledging words that exist only in an email.
+ */
+export async function pgIngest(db: SupabaseClient<Database> | null, tenantId: string | null, n: NormalizedInbound, channel: "whatsapp" | "sms" = "whatsapp"): Promise<IngestResult | null> {
   if (!db || !tenantId) return null;
   try {
     return await ingestInbound(db, {
@@ -112,8 +125,8 @@ export async function pgIngest(tenantId: string | null, n: NormalizedInbound, ch
       optInMarketing: n.optInMarketing,
     });
   } catch (e) {
-    console.error(JSON.stringify({ level: "error", event: "ingest_pg_failed", tenant_id: tenantId, error: errField(e) }));
-    return null;
+    console.error(JSON.stringify({ level: "error", event: "ingest_pg_failed", tenant_id: tenantId, message: n.messageId, error: errField(e) }));
+    throw new IngestFailed(e instanceof Error ? e.message : String(e));
   }
 }
 

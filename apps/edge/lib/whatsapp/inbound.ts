@@ -30,7 +30,7 @@ import { resolveConsent } from "../consent.js";
 import { logger, errField } from "../log.js";
 import type { NotifyTarget } from "../notify.js";
 import { FALLBACK_BRAIN, FALLBACK_NOTIFICATIONS } from "../tenant-fallback.js";
-import { PG_MISS, pgThread, pgIngest, pgSink, queueReply } from "./persist.js";
+import { PG_MISS, pgThread, pgIngest, pgSink, queueReply, IngestFailed } from "./persist.js";
 import { alertStaff } from "./alerts.js";
 import { whatsappSender, type Wire } from "../workspace/core.js";
 import { MAX_REPLIES_PER_DAY, PAUSE_MS, ageVerdict, threadVerdict, holdPlan, layerTwo, holdCopy } from "./steps.js";
@@ -109,6 +109,26 @@ export async function handleInbound(
   // The number the handoff email states. It reads the same limit the pause
   // does, so the email and Settings never disagree about it.
   const pauseHours = Math.round(pauseMs / 3600000);
+  // Persist first, or say so. An ingest write that fails is the one loss the
+  // provider can undo: the customer's words go to the workspace mailbox as a
+  // copy, and IngestFailed travels up to the webhook, which answers 503 so
+  // Meta redelivers (the ingest's is_new gate makes that idempotent). Twilio
+  // retries nothing, so the SMS ingress alerts the platform on the same signal.
+  const recordOrSay = async (): Promise<IngestResult | null> => {
+    try {
+      return await pgIngest(db, tenantId, n, channel);
+    } catch (e) {
+      if (e instanceof IngestFailed) {
+        // The copy is best effort: a mailbox that cannot be reached must not mask the loss.
+        try {
+          await alertStaff(from, n.body ?? `[${m.type} message]`, "(NOT recorded: the database did not accept the message; the provider will retry)", "message not recorded", notifyTarget, pauseHours, "inbox", n.profileName ?? null, null);
+        } catch (alertErr) {
+          L.error("wa_unrecorded_alert_failed", { error: errField(alertErr) });
+        }
+      }
+      throw e;
+    }
+  };
   // What is open, from the calendar feed, when the workspace has one. Cached
   // for five minutes on the edge; a feed that cannot be read says nothing.
   const openings = rt ? await openingsFor(rt) : null;
@@ -136,7 +156,7 @@ export async function handleInbound(
   // to see what arrived on their line. Not answered. This gates the REPLY, not
   // the persist, for the same reason the allowlist below does.
   if (shortCode(from)) {
-    const ing = await pgIngest(tenantId, n, channel);
+    const ing = await recordOrSay();
     const sink = pgSink(db, tenantId, ing, rt, channel);
     await sink.unreachableSender();
     await sink.processed();
@@ -146,7 +166,7 @@ export async function handleInbound(
   const allow = (process.env.WHATSAPP_TEST_ALLOWLIST || "").split(",").map((s) => s.trim()).filter(Boolean);
   if (isEnvDefault && allow.length && !allow.includes(from)) {
     // §4 delta (deliberate): allowlist gates the REPLY, not the persist.
-    const ing = await pgIngest(tenantId, n, channel);
+    const ing = await recordOrSay();
     const sink = pgSink(db, tenantId, ing, rt, channel);
     await sink.allowlistSkip();
     await sink.processed();
@@ -164,7 +184,7 @@ export async function handleInbound(
   let thread: ThreadState;
   let memory: "pg" | "blob" = "blob";
   if (PG_READS) {
-    ing = await pgIngest(tenantId, n, channel);
+    ing = await recordOrSay();
     thread = await pgThread(db, tenantId, ing);
     memory = thread === PG_MISS ? "blob" : "pg";
     // With the store retired this read answers "unknown", and the thread goes
@@ -172,7 +192,7 @@ export async function handleInbound(
     if (memory === "blob") thread = await getThread(ns, from);
   } else {
     // The Blob read is side-effect-free, so it runs alongside the write.
-    [ing, thread] = (await Promise.all([pgIngest(tenantId, n, channel), getThread(ns, from)])) as
+    [ing, thread] = (await Promise.all([recordOrSay(), getThread(ns, from)])) as
       [IngestResult | null, ThreadState];
   }
   const ingestMs = Date.now() - t0;
