@@ -100,11 +100,11 @@ The scope column is a reading of the source and is corrected per PR where the ha
 
 ### The shape of every PR
 
-- [ ] **Step 1: Read each handler in the domain**, and write its policy down before touching it: what it reads (`?workspace=`, a row, nothing), who it refuses, which token it takes, what it validates.
-- [ ] **Step 2: Rewrite onto `read()` / `write()`**: `scope`, `role`, `rate`, `spend`, `input`/`query` where the old code validated; the old body inside `handle`, reading `member`, `row`, `input`, `ctx` as the pipeline hands them. A handler that loaded a row by id and judged the role against the row's workspace becomes `row(load)` with the load in `verbs.ts` beside `conversationScope` and `contactScope`.
-- [ ] **Step 3: The executed test**: one file per domain, `<domain>-routes.test.mjs`, running at least one read and one write through `run(req, ctx)` with `fakeDb` (a `memberships` row per role, the domain's rows) and asserting the answer, a viewer's refusal (403 before any token), and the missing workspace's refusal (`choose_workspace` on a write).
-- [ ] **Step 4: Bank the policy** (`UPDATE_ROUTE_POLICY=1 node --conditions=react-server --import tsx --test tooling/scripts/tests/route-policy.test.mjs`); the diff of `route-policy.json` is the PR's summary. Move the pins the suite names (`readCode` assertions on `requireRole(`, `takeRate(`, the fetch of `?workspace=`); never add one.
-- [ ] **Step 5: Typecheck, full suite, lint, commit, PR, merge when green** (PR 9's held half waits for Ruben's yes).
+- [x] **Step 1: Read each handler in the domain**, and write its policy down before touching it: what it reads (`?workspace=`, a row, nothing), who it refuses, which token it takes, what it validates.
+- [x] **Step 2: Rewrite onto `read()` / `write()`**: `scope`, `role`, `rate`, `spend`, `input`/`query` where the old code validated; the old body inside `handle`, reading `member`, `row`, `input`, `ctx` as the pipeline hands them. A handler that loaded a row by id and judged the role against the row's workspace becomes `row(load)` with the load in `verbs.ts` beside `conversationScope` and `contactScope`.
+- [x] **Step 3: The executed test**: one file per domain, `<domain>-routes.test.mjs`, running at least one read and one write through `run(req, ctx)` with `fakeDb` (a `memberships` row per role, the domain's rows) and asserting the answer, a viewer's refusal (403 before any token), and the missing workspace's refusal (`choose_workspace` on a write).
+- [x] **Step 4: Bank the policy** (`UPDATE_ROUTE_POLICY=1 node --conditions=react-server --import tsx --test tooling/scripts/tests/route-policy.test.mjs`); the diff of `route-policy.json` is the PR's summary. Move the pins the suite names (`readCode` assertions on `requireRole(`, `takeRate(`, the fetch of `?workspace=`); never add one.
+- [x] **Step 5: Typecheck, full suite, lint, commit, PR, merge when green** (PR 9's held half waits for Ruben's yes).
 
 ---
 

@@ -28,7 +28,7 @@
 
 **Files:** none in the repo.
 
-- [ ] **Step 1: Create the worktree from origin/main**
+- [x] **Step 1: Create the worktree from origin/main**
 
 ```bash
 cd "/c/Users/Ruben/Documents/Claude Projects/Claude Video/chanlytics-messaging"
@@ -38,7 +38,7 @@ git worktree add ../cm-phase1 -b phase1/nightly-green origin/main
 
 Expected: `Preparing worktree (new branch 'phase1/nightly-green')`.
 
-- [ ] **Step 2: Install dependencies inside it (hoisted linker, no junctions)**
+- [x] **Step 2: Install dependencies inside it (hoisted linker, no junctions)**
 
 ```bash
 cd "/c/Users/Ruben/Documents/Claude Projects/Claude Video/cm-phase1"
@@ -47,7 +47,7 @@ COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm install --frozen-lockfile --pref
 
 Expected: ends with `Done in …s`. No `.env.local` is needed for tests or typecheck; `next build` is not run in this plan.
 
-- [ ] **Step 3: Prove the toolchain**
+- [x] **Step 3: Prove the toolchain**
 
 ```bash
 COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm -r typecheck
@@ -65,7 +65,7 @@ The last two scheduled nightlies failed. The People and identity specs hit the p
 - Modify: `e2e/exports.spec.ts:10`
 - Create: `docs/plans/2026-09-11-phase-one-safe-pilot.md` (this document)
 
-- [ ] **Step 1: Read the header the export writes**
+- [x] **Step 1: Read the header the export writes**
 
 ```bash
 grep -n "offers_consent" apps/dashboard/src/server/export.ts
@@ -73,7 +73,7 @@ grep -n "offers_consent" apps/dashboard/src/server/export.ts
 
 Expected: three columns `offers_consent`, `offers_consent_source`, `offers_consent_updated`, placed after `consent_updated`.
 
-- [ ] **Step 2: Update the constant**
+- [x] **Step 2: Update the constant**
 
 Replace line 10 of `e2e/exports.spec.ts` with:
 
@@ -81,7 +81,7 @@ Replace line 10 of `e2e/exports.spec.ts` with:
 const PEOPLE_HEADER = "name,whatsapp_name,phone,consent,consent_source,consent_updated,offers_consent,offers_consent_source,offers_consent_updated,do_not_contact,channels,conversations,calls,escalations,first_contact,last_message,last_inbound,last_call,receptionist";
 ```
 
-- [ ] **Step 3: Prove the constant matches the writer without a browser**
+- [x] **Step 3: Prove the constant matches the writer without a browser**
 
 ```bash
 node -e '
@@ -94,7 +94,7 @@ console.log(JSON.stringify(cols)===JSON.stringify(spec) ? "header matches writer
 
 Expected: `header matches writer`. (If the writer's column list is not a literal array of `["name", …]` pairs, compare by eye against the grep in Step 1.)
 
-- [ ] **Step 4: Commit, push, open the PR, merge when green**
+- [x] **Step 4: Commit, push, open the PR, merge when green**
 
 Commit message (write to a file first):
 
@@ -133,7 +133,7 @@ The branch's commit 234827d added CANCEL, END, QUIT and STOPALL to the one share
 - Modify: `apps/edge/api/inbound-sms.ts:67-75` (pass the merged consent)
 - Test: `tooling/scripts/tests/opt-out.test.mjs`, `tooling/scripts/tests/sms.test.mjs`
 
-- [ ] **Step 1: Branch and take the branch's commit without committing**
+- [x] **Step 1: Branch and take the branch's commit without committing**
 
 ```bash
 cd "/c/Users/Ruben/Documents/Claude Projects/Claude Video/cm-phase1"
@@ -145,7 +145,7 @@ git status --short
 
 Expected: `enums.ts`, `sms.ts`, `inbound.ts`, `inbound-sms.ts`, `opt-out.test.mjs`, `sms.test.mjs` staged; dist untouched.
 
-- [ ] **Step 2: Put the shared pattern back and add the SMS one**
+- [x] **Step 2: Put the shared pattern back and add the SMS one**
 
 In `packages/contracts/src/enums.ts`, restore the original line and add the new constant under it:
 
@@ -170,7 +170,7 @@ export const OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 export const SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
 ```
 
-- [ ] **Step 3: The SMS consent helpers**
+- [x] **Step 3: The SMS consent helpers**
 
 In `packages/channels/src/sms.ts`, add `SMS_OPT_OUT_PATTERN` to its contracts import and replace the branch's `carrierConsent`/`withCarrierConsent` block with:
 
@@ -211,7 +211,7 @@ export function withCarrierConsent(n: NormalizedInbound, c: CarrierConsent | nul
 }
 ```
 
-- [ ] **Step 4: The ingress passes the merged verdict**
+- [x] **Step 4: The ingress passes the merged verdict**
 
 In `apps/edge/api/inbound-sms.ts`, extend the import and the carrier object:
 
@@ -233,7 +233,7 @@ import { smsInboundFrom, smsAsWaMessage, smsBody, carrierConsent, smsKeywordCons
 
 `apps/edge/lib/whatsapp/inbound.ts` keeps the cherry-picked change: `consent?: CarrierConsent | null` on `InboundCarrier` and `const n = withCarrierConsent(normalizeInbound(m, value), carrier?.consent ?? null);`.
 
-- [ ] **Step 5: Tests, written before the build**
+- [x] **Step 5: Tests, written before the build**
 
 In `tooling/scripts/tests/opt-out.test.mjs`, revert the cherry-picked change to the first test (it must list only `STOP, stop, Stop, stop., BAJA, unsubscribe, alto`) and add:
 
@@ -268,7 +268,7 @@ test("on a texting line the carriers' words opt out, whole-message, and merge wi
 });
 ```
 
-- [ ] **Step 6: Build, run the two files, typecheck**
+- [x] **Step 6: Build, run the two files, typecheck**
 
 ```bash
 COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm --filter "./packages/*" build
@@ -279,7 +279,7 @@ COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm -r typecheck
 
 Expected: both files pass with 0 failures; typecheck clean; only `channels` and `contracts` dist differ for real.
 
-- [ ] **Step 7: Full suite, commit, PR, merge when green**
+- [x] **Step 7: Full suite, commit, PR, merge when green**
 
 ```bash
 COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm test 2>&1 | tail -6
@@ -310,7 +310,7 @@ The branch's commit 4f1e1d9. It applies cleanly on `origin/main` (the branch was
 
 **Files:** the commit's 17 source and test files (see `git show --stat 4f1e1d9`); dist rebuilt, not cherry-picked.
 
-- [ ] **Step 1: Branch and pick**
+- [x] **Step 1: Branch and pick**
 
 ```bash
 git fetch origin && git checkout -b phase1/credentials-refuse origin/main
@@ -320,7 +320,7 @@ git checkout HEAD -- packages/db/dist packages/jobs/dist packages/channels/dist 
 
 Expected: no conflicts (if `apps/edge/lib/whatsapp/inbound.ts` conflicts on the import line touched by Task 2, keep both imports).
 
-- [ ] **Step 2: Build and prove**
+- [x] **Step 2: Build and prove**
 
 ```bash
 COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm --filter "./packages/*" build
@@ -331,7 +331,7 @@ COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm -r typecheck
 
 Expected: 0 failures (the credentials test now RUNS the resolver against a fake db instead of reading it; the ratchet accepts the file's count falling to zero); typecheck clean.
 
-- [ ] **Step 3: Full suite, commit with the original message, PR, merge when green**
+- [x] **Step 3: Full suite, commit with the original message, PR, merge when green**
 
 Use 4f1e1d9's commit message verbatim (it is correct), plus the trailer. No migration, no auth: merge when green.
 
@@ -346,7 +346,7 @@ The branch's commits 8b56a35, c24261f, 836c0e9 and b5b8cea, then four fixes with
 - Modify (fixes): `packages/core/src/deliver.ts`, `apps/edge/lib/whatsapp/persist.ts`, `apps/edge/lib/whatsapp/inbound.ts`, `packages/db/src/repositories/thread.ts`, `apps/dashboard/src/server/verbs.ts`, `apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts`
 - Test: `tooling/scripts/tests/deliver.test.mjs`, `tooling/scripts/tests/outbound-send.test.mjs`, new `tooling/scripts/tests/reply-cap.test.mjs`
 
-- [ ] **Step 1: Branch and pick the four commits in order**
+- [x] **Step 1: Branch and pick the four commits in order**
 
 ```bash
 git fetch origin && git checkout -b phase1/one-door origin/main
@@ -356,7 +356,7 @@ git log --oneline -5
 
 Expected: four commits on top of main. `packages/core/dist` arrives with c24261f (new files, kept). If `inbound.ts` conflicts with Task 2's import line, keep both imports and continue with `git cherry-pick --continue`.
 
-- [ ] **Step 2: The failing tests for the regressions (deliver.test.mjs)**
+- [x] **Step 2: The failing tests for the regressions (deliver.test.mjs)**
 
 Append to `tooling/scripts/tests/deliver.test.mjs`:
 
@@ -410,7 +410,7 @@ test("a wire that cannot be read is a failure with its own name, never a throw p
 
 Add `deliverSafely` to the import at the top: `const { deliver, deliverSafely, templatePurpose, whatsappSender } = await import(…)`.
 
-- [ ] **Step 3: Run the file to see the three new tests fail**
+- [x] **Step 3: Run the file to see the three new tests fail**
 
 ```bash
 node --conditions=react-server --import tsx --test tooling/scripts/tests/deliver.test.mjs 2>&1 | grep -E "^not ok|^# (pass|fail)"
@@ -418,7 +418,7 @@ node --conditions=react-server --import tsx --test tooling/scripts/tests/deliver
 
 Expected: `not ok` for the broadcast test (it currently sends), the escalation test (it currently refuses `human_has_it`) and the wire test (`deliverSafely` is not a function); `# fail 3`.
 
-- [ ] **Step 4: Fix the door (packages/core/src/deliver.ts)**
+- [x] **Step 4: Fix the door (packages/core/src/deliver.ts)**
 
 Replace `refusalFor`:
 
@@ -479,7 +479,7 @@ export async function deliverSafely(ports: DeliverPorts, d: Delivery): Promise<D
 }
 ```
 
-- [ ] **Step 5: The sink uses the safe door and takes plain meta; the webhook words the failure**
+- [x] **Step 5: The sink uses the safe door and takes plain meta; the webhook words the failure**
 
 In `apps/edge/lib/whatsapp/persist.ts` replace the sink's `deliver` member:
 
@@ -507,7 +507,7 @@ In `apps/edge/lib/whatsapp/inbound.ts`: the send helper becomes `const send = (t
         : `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`),
 ```
 
-- [ ] **Step 6: An acknowledgement does not spend the daily cap**
+- [x] **Step 6: An acknowledgement does not spend the daily cap**
 
 In `packages/db/src/repositories/thread.ts`, under `isBackfill`:
 
@@ -557,7 +557,7 @@ test("answers count, acknowledgements and backfills do not", async () => {
 });
 ```
 
-- [ ] **Step 7: The reply route refuses a promotional template to someone who has not said yes to offers, with a sentence**
+- [x] **Step 7: The reply route refuses a promotional template to someone who has not said yes to offers, with a sentence**
 
 `apps/dashboard/src/server/verbs.ts`: add `marketing_consent: string | null;` to `VerbConversation`, select it (`contacts (phone_e164, consent, dnc, marketing_consent)`), and return `marketing_consent: data.contacts?.marketing_consent ?? null,`.
 
@@ -572,7 +572,7 @@ test("answers count, acknowledgements and backfills do not", async () => {
     }
 ```
 
-- [ ] **Step 8: Update the outbox test that pinned the old pause rule**
+- [x] **Step 8: Update the outbox test that pinned the old pause rule**
 
 In `tooling/scripts/tests/outbound-send.test.mjs`, replace the test "the receptionist's draft is retired while a person holds the thread; the person's own words are not" with:
 
@@ -605,7 +605,7 @@ test("under a pause, the receptionist's queued draft goes unless a person spoke 
 });
 ```
 
-- [ ] **Step 9: Build, run the door files, then everything**
+- [x] **Step 9: Build, run the door files, then everything**
 
 ```bash
 COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm --filter "./packages/*" build
@@ -618,7 +618,7 @@ COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm test 2>&1 | tail -6
 
 Expected: 0 failures everywhere; lint 0 errors; `git diff --ignore-cr-at-eol` shows real changes in `core`, `db`, `jobs` dist (commit them).
 
-- [ ] **Step 10: Commit the fixes as one commit, PR, merge when green**
+- [x] **Step 10: Commit the fixes as one commit, PR, merge when green**
 
 ```
 The door holds the pause for the machine, not for a person's reply; a queued draft yields only to a person's words; a wire that cannot be read is a failure with a name
@@ -650,7 +650,7 @@ No migration, no auth: merge when green.
 - Modify: `apps/edge/lib/whatsapp/alerts.ts:71-101` (generalise `alertUnroutable`)
 - Modify: `apps/edge/api/whatsapp.ts:145` (call site)
 
-- [ ] **Step 1: Generalise the unroutable alert**
+- [x] **Step 1: Generalise the unroutable alert**
 
 Replace `alertUnroutable` in `apps/edge/lib/whatsapp/alerts.ts`:
 
@@ -694,7 +694,7 @@ export async function alertUnroutable(kind: keyof typeof UNROUTABLE_WORDS, key: 
 
 (Keep the existing `UNROUTABLE_ALERT_MS` and `unroutableAlerted`; note the suppression stamp is now claimed before the send and released on failure, which is the existing intent.) Update the WhatsApp call site: `await alertUnroutable("whatsapp", phoneNumberId, v.messages.length);`.
 
-- [ ] **Step 2: The ingress with error boundaries**
+- [x] **Step 2: The ingress with error boundaries**
 
 Replace lines 39-64 of `apps/edge/api/inbound-sms.ts`:
 
@@ -744,7 +744,7 @@ Replace lines 39-64 of `apps/edge/api/inbound-sms.ts`:
 
 Add the imports: `import { lineByNumber, lineAccount, smsSenderFor, type SmsLine } from "../lib/sms.js";`, `import type { ProviderAccount } from "../lib/workspace/channels.js";`, `import { alertUnroutable } from "../lib/whatsapp/alerts.js";`.
 
-- [ ] **Step 3: Typecheck, the alerts test if one exists, full suite**
+- [x] **Step 3: Typecheck, the alerts test if one exists, full suite**
 
 ```bash
 grep -ln "alertUnroutable" tooling/scripts/tests/*.mjs
@@ -754,7 +754,7 @@ COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm test 2>&1 | tail -6
 
 Expected: any test naming `alertUnroutable(` updated to the new first argument; 0 failures. No executed test reaches this handler (it builds its database client from the environment); the change is reviewed by reading and proven by the next real text on the pilot line.
 
-- [ ] **Step 4: Commit, PR, merge when green**
+- [x] **Step 4: Commit, PR, merge when green**
 
 ```
 A text on a line the platform cannot handle is said out loud, never dropped in silence
@@ -776,14 +776,14 @@ The branch's commits 9481b51 (00102) and c09c3c6 (00103) with their database tes
 
 **Files:** `supabase/migrations/00102_the_money_lock_holds.sql`, `supabase/migrations/00103_a_limit_counts_a_stranger.sql`, `tooling/scripts/tests/money-lock.db.test.mjs`, `tooling/scripts/tests/rate-limit.db.test.mjs`, `tooling/scripts/tests/shared-limits.test.mjs`.
 
-- [ ] **Step 1: Branch and pick both commits with their messages**
+- [x] **Step 1: Branch and pick both commits with their messages**
 
 ```bash
 git fetch origin && git checkout -b phase1/money-lock-and-limiter origin/main
 git cherry-pick 9481b51 c09c3c6
 ```
 
-- [ ] **Step 2: Prove them on a local database (Docker Desktop must be running)**
+- [x] **Step 2: Prove them on a local database (Docker Desktop must be running)**
 
 ```bash
 "/c/Program Files/Docker/Docker/Docker Desktop.exe" &
@@ -800,7 +800,7 @@ node "$S" stop --no-backup
 
 Expected: 101 + 2 migrations replay; schema sets current; `erasure.db`, `jobs-outbox.db`, `money-lock.db` (3) and `rate-limit.db` (2) all pass. `supabase/seed.sql` removes the production edge URL from Vault on start, so the local clocks post nothing.
 
-- [ ] **Step 3: Push and open the PR; do not merge**
+- [x] **Step 3: Push and open the PR; do not merge**
 
 PR body must say: "Adds migrations 00102 and 00103. Merge on Ruben's yes; push with `supabase db push --linked` after the deploy." Report CI status.
 
@@ -812,7 +812,7 @@ The branch's commit 653f42a plus two fixes: the sign-up page's heading when the 
 
 **Files:** the commit's 14 files (`git show --stat 653f42a`), plus `packages/contracts/src/signup.ts`, `apps/dashboard/app/signup/page.tsx:81`, `tooling/scripts/tests/signup.test.mjs`.
 
-- [ ] **Step 1: Branch and pick**
+- [x] **Step 1: Branch and pick**
 
 ```bash
 git fetch origin && git checkout -b phase1/signup-waits-for-owner origin/main
@@ -820,7 +820,7 @@ git cherry-pick -n 653f42a
 git checkout HEAD -- packages/contracts/dist
 ```
 
-- [ ] **Step 2: The failing test for the time zone**
+- [x] **Step 2: The failing test for the time zone**
 
 Append to `tooling/scripts/tests/signup.test.mjs` (it already imports from `@chanlytics/contracts`; add `pendingWorkspaceOf` to that import):
 
@@ -835,7 +835,7 @@ test("what sign-up kept is a prefill, and a clock Postgres would refuse is dropp
 
 Run it: `node --conditions=react-server --import tsx --test tooling/scripts/tests/signup.test.mjs 2>&1 | grep -E "^not ok|^# fail"` → expected `not ok` on the Mars case.
 
-- [ ] **Step 3: Fix the schema and the heading**
+- [x] **Step 3: Fix the schema and the heading**
 
 In `packages/contracts/src/signup.ts`, import `isTimezone` from `./workspace` and change the schema's time zone to:
 
@@ -845,7 +845,7 @@ In `packages/contracts/src/signup.ts`, import `isTimezone` from `./workspace` an
 
 Add to `SIGNUP_WORDS`: `notSentTitle: "We could not send your code",` and in `apps/dashboard/app/signup/page.tsx` line 81 replace `<h1>Your workspace is ready</h1>` with `<h1>{SIGNUP_WORDS.notSentTitle}</h1>`, and fix the comment above the `unsent` branch to say the workspace does not exist yet.
 
-- [ ] **Step 4: Build, run signup tests, typecheck, full suite**
+- [x] **Step 4: Build, run signup tests, typecheck, full suite**
 
 ```bash
 COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm --filter "./packages/*" build
@@ -853,7 +853,7 @@ node --conditions=react-server --import tsx --test tooling/scripts/tests/signup.
 COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm -r typecheck && COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm test 2>&1 | tail -6
 ```
 
-- [ ] **Step 5: Commit (653f42a's message plus a paragraph on the two fixes), push, open the PR; do not merge**
+- [x] **Step 5: Commit (653f42a's message plus a paragraph on the two fixes), push, open the PR; do not merge**
 
 PR body must say: "Touches sign-up and adds migration 00104. Merge on Ruben's yes." Known and accepted: an address that a stranger signed up first keeps the stranger's business name as an editable prefill.
 
@@ -867,15 +867,15 @@ Implement `docs/plans/2026-09-09-the-system-it-should-be.md` Phase 4 exactly, wi
 - Create: `supabase/migrations/00105_operator_pages.sql`, `apps/edge/lib/page-operator.ts`, `tooling/scripts/tests/page-operator.test.mjs`
 - Modify: `apps/edge/lib/notify.ts` (export `post`, `platformFrom`, `platformTo`), `apps/edge/api/jobs/tick.ts`, `packages/jobs/src/handlers.ts` (`JobContext.page`), `apps/edge/api/cron/health.ts`, `apps/edge/api/diag.ts`
 
-- [ ] **Step 1: The failing behaviour test** (`page-operator.test.mjs`, a hand-rolled fake with `from("operator_pages")` returning canned rows; four cases: first call sends and stamps; second within the window suppresses and counts; after the window sends again; a send that throws leaves `alerted_at` unset). Set `LEAD_TO`/`LEAD_FROM` in the test process so the page is addressed.
-- [ ] **Step 2: Migration and `page-operator.ts`** as written in the program doc, `PAGE_WINDOW_MS = 6h`.
-- [ ] **Step 3: Three callers**: the tick pages `jobs_mass_failure` when `counts.failed + counts.gaveUp >= 10`; the outbox pages `provider_auth:<channel>` on a 401/403 from the door; the health sweep pages `jobs_backlog` when `jobs_backlog()` > 0 and reports the number on `/api/diag`.
-- [ ] **Step 4: Build, tests, typecheck, full suite, local db replay (00105), PR opened; do not merge.**
+- [x] **Step 1: The failing behaviour test** (`page-operator.test.mjs`, a hand-rolled fake with `from("operator_pages")` returning canned rows; four cases: first call sends and stamps; second within the window suppresses and counts; after the window sends again; a send that throws leaves `alerted_at` unset). Set `LEAD_TO`/`LEAD_FROM` in the test process so the page is addressed.
+- [x] **Step 2: Migration and `page-operator.ts`** as written in the program doc, `PAGE_WINDOW_MS = 6h`.
+- [x] **Step 3: Three callers**: the tick pages `jobs_mass_failure` when `counts.failed + counts.gaveUp >= 10`; the outbox pages `provider_auth:<channel>` on a 401/403 from the door; the health sweep pages `jobs_backlog` when `jobs_backlog()` > 0 and reports the number on `/api/diag`.
+- [x] **Step 4: Build, tests, typecheck, full suite, local db replay (00105), PR opened; do not merge.**
 
 ---
 
 ### Task 9: Release and observation (with Ruben)
 
-- [ ] Ruben's yes on Tasks 6, 7, 8 → merge in that order → confirm the Vercel deploys → `node $S db push --linked` (applies 00102..00105 in order) → `node $S migration list --linked` shows all five remote.
+- [x] Ruben's yes on Tasks 6, 7, 8 → merge in that order → confirm the Vercel deploys → `node $S db push --linked` (applies 00102..00105 in order) → `node $S migration list --linked` shows all five remote.
 - [ ] Watch for 24 hours: `select data->>'reason', count(*) from public.events where kind = 'message.send_blocked' and created_at > now() - interval '1 day' group by 1;` (any `not_opted_in` or `no_marketing_consent` on a conversational send is a bug); the edge log for `wa_refused_at_wire` and `deliver_threw`; `sweep_health()` all healthy; tonight's nightly green.
 - [ ] Ruben's switches, unchanged by this plan: store the pilot line's WhatsApp token in Vault; confirm `WHATSAPP_TEST_ALLOWLIST` is empty in production; SIGNUP_CODE posture; Stripe live keys; SMTP.
