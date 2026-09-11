@@ -640,6 +640,15 @@ export async function templateValues(ports: TemplateValuesPorts, cmd: { template
 
 - [x] **Step 8: Build, typecheck, tests, lint, commit** — as Task 1's Step 9; `outbound-routes.test.mjs` unchanged and green is the proof the adapters answer what the routes answered.
 
+## Status, 2026-09-11
+
+| PR | What | Merged |
+|---|---|---|
+| 1 | `assembleRun` and `runPlaybook` in `packages/core/src/campaigns/`; the edge's `lib/playbooks.ts` as the loader plus the run's ports; `core-run-playbook.test.mjs` running every branch; the wall over `campaigns` | #381 |
+| 2 | `templateValues`, `createBroadcast`, `approveRun`, `cancelBroadcast`, `checkPlaybook`; `campaign-ports.ts` as the dashboard's adapter; the three broadcast routes and `checkPlaybookInput` as one line each; `core-campaigns.test.mjs` | #382 |
+
+Departures from the plan: the session role may update `state` alone on a broadcast (00046), so the dashboard's `fail` port writes the state and the reason goes to the person, as before; the hygiene wall reads each import line on its own, so a core verb's contracts import is one line however long; `starter-templates.test.mjs` pinned the two default-name lines that moved, and both go where `core-campaigns` runs them; `RunContext` is passed as the edge's `TenantRunContext` itself, the client and the tenant riding along unread. The context loader and the dashboard's people read still compute the same rows from two queries; one `people` port over one read waits for the receptionist's verbs to settle where the edge's reads live.
+
 ## Definition of done
 
 - Five verbs and one kernel in `packages/core/src/campaigns/`, every branch a case in a test that runs it.
