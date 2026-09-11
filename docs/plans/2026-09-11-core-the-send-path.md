@@ -422,6 +422,15 @@ export interface BroadcastBatchCommand { tenantId: string; broadcastId: string; 
 
 ---
 
+## Status, 2026-09-11
+
+| PR | What | Merged |
+|---|---|---|
+| 1 | `sendQueued`, `eraseBlobThread`, `provisionLine` and their ports; `handlers.ts` as the adapter; the wall over `messages` | #379 |
+| 2 | `sendBroadcastBatch` over seventeen ports; `core-broadcast.test.mjs` running every branch of the batch; the six pins moved | #380 |
+
+Departures from the plan: `tally(id)` is a port of its own, since the recipient states are the adapter's to count, and `finish(id, tally)` writes the event with it; the verb catches an unreadable person around `contact()` (the adapter throws), so "we could not check" still leaves them queued for the next batch; in the test the slot no row can fill is a visit run's word, because a first name nobody has on file reads "there" and is never missing; `broadcasts.test.mjs` keeps the adapter's queries (the batch limit, the category, the person's columns, the next row, the event) and the rules it used to name are run instead. `packages/jobs` bundles core, so its dist is rebuilt with core's.
+
 ## Definition of done
 
 - Four verbs in `packages/core/src/messages/`, every branch a case in a test that runs it.
