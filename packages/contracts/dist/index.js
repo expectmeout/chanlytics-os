@@ -193,6 +193,7 @@ var EVENT_KINDS = [
   "billing.resumed"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
+var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
 var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
 var MARKETING_OPT_IN_PATTERN = /^\s*(yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
 var CONVERSATION_OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta)\s*[.!]?\s*$/i;
@@ -7627,6 +7628,7 @@ export {
   SIGNUP_WAITLIST,
   SIGNUP_WORDS,
   SMS_CLAUSES,
+  SMS_OPT_OUT_PATTERN,
   SOLE_PROP_CEILING_SENTENCE,
   SOLE_PROP_LIMITS,
   SOLE_PROP_TEXTING_SENTENCE,

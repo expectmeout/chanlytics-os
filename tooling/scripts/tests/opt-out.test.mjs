@@ -35,9 +35,23 @@ test("the opt-out words are recognised, in both languages", () => {
 test("an ordinary message is not an opt-out", () => {
   // The pattern is anchored for a reason: "stop by at 4?" is a booking, and
   // silencing that customer forever would be the worse failure.
-  for (const w of ["can you stop by at 4?", "please stop the appointment reminders for now", "nonstop"]) {
+  for (const w of ["can you stop by at 4?", "please stop the appointment reminders for now", "nonstop", "the end of the month", "cancel my 3pm", "weekend"]) {
     assert.equal(wa(w).optOut, false, `"${w}" must NOT opt out`);
   }
+});
+
+test("the carriers' words are not WhatsApp opt-outs: a Cancel button means an appointment", () => {
+  // The carriers' list (CANCEL, END, QUIT, REVOKE, OPTOUT, STOPALL) belongs to
+  // the texting line, where a carrier blocks the number on them. WhatsApp has
+  // no such rule, and its appointment templates carry Cancel and End buttons.
+  for (const w of ["cancel", "Cancel", "END", "quit", "STOPALL", "revoke", "optout"]) {
+    assert.equal(wa(w).optOut, false, `"${w}" must NOT opt out on WhatsApp`);
+  }
+  const tapped = normalizeInbound(
+    { from: "13475550101", id: "wamid.2", type: "button", button: { payload: "cancel", text: "Cancel" } },
+    { contacts: [{ wa_id: "13475550101", profile: { name: "Dana" } }] },
+  );
+  assert.equal(tapped.optOut, false, "a quick reply whose payload is cancel is a booking action");
 });
 
 test("only an explicit word opts back in", () => {

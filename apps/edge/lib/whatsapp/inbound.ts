@@ -15,7 +15,7 @@
  */
 import { getThread, isThreadUnknown, saveThread, storeBackend, threadNamespace, type ThreadState } from "../store.js";
 import { pg } from "../pg.js";
-import { normalizeInbound, type WaChangeValue, type WaRawMessage } from "../workspace/channels.js";
+import { normalizeInbound, withCarrierConsent, type CarrierConsent, type WaChangeValue, type WaRawMessage } from "../workspace/channels.js";
 import { shortCode } from "../workspace/contracts.js";
 import { readLeadContext, describeLead, personReplyMode, type IngestResult } from "../workspace/db.js";
 import type { RoutedChannel } from "../workspace/db.js";
@@ -49,6 +49,8 @@ export interface InboundCarrier {
   send(to: string, body: string): Promise<{ ok: boolean; wamid: string | null; status: number }>;
   body(text: string, isFirstReply: boolean): string;
   held: { reason: string; details: string } | null;
+  /** What the carrier itself decided about the text: its STOP or START outranks our reading of the words. */
+  consent?: CarrierConsent | null;
 }
 
 
@@ -62,7 +64,7 @@ export async function handleInbound(
   carrier: InboundCarrier | null = null,
 ): Promise<void> {
   const from = m.from;
-  const n = normalizeInbound(m, value);
+  const n = withCarrierConsent(normalizeInbound(m, value), carrier?.consent ?? null);
   const channel: "whatsapp" | "sms" = carrier?.channel ?? "whatsapp";
   const db = pg();
   const t0 = Date.now();
