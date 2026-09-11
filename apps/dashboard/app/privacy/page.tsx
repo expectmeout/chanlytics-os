@@ -64,7 +64,7 @@ export default function PrivacyPage() {
       <h2>Who else processes it</h2>
       <p>We use the following services to run the product. Each holds only what its part needs.</p>
       <ul>
-        <li>Supabase (database and sign-in) and Vercel (hosting).</li>
+        <li>Supabase (database and sign-in), Google (sign-in with a Google account, when you choose it: we receive your name and the address you signed in with, nothing else), and Vercel (hosting).</li>
         <li>Meta (WhatsApp Business Platform) for WhatsApp messages and templates.</li>
         <li>Twilio for phone numbers and text messages, and Retell for phone calls.</li>
         <li>Google (Business Profile and Maps) for reviews and replies, when the owner connects them.</li>

@@ -76,6 +76,9 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
           E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
+          # The one path that creates a user (signup.spec.ts sends a real code
+          # and cleans up after itself) runs nightly, not on every pull request.
+          E2E_SIGNUP_PROBE: "1"
       # The report can hold a real workspace's data, so it is kept only when
       # something failed and only for a week.
       - uses: actions/upload-artifact@v4

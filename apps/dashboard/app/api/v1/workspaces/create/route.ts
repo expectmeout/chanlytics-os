@@ -1,5 +1,5 @@
 import { write, account } from "@/server/route";
-import { AppError, firstWorkspaceDoor, signupPosture } from "@chanlytics/contracts";
+import { AppError, firstWorkspaceDoor, signupPosture, PENDING_WORKSPACE_KEY, pendingWorkspaceOf } from "@chanlytics/contracts";
 import { z } from "zod";
 import { inviteCodeMatches, notifyPlatformSignup } from "@/server/signup";
 
@@ -86,6 +86,19 @@ export const POST = write({
     // workspaces are made. Bounded and best-effort: the workspace exists whether
     // or not the notice gets through.
     await notifyPlatformSignup(data.id, ctx.email ?? "");
+
+    // The name typed at sign-up rode in the user's metadata to prefill this
+    // screen (signup.ts); the workspace exists now, so it goes -- or the next
+    // "create a workspace" screen would offer a name already taken. Best
+    // effort: metadata that would not clear must not fail a workspace made.
+    if (pendingWorkspaceOf(ctx.metadata)) {
+      try {
+        const { error: clearErr } = await ctx.supabase.auth.updateUser({ data: { [PENDING_WORKSPACE_KEY]: null } });
+        if (clearErr) console.error("pending_workspace_clear_failed", clearErr.message);
+      } catch (e) {
+        console.error("pending_workspace_clear_failed", e instanceof Error ? e.message : String(e));
+      }
+    }
 
     // Returned in the same shape /api/v1/workspaces lists, so the client can put
     // it straight into its workspace list without a second round trip.

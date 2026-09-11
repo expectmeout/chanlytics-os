@@ -192,3 +192,59 @@ export function firstWorkspaceDoor(o: { posture: SignupPosture; memberships: num
 export function googleCallbackUrl(origin: string, next: string): string {
   return `${origin}/auth/callback?next=${encodeURIComponent(next || "/")}`;
 }
+
+/* --------------------------------------------------- the sign-in page's rules */
+
+/** The sign-in page's resend cooldown, in seconds: the wait Supabase enforces per address, shown rather than discovered. */
+export const SIGNIN_RESEND_COOLDOWN_S = 60;
+
+/** Seconds until "Resend code" may be pressed again; 0 when it may, or when no code was sent. */
+export function resendLeft(sentAtMs: number | null | undefined, nowMs: number, seconds = SIGNIN_RESEND_COOLDOWN_S): number {
+  if (sentAtMs == null) return 0;
+  return Math.max(0, Math.ceil((sentAtMs + seconds * 1000 - nowMs) / 1000));
+}
+
+/**
+ * Errors on the CODE-REQUEST step, translated for humans without confirming
+ * whether an account exists.
+ *
+ * Supabase answers an unknown address with 422 "Signups not allowed for otp"
+ * and a known one with 200, and the page used to render that difference as
+ * "This email isn't on a Chanlytics workspace yet" -- a public oracle for
+ * exactly who has an account. So a request either reports a real, actionable
+ * problem or it reports nothing at all: the caller is told a code was sent
+ * either way, and only someone who can read that inbox learns anything.
+ * Returning null means "say the neutral thing".
+ *
+ * Two problems are real. The person's own: they asked twice inside the wait,
+ * and are told how long. Ours: the mail budget, the provider, a project-wide
+ * limit (sendFailureIsOurs, the same judgement the sign-up page makes), said
+ * as the sign-up page says it and never as "too many requests" from them.
+ *
+ * This closes the oracle on OUR surface, not at its source -- the anon key is
+ * public by design, so the Supabase endpoint still answers differently. The
+ * complete fix is a CAPTCHA on the auth endpoints, which needs a provider
+ * account and is flagged rather than silently half-done.
+ */
+export function requestCodeWords(e: { code?: string; status?: number; message?: string } | null | undefined): string | null {
+  const message = e?.message ?? "";
+  const wait = /after (\d+) seconds/.exec(message);
+  if (wait) return `Please wait ${wait[1]}s before requesting another code.`;
+  if (sendFailureIsOurs(e)) return SIGNUP_WORDS.notSent;
+  if (/security purposes|rate limit|too many/i.test(message)) return "Too many requests just now — wait a minute and try again.";
+  // Anything that distinguishes "no such account" from "code sent" is
+  // deliberately swallowed. A genuine outage still surfaces below.
+  if (/signup|otp_disabled|not allowed|not found|invalid/i.test(message)) return null;
+  return message || null;
+}
+
+/** Errors on the VERIFY step, where the account is already implied. */
+export function verifyCodeWords(message: string): string {
+  if (/expired|invalid/i.test(message) && /token|otp|code/i.test(message)) {
+    return "That code didn't match or has expired — request a new one.";
+  }
+  if (/security purposes|rate limit|too many/i.test(message)) {
+    return "Too many attempts — wait a minute before trying again.";
+  }
+  return message;
+}
