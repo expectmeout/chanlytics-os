@@ -5,6 +5,7 @@
  * by construction (anti-junk rule R1).
  */
 import type { SchemaSet } from "./schema-sets";
+import { dayIntervals as spansOfDay } from "./availability";
 import { resolveFacts, type KnownFacts } from "./facts";
 import { z } from "zod";
 import { MEMBERSHIP_ROLES } from "./enums";
@@ -695,22 +696,10 @@ export interface HoursRun {
  * failure this whole area has already had.
  */
 function dayIntervals(h: Hours | undefined): { open: string; close: string }[] {
-  const raw: { open: string; close: string }[] = [];
-  if (h?.open && h?.close) raw.push({ open: h.open, close: h.close });
-  for (const iv of h?.intervals ?? []) if (iv?.open && iv?.close) raw.push(iv);
-  const usable = raw
-    .filter((x) => x.close > x.open)
-    .sort((a, b) => (a.open < b.open ? -1 : a.open > b.open ? 1 : 0));
-  const merged: { open: string; close: string }[] = [];
-  for (const iv of usable) {
-    const last = merged[merged.length - 1];
-    if (last && iv.open <= last.close) {
-      if (iv.close > last.close) last.close = iv.close;
-    } else {
-      merged.push({ ...iv });
-    }
-  }
-  return merged;
+  // The one reader, in availability.ts: the same spans the free windows and
+  // the calendar board are computed from, so the prompt cannot describe a day
+  // differently from the openings it offers.
+  return spansOfDay(h).map(([open, close]) => ({ open, close }));
 }
 
 function joinList(parts: string[]): string {

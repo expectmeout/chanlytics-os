@@ -22,6 +22,7 @@ import {
   TenantConfigSchema,
   TenantConfigWriteSchema,
   isRealDate,
+  MAX_CLOSURES,
 } from "@chanlytics/contracts";
 
 const BRAIN = {
@@ -119,6 +120,25 @@ test("a closure cannot end before it starts", () => {
   assert.deepEqual(issues({ closures: [{ date: "2027-01-02", until: "2026-12-24" }] }), [
     "brain.profile.closures.0.until|A closure cannot end before it starts.",
   ]);
+});
+
+test("a shift that closes at or before it opens is refused, and named by its slot", () => {
+  const out = issues({ hours: { thu: { intervals: [{ open: "09:00", close: "13:00" }, { open: "15:00", close: "14:00" }] } } });
+  assert.deepEqual(out, ["brain.profile.hours.thu.intervals.1.close|Thursday: a shift has to close after it opens."]);
+  assert.deepEqual(issues({ hours: { thu: { intervals: [{ open: "09:00", close: "09:00" }] } } }), ["brain.profile.hours.thu.intervals.0.close|Thursday: a shift has to close after it opens."], "a zero-length shift is not a shift");
+});
+
+test("a closure's end has to be a day on the calendar, like its start", () => {
+  assert.deepEqual(issues({ closures: [{ date: "2026-12-24", until: "2026-12-32" }] }), ["brain.profile.closures.0.until|2026-12-32 is not a date on the calendar."]);
+  assert.deepEqual(issues({ closures: [{ date: "2026-12-24", until: "2027-02-29" }] }), ["brain.profile.closures.0.until|2027-02-29 is not a date on the calendar."], "not a leap year");
+});
+
+test("at most sixty closures: the sixty-first is refused, in one sentence, and the cap is the form's", () => {
+  const day = (n) => `2027-${String(1 + Math.floor(n / 28)).padStart(2, "0")}-${String(1 + (n % 28)).padStart(2, "0")}`;
+  const sixty = Array.from({ length: MAX_CLOSURES }, (_, n) => ({ date: day(n) }));
+  assert.equal(write({ closures: sixty }).success, true, "sixty is allowed");
+  assert.deepEqual(issues({ closures: [...sixty, { date: "2027-06-01" }] }), [`brain.profile.closures|At most ${MAX_CLOSURES} closures.`]);
+  assert.equal(MAX_CLOSURES, 60);
 });
 
 test("an ordinary holiday range is accepted", () => {

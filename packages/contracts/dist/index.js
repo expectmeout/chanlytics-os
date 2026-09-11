@@ -1040,6 +1040,417 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
   };
 }
 
+// src/availability.ts
+function zoneParts(tz, at2) {
+  const parts2 = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hourCycle: "h23",
+    weekday: "short",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  }).formatToParts(at2);
+  const get = (t) => parts2.find((p) => p.type === t)?.value ?? "";
+  return {
+    y: Number(get("year")),
+    m: Number(get("month")),
+    d: Number(get("day")),
+    hh: Number(get("hour")) % 24,
+    mm: Number(get("minute")),
+    ss: Number(get("second")),
+    weekday: get("weekday").toLowerCase().slice(0, 3)
+  };
+}
+function zoneOffsetMs(tz, atMs) {
+  const p = zoneParts(tz, new Date(atMs));
+  return Date.UTC(p.y, p.m - 1, p.d, p.hh, p.mm, p.ss) - Math.floor(atMs / 1e3) * 1e3;
+}
+function localToUtcMs(tz, y, m, d, hh, mm) {
+  const guess = Date.UTC(y, m - 1, d, hh, mm);
+  const first = guess - zoneOffsetMs(tz, guess);
+  const second = guess - zoneOffsetMs(tz, first);
+  return second;
+}
+function clockInZone(tz, atMs) {
+  const p = zoneParts(tz, new Date(atMs));
+  return { hh: p.hh, mm: p.mm, ss: p.ss };
+}
+function dayInZone(tz, atMs) {
+  const p = zoneParts(tz, new Date(atMs));
+  const pad = (n) => String(n).padStart(2, "0");
+  return { key: `${p.y}-${pad(p.m)}-${pad(p.d)}`, weekday: p.weekday, y: p.y, m: p.m, d: p.d };
+}
+function unescapeText(v) {
+  return v.replace(/\\([\\;,nN])/g, (_, c) => c === "n" || c === "N" ? "\n" : c).trim();
+}
+function unfold(text) {
+  const out = [];
+  for (const raw of text.replace(/\r\n/g, "\n").split("\n")) {
+    if ((raw.startsWith(" ") || raw.startsWith("	")) && out.length) out[out.length - 1] += raw.slice(1);
+    else out.push(raw);
+  }
+  return out;
+}
+function splitLine(line) {
+  let colon = -1;
+  let q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') q = !q;
+    else if (ch === ":" && !q) {
+      colon = i;
+      break;
+    }
+  }
+  if (colon === -1) return null;
+  const head = line.slice(0, colon);
+  const value = line.slice(colon + 1);
+  const parts2 = [];
+  let cur = "";
+  q = false;
+  for (const ch of head) {
+    if (ch === '"') {
+      q = !q;
+      continue;
+    }
+    if (ch === ";" && !q) {
+      parts2.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += ch;
+  }
+  parts2.push(cur);
+  const [name, ...rest] = parts2;
+  const params = {};
+  for (const p of rest) {
+    const eq = p.indexOf("=");
+    if (eq > 0) params[p.slice(0, eq).toUpperCase()] = p.slice(eq + 1);
+  }
+  return { name: name.toUpperCase(), params, value };
+}
+function toMs(value, params, fallbackTz) {
+  const v = value.trim();
+  const date = /^(\d{4})(\d{2})(\d{2})$/.exec(v);
+  if (date || params.VALUE === "DATE") {
+    const m2 = date ?? /^(\d{4})(\d{2})(\d{2})/.exec(v);
+    if (!m2) return null;
+    return localToUtcMs(fallbackTz, Number(m2[1]), Number(m2[2]), Number(m2[3]), 0, 0);
+  }
+  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
+  if (!m) return null;
+  const [, y, mo, d, hh, mm, ss, z5] = m;
+  if (z5) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const tz = params.TZID ?? fallbackTz;
+  try {
+    return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
+  } catch {
+    return localToUtcMs(fallbackTz, Number(y), Number(mo), Number(d), Number(hh), Number(mm));
+  }
+}
+function localPartsOf(value, params, fallbackTz) {
+  const v = value.trim();
+  const date = /^(\d{4})(\d{2})(\d{2})$/.exec(v);
+  if (date || params.VALUE === "DATE") {
+    const m2 = date ?? /^(\d{4})(\d{2})(\d{2})/.exec(v);
+    if (!m2) return null;
+    return { tz: fallbackTz, y: Number(m2[1]), m: Number(m2[2]), d: Number(m2[3]), hh: 0, mm: 0, allDay: true };
+  }
+  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
+  if (!m) return null;
+  if (m[7]) {
+    const p = zoneParts(fallbackTz, new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] ?? 0))));
+    return { tz: fallbackTz, y: p.y, m: p.m, d: p.d, hh: p.hh, mm: p.mm, allDay: false };
+  }
+  return { tz: params.TZID ?? fallbackTz, y: Number(m[1]), m: Number(m[2]), d: Number(m[3]), hh: Number(m[4]), mm: Number(m[5]), allDay: false };
+}
+var WEEKDAYS = ["su", "mo", "tu", "we", "th", "fr", "sa"];
+function parseRule(value, fallbackTz) {
+  const parts2 = {};
+  for (const kv of value.split(";")) {
+    const eq = kv.indexOf("=");
+    if (eq > 0) parts2[kv.slice(0, eq).toUpperCase()] = kv.slice(eq + 1);
+  }
+  const freq = parts2.FREQ;
+  if (!freq || !["DAILY", "WEEKLY", "MONTHLY", "YEARLY"].includes(freq)) return null;
+  for (const k of Object.keys(parts2)) if (!["FREQ", "INTERVAL", "COUNT", "UNTIL", "BYDAY", "BYMONTHDAY", "WKST"].includes(k)) return null;
+  const interval = Math.max(1, Number(parts2.INTERVAL ?? 1) || 1);
+  const count = parts2.COUNT ? Number(parts2.COUNT) : null;
+  let until = null;
+  if (parts2.UNTIL) {
+    until = toMs(parts2.UNTIL, {}, fallbackTz);
+    if (until !== null && /^\d{8}$/.test(parts2.UNTIL)) until += 864e5 - 1;
+  }
+  let byday = null;
+  if (parts2.BYDAY) {
+    byday = [];
+    for (const d of parts2.BYDAY.split(",")) {
+      const i = WEEKDAYS.indexOf(d.trim().toLowerCase());
+      if (i === -1) return null;
+      byday.push(i);
+    }
+    if (freq !== "WEEKLY") return null;
+  }
+  let bymonthday = null;
+  if (parts2.BYMONTHDAY) {
+    if (freq !== "MONTHLY" || parts2.BYMONTHDAY.includes(",")) return null;
+    bymonthday = Number(parts2.BYMONTHDAY);
+    if (!Number.isInteger(bymonthday) || bymonthday < 1 || bymonthday > 31) return null;
+  }
+  return { freq, interval, count: count && count > 0 ? count : null, until, byday, bymonthday };
+}
+var dayNumber = (y, m, d) => Math.floor(Date.UTC(y, m - 1, d) / 864e5);
+function occurrences(start, durMs, rule, exdates, horizon) {
+  const out = [];
+  const first = dayNumber(start.y, start.m, start.d);
+  const firstDate = new Date(first * 864e5);
+  const firstWeek = Math.floor((first - (firstDate.getUTCDay() + 6) % 7) / 7);
+  const wanted = rule.byday ?? [firstDate.getUTCDay()];
+  let produced = 0;
+  for (let n = 0; n < 2e4; n++) {
+    const day = first + n;
+    const at2 = new Date(day * 864e5);
+    const y = at2.getUTCFullYear(), m = at2.getUTCMonth() + 1, d = at2.getUTCDate();
+    let hit = false;
+    if (rule.freq === "DAILY") hit = n % rule.interval === 0;
+    else if (rule.freq === "WEEKLY") {
+      const week = Math.floor((day - (at2.getUTCDay() + 6) % 7) / 7);
+      hit = wanted.includes(at2.getUTCDay()) && (week - firstWeek) % rule.interval === 0;
+    } else if (rule.freq === "MONTHLY") {
+      const months = (y - start.y) * 12 + (m - start.m);
+      hit = d === (rule.bymonthday ?? start.d) && months % rule.interval === 0;
+    } else if (rule.freq === "YEARLY") {
+      hit = m === start.m && d === start.d && (y - start.y) % rule.interval === 0;
+    }
+    if (!hit) continue;
+    const s = localToUtcMs(start.tz, y, m, d, start.hh, start.mm);
+    if (rule.until !== null && s > rule.until) break;
+    produced++;
+    if (rule.count !== null && produced > rule.count) break;
+    if (s > horizon.to) break;
+    if (exdates.has(s)) continue;
+    if (s + durMs >= horizon.from) out.push({ start: s, end: s + durMs });
+  }
+  return out;
+}
+function durationMs(v) {
+  const m = /^([+-])?P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(v.trim());
+  if (!m) return null;
+  const sign = m[1] === "-" ? -1 : 1;
+  return sign * ((Number(m[2] ?? 0) * 86400 + Number(m[3] ?? 0) * 3600 + Number(m[4] ?? 0) * 60 + Number(m[5] ?? 0)) * 1e3);
+}
+function parseIcs(text, fallbackTz, opts = {}) {
+  const horizon = opts.horizon ?? { from: Date.now() - 864e5, to: Date.now() + 90 * 864e5 };
+  const busy = [];
+  const items = [];
+  let events = 0;
+  let recurringExpanded = 0;
+  let skippedRecurring = 0;
+  let cur = null;
+  const exdatesOf = [];
+  const attendees = [];
+  for (const line of unfold(text)) {
+    if (line === "BEGIN:VEVENT") {
+      cur = {};
+      exdatesOf.length = 0;
+      attendees.length = 0;
+      continue;
+    }
+    if (line === "END:VEVENT") {
+      if (cur) {
+        events++;
+        const status = cur.STATUS?.value.toUpperCase();
+        const transp = cur.TRANSP?.value.toUpperCase();
+        if (status !== "CANCELLED" && transp !== "TRANSPARENT" && cur.DTSTART) {
+          const start = toMs(cur.DTSTART.value, cur.DTSTART.params, fallbackTz);
+          let end = null;
+          if (cur.DTEND) end = toMs(cur.DTEND.value, cur.DTEND.params, fallbackTz);
+          else if (cur.DURATION && start !== null) {
+            const d = durationMs(cur.DURATION.value);
+            end = d === null ? null : start + d;
+          } else if (start !== null) {
+            end = cur.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(cur.DTSTART.value.trim()) ? start + 864e5 : start;
+          }
+          if (start !== null && end !== null && end > start) {
+            const title = unescapeText(cur.SUMMARY?.value ?? "");
+            const description = unescapeText(cur.DESCRIPTION?.value ?? "") || null;
+            const location = unescapeText(cur.LOCATION?.value ?? "") || null;
+            const guests = attendees.slice();
+            const allDay = cur.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(cur.DTSTART.value.trim());
+            const uid = cur.UID?.value.trim() || null;
+            const rule = cur.RRULE ? parseRule(cur.RRULE.value, fallbackTz) : null;
+            const local = cur.RRULE ? localPartsOf(cur.DTSTART.value, cur.DTSTART.params, fallbackTz) : null;
+            if (cur.RRULE && rule && local) {
+              const ex = /* @__PURE__ */ new Set();
+              for (const e of exdatesOf) for (const v of e.value.split(",")) {
+                const ms2 = toMs(v, e.params, fallbackTz);
+                if (ms2 !== null) ex.add(ms2);
+              }
+              const occ = occurrences(local, end - start, rule, ex, horizon);
+              busy.push(...occ);
+              for (const o of occ) items.push({ ...o, title, allDay, uid, description, location, attendees: guests });
+              recurringExpanded++;
+            } else {
+              if (cur.RRULE || cur.RDATE) skippedRecurring++;
+              busy.push({ start, end });
+              items.push({ start, end, title, allDay, uid, description, location, attendees: guests });
+            }
+          }
+        }
+      }
+      cur = null;
+      continue;
+    }
+    if (!cur) continue;
+    const s = splitLine(line);
+    if (!s) continue;
+    if (s.name === "EXDATE") {
+      exdatesOf.push({ params: s.params, value: s.value });
+      continue;
+    }
+    if (s.name === "ATTENDEE") {
+      const v = s.value.trim();
+      attendees.push({ name: s.params.CN?.trim() || null, email: /^mailto:/i.test(v) ? v.slice(7).toLowerCase() : null });
+      continue;
+    }
+    cur[s.name] = { params: s.params, value: s.value };
+  }
+  busy.sort((a, b) => a.start - b.start);
+  items.sort((a, b) => a.start - b.start);
+  return { busy, items, events, recurringExpanded, skippedRecurring };
+}
+var BOOKING_DEFAULTS = { lead_hours: 2, buffer_min: 0, max_days_ahead: 14, slot_min: 30 };
+function hhmm(s) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());
+  return m ? [Number(m[1]), Number(m[2])] : null;
+}
+function dayIntervals(h) {
+  const raw = [];
+  if (h?.open && h?.close) raw.push([h.open, h.close]);
+  for (const iv of h?.intervals ?? []) if (iv?.open && iv?.close) raw.push([iv.open, iv.close]);
+  const usable = raw.filter(([o, c]) => c > o).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+  const merged = [];
+  for (const [o, c] of usable) {
+    const last = merged[merged.length - 1];
+    if (last && o <= last[1]) {
+      if (c > last[1]) last[1] = c;
+    } else {
+      merged.push([o, c]);
+    }
+  }
+  return merged;
+}
+function closedOn(closures, key) {
+  return !!closures?.some((c) => c.date <= key && key <= (c.until && c.until >= c.date ? c.until : c.date));
+}
+function freeWindows(input) {
+  const rules = { ...BOOKING_DEFAULTS, ...input.rules ?? {} };
+  const leadMs = rules.lead_hours * 36e5;
+  const bufferMs = rules.buffer_min * 6e4;
+  const slotMs = rules.slot_min * 6e4;
+  const earliest = input.now.getTime() + leadMs;
+  const busy = input.busy.map((b) => ({ start: b.start - bufferMs, end: b.end + bufferMs })).sort((a, b) => a.start - b.start);
+  const out = [];
+  for (let offset = 0; offset < rules.max_days_ahead; offset++) {
+    const at2 = input.now.getTime() + offset * 864e5;
+    const day = dayInZone(input.tz, at2);
+    if (closedOn(input.closures, day.key)) continue;
+    const ranges = dayIntervals(input.hours?.[day.weekday]);
+    const windows = [];
+    for (const [open, close] of ranges) {
+      const o = hhmm(open), c = hhmm(close);
+      if (!o || !c) continue;
+      let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, o[0], o[1]), earliest);
+      const end = localToUtcMs(input.tz, day.y, day.m, day.d, c[0], c[1]);
+      for (const b of busy) {
+        if (b.end <= start) continue;
+        if (b.start >= end) break;
+        if (b.start > start && b.start - start >= slotMs) windows.push({ start, end: b.start });
+        start = Math.max(start, b.end);
+      }
+      if (end - start >= slotMs) windows.push({ start, end });
+    }
+    if (windows.length) {
+      out.push({
+        key: day.key,
+        weekday: day.weekday,
+        label: new Intl.DateTimeFormat("en-US", { timeZone: input.tz, weekday: "long", month: "long", day: "numeric" }).format(new Date(at2)),
+        windows
+      });
+    }
+  }
+  return out;
+}
+var DAY_NAMES = {
+  mon: "mon",
+  monday: "mon",
+  tue: "tue",
+  tues: "tue",
+  tuesday: "tue",
+  wed: "wed",
+  wednesday: "wed",
+  thu: "thu",
+  thur: "thu",
+  thurs: "thu",
+  thursday: "thu",
+  fri: "fri",
+  friday: "fri",
+  sat: "sat",
+  saturday: "sat",
+  sun: "sun",
+  sunday: "sun"
+};
+function filterOpenings(openings, by) {
+  const day = (by.day ?? "").trim().toLowerCase();
+  const weekday = day ? DAY_NAMES[day] : void 0;
+  const key = /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : void 0;
+  const minMs = by.minMinutes && by.minMinutes > 0 ? by.minMinutes * 6e4 : 0;
+  const picked = openings.filter((o) => key ? o.key === key : weekday ? o.weekday === weekday : true);
+  const first = weekday && !key ? picked.slice(0, 1) : picked;
+  return first.map((o) => ({ ...o, windows: o.windows.filter((w) => w.end - w.start >= minMs) })).filter((o) => o.windows.length > 0);
+}
+function span(tz, start, end) {
+  const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+  return `${f.format(new Date(start))} \u2013 ${f.format(new Date(end))}`;
+}
+function describeOpenings(openings, tz, opts = {}) {
+  const maxDays = opts.maxDays ?? 5;
+  const ahead = opts.daysAhead ?? BOOKING_DEFAULTS.max_days_ahead;
+  if (!openings.length) {
+    return `Open times (from the calendar): nothing is open in the next ${ahead} days. Offer to have someone call back, and send the booking link so they are told when a slot frees up.`;
+  }
+  const lines = openings.slice(0, maxDays).map((o) => `- ${o.label}: ${o.windows.map((w) => span(tz, w.start, w.end)).join(", ")}`);
+  return `Open times (from the calendar, checked just now \u2014 these change as bookings come in):
+${lines.join("\n")}
+Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides.`;
+}
+var foldName = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+var wordsOf = (s) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+function matchService(services, asked) {
+  const q = typeof asked === "string" ? foldName(asked.trim()) : "";
+  if (!q || !services?.length) return null;
+  const named = services.map((s) => ({ s, n: foldName(s.name) }));
+  const exact = named.find((x) => x.n === q);
+  if (exact) return exact.s;
+  const contains = named.find((x) => x.n && (x.n.includes(q) || q.includes(x.n)));
+  if (contains) return contains.s;
+  const asks = wordsOf(q).filter((w) => w.length >= 4);
+  let best = null;
+  let bestScore = 0;
+  for (const { s, n } of named) {
+    const own = wordsOf(n);
+    const score = asks.filter((w) => own.includes(w)).length;
+    if (score > bestScore) {
+      best = s;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
 // src/facts.ts
 var trimmed = (v) => {
   const s = typeof v === "string" ? v.trim() : "";
@@ -1542,28 +1953,15 @@ var DAY_LABEL = {
   sat: "Saturday",
   sun: "Sunday"
 };
-function dayIntervals(h) {
-  const raw = [];
-  if (h?.open && h?.close) raw.push({ open: h.open, close: h.close });
-  for (const iv of h?.intervals ?? []) if (iv?.open && iv?.close) raw.push(iv);
-  const usable = raw.filter((x) => x.close > x.open).sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
-  const merged = [];
-  for (const iv of usable) {
-    const last = merged[merged.length - 1];
-    if (last && iv.open <= last.close) {
-      if (iv.close > last.close) last.close = iv.close;
-    } else {
-      merged.push({ ...iv });
-    }
-  }
-  return merged;
+function dayIntervals2(h) {
+  return dayIntervals(h).map(([open, close]) => ({ open, close }));
 }
 function joinList(parts2) {
   if (parts2.length < 3) return parts2.join(" and ");
   return `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
 }
 function dayText(h) {
-  const spans = dayIntervals(h);
+  const spans = dayIntervals2(h);
   if (spans.length) {
     const open = joinList(spans.map((x) => `${x.open}\u2013${x.close}`));
     const gaps = spans.slice(1).map((x, i) => `${spans[i].close}\u2013${x.open}`);
@@ -1817,406 +2215,6 @@ ${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
   return composeSystemPrompt(resolved, carried, channel, tz, now, policy);
 }
 
-// src/availability.ts
-function zoneParts(tz, at2) {
-  const parts2 = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    hourCycle: "h23",
-    weekday: "short",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit"
-  }).formatToParts(at2);
-  const get = (t) => parts2.find((p) => p.type === t)?.value ?? "";
-  return {
-    y: Number(get("year")),
-    m: Number(get("month")),
-    d: Number(get("day")),
-    hh: Number(get("hour")) % 24,
-    mm: Number(get("minute")),
-    ss: Number(get("second")),
-    weekday: get("weekday").toLowerCase().slice(0, 3)
-  };
-}
-function zoneOffsetMs(tz, atMs) {
-  const p = zoneParts(tz, new Date(atMs));
-  return Date.UTC(p.y, p.m - 1, p.d, p.hh, p.mm, p.ss) - Math.floor(atMs / 1e3) * 1e3;
-}
-function localToUtcMs(tz, y, m, d, hh, mm) {
-  const guess = Date.UTC(y, m - 1, d, hh, mm);
-  const first = guess - zoneOffsetMs(tz, guess);
-  const second = guess - zoneOffsetMs(tz, first);
-  return second;
-}
-function clockInZone(tz, atMs) {
-  const p = zoneParts(tz, new Date(atMs));
-  return { hh: p.hh, mm: p.mm, ss: p.ss };
-}
-function dayInZone(tz, atMs) {
-  const p = zoneParts(tz, new Date(atMs));
-  const pad = (n) => String(n).padStart(2, "0");
-  return { key: `${p.y}-${pad(p.m)}-${pad(p.d)}`, weekday: p.weekday, y: p.y, m: p.m, d: p.d };
-}
-function unescapeText(v) {
-  return v.replace(/\\([\\;,nN])/g, (_, c) => c === "n" || c === "N" ? "\n" : c).trim();
-}
-function unfold(text) {
-  const out = [];
-  for (const raw of text.replace(/\r\n/g, "\n").split("\n")) {
-    if ((raw.startsWith(" ") || raw.startsWith("	")) && out.length) out[out.length - 1] += raw.slice(1);
-    else out.push(raw);
-  }
-  return out;
-}
-function splitLine(line) {
-  let colon = -1;
-  let q = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') q = !q;
-    else if (ch === ":" && !q) {
-      colon = i;
-      break;
-    }
-  }
-  if (colon === -1) return null;
-  const head = line.slice(0, colon);
-  const value = line.slice(colon + 1);
-  const parts2 = [];
-  let cur = "";
-  q = false;
-  for (const ch of head) {
-    if (ch === '"') {
-      q = !q;
-      continue;
-    }
-    if (ch === ";" && !q) {
-      parts2.push(cur);
-      cur = "";
-      continue;
-    }
-    cur += ch;
-  }
-  parts2.push(cur);
-  const [name, ...rest] = parts2;
-  const params = {};
-  for (const p of rest) {
-    const eq = p.indexOf("=");
-    if (eq > 0) params[p.slice(0, eq).toUpperCase()] = p.slice(eq + 1);
-  }
-  return { name: name.toUpperCase(), params, value };
-}
-function toMs(value, params, fallbackTz) {
-  const v = value.trim();
-  const date = /^(\d{4})(\d{2})(\d{2})$/.exec(v);
-  if (date || params.VALUE === "DATE") {
-    const m2 = date ?? /^(\d{4})(\d{2})(\d{2})/.exec(v);
-    if (!m2) return null;
-    return localToUtcMs(fallbackTz, Number(m2[1]), Number(m2[2]), Number(m2[3]), 0, 0);
-  }
-  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
-  if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z5] = m;
-  if (z5) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
-  const tz = params.TZID ?? fallbackTz;
-  try {
-    return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
-  } catch {
-    return localToUtcMs(fallbackTz, Number(y), Number(mo), Number(d), Number(hh), Number(mm));
-  }
-}
-function localPartsOf(value, params, fallbackTz) {
-  const v = value.trim();
-  const date = /^(\d{4})(\d{2})(\d{2})$/.exec(v);
-  if (date || params.VALUE === "DATE") {
-    const m2 = date ?? /^(\d{4})(\d{2})(\d{2})/.exec(v);
-    if (!m2) return null;
-    return { tz: fallbackTz, y: Number(m2[1]), m: Number(m2[2]), d: Number(m2[3]), hh: 0, mm: 0, allDay: true };
-  }
-  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
-  if (!m) return null;
-  if (m[7]) {
-    const p = zoneParts(fallbackTz, new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] ?? 0))));
-    return { tz: fallbackTz, y: p.y, m: p.m, d: p.d, hh: p.hh, mm: p.mm, allDay: false };
-  }
-  return { tz: params.TZID ?? fallbackTz, y: Number(m[1]), m: Number(m[2]), d: Number(m[3]), hh: Number(m[4]), mm: Number(m[5]), allDay: false };
-}
-var WEEKDAYS = ["su", "mo", "tu", "we", "th", "fr", "sa"];
-function parseRule(value, fallbackTz) {
-  const parts2 = {};
-  for (const kv of value.split(";")) {
-    const eq = kv.indexOf("=");
-    if (eq > 0) parts2[kv.slice(0, eq).toUpperCase()] = kv.slice(eq + 1);
-  }
-  const freq = parts2.FREQ;
-  if (!freq || !["DAILY", "WEEKLY", "MONTHLY", "YEARLY"].includes(freq)) return null;
-  for (const k of Object.keys(parts2)) if (!["FREQ", "INTERVAL", "COUNT", "UNTIL", "BYDAY", "BYMONTHDAY", "WKST"].includes(k)) return null;
-  const interval = Math.max(1, Number(parts2.INTERVAL ?? 1) || 1);
-  const count = parts2.COUNT ? Number(parts2.COUNT) : null;
-  let until = null;
-  if (parts2.UNTIL) {
-    until = toMs(parts2.UNTIL, {}, fallbackTz);
-    if (until !== null && /^\d{8}$/.test(parts2.UNTIL)) until += 864e5 - 1;
-  }
-  let byday = null;
-  if (parts2.BYDAY) {
-    byday = [];
-    for (const d of parts2.BYDAY.split(",")) {
-      const i = WEEKDAYS.indexOf(d.trim().toLowerCase());
-      if (i === -1) return null;
-      byday.push(i);
-    }
-    if (freq !== "WEEKLY") return null;
-  }
-  let bymonthday = null;
-  if (parts2.BYMONTHDAY) {
-    if (freq !== "MONTHLY" || parts2.BYMONTHDAY.includes(",")) return null;
-    bymonthday = Number(parts2.BYMONTHDAY);
-    if (!Number.isInteger(bymonthday) || bymonthday < 1 || bymonthday > 31) return null;
-  }
-  return { freq, interval, count: count && count > 0 ? count : null, until, byday, bymonthday };
-}
-var dayNumber = (y, m, d) => Math.floor(Date.UTC(y, m - 1, d) / 864e5);
-function occurrences(start, durMs, rule, exdates, horizon) {
-  const out = [];
-  const first = dayNumber(start.y, start.m, start.d);
-  const firstDate = new Date(first * 864e5);
-  const firstWeek = Math.floor((first - (firstDate.getUTCDay() + 6) % 7) / 7);
-  const wanted = rule.byday ?? [firstDate.getUTCDay()];
-  let produced = 0;
-  for (let n = 0; n < 2e4; n++) {
-    const day = first + n;
-    const at2 = new Date(day * 864e5);
-    const y = at2.getUTCFullYear(), m = at2.getUTCMonth() + 1, d = at2.getUTCDate();
-    let hit = false;
-    if (rule.freq === "DAILY") hit = n % rule.interval === 0;
-    else if (rule.freq === "WEEKLY") {
-      const week = Math.floor((day - (at2.getUTCDay() + 6) % 7) / 7);
-      hit = wanted.includes(at2.getUTCDay()) && (week - firstWeek) % rule.interval === 0;
-    } else if (rule.freq === "MONTHLY") {
-      const months = (y - start.y) * 12 + (m - start.m);
-      hit = d === (rule.bymonthday ?? start.d) && months % rule.interval === 0;
-    } else if (rule.freq === "YEARLY") {
-      hit = m === start.m && d === start.d && (y - start.y) % rule.interval === 0;
-    }
-    if (!hit) continue;
-    const s = localToUtcMs(start.tz, y, m, d, start.hh, start.mm);
-    if (rule.until !== null && s > rule.until) break;
-    produced++;
-    if (rule.count !== null && produced > rule.count) break;
-    if (s > horizon.to) break;
-    if (exdates.has(s)) continue;
-    if (s + durMs >= horizon.from) out.push({ start: s, end: s + durMs });
-  }
-  return out;
-}
-function durationMs(v) {
-  const m = /^([+-])?P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(v.trim());
-  if (!m) return null;
-  const sign = m[1] === "-" ? -1 : 1;
-  return sign * ((Number(m[2] ?? 0) * 86400 + Number(m[3] ?? 0) * 3600 + Number(m[4] ?? 0) * 60 + Number(m[5] ?? 0)) * 1e3);
-}
-function parseIcs(text, fallbackTz, opts = {}) {
-  const horizon = opts.horizon ?? { from: Date.now() - 864e5, to: Date.now() + 90 * 864e5 };
-  const busy = [];
-  const items = [];
-  let events = 0;
-  let recurringExpanded = 0;
-  let skippedRecurring = 0;
-  let cur = null;
-  const exdatesOf = [];
-  const attendees = [];
-  for (const line of unfold(text)) {
-    if (line === "BEGIN:VEVENT") {
-      cur = {};
-      exdatesOf.length = 0;
-      attendees.length = 0;
-      continue;
-    }
-    if (line === "END:VEVENT") {
-      if (cur) {
-        events++;
-        const status = cur.STATUS?.value.toUpperCase();
-        const transp = cur.TRANSP?.value.toUpperCase();
-        if (status !== "CANCELLED" && transp !== "TRANSPARENT" && cur.DTSTART) {
-          const start = toMs(cur.DTSTART.value, cur.DTSTART.params, fallbackTz);
-          let end = null;
-          if (cur.DTEND) end = toMs(cur.DTEND.value, cur.DTEND.params, fallbackTz);
-          else if (cur.DURATION && start !== null) {
-            const d = durationMs(cur.DURATION.value);
-            end = d === null ? null : start + d;
-          } else if (start !== null) {
-            end = cur.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(cur.DTSTART.value.trim()) ? start + 864e5 : start;
-          }
-          if (start !== null && end !== null && end > start) {
-            const title = unescapeText(cur.SUMMARY?.value ?? "");
-            const description = unescapeText(cur.DESCRIPTION?.value ?? "") || null;
-            const location = unescapeText(cur.LOCATION?.value ?? "") || null;
-            const guests = attendees.slice();
-            const allDay = cur.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(cur.DTSTART.value.trim());
-            const uid = cur.UID?.value.trim() || null;
-            const rule = cur.RRULE ? parseRule(cur.RRULE.value, fallbackTz) : null;
-            const local = cur.RRULE ? localPartsOf(cur.DTSTART.value, cur.DTSTART.params, fallbackTz) : null;
-            if (cur.RRULE && rule && local) {
-              const ex = /* @__PURE__ */ new Set();
-              for (const e of exdatesOf) for (const v of e.value.split(",")) {
-                const ms2 = toMs(v, e.params, fallbackTz);
-                if (ms2 !== null) ex.add(ms2);
-              }
-              const occ = occurrences(local, end - start, rule, ex, horizon);
-              busy.push(...occ);
-              for (const o of occ) items.push({ ...o, title, allDay, uid, description, location, attendees: guests });
-              recurringExpanded++;
-            } else {
-              if (cur.RRULE || cur.RDATE) skippedRecurring++;
-              busy.push({ start, end });
-              items.push({ start, end, title, allDay, uid, description, location, attendees: guests });
-            }
-          }
-        }
-      }
-      cur = null;
-      continue;
-    }
-    if (!cur) continue;
-    const s = splitLine(line);
-    if (!s) continue;
-    if (s.name === "EXDATE") {
-      exdatesOf.push({ params: s.params, value: s.value });
-      continue;
-    }
-    if (s.name === "ATTENDEE") {
-      const v = s.value.trim();
-      attendees.push({ name: s.params.CN?.trim() || null, email: /^mailto:/i.test(v) ? v.slice(7).toLowerCase() : null });
-      continue;
-    }
-    cur[s.name] = { params: s.params, value: s.value };
-  }
-  busy.sort((a, b) => a.start - b.start);
-  items.sort((a, b) => a.start - b.start);
-  return { busy, items, events, recurringExpanded, skippedRecurring };
-}
-var BOOKING_DEFAULTS = { lead_hours: 2, buffer_min: 0, max_days_ahead: 14, slot_min: 30 };
-function hhmm(s) {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());
-  return m ? [Number(m[1]), Number(m[2])] : null;
-}
-function dayIntervals2(h) {
-  if (!h) return [];
-  if (h.intervals?.length) return h.intervals.filter((i) => i.open && i.close).map((i) => [i.open, i.close]);
-  return h.open && h.close ? [[h.open, h.close]] : [];
-}
-function closedOn(closures, key) {
-  return !!closures?.some((c) => c.date <= key && key <= (c.until && c.until >= c.date ? c.until : c.date));
-}
-function freeWindows(input) {
-  const rules = { ...BOOKING_DEFAULTS, ...input.rules ?? {} };
-  const leadMs = rules.lead_hours * 36e5;
-  const bufferMs = rules.buffer_min * 6e4;
-  const slotMs = rules.slot_min * 6e4;
-  const earliest = input.now.getTime() + leadMs;
-  const busy = input.busy.map((b) => ({ start: b.start - bufferMs, end: b.end + bufferMs })).sort((a, b) => a.start - b.start);
-  const out = [];
-  for (let offset = 0; offset < rules.max_days_ahead; offset++) {
-    const at2 = input.now.getTime() + offset * 864e5;
-    const day = dayInZone(input.tz, at2);
-    if (closedOn(input.closures, day.key)) continue;
-    const ranges = dayIntervals2(input.hours?.[day.weekday]);
-    const windows = [];
-    for (const [open, close] of ranges) {
-      const o = hhmm(open), c = hhmm(close);
-      if (!o || !c) continue;
-      let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, o[0], o[1]), earliest);
-      const end = localToUtcMs(input.tz, day.y, day.m, day.d, c[0], c[1]);
-      for (const b of busy) {
-        if (b.end <= start) continue;
-        if (b.start >= end) break;
-        if (b.start > start && b.start - start >= slotMs) windows.push({ start, end: b.start });
-        start = Math.max(start, b.end);
-      }
-      if (end - start >= slotMs) windows.push({ start, end });
-    }
-    if (windows.length) {
-      out.push({
-        key: day.key,
-        weekday: day.weekday,
-        label: new Intl.DateTimeFormat("en-US", { timeZone: input.tz, weekday: "long", month: "long", day: "numeric" }).format(new Date(at2)),
-        windows
-      });
-    }
-  }
-  return out;
-}
-var DAY_NAMES = {
-  mon: "mon",
-  monday: "mon",
-  tue: "tue",
-  tues: "tue",
-  tuesday: "tue",
-  wed: "wed",
-  wednesday: "wed",
-  thu: "thu",
-  thur: "thu",
-  thurs: "thu",
-  thursday: "thu",
-  fri: "fri",
-  friday: "fri",
-  sat: "sat",
-  saturday: "sat",
-  sun: "sun",
-  sunday: "sun"
-};
-function filterOpenings(openings, by) {
-  const day = (by.day ?? "").trim().toLowerCase();
-  const weekday = day ? DAY_NAMES[day] : void 0;
-  const key = /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : void 0;
-  const minMs = by.minMinutes && by.minMinutes > 0 ? by.minMinutes * 6e4 : 0;
-  const picked = openings.filter((o) => key ? o.key === key : weekday ? o.weekday === weekday : true);
-  const first = weekday && !key ? picked.slice(0, 1) : picked;
-  return first.map((o) => ({ ...o, windows: o.windows.filter((w) => w.end - w.start >= minMs) })).filter((o) => o.windows.length > 0);
-}
-function span(tz, start, end) {
-  const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
-  return `${f.format(new Date(start))} \u2013 ${f.format(new Date(end))}`;
-}
-function describeOpenings(openings, tz, opts = {}) {
-  const maxDays = opts.maxDays ?? 5;
-  const ahead = opts.daysAhead ?? BOOKING_DEFAULTS.max_days_ahead;
-  if (!openings.length) {
-    return `Open times (from the calendar): nothing is open in the next ${ahead} days. Offer to have someone call back, and send the booking link so they are told when a slot frees up.`;
-  }
-  const lines = openings.slice(0, maxDays).map((o) => `- ${o.label}: ${o.windows.map((w) => span(tz, w.start, w.end)).join(", ")}`);
-  return `Open times (from the calendar, checked just now \u2014 these change as bookings come in):
-${lines.join("\n")}
-Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides.`;
-}
-var foldName = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-var wordsOf = (s) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-function matchService(services, asked) {
-  const q = typeof asked === "string" ? foldName(asked.trim()) : "";
-  if (!q || !services?.length) return null;
-  const named = services.map((s) => ({ s, n: foldName(s.name) }));
-  const exact = named.find((x) => x.n === q);
-  if (exact) return exact.s;
-  const contains = named.find((x) => x.n && (x.n.includes(q) || q.includes(x.n)));
-  if (contains) return contains.s;
-  const asks = wordsOf(q).filter((w) => w.length >= 4);
-  let best = null;
-  let bestScore = 0;
-  for (const { s, n } of named) {
-    const own = wordsOf(n);
-    const score = asks.filter((w) => own.includes(w)).length;
-    if (score > bestScore) {
-      best = s;
-      bestScore = score;
-    }
-  }
-  return best;
-}
-
 // src/calendar.ts
 var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 var DAY_SHORT = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
@@ -2319,7 +2317,7 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   let start = 24;
   let end = 0;
   for (const h of Object.values(dto.hours ?? {})) {
-    for (const [o, c] of dayIntervals2(h)) {
+    for (const [o, c] of dayIntervals(h)) {
       const oh = Number(o.split(":")[0]);
       const ch = Number(c.split(":")[0]) + (Number(c.split(":")[1]) > 0 ? 1 : 0);
       if (Number.isFinite(oh)) start = Math.min(start, oh);
@@ -2336,7 +2334,7 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
     const { y, m, d: dd } = keyParts(d.key);
     const weekday = DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()].toLowerCase();
     const closure = dto.closures.find((c) => c.date <= d.key && d.key <= (c.until && c.until >= c.date ? c.until : c.date)) ?? null;
-    const intervals = dayIntervals2(dto.hours?.[weekday]);
+    const intervals = dayIntervals(dto.hours?.[weekday]);
     const closedDay = closedOn(dto.closures, d.key) || intervals.length === 0;
     const bands = [];
     if (closedDay) {
@@ -7886,7 +7884,7 @@ export {
   dayDate,
   dayFromQuestion,
   dayInZone,
-  dayIntervals2 as dayIntervals,
+  dayIntervals,
   dayWords,
   dedupeFeed,
   defaultParamSpecs,
