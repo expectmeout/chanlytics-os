@@ -83,7 +83,7 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
   // from the one the data below it came from.
   current: () => {
     const w = window as unknown as { __WORKSPACES?: Workspace[]; __ACTIVE_WORKSPACE?: string };
-    return w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE) ?? w.__WORKSPACES?.[0] ?? null;
+    return w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE) ?? null;
   },
   apply: async () => {
     const data = await read("GET workspaces");

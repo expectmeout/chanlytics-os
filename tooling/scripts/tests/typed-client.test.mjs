@@ -25,6 +25,7 @@ function harness(answer, { workspace = A } = {}) {
     fetch: async (url, init) => { sent.push({ url, init }); return typeof answer === "function" ? await answer(url, init) : answer; },
     workspace: () => workspace,
     onSignedOut: () => events.push("signed-out"),
+    onChooseWorkspace: () => events.push("choose-workspace"),
     refresh: async (key) => { events.push(`refresh:${key}`); },
     now: () => clock,
   });
@@ -70,6 +71,11 @@ test("a refusal is the server's words and code; a 401 signs out; a network failu
   const out = harness(refusal(401, "unauthorized", "Sign in required."));
   assert.deepEqual(await out.api("GET conversations"), { ok: false, code: "unauthorized", status: 401, message: "Signed out." });
   assert.deepEqual(out.events, ["signed-out"]);
+  // The first error code the client reads: the server would not guess the
+  // workspace, so the bridge forgets its choice and boots again.
+  const unnamed = harness(refusal(400, "choose_workspace", "This account belongs to more than one workspace — say which one first."));
+  assert.deepEqual(await unnamed.api("GET conversations"), { ok: false, code: "choose_workspace", status: 400, message: "This account belongs to more than one workspace — say which one first." });
+  assert.deepEqual(unnamed.events, ["choose-workspace"]);
   const down = harness(() => { throw new TypeError("fetch failed"); });
   assert.deepEqual(await down.api("PUT settings", { body: { config: {}, version: 1 } }), { ok: false, code: "network", status: 0, message: "Network error — nothing was changed." });
   assert.deepEqual(await down.api("GET conversations"), { ok: false, code: "network", status: 0, message: "Chanlytics could not be reached." });

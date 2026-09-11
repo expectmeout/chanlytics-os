@@ -7,9 +7,33 @@
  */
 import { createApi, unwrap, type Api, type ApiOptions, type RouteKey } from "../client/api";
 import { clearSurfaceCache } from "./surface-cache";
-import { getActiveWorkspace } from "./workspace";
+import { getActiveWorkspace, setActiveWorkspace } from "./workspace";
 
 let instance: Api | null = null;
+
+/**
+ * The server refused to guess which workspace a request meant. The stored
+ * choice is not one this account may use here (a membership gone, another
+ * account's preference on this browser), so forget it, drop the rows that
+ * were read under it, and boot again: the runner then asks /workspaces first,
+ * the one door allowed to pick a default. Once per tab: a second refusal in
+ * the same session is a bug to read in the console, not a reload loop.
+ */
+const REBOOTED = "chanlytics.workspace.rebooted";
+function forgetWorkspaceAndReboot(win: Window): void {
+  setActiveWorkspace(null);
+  clearSurfaceCache();
+  try {
+    if (win.sessionStorage.getItem(REBOOTED)) {
+      console.error("choose_workspace_after_reboot");
+      return;
+    }
+    win.sessionStorage.setItem(REBOOTED, "1");
+  } catch {
+    // storage blocked: nothing to remember with, and nothing to loop on either
+  }
+  win.location.reload();
+}
 
 /**
  * A read the runner treats as the surface's own: a refusal throws, and the
@@ -34,6 +58,7 @@ export function apiFor(win: Window): Api {
       clearSurfaceCache();
       win.location.assign("/login");
     },
+    onChooseWorkspace: () => forgetWorkspaceAndReboot(win),
     refresh: (key) => import("./refresh-map").then((m) => m.refreshAfter(key)),
   });
 }
@@ -49,6 +74,7 @@ export function api(): Api {
       clearSurfaceCache();
       window.location.assign("/login");
     },
+    onChooseWorkspace: () => forgetWorkspaceAndReboot(window),
     refresh: (key) => import("./refresh-map").then((m) => m.refreshAfter(key)),
   });
   return instance;

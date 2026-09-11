@@ -61,6 +61,12 @@ export interface ApiDeps {
   workspace: () => string | null;
   /** A 401: the session is gone. The bridge clears the cache and goes to /login. */
   onSignedOut: () => void;
+  /**
+   * A choose_workspace: the server could not tell which workspace this request
+   * meant — the tab named none, or one this account no longer belongs to. The
+   * bridge forgets its choice and boots again, asking /workspaces first.
+   */
+  onChooseWorkspace?: () => void;
   /** After a 2xx write: which surfaces to re-read, by the refresh map. */
   refresh: (key: RouteKey) => Promise<void>;
   now?: () => number;
@@ -121,6 +127,7 @@ export function createApi(deps: ApiDeps) {
       const j = (await res.json().catch(() => null)) as Envelope | null;
       if (!j || !j.ok) {
         const e = j && !j.ok ? j.error : undefined;
+        if (e?.code === "choose_workspace") deps.onChooseWorkspace?.();
         return { ok: false, code: e?.code ?? "internal", status: res.status, message: e?.message ?? `Request failed (${res.status}).` };
       }
       if (!isRead) {
