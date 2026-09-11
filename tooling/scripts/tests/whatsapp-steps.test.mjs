@@ -98,5 +98,8 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
   for (const s of ["export async function pgIngest(", "export async function pgSafe<T>(", "export function pgSink(", "export async function queueReply(", "export async function pgThread("]) assert.ok(persist.includes(s), s);
   const alerts = readCode("apps/edge/lib/whatsapp/alerts.ts");
   for (const s of ["export async function sendText(", "export async function alertStaff(", "export async function alertUnroutable("]) assert.ok(alerts.includes(s), s);
-  assert.ok(alerts.includes("waSendText(waCfgFor(rt), to, body)"), "the customer is texted on the tenant's credentials");
+  // The tenant's credentials or none: waCfgFor answers null for a tenant with
+  // nothing in the vault, and the send is refused rather than made on the
+  // environment's pair (per-tenant-credentials.test.mjs runs the resolver).
+  assert.ok(alerts.includes("const cfg = waCfgFor(rt, arrivedOnEnvNumber);") && alerts.includes("waSendText(cfg, to, body)"), "the customer is texted on the tenant's credentials, or not at all");
 });

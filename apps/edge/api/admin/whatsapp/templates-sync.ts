@@ -44,7 +44,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!ch.waba_id) return json(409, { ok: false, error: "no_waba" });
 
   const creds = await waCredentialsForTenant(db, tenantId);
-  if (!creds.accessToken) return json(503, { ok: false, error: "no_token" });
+  if (!creds?.accessToken) return json(503, { ok: false, error: "no_token" });
 
   const listed = await listTemplates(creds.accessToken, ch.waba_id);
   if (!listed.ok) {

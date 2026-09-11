@@ -63,7 +63,6 @@
     "one-hours-algorithm.test.mjs": 1,
     "ops-hygiene.test.mjs": 3,
     "opt-out.test.mjs": 2,
-    "per-tenant-credentials.test.mjs": 4,
     "person-mode-enforcement.test.mjs": 5,
     "phone-shell.test.mjs": 13,
     "phone.test.mjs": 5,

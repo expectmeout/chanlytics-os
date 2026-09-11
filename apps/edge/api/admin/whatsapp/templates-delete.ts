@@ -43,7 +43,7 @@ export async function POST(request: Request): Promise<Response> {
     .maybeSingle();
   if (!ch?.waba_id) return json(409, { ok: false, error: "no_waba" });
   const creds = await waCredentialsForTenant(db, tenantId);
-  if (!creds.accessToken) return json(503, { ok: false, error: "no_token" });
+  if (!creds?.accessToken) return json(503, { ok: false, error: "no_token" });
 
   const gone = await deleteTemplate(creds.accessToken, ch.waba_id, row.name, row.meta_id);
   // Not found at Meta is a delete that already happened.

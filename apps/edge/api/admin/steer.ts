@@ -71,7 +71,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const { data: ch } = await db
     .from("tenant_channels")
-    .select("id, tenant_id, kind, status, number_e164, credentials_ref, config")
+    .select("id, tenant_id, kind, status, number_e164, credentials_ref, config, external_id")
     .eq("tenant_id", m.tenant_id)
     .eq("kind", "whatsapp")
     .eq("status", "active")
@@ -79,7 +79,7 @@ export async function POST(request: Request): Promise<Response> {
     .maybeSingle();
   if (!ch) return json(409, { ok: false, error: "no_whatsapp_channel" });
   const routed: RoutedChannel = {
-    channelId: ch.id, tenantId: ch.tenant_id, kind: ch.kind, numberE164: ch.number_e164, credentialsRef: ch.credentials_ref, config: ch.config,
+    channelId: ch.id, tenantId: ch.tenant_id, kind: ch.kind, externalId: ch.external_id, numberE164: ch.number_e164, credentialsRef: ch.credentials_ref, config: ch.config,
   };
   const rt = await loadTenantRuntime(db, routed);
   if (!rt.brain) return json(409, { ok: false, error: rt.configBroken ? "config_broken" : "no_persona" });

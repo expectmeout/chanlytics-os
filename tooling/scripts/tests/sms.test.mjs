@@ -189,7 +189,7 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
     (code.match(/pgIngest\(tenantId, n, channel\)/g) ?? []).length,
     "every ingest carries the channel",
   );
-  assert.ok(code.includes("const send = (text: string) => (carrier ? carrier.send(from, wire(text)) : sendText(from, text, rt));") && !code.includes("await sendText(from, replyText, rt)"), "one door out");
+  assert.ok(code.includes("const send = (text: string) => (carrier ? carrier.send(from, wire(text)) : sendText(from, text, rt, isEnvDefault));") && !code.includes("await sendText(from, replyText, rt"), "one door out");
   assert.ok(code.includes("queueReply(db, tenantId, ing, from, wire(replyText), delayMs, L, plan.source, brainMeta, channel)"), "a held draft is written for its wire");
   const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
   assert.ok(persist.includes('channel: "whatsapp" | "sms" = "whatsapp"') && persist.includes("sender: \"ai\", body, externalId: wamid, channel,"));

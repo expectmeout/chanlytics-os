@@ -219,8 +219,15 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const params = [brain.business_name, brain.booking_link.replace(/^https?:[/][/]/, "")];
+    // No credentials is a refusal, said to the caller as a policy hold: the
+    // agent must never text on another business's line.
+    const waCfg = waCfgFor(rt);
+    if (!waCfg) {
+      log("retell_fn_no_credentials", { tenant: routed.tenantId });
+      return json(200, { result: refusalScript("policy_hold", publishedNumber) });
+    }
     // Graph wants bare digits; normalizePhone guarantees the leading "+".
-    const sent = await sendTemplate(waCfgFor(rt), target.slice(1), {
+    const sent = await sendTemplate(waCfg, target.slice(1), {
       name: BOOKING_TEMPLATE.name,
       language: BOOKING_TEMPLATE.language,
       params,

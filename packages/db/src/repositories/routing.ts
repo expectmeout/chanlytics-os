@@ -6,6 +6,8 @@ export interface RoutedChannel {
   channelId: string;
   tenantId: string;
   kind: string;
+  /** The provider's id this row routes on: a WhatsApp phone_number_id, a Retell agent id, an SMS number. */
+  externalId: string;
   numberE164: string | null;
   credentialsRef: string | null;
   config: Json;
@@ -41,7 +43,7 @@ export async function resolveChannelDetailed(
   if (hit && hit.exp > Date.now()) return { channel: hit.v, lookupFailed: false };
   const { data, error } = await db
     .from("tenant_channels")
-    .select("id, tenant_id, kind, status, number_e164, credentials_ref, config")
+    .select("id, tenant_id, kind, status, number_e164, credentials_ref, config, external_id")
     .eq("kind", kind)
     .eq("external_id", externalId)
     .maybeSingle();
@@ -58,6 +60,7 @@ export async function resolveChannelDetailed(
           channelId: data.id,
           tenantId: data.tenant_id,
           kind: data.kind,
+          externalId: data.external_id,
           numberE164: data.number_e164,
           credentialsRef: data.credentials_ref,
           config: data.config,

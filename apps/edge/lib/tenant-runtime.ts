@@ -32,8 +32,14 @@ export interface TenantRuntime {
   features: FeaturesConfig | null;
   /** Workspace-level policy modes, class → mode. Unexpected/missing → 'ask'. */
   policy: Record<string, { mode: string; limits: PolicyLimits }>;
-  /** Per-tenant WhatsApp credentials from Vault; null = global env fallback. */
+  /** Per-tenant WhatsApp credentials from Vault; null = the channel carries none, or the vault did not answer. */
   waCreds: { accessToken: string; phoneId: string } | null;
+  /**
+   * This workspace's WhatsApp number IS the environment's own pilot line
+   * (WHATSAPP_PHONE_ID), so the environment pair is its credentials and
+   * nobody else's. The only case in which the env pair may send.
+   */
+  envNumber: boolean;
   /**
    * IANA zone from `tenants.timezone` — the SAME column the metrics RPCs and
    * the Today surface read. A receptionist that states opening hours needs to
@@ -87,35 +93,49 @@ async function runtimeStamp(db: SupabaseClient<Database>, tenantId: string): Pro
   return typeof data === "string" ? data : "";
 }
 
+/** Whether a WhatsApp channel's provider id is the environment's own pilot line. */
+function isEnvNumber(externalId: string | null | undefined): boolean {
+  const env = process.env.WHATSAPP_PHONE_ID || "";
+  return !!env && externalId === env;
+}
+
+/** The environment pair, when both halves exist. */
+function envPair(): { phoneId: string; accessToken: string } | null {
+  const phoneId = process.env.WHATSAPP_PHONE_ID || "";
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN || "";
+  return phoneId && accessToken ? { phoneId, accessToken } : null;
+}
+
 /**
  * This tenant's WhatsApp credentials, whichever channel is asking.
  *
- * Two queries rather than one because `get_channel_credentials` takes a
- * channel id and the routed channel may be the voice one. The WhatsApp row is
- * looked up by tenant and kind, and only then are its credentials fetched — so
- * a voice-routed runtime and a WhatsApp-routed runtime for the same tenant
- * resolve to the same thing, which is what the tenant-keyed cache already
- * assumed.
+ * Resolved by tenant and kind rather than by the routed channel: a phone call
+ * routes on the voice channel, whose credentials_ref is null, and the result
+ * is cached under the tenant id alone, so the WhatsApp row is the one that
+ * answers for every caller.
  *
- * Returns null when the tenant has no active WhatsApp channel or that channel
- * carries no credentials_ref; waCfgFor then falls back to the environment,
- * which is correct for the one tenant still running on env vars.
+ * REFUSES RATHER THAN FALLS BACK. This returned null on a vault error and the
+ * caller then used the environment pair, so a lookup blip sent one business's
+ * reply from another business's number on another business's token. A tenant
+ * whose credentials cannot be read gets none, and the send fails where a
+ * person is told. The one exception is stated as a fact, not a fallback: the
+ * tenant whose channel row carries the environment's own phone_number_id.
  */
 async function resolveWaCredentials(
   db: SupabaseClient<Database>,
   routed: RoutedChannel,
-): Promise<{ data: { access_token?: string; phone_id?: string } | null; error: null }> {
-  // The routed channel already IS the WhatsApp one on the commonest path;
-  // skip the lookup rather than pay for it on every inbound message.
+): Promise<{ creds: { accessToken: string; phoneId: string } | null; envNumber: boolean }> {
   let channelId: string | null = null;
   let ref: string | null = null;
+  let externalId: string | null = null;
   if (routed.kind === "whatsapp") {
     channelId = routed.channelId;
     ref = routed.credentialsRef ?? null;
+    externalId = routed.externalId;
   } else {
     const { data } = await db
       .from("tenant_channels")
-      .select("id, credentials_ref")
+      .select("id, credentials_ref, external_id")
       .eq("tenant_id", routed.tenantId)
       .eq("kind", "whatsapp")
       .eq("status", "active")
@@ -123,16 +143,20 @@ async function resolveWaCredentials(
       .maybeSingle();
     channelId = data?.id ?? null;
     ref = data?.credentials_ref ?? null;
+    externalId = data?.external_id ?? null;
   }
-  if (!channelId || !ref) return { data: null, error: null };
+  const envNumber = isEnvNumber(externalId);
+  if (!channelId || !ref) return { creds: null, envNumber };
   const { data, error } = await db.rpc("get_channel_credentials", { p_channel_id: channelId });
   if (error) {
-    // Loud, then fall back to the environment. A credential lookup that fails
-    // must not take the line down for the tenant that does not need it.
     console.error("wa_credentials_lookup_failed", routed.tenantId, error.message);
-    return { data: null, error: null };
+    return { creds: null, envNumber };
   }
-  return { data: data as { access_token?: string; phone_id?: string } | null, error: null };
+  const c = data as { access_token?: string; phone_id?: string } | null;
+  return {
+    creds: c?.access_token && c?.phone_id ? { accessToken: c.access_token, phoneId: c.phone_id } : null,
+    envNumber,
+  };
 }
 
 export async function loadTenantRuntime(
@@ -201,7 +225,6 @@ export async function loadTenantRuntime(
     for (const p of polQ.data ?? []) {
       policy[p.class] = { mode: p.mode, limits: (p.limits ?? {}) as PolicyLimits };
     }
-    const rawCreds = credsQ.data as { access_token?: string; phone_id?: string } | null;
     const rt: TenantRuntime = {
       tenantId: routed.tenantId,
       brain: parsed?.brain ?? null,
@@ -209,10 +232,8 @@ export async function loadTenantRuntime(
       calendar: parsed?.calendar ?? null,
       features: parsed?.features ?? null,
       policy,
-      waCreds:
-        rawCreds?.access_token && rawCreds?.phone_id
-          ? { accessToken: rawCreds.access_token, phoneId: rawCreds.phone_id }
-          : null,
+      waCreds: credsQ.creds,
+      envNumber: credsQ.envNumber,
       timezone: tzQ.data?.timezone ?? null,
       // Deliberately not thrown on. A channel list that failed to read leaves
       // the prompt exactly where it was before this existed — typed values,
@@ -242,6 +263,8 @@ export async function loadTenantRuntime(
       features: null,
       policy: {},
       waCreds: null,
+      // What the routed row itself says; nothing else could be read.
+      envNumber: routed.kind === "whatsapp" && isEnvNumber(routed.externalId),
       timezone: null,
       known: { workspace: null, channels: [], listing: null },
       paused: false,
@@ -251,57 +274,62 @@ export async function loadTenantRuntime(
 }
 
 /**
- * The WhatsApp credentials to send this tenant's messages with.
- *
- * Per-tenant Vault credentials when the channel carries a ref; the env pair is
- * the fallback for the tenant that predates the control plane (rollback =
- * delete the ref). This lived inside the WhatsApp webhook as a private helper
- * while a second send path — the voice agent's booking-link function — reached
- * straight for `process.env`, which is how that path came to send every
- * tenant's message from tenant #1's number.
- */
-/**
  * A tenant's WhatsApp credentials, for callers holding a tenant_id and no
- * routed channel — the job runner being the one that matters.
+ * routed channel -- the job runner and the template doors.
  *
- * Every outbound_send went out on process.env regardless of whose job it was,
- * so at tenant #2 an operator's reply would have left from tenant #1's number
- * on tenant #1's token. Falls back to the environment, which is right for the
- * one tenant still running that way.
+ * Null means NO credentials, and the caller must refuse: the environment pair
+ * is handed out only to the tenant whose channel row carries the environment's
+ * own phone_number_id. A vault error is a refusal too, said in the log; a
+ * fallback here is how a second business's reply left from the first one's
+ * number.
  */
 export async function waCredentialsForTenant(
   db: SupabaseClient<Database>,
   tenantId: string,
-): Promise<{ phoneId: string; accessToken: string }> {
+): Promise<{ phoneId: string; accessToken: string } | null> {
   try {
-    const { data: ch } = await db
+    const { data: ch, error: chErr } = await db
       .from("tenant_channels")
-      .select("id, credentials_ref")
+      .select("id, credentials_ref, external_id")
       .eq("tenant_id", tenantId)
       .eq("kind", "whatsapp")
       .eq("status", "active")
       .limit(1)
       .maybeSingle();
-    if (ch?.id && ch.credentials_ref) {
-      const { data, error } = await db.rpc("get_channel_credentials", { p_channel_id: ch.id });
-      const c = data as { access_token?: string; phone_id?: string } | null;
-      if (!error && c?.access_token && c?.phone_id) {
-        return { phoneId: c.phone_id, accessToken: c.access_token };
-      }
-      if (error) console.error("wa_credentials_for_tenant_failed", tenantId, error.message);
+    if (chErr) {
+      console.error("wa_credentials_channel_unreadable", tenantId, chErr.message);
+      return null;
     }
+    if (!ch) return null;
+    if (ch.credentials_ref) {
+      const { data, error } = await db.rpc("get_channel_credentials", { p_channel_id: ch.id });
+      if (error) {
+        console.error("wa_credentials_for_tenant_failed", tenantId, error.message);
+        return null;
+      }
+      const c = data as { access_token?: string; phone_id?: string } | null;
+      return c?.access_token && c?.phone_id ? { phoneId: c.phone_id, accessToken: c.access_token } : null;
+    }
+    return isEnvNumber(ch.external_id) ? envPair() : null;
   } catch (e) {
     console.error("wa_credentials_for_tenant_threw", tenantId, e instanceof Error ? e.message : e);
+    return null;
   }
-  return waCfgFor(null);
 }
 
-export function waCfgFor(rt?: TenantRuntime | null): { phoneId: string; accessToken: string } {
+/**
+ * The credentials a send on behalf of this runtime uses, or null: never a
+ * guess. `arrivedOnEnvNumber` is the webhook's own knowledge that the message
+ * came in on the environment's pilot line, which is the one case where the
+ * environment pair is right even when the control plane could not be read.
+ */
+export function waCfgFor(
+  rt?: TenantRuntime | null,
+  arrivedOnEnvNumber = false,
+): { phoneId: string; accessToken: string } | null {
   if (rt?.waCreds) return { phoneId: rt.waCreds.phoneId, accessToken: rt.waCreds.accessToken };
-  return {
-    phoneId: process.env.WHATSAPP_PHONE_ID || "",
-    accessToken: process.env.WHATSAPP_ACCESS_TOKEN || "",
-  };
+  if (rt?.envNumber || arrivedOnEnvNumber) return envPair();
+  return null;
 }
 
 /**
