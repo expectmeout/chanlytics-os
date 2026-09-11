@@ -1,9 +1,13 @@
+import { z } from "zod";
 import { AppError, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES } from "@chanlytics/contracts";
-import { withRoute, memberContext, requireRole } from "@/server/with-route";
-import { jsonBody, requireUuid } from "@/server/request-guards";
-import { recordDecision } from "@/server/verbs";
-import { takeRate } from "@/server/rate-limit";
+import { write } from "@/server/route";
+import { contactScope, recordDecision } from "@/server/verbs";
 
+const Body = z.object({
+  consent: z.enum(CONSENT_STATES as unknown as [string, ...string[]], { message: "Consent must be one of: opted_in, opted_out, unknown." }),
+  source: z.string().optional(),
+  note: z.string().optional(),
+});
 
 /**
  * PUT /api/v1/contacts/:id/consent — { consent, source?, note? }
@@ -11,52 +15,44 @@ import { takeRate } from "@/server/rate-limit";
  * The customer's CONVERSATIONAL answer -- messages about their own visit, and a
  * reply when they write -- recorded by the person who heard it. Not offers: those
  * are a separate answer with their own door, ../marketing-consent/route.ts, since
- * 00095 split the two because the carriers require them collected separately. This
- * comment used to call this the answer "about marketing messages", which after
- * that split is exactly the one thing it is not. "opted_in" and "opted_out" need a source that says how — in
- * person, on the phone, on a form, or in their own message; "unknown" is the
- * reset to "not asked" and carries no source. Owner or operator: the front
- * desk is where the answer is usually given. The door is one definer
- * function that writes the three consent columns together and keeps the
- * event; the ledger row here says who recorded it and how.
+ * 00095 split the two because the carriers require them collected separately.
+ * "opted_in" and "opted_out" need a source that says how — in person, on the
+ * phone, on a form, or in their own message; "unknown" is the reset to "not
+ * asked" and carries no source. Owner or operator: the front desk is where the
+ * answer is usually given. The door is one definer function that writes the
+ * three consent columns together and keeps the event; the ledger row here says
+ * who recorded it and how.
+ *
+ * The contact is the row (contactScope in verbs.ts): read under RLS, so one
+ * the caller cannot see is a 404 rather than a leak, and the role is decided
+ * against the contact's tenant, never one from the body.
  */
-export const PUT = withRoute(async (req, ctx) => {
-  await takeRate(ctx.userId, "consent");
-  const id = requireUuid(ctx.params.id, "contact");
-  const body = (await jsonBody(req)) as { consent?: unknown; source?: unknown; note?: unknown } | null;
-  const consent = body?.consent;
-  if (typeof consent !== "string" || !(CONSENT_STATES as readonly string[]).includes(consent)) {
-    throw new AppError("validation", "Consent must be one of: opted_in, opted_out, unknown.");
-  }
-  const source = consent === "unknown" ? CONSENT_RESET_SOURCE : body?.source;
-  if (typeof source !== "string" || (consent !== "unknown" && !CONSENT_SOURCES.some((s) => s.id === source))) {
-    throw new AppError("validation", "Say how they told you: in person, on the phone, on a form, or in their own message.");
-  }
-  const note = typeof body?.note === "string" && body.note.trim() ? body.note.trim().slice(0, 200) : null;
+export const PUT = write({
+  scope: contactScope,
+  role: "operator",
+  rate: "consent",
+  input: Body,
+  handle: async ({ ctx, row: contact, input: body }) => {
+    const id = contact.id;
+    const consent = body.consent;
+    const source = consent === "unknown" ? CONSENT_RESET_SOURCE : body?.source;
+    if (typeof source !== "string" || (consent !== "unknown" && !CONSENT_SOURCES.some((s) => s.id === source))) {
+      throw new AppError("validation", "Say how they told you: in person, on the phone, on a form, or in their own message.");
+    }
+    const note = typeof body?.note === "string" && body.note.trim() ? body.note.trim().slice(0, 200) : null;
 
-  // RLS scopes this read, so a contact the caller cannot see is a 404 rather
-  // than a leak; the role is then decided against the contact's tenant.
-  const { data: contact, error } = await ctx.supabase
-    .from("contacts")
-    .select("id, tenant_id, erased_at")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!contact || contact.erased_at) throw new AppError("not_found", "Contact not found.", 404);
-  const member = await memberContext(ctx, contact.tenant_id);
-  requireRole(member, "operator");
+    const { data, error: doorErr } = await ctx.supabase.rpc("set_contact_consent", {
+      p_contact_id: id,
+      p_consent: consent,
+      p_source: source,
+      ...(note ? { p_note: note } : {}),
+    });
+    if (doorErr) throw new AppError("validation", doorErr.message);
+    const r = (data ?? {}) as { previous?: string | null; updated_at?: string | null; dnc?: boolean };
 
-  const { data, error: doorErr } = await ctx.supabase.rpc("set_contact_consent", {
-    p_contact_id: id,
-    p_consent: consent,
-    p_source: source,
-    ...(note ? { p_note: note } : {}),
-  });
-  if (doorErr) throw new AppError("validation", doorErr.message);
-  const r = (data ?? {}) as { previous?: string | null; updated_at?: string | null; dnc?: boolean };
-
-  const decisionId = await recordDecision(ctx, contact.tenant_id, "contact", id, "consent_change", {
-    consent, source, note, previous: r.previous ?? null,
-  });
-  return { contact_id: id, consent, dnc: !!r.dnc, source, updated_at: r.updated_at ?? null, decision_id: decisionId };
+    const decisionId = await recordDecision(ctx, contact.tenant_id, "contact", id, "consent_change", {
+      consent, source, note, previous: r.previous ?? null,
+    });
+    return { contact_id: id, consent, dnc: !!r.dnc, source, updated_at: r.updated_at ?? null, decision_id: decisionId };
+  },
 });

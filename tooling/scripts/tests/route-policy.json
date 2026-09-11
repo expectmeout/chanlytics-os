@@ -7,9 +7,7 @@
     "ask/threads",
     "ask/threads/[id]",
     "billing",
-    "billing/checkout",
     "billing/invoices",
-    "billing/portal",
     "billing/resume",
     "billing/sync",
     "broadcasts",
@@ -29,9 +27,7 @@
     "consent/qr",
     "contacts",
     "contacts/[id]",
-    "contacts/[id]/consent",
     "contacts/[id]/details",
-    "contacts/[id]/marketing-consent",
     "contacts/[id]/receptionist",
     "contacts/export",
     "conversations",
@@ -50,10 +46,8 @@
     "google/reviews/[id]/reply",
     "google/search",
     "lines",
-    "lines/buy",
     "lines/forwarding",
     "lines/forwarding/test",
-    "lines/register",
     "lines/retry",
     "lines/search",
     "me",
@@ -89,6 +83,34 @@
     "workspaces/create"
   ],
   "routes": {
+    "POST billing/checkout": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "billing",
+      "spend": false
+    },
+    "POST billing/portal": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "billing",
+      "spend": false
+    },
+    "PUT contacts/[id]/consent": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "consent",
+      "spend": false
+    },
+    "PUT contacts/[id]/marketing-consent": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "consent",
+      "spend": false
+    },
     "POST conversations/[id]/archive": {
       "kind": "write",
       "scope": "row",
@@ -130,6 +152,20 @@
       "role": "operator",
       "rate": "thread_state",
       "spend": false
+    },
+    "POST lines/buy": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "lines_buy",
+      "spend": true
+    },
+    "POST lines/register": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "lines_register",
+      "spend": true
     },
     "POST messages/[id]/cancel-send": {
       "kind": "write",

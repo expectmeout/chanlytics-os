@@ -76,20 +76,20 @@ test("the second door: an operator can record a signed marketing consent", () =>
   // signed". Only the first was ever built, so the second was impossible -- and
   // both controls that looked like they did it wrote the other column.
   const r = readCode("apps/dashboard/app/api/v1/contacts/[id]/marketing-consent/route.ts");
-  assert.ok(r.includes('requireRole(member, "operator");'), "the front desk records answers");
-  assert.ok(r.includes('takeRate(ctx.userId, "consent");'));
+  assert.ok(r.includes('role: "operator",'), "the front desk records answers");
+  assert.ok(r.includes('rate: "consent",'));
   assert.ok(r.includes('const source = consent === "unknown" ? CONSENT_RESET_SOURCE : body?.source;'), "the same four sources and the same reset as its sibling");
   assert.ok(r.includes('ctx.supabase.rpc("set_marketing_consent", {'), "the session client, so is_acting_member inside the door sees the caller");
   assert.ok(r.includes("p_tenant_id: contact.tenant_id,"), "the tenant is the one the contact was READ from under RLS, never from the body");
-  assert.ok(r.includes('if (!contact || contact.erased_at) throw new AppError("not_found", "Contact not found.", 404);'));
+  assert.ok(r.includes("scope: contactScope,"), "the contact is the row: read under RLS in verbs.ts, a 404 when the caller cannot see it or it is erased");
   assert.ok(r.includes('purpose: "marketing", consent, source, note, previous: contact.marketing_consent ?? null,'), "the ledger names the purpose");
   assert.ok(!/set_contact_consent|p_note: null/.test(r), "REGRESSION: the marketing door must never write the conversational column");
 });
 
 test("the route: operator or owner, a yes or a no needs its source, the reset needs none, the ledger keeps who and how", () => {
   const r = readCode("apps/dashboard/app/api/v1/contacts/[id]/consent/route.ts");
-  assert.ok(r.includes('requireRole(member, "operator");'), "the front desk records answers");
-  assert.ok(r.includes('takeRate(ctx.userId, "consent");'));
+  assert.ok(r.includes('role: "operator",'), "the front desk records answers");
+  assert.ok(r.includes('rate: "consent",'));
   assert.ok(r.includes('const source = consent === "unknown" ? CONSENT_RESET_SOURCE : body?.source;'));
   assert.ok(r.includes('ctx.supabase.rpc("set_contact_consent", {'), "the session client, so auth.uid() inside the door is the caller");
   assert.ok(r.includes('recordDecision(ctx, contact.tenant_id, "contact", id, "consent_change", {'));

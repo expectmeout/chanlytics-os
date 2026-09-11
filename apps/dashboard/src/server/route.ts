@@ -19,8 +19,9 @@
  *   input   the zod schema its body (or, for a read, its query) must pass
  *
  * The order is part of the contract: a viewer is refused before a token is
- * spent, and both before the body is judged, so a 403 never hides behind a
- * 429 and a malformed request from someone who may not act learns nothing.
+ * spent, so is a workspace that may not spend, and all of that before the
+ * body is judged, so a 403 or a 402 never hides behind a 429 and a malformed
+ * request from someone who may not act learns nothing.
  *
  * The exported handler carries its `policy`, which route-policy.test.mjs
  * compares with route-policy.json, and `run(req, ctx)`: everything after the
@@ -188,11 +189,13 @@ function build<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I, O>)
       if (!member) throw new Error(`a ${spec.scope.kind}-scoped route cannot require a role`);
       requireRole(member, spec.role);
     }
-    if (spec.rate) await takeRate(ctx.userId, spec.rate);
+    // A workspace that may not spend is refused before a token is spent on a
+    // request that cannot proceed: a 402 must not turn into a 429 on retry.
     if (spec.spend) {
       if (!member) throw new Error(`a ${spec.scope.kind}-scoped route cannot spend a workspace's money`);
       await requireSpend(ctx, member);
     }
+    if (spec.rate) await takeRate(ctx.userId, spec.rate);
     const input =
       kind === "write"
         ? spec.input ? parse(spec.input, await bodyOf(req)) : undefined

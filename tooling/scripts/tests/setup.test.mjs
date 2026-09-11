@@ -304,8 +304,9 @@ test("Setup says what texting actually is, and names a mock filing as a mock fil
 test("the wiring for lines: routes owner-only and rate-limited, the setup route carries them, the bridge repaints on a step, the page has the chooser", () => {
   for (const [file, bucket] of [["search", "lines_search"], ["buy", "lines_buy"], ["retry", "lines_retry"]]) {
     const src = readCode(`apps/dashboard/app/api/v1/lines/${file}/route.ts`);
-    assert.ok(src.includes('requireRole(member, "owner")'), `${file}: owners only`);
-    assert.ok(src.includes(`takeRate(ctx.userId, "${bucket}")`), `${file}: ${bucket}`);
+    // buy declares its policy on the export (route()); search and retry still perform it by hand.
+    assert.ok(src.includes('requireRole(member, "owner")') || src.includes('role: "owner",'), `${file}: owners only`);
+    assert.ok(src.includes(`takeRate(ctx.userId, "${bucket}")`) || src.includes(`rate: "${bucket}",`), `${file}: ${bucket}`);
     assert.ok(src.includes('op: "' + file + '"'), `${file}: the edge op`);
   }
   assert.ok(readCode("apps/dashboard/app/api/v1/lines/route.ts").includes("linesFor(ctx.supabase, member.tenantId), linesStatus()"));

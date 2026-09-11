@@ -1,9 +1,13 @@
+import { z } from "zod";
 import { AppError, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, offersYesRefusal } from "@chanlytics/contracts";
-import { withRoute, memberContext, requireRole } from "@/server/with-route";
-import { jsonBody, requireUuid } from "@/server/request-guards";
-import { recordDecision } from "@/server/verbs";
-import { takeRate } from "@/server/rate-limit";
+import { write } from "@/server/route";
+import { contactScope, recordDecision } from "@/server/verbs";
 
+const Body = z.object({
+  consent: z.enum(CONSENT_STATES as unknown as [string, ...string[]], { message: "Consent must be one of: opted_in, opted_out, unknown." }),
+  source: z.string().optional(),
+  note: z.string().optional(),
+});
 
 /**
  * PUT /api/v1/contacts/:id/marketing-consent — { consent, source?, note? }
@@ -20,70 +24,61 @@ import { takeRate } from "@/server/rate-limit";
  *
  * It is a sibling of ../consent/route.ts and deliberately shaped the same way:
  * the same states, the same four sources, the same 200-character note, the same
- * RLS-scoped read so a contact the caller cannot see is a 404 rather than a leak,
- * the same operator role, the same decision ledger. Two routes rather than one
- * with a `purpose` parameter, because the two answers have different rules
- * underneath — the conversational door derives `dnc` from an opt-out, and this one
- * must never touch it: declining offers is not a request to stop hearing about
- * your own appointment.
+ * RLS-scoped read (contactScope) so a contact the caller cannot see is a 404
+ * rather than a leak, the same operator role, the same decision ledger. Two
+ * routes rather than one with a `purpose` parameter, because the two answers
+ * have different rules underneath — the conversational door derives `dnc` from
+ * an opt-out, and this one must never touch it: declining offers is not a
+ * request to stop hearing about your own appointment.
  *
  * The RPC takes the tenant explicitly (it is also called with no session, by the
  * edge), so the tenant passed here is the one the contact was READ from under
  * RLS, never one from the request body.
  */
-export const PUT = withRoute(async (req, ctx) => {
-  await takeRate(ctx.userId, "consent");
-  const id = requireUuid(ctx.params.id, "contact");
-  const body = (await jsonBody(req)) as { consent?: unknown; source?: unknown; note?: unknown } | null;
-  const consent = body?.consent;
-  if (typeof consent !== "string" || !(CONSENT_STATES as readonly string[]).includes(consent)) {
-    throw new AppError("validation", "Consent must be one of: opted_in, opted_out, unknown.");
-  }
-  const source = consent === "unknown" ? CONSENT_RESET_SOURCE : body?.source;
-  if (typeof source !== "string" || (consent !== "unknown" && !CONSENT_SOURCES.some((s) => s.id === source))) {
-    throw new AppError("validation", "Say how they told you: in person, on the phone, on a form, or in their own message.");
-  }
-  // A yes to OFFERS is written or it is not recorded. The database refuses a spoken
-  // one as well (00100); asking here first hands the person a sentence instead of
-  // the database's. A NO is never narrowed: "no more offers" said at the desk is
-  // honoured as it was said.
-  if (consent === "opted_in") {
-    const refusal = offersYesRefusal(source);
-    if (refusal) throw new AppError("validation", refusal);
-  }
-  const note = typeof body?.note === "string" && body.note.trim() ? body.note.trim().slice(0, 200) : null;
+export const PUT = write({
+  scope: contactScope,
+  role: "operator",
+  rate: "consent",
+  input: Body,
+  handle: async ({ ctx, row: contact, input: body }) => {
+    const id = contact.id;
+    const consent = body.consent;
+    const source = consent === "unknown" ? CONSENT_RESET_SOURCE : body?.source;
+    if (typeof source !== "string" || (consent !== "unknown" && !CONSENT_SOURCES.some((s) => s.id === source))) {
+      throw new AppError("validation", "Say how they told you: in person, on the phone, on a form, or in their own message.");
+    }
+    // A yes to OFFERS is written or it is not recorded. The database refuses a spoken
+    // one as well (00100); asking here first hands the person a sentence instead of
+    // the database's. A NO is never narrowed: "no more offers" said at the desk is
+    // honoured as it was said.
+    if (consent === "opted_in") {
+      const refusal = offersYesRefusal(source);
+      if (refusal) throw new AppError("validation", refusal);
+    }
+    const note = typeof body?.note === "string" && body.note.trim() ? body.note.trim().slice(0, 200) : null;
 
-  const { data: contact, error } = await ctx.supabase
-    .from("contacts")
-    .select("id, tenant_id, erased_at, marketing_consent")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!contact || contact.erased_at) throw new AppError("not_found", "Contact not found.", 404);
-  const member = await memberContext(ctx, contact.tenant_id);
-  requireRole(member, "operator");
+    const { data, error: doorErr } = await ctx.supabase.rpc("set_marketing_consent", {
+      p_tenant_id: contact.tenant_id,
+      p_contact_id: id,
+      p_consent: consent,
+      p_source: source,
+      ...(note ? { p_note: note } : {}),
+    });
+    if (doorErr) throw new AppError("validation", doorErr.message);
+    const r = (data ?? {}) as { marketing_consent?: string | null; marketing_consent_updated_at?: string | null };
 
-  const { data, error: doorErr } = await ctx.supabase.rpc("set_marketing_consent", {
-    p_tenant_id: contact.tenant_id,
-    p_contact_id: id,
-    p_consent: consent,
-    p_source: source,
-    ...(note ? { p_note: note } : {}),
-  });
-  if (doorErr) throw new AppError("validation", doorErr.message);
-  const r = (data ?? {}) as { marketing_consent?: string | null; marketing_consent_updated_at?: string | null };
-
-  // The ledger row says who recorded it and how, and names the purpose — so one
-  // query over `events` answers "what has this person agreed to, and when".
-  const decisionId = await recordDecision(ctx, contact.tenant_id, "contact", id, "consent_change", {
-    purpose: "marketing", consent, source, note, previous: contact.marketing_consent ?? null,
-  });
-  return {
-    contact_id: id,
-    purpose: "marketing" as const,
-    consent: r.marketing_consent ?? consent,
-    source,
-    updated_at: r.marketing_consent_updated_at ?? null,
-    decision_id: decisionId,
-  };
+    // The ledger row says who recorded it and how, and names the purpose — so one
+    // query over `events` answers "what has this person agreed to, and when".
+    const decisionId = await recordDecision(ctx, contact.tenant_id, "contact", id, "consent_change", {
+      purpose: "marketing", consent, source, note, previous: contact.marketing_consent ?? null,
+    });
+    return {
+      contact_id: id,
+      purpose: "marketing" as const,
+      consent: r.marketing_consent ?? consent,
+      source,
+      updated_at: r.marketing_consent_updated_at ?? null,
+      decision_id: decisionId,
+    };
+  },
 });
