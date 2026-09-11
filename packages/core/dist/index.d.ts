@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SendResult, WaConfig } from '@chanlytics/channels';
-import { SendPurpose, DecisionSubject, DecisionVerb, ParamSpec, Audience, PersonRowVM, NumberHealth, PersonVisitsDto } from '@chanlytics/contracts';
+import { SendPurpose, DecisionSubject, DecisionVerb, ParamSpec, Audience, PersonRowVM, NumberHealth, PersonVisitsDto, PlaybookTrigger, PlaybookPolicyClass } from '@chanlytics/contracts';
 import { Json, Database } from '@chanlytics/db';
 
 /**
@@ -801,4 +801,102 @@ declare function assembleRun(ports: AssemblePorts, cmd: AssembleCommand): Promis
  */
 declare function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookCommand): Promise<RunOutcome>;
 
-export { type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastRef, type BroadcastRow, type CancelBroadcastPorts, type CancelSendPorts, type Channel, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, MAX_SNOOZE_MS, NEEDS_UNTIL, type NewBroadcast, type NewRecipient, type PlaybookRow, type ProvisionLinePorts, type QueuedReply, type RecipientMark, type RecipientRow, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type Thread, type ThreadPorts, type WakePorts, type Wire, type WirePayload, archive, assembleRun, cancelSend, deliver, deliverSafely, eraseBlobThread, handBack, provisionLine, replyToConversation, resolveEscalation, runPlaybook, sendBroadcastBatch, sendQueued, snooze, takeOver, templatePurpose, wake, whatsappSender };
+/**
+ * The template as Meta holds it and the values as Meta will accept them:
+ * what a broadcast and a playbook both name, judged once. Approved; as many
+ * values as the template takes; each typed text once or a value the job
+ * fills per person; a booking-link slot needs a link on file. Every refusal
+ * is a sentence for the person composing.
+ */
+declare function templateValues(ports: TemplateValuesPorts, cmd: {
+    templateId: string;
+    params: unknown;
+}): Promise<{
+    template: TemplateRow;
+    specs: ParamSpec[];
+}>;
+
+interface BroadcastReceipt {
+    id: string;
+    name: string;
+    state: "scheduled";
+    recipient_count: number;
+    scheduled_for: string;
+    decision_id: string;
+}
+/**
+ * A person's broadcast: one approved template to the people who said yes.
+ *
+ * { template_id, params, audience: { kind, id }, scheduled_for?, name? }.
+ * The template must be approved by WhatsApp; the values must be ones Meta
+ * accepts; the audience is one of People's lists, a list kept by hand, or
+ * everyone — crossed with who said yes and has a number, for the yes this
+ * template's category needs. The recipients are enrolled now, so the owner
+ * sees who and how many; the job re-checks each person at the wire. The
+ * ledger records the decision to send. The body is judged here, in
+ * sentences for the person composing: the values are judged against the
+ * template Meta holds, which no schema knows.
+ */
+declare function createBroadcast(ports: CreateBroadcastPorts, cmd: CreateBroadcastCommand): Promise<BroadcastReceipt>;
+
+interface ApproveReceipt {
+    id: string;
+    state: "scheduled";
+    recipient_count: number | null;
+    decision_id: string;
+}
+/**
+ * A run that was waiting for a person goes out now.
+ *
+ * Under the ask mode a playbook's run is made as pending_approval: the
+ * recipients are enrolled, nothing is scheduled. Approving schedules the
+ * send now and records the decision as the approver's; skipping is the
+ * cancel. A job the ledger refused leaves the run waiting, as it was.
+ */
+declare function approveRun(ports: ApproveRunPorts, cmd: {
+    row: BroadcastRef;
+    now: Date;
+}): Promise<ApproveReceipt>;
+
+interface CancelReceipt {
+    id: string;
+    state: "canceled";
+    was: string;
+    decision_id: string;
+}
+/**
+ * Stop a broadcast that has not finished.
+ *
+ * Scheduled: the job is withdrawn and nothing is sent. Sending: the job
+ * stops at its next batch — the messages already on their way are on their
+ * way, and the row says how many. Waiting for approval (a playbook's run
+ * under the ask mode): skipped, nothing was ever scheduled. Anything else
+ * has already ended and says so. The ledger records the decision.
+ */
+declare function cancelBroadcast(ports: CancelBroadcastPorts, cmd: {
+    row: Pick<BroadcastRef, "id" | "state" | "name">;
+}): Promise<CancelReceipt>;
+
+/** Everything a playbook names, checked. */
+interface PlaybookInput {
+    name: string;
+    trigger: PlaybookTrigger;
+    template_id: string;
+    template_name: string;
+    template_language: string;
+    params: ParamSpec[];
+    policy_class: PlaybookPolicyClass;
+    run_hour: number;
+    cap_per_run: number;
+    gap_days: number;
+    cadence_days: number;
+}
+/**
+ * Everything a playbook names, checked the way a broadcast is: the trigger,
+ * then the template and its values through the one judgement, then the
+ * whole numbers. A playbook can never name a template a broadcast could not
+ * send or a slot the workspace cannot fill.
+ */
+declare function checkPlaybook(ports: TemplateValuesPorts, body: Record<string, unknown> | null): Promise<PlaybookInput>;
+
+export { type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, MAX_SNOOZE_MS, NEEDS_UNTIL, type NewBroadcast, type NewRecipient, type PlaybookInput, type PlaybookRow, type ProvisionLinePorts, type QueuedReply, type RecipientMark, type RecipientRow, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type Thread, type ThreadPorts, type WakePorts, type Wire, type WirePayload, approveRun, archive, assembleRun, cancelBroadcast, cancelSend, checkPlaybook, createBroadcast, deliver, deliverSafely, eraseBlobThread, handBack, provisionLine, replyToConversation, resolveEscalation, runPlaybook, sendBroadcastBatch, sendQueued, snooze, takeOver, templatePurpose, templateValues, wake, whatsappSender };

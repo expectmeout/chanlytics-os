@@ -100,9 +100,7 @@ test("the job fills the slots per person and holds anyone a slot cannot be fille
   const h = readCode("packages/jobs/src/handlers.ts");
   // The slots per person and the hold on an unfillable one are run: core-broadcast.test.mjs.
   assert.ok(h.includes('const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";'));
-  const r = readCode("apps/dashboard/app/api/v1/broadcasts/route.ts");
-  assert.ok(r.includes("const spec = parseParamSpec(p);") && r.includes('"This message takes the booking link, and none is on file. Add it in Settings › Workspace first."'));
-  assert.ok(r.includes("values: specs.map(paramLabel),"), "the ledger says what filled the slots");
+  // The specs and the booking-link refusal are run: core-campaigns.test.mjs.
   const p = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
   assert.ok(p.includes('data-testid="bc-var-source"') && p.includes('data-testid="bc-new-template"'));
   assert.ok(p.includes("<window.TemplateComposer"), "one composer, mounted where a template is needed");

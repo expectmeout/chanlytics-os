@@ -130,7 +130,6 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
   for (const s of ["feedItemsFor(tenantId, url, tz, now)", "visits.set(r.id, { timezone: tz, source: \"calendar\", state: \"ok\", next: toVisitDto(v.next), last: toVisitDto(v.last) })", "toPersonRowVM({ ...r, visits: visits.get(r.id) ?? null }, now)"]) assert.ok(runner.includes(s), s);
   const handler = readCode("packages/jobs/src/handlers.ts");
   assert.ok(handler.includes('.select("contact_id, facts")'), "the row's own words ride the batch; the slots are filled from them (run in core-broadcast.test.mjs)");
-  assert.ok(readCode("apps/dashboard/src/server/playbooks.ts").includes("a visit tomorrow, or a visit yesterday"));
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes("kind: t.kind") && sd.includes('calendar: people.calendar?.state ?? "none"'), "the page knows which triggers need the calendar, and whether there is one");
   const page = readCode("apps/dashboard/src/legacy/pages/outbound-real.jsx");
