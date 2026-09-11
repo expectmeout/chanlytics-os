@@ -20,7 +20,7 @@ import { readCode, readRaw } from "./_source.mjs";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { isRetryableAuthError } = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/auth-errors.ts")).href);
 
-const route = (p) => readCode(`apps/dashboard/app/api/v1/${p}/route.ts`);
+const route = (p) => readCode(p.startsWith("packages/") ? p : `apps/dashboard/app/api/v1/${p}/route.ts`);
 
 test("every conversation verb counts the rows its UPDATE hit, in the one adapter; zero rows is the verb's 409, which is run, not read", () => {
   // The verbs live in packages/core and core-thread-verbs.test.mjs runs each
@@ -50,14 +50,14 @@ test("ids are validated by the one guard, never by a private regex", () => {
   }
 });
 
-test("the reply's idempotency key belongs to the caller and to the intent", () => {
-  const src = route("conversations/[id]/reply");
-  assert.ok(src.includes("const idemKey = idemHeader ? `${ctx.userId}:${idemHeader}` : null;"), "scoped to the caller");
+test("the reply's idempotency key belongs to the caller and to the intent (core-reply.test.mjs runs the replay; here the shape)", () => {
+  const src = route("packages/core/src/conversations/reply.ts");
+  assert.ok(src.includes("const idemKey = cmd.idempotencyKey ? `${cmd.userId}:${cmd.idempotencyKey}` : null;"), "scoped to the caller");
   assert.ok(src.includes("const sameIntent = !prior?.request_hash || prior.request_hash === intentHash;"), "a different body is a different intent");
-  assert.ok(src.includes("request_hash: intentHash,"), "the stored hash is the one compared");
+  assert.ok(src.includes("await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt);"), "the stored hash is the one compared");
   // The check happens BEFORE any side effect of the send.
   const check = src.indexOf("sameIntent");
-  const mirror = src.indexOf("mirrorBlobPause(");
+  const mirror = src.indexOf("ports.pauseBot(");
   assert.ok(check > 0 && mirror > check, "a replay must be answered before the pause is mirrored");
 });
 

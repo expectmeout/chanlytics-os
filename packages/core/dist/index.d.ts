@@ -265,4 +265,116 @@ declare function cancelSend(ports: CancelSendPorts, cmd: {
     decision_id: string;
 }>;
 
-export { type ArchivePorts, type CancelSendPorts, type Channel, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type EscalationPorts, type HandBackPorts, MAX_SNOOZE_MS, NEEDS_UNTIL, type ResolveResult, type Sender, type SnoozePorts, type SnoozeResult, type TakeOverPorts, type TakeOverResult, type TemplateSend, type Thread, type ThreadPorts, type WakePorts, type Wire, type WirePayload, archive, cancelSend, deliver, deliverSafely, handBack, resolveEscalation, snooze, takeOver, templatePurpose, wake, whatsappSender };
+/** The cancelable window IS the undo (§6): a queued reply waits this long before the job sends it. */
+declare const SEND_GRACE_MS: number;
+/**
+ * How long a stored reply receipt is replayed instead of sending again. The
+ * key identifies the message, not the attempt, so this window is the ONLY
+ * thing separating "a retry of the send that just timed out" from "the
+ * operator meant to say that again". A retry arrives in seconds; repeating
+ * the same words inside thirty seconds on purpose is implausible, and the
+ * cost of getting it wrong is asymmetric: a swallowed send reports success
+ * while the customer receives nothing.
+ */
+declare const IDEMPOTENCY_WINDOW_MS: number;
+interface ReplyBody {
+    text?: string;
+    template?: {
+        name: string;
+        language: string;
+        params?: string[];
+    };
+}
+interface ReplyReceipt {
+    message_id: string;
+    status: string;
+    cancelable_until: string;
+    window_open: boolean;
+    withdrawn_drafts: number;
+}
+interface ReplyThread extends Pick<Thread, "id" | "tenant_id" | "phone_e164"> {
+    contact_id: string | null;
+    last_wa_inbound_at: string | null;
+    consent: string | null;
+    dnc: boolean | null;
+    marketing_consent: string | null;
+}
+interface QueuedReply {
+    tenant_id: string;
+    conversation_id: string;
+    contact_id: string | null;
+    channel: "whatsapp" | "sms";
+    sent_by: string;
+    type: "template" | "text";
+    body: string;
+    template_name: string | null;
+    template_vars: Json | null;
+    content_hash: string;
+}
+type SendPayload = {
+    message_id: string;
+    conversation_id: string;
+    to_phone: string;
+} & ({
+    body: string;
+} | {
+    template: {
+        name: string;
+        language: string;
+        params: string[];
+    };
+});
+interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "pauseBot" | "withdrawDrafts" | "record" | "resolveEscalation" | "now"> {
+    /** Where the person last wrote: a text has no 24-hour window and no templates. */
+    replyChannel(conv: {
+        id: string;
+        tenant_id: string;
+    }): Promise<"whatsapp" | "sms">;
+    /** The receipt stored under this caller's key, with when and for which intent it was stored. */
+    priorReceipt(tenantId: string, key: string): Promise<{
+        response: ReplyReceipt;
+        created_at: string;
+        request_hash: string | null;
+    } | null>;
+    /** The workspace's template by name and language, as Meta last told us about it. */
+    template(tenantId: string, name: string, language: string): Promise<{
+        name: string;
+        language: string;
+        body_preview: string | null;
+        meta_status: string | null;
+        category: string | null;
+    } | null>;
+    /** The facts a template's params come from, when the workspace has them. */
+    templateFacts(tenantId: string): Promise<{
+        business_name: string;
+        booking_link: string;
+    } | null>;
+    /** needs_human, paused until, snooze cleared, claimed by the user, and the thread touched now. True iff a row changed. */
+    claimForReply(conversationId: string, untilIso: string, userId: string, nowIso: string): Promise<boolean>;
+    /** The operator's words as a queued outbound row; its id. */
+    queue(row: QueuedReply): Promise<string>;
+    /** The send job, due after the grace window; throws when it could not be scheduled. */
+    schedule(tenantId: string, dueAt: Date, payload: SendPayload): Promise<void>;
+    /** A queued row with no job to send it, canceled so it never sits "Sending…" forever. */
+    cancelOrphan(messageId: string): Promise<void>;
+    /** The receipt kept under the key for the replay window; a failure is logged there, never fatal. */
+    storeReceipt(tenantId: string, key: string, requestHash: string, response: ReplyReceipt): Promise<void>;
+    /** A stable digest of a string, for the intent and the content. */
+    hash(s: string): string;
+}
+interface ReplyCommand {
+    conv: ReplyThread;
+    userId: string;
+    body: ReplyBody;
+    idempotencyKey: string | null;
+}
+/**
+ * Human reply (§4/§6): honest by API shape. Inside the 24h window → freeform;
+ * outside → approved template only. The send is NEVER synchronous: the row
+ * sits status='queued' through a cancel window (the honest undo), then the
+ * outbound_send job fires it. A dashboard reply implicitly pauses the
+ * receptionist (D10).
+ */
+declare function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand): Promise<ReplyReceipt>;
+
+export { type ArchivePorts, type CancelSendPorts, type Channel, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type EscalationPorts, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, MAX_SNOOZE_MS, NEEDS_UNTIL, type QueuedReply, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, SEND_GRACE_MS, type SendPayload, type Sender, type SnoozePorts, type SnoozeResult, type TakeOverPorts, type TakeOverResult, type TemplateSend, type Thread, type ThreadPorts, type WakePorts, type Wire, type WirePayload, archive, cancelSend, deliver, deliverSafely, handBack, replyToConversation, resolveEscalation, snooze, takeOver, templatePurpose, wake, whatsappSender };

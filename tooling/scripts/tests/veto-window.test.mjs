@@ -71,7 +71,7 @@ test("garbage in the config falls back rather than producing NaN", () => {
 const edge = read("apps/edge/lib/whatsapp/inbound.ts");
 const sink = read("apps/edge/lib/whatsapp/persist.ts");
 const verbs = read("apps/dashboard/src/server/verbs.ts");
-const reply = read("apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts");
+const reply = read("packages/core/src/conversations/reply.ts");
 const takeOver = read("apps/dashboard/src/server/core-ports.ts");
 
 test("'veto' reaches the brain instead of being held as a policy block", () => {
@@ -91,8 +91,8 @@ test("a queued draft falls back to sending when it cannot be scheduled", () => {
 test("EVERY path where a human takes control withdraws the draft", () => {
   // Otherwise the customer receives both the override and the words it was
   // meant to replace.
-  for (const [name, src] of [["reply", reply], ["take-over", takeOver]]) {
-    assert.match(src, /cancelPendingAiReply\(/, `${name} must withdraw a held draft`);
+  for (const [name, src, withdraw] of [["reply", reply, /ports\.withdrawDrafts\(/], ["the adapter", takeOver, /withdrawDrafts: \(tenantId, id\) => cancelPendingAiReply\(/]]) {
+    assert.match(src, withdraw, `${name} must withdraw a held draft`);
   }
 });
 

@@ -148,7 +148,8 @@ test("the cache is keyed on the ACTIVE workspace", () => {
   const wrapper = readCode("apps/dashboard/src/server/with-route.ts");
   const guards = readCode("apps/dashboard/src/server/request-guards.ts");
   const verbsSrc = readCode("apps/dashboard/src/server/verbs.ts");
-  const replySrc = readCode("apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts");
+  const replySrc = readCode("packages/core/src/conversations/reply.ts");
+  const replyRoute = readCode("apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts");
 
   test("a cross-site write is refused before anything reads the database", () => {
     // These endpoints authenticate with a cookie, so a form on another site
@@ -180,9 +181,9 @@ test("the cache is keyed on the ACTIVE workspace", () => {
     // The one route that reaches a real person took whatever the body held. An
     // over-length reply was stored, reported queued, and failed 15 seconds
     // later as an escalation plus an alert email.
-    assert.match(replySrc, /4096/);
-    assert.match(replySrc, /input: ReplyBody/);
-    assert.match(replySrc, /\.strict\(\)/);
+    assert.match(replyRoute, /4096/);
+    assert.match(replyRoute, /input: ReplyBody/);
+    assert.match(replyRoute, /\.strict\(\)/);
   });
 
   test("template params come from config FIRST, not from the browser", () => {
@@ -190,10 +191,9 @@ test("the cache is keyed on the ACTIVE workspace", () => {
     // server-side "so the browser neither knows nor ships any workspace's
     // booking link" — and the code preferred whatever the browser sent, so an
     // operator session could choose the link that lands on the customer's phone.
-    const at = replySrc.indexOf("let params: string[] = []");
-    const cfg = replySrc.indexOf("tenant_config", at);
-    const client = replySrc.indexOf("body.template.params", at);
-    assert.ok(at > -1 && cfg > -1 && client > -1);
-    assert.ok(cfg < client, "config is consulted before the client's params");
+    const cfg = replySrc.indexOf("await ports.templateFacts(conv.tenant_id)");
+    const client = replySrc.indexOf("body.template.params", cfg);
+    assert.ok(cfg > -1 && client > -1);
+    assert.ok(cfg < client, "config is consulted before the client's params (core-reply.test.mjs runs it)");
   });
 }
