@@ -57,7 +57,7 @@
     "media.test.mjs": 12,
     "message-delivery-honesty.test.mjs": 4,
     "metrics-truth.test.mjs": 4,
-    "notifications-durable.test.mjs": 15,
+    "notifications-durable.test.mjs": 14,
     "notifications.test.mjs": 3,
     "numbers-two-tables.test.mjs": 3,
     "one-hours-algorithm.test.mjs": 1,
