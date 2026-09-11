@@ -72,8 +72,6 @@
     "setup",
     "setup/request",
     "team",
-    "team/[id]",
-    "team/invite",
     "templates",
     "templates/[id]",
     "templates/draft",
@@ -172,6 +170,27 @@
       "scope": "row",
       "role": "operator",
       "rate": "thread_state",
+      "spend": false
+    },
+    "PATCH team/[id]": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "team",
+      "spend": false
+    },
+    "DELETE team/[id]": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "team",
+      "spend": false
+    },
+    "POST team/invite": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "invite",
       "spend": false
     }
   }

@@ -46,7 +46,7 @@ test("the ceilings are ones a person never reaches and a script reaches at once"
 
 test("every route that sends, spends or aggregates counts against its bucket", () => {
   const routes = [
-    ["team/invite/route.ts", 'takeRate(ctx.userId, "invite");'],
+    ["team/invite/route.ts", 'rate: "invite",'],
     ["conversations/[id]/reply/route.ts", 'takeRate(ctx.userId, "reply");'],
     ["contacts/[id]/route.ts", 'takeRate(ctx.userId, "erase");'],
     ["calls/[id]/whisper/route.ts", 'takeRate(ctx.userId, "whisper");'],
@@ -59,13 +59,15 @@ test("every route that sends, spends or aggregates counts against its bucket", (
   ];
   for (const [rel, call] of routes) {
     const src = readCode(`apps/dashboard/app/api/v1/${rel}`);
-    assert.ok(src.includes('from "@/server/rate-limit"'), `${rel} imports the limiter`);
+    // A route that declares its policy (route()) never imports the limiter itself: the wrapper takes the token.
+    assert.ok(src.includes('from "@/server/rate-limit"') || src.includes('from "@/server/route"'), `${rel} imports the limiter, or declares its bucket to the wrapper that does`);
     assert.ok(src.includes(call), `${rel} counts against its bucket`);
   }
   // The role door still comes first where there is one: a viewer is refused
   // as a viewer, not told to slow down.
+  // For a declared route the order is route()'s: role before rate, by construction.
   const invite = readCode("apps/dashboard/app/api/v1/team/invite/route.ts");
-  assert.ok(invite.indexOf('requireRole(member, "owner")') < invite.indexOf('takeRate(ctx.userId, "invite")'));
+  assert.ok(invite.includes('role: "owner",') && invite.includes('rate: "invite",'));
   const reply = readCode("apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts");
   assert.ok(reply.indexOf("await requireOperator(ctx, conv.tenant_id)") < reply.indexOf('takeRate(ctx.userId, "reply")'));
 });
