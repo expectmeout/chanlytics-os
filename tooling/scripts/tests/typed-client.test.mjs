@@ -45,7 +45,7 @@ test("a read: the path with its params, the query, the workspace the tab holds, 
 
 test("a write: JSON in, the idempotency key and the via marker on the wire, then invalidate and the refresh map", async () => {
   const h = harness(envelope({ message_id: "m1", status: "queued" }));
-  const r = await h.api("POST conversations/[id]/reply", { params: { id: C1 }, body: { text: "On our way." }, idempotencyKey: "k1", via: "ask" });
+  const r = await h.api("POST conversations/[id]/reply", { params: { id: C1 }, body: { text: "On our way." }, idempotencyKey: "k1", via: "ask", onAccepted: () => h.events.push("accepted") });
   assert.equal(r.ok, true);
   const { init } = h.sent[0];
   assert.equal(init.method, "POST");
@@ -53,11 +53,14 @@ test("a write: JSON in, the idempotency key and the via marker on the wire, then
   assert.equal(init.headers["content-type"], "application/json");
   assert.equal(init.headers["idempotency-key"], "k1");
   assert.equal(init.headers["x-via"], "ask");
-  assert.deepEqual(h.events, ["refresh:POST conversations/[id]/reply"], "after a 2xx, the map");
+  assert.deepEqual(h.events, ["accepted", "refresh:POST conversations/[id]/reply"], "after a 2xx: the caller's accepted hook, then the map");
   const bodiless = harness(envelope({ status: "active" }));
   await bodiless.api("POST billing/sync");
   assert.equal(bodiless.sent[0].init.body, undefined);
   assert.equal(bodiless.sent[0].init.headers["content-type"], undefined, "no body, no content type");
+  const held = harness(envelope({ ok: true }));
+  await held.api("PUT contacts/[id]/consent", { params: { id: C1 }, body: { consent: "opted_in", source: "desk" }, refresh: false });
+  assert.deepEqual(held.events, [], "refresh: false holds the map, for a bulk verb that re-reads once at its end");
 });
 
 test("a refusal is the server's words and code; a 401 signs out; a network failure changes nothing and says so", async () => {

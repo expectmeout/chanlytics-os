@@ -412,7 +412,7 @@ test("a name the owner gives and notes the receptionist reads: two doors, one ro
   const detail = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
   assert.ok(detail.includes('sb.from("contacts").select("notes").eq("id", id).maybeSingle()') && detail.includes("notes: own.data?.notes ?? null,"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");
-  assert.ok(bridge.includes("window.__setPersonDetails = setPersonDetails;") && bridge.includes("/details`)"));
+  assert.ok(bridge.includes("window.__setPersonDetails = setPersonDetails;") && bridge.includes('"PUT contacts/[id]/details"'));
   const page = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
   for (const id of ["person-rename", "person-name-input", "person-name-save", "person-notes", "person-notes-input", "person-notes-save"]) assert.ok(page.includes(`data-testid="${id}"`), id);
   assert.ok(page.includes("Notes · the receptionist reads these") && page.includes("the receptionist uses these as facts and never reads them aloud"));
@@ -504,7 +504,7 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
   const bridge = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");
   assert.ok(bridge.includes("export async function setPersonConsentMany(ids: string[], body: ConsentBody): Promise<ManyResult>") && bridge.includes("const take = [...new Set(ids)].slice(0, 50);"));
   assert.ok(bridge.includes("window.__setPersonConsentMany = setPersonConsentMany;"));
-  assert.ok(bridge.split("await refreshSurfaces([peopleOverride]);").length >= 3, "the single and the many both refresh, the many once");
+  assert.ok(bridge.includes("return api()(CONSENT_ROUTE[purpose], { params: { id }, body });") && bridge.includes("await api()(CONSENT_ROUTE[purpose], { params: { id }, body, refresh: false });") && bridge.includes("await refreshAfter(CONSENT_ROUTE[purpose]);"), "the single refreshes through the map; the many hold it and refresh once at the end");
   const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
   for (const id of ["select-all", "row-select", "bulk-bar", "bulk-list-name", "bulk-export", "bulk-clear", "save-shown", "save-shown-name"]) assert.ok(page.includes(`data-testid="${id}"`), id);
   // WHICH yes, and how it was given. The bulk action was titled for offers and

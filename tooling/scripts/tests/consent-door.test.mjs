@@ -102,8 +102,8 @@ test("the page: TWO asks, each asking how before it writes, a STOP is not undone
   assert.ok(b.includes("window.__setPersonMarketingConsent = setPersonMarketingConsent;"));
   // One transport, the path chosen by purpose, so neither answer can be posted to
   // the other's door by a typo in a page.
-  assert.ok(b.includes('conversational: "consent",') && b.includes('marketing: "marketing-consent",'));
-  assert.ok(b.includes("${CONSENT_PATH[purpose]}`"));
+  assert.ok(b.includes('conversational: "PUT contacts/[id]/consent",') && b.includes('marketing: "PUT contacts/[id]/marketing-consent",'));
+  assert.ok(b.includes("api()(CONSENT_ROUTE[purpose]"));
 
   const p = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
   // The same pair the public /yes page renders, so a reader can see that one may be

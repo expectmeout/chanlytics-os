@@ -169,10 +169,9 @@ test("nothing outside the runner calls activateOverride directly", () => {
     // and then refreshes; that refresh joins a request issued BEFORE the
     // commit and repaints the thread exactly as it was, under a "live" pill.
     assert.match(seam, /export function invalidateInFlight/);
-    const at = verbs.indexOf("invalidateInFlight()");
-    assert.ok(at > -1, "the courier must invalidate after a write");
-    // Before the return, i.e. on the success path.
-    assert.ok(at < verbs.indexOf("return { ok: true, data: j.data }"));
+    // The client does this now, once, for every courier (typed-client.test.mjs
+    // runs it): a courier that owns no fetch cannot forget to.
+    assert.ok(!verbs.includes("fetch("), "the courier owns no fetch; the client forgets after every write");
   });
 
   test("an auth outage is a 503, not a sign-out", () => {

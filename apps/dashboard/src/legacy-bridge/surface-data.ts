@@ -18,7 +18,7 @@ import { getActiveWorkspace, setActiveWorkspace } from "./workspace";
 export { getActiveWorkspace, setActiveWorkspace } from "./workspace";
 import { DEFAULT_REFRESH_TABLES, type RealtimeChange } from "./surface-realtime";
 import type { NotificationsDto, PendingWorkspace, ResolvedFacts, FactConflict } from "@chanlytics/contracts";
-import type { PoliciesSurface, PolicyRecordLike } from "./policy-store";
+import type { PoliciesSurface } from "./policy-store";
 
 export interface SurfaceOverride {
   /** Surface key, matching the slice that owns it (e.g. "conversations"). */
@@ -175,14 +175,12 @@ import {
   type ConversationDto,
   type EscalationDto,
   type CallDto,
-  type MetricsSummaryDto,
   type TodayVM,
   toPersonRowVM,
   peopleAggregates,
   PEOPLE_LISTS,
   PEOPLE_LIST_GROUPS,
   peopleListAction,
-  type PersonRowDto,
   type PersonRowVM,
   type PeopleAggregates,
   recencyCells,
@@ -190,24 +188,19 @@ import {
   type AttentionRowVM,
   PEOPLE_TABS,
   toChannelVM,
-  type ChannelDto,
   type ChannelVM,
   toReportVM,
   REPORT_RANGES,
-  type ReportDto,
   type ReportVM,
   toCampaignReportVM,
-  type CampaignReportDto,
   type CampaignReportVM,
   toCalendarVM,
   windowFor,
   toBookingReportVM,
-  type BookingReportDto,
   type BookingReportVM,
-  type CalendarWeekDto,
   type CalendarVM,
 } from "@chanlytics/contracts";
-import { EVERYONE_LABEL, HELD_REASONS, OFFERS_OPT_IN_PHRASES, eligibleFor, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, purposeOfTemplate, type AudienceKind, type BroadcastDto, type BroadcastVM, type NumberHealth, type SendPurpose } from "@chanlytics/contracts";
+import { EVERYONE_LABEL, HELD_REASONS, OFFERS_OPT_IN_PHRASES, eligibleFor, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, purposeOfTemplate, type AudienceKind, type BroadcastVM, type NumberHealth, type SendPurpose } from "@chanlytics/contracts";
 import { PLAYBOOK_TRIGGERS, eligibleForPlaybook, nextRunLabel, scheduleLine, triggerOf, type PlaybookDto } from "@chanlytics/contracts";
 
 /**
