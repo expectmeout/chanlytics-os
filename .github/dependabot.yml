@@ -1,0 +1,28 @@
+# Dependencies, kept current on a schedule instead of by surprise. Weekly, on
+# Monday, grouped so a week's minors and patches arrive as one pull request
+# and cost one CI run; a major arrives on its own, because a major is a
+# decision. Security updates are the repository setting beside this file.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 4
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "deps"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    commit-message:
+      prefix: "deps(actions)"
