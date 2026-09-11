@@ -19,8 +19,10 @@ import { text } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { resolveChannelDetailed } from "../lib/workspace/db.js";
 import { smsInboundFrom, smsAsWaMessage, smsBody, carrierConsent, smsKeywordConsent, mergeConsent, verifyTwilioSignature, SMS_HELD_REASON, SMS_HELD_DETAILS } from "../lib/workspace/channels.js";
-import { lineByNumber, lineAccount, smsSenderFor } from "../lib/sms.js";
+import { lineByNumber, lineAccount, smsSenderFor, type SmsLine } from "../lib/sms.js";
+import type { ProviderAccount } from "../lib/workspace/channels.js";
 import { handleInbound, type InboundCarrier } from "../lib/whatsapp/inbound.js";
+import { alertUnroutable } from "../lib/whatsapp/alerts.js";
 import { logger } from "../lib/log.js";
 
 export const config = { maxDuration: 60 };
@@ -38,14 +40,28 @@ export async function POST(request: Request): Promise<Response> {
 
   const db = pg();
   if (!db) return twiml(503);
-  const line = await lineByNumber(db, inbound.to);
+
+  // The line and its account are read before anything is trusted, and a read
+  // that fails is said out loud. Twilio does not retry an inbound text, so a
+  // throw here was a customer's words gone behind a 500 nobody looked at.
+  let line: SmsLine | null;
+  let acct: ProviderAccount | null;
+  try {
+    line = await lineByNumber(db, inbound.to);
+    acct = line ? await lineAccount(db, line) : null;
+  } catch (e) {
+    L.error("sms_line_unreadable", { error: e instanceof Error ? e.message : String(e) });
+    await alertUnroutable("sms", inbound.to, 1, "the line or its token could not be read");
+    return twiml(503);
+  }
   if (!line) {
     L.warn("sms_unknown_line");
+    await alertUnroutable("sms", inbound.to, 1, "no line row carries this number");
     return twiml(404);
   }
-  const acct = await lineAccount(db, line);
   if (!acct) {
     L.error("sms_line_without_account");
+    await alertUnroutable("sms", inbound.to, 1, "the line has no subaccount or no token in the vault");
     return twiml(503);
   }
   // The dry provider signs nothing, and never exists in production.
@@ -60,7 +76,8 @@ export async function POST(request: Request): Promise<Response> {
   const { channel: routed, lookupFailed } = await resolveChannelDetailed(db, "sms", inbound.to);
   if (!routed) {
     L.error(lookupFailed ? "sms_routing_lookup_failed" : "sms_unroutable");
-    return twiml(200);
+    await alertUnroutable("sms", inbound.to, 1, lookupFailed ? "the sms channel row could not be read" : "the sms channel row is missing or not active");
+    return twiml(lookupFailed ? 503 : 200);
   }
   const held = line.sms_state !== "active";
   const sender = held ? null : smsSenderFor(line, acct);

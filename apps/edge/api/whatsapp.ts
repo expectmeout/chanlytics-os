@@ -142,7 +142,7 @@ export async function POST(request: Request): Promise<Response> {
           console.error("wa_skip_unroutable", JSON.stringify({
             phone_number_id: phoneNumberId, messages: v.messages.length,
           }));
-          await alertUnroutable(phoneNumberId, v.messages.length);
+          await alertUnroutable("whatsapp", phoneNumberId, v.messages.length);
         } else if (field === "messages" && v.messages) {
           for (const m of v.messages) {
             console.log("wa_inbound", JSON.stringify({ from: m.from, type: m.type, id: m.id, text: m.text?.body ?? null }));

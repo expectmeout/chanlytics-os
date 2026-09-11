@@ -66,28 +66,42 @@ export async function alertStaff(
 const UNROUTABLE_ALERT_MS = 15 * 60 * 1000;
 const unroutableAlerted = new Map<string, number>();
 
-export async function alertUnroutable(phoneNumberId: string | undefined, count: number): Promise<void> {
-  const key = phoneNumberId || "unknown";
-  const last = unroutableAlerted.get(key) ?? 0;
+const UNROUTABLE_WORDS = {
+  whatsapp: {
+    subject: "WhatsApp messages are arriving for a channel that is switched off",
+    what: (key: string, count: number) =>
+      `${count} message(s) just arrived for phone_number_id ${key}, which the control plane will not route (the channel row is missing or its status is not 'active').`,
+    fix: "Re-enable the channel in tenant_channels, or confirm this number is not ours.",
+  },
+  sms: {
+    subject: "A text arrived on a line the platform could not handle",
+    what: (key: string, count: number) => `${count} text(s) just arrived for ${key} and could not be handled.`,
+    fix: "Check the line row, its vault token and its sms channel row; the customer's text was NOT recorded.",
+  },
+} as const;
+
+export async function alertUnroutable(kind: keyof typeof UNROUTABLE_WORDS, key: string | undefined, count: number, why?: string): Promise<void> {
+  const k = `${kind}:${key || "unknown"}`;
+  const last = unroutableAlerted.get(k) ?? 0;
   if (Date.now() - last < UNROUTABLE_ALERT_MS) return;
+  unroutableAlerted.set(k, Date.now());
+  const words = UNROUTABLE_WORDS[kind];
   // Genuinely platform-level: by definition there is no tenant to address, so
   // this is the PLATFORM's own mailbox and carries no customer content — only
-  // the phone number id and a count.
+  // the number, a count and the reason.
   const delivered = await notify(
     { tenantId: null, notifications: null, isEnvDefault: true },
     {
-      subject: "WhatsApp messages are arriving for a channel that is switched off",
+      subject: words.subject,
       body:
-        `${count} message(s) just arrived for phone_number_id ${key}, which the control plane will not route ` +
-        `(the channel row is missing or its status is not 'active').\n\n` +
-        `Nobody is answering these customers and nothing is being recorded. ` +
-        `Re-enable the channel in tenant_channels, or confirm this number is not ours.\n\n` +
+        `${words.what(key || "unknown", count)}${why ? ` Reason: ${why}.` : ""}\n\n` +
+        `Nobody is answering these customers and nothing is being recorded. ${words.fix}\n\n` +
         `Further notices for this number are suppressed for 15 minutes.`,
     },
   );
   // The suppression window was claimed BEFORE the send, so a failed alert used
   // to buy 15 minutes of silence on the only warning that customers are being
   // dropped. Only a delivered notice earns the quiet.
-  if (!delivered) unroutableAlerted.delete(key);
+  if (!delivered) unroutableAlerted.delete(k);
 }
 
