@@ -140,7 +140,7 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
   assert.ok(!/\$[\d,]+|revenue|Attributed|booked/.test(page.replace(/\/\/[^\n]*/g, "")), "no number the schema has no column for");
   assert.ok(page.includes("<PolicyChip cls={p.policy_class} />"), "the mode chip is the workspace's, and opens Settings › Autonomy");
   const routes = readCode("apps/dashboard/app/api/v1/playbooks/route.ts");
-  assert.ok(routes.includes('requireRole(member, "operator")') && routes.includes('takeRate(ctx.userId, "playbook")') && routes.includes('"start_playbook", {'));
+  assert.ok(routes.includes('role: "operator",') && routes.includes('rate: "playbook",') && routes.includes('"start_playbook", {'));
   const one = readCode("apps/dashboard/app/api/v1/playbooks/[id]/route.ts");
   assert.ok(one.includes('state === "running" ? "start_playbook" : "pause_playbook"') && one.includes('"pause_playbook", { name: p.name, deleted: true }'), "pause, resume and delete are recorded");
   const run = readCode("apps/dashboard/app/api/v1/playbooks/[id]/run/route.ts");

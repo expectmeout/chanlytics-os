@@ -338,3 +338,45 @@ export async function loadList(ctx: RouteContext, id: string): Promise<VerbList>
   return data;
 }
 export const listScope = row((ctx, params) => loadList(ctx, String(params.id ?? "")));
+
+/** The broadcast a verb acts on (approved, canceled), read under RLS: one the caller cannot see is a 404. */
+export async function loadBroadcast(ctx: RouteContext, id: string) {
+  const broadcastId = requireUuid(id, "broadcast");
+  const { data, error } = await ctx.supabase
+    .from("broadcasts")
+    .select("id, tenant_id, state, name, recipient_count, playbook_id")
+    .eq("id", broadcastId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new AppError("not_found", "Broadcast not found.", 404);
+  return data;
+}
+export const broadcastScope = row((ctx, params) => loadBroadcast(ctx, String(params.id ?? "")));
+
+/** The template a verb acts on (hidden, titled, deleted), read under RLS: one the caller cannot see is a 404. */
+export async function loadTemplate(ctx: RouteContext, id: string) {
+  const templateId = requireUuid(id, "template");
+  const { data, error } = await ctx.supabase
+    .from("templates")
+    .select("id, tenant_id, name, language")
+    .eq("id", templateId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new AppError("not_found", "Template not found.", 404);
+  return data;
+}
+export const templateScope = row((ctx, params) => loadTemplate(ctx, String(params.id ?? "")));
+
+/** The playbook a verb acts on (paused, rewritten, run, deleted), read under RLS: one the caller cannot see is a 404. */
+export async function loadPlaybook(ctx: RouteContext, id: string) {
+  const playbookId = requireUuid(id, "playbook");
+  const { data, error } = await ctx.supabase
+    .from("playbooks")
+    .select("id, tenant_id, name, state")
+    .eq("id", playbookId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new AppError("not_found", "Playbook not found.", 404);
+  return data;
+}
+export const playbookScope = row((ctx, params) => loadPlaybook(ctx, String(params.id ?? "")));

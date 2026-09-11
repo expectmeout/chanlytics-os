@@ -197,7 +197,7 @@ test("the job: state gates, the template still approved, every person re-checked
 
 test("the routes: an approved template, values Meta accepts, an audience crossed with who said yes, enrolled now, scheduled, on the ledger; cancel stops what has not finished", () => {
   const r = readCode("apps/dashboard/app/api/v1/broadcasts/route.ts");
-  assert.ok(r.includes('requireRole(member, "operator");') && r.includes('takeRate(ctx.userId, "broadcast");'));
+  assert.ok(r.includes('role: "operator",') && r.includes('rate: "broadcast",'));
   assert.ok(r.includes('if (tpl.meta_status !== "approved") throw new AppError("conflict", "That template is not approved by WhatsApp, so it cannot be sent.", 409);'));
   assert.ok(r.includes("const v = cleanParam(spec.value);"), "typed text is cleaned; a source is itself");
   // The PURPOSE, from the template read twenty lines earlier. The route used to
