@@ -13,7 +13,7 @@ import {
   runA2PSaga, smsStateFor, registrationVerdict, LOW_VOLUME_USECASE, deleteCampaignRequest, updateCampaignRequest,
   encodeForm, brandTypeFor, refusalWords, type A2PPorts, type A2PRequest, type A2PState, type BusinessRecord, type CampaignError,
 } from "./workspace/channels.js";
-import { formatPhoneDisplay, industryOf, businessRecordProblems, registrationPathOf, registrationPreflight } from "./workspace/contracts.js";
+import { formatPhoneDisplay, industryOf, businessRecordProblems, registrationPathOf, registrationPreflight, optInConfirmation } from "./workspace/contracts.js";
 import { emitEvent } from "./workspace/db.js";
 import { recordNotification } from "./notify.js";
 import { lineProviderFromEnv } from "./lines.js";
@@ -140,6 +140,14 @@ export function campaignFactsFor(o: {
   // The paper version of the opt-in page. Named in the flow because a reviewer can
   // only accept a form they can see.
   const formUrl = `${o.optInUrl}/form`;
+  // Their own pages when we host them, ours-for-them otherwise. Chanlytics'
+  // platform policy is the last resort and the wrong answer for a customer: it
+  // identifies US, and 30919 asks who is sending. The terms follow the same rule
+  // -- Chanlytics' /terms is a software agreement for workspace owners, not a
+  // messaging program's terms, and a reviewer opening it finds the wrong
+  // company and none of the eight things the guide lists.
+  const privacyPolicyUrl = o.hostedUrl || o.privacyUrl;
+  const termsUrl = o.hostedUrl ? `${o.hostedUrl}/terms` : o.termsUrl;
   return {
     // What the campaign IS, in the plainest terms, with the separation stated
     // rather than left to be inferred from the flow.
@@ -162,7 +170,12 @@ export function campaignFactsFor(o: {
     // the business is named with its registered name, the messages are said to be
     // sent on its own behalf, and the recipients are said to be people who came to
     // it: by writing, on its sign-up page, or on its signed paper form.
-    description: `${who} uses this number to text its own customers: to answer what they write, to confirm and remind them about appointments they have booked, and — only for customers who separately asked for them in writing — occasional offers and news. Every message is sent by ${name} on its own behalf and is written or approved by the business; the recipients are people who contacted ${name} themselves or gave their consent on its sign-up page or its signed sign-up form. Appointment messages go only to customers who agreed to hear about their appointments; promotional messages go only to customers who gave a separate, written yes to offers. Agreeing to hear about appointments never enrols anyone in promotional messaging: that requires its own opt-in, with its own disclosure, which a customer can decline while keeping everything else.`,
+    // THIRD REFUSAL, 10 September, the same two codes on the rewritten text. So
+    // it is now said the way the reviewers' own guide says it -- who sends, who
+    // receives, what the messages are -- in their register rather than ours, with
+    // the application layer named (30912 wants to know what system sends) and
+    // nothing a reviewer has to parse twice.
+    description: `Messages are sent by ${who} to its own customers: people who wrote to ${name} first, or who opted in on its sign-up page (${o.optInUrl}) or its signed sign-up form. Messages include replies to what a customer asked, confirmations and reminders about that customer's own appointments, and, only for customers who gave a separate written opt-in, occasional offers and news. Appointment messages and promotional messages have separate opt-ins, and agreeing to one never enrols anyone in the other. Messages are composed by ${name}'s staff and by its receptionist software and sent through the Chanlytics OS application, on ${name}'s own behalf.`,
 
     // THE CLAIM HAS TO BE TRUE, and one half of it was not. This flow used to open
     // by calling the two opt-ins symmetric -- that giving either left the other
@@ -189,11 +202,19 @@ export function campaignFactsFor(o: {
     //
     // Twilio takes 40 to 2048 characters here, and a long name on a long slug has to
     // fit; the tests file one to be sure.
+    // THE THIRD REFUSAL named this field again, and the flow was telling on
+    // itself: "a customer who texts YES OFFERS is also recorded as reachable for
+    // appointment messages ... the only answer that implies another" -- one
+    // opt-in, two programs, in the reviewers' own "this doesn't" column. The wire
+    // no longer does that (channels normalizeInbound reads each question's own
+    // words), so the flow no longer says it. And a reviewer wants the privacy
+    // policy and the terms LINKED here (30909; 30908 says "directly referenced"
+    // in message_flow), which they never were.
     messageFlow: [
-      `Customers consent in writing in one of two places, each asking two SEPARATE questions: appointment messages and promotional messages. Agreeing to appointment messages NEVER enrols anyone in promotional messaging.`,
-      `WEB PAGE (${o.optInUrl}): under the heading "Messages about your visit" it states that they will receive appointment reminders and confirmations from ${name}, that message frequency varies, that message and data rates may apply, to reply HELP for help and STOP to stop; the customer consents by texting START from their own phone. Under a separate heading "Offers and news" it states that they will receive promotional offers and news from ${name}, a few messages a month, that message and data rates may apply, to reply HELP for help and STOP to stop, and that this is optional and not a condition of any purchase; the customer consents by texting YES OFFERS.`,
-      `PAPER FORM (${formUrl}): the same two questions as two separate, unticked boxes, each with the same disclosures and its own signature. Staff record each signed box in the business's dashboard as "Sign-up form", with the date and who recorded it, and keep the sheet. A yes to offers is recorded only from a signed form or the customer's own text, never from a spoken answer.`,
-      `Each answer is stored separately, with its own timestamp and source. A customer who texts YES OFFERS is also recorded as reachable for appointment messages, having written to the business to ask; that is the only answer that implies another. Messaging the business first is consent only to be answered and to hear about one's own appointments, and staff may record a spoken yes for appointment messages only. Replying STOP at any time ends all messages of both kinds.`,
+      `Consent is written, in one of two places, each asking two SEPARATE questions with their own disclosures: appointment messages, and promotional messages. Agreeing to one never enrols anyone in the other.`,
+      `WEB PAGE (${o.optInUrl}): under "Messages about your visit" it states they will get appointment reminders and confirmations from ${name}, message frequency varies, message and data rates may apply, reply HELP for help and STOP to stop; the customer consents by texting START from their own phone. Under a separate heading "Offers and news" it states they will get promotional offers and news from ${name}, a few messages a month, message and data rates may apply, reply HELP for help and STOP to stop, that it is optional and not a condition of any purchase; the customer consents by texting YES OFFERS. Privacy and terms links sit beside both.`,
+      `PAPER FORM (${formUrl}): the same two questions as two separate, unticked boxes, each with the same disclosures and its own signature; staff record each signed box as "Sign-up form", with the date and recorder, and keep the sheet. A yes to offers is recorded only from a signed form or the customer's own text, never from a spoken answer.`,
+      `Each answer is recorded separately, with its own timestamp and source; neither implies the other. Every yes is confirmed by a text naming the program, frequency, rates, HELP and STOP. Writing first is consent only to be answered; staff may record a spoken yes for appointment messages only. STOP ends all messages of both kinds. Privacy policy: ${privacyPolicyUrl}. Terms: ${termsUrl}.`,
     ].join(" "),
 
     // Samples a reviewer reads. They must not state a fact about the business we
@@ -205,8 +226,10 @@ export function campaignFactsFor(o: {
     // mismatch reviewers reject -- and a plausible half of 30886.
     samples: [
       `Hi, thanks for writing ${o.businessName}. How can we help today?`,
-      `Reminder from ${o.businessName}: you have an appointment tomorrow. Reply STOP to opt out.`,
-      `${o.businessName}: you can book or change your appointment here: ${o.optInUrl}. Reply STOP to opt out, HELP for help.`,
+      // Brackets mark what varies, as the reviewers' guide asks; the link is the
+      // business's own page, which is what a message from them would carry.
+      `Reminder from ${o.businessName}: you have an appointment on [date] at [time]. Reply STOP to opt out.`,
+      `${o.businessName}: our address, hours and services are at ${o.hostedUrl ?? o.optInUrl}. Reply STOP to opt out, HELP for help.`,
       o.lineNumber
         ? `${o.businessName}: we tried to reach you. Call us back on ${o.lineNumber} or reply here. Reply STOP to opt out.`
         : `${o.businessName}: we tried to reach you. Reply here and we will pick it up. Reply STOP to opt out.`,
@@ -214,7 +237,7 @@ export function campaignFactsFor(o: {
       // claim made in the business's name, which is the rule this list already
       // held itself to about opening times -- the sample shows the shape of a
       // promotional message and points at the page where the real one lives.
-      `Offer from ${o.businessName} for customers who asked for offers — see ${o.optInUrl}. A few messages a month. Msg & data rates may apply. Reply STOP to opt out, HELP for help.`,
+      `Offer from ${o.businessName} for customers who asked for offers: [offer]. Details at ${o.hostedUrl ?? o.optInUrl}. A few messages a month. Msg & data rates may apply. Reply STOP to opt out, HELP for help.`,
     ],
 
     // NOT correctable after the first filing: Twilio's campaign UPDATE accepts
@@ -229,16 +252,15 @@ export function campaignFactsFor(o: {
     // from Billing probe": the appointment keyword confirming a promotional
     // subscription, which is 30913 in one line, under a name the workspace dropped
     // long ago. No resubmit can reach it.
-    optInMessage: `${name}: you'll get texts about your appointments. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to cancel.`,
+    // The words the receptionist actually sends when START arrives, from
+    // contracts, so the filing and the wire cannot disagree.
+    optInMessage: optInConfirmation(name, "conversational"),
     // Single words only, and only ones the receptionist actually honours
     // (contracts CONVERSATION_OPT_IN_PATTERN). The two-word offers phrase lives
     // in the flow above, because a keyword field takes single words.
     optInKeywords: ["START", "UNSTOP", "RESUME"],
-    // Their own privacy policy if they have a site; ours-for-them otherwise.
-    // Chanlytics' platform policy is the last resort and is the wrong answer for
-    // a customer: it identifies US, and 30919 asks who is sending.
-    privacyPolicyUrl: o.hostedUrl || o.privacyUrl,
-    termsUrl: o.termsUrl,
+    privacyPolicyUrl,
+    termsUrl,
   };
 }
 
@@ -469,6 +491,69 @@ export async function resubmitRejectedCampaign(
   const cleared = await db.from("lines").update({
     sms_state: "registering",
     reg_step: null,
+    last_error: null,
+    state_since: new Date().toISOString(),
+  }).eq("id", line.id).select("*").single();
+  if (cleared.error) return { ok: false, error: cleared.error.message };
+  return { ok: true, row: cleared.data };
+}
+
+/**
+ * Replace a campaign the carriers refused for something no edit can reach.
+ *
+ * The free path above rewrites the nine fields Twilio's update accepts. The
+ * opt-in message and its keywords are not among them -- "cannot be edited under
+ * any circumstances" -- and the live Chanlytics campaign was refused a THIRD
+ * time, on the rewritten description and flow, while its confirmation still
+ * read "You're subscribed to offers and news from Billing probe": the
+ * appointment keyword confirming a promotional subscription, under a name the
+ * workspace dropped. So the campaign comes OFF the Messaging Service (the
+ * instance DELETE, which answers 204) and the saga files a new one from
+ * today's facts. The brand stays: it was approved on its own, it cannot be
+ * deleted anyway, and it is the expensive half. The saga resumes at `campaign`,
+ * which is the step that costs -- a new campaign is a new vetting fee, about
+ * $15 -- so support asks for this by name, told what it spends.
+ *
+ * Only for a REJECTED filing: a campaign that stands was paid for and vetted,
+ * and the route refuses before reaching here. The pre-flight runs first, before
+ * anything at the carrier is touched, for the same reason it does on the
+ * rehearsal path: taking a filing off for a replacement that is then refused
+ * leaves the line with neither.
+ */
+export async function replaceRejectedCampaign(
+  db: Db,
+  line: LineRow,
+  check: { record: RecordRow; workspaceName: string; hasOptInNumber?: boolean },
+): Promise<{ ok: boolean; error?: string; problems?: string[]; row?: LineRow }> {
+  const L = logger({ tenant_id: line.tenant_id, line_id: line.id });
+  if (line.sms_state !== "rejected") return { ok: false, error: "not_rejected" };
+  const problems = await filingProblems(db, line, check);
+  if (problems.length) {
+    L.warn("a2p_replace_refused", { problems: problems.length });
+    return { ok: false, error: "record_incomplete", problems };
+  }
+  if (line.messaging_service_sid && line.campaign_sid) {
+    const sub = await lineAccount(db, line).catch(() => null);
+    if (!sub) return { ok: false, error: "no_line_credentials" };
+    const req = deleteCampaignRequest(line.messaging_service_sid, line.campaign_sid);
+    const r = await fetch(req.url, {
+      method: req.method,
+      headers: { Authorization: `Basic ${Buffer.from(`${sub.sid}:${sub.token}`).toString("base64")}` },
+      signal: AbortSignal.timeout(20000),
+    }).catch(() => null);
+    const gone = !!r && (r.ok || r.status === 404);
+    L.info("a2p.rejected_campaign_deleted", { status: r?.status ?? 0, ok: gone, campaign: line.campaign_sid });
+    // A campaign left on the service makes the new POST fail one step later
+    // with a message about the wrong thing. 404 is the state asked for.
+    if (!gone) return { ok: false, error: `the rejected campaign would not come off (HTTP ${r?.status ?? 0})` };
+  }
+  // `single()` is the row count: a write that changed nothing errors here
+  // rather than returning a success the caller would file on top of. The
+  // brand and the messaging profile stay; only the campaign's receipt goes.
+  const cleared = await db.from("lines").update({
+    campaign_sid: null,
+    reg_step: null,
+    sms_state: "registering",
     last_error: null,
     state_since: new Date().toISOString(),
   }).eq("id", line.id).select("*").single();

@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
+import { optInConfirmation } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -158,4 +159,41 @@ test("a workspace on ask holds every message for a person and says why", async (
   assert.equal(w.seen.escalations[0].reason, "policy_block");
   assert.equal(w.seen.alerts.length, 1);
   assert.equal(w.seen.pages.length, 0, "a workspace's own setting is not the platform's condition");
+});
+
+test("START is confirmed in the campaign's own words without the model, and YES OFFERS confirms offers and nothing else", async () => {
+  // Every recurring program owes the person who opted in an immediate
+  // confirmation, however the yes was given. The words are the ones the
+  // campaign files as its opt-in message; which question was answered decides
+  // which confirmation goes, and neither confirms the other -- what the live
+  // campaign was refused for three times.
+  const w = world();
+  await w.run(text("START"));
+  const visit = optInConfirmation("Harbor Nails", "conversational");
+  assert.deepEqual(w.seen.sent, [{ to: FROM, body: visit, meta: { ack: true, confirmation: "conversational" }, channel: "whatsapp" }]);
+  assert.match(visit, /^Harbor Nails: /);
+  assert.match(visit, /appointments/);
+  assert.doesNotMatch(visit, /offer/i);
+  assert.equal(w.seen.escalations.length, 0, "a yes is not a problem for a person");
+  assert.equal(w.seen.processed, 1);
+  assert.deepEqual(w.thread().history.map((h) => h.role), ["user", "assistant"], "and the memory holds it");
+
+  await w.run(text("YES OFFERS", "wamid.2"));
+  const offers = optInConfirmation("Harbor Nails", "marketing");
+  assert.equal(w.seen.sent.length, 2);
+  assert.equal(w.seen.sent[1].body, offers);
+  assert.deepEqual(w.seen.sent[1].meta, { ack: true, confirmation: "marketing" });
+  assert.match(offers, /offers and news/);
+  assert.doesNotMatch(offers, /appointment/i);
+});
+
+test("YES OFFERS is not the way back in from a STOP: an opted-out person gets nothing, and START is", async () => {
+  // One word opening both programs is what the carriers refuse (30913); the way
+  // back in is START, as their own reply to a STOP says.
+  const w = world({ ingest: async (_db, _tenant, n) => ({ ...ingested(n), consent: "opted_out", dnc: true }) });
+  await w.run(text("YES OFFERS"));
+  assert.equal(w.seen.sent.length, 0);
+  await w.run(text("START", "wamid.2"));
+  assert.equal(w.seen.sent.length, 1);
+  assert.equal(w.seen.sent[0].body, optInConfirmation("Harbor Nails", "conversational"));
 });

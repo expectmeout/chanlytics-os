@@ -21,7 +21,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "./_fake-db.mjs";
 import { readCode, readRaw } from "./_source.mjs";
-import { unfileMockRegistration, resubmitRejectedCampaign, filingProblems } from "../../../apps/edge/lib/a2p.ts";
+import { unfileMockRegistration, resubmitRejectedCampaign, replaceRejectedCampaign, filingProblems } from "../../../apps/edge/lib/a2p.ts";
 import { MOCK_TEXTING_SENTENCE, emptyBusinessRecord } from "@chanlytics/contracts";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
@@ -386,3 +386,78 @@ test("a refile refused by the pre-flight is a 409 about this workspace, not a 50
   assert.ok(hoisted !== -1 && branch !== -1 && hoisted < branch, "the check's facts are gathered before the branch that chooses a door");
 });
 
+
+/* -------------------------------------------------------------------------- *
+ * The replacement: a new campaign for a refusal an edit cannot reach.
+ * -------------------------------------------------------------------------- */
+
+test("a refused campaign is replaced by name: deleted at the carrier, its receipt cleared, the brand kept", async () => {
+  // The live Chanlytics campaign was refused a THIRD time on the rewritten text,
+  // while its opt-in confirmation still read "You're subscribed to offers and news
+  // from Billing probe" -- the one field Twilio's update never touches. The only
+  // remedy is a new campaign, which is a new vetting fee, so it is asked for by
+  // name and run here.
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { calls.push({ url: String(url), method: init?.method }); return new Response(null, { status: 204 }); };
+  const vault = { get_line_credentials: () => ({ auth_token: "t" }) };
+  try {
+    const refused = mockFiled({ reg_mock: false, sms_state: "rejected", subaccount_sid: "ACsub", messaging_service_sid: "MG1", last_error: "their words", reg_step: null });
+    const rows = [{ ...refused }];
+    const db = fakeDb({ lines: rows }, {}, vault);
+    const r = await replaceRejectedCampaign(db, refused, READY);
+    assert.equal(r.ok, true, r.error);
+    assert.deepEqual(calls.map((c) => c.method), ["DELETE"], "one call: the campaign comes off");
+    assert.ok(calls[0].url.endsWith(`/Services/MG1/Compliance/Usa2p/${refused.campaign_sid}`), "the INSTANCE url, which answers 204");
+    const row = rows[0];
+    assert.equal(row.campaign_sid, null, "the campaign's receipt is gone, so the saga files a new one");
+    assert.equal(row.brand_sid, refused.brand_sid, "the brand stays: approved on its own, and it cannot be deleted anyway");
+    assert.equal(row.profile_sid, refused.profile_sid, "and so does the expensive half");
+    assert.equal(row.sms_state, "registering");
+    assert.equal(row.last_error, null, "the refusal answered is not the next filing's");
+    assert.equal(row.reg_mock, false);
+    assert.equal(r.row.campaign_sid, null, "the caller files against the cleared row");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test("only a REFUSED campaign is replaceable, only after the pre-flight, and a refusal reaches neither the vault nor the wire", async () => {
+  const reached = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => { reached.push(`wire: ${url}`); throw new Error("a refused replacement must not reach the provider"); };
+  const vault = { get_line_credentials: () => { reached.push("vault"); return { auth_token: "t" }; } };
+  try {
+    // A campaign that STANDS was paid for and vetted; the route refuses before
+    // here, and so does this, in case a caller does not.
+    const standing = mockFiled({ reg_mock: false, sms_state: "active", subaccount_sid: "ACsub", messaging_service_sid: "MG1" });
+    const rows = [{ ...standing }];
+    const r = await replaceRejectedCampaign(fakeDb({ lines: rows }, {}, vault), standing, READY);
+    assert.equal(r.ok, false);
+    assert.equal(r.error, "not_rejected");
+    assert.equal(rows[0].campaign_sid, standing.campaign_sid, "untouched");
+
+    // The same check every door makes, before anything at the carrier is touched.
+    const refused = mockFiled({ reg_mock: false, sms_state: "rejected", subaccount_sid: "ACsub", messaging_service_sid: "MG1", last_error: "their words" });
+    const kept = [{ ...refused }];
+    const db = fakeDb({ lines: kept }, {}, vault);
+    const no = await replaceRejectedCampaign(db, refused, MISNAMED);
+    assert.equal(no.ok, false);
+    assert.equal(no.error, "record_incomplete");
+    assert.ok(no.problems.some((p) => /Billing probe/.test(p)), "with the owner's sentence about what is wrong");
+    assert.equal(kept[0].campaign_sid, refused.campaign_sid, "the refused campaign is still filed: a line keeps what it has until the replacement would pass");
+    assert.equal(kept[0].last_error, "their words", "and the carriers' words survive");
+    assert.ok(!db.seen.some((q) => q.op === "update"));
+    assert.deepEqual(reached, [], "neither refusal reached for a credential or the network");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test("the route offers the replacement only by name, and only where a resubmit is offered", () => {
+  const route = readCode("apps/edge/api/admin/lines.ts");
+  assert.ok(route.includes("const replace = body.replace === true;"), "asked for by a flag of its own -- it costs");
+  assert.ok(route.includes("if (rejected && !replace) {"), "a refile without it is the free edit, as before");
+  assert.ok(route.includes("? await replaceRejectedCampaign(db, row.data, filingCheck)"), "with it, the refused campaign comes off for the saga to file a new one");
+  assert.ok(route.includes("if (!row.data.reg_mock && !rejected) {"), "and a filing that stands is still final, flag or no flag");
+});

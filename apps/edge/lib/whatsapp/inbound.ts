@@ -15,12 +15,12 @@
  */
 import { isThreadUnknown, threadNamespace, type ThreadState } from "../store.js";
 import { normalizeInbound, withCarrierConsent, type CarrierConsent, type WaChangeValue, type WaRawMessage } from "../workspace/channels.js";
-import { shortCode } from "../workspace/contracts.js";
+import { shortCode, optInConfirmation } from "../workspace/contracts.js";
 import { describeLead, type IngestResult } from "../workspace/db.js";
 import type { Json, RoutedChannel } from "../workspace/db.js";
 import { waCfgFor } from "../tenant-runtime.js";
 import { isVisionMime, photoUserText, toBase64, VISION_MAX_BYTES } from "../vision.js";
-import type { BrainConfig, BrainMeta, NotificationsConfig } from "../workspace/contracts.js";
+import type { BrainConfig, BrainMeta, NotificationsConfig, SendPurpose } from "../workspace/contracts.js";
 import { isOptedOutContact, resolveSystemPrompt, describeNow } from "../workspace/contracts.js";
 import { replyPosture, effectiveReplyMode } from "../reply-posture.js";
 import { resolveConsent } from "../consent.js";
@@ -464,6 +464,28 @@ export async function handleInbound(
 
   if (thread.seen.includes(m.id)) { L.info("wa_skip_dupe"); return; }
   thread.seen.push(m.id);
+
+  // A YES IS CONFIRMED, and in these words. Every recurring program owes the
+  // person who opted in an immediate confirmation naming the program, the
+  // frequency, the rates disclosure, HELP and STOP, however the yes was given
+  // (the reviewers' onboarding guide; CTIA). The words are the campaign's own
+  // filed opt-in message, from contracts, so the filing and the wire cannot
+  // disagree. Not the receptionist speaking: a system message, sent whatever
+  // the reply mode and never a model call -- and a courtesy against the daily
+  // cap, like the acknowledgement. Which question was answered decides which
+  // confirmation goes; neither confirms the other, which is what the carriers
+  // refused the live campaign for three times.
+  if (n.optIn || n.optInMarketing) {
+    const purpose: SendPurpose = n.optInMarketing ? "marketing" : "conversational";
+    const words = optInConfirmation(brainCfg?.business_name ?? rt?.known?.workspace?.name ?? "", purpose);
+    thread.history.push({ role: "user", content: bodyText });
+    thread.history.push({ role: "assistant", content: words });
+    await ports.store.save(ns, from, thread);
+    await send(words, { ack: true, confirmation: purpose });
+    await sink.processed();
+    L.info("wa_opt_in_confirmed", { purpose, channel });
+    return;
+  }
 
   const gate = threadVerdict(thread, maxRepliesDay);
   if (gate === "paused") {
