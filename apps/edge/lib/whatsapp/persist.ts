@@ -18,7 +18,7 @@ import {
 } from "../workspace/db.js";
 import type { Database, Json } from "../workspace/db.js";
 import { upsertEscalation, type EscalationOutcome } from "../workspace/jobs.js";
-import { deliver, type Delivered, type Wire } from "../workspace/core.js";
+import { deliverSafely, type Delivered, type Wire } from "../workspace/core.js";
 import { waCfgFor, type TenantRuntime } from "../tenant-runtime.js";
 import { queueDraft } from "../draft-queue.js";
 import type { BrainMeta } from "../workspace/contracts.js";
@@ -163,14 +163,14 @@ export function pgSink(
      * re-read and no row to write, so nothing is sent: the handler has
      * already handed such a message to a person.
      */
-    deliver: (to: string, text: string, brainMeta?: BrainMeta): Promise<Delivered> =>
+    deliver: (to: string, text: string, meta?: Record<string, Json>): Promise<Delivered> =>
       on
-        ? deliver(
+        ? deliverSafely(
             { db: db!, wire },
             {
               tenantId: tenantId!, conversationId: ing!.conversation_id, contactId: ing!.contact_id,
               to, channel, sender: "ai", purpose: "conversational", proactive: false,
-              body: text, ...(brainMeta ? { meta: brainMeta as unknown as Record<string, Json> } : {}),
+              body: text, ...(meta ? { meta } : {}),
             },
           )
         : Promise.resolve({ outcome: "failed", reason: "no_sender_for_channel", status: 0, errorBody: "no_database", messageId: null }),

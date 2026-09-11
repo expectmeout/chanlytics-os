@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { AppError, replyWindow } from "@chanlytics/contracts";
+import { AppError, purposeOfTemplate, replyWindow } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { withRoute } from "@/server/with-route";
 import { z } from "zod";
@@ -125,7 +125,7 @@ export const POST = withRoute(async (req, ctx) => {
     }
     const { data: tpl } = await ctx.supabase
       .from("templates")
-      .select("name, language, body_preview, meta_status")
+      .select("name, language, body_preview, meta_status, category")
       .eq("tenant_id", conv.tenant_id)
       .eq("channel", "whatsapp")
       .eq("name", body.template.name)
@@ -133,6 +133,12 @@ export const POST = withRoute(async (req, ctx) => {
       .maybeSingle();
     if (!tpl || tpl.meta_status !== "approved") {
       throw new AppError("validation", "Template not found or not approved.");
+    }
+    // Which yes this template needs is Meta's category, and the door asks
+    // again at the wire. Asked here too, so the operator hears a sentence now
+    // instead of finding a canceled row later.
+    if (purposeOfTemplate(tpl.category) === "marketing" && conv.marketing_consent !== "opted_in") {
+      throw new AppError("forbidden", "This template is a promotion, and this person has not said yes to offers. Use an appointment template, or ask them first.");
     }
     // Params are TENANT FACTS (E4): resolved here from the control plane, so
     // the browser neither knows nor ships any workspace's booking link.

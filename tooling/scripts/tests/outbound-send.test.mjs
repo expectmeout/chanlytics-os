@@ -142,24 +142,31 @@ test("the receptionist's held draft is retired when a person answered after it w
   assert.deepEqual(blocked(db), [{ reason: "superseded_by_human", purpose: "conversational", consent: "opted_in", dnc: false, marketing_consent: "opted_out", after: "m2" }]);
 });
 
-test("the receptionist's draft is retired while a person holds the thread; the person's own words are not", async () => {
-  // THE PAUSE, RE-READ AT THE WIRE. The Business-app echo and a take-over
-  // from the Inbox pause the thread and cancel nothing; the draft used to
-  // fire underneath. The door reads paused_until the moment before the send.
-  graph.length = 0;
-  const held = (sender) => wrap(tables({
-    messages: [{ id: "m1", tenant_id: T, conversation_id: "c1", status: "queued", body: "We open at 9!", sender, channel: "whatsapp", direction: "outbound", created_at: WRITTEN }],
-    conversations: [{ id: "c1", tenant_id: T, paused_until: "2999-01-01T00:00:00.000Z", contacts: { consent: "opted_in", dnc: false, marketing_consent: "opted_out", erased_at: null }, tenants: { status: "active" } }],
-  }));
-  const draft = held("ai");
-  await dispatchJob(ctxFor(draft).ctx, job({ body: "We open at 9!" }));
-  assert.equal(graph.length, 0);
-  assert.equal(message(draft).status, "canceled");
-  assert.equal(message(draft).error.reason, "human_has_it");
-  const person = held("human");
-  await dispatchJob(ctxFor(person).ctx, job({ body: "We open at 9!" }));
-  assert.equal(graph.length, 1, "the pause exists for the person's own words");
-  assert.equal(message(person).status, "sent");
+test("under a pause, the receptionist's queued draft goes unless a person spoke since; a person's own reply always goes", async () => {
+  const paused = { id: "c1", tenant_id: T, paused_until: new Date(Date.now() + 3600_000).toISOString(), contacts: { consent: "opted_in", dnc: false, marketing_consent: "opted_out", erased_at: null }, tenants: { status: "active" } };
+  {
+    const db = wrap(tables({ conversations: [paused], messages: [{ id: "m1", tenant_id: T, conversation_id: "c1", status: "queued", body: "I've passed this on", sender: "ai", channel: "whatsapp", direction: "outbound", created_at: WRITTEN }] }));
+    const { ctx } = ctxFor(db);
+    assert.equal(await dispatchJob(ctx, job()), "done");
+    assert.equal(message(db).status, "sent", "the escalation's own holding message reaches the customer");
+  }
+  {
+    const later = new Date(Date.parse(WRITTEN) + 30_000).toISOString();
+    const db = wrap(tables({ conversations: [paused], messages: [
+      { id: "m1", tenant_id: T, conversation_id: "c1", status: "queued", body: "I've passed this on", sender: "ai", channel: "whatsapp", direction: "outbound", created_at: WRITTEN },
+      { id: "m2", tenant_id: T, conversation_id: "c1", status: "sent", body: "Melany here", sender: "human", channel: "whatsapp", direction: "outbound", created_at: later },
+    ] }));
+    const { ctx } = ctxFor(db);
+    assert.equal(await dispatchJob(ctx, job()), "done");
+    assert.equal(message(db).status, "canceled");
+    assert.deepEqual(blocked(db).map((d) => d.reason), ["superseded_by_human"]);
+  }
+  {
+    const db = wrap(tables({ conversations: [paused] }));
+    const { ctx } = ctxFor(db);
+    assert.equal(await dispatchJob(ctx, job()), "done");
+    assert.equal(message(db).status, "sent", "a person's reply is never held by the pause that exists for them");
+  }
 });
 
 test("a person's OLDER words do not retire the draft, and a person's own reply is never retired by another's", async () => {

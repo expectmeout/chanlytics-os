@@ -15,7 +15,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { deliver, templatePurpose, whatsappSender } = await import(pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href);
+const { deliver, deliverSafely, templatePurpose, whatsappSender } = await import(pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href);
 
 const T = "t1";
 const NOW = Date.parse("2026-09-10T10:00:00.000Z");
@@ -215,4 +215,50 @@ test("WhatsApp's wire comes from credentials alone, and hands Graph bare digits"
     assert.equal(seen[0].body.to, "13475550101");
     assert.ok(seen[0].url.includes("/p1/messages"));
   } finally { globalThis.fetch = realFetch; }
+});
+
+test("a broadcast is a person's words but an automated send: it respects the thread's pause and the workspace's pause", async () => {
+  for (const [row, expected] of [
+    [thread({ paused_until: new Date(NOW + 60_000).toISOString() }), "human_has_it"],
+    [thread({ tenants: { status: "paused" } }), "paused"],
+  ]) {
+    const t = tables({ conversations: [row] });
+    const w = wireOf();
+    const out = await deliver(ports(t, w), words({ sender: "human", proactive: true, purpose: "conversational", template: { name: "visit_reminder", language: "en_US", params: [] } }));
+    assert.equal(out.outcome, "refused", JSON.stringify(row));
+    assert.equal(out.reason, expected);
+    assert.equal(w.calls.length, 0);
+  }
+});
+
+test("the receptionist's own escalation pauses the thread and queues its holding message: the queued draft still goes, unless a person spoke since", async () => {
+  const paused = thread({ paused_until: new Date(NOW + 24 * 3600_000).toISOString() });
+  const draft = { id: "m1", tenant_id: T, conversation_id: "c1", status: "queued", body: "I've passed this to the team.", sender: "ai", direction: "outbound", created_at: "2026-09-10T09:59:00.000Z" };
+  {
+    const t = tables({ conversations: [paused], messages: [draft] });
+    const w = wireOf();
+    const out = await deliver(ports(t, w), words({ sender: "ai", messageId: "m1", body: draft.body }));
+    assert.equal(out.outcome, "sent", "the holding message reaches the customer");
+    assert.equal(t.messages[0].status, "sent");
+  }
+  {
+    const owner = { id: "m2", tenant_id: T, conversation_id: "c1", status: "sent", body: "Hi, Melany here", sender: "human", direction: "outbound", created_at: "2026-09-10T09:59:30.000Z" };
+    const t = tables({ conversations: [paused], messages: [draft, owner] });
+    const w = wireOf();
+    const out = await deliver(ports(t, w), words({ sender: "ai", messageId: "m1", body: draft.body }));
+    assert.equal(out.outcome, "refused");
+    assert.equal(out.reason, "superseded_by_human");
+    assert.equal(w.calls.length, 0);
+  }
+});
+
+test("a wire that cannot be read is a failure with its own name, never a throw past the door", async () => {
+  const t = tables();
+  const w = wireOf();
+  const db = fakeDb(t, { "conversations.select": { message: "connection reset" } });
+  const out = await deliverSafely({ db, wire: w.wire, now: () => NOW }, words({ sender: "ai" }));
+  assert.equal(out.outcome, "failed");
+  assert.equal(out.reason, "wire_unreadable");
+  assert.match(out.errorBody, /connection reset/);
+  assert.equal(w.calls.length, 0);
 });

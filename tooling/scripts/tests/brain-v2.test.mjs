@@ -109,7 +109,7 @@ test("the handler keeps the record on the row, holds a reply below the dial, and
   assert.ok(wa.includes("let brainMeta: BrainMeta | undefined;"));
   assert.ok(wa.includes("brainMeta = r.meta;"));
   assert.ok(readCode("apps/edge/lib/draft-queue.ts").includes("meta: { source: a.source, delay_ms: a.delayMs, ...(a.brainMeta ?? {}), ...(a.extra ?? {}) } as Json,"), "the draft row remembers");
-  assert.ok(readCode("apps/edge/lib/whatsapp/persist.ts").includes("...(brainMeta ? { meta: brainMeta as unknown as Record<string, Json> } : {}),"), "so does the sent row, through the door");
+  assert.ok(readCode("apps/edge/lib/whatsapp/persist.ts").includes("...(meta ? { meta } : {}),"), "so does the sent row, through the door");
   assert.ok(steps.includes('replyMode === "auto" && minConfidence > 0 && typeof brainMeta?.confidence === "number" && brainMeta.confidence < minConfidence;'));
   assert.ok(steps.includes('delayMs = replyDelayMs("veto", replyLimits);'), "held in the configured window, not a made-up one");
   assert.ok(steps.includes('source: heldForConfidence ? "low_confidence" : "veto_window"') && wa.includes("plan.source, brainMeta, channel)"), "the draft remembers why it waited");

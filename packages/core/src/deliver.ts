@@ -107,8 +107,8 @@ export type Delivered =
   | { outcome: "refused"; reason: DeliveryRefusal; messageId: string | null }
   | {
       outcome: "failed";
-      /** Ours: no wire for the channel, no credentials for it, or the provider said no. */
-      reason: "no_sender_for_channel" | "no_credentials" | "provider";
+      /** Ours: no wire for the channel, no credentials for it, the provider said no, or the facts could not be read. */
+      reason: "no_sender_for_channel" | "no_credentials" | "provider" | "wire_unreadable";
       status: number;
       errorBody: string | null;
       messageId: string | null;
@@ -162,11 +162,19 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number): DeliveryRefusal |
   // Consent outranks everything, asked with this message's own purpose.
   const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive });
   if (!may.ok) return (may.reason ?? "opted_out") as DeliveryRefusal;
-  // A person's own words go out even when the machine is told to stop: the
+  // A person's own reply goes out even when the machine is told to stop: the
   // pause exists for them, and a paused workspace may still answer by hand.
-  if (d.sender === "human") return null;
+  // A broadcast is a person's words too, but it is proactive and automated,
+  // and it respects the pause like the machine it is.
+  if (d.sender === "human" && !d.proactive) return null;
   if (f.tenantStatus === "paused") return "paused";
-  if (f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()) return "human_has_it";
+  // The thread's pause holds an IMMEDIATE send. A queued row was written
+  // before the pause it now meets -- the receptionist's own escalation pauses
+  // the thread and queues its holding message in the same breath -- so for a
+  // queued row the question is not "is the thread paused" but "did a person
+  // speak since", which overtakenByHuman answers below; and every take-over
+  // path withdraws the draft explicitly besides.
+  if (!d.messageId && f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()) return "human_has_it";
   return null;
 }
 
@@ -304,4 +312,20 @@ export async function templatePurpose(db: Db, tenantId: string, template: { name
     .maybeSingle();
   if (error) throw new Error(`deliver: cannot read template ${template.name}: ${error.message}`);
   return purposeOfTemplate(data?.category);
+}
+
+/**
+ * The door for a caller that must never see it throw: the webhook, whose
+ * outer catch only logs, so a thrown read used to be a customer's reply lost
+ * with nobody told. A wire that cannot be read is a failure with its own
+ * name, and the caller alerts a person the way it does for a provider's no.
+ */
+export async function deliverSafely(ports: DeliverPorts, d: Delivery): Promise<Delivered> {
+  try {
+    return await deliver(ports, d);
+  } catch (e) {
+    const errorBody = e instanceof Error ? e.message : String(e);
+    console.error("deliver_threw", JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: errorBody }));
+    return { outcome: "failed", reason: "wire_unreadable", status: 0, errorBody, messageId: d.messageId ?? null };
+  }
 }

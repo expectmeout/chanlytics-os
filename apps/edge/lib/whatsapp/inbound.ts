@@ -18,7 +18,7 @@ import { pg } from "../pg.js";
 import { normalizeInbound, withCarrierConsent, type CarrierConsent, type WaChangeValue, type WaRawMessage } from "../workspace/channels.js";
 import { shortCode } from "../workspace/contracts.js";
 import { readLeadContext, describeLead, personReplyMode, type IngestResult } from "../workspace/db.js";
-import type { RoutedChannel } from "../workspace/db.js";
+import type { Json, RoutedChannel } from "../workspace/db.js";
 import { loadTenantRuntime, waCfgFor } from "../tenant-runtime.js";
 import { openingsFor, visitsFor } from "../availability.js";
 import { isVisionMime, photoUserText, toBase64, VISION_MAX_BYTES } from "../vision.js";
@@ -190,7 +190,7 @@ export async function handleInbound(
   // consent, the pause and the workspace's status the moment before.
   const firstReply = thread.replies.length === 0 && !thread.history.some((h) => h.role === "assistant");
   const wire = (text: string) => (carrier ? carrier.body(text, firstReply) : text);
-  const send = (text: string, meta?: BrainMeta) => sink.deliver(from, wire(text), meta);
+  const send = (text: string, meta?: Record<string, Json>) => sink.deliver(from, wire(text), meta);
 
   // Atomic concurrent-redelivery gate. PG_READS implies it: Postgres-sourced
   // memory carries no `seen` list, so is_new IS the dedupe — and it is stronger
@@ -384,7 +384,8 @@ export async function handleInbound(
       // the message still escalates so a human sees it. No persona -> no ack.
       const mayAck = !!brainCfg && (replyMode === "auto" || replyMode === "veto");
       if (mayAck) {
-        await send(brainCfg!.fallbacks.non_text);
+        // A courtesy, not an answer: marked so it does not spend the daily cap.
+        await send(brainCfg!.fallbacks.non_text, { ack: true });
         thread.pausedUntil = Date.now() + pauseMs;
         await saveThread(ns, from, thread);
       }
@@ -685,7 +686,7 @@ export async function handleInbound(
     return;
   }
 
-  const sent = await send(replyText, brainMeta);
+  const sent = await send(replyText, brainMeta as unknown as Record<string, Json> | undefined);
   const tSent = Date.now();
   if (sent.outcome === "sent") {
     thread.history.push({ role: "user", content: bodyText });
@@ -717,7 +718,9 @@ export async function handleInbound(
     await saveThread(ns, from, thread);
     await Promise.all([
       alertStaff(from, bodyText, "(send failed — the customer received no reply)", "wa_send_failed", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
-      sink.escalate("send_failed", `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`),
+      sink.escalate("send_failed", sent.reason === "wire_unreadable"
+        ? "Auto-reply could not be sent: the thread could not be read at the wire. Customer got no answer."
+        : `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`),
     ]);
   }
   L.info("wa_replied", {
