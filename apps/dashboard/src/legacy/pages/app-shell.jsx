@@ -86,7 +86,13 @@ const NAV_ROUTE = {
   email: "conversations/mail",
 };
 
-// ---- In-design landings ------------------------------------------------
+// ---- The mockup's landings ---------------------------------------------
+// The mockup surfaces (Agents: fleet, store, studio, tasks; Content; Pipeline
+// and Leads; the shared report viewer) stay in the tree and stay hidden from
+// every real workspace: no nav entry, no tab, the Not-in-this-release card for
+// a hand-typed address. Ruben's decision, 11 September 2026: most of it is
+// revisited when the product is at 100%, and none of those features is built
+// before then. Nothing here is a promise to a customer or an operator.
 const SOON_META = {
   pipeline:   { icon: "deal",        title: "Pipeline",   blurb: "Deals kanban with agent attribution — who advanced what, and why." },
   calendar:   { icon: "calendar",    title: "Calendar",   blurb: "Your calendar as the receptionist reads it — taken, open, closed." },
@@ -116,7 +122,7 @@ const ComingSoon = ({ surface, onNavigate }) => {
       <div className="soon-glyph"><Icon name={meta.icon} size={22} /></div>
       <div className="soon-title">{meta.title}</div>
       <div className="soon-blurb">{meta.blurb}</div>
-      <span className="soon-chip">In design — shipping next</span>
+      <span className="soon-chip">Not in this release</span>
       <div className="soon-actions">
         <button className="btn btn-sm" onClick={() => onNavigate("today")}>
           <Icon name="home" size={12} /> Back to Today
