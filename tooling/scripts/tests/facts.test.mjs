@@ -151,7 +151,7 @@ test("the resolver is the ONE place facts are decided, on every surface that sta
   // are; the browser only ever had a listing DTO with no address on it.
   const route = readCode("apps/dashboard/app/api/v1/settings/route.ts");
   assert.ok(route.includes("resolveFacts(cfg.brain ?? null, known)") && route.includes("conflicts: factConflicts(facts)"), "the settings read carries both");
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes("w.__FACTS = cfg.facts"), "and publishes them once");
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes("w.__FACTS = cfg.configBroken ? null : { facts: cfg.facts, conflicts: cfg.conflicts };"), "and publishes them once");
 });
 
 test("the field that caused this says what it is", () => {

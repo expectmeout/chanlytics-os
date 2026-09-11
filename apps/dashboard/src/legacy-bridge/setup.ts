@@ -8,7 +8,8 @@ import {
   setupSteps, setupRoute, shouldLandOnSetup, type SetupDto, type SetupVM,
   forwardingCodes, forwardingTestOpen, CARRIERS, FORWARDING_MODES, CARRIER_WORDS, MODE_WORDS, formatPhoneDisplay, agoWords,
 } from "@chanlytics/contracts";
-import { fetchEnvelope, getActiveWorkspace, scoped, type SurfaceOverride } from "./surface-data";
+import { getActiveWorkspace, scoped, type SurfaceOverride } from "./surface-data";
+import { read } from "./api";
 import { refreshSurfaces } from "./surface-runner";
 
 export interface SetupSurface {
@@ -96,7 +97,7 @@ export const setupOverride: SurfaceOverride = {
   // A line's saga records every step on its row, and the bell a step raises.
   refreshOnTables: ["lines", "notifications"],
   apply: async () => {
-    const d = await fetchEnvelope<{ setup: SetupDto; role: string }>("/api/v1/setup");
+    const d = await read("GET setup");
     publish(d.setup, d.role);
   },
 };

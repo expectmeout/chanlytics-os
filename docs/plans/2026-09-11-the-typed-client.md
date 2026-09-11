@@ -599,7 +599,7 @@ PR 1 ends here: `route.ts` shape, the registry, the client, the instance, the ma
 - Modify: `apps/dashboard/src/legacy-bridge/surface-data.ts` (36 sites), `setup.ts`, `google.ts`, `billing.ts`, `people-detail.ts` (their reads), `whatsapp-connect.ts` (`config`), `ask/api.ts` (`threads`, `thread`, `openings`)
 - Modify: the tests that pin those sites (measured at execution with `grep -rn "fetchEnvelope<" tooling/scripts/tests`)
 
-- [ ] **Step 1: Move each `fetchEnvelope<T>(url)` to `unwrap(await api()("GET …", { … }))`**
+- [x] **Step 1: Move each `fetchEnvelope<T>(url)` to `unwrap(await api()("GET …", { … }))`**
 
 Before:
 
@@ -619,13 +619,13 @@ unwrap(await api()("GET calendar", { query: { from: w.from, days: String(w.days)
 
 The hand-typed generic goes; the consumer is now typed by the route. Where the two disagree, `tsc` says where: fix the consumer (or, rarely, the route's type), and name it in the PR.
 
-- [ ] **Step 2: The runner's 401 check reads `ApiError`**
+- [x] **Step 2: The runner's 401 check reads `ApiError`**
 
 In `surface-data.ts` `activateOverride` and wherever `err instanceof UnauthorizedError` is tested: `err instanceof ApiError && err.code === "unauthorized"`. `UnauthorizedError` is deleted when its last thrower goes.
 
-- [ ] **Step 3: `fetchEnvelope` is deleted**, its in-flight map with it (the client owns one).
+- [x] **Step 3: `fetchEnvelope` is deleted**, its in-flight map with it (the client owns one).
 
-- [ ] **Step 4: Typecheck, the suite, lint; move the pins the suite names; PR; merge when green.**
+- [x] **Step 4: Typecheck, the suite, lint; move the pins the suite names; PR; merge when green.**
 
 ### Task 6: The inbox and people couriers move (PR 3)
 

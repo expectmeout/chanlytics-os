@@ -98,7 +98,7 @@ test("the door: two periods by the business's clock, replied by the Broadcasts r
   assert.ok(r.includes('rate: "aggregate",') && r.includes('ctx.supabase.rpc("campaign_series", { p_tenant_id: tenantId, p_days: days })'));
   assert.ok(r.includes("days must be 7, 30 or 90."), "the same three presets as the receptionist's report");
   const s = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
-  assert.ok(s.includes("fetchEnvelope<{ report: CampaignReportDto }>(`/api/v1/reports/campaigns?days=${days}`)"), "fetched with the same period, beside the receptionist's numbers");
+  assert.ok(s.includes('read("GET reports/campaigns", { query: { days: String(days) } })'), "fetched with the same period, beside the receptionist's numbers");
   assert.ok(s.includes("campaigns: toCampaignReportVM(campaigns.report)"));
   const p = readCode("apps/dashboard/src/legacy/pages/reports.jsx");
   for (const id of ["campaign-tiles", "chart-campaigns"]) assert.ok(p.includes(`data-testid="${id}"`), id);

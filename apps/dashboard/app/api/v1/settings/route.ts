@@ -58,7 +58,7 @@ export const GET = read({
         config: visible,
         version: row.version,
         role: member.role,
-        configBroken: false,
+        configBroken: false as const,
         // What each fact resolves to and where it came from, plus anything that
         // disagrees. The pane shows a source beside every value instead of a
         // column of identical-looking text boxes, and a serious disagreement --
@@ -68,7 +68,8 @@ export const GET = read({
         conflicts: factConflicts(facts),
       };
     }
-    return { config: null, version: row.version, role: member.role, configBroken: true, issues: parsed.issues };
+    // `as const` on both: the two answers are told apart by this one flag, and the client narrows on it.
+    return { config: null, version: row.version, role: member.role, configBroken: true as const, issues: parsed.issues };
   },
 });
 

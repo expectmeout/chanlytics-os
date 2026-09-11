@@ -12,6 +12,10 @@ import { POLICY_CLASS_WORDS } from "@chanlytics/contracts";
  */
 
 import { clearSurfaceCache } from "./surface-cache";
+import { ApiError } from "../client/api";
+import { api, read } from "./api";
+import { getActiveWorkspace, setActiveWorkspace } from "./workspace";
+export { getActiveWorkspace, setActiveWorkspace } from "./workspace";
 import { DEFAULT_REFRESH_TABLES, type RealtimeChange } from "./surface-realtime";
 import type { NotificationsDto, PendingWorkspace, ResolvedFacts, FactConflict } from "@chanlytics/contracts";
 import type { PoliciesSurface, PolicyRecordLike } from "./policy-store";
@@ -41,64 +45,6 @@ export interface SurfaceOverride {
   debounceMs?: number;
 }
 
-/** Session-expiry-aware fetch: 401 becomes a typed signal the runner redirects on. */
-export class UnauthorizedError extends Error {
-  constructor() { super("unauthorized"); this.name = "UnauthorizedError"; }
-}
-
-/**
- * In-flight de-duplication. Three overrides independently ask for the same
- * endpoints, so one boot issued nine requests across five URLs — four of them
- * byte-identical duplicates — and every realtime message and every tab focus
- * repeated the pattern. Each one also costs two server-side getUser() round
- * trips (middleware + route), so the waste is real DB load, not just bytes.
- *
- * Callers stay naive: they each ask for what they need, and concurrent asks
- * for the same URL share one response. The window is deliberately short —
- * this collapses a burst, it is not a cache.
- */
-const inFlight = new Map<string, { p: Promise<unknown>; at: number }>();
-const INFLIGHT_MS = 2000;
-
-/* --------------------------- the active workspace ------------------------- */
-
-const WS_KEY = "chanlytics.workspace";
-
-/**
- * Which workspace every request on this page is about.
- *
- * Nothing used to send this, so the API answered from whatever default each
- * route happened to pick — three different rules — and the read endpoints,
- * scoped only by RLS, returned every workspace the caller belonged to merged
- * into one list. One id, chosen once, appended at this chokepoint so no call
- * site can forget it.
- *
- * localStorage, not session: which business you are looking at is a preference
- * that should survive a reload, unlike the cached rows themselves. It is only
- * ever a REQUEST — the server validates membership and ignores an id the caller
- * has no claim to, so a tampered value grants nothing.
- */
-let activeWorkspace: string | null = null;
-
-export function getActiveWorkspace(): string | null {
-  if (activeWorkspace) return activeWorkspace;
-  try {
-    activeWorkspace = localStorage.getItem(WS_KEY);
-  } catch {
-    // private mode / storage disabled — the server default applies
-  }
-  return activeWorkspace;
-}
-
-export function setActiveWorkspace(id: string | null): void {
-  activeWorkspace = id;
-  try {
-    if (id) localStorage.setItem(WS_KEY, id);
-    else localStorage.removeItem(WS_KEY);
-  } catch {
-    /* the in-memory value still holds for this page */
-  }
-}
 
 /**
  * Append ?workspace= unless the caller named one explicitly.
@@ -131,30 +77,7 @@ export function scoped(url: string): string {
  * already in flight can be describing the world the operator is now in.
  */
 export function invalidateInFlight(): void {
-  inFlight.clear();
-}
-
-export async function fetchEnvelope<T>(rawUrl: string): Promise<T> {
-  const url = scoped(rawUrl);
-  const hit = inFlight.get(url);
-  if (hit && Date.now() - hit.at < INFLIGHT_MS) return hit.p as Promise<T>;
-
-  const p = (async () => {
-    const res = await fetch(url);
-    if (res.status === 401) throw new UnauthorizedError();
-    const j = (await res.json().catch(() => null)) as { ok: boolean; data?: T } | null;
-    if (!j || !j.ok || j.data === undefined) throw new Error(`${url} -> ${res.status}`);
-    return j.data;
-  })();
-
-  // A rejection must not be shared beyond its burst, or one blip fails every
-  // later caller too. Drop the entry as soon as it settles.
-  inFlight.set(url, { p, at: Date.now() });
-  p.finally(() => {
-    if (inFlight.get(url)?.p === p) inFlight.delete(url);
-  }).catch(() => {});
-
-  return p;
+  api().forget();
 }
 
 export async function activateOverride(o: SurfaceOverride): Promise<boolean> {
@@ -163,7 +86,7 @@ export async function activateOverride(o: SurfaceOverride): Promise<boolean> {
     for (const e of o.events ?? []) window.dispatchEvent(new CustomEvent(e));
     return true;
   } catch (err) {
-    if (err instanceof UnauthorizedError) throw err;
+    if (err instanceof ApiError && err.code === "unauthorized") throw err;
     // A failed override NEVER breaks the surface — it just stays seeded.
     console.error("surface_override_failed", o.key, err instanceof Error ? err.message : err);
     return false;
@@ -197,13 +120,7 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
     return w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE) ?? w.__WORKSPACES?.[0] ?? null;
   },
   apply: async () => {
-    const data = await fetchEnvelope<{
-      workspaces: Workspace[];
-      activeWorkspaceId?: string;
-      user?: Me;
-      /** What sign-up kept for a person with no workspace yet; the create screen opens with it. */
-      pending?: PendingWorkspace | null;
-    }>("/api/v1/workspaces");
+    const data = await read("GET workspaces");
     const w = window as unknown as {
       __WORKSPACES?: Workspace[];
       __ME?: Me;
@@ -211,7 +128,7 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
       __PENDING_WORKSPACE?: PendingWorkspace | null;
     };
     w.__WORKSPACES = data.workspaces;
-    w.__PENDING_WORKSPACE = data.pending ?? null;
+    w.__PENDING_WORKSPACE = "pending" in data ? data.pending ?? null : null;
     // The server had the last word on which workspace this is — it validated
     // membership and may have overridden a stale stored preference. Record what
     // it decided, so every later request agrees with the data already rendered.
@@ -344,8 +261,8 @@ export const inboxOverride: SurfaceOverride = {
   refreshOnMessageInserts: true,
   apply: async () => {
     const [convData, escData, tplRes] = await Promise.all([
-      fetchEnvelope<{ conversations: ConversationDto[] }>("/api/v1/conversations"),
-      fetchEnvelope<{ escalations: EscalationRow[] }>("/api/v1/escalations?state=open"),
+      read("GET conversations"),
+      read("GET escalations", { query: { state: "open" } }),
       // The one send that works outside the 24-hour window. The composer named
       // a template by a hardcoded literal and this endpoint had no caller at
       // all, so a workspace whose approved template is registered under any
@@ -356,7 +273,7 @@ export const inboxOverride: SurfaceOverride = {
       // Additive, like calls: a template read that fails must not blank the
       // Inbox. It degrades to "no approved template", which is the honest
       // reading of "we do not know of one".
-      fetchEnvelope<{ templates: ApprovedTemplate[] }>("/api/v1/templates").catch(
+      read("GET templates").catch(
         (e: unknown) => e as Error,
       ),
     ]);
@@ -378,9 +295,7 @@ export const inboxOverride: SurfaceOverride = {
     const extra = (
       await Promise.all(
         missing.slice(0, 20).map((id) =>
-          fetchEnvelope<{ conversation: ConversationDto; messages: ConversationDto["messages"] }>(
-            `/api/v1/conversations/${id}`,
-          )
+          read("GET conversations/[id]", { params: { id } })
             .then((d) => ({ ...d.conversation, messages: d.messages }))
             .catch(() => null),
         ),
@@ -432,10 +347,10 @@ export const todayOverride: SurfaceOverride = {
     // blank the brief — but they are fetched WITH the others rather than
     // waterfalled behind them, so the slowest request sets the wall clock.
     const [metricsRes, convData, escData, callsRes] = await Promise.all([
-      fetchEnvelope<{ metrics: MetricsSummaryDto }>("/api/v1/metrics?days=1"),
-      fetchEnvelope<{ conversations: ConversationDto[] }>("/api/v1/conversations"),
-      fetchEnvelope<{ escalations: EscalationRow[] }>("/api/v1/escalations?state=open"),
-      fetchEnvelope<{ calls: CallDto[] }>("/api/v1/calls").catch((e: unknown) => e as Error),
+      read("GET metrics", { query: { days: "1" } }),
+      read("GET conversations"),
+      read("GET escalations", { query: { state: "open" } }),
+      read("GET calls").catch((e: unknown) => e as Error),
     ]);
     let calls: CallDto[] = [];
     try {
@@ -477,8 +392,8 @@ export const conversationsOverride: SurfaceOverride = {
   refreshOnMessageInserts: true,
   apply: async () => {
     const [data, callsRes] = await Promise.all([
-      fetchEnvelope<{ conversations: ConversationDto[] }>("/api/v1/conversations"),
-      fetchEnvelope<{ calls: CallDto[] }>("/api/v1/calls").catch((e: unknown) => e as Error),
+      read("GET conversations"),
+      read("GET calls").catch((e: unknown) => e as Error),
     ]);
     const w = window as unknown as {
       CONVERSATIONS_DATA?: { CONVERSATIONS: unknown[]; CV_CHANNELS: unknown[] };
@@ -541,16 +456,16 @@ export const settingsOverride: SurfaceOverride = {
   events: ["surface:settings"],
   apply: async () => {
     const [cfg, team, pol, ch, tpl] = await Promise.all([
-      fetchEnvelope<{ config: WorkspaceSettings | null; version: number; role: string; configBroken?: boolean; issues?: string[]; facts?: ResolvedFacts; conflicts?: FactConflict[] }>("/api/v1/settings"),
+      read("GET settings"),
       // A team read that fails must not blank the business card beside it.
-      fetchEnvelope<{ members: unknown[]; invites?: unknown[] }>("/api/v1/team").catch((e: unknown) => e as Error),
+      read("GET team").catch((e: unknown) => e as Error),
       // The autonomy matrix. Same rule: a failed read is its own state (null),
       // never the mockup's charter.
-      fetchEnvelope<{ policies: PolicyRecordLike[]; role?: string }>("/api/v1/policies").catch((e: unknown) => e as Error),
+      read("GET policies").catch((e: unknown) => e as Error),
       // The numbers the business is reachable on, for Integrations.
-      fetchEnvelope<{ channels: ChannelDto[] }>("/api/v1/channels").catch((e: unknown) => e as Error),
+      read("GET channels").catch((e: unknown) => e as Error),
       // Every template with its status, for the Integrations pane's card.
-      fetchEnvelope<{ templates: TemplateDto[] }>("/api/v1/templates?all=1").catch((e: unknown) => e as Error),
+      read("GET templates", { query: { all: "1" } }).catch((e: unknown) => e as Error),
     ]);
     const w = window as unknown as {
       __SETTINGS?: { config: WorkspaceSettings | null; version: number; role: string; broken: { issues: string[] } | null };
@@ -570,7 +485,7 @@ export const settingsOverride: SurfaceOverride = {
     // Resolved on the server, where the channel rows and the listing are. Null
     // on a broken config for the same reason the forms close: there is nothing
     // trustworthy to resolve against.
-    w.__FACTS = cfg.facts ? { facts: cfg.facts, conflicts: cfg.conflicts ?? [] } : null;
+    w.__FACTS = cfg.configBroken ? null : { facts: cfg.facts, conflicts: cfg.conflicts };
     if (ch instanceof Error) {
       w.__CHANNELS = null;
       console.error("settings_channels_fetch_failed", ch.message);
@@ -589,7 +504,8 @@ export const settingsOverride: SurfaceOverride = {
       console.error("settings_policies_fetch_failed", pol.message);
     } else {
       w.__POLICIES = {
-        rows: (pol.policies ?? []).map((r) => ({ class: r.class, mode: r.mode, limits: r.limits ?? {} })),
+        // `limits` is a JSON column: an object when set, and anything else reads as none.
+        rows: (pol.policies ?? []).map((r) => ({ class: r.class, mode: r.mode, limits: r.limits && typeof r.limits === "object" && !Array.isArray(r.limits) ? (r.limits as Record<string, unknown>) : {} })),
         role: pol.role ?? null,
       };
     }
@@ -654,8 +570,8 @@ export const peopleOverride: SurfaceOverride = {
   refreshOnMessageInserts: true,
   apply: async () => {
     const [data, savedData] = await Promise.all([
-      fetchEnvelope<{ people: PersonRowDto[]; calendar?: { state: "ok" | "unavailable" | "none"; source: string }; booking_link?: string | null }>("/api/v1/contacts"),
-      fetchEnvelope<{ lists: { id: string; name: string; ids: string[] }[] }>("/api/v1/segments"),
+      read("GET contacts"),
+      read("GET segments"),
     ]);
     const now = new Date();
     const rows = data.people.map((r) => toPersonRowVM(r, now));
@@ -749,13 +665,13 @@ export const broadcastsOverride: SurfaceOverride = {
   refreshOnMessageInserts: true,
   apply: async () => {
     const [bc, people, saved, tpl, ch, cfg] = await Promise.all([
-      fetchEnvelope<{ broadcasts: BroadcastDto[] }>("/api/v1/broadcasts"),
-      fetchEnvelope<{ people: PersonRowDto[]; calendar?: { state: string } }>("/api/v1/contacts"),
-      fetchEnvelope<{ lists: { id: string; name: string; ids: string[] }[] }>("/api/v1/segments").catch((e: unknown) => e as Error),
-      fetchEnvelope<{ templates: TemplateDto[] }>("/api/v1/templates").catch((e: unknown) => e as Error),
-      fetchEnvelope<{ channels: ChannelDto[] }>("/api/v1/channels").catch((e: unknown) => e as Error),
+      read("GET broadcasts"),
+      read("GET contacts"),
+      read("GET segments").catch((e: unknown) => e as Error),
+      read("GET templates").catch((e: unknown) => e as Error),
+      read("GET channels").catch((e: unknown) => e as Error),
       // The business's name and whether a booking link is on file, for the slots that name them.
-      fetchEnvelope<{ config: { brain?: { business_name?: string; booking_link?: string } } | null }>("/api/v1/settings").catch((e: unknown) => e as Error),
+      read("GET settings").catch((e: unknown) => e as Error),
     ]);
     const wa = ch instanceof Error ? null : (ch.channels ?? []).find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
     const brain = cfg instanceof Error ? null : cfg.config?.brain ?? null;
@@ -885,11 +801,11 @@ export const playbooksOverride: SurfaceOverride = {
   refreshOnMessageInserts: true,
   apply: async () => {
     const [pb, people, tpl, ch, cfg] = await Promise.all([
-      fetchEnvelope<{ playbooks: Array<PlaybookDto & { totals: PlaybookTotalsVM }>; timezone: string }>("/api/v1/playbooks"),
-      fetchEnvelope<{ people: PersonRowDto[]; calendar?: { state: "ok" | "unavailable" | "none" } }>("/api/v1/contacts"),
-      fetchEnvelope<{ templates: TemplateDto[] }>("/api/v1/templates").catch((e: unknown) => e as Error),
-      fetchEnvelope<{ channels: ChannelDto[] }>("/api/v1/channels").catch((e: unknown) => e as Error),
-      fetchEnvelope<{ config: { brain?: { business_name?: string; booking_link?: string } } | null }>("/api/v1/settings").catch((e: unknown) => e as Error),
+      read("GET playbooks"),
+      read("GET contacts"),
+      read("GET templates").catch((e: unknown) => e as Error),
+      read("GET channels").catch((e: unknown) => e as Error),
+      read("GET settings").catch((e: unknown) => e as Error),
     ]);
     const now = new Date();
     const rows = people.people.map((r) => toPersonRowVM(r, now));
@@ -973,7 +889,7 @@ export const calendarOverride: SurfaceOverride = {
     const from = calendarFrom;
     const days = calendarDays;
     const w = from ? { from, days } : windowFor(localDayKey());
-    const data = await fetchEnvelope<{ calendar: CalendarWeekDto }>(`/api/v1/calendar?from=${w.from}&days=${w.days}`);
+    const data = await read("GET calendar", { query: { from: w.from, days: String(w.days) } });
     // Two moves in a row: the earlier read may land after the later one. A
     // read for a span the page has since left is dropped, never painted.
     if (from !== calendarFrom || days !== calendarDays) return;
@@ -1039,8 +955,8 @@ export const reportsOverride: SurfaceOverride = {
   apply: async () => {
     const days = reportDays;
     const [data, campaigns] = await Promise.all([
-      fetchEnvelope<{ report: ReportDto; booking?: BookingReportDto | null }>(`/api/v1/reports?days=${days}`),
-      fetchEnvelope<{ report: CampaignReportDto }>(`/api/v1/reports/campaigns?days=${days}`),
+      read("GET reports", { query: { days: String(days) } }),
+      read("GET reports/campaigns", { query: { days: String(days) } }),
     ]);
     (window as unknown as { __REPORTS?: ReportsSurface }).__REPORTS = {
       vm: toReportVM(data.report),
@@ -1070,7 +986,7 @@ export const notificationsOverride: SurfaceOverride = {
   events: ["surface:notifications"],
   refreshOnTables: ["notifications"],
   apply: async () => {
-    const dto = await fetchEnvelope<NotificationsDto>("/api/v1/notifications");
+    const dto = await read("GET notifications");
     (window as unknown as { __NOTIFICATIONS?: NotificationsSurface }).__NOTIFICATIONS = { dto, fetchedAt: Date.now() };
   },
 };
@@ -1096,9 +1012,9 @@ export const liveOverride: SurfaceOverride = {
   debounceMs: 300,
   apply: async () => {
     const [callsRes, chRes] = await Promise.all([
-      fetchEnvelope<{ calls: CallDto[] }>("/api/v1/calls"),
+      read("GET calls"),
       // The line's number and switch are context, not a precondition.
-      fetchEnvelope<{ channels: ChannelDto[] }>("/api/v1/channels").catch((e: unknown) => e as Error),
+      read("GET channels").catch((e: unknown) => e as Error),
     ]);
     if (chRes instanceof Error) console.error("live_channels_fetch_failed", chRes.message);
     (window as unknown as { __LIVE?: LiveVM }).__LIVE = toLiveVM(

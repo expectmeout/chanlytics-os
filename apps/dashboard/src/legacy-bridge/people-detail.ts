@@ -1,16 +1,16 @@
-import { CONSENT_SOURCES, mayReceive, offersYesRefusal, toPersonVM, type PersonDetailDto, type PersonVM, type SendPurpose } from "@chanlytics/contracts";
+import { CONSENT_SOURCES, mayReceive, offersYesRefusal, toPersonVM, type PersonVM, type SendPurpose } from "@chanlytics/contracts";
 import {
   conversationsOverride,
-  fetchEnvelope,
   inboxOverride,
   invalidateInFlight,
   peopleOverride,
   scoped,
   todayOverride,
-  UnauthorizedError,
 } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 import { clearSurfaceCache } from "./surface-cache";
+import { api } from "./api";
+import { ApiError } from "../client/api";
 
 /**
  * The profile courier: `window.__personDetail(id)`.
@@ -23,17 +23,13 @@ import { clearSurfaceCache } from "./surface-cache";
  * tested by execution.
  *
  * Resolves null for "not in your workspace" (404) so the page can say so;
- * a session expiry propagates as UnauthorizedError for the runner to handle.
+ * a session expiry has already signed the tab out by the time this throws.
  */
 export async function personDetail(id: string): Promise<PersonVM | null> {
-  try {
-    const data = await fetchEnvelope<{ person: PersonDetailDto }>(`/api/v1/contacts/${encodeURIComponent(id)}`);
-    return toPersonVM(data.person);
-  } catch (e) {
-    if (e instanceof UnauthorizedError) throw e;
-    if (e instanceof Error && / -> 404$/.test(e.message)) return null;
-    throw e;
-  }
+  const r = await api()("GET contacts/[id]", { params: { id } });
+  if (r.ok) return toPersonVM(r.data.person);
+  if (r.status === 404) return null;
+  throw new ApiError(r.code, r.status, r.message);
 }
 
 export interface DeleteResult {

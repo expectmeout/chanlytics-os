@@ -98,7 +98,7 @@ test("the workspace is appended at the fetch chokepoint", () => {
   // Not at the call sites. Three overrides fetch five endpoints between them,
   // and a sixth added later must not have to remember this.
   assert.match(surfaceData, /function scoped\(url: string\)/);
-  assert.match(surfaceData, /fetchEnvelope<T>\(rawUrl: string\)[\s\S]{0,80}scoped\(rawUrl\)/);
+  assert.ok(surfaceData.includes('read("GET '), "every read goes through the typed client, which appends the workspace (typed-client.test.mjs)");
 });
 
 test("a caller that names its own workspace is not overridden", () => {

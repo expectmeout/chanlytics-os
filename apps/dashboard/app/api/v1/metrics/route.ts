@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { read, workspace } from "@/server/route";
-import { AppError } from "@chanlytics/contracts";
+import { AppError, type MetricsSummaryDto } from "@chanlytics/contracts";
 
 const Query = z.object({
   /** 1 to 90; one by default. */
@@ -37,6 +37,7 @@ export const GET = read({
     if (!data || (data as { error?: string }).error) {
       throw new AppError("not_found", "Workspace metrics unavailable.", 404);
     }
-    return { metrics: data, workspaceId: tenantId };
+    // The function answers JSON; the contract names its shape, as the reports do.
+    return { metrics: data as unknown as MetricsSummaryDto, workspaceId: tenantId };
   },
 });

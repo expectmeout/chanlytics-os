@@ -10,7 +10,8 @@ import {
   toBillingVM, dayWords, moneyWords, trialWords, priceWords, CHECKOUT_OUTCOME_WORDS,
   type BillingDto, type BillingVM, type BillingInvoiceDto,
 } from "@chanlytics/contracts";
-import { fetchEnvelope, scoped, type SurfaceOverride } from "./surface-data";
+import { scoped, type SurfaceOverride } from "./surface-data";
+import { read } from "./api";
 import { refreshSurfaces } from "./surface-runner";
 import { setupOverride } from "./setup";
 
@@ -48,7 +49,7 @@ export const billingOverride: SurfaceOverride = {
   // The webhook writes the row on every Stripe event; the pane repaints on each.
   refreshOnTables: ["billing_accounts"],
   apply: async () => {
-    const d = await fetchEnvelope<{ billing: BillingDto }>("/api/v1/billing");
+    const d = await read("GET billing");
     window.__BILLING_ACCOUNT = { dto: d.billing, fetchedAt: Date.now() };
   },
 };

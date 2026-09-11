@@ -11,7 +11,8 @@ import {
   toGoogleVM, ratingWords, starsOf, listingLine, checkedWords, connectionWords, reviewSnippet,
   type GoogleDto, type GoogleVM, type GoogleCandidateDto, type GoogleLocationDto,
 } from "@chanlytics/contracts";
-import { fetchEnvelope, scoped, type SurfaceOverride } from "./surface-data";
+import { scoped, type SurfaceOverride } from "./surface-data";
+import { read } from "./api";
 import { refreshSurfaces } from "./surface-runner";
 import { setupOverride } from "./setup";
 
@@ -71,7 +72,7 @@ export const googleOverride: SurfaceOverride = {
   // The edge writes the listing on every read, the connection on every sync, and a review the first time it is seen.
   refreshOnTables: ["google_listings", "google_reviews", "google_connections"],
   apply: async () => {
-    const d = await fetchEnvelope<{ google: GoogleDto }>("/api/v1/google");
+    const d = await read("GET google");
     window.__GOOGLE = { dto: d.google, fetchedAt: Date.now() };
   },
 };

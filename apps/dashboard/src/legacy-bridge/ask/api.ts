@@ -5,7 +5,8 @@
  * fetch the surfaces use; nothing here knows what the palette does with it.
  */
 import type { AskMessageVM, AskProposalOutcome, AskScope, AskSurface, AskThreadVM } from "@chanlytics/contracts";
-import { fetchEnvelope, invalidateInFlight, scoped } from "../surface-data";
+import { invalidateInFlight, scoped } from "../surface-data";
+import { read } from "../api";
 import { clearSurfaceCache } from "../surface-cache";
 
 export type SendEvent =
@@ -65,14 +66,14 @@ export function askApi(win: Window) {
   return {
     threads: async (): Promise<AskThreadVM[]> => {
       try {
-        return (await fetchEnvelope<{ threads: AskThreadVM[] }>("/api/v1/ask/threads")).threads;
+        return (await read("GET ask/threads")).threads;
       } catch {
         return [];
       }
     },
     thread: async (id: string): Promise<{ thread: AskThreadVM; messages: AskMessageVM[] } | null> => {
       try {
-        return await fetchEnvelope<{ thread: AskThreadVM; messages: AskMessageVM[] }>(`/api/v1/ask/threads/${encodeURIComponent(id)}`);
+        return await read("GET ask/threads/[id]", { params: { id } });
       } catch {
         return null;
       }
@@ -86,10 +87,7 @@ export function askApi(win: Window) {
       }
     },
     openings: async (day: string | null, service: string | null): Promise<OpeningsView> => {
-      const qs = new URLSearchParams();
-      if (day) qs.set("day", day);
-      if (service) qs.set("service", service);
-      return (await fetchEnvelope<{ openings: OpeningsView }>(`/api/v1/ask/openings?${qs}`)).openings;
+      return (await read("GET ask/openings", { query: { day: day ?? undefined, service: service ?? undefined } })).openings;
     },
     outcome: async (messageId: string, proposalId: string, o: AskProposalOutcome): Promise<boolean> => {
       if (!/^[0-9a-f-]{36}$/.test(messageId)) return false;

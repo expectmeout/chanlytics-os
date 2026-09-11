@@ -136,7 +136,7 @@ test("the doors and the page: read-only, the feed's address never in the browser
   assert.ok(!/drag|Move |cancel\(|Waitlist|two-way|Two-way|Google Calendar|Apple iCal|Utilization|\$\d/.test(page), "a viewer: nothing moved, cancelled, synced two ways, or priced");
   assert.ok(readCode("apps/dashboard/src/legacy/pages/calendar.jsx").includes("window.CalendarSeed = CalendarPage;"));
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
-  assert.ok(sd.includes('key: "calendar"') && sd.includes("/api/v1/calendar?from="), "one override, fed by the route");
+  assert.ok(sd.includes('key: "calendar"') && sd.includes('read("GET calendar"'), "one override, fed by the route");
   const s = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
   assert.ok(s.includes('data-testid="cal-check"') && s.includes("window.__calendar.previewFeed(icalUrl.trim())"), "the feed is checked before it is saved");
 });
@@ -167,7 +167,7 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
   assert.ok(svc.includes("const MAX_DAYS = 63;") && svc.includes("consult_first: (profile?.booking_rules?.consult_first ?? []).some("), "the services as Settings keeps them");
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
-  assert.ok(sd.includes("&days=${w.days}") && sd.includes("if (from !== calendarFrom || days !== calendarDays) return;") && sd.includes("calendarDays = Math.min(63, Math.max(1, Math.round(days) || 63));"));
+  assert.ok(sd.includes("days: String(w.days)") && sd.includes("if (from !== calendarFrom || days !== calendarDays) return;") && sd.includes("calendarDays = Math.min(63, Math.max(1, Math.round(days) || 63));"));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts").includes("await refreshSurfaces([settingsOverride, todayOverride, calendarOverride]);"), "hours, closures, rules and services saved in Settings reach the board");
   const dayModule = readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx");
   assert.ok(dayModule.includes('data-testid="today-day"') && dayModule.includes('C.vm.feed.state !== "ok" || !window.__today) return null;'), "Today shows the day on the calendar, and nothing without a feed");
