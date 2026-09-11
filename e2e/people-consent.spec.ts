@@ -56,7 +56,8 @@ test.describe("Consent for one person", () => {
     expect(seen[0].method).toBe("PUT");
     expect(seen[0].url).toContain("workspace=");
     expect(seen[0].body).toEqual({ consent: "opted_in", source: "in_person" });
-    await expect(page.getByText("Offers by WhatsApp")).toBeVisible();
+    // The second answer, offers, is its own control with its own words.
+    await expect(page.getByTestId("consent-marketing")).toContainText("Offers and news");
   });
 
   test("the People rail offers the list a broadcast may reach", async ({ page }) => {
