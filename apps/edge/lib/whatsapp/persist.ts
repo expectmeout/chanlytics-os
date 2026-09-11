@@ -11,7 +11,6 @@ import { fetchMediaBytes, type NormalizedInbound } from "../workspace/channels.j
 import {
   ingestInbound,
   markProcessed,
-  recordOutbound,
   pauseConversation,
   emitEvent,
   readThreadState,
@@ -19,6 +18,7 @@ import {
 } from "../workspace/db.js";
 import type { Database, Json } from "../workspace/db.js";
 import { upsertEscalation, type EscalationOutcome } from "../workspace/jobs.js";
+import { deliverSafely, type Delivered, type Wire } from "../workspace/core.js";
 import { waCfgFor, type TenantRuntime } from "../tenant-runtime.js";
 import { queueDraft } from "../draft-queue.js";
 import type { BrainMeta } from "../workspace/contracts.js";
@@ -148,10 +148,32 @@ export function pgSink(
   rt?: TenantRuntime | null,
   /** The wire this message's replies go out on. */
   channel: "whatsapp" | "sms" = "whatsapp",
+  /** This message's wires, bound by the handler where the credentials are. */
+  wire: Wire = {},
 ) {
   const on = !!(db && tenantId && ing);
   return {
     on,
+    /**
+     * The words leave through the one door (packages/core deliver): the
+     * person's consent, the thread's pause and the workspace's status are
+     * re-read at the wire, the send goes on THIS message's wire, and the row
+     * is recorded either way -- sent with its id, or failed with the status
+     * and a message.send_failed event. Without Postgres there is no thread to
+     * re-read and no row to write, so nothing is sent: the handler has
+     * already handed such a message to a person.
+     */
+    deliver: (to: string, text: string, meta?: Record<string, Json>): Promise<Delivered> =>
+      on
+        ? deliverSafely(
+            { db: db!, wire },
+            {
+              tenantId: tenantId!, conversationId: ing!.conversation_id, contactId: ing!.contact_id,
+              to, channel, sender: "ai", purpose: "conversational", proactive: false,
+              body: text, ...(meta ? { meta } : {}),
+            },
+          )
+        : Promise.resolve({ outcome: "failed", reason: "no_sender_for_channel", status: 0, errorBody: "no_database", messageId: null }),
     processed: () =>
       on ? pgSafe("processed", () => markProcessed(db!, tenantId!, ing!.message_id)) : Promise.resolve(),
     allowlistSkip: () =>
@@ -185,15 +207,6 @@ export function pgSink(
         : Promise.resolve(),
     pause: (iso: string) =>
       on ? pgSafe("pause", () => pauseConversation(db!, tenantId!, ing!.conversation_id, iso)) : Promise.resolve(),
-    outbound: (body: string, wamid: string | null, brainMeta?: BrainMeta) =>
-      on
-        ? pgSafe("outbound", () =>
-            recordOutbound(db!, {
-              tenantId: tenantId!, conversationId: ing!.conversation_id, contactId: ing!.contact_id,
-              sender: "ai", body, externalId: wamid, channel,
-              ...(brainMeta ? { meta: brainMeta as unknown as Json } : {}),
-            }))
-        : Promise.resolve(),
     /** Tokens in and out, and the quality signal beside them (intent,
      *  confidence, latency, whether it waited or handed off). */
     usage: (u: Record<string, unknown>) =>
@@ -201,12 +214,6 @@ export function pgSink(
         ? pgSafe("usage", () =>
             emitEvent(db!, tenantId!, "usage.llm_tokens", "usage", "conversation", ing!.conversation_id,
               u as unknown as Json))
-        : Promise.resolve(),
-    sendFailed: (httpStatus: number) =>
-      on
-        ? pgSafe("send_failed_evt", () =>
-            emitEvent(db!, tenantId!, "message.send_failed", "message", "message", ing!.message_id,
-              { http_status: httpStatus } as Json))
         : Promise.resolve(),
     /** Resolves to how the escalation landed — "opened" for a new one,
      *  "refreshed" when the thread already had one open — so a caller can

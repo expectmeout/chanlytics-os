@@ -189,14 +189,16 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
     (code.match(/pgIngest\(tenantId, n, channel\)/g) ?? []).length,
     "every ingest carries the channel",
   );
-  assert.ok(code.includes("const send = (text: string) => (carrier ? carrier.send(from, wire(text)) : sendText(from, text, rt, isEnvDefault));") && !code.includes("await sendText(from, replyText, rt"), "one door out");
+  assert.ok(code.includes("...(carrier ? { sms: (to: string, p: { body: string }) => carrier.send(to, p.body) } : {}),") && code.includes("const send = (text: string, meta?: Record<string, Json>) => sink.deliver(from, wire(text), meta);") && !code.includes("sendText("), "one door out: the carrier is this message's sms wire, and the sink's door sends on it");
   assert.ok(code.includes("queueReply(db, tenantId, ing, from, wire(replyText), delayMs, L, plan.source, brainMeta, channel)"), "a held draft is written for its wire");
   const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
-  assert.ok(persist.includes('channel: "whatsapp" | "sms" = "whatsapp"') && persist.includes("sender: \"ai\", body, externalId: wamid, channel,"));
+  assert.ok(persist.includes('channel: "whatsapp" | "sms" = "whatsapp"') && persist.includes('to, channel, sender: "ai", purpose: "conversational", proactive: false,'), "the sink's door sends on this message's channel, as the receptionist, in conversation");
   assert.ok(readCode("packages/db/src/repositories/ingest.ts").includes('channel: p.channel ?? "whatsapp",'), "an outbound row says its wire");
-  const jobs = readCode("packages/jobs/src/handlers.ts");
-  assert.ok(jobs.includes("sms: (ctx, to, p) =>") && jobs.includes('errorBody: "no texting line"'), "no line = a loud failure, never the other wire");
-  assert.ok(readCode("apps/edge/api/jobs/tick.ts").includes("sms: await smsSenderForTenant(db, job.tenant_id),"));
+  // The job's wires are bound by the edge where the credentials are, and a
+  // missing one is a refusal at the door (deliver.test.mjs runs that door).
+  const door = readCode("packages/core/src/deliver.ts");
+  assert.ok(door.includes('send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" }'), "no line = a loud failure at the door, never the other wire");
+  assert.ok(readCode("apps/edge/api/jobs/tick.ts").includes("sms: line ? (to: string, p: { body: string }) => line.send(to.startsWith(\"+\") ? to : `+${to}`, p.body) : null,"), "the texting line is the job's sms wire");
   const reply = readCode("apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts");
   // The channel and the window are rules that return values now (replyChannelOf
   // in verbs, replyWindow in contracts), and reply-window.test.mjs runs both.

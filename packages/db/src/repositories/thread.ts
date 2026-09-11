@@ -54,6 +54,11 @@ const isBackfill = (m: { meta?: unknown }): boolean =>
   !!m.meta && typeof m.meta === "object" &&
   (m.meta as Record<string, unknown>).backfill === true;
 
+/** "Got it, a person will look" is a courtesy, not an answer: it must not spend the cap that stops loops. */
+const isAcknowledgement = (m: { meta?: unknown }): boolean =>
+  !!m.meta && typeof m.meta === "object" &&
+  (m.meta as Record<string, unknown>).ack === true;
+
 /** True event time. A backfilled row has no channel_ts and its created_at is
  *  when the IMPORT ran, so it can only ever be placed approximately. */
 const effectiveAt = (m: { channel_ts: string | null; created_at: string }): number =>
@@ -149,7 +154,7 @@ export async function readThreadState(
     // them would let a backfill silence the bot for a day against a cap it
     // never actually spent.
     replies: (replies.data ?? [])
-      .filter((r) => !isBackfill(r))
+      .filter((r) => !isBackfill(r) && !isAcknowledgement(r))
       .map((r) => new Date(r.created_at).getTime()),
   };
 }

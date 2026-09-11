@@ -15,6 +15,8 @@
  * a chain quietly evaluate to nothing.
  */
 
+import crypto from "node:crypto";
+
 /** Rows a filter selects. `eq` is strict, `is` is the NULL test, `lt` is whatever `<` does — ISO timestamps sort as text. */
 function matches(row, filters) {
   return filters.every(([op, col, val]) =>
@@ -24,6 +26,10 @@ function matches(row, filters) {
     // every "not erased", "not accepted", "not revoked" read in this codebase
     // is written with. `eq` would not do -- SQL NULL is not equal to anything.
     : op === "is" ? (val === null ? row[col] == null : row[col] === val)
+    : op === "gt" ? row[col] != null && row[col] > val
+    : op === "gte" ? row[col] != null && row[col] >= val
+    : op === "neq" ? row[col] !== val
+    : op === "in" ? val.includes(row[col])
     // PostgREST's `.not(col, "is", null)`: "has one". Modelled for Setup's count of
     // who a broadcast can reach, which requires a number to send to -- the same rule
     // `mayReceive` applies to a list, spelled in SQL because that one is a count.
@@ -64,6 +70,19 @@ export function fakeDb(tables, faults = {}, rpcs = {}) {
       const fault = faults[`${table}.${q.op}`];
       if (fault) return { data: null, error: fault };
 
+      // An insert appends copies with an id and a stamp when the caller gave
+      // none, and answers with them -- `.select()` after an insert reads back
+      // what was written, as PostgREST does.
+      if (q.op === "insert") {
+        const made = q.values.map((v) => ({
+          id: crypto.randomUUID(),
+          created_at: new Date().toISOString(),
+          ...v,
+        }));
+        rows().push(...made);
+        return { data: made.map((r) => ({ ...r })), error: null };
+      }
+
       if (q.op === "select") {
         let out = rows().filter((r) => matches(r, q.filters));
         if (q.order) {
@@ -102,8 +121,12 @@ export function fakeDb(tables, faults = {}, rpcs = {}) {
     const builder = {
       select(columns, opts) { q.columns = columns; q.counted = opts?.count === "exact"; return proxy; },
       update(values) { q.op = "update"; q.values = values; return proxy; },
-      insert() { throw new Error("fakeDb: nothing under test inserts; model it before using it"); },
+      insert(values) { q.op = "insert"; q.values = Array.isArray(values) ? values : [values]; return proxy; },
       eq(col, val) { q.filters.push(["eq", col, val]); return proxy; },
+      gt(col, val) { q.filters.push(["gt", col, val]); return proxy; },
+      gte(col, val) { q.filters.push(["gte", col, val]); return proxy; },
+      neq(col, val) { q.filters.push(["neq", col, val]); return proxy; },
+      in(col, vals) { q.filters.push(["in", col, vals]); return proxy; },
       is(col, val) { q.filters.push(["is", col, val]); return proxy; },
       lt(col, val) { q.filters.push(["lt", col, val]); return proxy; },
       or(expr) { q.filters.push(["or", null, expr]); return proxy; },

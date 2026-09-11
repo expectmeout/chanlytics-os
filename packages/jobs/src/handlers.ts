@@ -5,16 +5,19 @@
  * (no env reads here).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sendText, sendTemplate, type WaConfig } from "@chanlytics/channels";
-import { BROADCAST_CHUNK, BROADCAST_GAP_MS, firstNameOf, isOptedOutContact, mayMessageFor, purposeOfTemplate, parseParamSpec, parseTenantConfig, renderTemplate, resolveParams, type JobKind, type ParamSpec } from "@chanlytics/contracts";
-import { recordOutbound, resolveOutboundTarget, type Database, type Json } from "@chanlytics/db";
+import { BROADCAST_CHUNK, BROADCAST_GAP_MS, firstNameOf, purposeOfTemplate, parseParamSpec, parseTenantConfig, renderTemplate, resolveParams, type JobKind, type ParamSpec } from "@chanlytics/contracts";
+import { deliver, templatePurpose, type Channel, type Wire } from "@chanlytics/core";
+import { resolveOutboundTarget, type Database, type Json } from "@chanlytics/db";
 
 export interface JobContext {
   db: SupabaseClient<Database>;
-  /** The job's own tenant's WhatsApp credentials; null = none, and every WhatsApp send is refused. */
-  waCfg: WaConfig | null;
-  /** The workspace's texting line, when it has one — injected by the edge like waCfg; null = no line. */
-  sms?: { send(to: string, body: string): Promise<{ ok: boolean; wamid: string | null; status: number; errorBody?: string }> } | null;
+  /**
+   * The job's own tenant's wires, bound by the edge where the credentials
+   * are: WhatsApp on the tenant's credentials, the texting line when the
+   * workspace has one. A null wire is a refusal at the door, never a guess
+   * from the environment.
+   */
+  wire: Wire;
   alert: (subject: string, body: string) => Promise<void>;
   /**
    * Delete one customer's stored Blob thread.
@@ -49,40 +52,15 @@ export interface ClaimedJob {
  * outbound_send: the honest undo — the message sat status='queued' through its
  * cancel window; if it is STILL queued, send it and finalize.
  * payload: { message_id, conversation_id, to_phone, body?, template? }
- */
-/**
- * How to put a message on a given channel's wire.
  *
- * Adding SMS or email is an entry here plus an inbound adapter — every gate
- * above this line (consent, role, pause, the cancel window, the audit row) is
- * already channel-agnostic and is inherited unchanged. Each sender owns its own
- * address format: WhatsApp's Graph API wants bare digits, so the "+" is
- * stripped HERE rather than by the caller, who should not know that.
+ * The send is deliver()'s, the one door every message leaves through
+ * (packages/core): it re-reads the person's consent with this message's
+ * purpose, the thread's pause and the workspace's status at the wire, puts
+ * the words on the channel's own wire, and finalizes the row -- sent,
+ * canceled with its reason, or failed. What is left here is the outbox's
+ * own business: whether the row is still there to send, which yes its
+ * template needs, and who is told when the wire could not carry it.
  */
-type ChannelSend = (
-  ctx: JobContext,
-  to: string,
-  payload: { body: string; template?: { name: string; language: string; params: string[] } },
-) => Promise<{ ok: boolean; wamid: string | null; status: number; errorBody?: string }>;
-
-const SENDERS: Record<string, ChannelSend> = {
-  whatsapp: (ctx, to, p) => {
-    // No credentials, no send: refused here rather than guessed from the
-    // environment, which is how one business's message left on another's line.
-    if (!ctx.waCfg) return Promise.resolve({ ok: false, wamid: null, status: 503, errorBody: "no_whatsapp_credentials" });
-    const digits = to.replace(/^\+/, "");
-    return p.template
-      ? sendTemplate(ctx.waCfg, digits, p.template)
-      : sendText(ctx.waCfg, digits, p.body);
-  },
-  // A text has no templates: the words go as they are, through the line's
-  // Messaging Service. No line = a loud failure, never the other wire.
-  sms: (ctx, to, p) =>
-    ctx.sms
-      ? ctx.sms.send(to.startsWith("+") ? to : `+${to}`, p.body)
-      : Promise.resolve({ ok: false, wamid: null, status: 503, errorBody: "no texting line" }),
-};
-
 async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const p = job.payload as {
     message_id: string;
@@ -111,127 +89,47 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   }
   if (!msg || msg.status !== "queued") return; // canceled or already handled — no-op
 
-  // The LAST gate before the wire. The reply route already refuses an
-  // opted-out contact, but this runs up to SEND_GRACE_MS later and is the only
-  // check that covers the gap: a customer can text STOP during the cancel
-  // window, and every future queueing path (campaigns, reminders, a retry of
-  // an older row) arrives here too. Cheap, and the one place a miss is
-  // unrecoverable — the message is on its way to a real person.
-  // Resolved through the conversation rather than messages.contact_id, which
-  // is nullable — the conversation always has the contact.
-  //
-  // FAIL CLOSED. This discarded the error and guarded on `if (contact && ...)`,
-  // so a transient read failure produced contact === undefined and the message
-  // went out — to someone who may have asked to be left alone. This is the LAST
-  // gate before the wire, the one place a miss is unrecoverable, and "we could
-  // not check" is not "they consented". A send deferred to the next attempt
-  // costs a delay; a send that should not have happened cannot be taken back.
-  const { data: convRow, error: consentErr } = await ctx.db
-    .from("conversations")
-    .select("contacts (consent, dnc)")
-    .eq("id", p.conversation_id)
-    .eq("tenant_id", job.tenant_id)
-    .maybeSingle();
-  if (consentErr || !convRow) {
-    const why = consentErr?.message ?? "conversation not found";
-    console.error(JSON.stringify({
-      level: "error", event: "outbound_consent_unreadable",
-      tenant_id: job.tenant_id, message_id: p.message_id, error: why,
-    }));
-    // THROW, do not return. Failing closed is right and is not the question;
-    // the question is who finds out. Returning consumed the claim, and since
-    // 00080 a handler that returns moves the job to 'done' — so the message sat
-    // 'queued' for ever with the job recorded as a success and no sweep left
-    // that would ever look at it again. Before 'done' existed it at least
-    // stayed 'fired' until the stale-jobs sweep reaped it and told the owner;
-    // making success visible accidentally made this failure invisible.
-    //
-    // Throwing reaches the tick's failure path: the job is failed, the message
-    // is taken out of "Sending…" (nothing will send it now), and the owner is
-    // told why, which is the part they can act on.
-    throw new Error(`outbound_send: cannot read consent for conversation ${p.conversation_id}: ${why}`);
-  }
-  const contact = convRow.contacts;
-  if (contact && isOptedOutContact(contact)) {
-    await ctx.db.from("messages")
-      .update({ status: "canceled", error: { reason: "opted_out" } })
-      .eq("id", p.message_id);
-    await ctx.db.from("events").insert({
-      tenant_id: job.tenant_id, kind: "message.send_blocked", category: "message",
-      subject_type: "message", subject_id: p.message_id,
-      data: { reason: "opted_out", consent: contact.consent, dnc: contact.dnc },
-    });
-    return;
-  }
+  // Which yes this send needs. A template's purpose is what Meta says it is
+  // (failing closed to marketing when the row is missing or unreadable is
+  // not an option: unreadable throws); words in a conversation are
+  // conversational. Never proactive: everything on this queue answers a
+  // thread that exists.
+  const purpose = await templatePurpose(ctx.db, job.tenant_id, p.template);
 
-  // The ONE channel-specific step in an otherwise channel-agnostic pipeline.
-  //
-  // This used to call the WhatsApp sender directly, which made it not merely
-  // WhatsApp-only but WhatsApp-ASSUMING: `messages.channel` has allowed
-  // 'whatsapp' | 'voice' | 'sms' | 'email' since the first migration, and a row
-  // queued on any of them would have been sent over WhatsApp to `to_phone`
-  // without anything noticing. Nothing queues those today — which is exactly
-  // when this is cheap to fix rather than a rewrite under deadline.
-  const channel = msg.channel ?? "whatsapp";
-  const send = SENDERS[channel];
-  if (!send) {
-    // Fail LOUDLY and leave the customer un-messaged rather than delivering
-    // their message over the wrong wire to a number that may not be theirs.
-    console.error(JSON.stringify({
-      level: "error", event: "outbound_no_sender_for_channel",
-      tenant_id: job.tenant_id, message_id: p.message_id, channel,
-    }));
-    await ctx.db.from("messages")
-      .update({ status: "failed", error: { reason: "no_sender_for_channel", channel } })
-      .eq("id", p.message_id)
-      .eq("status", "queued");
-    return;
-  }
-  const sent = await send(ctx, p.to_phone, { body: p.body ?? msg.body ?? "", template: p.template });
-
-  if (sent.ok) {
-    // Still `.eq("status","queued")`: the operator can cancel between the send
-    // and this write. The text is already gone, so the row must say `sent` —
-    // but if the cancel won the row first, this update matching zero rows is
-    // the signal, not something to overwrite silently.
-    const { data: marked } = await ctx.db
-      .from("messages")
-      .update({ status: "sent", ...(sent.wamid ? { external_id: sent.wamid } : {}) })
-      .eq("id", p.message_id)
-      .eq("status", "queued")
-      .select("id");
-    if (!marked || marked.length === 0) {
-      console.error("outbound_sent_but_row_not_queued", p.message_id, sent.wamid);
-      await ctx.db.from("events").insert({
-        tenant_id: job.tenant_id, kind: "message.send_raced_cancel", category: "message",
-        subject_type: "message", subject_id: p.message_id, data: { wamid: sent.wamid },
-      });
-    }
-    await ctx.db
-      .from("conversations")
-      .update({ last_message_at: new Date().toISOString() })
-      .eq("id", p.conversation_id);
-    await ctx.db.from("events").insert({
-      tenant_id: job.tenant_id, kind: "message.sent", category: "message",
+  // `messages.channel` has allowed 'whatsapp' | 'voice' | 'sms' | 'email'
+  // since the first migration. A channel this runtime has no wire for finds
+  // none at the door and fails loudly, leaving the customer un-messaged
+  // rather than delivering their words over the wrong wire.
+  const channel = (msg.channel ?? "whatsapp") as Channel;
+  const out = await deliver(
+    { db: ctx.db, wire: ctx.wire },
+    {
+      tenantId: job.tenant_id,
+      conversationId: p.conversation_id,
+      contactId: null,
+      to: p.to_phone,
+      channel,
       // Read from the ROW, not hardcoded. This queue used to carry only human
       // replies; under a veto window the receptionist's own reply travels the
       // same path, and stamping every send as "human" would make the metrics
       // report a bot's words as a person's.
-      subject_type: "message", subject_id: p.message_id, data: { sender: msg.sender ?? "human" },
-    });
-  } else {
-    await ctx.db.from("messages")
-      .update({ status: "failed", error: { http_status: sent.status, body: sent.errorBody ?? null } })
-      .eq("id", p.message_id);
-    await ctx.db.from("events").insert({
-      tenant_id: job.tenant_id, kind: "message.send_failed", category: "message",
-      subject_type: "message", subject_id: p.message_id, data: { http_status: sent.status },
-    });
+      sender: (msg.sender ?? "human") as "ai" | "human" | "system",
+      purpose,
+      proactive: false,
+      body: p.body ?? msg.body ?? "",
+      template: p.template,
+      messageId: p.message_id,
+    },
+  );
+
+  if (out.outcome === "failed") {
+    // The wire could not carry it: the thread is flagged for a person and
+    // the owner told. A refusal needs neither -- the row says why.
     await upsertEscalation(ctx.db, job.tenant_id, p.conversation_id, "send_failed",
-      `Dashboard reply could not be delivered (HTTP ${sent.status}).`);
+      `Dashboard reply could not be delivered (HTTP ${out.status}).`);
     await ctx.alert(
       `Reply delivery failed: ${p.to_phone}`,
-      `A reply queued from the dashboard could not be sent (HTTP ${sent.status}). The thread is flagged in the Inbox.`,
+      `A reply queued from the dashboard could not be sent (HTTP ${out.status}). The thread is flagged in the Inbox.`,
     );
   }
 }
@@ -437,19 +335,11 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     if (cErr) { console.error("broadcast_contact_unreadable", r.contact_id, cErr.message); continue; }
     if (!c || c.erased_at) { await mark(r.contact_id, { state: "skipped", reason: "erased" }); continue; }
     if (!c.phone_e164) { await mark(r.contact_id, { state: "skipped", reason: "no_phone" }); continue; }
-    // The wire's own check, asking the question this particular message raises.
-    // It used to demand `consent === "opted_in"` whatever the template was --
-    // which both let a promotional send reach somebody who had only agreed to
-    // hear about their appointments, and skipped an appointment reminder for
-    // somebody who had. The skip reason now says which yes was missing.
-    const allowed = mayMessageFor(c, purpose, { proactive: true });
-    if (!allowed.ok) { await mark(r.contact_id, { state: "skipped", reason: allowed.reason ?? "not_opted_in" }); continue; }
+    // The thread this send belongs to. Which yes this message needs, the
+    // pause, and the workspace's status are the door's to re-read at the
+    // wire, below -- the one place a stale answer cannot be taken back.
     const target = await resolveOutboundTarget(ctx.db, { tenantId: job.tenant_id, phoneE164: c.phone_e164, create: false });
     if (!target) { await mark(r.contact_id, { state: "skipped", reason: "no_phone" }); continue; }
-    if (target.pausedUntil && Date.now() < new Date(target.pausedUntil).getTime()) {
-      await mark(r.contact_id, { state: "skipped", reason: "human_has_it" });
-      continue;
-    }
 
     // Their own words in the slots: a first name nobody has on file reads
     // "there"; a slot nothing can fill holds the person, never a blank send.
@@ -462,32 +352,35 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     });
     if (params.some((v) => !v)) { await mark(r.contact_id, { state: "skipped", reason: "missing_value" }); continue; }
     const words = renderTemplate(tpl.body_preview, params);
-    const sent = await SENDERS.whatsapp(ctx, c.phone_e164, { body: words, template: { name: b.template_name, language: b.template_language, params } });
-    const messageId = await recordOutbound(ctx.db, {
-      tenantId: job.tenant_id,
-      conversationId: target.conversationId,
-      contactId: c.id,
-      sender: "human",
-      type: "template",
-      body: words,
-      externalId: sent.ok ? sent.wamid : null,
-      status: sent.ok ? "sent" : "failed",
-      // A run's message names its playbook, so a thread reads "by the Win-back playbook".
-      meta: {
-        source: "broadcast", broadcast_id: b.id, broadcast_name: b.name,
-        ...(b.playbook_id ? { playbook_id: b.playbook_id, playbook_name: String((b.audience as { label?: unknown } | null)?.label ?? b.name) } : {}),
-        ...(sent.ok ? {} : { http_status: sent.status }),
+    // The door. It asks the one predicate with this template's purpose --
+    // a promotional send needs the yes to offers, an appointment reminder
+    // the yes to conversation -- and it asks at the wire, whatever the route
+    // found when it enrolled them; then the pause, the workspace's status,
+    // the send on the tenant's credentials, and the row either way. A
+    // refusal leaves no row: the person's own line says why they were held.
+    const out = await deliver(
+      { db: ctx.db, wire: ctx.wire },
+      {
+        tenantId: job.tenant_id,
+        conversationId: target.conversationId,
+        contactId: c.id,
+        to: c.phone_e164,
+        channel: "whatsapp",
+        sender: "human",
+        purpose,
+        proactive: true,
+        body: words,
+        template: { name: b.template_name, language: b.template_language, params },
+        // A run's message names its playbook, so a thread reads "by the Win-back playbook".
+        meta: {
+          source: "broadcast", broadcast_id: b.id, broadcast_name: b.name,
+          ...(b.playbook_id ? { playbook_id: b.playbook_id, playbook_name: String((b.audience as { label?: unknown } | null)?.label ?? b.name) } : {}),
+        },
       },
-    }).catch((e: unknown) => {
-      console.error("broadcast_record_failed", e instanceof Error ? e.message : e);
-      return null;
-    });
-    if (sent.ok) {
-      await mark(r.contact_id, { state: "sent", message_id: messageId });
-      await ctx.db.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", target.conversationId);
-    } else {
-      await mark(r.contact_id, { state: "failed", reason: "send_failed", message_id: messageId });
-    }
+    );
+    if (out.outcome === "sent") await mark(r.contact_id, { state: "sent", message_id: out.messageId });
+    else if (out.outcome === "refused") await mark(r.contact_id, { state: "skipped", reason: out.reason });
+    else await mark(r.contact_id, { state: "failed", reason: "send_failed", message_id: out.messageId });
     if (BROADCAST_GAP_MS > 0) await new Promise((res) => setTimeout(res, BROADCAST_GAP_MS));
   }
 
@@ -519,14 +412,24 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   );
 }
 
-const HANDLERS: Record<string, (ctx: JobContext, job: ClaimedJob) => Promise<void>> = {
+type Handler = (ctx: JobContext, job: ClaimedJob) => Promise<void>;
+
+/**
+ * Every declared kind, and only those. `Record<JobKind, Handler>` is the
+ * compiler's promise that a kind added to JOB_KINDS without a handler does
+ * not build, rather than sitting on the ledger until a row of it is claimed
+ * and comes back "unknown_kind" in production.
+ */
+const HANDLERS: Record<JobKind, Handler> = {
   outbound_send: outboundSend,
   broadcast_send: broadcastSend,
   blob_thread_erase: blobThreadErase,
 };
 
 export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind"> {
-  const handler = HANDLERS[job.kind];
+  // The row's kind is text; a kind this build does not declare is unknown,
+  // and the tick fails the job loudly rather than guessing.
+  const handler = (HANDLERS as Record<string, Handler | undefined>)[job.kind];
   if (!handler) return "unknown_kind";
   await handler(ctx, job);
   return "done";

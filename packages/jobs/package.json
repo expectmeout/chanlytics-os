@@ -19,6 +19,7 @@
   "dependencies": {
     "@chanlytics/channels": "workspace:*",
     "@chanlytics/contracts": "workspace:*",
+    "@chanlytics/core": "workspace:*",
     "@chanlytics/db": "workspace:*"
   },
   "devDependencies": {

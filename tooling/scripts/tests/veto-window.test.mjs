@@ -160,7 +160,7 @@ test("a delayed bot reply is not recorded as a human's", () => {
   // The queue used to carry only human replies. Stamping every send 'human'
   // would make the metrics report the bot's words as a person's.
   const handlers = read("packages/jobs/src/handlers.ts");
-  assert.match(handlers, /sender: msg\.sender \?\? "human"/);
+  assert.match(handlers, /sender: \(msg\.sender \?\? "human"\)/, "the door is handed the row's sender, never a constant");
 });
 
 test("a configured veto window that did not happen is RECORDED, not just logged", () => {

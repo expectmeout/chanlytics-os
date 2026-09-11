@@ -16,11 +16,13 @@
  *   agent_id -> tenant_channels(kind='voice')  (the routing every voice
  *               endpoint already used; this one simply never asked)
  *   -> tenant runtime for the persona facts and the per-tenant credentials
- *   -> consent, checked with the same predicate as the send job — `mayMessageFor`,
- *      asked with this message's purpose, so the bar is the message's and not
- *      this file's
- *   -> sendTemplate (bounded by the adapter's timeout, returns instead of throwing)
- *   -> recorded in messages, so the business can see what it sent
+ *   -> the voice gate (outboundGate): consent with this message's purpose,
+ *      the pause, the reply mode, the daily cap — decided once, so the agent
+ *      is told what to SAY
+ *   -> deliver(), the door every send leaves through: it re-reads consent,
+ *      the pause and the workspace's status at the wire, sends on the
+ *      tenant's credentials, and records the row so the business can see
+ *      what it sent
  *
  * Every refusal still answers HTTP 200 with a `result` sentence: the voice
  * agent SPEAKS this string, so an error status would make it say nothing at all
@@ -30,10 +32,10 @@ import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { loadTenantRuntime, waCfgFor } from "../lib/tenant-runtime.js";
 import { effectiveReplyMode } from "../lib/reply-posture.js";
-import { resolveChannel, resolveOutboundTarget, recordOutbound, countSentToday, personReplyMode } from "../lib/workspace/db.js";
+import { resolveChannel, resolveOutboundTarget, countSentToday, personReplyMode } from "../lib/workspace/db.js";
 import { normalizePhone, resolveFacts } from "../lib/workspace/contracts.js";
-import { sendTemplate } from "../lib/workspace/channels.js";
-import { outboundGate, refusalScript } from "../lib/outbound-gate.js";
+import { deliver, whatsappSender } from "../lib/workspace/core.js";
+import { outboundGate, refusalScript, type OutboundRefusal } from "../lib/outbound-gate.js";
 
 /**
  * The one template this path sends.
@@ -219,35 +221,40 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const params = [brain.business_name, brain.booking_link.replace(/^https?:[/][/]/, "")];
-    // No credentials is a refusal, said to the caller as a policy hold: the
-    // agent must never text on another business's line.
-    const waCfg = waCfgFor(rt);
-    if (!waCfg) {
-      log("retell_fn_no_credentials", { tenant: routed.tenantId });
-      return json(200, { result: refusalScript("policy_hold", publishedNumber) });
-    }
-    // Graph wants bare digits; normalizePhone guarantees the leading "+".
-    const sent = await sendTemplate(waCfg, target.slice(1), {
-      name: BOOKING_TEMPLATE.name,
-      language: BOOKING_TEMPLATE.language,
-      params,
-    });
-
-    if (!sent.ok) {
-      console.error("booking_link_send_failed", sent.status, sent.errorBody);
-      // Recorded as a failed row rather than dropped: the business should see
-      // that it tried and could not reach them.
-      await recordOutbound(db, {
+    // The door every send leaves through. It re-reads consent, the pause and
+    // the workspace's status at the wire, sends on the TENANT's credentials
+    // (none is a refusal, said to the caller as a policy hold: the agent must
+    // never text on another business's line), and records the row either way.
+    const out = await deliver(
+      { db, wire: { whatsapp: whatsappSender(waCfgFor(rt)) } },
+      {
         tenantId: routed.tenantId,
         conversationId: contact.conversationId,
         contactId: contact.contactId,
+        to: target,
+        channel: "whatsapp",
         sender: "ai",
-        type: "template",
+        purpose: BOOKING_TEMPLATE.purpose,
+        proactive: !isCaller,
         body: `[booking link] ${params.join(" — ")}`,
-        externalId: null,
-        status: "failed",
-        meta: { source: VOICE_SEND_SOURCE, call_id: call.call_id ?? null, http_status: sent.status },
-      }).catch((e) => console.error("retell_fn_record_failed", e instanceof Error ? e.message : e));
+        template: { name: BOOKING_TEMPLATE.name, language: BOOKING_TEMPLATE.language, params },
+        meta: { source: VOICE_SEND_SOURCE, call_id: call.call_id ?? null },
+      },
+    );
+
+    if (out.outcome === "refused") {
+      // The wire found what the gate could not see a moment ago. An erased
+      // person is spoken of as one who asked us to stop, which is what they did.
+      log("retell_fn_refused_at_wire", { tenant: routed.tenantId, reason: out.reason });
+      const script: OutboundRefusal = out.reason === "erased" ? "opted_out" : out.reason === "superseded_by_human" ? "human_has_it" : out.reason;
+      return json(200, { result: refusalScript(script, publishedNumber) });
+    }
+    if (out.outcome === "failed") {
+      if (out.reason === "no_credentials") {
+        log("retell_fn_no_credentials", { tenant: routed.tenantId });
+        return json(200, { result: refusalScript("policy_hold", publishedNumber) });
+      }
+      console.error("booking_link_send_failed", out.status, out.errorBody);
       return json(200, {
         result: publishedNumber
           ? `The text could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach us on ${publishedNumber}.`
@@ -255,19 +262,7 @@ export async function POST(request: Request): Promise<Response> {
       });
     }
 
-    await recordOutbound(db, {
-      tenantId: routed.tenantId,
-      conversationId: contact.conversationId,
-      contactId: contact.contactId,
-      sender: "ai",
-      type: "template",
-      body: `[booking link] ${params.join(" — ")}`,
-      externalId: sent.wamid,
-      status: "sent",
-      meta: { source: VOICE_SEND_SOURCE, call_id: call.call_id ?? null },
-    }).catch((e) => console.error("retell_fn_record_failed", e instanceof Error ? e.message : e));
-
-    log("retell_fn_sent", { tenant: routed.tenantId, wamid: sent.wamid });
+    log("retell_fn_sent", { tenant: routed.tenantId, wamid: out.externalId });
     return json(200, { result: "Booking link sent to their WhatsApp. Confirm they should see it momentarily." });
   } catch (e) {
     // A thrown repository call must not become a 500: the voice agent would go

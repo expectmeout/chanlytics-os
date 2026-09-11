@@ -40,6 +40,8 @@ export interface VerbConversation {
    *  ask for it separately. */
   consent: string | null;
   dnc: boolean;
+  /** The second answer: yes to OFFERS. A promotional template needs it. */
+  marketing_consent: string | null;
 }
 
 export async function loadConversation(ctx: RouteContext, id: string): Promise<VerbConversation> {
@@ -50,7 +52,7 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
   const convId = requireUuid(id, "conversation");
   const { data, error } = await ctx.supabase
     .from("conversations")
-    .select("id, tenant_id, state, paused_until, last_wa_inbound_at, contact_id, contacts (phone_e164, consent, dnc)")
+    .select("id, tenant_id, state, paused_until, last_wa_inbound_at, contact_id, contacts (phone_e164, consent, dnc, marketing_consent)")
     .eq("id", convId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -65,6 +67,7 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
     phone_e164: data.contacts?.phone_e164 ?? null,
     consent: data.contacts?.consent ?? null,
     dnc: data.contacts?.dnc ?? false,
+    marketing_consent: data.contacts?.marketing_consent ?? null,
   };
 }
 

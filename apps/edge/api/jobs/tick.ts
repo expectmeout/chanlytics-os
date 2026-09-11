@@ -19,6 +19,7 @@ import { alertFor } from "../../lib/job-alert.js";
 import { waCredentialsForTenant } from "../../lib/tenant-runtime.js";
 import { smsSenderForTenant } from "../../lib/sms.js";
 import { deleteThread } from "../../lib/store.js";
+import { whatsappSender } from "../../lib/workspace/core.js";
 import {
   runTick, claimNext, completeJob, failJob, settleJob, dispatchJob, scheduleJob,
   CLAIM_FOR_MS, YIELD_AT_MS, LEASE_SECONDS,
@@ -35,15 +36,21 @@ export async function POST(request: Request): Promise<Response> {
     const counts = await runTick(
       {
         claim: (lease) => claimNext(db, lease),
-        dispatch: async (job, deadline) =>
-          dispatchJob(
+        dispatch: async (job, deadline) => {
+          // The job's wires, bound here where the credentials are: the
+          // TENANT's WhatsApp credentials, never the environment's (a second
+          // business's reply must not leave from the first one's number), and
+          // the texting line's sender when the workspace has one. Null on
+          // either is a refusal at the door, not a guess.
+          const line = await smsSenderForTenant(db, job.tenant_id);
+          const wire = {
+            whatsapp: whatsappSender(await waCredentialsForTenant(db, job.tenant_id)),
+            sms: line ? (to: string, p: { body: string }) => line.send(to.startsWith("+") ? to : `+${to}`, p.body) : null,
+          };
+          return dispatchJob(
             {
               db,
-              // The TENANT's credentials, never the environment's: a second
-              // business's reply must not leave from the first one's number.
-              waCfg: await waCredentialsForTenant(db, job.tenant_id),
-              // The texting line's sender, when the workspace has one.
-              sms: await smsSenderForTenant(db, job.tenant_id),
+              wire,
               alert: alertFor(db, job),
               // The edge is the only runtime holding BLOB_READ_WRITE_TOKEN.
               eraseThread: deleteThread,
@@ -55,7 +62,8 @@ export async function POST(request: Request): Promise<Response> {
               deadline,
             },
             { id: job.id, tenant_id: job.tenant_id, kind: job.kind, payload: (job.payload ?? {}) as Record<string, unknown> },
-          ),
+          );
+        },
         complete: (job) => completeJob(db, job),
         fail: (job, reason) => failJob(db, job, reason),
         settle: (job, certain) => settleJob(db, job, certain),
