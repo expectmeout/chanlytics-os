@@ -173,7 +173,7 @@ The pipeline behind `read()` and `write()`. The order is part of the contract:
 - Create: `tooling/scripts/tests/route-policy.test.mjs` and `tooling/scripts/tests/route-policy.json`
 - Modify: `tooling/scripts/tests/permission-layer.test.mjs` (the ambiguity code), `auth-gate.test.mjs` (accept `route` as the door)
 
-- [ ] **Write `route-definition.test.mjs` first.** It runs `POST.run(req, ctx)` on specs built in the test, against `fakeDb`. Each case below is its own test.
+- [x] **Write `route-definition.test.mjs` first.** It runs `POST.run(req, ctx)` on specs built in the test, against `fakeDb`. Each case below is its own test.
   - A named workspace resolves by id or slug.
   - A workspace the caller does not belong to is a 404.
   - An ambiguous write is `choose_workspace`, and an ambiguous read uses the oldest membership.
@@ -184,10 +184,10 @@ The pipeline behind `read()` and `write()`. The order is part of the contract:
   - A body that fails its schema is a 400 naming the field.
   - The order holds: 403, then 429, then 400.
   - `handle` receives the parsed input and the member.
-- [ ] **Run it and watch it fail** on the missing module.
-- [ ] **Write `route.ts` and the `errors.ts` code.** Rebuild with `corepack pnpm --filter "./packages/*" build`. The Bash tool has no `pnpm` on its PATH; corepack does.
-- [ ] **Run it green**, then prove it: put the role check after the rate token and watch the order test fail.
-- [ ] **Write `route-policy.test.mjs`.** It imports every `app/api/v1/**/route.ts`, which already load, and reads each exported method's `.policy`. Assertions:
+- [x] **Run it and watch it fail** on the missing module.
+- [x] **Write `route.ts` and the `errors.ts` code.** Rebuild with `corepack pnpm --filter "./packages/*" build`. The Bash tool has no `pnpm` on its PATH; corepack does.
+- [x] **Run it green**, then prove it: put the role check after the rate token and watch the order test fail.
+- [x] **Write `route-policy.test.mjs`.** It imports every `app/api/v1/**/route.ts`, which already load, and reads each exported method's `.policy`. Assertions:
   - every export is `read()` for `GET` and `write()` otherwise;
   - `workspace` and `row` writes name a role, and `account` and `platform` ones do not;
   - every spending route is a `workspace` or `row` write.
@@ -197,14 +197,14 @@ The pipeline behind `read()` and `write()`. The order is part of the contract:
   - `"undeclared"`, the files still on bare `withRoute`. It may only shrink, the same ratchet as the source-scan baseline.
 
   `v1/signup` is the one permanent entry: it is public, and the middleware's `PUBLIC_PATHS` is its gate.
-- [ ] **Migrate the seven conversation verbs as the worked example:**
+- [x] **Migrate the seven conversation verbs as the worked example:**
   - `conversations/[id]/{archive,hand-back,snooze,take-over,wake}`;
   - `escalations/[id]/resolve`;
   - `messages/[id]/cancel-send`.
 
   All get `row(...)`, `role: "operator"`, and the new bucket `thread_state` (120 a minute). `snooze`'s body becomes a zod `SnoozeInput`. Add one `run()` test per verb for its refusal path: a viewer, a missing row, a bad body.
-- [ ] **Retire the text pins the declarations now record.** `rate-limit.test.mjs` reads each limited route for its bucket (the loop at line 61). The policy file states that now, so the loop becomes a check on `route-policy.json`. Leave `hygiene.test.mjs` F44 alone: it checks which columns the verbs update against the session role's grants, which is not policy. Bank the fall with `UPDATE_SOURCE_SCAN_BASELINE=1`.
-- [ ] **Commit and open the PR.** The PR is `with-route.ts` + contracts + route.ts + 7 routes + tests.
+- [x] **Retire the text pins the declarations now record.** `rate-limit.test.mjs` reads each limited route for its bucket (the loop at line 61). The policy file states that now, so the loop becomes a check on `route-policy.json`. Leave `hygiene.test.mjs` F44 alone: it checks which columns the verbs update against the session role's grants, which is not policy. Bank the fall with `UPDATE_SOURCE_SCAN_BASELINE=1`.
+- [x] **Commit and open the PR.** The PR is `with-route.ts` + contracts + route.ts + 7 routes + tests.
 
 ## Task 3.2: the rest of the routes, one domain per PR
 
@@ -262,7 +262,7 @@ That is 104 handlers, plus Task 3.1's seven verbs and signup's two (which stay o
   - `surface-runner.ts:70`
   - `pages/clients-a.jsx:1348`
 - [ ] **A `choose_workspace` answer** clears `chanlytics.workspace` and reloads. This is the first `error.code` the client reads.
-- [ ] **Realtime.** `subscribeMessagesInserts(..., { tenantId })`, which `packages/db` already supports.
+- [x] **Realtime.** `subscribeMessagesInserts(..., { tenantId })`, which `packages/db` already supports.
 - [ ] **Tests.** A loaded render of the boot order (the `consent-door` harness pattern), and the error-code branch run with a stubbed fetch.
 
 ## Task 3.4: reads refuse ambiguity too
@@ -283,6 +283,14 @@ After 3.3 is in production:
 - **Links name it:** emails, Stripe return URLs, and notification routes.
 
 Slugs are already concierge-only (`workspaces/route.ts:97`). Opening several tabs and following a deep link become correct by construction, and Phase 6's pages land under the right prefix. The API keeps `?workspace=`: moving 61 route files under `/api/v1/w/[ws]/` buys nothing once the scope is declared.
+
+## Status, 2026-09-11
+
+- **Task 3.1** shipped as #334 (`route()`, `route-policy.json`, the seven thread verbs).
+- **Task 3.2** was executed as its own plan, [2C: every route declares its policy](2026-09-11-phase-two-c-every-route-declares-its-policy.md), ten PRs #358–#367; the undeclared list is empty and the ratchet is the wall.
+- **Task 3.3**: the realtime step shipped in #351 (the runner passes `tenantId`, one topic per workspace). The boot that awaits the workspace, the four `__WORKSPACES[0]` fallbacks and the `choose_workspace` branch in the client are still open.
+- **Tasks 3.4 and 3.5** are open, in that order, after 3.3.
+- **Not in this phase**: the edge credential shipped as 2A's Task 6 (#349, `EDGE_CALL_SECRET`); the typed client shipped as [its own plan](2026-09-11-the-typed-client.md), #369–#373; the Phase 5 verbs are planned in [core, group one](2026-09-11-core-conversation-verbs.md).
 
 ## Not in this phase
 

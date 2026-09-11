@@ -672,6 +672,25 @@ test("every bridge request goes through the typed client", () => {
 
 ---
 
+## Status, 2026-09-11
+
+| PR | What | Merged |
+|---|---|---|
+| 1 | `Shape<I,O>` on `route()`, the generated registry, `createApi`, the bridge instance and the refresh map | #369 |
+| 2 | Every read onto `read("GET …")`; `fetchEnvelope` and `UnauthorizedError` gone; three routes typed to their contract | #370 |
+| 3 | The inbox and people couriers and the bell | #371 |
+| 4 | The other ten couriers | #372 |
+| 5 | Ask, sign-up, the links, the wall | #373 |
+
+Departures from the plan, each for a behaviour the couriers had that the client did not:
+
+- `onAccepted` on a write: fired the moment the server accepts, before the surfaces are re-read, so Settings says "saved" at once (PR 3).
+- `refresh: false` on a write: holds the map for one request, so a bulk verb is fifty requests and one re-read (PR 3).
+- `apiFor(win)` in the bridge: the tab's own client, or a fresh one bound to a stand-in's fetch, so the composer's test drives a real request (PR 5).
+- `refresh-map.ts` exports `AFTER` and `HOOKS`, and `_source.mjs` gained `importSrc`, so a pin that named a courier's refresh list became a check that runs the map (PRs 3 and 4).
+- `window.__href(key, params)` replaces `window.__scoped(path)` on the three pages that build a download or a photo URL: `api().url()` under a name (PR 5).
+- Routes the compiler found weaker than their contract, fixed at the source: escalations' state enum, metrics' DTO, settings' `configBroken as const` (PR 2); the Google listing read as `readOutcome()` (PR 4); the replayed reply receipt as `ReplyReceipt` (PR 5).
+
 ## After this plan
 
 - The generated registry is the API's table of contents: 113 handlers, each with a type the compiler holds the bridge to. `route-policy.json` says who may call each; `routes.generated.ts` says what each takes and answers.
