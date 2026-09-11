@@ -46,7 +46,7 @@ test("the routes: one workspace's lists with their ids, owner or operator to cha
 
 test("the surface: lists ride People, counted over the rows on the page; the verbs re-fetch it", () => {
   const s = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
-  assert.ok(s.includes('fetchEnvelope<{ lists: { id: string; name: string; ids: string[] }[] }>("/api/v1/segments")'));
+  assert.ok(s.includes('read("GET segments")'));
   assert.ok(s.includes("const ids = l.ids.filter((id) => rowIds.has(id));"), "an erased person never counts");
   const v = readCode("apps/dashboard/src/legacy-bridge/people-lists.ts");
   for (const verb of ["create:", "rename:", "remove:", "add:", "drop:"]) assert.ok(v.includes(verb), verb);

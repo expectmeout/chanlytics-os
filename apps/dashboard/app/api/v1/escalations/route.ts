@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { EscalationDto } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/route";
 
 const Query = z.object({
@@ -21,6 +22,8 @@ export const GET = read({
       .order("created_at", { ascending: false })
       .limit(100);
     if (error) throw new Error(error.message);
-    return { escalations: data ?? [] };
+    // The column is text under a CHECK; the contract names the two states, so the client reads the enum, not a string.
+    const escalations: Array<EscalationDto & { conversation_id: string }> = (data ?? []).map((e) => ({ ...e, state: e.state as EscalationDto["state"] }));
+    return { escalations };
   },
 });

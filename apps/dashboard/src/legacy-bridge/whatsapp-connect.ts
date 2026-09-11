@@ -11,7 +11,8 @@
  *
  * Published to the mockup as window.__waConnect = { config(), start() }.
  */
-import { fetchEnvelope, scoped } from "./surface-data";
+import { scoped } from "./surface-data";
+import { read } from "./api";
 
 export interface SignupConfig {
   app_id: string | null;
@@ -78,7 +79,7 @@ export function parseSignupMessage(origin: string, data: unknown): { phone_numbe
 }
 
 export function installWhatsAppConnect(win: Window = window): void {
-  const config = () => fetchEnvelope<SignupConfig>("/api/v1/channels/whatsapp/signup");
+  const config = () => read("GET channels/whatsapp/signup");
 
   const start = async (): Promise<ConnectResult> => {
     const cfg = await config().catch(() => null);

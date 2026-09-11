@@ -95,7 +95,7 @@ test("the webhook writes the row Meta changed; Settings shows every template wit
   const s = readCode("apps/dashboard/src/legacy/pages/messages.jsx");
   assert.ok(s.includes('data-testid="templates"') && s.includes('data-testid="template-row"') && s.includes('data-testid="sync-templates"'));
   assert.ok(s.includes("A marketing template can only go to people who said yes to offers."));
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes('fetchEnvelope<{ templates: TemplateDto[] }>("/api/v1/templates?all=1")'));
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes('read("GET templates", { query: { all: "1" } })'));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installTemplates();"));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/templates.ts").includes("await refreshSurfaces([settingsOverride, inboxOverride]);"), "the composer learns of a newly approved template too");
 });

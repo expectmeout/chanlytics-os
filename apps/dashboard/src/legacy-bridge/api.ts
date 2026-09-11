@@ -5,11 +5,20 @@
  * map is loaded on the first write rather than imported here, so the surfaces
  * it names can import this client without a cycle.
  */
-import { createApi, type Api } from "../client/api";
+import { createApi, unwrap, type Api, type ApiOptions, type RouteKey } from "../client/api";
 import { clearSurfaceCache } from "./surface-cache";
-import { getActiveWorkspace } from "./surface-data";
+import { getActiveWorkspace } from "./workspace";
 
 let instance: Api | null = null;
+
+/**
+ * A read the runner treats as the surface's own: a refusal throws, and the
+ * ApiError it throws carries the code the runner reads (a 401 signs the tab
+ * out; anything else leaves the surface seeded).
+ */
+export async function read<K extends RouteKey>(key: K, opts?: ApiOptions<K>) {
+  return unwrap(await api()(key, opts));
+}
 
 export function api(): Api {
   instance ??= createApi({

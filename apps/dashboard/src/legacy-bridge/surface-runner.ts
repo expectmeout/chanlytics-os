@@ -11,7 +11,8 @@
  */
 import { createClient } from "@/lib/supabase/client";
 import { subscribeMessagesInserts } from "@chanlytics/db";
-import { activateOverride, UnauthorizedError, type SurfaceOverride } from "./surface-data";
+import { activateOverride, type SurfaceOverride } from "./surface-data";
+import { ApiError } from "../client/api";
 import { cachedTenant, clearSurfaceCache, snapshotSurface } from "./surface-cache";
 import { isSurfaceReady, setStatus } from "./surface-status";
 import { subscribesToRealtime, wantsRefresh } from "./surface-realtime";
@@ -88,7 +89,7 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
         setStatus(o.key, "seeded");
       } else setStatus(o.key, "degraded");
     } catch (e) {
-      if (e instanceof UnauthorizedError) onUnauthorized();
+      if (e instanceof ApiError && e.code === "unauthorized") onUnauthorized();
     }
   };
 
@@ -116,7 +117,7 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
         setStatus(o.key, "seeded");
       }
     } catch (e) {
-      if (e instanceof UnauthorizedError) onUnauthorized();
+      if (e instanceof ApiError && e.code === "unauthorized") onUnauthorized();
       else if (!cancelled) setStatus(o.key, "seeded");
     }
   };

@@ -189,7 +189,7 @@ test("the event names the usual cause rather than making someone guess", () => {
   test("the approved templates are actually fetched", () => {
     // /api/v1/templates existed, was tenant-scoped and approved-only, and had
     // no caller anywhere. The composer named a template by a literal instead.
-    assert.match(seam, /\/api\/v1\/templates/);
+    assert.ok(seam.includes('read("GET templates")'), "the workspace's approved templates are fetched");
     assert.match(seam, /__TEMPLATES/);
   });
 
@@ -209,7 +209,7 @@ test("the event names the usual cause rather than making someone guess", () => {
   });
 
   test("a template read that fails degrades, it does not blank the Inbox", () => {
-    const at = seam.indexOf("/api/v1/templates");
+    const at = seam.indexOf('read("GET templates")');
     const around = seam.slice(at - 200, at + 400);
     assert.match(around, /catch/, "the templates fetch is additive, like calls");
   });
