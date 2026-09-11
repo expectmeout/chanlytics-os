@@ -89,6 +89,11 @@ export const PURPOSE_REFUSALS: Record<string, string> = {
   opted_out: OPT_OUT_REFUSAL,
   not_opted_in: "This customer has not said yes to messages yet.",
   no_marketing_consent: "This customer has not said yes to OFFERS. Appointment messages are fine; promotions are not.",
+  // The texting line's carrier registration covers replies and appointment
+  // messages and nothing else -- an informational campaign, filed that way
+  // after the fourth refusal (30896, 11 Sep 2026). A promotion by text would
+  // go out under a consent the carriers were never told about.
+  sms_carries_no_promotions: "Offers and news do not go by text: the line is registered with the carriers for replies and appointment messages only. This customer hears about offers on WhatsApp, once they have said yes to them there.",
 };
 
 /**

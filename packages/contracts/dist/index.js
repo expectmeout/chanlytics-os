@@ -353,7 +353,12 @@ function mayMessageFor(c, purpose, opts = {}) {
 var PURPOSE_REFUSALS = {
   opted_out: OPT_OUT_REFUSAL,
   not_opted_in: "This customer has not said yes to messages yet.",
-  no_marketing_consent: "This customer has not said yes to OFFERS. Appointment messages are fine; promotions are not."
+  no_marketing_consent: "This customer has not said yes to OFFERS. Appointment messages are fine; promotions are not.",
+  // The texting line's carrier registration covers replies and appointment
+  // messages and nothing else -- an informational campaign, filed that way
+  // after the fourth refusal (30896, 11 Sep 2026). A promotion by text would
+  // go out under a consent the carriers were never told about.
+  sms_carries_no_promotions: "Offers and news do not go by text: the line is registered with the carriers for replies and appointment messages only. This customer hears about offers on WhatsApp, once they have said yes to them there."
 };
 function purposeOfTemplate(category) {
   return category === "utility" || category === "authentication" ? "conversational" : "marketing";
@@ -7050,7 +7055,7 @@ function askWords(name) {
     },
     marketing: {
       title: "Offers and news",
-      lead: `Promotions and news from ${name}.`,
+      lead: `Promotions and news from ${name}, on WhatsApp.`,
       optional: `Separate, and entirely optional \u2014 you can have the messages above without this one, and saying no changes nothing about your appointments or anything you buy from ${name}.`,
       terms: [
         `You get promotional offers and news from ${name}. A few messages a month, never daily.`,
@@ -7069,16 +7074,16 @@ function bothTerms(name) {
 function consentPageVM(f) {
   const name = f.businessName.trim() || "This business";
   const conversation = waysFor(f, CONVERSATION_PHRASE);
-  const offers = waysFor(f, CONSENT_PHRASE);
+  const offers = waysFor({ ...f, smsE164: null }, CONSENT_PHRASE);
   const empty = conversation.length === 0 && offers.length === 0;
   const words = askWords(name);
   const asks = empty ? [] : [
-    { purpose: "conversational", ...words.conversational, ways: conversation },
-    { purpose: "marketing", ...words.marketing, ways: offers }
+    ...conversation.length ? [{ purpose: "conversational", ...words.conversational, ways: conversation }] : [],
+    ...offers.length ? [{ purpose: "marketing", ...words.marketing, ways: offers }] : []
   ];
   return {
     title: `Text messages from ${name}`,
-    lead: empty ? `${name} is not set up to take sign-ups here yet.` : `Two separate things you can say yes to, in your own message from your own phone. ${name} never sells or shares your number.`,
+    lead: empty ? `${name} is not set up to take sign-ups here yet.` : asks.length > 1 ? `Two separate things you can say yes to, in your own message from your own phone. ${name} never sells or shares your number.` : `One thing you can say yes to, in your own message from your own phone: messages about your visit. ${name} never sells or shares your number.`,
     asks,
     qrLink: optInLink(f.whatsappE164, CONSENT_PHRASE),
     terms: bothTerms(name),
@@ -7089,14 +7094,15 @@ function consentPageVM(f) {
 function consentFormVM(f) {
   const name = f.businessName.trim() || "This business";
   const words = askWords(name);
+  const sections = [
+    { purpose: "conversational", ...words.conversational, box: `Yes, text me about my appointments with ${name}.`, sign: "Signature for this box" },
+    ...f.whatsappE164 ? [{ purpose: "marketing", ...words.marketing, box: `Yes, send me offers and news from ${name} on WhatsApp.`, sign: "Signature for this box" }] : []
+  ];
   return {
     title: `Text messages from ${name}`,
-    lead: "Two separate boxes. Tick and sign only the ones you want: signing one does not sign you up for the other, and either one can be had without the other.",
+    lead: sections.length > 1 ? "Two separate boxes. Tick and sign only the ones you want: signing one does not sign you up for the other, and either one can be had without the other." : "One box. Tick and sign it if you want messages about your appointments: a reply when you write, and reminders and confirmations.",
     fields: ["Name", "Mobile number"],
-    sections: [
-      { purpose: "conversational", ...words.conversational, box: `Yes, text me about my appointments with ${name}.`, sign: "Signature for this box" },
-      { purpose: "marketing", ...words.marketing, box: `Yes, text me offers and news from ${name}.`, sign: "Signature for this box" }
-    ],
+    sections,
     terms: bothTerms(name),
     links: policyLinks(f),
     office: `For ${name}: record each signed box on the customer's profile, under its own answer, as \u201CSign-up form\u201D, and keep this sheet. Recorded on __________ by __________`
@@ -7112,12 +7118,12 @@ var SMS_CLAUSES = [
 ];
 function dataSentences(businessName) {
   return [
-    `For text messages, ${businessName} keeps your mobile number, the messages you and it exchange, and each answer you give to the two questions on its sign-up page, with the date and the way it was given.`,
+    `For text messages, ${businessName} keeps your mobile number, the messages you and it exchange, and your yes to messages, with the date and the way it was given.`,
     "They are used only to answer you, to send the messages you agreed to, and to honour a STOP. They are not sold, and they are not shared with third parties or affiliates for marketing or promotional purposes."
   ];
 }
 function smsConsentSentence(businessName) {
-  return `${businessName}'s customers receive text messages only when they have contacted ${businessName} first, or when they have separately agreed to receive them \u2014 messages about their own appointments and promotional messages are asked for separately, and either can be declined without affecting the other.`;
+  return `${businessName}'s customers receive text messages only when they have contacted ${businessName} first, or when they have agreed to receive messages about their own appointments. No offers or promotions are sent by text: ${businessName}'s offers and news, for customers who ask for them, go by WhatsApp.`;
 }
 function addressLine(f) {
   const parts2 = [f.street, f.streetSecondary, `${f.city}, ${f.region} ${f.postalCode}`.trim(), f.country].map((p) => (p ?? "").trim()).filter(Boolean);
@@ -7169,12 +7175,12 @@ function textingTermsVM(f) {
     title: `Text messaging terms: ${known}`,
     lead: `These terms cover the text messages ${known} sends. ${known} is ${entity}${addressLine(f) ? `, ${addressLine(f)}` : ""}.`,
     items: [
-      { label: "The program", text: `${known} texts customers who asked for it: replies to what they write, confirmations and reminders about their own appointments, and, only with a separate opt-in, occasional offers and news.` },
-      { label: "How you join", text: `By texting START (appointment messages) or YES OFFERS (offers and news) to ${known}'s number from your own phone, or by ticking and signing the matching box on its sign-up form. Each is a separate choice, and neither is a condition of any purchase.` },
-      { label: "Message frequency", text: "Message frequency varies for appointment messages. Offers and news are a few messages a month." },
+      { label: "The program", text: `${known} texts customers who asked for it: replies to what they write, and confirmations and reminders about their own appointments. No offers or promotions are sent by text.` },
+      { label: "How you join", text: `By texting START to ${known}'s number from your own phone, by writing to ${known} first, or by ticking and signing the box on its sign-up form. Consent is not a condition of any purchase.` },
+      { label: "Message frequency", text: "Message frequency varies." },
       { label: "Cost", text: "Message and data rates may apply." },
       { label: "Help", text: `Reply HELP for help${support ? `, or ${support}` : ""}.` },
-      { label: "Stop", text: `Reply STOP at any time to stop. ${known} confirms once and sends nothing more, of either kind.` },
+      { label: "Stop", text: `Reply STOP at any time to stop. ${known} confirms once and sends nothing more.` },
       { label: "Carriers", text: "Wireless carriers are not liable for delayed or undelivered messages." },
       { label: "Your information", text: SMS_CLAUSES[3] }
     ],

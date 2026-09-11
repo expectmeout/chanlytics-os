@@ -175,7 +175,15 @@ export function campaignFactsFor(o: {
     // receives, what the messages are -- in their register rather than ours, with
     // the application layer named (30912 wants to know what system sends) and
     // nothing a reviewer has to parse twice.
-    description: `Messages are sent by ${who} to its own customers: people who wrote to ${name} first, or who opted in on its sign-up page (${o.optInUrl}) or its signed sign-up form. Messages include replies to what a customer asked, confirmations and reminders about that customer's own appointments, and, only for customers who gave a separate written opt-in, occasional offers and news. Appointment messages and promotional messages have separate opt-ins, and agreeing to one never enrols anyone in the other. Messages are composed by ${name}'s staff and by its receptionist software and sent through the Chanlytics OS application, on ${name}'s own behalf.`,
+    // FOURTH REFUSAL, 11 September 21:23 UTC, on the replaced campaign: 30896
+    // alone ("the provided Opt-in information"), the two earlier codes gone.
+    // What a reviewer opening the sign-up page still found was a marketing
+    // keyword offered on the number registered for an informational opt-in --
+    // one campaign, two consents, however carefully separated. So this campaign
+    // is what the texting line actually carries: replies and appointment
+    // messages. Offers and news go by WhatsApp, and the door refuses a
+    // promotion by text (core deliver: sms_carries_no_promotions).
+    description: `Messages are sent by ${who} to its own customers: people who wrote to ${name} first, or who said yes on its sign-up page (${o.optInUrl}) or its signed sign-up form. Messages are replies to what a customer asked, and confirmations and reminders about that customer's own appointments. No marketing or promotional content is sent from this number. Messages are composed by ${name}'s staff and by its receptionist software and sent through the Chanlytics OS application, on ${name}'s own behalf.`,
 
     // THE CLAIM HAS TO BE TRUE, and one half of it was not. This flow used to open
     // by calling the two opt-ins symmetric -- that giving either left the other
@@ -211,10 +219,10 @@ export function campaignFactsFor(o: {
     // policy and the terms LINKED here (30909; 30908 says "directly referenced"
     // in message_flow), which they never were.
     messageFlow: [
-      `Consent is written, in one of two places, each asking two SEPARATE questions with their own disclosures: appointment messages, and promotional messages. Agreeing to one never enrols anyone in the other.`,
-      `WEB PAGE (${o.optInUrl}): under "Messages about your visit" it states they will get appointment reminders and confirmations from ${name}, message frequency varies, message and data rates may apply, reply HELP for help and STOP to stop; the customer consents by texting START from their own phone. Under a separate heading "Offers and news" it states they will get promotional offers and news from ${name}, a few messages a month, message and data rates may apply, reply HELP for help and STOP to stop, that it is optional and not a condition of any purchase; the customer consents by texting YES OFFERS. Privacy and terms links sit beside both.`,
-      `PAPER FORM (${formUrl}): the same two questions as two separate, unticked boxes, each with the same disclosures and its own signature; staff record each signed box as "Sign-up form", with the date and recorder, and keep the sheet. A yes to offers is recorded only from a signed form or the customer's own text, never from a spoken answer.`,
-      `Each answer is recorded separately, with its own timestamp and source; neither implies the other. Every yes is confirmed by a text naming the program, frequency, rates, HELP and STOP. Writing first is consent only to be answered; staff may record a spoken yes for appointment messages only. STOP ends all messages of both kinds. Privacy policy: ${privacyPolicyUrl}. Terms: ${termsUrl}.`,
+      `Consent is given by the customer, in writing, for one program: replies to what they write, and messages about their own appointments. No promotional messages are sent under this campaign.`,
+      `WEB PAGE (${o.optInUrl}): under "Messages about your visit" it states that they will receive appointment reminders and confirmations from ${name} and a reply when they write, that message frequency varies, that message and data rates may apply, to reply HELP for help and STOP to stop; the page shows the number, and the customer consents by texting START to it from their own phone. Privacy policy and terms links are on the page.`,
+      `PAPER FORM (${formUrl}): the same question as an unticked box with the same disclosures, ticked and signed by the customer at the business; staff record it as "Sign-up form" with the date, and keep the sheet.`,
+      `Writing to the business first is consent to be answered. Appointment reminders go only to customers who said yes on the page or the form, or who told the business in person or on the phone, which staff record with the date. Every yes is confirmed by a text naming the program, frequency, rates, HELP and STOP. Replying STOP ends all messages. Privacy policy: ${privacyPolicyUrl}. Terms: ${termsUrl}.`,
     ].join(" "),
 
     // Samples a reviewer reads. They must not state a fact about the business we
@@ -233,11 +241,8 @@ export function campaignFactsFor(o: {
       o.lineNumber
         ? `${o.businessName}: we tried to reach you. Call us back on ${o.lineNumber} or reply here. Reply STOP to opt out.`
         : `${o.businessName}: we tried to reach you. Reply here and we will pick it up. Reply STOP to opt out.`,
-      // The promotional sample, and it names NO offer. An invented discount is a
-      // claim made in the business's name, which is the rule this list already
-      // held itself to about opening times -- the sample shows the shape of a
-      // promotional message and points at the page where the real one lives.
-      `Offer from ${o.businessName} for customers who asked for offers: [offer]. Details at ${o.hostedUrl ?? o.optInUrl}. A few messages a month. Msg & data rates may apply. Reply STOP to opt out, HELP for help.`,
+      // No promotional sample: this campaign sends none, and a sample of one
+      // would be the exact mismatch the reviewers refuse.
     ],
 
     // NOT correctable after the first filing: Twilio's campaign UPDATE accepts

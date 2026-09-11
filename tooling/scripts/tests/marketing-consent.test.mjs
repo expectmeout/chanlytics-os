@@ -182,35 +182,41 @@ const FILED = {
   lineNumber: "+1 (929) 656-6623",
 };
 
-test("the message flow filed with the carriers describes every way in, separately, and fits", () => {
+test("the message flow filed with the carriers describes one program, every way into it, and fits", () => {
   // These used to slice `messageFlow: [` out of a2p.ts and match the TEMPLATE's
   // text -- which passed over a sentence the carriers were refusing, because a
   // template is not what is filed. Now the composer is called and its output read.
+  //
+  // FOURTH REFUSAL (30896, 11 Sep 2026): after the description and the consent
+  // split were accepted, the opt-in information was not -- a reviewer opening
+  // the sign-up page found a marketing keyword on the number registered for an
+  // informational opt-in. So the campaign is what the texting line carries:
+  // replies and appointment messages, and nothing promotional. Offers go by
+  // WhatsApp, where the page and the door send them.
   const { messageFlow: flow, description: desc } = campaignFactsFor(FILED);
 
   // Error 30917 wants, for EACH method: where it happens, what is disclosed there,
-  // and what action confirms it. There are two places now, the page and the paper.
-  assert.match(flow, /SEPARATE/);
+  // and what action confirms it. Two places, the page and the paper, one program.
+  assert.match(flow, /for one program/);
+  assert.match(flow, /No promotional messages are sent under this campaign/);
   assert.ok(flow.includes(`WEB PAGE (${FILED.optInUrl})`), "the page, at the URL a reviewer opens");
   assert.ok(flow.includes(`PAPER FORM (${FILED.optInUrl}/form)`), "and the paper form, at one too: a reviewer can only accept a form they can see");
-  assert.ok(flow.includes("START") && flow.includes("YES OFFERS"), "both keywords, the ones the product honours");
-  assert.match(flow, /never enrols anyone in the other/, "stated absolutely, in both directions now that the wire keeps them apart");
-  assert.doesNotMatch(flow, /neither of which grants the other/, "REGRESSION: a claim to a regulator that OPT_IN_PATTERN contradicts");
-  assert.match(flow, /neither implies the other/, "and said so: each answer stands alone");
-  assert.doesNotMatch(flow, /implies another|also recorded as reachable/, "REGRESSION: one opt-in enrolling a person in two programs, confessed in the field 30913 names");
+  assert.ok(flow.includes("START"), "the keyword the product honours");
+  assert.doesNotMatch(flow, /YES OFFERS|offers and news|promotional offers/, "REGRESSION: a marketing consent described in an informational campaign's flow");
+  assert.match(flow, /the page shows the number/, "a keyword opt-in needs where the number is seen (the reviewers' guide)");
+  assert.match(flow, /Privacy policy and terms links are on the page/, "30549, 30550: the links beside the call to action");
   // Linked in the flow itself: 30909 wants the privacy policy and the terms in
   // the message flow, and 30908 says the policy must be "directly referenced" there.
   assert.ok(flow.includes(`Privacy policy: ${FILED.hostedUrl}.`), "the business's own privacy page");
   assert.ok(flow.includes(`Terms: ${FILED.hostedUrl}/terms.`), "and its own terms, not Chanlytics' software agreement");
-  assert.match(flow, /not a condition of any purchase/);
-  // A spoken yes is never a yes to offers: 30913 lists "relies on verbal consent
-  // instead of written consent" among its causes, and the database refuses one.
-  assert.match(flow, /never from a spoken answer/);
-  assert.match(flow, /spoken yes for appointment messages only/);
-  // The disclosures the carriers require, verbatim, on both asks.
-  assert.equal((flow.match(/message and data rates may apply/gi) ?? []).length, 2);
+  // A spoken yes is fine for appointment messages (the guide allows verbal
+  // consent for transactional programs) and is recorded with its date.
+  assert.match(flow, /in person or on the phone, which staff record with the date/);
+  assert.match(flow, /Every yes is confirmed by a text/);
+  // The disclosures the carriers require, verbatim, at the call to action.
+  assert.equal((flow.match(/message and data rates may apply/gi) ?? []).length, 1);
   assert.ok(!/standard rates/i.test(flow), "\"standard\" implies premium-rate messaging and is refused");
-  assert.equal((flow.match(/reply HELP for help and STOP to stop/gi) ?? []).length, 2);
+  assert.match(flow, /reply HELP for help and STOP to stop/);
   // Twilio takes 40 to 2048 characters, and a long name on the longest slug a
   // workspace can mint has to fit, or the filing is refused before anyone reads it.
   const long = campaignFactsFor({
@@ -221,20 +227,19 @@ test("the message flow filed with the carriers describes every way in, separatel
   assert.ok(long.messageFlow.length <= 2048, `${long.messageFlow.length} characters`);
   assert.ok(flow.length >= 40);
 
-  // The description: who sends, to whom and why -- what 30886 says was unclear.
+  // The description: who sends, to whom and why -- what 30886 said was unclear,
+  // and what was accepted on the fourth review.
   assert.match(desc, /^Messages are sent by Melany's Beauty Salon \(Melany Beauty LLC\) to its own customers/, "the registered name beside the trade name, as the brand was vetted, in the reviewers' own register");
   assert.match(desc, /on Melany's Beauty Salon's own behalf/, "the business, not the software it sends with");
   assert.match(desc, /sent through the Chanlytics OS application/, "and the application layer named, as 30912 asks");
-  assert.match(desc, /wrote to Melany's Beauty Salon first, or who opted in on its sign-up page \(https:\/\/app\.chanlytics\.com\/yes\/melanys\) or its signed sign-up form/, "who the recipients are, and how they came");
-  assert.match(desc, /separate written opt-in/);
-  assert.match(desc, /agreeing to one never enrols anyone in the other/);
-  assert.doesNotMatch(desc, /no customer is enrolled in both by a single action/,
-    "REGRESSION: a claim to a regulator that this product's own keyword table contradicts");
+  assert.match(desc, /wrote to Melany's Beauty Salon first, or who said yes on its sign-up page \(https:\/\/app\.chanlytics\.com\/yes\/melanys\) or its signed sign-up form/, "who the recipients are, and how they came");
+  assert.match(desc, /No marketing or promotional content is sent from this number/);
+  assert.doesNotMatch(desc, /offers and news|separate written opt-in/, "REGRESSION: promotional content described in an informational campaign");
   // One business said twice is not two names.
   assert.doesNotMatch(campaignFactsFor({ ...FILED, legalName: "melany's beauty salon" }).description, /\(melany/i);
   assert.match(campaignFactsFor({ ...FILED, legalName: null }).description, /^Messages are sent by Melany's Beauty Salon to its own customers/);
-  // The contradiction, pinned where it lives, so the sentence and the code cannot
-  // drift apart again in either direction.
+  // The two keywords still answer different questions on the wire, and only
+  // the appointment one is the texting line's.
   assert.equal(CONVERSATION_OPT_IN_PATTERN.test("YES OFFERS"), false, "the offers keyword opens nothing but offers -- which is what the wire reads now");
   assert.equal(MARKETING_OPT_IN_PATTERN.test("START"), false, "but conversation never opens offers -- which is the direction 30913 is about");
 });
@@ -256,18 +261,21 @@ test("the confirmation filed for START confirms appointment texts, and only thos
   assert.equal(optInMessage, optInConfirmation("Melany's Beauty Salon", "conversational"), "the words the wire sends when START arrives");
 });
 
-test("the samples match what the filing declares about them", () => {
+test("the samples match what the filing declares about them, and none is a promotion", () => {
   // HasEmbeddedLinks and HasEmbeddedPhone are declared true, so the samples have
   // to contain a link and a number -- the declaration/sample mismatch is one
-  // reviewers reject.
+  // reviewers reject. And an informational campaign with a promotional sample
+  // is the other mismatch they reject.
   const { samples } = campaignFactsFor(FILED);
   const all = samples.join("\n");
-  assert.ok(samples.length >= 5, "Twilio takes two to five, and more is better reviewed");
+  assert.ok(samples.length >= 2 && samples.length <= 5, "Twilio takes two to five");
+  assert.equal(samples.length, 4);
   assert.ok(all.includes(FILED.hostedUrl), "a link, because the filing declares links -- the business's own page");
   assert.ok(all.includes(FILED.lineNumber), "a phone number, because the filing declares one -- and the WORKSPACE'S own");
-  // The promotional sample is labelled as one, so a reviewer sees the separation
-  // in the samples too.
-  assert.match(all, /for customers who asked for offers/);
+  assert.doesNotMatch(all, /offer|promot|news/i, "REGRESSION: a promotional sample in an informational campaign");
+  assert.match(all, /\[date\] at \[time\]/, "brackets mark what varies, as the guide asks");
+  assert.ok(samples.every((x) => x.includes("Melany's Beauty Salon")), "every sample names the brand");
+  assert.ok(samples.filter((x) => /Reply STOP/.test(x)).length >= 1, "opt-out language in at least one");
   // And it invents nothing: not a discount, not the platform's own number.
   assert.ok(!/\d+% off/.test(all), "REGRESSION: a made-up discount in a sample sent to a regulator");
   assert.ok(!/917\D{0,3}574\D?6416/.test(all), "REGRESSION: the platform's number presented as the business's");

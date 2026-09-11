@@ -79,7 +79,7 @@ interface Delivery {
     meta?: Record<string, Json>;
 }
 /** Why the door stayed shut. Each is a fact about the person, the thread or the workspace, never about us. */
-type DeliveryRefusal = "opted_out" | "not_opted_in" | "no_marketing_consent" | "erased" | "paused" | "human_has_it" | "superseded_by_human";
+type DeliveryRefusal = "opted_out" | "not_opted_in" | "no_marketing_consent" | "erased" | "paused" | "human_has_it" | "superseded_by_human" | "sms_carries_no_promotions";
 type Delivered = {
     outcome: "sent";
     messageId: string | null;

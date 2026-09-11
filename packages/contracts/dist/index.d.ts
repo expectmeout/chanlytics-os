@@ -8186,7 +8186,9 @@ interface ConsentFormVM {
  * Unlike the page it needs no number: a business can take signed forms before its
  * line is approved for texting.
  */
-declare function consentFormVM(f: Pick<ConsentPageFacts, "businessName" | "slug" | "businessPage">): ConsentFormVM;
+declare function consentFormVM(f: Pick<ConsentPageFacts, "businessName" | "slug" | "businessPage"> & {
+    whatsappE164?: string | null;
+}): ConsentFormVM;
 
 /**
  * The clauses every carrier review looks for, word for word.

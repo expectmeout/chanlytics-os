@@ -18403,6 +18403,7 @@ async function wireFacts(db, d) {
 }
 function refusalFor(d, f, nowMs) {
   if (f.contact.erased_at) return "erased";
+  if (d.channel === "sms" && d.purpose === "marketing") return "sms_carries_no_promotions";
   const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive });
   if (!may.ok) return may.reason ?? "opted_out";
   if (d.sender === "human" && !d.proactive) return null;
