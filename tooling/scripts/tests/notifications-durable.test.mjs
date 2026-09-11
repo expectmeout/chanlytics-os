@@ -39,7 +39,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("calendarOverride, notificationsOverride, setupOverride, googleOverride, billingOverride]"));
   assert.ok(readCode("packages/db/src/realtime.ts").includes('{ table: "notifications", event: "INSERT" }'), "the channel watches the table");
   const bell = readCode("apps/dashboard/src/legacy-bridge/notifications.ts");
-  assert.ok(bell.includes("dedupeFeed([...applyReadState(feedFromGlobals(win, Date.now()), state()), ...serverNotificationRows(win.__NOTIFICATIONS?.dto)]).sort((a, b) => b.at - a.at)"), "derived beside kept, once, newest first");
+  assert.ok(bell.includes("dedupeFeed([...applyReadState(feedFromGlobals(win, Date.now()), deviceState()), ...serverNotificationRows(win.__NOTIFICATIONS?.dto)]).sort((a, b) => b.at - a.at)"), "derived beside kept, once, newest first, the seen moment the server's");
   assert.ok(bell.includes('"surface:notifications"') && bell.includes("void mark({ seen: true })") && bell.includes("dismissed: false }"), "seen, read, dismiss and restore reach the server for kept rows");
   const notify = readCode("apps/edge/lib/notify.ts");
   assert.ok(notify.includes("export async function recordNotification(") && notify.includes("await recordNotification(target.tenantId, { kind: msg.kind, title: msg.subject, body: msg.body, route: msg.route, about: msg.about }, ports.db === undefined ? pg() : ports.db);"), "the row first, addressed or not");
