@@ -118,6 +118,29 @@ The scope column is a reading of the source and is corrected per PR where the ha
 ### PR 8: The back office
 ### PR 9: The account, and the two held routes
 
+### Status, 2026-09-11
+
+Executed as nine PRs, one per domain, each with its `<domain>-routes.test.mjs` running the handlers through `run()` with `fakeDb`, its pins moved (none added) and its policies banked:
+
+| PR | Domain | Merged as | Routes banked |
+|---|---|---|---|
+| 1 | The reads of the workspace | #358 | 14 |
+| 2 | The inbox and the calls | #359 | 7 (`messageScope`, `callScope`) |
+| 3 | People and lists | #360 | 6 (`erasureScope`, `listScope`; fakeDb `delete()`/`upsert()`) |
+| 4 | Outbound | #361 | 11 (`broadcastScope`, `templateScope`, `playbookScope`) |
+| 5 | Settings and setup | #362 | 11 (fakeDb reads the requested columns back after an update) |
+| 6 | Google | #363 | 9 (the callback on the account: the signed state is the credential) |
+| 7 | Ask, metrics, reports | #364 | 8 (a person's own threads and cards on the account) |
+| 8 | The back office, and billing's three | #365 | 8 (the platform scope's door is `backOffice()`) |
+| 9 | The account | this PR | 2 |
+
+Departures from the table above, each toward what the code enforced: `escalations`, `ask/messages/[id]/proposals/[pid]` and `ask/threads/[id]` were never row-scoped (RLS is their door, so they are on the account or the workspace as the code read them); `ask` names the viewer role as its floor and must be told the workspace; `billing/invoices`, `billing/resume` and `billing/sync` were missing from the table and went with the back office.
+
+**Held for Ruben's yes, still undeclared:** `workspaces/create` (sign-up) and `team` (the roster). Until they move, `route-policy.json`'s undeclared list holds those two and the ratchet stays a ratchet, not yet the wall the section below describes.
+
+Two rules the series taught, now in the tests themselves: `shared-limits.test.mjs` counts a declared `rate: "…",` as a call site, so the floor holds as routes migrate; and `doors-and-rows.test.mjs` treats a row scope as validated by its loader, whose `requireUuid` `workspace-scoping.test.mjs` holds, one per loader.
+
+
 ### After 2C
 
 `route-policy.json`'s undeclared list is empty and the ratchet becomes a wall (the test refuses any new bare `withRoute` export). Then the typed client (PRD W5) can read every route's declared input and output, and `/w/[slug]` can follow.
