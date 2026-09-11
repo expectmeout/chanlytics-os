@@ -202,7 +202,7 @@ function askWords(name: string): Record<SendPurpose, { title: string; lead: stri
     },
     marketing: {
       title: "Offers and news",
-      lead: `Promotions and news from ${name}.`,
+      lead: `Promotions and news from ${name}, on WhatsApp.`,
       optional: `Separate, and entirely optional — you can have the messages above without this one, and saying no changes nothing about your appointments or anything you buy from ${name}.`,
       terms: [
         `You get promotional offers and news from ${name}. A few messages a month, never daily.`,
@@ -224,20 +224,28 @@ function bothTerms(name: string): string[] {
 export function consentPageVM(f: ConsentPageFacts): ConsentPageVM {
   const name = f.businessName.trim() || "This business";
   const conversation = waysFor(f, CONVERSATION_PHRASE);
-  const offers = waysFor(f, CONSENT_PHRASE);
+  // OFFERS GO BY WHATSAPP, never by text. The texting line's carrier
+  // registration is an informational campaign -- replies and appointment
+  // messages -- filed that way after the fourth refusal (30896, 11 Sep 2026),
+  // when a reviewer opening this page found a marketing keyword offered on the
+  // number registered for an informational opt-in. So the offers ask has one
+  // way, WhatsApp, and a workspace without WhatsApp does not ask it at all.
+  const offers = waysFor({ ...f, smsE164: null }, CONSENT_PHRASE);
   const empty = conversation.length === 0 && offers.length === 0;
   const words = askWords(name);
 
   const asks: ConsentAsk[] = empty ? [] : [
-    { purpose: "conversational", ...words.conversational, ways: conversation },
-    { purpose: "marketing", ...words.marketing, ways: offers },
+    ...(conversation.length ? [{ purpose: "conversational" as const, ...words.conversational, ways: conversation }] : []),
+    ...(offers.length ? [{ purpose: "marketing" as const, ...words.marketing, ways: offers }] : []),
   ];
 
   return {
     title: `Text messages from ${name}`,
     lead: empty
       ? `${name} is not set up to take sign-ups here yet.`
-      : `Two separate things you can say yes to, in your own message from your own phone. ${name} never sells or shares your number.`,
+      : asks.length > 1
+        ? `Two separate things you can say yes to, in your own message from your own phone. ${name} never sells or shares your number.`
+        : `One thing you can say yes to, in your own message from your own phone: messages about your visit. ${name} never sells or shares your number.`,
     asks,
     qrLink: optInLink(f.whatsappE164, CONSENT_PHRASE),
     terms: bothTerms(name),
@@ -292,17 +300,22 @@ export interface ConsentFormVM {
  * Unlike the page it needs no number: a business can take signed forms before its
  * line is approved for texting.
  */
-export function consentFormVM(f: Pick<ConsentPageFacts, "businessName" | "slug" | "businessPage">): ConsentFormVM {
+export function consentFormVM(f: Pick<ConsentPageFacts, "businessName" | "slug" | "businessPage"> & { whatsappE164?: string | null }): ConsentFormVM {
   const name = f.businessName.trim() || "This business";
   const words = askWords(name);
+  // The offers box is WhatsApp's, like the offers ask on the page: a business
+  // without WhatsApp has one box, and its texting line carries no promotions.
+  const sections: ConsentFormSection[] = [
+    { purpose: "conversational", ...words.conversational, box: `Yes, text me about my appointments with ${name}.`, sign: "Signature for this box" },
+    ...(f.whatsappE164 ? [{ purpose: "marketing" as const, ...words.marketing, box: `Yes, send me offers and news from ${name} on WhatsApp.`, sign: "Signature for this box" }] : []),
+  ];
   return {
     title: `Text messages from ${name}`,
-    lead: "Two separate boxes. Tick and sign only the ones you want: signing one does not sign you up for the other, and either one can be had without the other.",
+    lead: sections.length > 1
+      ? "Two separate boxes. Tick and sign only the ones you want: signing one does not sign you up for the other, and either one can be had without the other."
+      : "One box. Tick and sign it if you want messages about your appointments: a reply when you write, and reminders and confirmations.",
     fields: ["Name", "Mobile number"],
-    sections: [
-      { purpose: "conversational", ...words.conversational, box: `Yes, text me about my appointments with ${name}.`, sign: "Signature for this box" },
-      { purpose: "marketing", ...words.marketing, box: `Yes, text me offers and news from ${name}.`, sign: "Signature for this box" },
-    ],
+    sections,
     terms: bothTerms(name),
     links: policyLinks(f),
     office: `For ${name}: record each signed box on the customer's profile, under its own answer, as “Sign-up form”, and keep this sheet. Recorded on __________ by __________`,

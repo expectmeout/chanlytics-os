@@ -100,7 +100,8 @@ export type DeliveryRefusal =
   | "erased"
   | "paused"
   | "human_has_it"
-  | "superseded_by_human";
+  | "superseded_by_human"
+  | "sms_carries_no_promotions";
 
 export type Delivered =
   | { outcome: "sent"; messageId: string | null; externalId: string | null }
@@ -159,6 +160,12 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number): DeliveryRefusal |
   // A person who asked to be forgotten is never messaged, whatever the row
   // that survived says.
   if (f.contact.erased_at) return "erased";
+  // The texting line is registered with the carriers for replies and
+  // appointment messages, and nothing else: an informational campaign, filed
+  // that way after the fourth refusal (30896). A promotion by text would go out
+  // under a consent the carriers were never told about, whatever the person
+  // said to us -- so it does not, whoever asks. Offers and news go by WhatsApp.
+  if (d.channel === "sms" && d.purpose === "marketing") return "sms_carries_no_promotions";
   // Consent outranks everything, asked with this message's own purpose.
   const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive });
   if (!may.ok) return (may.reason ?? "opted_out") as DeliveryRefusal;

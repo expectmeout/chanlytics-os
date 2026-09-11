@@ -70,6 +70,9 @@ test("which yes this message needs: the door asks the one predicate with the pur
   const cases = [
     [{ purpose: "marketing" }, person(), "no_marketing_consent"],
     [{ purpose: "marketing" }, person({ marketing_consent: "opted_in" }), null],
+    // The texting line is registered for replies and appointment messages only:
+    // a promotion by text is refused whatever the person said, and goes by WhatsApp.
+    [{ purpose: "marketing", channel: "sms" }, person({ marketing_consent: "opted_in" }), "sms_carries_no_promotions"],
     [{ proactive: true }, person({ consent: "unknown" }), "not_opted_in"],
     [{ proactive: false }, person({ consent: "unknown" }), null],
     [{}, person({ consent: "opted_out" }), "opted_out"],

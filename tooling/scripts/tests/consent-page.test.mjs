@@ -66,17 +66,25 @@ test("each ask carries the disclosures the carriers require of it, separately", 
   assert.ok(terms.some((t) => t.includes("not a condition of any purchase")));
 });
 
-test("a texting line adds a second way to each ask; both together keep their order", () => {
+test("a texting line adds a second way to the appointment ask only: offers go by WhatsApp, never by text", () => {
+  // The fourth refusal (30896, 11 Sep 2026): a reviewer opening this page found a
+  // marketing keyword offered on the number registered for an informational
+  // opt-in. The texting line's campaign carries replies and appointment
+  // messages; offers have one way in, WhatsApp, and a workspace without
+  // WhatsApp does not ask for them at all.
   const vm = consentPageVM({ ...salon, smsE164: "+13055550100" });
-  for (const ask of vm.asks) {
-    assert.deepEqual(ask.ways.map((w) => w.kind), ["whatsapp", "sms"], ask.purpose);
-    const sms = ask.ways[1];
-    assert.equal(sms.sentence, `Text ${ask.ways[0].phrase} to +1 (305) 555-0100. Sending it is your yes.`);
-    assert.equal(sms.href, `sms:+13055550100?&body=${encodeURIComponent(ask.ways[0].phrase)}`);
-    assert.equal(ask.ways[0].display, "+1 (917) 772-4072");
-  }
+  const [visit, offers] = vm.asks;
+  assert.deepEqual(visit.ways.map((w) => w.kind), ["whatsapp", "sms"]);
+  const sms = visit.ways[1];
+  assert.equal(sms.sentence, `Text ${visit.ways[0].phrase} to +1 (305) 555-0100. Sending it is your yes.`);
+  assert.equal(sms.href, `sms:+13055550100?&body=${encodeURIComponent(visit.ways[0].phrase)}`);
+  assert.equal(visit.ways[0].display, "+1 (917) 772-4072");
+  assert.deepEqual(offers.ways.map((w) => w.kind), ["whatsapp"], "REGRESSION: YES OFFERS offered on the texting number is 30896");
+  assert.match(offers.lead, /on WhatsApp/);
   const only = consentPageVM({ ...salon, whatsappE164: null, smsE164: "+13055550100" });
-  for (const ask of only.asks) assert.deepEqual(ask.ways.map((w) => w.kind), ["sms"]);
+  assert.deepEqual(only.asks.map((a) => a.purpose), ["conversational"], "no WhatsApp: no offers ask");
+  assert.deepEqual(only.asks[0].ways.map((w) => w.kind), ["sms"]);
+  assert.match(only.lead, /^One thing you can say yes to/);
   assert.equal(only.qrLink, null, "nothing to encode without WhatsApp");
 });
 
@@ -119,7 +127,9 @@ test("the paper form asks the same two questions, each its own unticked box with
   // Paper needs no number: a business can take signed forms before its line is
   // approved for texting, while its page has nothing to offer yet.
   const bare = consentFormVM({ businessName: "Harbor Moving Co.", whatsappE164: null, smsE164: null });
-  assert.equal(bare.sections.length, 2);
+  assert.equal(bare.sections.length, 1, "no WhatsApp: the appointment box alone, since offers go by WhatsApp");
+  assert.match(bare.lead, /^One box\./);
+  assert.match(offers.box, /on WhatsApp/, "the offers box says where offers go");
   assert.equal(consentFormVM({ businessName: "  " }).title, "Text messages from This business");
 });
 

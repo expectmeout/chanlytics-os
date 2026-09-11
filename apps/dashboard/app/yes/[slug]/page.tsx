@@ -88,7 +88,7 @@ export default async function ConsentPage({ params }: { params: Promise<{ slug: 
         text. It is also where a reviewer finds the paper form the filing describes.
       */}
       <p className="yes-foot" data-testid="yes-paper-link">
-        Rather sign on paper? <a href={`/yes/${slug}/form`}>Print the sign-up form</a> — the same two questions, each box signed on its own.
+        Rather sign on paper? <a href={`/yes/${slug}/form`}>Print the sign-up form</a> — the same {vm.asks.length > 1 ? "questions" : "question"} on paper, each box signed on its own.
       </p>
 
       {/*

@@ -85,12 +85,12 @@ test("the SMS clauses are the shared ones, word for word", () => {
   assert.match(said, /No mobile information will be shared with third parties or affiliates/);
   assert.ok(!/standard rate/i.test(said), "carriers refuse \"standard\": it implies premium-rate messaging");
 
-  // The lead names the business and states the separation the carriers refused
-  // us for combining (30913).
+  // The lead names the business and states what the texting line carries: no
+  // promotions, ever, since the fourth refusal (30896) -- offers go by WhatsApp.
   assert.equal(vm.smsLead, smsConsentSentence("Melany's Beauty Salon"));
   assert.match(vm.smsLead, /Melany's Beauty Salon/);
-  assert.match(vm.smsLead, /asked for separately/);
-  assert.match(vm.smsLead, /either can be declined without affecting the other/);
+  assert.match(vm.smsLead, /No offers or promotions are sent by text/);
+  assert.match(vm.smsLead, /go by WhatsApp/);
 });
 
 test("a record too thin to identify anybody publishes nothing", () => {
@@ -304,7 +304,7 @@ test("what the program keeps and what for, on the page filed as the privacy poli
   // what is.
   const vm = businessPageVM(salon);
   assert.equal(vm.yourData.length, 2);
-  assert.match(vm.yourData[0], /Melany's Beauty Salon keeps your mobile number, the messages you and it exchange, and each answer/);
+  assert.match(vm.yourData[0], /Melany's Beauty Salon keeps your mobile number, the messages you and it exchange, and your yes to messages/);
   assert.match(vm.yourData[1], /not shared with third parties or affiliates for marketing or promotional purposes/);
   assert.equal(vm.termsUrl, "/b/melanys-beauty-salon/terms", "and the program's own terms are beside it");
 });
@@ -318,10 +318,10 @@ test("the program's terms carry the eight things a reviewer looks for, in the bu
   assert.match(vm.lead, /Melany Beauty Corp, trading as Melany's Beauty Salon, 2581 Pitkin Ave, Brooklyn, NY 11208, US/, "who is bound: the registered name and address");
   const by = Object.fromEntries(vm.items.map((i) => [i.label, i.text]));
   assert.match(by["The program"], /^Melany's Beauty Salon texts customers who asked for it/, "the program, named");
-  assert.match(by["The program"], /separate opt-in/);
+  assert.match(by["The program"], /No offers or promotions are sent by text/);
   assert.match(by["How you join"], /START/);
-  assert.match(by["How you join"], /YES OFFERS/);
-  assert.match(by["How you join"], /neither is a condition of any purchase/);
+  assert.doesNotMatch(by["How you join"], /YES OFFERS/, "REGRESSION: a marketing keyword on the texting number is 30896");
+  assert.match(by["How you join"], /not a condition of any purchase/);
   assert.match(by["Message frequency"], /Message frequency varies/);
   assert.equal(by["Cost"], "Message and data rates may apply.", "verbatim");
   assert.equal(by["Help"], "Reply HELP for help, or call +1 (308) 336-8109 or email hola@melanys.example.", "a way to reach a person");

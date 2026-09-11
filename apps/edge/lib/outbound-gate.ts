@@ -64,7 +64,10 @@ export type OutboundRefusal =
   | "paused"
   | "human_has_it"
   | "policy_hold"
-  | "daily_cap";
+  | "daily_cap"
+  // The door's own refusal: the texting line is registered for replies and
+  // appointment messages only, so a promotion by text never goes (core deliver).
+  | "sms_carries_no_promotions";
 
 export interface OutboundDecision {
   allowed: boolean;
@@ -126,6 +129,8 @@ export function refusalScript(refusal: OutboundRefusal, phoneDisplay: string | n
       return "I can only text the number the caller is phoning from. Offer to send it to their own mobile, or to book them on the call.";
     case "no_marketing_consent":
       return "I cannot send that as a text, because it is a promotional message and that number has not asked for those. Offer to book them on the call instead.";
+    case "sms_carries_no_promotions":
+      return "I cannot send that as a text: this business sends offers on WhatsApp only, never by text message. Offer to book them on the call instead.";
     case "paused":
       return "Texting is paused for this business right now, so I cannot send anything. Take the caller's name and number and say someone will call them back.";
     case "human_has_it":

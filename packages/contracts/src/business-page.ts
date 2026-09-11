@@ -52,14 +52,14 @@ export const SMS_CLAUSES: readonly string[] = [
  */
 export function dataSentences(businessName: string): string[] {
   return [
-    `For text messages, ${businessName} keeps your mobile number, the messages you and it exchange, and each answer you give to the two questions on its sign-up page, with the date and the way it was given.`,
+    `For text messages, ${businessName} keeps your mobile number, the messages you and it exchange, and your yes to messages, with the date and the way it was given.`,
     "They are used only to answer you, to send the messages you agreed to, and to honour a STOP. They are not sold, and they are not shared with third parties or affiliates for marketing or promotional purposes.",
   ];
 }
 
 /** The lead sentence, which is the only part that names who is sending. */
 export function smsConsentSentence(businessName: string): string {
-  return `${businessName}'s customers receive text messages only when they have contacted ${businessName} first, or when they have separately agreed to receive them — messages about their own appointments and promotional messages are asked for separately, and either can be declined without affecting the other.`;
+  return `${businessName}'s customers receive text messages only when they have contacted ${businessName} first, or when they have agreed to receive messages about their own appointments. No offers or promotions are sent by text: ${businessName}'s offers and news, for customers who ask for them, go by WhatsApp.`;
 }
 
 export interface BusinessPageFacts {
@@ -195,12 +195,12 @@ export function textingTermsVM(f: BusinessPageFacts): TextingTermsVM {
     title: `Text messaging terms: ${known}`,
     lead: `These terms cover the text messages ${known} sends. ${known} is ${entity}${addressLine(f) ? `, ${addressLine(f)}` : ""}.`,
     items: [
-      { label: "The program", text: `${known} texts customers who asked for it: replies to what they write, confirmations and reminders about their own appointments, and, only with a separate opt-in, occasional offers and news.` },
-      { label: "How you join", text: `By texting START (appointment messages) or YES OFFERS (offers and news) to ${known}'s number from your own phone, or by ticking and signing the matching box on its sign-up form. Each is a separate choice, and neither is a condition of any purchase.` },
-      { label: "Message frequency", text: "Message frequency varies for appointment messages. Offers and news are a few messages a month." },
+      { label: "The program", text: `${known} texts customers who asked for it: replies to what they write, and confirmations and reminders about their own appointments. No offers or promotions are sent by text.` },
+      { label: "How you join", text: `By texting START to ${known}'s number from your own phone, by writing to ${known} first, or by ticking and signing the box on its sign-up form. Consent is not a condition of any purchase.` },
+      { label: "Message frequency", text: "Message frequency varies." },
       { label: "Cost", text: "Message and data rates may apply." },
       { label: "Help", text: `Reply HELP for help${support ? `, or ${support}` : ""}.` },
-      { label: "Stop", text: `Reply STOP at any time to stop. ${known} confirms once and sends nothing more, of either kind.` },
+      { label: "Stop", text: `Reply STOP at any time to stop. ${known} confirms once and sends nothing more.` },
       { label: "Carriers", text: "Wireless carriers are not liable for delayed or undelivered messages." },
       { label: "Your information", text: SMS_CLAUSES[3] },
     ],

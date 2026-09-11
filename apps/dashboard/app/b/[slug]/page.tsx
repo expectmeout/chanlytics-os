@@ -93,9 +93,8 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
       </ul>
       <p>
         To say yes, or to see exactly what you would be agreeing to, open{" "}
-        <a href={vm.optInUrl} data-testid="bp-opt-in">the sign-up page</a>. Saying yes to messages about your own
-        appointments and saying yes to offers are two separate choices, and either can be declined without
-        affecting the other.
+        <a href={vm.optInUrl} data-testid="bp-opt-in">the sign-up page</a>. Offers and news never come by text: they go by
+        WhatsApp, and only to customers who separately asked for them there.
       </p>
 
       {/*

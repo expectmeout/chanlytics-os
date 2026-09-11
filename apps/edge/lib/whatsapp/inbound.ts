@@ -475,7 +475,11 @@ export async function handleInbound(
   // cap, like the acknowledgement. Which question was answered decides which
   // confirmation goes; neither confirms the other, which is what the carriers
   // refused the live campaign for three times.
-  if (n.optIn || n.optInMarketing) {
+  // Offers go by WhatsApp, never by text: the texting line's carrier
+  // registration is informational, so a YES OFFERS that arrives by text is
+  // recorded (ingest keeps the answer; it is honoured on WhatsApp) and answered
+  // like any other words, not confirmed as a subscription on this number.
+  if (n.optIn || (n.optInMarketing && channel === "whatsapp")) {
     const purpose: SendPurpose = n.optInMarketing ? "marketing" : "conversational";
     const words = optInConfirmation(brainCfg?.business_name ?? rt?.known?.workspace?.name ?? "", purpose);
     thread.history.push({ role: "user", content: bodyText });
