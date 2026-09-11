@@ -77,10 +77,17 @@ test("every route awaits the count — a limiter that is not awaited limits noth
   walk(path.join(ROOT, "apps/dashboard/src"));
   let sites = 0;
   for (const f of files) {
-    for (const line of fs.readFileSync(f, "utf8").split("\n")) {
+    const lines = fs.readFileSync(f, "utf8").split("\n");
+    for (const line of lines) {
       if (!/\btakeRate\(/.test(line) || /^\s*(\/\/|\*)/.test(line)) continue;
       sites++;
       assert.ok(/\bawait takeRate\(/.test(line), `${path.relative(ROOT, f)}: ${line.trim()}`);
+    }
+    // A route that declares its bucket (`rate: "…",` on route()) counts too:
+    // the wrapper's one awaited takeRate serves every one of them, so the
+    // floor holds as the routes migrate onto it.
+    if (path.basename(f) === "route.ts") {
+      for (const line of lines) if (/^\s*rate: "[a-z_]+",\s*$/.test(line)) sites++;
     }
   }
   assert.ok(sites >= 40, `forty call sites, found ${sites}`);

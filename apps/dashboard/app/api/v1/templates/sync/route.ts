@@ -1,7 +1,6 @@
 import { AppError } from "@chanlytics/contracts";
-import { withRoute, memberContext, requireRole } from "@/server/with-route";
+import { write, workspace } from "@/server/route";
 import { syncTemplates } from "@/server/service";
-import { takeRate } from "@/server/rate-limit";
 
 /**
  * POST /api/v1/templates/sync — this workspace's templates, as Meta holds
@@ -21,14 +20,16 @@ const SAID: Record<string, string> = {
   write_failed: "The templates could not be saved. Try again.",
 };
 
-export const POST = withRoute(async (req, ctx) => {
-  const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
-  requireRole(member, "operator");
-  await takeRate(ctx.userId, "settings");
-  const r = await syncTemplates(member.tenantId);
-  if (!r.ok) {
-    const said = SAID[r.reason] ?? `The sync did not complete (${r.reason}).`;
-    throw new AppError(r.reason === "no_channel" || r.reason === "no_waba" ? "conflict" : "upstream_meta", said, r.reason === "no_channel" || r.reason === "no_waba" ? 409 : 502);
-  }
-  return { ok: true, seen: r.seen, approved: r.approved, marketing: r.marketing, synced_at: r.syncedAt };
+export const POST = write({
+  scope: workspace,
+  role: "operator",
+  rate: "settings",
+  handle: async ({ member }) => {
+    const r = await syncTemplates(member.tenantId);
+    if (!r.ok) {
+      const said = SAID[r.reason] ?? `The sync did not complete (${r.reason}).`;
+      throw new AppError(r.reason === "no_channel" || r.reason === "no_waba" ? "conflict" : "upstream_meta", said, r.reason === "no_channel" || r.reason === "no_waba" ? 409 : 502);
+    }
+    return { ok: true, seen: r.seen, approved: r.approved, marketing: r.marketing, synced_at: r.syncedAt };
+  },
 });

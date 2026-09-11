@@ -9,9 +9,6 @@
     "billing/invoices",
     "billing/resume",
     "billing/sync",
-    "broadcasts",
-    "broadcasts/[id]/approve",
-    "broadcasts/[id]/cancel",
     "business-record",
     "calendar",
     "calendar/preview",
@@ -36,20 +33,12 @@
     "platform/lines/retry",
     "platform/overview",
     "platform/tenants/[id]",
-    "playbooks",
-    "playbooks/[id]",
-    "playbooks/[id]/run",
     "policies",
     "reports",
     "reports/campaigns",
     "settings",
     "setup/request",
     "team",
-    "templates",
-    "templates/[id]",
-    "templates/draft",
-    "templates/starter",
-    "templates/sync",
     "workspaces",
     "workspaces/create"
   ],
@@ -75,11 +64,39 @@
       "rate": null,
       "spend": false
     },
+    "POST broadcasts/[id]/approve": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "broadcast",
+      "spend": false
+    },
+    "POST broadcasts/[id]/cancel": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "broadcast",
+      "spend": false
+    },
     "GET broadcasts/[id]": {
       "kind": "read",
       "scope": "workspace",
       "role": null,
       "rate": null,
+      "spend": false
+    },
+    "GET broadcasts": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST broadcasts": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "broadcast",
       "spend": false
     },
     "GET calls/[id]/export": {
@@ -349,6 +366,41 @@
       "rate": "notify_mark",
       "spend": false
     },
+    "PUT playbooks/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "DELETE playbooks/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "POST playbooks/[id]/run": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "GET playbooks": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST playbooks": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
     "PUT segments/[id]": {
       "kind": "write",
       "scope": "row",
@@ -403,6 +455,55 @@
       "scope": "workspace",
       "role": "owner",
       "rate": "invite",
+      "spend": false
+    },
+    "PUT templates/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
+    "DELETE templates/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST templates/draft": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "ask",
+      "spend": false
+    },
+    "GET templates": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST templates": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST templates/starter": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST templates/sync": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "settings",
       "spend": false
     }
   }

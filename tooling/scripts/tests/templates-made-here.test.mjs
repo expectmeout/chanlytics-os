@@ -86,7 +86,7 @@ test("the routes: what Meta refuses is refused first; a duplicate name is a conf
   const del = readCode("apps/dashboard/app/api/v1/templates/[id]/route.ts");
   assert.ok(del.includes('.in("state", ["scheduled", "sending"]);') && del.includes('"A broadcast is still using this template. Cancel it first."'));
   const dr = readCode("apps/dashboard/app/api/v1/templates/draft/route.ts");
-  assert.ok(dr.includes('takeRate(ctx.userId, "ask");'), "a draft costs an assistant turn");
+  assert.ok(dr.includes('rate: "ask",'), "a draft costs an assistant turn");
   const svc = readCode("apps/dashboard/src/server/templates.ts");
   assert.ok(svc.includes('export const DRAFT_MODEL = "claude-sonnet-5";'));
   assert.ok(svc.includes("Answer with one JSON object and nothing else"));

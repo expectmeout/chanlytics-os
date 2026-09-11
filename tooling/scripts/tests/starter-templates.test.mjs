@@ -74,7 +74,7 @@ test("a slot's source: a starter's own, or a guess from the label and the exampl
 
 test("the door: idempotent, one language at a time, synced in when the number's account already holds it, Meta's own words when it refuses", () => {
   const r = readCode("apps/dashboard/app/api/v1/templates/starter/route.ts");
-  assert.ok(r.includes('requireRole(member, "operator")') && r.includes('takeRate(ctx.userId, "settings")'));
+  assert.ok(r.includes('role: "operator",') && r.includes('rate: "settings",'));
   assert.ok(r.includes('results.push({ ...base, status: "exists", meta_status: have.meta_status });'), "already on file is left alone");
   assert.ok(r.includes("const check = validateTemplateDraft(starterDraft(s, l));"), "the same check a hand-written template passes");
   assert.ok(r.includes('if (r.reason === "meta_refused" && ALREADY_AT_META.test(r.detail ?? "")) {') && r.includes("await syncTemplates(member.tenantId);"), "a shared account's copy is synced in, not refused");
@@ -143,7 +143,7 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   const r = readCode("apps/dashboard/app/api/v1/templates/route.ts");
   assert.ok(r.includes('if (!all) q = q.eq("meta_status", "approved").is("hidden_at", null);'), "the composers never see a hidden template; Settings sees everything");
   const one = readCode("apps/dashboard/app/api/v1/templates/[id]/route.ts");
-  assert.ok(one.includes('ctx.supabase.rpc("set_template_hidden", { p_template_id: id, p_hidden: body!.hidden as boolean })') && one.includes('requireRole(member, "operator")'));
+  assert.ok(one.includes('ctx.supabase.rpc("set_template_hidden", { p_template_id: id, p_hidden: input.hidden === true })') && one.includes('role: "operator",'));
   const sync = readCode("apps/edge/api/admin/whatsapp/templates-sync.ts");
   assert.ok(sync.includes('const SAMPLE_TEMPLATES = new Set(["hello_world"]);') && sync.includes("hidden_at: now.toISOString()"), "the sample is hidden on first sight");
   assert.ok(sync.includes("const fresh = rows.filter((r) => !keep.has(`${r.name}|${r.language}`) && SAMPLE_TEMPLATES.has(r.name));"), "and only on first sight — a row on file keeps what the workspace decided");
