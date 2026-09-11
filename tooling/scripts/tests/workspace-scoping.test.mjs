@@ -66,7 +66,7 @@ test("every list endpoint filters by tenant, not by RLS alone", () => {
   const unscoped = [];
   for (const f of ["conversations/route.ts", "calls/route.ts", "escalations/route.ts"]) {
     const src = fs.readFileSync(path.join(API, f), "utf8");
-    if (!src.includes("memberContext") || !/\.eq\("tenant_id", tenantId\)/.test(src)) {
+    if (!(src.includes("memberContext") || src.includes("scope: workspace")) || !/\.eq\("tenant_id", tenantId\)/.test(src)) {
       unscoped.push(f);
     }
   }

@@ -160,13 +160,14 @@ test("the three routes keep their doors: rate bucket, a named workspace, owner o
   const call = readCode("apps/dashboard/app/api/v1/calls/[id]/export/route.ts");
   const people = readCode("apps/dashboard/app/api/v1/contacts/export/route.ts");
   for (const [name, src] of [["conversation", conv], ["call", call], ["people", people]]) {
-    assert.ok(src.includes('takeRate(') && src.includes('"export")'), `${name}: rate bucket`);
-    assert.ok(src.includes("memberContext(ctx, new URL(req.url).searchParams.get(\"workspace\"))"), `${name}: the workspace comes from the request`);
+    // Declared on the export (route()): the bucket, and the workspace the tab named.
+    assert.ok(src.includes('rate: "export",'), `${name}: rate bucket`);
+    assert.ok(src.includes("scope: workspace,"), `${name}: the workspace comes from the request`);
     assert.ok(src.includes(".eq(\"tenant_id\", member.tenantId)") || src.includes("listPeople(ctx, member.tenantId)"), `${name}: scoped to the named workspace`);
     assert.ok(src.includes("return attachment("), `${name}: a file`);
   }
-  assert.ok(people.includes('if (member.role !== "owner") throw new AppError("forbidden", "Only an owner can export everyone.", 403);'));
-  assert.ok(people.includes("if (member.ambiguous) {"), "a bulk export never lands in a workspace nobody chose");
+  assert.ok(people.includes('role: "owner",'), "only an owner exports everyone");
+  assert.ok(people.includes("strict: true,"), "a bulk export never lands in a workspace nobody chose");
   assert.ok(conv.includes("for (let page = 0; page < MAX_PAGES; page++) {"), "the whole thread, not the screen's page");
   assert.deepEqual([ROLE_PERMS.owner.export, ROLE_PERMS.operator.export, ROLE_PERMS.viewer.export], [true, false, false]);
   const limits = readCode("apps/dashboard/src/server/rate-limit.ts");
