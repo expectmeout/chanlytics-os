@@ -185,8 +185,8 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   // ingest is added (the unreachable-sender guard was the fourth) and says
   // nothing about the one that might have dropped the channel.
   assert.equal(
-    (code.match(/pgIngest\(/g) ?? []).length,
-    (code.match(/pgIngest\(db, tenantId, n, channel\)/g) ?? []).length,
+    (code.match(/ports\.persist\.ingest\(/g) ?? []).length,
+    (code.match(/ports\.persist\.ingest\(db, tenantId, n, channel\)/g) ?? []).length,
     "every ingest carries the channel",
   );
   assert.ok(code.includes("...(carrier ? { sms: (to: string, p: { body: string }) => carrier.send(to, p.body) } : {}),") && code.includes("const send = (text: string, meta?: Record<string, Json>) => sink.deliver(from, wire(text), meta);") && !code.includes("sendText("), "one door out: the carrier is this message's sms wire, and the sink's door sends on it");

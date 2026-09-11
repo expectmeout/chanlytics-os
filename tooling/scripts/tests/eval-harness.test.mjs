@@ -91,7 +91,7 @@ test("the token budget: a policy limit, a check before the brain, a labelled rea
   assert.ok(ESCALATION_REASONS.includes("budget"));
   assert.ok(ESCALATION_REASON_LABELS.budget.includes("budget"));
   const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
-  assert.ok(wa.includes("const used = await tokensLast24h(db, tenantId);"));
+  assert.ok(wa.includes("const used = await ports.budget.tokensLast24h(db, tenantId);"));
   assert.ok(wa.includes('sink.escalate("budget",'));
   assert.ok(wa.includes('"(no reply sent — the day\'s model budget is used up)"'));
   const sql = readRaw("supabase/migrations/00039_budget_reason.sql");

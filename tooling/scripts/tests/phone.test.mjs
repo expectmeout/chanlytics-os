@@ -118,7 +118,7 @@ test("the receptionist records a short code and does not answer it", () => {
   // Before the allowlist, which is the other reply-only gate, so the two
   // cannot disagree about a sender that is both.
   assert.ok(
-    inbound.indexOf("if (shortCode(from)) {") < inbound.indexOf("WHATSAPP_TEST_ALLOWLIST"),
+    inbound.indexOf("if (shortCode(from)) {") < inbound.indexOf("ports.env.allowlist"),
     "the unreachable check comes first",
   );
 

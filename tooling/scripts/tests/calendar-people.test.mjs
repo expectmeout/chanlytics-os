@@ -193,7 +193,7 @@ test("the wiring: the board and the profile read one match; both receptionists a
   const edge = readCode("apps/edge/lib/availability.ts");
   assert.ok(edge.includes("export async function visitsFor(rt: TenantRuntime, who: { phone: string | null; name: string | null }") && edge.includes("return describeVisits(visitsOf(feed.items, { id: \"caller\", name: who.name ?? \"\", phone: who.phone }, now.getTime()), rt.timezone, now.getTime());"));
   const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
-  assert.ok(wa.includes("const visits = rt ? await visitsFor(rt, { phone: e164, name: lead.name }) : null;") && wa.includes("if (visits) leadNote = `${leadNote}\\n${visits}`;"), "WhatsApp: with who they are");
+  assert.ok(wa.includes("const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;") && wa.includes("if (visits) leadNote = `${leadNote}\\n${visits}`;"), "WhatsApp: with who they are");
   const inbound = readCode("apps/edge/api/retell-inbound.ts");
   assert.ok(inbound.includes("const visits = await visitsFor(rt, { phone, name: lead.name });") && inbound.includes("if (visits) parts.push(visits);"), "phone: in the caller context");
   const page = readCode("apps/dashboard/src/legacy/pages/calendar-real.jsx");
