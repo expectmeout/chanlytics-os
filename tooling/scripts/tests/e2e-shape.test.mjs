@@ -1,5 +1,5 @@
 /**
- * A spec that writes must name its workspace, because the app does.
+ * A spec that reaches the API must name its workspace, because the app does.
  *
  * `scoped()` (apps/dashboard/src/legacy-bridge/surface-data.ts) appends
  * ?workspace= to every URL the client fetches, and its own comment records
@@ -27,12 +27,16 @@ import { ROOT, readCode } from "./_source.mjs";
 
 const SPECS = fs.readdirSync(path.join(ROOT, "e2e")).filter((f) => f.endsWith(".spec.ts"));
 
-test("every direct write in the e2e suite names a workspace", () => {
+test("every direct request in the e2e suite names a workspace", () => {
   const offenders = [];
   for (const f of SPECS) {
     for (const line of readCode(`e2e/${f}`).split("\n")) {
-      if (!/page\.request\.(post|patch|put|delete)\(/.test(line)) continue;
-      if (line.includes("workspace=") || line.includes("scoped(")) continue;
+      if (!/page\.request\.(get|post|patch|put|delete)\(/.test(line)) continue;
+      if (line.includes("workspace=") || line.includes("scoped(") || line.includes("apiGet(")) continue;
+      // Reads refuse ambiguity too since plan 3.4. The account scope is the
+      // exception by design: /workspaces answers "where am I" and /signup has
+      // no workspace yet.
+      if (/\/api\/v1\/(workspaces|signup)\b/.test(line)) continue;
       // An absolute URL is the edge, which carries its own credential. The
       // bare `request` fixture has no session at all, which is the point of
       // ask.spec.ts's unauthenticated case, so only `page.request` is judged.
@@ -40,5 +44,5 @@ test("every direct write in the e2e suite names a workspace", () => {
       offenders.push(`${f}: ${line.trim().slice(0, 90)}`);
     }
   }
-  assert.deepEqual(offenders, [], "these writes would be refused for an account with two workspaces");
+  assert.deepEqual(offenders, [], "these requests would be refused for an account with two workspaces");
 });

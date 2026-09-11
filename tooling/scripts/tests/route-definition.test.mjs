@@ -59,11 +59,13 @@ test("a named workspace resolves by id or slug, and one the caller is not in is 
   await refused(GET.run(get("?workspace=someone-elses"), ctxFor(tables)), "not_found", 404);
 });
 
-test("naming nothing: a read keeps the oldest membership, a write is refused as choose_workspace", async () => {
+test("naming nothing: an account in two workspaces is refused as choose_workspace, on a read as on a write; one membership is never ambiguous", async () => {
   const GET = read({ scope: workspace, handle: echo });
   const POST = write({ scope: workspace, role: "viewer", rate: null, handle: echo });
   const tables = { memberships: both("viewer", "owner") };
-  assert.equal((await GET.run(get(), ctxFor(tables))).tenantId, A, "the oldest, as before this phase");
+  await refused(GET.run(get(), ctxFor(tables)), "choose_workspace", 400);
+  assert.equal((await GET.run(get(`?workspace=${B}`), ctxFor(tables))).tenantId, B, "named, it proceeds");
+  assert.equal((await GET.run(get(), ctxFor({ memberships: only("viewer") }))).tenantId, A, "one membership is never ambiguous");
   await refused(POST.run(post(), ctxFor(tables)), "choose_workspace", 400);
   assert.equal((await POST.run(post(`?workspace=${B}`), ctxFor(tables))).tenantId, B, "named, it proceeds");
   assert.equal((await POST.run(post(), ctxFor({ memberships: only("viewer") }))).tenantId, A, "one membership is never ambiguous");

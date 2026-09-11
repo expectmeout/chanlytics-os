@@ -134,7 +134,7 @@ test("the roster: the workspace the tab named, assembled after the caller proves
       { id: "i3", tenant_id: B, email: "di@example.com", role: "viewer", created_at: "2026-09-02T00:00:00Z", expires_at: "2026-09-09T00:00:00Z", accepted_at: null, revoked_at: null },
     ],
   };
-  const out = await team.GET.run(get(), ctxFor(tables, {}, rpcs));
+  const out = await team.GET.run(get(inA), ctxFor(tables, {}, rpcs));
   assert.equal(out.members.length, 1, "the members the function names");
   assert.deepEqual(out.invites.map((i) => i.email), ["bo@example.com"], "open invitations only, this workspace's");
 });

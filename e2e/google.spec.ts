@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { apiGet } from "./workspace";
 
 /**
  * Google, on a real workspace: the listing route answers honestly about what
@@ -15,7 +16,7 @@ test.describe("Google on a real workspace", () => {
   });
 
   test("the route says whether listings can be looked up, and never a key", async ({ page }) => {
-    const res = await page.request.get("/api/v1/google");
+    const res = await apiGet(page, "/api/v1/google");
     expect(res.status()).toBe(200);
     const { data } = await res.json();
     expect(typeof data.google.ready.places).toBe("boolean");
@@ -26,7 +27,7 @@ test.describe("Google on a real workspace", () => {
   });
 
   test("Setup, Reports and Integrations follow the platform's readiness, then the listing", async ({ page }) => {
-    const { data } = await (await page.request.get("/api/v1/google")).json();
+    const { data } = await (await apiGet(page, "/api/v1/google")).json();
     const ready: boolean = data.google.ready.places;
     const profile: boolean = data.google.ready.profile;
     const linked = !!data.google.listing;
@@ -68,7 +69,7 @@ test.describe("Google on a real workspace", () => {
     if (!profile) await expect(profileRow).toContainText("Later");
     if (!ready) await expect(listingRow).toContainText("Later");
     if (ready) await expect(listingRow).toContainText(linked ? /Watched|Could not be read/ : "Your listing on Google");
-    await expect(JSON.stringify(await (await page.request.get("/api/v1/google")).json())).not.toMatch(/refresh_token|access_token|credentials_ref/);
+    await expect(JSON.stringify(await (await apiGet(page, "/api/v1/google")).json())).not.toMatch(/refresh_token|access_token|credentials_ref/);
   });
 
   test("the way to Google refuses politely where the door is closed, and never leaks the state key", async ({ page }) => {

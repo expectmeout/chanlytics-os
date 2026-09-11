@@ -46,31 +46,33 @@ const OPERATOR = { tenant_id: "t-new", role: "operator", tenants: { slug: "new-s
 
 /* --------------------------- which workspace ----------------------------- */
 
-test("with one membership, that is the workspace and nothing is ambiguous", async () => {
+test("with one membership, that is the workspace, named or not", async () => {
   const m = await memberContext(ctxWith([OWNER]));
   assert.equal(m.tenantId, "t-old");
   assert.equal(m.role, "owner");
-  assert.equal(m.ambiguous, false);
 });
 
 test("the default is the OLDEST membership, not the alphabetical one", async () => {
   // The rows arrive ordered by created_at. Three resolvers used to disagree
   // here, and one sorted by name — so a member of two workspaces could see the
   // role chip of one business over the data of another.
-  const m = await memberContext(ctxWith([OWNER, OPERATOR]));
+  // Only the door whose job is "which workspace should this tab open" may take it.
+  const m = await memberContext(ctxWith([OWNER, OPERATOR]), null, { defaultAllowed: true });
   assert.equal(m.tenantId, "t-old");
 });
 
-test("two memberships and no named workspace is AMBIGUOUS", async () => {
-  const m = await memberContext(ctxWith([OWNER, OPERATOR]));
-  assert.equal(m.ambiguous, true, "reads may proceed on the default; writes must not");
+test("two memberships and no named workspace is refused, read or write", async () => {
+  await assert.rejects(memberContext(ctxWith([OWNER, OPERATOR])), (e) => {
+    assert.equal(e.code, "choose_workspace");
+    assert.match(e.message, /more than one workspace/);
+    return true;
+  });
 });
 
 test("naming a workspace resolves it and clears the ambiguity", async () => {
   const byId = await memberContext(ctxWith([OWNER, OPERATOR]), "t-new");
   assert.equal(byId.tenantId, "t-new");
   assert.equal(byId.role, "operator");
-  assert.equal(byId.ambiguous, false);
 
   // /metrics accepted slugs before anything else did, so both forms work.
   const bySlug = await memberContext(ctxWith([OWNER, OPERATOR]), "new-shop");
@@ -99,7 +101,7 @@ test("a failed membership read throws rather than resolving to nothing", async (
 
 /* ------------------------------ may they act ----------------------------- */
 
-const member = (role, ambiguous = false) => ({ tenantId: "t1", role, ambiguous });
+const member = (role) => ({ tenantId: "t1", role });
 
 test("the role ladder is owner > operator > viewer", () => {
   assert.doesNotThrow(() => requireRole(member("owner"), "owner"));
@@ -114,19 +116,6 @@ test("a viewer may change nothing, and an operator is not an owner", () => {
   // The refusal says which, because "forbidden" alone sends people to support.
   assert.throws(() => requireRole(member("operator"), "owner"), /Only an owner/);
   assert.throws(() => requireRole(member("viewer"), "operator"), /Viewers can see everything/);
-});
-
-test("an AMBIGUOUS write is refused however senior the caller", () => {
-  // A commit under the default workspace would silently change the wrong
-  // business's settings, team or policy. The guard lives in requireRole
-  // precisely so no route has to remember it.
-  for (const role of ["owner", "operator"]) {
-    assert.throws(
-      () => requireRole(member(role, true), "operator"),
-      /more than one workspace/,
-      `${role} must still be refused`,
-    );
-  }
 });
 
 /* ------------------------------ the door itself -------------------------- */

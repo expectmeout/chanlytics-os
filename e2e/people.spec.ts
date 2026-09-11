@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { apiGet } from "./workspace";
 
 /**
  * People, on a real workspace.
@@ -50,7 +51,7 @@ test.describe("People on a real workspace", () => {
     // The table's columns are the measured ones.
     // innerText follows the CSS text-transform, so compare case-insensitively.
     const headers = (await page.locator(".cl-table thead th").allInnerTexts()).map((h) => h.replace(/[▲▼]/g, "").trim().toLowerCase()).filter(Boolean);
-    const cal = ((await (await page.request.get("/api/v1/contacts")).json()).data as { calendar?: { state: string } }).calendar;
+    const cal = ((await (await apiGet(page, "/api/v1/contacts")).json()).data as { calendar?: { state: string } }).calendar;
     // With a calendar connected the outcome takes the receptionist's column; the checkbox and the actions columns have no words. First contact lives in the identity cell.
     expect(headers).toEqual(["customer", "state", "last contact", cal?.state === "ok" ? "visits" : "receptionist", "offers"]);
     // Every Offers cell is one of the three answers.
@@ -102,7 +103,7 @@ test.describe("People on a real workspace", () => {
   });
 
   test("Booked and Asked-never-booked exist only with a calendar, as facts; Leads and the Deal board land on People", async ({ page }) => {
-    const list = await page.request.get("/api/v1/contacts");
+    const list = await apiGet(page, "/api/v1/contacts");
     const body = (await list.json()).data as { people: Array<{ visits?: unknown }>; calendar?: { state: string } };
     expect(body.calendar).toBeTruthy();
     await page.goto("/#/clients");
@@ -141,7 +142,7 @@ test.describe("People on a real workspace", () => {
     await expect(page.getByTestId("state-filter")).toContainText("Quiet");
     await page.getByTestId("state-filter").locator("button").click();
     await expect.poll(() => new URL(page.url()).hash).toBe("#/clients");
-    const saved = ((await (await page.request.get("/api/v1/segments")).json()).data as { lists: Array<{ id: string; name: string }> }).lists;
+    const saved = ((await (await apiGet(page, "/api/v1/segments")).json()).data as { lists: Array<{ id: string; name: string }> }).lists;
     if (saved.length) {
       await page.goto(`/#/clients/list:${saved[0].id}`);
       await page.waitForLoadState("networkidle");
@@ -196,10 +197,10 @@ test.describe("People on a real workspace", () => {
   });
 
   test("the booking link is one step from a profile with a thread: the button lands on the thread", async ({ page }) => {
-    const people = ((await (await page.request.get("/api/v1/contacts")).json()).data as { people: Array<{ id: string; has_chat: boolean | null; latest_conversation_id: string | null }> }).people;
+    const people = ((await (await apiGet(page, "/api/v1/contacts")).json()).data as { people: Array<{ id: string; has_chat: boolean | null; latest_conversation_id: string | null }> }).people;
     const withChat = people.find((p) => p.has_chat && p.latest_conversation_id);
     test.skip(!withChat, "nobody here has a WhatsApp thread");
-    const detail = (await (await page.request.get(`/api/v1/contacts/${withChat!.id}`)).json()).data.person as { booking_link?: string | null; visits?: { all?: unknown[] } | null };
+    const detail = (await (await apiGet(page, `/api/v1/contacts/${withChat!.id}`)).json()).data.person as { booking_link?: string | null; visits?: { all?: unknown[] } | null };
     test.skip(!detail.booking_link, "no booking link on file");
     await page.goto(`/#/clients/${withChat!.id}`);
     await expect(page.locator(".cl-prof-name")).toBeVisible();

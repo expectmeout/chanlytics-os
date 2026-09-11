@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { apiGet } from "./workspace";
 
 /**
  * Campaigns › Playbooks on a real workspace.
@@ -26,8 +27,8 @@ test.describe("Playbooks on a real workspace", () => {
     await expect(real).toBeVisible();
 
     const [pb, tpl] = await Promise.all([
-      page.request.get("/api/v1/playbooks"),
-      page.request.get("/api/v1/templates"),
+      apiGet(page, "/api/v1/playbooks"),
+      apiGet(page, "/api/v1/templates"),
     ]);
     expect(pb.status()).toBe(200);
     expect(tpl.status()).toBe(200);
@@ -67,7 +68,7 @@ test.describe("Playbooks on a real workspace", () => {
     await expect(page.getByTestId("playbooks-real")).toBeVisible();
     await expect(page.getByRole("button", { name: "Playbooks" }).first()).toBeVisible();
 
-    const bc = await page.request.get("/api/v1/broadcasts");
+    const bc = await apiGet(page, "/api/v1/broadcasts");
     expect(bc.status()).toBe(200);
     const waiting = ((await bc.json()).data.broadcasts as { state: string }[]).filter((b) => b.state === "pending_approval").length;
     await page.goto("/#/today");

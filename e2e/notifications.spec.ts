@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { apiGet } from "./workspace";
 
 /**
  * The bell on a real workspace: it opens, it shows the workspace's own rows
@@ -33,7 +34,7 @@ test.describe("The bell on a real workspace", () => {
       }
     }
     // The kept rows come from the route, with this person's marks on each.
-    const res = await page.request.get("/api/v1/notifications");
+    const res = await apiGet(page, "/api/v1/notifications");
     expect(res.status()).toBe(200);
     const data = (await res.json()).data as { notifications: Array<{ id: string; kind: string; title: string; read: boolean; dismissed: boolean }>; seen_at: string | null };
     expect(Array.isArray(data.notifications)).toBe(true);

@@ -122,11 +122,6 @@ export function withRoute<T>(
 export interface MemberContext {
   tenantId: string;
   role: "owner" | "operator" | "viewer";
-  /**
-   * The caller belongs to more than one workspace and this request did not say
-   * which. Reads proceed on the default; WRITES must not — see requireRole.
-   */
-  ambiguous: boolean;
 }
 
 /**
@@ -143,9 +138,13 @@ export interface MemberContext {
  * ever see the caller's own rows, so a workspace they don't belong to resolves
  * to nothing and 404s — never to someone else's tenant.
  */
+export const AMBIGUOUS = "This account belongs to more than one workspace — say which one first.";
+
 export async function memberContext(
   ctx: RouteContext,
   wanted?: string | null,
+  /** Only GET /workspaces may fall back to the oldest membership: answering "which workspace should this tab open" is its job. */
+  opts: { defaultAllowed?: boolean } = {},
 ): Promise<MemberContext> {
   const { data, error } = await ctx.supabase
     .from("memberships")
@@ -155,9 +154,12 @@ export async function memberContext(
   if (error) throw new Error(error.message);
 
   const rows = data ?? [];
-  // Oldest membership. Stable, documented, and now the ONLY default in the
-  // codebase — a user's home workspace does not move because a tenant was
-  // renamed, which name-sorting allowed.
+  // A request that names no workspace, from an account that holds two, is
+  // refused — on a read as on a write (plan 3.4). The one default left in the
+  // codebase is the oldest membership, and only /workspaces may take it: a
+  // person's home workspace does not move because a tenant was renamed, which
+  // name-sorting allowed.
+  if (!wanted && rows.length > 1 && !opts.defaultAllowed) throw new AppError("choose_workspace", AMBIGUOUS);
   const m = wanted
     ? rows.find((r) => r.tenant_id === wanted || r.tenants?.slug === wanted)
     : rows[0];
@@ -166,7 +168,6 @@ export async function memberContext(
   return {
     tenantId: m.tenant_id,
     role: m.role as MemberContext["role"],
-    ambiguous: !wanted && rows.length > 1,
   };
 }
 
@@ -179,19 +180,6 @@ const ROLE_RANK: Record<MemberContext["role"], number> = { viewer: 0, operator: 
  * chips are a courtesy rendering of the same truth.
  */
 export function requireRole(member: MemberContext, atLeast: MemberContext["role"]): void {
-  // A write must never land in a workspace nobody named. Reads fall back to the
-  // caller's default workspace, which is harmless and keeps the app usable; a
-  // COMMIT under the same fallback would silently change the wrong business's
-  // settings, team or policy. Every mutating path already calls requireRole, so
-  // the guard lives here rather than being re-remembered per route.
-  // `choose_workspace`, not `validation`: the fix is naming the business, and
-  // route()'s workspace scope refuses an unnamed write with the same code.
-  if (member.ambiguous) {
-    throw new AppError(
-      "choose_workspace",
-      "This account belongs to more than one workspace — say which one before changing anything.",
-    );
-  }
   if (ROLE_RANK[member.role] < ROLE_RANK[atLeast]) {
     throw new AppError(
       "forbidden",

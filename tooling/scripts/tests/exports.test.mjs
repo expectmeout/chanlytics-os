@@ -167,7 +167,7 @@ test("the three routes keep their doors: rate bucket, a named workspace, owner o
     assert.ok(src.includes("return attachment("), `${name}: a file`);
   }
   assert.ok(people.includes('role: "owner",'), "only an owner exports everyone");
-  assert.ok(people.includes("strict: true,"), "a bulk export never lands in a workspace nobody chose");
+  // Every read of a workspace refuses an account in two that named neither (plan 3.4, run in route-definition.test.mjs); the export was the first to insist.
   assert.ok(conv.includes("for (let page = 0; page < MAX_PAGES; page++) {"), "the whole thread, not the screen's page");
   assert.deepEqual([ROLE_PERMS.owner.export, ROLE_PERMS.operator.export, ROLE_PERMS.viewer.export], [true, false, false]);
   const limits = readCode("apps/dashboard/src/server/rate-limit.ts");

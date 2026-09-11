@@ -44,6 +44,7 @@ const ago = (ms) => new Date(Date.now() - ms).toISOString();
 const membership = (tenant_id, role, slug, created_at) => ({ user_id: USER, tenant_id, role, tenants: { slug }, created_at });
 /** A member of two workspaces: harbor (the older membership, so the default) and bayside. */
 const both = (harbor, bayside) => [membership(A, harbor, "harbor", "2026-01-01T00:00:00Z"), membership(B, bayside, "bayside", "2026-02-01T00:00:00Z")];
+const inA = `?workspace=${A}`;
 const ctxFor = (tables, params = {}) => ({ supabase: fakeDb(tables), userId: USER, email: "ada@example.com", params });
 const get = (q = "") => new Request(`http://localhost/api/v1/x${q}`);
 const post = (body) => new Request("http://localhost/api/v1/x", { method: "POST", body: JSON.stringify(body) });
@@ -88,9 +89,9 @@ test("the escalations read answers the workspace the tab named: its open ones un
       { id: "e3", tenant_id: B, state: "open", reason: "booking", details: null, created_at: "2026-09-03T00:00:00Z", conversation_id: C2 },
     ],
   };
-  const open = await escalations.GET.run(get(), ctxFor(tables));
+  const open = await escalations.GET.run(get(inA), ctxFor(tables));
   assert.deepEqual(open.escalations.map((e) => e.id), ["e1"], "the oldest membership is the default, and only its open ones");
-  const resolved = await escalations.GET.run(get("?state=resolved"), ctxFor(tables));
+  const resolved = await escalations.GET.run(get(`?state=resolved&workspace=${A}&workspace=${A}`), ctxFor(tables));
   assert.deepEqual(resolved.escalations.map((e) => e.id), ["e2"]);
   const bayside = await escalations.GET.run(get(`?workspace=${B}`), ctxFor(tables));
   assert.deepEqual(bayside.escalations.map((e) => e.id), ["e3"]);
@@ -105,15 +106,15 @@ test("the calls read is the workspace's, newest first, narrowed by status or thr
       call(L3, B),
     ],
   };
-  const all = await calls.GET.run(get(), ctxFor(tables));
+  const all = await calls.GET.run(get(inA), ctxFor(tables));
   assert.deepEqual(all.calls.map((c) => c.id), [L2, L1], "newest first, this workspace only");
   const json = JSON.stringify(all.calls);
   assert.ok(!json.includes("storage_path") && !json.includes("provider.example"), "audio is reachable only through the signed recording route");
-  const ongoing = await calls.GET.run(get("?status=ongoing"), ctxFor(tables));
+  const ongoing = await calls.GET.run(get(`?status=ongoing&workspace=${A}&workspace=${A}`), ctxFor(tables));
   assert.deepEqual(ongoing.calls.map((c) => c.id), [L2]);
-  const ofThread = await calls.GET.run(get(`?conversation_id=${C1}`), ctxFor(tables));
+  const ofThread = await calls.GET.run(get(`?conversation_id=${C1}&workspace=${A}`), ctxFor(tables));
   assert.deepEqual(ofThread.calls.map((c) => c.id), [L1]);
-  await refused(calls.GET.run(get("?conversation_id=not-a-uuid"), ctxFor(tables)), "not_found", 404);
+  await refused(calls.GET.run(get(`?conversation_id=not-a-uuid&workspace=${A}&workspace=${A}`), ctxFor(tables)), "not_found", 404);
 });
 
 test("one thread: any member reads it where it lives, older messages page back, and a thread the account cannot reach is a 404", async () => {

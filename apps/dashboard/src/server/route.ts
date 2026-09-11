@@ -86,8 +86,6 @@ export interface Policy {
   readonly role: Role | null;
   readonly rate: RateBucket | null;
   readonly spend: boolean;
-  /** A read that refuses an ambiguous account (ReadSpec.strict). Present only when true. */
-  readonly strict?: true;
 }
 
 declare const shape: unique symbol;
@@ -107,13 +105,6 @@ export interface ReadSpec<S extends Scope, Q, O> {
   /** Every member may read unless this says otherwise. */
   role?: Role;
   rate?: RateBucket | null;
-  /**
-   * A read that must be told the workspace: an account in two workspaces is
-   * refused as on a write, instead of getting the oldest one. For the reads
-   * that hand over everything, such as an export, where the default would
-   * land a whole customer list in a workspace nobody chose.
-   */
-  strict?: boolean;
   query?: ZodType<Q>;
   handle: (call: Call<S, Q>) => Promise<O>;
 }
@@ -129,8 +120,6 @@ export interface WriteSpec<S extends Scope, I, O> {
   handle: (call: Call<S, I>) => Promise<O>;
 }
 
-const AMBIGUOUS = "This account belongs to more than one workspace — say which one before changing anything.";
-
 function mint(m: MemberContext): Member {
   return { tenantId: m.tenantId, role: m.role } as Member;
 }
@@ -140,15 +129,12 @@ async function resolve(
   kind: Policy["kind"],
   req: Request,
   ctx: RouteCtx,
-  strict = false,
 ): Promise<{ member: MemberContext | null; given: Record<string, unknown> }> {
   switch (scope.kind) {
     case "workspace": {
+      // The tab names its workspace with ?workspace=; an account in two that
+      // named neither is refused here, read or write (memberContext, plan 3.4).
       const m = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
-      // A write must never land in a workspace nobody named, nor a strict read.
-      // Any other read, until the client always names one (plan Task 3.4),
-      // keeps today's oldest-membership default, which changes nothing.
-      if (m.ambiguous && (kind === "write" || strict)) throw new AppError("choose_workspace", AMBIGUOUS);
       return { member: m, given: { member: mint(m) } };
     }
     case "row": {
@@ -193,7 +179,6 @@ interface Spec<S extends Scope, I, O> {
   spend?: boolean;
   input?: ZodType<I>;
   query?: ZodType<I>;
-  strict?: boolean;
   handle: (call: Call<S, I>) => Promise<O>;
 }
 
@@ -204,11 +189,10 @@ function build<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I, O>)
     role: spec.role ?? null,
     rate: spec.rate ?? null,
     spend: spec.spend === true,
-    ...(spec.strict ? { strict: true as const } : {}),
   });
 
   const run = async (req: Request, ctx: RouteCtx): Promise<O> => {
-    const { member, given } = await resolve(spec.scope, kind, req, ctx, spec.strict === true);
+    const { member, given } = await resolve(spec.scope, kind, req, ctx);
     if (spec.role) {
       if (!member) throw new Error(`a ${spec.scope.kind}-scoped route cannot require a role`);
       requireRole(member, spec.role);

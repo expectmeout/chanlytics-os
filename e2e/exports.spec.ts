@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { apiGet } from "./workspace";
 
 /**
  * Exports, on a real workspace, from the routes that write the files.
@@ -33,13 +34,13 @@ test.describe("Exports on a real workspace", () => {
   });
 
   test("a thread as text, when the workspace has one", async ({ page }) => {
-    const list = await page.request.get("/api/v1/conversations");
+    const list = await apiGet(page, "/api/v1/conversations");
     expect(list.status()).toBe(200);
     const { data } = await list.json();
     const first = data.conversations?.[0];
     test.skip(!first, "no conversations in this workspace");
 
-    const res = await page.request.get(`/api/v1/conversations/${first.id}/export`);
+    const res = await apiGet(page, `/api/v1/conversations/${first.id}/export`);
     expect(res.status()).toBe(200);
     expect(res.headers()["content-type"]).toContain("text/plain");
     const text = await res.text();
@@ -49,13 +50,13 @@ test.describe("Exports on a real workspace", () => {
   });
 
   test("a call as text, when the workspace has one", async ({ page }) => {
-    const list = await page.request.get("/api/v1/calls");
+    const list = await apiGet(page, "/api/v1/calls");
     expect(list.status()).toBe(200);
     const { data } = await list.json();
     const first = data.calls?.[0];
     test.skip(!first, "no calls in this workspace");
 
-    const res = await page.request.get(`/api/v1/calls/${first.id}/export`);
+    const res = await apiGet(page, `/api/v1/calls/${first.id}/export`);
     expect(res.status()).toBe(200);
     expect(res.headers()["content-type"]).toContain("text/plain");
     const text = await res.text();

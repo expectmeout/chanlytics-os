@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { apiGet } from "./workspace";
 
 /**
  * Saved lists on People.
@@ -22,7 +23,7 @@ test.describe("Saved lists on People", () => {
     await expect(saved).toBeVisible();
     await expect(saved).toContainText("Saved");
     // What the server holds is what the rail shows: the same count of rows.
-    const res = await page.request.get("/api/v1/segments");
+    const res = await apiGet(page, "/api/v1/segments");
     expect(res.status()).toBe(200);
     const { data } = await res.json();
     expect(Array.isArray(data.lists)).toBe(true);
@@ -56,7 +57,7 @@ test.describe("Saved lists on People", () => {
     const real = page.getByTestId("lists-real");
     await expect(real).toBeVisible();
     await expect(page.getByTestId("lists-rail-smart")).toContainText("Needs you");
-    const res = await page.request.get("/api/v1/segments");
+    const res = await apiGet(page, "/api/v1/segments");
     const { data } = await res.json();
     await expect(page.getByTestId("lists-rail-saved").locator(".cl-rail-row")).toHaveCount(data.lists.length);
     // A computed list opens with its people, never a Coming Soon card.
