@@ -30,7 +30,7 @@ test.describe("Settings → AI memory on a real workspace", () => {
       await expect(page.locator(".set-nav")).toBeVisible();
       const text = await page.locator(".set-pane").innerText();
       for (const s of INVENTED) expect(text, `invented: "${s}"`).not.toContain(s);
-      expect(text).not.toContain("In design — shipping next");
+      expect(text).not.toContain("Not in this release");
     });
   }
 });

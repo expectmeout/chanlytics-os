@@ -19,8 +19,10 @@ const NAV_WORK = [
   { id: "campaigns",     icon: "bolt",     label: "Campaigns" },
 ];
 
+// Agents (fleet, store, studio, tasks) is the mockup's: hidden outside a demo
+// session, with the rest of the mockup — see surface-registry.ts.
 const NAV_INTEL = [
-  { id: "agents",  icon: "agents",      label: "Agents" },
+  { id: "agents",  icon: "agents",      label: "Agents", demoOnly: true },
   { id: "reports", icon: "trending-up", label: "Reports" },
 ];
 
@@ -484,7 +486,7 @@ const Sidebar = ({
       <div className="sb-nav-scroll">
         {renderGroup(NAV_PRIMARY)}
         {renderGroup(NAV_WORK, "Workspace")}
-        {renderGroup(NAV_INTEL, "Intelligence")}
+        {renderGroup(window.__DEMO_MODE ? NAV_INTEL : NAV_INTEL.filter((i) => !i.demoOnly), "Intelligence")}
         {renderGroup(NAV_FOOT)}
       </div>
 

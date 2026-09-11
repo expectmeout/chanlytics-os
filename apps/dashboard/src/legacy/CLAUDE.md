@@ -1,5 +1,11 @@
 # Chanlytics — Code Contracts & Conventions
 
+> **Status, 11 September 2026.** This tree is the signed-in operator shell, bridged to real data by `src/legacy-bridge`
+> (see `surface-registry.ts` for which surfaces are real). The mockup-only surfaces — Agents (fleet, store, studio,
+> tasks), Content, Pipeline and Leads, the shared report viewer — stay here and stay hidden from every real workspace.
+> Ruben's decision: most of it is revisited when the product is at 100%; none of those features is built before then.
+> Nothing below this line is a plan to build them.
+
 Single-page React (Babel, no bundler). `Chanlytics.html` loads: tokens/css → data/*.jsx → components/*.jsx → pages/*.jsx → app-shell. Bump `?v=N` on every edited file.
 
 ## Architecture
