@@ -14134,6 +14134,66 @@ async function replyToConversation(ports, cmd) {
   if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt);
   return receipt;
 }
+
+// src/messages/send.ts
+async function sendQueued(ports, cmd) {
+  const p = cmd.payload;
+  let msg;
+  try {
+    msg = await ports.queued(p.message_id);
+  } catch (e) {
+    throw new Error(`outbound_send: cannot read message ${p.message_id}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  if (!msg || msg.status !== "queued") return;
+  const purpose = await ports.purposeOf(p.template);
+  const channel = msg.channel ?? "whatsapp";
+  const out = await ports.deliver({
+    tenantId: cmd.tenantId,
+    conversationId: p.conversation_id,
+    contactId: null,
+    to: p.to_phone,
+    channel,
+    // Read from the ROW, not hardcoded: under a veto window the receptionist's
+    // own reply travels this path, and stamping every send "human" would make
+    // the metrics report a bot's words as a person's.
+    sender: msg.sender ?? "human",
+    purpose,
+    proactive: false,
+    body: p.body ?? msg.body ?? "",
+    template: p.template,
+    messageId: p.message_id
+  });
+  if (out.outcome !== "failed") return;
+  if (out.reason === "provider" && (out.status === 401 || out.status === 403)) {
+    await ports.page?.(`provider_auth:${channel}`, `${channel} rejected a send with ${out.status}`, `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`);
+  }
+  await ports.escalate(p.conversation_id, "send_failed", `Dashboard reply could not be delivered (HTTP ${out.status}).`);
+  await ports.alert(`Reply delivery failed: ${p.to_phone}`, `A reply queued from the dashboard could not be sent (HTTP ${out.status}). The thread is flagged in the Inbox.`);
+}
+
+// src/messages/erase-thread.ts
+async function eraseBlobThread(ports, cmd) {
+  const p = cmd.payload;
+  if (p.scrubbed) return;
+  if (!p.namespace) throw new Error("blob_thread_erase: payload has no namespace");
+  const ids = (Array.isArray(p.thread_ids) ? p.thread_ids : []).filter((t) => typeof t === "string" && t.length > 0);
+  const failed = [];
+  for (const id of ids) if (!await ports.eraseThread(p.namespace, id)) failed.push(id);
+  if (failed.length) throw new Error(`blob_thread_erase: ${failed.length} thread(s) not deleted`);
+  const scrubbed = { contact_id: p.contact_id ?? null, namespace: p.namespace, threads: ids.length, scrubbed: true };
+  await ports.scrub(cmd.tenantId, p.contact_id ? { contactId: p.contact_id } : { jobId: cmd.jobId }, scrubbed);
+  if (p.contact_id) await ports.recordErased(cmd.tenantId, p.contact_id, ids.length, cmd.jobId);
+}
+
+// src/messages/provision-line.ts
+async function provisionLine(ports, cmd) {
+  const lineId = typeof cmd.payload.line_id === "string" ? cmd.payload.line_id : "";
+  const by = cmd.payload.by === "sweep" || cmd.payload.by === "support" ? cmd.payload.by : "owner";
+  if (!lineId) throw new Error("line_provision: payload.line_id is required");
+  if (!ports.provision) throw new Error("line_provision: this runtime holds no line provider");
+  const r = await ports.provision(lineId, by);
+  if (!r.ok) throw new Error(`line_provision: stopped at ${r.step ?? "?"}: ${r.error ?? "unknown"}`);
+}
 export {
   IDEMPOTENCY_WINDOW_MS,
   MAX_SNOOZE_MS,
@@ -14143,9 +14203,12 @@ export {
   cancelSend,
   deliver,
   deliverSafely,
+  eraseBlobThread,
   handBack,
+  provisionLine,
   replyToConversation,
   resolveEscalation,
+  sendQueued,
   snooze,
   takeOver,
   templatePurpose,

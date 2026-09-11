@@ -1,12 +1,12 @@
 /**
  * Job handlers — dispatched by the edge's api/jobs/tick.ts once
- * claim_due_jobs() has made the job this run's (00098). Handlers are
- * idempotent against a second run and receive their environment injected
- * (no env reads here).
+ * claim_due_jobs() has made the job this run's (00098). The rules live in
+ * packages/core/src/messages as verbs over ports; each handler here is the
+ * adapter that builds the ports from the job's context (no env reads here).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { BROADCAST_CHUNK, BROADCAST_GAP_MS, firstNameOf, purposeOfTemplate, parseParamSpec, parseTenantConfig, renderTemplate, resolveParams, type JobKind, type ParamSpec } from "@chanlytics/contracts";
-import { deliver, templatePurpose, type Channel, type Wire } from "@chanlytics/core";
+import { deliver, eraseBlobThread, provisionLine, sendQueued, templatePurpose, type EraseThreadCommand, type SendQueuedCommand, type Wire } from "@chanlytics/core";
 import { resolveOutboundTarget, type Database, type Json } from "@chanlytics/db";
 
 export interface JobContext {
@@ -62,162 +62,47 @@ export interface ClaimedJob {
   payload: Record<string, unknown>;
 }
 
-/**
- * outbound_send: the honest undo — the message sat status='queued' through its
- * cancel window; if it is STILL queued, send it and finalize.
- * payload: { message_id, conversation_id, to_phone, body?, template? }
- *
- * The send is deliver()'s, the one door every message leaves through
- * (packages/core): it re-reads the person's consent with this message's
- * purpose, the thread's pause and the workspace's status at the wire, puts
- * the words on the channel's own wire, and finalizes the row -- sent,
- * canceled with its reason, or failed. What is left here is the outbox's
- * own business: whether the row is still there to send, which yes its
- * template needs, and who is told when the wire could not carry it.
- */
+/** outbound_send: core's sendQueued, over this runtime's ports. payload: { message_id, conversation_id, to_phone, body?, template? } */
 async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
-  const p = job.payload as {
-    message_id: string;
-    conversation_id: string;
-    to_phone: string;
-    body?: string;
-    template?: { name: string; language: string; params: string[] };
-  };
-  // A read that FAILED and a message that is genuinely gone are different
-  // facts, and collapsing them is how an operator's reply disappears: the
-  // error was discarded, a transient PostgREST blip looked exactly like
-  // "already canceled", the handler returned success, the job had already
-  // been claimed, and the row sat `queued` forever with nothing left to
-  // send it and nobody told. maybeSingle() reports the absent row as
-  // `data: null` without an error, so the two cases stay separable.
-  const { data: msg, error: readErr } = await ctx.db
-    .from("messages")
-    .select("id, status, body, template_name, channel, sender")
-    .eq("id", p.message_id)
-    .eq("tenant_id", job.tenant_id)
-    .maybeSingle();
-  if (readErr) {
-    // Throw: the tick fails the job, settles the message and tells the
-    // tenant, so it is visibly stuck rather than invisibly lost.
-    throw new Error(`outbound_send: cannot read message ${p.message_id}: ${readErr.message}`);
-  }
-  if (!msg || msg.status !== "queued") return; // canceled or already handled — no-op
-
-  // Which yes this send needs. A template's purpose is what Meta says it is
-  // (failing closed to marketing when the row is missing or unreadable is
-  // not an option: unreadable throws); words in a conversation are
-  // conversational. Never proactive: everything on this queue answers a
-  // thread that exists.
-  const purpose = await templatePurpose(ctx.db, job.tenant_id, p.template);
-
-  // `messages.channel` has allowed 'whatsapp' | 'voice' | 'sms' | 'email'
-  // since the first migration. A channel this runtime has no wire for finds
-  // none at the door and fails loudly, leaving the customer un-messaged
-  // rather than delivering their words over the wrong wire.
-  const channel = (msg.channel ?? "whatsapp") as Channel;
-  const out = await deliver(
-    { db: ctx.db, wire: ctx.wire },
+  await sendQueued(
     {
-      tenantId: job.tenant_id,
-      conversationId: p.conversation_id,
-      contactId: null,
-      to: p.to_phone,
-      channel,
-      // Read from the ROW, not hardcoded. This queue used to carry only human
-      // replies; under a veto window the receptionist's own reply travels the
-      // same path, and stamping every send as "human" would make the metrics
-      // report a bot's words as a person's.
-      sender: (msg.sender ?? "human") as "ai" | "human" | "system",
-      purpose,
-      proactive: false,
-      body: p.body ?? msg.body ?? "",
-      template: p.template,
-      messageId: p.message_id,
+      // maybeSingle() reports an absent row as `data: null` without an error,
+      // so a read that failed and a message that is gone stay separable; the
+      // verb turns the error into the job's loud failure.
+      queued: async (id) => {
+        const { data, error } = await ctx.db.from("messages").select("id, status, body, template_name, channel, sender").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle();
+        if (error) throw new Error(error.message);
+        return data;
+      },
+      purposeOf: (template) => templatePurpose(ctx.db, job.tenant_id, template),
+      deliver: (d) => deliver({ db: ctx.db, wire: ctx.wire }, d),
+      escalate: (conversationId, reason, details) => upsertEscalation(ctx.db, job.tenant_id, conversationId, reason, details),
+      alert: ctx.alert,
+      ...(ctx.page ? { page: ctx.page } : {}),
     },
+    { tenantId: job.tenant_id, payload: job.payload as SendQueuedCommand["payload"] },
   );
-
-  if (out.outcome === "failed") {
-    // A 401 or 403 from the provider is the platform's problem, not this
-    // thread's: the credentials are wrong for every send on this wire.
-    if (out.reason === "provider" && (out.status === 401 || out.status === 403)) {
-      await ctx.page?.(`provider_auth:${channel}`, `${channel} rejected a send with ${out.status}`, `Tenant ${job.tenant_id}, message ${p.message_id}. Credentials, not content.`);
-    }
-    // The wire could not carry it: the thread is flagged for a person and
-    // the owner told. A refusal needs neither -- the row says why.
-    await upsertEscalation(ctx.db, job.tenant_id, p.conversation_id, "send_failed",
-      `Dashboard reply could not be delivered (HTTP ${out.status}).`);
-    await ctx.alert(
-      `Reply delivery failed: ${p.to_phone}`,
-      `A reply queued from the dashboard could not be sent (HTTP ${out.status}). The thread is flagged in the Inbox.`,
-    );
-  }
 }
-
-/**
- * blob_thread_erase: the copy Postgres cannot reach.
- *
- * The Vercel Blob thread holds the verbatim conversation, outside RLS and
- * outside the database, so deleting the rows is not deleting the data. The
- * dashboard queues this job BEFORE it destroys anything, so a crash mid-
- * erasure leaves a retryable request rather than an orphaned transcript whose
- * key nobody can reconstruct.
- *
- * payload: { contact_id, namespace, thread_ids: string[] }
- */
+/** blob_thread_erase: core's eraseBlobThread, over the store the edge injects. payload: { contact_id, namespace, thread_ids } */
 async function blobThreadErase(ctx: JobContext, job: ClaimedJob): Promise<void> {
-  const p = job.payload as {
-    contact_id?: string; namespace?: string; thread_ids?: string[]; scrubbed?: boolean;
-  };
-  // A sibling job (a retry that raced this one) already finished this
-  // contact's Blob leg and scrubbed every payload for it. Nothing to do, and
-  // no second ledger row.
-  if (p.scrubbed) return;
-  if (!p.namespace) throw new Error("blob_thread_erase: payload has no namespace");
-  const ids = (Array.isArray(p.thread_ids) ? p.thread_ids : [])
-    .filter((t): t is string => typeof t === "string" && t.length > 0);
-
-  const failed: string[] = [];
-  for (const id of ids) {
-    if (!(await ctx.eraseThread(p.namespace, id))) failed.push(id);
-  }
-  if (failed.length) throw new Error(`blob_thread_erase: ${failed.length} thread(s) not deleted`);
-
-  // The payload carried the customer's phone digits, because that IS the Blob
-  // key. Once the objects are gone it is a durable copy of the identifier we
-  // were asked to erase, in a table whose rows are never deleted. Scrub it —
-  // but only on success: while the leg is outstanding, this payload is the
-  // only thing that can retry it (see rescheduleBlobErase). EVERY job row for
-  // this contact is scrubbed, not just this one, so an earlier crashed attempt
-  // does not keep the digits forever.
-  const scrubbed = {
-    contact_id: p.contact_id ?? null, namespace: p.namespace,
-    threads: ids.length, scrubbed: true,
-  };
-  if (p.contact_id) {
-    await ctx.db.from("jobs").update({ payload: scrubbed })
-      .eq("tenant_id", job.tenant_id)
-      .eq("kind", "blob_thread_erase")
-      .eq("payload->>contact_id", p.contact_id);
-  } else {
-    await ctx.db.from("jobs").update({ payload: scrubbed }).eq("id", job.id);
-  }
-
-  if (p.contact_id) {
-    // Same ledger as the owner's own erase decision, so one query tells the
-    // whole story. actor_type 'system' with a null actor_user_id is what
-    // decisions_check requires; the service role is not subject to RLS here.
-    await ctx.db.from("decisions").insert({
-      tenant_id: job.tenant_id, subject_type: "contact", subject_id: p.contact_id,
-      verb: "erase", actor_type: "system",
-      payload: { leg: "blob", threads: ids.length, job_id: job.id },
-    });
-    await ctx.db.from("events").insert({
-      tenant_id: job.tenant_id, kind: "contact.blob_erased", category: "contact",
-      subject_type: "contact", subject_id: p.contact_id, data: { threads: ids.length },
-    });
-  }
+  await eraseBlobThread(
+    {
+      eraseThread: ctx.eraseThread,
+      scrub: async (tenantId, by, scrubbed) => {
+        const q = ctx.db.from("jobs").update({ payload: scrubbed });
+        if ("contactId" in by) await q.eq("tenant_id", tenantId).eq("kind", "blob_thread_erase").eq("payload->>contact_id", by.contactId);
+        else await q.eq("id", by.jobId);
+      },
+      // actor_type 'system' with a null actor_user_id is what decisions_check
+      // requires; the service role is not subject to RLS here.
+      recordErased: async (tenantId, contactId, threads, jobId) => {
+        await ctx.db.from("decisions").insert({ tenant_id: tenantId, subject_type: "contact", subject_id: contactId, verb: "erase", actor_type: "system", payload: { leg: "blob", threads, job_id: jobId } });
+        await ctx.db.from("events").insert({ tenant_id: tenantId, kind: "contact.blob_erased", category: "contact", subject_type: "contact", subject_id: contactId, data: { threads } });
+      },
+    },
+    { tenantId: job.tenant_id, jobId: job.id, payload: job.payload as EraseThreadCommand["payload"] },
+  );
 }
-
 /** How an escalation landed: a new open row, a refresh of the one already
  *  open on that thread, or nothing (the insert failed for another reason).
  *  Callers that alert a human use it to alert once per hold, not once per
@@ -431,22 +316,10 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   );
 }
 
-/**
- * A line's provisioning, on the ledger (00109). This is the durable part --
- * claimed under a lease, resumed by the heartbeat when a worker dies, tried
- * up to MAX_ATTEMPTS and then given up loudly -- and the saga is the edge's
- * (apps/edge/lib/line-provision-job.ts). A saga that stopped fails the job
- * with the step it stopped at, so the next try resumes there.
- */
+/** line_provision: core's provisionLine, over the saga the edge injects. */
 async function lineProvision(ctx: JobContext, job: ClaimedJob): Promise<void> {
-  const lineId = typeof job.payload.line_id === "string" ? job.payload.line_id : "";
-  const by = job.payload.by === "sweep" || job.payload.by === "support" ? job.payload.by : "owner";
-  if (!lineId) throw new Error("line_provision: payload.line_id is required");
-  if (!ctx.provisionLine) throw new Error("line_provision: this runtime holds no line provider");
-  const r = await ctx.provisionLine(lineId, by);
-  if (!r.ok) throw new Error(`line_provision: stopped at ${r.step ?? "?"}: ${r.error ?? "unknown"}`);
+  await provisionLine({ ...(ctx.provisionLine ? { provision: ctx.provisionLine } : {}) }, { payload: job.payload });
 }
-
 type Handler = (ctx: JobContext, job: ClaimedJob) => Promise<void>;
 
 /**

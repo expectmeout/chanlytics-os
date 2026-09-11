@@ -106,9 +106,9 @@ declare function cancelJobsFor(db: Db, tenantId: string, kind: JobKind, payloadK
 
 /**
  * Job handlers — dispatched by the edge's api/jobs/tick.ts once
- * claim_due_jobs() has made the job this run's (00098). Handlers are
- * idempotent against a second run and receive their environment injected
- * (no env reads here).
+ * claim_due_jobs() has made the job this run's (00098). The rules live in
+ * packages/core/src/messages as verbs over ports; each handler here is the
+ * adapter that builds the ports from the job's context (no env reads here).
  */
 
 interface JobContext {
