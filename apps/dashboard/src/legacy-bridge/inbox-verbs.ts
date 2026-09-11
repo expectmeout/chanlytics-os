@@ -17,7 +17,7 @@ import {
 import { refreshSurfaces } from "./surface-runner";
 import { api } from "./api";
 import type { ApiResult, Params, RouteKey } from "../client/api";
-import { MAX_INTERVALS_PER_DAY, hoursRuns, newReceptionistDefaults } from "@chanlytics/contracts";
+import { MAX_INTERVALS_PER_DAY, hoursRuns, inviteState, newReceptionistDefaults } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/prompt-preview";
 
 interface RealThread {
@@ -299,6 +299,8 @@ declare global {
     __receptionistDefaults: typeof newReceptionistDefaults;
     __hoursRuns: typeof hoursRuns;
     __configLimits: { maxIntervalsPerDay: number };
+    /** An open invitation's state for the Team card: pending with its expiry, or expired. */
+    __inviteState: (expiresAt: string | null | undefined) => { expired: boolean; words: string };
   }
 }
 
@@ -371,6 +373,7 @@ export function installInboxVerbs(): void {
   // The Settings card summarises the week with the SAME collapse the prompt
   // uses; only the day-name wording differs between them.
   window.__hoursRuns = hoursRuns;
+  window.__inviteState = (expiresAt) => inviteState(expiresAt, Date.now());
   // The editor must not offer a shift the write schema will refuse, so the
   // cap is published rather than retyped.
   window.__configLimits = { maxIntervalsPerDay: MAX_INTERVALS_PER_DAY };

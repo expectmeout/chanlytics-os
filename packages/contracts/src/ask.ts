@@ -206,7 +206,7 @@ export function emptyReadSet(): AskReadSet {
 /** The pages a citation or a navigate target may point at without a read. */
 export const ASK_PAGE_ROUTES = [
   "today", "inbox", "clients", "conversations", "live", "reports",
-  "admin/workspace", "admin/autonomy", "admin/notifications", "admin/integrations", "admin/memory",
+  "admin/workspace", "admin/team", "admin/autonomy", "admin/notifications", "admin/integrations",
 ] as const;
 
 const PAGE_PREFIX = /^(today|inbox|clients|conversations|live|reports|admin)(\/[A-Za-z0-9:_-]+)?$/;
@@ -487,10 +487,11 @@ export const ASK_PAGES: JumpEntry[] = [
   { label: "Reports", to: "reports", kind: "page" },
   { label: "Settings", to: "admin/workspace", kind: "page" },
   { label: "Autonomy", to: "admin/autonomy", kind: "page", sub: "what the receptionist may do alone" },
-  { label: "Team", to: "admin/workspace", kind: "page", sub: "members and invitations" },
+  { label: "Team", to: "admin/team", kind: "page", sub: "members and invitations" },
   { label: "Notifications", to: "admin/notifications", kind: "page" },
   { label: "Connections", to: "admin/integrations", kind: "page", sub: "WhatsApp, phone line, calendar" },
-  { label: "Receptionist memory", to: "admin/memory", kind: "page", sub: "hours, services, notes" },
+  // What the receptionist knows lives in Business details; the Memory pane says so and points here.
+  { label: "Receptionist memory", to: "admin/workspace", kind: "page", sub: "hours, services and notes, in Business details" },
 ];
 
 /**

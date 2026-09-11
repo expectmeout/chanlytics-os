@@ -314,8 +314,10 @@ export async function inviteMember(
   role: "operator" | "viewer",
   /** Where the request came from inside the app, when it says: a card, not a form. */
   via?: "ask",
+  /** The privileged client, injected by a test; the platform's own otherwise, as the roster takes its client. */
+  svc: SupabaseClient<Database> = serviceDb(),
 ) {
-  const db = serviceDb();
+  const db = svc;
   // A person who already belongs shouldn't get a confusing signup email.
   //
   // One indexed lookup, not a page of the whole platform. This was
@@ -373,29 +375,33 @@ export async function inviteMember(
 }
 
 export async function setMemberRole(
-  ctx: { supabase: SupabaseClient<Database>; userId: string },
+  ctx: { supabase: SupabaseClient<Database>; userId: string; via?: "ask"; undoOf?: string },
   tenantId: string,
   membershipId: string,
   role: string,
+  svc: SupabaseClient<Database> = serviceDb(),
 ) {
-  const db = serviceDb();
-  if (role !== "owner") {
+  const db = svc;
+  // Read first, always: the previous role is the part of the audit that
+  // matters later ("was promoted to owner" is a different fact from "was
+  // already one"), and the row is the only place it is written.
+  const { data: target, error: readErr } = await db
+    .from("memberships")
+    .select("id, role")
+    .eq("tenant_id", tenantId)
+    .eq("id", membershipId)
+    .maybeSingle();
+  if (readErr) throw new Error(readErr.message);
+  if (!target) throw new AppError("not_found", "That person is not on this team.", 404);
+  if (role !== "owner" && target.role === "owner") {
     // Demoting the LAST owner strands the workspace — nobody could ever
     // manage the team or billing again.
-    const { data: target } = await db
+    const { count } = await db
       .from("memberships")
-      .select("id, role")
+      .select("id", { count: "exact", head: true })
       .eq("tenant_id", tenantId)
-      .eq("id", membershipId)
-      .maybeSingle();
-    if (target?.role === "owner") {
-      const { count } = await db
-        .from("memberships")
-        .select("id", { count: "exact", head: true })
-        .eq("tenant_id", tenantId)
-        .eq("role", "owner");
-      if ((count ?? 0) <= 1) throw new AppError("conflict", "This is the only owner. Promote someone else first.", 409);
-    }
+      .eq("role", "owner");
+    if ((count ?? 0) <= 1) throw new AppError("conflict", "This is the only owner. Promote someone else first.", 409);
   }
   const { data, error } = await db
     .from("memberships")
@@ -406,21 +412,21 @@ export async function setMemberRole(
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", "That person is not on this team.", 404);
-  // The previous role is the part that matters later: "was promoted to
-  // owner" is a different fact from "was already one".
   await noteTeamChange(ctx, tenantId, "membership", data.id, "change_role", {
+    from: target.role,
     to: data.role,
   });
   return { membershipId: data.id, role: data.role };
 }
 
 export async function removeMember(
-  ctx: { supabase: SupabaseClient<Database>; userId: string },
+  ctx: { supabase: SupabaseClient<Database>; userId: string; via?: "ask"; undoOf?: string },
   tenantId: string,
   id: string,
   callerUserId: string,
+  svc: SupabaseClient<Database> = serviceDb(),
 ) {
-  const db = serviceDb();
+  const db = svc;
   // id may be a membership or an open invite — try the invite first (cheaper).
   const { data: inv } = await db
     .from("invitations")
@@ -462,10 +468,11 @@ export async function removeMember(
   return { removed: true as const };
 }
 
-/** First sign-in completes any open invites for this email: membership rows
+/** A sign-in completes any open invites for this email: membership rows
  *  appear at the invited role and the invite is stamped accepted. Called from
- *  the workspaces route when a session has no memberships yet — self-healing,
- *  no separate accept endpoint to get wrong. */
+ *  the workspaces route on every same-origin read, not only when a session has
+ *  no memberships yet: a person already in one workspace can be invited to
+ *  another. Self-healing, no separate accept endpoint to get wrong. */
 export async function acceptOpenInvites(userId: string, email: string | null): Promise<number> {
   if (!email) return 0;
   const db = serviceDb();

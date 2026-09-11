@@ -89,3 +89,17 @@ export function providerNameOf(metadata: unknown): string | null {
   }
   return null;
 }
+
+/**
+ * An open invitation's state on the Team card. The roster returns every
+ * invitation nobody accepted or revoked, expired ones included -- an expired
+ * one is still the owner's to revoke and re-send, and a card that called it
+ * "pending" for ever was lying about a door that had closed.
+ */
+export function inviteState(expiresAt: string | null | undefined, nowMs: number): { expired: boolean; words: string } {
+  const at = expiresAt ? Date.parse(expiresAt) : NaN;
+  if (Number.isNaN(at)) return { expired: false, words: "invite pending" };
+  if (at <= nowMs) return { expired: true, words: "invite expired — revoke it and send a new one" };
+  const days = Math.ceil((at - nowMs) / 86_400_000);
+  return { expired: false, words: days <= 1 ? "invite pending · expires today" : `invite pending · expires in ${days} days` };
+}
