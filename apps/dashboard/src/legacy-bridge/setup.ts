@@ -3,14 +3,16 @@
  * contracts/setup.ts, "Later" as a preference on this device, one verb that
  * asks a person at Chanlytics for a line, and the landing rule — an owner
  * whose receptionist answers nowhere yet lands on Setup once per session.
+ * Every write goes through the typed client; after one lands the refresh
+ * map re-reads this surface.
  */
 import {
   setupSteps, setupRoute, shouldLandOnSetup, type SetupDto, type SetupVM,
   forwardingCodes, forwardingTestOpen, CARRIERS, FORWARDING_MODES, CARRIER_WORDS, MODE_WORDS, formatPhoneDisplay, agoWords,
 } from "@chanlytics/contracts";
-import { getActiveWorkspace, scoped, type SurfaceOverride } from "./surface-data";
-import { read } from "./api";
-import { refreshSurfaces } from "./surface-runner";
+import type { SurfaceOverride } from "./surface-data";
+import { api, read } from "./api";
+import { getActiveWorkspace } from "./workspace";
 
 export interface SetupSurface {
   dto: SetupDto;
@@ -102,18 +104,6 @@ export const setupOverride: SurfaceOverride = {
   },
 };
 
-/** One POST to a v1 route: the envelope's data, or its error in a sentence. Never throws. */
-async function post<T>(path: string, body: unknown): Promise<{ ok: boolean; data: T | null; message: string }> {
-  try {
-    const res = await fetch(scoped(path), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-    const parsed = (await res.json().catch(() => null)) as { data?: T; error?: { message?: string } } | null;
-    if (res.ok) return { ok: true, data: parsed?.data ?? null, message: "" };
-    return { ok: false, data: null, message: parsed?.error?.message ?? `HTTP ${res.status}` };
-  } catch (e) {
-    return { ok: false, data: null, message: e instanceof Error ? e.message : String(e) };
-  }
-}
-
 export function installSetup(win: Window = window): void {
   win.__forwarding = {
     codes: forwardingCodes,
@@ -136,52 +126,42 @@ export function installSetup(win: Window = window): void {
       }
     },
     async activate(kind) {
-      const r = await post<{ capability?: string }>(`/api/v1/capabilities/${encodeURIComponent(kind)}`, {});
-      if (r.ok) await refreshSurfaces([setupOverride]);
-      return { ok: r.ok, message: r.message };
+      const r = await api()("POST capabilities/[kind]", { params: { kind }, body: {} });
+      return { ok: r.ok, message: r.ok ? "" : r.message };
     },
     lines: {
       async search(areaCode) {
-        const r = await post<{ numbers?: LineChoice[] }>("/api/v1/lines/search", { area_code: areaCode });
-        return { ok: r.ok, numbers: r.ok ? (r.data?.numbers ?? []) : [], message: r.message };
+        const r = await api()("POST lines/search", { body: { area_code: areaCode } });
+        if (!r.ok) return { ok: false, numbers: [], message: r.message };
+        return { ok: true, numbers: r.data.numbers as LineChoice[], message: "" };
       },
       async buy(number, areaCode) {
-        const r = await post<{ ok?: boolean; queued?: boolean; error?: string | null }>("/api/v1/lines/buy", { number, area_code: areaCode });
-        await refreshSurfaces([setupOverride]);
+        const r = await api()("POST lines/buy", { body: { number, area_code: areaCode } });
         if (!r.ok) return { ok: false, queued: false, message: r.message };
-        return { ok: r.data?.ok === true, queued: r.data?.queued === true, message: "" };
+        return { ok: r.data.ok, queued: r.data.queued, message: "" };
       },
       async retry(lineId) {
-        const r = await post<{ ok?: boolean; queued?: boolean; error?: string | null }>("/api/v1/lines/retry", { line_id: lineId });
-        await refreshSurfaces([setupOverride]);
+        const r = await api()("POST lines/retry", { body: { line_id: lineId } });
         if (!r.ok) return { ok: false, queued: false, message: r.message };
-        return { ok: r.data?.ok === true, queued: r.data?.queued === true, message: r.data?.ok ? "" : "It stopped again — a person at Chanlytics has it." };
+        return { ok: r.data.ok, queued: r.data.queued, message: r.data.ok ? "" : "It stopped again — a person at Chanlytics has it." };
       },
     },
     forwarding: {
       async set(o) {
-        const r = await post<{ line_id?: string }>("/api/v1/lines/forwarding", o);
-        if (r.ok) await refreshSurfaces([setupOverride]);
-        return { ok: r.ok, message: r.message };
+        const r = await api()("POST lines/forwarding", { body: o });
+        return { ok: r.ok, message: r.ok ? "" : r.message };
       },
       async test(lineId) {
-        const r = await post<{ test?: unknown }>("/api/v1/lines/forwarding/test", { line_id: lineId });
-        if (r.ok) await refreshSurfaces([setupOverride]);
-        return { ok: r.ok, message: r.message };
+        const r = await api()("POST lines/forwarding/test", { body: { line_id: lineId } });
+        return { ok: r.ok, message: r.ok ? "" : r.message };
       },
     },
     async request(what) {
-      try {
-        const res = await fetch(scoped("/api/v1/setup/request"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ what }) });
-        const body = (await res.json().catch(() => null)) as { data?: { request?: { already?: boolean } }; error?: { message?: string } } | null;
-        if (res.ok) {
-          await refreshSurfaces([setupOverride]);
-          return { ok: true, already: !!body?.data?.request?.already, message: "" };
-        }
-        return { ok: false, already: false, message: body?.error?.message ?? `HTTP ${res.status}` };
-      } catch (e) {
-        return { ok: false, already: false, message: e instanceof Error ? e.message : String(e) };
-      }
+      const r = await api()("POST setup/request", { body: { what } });
+      if (!r.ok) return { ok: false, already: false, message: r.message };
+      const req = r.data.request;
+      const already = !!req && typeof req === "object" && "already" in req && (req as { already?: unknown }).already === true;
+      return { ok: true, already, message: "" };
     },
   };
   win.addEventListener("surface:setup", () => {

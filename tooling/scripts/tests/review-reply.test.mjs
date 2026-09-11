@@ -128,7 +128,7 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
   const get = readCode("apps/dashboard/app/api/v1/google/route.ts");
   assert.ok(get.includes("reply_mode: reviewReplyModeOf(policies)"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");
-  assert.ok(bridge.includes("/draft`, \"POST\", {})"));
+  assert.ok(bridge.includes('"POST google/reviews/[id]/draft", { params: { id }, body: {} }'));
 
   const store = readCode("apps/dashboard/src/legacy-bridge/policy-store.ts");
   assert.ok(store.includes('{ id: "reviews", cls: "reviews", ...W("reviews"), enforced: true, modes: ["Auto", "Ask", "Never"]'));

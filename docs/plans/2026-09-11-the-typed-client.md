@@ -638,8 +638,8 @@ In `surface-data.ts` `activateOverride` and wherever `err instanceof Unauthorize
 
 **Files:** `templates.ts`, `playbooks.ts`, `google.ts`, `billing.ts`, `business-record.ts`, `setup.ts`, `whatsapp-connect.ts`, `calendar.ts`, `identity.ts`, `platform.ts`; their refresh lists and window hooks into the map; their pins (`starter-templates.test.mjs` names `call<StarterData>(…)` and `"PUT", { title }, true)`; `forwarding.test.mjs`, `setup.test.mjs` and `whatsapp-connect.test.mjs` name paths on the bridge).
 
-- [ ] **Step 1: Move them**, the same way. `google/connect`'s redirect is followed by the browser, not fetched: unchanged.
-- [ ] **Step 2: Typecheck, suite, lint, pins, PR, merge when green.**
+- [x] **Step 1: Move them**, the same way. `google/connect`'s redirect is followed by the browser, not fetched: unchanged.
+- [x] **Step 2: Typecheck, suite, lint, pins, PR, merge when green.**
 
 ### Task 8: Ask, sign-up, and the wall (PR 5)
 

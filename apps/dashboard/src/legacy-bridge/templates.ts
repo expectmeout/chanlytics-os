@@ -2,75 +2,35 @@
  * Templates, the verbs: `window.__templates` — sync from Meta, draft one
  * with the assistant, submit one to Meta, delete one.
  *
- * Every write re-fetches the surfaces that show templates: Settings (every
- * template with its status), the Inbox (the approved ones the composer may
- * send) and Broadcasts (the approved ones a broadcast may pick). A draft is
- * a read and refreshes nothing. Owner or operator on the server; a viewer's
- * click returns the server's refusal.
+ * Every write goes through the typed client, and after it lands the refresh
+ * map re-reads the surfaces that show templates: Settings (every template
+ * with its status), the Inbox (the approved ones the composer may send) and,
+ * through their hooks, Broadcasts (the approved ones a broadcast may pick)
+ * and Playbooks (a playbook picks its trigger's starter the moment it is
+ * approved). A draft is a read and refreshes nothing. Owner or operator on
+ * the server; a viewer's click returns the server's refusal.
  */
-import { inboxOverride, invalidateInFlight, scoped, settingsOverride } from "./surface-data";
-import { refreshSurfaces } from "./surface-runner";
-import { clearSurfaceCache } from "./surface-cache";
+import { api } from "./api";
 import { STARTER_LANGUAGES, STARTER_TEMPLATES, compareTemplates, defaultSlotKinds, defaultTemplate, slotLabels, starterByName, starterForTrigger, starterPreview, starterText, templateTitle } from "@chanlytics/contracts";
 
-export interface TemplateResult<T = unknown> {
-  ok: boolean;
-  message?: string;
-  data?: T;
-}
-
-async function call<T>(path: string, method: "POST" | "PUT" | "DELETE", body: unknown, refresh: boolean): Promise<TemplateResult<T>> {
-  try {
-    const res = await fetch(scoped(path), {
-      method,
-      headers: body !== undefined ? { "content-type": "application/json" } : undefined,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-    if (res.status === 401) {
-      clearSurfaceCache();
-      window.location.assign("/login");
-      return { ok: false, message: "Signed out." };
-    }
-    const j = (await res.json().catch(() => null)) as { ok: boolean; data?: T; error?: { message?: string } } | null;
-    if (!j || !j.ok) return { ok: false, message: j?.error?.message ?? `Request failed (${res.status}).` };
-    if (refresh) {
-      invalidateInFlight();
-      await refreshSurfaces([settingsOverride, inboxOverride]);
-      const rb = (window as unknown as { __refreshBroadcasts?: () => Promise<void> }).__refreshBroadcasts;
-      if (rb) await rb();
-      // A playbook picks its trigger's starter the moment it is approved.
-      const rp = (window as unknown as { __refreshPlaybooks?: () => Promise<void> }).__refreshPlaybooks;
-      if (rp) await rp();
-    }
-    return { ok: true, data: j.data };
-  } catch {
-    return { ok: false, message: "Network error — nothing was changed." };
-  }
-}
-
-export interface SyncData { seen: number; approved: number; marketing: number; synced_at: string }
 export interface DraftBody { brief: string; category: "marketing" | "utility"; language: string }
-export interface DraftData { draft: { name: string; body: string; footer: string | null; examples: string[]; variables: { position: number; label: string; source: string }[]; warnings: string[] } }
 export interface CreateBody { name: string; language: string; category: string; body: string; footer: string | null; examples: string[]; labels?: string[] }
-export interface CreateData { id: string; name: string; language: string; category: string; meta_status: string; warnings: string[] }
 export interface StarterBody { keys?: string[]; languages?: string[] }
-export interface StarterResult { key: string; title: string; language: string; status: "submitted" | "exists" | "synced" | "failed"; meta_status: string | null; detail?: string }
-export interface StarterData { results: StarterResult[]; submitted: number; existing: number; synced: number; failed: number }
 
-export const syncTemplates = () => call<SyncData>("/api/v1/templates/sync", "POST", undefined, true);
+export const syncTemplates = () => api()("POST templates/sync");
 
 export const templates = {
   sync: syncTemplates,
-  draft: (body: DraftBody) => call<DraftData>("/api/v1/templates/draft", "POST", body, false),
-  create: (body: CreateBody) => call<CreateData>("/api/v1/templates", "POST", body, true),
-  remove: (id: string) => call<{ deleted: true; id: string; name: string }>(`/api/v1/templates/${encodeURIComponent(id)}`, "DELETE", undefined, true),
+  draft: (body: DraftBody) => api()("POST templates/draft", { body }),
+  create: (body: CreateBody) => api()("POST templates", { body }),
+  remove: (id: string) => api()("DELETE templates/[id]", { params: { id } }),
   /** Out of the composers, or back in. The row stays; syncs keep it. */
-  hide: (id: string) => call<{ id: string; name: string; hidden: boolean }>(`/api/v1/templates/${encodeURIComponent(id)}`, "PUT", { hidden: true }, true),
+  hide: (id: string) => api()("PUT templates/[id]", { params: { id }, body: { hidden: true } }),
   /** The workspace's own words for it; null goes back to the name. Meta's name is untouched. */
-  rename: (id: string, title: string | null) => call<{ id: string; name: string; title: string | null }>(`/api/v1/templates/${encodeURIComponent(id)}`, "PUT", { title }, true),
-  show: (id: string) => call<{ id: string; name: string; hidden: boolean }>(`/api/v1/templates/${encodeURIComponent(id)}`, "PUT", { hidden: false }, true),
+  rename: (id: string, title: string | null) => api()("PUT templates/[id]", { params: { id }, body: { title } }),
+  show: (id: string) => api()("PUT templates/[id]", { params: { id }, body: { hidden: false } }),
   /** The starter set, or some of it, in the languages asked: idempotent, submitted to Meta where new. */
-  addStarters: (body: StarterBody) => call<StarterData>("/api/v1/templates/starter", "POST", body, true),
+  addStarters: (body: StarterBody) => api()("POST templates/starter", { body }),
 };
 
 /**
@@ -105,7 +65,7 @@ export interface StarterLibrary {
 
 declare global {
   interface Window {
-    __syncTemplates?: () => Promise<TemplateResult<SyncData>>;
+    __syncTemplates?: typeof syncTemplates;
     __templates?: typeof templates;
     __starters?: StarterLibrary;
   }

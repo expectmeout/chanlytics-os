@@ -1,6 +1,6 @@
 import { read, write, workspace } from "@/server/route";
 import { AppError, type GoogleLocationDto } from "@chanlytics/contracts";
-import { edgeGoogle } from "@/server/google";
+import { edgeGoogle, readOutcome } from "@/server/google";
 
 /**
  * GET /api/v1/google/locations — the locations the connected Google account
@@ -56,6 +56,6 @@ export const POST = write({
       const reason = typeof b.error === "string" ? b.error : "failed";
       throw new AppError(a.status === 404 ? "not_found" : "internal", SAID[reason] ?? `The location could not be chosen (${reason}).`, a.status === 404 ? 404 : 502);
     }
-    return { connection: b.connection ?? null, listing: b.listing ?? null, read: b.read ?? null };
+    return { connection: b.connection ?? null, listing: b.listing ?? null, read: readOutcome(b.read) };
   },
 });

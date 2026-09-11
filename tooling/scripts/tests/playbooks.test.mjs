@@ -14,7 +14,7 @@ import {
   BROADCAST_STATES, DECISION_SUBJECTS, DECISION_VERBS, PLAYBOOK_BREATH_MS, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS,
   eligibleForPlaybook, localDate, localHour, nextRunLabel, planRun, runDueNow, scheduleLine, toBroadcastVM, triggerOf,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "./_source.mjs";
+import { readCode, readRaw, importSrc } from "./_source.mjs";
 
 const DAY = 86_400_000;
 const NOW = Date.parse("2026-09-06T15:00:00Z");
@@ -129,7 +129,7 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   assert.ok(readCode("packages/contracts/src/config.ts").includes('note: "the win-back and save-our-number playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"') && readCode("apps/dashboard/src/legacy-bridge/policy-store.ts").includes('...W("reengage")'), "the Autonomy row says what the playbooks do, in the one set of words every surface reads");
 });
 
-test("the page and its doors: Outbound is Playbooks, real; make, change, pause, resume, run now, delete through the app's routes; a waiting run on Today", () => {
+test("the page and its doors: Outbound is Playbooks, real; make, change, pause, resume, run now, delete through the app's routes; a waiting run on Today", async () => {
   const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
   assert.ok(reg.includes('outbound: "real"') && reg.includes('outbound: "playbooks"'), "flipped, and the gate waits on its surface");
   const page = readCode("apps/dashboard/src/legacy/pages/outbound-real.jsx");
@@ -151,8 +151,8 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
   assert.ok(check.includes('if (tpl.meta_status !== "approved") throw new AppError("conflict"') && check.includes("This message takes the booking link, and none is on file."), "checked the way a broadcast is");
   const queue = readCode("apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
   assert.ok(queue.includes('testid="brief-run-row"') && queue.includes('r.state === "pending_approval"'), "Today's queue shows a run that waits, from the surface it already has");
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/playbooks.ts");
-  assert.ok(bridge.includes("refreshSurfaces([playbooksOverride, broadcastsOverride])"), "every write re-fetches both surfaces");
+  const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+  for (const k of ["POST playbooks", "PUT playbooks/[id]", "DELETE playbooks/[id]", "POST playbooks/[id]/run", "POST broadcasts/[id]/approve", "POST broadcasts/[id]/cancel"]) assert.deepEqual(AFTER[k]().map((o) => o.key), ["playbooks", "broadcasts"], `${k}: every write re-fetches both surfaces`);
   const surface = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(surface.includes("cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, untouched, now.getTime()).length"), "the chip counts the pool with the runner's own predicate");
   assert.ok(readCode("apps/dashboard/src/legacy/components/surface-tabs.jsx").includes('{ id: "outbound", label: "Playbooks", to: "outbound" }'));

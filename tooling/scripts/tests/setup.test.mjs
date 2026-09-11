@@ -336,7 +336,7 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   assert.ok(readCode("apps/dashboard/src/server/setup.ts").includes("lines: { rows: lineRows, ready: lineStatus.ready, provider: lineStatus.provider, costs: { local_number_month_usd: lineStatus.costs.local_number_month_usd } },"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/setup.ts");
   assert.ok(bridge.includes('refreshOnTables: ["lines", "notifications"]'));
-  for (const pin of ['"/api/v1/lines/search"', '"/api/v1/lines/buy"', '"/api/v1/lines/retry"']) assert.ok(bridge.includes(pin), pin);
+  for (const pin of ['"POST lines/search"', '"POST lines/buy"', '"POST lines/retry"']) assert.ok(bridge.includes(pin), pin);
   const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
   for (const pin of ['verb.to === "verb:choose-line"', 'verb.to.startsWith("verb:retry-line:")', 'data-testid="setup-chooser"', 'data-testid="setup-buy"', "Get this number", 'window.canDo("team")']) assert.ok(page.includes(pin), pin);
   assert.ok(readCode("apps/edge/lib/lines.ts").includes('export { LINE_STEP_WORDS } from "./workspace/contracts.js";'), "one list of step words");

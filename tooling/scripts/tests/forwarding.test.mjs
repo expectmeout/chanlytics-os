@@ -157,7 +157,7 @@ test("the wiring: the migration, the webhook proves it, the routes are owner-onl
   assert.ok(readCode("apps/dashboard/app/api/v1/lines/forwarding/test/route.ts").includes('rpc("line_forwarding_test"'));
   assert.ok(readCode("apps/dashboard/src/server/lines.ts").includes("forwarding: r.kind === \"forwarded\""), "only a forwarded row shows its facts, and only the words");
   const bridge = readCode("apps/dashboard/src/legacy-bridge/setup.ts");
-  for (const pin of ['"/api/v1/lines/forwarding"', '"/api/v1/lines/forwarding/test"', "win.__forwarding = {"]) assert.ok(bridge.includes(pin), pin);
+  for (const pin of ['"POST lines/forwarding"', '"POST lines/forwarding/test"', "win.__forwarding = {"]) assert.ok(bridge.includes(pin), pin);
   const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
   for (const pin of ["const ForwardingCard", 'verb.to === "verb:forwarding"', 'verb.to.startsWith("verb:forwarding-test:")', 'data-testid="setup-fw-dial"', 'data-testid="setup-fw-test"', 'data-testid="setup-keep-go"']) assert.ok(page.includes(pin), pin);
   const e2e = readRaw("e2e/setup.spec.ts");

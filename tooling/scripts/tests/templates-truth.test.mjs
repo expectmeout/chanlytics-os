@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { TEMPLATE_STATUSES } from "@chanlytics/contracts";
-import { readCode, readRaw } from "./_source.mjs";
+import { readCode, readRaw, importSrc } from "./_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const TENANT = "00000000-0000-0000-0000-000000000000";
@@ -86,7 +86,7 @@ test("the dashboard: the route proves the operator, the service reaches the edge
   assert.ok(g.includes("category, meta_status, quality, rejected_reason, synced_at"), "the picker can tell marketing from utility");
 });
 
-test("the webhook writes the row Meta changed; Settings shows every template with its status and one verb", () => {
+test("the webhook writes the row Meta changed; Settings shows every template with its status and one verb", async () => {
   const w = readCode("apps/edge/lib/waba-events.ts");
   assert.ok(w.includes('"template_category_update"'), "a recategorised template changes who may receive it");
   assert.ok(w.includes('.from("templates").update({ meta_status: mapStatus(event), rejected_reason: reason })'));
@@ -97,5 +97,5 @@ test("the webhook writes the row Meta changed; Settings shows every template wit
   assert.ok(s.includes("A marketing template can only go to people who said yes to offers."));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes('read("GET templates", { query: { all: "1" } })'));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installTemplates();"));
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/templates.ts").includes("await refreshSurfaces([settingsOverride, inboxOverride]);"), "the composer learns of a newly approved template too");
+  assert.deepEqual((await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).AFTER["POST templates/sync"]().map((o) => o.key), ["settings", "inbox"], "the composer learns of a newly approved template too");
 });

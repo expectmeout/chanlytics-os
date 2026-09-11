@@ -1,6 +1,6 @@
 import { write, workspace } from "@/server/route";
 import { AppError } from "@chanlytics/contracts";
-import { edgeGoogle } from "@/server/google";
+import { edgeGoogle, readOutcome } from "@/server/google";
 
 /**
  * POST /api/v1/google/link — {place_id}: this is the business on Google.
@@ -30,7 +30,7 @@ export const POST = write({
       const reason = typeof b.error === "string" ? b.error : "failed";
       throw new AppError(reason === "no_places_key" ? "conflict" : "internal", SAID[reason] ?? `The listing could not be linked (${reason}).`, reason === "no_places_key" ? 409 : 502);
     }
-    return { listing: b.listing ?? null, read: b.read ?? null };
+    return { listing: b.listing ?? null, read: readOutcome(b.read) };
   },
 });
 

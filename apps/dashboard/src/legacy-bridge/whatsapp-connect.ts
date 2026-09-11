@@ -7,12 +7,12 @@
  * through a message event from facebook.com. Both go to the app's own
  * route, which proves the owner and hands the exchange to the edge. Nothing
  * here holds a credential; the code is single-use and only the edge's
- * secret can turn it into a token.
+ * secret can turn it into a token. After the route answers, the refresh map
+ * re-reads Settings, where the number now shows.
  *
  * Published to the mockup as window.__waConnect = { config(), start() }.
  */
-import { scoped } from "./surface-data";
-import { read } from "./api";
+import { api, read } from "./api";
 
 export interface SignupConfig {
   app_id: string | null;
@@ -112,16 +112,9 @@ export function installWhatsAppConnect(win: Window = window): void {
     win.removeEventListener("message", onMessage);
     if (!code || cancelled) return { ok: false, reason: "cancelled", message: "The sign-up was closed before it finished. Nothing was connected." };
     if (!ids) return { ok: false, reason: "no_ids", message: "The sign-up finished without a number. Start it again and pick the number to connect." };
-    const res = await win.fetch(scoped("/api/v1/channels/whatsapp/connect"), {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ code, ...(ids as { phone_number_id: string; waba_id: string }) }),
-    });
-    const j = (await res.json().catch(() => null)) as { ok: boolean; data?: { number_e164?: string | null; verified_name?: string | null; quality_rating?: string | null }; error?: { message?: string } } | null;
-    if (!j || !j.ok) return { ok: false, reason: "failed", message: j?.error?.message ?? `The connection did not complete (${res.status}).` };
-    const refresh = (win as unknown as { __refreshSettings?: () => Promise<void> }).__refreshSettings;
-    if (refresh) await refresh();
-    return { ok: true, number: j.data?.number_e164 ?? null, verifiedName: j.data?.verified_name ?? null, qualityRating: j.data?.quality_rating ?? null };
+    const r = await api()("POST channels/whatsapp/connect", { body: { code, ...(ids as { phone_number_id: string; waba_id: string }) } });
+    if (!r.ok) return { ok: false, reason: "failed", message: r.message };
+    return { ok: true, number: r.data.number_e164 ?? null, verifiedName: r.data.verified_name ?? null, qualityRating: r.data.quality_rating ?? null };
   };
 
   (win as unknown as { __waConnect?: { config: typeof config; start: typeof start } }).__waConnect = { config, start };
