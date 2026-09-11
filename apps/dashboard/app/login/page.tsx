@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SIGNUP_WORDS } from "@chanlytics/contracts";
 import { createClient } from "@/lib/supabase/client";
 import { clearSurfaceCache } from "@/legacy-bridge/surface-cache";
+import GoogleSignIn from "@/auth/GoogleSignIn";
 
 const RESEND_COOLDOWN_S = 60;
 
@@ -90,6 +92,11 @@ export default function LoginPage() {
   // query never reaches a server log of this page's own making.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
+    // Back from Google without a session: the callback says so once, here.
+    if (q.get("error") === "oauth") {
+      setError(SIGNUP_WORDS.googleFailed);
+      window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+    }
     const e = q.get("email");
     if (e && q.get("sent") === "1") {
       setEmail(e);
@@ -153,7 +160,10 @@ export default function LoginPage() {
   return (
     <main className="auth-card">
       <h1>Chanlytics OS</h1>
-      <p>Sign in with your work email.</p>
+      <p>Sign in with Google, or with a code sent to your work email.</p>
+      {/* Deep links survive Google too: the hash rides in `next`, and the
+          callback lands on it. */}
+      {stage === "email" && <GoogleSignIn next={() => "/" + window.location.hash} />}
       {stage === "email" ? (
         <form onSubmit={sendCode}>
           <label htmlFor="email">Email</label>

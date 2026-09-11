@@ -121,7 +121,7 @@ test("two public PREFIXES, and only a workspace's own two pages live under them"
   assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/yes/[slug]/form")), ["page.tsx"], "the paper form is a page, not a route that takes input");
 });
 
-test("only these nine paths are reachable without a session", () => {
+test("only these ten paths are reachable without a session", () => {
   const block = /PUBLIC_PATHS\s*=\s*new Set\(\[([^\]]*)\]/.exec(middleware);
   assert.ok(block, "PUBLIC_PATHS must be a literal Set so this test can read it");
   const paths = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]).sort();
@@ -135,7 +135,9 @@ test("only these nine paths are reachable without a session", () => {
   // screen and the app stores each ask for a URL whose whole subject is
   // deletion, and pointing that field at a policy's midpoint is how it ends up
   // pointing at facebook.com instead.
-  assert.deepEqual(paths, ["/api/v1/signup", "/api/version", "/auth/signout", "/data-deletion", "/login", "/manifest.webmanifest", "/privacy", "/signup", "/terms"]);
+  // The sign-in callback joined with Sign in with Google: a provider sends the
+  // browser back with a code and no session, which is the point. Exact path.
+  assert.deepEqual(paths, ["/api/v1/signup", "/api/version", "/auth/callback", "/auth/signout", "/data-deletion", "/login", "/manifest.webmanifest", "/privacy", "/signup", "/terms"]);
 });
 
 test("the three legal pages are static, read nothing, and point at each other", () => {
@@ -269,9 +271,12 @@ function toml(section, key) {
   return m ? m[1].trim() : undefined;
 }
 
-test("the hosted project is invite-only at the SERVER, not just in the browser", () => {
-  // shouldCreateUser:false is a request parameter — the caller chooses it.
-  assert.equal(toml("auth", "enable_signup"), "false");
+test("the hosted project lets a provider make the user; the door is the first workspace", () => {
+  // Sign in with Google makes the auth user before anything of ours runs, so
+  // signups are allowed at the server -- and the posture is asked where every
+  // first workspace is made instead (account-routes.test: the door). An account
+  // with no workspace can reach nothing else.
+  assert.equal(toml("auth", "enable_signup"), "true");
   assert.equal(toml("auth", "enable_anonymous_sign_ins"), "false");
 });
 

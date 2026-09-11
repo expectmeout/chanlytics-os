@@ -1,7 +1,7 @@
 import { write, account } from "@/server/route";
-import { AppError } from "@chanlytics/contracts";
+import { AppError, firstWorkspaceDoor, signupPosture } from "@chanlytics/contracts";
 import { z } from "zod";
-import { notifyPlatformSignup } from "@/server/signup";
+import { inviteCodeMatches, notifyPlatformSignup } from "@/server/signup";
 
 /**
  * POST /api/v1/workspaces/create — bring a new workspace into existence.
@@ -25,6 +25,13 @@ import { notifyPlatformSignup } from "@/server/signup";
  * code lands on the create screen with those answers filled in. A workspace
  * exists only for a person who has proved the inbox that owns it.
  *
+ * AND IT IS THE DOOR, for an account that arrived through a provider. The
+ * email form asks the sign-up posture at /api/v1/signup before any user
+ * exists; Sign in with Google makes the user first, so the posture is asked
+ * here, where every first workspace is made -- and only of an account with no
+ * membership yet. Somebody already inside was let in by an invitation or by
+ * their first workspace, and makes the next one without a code.
+ *
  * The body stays the route's own to read: the first issue's message is what
  * the create screen shows, without a field name in front of it.
  */
@@ -34,6 +41,8 @@ const Body = z
     name: z.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120),
     /** IANA zone. Optional — the function defaults it and validates it. */
     timezone: z.string().trim().min(1).max(64).optional(),
+    /** The invite code, asked of a first workspace when sign-up is by invitation. */
+    code: z.string().trim().max(80).optional(),
   })
   .strict();
 
@@ -53,6 +62,12 @@ export const POST = write({
     if (!parsed.success) {
       throw new AppError("validation", parsed.error.issues[0]?.message ?? "Give the workspace a name.");
     }
+
+    // The door (see the header): the posture, for an account with no membership
+    // yet. Counted on the session client, which sees only its own rows.
+    const { count } = await ctx.supabase.from("memberships").select("id", { count: "exact", head: true }).eq("user_id", ctx.userId);
+    const door = firstWorkspaceDoor({ posture: signupPosture(process.env.SIGNUP_CODE), memberships: count ?? 0, codeMatches: inviteCodeMatches(parsed.data.code) });
+    if (!door.open) throw new AppError(door.code, door.message);
 
     const { data, error } = await ctx.supabase
       .rpc("create_workspace", { p_name: parsed.data.name, p_timezone: parsed.data.timezone ?? undefined })

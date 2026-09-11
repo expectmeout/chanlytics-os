@@ -77,7 +77,7 @@ export interface Me {
 
 export const workspaceOverride: SurfaceOverride & { current: () => Workspace | null } = {
   key: "workspace",
-  globals: ["__WORKSPACES", "__ME", "__ACTIVE_WORKSPACE", "__PENDING_WORKSPACE"],
+  globals: ["__WORKSPACES", "__ME", "__ACTIVE_WORKSPACE", "__PENDING_WORKSPACE", "__SIGNUP_POSTURE"],
   // The workspace actually being VIEWED, as resolved by the server — not
   // `[0]`, which was whichever tenant happened to sort first and could differ
   // from the one the data below it came from.
@@ -92,9 +92,13 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
       __ME?: Me;
       __ACTIVE_WORKSPACE?: string;
       __PENDING_WORKSPACE?: PendingWorkspace | null;
+      __SIGNUP_POSTURE?: "open" | "waitlist" | "invite";
     };
     w.__WORKSPACES = data.workspaces;
     w.__PENDING_WORKSPACE = "pending" in data ? data.pending ?? null : null;
+    // The door a first workspace meets (the invite code, or the list), from the
+    // same read: the create screen asks nothing of its own.
+    w.__SIGNUP_POSTURE = "posture" in data ? data.posture ?? "open" : "open";
     // The server had the last word on which workspace this is — it validated
     // membership and may have overridden a stale stored preference. Record what
     // it decided, so every later request agrees with the data already rendered.

@@ -21,6 +21,9 @@ test.describe("sign-up", () => {
     await expect(page.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
     // The clock line reads the device, never asks.
     await expect(page.getByText(/^Your clock: /)).toBeVisible();
+    // Google is a door too, except on the waitlist, which takes details and no accounts.
+    const { data } = await (await page.request.get("/api/v1/signup")).json();
+    if (data.posture !== "waitlist") await expect(page.getByTestId("google-sign-in")).toBeVisible();
   });
 
   test("readiness says the posture, whether a code is required, and never anything else", async ({ request }) => {

@@ -1,6 +1,6 @@
 import { read, write, account, workspace } from "@/server/route";
 import { memberContext } from "@/server/with-route";
-import { AppError, cleanTimezone, pendingWorkspaceOf } from "@chanlytics/contracts";
+import { AppError, cleanTimezone, pendingWorkspaceOf, providerNameOf, signupPosture } from "@chanlytics/contracts";
 import { acceptOpenInvites } from "@/server/service";
 import { isPlatformAdmin } from "@/server/platform";
 import { isSameOrigin } from "@/server/request-guards";
@@ -33,7 +33,9 @@ export const GET = read({
     // The name this person gave (profiles, 00068) rides with the identity, so
     // the chrome shows a person rather than the workspace standing in for one.
     const { data: profile } = await supabase.from("profiles").select("display_name").eq("user_id", userId).maybeSingle();
-    const displayName = profile?.display_name || null;
+    // The name they gave us wins; the name they gave Google (full_name on the
+    // auth user) stands in until they do. Never anything made from the email.
+    const displayName = profile?.display_name || providerNameOf(ctx.metadata);
     // Whether the back office exists for this person, on the payload the seam
     // already fetches at boot. The nav has to decide synchronously whether the
     // tab is there at all, and a second round trip for one boolean would make
@@ -86,7 +88,10 @@ export const GET = read({
     // create screen opens with them rather than asking twice. Sign-up makes no
     // workspace; this is where every first workspace begins.
     if (!data?.length) {
-      return { workspaces: [], activeWorkspaceId: null, pending: pendingWorkspaceOf(ctx.metadata), user: { id: userId, email: email ?? null, role: null, display_name: displayName, platform_admin: platformAdmin } };
+      // And the sign-up posture, because the create screen is this person's door
+      // and it asks the invite code -- or shows the list -- accordingly. Read here
+      // so the bridge makes no request of its own for it.
+      return { workspaces: [], activeWorkspaceId: null, pending: pendingWorkspaceOf(ctx.metadata), posture: signupPosture(process.env.SIGNUP_CODE), user: { id: userId, email: email ?? null, role: null, display_name: displayName, platform_admin: platformAdmin } };
     }
 
     const preferred = new URL(_req.url).searchParams.get("workspace");

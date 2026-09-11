@@ -57,7 +57,7 @@ test("the wiring: two public paths, the guards on the route, a service role that
   assert.ok(!route.includes("withRoute"), "no session to verify: the route does not go through withRoute");
   assert.ok(route.includes("if (!isSameOrigin(req)) throw new AppError(\"forbidden\", SIGNUP_WORDS.crossSite);"), "same-origin, like every mutating route");
   assert.ok(route.includes('await takeRate(`ip:${hash(ipOf(req))}`, "signup_ip");') && route.includes('await takeRate(`email:${hash(input.email)}`, "signup_email");'), "a bucket per network and per address");
-  assert.ok(route.includes("timingSafeEqual(a, b)") && route.includes("process.env.SIGNUP_CODE"), "the invite code compared in constant time");
+  assert.ok(route.includes("inviteCodeMatches(input.code)") && route.includes("process.env.SIGNUP_CODE"), "the invite code compared in constant time, by the one function both doors use");
   assert.ok(!route.includes("@chanlytics/db") && !route.includes("SUPABASE_SERVICE_ROLE_KEY"), "the route holds no key");
   const server = readCode("apps/dashboard/src/server/signup.ts");
   assert.ok(server.includes('import "server-only";'));

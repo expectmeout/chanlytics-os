@@ -53,12 +53,21 @@ test.describe("unauthenticated", () => {
 
   test("REGRESSION: /auth is not a public PREFIX", async ({ request }) => {
     // `path.startsWith("/auth")` would make every future route under /auth
-    // public the moment it was created — a callback or a token-exchange
-    // endpoint would ship unauthenticated by default, and nothing in review
-    // would flag it. The allowlist is exact paths, and this is what proves it.
-    const res = await request.get("/auth/callback", { maxRedirects: 0 });
+    // public the moment it was created, and nothing in review would flag it.
+    // The allowlist is exact paths -- the callback is on it by name, and this
+    // neighbour is not.
+    const res = await request.get("/auth/not-a-door", { maxRedirects: 0 });
     expect(res.status()).toBe(307);
     expect(res.headers()["location"]).toBe("/login");
+  });
+
+  test("the sign-in callback is public, and with nothing to exchange it sends the visitor to sign in", async ({ request }) => {
+    // A provider sends the browser here with a code and no session. Opened
+    // bare, there is nothing to exchange: a sign-in to start, never cached.
+    const res = await request.get("/auth/callback", { maxRedirects: 0 });
+    expect(res.status()).toBe(307);
+    expect(res.headers()["location"]).toMatch(/\/login$/);
+    expect(res.headers()["cache-control"]).toContain("no-store");
   });
 
   test("signing out works even with no session left to sign out of", async ({ request }) => {
@@ -92,6 +101,7 @@ test.describe("unauthenticated", () => {
   test("the login page renders its own form, not a shell of the app", async ({ page }) => {
     await page.goto("/login");
     await expect(page.locator("input[type=email]")).toBeVisible();
+    await expect(page.getByTestId("google-sign-in")).toBeVisible();
     // Nothing behind the gate may be painted to someone who is not through it.
     await expect(page.locator("body")).not.toContainText("Melany");
   });

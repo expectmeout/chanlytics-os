@@ -6454,6 +6454,15 @@ function cleanDisplayName(raw) {
   if (name.length > DISPLAY_NAME_MAX) return { ok: false, reason: `A name is at most ${DISPLAY_NAME_MAX} characters.` };
   return { ok: true, name };
 }
+function providerNameOf(metadata) {
+  if (!metadata || typeof metadata !== "object") return null;
+  const m = metadata;
+  for (const key of ["full_name", "name"]) {
+    const v = m[key];
+    if (typeof v === "string" && v.trim()) return v.trim().replace(/\s+/g, " ").slice(0, 80);
+  }
+  return null;
+}
 
 // src/signup.ts
 import { z as z4 } from "zod";
@@ -6523,7 +6532,14 @@ var SIGNUP_WORDS = {
   crossSite: "That request did not come from this site.",
   haveOne: "Already have a workspace?",
   newHere: "New to Chanlytics?",
-  clock: (tz) => `Your clock: ${tz}, read from this device. Change it later in Settings \u203A Workspace.`
+  clock: (tz) => `Your clock: ${tz}, read from this device. Change it later in Settings \u203A Workspace.`,
+  /* ------------------------------------------------------------ google
+   * The provider's own words for its button, and ours for what follows it. */
+  google: "Continue with Google",
+  or: "or, with your work email",
+  googleNext: "You'll name your workspace on the next screen.",
+  googleFailed: "Google sign-in didn't complete. Try again, or use your email.",
+  firstWorkspaceCode: "Sign-up is by invitation right now. Enter the invite code you were given to make your first workspace."
 };
 function sendFailureIsOurs(e) {
   if (!e) return false;
@@ -6541,6 +6557,15 @@ function deviceTimezone(resolve = () => Intl.DateTimeFormat().resolvedOptions().
   } catch {
     return void 0;
   }
+}
+function firstWorkspaceDoor(o) {
+  if (o.memberships > 0) return { open: true };
+  if (o.posture === "waitlist") return { open: false, code: "forbidden", message: SIGNUP_WORDS.waitlistLead };
+  if (o.posture === "invite" && !o.codeMatches) return { open: false, code: "forbidden", message: SIGNUP_WORDS.codeWrong };
+  return { open: true };
+}
+function googleCallbackUrl(origin, next) {
+  return `${origin}/auth/callback?next=${encodeURIComponent(next || "/")}`;
 }
 
 // src/workspace.ts
@@ -7810,6 +7835,7 @@ export {
   feedSourceLabel,
   filterOpenings,
   firstNameOf,
+  firstWorkspaceDoor,
   fmtClock,
   fmtDay,
   fmtSeconds,
@@ -7825,6 +7851,7 @@ export {
   freeWindows,
   gainedOver,
   googleAudienceWords,
+  googleCallbackUrl,
   groundCitations,
   guessName,
   guessSlotKind,
@@ -7916,6 +7943,7 @@ export {
   policyClassOfIntent,
   policyRules,
   priceWords,
+  providerNameOf,
   purposeOfPlaybook,
   purposeOfTemplate,
   quantile,

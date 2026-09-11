@@ -155,15 +155,15 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "https://chanlytics-os.vercel.app"
+site_url = "https://app.chanlytics.com"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-# Sign-in is OTP-CODE based and never redirects, so this allowlist is unused by
-# the live flow. The localhost entry is removed anyway: it allowed a token to be
-# redirected to a service listening on the machine of whoever clicked, which is
-# a real if contrived capture path, and it bought nothing.
-additional_redirect_urls = ["https://chanlytics-os.vercel.app"]
+# Sign in with Google returns the browser to /auth/callback, on the one address
+# the product answers on and on the deploy alias that redirects to it -- and
+# nowhere else. The email code never redirects. No localhost: it allowed a token
+# to be redirected to a service listening on the machine of whoever clicked.
+additional_redirect_urls = ["https://app.chanlytics.com/auth/callback", "https://chanlytics-os.vercel.app/auth/callback"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -176,12 +176,14 @@ enable_refresh_token_rotation = true
 # Requires enable_refresh_token_rotation = true.
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
-# FALSE: Chanlytics is invite-only. This was true, so "invite-only" rested
-# entirely on the browser passing shouldCreateUser:false — a direct POST to
-# /auth/v1/otp with create_user:true could mint an account. Admin invitation
-# (auth.admin.inviteUserByEmail / createUser) bypasses this flag, so the real
-# onboarding path is unaffected; verified against the live project.
-enable_signup = false
+# TRUE, since Sign in with Google: a provider sign-in has to be allowed to make
+# the auth user, because it makes it before anything of ours runs. The door is
+# no longer the account, it is the FIRST WORKSPACE: /api/v1/workspaces/create
+# asks the sign-up posture (SIGNUP_CODE) of an account with no membership yet,
+# and an account with no workspace can reach nothing else. The email form still
+# creates users with the service role, and /login still sends codes only to
+# addresses that exist (shouldCreateUser:false is honoured server-side).
+enable_signup = true
 # Allow/disallow anonymous sign-ins to your project.
 enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
@@ -340,6 +342,21 @@ max_frequency = "5s"
 # Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
 # `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin_oidc`, `notion`, `twitch`,
 # `twitter`, `x`, `slack`, `spotify`, `workos`, `zoom`.
+# Sign in with Google. The hosted project has it ON, configured in the dashboard
+# (Authentication › Providers › Google) with a web OAuth client's id and secret;
+# that client's authorised redirect URI is the project's own callback,
+# https://<project-ref>.supabase.co/auth/v1/callback. Locally it wants the two
+# values below and enabled = true; it ships off so `supabase start` needs no
+# Google credentials in CI.
+[auth.external.google]
+enabled = false
+client_id = ""
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+redirect_uri = ""
+url = ""
+skip_nonce_check = false
+email_optional = false
+
 [auth.external.apple]
 enabled = false
 client_id = ""

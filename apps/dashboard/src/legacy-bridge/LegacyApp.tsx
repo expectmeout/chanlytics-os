@@ -295,10 +295,14 @@ export default function LegacyApp() {
     // What sign-up kept: the name and clock they typed before the code, so
     // the first workspace is one press rather than the same form twice.
     const pending = (window as unknown as { __PENDING_WORKSPACE?: PendingWorkspace | null }).__PENDING_WORKSPACE ?? null;
+    // The door this first workspace meets -- the invite code, or the list --
+    // for an account that arrived through Google and never saw the sign-up form.
+    const posture = (window as unknown as { __SIGNUP_POSTURE?: "open" | "waitlist" | "invite" }).__SIGNUP_POSTURE ?? "open";
     return (
       <CreateWorkspace
         email={me?.email ?? null}
         initial={pending}
+        posture={posture}
         onCreated={(w) => {
           // switchWorkspace persists the choice and re-runs every surface, so
           // the new workspace is the one the app opens on — which is where the

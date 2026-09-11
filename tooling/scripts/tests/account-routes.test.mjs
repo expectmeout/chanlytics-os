@@ -84,7 +84,9 @@ test("where you are: every workspace with who is signed in; the active one by me
   const admin = await workspaces.GET.run(get(), ctxFor(tables, {}, { is_platform_admin: () => true }));
   assert.equal(admin.user.platform_admin, true, "the nav's one bit rides along");
   const nowhere = await workspaces.GET.run(get(), ctxFor({ memberships: [], tenants: [], profiles: [] }, {}, { is_platform_admin: () => false }));
-  assert.deepEqual(nowhere, { workspaces: [], activeWorkspaceId: null, pending: null, user: { id: USER, email: "ada@example.com", role: null, display_name: null, platform_admin: false } });
+  // "Nowhere yet" carries the door the first workspace meets: the sign-up
+  // posture, open here because the test sets no SIGNUP_CODE.
+  assert.deepEqual(nowhere, { workspaces: [], activeWorkspaceId: null, pending: null, posture: "open", user: { id: USER, email: "ada@example.com", role: null, display_name: null, platform_admin: false } });
 });
 
 test("the zone: the owner's, the workspace named, checked against Intl, and a change that landed on no row is a refusal rather than a success", async () => {
@@ -137,4 +139,43 @@ test("the roster: the workspace the tab named, assembled after the caller proves
   const out = await team.GET.run(get(inA), ctxFor(tables, {}, rpcs));
   assert.equal(out.members.length, 1, "the members the function names");
   assert.deepEqual(out.invites.map((i) => i.email), ["bo@example.com"], "open invitations only, this workspace's");
+});
+
+test("the first workspace of an account that arrived through a provider meets the sign-up posture; an account already inside has no door", async () => {
+  // Sign in with Google makes the auth user before /api/v1/signup could ask the
+  // posture, so the create route asks it -- of an account with no membership yet.
+  const rpcs = { create_workspace: (a) => ({ id: C, slug: "harbor-one", name: a.p_name, status: "active", timezone: a.p_timezone ?? "America/New_York" }) };
+  // A fresh account per call: the bucket is per person and this is one test.
+  let n = 0;
+  const nobody = () => ({ ...ctxFor({ memberships: [] }, {}, rpcs), userId: `new-${++n}` });
+  const had = process.env.SIGNUP_CODE;
+  try {
+    process.env.SIGNUP_CODE = "waitlist";
+    await refused(create.POST.run(send("POST", { name: "Harbor One" }), nobody()), "forbidden", 403, "small groups");
+    const inside = await create.POST.run(send("POST", { name: "Harbor Two" }), ctxFor({ memberships: both("viewer", "viewer") }, {}, rpcs));
+    assert.equal(inside.workspace.name, "Harbor Two", "already inside: the list is not their door");
+
+    process.env.SIGNUP_CODE = "let-me-in";
+    await refused(create.POST.run(send("POST", { name: "Harbor One" }), nobody()), "forbidden", 403, "invite code is not right");
+    await refused(create.POST.run(send("POST", { name: "Harbor One", code: "wrong" }), nobody()), "forbidden", 403);
+    const opened = await create.POST.run(send("POST", { name: "Harbor One", code: "let-me-in" }), nobody());
+    assert.equal(opened.workspace.name, "Harbor One", "the code opens it");
+
+    delete process.env.SIGNUP_CODE;
+    const open = await create.POST.run(send("POST", { name: "Harbor One" }), nobody());
+    assert.equal(open.workspace.name, "Harbor One", "open: nothing asked");
+  } finally {
+    if (had === undefined) delete process.env.SIGNUP_CODE; else process.env.SIGNUP_CODE = had;
+  }
+});
+
+test("the name Google gave stands in until the person gives one, and is never made from the email", async () => {
+  const tables = { memberships: both("viewer", "owner"), tenants: tenants(), profiles: [] };
+  const rpcs = { is_platform_admin: () => false };
+  const fromGoogle = await workspaces.GET.run(get(), { ...ctxFor(tables, {}, rpcs), metadata: { full_name: "  Ada   Lovelace ", email: "ada@example.com" } });
+  assert.equal(fromGoogle.user.display_name, "Ada Lovelace");
+  const named = await workspaces.GET.run(get(), { ...ctxFor({ ...tables, profiles: [{ user_id: USER, display_name: "Ada L." }] }, {}, rpcs), metadata: { full_name: "Ada Lovelace" } });
+  assert.equal(named.user.display_name, "Ada L.", "what they gave us wins");
+  const nothing = await workspaces.GET.run(get(), { ...ctxFor(tables, {}, rpcs), metadata: { email: "hi@chanlytics.agency" } });
+  assert.equal(nothing.user.display_name, null, "no name is no name");
 });

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash } from "node:crypto";
 import { AppError, SIGNUP_WORDS, SignupSchema, err, ok, signupNext, signupPosture } from "@chanlytics/contracts";
 import { isSameOrigin } from "@/server/request-guards";
 import { takeRate } from "@/server/rate-limit";
-import { joinWaitlist, signUp } from "@/server/signup";
+import { inviteCodeMatches, joinWaitlist, signUp } from "@/server/signup";
 
 /**
  * /api/v1/signup — the one door a stranger may use.
@@ -30,12 +30,6 @@ function ipOf(req: Request): string {
   const fwd = req.headers.get("x-forwarded-for");
   const first = fwd ? fwd.split(",")[0].trim() : "";
   return first || req.headers.get("x-real-ip") || "unknown";
-}
-
-function codeMatches(given: string | undefined, expected: string): boolean {
-  const a = Buffer.from(given ?? "");
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 export async function GET(): Promise<Response> {
@@ -78,8 +72,7 @@ export async function POST(req: Request): Promise<Response> {
       return NextResponse.json(ok({ sent: true, waitlisted: true, next: null }), { headers: PRIVATE });
     }
 
-    const required = posture === "invite" ? process.env.SIGNUP_CODE : null;
-    if (required && !codeMatches(input.code, required)) throw new AppError("forbidden", SIGNUP_WORDS.codeWrong);
+    if (posture === "invite" && !inviteCodeMatches(input.code)) throw new AppError("forbidden", SIGNUP_WORDS.codeWrong);
     const out = await signUp(input);
     console.log(JSON.stringify({ level: "info", event: "signup", created: out.created, code_unsent: out.codeUnsent, ms: Date.now() - started }));
     // THE CODE IS THE ONLY WAY IN, so a send WE could not make is worth saying.
