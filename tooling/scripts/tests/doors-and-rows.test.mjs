@@ -22,29 +22,16 @@ const { isRetryableAuthError } = await import(pathToFileURL(path.join(here, "../
 
 const route = (p) => readCode(`apps/dashboard/app/api/v1/${p}/route.ts`);
 
-test("every conversation verb counts the rows its UPDATE hit, and says so on zero", () => {
-  for (const verb of ["take-over", "hand-back", "archive", "snooze", "wake"]) {
-    const src = route(`conversations/[id]/${verb}`);
-    assert.match(src, /\.update\([\s\S]*?\)\s*[\s\S]*?\.select\("id"\)/, `${verb}: the UPDATE must return ids`);
-    assert.match(src, /length === 0\)/, `${verb}: zero rows must be handled`);
-    assert.match(src, /"conflict"/, `${verb}: zero rows is a 409, not success`);
+test("every conversation verb counts the rows its UPDATE hit, in the one adapter; zero rows is the verb's 409, which is run, not read", () => {
+  // The verbs live in packages/core and core-thread-verbs.test.mjs runs each
+  // 409; what is pinned here is that every port the adapter hands them is
+  // row-counted through the one helper.
+  const ports = readCode("apps/dashboard/src/server/core-ports.ts");
+  for (const port of ["claim", "release", "snooze", "wake", "archive", "resolve", "cancelQueued"]) {
+    assert.ok(ports.includes(`${port}: (`) && ports.includes(`${port}: (`) && new RegExp(port + ": \\([^)]*\\) => changed\\(").test(ports), `${port}: the UPDATE must be row-counted`);
   }
-});
-
-test("take-over releases the Blob pause it mirrored when the row did not change", () => {
-  const src = route("conversations/[id]/take-over");
-  const mirror = src.indexOf("mirrorBlobPause(conv.tenant_id, conv.phone_e164, until)");
-  const release = src.indexOf("mirrorBlobPause(conv.tenant_id, conv.phone_e164, 0)");
-  assert.ok(mirror > 0 && release > mirror, "the two stores must not disagree about a thread nobody took");
-});
-
-test("resolve updates first, row-counted, and records the decision only once it landed", () => {
-  const src = route("escalations/[id]/resolve");
-  const update = src.indexOf('.update({ state: "resolved", resolved_by_user_id: ctx.userId })');
-  const record = src.indexOf('recordDecision(ctx, esc.tenant_id, "escalation", esc.id, "resolve")');
-  assert.ok(update > 0 && record > update, "REGRESSION: the ledger entry preceded the update");
-  assert.match(src, /\.eq\("state", "open"\)\s*\.select\("id"\)/);
-  assert.match(src, /already resolved/);
+  assert.ok(ports.includes("return !!data && data.length > 0;"), "changed() is the one place zero rows is judged");
+  assert.ok(ports.includes('.eq("state", "snoozed").select("id")') && ports.includes('.eq("state", "open").select("id")') && ports.includes('.eq("status", "queued").select("id")'), "wake, resolve and cancel-send are guarded on the state they leave");
 });
 
 test("ids are validated by the one guard, never by a private regex", () => {

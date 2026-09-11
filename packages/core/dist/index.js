@@ -8685,6 +8685,35 @@ var coerce2 = {
 var NEVER2 = INVALID2;
 
 // ../contracts/dist/index.js
+var AppError = class extends Error {
+  code;
+  status;
+  details;
+  constructor(code2, message, status, details) {
+    super(message);
+    this.name = "AppError";
+    this.code = code2;
+    this.status = status ?? DEFAULT_STATUS[code2];
+    this.details = details;
+  }
+};
+var DEFAULT_STATUS = {
+  unauthorized: 401,
+  forbidden: 403,
+  not_found: 404,
+  validation: 400,
+  choose_workspace: 400,
+  conflict: 409,
+  rate_limited: 429,
+  payment_required: 402,
+  window_closed: 409,
+  upstream_meta: 502,
+  upstream_retell: 502,
+  upstream_anthropic: 502,
+  upstream_email: 502,
+  upstream_auth: 503,
+  internal: 500
+};
 var OFFERS_OPT_IN_PHRASES2 = { en: "YES OFFERS", es: "SI OFERTAS" };
 function isOptedOutContact(c) {
   return c.consent === "opted_out" || c.dnc === true;
@@ -13941,9 +13970,100 @@ async function deliverSafely(ports, d) {
     return { outcome: "failed", reason: "wire_unreadable", status: 0, errorBody, messageId: d.messageId ?? null };
   }
 }
+
+// src/conversations/take-over.ts
+async function takeOver(ports, cmd) {
+  const { conv } = cmd;
+  if (!conv.phone_e164) throw new AppError("conflict", "Conversation has no phone identity.");
+  const untilMs = ports.now() + await ports.pauseMs(conv.tenant_id);
+  const paused_until = new Date(untilMs).toISOString();
+  await ports.pauseBot(conv.tenant_id, conv.phone_e164, untilMs);
+  if (!await ports.claim(conv.id, paused_until, cmd.userId)) {
+    await ports.pauseBot(conv.tenant_id, conv.phone_e164, 0);
+    throw new AppError("conflict", "Could not take this thread over \u2014 reload and try again.", 409);
+  }
+  const withdrawn_drafts = await ports.withdrawDrafts(conv.tenant_id, conv.id);
+  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "take_over", { paused_until });
+  return { state: "needs_human", paused_until, decision_id, withdrawn_drafts };
+}
+
+// src/conversations/hand-back.ts
+async function handBack(ports, cmd) {
+  const { conv } = cmd;
+  if (!conv.phone_e164) throw new AppError("conflict", "Conversation has no phone identity.");
+  await ports.pauseBot(conv.tenant_id, conv.phone_e164, 0);
+  if (!await ports.release(conv.id)) throw new AppError("conflict", "Could not hand this thread back \u2014 reload and try again.", 409);
+  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "hand_back");
+  await ports.resolveEscalation(conv.id, decision_id);
+  return { state: "open", decision_id };
+}
+
+// src/conversations/snooze.ts
+var MAX_SNOOZE_MS = 30 * 24 * 3600 * 1e3;
+var NEEDS_UNTIL = "snooze needs a future `until` timestamp.";
+async function snooze(ports, cmd) {
+  const { conv } = cmd;
+  const now = ports.now();
+  const until = cmd.until ? new Date(cmd.until) : null;
+  if (!until || Number.isNaN(until.getTime()) || until.getTime() <= now) throw new AppError("validation", NEEDS_UNTIL);
+  if (until.getTime() - now > MAX_SNOOZE_MS) throw new AppError("validation", "snooze is capped at 30 days.");
+  if (conv.paused_until && conv.phone_e164) await ports.pauseBot(conv.tenant_id, conv.phone_e164, 0);
+  const snooze_until = until.toISOString();
+  if (!await ports.snooze(conv.id, snooze_until)) throw new AppError("conflict", "Could not snooze this thread \u2014 reload and try again.", 409);
+  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "snooze", { until: snooze_until });
+  return { state: "snoozed", snooze_until, decision_id };
+}
+
+// src/conversations/wake.ts
+async function wake(ports, cmd) {
+  const { conv } = cmd;
+  if (conv.state !== "snoozed") throw new AppError("conflict", "This thread is not snoozed.", 409);
+  if (!await ports.wake(conv.id)) throw new AppError("conflict", "Could not wake this thread \u2014 reload and try again.", 409);
+  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "wake", {});
+  return { state: "open", decision_id };
+}
+
+// src/conversations/archive.ts
+async function archive(ports, cmd) {
+  const { conv } = cmd;
+  if (conv.paused_until && conv.phone_e164) await ports.pauseBot(conv.tenant_id, conv.phone_e164, 0);
+  if (!await ports.archive(conv.id)) throw new AppError("conflict", "Could not archive this thread \u2014 reload and try again.", 409);
+  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "archive");
+  await ports.resolveEscalation(conv.id, decision_id);
+  return { state: "archived", decision_id };
+}
+
+// src/conversations/resolve.ts
+async function resolveEscalation(ports, cmd) {
+  const { esc } = cmd;
+  if (esc.state === "resolved") return { state: "resolved", already: true };
+  if (!await ports.resolve(esc.id)) throw new AppError("conflict", "This escalation was already resolved \u2014 reload.", 409);
+  const decision_id = await ports.record(esc.tenant_id, "escalation", esc.id, "resolve");
+  await ports.link(esc.id, decision_id);
+  return { state: "resolved", decision_id };
+}
+
+// src/conversations/cancel-send.ts
+async function cancelSend(ports, cmd) {
+  const { msg } = cmd;
+  if (msg.status !== "queued") throw new AppError("conflict", "Too late \u2014 this message has already been sent.");
+  if (!await ports.cancelQueued(msg.id)) throw new AppError("conflict", "Too late \u2014 this message went out while you were canceling it.");
+  await ports.cancelJob(msg.tenant_id, msg.id);
+  const decision_id = await ports.record(msg.tenant_id, "message", msg.id, "cancel_send");
+  return { status: "canceled", decision_id };
+}
 export {
+  MAX_SNOOZE_MS,
+  NEEDS_UNTIL,
+  archive,
+  cancelSend,
   deliver,
   deliverSafely,
+  handBack,
+  resolveEscalation,
+  snooze,
+  takeOver,
   templatePurpose,
+  wake,
   whatsappSender
 };

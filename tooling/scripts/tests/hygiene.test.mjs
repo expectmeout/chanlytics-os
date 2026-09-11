@@ -35,10 +35,7 @@ test("F44: the session role updates exactly the columns the verbs set, and nothi
     escalations: ["state", "resolved_by_user_id", "decision_id"],
   };
   const files = [
-    "apps/dashboard/app/api/v1/conversations/[id]/archive/route.ts", "apps/dashboard/app/api/v1/conversations/[id]/hand-back/route.ts",
-    "apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts", "apps/dashboard/app/api/v1/conversations/[id]/snooze/route.ts",
-    "apps/dashboard/app/api/v1/conversations/[id]/take-over/route.ts", "apps/dashboard/app/api/v1/conversations/[id]/wake/route.ts",
-    "apps/dashboard/app/api/v1/escalations/[id]/resolve/route.ts", "apps/dashboard/app/api/v1/messages/[id]/cancel-send/route.ts",
+    "apps/dashboard/src/server/core-ports.ts", "apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts",
     "apps/dashboard/src/server/verbs.ts",
   ];
   for (const rel of files) {
@@ -132,4 +129,20 @@ test("every bridge request goes through the typed client", () => {
     }
   })(dir);
   assert.deepEqual(offenders, [], "a request outside api() re-implements the envelope, the sign-out and the refresh");
+});
+
+test("a core verb knows no database, framework, provider or environment", () => {
+  // A verb takes the world through its ports; the adapter in
+  // apps/dashboard/src/server/core-ports.ts is where the tables are. Its
+  // imports are contracts, db types, and each other.
+  const dir = path.join(here, "../../../packages/core/src/conversations");
+  const offenders = [];
+  for (const f of fs.readdirSync(dir)) {
+    for (const line of readCode(`packages/core/src/conversations/${f}`).split("\n")) {
+      if (!/^import /.test(line)) continue;
+      const ok = /from "\.\//.test(line) || /from "@chanlytics\/contracts"/.test(line) || /^import type .* from "@chanlytics\/db"/.test(line);
+      if (!ok) offenders.push(f + ": " + line.trim());
+    }
+  }
+  assert.deepEqual(offenders, [], "a verb takes the world through its ports; core-ports.ts is where the tables are");
 });
