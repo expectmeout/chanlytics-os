@@ -4185,10 +4185,10 @@ var ASK_PAGE_ROUTES = [
   "live",
   "reports",
   "admin/workspace",
+  "admin/team",
   "admin/autonomy",
   "admin/notifications",
-  "admin/integrations",
-  "admin/memory"
+  "admin/integrations"
 ];
 var PAGE_PREFIX = /^(today|inbox|clients|conversations|live|reports|admin)(\/[A-Za-z0-9:_-]+)?$/;
 function groundCitations(citations, read) {
@@ -4337,10 +4337,11 @@ var ASK_PAGES = [
   { label: "Reports", to: "reports", kind: "page" },
   { label: "Settings", to: "admin/workspace", kind: "page" },
   { label: "Autonomy", to: "admin/autonomy", kind: "page", sub: "what the receptionist may do alone" },
-  { label: "Team", to: "admin/workspace", kind: "page", sub: "members and invitations" },
+  { label: "Team", to: "admin/team", kind: "page", sub: "members and invitations" },
   { label: "Notifications", to: "admin/notifications", kind: "page" },
   { label: "Connections", to: "admin/integrations", kind: "page", sub: "WhatsApp, phone line, calendar" },
-  { label: "Receptionist memory", to: "admin/memory", kind: "page", sub: "hours, services, notes" }
+  // What the receptionist knows lives in Business details; the Memory pane says so and points here.
+  { label: "Receptionist memory", to: "admin/workspace", kind: "page", sub: "hours, services and notes, in Business details" }
 ];
 function askJump(query, index, limit = 6) {
   const s = query.trim().toLowerCase();
@@ -6472,6 +6473,13 @@ function providerNameOf(metadata) {
   }
   return null;
 }
+function inviteState(expiresAt, nowMs) {
+  const at2 = expiresAt ? Date.parse(expiresAt) : NaN;
+  if (Number.isNaN(at2)) return { expired: false, words: "invite pending" };
+  if (at2 <= nowMs) return { expired: true, words: "invite expired \u2014 revoke it and send a new one" };
+  const days = Math.ceil((at2 - nowMs) / 864e5);
+  return { expired: false, words: days <= 1 ? "invite pending \xB7 expires today" : `invite pending \xB7 expires in ${days} days` };
+}
 
 // src/signup.ts
 import { z as z4 } from "zod";
@@ -7929,6 +7937,7 @@ export {
   industryOf,
   industryWords,
   initialsOf,
+  inviteState,
   isCarrier,
   isDayKey,
   isForwardingMode,

@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { SURFACE_STATES } from "../apps/dashboard/src/legacy-bridge/surface-registry";
 
 /**
  * The one bug this project keeps having.
@@ -39,8 +40,13 @@ const INVENTED = [
   "Maya Rodriguez",
 ];
 
-/** Surfaces classified `real` in surface-registry.ts — fed by live data. */
-const REAL_ROUTES = ["#/today", "#/inbox", "#/conversations", "#/clients", "#/admin/workspace", "#/admin/autonomy", "#/admin/notifications", "#/admin/integrations", "#/reports", "#/live", "#/messages"];
+/**
+ * Every surface classified `real` in surface-registry.ts, fed by live data.
+ * Read from the registry rather than typed here: a hand list had fallen ten
+ * surfaces behind it, so half of what a signed-in person could open was
+ * never walked for invented names.
+ */
+const REAL_ROUTES = Object.entries(SURFACE_STATES).filter(([, state]) => state === "real").map(([route]) => `#/${route}`);
 
 async function assertNothingInvented(page: Page, where: string) {
   const text = await page.locator("body").innerText();

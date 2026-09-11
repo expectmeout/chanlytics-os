@@ -649,6 +649,9 @@ const TeamSection = ({ flash }) => {
           displayName: "",
           role: i.role,
           status: "invited",
+          // When the invitation stops working: the card says so, instead of
+          // "pending" for ever over a door that has closed.
+          expiresAt: i.expires_at || null,
           isMe: false,
         })),
       ]
@@ -819,12 +822,13 @@ const TeamSection = ({ flash }) => {
         // wearing this badge on a real owner's settings page.
         const isMe = m.isMe !== undefined ? m.isMe : m.id === S.meId;
         const pending = m.status === "invited";
+        const invite = pending && window.__inviteState ? window.__inviteState(m.expiresAt) : { expired: false, words: "invite pending" };
         return (
-          <div key={m.id} className={`set-team-row ${pending ? "pending" : ""}`}>
+          <div key={m.id} className={`set-team-row ${pending ? "pending" : ""} ${invite.expired ? "expired" : ""}`}>
             <span className="avatar" style={pending ? { background: "var(--ink-faint)" } : m.role === "owner" ? undefined : { background: "var(--ink-muted)" }}>{m.displayName !== undefined ? window.__identity.initials(m.displayName, m.email) : stInitials(m.name)}</span>
             <span className="set-team-body">
               <span className="set-team-name">{m.name}{isMe && <span className="set-team-you">You</span>}</span>
-              <span className="set-team-mail">{[m.sub !== undefined ? m.sub : m.email, pending ? "invite pending" : ""].filter(Boolean).join(" · ")}</span>
+              <span className="set-team-mail">{[m.sub !== undefined ? m.sub : m.email, pending ? invite.words : ""].filter(Boolean).join(" · ")}</span>
             </span>
             <RolePill role={m.role} />
             {canManage && !isMe ? (
