@@ -169,29 +169,13 @@ test("the view model: delivered and read over sent, open while scheduled or send
   assert.ok(/^Sep 12 · /.test(whenLabel("2026-09-12T15:30:00", now)));
 });
 
-test("the job: state gates, the template still approved, every person re-checked at the wire, batches that continue themselves, the workspace told", () => {
+test("the job: its rules are run (core-broadcast.test.mjs); the adapter still reads what the run needs and writes where it did", () => {
   const h = readCode("packages/jobs/src/handlers.ts");
   assert.ok(h.includes("broadcast_send: broadcastSend,"));
-  assert.ok(h.includes('if (b.state !== "scheduled" && b.state !== "sending") return;'), "only a scheduled or sending broadcast goes out; a run waiting for a person has no job");
-  assert.ok(h.includes('if (!tpl || tpl.meta_status !== "approved") {'), "a template Meta withdrew fails the broadcast before a single send");
-  assert.ok(h.includes(".limit(BROADCAST_CHUNK);") && BROADCAST_CHUNK === 25);
-  // The wire asks which yes THIS message needs. It used to demand
-  // `consent === "opted_in"` whatever the template was, which both let a
-  // promotional send reach somebody who had only agreed to hear about their own
-  // appointments and skipped an appointment reminder for somebody who had.
-  assert.ok(h.includes("const purpose = purposeOfTemplate(tpl.category);"), "Meta's category decides, and it fails closed on a null");
-  assert.ok(h.includes('.select("meta_status, body_preview, category")'), "which means the category has to be selected");
-  // The yes is re-checked at the wire by the one door every send leaves
-  // through, with THIS template's purpose and as a proactive send; the skip
-  // reason is the door's own. deliver.test.mjs runs the door.
-  assert.ok(h.includes("const out = await deliver(") && h.includes("proactive: true,"), "the door is asked, proactively, with the template's purpose");
-  assert.ok(h.includes('else if (out.outcome === "refused") await mark(r.contact_id, { state: "skipped", reason: out.reason });'), "and the skip reason says which yes was missing, or who has the thread");
+  assert.ok(h.includes(".limit(limit);") && BROADCAST_CHUNK === 25);
+  assert.ok(h.includes('.select("meta_status, body_preview, category")'), "the category is selected: it decides which yes the send needs");
   assert.ok(h.includes('.select("id, phone_e164, consent, dnc, marketing_consent, erased_at'), "the person's row still carries what the run needs");
-  assert.ok(h.includes('if (out.outcome === "sent") await mark(r.contact_id, { state: "sent", message_id: out.messageId });'), "a send is marked by the row the door wrote");
-  assert.ok(h.includes('if (cErr) { console.error("broadcast_contact_unreadable", r.contact_id, cErr.message); continue; }'), "fail closed: an unreadable person stays queued");
-  assert.ok(h.includes('source: "broadcast", broadcast_id: b.id, broadcast_name: b.name,') && h.includes("playbook_name: String((b.audience as { label?: unknown } | null)?.label ?? b.name)"), "every message says which broadcast it came from, and a run's names its playbook");
-  assert.ok(h.includes('if (still?.state !== "sending") return;'), "a cancel during a batch stops the next");
-  assert.ok(h.includes('await ctx.schedule("broadcast_send", new Date(), { broadcast_id: b.id });'));
+  assert.ok(h.includes('await ctx.schedule("broadcast_send", new Date(), { broadcast_id: id });'), "the next batch is one more row, as this tenant");
   assert.ok(h.includes('kind: "broadcast.sent"'));
 });
 

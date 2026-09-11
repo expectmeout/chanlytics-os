@@ -98,8 +98,7 @@ test("the routes: what Meta refuses is refused first; a duplicate name is a conf
 
 test("the job fills the slots per person and holds anyone a slot cannot be filled for; the send route takes specs and refuses a booking-link slot with no link on file", () => {
   const h = readCode("packages/jobs/src/handlers.ts");
-  assert.ok(h.includes("firstName: firstNameOf(c.display_name, c.wa_profile_name), businessName, bookingLink,") && h.includes('visitWhen: typeof facts.visit_when === "string" ? facts.visit_when : null,'), "the person's own words, and a visit run's words from their row");
-  assert.ok(h.includes('if (params.some((v) => !v)) { await mark(r.contact_id, { state: "skipped", reason: "missing_value" }); continue; }'), "never a blank send");
+  // The slots per person and the hold on an unfillable one are run: core-broadcast.test.mjs.
   assert.ok(h.includes('const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";'));
   const r = readCode("apps/dashboard/app/api/v1/broadcasts/route.ts");
   assert.ok(r.includes("const spec = parseParamSpec(p);") && r.includes('"This message takes the booking link, and none is on file. Add it in Settings › Workspace first."'));

@@ -9183,6 +9183,14 @@ var WHEN3 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" 
 var SERVICE2 = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES2 = { ...WHEN3, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES2 = { ...SERVICE2, label: "Servicio", example: "una consulta" };
+var BROADCAST_CHUNK = 25;
+var BROADCAST_GAP_MS = 300;
+function renderTemplate(body, params) {
+  return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n) => {
+    const v = params[Number(n) - 1];
+    return typeof v === "string" && v !== "" ? v : m;
+  });
+}
 var LIMIT_TIERS2 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -9191,6 +9199,43 @@ var LIMIT_TIERS2 = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
+function parseParamSpec(raw) {
+  if (typeof raw === "string") {
+    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service)$/.exec(raw.trim());
+    if (m) return { kind: m[1] };
+    return { kind: "text", value: raw };
+  }
+  if (raw && typeof raw === "object") {
+    const o = raw;
+    if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
+    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service") return { kind: o.kind };
+  }
+  return null;
+}
+function firstNameOf(displayName, waProfileName) {
+  const raw = (displayName || waProfileName || "").trim();
+  if (!raw || /^[+\d(]/.test(raw)) return null;
+  const first = raw.split(/\s+/)[0].replace(/[^\p{L}\p{M}'’-]/gu, "");
+  return first ? first.slice(0, 30) : null;
+}
+function resolveParams(specs, f) {
+  return specs.map((s) => {
+    switch (s.kind) {
+      case "text":
+        return s.value;
+      case "first_name":
+        return f.firstName || "there";
+      case "business_name":
+        return f.businessName;
+      case "booking_link":
+        return f.bookingLink ?? "";
+      case "visit_when":
+        return f.visitWhen ?? "";
+      case "visit_service":
+        return f.visitService ?? "";
+    }
+  });
+}
 var DAY_MS42 = 864e5;
 var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS42;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
@@ -14194,6 +14239,102 @@ async function provisionLine(ports, cmd) {
   const r = await ports.provision(lineId, by);
   if (!r.ok) throw new Error(`line_provision: stopped at ${r.step ?? "?"}: ${r.error ?? "unknown"}`);
 }
+
+// src/messages/broadcast.ts
+async function sendBroadcastBatch(ports, cmd) {
+  const b = await ports.broadcast(cmd.broadcastId);
+  if (!b) return;
+  if (b.state !== "scheduled" && b.state !== "sending") return;
+  if (await ports.workspacePaused()) {
+    await ports.fail(b.id, "paused");
+    await ports.alert(`Broadcast \u201C${b.name}\u201D not sent`, "The workspace is paused until billing resumes, so nothing went out. Resume from Settings \u203A Billing and send it again.");
+    return;
+  }
+  if (b.state === "scheduled") await ports.startSending(b.id);
+  const tpl = await ports.template(b.template_name, b.template_language);
+  if (!tpl || tpl.meta_status !== "approved") {
+    await ports.fail(b.id, "template_not_approved");
+    await ports.alert(`Broadcast \u201C${b.name}\u201D stopped`, `The template \u201C${b.template_name}\u201D is no longer approved by WhatsApp, so nothing was sent.`);
+    return;
+  }
+  const purpose = purposeOfTemplate(tpl.category);
+  const specs = Array.isArray(b.params) ? b.params.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
+  const { businessName, bookingLink } = await ports.facts();
+  const batch = await ports.batch(b.id, BROADCAST_CHUNK);
+  let begun = 0;
+  for (const r of batch) {
+    if (begun > 0 && ports.now() >= cmd.deadline) break;
+    begun += 1;
+    let c;
+    try {
+      c = await ports.contact(r.contact_id);
+    } catch (e) {
+      console.error("broadcast_contact_unreadable", r.contact_id, e instanceof Error ? e.message : String(e));
+      continue;
+    }
+    if (!c || c.erased_at) {
+      await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "erased" });
+      continue;
+    }
+    if (!c.phone_e164) {
+      await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "no_phone" });
+      continue;
+    }
+    const target = await ports.target(c.phone_e164);
+    if (!target) {
+      await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "no_phone" });
+      continue;
+    }
+    const facts = r.facts !== null && typeof r.facts === "object" && !Array.isArray(r.facts) ? r.facts : {};
+    const params = resolveParams(specs, {
+      firstName: firstNameOf(c.display_name, c.wa_profile_name),
+      businessName,
+      bookingLink,
+      visitWhen: typeof facts.visit_when === "string" ? facts.visit_when : null,
+      visitService: typeof facts.visit_service === "string" ? facts.visit_service : null
+    });
+    if (params.some((v) => !v)) {
+      await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "missing_value" });
+      continue;
+    }
+    const words = renderTemplate(tpl.body_preview, params);
+    const out = await ports.deliver({
+      tenantId: cmd.tenantId,
+      conversationId: target.conversationId,
+      contactId: c.id,
+      to: c.phone_e164,
+      channel: "whatsapp",
+      sender: "human",
+      purpose,
+      proactive: true,
+      body: words,
+      template: { name: b.template_name, language: b.template_language, params },
+      // A run's message names its playbook, so a thread reads "by the Win-back playbook".
+      meta: {
+        source: "broadcast",
+        broadcast_id: b.id,
+        broadcast_name: b.name,
+        ...b.playbook_id ? { playbook_id: b.playbook_id, playbook_name: String(b.audience?.label ?? b.name) } : {}
+      }
+    });
+    if (out.outcome === "sent") await ports.mark(b.id, r.contact_id, { state: "sent", message_id: out.messageId });
+    else if (out.outcome === "refused") await ports.mark(b.id, r.contact_id, { state: "skipped", reason: out.reason });
+    else await ports.mark(b.id, r.contact_id, { state: "failed", reason: "send_failed", message_id: out.messageId });
+    if (BROADCAST_GAP_MS > 0) await ports.sleep(BROADCAST_GAP_MS);
+  }
+  const remaining = await ports.remaining(b.id);
+  if (remaining > 0) {
+    if (await ports.state(b.id) !== "sending") return;
+    await ports.scheduleNext(b.id);
+    return;
+  }
+  const { sent, held } = await ports.tally(b.id);
+  await ports.finish(b.id, { sent, held });
+  await ports.alert(
+    `Broadcast \u201C${b.name}\u201D sent`,
+    `${sent} ${sent === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, or a person had the thread)` : ""}. Replies land in the Inbox.`
+  );
+}
 export {
   IDEMPOTENCY_WINDOW_MS,
   MAX_SNOOZE_MS,
@@ -14208,6 +14349,7 @@ export {
   provisionLine,
   replyToConversation,
   resolveEscalation,
+  sendBroadcastBatch,
   sendQueued,
   snooze,
   takeOver,
