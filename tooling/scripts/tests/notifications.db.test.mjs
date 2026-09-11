@@ -93,7 +93,9 @@ test("the seen mark: refused signed out, refused to a stranger, written once for
   const anon = createClient(URL_, ANON, { auth: { persistSession: false } });
   const out = await anon.rpc("notifications_seen", { p_tenant_id: tenantId });
   assert.notEqual(out.error, null);
-  assert.match(out.error.message, /Sign in required/);
+  // The grant refuses anon before the function body can (execute is revoked from anon), so
+  // the door is closed a step earlier than the function's own check; either refusal is the fact.
+  assert.match(out.error.message, /permission denied for function|Sign in required/);
   const stranger = await memberClient("owner", otherTenantId);
   const notMine = await stranger.client.rpc("notifications_seen", { p_tenant_id: tenantId });
   assert.notEqual(notMine.error, null);
