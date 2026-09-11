@@ -188,7 +188,10 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   assert.ok(get.includes("billingFor(ctx.supabase, member.tenantId), billingReadiness()"));
   for (const [file, role] of [["checkout", "owner"], ["portal", "owner"], ["invoices", "owner"], ["resume", "owner"], ["sync", "operator"]]) {
     const r = readCode(`apps/dashboard/app/api/v1/billing/${file}/route.ts`);
-    assert.ok(r.includes(`requireRole(member, "${role}")`) && r.includes('takeRate(ctx.userId, "billing")'), file);
+    // checkout and portal declare their policy on the export (route()); the rest still perform it by hand.
+    const declared = r.includes(`role: "${role}",`) && r.includes('rate: "billing",');
+    const performed = r.includes(`requireRole(member, "${role}")`) && r.includes('takeRate(ctx.userId, "billing")');
+    assert.ok(declared || performed, file);
   }
   const server = readCode("apps/dashboard/src/server/billing.ts");
   assert.ok(server.includes('export const BILLING_COLUMNS = "mode, status, price_id, current_period_end, trial_end, cancel_at, cancel_at_period_end, card_brand, card_last4, last_payment_failed_at, last_paid_at, updated_at";'), "never a customer or subscription id");

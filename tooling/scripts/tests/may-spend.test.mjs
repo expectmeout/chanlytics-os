@@ -94,13 +94,12 @@ test("both money routes carry the second door, and so does the edge behind them"
   // requireSpend asks whether the WORKSPACE may spend our money. A money route
   // needs both, and for months had only the first.
   for (const route of ["buy", "register"]) {
+    // Both doors are declared on the export; route() performs them, and its
+    // pipeline refuses a workspace that may not spend BEFORE it spends a
+    // rate-limit token on a request that cannot proceed.
     const src = readCode(`apps/dashboard/app/api/v1/lines/${route}/route.ts`);
-    assert.ok(src.includes('requireRole(member, "owner");'), `${route}: role`);
-    assert.ok(src.includes("await requireSpend(ctx, member);"), `${route}: spend`);
-    assert.ok(
-      src.indexOf("requireSpend") < src.indexOf("takeRate"),
-      `${route}: refuse before spending a rate-limit token on a request that cannot proceed`,
-    );
+    assert.ok(src.includes('role: "owner",'), `${route}: role`);
+    assert.ok(src.includes("spend: true,"), `${route}: spend`);
   }
 
   const guard = readCode("apps/dashboard/src/server/with-route.ts");

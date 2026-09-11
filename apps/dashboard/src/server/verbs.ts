@@ -80,6 +80,33 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
  */
 export const conversationScope = row((ctx, params) => loadConversation(ctx, String(params.id ?? "")));
 
+export interface VerbContact {
+  id: string;
+  tenant_id: string;
+  marketing_consent: string | null;
+}
+
+/**
+ * The contact a consent verb acts on. RLS scopes this read, so a contact the
+ * caller cannot see is a 404 rather than a leak, and an erased one is gone;
+ * the role is then decided against the contact's tenant, never one from the
+ * body. Both consent doors take their row from here.
+ */
+export async function loadContact(ctx: RouteContext, id: string): Promise<VerbContact> {
+  const contactId = requireUuid(id, "contact");
+  const { data: contact, error } = await ctx.supabase
+    .from("contacts")
+    .select("id, tenant_id, erased_at, marketing_consent")
+    .eq("id", contactId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!contact || contact.erased_at) throw new AppError("not_found", "Contact not found.", 404);
+  return { id: contact.id, tenant_id: contact.tenant_id, marketing_consent: contact.marketing_consent ?? null };
+}
+
+/** The contact named by `:id`, as the row a consent route acts on. */
+export const contactScope = row((ctx, params) => loadContact(ctx, String(params.id ?? "")));
+
 /**
  * The channel a reply goes out on: where the customer last wrote. A
  * conversation is one per person and its messages carry the channel. The reply

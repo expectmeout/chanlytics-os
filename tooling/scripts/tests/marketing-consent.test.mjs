@@ -334,7 +334,7 @@ test("the fact has a WRITE path: two callers, which is what 00095 designed for",
   assert.match(ingest, /rpc\("set_marketing_consent"/, "the customer's own message");
   const door = readCode("apps/dashboard/app/api/v1/contacts/[id]/marketing-consent/route.ts");
   assert.match(door, /rpc\("set_marketing_consent"/, "and a person at the desk");
-  assert.match(door, /requireRole\(member, "operator"\);/);
+  assert.match(door, /role: "operator",/);
   // The tenant is the one the contact was READ from under RLS, never from the body:
   // this RPC takes it as a parameter because the edge calls it with no session.
   assert.match(door, /p_tenant_id: contact\.tenant_id,/);

@@ -434,7 +434,7 @@ test("the owner's form: every field the carriers ask, checked in the owner's wor
   assert.ok(route.includes('requireRole(member, "owner")') && route.includes("businessRecordProblems(record, path)"), "checked here, in the owner's words, before anything leaves for a provider");
   assert.ok(!route.includes("service") , "it goes through the edge like every other provider write");
   const reg = readCode("apps/dashboard/app/api/v1/lines/register/route.ts");
-  assert.ok(reg.includes('requireRole(member, "owner")') && reg.includes('takeRate(ctx.userId, "lines_register")'), "filing costs money, so it is an owner's and it is rate-limited");
+  assert.ok(reg.includes('role: "owner",') && reg.includes('rate: "lines_register",') && reg.includes("spend: true,"), "filing costs money, so it is an owner's, it is rate-limited, and it declares the spend");
   assert.ok(!/mock:\s*(true|body)/.test(reg), "the free test registry is never reachable from the dashboard: an owner's filing is always the real one");
   const page = readCode("apps/dashboard/src/legacy/pages/business-record.jsx");
   assert.ok(page.includes('data-testid="business-record"') && page.includes('data-testid="biz-file-yes"'), "and filing asks once, plainly, with the price in the question");
