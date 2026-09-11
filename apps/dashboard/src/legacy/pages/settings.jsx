@@ -1896,8 +1896,10 @@ const PaneWorkspace = ({ flash }) => {
  * disagreed with the prose right below them about Sunday. Both would have been
  * obvious at a glance. Neither was glanceable.
  *
- * Not a mock-up of the prompt — window.__composedPrompt runs the SAME function
- * the edge runs, on the same saved config.
+ * Not a mock-up of the prompt — window.__composedPrompt reads what the settings
+ * read composed with the SAME function the edge runs, from the same saved
+ * config and the same inputs (the autonomy rows, the platform's facts, the
+ * closures, the calendar's openings).
  */
 const PromptPreview = () => {
   const [open, setOpen] = useSetState(false);
