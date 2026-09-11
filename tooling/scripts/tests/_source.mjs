@@ -16,7 +16,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -55,3 +55,6 @@ export const readRaw = (p) => fs.readFileSync(path.join(ROOT, p), "utf8").split(
 
 /** Read as executable code: comments removed, string literals preserved. */
 export const readCode = (p) => stripComments(readRaw(p));
+
+/** Import a source module by repo-relative path (tsx loads .ts): for a rule tested by running it. */
+export const importSrc = (p) => import(pathToFileURL(path.join(ROOT, p)).href);

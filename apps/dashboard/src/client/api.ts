@@ -15,6 +15,9 @@ import { ROUTES, type Routes } from "./routes.generated";
 export type RouteKey = keyof Routes;
 type ParamNames<S extends string> = S extends `${string}[${infer P}]${infer Rest}` ? P | ParamNames<Rest> : never;
 export type Params<K extends RouteKey> = Record<ParamNames<K>, string>;
+/** What a route takes and answers, by key: for a courier that types its own parameters by the route's. */
+export type Input<K extends RouteKey> = InputOf<Routes[K]>;
+export type Output<K extends RouteKey> = OutputOf<Routes[K]>;
 type MethodOf<K extends RouteKey> = (typeof ROUTES)[K]["method"];
 /** A read's query, as its schema declares it; a write has none. */
 type QueryOf<K extends RouteKey> = MethodOf<K> extends "GET" ? InputOf<Routes[K]> : never;
@@ -30,6 +33,10 @@ export interface ApiOptions<K extends RouteKey> {
   /** The Ask palette commits through the same routes a button does; the ledger keeps that a card was tapped. */
   via?: "ask";
   timeoutMs?: number;
+  /** After a 2xx: re-read the surfaces the map names (the default); a bulk verb passes false and re-reads once at its end. */
+  refresh?: boolean;
+  /** Fired the moment the server accepts, before the surfaces are re-read: a form can say "saved" without waiting for every re-read. */
+  onAccepted?: () => void;
 }
 
 export type ApiResult<O> = { ok: true; data: O } | { ok: false; code: string; status: number; message: string };
@@ -117,11 +124,12 @@ export function createApi(deps: ApiDeps) {
         return { ok: false, code: e?.code ?? "internal", status: res.status, message: e?.message ?? `Request failed (${res.status}).` };
       }
       if (!isRead) {
+        opts.onAccepted?.();
         // Something changed. A read still in flight was issued before that
         // change and cannot describe the world the operator is now in; sharing
         // it with the refresh that follows would repaint the thread as it was.
         forget();
-        await deps.refresh(key);
+        if (opts.refresh !== false) await deps.refresh(key);
       }
       return { ok: true, data: j.data as OutputOf<Routes[K]> };
     })();

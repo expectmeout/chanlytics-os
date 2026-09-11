@@ -23,7 +23,6 @@ import {
   isSurfaceReady,
   markHydrated,
   onSurfaceStatusChange,
-  refreshSurfaces,
   startSurfaces,
 } from "./surface-runner";
 import { hydrateSurfaceCache } from "./surface-cache";
@@ -60,7 +59,7 @@ installPolicyStore();
 // device, and a system alert when something new needs the owner while the
 // app is in the background. Listens for the surface events, so it must be
 // installed before the first fetch resolves.
-installNotifications(undefined, undefined, () => refreshSurfaces([notificationsOverride]));
+installNotifications();
 installAsk();
 installWhatsAppConnect();
 installTemplates();

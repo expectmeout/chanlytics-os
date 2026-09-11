@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { readCode, readRaw } from "./_source.mjs";
+import { readCode, readRaw, importSrc } from "./_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -44,13 +44,14 @@ test("the routes: one workspace's lists with their ids, owner or operator to cha
   assert.ok(readCode("apps/dashboard/src/server/rate-limit.ts").includes('lists: { limit: 60, windowMs: 60_000, noun: "list changes" }'));
 });
 
-test("the surface: lists ride People, counted over the rows on the page; the verbs re-fetch it", () => {
+test("the surface: lists ride People, counted over the rows on the page; the verbs re-fetch it", async () => {
   const s = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(s.includes('read("GET segments")'));
   assert.ok(s.includes("const ids = l.ids.filter((id) => rowIds.has(id));"), "an erased person never counts");
   const v = readCode("apps/dashboard/src/legacy-bridge/people-lists.ts");
   for (const verb of ["create:", "rename:", "remove:", "add:", "drop:"]) assert.ok(v.includes(verb), verb);
-  assert.ok(v.includes("await refreshSurfaces([peopleOverride]);"), "the chips are the server's");
+  const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+  for (const k of ["POST segments", "PUT segments/[id]", "DELETE segments/[id]"]) assert.deepEqual(AFTER[k]().map((o) => o.key), ["people"], `${k}: the chips are the server's`);
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installLists();"));
 });
 

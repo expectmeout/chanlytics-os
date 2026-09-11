@@ -1,16 +1,7 @@
 import { CONSENT_SOURCES, mayReceive, offersYesRefusal, toPersonVM, type PersonVM, type SendPurpose } from "@chanlytics/contracts";
-import {
-  conversationsOverride,
-  inboxOverride,
-  invalidateInFlight,
-  peopleOverride,
-  scoped,
-  todayOverride,
-} from "./surface-data";
-import { refreshSurfaces } from "./surface-runner";
-import { clearSurfaceCache } from "./surface-cache";
 import { api } from "./api";
-import { ApiError } from "../client/api";
+import { ApiError, type ApiResult } from "../client/api";
+import { refreshAfter } from "./refresh-map";
 
 /**
  * The profile courier: `window.__personDetail(id)`.
@@ -32,11 +23,8 @@ export async function personDetail(id: string): Promise<PersonVM | null> {
   throw new ApiError(r.code, r.status, r.message);
 }
 
-export interface DeleteResult {
-  ok: boolean;
-  message?: string;
-  data?: unknown;
-}
+/** The client's answer, as the pages read it: `ok`, `data`, or the refusal's `message`. */
+export type DeleteResult = ApiResult<unknown>;
 
 /**
  * Delete this person: `window.__deletePerson(id)`.
@@ -44,28 +32,12 @@ export interface DeleteResult {
  * The route is the one the privacy policy promises — Postgres rows, Storage
  * media, the Blob thread and any queued job — and it is owner-only on the
  * server, so a viewer's click returns the server's refusal rather than a
- * pretend success. On success every surface that named the person is
- * re-fetched through the runner, so the list, the Inbox and Today stop
- * showing someone who no longer exists.
+ * pretend success. After it lands the refresh map re-reads every surface that
+ * named the person — the list, the Inbox, the threads and Today — so nothing
+ * keeps showing someone who no longer exists.
  */
 export async function deletePerson(id: string): Promise<DeleteResult> {
-  try {
-    const res = await fetch(scoped(`/api/v1/contacts/${encodeURIComponent(id)}`), { method: "DELETE" });
-    if (res.status === 401) {
-      clearSurfaceCache();
-      window.location.assign("/login");
-      return { ok: false, message: "Signed out." };
-    }
-    const j = (await res.json().catch(() => null)) as
-      | { ok: boolean; data?: unknown; error?: { message?: string } }
-      | null;
-    if (!j || !j.ok) return { ok: false, message: j?.error?.message ?? `Request failed (${res.status}).` };
-    invalidateInFlight();
-    await refreshSurfaces([peopleOverride, inboxOverride, conversationsOverride, todayOverride]);
-    return { ok: true, data: j.data };
-  } catch {
-    return { ok: false, message: "Network error — nothing was changed." };
-  }
+  return api()("DELETE contacts/[id]", { params: { id } });
 }
 
 /**
@@ -73,30 +45,10 @@ export async function deletePerson(id: string): Promise<DeleteResult> {
  *
  * "auto" / "ask" / "never" set the person's own row; "inherit" removes it so
  * they follow the workspace policy again. Owner-only on the server. The list
- * is re-fetched afterwards because the Receptionist column reads from it.
+ * is re-read afterwards because the Receptionist column reads from it.
  */
 export async function setPersonReceptionist(id: string, mode: "auto" | "ask" | "never" | "inherit"): Promise<DeleteResult> {
-  try {
-    const res = await fetch(scoped(`/api/v1/contacts/${encodeURIComponent(id)}/receptionist`), {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ mode }),
-    });
-    if (res.status === 401) {
-      clearSurfaceCache();
-      window.location.assign("/login");
-      return { ok: false, message: "Signed out." };
-    }
-    const j = (await res.json().catch(() => null)) as
-      | { ok: boolean; data?: unknown; error?: { message?: string } }
-      | null;
-    if (!j || !j.ok) return { ok: false, message: j?.error?.message ?? `Request failed (${res.status}).` };
-    invalidateInFlight();
-    await refreshSurfaces([peopleOverride]);
-    return { ok: true, data: j.data };
-  } catch {
-    return { ok: false, message: "Network error — nothing was changed." };
-  }
+  return api()("PUT contacts/[id]/receptionist", { params: { id }, body: { mode } });
 }
 
 /**
@@ -114,7 +66,7 @@ export async function setPersonReceptionist(id: string, mode: "auto" | "ask" | "
  * could not be recorded at all — which is what this second door fixes.
  *
  * { consent: "opted_in" | "opted_out", source } or { consent: "unknown" }.
- * Owner or operator on the server. The list is re-fetched afterwards because the
+ * Owner or operator on the server. The list is re-read afterwards because the
  * Consent column and both consent lists read from it.
  */
 export interface ConsentBody {
@@ -123,39 +75,15 @@ export interface ConsentBody {
   note?: string;
 }
 
-const CONSENT_PATH: Record<SendPurpose, string> = {
-  conversational: "consent",
-  marketing: "marketing-consent",
+/** One transport, the route chosen by purpose, so neither answer can be posted to the other's door by a typo in a page. */
+type ConsentRoute = "PUT contacts/[id]/consent" | "PUT contacts/[id]/marketing-consent";
+const CONSENT_ROUTE: Record<SendPurpose, ConsentRoute> = {
+  conversational: "PUT contacts/[id]/consent",
+  marketing: "PUT contacts/[id]/marketing-consent",
 };
 
-async function putConsent(id: string, body: ConsentBody, purpose: SendPurpose): Promise<DeleteResult> {
-  try {
-    const res = await fetch(scoped(`/api/v1/contacts/${encodeURIComponent(id)}/${CONSENT_PATH[purpose]}`), {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (res.status === 401) {
-      clearSurfaceCache();
-      window.location.assign("/login");
-      return { ok: false, message: "Signed out." };
-    }
-    const j = (await res.json().catch(() => null)) as
-      | { ok: boolean; data?: unknown; error?: { message?: string } }
-      | null;
-    if (!j || !j.ok) return { ok: false, message: j?.error?.message ?? `Request failed (${res.status}).` };
-    return { ok: true, data: j.data };
-  } catch {
-    return { ok: false, message: "Network error — nothing was changed." };
-  }
-}
-
 async function recordOne(id: string, body: ConsentBody, purpose: SendPurpose): Promise<DeleteResult> {
-  const r = await putConsent(id, body, purpose);
-  if (!r.ok) return r;
-  invalidateInFlight();
-  await refreshSurfaces([peopleOverride]);
-  return r;
+  return api()(CONSENT_ROUTE[purpose], { params: { id }, body });
 }
 
 export async function setPersonConsent(id: string, body: ConsentBody): Promise<DeleteResult> {
@@ -181,12 +109,12 @@ async function recordMany(ids: string[], body: ConsentBody, purpose: SendPurpose
   let failed = 0;
   let message: string | undefined;
   for (const id of take) {
-    const r = await putConsent(id, body, purpose);
+    // Each request holds the map; the surface is re-read once, below.
+    const r = await api()(CONSENT_ROUTE[purpose], { params: { id }, body, refresh: false });
     if (r.ok) done += 1;
     else { failed += 1; message = message ?? r.message; }
   }
-  invalidateInFlight();
-  await refreshSurfaces([peopleOverride]);
+  await refreshAfter(CONSENT_ROUTE[purpose]);
   return { ok: failed === 0, done, failed, message: failed ? `${failed} could not be recorded${message ? ` — ${message}` : ""}` : undefined };
 }
 
@@ -221,31 +149,13 @@ declare global {
  * A person's name and the owner's notes: `window.__setPersonDetails(id, { name?, notes? })`.
  *
  * Owner or operator on the server; an empty string clears. The People list
- * is re-fetched because names show on every row, and the profile reloads
- * on the same event.
+ * is re-read because names show on every row, and the profile reloads on
+ * the same event.
  */
 export interface DetailsBody { name?: string; notes?: string }
 
 export async function setPersonDetails(id: string, body: DetailsBody): Promise<DeleteResult> {
-  try {
-    const res = await fetch(scoped(`/api/v1/contacts/${encodeURIComponent(id)}/details`), {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (res.status === 401) {
-      clearSurfaceCache();
-      window.location.assign("/login");
-      return { ok: false, message: "Signed out." };
-    }
-    const j = (await res.json().catch(() => null)) as { ok: boolean; data?: unknown; error?: { message?: string } } | null;
-    if (!j || !j.ok) return { ok: false, message: j?.error?.message ?? `Request failed (${res.status}).` };
-    invalidateInFlight();
-    await refreshSurfaces([peopleOverride]);
-    return { ok: true, data: j.data };
-  } catch {
-    return { ok: false, message: "Network error — nothing was changed." };
-  }
+  return api()("PUT contacts/[id]/details", { params: { id }, body });
 }
 
 export function installPeopleCourier(): void {

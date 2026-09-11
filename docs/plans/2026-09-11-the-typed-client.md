@@ -631,8 +631,8 @@ In `surface-data.ts` `activateOverride` and wherever `err instanceof Unauthorize
 
 **Files:** `inbox-verbs.ts` (`call()` and `runVerb`), `broadcast-verbs.ts`, `people-lists.ts`, `people-detail.ts` (its writes), `notifications.ts`; their refresh lists into `refresh-map.ts`; their pins.
 
-- [ ] **Step 1: Each courier's `call(url, body, …)` becomes `api()(key, { params, body, idempotencyKey })`**, and its `refresh()` goes: the map refreshes after the client reports a 2xx. `VerbResult` becomes `ApiResult<…>`; the one-verb-per-thread lock in `inboxVerb` stays, it is the courier's job, not the client's.
-- [ ] **Step 2: Typecheck, suite, lint, pins, PR, merge when green.**
+- [x] **Step 1: Each courier's `call(url, body, …)` becomes `api()(key, { params, body, idempotencyKey })`**, and its `refresh()` goes: the map refreshes after the client reports a 2xx. `VerbResult` becomes `ApiResult<…>`; the one-verb-per-thread lock in `inboxVerb` stays, it is the courier's job, not the client's.
+- [x] **Step 2: Typecheck, suite, lint, pins, PR, merge when green.**
 
 ### Task 7: The rest of the couriers move (PR 4)
 

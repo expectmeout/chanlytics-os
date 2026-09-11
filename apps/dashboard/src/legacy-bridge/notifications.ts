@@ -26,7 +26,9 @@ import {
   dedupeFeed,
   serverNotificationRows,
 } from "@chanlytics/contracts";
-import { getActiveWorkspace, scoped } from "./surface-data";
+import { api as client } from "./api";
+import type { Input } from "../client/api";
+import { getActiveWorkspace } from "./workspace";
 
 export const FEED_EVENTS = ["surface:inbox", "surface:live", "surface:settings", "surface:workspace", "surface:notifications"] as const;
 
@@ -130,8 +132,6 @@ export interface BellApi {
 export function installNotifications(
   win: Window & Globals = window as unknown as Window & Globals,
   storage: StorageLike | null = safeStorage(),
-  /** Re-reads the notifications surface after a mark lands; the app passes the runner's. */
-  refresh: () => Promise<void> = async () => {},
 ): BellApi {
   const listeners = new Set<() => void>();
   const emit = () => listeners.forEach((cb) => cb());
@@ -145,13 +145,11 @@ export function installNotifications(
   // workspace keeps (read state on the server), newest first.
   const rows = () => dedupeFeed([...applyReadState(feedFromGlobals(win, Date.now()), state()), ...serverNotificationRows(win.__NOTIFICATIONS?.dto)]).sort((a, b) => b.at - a.at);
   const isKept = (key: string) => key.startsWith(SERVER_KEY_PREFIX);
-  // A kept row's marks go to the server and the surface is re-read, so every
-  // device agrees; a failure here loses a mark, never a notification.
-  const mark = async (body: Record<string, unknown>) => {
-    try {
-      const res = await fetch(scoped("/api/v1/notifications"), { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-      if (res.ok) await refresh();
-    } catch { /* the next read re-syncs */ }
+  // A kept row's marks go to the server, and the refresh map re-reads the
+  // surface after one lands, so every device agrees; a failure here loses a
+  // mark, never a notification — the next read re-syncs.
+  const mark = async (body: Input<"PUT notifications">) => {
+    await client()("PUT notifications", { body });
     emit();
   };
 

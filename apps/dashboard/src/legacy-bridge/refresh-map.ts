@@ -37,7 +37,8 @@ const google = () => [googleOverride, setupOverride];
 const billing = () => [billingOverride, setupOverride];
 const settings = () => [settingsOverride];
 
-const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
+/** Exported for the tests that hold a verb to its surfaces by running this, not by reading a courier. */
+export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // The thread verbs, and the two that act on a held draft.
   "POST conversations/[id]/take-over": thread,
   "POST conversations/[id]/hand-back": thread,
@@ -73,6 +74,9 @@ const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST templates/starter": templates,
   "POST templates/sync": templates,
   // Settings and the team.
+  // Settings FIRST: it carries the version the next save has to send. Today
+  // states the workspace's facts; hours, closures, rules and services are the
+  // Calendar's too.
   "PUT settings": () => [settingsOverride, todayOverride, calendarOverride],
   "PUT policies": settings,
   "POST team/invite": settings,

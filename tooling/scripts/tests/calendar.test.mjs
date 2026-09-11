@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import {
   readAgoLabel, clockLabel, isDayKey, mondayOf, parseIcs, rulesLine, shiftKey, toCalendarVM, zoneMidnight,
 } from "@chanlytics/contracts";
-import { readCode } from "./_source.mjs";
+import { readCode, importSrc } from "./_source.mjs";
 
 const TZ = "America/New_York";
 const ICS = [
@@ -158,7 +158,7 @@ test("the words from Settings on the board: hours as runs, closures ahead, servi
   assert.deepEqual(past.closuresAhead, [{ key: "2026-09-20", label: "Sep 20 – 22", note: null }], "a closure already past is not ahead");
 });
 
-test("full-fledged: month and agenda views, a date to jump to, windows that fit a service, the rules bar, Today's line, the assistant's read, and Settings saves that reach the board", () => {
+test("full-fledged: month and agenda views, a date to jump to, windows that fit a service, the rules bar, Today's line, the assistant's read, and Settings saves that reach the board", async () => {
   const page = readCode("apps/dashboard/src/legacy/pages/calendar-real.jsx");
   for (const id of ["cal-month", "cal-month-cell", "cal-agenda", "cal-agenda-day", "cal-jump", "cal-service", "cal-rules", "cal-consult-note"]) assert.ok(page.includes(`data-testid="${id}"`), id);
   assert.ok(page.includes('data-testid={`cal-view-${id}`}') && page.includes('["month", "Month"], ["agenda", "Agenda"]'), "four views, one tab each");
@@ -168,7 +168,7 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
   assert.ok(svc.includes("const MAX_DAYS = 63;") && svc.includes("consult_first: (profile?.booking_rules?.consult_first ?? []).some("), "the services as Settings keeps them");
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes("days: String(w.days)") && sd.includes("if (from !== calendarFrom || days !== calendarDays) return;") && sd.includes("calendarDays = Math.min(63, Math.max(1, Math.round(days) || 63));"));
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts").includes("await refreshSurfaces([settingsOverride, todayOverride, calendarOverride]);"), "hours, closures, rules and services saved in Settings reach the board");
+  assert.deepEqual((await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).AFTER["PUT settings"]().map((o) => o.key), ["settings", "today", "calendar"], "hours, closures, rules and services saved in Settings reach the board");
   const dayModule = readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx");
   assert.ok(dayModule.includes('data-testid="today-day"') && dayModule.includes('C.vm.feed.state !== "ok" || !window.__today) return null;'), "Today shows the day on the calendar, and nothing without a feed");
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");

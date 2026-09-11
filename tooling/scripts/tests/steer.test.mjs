@@ -71,7 +71,7 @@ test("the dashboard route keeps its doors and records the decision only after th
   assert.ok(svc.includes("`${edgeUrl()}/api/admin/steer`"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
   assert.ok(bridge.includes("window.__steerDraft = steerDraft;"));
-  assert.ok(bridge.includes("/steer`, { text });"));
+  assert.ok(bridge.includes('"POST messages/[id]/steer", { params: { id: messageId }, body: { text } }'));
 });
 
 test("the Inbox offers the rewrite only on a real draft that is still counting down", () => {

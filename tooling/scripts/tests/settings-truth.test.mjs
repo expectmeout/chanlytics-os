@@ -14,16 +14,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ROLE_PERMS, parseTenantConfigResult } from "@chanlytics/contracts";
-import { readCode, readRaw } from "./_source.mjs";
+import { readCode, readRaw, importSrc } from "./_source.mjs";
 
 const pane = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
 const verbsBridge = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
 
-test("F4: a save re-reads the settings surface, so the next save carries the new version", () => {
+test("F4: a save re-reads the settings surface, so the next save carries the new version", async () => {
   const start = verbsBridge.indexOf("export async function saveSettings");
   const end = verbsBridge.indexOf("\nexport ", start + 10);
   const fn = verbsBridge.slice(start, end === -1 ? undefined : end);
-  assert.ok(fn.includes("await refreshSurfaces([settingsOverride, todayOverride, calendarOverride]);"), "REGRESSION: the second save in a row was a 409");
+  assert.ok(fn.includes('api()("PUT settings", { body: { config, version }, onAccepted })'), "the save goes through the client, so the map re-reads after it");
+  const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+  assert.deepEqual(AFTER["PUT settings"]().map((o) => o.key), ["settings", "today", "calendar"], "REGRESSION: the second save in a row was a 409 — settings first, for the version");
   assert.ok(!fn.includes("await refresh();"), "the generic refresh never re-read this pane");
 });
 

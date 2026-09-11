@@ -24,7 +24,7 @@
     "business-clock.test.mjs": 4,
     "business-page.test.mjs": 13,
     "calendar-people.test.mjs": 49,
-    "calendar.test.mjs": 20,
+    "calendar.test.mjs": 19,
     "call-lifecycle.test.mjs": 7,
     "call-outcomes.test.mjs": 11,
     "calls-hardening.test.mjs": 14,
