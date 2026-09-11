@@ -199,12 +199,12 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   const door = readCode("packages/core/src/deliver.ts");
   assert.ok(door.includes('send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" }'), "no line = a loud failure at the door, never the other wire");
   assert.ok(readCode("apps/edge/api/jobs/tick.ts").includes("sms: line ? (to: string, p: { body: string }) => line.send(to.startsWith(\"+\") ? to : `+${to}`, p.body) : null,"), "the texting line is the job's sms wire");
-  const reply = readCode("apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts");
+  const reply = readCode("packages/core/src/conversations/reply.ts");
   // The channel and the window are rules that return values now (replyChannelOf
   // in verbs, replyWindow in contracts), and reply-window.test.mjs runs both.
   // What is left to pin here is the wiring: the route sends on the channel it
   // read, under that channel's window.
-  assert.ok(reply.includes("const replyChannel = await replyChannelOf(ctx, conv);") && reply.includes("channel: replyChannel,") && reply.includes("const window = replyWindow(replyChannel, conv.last_wa_inbound_at);"), "a person replies where the customer last wrote, with no window on a text");
+  assert.ok(reply.includes("const channel = await ports.replyChannel(conv);") && reply.includes("channel,\n    sent_by: cmd.userId,") && reply.includes("const window = replyWindow(channel, conv.last_wa_inbound_at);"), "a person replies where the customer last wrote, with no window on a text (core-reply.test.mjs runs the texting line)");
   const sql = readRaw("supabase/migrations/00074_texting.sql");
   assert.ok(sql.includes("'messaging'") && sql.includes("'carriers'"));
   assert.ok(readRaw("apps/edge/vercel.json").includes('"api/inbound-sms.ts"'));

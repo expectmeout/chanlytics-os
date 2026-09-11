@@ -8718,6 +8718,7 @@ var OFFERS_OPT_IN_PHRASES2 = { en: "YES OFFERS", es: "SI OFERTAS" };
 function isOptedOutContact(c) {
   return c.consent === "opted_out" || c.dnc === true;
 }
+var OPT_OUT_REFUSAL = "This customer asked to stop receiving messages. They can text START to opt back in.";
 function mayMessageFor(c, purpose, opts = {}) {
   if (isOptedOutContact(c)) return { ok: false, reason: "opted_out" };
   if (purpose === "marketing") {
@@ -8781,6 +8782,14 @@ var BrainOutputSchema2 = external_exports2.object({
   language: external_exports2.enum(BRAIN_LANGUAGES2).catch("other")
 });
 var WA_WINDOW_MS2 = 24 * 3600 * 1e3;
+function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
+  if (!lastWaInboundAtIso) return { open: false, closesAtIso: null };
+  const closes = new Date(lastWaInboundAtIso).getTime() + WA_WINDOW_MS2;
+  return { open: closes > now.getTime(), closesAtIso: new Date(closes).toISOString() };
+}
+function replyWindow(replyChannel, lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
+  return replyChannel === "sms" ? { open: true, closesAtIso: null } : waWindow(lastWaInboundAtIso, now);
+}
 var CALL_HEARTBEAT_MS2 = 10 * 60 * 1e3;
 var TIME_FMT3 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DATE_FMT7 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -14052,14 +14061,90 @@ async function cancelSend(ports, cmd) {
   const decision_id = await ports.record(msg.tenant_id, "message", msg.id, "cancel_send");
   return { status: "canceled", decision_id };
 }
+
+// src/conversations/reply.ts
+var SEND_GRACE_MS = 15 * 1e3;
+var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
+async function replyToConversation(ports, cmd) {
+  const { conv, body } = cmd;
+  if (!conv.phone_e164) throw new AppError("conflict", "Conversation has no phone identity.");
+  if (isOptedOutContact(conv)) throw new AppError("conflict", OPT_OUT_REFUSAL);
+  const channel = await ports.replyChannel(conv);
+  const window = replyWindow(channel, conv.last_wa_inbound_at);
+  const now = ports.now();
+  const idemKey = cmd.idempotencyKey ? `${cmd.userId}:${cmd.idempotencyKey}` : null;
+  const intentHash = ports.hash(JSON.stringify(body));
+  if (idemKey) {
+    const prior = await ports.priorReceipt(conv.tenant_id, idemKey);
+    const sameIntent = !prior?.request_hash || prior.request_hash === intentHash;
+    if (prior && sameIntent && now - Date.parse(prior.created_at) < IDEMPOTENCY_WINDOW_MS) return prior.response;
+  }
+  let messageBody;
+  let templateVars = null;
+  let templateName = null;
+  let jobTemplate;
+  if (window.open) {
+    if (!body.text?.trim()) throw new AppError("validation", "Reply text is required.");
+    messageBody = body.text.trim();
+    if (channel === "sms" && messageBody.length > 1600) throw new AppError("validation", "A text can be at most 1600 characters.");
+  } else {
+    if (!body.template?.name) throw new AppError("window_closed", "The 24-hour WhatsApp window is closed \u2014 replies must use an approved template.");
+    const tpl = await ports.template(conv.tenant_id, body.template.name, body.template.language);
+    if (!tpl || tpl.meta_status !== "approved") throw new AppError("validation", "Template not found or not approved.");
+    if (purposeOfTemplate(tpl.category) === "marketing" && conv.marketing_consent !== "opted_in") {
+      throw new AppError("forbidden", "This template is a promotion, and this person has not said yes to offers. Use an appointment template, or ask them first.");
+    }
+    const facts = await ports.templateFacts(conv.tenant_id);
+    let params = facts ? [facts.business_name, facts.booking_link.replace(/^https?:[/][/]/, "")] : [];
+    if (!params.length) params = body.template.params ?? [];
+    if (!params.length) throw new AppError("validation", "This workspace has no template facts configured yet.");
+    templateName = tpl.name;
+    templateVars = { language: tpl.language, params };
+    messageBody = params.reduce((acc, p, i) => acc.replaceAll(`{{${i + 1}}}`, p), tpl.body_preview ?? `[template ${tpl.name}]`);
+    jobTemplate = { name: tpl.name, language: tpl.language, params };
+  }
+  const pauseUntil = now + await ports.pauseMs(conv.tenant_id);
+  await ports.pauseBot(conv.tenant_id, conv.phone_e164, pauseUntil);
+  if (!await ports.claimForReply(conv.id, new Date(pauseUntil).toISOString(), cmd.userId, new Date(now).toISOString())) {
+    throw new AppError("conflict", "Could not take this thread over just now, so nothing was sent. Try again.", 409);
+  }
+  const withdrawn_drafts = await ports.withdrawDrafts(conv.tenant_id, conv.id);
+  const message_id = await ports.queue({
+    tenant_id: conv.tenant_id,
+    conversation_id: conv.id,
+    contact_id: conv.contact_id,
+    channel,
+    sent_by: cmd.userId,
+    type: jobTemplate ? "template" : "text",
+    body: messageBody,
+    template_name: templateName,
+    template_vars: templateVars,
+    content_hash: ports.hash(messageBody)
+  });
+  const dueAt = new Date(now + SEND_GRACE_MS);
+  try {
+    await ports.schedule(conv.tenant_id, dueAt, { message_id, conversation_id: conv.id, to_phone: conv.phone_e164, ...jobTemplate ? { template: jobTemplate } : { body: messageBody } });
+  } catch (e) {
+    await ports.cancelOrphan(message_id);
+    throw e;
+  }
+  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "reply", { message_id, window_open: window.open, template: templateName });
+  await ports.resolveEscalation(conv.id, decision_id);
+  const receipt = { message_id, status: "queued", cancelable_until: dueAt.toISOString(), window_open: window.open, withdrawn_drafts };
+  if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt);
+  return receipt;
+}
 export {
+  IDEMPOTENCY_WINDOW_MS,
   MAX_SNOOZE_MS,
   NEEDS_UNTIL,
+  SEND_GRACE_MS,
   archive,
   cancelSend,
   deliver,
   deliverSafely,
   handBack,
+  replyToConversation,
   resolveEscalation,
   snooze,
   takeOver,

@@ -115,6 +115,6 @@
     "whisper-voice.test.mjs": 2,
     "whisper.test.mjs": 6,
     "workspace-creation.test.mjs": 6,
-    "workspace-scoping.test.mjs": 4
+    "workspace-scoping.test.mjs": 5
   }
 }

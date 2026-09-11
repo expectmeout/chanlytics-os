@@ -34,7 +34,7 @@ Two PRs: Task 1 (the seven thread verbs, one small route each) and Task 2 (reply
 
 **Files:** `packages/core/src/conversations/{ports,take-over,hand-back,snooze,wake,archive,resolve,cancel-send,index}.ts`, `packages/core/src/index.ts`, `apps/dashboard/src/server/core-ports.ts`, seven routes, `tooling/scripts/tests/core-thread-verbs.test.mjs`, `hygiene.test.mjs`.
 
-- [ ] **Step 1: The ports.** `packages/core/src/conversations/ports.ts`:
+- [x] **Step 1: The ports.** `packages/core/src/conversations/ports.ts`:
 
 ```typescript
 import type { Json } from "@chanlytics/db";
@@ -96,7 +96,7 @@ export interface CancelSendPorts {
 }
 ```
 
-- [ ] **Step 2: The failing test.** `tooling/scripts/tests/core-thread-verbs.test.mjs` — one `fakes()` for every verb, an ordered log of the ports called, every branch a case:
+- [x] **Step 2: The failing test.** `tooling/scripts/tests/core-thread-verbs.test.mjs` — one `fakes()` for every verb, an ordered log of the ports called, every branch a case:
 
 ```javascript
 /**
@@ -234,9 +234,9 @@ test("cancel a send: only a queued row, the row before the job, and the words wh
 });
 ```
 
-- [ ] **Step 3: Run it and watch it fail** on the missing module: `node --conditions=react-server --import tsx --test tooling/scripts/tests/core-thread-verbs.test.mjs`.
+- [x] **Step 3: Run it and watch it fail** on the missing module: `node --conditions=react-server --import tsx --test tooling/scripts/tests/core-thread-verbs.test.mjs`.
 
-- [ ] **Step 4: The verbs.** Each file is the route's rule, moved. The comments come with them; they are the reasons.
+- [x] **Step 4: The verbs.** Each file is the route's rule, moved. The comments come with them; they are the reasons.
 
 `take-over.ts`:
 
@@ -408,11 +408,11 @@ export async function cancelSend(ports: CancelSendPorts, cmd: { msg: { id: strin
 
 `conversations/index.ts` exports all of the above and `ports.ts`; `packages/core/src/index.ts` adds `export * from "./conversations";`.
 
-- [ ] **Step 5: Run the test green**, then prove it: swap `pauseBot` after `claim` in `takeOver` and watch the order case fail; put it back.
+- [x] **Step 5: Run the test green**, then prove it: swap `pauseBot` after `claim` in `takeOver` and watch the order case fail; put it back.
 
-- [ ] **Step 6: Build and link.** `corepack pnpm --filter ./packages/core build` (dist is committed; `dist-freshness.test.mjs` fails otherwise). Add `"@chanlytics/core": "workspace:*"` to `apps/dashboard/package.json` dependencies and run `COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm install` (the edge and jobs already depend on it; the dashboard does not yet).
+- [x] **Step 6: Build and link.** `corepack pnpm --filter ./packages/core build` (dist is committed; `dist-freshness.test.mjs` fails otherwise). Add `"@chanlytics/core": "workspace:*"` to `apps/dashboard/package.json` dependencies and run `COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm install` (the edge and jobs already depend on it; the dashboard does not yet).
 
-- [ ] **Step 7: The adapter.** `apps/dashboard/src/server/core-ports.ts` — the only file that knows both the ports and the tables:
+- [x] **Step 7: The adapter.** `apps/dashboard/src/server/core-ports.ts` — the only file that knows both the ports and the tables:
 
 ```typescript
 import type { CancelSendPorts, EscalationPorts, ThreadPorts } from "@chanlytics/core";
@@ -470,7 +470,7 @@ export function cancelSendPorts(ctx: RouteContext): CancelSendPorts {
 
 `RouteContext` is the type `verbs.ts` already takes; `recordDecision`'s `DecisionSubject`/`DecisionVerb` are the same unions core names, so the adapter passes them straight through (if the contracts' unions are wider, core's are a subset and assign cleanly).
 
-- [ ] **Step 8: The routes become adapters.** Each keeps its policy and loses its body:
+- [x] **Step 8: The routes become adapters.** Each keeps its policy and loses its body:
 
 ```typescript
 // conversations/[id]/take-over/route.ts
@@ -490,11 +490,11 @@ export const POST = write({
 
 The same shape for hand-back (`handBack(threadPorts(ctx), { conv })`), snooze (`snooze(threadPorts(ctx), { conv, until: input.until })`, keeping its zod `input`), wake, archive; resolve keeps its `theEscalation` row scope and calls `resolveEscalation(escalationPorts(ctx), { esc })`; cancel-send keeps `theMessage` and calls `cancelSend(cancelSendPorts(ctx), { msg })`.
 
-- [ ] **Step 9: `inbox-routes.test.mjs` is the adapter's proof.** Run it: it drives the real route modules with `fakeDb`, so a port wired to the wrong column fails here. Add one case per verb that was not already run (wake, archive, resolve, cancel-send) if the file lacks it: the happy path and the 409, with `writes(ctx)` counted.
+- [x] **Step 9: `inbox-routes.test.mjs` is the adapter's proof.** Run it: it drives the real route modules with `fakeDb`, so a port wired to the wrong column fails here. Add one case per verb that was not already run (wake, archive, resolve, cancel-send) if the file lacks it: the happy path and the 409, with `writes(ctx)` counted.
 
-- [ ] **Step 10: The pins.** `rg -l "conversations/\[id\]/(take-over|hand-back|snooze|wake|archive)|escalations/\[id\]/resolve|messages/\[id\]/cancel-send" tooling/scripts/tests` names the files that read these routes. For each assertion: if the branch it pins is now a case in `core-thread-verbs.test.mjs`, delete it; if it pins the policy (`role:`, `rate:`, the scope), it already lives in `route-policy.json` — delete it; anything left names the adapter's four lines, which is not worth a pin. Then `UPDATE_SOURCE_SCAN_BASELINE=1 pnpm test` to bank the fall. Never add one.
+- [x] **Step 10: The pins.** `rg -l "conversations/\[id\]/(take-over|hand-back|snooze|wake|archive)|escalations/\[id\]/resolve|messages/\[id\]/cancel-send" tooling/scripts/tests` names the files that read these routes. For each assertion: if the branch it pins is now a case in `core-thread-verbs.test.mjs`, delete it; if it pins the policy (`role:`, `rate:`, the scope), it already lives in `route-policy.json` — delete it; anything left names the adapter's four lines, which is not worth a pin. Then `UPDATE_SOURCE_SCAN_BASELINE=1 pnpm test` to bank the fall. Never add one.
 
-- [ ] **Step 11: The wall.** In `hygiene.test.mjs` (a repo-wide lint file):
+- [x] **Step 11: The wall.** In `hygiene.test.mjs` (a repo-wide lint file):
 
 ```javascript
 test("a core verb knows no database, framework, provider or environment", () => {
@@ -511,7 +511,7 @@ test("a core verb knows no database, framework, provider or environment", () => 
 });
 ```
 
-- [ ] **Step 12: Typecheck, suite, lint, PR, merge when green.** `corepack pnpm -C apps/dashboard typecheck && corepack pnpm test && corepack pnpm lint`. Commit: `The thread verbs live in core and are tested by calling them`.
+- [x] **Step 12: Typecheck, suite, lint, PR, merge when green.** `corepack pnpm -C apps/dashboard typecheck && corepack pnpm test && corepack pnpm lint`. Commit: `The thread verbs live in core and are tested by calling them`.
 
 ---
 
@@ -519,7 +519,7 @@ test("a core verb knows no database, framework, provider or environment", () => 
 
 **Files:** `packages/core/src/conversations/reply.ts`, `core-ports.ts` (`replyPorts`), `conversations/[id]/reply/route.ts`, `verbs.ts` (`SEND_GRACE_MS` from core), `tooling/scripts/tests/core-reply.test.mjs`.
 
-- [ ] **Step 1: The ports and the shapes**, in `reply.ts`:
+- [x] **Step 1: The ports and the shapes**, in `reply.ts`:
 
 ```typescript
 import { AppError, isOptedOutContact, OPT_OUT_REFUSAL, purposeOfTemplate, replyWindow } from "@chanlytics/contracts";
@@ -575,7 +575,7 @@ export interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "pauseBot" | "
 export interface ReplyCommand { conv: ReplyThread; userId: string; body: ReplyBody; idempotencyKey: string | null }
 ```
 
-- [ ] **Step 2: The failing test.** `tooling/scripts/tests/core-reply.test.mjs`, one case per branch, the fakes recording the order and what was queued:
+- [x] **Step 2: The failing test.** `tooling/scripts/tests/core-reply.test.mjs`, one case per branch, the fakes recording the order and what was queued:
 
 ```javascript
 import { test } from "node:test";
@@ -685,9 +685,9 @@ test("a replay: the same key and intent inside the window returns the stored rec
 });
 ```
 
-- [ ] **Step 3: Run it and watch it fail.**
+- [x] **Step 3: Run it and watch it fail.**
 
-- [ ] **Step 4: The verb**, the route's rule moved with its reasons:
+- [x] **Step 4: The verb**, the route's rule moved with its reasons:
 
 ```typescript
 /**
@@ -787,11 +787,11 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
 
 Note `queue` no longer takes `direction`/`sender`/`status`: the adapter writes `direction: "outbound", sender: "human", status: "queued"` itself, because those are what "queue a human reply" means, and a verb that could be asked to queue an AI row would be a wider door than the route ever was.
 
-- [ ] **Step 5: Run the test green**, then prove it: move the `claimForReply` call below `queue` and watch the order case fail; put it back.
+- [x] **Step 5: Run the test green**, then prove it: move the `claimForReply` call below `queue` and watch the order case fail; put it back.
 
-- [ ] **Step 6: The adapter.** `replyPorts(ctx)` in `core-ports.ts`: `...threadPorts(ctx)` for the shared six; `replyChannel` → `replyChannelOf(ctx, conv)`; `priorReceipt` → the `idempotency_keys` select (`response, created_at, request_hash`), the response cast to `ReplyReceipt`; `template` → the `templates` select by `tenant_id, channel = "whatsapp", name, language`; `templateFacts` → `tenant_config.config.brain` when both `business_name` and `booking_link` are set, else null; `claimForReply` → the update with `last_message_at: nowIso`, row-counted; `queue` → the `messages` insert with `direction: "outbound", sender: "human", status: "queued"`, `.select("id").single()`; `schedule` → `schedule(tenantId, "outbound_send", dueAt, payload as unknown as Json)`; `cancelOrphan` → `messages.update({ status: "canceled" })`; `storeReceipt` → the upsert on `tenant_id,key` with `route: "reply"` and a fresh `created_at`, logging `idempotency_record_failed` on error; `hash` → `crypto.createHash("sha256").update(s).digest("hex").slice(0, 32)`.
+- [x] **Step 6: The adapter.** `replyPorts(ctx)` in `core-ports.ts`: `...threadPorts(ctx)` for the shared six; `replyChannel` → `replyChannelOf(ctx, conv)`; `priorReceipt` → the `idempotency_keys` select (`response, created_at, request_hash`), the response cast to `ReplyReceipt`; `template` → the `templates` select by `tenant_id, channel = "whatsapp", name, language`; `templateFacts` → `tenant_config.config.brain` when both `business_name` and `booking_link` are set, else null; `claimForReply` → the update with `last_message_at: nowIso`, row-counted; `queue` → the `messages` insert with `direction: "outbound", sender: "human", status: "queued"`, `.select("id").single()`; `schedule` → `schedule(tenantId, "outbound_send", dueAt, payload as unknown as Json)`; `cancelOrphan` → `messages.update({ status: "canceled" })`; `storeReceipt` → the upsert on `tenant_id,key` with `route: "reply"` and a fresh `created_at`, logging `idempotency_record_failed` on error; `hash` → `crypto.createHash("sha256").update(s).digest("hex").slice(0, 32)`.
 
-- [ ] **Step 7: The route.**
+- [x] **Step 7: The route.**
 
 ```typescript
 import { z } from "zod";
@@ -813,9 +813,9 @@ export const POST = write({
 
 `ReplyReceipt` in the route goes (core exports it); `verbs.ts` becomes `export { SEND_GRACE_MS } from "@chanlytics/core";` for its other readers; `assertCanSend` stays for the routes that still call it. The `VerbConversation` the scope loads already carries `consent`, `dnc`, `marketing_consent`, `contact_id` and `last_wa_inbound_at` (it is what `assertCanSend` and `replyWindow` read today), so it is a `ReplyThread` as it is.
 
-- [ ] **Step 8: `inbox-routes.test.mjs`** runs the reply route's happy path, the window-closed refusal and the viewer's refusal today; they stay green through the adapter. Then the pins: `rg -l "conversations/\[id\]/reply" tooling/scripts/tests`, the same rule as Task 1 Step 10; bank the ratchet.
+- [x] **Step 8: `inbox-routes.test.mjs`** runs the reply route's happy path, the window-closed refusal and the viewer's refusal today; they stay green through the adapter. Then the pins: `rg -l "conversations/\[id\]/reply" tooling/scripts/tests`, the same rule as Task 1 Step 10; bank the ratchet.
 
-- [ ] **Step 9: Build, typecheck, suite, lint, PR, merge when green.** Commit: `The reply lives in core; the route is its adapter`.
+- [x] **Step 9: Build, typecheck, suite, lint, PR, merge when green.** Commit: `The reply lives in core; the route is its adapter`.
 
 ---
 

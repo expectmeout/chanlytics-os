@@ -223,7 +223,7 @@ export async function resolveOpenEscalation(
 }
 
 export const PAUSE_MS = 24 * 3600 * 1000;
-export const SEND_GRACE_MS = 15 * 1000; // the cancelable window IS the undo (§6)
+export { SEND_GRACE_MS } from "@chanlytics/core"; // the cancelable window IS the undo (§6); one home, in core
 
 /**
  * How long a human's touch keeps the receptionist off a thread.

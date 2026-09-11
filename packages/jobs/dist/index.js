@@ -18510,6 +18510,8 @@ async function templatePurpose(db, tenantId, template) {
   return purposeOfTemplate2(data?.category);
 }
 var MAX_SNOOZE_MS = 30 * 24 * 3600 * 1e3;
+var SEND_GRACE_MS = 15 * 1e3;
+var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
 
 // ../db/dist/index.js
 var __defProp4 = Object.defineProperty;
