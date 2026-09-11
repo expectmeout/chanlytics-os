@@ -1,12 +1,13 @@
 /**
  * The browser's one client: the pure `createApi` from `src/client`, wired to
  * this window. Built lazily so importing this file never touches `window`,
- * which keeps every module that imports it loadable under node.
+ * which keeps every module that imports it loadable under node. The refresh
+ * map is loaded on the first write rather than imported here, so the surfaces
+ * it names can import this client without a cycle.
  */
 import { createApi, type Api } from "../client/api";
 import { clearSurfaceCache } from "./surface-cache";
-import { getActiveWorkspace, invalidateInFlight } from "./surface-data";
-import { refreshAfter } from "./refresh-map";
+import { getActiveWorkspace } from "./surface-data";
 
 let instance: Api | null = null;
 
@@ -21,8 +22,7 @@ export function api(): Api {
       clearSurfaceCache();
       window.location.assign("/login");
     },
-    invalidate: invalidateInFlight,
-    refresh: refreshAfter,
+    refresh: (key) => import("./refresh-map").then((m) => m.refreshAfter(key)),
   });
   return instance;
 }

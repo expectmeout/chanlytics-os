@@ -25,7 +25,6 @@ function harness(answer, { workspace = A } = {}) {
     fetch: async (url, init) => { sent.push({ url, init }); return typeof answer === "function" ? await answer(url, init) : answer; },
     workspace: () => workspace,
     onSignedOut: () => events.push("signed-out"),
-    invalidate: () => events.push("invalidate"),
     refresh: async (key) => { events.push(`refresh:${key}`); },
     now: () => clock,
   });
@@ -54,7 +53,7 @@ test("a write: JSON in, the idempotency key and the via marker on the wire, then
   assert.equal(init.headers["content-type"], "application/json");
   assert.equal(init.headers["idempotency-key"], "k1");
   assert.equal(init.headers["x-via"], "ask");
-  assert.deepEqual(h.events, ["invalidate", "refresh:POST conversations/[id]/reply"], "after a 2xx, in that order");
+  assert.deepEqual(h.events, ["refresh:POST conversations/[id]/reply"], "after a 2xx, the map");
   const bodiless = harness(envelope({ status: "active" }));
   await bodiless.api("POST billing/sync");
   assert.equal(bodiless.sent[0].init.body, undefined);
@@ -87,6 +86,19 @@ test("identical reads within two seconds share one request; a write never does; 
   assert.equal(n, 4, "writes are never collapsed");
   await h.api("GET conversations", { query: { workspace: A } });
   assert.equal(n, 5, "a different URL is a different request");
+});
+
+test("a write forgets every read in flight, so the refresh that follows never shares a response issued before the change", async () => {
+  let n = 0;
+  let release = () => {};
+  const gate = new Promise((r) => { release = r; });
+  const h = harness(async (url) => { n += 1; if (url.startsWith("/api/v1/conversations")) await gate; return envelope({ conversations: [], status: "ok" }); });
+  const before = h.api("GET conversations");
+  await h.api("POST billing/sync");
+  const after = h.api("GET conversations");
+  release();
+  await Promise.all([before, after]);
+  assert.equal(n, 3, "the read after the write is its own request, not the one issued before it");
 });
 
 test("raw: the Response itself, for the two redirects and the stream; a 401 there still signs out", async () => {

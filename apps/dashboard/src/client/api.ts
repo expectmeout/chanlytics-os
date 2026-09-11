@@ -54,8 +54,6 @@ export interface ApiDeps {
   workspace: () => string | null;
   /** A 401: the session is gone. The bridge clears the cache and goes to /login. */
   onSignedOut: () => void;
-  /** After a 2xx write, before the refresh: nothing in flight can describe the world any more. */
-  invalidate: () => void;
   /** After a 2xx write: which surfaces to re-read, by the refresh map. */
   refresh: (key: RouteKey) => Promise<void>;
   now?: () => number;
@@ -119,7 +117,10 @@ export function createApi(deps: ApiDeps) {
         return { ok: false, code: e?.code ?? "internal", status: res.status, message: e?.message ?? `Request failed (${res.status}).` };
       }
       if (!isRead) {
-        deps.invalidate();
+        // Something changed. A read still in flight was issued before that
+        // change and cannot describe the world the operator is now in; sharing
+        // it with the refresh that follows would repaint the thread as it was.
+        forget();
         await deps.refresh(key);
       }
       return { ok: true, data: j.data as OutputOf<Routes[K]> };
@@ -139,7 +140,12 @@ export function createApi(deps: ApiDeps) {
     return res;
   }
 
-  return Object.assign(send, { raw, url: urlFor });
+  /** Forget every read in flight: after a write, or when a courier that has not moved yet made one. */
+  function forget(): void {
+    inFlight.clear();
+  }
+
+  return Object.assign(send, { raw, url: urlFor, forget });
 }
 
 export type Api = ReturnType<typeof createApi>;
