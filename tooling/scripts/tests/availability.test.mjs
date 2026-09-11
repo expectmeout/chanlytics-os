@@ -141,7 +141,7 @@ test("the edge reads the feed once per five minutes and tells both receptionists
   const rt = readCode("apps/edge/lib/tenant-runtime.ts");
   assert.ok(rt.includes("calendar: parsed?.calendar ?? null,"));
   const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
-  assert.ok(wa.includes("const openings = rt ? await openingsFor(rt) : null;"));
+  assert.ok(wa.includes("const openings = rt ? await ports.calendar.openings(rt) : null;"));
   assert.ok(wa.includes('${openings ? `\\n\\n${openings}` : ""}'), "after describeNow, in the uncached block");
   const inbound = readCode("apps/edge/api/retell-inbound.ts");
   assert.ok(inbound.includes("const openings = await openingsFor(rt);"));

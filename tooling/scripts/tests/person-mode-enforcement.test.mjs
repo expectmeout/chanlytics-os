@@ -28,13 +28,13 @@ const steps = readCode("apps/edge/lib/whatsapp/steps.ts");
 const fn = readCode("apps/edge/api/retell-fn.ts");
 
 test("WhatsApp: the person's mode is looked up before the first branch that can speak", () => {
-  const lookup = wa.indexOf("personMode = await personReplyMode(");
+  const lookup = wa.indexOf("personMode = await ports.leads.personReplyMode(");
   const nonText = wa.indexOf('n.type !== "text" || !n.body');
   const ack = wa.indexOf("fallbacks.non_text");
   assert.ok(lookup > 0 && nonText > 0 && ack > 0, "all three landmarks exist");
   assert.ok(lookup < nonText, "REGRESSION: the lookup sat below the non-text branch, so a Never person who sent a photo got a canned text");
   assert.ok(lookup < ack);
-  assert.equal(wa.split("personMode = await personReplyMode(").length, 2, "exactly one lookup");
+  assert.equal(wa.split("personMode = await ports.leads.personReplyMode(").length, 2, "exactly one lookup");
 });
 
 test("WhatsApp: the non-text acknowledgement obeys the mode in force", () => {
