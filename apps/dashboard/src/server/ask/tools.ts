@@ -160,6 +160,8 @@ export interface ToolContext {
   ctx: RouteContext;
   tenantId: string;
   role: "owner" | "operator" | "viewer";
+  /** The business's zone: "tomorrow at ten" is its ten, never the server's. */
+  timezone: string;
   read: AskReadSet;
   now: Date;
   /** One turn's loads, by key: the same rows are never fetched twice in a turn. */
@@ -599,8 +601,8 @@ export function toolLabel(name: string): string {
   return LABELS[name] ?? `Running ${name}`;
 }
 
-export function newToolContext(ctx: RouteContext, tenantId: string, role: ToolContext["role"], now = new Date()): ToolContext {
-  return { ctx, tenantId, role, read: emptyReadSet(), now, memo: new Map() };
+export function newToolContext(ctx: RouteContext, tenantId: string, role: ToolContext["role"], timezone: string, now = new Date()): ToolContext {
+  return { ctx, tenantId, role, timezone, read: emptyReadSet(), now, memo: new Map() };
 }
 
 /** Run one read. A tool's own failure is returned to the model as an error result, never thrown. */

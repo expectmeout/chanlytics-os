@@ -157,7 +157,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const t0 = Date.now();
   const now = input.now ?? new Date();
   const es = input.language === "es";
-  const tc: ToolContext = newToolContext(input.ctx, input.tenantId, input.role, now);
+  const tc: ToolContext = newToolContext(input.ctx, input.tenantId, input.role, input.timezone, now);
   const toolsUsed: string[] = [];
   const proposals: AskProposal[] = [];
   let reads = 0;

@@ -283,7 +283,7 @@ test("the round gathers the stream: blocks in order, the finish's answer streame
 test("the thirteen reads run against the database in memory: each answers in its shape or refuses in words, and a read that fails says so to the model rather than throwing", async () => {
   const t = tables({ escalations: [{ id: E1, tenant_id: A, conversation_id: C1, reason: "human_token", details: "asked for a person", state: "open", created_at: iso(NOW.getTime() - 1800_000) }] });
   const ctx = ctxFor(t);
-  const tc = newToolContext(ctx, A, "operator", NOW);
+  const tc = newToolContext(ctx, A, "operator", TZ, NOW);
   const run = (name, input = {}) => runTool(tc, { name, input });
   const out = {};
   for (const name of READ_TOOLS.map((d) => d.name)) out[name] = await run(name, { conversation_id: C1, contact_id: P1, call_id: K1, filter: "recent", query: "rosa", days: 7, day: "today", service: "" });
@@ -313,7 +313,7 @@ test("the thirteen reads run against the database in memory: each answers in its
   assert.equal(out.get_today.isError, true, "the metrics function answered an error: the read fails in words");
   assert.match(out.get_today.result, /that read failed/);
   assert.deepEqual(await run("teleport"), { result: JSON.stringify({ error: "unknown tool teleport" }), isError: true, label: "Running teleport" });
-  const faulted = newToolContext(ctxFor(tables(), RPCS, { "calls.select": { message: "permission denied" } }), A, "operator", NOW);
+  const faulted = newToolContext(ctxFor(tables(), RPCS, { "calls.select": { message: "permission denied" } }), A, "operator", TZ, NOW);
   const failed = await runTool(faulted, { name: "list_calls", input: { filter: "recent" } });
   assert.deepEqual([failed.isError, JSON.parse(failed.result).error], [true, "that read failed; say so and answer with what you have"]);
   assert.equal((await run("get_report", { days: 12 })).result, JSON.stringify({ error: "days must be 7, 30 or 90" }));
@@ -329,7 +329,7 @@ test("the proposal builders run against the database in memory: each kind is a c
     policies: [{ id: "p-reply", tenant_id: A, class: "reply", mode: "auto", subject_type: null, subject_id: null, limits: { min_confidence: 0.6 }, updated_at: iso(NOW.getTime()) }],
     templates: [{ id: TPL, tenant_id: A, channel: "whatsapp", name: "saturday_hours", language: "en", meta_status: "approved", category: "MARKETING", variables: [], body_preview: "We are open Saturday 9 to 5.", hidden_at: null }],
   });
-  const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => [{ id: P1, display_name: "Rosa", wa_profile_name: null, phone_e164: "+15555550100", consent: "opted_in", consent_source: "desk", marketing_consent: "opted_in", marketing_consent_source: "desk", marketing_consent_updated_at: iso(NOW.getTime() - 86_400_000), consent_updated_at: iso(NOW.getTime() - 86_400_000), dnc: false, channels: ["whatsapp"], conversation_count: 1, escalation_count: 0, needs_human: false, open_escalation_reason: null, open_escalation_since: null, latest_conversation_id: C1, latest_state: "open", latest_paused_until: null, latest_assignee_user_id: null, latest_snooze_until: null, latest_wa_inbound_at: iso(NOW.getTime() - 3600_000), last_message_at: iso(NOW.getTime() - 3600_000), last_message_direction: "inbound", last_message_sender: "client", last_inbound_text: "Are you open Saturday?", last_inbound_at: iso(NOW.getTime() - 3600_000), last_call_at: null, last_outbound_call_at: null, last_inbound_call_at: null, created_at: iso(NOW.getTime() - 86_400_000 * 40) }] }), A, "owner", NOW);
+  const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => [{ id: P1, display_name: "Rosa", wa_profile_name: null, phone_e164: "+15555550100", consent: "opted_in", consent_source: "desk", marketing_consent: "opted_in", marketing_consent_source: "desk", marketing_consent_updated_at: iso(NOW.getTime() - 86_400_000), consent_updated_at: iso(NOW.getTime() - 86_400_000), dnc: false, channels: ["whatsapp"], conversation_count: 1, escalation_count: 0, needs_human: false, open_escalation_reason: null, open_escalation_since: null, latest_conversation_id: C1, latest_state: "open", latest_paused_until: null, latest_assignee_user_id: null, latest_snooze_until: null, latest_wa_inbound_at: iso(NOW.getTime() - 3600_000), last_message_at: iso(NOW.getTime() - 3600_000), last_message_direction: "inbound", last_message_sender: "client", last_inbound_text: "Are you open Saturday?", last_inbound_at: iso(NOW.getTime() - 3600_000), last_call_at: null, last_outbound_call_at: null, last_inbound_call_at: null, created_at: iso(NOW.getTime() - 86_400_000 * 40) }] }), A, "owner", TZ, NOW);
   const p = (name, input) => buildProposal(tc, name, input);
 
   const steer = await p("propose_steer", { message_id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2", instruction: "shorter" });
@@ -339,7 +339,7 @@ test("the proposal builders run against the database in memory: each kind is a c
 
   const snooze = await p("propose_thread_verb", { conversation_id: C1, verb: "snooze" });
   assert.equal(snooze.isError, false, snooze.result);
-  assert.equal(snooze.proposal.payload.until, "2026-09-15T14:00:00.000Z", "tomorrow at ten, in the business's zone, when no until was given");
+  assert.equal(snooze.proposal.payload.until, "2026-09-15T14:00:00.000Z", "tomorrow at ten in the business's zone (New York, so 14:00Z), whatever zone the server runs in");
   assert.match((await p("propose_thread_verb", { conversation_id: C1, verb: "wake" })).result, /not snoozed/);
   assert.equal((await p("propose_thread_verb", { conversation_id: C2, verb: "wake" })).isError, false);
   assert.equal((await p("propose_thread_verb", { conversation_id: C2, verb: "hand_back" })).proposal.title, "Hand Rosa's thread back to the receptionist");
@@ -385,7 +385,7 @@ test("the proposal builders run against the database in memory: each kind is a c
   assert.match((await p("propose_playbook", { trigger: "never" })).result, /trigger must be/);
 
   assert.match((await p("teleport", {})).result, /unknown tool teleport/);
-  const throwing = newToolContext(ctxFor(t, RPCS, { "contacts.select": { message: "permission denied" } }), A, "owner", NOW);
+  const throwing = newToolContext(ctxFor(t, RPCS, { "contacts.select": { message: "permission denied" } }), A, "owner", TZ, NOW);
   assert.deepEqual(await buildProposal(throwing, "propose_person_mode", { contact_id: P1, mode: "ask" }), { proposal: null, result: JSON.stringify({ error: "that could not be checked; say so and suggest the page" }), isError: true });
 });
 
