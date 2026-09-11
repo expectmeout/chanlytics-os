@@ -150,24 +150,19 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
     return false;
   };
 
-  // The boot. When the tab already names its workspace the surfaces fire at
-  // once, the name riding on every request. When it names none — a first
-  // visit, a browser that blocks storage, a choice just forgotten — the
-  // workspace surface goes first and the rest wait for its answer, so no read
-  // is issued that the server would have to guess at; and it does not guess:
-  // an unnamed read from an account in two workspaces is refused (plan 3.4).
-  const held = getActiveWorkspace();
-  const workspaceFirst = held ? null : overrides.find((o) => o.key === "workspace") ?? null;
+  // The boot. On a workspace page (/w/<slug>) the surfaces fire at once, the
+  // name riding on every request. Off one — the home before it has sent the
+  // tab on, the create screen — the workspace surface goes first and the rest
+  // wait for its answer, so no read is issued that the server would have to
+  // guess at; and it does not guess: an unnamed read from an account in two
+  // workspaces is refused (plan 3.4).
+  const workspaceFirst = getActiveWorkspace() ? null : overrides.find((o) => o.key === "workspace") ?? null;
   const booted = workspaceFirst
     ? boot(workspaceFirst).then(() => Promise.all(overrides.filter((o) => o !== workspaceFirst).map(boot)))
     : Promise.all(overrides.map(boot));
   void booted.then(() => {
     if (cancelled) return;
     if (guardTenant()) return;
-    // The tab named a workspace and the server answered with another (a
-    // membership gone, a stale preference): the surfaces that fired alongside
-    // asked under the old name. Ask again under the one the server chose.
-    if (held && getActiveWorkspace() !== held) overrides.filter((o) => o.key !== "workspace").forEach(scheduleRefresh);
     if (!realtimeOverrides.length) return;
     const supabase = createClient();
     // Scoped to the workspace this tab shows. RLS authorises the events

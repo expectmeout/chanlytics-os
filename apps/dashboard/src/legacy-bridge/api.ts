@@ -7,21 +7,21 @@
  */
 import { createApi, unwrap, type Api, type ApiOptions, type RouteKey } from "../client/api";
 import { clearSurfaceCache } from "./surface-cache";
-import { getActiveWorkspace, setActiveWorkspace } from "./workspace";
+import { getActiveWorkspace, rememberWorkspace } from "./workspace";
 
 let instance: Api | null = null;
 
 /**
- * The server refused to guess which workspace a request meant. The stored
- * choice is not one this account may use here (a membership gone, another
- * account's preference on this browser), so forget it, drop the rows that
- * were read under it, and boot again: the runner then asks /workspaces first,
- * the one door allowed to pick a default. Once per tab: a second refusal in
- * the same session is a bug to read in the console, not a reload loop.
+ * The server refused to guess which workspace a request meant: the tab is
+ * off a workspace page and named none. Forget the last workspace this browser
+ * used, drop the rows read under it, and go home, where the server is asked
+ * which workspace this account may open and the tab is sent to its address.
+ * Once per tab: a second refusal in the same session is a bug to read in the
+ * console, not a reload loop.
  */
 const REBOOTED = "chanlytics.workspace.rebooted";
 function forgetWorkspaceAndReboot(win: Window): void {
-  setActiveWorkspace(null);
+  rememberWorkspace(null);
   clearSurfaceCache();
   try {
     if (win.sessionStorage.getItem(REBOOTED)) {
@@ -32,7 +32,7 @@ function forgetWorkspaceAndReboot(win: Window): void {
   } catch {
     // storage blocked: nothing to remember with, and nothing to loop on either
   }
-  win.location.reload();
+  win.location.assign("/");
 }
 
 /**

@@ -29,6 +29,12 @@ export function dashboardOrigin(): string {
   return o && /^https:\/\/[a-z0-9.-]+$/i.test(o) ? o : DEFAULT_DASHBOARD_ORIGIN;
 }
 
+/** Settings › Billing on the workspace's own page (/w/<slug>, plan 3.5), with the outcome in a word the pane reads once; the home when the slug is unknown. */
+export function billingReturnUrl(slug: string | null, outcome: "success" | "cancel" | "portal"): string {
+  const page = slug ? `/w/${encodeURIComponent(slug)}` : "/";
+  return `${dashboardOrigin()}${page}?billing=${outcome}#/admin/billing`;
+}
+
 let client: Stripe | null = null;
 export function stripe(): Stripe | null {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -194,7 +200,7 @@ async function customerFor(s: Stripe, db: Db, row: BillingRow, tenantName: strin
 export type BillingFailure = "not_ready" | "no_account" | "direct" | "already_subscribed" | "no_customer" | "no_subscription" | "not_paused" | "stripe_refused";
 
 /** The way to Checkout: a card, the trial, and back to Billing with the outcome. */
-export async function checkoutFor(db: Db, tenantId: string, tenantName: string, email: string | null): Promise<{ ok: true; url: string } | { ok: false; error: BillingFailure; detail?: string }> {
+export async function checkoutFor(db: Db, tenantId: string, tenantName: string, email: string | null, slug: string | null = null): Promise<{ ok: true; url: string } | { ok: false; error: BillingFailure; detail?: string }> {
   const s = stripe();
   const price = priceId();
   if (!s || !price || !billingReadiness().ready) return { ok: false, error: "not_ready" };
@@ -213,8 +219,8 @@ export async function checkoutFor(db: Db, tenantId: string, tenantName: string, 
       line_items: [{ price, quantity: 1 }],
       subscription_data: { metadata: { tenant_id: tenantId }, ...(trial > 0 ? { trial_period_days: trial } : {}) },
       allow_promotion_codes: true,
-      success_url: `${dashboardOrigin()}/?billing=success#/admin/billing`,
-      cancel_url: `${dashboardOrigin()}/?billing=cancel#/admin/billing`,
+      success_url: billingReturnUrl(slug, "success"),
+      cancel_url: billingReturnUrl(slug, "cancel"),
       metadata: { tenant_id: tenantId },
     });
     if (!session.url) return { ok: false, error: "stripe_refused", detail: "no url on the session" };
@@ -225,7 +231,7 @@ export async function checkoutFor(db: Db, tenantId: string, tenantName: string, 
 }
 
 /** The way to Stripe's portal: the card, the invoices, cancel — Stripe's page, in Stripe's words. */
-export async function portalFor(db: Db, tenantId: string): Promise<{ ok: true; url: string } | { ok: false; error: BillingFailure; detail?: string }> {
+export async function portalFor(db: Db, tenantId: string, slug: string | null = null): Promise<{ ok: true; url: string } | { ok: false; error: BillingFailure; detail?: string }> {
   const s = stripe();
   if (!s) return { ok: false, error: "not_ready" };
   const row = await accountOf(db, tenantId);
@@ -233,7 +239,7 @@ export async function portalFor(db: Db, tenantId: string): Promise<{ ok: true; u
   if (row.mode === "direct") return { ok: false, error: "direct" };
   if (!row.stripe_customer_id) return { ok: false, error: "no_customer" };
   try {
-    const session = await s.billingPortal.sessions.create({ customer: row.stripe_customer_id, return_url: `${dashboardOrigin()}/?billing=portal#/admin/billing` });
+    const session = await s.billingPortal.sessions.create({ customer: row.stripe_customer_id, return_url: billingReturnUrl(slug, "portal") });
     return { ok: true, url: session.url };
   } catch (e) {
     return { ok: false, error: "stripe_refused", detail: e instanceof Error ? e.message : String(e) };
