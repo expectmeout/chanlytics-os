@@ -122,6 +122,12 @@ interface JobContext {
     wire: Wire;
     alert: (subject: string, body: string) => Promise<void>;
     /**
+     * The platform's own pager, for a condition that is the platform's: a
+     * provider refusing sends with 401 or 403 is credentials, not content.
+     * Optional so a test context need not supply one.
+     */
+    page?: (key: string, subject: string, body: string) => Promise<unknown>;
+    /**
      * Delete one customer's stored Blob thread.
      *
      * INJECTED, not imported. The store is apps/edge/lib/store.ts because the

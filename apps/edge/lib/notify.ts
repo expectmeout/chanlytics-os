@@ -54,14 +54,14 @@ export interface NotifyMessage {
   redactedBody?: string;
 }
 
-function platformFrom(): string | null {
+export function platformFrom(): string | null {
   return process.env.LEAD_FROM || null;
 }
-function platformTo(): string | null {
+export function platformTo(): string | null {
   return process.env.LEAD_TO || null;
 }
 
-async function post(from: string, to: string[], subject: string, text: string): Promise<boolean> {
+export async function post(from: string, to: string[], subject: string, text: string): Promise<boolean> {
   const key = process.env.RESEND_API_KEY;
   if (!key) {
     console.error("notify_skipped_no_api_key", redactNumbers(subject));

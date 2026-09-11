@@ -2127,6 +2127,30 @@ export type Database = {
           },
         ]
       }
+      operator_pages: {
+        Row: {
+          alerted_at: string | null
+          count: number
+          first_at: string
+          key: string
+          last_at: string
+        }
+        Insert: {
+          alerted_at?: string | null
+          count?: number
+          first_at?: string
+          key: string
+          last_at?: string
+        }
+        Update: {
+          alerted_at?: string | null
+          count?: number
+          first_at?: string
+          key?: string
+          last_at?: string
+        }
+        Relationships: []
+      }
       platform_admins: {
         Row: {
           created_at: string
@@ -2791,6 +2815,7 @@ export type Database = {
       is_acting_member: { Args: { p_tenant: string }; Returns: boolean }
       is_platform_admin: { Args: never; Returns: boolean }
       is_workspace_owner: { Args: { p_tenant: string }; Returns: boolean }
+      jobs_backlog: { Args: { p_wait?: string }; Returns: number }
       line_forwarding_set: {
         Args: {
           p_carrier: string

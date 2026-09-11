@@ -19,6 +19,7 @@ import { json } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { notify } from "../../lib/notify.js";
+import { pageOperator } from "../../lib/page-operator.js";
 import { logger } from "../../lib/log.js";
 import { chooseSweepAlerts, describeSweepTrouble, type SweepHealthRow } from "../../lib/sweep-health.js";
 
@@ -76,6 +77,16 @@ export async function POST(request: Request): Promise<Response> {
     p_healthy: plan.healthy,
   });
   if (markErr) L.error("sweep_health_mark_failed", { error: markErr.message });
+
+  // Due work nobody is claiming is the platform's condition whatever the
+  // sweep rows say: the heartbeat can be scheduled and answering and still
+  // not draining. One page per window until it does.
+  const { data: backlog, error: backlogErr } = await db.rpc("jobs_backlog");
+  if (backlogErr) L.error("sweep_health_backlog_unreadable", { error: backlogErr.message });
+  const due = typeof backlog === "number" ? backlog : 0;
+  if (due > 0) {
+    await pageOperator({ db }, "jobs_backlog", `${due} due jobs have waited more than two minutes`, "The heartbeat is scheduled but not draining. Check sweep_health for 'jobs' and the tick's Vercel logs.");
+  }
 
   L.info("sweep_health_checked", {
     broken: plan.broken.length,

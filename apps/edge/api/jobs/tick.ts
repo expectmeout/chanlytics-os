@@ -20,10 +20,14 @@ import { waCredentialsForTenant } from "../../lib/tenant-runtime.js";
 import { smsSenderForTenant } from "../../lib/sms.js";
 import { deleteThread } from "../../lib/store.js";
 import { whatsappSender } from "../../lib/workspace/core.js";
+import { pageOperator } from "../../lib/page-operator.js";
 import {
   runTick, claimNext, completeJob, failJob, settleJob, dispatchJob, scheduleJob,
   CLAIM_FOR_MS, YIELD_AT_MS, LEASE_SECONDS,
 } from "../../lib/workspace/jobs.js";
+
+/** This many failures in one heartbeat are the platform's, not any owner's. */
+const MASS_FAILURE_PAGE = 10;
 
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "jobs" });
@@ -52,6 +56,7 @@ export async function POST(request: Request): Promise<Response> {
               db,
               wire,
               alert: alertFor(db, job),
+              page: (key, subject, body) => pageOperator({ db }, key, subject, body),
               // The edge is the only runtime holding BLOB_READ_WRITE_TOKEN.
               eraseThread: deleteThread,
               // A job that continues itself (a broadcast's next batch) is one
@@ -74,6 +79,11 @@ export async function POST(request: Request): Promise<Response> {
       { claimForMs: CLAIM_FOR_MS, yieldAtMs: YIELD_AT_MS, leaseSeconds: LEASE_SECONDS },
     );
     L.info("jobs_tick", { ...counts });
+    // Many failures in one heartbeat are the platform's, not any owner's:
+    // one page with the counts, rather than fifty owner emails.
+    if (counts.failed + counts.gaveUp >= MASS_FAILURE_PAGE) {
+      await pageOperator({ db }, "jobs_mass_failure", `${counts.failed + counts.gaveUp} jobs failed in one heartbeat`, JSON.stringify(counts));
+    }
     return json(200, { ok: true, ...counts });
   } catch (e) {
     // Only the claim throws out of runTick; everything per job is caught inside
