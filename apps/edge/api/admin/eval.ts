@@ -53,7 +53,7 @@ export async function POST(request: Request): Promise<Response> {
   // The tenant's WhatsApp channel, as the webhook would route it.
   const { data: ch, error } = await db
     .from("tenant_channels")
-    .select("id, tenant_id, kind, status, number_e164, credentials_ref, config")
+    .select("id, tenant_id, kind, status, number_e164, credentials_ref, config, external_id")
     .eq("tenant_id", tenantId)
     .eq("kind", "whatsapp")
     .eq("status", "active")
@@ -62,7 +62,7 @@ export async function POST(request: Request): Promise<Response> {
   if (error) return json(500, { ok: false, error: "channel_read_failed" });
   if (!ch) return json(404, { ok: false, error: "no_whatsapp_channel" });
   const routed: RoutedChannel = {
-    channelId: ch.id, tenantId: ch.tenant_id, kind: ch.kind, numberE164: ch.number_e164, credentialsRef: ch.credentials_ref, config: ch.config,
+    channelId: ch.id, tenantId: ch.tenant_id, kind: ch.kind, externalId: ch.external_id, numberE164: ch.number_e164, credentialsRef: ch.credentials_ref, config: ch.config,
   };
   const rt = await loadTenantRuntime(db, routed);
   if (!rt.brain) return json(409, { ok: false, error: rt.configBroken ? "config_broken" : "no_persona" });

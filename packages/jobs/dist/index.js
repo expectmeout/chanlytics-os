@@ -13882,6 +13882,7 @@ var DAY_MS62 = 24 * 3600 * 1e3;
 // src/handlers.ts
 var SENDERS = {
   whatsapp: (ctx, to, p) => {
+    if (!ctx.waCfg) return Promise.resolve({ ok: false, wamid: null, status: 503, errorBody: "no_whatsapp_credentials" });
     const digits = to.replace(/^\+/, "");
     return p.template ? sendTemplate(ctx.waCfg, digits, p.template) : sendText(ctx.waCfg, digits, p.body);
   },

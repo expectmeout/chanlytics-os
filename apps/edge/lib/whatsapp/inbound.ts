@@ -179,7 +179,7 @@ export async function handleInbound(
   // words for its wire (the footer on the first reply to a person).
   const firstReply = thread.replies.length === 0 && !thread.history.some((h) => h.role === "assistant");
   const wire = (text: string) => (carrier ? carrier.body(text, firstReply) : text);
-  const send = (text: string) => (carrier ? carrier.send(from, wire(text)) : sendText(from, text, rt));
+  const send = (text: string) => (carrier ? carrier.send(from, wire(text)) : sendText(from, text, rt, isEnvDefault));
 
   // Atomic concurrent-redelivery gate. PG_READS implies it: Postgres-sourced
   // memory carries no `seen` list, so is_new IS the dedupe — and it is stronger

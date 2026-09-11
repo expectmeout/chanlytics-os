@@ -8,8 +8,21 @@ import { waCfgFor, type TenantRuntime } from "../tenant-runtime.js";
 import { notify, type NotifyTarget } from "../notify.js";
 import { formatPhoneDisplay } from "../workspace/contracts.js";
 
-export async function sendText(to: string, body: string, rt?: TenantRuntime | null): Promise<{ ok: boolean; wamid: string | null; status: number }> {
-  const r = await waSendText(waCfgFor(rt), to, body);
+export async function sendText(
+  to: string,
+  body: string,
+  rt?: TenantRuntime | null,
+  /** The message came in on the environment's own pilot line: the env pair is its credentials. */
+  arrivedOnEnvNumber = false,
+): Promise<{ ok: boolean; wamid: string | null; status: number }> {
+  const cfg = waCfgFor(rt, arrivedOnEnvNumber);
+  if (!cfg) {
+    // Refused, never guessed: a send on another tenant's credentials is the
+    // one outcome worse than no send. The failure branch escalates it.
+    console.error("wa_no_credentials", JSON.stringify({ tenant: rt?.tenantId ?? null, to }));
+    return { ok: false, wamid: null, status: 503 };
+  }
+  const r = await waSendText(cfg, to, body);
   if (!r.ok) console.error("wa_send_failed", r.status, r.errorBody);
   else console.log("wa_sent", JSON.stringify({ to, wamid: r.wamid }));
   return { ok: r.ok, wamid: r.wamid, status: r.status };

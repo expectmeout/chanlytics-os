@@ -3468,6 +3468,8 @@ interface RoutedChannel {
     channelId: string;
     tenantId: string;
     kind: string;
+    /** The provider's id this row routes on: a WhatsApp phone_number_id, a Retell agent id, an SMS number. */
+    externalId: string;
     numberE164: string | null;
     credentialsRef: string | null;
     config: Json;

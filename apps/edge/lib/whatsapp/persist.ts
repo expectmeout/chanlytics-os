@@ -223,7 +223,8 @@ export function pgSink(
     media: (n: NormalizedInbound) =>
       on && n.media
         ? pgSafe("media_fetch", async () => {
-            const got = await fetchMediaBytes(waCfg(rt), n.media!.provider_media_id);
+            const cfg = waCfg(rt);
+            const got = cfg ? await fetchMediaBytes(cfg, n.media!.provider_media_id) : null;
             const mediaOut = { ...n.media } as Record<string, unknown>;
             if (got) {
               const ext = MIME_EXT[got.mime || ""] || "bin";

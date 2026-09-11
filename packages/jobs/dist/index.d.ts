@@ -113,7 +113,8 @@ declare function cancelJobsFor(db: Db, tenantId: string, kind: JobKind, payloadK
 
 interface JobContext {
     db: SupabaseClient<Database>;
-    waCfg: WaConfig;
+    /** The job's own tenant's WhatsApp credentials; null = none, and every WhatsApp send is refused. */
+    waCfg: WaConfig | null;
     /** The workspace's texting line, when it has one — injected by the edge like waCfg; null = no line. */
     sms?: {
         send(to: string, body: string): Promise<{

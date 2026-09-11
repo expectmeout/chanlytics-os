@@ -4757,7 +4757,7 @@ async function resolveChannelDetailed(db, kind, externalId) {
   const key = `${kind}:${externalId}`;
   const hit = cache.get(key);
   if (hit && hit.exp > Date.now()) return { channel: hit.v, lookupFailed: false };
-  const { data, error } = await db.from("tenant_channels").select("id, tenant_id, kind, status, number_e164, credentials_ref, config").eq("kind", kind).eq("external_id", externalId).maybeSingle();
+  const { data, error } = await db.from("tenant_channels").select("id, tenant_id, kind, status, number_e164, credentials_ref, config, external_id").eq("kind", kind).eq("external_id", externalId).maybeSingle();
   if (error) {
     console.error("resolve_channel_failed", error.message);
     if (hit?.v) return { channel: hit.v, lookupFailed: false };
@@ -4767,6 +4767,7 @@ async function resolveChannelDetailed(db, kind, externalId) {
     channelId: data.id,
     tenantId: data.tenant_id,
     kind: data.kind,
+    externalId: data.external_id,
     numberE164: data.number_e164,
     credentialsRef: data.credentials_ref,
     config: data.config

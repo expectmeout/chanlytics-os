@@ -11,7 +11,8 @@ import { recordOutbound, resolveOutboundTarget, type Database, type Json } from 
 
 export interface JobContext {
   db: SupabaseClient<Database>;
-  waCfg: WaConfig;
+  /** The job's own tenant's WhatsApp credentials; null = none, and every WhatsApp send is refused. */
+  waCfg: WaConfig | null;
   /** The workspace's texting line, when it has one — injected by the edge like waCfg; null = no line. */
   sms?: { send(to: string, body: string): Promise<{ ok: boolean; wamid: string | null; status: number; errorBody?: string }> } | null;
   alert: (subject: string, body: string) => Promise<void>;
@@ -66,6 +67,9 @@ type ChannelSend = (
 
 const SENDERS: Record<string, ChannelSend> = {
   whatsapp: (ctx, to, p) => {
+    // No credentials, no send: refused here rather than guessed from the
+    // environment, which is how one business's message left on another's line.
+    if (!ctx.waCfg) return Promise.resolve({ ok: false, wamid: null, status: 503, errorBody: "no_whatsapp_credentials" });
     const digits = to.replace(/^\+/, "");
     return p.template
       ? sendTemplate(ctx.waCfg, digits, p.template)
