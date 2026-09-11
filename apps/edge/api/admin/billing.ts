@@ -30,6 +30,9 @@ export const config = { maxDuration: 30 };
 
 const STATUS_OF: Record<string, number> = { not_ready: 503, no_account: 404, direct: 409, already_subscribed: 409, no_customer: 409, no_subscription: 409, not_paused: 409, stripe_refused: 502 };
 
+/** The slug a tenant read answered with, or null when the read did not. */
+const slugOf = (r: { data: { slug?: string | null } | null }): string | null => r.data?.slug ?? null;
+
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/billing");
   if (!auth.ok) return auth.response;
@@ -52,16 +55,16 @@ export async function POST(request: Request): Promise<Response> {
   const log = (event: string, extra: Record<string, unknown> = {}) => console.log(event, JSON.stringify({ tenant: tenantId, ...extra }));
 
   if (op === "checkout") {
-    const tenant = await db.from("tenants").select("name").eq("id", tenantId).maybeSingle();
+    const tenant = await db.from("tenants").select("name, slug").eq("id", tenantId).maybeSingle();
     if (tenant.error) return json(503, { ok: false, error: tenant.error.message });
     if (!tenant.data) return json(404, { ok: false, error: "no such workspace" });
     const email = typeof body.email === "string" && body.email.includes("@") ? body.email.trim().slice(0, 254) : null;
-    const r = await checkoutFor(db, tenantId, tenant.data.name, email);
+    const r = await checkoutFor(db, tenantId, tenant.data.name, email, tenant.data.slug ?? null);
     log(r.ok ? "billing_checkout_opened" : "billing_checkout_refused", r.ok ? {} : { error: r.error, detail: r.detail?.slice(0, 200) });
     return json(r.ok ? 200 : STATUS_OF[r.error] ?? 500, r);
   }
   if (op === "portal") {
-    const r = await portalFor(db, tenantId);
+    const r = await portalFor(db, tenantId, slugOf(await db.from("tenants").select("slug").eq("id", tenantId).maybeSingle()));
     return json(r.ok ? 200 : STATUS_OF[r.error] ?? 500, r);
   }
   if (op === "invoices") {

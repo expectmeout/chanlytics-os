@@ -14,8 +14,8 @@ import { POLICY_CLASS_WORDS } from "@chanlytics/contracts";
 import { clearSurfaceCache } from "./surface-cache";
 import { ApiError } from "../client/api";
 import { api, read } from "./api";
-import { getActiveWorkspace, setActiveWorkspace } from "./workspace";
-export { getActiveWorkspace, setActiveWorkspace } from "./workspace";
+import { getActiveWorkspace, rememberWorkspace, workspaceHref } from "./workspace";
+export { getActiveWorkspace } from "./workspace";
 import { DEFAULT_REFRESH_TABLES, type RealtimeChange } from "./surface-realtime";
 import type { NotificationsDto, PendingWorkspace, ResolvedFacts, FactConflict } from "@chanlytics/contracts";
 import type { PoliciesSurface } from "./policy-store";
@@ -100,7 +100,20 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
     // it decided, so every later request agrees with the data already rendered.
     if (data.activeWorkspaceId) {
       w.__ACTIVE_WORKSPACE = data.activeWorkspaceId;
-      setActiveWorkspace(data.activeWorkspaceId);
+      const active = data.workspaces.find((t) => t.id === data.activeWorkspaceId);
+      const slug = active?.slug ?? data.activeWorkspaceId;
+      rememberWorkspace(slug);
+      // The address says what the server decided. A path that names a
+      // workspace this account may not use here (a membership gone, another
+      // account's preference), or names it by id where the slug belongs, is
+      // corrected before the other surfaces paint under it: a navigation, so
+      // everything boots again under the right name.
+      const here = getActiveWorkspace();
+      if (here && here !== slug) {
+        clearSurfaceCache();
+        window.location.replace(workspaceHref(slug, window.location.hash));
+        return;
+      }
     }
     // The sidebar renders whoever this says — replacing the mockup's
     // hardcoded operator, who was a fabricated person shown as "you".
@@ -109,19 +122,22 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
 };
 
 /**
- * Switch workspace: forget the previous one's rows, then reload.
+ * Switch workspace: forget the previous one's rows, then go to its address.
  *
- * A full reload rather than a refetch, deliberately. The mockup seeds React
+ * A navigation rather than a refetch, deliberately. The mockup seeds React
  * state from globals at mount, so the surfaces would need bespoke re-seeding to
  * swap tenant underneath them — and getting that wrong shows one business's
  * threads under another's name, which is the single worst thing this app can
  * do. Clearing the cache first is what makes the reload cold.
  */
 export function switchWorkspace(id: string): void {
-  if (id === getActiveWorkspace()) return;
+  const target = (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES?.find((t) => t.id === id);
+  const slug = target?.slug ?? id;
+  const here = getActiveWorkspace();
+  if (here === slug || here === id) return;
   clearSurfaceCache();
-  setActiveWorkspace(id);
-  window.location.assign("/");
+  rememberWorkspace(slug);
+  window.location.assign(workspaceHref(slug));
 }
 
 /**

@@ -121,7 +121,8 @@ test("the server has the last word on which workspace is active", () => {
   // override it; whatever it decides is what later requests must agree with,
   // or the page renders one workspace's data under another's name.
   assert.match(surfaceData, /data\.activeWorkspaceId/);
-  assert.match(surfaceData, /setActiveWorkspace\(data\.activeWorkspaceId\)/);
+  assert.match(surfaceData, /rememberWorkspace\(slug\)/, "the server's word is what the home returns to");
+  assert.match(surfaceData, /window\.location\.replace\(workspaceHref\(slug, window\.location\.hash\)\)/, "and what the address says");
 });
 
 test("switching workspace clears the cache before it reloads", () => {
