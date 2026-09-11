@@ -2,8 +2,8 @@ import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 
 /**
- * A person's own name: set on the team card, shown on the sidebar chip and
- * the roster, cleared again. The account under test keeps whatever name it
+ * A person's own name: set on the Profile tab's You card, shown on the
+ * sidebar chip and the Team roster, cleared again. The account under test keeps whatever name it
  * had before.
  */
 test.describe("identity on a real workspace", () => {
@@ -11,7 +11,7 @@ test.describe("identity on a real workspace", () => {
 
   test("the name you give is the name the chrome shows; clearing it brings 'Your account' back", async ({ page }) => {
     await signIn(page);
-    await page.goto("/#/admin/workspace");
+    await page.goto("/#/admin/profile");
     await page.waitForLoadState("networkidle");
     const field = page.getByTestId("set-you-name");
     await expect(field).toBeVisible();
@@ -41,6 +41,10 @@ test.describe("identity on a real workspace", () => {
       await page.waitForLoadState("networkidle");
       await expect(page.locator(".user-chip .name")).toHaveText("Ruben Test");
       await expect(page.locator(".user-chip .avatar")).toHaveText("RT");
+      // The roster is the Team tab's; it is painted by the settings override,
+      // so wait for a row before reading the one that says You.
+      await page.goto("/#/admin/team");
+      await page.locator(".set-team-row").first().waitFor({ timeout: 20_000 });
       await expect(page.locator(".set-team-row").filter({ hasText: "You" }).locator(".set-team-name")).toContainText("Ruben Test");
       const cleared = await put("");
       expect(cleared.status).toBe(200);

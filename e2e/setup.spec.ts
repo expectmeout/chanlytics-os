@@ -12,13 +12,15 @@ test.describe("Setup on a real workspace", () => {
     await signIn(page);
   });
 
-  test("the rows, each with a state in words, a sentence and at most one verb; Setup is the first Settings tab", async ({ page }) => {
+  test("the rows, each with a state in words, a sentence and at most one verb; Setup is the first Workspace tab, after Profile", async ({ page }) => {
     // Nine rows, and a tenth for the Google listing where the platform can look one up.
     const google = (await (await page.request.get("/api/v1/google")).json()).data as { google: { ready: { places: boolean } } };
     await page.goto("/#/admin/setup");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("setup-readiness")).toBeVisible();
-    await expect(page.locator(".set-nav-row").first()).toHaveText(/Setup/);
+    // The rail: You (Profile) first, then the Workspace group, which Setup opens.
+    await expect(page.locator(".set-nav-row").first()).toHaveText(/Profile/);
+    await expect(page.locator(".set-nav-row").nth(1)).toHaveText(/Setup/);
     await expect(page.getByTestId("setup-count")).toHaveText(/^\d+ of \d+ ready$/);
     expect((await page.getByTestId("setup-sentence").innerText()).trim().length).toBeGreaterThan(0);
     const rows = page.getByTestId("setup-rows").locator(".cl-attn-row");

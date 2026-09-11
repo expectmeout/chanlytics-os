@@ -18,7 +18,7 @@ test.describe("the Team card", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
 
   test("Invite calls the API, scoped to a workspace, and reports the server's answer", async ({ page }) => {
-    await signInAndGo(page, "#/admin/workspace");
+    await signInAndGo(page, "#/admin/team");
 
     const seen: { url: string; method: string; body: unknown }[] = [];
     await page.route("**/api/v1/team/invite*", async (route) => {
@@ -49,7 +49,7 @@ test.describe("the Team card", () => {
   });
 
   test("a role change calls PATCH and never claims success on its own", async ({ page }) => {
-    await signInAndGo(page, "#/admin/workspace");
+    await signInAndGo(page, "#/admin/team");
 
     const seen: { method: string; url: string; body: unknown }[] = [];
     await page.route("**/api/v1/team/*", async (route) => {
@@ -83,7 +83,7 @@ test.describe("the Team card", () => {
   });
 
   test("the roster shows the signed-in account and no invented colleagues", async ({ page }) => {
-    await signInAndGo(page, "#/admin/workspace");
+    await signInAndGo(page, "#/admin/team");
     const card = page.locator(".set-card", { hasText: "Team" }).first();
     await expect(card).toBeVisible();
     for (const invented of ["Sarah Chen", "Marcus Webb", "Lena Park", "Jay Rivera", "serenityspa.co"]) {

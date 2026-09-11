@@ -54,9 +54,22 @@ test.describe("Rewriting a held draft on a real workspace", () => {
     expect(body.error.message).toContain("not waiting");
   });
 
-  test("an empty instruction is refused before anything is looked up", async ({ page }) => {
+  test("an empty instruction is refused at the door: the message is the row, judged first, then the words", async ({ page }) => {
     const ws = await activeWorkspace(page);
-    const res = await page.request.post(scoped("/api/v1/messages/3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c/steer", ws), { data: { text: "   " }, ...fromTheApp });
+    // A message that is not this workspace's is not found, whatever the body says.
+    const stranger = await page.request.post(scoped("/api/v1/messages/3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c/steer", ws), { data: { text: "   " }, ...fromTheApp });
+    expect(stranger.status()).toBe(404);
+    // On a reply of this workspace, the words are judged before the draft is,
+    // so a blank instruction is a validation refusal whatever the reply's state.
+    const list = await page.request.get("/api/v1/conversations");
+    const { data } = await list.json();
+    const first = data.conversations?.[0];
+    test.skip(!first, "no conversations in this workspace");
+    const thread = await page.request.get(`/api/v1/conversations/${first.id}`);
+    const { data: t } = await thread.json();
+    const reply = (t.messages ?? []).find((m: { sender: string }) => m.sender === "ai");
+    test.skip(!reply, "no reply to probe");
+    const res = await page.request.post(scoped(`/api/v1/messages/${reply.id}/steer`, ws), { data: { text: "   " }, ...fromTheApp });
     expect(res.status()).toBe(400);
     const body = await res.json();
     expect(body.error.message).toContain("what should change");
