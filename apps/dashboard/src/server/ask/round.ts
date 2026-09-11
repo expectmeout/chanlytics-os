@@ -26,13 +26,14 @@ export interface RoundResult {
   streamError: string | null;
 }
 
-export async function runRound(call: GatewayCall, onAnswer: (delta: string) => void): Promise<RoundResult> {
+/** `stream` is the gateway unless a test hands in its own events, so the gathering runs without a model. */
+export async function runRound(call: GatewayCall, onAnswer: (delta: string) => void, stream: typeof streamModel = streamModel): Promise<RoundResult> {
   const blocks = new Map<number, RoundBlock>();
   let stopReason: string | null = null;
   let streamError: string | null = null;
   let finishIndex = -1;
   let answerSoFar = "";
-  for await (const ev of streamModel(call)) {
+  for await (const ev of stream(call)) {
     switch (ev.type) {
       case "block_start":
         blocks.set(ev.index, { type: ev.block.type, id: ev.block.type === "tool_use" ? ev.block.id : "", name: ev.block.type === "tool_use" ? ev.block.name : "", text: "", json: "" });

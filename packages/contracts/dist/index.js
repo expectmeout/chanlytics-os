@@ -4051,6 +4051,7 @@ function dedupeFeed(rows) {
 // src/ask.ts
 import { z as z3 } from "zod";
 var ASK_MAX_CHARS = 1e3;
+var ASK_MODEL = "claude-sonnet-5";
 var ASK_MAX_ROUNDS = 4;
 var ASK_TURN_BUDGET_MS = 45e3;
 var ASK_TOKENS_DAY = 15e5;
@@ -7620,6 +7621,7 @@ export {
   ASK_LANGUAGES,
   ASK_MAX_CHARS,
   ASK_MAX_ROUNDS,
+  ASK_MODEL,
   ASK_PAGES,
   ASK_PAGE_ROUTES,
   ASK_RETENTION_DAYS,

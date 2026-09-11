@@ -10,6 +10,7 @@
  * and nothing else).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ASK_MODEL } from "./workspace/contracts.js";
 import type { Database, Json } from "./workspace/db.js";
 import { emitEvent } from "./workspace/db.js";
 
@@ -133,6 +134,7 @@ export interface GatewayRequest {
 
 const EFFORTS = new Set(["low", "medium", "high"]);
 
+/** The models a request may name; ASK_MODEL (contracts) is the one the loop sends and the default here. */
 export const GATEWAY_MODELS = ["claude-opus-5", "claude-sonnet-5"] as const;
 export const GATEWAY_MAX_TOKENS = 2000;
 export const GATEWAY_MAX_MESSAGES = 60;
@@ -142,7 +144,7 @@ export const GATEWAY_MAX_BODY = 700_000;
 export function validateGatewayRequest(raw: unknown): { ok: true; request: GatewayRequest } | { ok: false; error: string } {
   const r = raw as Partial<GatewayRequest> | null;
   if (!r || typeof r !== "object") return { ok: false, error: "request required" };
-  const model = typeof r.model === "string" ? r.model : GATEWAY_MODELS[0];
+  const model = typeof r.model === "string" ? r.model : ASK_MODEL;
   if (!(GATEWAY_MODELS as readonly string[]).includes(model)) return { ok: false, error: "unknown model" };
   const maxTokens = Math.min(GATEWAY_MAX_TOKENS, Math.max(64, Math.round(num(r.max_tokens) || 800)));
   if (!Array.isArray(r.messages) || !r.messages.length || r.messages.length > GATEWAY_MAX_MESSAGES) {
