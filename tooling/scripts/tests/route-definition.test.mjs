@@ -161,3 +161,11 @@ test("the policy a route declares is the policy it carries", () => {
   assert.deepEqual({ ...read({ scope: account, handle: echo }).policy }, { kind: "read", scope: "account", role: null, rate: null, spend: false });
   assert.equal(typeof POST, "function", "and it is still the handler Next calls");
 });
+
+test("the export carries what the route takes and answers, as a type the client can read, and nothing at runtime", () => {
+  // Types are erased, so the executed half is that nothing is added at runtime;
+  // the typed half is the generated registry compiling against every export.
+  const GET = read({ scope: workspace, query: z.object({ days: z.string().optional() }), handle: async () => ({ n: 1 }) });
+  assert.deepEqual(Object.keys(GET).sort(), ["policy", "run"], "a phantom type adds nothing at runtime");
+  assert.deepEqual(Object.getOwnPropertySymbols(GET), [], "and no symbol either");
+});

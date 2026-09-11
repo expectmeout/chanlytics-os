@@ -1,0 +1,122 @@
+/**
+ * After a write lands: which surfaces could now be stale.
+ *
+ * One table, keyed by route, replacing the list each of eleven couriers
+ * carried for its own verbs. A key not in it refreshes nothing, which is the
+ * right answer for a read, a redirect, a draft, and a search. The lists are
+ * the couriers' own, copied as they were: the reply re-reads the inbox, the
+ * conversations and Today, which carries the "needs you" count; a template
+ * change re-reads settings and the inbox, and tells the broadcasts and
+ * playbooks pages, which keep a hook until they read the surfaces directly.
+ */
+import type { RouteKey } from "../client/api";
+import {
+  broadcastsOverride,
+  calendarOverride,
+  conversationsOverride,
+  inboxOverride,
+  liveOverride,
+  notificationsOverride,
+  peopleOverride,
+  playbooksOverride,
+  settingsOverride,
+  todayOverride,
+  type SurfaceOverride,
+} from "./surface-data";
+import { billingOverride } from "./billing";
+import { googleOverride } from "./google";
+import { setupOverride } from "./setup";
+import { refreshSurfaces } from "./surface-runner";
+
+const thread = () => [inboxOverride, conversationsOverride, todayOverride];
+const people = () => [peopleOverride];
+const runs = () => [playbooksOverride, broadcastsOverride];
+const templates = () => [settingsOverride, inboxOverride];
+const setup = () => [setupOverride];
+const google = () => [googleOverride, setupOverride];
+const billing = () => [billingOverride, setupOverride];
+const settings = () => [settingsOverride];
+
+const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
+  // The thread verbs, and the two that act on a held draft.
+  "POST conversations/[id]/take-over": thread,
+  "POST conversations/[id]/hand-back": thread,
+  "POST conversations/[id]/snooze": thread,
+  "POST conversations/[id]/wake": thread,
+  "POST conversations/[id]/archive": thread,
+  "POST conversations/[id]/reply": thread,
+  "POST escalations/[id]/resolve": thread,
+  "POST messages/[id]/steer": thread,
+  "POST messages/[id]/cancel-send": thread,
+  "POST calls/[id]/whisper": () => [liveOverride],
+  // People.
+  "DELETE contacts/[id]": () => [peopleOverride, inboxOverride, conversationsOverride, todayOverride],
+  "PUT contacts/[id]/receptionist": people,
+  "PUT contacts/[id]/consent": people,
+  "PUT contacts/[id]/marketing-consent": people,
+  "PUT contacts/[id]/details": people,
+  "POST contacts": people,
+  "POST segments": people,
+  "PUT segments/[id]": people,
+  "DELETE segments/[id]": people,
+  // Outbound.
+  "POST broadcasts": () => [broadcastsOverride],
+  "POST broadcasts/[id]/approve": runs,
+  "POST broadcasts/[id]/cancel": runs,
+  "POST playbooks": runs,
+  "PUT playbooks/[id]": runs,
+  "DELETE playbooks/[id]": runs,
+  "POST playbooks/[id]/run": runs,
+  "POST templates": templates,
+  "PUT templates/[id]": templates,
+  "DELETE templates/[id]": templates,
+  "POST templates/starter": templates,
+  "POST templates/sync": templates,
+  // Settings and the team.
+  "PUT settings": () => [settingsOverride, todayOverride, calendarOverride],
+  "PUT policies": settings,
+  "POST team/invite": settings,
+  "PATCH team/[id]": settings,
+  "DELETE team/[id]": settings,
+  "POST channels/whatsapp/connect": settings,
+  "PUT notifications": () => [notificationsOverride],
+  // Setup, lines, billing, Google.
+  "POST capabilities/[kind]": setup,
+  "DELETE capabilities/[kind]": setup,
+  "POST lines/buy": setup,
+  "POST lines/retry": setup,
+  "POST lines/register": setup,
+  "POST lines/forwarding": setup,
+  "POST lines/forwarding/test": setup,
+  "POST setup/request": setup,
+  "PUT business-record": setup,
+  "POST billing/resume": billing,
+  "POST billing/sync": billing,
+  "POST google/link": google,
+  "DELETE google/link": google,
+  "POST google/refresh": google,
+  "POST google/locations": google,
+  "DELETE google/connection": google,
+  "POST google/reviews/[id]/reply": () => [googleOverride],
+};
+
+/** Window hooks a few pages still register; they go when those pages read the surfaces directly. */
+const HOOKS: Partial<Record<RouteKey, string[]>> = {
+  "POST templates": ["__refreshBroadcasts", "__refreshPlaybooks"],
+  "PUT templates/[id]": ["__refreshBroadcasts", "__refreshPlaybooks"],
+  "DELETE templates/[id]": ["__refreshBroadcasts", "__refreshPlaybooks"],
+  "POST templates/starter": ["__refreshBroadcasts", "__refreshPlaybooks"],
+  "POST templates/sync": ["__refreshBroadcasts", "__refreshPlaybooks"],
+};
+
+/** The keys the table names, for the test that holds them to writes. */
+export const AFTER_KEYS = Object.keys(AFTER) as RouteKey[];
+
+export async function refreshAfter(key: RouteKey): Promise<void> {
+  const overrides = AFTER[key]?.() ?? [];
+  if (overrides.length) await refreshSurfaces(overrides);
+  for (const name of HOOKS[key] ?? []) {
+    const fn = (window as unknown as Record<string, (() => Promise<void>) | undefined>)[name];
+    if (fn) await fn();
+  }
+}

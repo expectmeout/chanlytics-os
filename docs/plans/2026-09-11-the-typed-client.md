@@ -41,7 +41,7 @@
 - Modify: `apps/dashboard/src/server/route.ts`
 - Test: `tooling/scripts/tests/route-definition.test.mjs` (add one test; it already imports `route.ts`)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```js
 test("the export carries what the route takes and answers, as a type the client can read", async () => {
@@ -53,12 +53,12 @@ test("the export carries what the route takes and answers, as a type the client 
 });
 ```
 
-- [ ] **Step 2: Run it to see it pass already** (it pins the invariant Step 3 must keep)
+- [x] **Step 2: Run it to see it pass already** (it pins the invariant Step 3 must keep)
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/route-definition.test.mjs`
 Expected: PASS
 
-- [ ] **Step 3: Add the phantom shape to route.ts**
+- [x] **Step 3: Add the phantom shape to route.ts**
 
 Below `Policy`:
 
@@ -83,12 +83,12 @@ And the last line of `build()`:
   return handler as typeof handler & Shape<I, O>;
 ```
 
-- [ ] **Step 4: Typecheck and run the test**
+- [x] **Step 4: Typecheck and run the test**
 
 Run: `COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm -C apps/dashboard typecheck` then the test from Step 2.
 Expected: both pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/dashboard/src/server/route.ts tooling/scripts/tests/route-definition.test.mjs
@@ -102,7 +102,7 @@ git commit -m "route(): the export carries its input and output as a phantom typ
 - Create: `apps/dashboard/src/client/routes.generated.ts`
 - Test: `tooling/scripts/tests/route-types.test.mjs`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```js
 /**
@@ -138,12 +138,12 @@ test("the registry imports types only: no route module reaches the client bundle
 });
 ```
 
-- [ ] **Step 2: Run it to see it fail**
+- [x] **Step 2: Run it to see it fail**
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/route-types.test.mjs`
 Expected: FAIL, `Cannot find module '../gen-route-types.mjs'`
 
-- [ ] **Step 3: Write the generator**
+- [x] **Step 3: Write the generator**
 
 ```js
 #!/usr/bin/env node
@@ -215,12 +215,12 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
 }
 ```
 
-- [ ] **Step 4: Generate, typecheck, run the test**
+- [x] **Step 4: Generate, typecheck, run the test**
 
 Run: `node tooling/scripts/gen-route-types.mjs` then the typecheck, then the test.
 Expected: the file exists with 113 keys; `tsc` resolves every `typeof import(...)`; the three tests pass. If `tsc` refuses a `typeof import()` of a route module, the cause is a route exporting something that is not a `route()` handler under a method name — fix the route, not the generator.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tooling/scripts/gen-route-types.mjs apps/dashboard/src/client/routes.generated.ts tooling/scripts/tests/route-types.test.mjs
@@ -233,7 +233,7 @@ git commit -m "The route registry: every handler's key, method, path and type, g
 - Create: `apps/dashboard/src/client/api.ts`
 - Test: `tooling/scripts/tests/typed-client.test.mjs`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```js
 /**
@@ -331,12 +331,12 @@ test("unwrap throws the refusal as an ApiError the runner can read", async () =>
 });
 ```
 
-- [ ] **Step 2: Run it to see it fail**
+- [x] **Step 2: Run it to see it fail**
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/typed-client.test.mjs`
 Expected: FAIL, cannot find `apps/dashboard/src/client/api.ts`
 
-- [ ] **Step 3: Write the client**
+- [x] **Step 3: Write the client**
 
 ```ts
 /**
@@ -486,11 +486,11 @@ export function createApi(deps: ApiDeps) {
 export type Api = ReturnType<typeof createApi>;
 ```
 
-- [ ] **Step 4: Run the test and the typecheck**
+- [x] **Step 4: Run the test and the typecheck**
 
 Expected: six tests pass; `tsc` clean. If `Record<never, string>` refuses `params` on a route with none, the fix is `Params<K>` as `[ParamNames<K>] extends [never] ? undefined : Record<...>`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/dashboard/src/client/api.ts tooling/scripts/tests/typed-client.test.mjs
@@ -504,7 +504,7 @@ git commit -m "The typed client: one api(), typed from the routes, run with a fa
 - Create: `apps/dashboard/src/legacy-bridge/api.ts`
 - Test: `tooling/scripts/tests/typed-client.test.mjs` (one more test, on the map)
 
-- [ ] **Step 1: Write the refresh map**
+- [x] **Step 1: Write the refresh map**
 
 Every write's surfaces, gathered from the couriers that own them today (inbox-verbs → inbox, conversations, today; playbooks → playbooks, broadcasts; templates → settings, inbox, plus the broadcasts and playbooks hooks; people → people, people detail; settings → settings; and so on). Keys not in the map refresh nothing.
 
@@ -543,7 +543,7 @@ export async function refreshAfter(key: RouteKey): Promise<void> {
 
 The full table is written at execution by reading each courier's refresh list; the PR that moves a courier moves its list here.
 
-- [ ] **Step 2: Write the instance**
+- [x] **Step 2: Write the instance**
 
 ```ts
 import { createApi } from "../client/api";
@@ -571,7 +571,7 @@ export function api() {
 }
 ```
 
-- [ ] **Step 3: Add the map's test**
+- [x] **Step 3: Add the map's test**
 
 ```js
 test("the refresh map names a surface list for every write that refreshed one before, and nothing for reads", async () => {
@@ -584,7 +584,7 @@ test("the refresh map names a surface list for every write that refreshed one be
 
 (Export `AFTER_KEYS = Object.keys(AFTER)` from the map for this.)
 
-- [ ] **Step 4: Typecheck, run the client test, commit**
+- [x] **Step 4: Typecheck, run the client test, commit**
 
 ```bash
 git add apps/dashboard/src/legacy-bridge/refresh-map.ts apps/dashboard/src/legacy-bridge/api.ts tooling/scripts/tests/typed-client.test.mjs
