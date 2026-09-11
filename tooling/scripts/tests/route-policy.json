@@ -1,9 +1,7 @@
 {
   "note": "Written by route-policy.test.mjs (UPDATE_ROUTE_POLICY=1). A change here is a change to who may do what, how often, and on which workspace: review it as one.",
   "undeclared": [
-    "me",
     "team",
-    "workspaces",
     "workspaces/create"
   ],
   "routes": {
@@ -498,6 +496,13 @@
       "rate": "lines_search",
       "spend": false
     },
+    "PUT me": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "profile_set",
+      "spend": false
+    },
     "POST messages/[id]/cancel-send": {
       "kind": "write",
       "scope": "row",
@@ -762,6 +767,20 @@
       "scope": "workspace",
       "role": "operator",
       "rate": "settings",
+      "spend": false
+    },
+    "GET workspaces": {
+      "kind": "read",
+      "scope": "account",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "PATCH workspaces": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": null,
       "spend": false
     }
   }

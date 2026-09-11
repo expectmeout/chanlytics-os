@@ -139,7 +139,7 @@ test("the workspace timezone is visible and an owner can change it", () => {
   assert.ok(!/grant update \([^)]*\b(name|slug|status)\b/.test(mig), "a slug is a URL and a status is a billing state; neither is a settings toggle");
 
   const route = readCode("apps/dashboard/app/api/v1/workspaces/route.ts");
-  assert.ok(route.includes('requireRole(member, "owner")'), "owner-only");
+  assert.ok(route.includes('role: "owner",'), "owner-only");
   assert.ok(route.includes("if (!data?.length) throw new AppError"), "a forbidden UPDATE returns success with zero rows here, so the count IS the check");
   assert.ok(route.includes("cleanTimezone(body?.timezone)"), "and the zone is validated against Intl, not a list that goes stale");
 });
