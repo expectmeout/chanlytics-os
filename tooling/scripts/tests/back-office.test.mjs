@@ -500,7 +500,7 @@ test("an action that would be refused is not offered", () => {
   assert.deepEqual(healthy, ["release"], "a working line can only be given back");
 
   assert.deepEqual(platformLineActions(line({ voice_state: "failed" })).map((a) => a.action), ["retry", "release"]);
-  assert.deepEqual(platformLineActions(line({ sms_state: "rejected" })).map((a) => a.action), ["refile", "release"]);
+  assert.deepEqual(platformLineActions(line({ sms_state: "rejected" })).map((a) => a.action), ["refile", "replace", "release"]);
   assert.deepEqual(platformLineActions(line({ reg_mock: true, sms_state: "approved" })).map((a) => a.action), ["refile", "release"]);
   // Nothing to give back when there is no number.
   assert.deepEqual(platformLineActions(line({ e164: null })).map((a) => a.action), []);
@@ -515,6 +515,15 @@ test("refile is two actions wearing one name, and the difference is money", () =
   assert.equal(rejected.cost, null, "an edit spends nothing");
   assert.equal(rejected.permanent, false);
   assert.match(platformActionWarning(rejected), /Nothing is spent/);
+  // And the replacement, for a refusal an edit cannot reach: a new campaign under
+  // the same brand, a new vetting fee, said so, and permanent -- the refused one
+  // is deleted.
+  const replace = platformLineActions(line({ sms_state: "rejected" })).find((a) => a.action === "replace");
+  assert.equal(replace.label, "File a new campaign");
+  assert.match(replace.cost, /\$15/);
+  assert.equal(replace.permanent, true);
+  assert.match(replace.sentence, /cannot be edited/);
+  assert.ok(platformActionWarning(replace).indexOf("$15") < platformActionWarning(replace).indexOf("cannot be undone"));
 
   const [mock] = platformLineActions(line({ reg_mock: true, sms_state: "approved" }));
   assert.equal(mock.action, "refile");
@@ -554,7 +563,7 @@ test("three named operations, and no way to send a fourth", () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const dir = path.join(here, "../../../apps/dashboard/app/api/v1/platform/lines");
   const routes = fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
-  assert.deepEqual(routes, ["refile", "release", "retry"]);
+  assert.deepEqual(routes, ["refile", "release", "replace", "retry"]);
 
   for (const action of routes) {
     const src = fs.readFileSync(path.join(dir, action, "route.ts"), "utf8");
@@ -573,6 +582,7 @@ test("three named operations, and no way to send a fourth", () => {
   const server = readCode("apps/dashboard/src/server/platform.ts");
   assert.match(server, /const EDGE_OP: Record<PlatformLineAction, \(tenantId: string, lineId: string\) => Record<string, unknown>>/);
   assert.match(server, /refile: \(tenant_id, line_id\) => \(\{ op: "register", tenant_id, line_id, refile: true \}\)/);
+  assert.match(server, /replace: \(tenant_id, line_id\) => \(\{ op: "register", tenant_id, line_id, refile: true, replace: true \}\)/);
   assert.ok(!/op: (body|action|op)\b/.test(server), "the op is never taken from the caller");
 });
 

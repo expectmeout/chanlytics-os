@@ -55,7 +55,14 @@ test("the carriers' words are not WhatsApp opt-outs: a Cancel button means an ap
 });
 
 test("only an explicit word opts back in", () => {
-  for (const w of ["START", "start", "alta", "unstop", "YES OFFERS", "yes offers", "Sí ofertas!", "si ofertas"]) assert.equal(wa(w).optIn, true, w);
+  for (const w of ["START", "start", "alta", "unstop"]) assert.equal(wa(w).optIn, true, w);
+  // The offers words answer the OTHER question, and only that one: one word
+  // opening both programs is what the carriers refused a campaign for (30913),
+  // and the way back in from a STOP is START, as their own reply says.
+  for (const w of ["YES OFFERS", "yes offers", "Sí ofertas!", "si ofertas"]) {
+    assert.equal(wa(w).optIn, false, `"${w}" is not the way back into conversation`);
+    assert.equal(wa(w).optInMarketing, true, w);
+  }
   // If any message lifted the block, the block would not exist.
   for (const w of ["hi", "sí", "yes", "start my appointment at 3", "yes offers please", "offers"]) {
     assert.equal(wa(w).optIn, false, `"${w}" must NOT opt back in`);

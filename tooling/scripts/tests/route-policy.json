@@ -555,6 +555,13 @@
       "rate": "platform_line_release",
       "spend": false
     },
+    "POST platform/lines/replace": {
+      "kind": "write",
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_line_refile",
+      "spend": false
+    },
     "POST platform/lines/retry": {
       "kind": "write",
       "scope": "platform",

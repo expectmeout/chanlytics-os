@@ -3,7 +3,7 @@
  * canonical events and performs sends. No persistence, no decisions — the edge
  * wires this to the repositories. Config is passed in; env is never read here.
  */
-import { OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, OPT_OUT_PATTERN } from "@chanlytics/contracts";
+import { CONVERSATION_OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, OPT_OUT_PATTERN } from "@chanlytics/contracts";
 
 const GRAPH = "https://graph.facebook.com/v25.0";
 
@@ -213,10 +213,14 @@ export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): Normali
         })()
       : null,
     optOut: isText && matches(OPT_OUT_PATTERN),
-    optIn: isText && matches(OPT_IN_PATTERN),
-    // WHICH yes. OPT_IN_PATTERN above still matches both words, because
-    // texting OFFERS is also a way back in from a STOP -- but only these words
-    // are consent to be marketed to, and that is recorded separately.
+    // WHICH yes, and only that one. START, UNSTOP, RESUME and ALTA answer the
+    // appointment question; YES OFFERS answers the offers question and nothing
+    // else. It used to answer both -- "texting OFFERS is also a way back in from
+    // a STOP" -- which is one opt-in enrolling a person in two programs: the
+    // thing the carriers refuse a campaign for (30913), and the message flow had
+    // to confess it in the field the refusal named. The way back in from a STOP
+    // is START, as the carriers' own reply to a STOP says.
+    optIn: isText && matches(CONVERSATION_OPT_IN_PATTERN),
     optInMarketing: isText && matches(MARKETING_OPT_IN_PATTERN),
   };
 }

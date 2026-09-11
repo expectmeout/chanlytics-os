@@ -20,7 +20,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { businessPageVM, smsConsentSentence, registrationPreflight, SMS_CLAUSES } from "@chanlytics/contracts";
+import { businessPageVM, smsConsentSentence, registrationPreflight, SMS_CLAUSES, textingTermsVM } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 const salon = {
@@ -40,6 +40,8 @@ const salon = {
     { name: "Cut", durationMin: 45, priceNote: null },
   ],
   optInUrl: "/yes/melanys-beauty-salon",
+  privacyUrl: "/b/melanys-beauty-salon",
+  termsUrl: "/b/melanys-beauty-salon/terms",
 };
 
 test("the four facts a reviewer scans for, and the name customers know", () => {
@@ -136,7 +138,7 @@ test("a business with no website of its own files the page we publish", () => {
   const a2p = readCode("apps/edge/lib/a2p.ts");
   // The privacy policy the carriers are given identifies the BUSINESS. Ours
   // identifies Chanlytics, which is the wrong answer to 30919's question.
-  assert.match(a2p, /privacyPolicyUrl: o\.hostedUrl \|\| o\.privacyUrl,/);
+  assert.match(a2p, /const privacyPolicyUrl = o\.hostedUrl \|\| o\.privacyUrl;/);
   // And the website on the brand's own end user is substituted ONCE, before any
   // request is built -- the brand, the campaign and the profile must all name
   // the same URL.
@@ -294,4 +296,42 @@ test("nothing is filed until they are answered, and the words reach the row", ()
   // And the door tells it whether anybody can say yes.
   const door = readCode("apps/edge/api/admin/lines.ts");
   assert.match(door, /hasOptInNumber: \(saysYes\.data \?\? \[\]\)\.length > 0 \|\| !!row\.data\.e164,/);
+});
+
+test("what the program keeps and what for, on the page filed as the privacy policy", () => {
+  // 30908's remedy asks a privacy policy to "document what customer data you
+  // collect and how it's used"; the clause says what is NOT done, this says
+  // what is.
+  const vm = businessPageVM(salon);
+  assert.equal(vm.yourData.length, 2);
+  assert.match(vm.yourData[0], /Melany's Beauty Salon keeps your mobile number, the messages you and it exchange, and each answer/);
+  assert.match(vm.yourData[1], /not shared with third parties or affiliates for marketing or promotional purposes/);
+  assert.equal(vm.termsUrl, "/b/melanys-beauty-salon/terms", "and the program's own terms are beside it");
+});
+
+test("the program's terms carry the eight things a reviewer looks for, in the business's name", () => {
+  // The reviewers' guide lists them; since 15 September 2026 each missing one is
+  // its own error code (30557 to 30563). Chanlytics' /terms carried none.
+  const vm = textingTermsVM(salon);
+  assert.equal(vm.empty, false);
+  assert.equal(vm.title, "Text messaging terms: Melany's Beauty Salon");
+  assert.match(vm.lead, /Melany Beauty Corp, trading as Melany's Beauty Salon, 2581 Pitkin Ave, Brooklyn, NY 11208, US/, "who is bound: the registered name and address");
+  const by = Object.fromEntries(vm.items.map((i) => [i.label, i.text]));
+  assert.match(by["The program"], /^Melany's Beauty Salon texts customers who asked for it/, "the program, named");
+  assert.match(by["The program"], /separate opt-in/);
+  assert.match(by["How you join"], /START/);
+  assert.match(by["How you join"], /YES OFFERS/);
+  assert.match(by["How you join"], /neither is a condition of any purchase/);
+  assert.match(by["Message frequency"], /Message frequency varies/);
+  assert.equal(by["Cost"], "Message and data rates may apply.", "verbatim");
+  assert.equal(by["Help"], "Reply HELP for help, or call +1 (308) 336-8109 or email hola@melanys.example.", "a way to reach a person");
+  assert.match(by["Stop"], /Reply STOP at any time to stop/);
+  assert.match(by["Carriers"], /carriers are not liable for delayed or undelivered messages/i);
+  assert.equal(by["Your information"], SMS_CLAUSES[3], "the non-sharing clause, the shared copy");
+  assert.equal(vm.privacyUrl, "/b/melanys-beauty-salon", "linked to the privacy page");
+  assert.ok(!/standard rate/i.test(vm.items.map((i) => i.text).join(" ")), "carriers refuse \"standard\"");
+  // No number and no email: help is still HELP.
+  assert.equal(textingTermsVM({ ...salon, publicPhoneE164: null, contactEmail: "" }).items.find((i) => i.label === "Help").text, "Reply HELP for help.");
+  // The same floor as the page beside it: nobody identified, nothing published.
+  assert.equal(textingTermsVM({ ...salon, legalName: "" }).empty, true);
 });

@@ -342,7 +342,7 @@ export function platformNumber(e164: string | null | undefined): string {
  * tested, rather than in a page that would have to re-derive it.
  * -------------------------------------------------------------------------- */
 
-export type PlatformLineAction = "retry" | "refile" | "release";
+export type PlatformLineAction = "retry" | "refile" | "replace" | "release";
 
 export interface PlatformLineActionVM {
   action: PlatformLineAction;
@@ -358,6 +358,8 @@ export interface PlatformLineActionVM {
 /** About a dollar a month for as long as a number is held; the figures are this account's own invoices. */
 const NUMBER_MONTHLY = "$1.15 a month";
 const REAL_FILING = "about $19.50 once";
+/** Twilio's campaign vetting fee, charged once per campaign; a new campaign is a new one. */
+const CAMPAIGN_VETTING = "about $15 once";
 
 /**
  * The actions this line can actually take right now.
@@ -402,6 +404,18 @@ export function platformLineActions(
       sentence: "Resubmits the campaign to the carriers, free — the vetting fee is charged once per campaign. It refuses, with the reason, if the record or the workspace's name still would not pass review.",
       cost: null,
       permanent: false,
+    });
+    // And the remedy for a refusal an edit cannot reach. Twilio's campaign update
+    // takes nine fields; the opt-in message and its keywords are not among them,
+    // and the live Chanlytics campaign was refused three times over a
+    // confirmation that no resubmit could touch. A new campaign under the same
+    // brand is a new vetting fee, so this is its own button, and it says so.
+    out.push({
+      action: "replace",
+      label: "File a new campaign",
+      sentence: "Deletes the refused campaign and files a new one from today's facts, under the same approved brand: the remedy when what the carriers named cannot be edited (the opt-in confirmation and its keywords never can be). It refuses, with the reason, if the record or the workspace's name still would not pass review.",
+      cost: `${CAMPAIGN_VETTING}, charged to Chanlytics.`,
+      permanent: true,
     });
   } else if (l.reg_mock === true) {
     out.push({

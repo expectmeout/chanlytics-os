@@ -157,6 +157,11 @@ export const SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscrib
  * having one — and "sí"/"yes" is deliberately excluded because it is how
  * people answer an ordinary question, not how they rejoin a list.
  */
+// NOT what the wire reads any more. The inbound reading takes the two split
+// patterns below, one per question, because a message that answers both is one
+// opt-in enrolling a person in two programs -- which the carriers refuse a
+// campaign for (30913), and which the message flow then had to confess. Kept
+// for the readers that want "any opt-in word at all".
 export const OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
 
 /**

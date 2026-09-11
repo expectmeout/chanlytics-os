@@ -28,6 +28,10 @@ function serviceDb(): SupabaseClient<Database> {
 
 export interface ConsentPageRow {
   businessName: string;
+  /** The workspace's slug, for the links to its own privacy page and terms. */
+  slug: string;
+  /** Whether `/b/<slug>` publishes: a legal name and an address on record. */
+  businessPage: boolean;
   whatsappE164: string | null;
   smsE164: string | null;
 }
@@ -55,5 +59,11 @@ export async function consentPageFor(slug: string): Promise<ConsentPageRow | nul
     .in("kind", ["whatsapp", "sms"]);
   if (chErr) throw new Error(`reading the channels: ${chErr.message}`);
   const numberOf = (kind: string) => channels?.find((c) => c.kind === kind && c.number_e164)?.number_e164 ?? null;
-  return { businessName: tenant.name, whatsappE164: numberOf("whatsapp"), smsE164: numberOf("sms") };
+  // Whether the business's own page publishes -- it needs a legal name and an
+  // address -- so the privacy and terms links beside the asks are the
+  // business's own rather than Chanlytics'. Read, never written; no record is
+  // simply no page.
+  const { data: record } = await db.from("business_records").select("legal_name, street, city").eq("tenant_id", tenant.id).maybeSingle();
+  const businessPage = !!(record && record.legal_name.trim() && record.street.trim() && record.city.trim());
+  return { businessName: tenant.name, slug: clean, businessPage, whatsappE164: numberOf("whatsapp"), smsE164: numberOf("sms") };
 }

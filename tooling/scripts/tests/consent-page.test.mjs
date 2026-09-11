@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { consentPageVM, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONVERSATION_PHRASE, OFFERS_OPT_IN_PHRASES, optInLink, SMS_CLAUSES, consentFormVM } from "@chanlytics/contracts";
+import { consentPageVM, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONVERSATION_PHRASE, OFFERS_OPT_IN_PHRASES, optInLink, SMS_CLAUSES, consentFormVM, optInConfirmation } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 const salon = { businessName: "Melany's Beauty Salon", whatsappE164: "+19177724072", smsE164: null };
@@ -173,4 +173,37 @@ test("the pages a carrier reviewer lands on say who the business is", () => {
   const yes = readRaw("apps/dashboard/app/yes/[slug]/page.tsx");
   assert.ok(yes.includes("RJ Capital LLC") && yes.includes("193 Jamaica Ave"), "the opt-in page names the operator");
   assert.ok(yes.includes("on behalf of {facts.businessName}"), "and still names the business the customer is agreeing to hear from");
+});
+
+test("the privacy and terms links beside the asks are the business's own, once it has said who it is", () => {
+  // A reviewer wants both links beside the call to action (30549, 30550, 30564)
+  // and wants them to be the business's -- opt-in evidence for a different
+  // company is its own refusal (30927). Chanlytics' own pages only until the
+  // business has a page of its own to link.
+  assert.deepEqual(consentPageVM(salon).links, { privacy: "/privacy", terms: "/terms" }, "no slug: Chanlytics' pages");
+  const own = consentPageVM({ ...salon, slug: "melanys", businessPage: true });
+  assert.deepEqual(own.links, { privacy: "/b/melanys", terms: "/b/melanys/terms" });
+  assert.deepEqual(consentPageVM({ ...salon, slug: "melanys", businessPage: false }).links, { privacy: "/privacy", terms: "/terms" }, "a business that has not said who it is has no page to link");
+  assert.deepEqual(consentFormVM({ ...salon, slug: "melanys", businessPage: true }).links, own.links, "the paper form prints the same addresses");
+});
+
+test("the confirmation a yes receives names the program, the frequency, the rates, HELP and STOP -- and only its own question", () => {
+  // Every recurring program owes it, however the yes was given. The campaign
+  // files these words as its opt-in message and the receptionist sends them, so
+  // one function holds them.
+  const visit = optInConfirmation("Melany's Beauty Salon", "conversational");
+  const offers = optInConfirmation("Melany's Beauty Salon", "marketing");
+  for (const said of [visit, offers]) {
+    assert.match(said, /^Melany's Beauty Salon: /, "whose program");
+    assert.match(said, /Msg & data rates may apply/);
+    assert.match(said, /Reply HELP for help, STOP to cancel/);
+    assert.ok(said.length >= 20 && said.length <= 320, "Twilio's opt_in_message bounds");
+  }
+  assert.match(visit, /appointments/);
+  assert.match(visit, /Msg frequency varies/);
+  assert.doesNotMatch(visit, /offer|news/i, "REGRESSION: the appointment keyword confirming a promotional subscription is what the live campaign was refused for");
+  assert.match(offers, /offers and news/);
+  assert.match(offers, /A few messages a month/);
+  assert.doesNotMatch(offers, /appointment/i);
+  assert.ok(optInConfirmation("  ", "marketing").startsWith("This business: "));
 });

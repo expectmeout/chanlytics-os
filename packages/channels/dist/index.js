@@ -4048,8 +4048,8 @@ var NEVER = INVALID;
 // ../contracts/dist/index.js
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
-var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
 var MARKETING_OPT_IN_PATTERN = /^\s*(yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
+var CONVERSATION_OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta)\s*[.!]?\s*$/i;
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
@@ -4716,10 +4716,14 @@ function normalizeInbound(m, value) {
       };
     })() : null,
     optOut: isText && matches(OPT_OUT_PATTERN),
-    optIn: isText && matches(OPT_IN_PATTERN),
-    // WHICH yes. OPT_IN_PATTERN above still matches both words, because
-    // texting OFFERS is also a way back in from a STOP -- but only these words
-    // are consent to be marketed to, and that is recorded separately.
+    // WHICH yes, and only that one. START, UNSTOP, RESUME and ALTA answer the
+    // appointment question; YES OFFERS answers the offers question and nothing
+    // else. It used to answer both -- "texting OFFERS is also a way back in from
+    // a STOP" -- which is one opt-in enrolling a person in two programs: the
+    // thing the carriers refuse a campaign for (30913), and the message flow had
+    // to confess it in the field the refusal named. The way back in from a STOP
+    // is START, as the carriers' own reply to a STOP says.
+    optIn: isText && matches(CONVERSATION_OPT_IN_PATTERN),
     optInMarketing: isText && matches(MARKETING_OPT_IN_PATTERN)
   };
 }
@@ -5932,7 +5936,7 @@ function withCarrierConsent(n, c) {
   if (!c) return n;
   return { ...n, optOut: n.optOut || c.optOut, optIn: n.optIn || c.optIn };
 }
-var SMS_FOOTER = "Msg&data rates may apply. Reply STOP to opt out.";
+var SMS_FOOTER = "Msg & data rates may apply. Reply STOP to opt out, HELP for help.";
 var SMS_MAX_CHARS = 1600;
 function smsBody(reply, isFirstReply) {
   const text = reply.trim();

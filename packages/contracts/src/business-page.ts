@@ -45,6 +45,18 @@ export const SMS_CLAUSES: readonly string[] = [
   "No mobile information will be shared with third parties or affiliates for marketing or promotional purposes; all other categories of sharing exclude text-messaging originator opt-in data and consent, which will not be shared with any third parties.",
 ];
 
+/**
+ * What the program collects and what it is used for. Error 30908's remedy asks a
+ * privacy policy to "document what customer data you collect and how it's used";
+ * the clause above says what is NOT done with it, and this says what is.
+ */
+export function dataSentences(businessName: string): string[] {
+  return [
+    `For text messages, ${businessName} keeps your mobile number, the messages you and it exchange, and each answer you give to the two questions on its sign-up page, with the date and the way it was given.`,
+    "They are used only to answer you, to send the messages you agreed to, and to honour a STOP. They are not sold, and they are not shared with third parties or affiliates for marketing or promotional purposes.",
+  ];
+}
+
 /** The lead sentence, which is the only part that names who is sending. */
 export function smsConsentSentence(businessName: string): string {
   return `${businessName}'s customers receive text messages only when they have contacted ${businessName} first, or when they have separately agreed to receive them — messages about their own appointments and promotional messages are asked for separately, and either can be declined without affecting the other.`;
@@ -69,6 +81,10 @@ export interface BusinessPageFacts {
   services: readonly { name: string; durationMin?: number | null; priceNote?: string | null }[];
   /** Where a customer says yes: `/yes/<slug>`. */
   optInUrl: string;
+  /** This page, which is what the campaign files as the business's privacy policy: `/b/<slug>`. */
+  privacyUrl: string;
+  /** The program's terms, beside it: `/b/<slug>/terms`. */
+  termsUrl: string;
 }
 
 export interface BusinessPageVM {
@@ -82,6 +98,10 @@ export interface BusinessPageVM {
   smsLead: string;
   smsClauses: readonly string[];
   optInUrl: string;
+  /** What the messaging program keeps about a customer and what for: the disclosure a privacy policy owes (30908). */
+  yourData: string[];
+  /** The program's own terms page. */
+  termsUrl: string;
   /** Their own site, when they gave one. */
   websiteUrl: string | null;
   /** True when the record is too thin to publish honestly. */
@@ -129,7 +149,62 @@ export function businessPageVM(f: BusinessPageFacts): BusinessPageVM {
     smsLead: smsConsentSentence(known || "This business"),
     smsClauses: SMS_CLAUSES,
     optInUrl: f.optInUrl,
+    yourData: dataSentences(known || "This business"),
+    termsUrl: f.termsUrl,
     websiteUrl: f.websiteUrl && f.websiteUrl.trim() ? f.websiteUrl.trim() : null,
+    empty,
+  };
+}
+
+/* -------------------------------------------------------------------------- *
+ * The program's terms: `/b/<slug>/terms`.
+ *
+ * Every campaign files a TermsAndConditionsUrl, and from 30 June 2026 the field
+ * is required. The reviewers' guide lists what the page must carry: the program
+ * or brand name, what the program is, "Message and data rates may apply", the
+ * frequency, how to get help, how to stop (HELP and STOP, in bold), a link to
+ * the privacy policy, and that carriers are not liable for delayed or
+ * undelivered messages -- and since 15 September 2026 each of those is its own
+ * error code (30557 to 30563). Chanlytics' own /terms is a software agreement
+ * for workspace owners and carries none of them, so filing it names the wrong
+ * company's terms for the wrong reader. This page is the business's own.
+ * -------------------------------------------------------------------------- */
+
+export interface TextingTermsVM {
+  title: string;
+  /** Who is bound by these terms: the business, by its registered name and address. */
+  lead: string;
+  /** Each thing the carriers look for, in their order. HELP and STOP are set in bold by the page. */
+  items: { label: string; text: string }[];
+  /** The business's privacy page, `/b/<slug>`. */
+  privacyUrl: string;
+  /** True when the record is too thin to publish honestly. */
+  empty: boolean;
+}
+
+export function textingTermsVM(f: BusinessPageFacts): TextingTermsVM {
+  const legal = f.legalName.trim();
+  const trade = (f.tradeName ?? "").trim();
+  const known = trade || legal || "This business";
+  const empty = !legal || !f.street.trim() || !f.city.trim();
+  const phone = formatPhoneDisplay(f.publicPhoneE164);
+  const email = f.contactEmail.trim();
+  const support = [phone ? `call ${phone}` : null, email ? `email ${email}` : null].filter(Boolean).join(" or ");
+  const entity = trade && trade !== legal ? `${legal}, trading as ${trade}` : legal;
+  return {
+    title: `Text messaging terms: ${known}`,
+    lead: `These terms cover the text messages ${known} sends. ${known} is ${entity}${addressLine(f) ? `, ${addressLine(f)}` : ""}.`,
+    items: [
+      { label: "The program", text: `${known} texts customers who asked for it: replies to what they write, confirmations and reminders about their own appointments, and, only with a separate opt-in, occasional offers and news.` },
+      { label: "How you join", text: `By texting START (appointment messages) or YES OFFERS (offers and news) to ${known}'s number from your own phone, or by ticking and signing the matching box on its sign-up form. Each is a separate choice, and neither is a condition of any purchase.` },
+      { label: "Message frequency", text: "Message frequency varies for appointment messages. Offers and news are a few messages a month." },
+      { label: "Cost", text: "Message and data rates may apply." },
+      { label: "Help", text: `Reply HELP for help${support ? `, or ${support}` : ""}.` },
+      { label: "Stop", text: `Reply STOP at any time to stop. ${known} confirms once and sends nothing more, of either kind.` },
+      { label: "Carriers", text: "Wireless carriers are not liable for delayed or undelivered messages." },
+      { label: "Your information", text: SMS_CLAUSES[3] },
+    ],
+    privacyUrl: f.privacyUrl,
     empty,
   };
 }

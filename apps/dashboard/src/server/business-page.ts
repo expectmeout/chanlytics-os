@@ -76,5 +76,9 @@ export async function businessPageFor(slug: string): Promise<BusinessPageFacts |
     // is how a page ends up linking to the wrong deployment. The ABSOLUTE
     // form the carriers are given is built by the edge from dashboardOrigin().
     optInUrl: `/yes/${clean}`,
+    // This page and its terms, which the campaign files as the business's
+    // privacy policy and terms: relative, for the same reason.
+    privacyUrl: `/b/${clean}`,
+    termsUrl: `/b/${clean}/terms`,
   };
 }

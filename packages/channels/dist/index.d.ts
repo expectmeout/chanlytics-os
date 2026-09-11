@@ -1076,8 +1076,12 @@ declare function smsKeywordConsent(body: string | null | undefined): CarrierCons
 declare function mergeConsent(a: CarrierConsent | null, b: CarrierConsent | null): CarrierConsent | null;
 /** The normalized message with the carrier's verdict added to its own. Either source is enough. */
 declare function withCarrierConsent(n: NormalizedInbound, c: CarrierConsent | null): NormalizedInbound;
-/** What the first reply to a number carries, once. Carrier guidance for A2P traffic. */
-declare const SMS_FOOTER = "Msg&data rates may apply. Reply STOP to opt out.";
+/**
+ * What the first reply to a number carries, once. Carrier guidance for A2P
+ * traffic: the rates disclosure, how to stop, and how to get help -- the third
+ * was missing while every sample the campaign files promised it.
+ */
+declare const SMS_FOOTER = "Msg & data rates may apply. Reply STOP to opt out, HELP for help.";
 /** Twilio's ceiling for one message body. */
 declare const SMS_MAX_CHARS = 1600;
 /** The reply as it goes out: the footer on the first reply to this person, and never over the ceiling. */

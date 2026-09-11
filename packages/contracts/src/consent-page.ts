@@ -44,6 +44,10 @@ import type { SendPurpose } from "./consent";
 
 export interface ConsentPageFacts {
   businessName: string;
+  /** The workspace's slug, for the links to its own privacy page and terms. */
+  slug?: string | null;
+  /** Whether `/b/<slug>` publishes: it needs a legal name and an address. Without it the links fall back to Chanlytics' own pages. */
+  businessPage?: boolean;
   /** The WhatsApp number customers already write to, E.164; null when there is none. */
   whatsappE164: string | null;
   /** The line that receives texts, E.164; null until one is approved for texting. */
@@ -94,8 +98,47 @@ export interface ConsentPageVM {
   qrLink: string | null;
   /** What is true of both asks, said once at the foot. */
   terms: string[];
+  /** Privacy policy and terms, beside the asks: the business's own pages when it has them. */
+  links: PolicyLinks;
   /** True when this workspace has no way to say yes yet: the page says so rather than pretending. */
   empty: boolean;
+}
+
+export interface PolicyLinks {
+  privacy: string;
+  terms: string;
+}
+
+/**
+ * Where the privacy policy and the terms are, beside the asks. A reviewer wants
+ * both links "in or immediately next to the CTA" (30549, 30550, 30564), and
+ * wants them to be the BUSINESS'S -- opt-in evidence for a different company is
+ * its own refusal (30927). The business's own pages when it has them, and
+ * Chanlytics' own when it has not said who it is yet.
+ */
+export function policyLinks(f: Pick<ConsentPageFacts, "slug" | "businessPage">): PolicyLinks {
+  const slug = (f.slug ?? "").trim();
+  if (slug && f.businessPage) return { privacy: `/b/${slug}`, terms: `/b/${slug}/terms` };
+  return { privacy: "/privacy", terms: "/terms" };
+}
+
+/**
+ * The confirmation a customer receives the moment they say yes.
+ *
+ * Every recurring program owes it, however the yes was given -- web, paper or
+ * text -- and the reviewers' guide says what it carries: the brand or program
+ * name, "Message and data rates may apply", how to get help, how to stop, and
+ * the frequency. ONE set of words: the campaign files them as its opt-in message
+ * and the receptionist sends them, so the filing and the wire cannot disagree.
+ * Which question was answered decides which confirmation goes, and neither
+ * confirms the other -- the live campaign was refused three times over a
+ * confirmation that said "offers and news" for the appointment keyword.
+ */
+export function optInConfirmation(businessName: string, purpose: SendPurpose): string {
+  const name = businessName.trim() || "This business";
+  return purpose === "marketing"
+    ? `${name}: you're signed up for offers and news. A few messages a month. Msg & data rates may apply. Reply HELP for help, STOP to cancel.`
+    : `${name}: you'll get texts about your appointments. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to cancel.`;
 }
 
 /** The words the customer sends, so a page, a QR and a carrier filing can never disagree about them. */
@@ -198,6 +241,7 @@ export function consentPageVM(f: ConsentPageFacts): ConsentPageVM {
     asks,
     qrLink: optInLink(f.whatsappE164, CONSENT_PHRASE),
     terms: bothTerms(name),
+    links: policyLinks(f),
     empty,
   };
 }
@@ -225,6 +269,8 @@ export interface ConsentFormVM {
   fields: string[];
   sections: ConsentFormSection[];
   terms: string[];
+  /** Printed as addresses a person can type: the business's own pages when it has them. */
+  links: PolicyLinks;
   /** The line the business fills in when it records the sheet: its own audit trail. */
   office: string;
 }
@@ -246,7 +292,7 @@ export interface ConsentFormVM {
  * Unlike the page it needs no number: a business can take signed forms before its
  * line is approved for texting.
  */
-export function consentFormVM(f: Pick<ConsentPageFacts, "businessName">): ConsentFormVM {
+export function consentFormVM(f: Pick<ConsentPageFacts, "businessName" | "slug" | "businessPage">): ConsentFormVM {
   const name = f.businessName.trim() || "This business";
   const words = askWords(name);
   return {
@@ -258,6 +304,7 @@ export function consentFormVM(f: Pick<ConsentPageFacts, "businessName">): Consen
       { purpose: "marketing", ...words.marketing, box: `Yes, text me offers and news from ${name}.`, sign: "Signature for this box" },
     ],
     terms: bothTerms(name),
+    links: policyLinks(f),
     office: `For ${name}: record each signed box on the customer's profile, under its own answer, as “Sign-up form”, and keep this sheet. Recorded on __________ by __________`,
   };
 }
