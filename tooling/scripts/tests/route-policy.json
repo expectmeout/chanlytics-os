@@ -1,15 +1,7 @@
 {
   "note": "Written by route-policy.test.mjs (UPDATE_ROUTE_POLICY=1). A change here is a change to who may do what, how often, and on which workspace: review it as one.",
   "undeclared": [
-    "billing/invoices",
-    "billing/resume",
-    "billing/sync",
     "me",
-    "platform/lines/refile",
-    "platform/lines/release",
-    "platform/lines/retry",
-    "platform/overview",
-    "platform/tenants/[id]",
     "team",
     "workspaces",
     "workspaces/create"
@@ -64,7 +56,21 @@
       "rate": "billing",
       "spend": false
     },
+    "GET billing/invoices": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "billing",
+      "spend": false
+    },
     "POST billing/portal": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "billing",
+      "spend": false
+    },
+    "POST billing/resume": {
       "kind": "write",
       "scope": "workspace",
       "role": "owner",
@@ -76,6 +82,13 @@
       "scope": "workspace",
       "role": null,
       "rate": null,
+      "spend": false
+    },
+    "POST billing/sync": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "billing",
       "spend": false
     },
     "POST broadcasts/[id]/approve": {
@@ -525,6 +538,41 @@
       "scope": "workspace",
       "role": "viewer",
       "rate": "notify_mark",
+      "spend": false
+    },
+    "POST platform/lines/refile": {
+      "kind": "write",
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_line_refile",
+      "spend": false
+    },
+    "POST platform/lines/release": {
+      "kind": "write",
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_line_release",
+      "spend": false
+    },
+    "POST platform/lines/retry": {
+      "kind": "write",
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_line_retry",
+      "spend": false
+    },
+    "GET platform/overview": {
+      "kind": "read",
+      "scope": "platform",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET platform/tenants/[id]": {
+      "kind": "read",
+      "scope": "platform",
+      "role": null,
+      "rate": null,
       "spend": false
     },
     "PUT playbooks/[id]": {

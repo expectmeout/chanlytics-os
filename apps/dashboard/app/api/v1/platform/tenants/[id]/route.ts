@@ -1,7 +1,7 @@
-import { withRoute } from "@/server/with-route";
+import { read, platform } from "@/server/route";
 import { AppError } from "@chanlytics/contracts";
 import { requireUuid } from "@/server/request-guards";
-import { backOffice, platformTenant, platformEvents } from "@/server/platform";
+import { platformTenant, platformEvents } from "@/server/platform";
 import { setupDtoFor } from "@/server/setup";
 
 /**
@@ -24,17 +24,20 @@ import { setupDtoFor } from "@/server/setup";
  * has ever read. "What changed just before it broke" is the second question
  * support asks, every time.
  *
- * Read-only. Actions across tenants come later, and only ones that already exist
- * as a workspace's own verb.
+ * Read-only, on the platform scope (the database decides who that is). Actions
+ * across tenants come later, and only ones that already exist as a
+ * workspace's own verb.
  */
-export const GET = withRoute(async (_req, ctx) => {
-  const office = await backOffice(ctx);
-  const id = requireUuid(ctx.params.id, "workspace");
-  const tenant = await platformTenant(office, id);
-  if (!tenant) throw new AppError("not_found", "No such workspace.", 404);
-  const [setup, events] = await Promise.all([
-    setupDtoFor(office.db, id, { kind: "back_office" }),
-    platformEvents(office, id),
-  ]);
-  return { tenant, setup, events };
+export const GET = read({
+  scope: platform,
+  handle: async ({ ctx, office }) => {
+    const id = requireUuid(ctx.params.id, "workspace");
+    const tenant = await platformTenant(office, id);
+    if (!tenant) throw new AppError("not_found", "No such workspace.", 404);
+    const [setup, events] = await Promise.all([
+      setupDtoFor(office.db, id, { kind: "back_office" }),
+      platformEvents(office, id),
+    ]);
+    return { tenant, setup, events };
+  },
 });

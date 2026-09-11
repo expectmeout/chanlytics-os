@@ -1,5 +1,5 @@
-import { withRoute } from "@/server/with-route";
-import { backOffice, platformOverview } from "@/server/platform";
+import { read, platform } from "@/server/route";
+import { platformOverview } from "@/server/platform";
 
 /**
  * GET /api/v1/platform/overview — every workspace, for the back office.
@@ -10,11 +10,12 @@ import { backOffice, platformOverview } from "@/server/platform";
  * they are in one place.
  *
  * No workspace scope, and so no `memberContext`: the question is not "which of
- * my workspaces" but "all of them". Authorization is `is_platform_admin()` in
- * the database, and `backOffice()` is the only way to obtain the handle the
- * reads below take -- so a route cannot reach them without passing it.
+ * my workspaces" but "all of them". Declared on the platform scope, whose
+ * door is `backOffice()`: authorization is `is_platform_admin()` in the
+ * database, and the handle the reads below take exists only on the far side
+ * of it -- so a route cannot reach them without passing it.
  */
-export const GET = withRoute(async (_req, ctx) => {
-  const office = await backOffice(ctx);
-  return { tenants: await platformOverview(office) };
+export const GET = read({
+  scope: platform,
+  handle: async ({ office }) => ({ tenants: await platformOverview(office) }),
 });
