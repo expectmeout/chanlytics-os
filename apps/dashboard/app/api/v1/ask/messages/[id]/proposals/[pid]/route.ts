@@ -1,5 +1,5 @@
 import { AppError, AskProposalOutcomeSchema } from "@chanlytics/contracts";
-import { withRoute } from "@/server/with-route";
+import { write, account } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
 import { setProposalOutcome } from "@/server/ask/store";
 
@@ -11,14 +11,23 @@ import { setProposalOutcome } from "@/server/ask/store";
  * result on the turn that proposed it, so the thread reads back with "Sent"
  * or "Not now" instead of a fresh Approve. Own rows only (RLS), one column
  * (00041), and a card approved once cannot be marked approved again.
+ *
+ * Declared as a write of the account: the turn is the person's own, not the
+ * workspace's, and RLS is the door — no workspace is resolved, no role is
+ * judged, no token is taken, exactly as this always was.
  */
-export const POST = withRoute(async (req, ctx) => {
-  const id = requireUuid(ctx.params.id, "turn");
-  const pid = typeof ctx.params.pid === "string" ? ctx.params.pid.slice(0, 40) : "";
-  if (!/^p-[a-z0-9-]+$/.test(pid)) throw new AppError("validation", "Which card?");
-  const body = await req.json().catch(() => null);
-  const parsed = AskProposalOutcomeSchema.safeParse(body);
-  if (!parsed.success) throw new AppError("validation", "An outcome is { state, receipt, atMs, undo? }.");
-  const proposal = await setProposalOutcome(ctx, id, pid, { ...parsed.data, atMs: parsed.data.atMs || Date.now() });
-  return { proposal };
+export const POST = write({
+  scope: account,
+  role: null,
+  rate: null,
+  handle: async ({ ctx, req }) => {
+    const id = requireUuid(ctx.params.id, "turn");
+    const pid = typeof ctx.params.pid === "string" ? ctx.params.pid.slice(0, 40) : "";
+    if (!/^p-[a-z0-9-]+$/.test(pid)) throw new AppError("validation", "Which card?");
+    const body = await req.json().catch(() => null);
+    const parsed = AskProposalOutcomeSchema.safeParse(body);
+    if (!parsed.success) throw new AppError("validation", "An outcome is { state, receipt, atMs, undo? }.");
+    const proposal = await setProposalOutcome(ctx, id, pid, { ...parsed.data, atMs: parsed.data.atMs || Date.now() });
+    return { proposal };
+  },
 });

@@ -95,7 +95,7 @@ test("the door: two periods by the business's clock, replied by the Broadcasts r
   assert.ok(!/security definer/i.test(m), "the caller's RLS applies");
   assert.ok(m.includes("grant execute on function public.campaign_series(uuid, integer) to authenticated;"));
   const r = readCode("apps/dashboard/app/api/v1/reports/campaigns/route.ts");
-  assert.ok(r.includes('takeRate(ctx.userId, "aggregate")') && r.includes('ctx.supabase.rpc("campaign_series", { p_tenant_id: tenantId, p_days: days })'));
+  assert.ok(r.includes('rate: "aggregate",') && r.includes('ctx.supabase.rpc("campaign_series", { p_tenant_id: tenantId, p_days: days })'));
   assert.ok(r.includes("days must be 7, 30 or 90."), "the same three presets as the receptionist's report");
   const s = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(s.includes("fetchEnvelope<{ report: CampaignReportDto }>(`/api/v1/reports/campaigns?days=${days}`)"), "fetched with the same period, beside the receptionist's numbers");

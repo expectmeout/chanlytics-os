@@ -241,7 +241,7 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
 test("the turn route: same-origin POST, a rate bucket, the thread saved before the model is asked, JSON lines out, a sixty-second ceiling", () => {
   const r = readCode("apps/dashboard/app/api/v1/ask/route.ts");
   assert.ok(r.includes("export const maxDuration = 60;"));
-  assert.ok(r.includes('takeRate(ctx.userId, "ask");'));
+  assert.ok(r.includes('rate: "ask",'));
   assert.ok(r.includes('await appendMessage(ctx, thread.id, tenantId, "user", { text });'), "the question is saved before the answer is attempted");
   assert.ok(r.includes('"content-type": "application/x-ndjson; charset=utf-8"'));
   assert.ok(r.includes('"cache-control": "private, no-store"'));
