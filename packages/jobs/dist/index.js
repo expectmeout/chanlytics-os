@@ -18512,6 +18512,60 @@ async function templatePurpose(db, tenantId, template) {
 var MAX_SNOOZE_MS = 30 * 24 * 3600 * 1e3;
 var SEND_GRACE_MS = 15 * 1e3;
 var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
+async function sendQueued(ports, cmd) {
+  const p = cmd.payload;
+  let msg;
+  try {
+    msg = await ports.queued(p.message_id);
+  } catch (e) {
+    throw new Error(`outbound_send: cannot read message ${p.message_id}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  if (!msg || msg.status !== "queued") return;
+  const purpose = await ports.purposeOf(p.template);
+  const channel = msg.channel ?? "whatsapp";
+  const out = await ports.deliver({
+    tenantId: cmd.tenantId,
+    conversationId: p.conversation_id,
+    contactId: null,
+    to: p.to_phone,
+    channel,
+    // Read from the ROW, not hardcoded: under a veto window the receptionist's
+    // own reply travels this path, and stamping every send "human" would make
+    // the metrics report a bot's words as a person's.
+    sender: msg.sender ?? "human",
+    purpose,
+    proactive: false,
+    body: p.body ?? msg.body ?? "",
+    template: p.template,
+    messageId: p.message_id
+  });
+  if (out.outcome !== "failed") return;
+  if (out.reason === "provider" && (out.status === 401 || out.status === 403)) {
+    await ports.page?.(`provider_auth:${channel}`, `${channel} rejected a send with ${out.status}`, `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`);
+  }
+  await ports.escalate(p.conversation_id, "send_failed", `Dashboard reply could not be delivered (HTTP ${out.status}).`);
+  await ports.alert(`Reply delivery failed: ${p.to_phone}`, `A reply queued from the dashboard could not be sent (HTTP ${out.status}). The thread is flagged in the Inbox.`);
+}
+async function eraseBlobThread(ports, cmd) {
+  const p = cmd.payload;
+  if (p.scrubbed) return;
+  if (!p.namespace) throw new Error("blob_thread_erase: payload has no namespace");
+  const ids = (Array.isArray(p.thread_ids) ? p.thread_ids : []).filter((t) => typeof t === "string" && t.length > 0);
+  const failed = [];
+  for (const id of ids) if (!await ports.eraseThread(p.namespace, id)) failed.push(id);
+  if (failed.length) throw new Error(`blob_thread_erase: ${failed.length} thread(s) not deleted`);
+  const scrubbed = { contact_id: p.contact_id ?? null, namespace: p.namespace, threads: ids.length, scrubbed: true };
+  await ports.scrub(cmd.tenantId, p.contact_id ? { contactId: p.contact_id } : { jobId: cmd.jobId }, scrubbed);
+  if (p.contact_id) await ports.recordErased(cmd.tenantId, p.contact_id, ids.length, cmd.jobId);
+}
+async function provisionLine(ports, cmd) {
+  const lineId = typeof cmd.payload.line_id === "string" ? cmd.payload.line_id : "";
+  const by = cmd.payload.by === "sweep" || cmd.payload.by === "support" ? cmd.payload.by : "owner";
+  if (!lineId) throw new Error("line_provision: payload.line_id is required");
+  if (!ports.provision) throw new Error("line_provision: this runtime holds no line provider");
+  const r = await ports.provision(lineId, by);
+  if (!r.ok) throw new Error(`line_provision: stopped at ${r.step ?? "?"}: ${r.error ?? "unknown"}`);
+}
 
 // ../db/dist/index.js
 var __defProp4 = Object.defineProperty;
@@ -23113,90 +23167,43 @@ var DAY_MS63 = 24 * 3600 * 1e3;
 
 // src/handlers.ts
 async function outboundSend(ctx, job) {
-  const p = job.payload;
-  const { data: msg, error: readErr } = await ctx.db.from("messages").select("id, status, body, template_name, channel, sender").eq("id", p.message_id).eq("tenant_id", job.tenant_id).maybeSingle();
-  if (readErr) {
-    throw new Error(`outbound_send: cannot read message ${p.message_id}: ${readErr.message}`);
-  }
-  if (!msg || msg.status !== "queued") return;
-  const purpose = await templatePurpose(ctx.db, job.tenant_id, p.template);
-  const channel = msg.channel ?? "whatsapp";
-  const out = await deliver(
-    { db: ctx.db, wire: ctx.wire },
+  await sendQueued(
     {
-      tenantId: job.tenant_id,
-      conversationId: p.conversation_id,
-      contactId: null,
-      to: p.to_phone,
-      channel,
-      // Read from the ROW, not hardcoded. This queue used to carry only human
-      // replies; under a veto window the receptionist's own reply travels the
-      // same path, and stamping every send as "human" would make the metrics
-      // report a bot's words as a person's.
-      sender: msg.sender ?? "human",
-      purpose,
-      proactive: false,
-      body: p.body ?? msg.body ?? "",
-      template: p.template,
-      messageId: p.message_id
-    }
+      // maybeSingle() reports an absent row as `data: null` without an error,
+      // so a read that failed and a message that is gone stay separable; the
+      // verb turns the error into the job's loud failure.
+      queued: async (id) => {
+        const { data, error } = await ctx.db.from("messages").select("id, status, body, template_name, channel, sender").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle();
+        if (error) throw new Error(error.message);
+        return data;
+      },
+      purposeOf: (template) => templatePurpose(ctx.db, job.tenant_id, template),
+      deliver: (d) => deliver({ db: ctx.db, wire: ctx.wire }, d),
+      escalate: (conversationId, reason, details) => upsertEscalation(ctx.db, job.tenant_id, conversationId, reason, details),
+      alert: ctx.alert,
+      ...ctx.page ? { page: ctx.page } : {}
+    },
+    { tenantId: job.tenant_id, payload: job.payload }
   );
-  if (out.outcome === "failed") {
-    if (out.reason === "provider" && (out.status === 401 || out.status === 403)) {
-      await ctx.page?.(`provider_auth:${channel}`, `${channel} rejected a send with ${out.status}`, `Tenant ${job.tenant_id}, message ${p.message_id}. Credentials, not content.`);
-    }
-    await upsertEscalation(
-      ctx.db,
-      job.tenant_id,
-      p.conversation_id,
-      "send_failed",
-      `Dashboard reply could not be delivered (HTTP ${out.status}).`
-    );
-    await ctx.alert(
-      `Reply delivery failed: ${p.to_phone}`,
-      `A reply queued from the dashboard could not be sent (HTTP ${out.status}). The thread is flagged in the Inbox.`
-    );
-  }
 }
 async function blobThreadErase(ctx, job) {
-  const p = job.payload;
-  if (p.scrubbed) return;
-  if (!p.namespace) throw new Error("blob_thread_erase: payload has no namespace");
-  const ids = (Array.isArray(p.thread_ids) ? p.thread_ids : []).filter((t) => typeof t === "string" && t.length > 0);
-  const failed = [];
-  for (const id of ids) {
-    if (!await ctx.eraseThread(p.namespace, id)) failed.push(id);
-  }
-  if (failed.length) throw new Error(`blob_thread_erase: ${failed.length} thread(s) not deleted`);
-  const scrubbed = {
-    contact_id: p.contact_id ?? null,
-    namespace: p.namespace,
-    threads: ids.length,
-    scrubbed: true
-  };
-  if (p.contact_id) {
-    await ctx.db.from("jobs").update({ payload: scrubbed }).eq("tenant_id", job.tenant_id).eq("kind", "blob_thread_erase").eq("payload->>contact_id", p.contact_id);
-  } else {
-    await ctx.db.from("jobs").update({ payload: scrubbed }).eq("id", job.id);
-  }
-  if (p.contact_id) {
-    await ctx.db.from("decisions").insert({
-      tenant_id: job.tenant_id,
-      subject_type: "contact",
-      subject_id: p.contact_id,
-      verb: "erase",
-      actor_type: "system",
-      payload: { leg: "blob", threads: ids.length, job_id: job.id }
-    });
-    await ctx.db.from("events").insert({
-      tenant_id: job.tenant_id,
-      kind: "contact.blob_erased",
-      category: "contact",
-      subject_type: "contact",
-      subject_id: p.contact_id,
-      data: { threads: ids.length }
-    });
-  }
+  await eraseBlobThread(
+    {
+      eraseThread: ctx.eraseThread,
+      scrub: async (tenantId, by, scrubbed) => {
+        const q = ctx.db.from("jobs").update({ payload: scrubbed });
+        if ("contactId" in by) await q.eq("tenant_id", tenantId).eq("kind", "blob_thread_erase").eq("payload->>contact_id", by.contactId);
+        else await q.eq("id", by.jobId);
+      },
+      // actor_type 'system' with a null actor_user_id is what decisions_check
+      // requires; the service role is not subject to RLS here.
+      recordErased: async (tenantId, contactId, threads, jobId) => {
+        await ctx.db.from("decisions").insert({ tenant_id: tenantId, subject_type: "contact", subject_id: contactId, verb: "erase", actor_type: "system", payload: { leg: "blob", threads, job_id: jobId } });
+        await ctx.db.from("events").insert({ tenant_id: tenantId, kind: "contact.blob_erased", category: "contact", subject_type: "contact", subject_id: contactId, data: { threads } });
+      }
+    },
+    { tenantId: job.tenant_id, jobId: job.id, payload: job.payload }
+  );
 }
 async function upsertEscalation(db, tenantId, conversationId, reason, details) {
   const { error } = await db.from("escalations").insert({
@@ -23335,12 +23342,7 @@ async function broadcastSend(ctx, job) {
   );
 }
 async function lineProvision(ctx, job) {
-  const lineId = typeof job.payload.line_id === "string" ? job.payload.line_id : "";
-  const by = job.payload.by === "sweep" || job.payload.by === "support" ? job.payload.by : "owner";
-  if (!lineId) throw new Error("line_provision: payload.line_id is required");
-  if (!ctx.provisionLine) throw new Error("line_provision: this runtime holds no line provider");
-  const r = await ctx.provisionLine(lineId, by);
-  if (!r.ok) throw new Error(`line_provision: stopped at ${r.step ?? "?"}: ${r.error ?? "unknown"}`);
+  await provisionLine({ ...ctx.provisionLine ? { provision: ctx.provisionLine } : {} }, { payload: job.payload });
 }
 var HANDLERS = {
   outbound_send: outboundSend,

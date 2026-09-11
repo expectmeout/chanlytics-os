@@ -377,4 +377,113 @@ interface ReplyCommand {
  */
 declare function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand): Promise<ReplyReceipt>;
 
-export { type ArchivePorts, type CancelSendPorts, type Channel, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type EscalationPorts, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, MAX_SNOOZE_MS, NEEDS_UNTIL, type QueuedReply, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, SEND_GRACE_MS, type SendPayload, type Sender, type SnoozePorts, type SnoozeResult, type TakeOverPorts, type TakeOverResult, type TemplateSend, type Thread, type ThreadPorts, type WakePorts, type Wire, type WirePayload, archive, cancelSend, deliver, deliverSafely, handBack, replyToConversation, resolveEscalation, snooze, takeOver, templatePurpose, wake, whatsappSender };
+/**
+ * The send path's view of the world: what the four job verbs need, named for
+ * what each means. The adapter that knows the tables and the runtime's
+ * services is packages/jobs/src/handlers.ts.
+ */
+
+/** The door, handed in: a verb never builds it, so a test can answer whatever the case needs. */
+type Door = (d: Delivery) => Promise<Delivered>;
+interface SendQueuedPorts {
+    /**
+     * The row as it stands, or null when it is gone. Throws when it cannot be
+     * read: a read that FAILED and a message that is genuinely gone are
+     * different facts, and collapsing them is how a reply once vanished.
+     */
+    queued(messageId: string): Promise<{
+        status: string;
+        body: string | null;
+        channel: string | null;
+        sender: string | null;
+    } | null>;
+    /** Which yes this send needs: the template's category as Meta has it, read now; unreadable throws. */
+    purposeOf(template: {
+        name: string;
+        language: string;
+    } | undefined): Promise<SendPurpose>;
+    deliver: Door;
+    /** The thread flagged for a person, with why. */
+    escalate(conversationId: string, reason: string, details: string): Promise<unknown>;
+    alert(subject: string, body: string): Promise<void>;
+    /** The platform's own pager, for a provider refusing every send on a wire. */
+    page?(key: string, subject: string, body: string): Promise<unknown>;
+}
+interface EraseThreadPorts {
+    /** One stored Blob thread gone. False when it is still there. */
+    eraseThread(namespace: string, threadId: string): Promise<boolean>;
+    /** Every job row for this contact, or this one job, carries the scrubbed payload from now on. */
+    scrub(tenantId: string, by: {
+        contactId: string;
+    } | {
+        jobId: string;
+    }, scrubbed: Json): Promise<void>;
+    /** The same ledger as the owner's own erase decision, and the event. */
+    recordErased(tenantId: string, contactId: string, threads: number, jobId: string): Promise<void>;
+}
+interface ProvisionLinePorts {
+    /** The saga, or its resumption: the edge's, because the provider and the credentials live there. Absent in a runtime that holds none. */
+    provision?(lineId: string, by: "owner" | "support" | "sweep"): Promise<{
+        ok: boolean;
+        step?: string;
+        error?: string;
+    }>;
+}
+
+interface SendQueuedCommand {
+    tenantId: string;
+    payload: {
+        message_id: string;
+        conversation_id: string;
+        to_phone: string;
+        body?: string;
+        template?: {
+            name: string;
+            language: string;
+            params: string[];
+        };
+    };
+}
+/**
+ * outbound_send: the honest undo — the message sat status='queued' through
+ * its cancel window; if it is STILL queued, send it through the door and
+ * finalize. The door re-reads the person's consent with this message's
+ * purpose, the thread's pause and the workspace's status at the wire; what is
+ * here is the outbox's own business: whether the row is still there to send,
+ * which yes its template needs, and who is told when the wire could not
+ * carry it.
+ */
+declare function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand): Promise<void>;
+
+interface EraseThreadCommand {
+    tenantId: string;
+    jobId: string;
+    payload: {
+        contact_id?: string;
+        namespace?: string;
+        thread_ids?: unknown;
+        scrubbed?: boolean;
+    };
+}
+/**
+ * blob_thread_erase: the copy Postgres cannot reach. The Vercel Blob thread
+ * holds the verbatim conversation outside RLS and outside the database, so
+ * deleting the rows is not deleting the data. The dashboard queues this job
+ * BEFORE it destroys anything, so a crash mid-erasure leaves a retryable
+ * request rather than an orphaned transcript whose key nobody can reconstruct.
+ */
+declare function eraseBlobThread(ports: EraseThreadPorts, cmd: EraseThreadCommand): Promise<void>;
+
+/**
+ * line_provision: a line's provisioning, on the ledger (00109). The durable
+ * part is the ledger's — claimed under a lease, resumed by the heartbeat when
+ * a worker dies, tried up to its ceiling and then given up loudly — and the
+ * saga is the edge's, reading its own receipts so a second run repeats
+ * nothing. A saga that stopped fails the job with the step it stopped at, so
+ * the next try resumes there.
+ */
+declare function provisionLine(ports: ProvisionLinePorts, cmd: {
+    payload: Record<string, unknown>;
+}): Promise<void>;
+
+export { type ArchivePorts, type CancelSendPorts, type Channel, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, MAX_SNOOZE_MS, NEEDS_UNTIL, type ProvisionLinePorts, type QueuedReply, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, SEND_GRACE_MS, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type TakeOverPorts, type TakeOverResult, type TemplateSend, type Thread, type ThreadPorts, type WakePorts, type Wire, type WirePayload, archive, cancelSend, deliver, deliverSafely, eraseBlobThread, handBack, provisionLine, replyToConversation, resolveEscalation, sendQueued, snooze, takeOver, templatePurpose, wake, whatsappSender };
