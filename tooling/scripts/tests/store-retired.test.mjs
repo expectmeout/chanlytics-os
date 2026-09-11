@@ -69,7 +69,7 @@ test("every caller that used the store as a mirror steps aside when it is retire
 });
 
 test("the queue's kinds: each one handled and each one scheduled somewhere", () => {
-  assert.deepEqual([...JOB_KINDS], ["outbound_send", "broadcast_send", "blob_thread_erase"]);
+  assert.deepEqual([...JOB_KINDS], ["outbound_send", "broadcast_send", "blob_thread_erase", "line_provision"]);
   const handlers = readCode("packages/jobs/src/handlers.ts");
   for (const k of JOB_KINDS) assert.ok(new RegExp(`^\\s*${k}: \\w+,`, "m").test(handlers), `${k} has a handler in the dispatch map`);
   for (const dead of ["veto_fire", "media_fetch", "rollup_daily", "report_weekly", "snooze_wake", "pause_expire"]) assert.ok(!handlers.includes(`${dead}:`), `${dead} is not handled and not declared`);

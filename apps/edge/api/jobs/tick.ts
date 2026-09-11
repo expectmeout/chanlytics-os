@@ -21,6 +21,7 @@ import { smsSenderForTenant } from "../../lib/sms.js";
 import { deleteThread } from "../../lib/store.js";
 import { whatsappSender } from "../../lib/workspace/core.js";
 import { pageOperator } from "../../lib/page-operator.js";
+import { provisionLineJob } from "../../lib/line-provision-job.js";
 import {
   runTick, claimNext, completeJob, failJob, settleJob, dispatchJob, scheduleJob,
   CLAIM_FOR_MS, YIELD_AT_MS, LEASE_SECONDS,
@@ -59,6 +60,7 @@ export async function POST(request: Request): Promise<Response> {
               page: (key, subject, body) => pageOperator({ db }, key, subject, body),
               // The edge is the only runtime holding BLOB_READ_WRITE_TOKEN.
               eraseThread: deleteThread,
+              provisionLine: (lineId, by) => provisionLineJob(db, lineId, by),
               // A job that continues itself (a broadcast's next batch) is one
               // more row, as this job's tenant.
               schedule: async (kind, dueAt, payload) => {

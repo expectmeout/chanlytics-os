@@ -31,9 +31,10 @@ import { json } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
-import { lineProviderFromEnv, rowToLine } from "../../lib/lines.js";
+import { lineProviderFromEnv } from "../../lib/lines.js";
 import { notify } from "../../lib/notify.js";
-import { provisionLine, reportLineFailed } from "../../lib/provision.js";
+import { reportLineFailed } from "../../lib/provision.js";
+import { scheduleJob } from "../../lib/workspace/jobs.js";
 import { sweepStuckLines } from "../../lib/line-resume.js";
 
 export const config = { maxDuration: 60 };
@@ -71,7 +72,11 @@ export async function POST(request: Request): Promise<Response> {
   let result;
   try {
     result = await sweepStuckLines(db, {
-      resume: (tenant, row) => provisionLine(db, choice, { apiKey }, { fnSecret }, tenant, rowToLine(row), "sweep"),
+      // The saga runs on the ledger (00109); this sweep only detects and takes.
+      resume: async (tenant, row) => {
+        await scheduleJob(db, { tenantId: tenant.id, kind: "line_provision", dueAt: new Date(), payload: { line_id: row.id, by: "sweep" } });
+        return { ok: true };
+      },
       alert: (subject, body) => notify({ tenantId: null, notifications: null, isEnvDefault: true }, { kind: "alert", subject, body }),
       reportFailed: (tenant, row, error) => reportLineFailed(db, choice.name, tenant, row, row.step ?? "setting up", error, "sweep"),
       now: () => Date.now(),
