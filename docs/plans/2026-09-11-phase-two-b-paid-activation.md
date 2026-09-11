@@ -20,7 +20,7 @@
 - Modify: `apps/dashboard/src/legacy-bridge/surface-runner.ts` (the `subscribeMessagesInserts` call, `tenantId` and a per-workspace topic)
 - Test: `tooling/scripts/tests/realtime-scope.test.mjs` (new, executed against a fake client)
 
-- [ ] **Step 1: The failing test**
+- [x] **Step 1: The failing test**
 
 ```js
 import { test } from "node:test";
@@ -68,7 +68,7 @@ test("without a workspace, nothing is filtered: the caller must say", async () =
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/realtime-scope.test.mjs` → both pass already (the wrapper is right); the bridge is what is wrong, and its pin moves in Step 2.
 
-- [ ] **Step 2: The bridge names the workspace**
+- [x] **Step 2: The bridge names the workspace**
 
 In `surface-runner.ts`, the call becomes:
 
@@ -89,7 +89,7 @@ In `surface-runner.ts`, the call becomes:
     );
 ```
 
-- [ ] **Step 3: Typecheck, full suite, commit, PR, merge when green.** Commit: `Realtime is scoped to the workspace the tab shows`.
+- [x] **Step 3: Typecheck, full suite, commit, PR, merge when green.** Commit: `Realtime is scoped to the workspace the tab shows`.
 
 ---
 
@@ -102,7 +102,7 @@ In `surface-runner.ts`, the call becomes:
 - Modify: `apps/dashboard/src/server/service.ts` (ten fetches, the `EDGE_BASE` literal), `apps/dashboard/src/server/signup.ts` (one fetch, the literal)
 - Test: the fourteen pins on these files move (call-outcomes, eval-harness, steer ×2, templates-made-here, templates-truth ×2, voice-provision, whatsapp-connect ×2, whisper ×2, setup ×2); none are added. `edge-token.test.mjs` already proves the token.
 
-- [ ] **Step 1: The doors**
+- [x] **Step 1: The doors**
 
 Replace, in each door, the three-line gate
 
@@ -124,15 +124,15 @@ Where the door reads `tenant_id` from its body, the token's workspace is believe
 
 That is eval, pause, playbooks-run, setup-request, signup-notify, voice-provision, whatsapp/connect, templates-create, templates-delete, templates-sync. steer loads its message and whisper its call: after the row is loaded, `if (auth.workspace && row.tenant_id !== auth.workspace) return json(403, { ok: false, error: "workspace_mismatch" });` (whisper's call row is read through the provider id; if the door never reads a row with `tenant_id`, the check is on the dashboard side, which passes the call's workspace in the token, and the door keeps the key semantics). backfill, backfill-calls, voice-converge, signup-config and diag act on no single workspace: gate only.
 
-- [ ] **Step 2: The callers**
+- [x] **Step 2: The callers**
 
 `service.ts`: delete `const EDGE_BASE = …`, import `{ edgeConfigured, edgeHeaders, edgeUrl } from "./edge"`, and each fetch becomes `fetch(\`${edgeUrl()}/api/admin/<name>\`, { method: "POST", headers: edgeHeaders("/api/admin/<name>", { workspace: tenantId }), … })` where the function has a `tenantId` (mirrorBlobPause, tellPlatformOfSetupRequest, connectWhatsApp, syncTemplates, createTemplate, deleteTemplate, runPlaybookNow) and `edgeHeaders("/api/admin/<name>")` where it does not (whisperLiveCall, steerDraft, whatsappSignupConfig). `signup.ts`: the same for signup-notify, and its `if (!process.env.DIAG_KEY || …)` becomes `if (!edgeConfigured() || …)`.
 
-- [ ] **Step 3: The pins move**
+- [x] **Step 3: The pins move**
 
 Each `'request.headers.get("x-diag-key") !== process.env.DIAG_KEY'` pin on a door becomes `'authorizeAdmin(request, "/api/admin/<name>")'`; each `` "`${EDGE_BASE}/api/admin/<name>`" `` pin on a caller becomes `` "`${edgeUrl()}/api/admin/<name>`" ``; whisper's `'"x-diag-key": process.env.DIAG_KEY!'` becomes `'edgeHeaders("/api/admin/whisper")'`.
 
-- [ ] **Step 4: Typecheck, full suite, lint, commit, PR, merge when green.** Commit: `Every edge door trusts the token, and every caller carries one`.
+- [x] **Step 4: Typecheck, full suite, lint, commit, PR, merge when green.** Commit: `Every edge door trusts the token, and every caller carries one`.
 
 ---
 
@@ -147,7 +147,7 @@ PRD ON-02: readiness and owner activation are separate; test evidence is recorde
 - Modify: `packages/contracts/src/setup.ts` (`SetupDto.activations`, the voice and WhatsApp rows carry the activation state and an `Activate` verb), `apps/dashboard/src/server/setup.ts` (reads the record), `apps/dashboard/src/legacy-bridge/setup.ts` (`activate(kind)`), `apps/dashboard/src/legacy/pages/setup.jsx` (the `verb:activate:` branch of `act`)
 - Test: `tooling/scripts/tests/capabilities.test.mjs` (executed: the status function over every record combination), `tooling/scripts/tests/activations.db.test.mjs` (local Supabase: RLS, one row per capability, the owner-only write)
 
-- [ ] **Step 1: The migration**
+- [x] **Step 1: The migration**
 
 ```sql
 -- 00108 · An owner's activation of a capability is a record.
@@ -171,7 +171,7 @@ alter publication supabase_realtime add table public.capability_activations;
 
 (The helper names `is_member` / `is_owner` are read from the latest policy migrations at execution and used exactly; if the repo's helpers are named differently, use those.)
 
-- [ ] **Step 2: The status, pure**
+- [x] **Step 2: The status, pure**
 
 ```ts
 export type CapabilityKind = "voice" | "whatsapp" | "sms";
@@ -193,11 +193,11 @@ export function capabilityStatus(kind: CapabilityKind, i: SetupDto & { activatio
 
 Voice: ready when `channels.voice.active` (a line answering); blockers otherwise from the line row (`no_line`, `provisioning`, `line_failed:<step>`, `billing_required`); tested = `channels.voice.lastInboundAt` after the line's `state_since`; activated from the record. WhatsApp: ready when `channels.whatsapp.active` and Meta is not waiting; tested = `lastInboundAt`; SMS: ready only when `sms_state === "active"` and never mock (texting is last; the function says so honestly).
 
-- [ ] **Step 3: The route, the DTO, the rows, the bridge, the page**
+- [x] **Step 3: The route, the DTO, the rows, the bridge, the page**
 
 `POST /api/v1/capabilities/[kind]` `write({ scope: workspace, role: "owner", rate: "settings", input: z.object({ note: z.string().max(200).optional() }), handle })` upserts the record for `(member.tenantId, kind)` with `activated_by: ctx.userId`, `deactivated_at: null`, and refuses (409, `not_ready`) when `capabilityStatus(kind).ready` is false; `DELETE` sets `deactivated_at`. `setupDtoFor` reads `capability_activations` into `SetupDto.activations`. In `setupSteps`, the `receptionist` row (voice) and the `whatsapp` row gain: when ready and tested and not activated, `verb: { label: "Activate", to: "verb:activate:voice" }` and the sentence `"Answering on <number>. You have tested it; activate it to say so."`; when activated, details gain `"Activated <ago> by you"`. The bridge's `SetupApi` gains `activate(kind)` posting to the route and refreshing Setup; `act(verb)` in `setup.jsx` gains `if (verb.to.startsWith("verb:activate:")) { …window.__setup.activate(kind)… }` mirroring the retry-line branch (owner check, flash). Render the page loaded (the legacy harness pattern in `registration-path.test.mjs`) before trusting it.
 
-- [ ] **Step 4: Prove on a local database, typecheck, full suite, lint, PR opened; do not merge.**
+- [x] **Step 4: Prove on a local database, typecheck, full suite, lint, PR opened; do not merge.**
 
 ---
 
@@ -213,7 +213,7 @@ Voice: ready when `channels.voice.active` (a line answering); blockers otherwise
 - Modify: `apps/dashboard/app/api/v1/lines/buy/route.ts` (accepts 202: `{ ok: true, line, queued: true }`), `apps/dashboard/src/legacy-bridge/setup.ts` (buy's message: "Setting up — this page updates by itself")
 - Test: `tooling/scripts/tests/jobs-ledger.test.mjs` (the handler with a fake port: success completes, a thrown provider fails the job with its words, a deadline passed schedules nothing new), `tooling/scripts/tests/line-provision.db.test.mjs` (00109 replays; a `line_provision` row is accepted and claimed by `claim_due_jobs`)
 
-- [ ] **Step 1: The migration and the kind**
+- [x] **Step 1: The migration and the kind**
 
 ```sql
 alter table public.jobs drop constraint if exists jobs_kind_check;
@@ -221,7 +221,7 @@ alter table public.jobs add constraint jobs_kind_check
   check (kind in ('outbound_send', 'broadcast_send', 'blob_thread_erase', 'line_provision'));
 ```
 
-- [ ] **Step 2: The handler**
+- [x] **Step 2: The handler**
 
 ```ts
 async function lineProvision(ctx: JobContext, job: ClaimedJob): Promise<void> {
@@ -236,7 +236,7 @@ async function lineProvision(ctx: JobContext, job: ClaimedJob): Promise<void> {
 
 The tick's port loads the row and the tenant, refuses a row that is not `provisioning` (a release or a retry by a person took it), and calls `provisionLine(db, choice, cfg, secrets, tenant, rowToLine(row), by)`; the saga's own failure path already writes `failed`, reports and bells.
 
-- [ ] **Step 3: The doors and the page**, then **Step 4: local database proof, typecheck, full suite, lint, PR opened; do not merge.**
+- [x] **Step 3: The doors and the page**, then **Step 4: local database proof, typecheck, full suite, lint, PR opened; do not merge.**
 
 ---
 
@@ -249,11 +249,11 @@ The tick's port loads the row and the tenant, refuses a row that is not `provisi
 - Modify: `apps/edge/lib/whatsapp/inbound.ts` (an optional last parameter `ports = realPorts()`; every `pg()`, `getThread`, `saveThread`, `storeBackend`, `threadNamespace`, `loadTenantRuntime`, `pgThread`, `pgSink`, `queueReply`, `alertStaff`, `whatsappSender`, `tokensLast24h`, `openingsFor`, `visitsFor`, `readLeadContext`, `pageOperator`, `isThreadUnknown` and the brain import go through `ports`)
 - Test: `tooling/scripts/tests/inbound-executed.test.mjs` (new): a text from a new customer with no model key → the greeting leaves labelled `fallback: "no_model"`, the thread is paused, an escalation `brain_error` is written, the owner is alerted, the platform paged once; the same customer's second text inside the pause → no reply, a handoff alert; a short code → recorded, marked handled, nothing sent; an ingest the database refuses → `IngestFailed` propagates and a copy reaches the mailbox; an opted-out customer → no reply, the opt-out alert.
 
-- [ ] **Step 1: The ports** (interface with one member per dependency above, typed from the modules' own signatures; `realPorts()` returns the modules)
+- [x] **Step 1: The ports** (interface with one member per dependency above, typed from the modules' own signatures; `realPorts()` returns the modules)
 
-- [ ] **Step 2: The handler reads its world through `ports`** (mechanical: `saveThread(` → `ports.store.save(`, etc.; the count of each replacement is asserted by the patch script)
+- [x] **Step 2: The handler reads its world through `ports`** (mechanical: `saveThread(` → `ports.store.save(`, etc.; the count of each replacement is asserted by the patch script)
 
-- [ ] **Step 3: The test**, then **Step 4: the pins that moved with the renames move; typecheck, full suite, lint, commit, PR, merge when green.**
+- [x] **Step 3: The test**, then **Step 4: the pins that moved with the renames move; typecheck, full suite, lint, commit, PR, merge when green.**
 
 ---
 
