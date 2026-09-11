@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@chanlytics/contracts": "workspace:*",
-    "@supabase/supabase-js": "^2.49.0"
+    "@supabase/supabase-js": "^2.116.0"
   },
   "devDependencies": {
     "tsup": "^8.3.0",
