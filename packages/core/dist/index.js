@@ -8730,6 +8730,9 @@ function mayMessageFor(c, purpose, opts = {}) {
 function purposeOfTemplate(category) {
   return category === "utility" || category === "authentication" ? "conversational" : "marketing";
 }
+function purposeOfPlaybook(policyClass) {
+  return policyClass === "booking" ? "conversational" : "marketing";
+}
 var DAY_MS6 = 864e5;
 var WEEK_MS4 = 7 * DAY_MS6;
 var BRAIN_INTENTS2 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
@@ -9080,6 +9083,11 @@ var SHORT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }
 var LIVE_STALE_MS2 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS2 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;
+var ms = (t) => typeof t === "number" ? t : Date.parse(t);
+function visitStartTime(v, tz) {
+  if (v.allDay || v.all_day) return "all day";
+  return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(ms(v.start)));
+}
 var DAY_MS22 = 864e5;
 var WEEK_MS22 = 7 * DAY_MS22;
 var MONTH_MS2 = 30 * DAY_MS22;
@@ -9088,6 +9096,42 @@ var QUIET_AFTER_MS3 = 30 * DAY_MS22;
 var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_YEAR_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
 var TIME_FMT22 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
+function mayReceive(r, purpose) {
+  if (!r.phone) return false;
+  return mayMessageFor(
+    { consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing },
+    purpose,
+    { proactive: true }
+  ).ok;
+}
+var PEOPLE_LISTS = [
+  { id: "needs_you", label: "Needs you", group: "attention", test: (v) => v.state === "needs_you" },
+  { id: "waiting_on_you", label: "Waiting on you", group: "attention", test: (v) => v.state === "waiting_on_you" },
+  { id: "new_week", label: "New this week", group: "journey", test: (v) => v.state === "new" },
+  { id: "booked_week", label: "Booked this week", group: "journey", needsCalendar: true, test: (v) => v.nextVisitDays !== null && v.nextVisitDays <= 7 },
+  { id: "booked", label: "Booked", group: "journey", needsCalendar: true, test: (v) => v.booked },
+  { id: "asked_never_booked", label: "Asked, never booked", group: "journey", needsCalendar: true, test: (v) => v.askedNotBooked },
+  // Forty-five days since the chair, nothing ahead: the win-back list, from visits rather than silence.
+  { id: "lapsed", label: "Lapsed", group: "journey", needsCalendar: true, test: (v) => !v.booked && v.lastVisitDays !== null && v.lastVisitDays >= 45 },
+  { id: "quiet", label: "Quiet 30+ days", group: "reach", test: (v) => v.state === "quiet" },
+  { id: "phoned_only", label: "Phoned only", group: "reach", test: (v) => !v.hasChat && v.calls > 0 },
+  // A fact, not the state: someone who opted out AND needs you is in both lists.
+  //
+  // TWO LISTS, BECAUSE THERE ARE TWO ANSWERS. This one was labelled "Can receive
+  // offers" and tested the CONVERSATIONAL column, which after 00095 is the one
+  // answer that says nothing about offers -- so the list a person opened to find
+  // their promotional audience showed everybody who had ever texted START. The id
+  // is unchanged on purpose: a saved broadcast's audience refers to it by id, and
+  // renaming it would repoint filings that have already gone out.
+  { id: "opted_in", label: "Said yes to messages", group: "reach", test: (v) => v.consent.state === "opted_in" },
+  // The promotional audience, on its own column. The only people a MARKETING
+  // broadcast may reach.
+  // CAN receive, so it is the broadcast's own rule -- a yes to offers AND a number --
+  // not the bare answer, which was the difference between this list and what the
+  // route would actually enrol.
+  { id: "offers_ok", label: "Can receive offers", group: "reach", test: (v) => mayReceive(v, "marketing") },
+  { id: "opted_out", label: "Opted out", group: "reach", test: (v) => v.consent.state === "opted_out" }
+];
 var DAY_MS32 = 24 * 3600 * 1e3;
 var ASK_CAPS2 = {
   threads: 20,
@@ -9185,6 +9229,18 @@ var WHEN_ES2 = { ...WHEN3, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM
 var SERVICE_ES2 = { ...SERVICE2, label: "Servicio", example: "una consulta" };
 var BROADCAST_CHUNK = 25;
 var BROADCAST_GAP_MS = 300;
+function eligibleFor(rows, kind, id, savedIds, purpose) {
+  let pool = rows;
+  if (kind === "list") {
+    const l = PEOPLE_LISTS.find((x) => x.id === id);
+    if (!l) return [];
+    pool = rows.filter(l.test);
+  } else if (kind === "saved") {
+    if (!savedIds) return [];
+    pool = rows.filter((r) => savedIds.has(r.id));
+  }
+  return pool.filter((r) => mayReceive(r, purpose));
+}
 function renderTemplate(body, params) {
   return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n) => {
     const v = params[Number(n) - 1];
@@ -9237,13 +9293,82 @@ function resolveParams(specs, f) {
   });
 }
 var DAY_MS42 = 864e5;
+var PLAYBOOK_TRIGGERS = [
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
+  { id: "new_week", label: "Welcome", list: "new_week", cls: "campaign", kind: "list", hint: "First contact in the last 7 days" },
+  { id: "phoned_only", label: "Save our number", list: "phoned_only", cls: "reengage", kind: "list", hint: "Only ever phoned, never texted" },
+  { id: "everyone_monthly", label: "The month's offer", list: null, cls: "campaign", kind: "cadence", hint: "Everyone who said yes, on a cadence" },
+  { id: "visit_tomorrow", label: "Visit reminder", list: null, cls: "booking", kind: "visit", hint: "The day before an appointment on the calendar" },
+  { id: "visited", label: "After the visit", list: null, cls: "reengage", kind: "visit", hint: "The day after a visit, when nothing is booked next" }
+];
 var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS42;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
+function triggerOf(id) {
+  return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
+}
+function eligibleForPlaybook(rows, p, touches, nowMs) {
+  const t = triggerOf(p.trigger);
+  if (!t) return [];
+  const purpose = purposeOfPlaybook(t.cls);
+  if (t.kind === "visit") {
+    const pool2 = eligibleFor(rows, "everyone", null, null, purpose).filter((r) => {
+      if (!r.calendarTz) return false;
+      if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS42));
+      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS42)) && !r.booked;
+    });
+    pool2.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
+    return pool2.slice(0, Math.max(1, p.cap_per_run));
+  }
+  const pool = t.list ? eligibleFor(rows, "list", t.list, null, purpose) : eligibleFor(rows, "everyone", null, null, purpose);
+  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS42;
+  const picked = pool.filter((r) => {
+    const mine = touches.byThis.get(r.id);
+    if (mine !== void 0 && nowMs - mine < gapMs) return false;
+    const any = touches.byAny.get(r.id);
+    if (any !== void 0 && nowMs - any < PLAYBOOK_BREATH_MS2) return false;
+    return true;
+  });
+  picked.sort((a, b) => (a.lastContact.ts ?? 0) - (b.lastContact.ts ?? 0));
+  return picked.slice(0, Math.max(1, p.cap_per_run));
+}
+function planRun(mode, now) {
+  switch (mode) {
+    case "auto":
+      return { kind: "send", state: "scheduled", at: now };
+    case "veto":
+      return { kind: "send", state: "scheduled", at: new Date(now.getTime() + PLAYBOOK_VETO_DELAY_MS2) };
+    case "ask":
+      return { kind: "hold", state: "pending_approval" };
+    default:
+      return { kind: "off" };
+  }
+}
+function parts(tz, now) {
+  try {
+    const f = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false });
+    const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
+    const hour = Number(p.hour) % 24;
+    return { date: `${p.year}-${p.month}-${p.day}`, hour };
+  } catch {
+    return { date: now.toISOString().slice(0, 10), hour: now.getUTCHours() };
+  }
+}
+function localDate(tz, now) {
+  return parts(tz, now).date;
+}
 var PLAYBOOK_CLASS_LABEL2 = {
   reengage: POLICY_CLASS_WORDS2.reengage.short,
   campaign: POLICY_CLASS_WORDS2.campaign.short,
   booking: POLICY_CLASS_WORDS2.booking.short
 };
+function visitFactsFor(trigger, visit, tz) {
+  const t = triggerOf(trigger);
+  if (!t || t.kind !== "visit" || !visit) return null;
+  return {
+    visit_when: trigger === "visit_tomorrow" ? `tomorrow at ${visitStartTime(visit, tz)}` : "yesterday",
+    visit_service: visit.title.trim() || "your appointment"
+  };
+}
 var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DAY_MS52 = 864e5;
@@ -14335,12 +14460,114 @@ async function sendBroadcastBatch(ports, cmd) {
     `${sent} ${sent === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, or a person had the thread)` : ""}. Replies land in the Inbox.`
   );
 }
+
+// src/campaigns/assemble.ts
+async function assembleRun(ports, cmd) {
+  let id;
+  try {
+    id = await ports.create(cmd.broadcast);
+  } catch (e) {
+    return { ok: false, id: null, failure: "run_not_created", error: said(e) };
+  }
+  try {
+    await ports.enrol(id, cmd.recipients);
+  } catch (e) {
+    await ports.fail(id, "recipients_write_failed");
+    return { ok: false, id, failure: "recipients_write_failed", error: said(e) };
+  }
+  if (cmd.sendAt) {
+    try {
+      await ports.schedule(id, cmd.sendAt);
+    } catch (e) {
+      await ports.fail(id, "schedule_failed");
+      return { ok: false, id, failure: "schedule_failed", error: said(e) };
+    }
+  }
+  return { ok: true, id };
+}
+var said = (e) => e instanceof Error ? e.message : String(e);
+
+// src/campaigns/run-playbook.ts
+async function runPlaybook(ports, cmd) {
+  const { playbook: p, ctx, by } = cmd;
+  const now = ctx.now;
+  const runFor = cmd.runFor ?? localDate(ctx.tz, now);
+  const record = (data) => ports.record(p.id, runFor, now, { run_for: runFor, by: by.kind, ...data });
+  const mode = ctx.modes.get(p.policy_class) ?? "ask";
+  const plan = by.kind === "user" ? mode === "never" ? { kind: "off" } : { kind: "send", state: "scheduled", at: now } : planRun(mode, now);
+  if (plan.kind === "off") {
+    await record({ mode, skipped: "never" });
+    return { outcome: "off", mode, skipped: "never" };
+  }
+  const tpl = await ports.template(p.template_name, p.template_language);
+  if (!tpl || tpl.meta_status !== "approved") {
+    await record({ mode, skipped: "template_not_approved" });
+    return { outcome: "off", mode, skipped: "template_not_approved" };
+  }
+  if (!ctx.health.canSend) {
+    await record({ mode, skipped: "number_flagged" });
+    return { outcome: "off", mode, skipped: "number_flagged" };
+  }
+  if (await ports.alreadyRan(p.id, runFor)) return { outcome: "off", mode, skipped: "already_ran_today" };
+  if (triggerOf(p.trigger)?.kind === "visit" && ctx.calendar !== "ok") {
+    await record({ mode, skipped: "no_calendar" });
+    return { outcome: "off", mode, skipped: "no_calendar" };
+  }
+  let eligible = eligibleForPlaybook(
+    ctx.people,
+    { trigger: p.trigger, cap_per_run: p.cap_per_run, gap_days: p.gap_days, cadence_days: p.cadence_days },
+    { byThis: ctx.touches.byThis.get(p.id) ?? /* @__PURE__ */ new Map(), byAny: ctx.touches.byAny },
+    now.getTime()
+  );
+  if (ctx.health.limitPerDay !== null && eligible.length > ctx.health.limitPerDay) eligible = eligible.slice(0, Math.max(0, Math.floor(ctx.health.limitPerDay)));
+  if (eligible.length === 0) {
+    await record({ mode, eligible: 0 });
+    return { outcome: "empty", eligible: 0, mode };
+  }
+  const specs = Array.isArray(p.params) ? p.params : [];
+  const factsOf = (r) => {
+    const v = ctx.visits.get(r.id);
+    return visitFactsFor(p.trigger, p.trigger === "visit_tomorrow" ? v?.next ?? null : v?.last ?? null, ctx.tz);
+  };
+  const n = eligible.length;
+  const made = await assembleRun(ports, {
+    broadcast: {
+      name: `${p.name} \xB7 ${runFor}`,
+      template_id: p.template_id,
+      template_name: p.template_name,
+      template_language: p.template_language,
+      params: specs,
+      audience: { kind: "playbook", id: p.id, label: p.name },
+      state: plan.state,
+      scheduled_for: (plan.kind === "send" ? plan.at : now).toISOString(),
+      recipient_count: n,
+      created_by: by.kind === "user" ? by.userId : p.created_by,
+      playbook_id: p.id,
+      run_for: runFor
+    },
+    recipients: eligible.map((r) => ({ contact_id: r.id, facts: factsOf(r) })),
+    sendAt: plan.kind === "send" ? plan.at : null
+  });
+  if (!made.ok) return { outcome: "failed", error: made.error };
+  if (plan.kind === "send") {
+    await ports.decide({ broadcastId: made.id, by, payload: { playbook_id: p.id, playbook: p.name, mode, recipients: n, scheduled_for: plan.at.toISOString(), run_now: by.kind === "user" } });
+    await record({ mode, eligible: n, broadcast_id: made.id, state: plan.state });
+    return { outcome: "sent", broadcast_id: made.id, eligible: n, mode, state: plan.state };
+  }
+  await ports.notify(
+    `Playbook \u201C${p.name}\u201D is ready: ${n} ${n === 1 ? "person" : "people"}`,
+    `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run on Today or in Campaigns \u203A Playbooks. Nothing is sent until you do.`
+  );
+  await record({ mode, eligible: n, broadcast_id: made.id, state: plan.state });
+  return { outcome: "held", broadcast_id: made.id, eligible: n, mode, state: plan.state };
+}
 export {
   IDEMPOTENCY_WINDOW_MS,
   MAX_SNOOZE_MS,
   NEEDS_UNTIL,
   SEND_GRACE_MS,
   archive,
+  assembleRun,
   cancelSend,
   deliver,
   deliverSafely,
@@ -14349,6 +14576,7 @@ export {
   provisionLine,
   replyToConversation,
   resolveEscalation,
+  runPlaybook,
   sendBroadcastBatch,
   sendQueued,
   snooze,

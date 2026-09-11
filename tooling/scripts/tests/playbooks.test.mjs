@@ -116,14 +116,7 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   assert.ok(s.includes("runDueNow(p as unknown as PlaybookDto, tz, now)"), "by the business's clock");
   assert.ok(s.includes('await runPlaybook(ctx, p, { runFor, by: { kind: "system" } })'), "the sweep runs the one implementation");
   const r = readCode("apps/edge/lib/playbooks.ts");
-  assert.ok(r.includes('const mode = ctx.modes.get(p.policy_class) ?? "ask";'), "no row means ask — the safest");
-  assert.ok(r.includes('if (!tpl || tpl.meta_status !== "approved") { await record({ mode, skipped: "template_not_approved" });'));
-  assert.ok(r.includes('if (!ctx.health.canSend) { await record({ mode, skipped: "number_flagged" });'));
-  assert.ok(r.includes("if (eligible.length === 0) { await record({ mode, eligible: 0 });"), "a run that finds nobody is recorded, honestly");
-  assert.ok(r.includes('audience: { kind: "playbook", id: p.id, label: p.name }'));
-  assert.ok(r.includes('actor_type: req.by.kind === "user" ? "user" : "system"'), "a run that sends on its own is the system's decision; one a person asked for is theirs");
-  assert.ok(r.includes("Approve or skip the run on Today or in Campaigns › Playbooks. Nothing is sent until you do."));
-  assert.ok(r.includes('? (mode === "never" ? { kind: "off" } : { kind: "send", state: "scheduled", at: now })'), "a person who asks has decided: it sends now unless the class is never");
+  // The run's branches are run: core-run-playbook.test.mjs. The loader's touches stay pinned here.
   assert.ok(r.includes('.in("state", ["sent", "queued"])') && r.includes('const runs = (pastRuns ?? []).filter((b) => b.state !== "canceled" && b.state !== "failed");'), "a message on its way is a touch too, so two playbooks never both pick the same person in a week");
   assert.ok(readCode("apps/edge/api/admin/playbooks-run.ts").includes('runPlaybook(ctx, p as PlaybookRow, { by: { kind: "user", userId } })'));
   assert.ok(readCode("packages/contracts/src/config.ts").includes('note: "the win-back and save-our-number playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"') && readCode("apps/dashboard/src/legacy-bridge/policy-store.ts").includes('...W("reengage")'), "the Autonomy row says what the playbooks do, in the one set of words every surface reads");

@@ -136,7 +136,7 @@ test("a core verb knows no database, framework, provider or environment", () => 
   // apps/dashboard/src/server/core-ports.ts is where the tables are. Its
   // imports are contracts, db types, and each other.
   const offenders = [];
-  for (const group of ["conversations", "messages"]) {
+  for (const group of ["conversations", "messages", "campaigns"]) {
     const dir = path.join(here, `../../../packages/core/src/${group}`);
     for (const f of fs.readdirSync(dir)) {
       for (const line of readCode(`packages/core/src/${group}/${f}`).split("\n")) {
