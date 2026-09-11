@@ -1,4 +1,4 @@
-import { withRoute, memberContext } from "@/server/with-route";
+import { read, workspace } from "@/server/route";
 import { setupDtoFor } from "@/server/setup";
 
 /**
@@ -9,8 +9,10 @@ import { setupDtoFor } from "@/server/setup";
  * support sees exactly what the customer sees. Members read; the role rides
  * along so the page knows who may act.
  */
-export const GET = withRoute(async (req, ctx) => {
-  const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
-  const setup = await setupDtoFor(ctx.supabase, member.tenantId, { kind: "member" });
-  return { setup, role: member.role };
+export const GET = read({
+  scope: workspace,
+  handle: async ({ ctx, member }) => {
+    const setup = await setupDtoFor(ctx.supabase, member.tenantId, { kind: "member" });
+    return { setup, role: member.role };
+  },
 });

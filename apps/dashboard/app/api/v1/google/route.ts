@@ -1,20 +1,18 @@
-import { withRoute, memberContext } from "@/server/with-route";
+import { read, workspace } from "@/server/route";
 import { reviewReplyModeOf, type GoogleDto } from "@chanlytics/contracts";
 import { listPolicies } from "@chanlytics/db";
 import { googleFor, googleReadiness } from "@/server/google";
 
 /**
- * GET /api/v1/google — the workspace's listing on Google as the edge last
- * read it: whether listings can be looked up and profiles connected here at
- * all, the listing, the connection (never its token), the latest reviews,
- * and the day-by-day rating and count for the period charts, with the
- * Autonomy row for reviews so Reports can say what the receptionist does
- * under a new one. Members read; the role rides along so the pages know
- * who may link and who may only look.
+ * GET /api/v1/google — the business on Google as the workspace has it: the
+ * listing, the connection, what this deployment can do (Places, the
+ * Business Profile, the OAuth audience), the reply policy, the caller's role.
  */
-export const GET = withRoute(async (req, ctx) => {
-  const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
-  const [data, ready, policies] = await Promise.all([googleFor(ctx.supabase, member.tenantId), googleReadiness(), listPolicies(ctx.supabase, member.tenantId)]);
-  const google: GoogleDto = { ready: { places: ready.places, profile: ready.profile, audience: ready.audience }, ...data, reply_mode: reviewReplyModeOf(policies), role: member.role };
-  return { google };
+export const GET = read({
+  scope: workspace,
+  handle: async ({ ctx, member }) => {
+    const [data, ready, policies] = await Promise.all([googleFor(ctx.supabase, member.tenantId), googleReadiness(), listPolicies(ctx.supabase, member.tenantId)]);
+    const google: GoogleDto = { ready: { places: ready.places, profile: ready.profile, audience: ready.audience }, ...data, reply_mode: reviewReplyModeOf(policies), role: member.role };
+    return { google };
+  },
 });

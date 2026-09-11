@@ -6,36 +6,26 @@
     "ask/openings",
     "ask/threads",
     "ask/threads/[id]",
-    "billing",
     "billing/invoices",
     "billing/resume",
     "billing/sync",
     "broadcasts",
-    "broadcasts/[id]",
     "broadcasts/[id]/approve",
     "broadcasts/[id]/cancel",
     "business-record",
     "calendar",
     "calendar/preview",
     "calls",
-    "calls/[id]/export",
     "calls/[id]/recording",
     "calls/[id]/whisper",
-    "channels",
     "channels/whatsapp/connect",
-    "channels/whatsapp/signup",
-    "consent/qr",
     "contacts",
     "contacts/[id]",
     "contacts/[id]/details",
     "contacts/[id]/receptionist",
-    "contacts/export",
-    "conversations",
     "conversations/[id]",
-    "conversations/[id]/export",
     "conversations/[id]/reply",
     "escalations",
-    "google",
     "google/callback",
     "google/connect",
     "google/connection",
@@ -45,16 +35,13 @@
     "google/reviews/[id]/draft",
     "google/reviews/[id]/reply",
     "google/search",
-    "lines",
     "lines/forwarding",
     "lines/forwarding/test",
     "lines/retry",
     "lines/search",
     "me",
-    "messages/[id]/media",
     "messages/[id]/steer",
     "metrics",
-    "notifications",
     "platform/lines/refile",
     "platform/lines/release",
     "platform/lines/retry",
@@ -69,7 +56,6 @@
     "segments",
     "segments/[id]",
     "settings",
-    "setup",
     "setup/request",
     "team",
     "templates",
@@ -95,6 +81,27 @@
       "rate": "billing",
       "spend": false
     },
+    "GET billing": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET broadcasts/[id]": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET calls/[id]/export": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "export",
+      "spend": false
+    },
     "POST capabilities/[kind]": {
       "kind": "write",
       "scope": "workspace",
@@ -107,6 +114,27 @@
       "scope": "workspace",
       "role": "owner",
       "rate": "settings",
+      "spend": false
+    },
+    "GET channels": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET channels/whatsapp/signup": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET consent/qr": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
       "spend": false
     },
     "PUT contacts/[id]/consent": {
@@ -123,11 +151,26 @@
       "rate": "consent",
       "spend": false
     },
+    "GET contacts/export": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "export",
+      "spend": false,
+      "strict": true
+    },
     "POST conversations/[id]/archive": {
       "kind": "write",
       "scope": "row",
       "role": "operator",
       "rate": "thread_state",
+      "spend": false
+    },
+    "GET conversations/[id]/export": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "export",
       "spend": false
     },
     "POST conversations/[id]/hand-back": {
@@ -158,11 +201,25 @@
       "rate": "thread_state",
       "spend": false
     },
+    "GET conversations": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "POST escalations/[id]/resolve": {
       "kind": "write",
       "scope": "row",
       "role": "operator",
       "rate": "thread_state",
+      "spend": false
+    },
+    "GET google": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
       "spend": false
     },
     "POST lines/buy": {
@@ -179,11 +236,46 @@
       "rate": "lines_register",
       "spend": true
     },
+    "GET lines": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "POST messages/[id]/cancel-send": {
       "kind": "write",
       "scope": "row",
       "role": "operator",
       "rate": "thread_state",
+      "spend": false
+    },
+    "GET messages/[id]/media": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET notifications": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "PUT notifications": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "viewer",
+      "rate": "notify_mark",
+      "spend": false
+    },
+    "GET setup": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
       "spend": false
     },
     "PATCH team/[id]": {

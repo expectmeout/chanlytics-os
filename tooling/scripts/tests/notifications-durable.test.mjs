@@ -34,7 +34,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   for (const s of ["create table public.notifications (", "create table public.notification_reads (", "create table public.notification_marks (", "create or replace function public.notifications_seen(p_tenant_id uuid)", "create or replace function public.notification_mark(p_id uuid, p_read boolean default null, p_dismissed boolean default null)", "select cron.schedule('purge-notifications',", "alter publication supabase_realtime add table public.notifications;"]) assert.ok(mig.includes(s), s);
   assert.ok(mig.includes("not exists (select 1 from memberships m where m.user_id = v_user and m.tenant_id = p_tenant_id)"), "any member — a viewer has a bell too");
   const route = readCode("apps/dashboard/app/api/v1/notifications/route.ts");
-  assert.ok(route.includes('rpc("notifications_seen", { p_tenant_id: tenantId })') && route.includes('rpc("notification_mark", {') && route.includes('takeRate(ctx.userId, "notify_mark")'));
+  assert.ok(route.includes('rpc("notifications_seen", { p_tenant_id: tenantId })') && route.includes('rpc("notification_mark", {') && route.includes('rate: "notify_mark",'));
   assert.ok(route.includes("read: !!m?.read_at, dismissed: !!m?.dismissed_at,"), "this person's marks ride on each row");
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes('key: "notifications",') && sd.includes('refreshOnTables: ["notifications"],'), "repaints as the edge writes a row");

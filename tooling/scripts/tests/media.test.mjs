@@ -75,7 +75,7 @@ test("a browser sees the attachment's facts and never its storage path", () => {
 
 test("the media route: member of the named workspace, stored only, a redirect the wrapper can stamp", () => {
   const route = readCode("apps/dashboard/app/api/v1/messages/[id]/media/route.ts");
-  assert.ok(route.includes('memberContext(ctx, new URL(req.url).searchParams.get("workspace"))'));
+  assert.ok(route.includes("scope: workspace,"), "the workspace the tab named, declared on the export");
   assert.ok(route.includes('.eq("tenant_id", member.tenantId)'));
   assert.ok(route.includes('media.fetch_state !== "stored"'));
   assert.ok(route.includes("signedMediaUrl(media.storage_path, 300)"));
