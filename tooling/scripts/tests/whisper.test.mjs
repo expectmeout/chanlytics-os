@@ -64,7 +64,7 @@ test("the route proves visibility, then the role door, then the provider — and
   assert.ok(route.includes("There is nobody on the line to whisper to") || route.includes("there is nobody on the line to whisper to"));
   const service = readCode("apps/dashboard/src/server/service.ts");
   const fn = service.slice(service.indexOf("export async function whisperLiveCall"));
-  assert.ok(fn.includes('process.env.VERCEL_ENV !== "production"'), "a preview must not speak into a real customer's call");
+  assert.ok(fn.includes('!deployment.providersLive'), "a preview must not speak into a real customer's call");
   assert.ok(fn.includes('"x-diag-key": process.env.DIAG_KEY!'));
 });
 

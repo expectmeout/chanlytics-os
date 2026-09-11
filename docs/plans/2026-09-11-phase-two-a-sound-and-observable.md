@@ -23,7 +23,7 @@ The WhatsApp webhook answers 200 whatever happened. When the ingest write fails 
 - Modify: `apps/edge/api/inbound-sms.ts:77-82` (the catch)
 - Test: `tooling/scripts/tests/ingest-failed.test.mjs` (new, executed)
 
-- [ ] **Step 1: The failing test**
+- [x] **Step 1: The failing test**
 
 ```js
 /**
@@ -64,7 +64,7 @@ test("a write that succeeded returns the row", async () => {
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/ingest-failed.test.mjs` → expected: the second test fails (`pgIngest` resolves null) and the first fails on the signature (the first argument is the tenant today).
 
-- [ ] **Step 2: `pgIngest` takes the client and names the loss**
+- [x] **Step 2: `pgIngest` takes the client and names the loss**
 
 Replace the function in `apps/edge/lib/whatsapp/persist.ts`:
 
@@ -113,7 +113,7 @@ export async function pgIngest(db: SupabaseClient<Database> | null, tenantId: st
 
 Three source pins move with the call sites (none are added): `phone.test.mjs` looks for `await recordOrSay()` in the short-code guard; `settings-truth.test.mjs` counts fourteen handoff emails carrying `pauseHours`; `sms.test.mjs` counts `pgIngest\(db, tenantId, n, channel\)`.
 
-- [ ] **Step 3: The handler records or says so**
+- [x] **Step 3: The handler records or says so**
 
 In `apps/edge/lib/whatsapp/inbound.ts`, add `IngestFailed` to the persist import, and insert after the line `const pauseHours = Math.round(pauseMs / 3600000);`:
 
@@ -142,7 +142,7 @@ In `apps/edge/lib/whatsapp/inbound.ts`, add `IngestFailed` to the persist import
 
 Then the four call sites: `const ing = await pgIngest(tenantId, n, channel);` (twice) becomes `const ing = await recordOrSay();`; `ing = await pgIngest(tenantId, n, channel);` becomes `ing = await recordOrSay();`; and `Promise.all([pgIngest(tenantId, n, channel), getThread(ns, from)])` becomes `Promise.all([recordOrSay(), getThread(ns, from)])`.
 
-- [ ] **Step 4: The webhook counts what it could not record**
+- [x] **Step 4: The webhook counts what it could not record**
 
 In `apps/edge/api/whatsapp.ts`: import `IngestFailed` beside `pgSafe`; after `try { body = JSON.parse(raw) as WebhookBody; } catch { /* ack anyway */ }` add `let unrecorded = 0;`; in the per-message catch add `if (e instanceof IngestFailed) unrecorded += 1;` before the `console.error`; and replace the final `return json(200, { ok: true });` with:
 
@@ -167,7 +167,7 @@ In `apps/edge/api/inbound-sms.ts`, import `IngestFailed` from `../lib/whatsapp/p
   }
 ```
 
-- [ ] **Step 5: Run the new test, typecheck, full suite; commit; PR; merge when green**
+- [x] **Step 5: Run the new test, typecheck, full suite; commit; PR; merge when green**
 
 ```bash
 node --conditions=react-server --import tsx --test tooling/scripts/tests/ingest-failed.test.mjs > /c/Users/Ruben/AppData/Local/Temp/phase2/t1.log 2>&1 && grep -E "^# (pass|fail)" /c/Users/Ruben/AppData/Local/Temp/phase2/t1.log
@@ -187,7 +187,7 @@ Commit: `A message the database did not accept is not acknowledged: the webhook 
 - Create: `supabase/migrations/00106_a_state_machine_keeps_its_edges.sql`
 - Test: `tooling/scripts/tests/state-guards.db.test.mjs` (new; local Supabase)
 
-- [ ] **Step 1: The migration**
+- [x] **Step 1: The migration**
 
 ```sql
 -- 00106 · A state machine keeps its edges: broadcasts, escalations and a line's voice.
@@ -247,7 +247,7 @@ create trigger lines_voice_guard before update of voice_state on public.lines
   for each row execute function public.lines_voice_guard();
 ```
 
-- [ ] **Step 2: The database test**
+- [x] **Step 2: The database test**
 
 ```js
 /**
@@ -329,7 +329,7 @@ test("a line moves forward on its voice, and an answering line is not re-provisi
 
 If the `lines` insert refuses a column (its NOT NULL set is read from `00066_lines.sql` at execution time), add the columns it names with the values the `admin/lines.ts` insert uses.
 
-- [ ] **Step 3: Prove on a local database; open the PR; do not merge**
+- [x] **Step 3: Prove on a local database; open the PR; do not merge**
 
 ```bash
 node "$SUPABASE_CLI" start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector
@@ -352,7 +352,7 @@ Today no `ANTHROPIC_API_KEY` means every message gets the workspace's generic gr
 - Modify: `apps/edge/lib/whatsapp/inbound.ts` (the `else` of the model branch, the send's meta, the escalation's details and the alert's reason)
 - Test: `tooling/scripts/tests/no-model.test.mjs` (new, executed)
 
-- [ ] **Step 1: The failing test**
+- [x] **Step 1: The failing test**
 
 ```js
 import { test } from "node:test";
@@ -383,7 +383,7 @@ test("the platform is paged under one stable key, and the page carries no secret
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/no-model.test.mjs` → expected: fails, `noModelPlan` is not exported.
 
-- [ ] **Step 2: The decision, pure (append to `steps.ts`)**
+- [x] **Step 2: The decision, pure (append to `steps.ts`)**
 
 ```ts
 export const NO_MODEL_PAGE = {
@@ -413,7 +413,7 @@ export function noModelPlan(fallbacks: { greeting: string }): {
 
 `brain_error` is the closed set's word for "the receptionist could not answer and a holding message went out"; the owner's inbox already knows it. In `alerts.ts`, `REASON_WORDS` gains `"no model": "the receptionist has no model to answer with"`.
 
-- [ ] **Step 3: The handler applies it**
+- [x] **Step 3: The handler applies it**
 
 In `inbound.ts`: import `pageOperator` from `../page-operator.js` and `noModelPlan, NO_MODEL_PAGE` from `./steps.js`; beside `let brainMeta: BrainMeta | undefined;` add `let fallback: ReturnType<typeof noModelPlan> | undefined;`. The model branch's `else` becomes:
 
@@ -430,7 +430,7 @@ In `inbound.ts`: import `pageOperator` from `../page-operator.js` and `noModelPl
 
 The send carries the label: `send(replyText, fallback ? (fallback.meta as Record<string, Json>) : (brainMeta as unknown as Record<string, Json> | undefined))`. In the post-send handoff, the escalation's details are `fallback ? fallback.escalationDetails(bodyText) : …` and the alert's reason is `fallback ? fallback.alertReason : "assistant flagged handoff"`. The escalation pauses the thread for the workspace's pause window, so one greeting goes per thread and a person has it from then on; no usage row is written, so the fallback counts as nothing.
 
-- [ ] **Step 4: Run the test, typecheck, full suite; commit; PR; merge when green**
+- [x] **Step 4: Run the test, typecheck, full suite; commit; PR; merge when green**
 
 Commit: `A missing model key is a degraded state a person can see, not a canned receptionist`. No migration, no auth: merge when green.
 
@@ -446,7 +446,7 @@ Commit: `A missing model key is a degraded state a person can see, not a canned 
 - Modify: `tooling/scripts/tests/jobs-outbox.db.test.mjs` (the health test's expected rows grow from 11 to 17)
 - Test: the db test above; `tooling/scripts/tests/health-route.test.mjs` (new, executed with a fake db)
 
-- [ ] **Step 1: The migration**
+- [x] **Step 1: The migration**
 
 ```sql
 -- 00107 · Every clock is registered as data, and the health check reads the register.
@@ -599,11 +599,11 @@ comment on function public.sweep_health() is
 
 `sweep_mark_alerted(p_alerted, p_healthy)` and `request_sweep(...)` are unchanged; both key on the row name, which the new rows now carry.
 
-- [ ] **Step 2: The database test moves from 11 to 17 rows**
+- [x] **Step 2: The database test moves from 11 to 17 rows**
 
 In `tooling/scripts/tests/jobs-outbox.db.test.mjs`, the test "sweep_health() watches the heartbeat, and the lines sweep 00097 left out" asserts the set of names; add the six new names (`partitions`, `purge_ask`, `purge_cron_history`, `purge_events`, `purge_notifications`, `purge_rate_hits`) plus `pauses` and `snoozes` if it lists them, and assert every new row is healthy on a fresh database (grace: registered now, never run).
 
-- [ ] **Step 3: The health route (`apps/edge/api/health.ts`)**
+- [x] **Step 3: The health route (`apps/edge/api/health.ts`)**
 
 ```ts
 /**
@@ -652,7 +652,7 @@ export async function GET(): Promise<Response> {
 }
 ```
 
-- [ ] **Step 4: The executed test (`health-route.test.mjs`)**
+- [x] **Step 4: The executed test (`health-route.test.mjs`)**
 
 ```js
 import { test } from "node:test";
@@ -682,7 +682,7 @@ test("a health function that cannot be read is 503 with a reason, and no secret"
 });
 ```
 
-- [ ] **Step 5: Local database proof (00107 replays; db tests; `sweep_health()` returns 17 rows, all healthy), typecheck, full suite, PR opened; do not merge.** Ruben's half: point an external pinger (UptimeRobot, Better Stack, or the Cloudflare health check) at `https://chanlytics-messaging.vercel.app/api/health` every minute, alerting on non-200.
+- [x] **Step 5: Local database proof (00107 replays; db tests; `sweep_health()` returns 17 rows, all healthy), typecheck, full suite, PR opened; do not merge.** Ruben's half: point an external pinger (UptimeRobot, Better Stack, or the Cloudflare health check) at `https://chanlytics-messaging.vercel.app/api/health` every minute, alerting on non-200.
 
 ---
 
@@ -696,7 +696,7 @@ Eight handlers in seven files move from hand-performed policy onto `route()`: sc
 - Rewrite: `apps/dashboard/app/api/v1/lines/buy/route.ts`, `lines/register/route.ts`, `billing/checkout/route.ts`, `billing/portal/route.ts`, `team/invite/route.ts`, `team/[id]/route.ts`, `contacts/[id]/consent/route.ts`, `contacts/[id]/marketing-consent/route.ts`
 - Modify: `tooling/scripts/tests/route-policy.json` (banked with `UPDATE_ROUTE_POLICY=1`)
 
-- [ ] **Step 1: The bucket and the contact scope**
+- [x] **Step 1: The bucket and the contact scope**
 
 In `RATE` (`rate-limit.ts`), after `invite`: `team: { limit: 30, windowMs: 3_600_000, noun: "team changes" },`.
 
@@ -716,7 +716,7 @@ export async function loadContact(ctx: RouteContext, id: string): Promise<VerbCo
 export const contactScope = row((ctx, params) => loadContact(ctx, String(params.id ?? "")));
 ```
 
-- [ ] **Step 2: The eight handlers**
+- [x] **Step 2: The eight handlers**
 
 `lines/buy/route.ts`:
 
@@ -777,7 +777,7 @@ export const POST = write({
 
 `contacts/[id]/consent/route.ts` and `marketing-consent/route.ts`: `write({ scope: contactScope, role: "operator", rate: "consent", input: z.object({ consent: z.enum(CONSENT_STATES, { message: "Consent must be one of: opted_in, opted_out, unknown." }), source: z.string().optional(), note: z.string().trim().max(200).optional() }).strict(), handle: async ({ ctx, row: contact, input }) => { … } })` with the existing source rule (`CONSENT_RESET_SOURCE` when unknown; `CONSENT_SOURCES` otherwise; `offersYesRefusal` for marketing), the RPC call and `recordDecision` unchanged, `contact.tenant_id` and `contact.id` from the row.
 
-- [ ] **Step 3: Bank the policy, typecheck, full suite, commit, PR, merge when green**
+- [x] **Step 3: Bank the policy, typecheck, full suite, commit, PR, merge when green**
 
 ```bash
 UPDATE_ROUTE_POLICY=1 node --conditions=react-server --import tsx --test tooling/scripts/tests/route-policy.test.mjs
@@ -799,19 +799,19 @@ Twenty edge doors compared `x-diag-key` with `!==`; the same key signed Google O
 - Modify: `apps/edge/api/admin/{lines,billing,google,llm}.ts`; `apps/dashboard/src/server/{lines,billing,google,ask/gateway}.ts`; both `.env.example` files
 - Test: `tooling/scripts/tests/edge-token.test.mjs` (new, executed; the pins on the migrated doors and clients move)
 
-- [ ] **Step 1: The token, pure**
+- [x] **Step 1: The token, pure**
 
 A token is `base64url(JSON claims).base64url(HMAC-SHA256(secret, payload))`; the claims are `{ aud, ws, user, iat, exp, nonce }` with `exp = iat + 60 s`. `verifyEdgeToken(secret, token, aud, nowMs)` checks the signature first, in constant time, and only then parses: `malformed`, `signature`, `audience`, `expired` (past `exp`, or an `iat` more than one TTL in the future) are each their own refusal.
 
-- [ ] **Step 2: The edge's door**
+- [x] **Step 2: The edge's door**
 
 `authorizeAdmin(request, aud)`: when the edge holds `EDGE_CALL_SECRET` and a token is presented, the token must verify (no falling back from a bad token to the key); when the edge holds no secret, a token is ignored and the key decides, so the dashboard may be given the secret before or after the edge; with no token, the key decides, compared in constant time. `workspaceFor(auth, body.tenant_id)`: the token's workspace is believed over the body, and a body naming another workspace is refused with `workspace_mismatch`; a key-authorised caller's body still names it. The four doors call both (llm's before it reads `tenant_id`; google's only where it reads an `op`).
 
-- [ ] **Step 3: The dashboard's side**
+- [x] **Step 3: The dashboard's side**
 
 `edgeUrl()` is `EDGE_URL` with the old literal as its default; `edgeHeaders(aud, ctx)` carries `x-edge-token` when `EDGE_CALL_SECRET` is set and `x-diag-key` while `DIAG_KEY` is; `edgeConfigured()` is either. `edgeLines`, `edgeBilling`, `edgeGoogle` pass the body's `tenant_id` as the token's workspace; `streamModel` passes the call's workspace and user. `stateSecret()` returns `GOOGLE_OAUTH_STATE_SECRET || DIAG_KEY`.
 
-- [ ] **Step 4: Build channels, run the token test, typecheck, full suite, commit, PR, merge when green.** Behaviour is unchanged until the secrets exist. **Ruben's half:** `openssl rand -base64 32` once, as `EDGE_CALL_SECRET` on BOTH Vercel projects (Production), in either order; a second value as `GOOGLE_OAUTH_STATE_SECRET` on the dashboard. 2B moves the remaining doors and then removes the key path.
+- [x] **Step 4: Build channels, run the token test, typecheck, full suite, commit, PR, merge when green.** Behaviour is unchanged until the secrets exist. **Ruben's half:** `openssl rand -base64 32` once, as `EDGE_CALL_SECRET` on BOTH Vercel projects (Production), in either order; a second value as `GOOGLE_OAUTH_STATE_SECRET` on the dashboard. 2B moves the remaining doors and then removes the key path.
 
 ---
 
@@ -824,7 +824,7 @@ Twelve server functions run only when `VERCEL_ENV` is production, so Connections
 - Modify: `apps/dashboard/src/server/service.ts` (ten sites), `ask/gateway.ts:56`, `signup.ts:126`; `apps/dashboard/.env.example` (`EDGE_PROVIDERS=`)
 - Test: `tooling/scripts/tests/deployment.test.mjs` (executed)
 
-- [ ] **Step 1: The module**
+- [x] **Step 1: The module**
 
 ```ts
 import "server-only";
@@ -844,7 +844,7 @@ export function deploymentFrom(env: NodeJS.ProcessEnv): { env: DeploymentEnv; pr
 export const deployment = deploymentFrom(process.env);
 ```
 
-- [ ] **Step 2: The test**
+- [x] **Step 2: The test**
 
 ```js
 import { test } from "node:test";
@@ -861,11 +861,11 @@ test("production is live; a preview or a laptop only when it says so", () => {
 
 (`server-only` is a no-op import outside Next; if the test runner refuses it, move the import behind `deployment.ts`'s consumers and keep `deploymentFrom` in a file without it.)
 
-- [ ] **Step 3: The twelve guards**
+- [x] **Step 3: The twelve guards**
 
 Every `process.env.VERCEL_ENV !== "production"` in `service.ts`, `ask/gateway.ts` and `signup.ts` becomes `!deployment.providersLive`, with `import { deployment } from "@/server/deployment";` (`"./deployment"` inside `server/`). The rest of each line is unchanged.
 
-- [ ] **Step 4: Typecheck, full suite, commit, PR, merge when green.** Commit: `One deployment configuration says what this deployment may do; twelve checks of the environment name read it`.
+- [x] **Step 4: Typecheck, full suite, commit, PR, merge when green.** Commit: `One deployment configuration says what this deployment may do; twelve checks of the environment name read it`.
 
 ---
 

@@ -72,6 +72,6 @@ test("every route that sends, spends or aggregates counts against its bucket", (
 
 test("F42: only the production dashboard reaches the live store or a live call — an unset VERCEL_ENV is not production", () => {
   const service = readCode("apps/dashboard/src/server/service.ts");
-  assert.equal((service.match(/if \(process\.env\.VERCEL_ENV !== "production"\)/g) ?? []).length, 9, "the pause mirror, the whisper, the steer, the sign-up config, the number connection, the template sync, create and delete, the playbook run");
+  assert.equal((service.match(/if \(!deployment\.providersLive\)/g) ?? []).length, 9, "the pause mirror, the whisper, the steer, the sign-up config, the number connection, the template sync, create and delete, the playbook run");
   assert.ok(!service.includes('process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production"'), "REGRESSION: plain local dev mirrored pauses into the live store");
 });
