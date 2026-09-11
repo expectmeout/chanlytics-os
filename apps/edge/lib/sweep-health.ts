@@ -12,6 +12,7 @@ export interface SweepHealthRow {
   sweep: string;
   healthy: boolean;
   detail: string | null;
+  /** When it last spoke: the request it enqueued, or, for a clock judged on its runs, its last successful run. */
   last_request_at: string | null;
   status_code: number | null;
   scheduled: boolean;
@@ -67,6 +68,15 @@ const CONSEQUENCE: Record<string, string> = {
   health: "this check itself is not running, so nothing else on this list can be trusted",
   jobs: "no queued reply, broadcast batch or erasure runs; replies wait as 'Sending…' until it is back",
   lines: "a phone line whose set-up was cut off stays 'setting up' until somebody presses Retry",
+  // The clocks 00107 registered: two row clocks and six SQL jobs that never leave the database.
+  pauses: "a thread a person took stays paused past its window; the receptionist never gets it back",
+  snoozes: "a snoozed thread never wakes",
+  partitions: "next month's events land in the catch-all partition, and that month's own partition can no longer be created until they are moved",
+  purge_events: "the events stream grows without bound",
+  purge_ask: "Ask transcripts are kept past their retention",
+  purge_notifications: "notifications are kept past their retention",
+  purge_rate_hits: "the rate-limit ledger grows without bound, and every limit check reads a bigger table",
+  purge_cron_history: "cron.job_run_details grows without bound, and this check reads a bigger table each time",
 };
 
 /**
@@ -81,10 +91,11 @@ export function describeSweepTrouble(rows: SweepHealthRow[]): string {
            `      while this is broken: ${CONSEQUENCE[r.sweep] ?? "a scheduled sweep is not running"}`,
   );
   return (
-    `The database is asking the edge to run these sweeps and the edge is not doing them.\n\n` +
+    `These background clocks are not running as they should.\n\n` +
     `${lines.join("\n\n")}\n\n` +
-    `pg_cron records every one of these as "succeeded" the moment the request is queued, ` +
-    `whichever way the edge answers, so this mail is the only place the truth appears.\n\n` +
+    `For the sweeps that call the edge, pg_cron records the run as "succeeded" the moment the request ` +
+    `is queued, whichever way the edge answers, so this mail is the only place the truth appears; the ` +
+    `jobs that run inside the database are judged on their own run history.\n\n` +
     `GET /api/diag with the x-diag-key header shows the current state under "sweeps".\n` +
     `Further notices are suppressed for six hours per sweep, and only once this one has ` +
     `actually been delivered.\n`

@@ -1457,7 +1457,7 @@ declare const SCHEMA_SETS: {
     readonly "policies.class": readonly ["reply", "booking", "faq", "reengage", "campaign", "money", "reviews"];
     readonly "policies.mode": readonly ["auto", "veto", "ask", "never"];
     readonly "policies.subject_type": readonly ["segment", "contact"];
-    readonly "sweep_status.sweep": readonly ["calls", "deadman", "health", "jobs", "registration", "calendar", "google", "playbooks", "lines"];
+    readonly "sweep_status.judged_by": readonly ["request", "run"];
     readonly "templates.category": readonly ["marketing", "utility", "authentication"];
     readonly "templates.channel": readonly ["whatsapp", "voice", "sms", "email", "instagram"];
     readonly "templates.meta_status": readonly ["approved", "pending", "rejected", "paused", "disabled"];
