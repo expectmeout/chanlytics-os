@@ -298,8 +298,8 @@ test("every route under /api/v1/platform asks the database who is calling", () =
     // Obtaining the handle IS the check: `backOffice(ctx)` throws unless the
     // database says yes, and nothing cross-tenant can be read without one. A
     // route that forgot would not compile rather than not being caught here.
-    assert.ok(src.includes("const office = await backOffice(ctx);"), `${path.basename(path.dirname(file))}: no admin check`);
-    const guard = src.indexOf("const office = await backOffice(ctx);");
+    assert.ok(src.includes("scope: platform,"), `${path.basename(path.dirname(file))}: no admin check`);
+    const guard = src.indexOf("scope: platform,");
     // DERIVED, not listed. This was a hardcoded array of four READS, so
     // `platformLineAct(` -- the only WRITE on this surface, and the one that
     // touches another business's carrier registration and phone number -- was not
@@ -561,9 +561,9 @@ test("three named operations, and no way to send a fourth", () => {
     // Its own operation, named in its own file, not taken from the request.
     assert.ok(src.includes(`platformLineAct(office, ctx, "${action}", tenantId, lineId)`), `${action}: the action is a literal`);
     assert.ok(!/body\.(op|action)/.test(src), `${action}: the caller must not choose the operation`);
-    assert.ok(src.includes("const office = await backOffice(ctx);"), `${action}: no admin check`);
-    assert.ok(src.indexOf("const office = await backOffice(ctx);") < src.indexOf("platformLineAct("), `${action}: the check runs first`);
-    assert.ok(src.includes("await takeRate(ctx.userId,"), `${action}: rate-limited`);
+    assert.ok(src.includes("scope: platform,"), `${action}: no admin check`);
+    assert.ok(src.indexOf("scope: platform,") < src.indexOf("platformLineAct("), `${action}: the check runs first`);
+    assert.ok(src.includes('rate: "platform_line_'), `${action}: rate-limited`);
     assert.ok(src.includes('requireUuid(body.tenant_id, "workspace")') && src.includes('requireUuid(body.line_id, "line")'), `${action}: both ids are checked`);
     assert.ok(!src.includes("memberContext("), `${action}: this surface is about workspaces the caller is not in`);
   }
@@ -966,7 +966,7 @@ test("the ops routes have their own ceilings, sized for a support shift and name
     assert.ok(rule.limit >= min, `${bucket}: ${rule.limit} is a support shift, not one owner's wallet`);
     assert.match(rule.noun, /workspaces|handed back/, `${bucket}: the noun says whose thing this is`);
     const src = readCode(`apps/dashboard/app/api/v1/platform/lines/${route}/route.ts`);
-    assert.ok(src.includes(`takeRate(ctx.userId, "${bucket}")`), `${route} spends its own bucket`);
+    assert.ok(src.includes(`rate: "${bucket}",`), `${route} spends its own bucket`);
     for (const owner of ["lines_register", "lines_buy", "lines_retry"]) {
       assert.ok(!src.includes(`"${owner}"`), `${route}: REGRESSION: back on the owner's bucket ${owner}`);
     }
