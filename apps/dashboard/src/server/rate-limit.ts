@@ -32,6 +32,8 @@ export interface RateRule {
 export const RATE = {
   /** Invitations send real email. */
   invite: { limit: 10, windowMs: 3_600_000, noun: "invitations" },
+  /** A role change or a removal. Neither had a limit and nothing said why; one person reshaping a roster stays well under this, a script does not. */
+  team: { limit: 30, windowMs: 3_600_000, noun: "team changes" },
   /** A reply reaches a real person. */
   reply: { limit: 30, windowMs: 60_000, noun: "replies" },
   /**
