@@ -1,7 +1,6 @@
 import { AppError } from "@chanlytics/contracts";
-import { withRoute, memberContext, requireRole } from "@/server/with-route";
+import { write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
-import { takeRate } from "@/server/rate-limit";
 import { tenantFacts } from "@/server/tenant";
 import { previewFeed } from "@/server/calendar";
 
@@ -12,13 +11,15 @@ import { previewFeed } from "@/server/calendar";
  * weeks later as a receptionist that never names an open time. Owner or
  * operator; nothing is stored.
  */
-export const POST = withRoute(async (req, ctx) => {
-  const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
-  requireRole(member, "operator");
-  await takeRate(ctx.userId, "settings");
-  const body = (await jsonBody(req)) as { url?: unknown } | null;
-  const url = typeof body?.url === "string" ? body.url.trim() : "";
-  if (!url) throw new AppError("validation", "Paste the calendar's iCal address first.");
-  const { timezone } = await tenantFacts(ctx.supabase, member.tenantId);
-  return await previewFeed(url, timezone);
+export const POST = write({
+  scope: workspace,
+  role: "operator",
+  rate: "settings",
+  handle: async ({ ctx, req, member }) => {
+    const body = (await jsonBody(req)) as { url?: unknown } | null;
+    const url = typeof body?.url === "string" ? body.url.trim() : "";
+    if (!url) throw new AppError("validation", "Paste the calendar's iCal address first.");
+    const { timezone } = await tenantFacts(ctx.supabase, member.tenantId);
+    return await previewFeed(url, timezone);
+  },
 });

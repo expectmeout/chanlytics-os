@@ -1,8 +1,7 @@
 import { AppError } from "@chanlytics/contracts";
-import { withRoute, memberContext, requireRole } from "@/server/with-route";
+import { write, workspace } from "@/server/route";
 import { recordDecision } from "@/server/verbs";
 import { connectWhatsApp } from "@/server/service";
-import { takeRate } from "@/server/rate-limit";
 
 /**
  * POST /api/v1/channels/whatsapp/connect — the owner's number becomes a
@@ -30,24 +29,26 @@ const SAID: Record<string, string> = {
   no_app_credentials: "Chanlytics is not set up to connect numbers yet.",
 };
 
-export const POST = withRoute(async (req, ctx) => {
-  const member = await memberContext(ctx, new URL(req.url).searchParams.get("workspace"));
-  requireRole(member, "owner");
-  await takeRate(ctx.userId, "settings");
-  const body = (await req.json().catch(() => null)) as { code?: unknown; phone_number_id?: unknown; waba_id?: unknown } | null;
-  const code = typeof body?.code === "string" ? body.code.trim() : "";
-  const phoneNumberId = typeof body?.phone_number_id === "string" ? body.phone_number_id.trim() : "";
-  const wabaId = typeof body?.waba_id === "string" ? body.waba_id.trim() : "";
-  if (!code || code.length > 2000) throw new AppError("validation", "The sign-up code is missing. Start the connection again.");
-  if (!ID.test(phoneNumberId) || !ID.test(wabaId)) throw new AppError("validation", "The sign-up window did not hand back a number and an account. Start the connection again.");
+export const POST = write({
+  scope: workspace,
+  role: "owner",
+  rate: "settings",
+  handle: async ({ ctx, req, member }) => {
+    const body = (await req.json().catch(() => null)) as { code?: unknown; phone_number_id?: unknown; waba_id?: unknown } | null;
+    const code = typeof body?.code === "string" ? body.code.trim() : "";
+    const phoneNumberId = typeof body?.phone_number_id === "string" ? body.phone_number_id.trim() : "";
+    const wabaId = typeof body?.waba_id === "string" ? body.waba_id.trim() : "";
+    if (!code || code.length > 2000) throw new AppError("validation", "The sign-up code is missing. Start the connection again.");
+    if (!ID.test(phoneNumberId) || !ID.test(wabaId)) throw new AppError("validation", "The sign-up window did not hand back a number and an account. Start the connection again.");
 
-  const r = await connectWhatsApp(member.tenantId, ctx.userId, { code, phone_number_id: phoneNumberId, waba_id: wabaId });
-  if (!r.ok) {
-    const said = SAID[r.reason] ?? `The connection did not complete (${r.reason}).`;
-    throw new AppError(r.reason === "number_taken" ? "conflict" : "upstream_meta", said, r.reason === "number_taken" ? 409 : 502);
-  }
-  const decisionId = await recordDecision(ctx, member.tenantId, "channel", r.channelId, "connect_channel", {
-    kind: "whatsapp", phone_number_id: phoneNumberId, waba_id: wabaId, number_e164: r.numberE164, verified_name: r.verifiedName, registration: r.registration,
-  });
-  return { ok: true, channel_id: r.channelId, number_e164: r.numberE164, verified_name: r.verifiedName, quality_rating: r.qualityRating, decision_id: decisionId };
+    const r = await connectWhatsApp(member.tenantId, ctx.userId, { code, phone_number_id: phoneNumberId, waba_id: wabaId });
+    if (!r.ok) {
+      const said = SAID[r.reason] ?? `The connection did not complete (${r.reason}).`;
+      throw new AppError(r.reason === "number_taken" ? "conflict" : "upstream_meta", said, r.reason === "number_taken" ? 409 : 502);
+    }
+    const decisionId = await recordDecision(ctx, member.tenantId, "channel", r.channelId, "connect_channel", {
+      kind: "whatsapp", phone_number_id: phoneNumberId, waba_id: wabaId, number_e164: r.numberE164, verified_name: r.verifiedName, registration: r.registration,
+    });
+    return { ok: true, channel_id: r.channelId, number_e164: r.numberE164, verified_name: r.verifiedName, quality_rating: r.qualityRating, decision_id: decisionId };
+  },
 });

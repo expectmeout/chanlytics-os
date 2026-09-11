@@ -142,10 +142,12 @@ export function fakeDb(tables, faults = {}, rpcs = {}) {
       // already replaced matches nothing and comes back empty.
       const hit = rows().filter((r) => matches(r, q.filters));
       for (const r of hit) Object.assign(r, q.values);
-      // `.select("*")` after an update reads the row BACK, which is how a
-      // caller that must act on what it just wrote avoids a second round trip;
-      // anything narrower keeps answering with ids, as PostgREST does.
-      return { data: hit.map((r) => (q.columns === "*" ? { ...r } : { id: r.id })), error: null };
+      // `.select("a, b")` after an update reads those columns back, as PostgREST
+      // does, and `.select("*")` the whole row: how a caller that must act on what
+      // it just wrote avoids a second round trip. No select at all answers with ids.
+      const cols = typeof q.columns === "string" && q.columns !== "*" ? q.columns.split(",").map((c) => c.trim()).filter(Boolean) : null;
+      const back = (r) => (q.columns === "*" ? { ...r } : cols ? Object.fromEntries(cols.map((c) => [c, r[c]])) : { id: r.id });
+      return { data: hit.map(back), error: null };
     };
 
     const builder = {

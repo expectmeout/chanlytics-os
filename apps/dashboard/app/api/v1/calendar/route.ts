@@ -1,22 +1,32 @@
-import { withRoute, memberContext } from "@/server/with-route";
-import { takeRate } from "@/server/rate-limit";
+import { z } from "zod";
+import { read, workspace } from "@/server/route";
 import { calendarWeek } from "@/server/calendar";
+
+const Query = z.object({
+  /** YYYY-MM-DD; the Monday of today when absent. */
+  from: z.string().optional(),
+  /** How many days from there; seven when absent. */
+  days: z.string().optional(),
+});
 
 /**
  * GET /api/v1/calendar?from=YYYY-MM-DD&days=7 — the calendar as the
  * receptionist reads it: what the feed says is taken, the hours and
  * closures, and the windows a caller would be offered, for one span of
  * days by the business's clock. `from` defaults to the Monday of today.
- * Read-only; the feed's address never leaves the server.
+ * Read-only; the feed's address never leaves the server. Counted with the
+ * other aggregate reads.
  */
-export const GET = withRoute(async (req, ctx) => {
-  await takeRate(ctx.userId, "aggregate");
-  const url = new URL(req.url);
-  const member = await memberContext(ctx, url.searchParams.get("workspace"));
-  const from = url.searchParams.get("from");
-  const days = Number(url.searchParams.get("days") ?? 7);
-  // An owner or operator opening the board puts the people its appointments
-  // name in People; a viewer's read changes nothing.
-  const canAct = member.role === "owner" || member.role === "operator";
-  return { calendar: await calendarWeek(ctx, member.tenantId, { from, days }, new Date(), { canAct }) };
+export const GET = read({
+  scope: workspace,
+  rate: "aggregate",
+  query: Query,
+  handle: async ({ ctx, member, input }) => {
+    const from = input.from ?? null;
+    const days = Number(input.days ?? 7);
+    // An owner or operator opening the board puts the people its appointments
+    // name in People; a viewer's read changes nothing.
+    const canAct = member.role === "owner" || member.role === "operator";
+    return { calendar: await calendarWeek(ctx, member.tenantId, { from, days }, new Date(), { canAct }) };
+  },
 });

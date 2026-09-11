@@ -65,5 +65,5 @@ test("the bounds are the same ones the reader clamps to", () => {
 });
 
 test("changing autonomy is still an operator action", () => {
-  assert.match(route, /requireRole\(member, "operator"\)/);
+  assert.match(route, /role: "operator",/);
 });

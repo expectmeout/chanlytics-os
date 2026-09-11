@@ -151,7 +151,7 @@ test("the wiring: the migration, the webhook proves it, the routes are owner-onl
   assert.ok(EVENT_KINDS.includes("line.forwarding_verified"));
   for (const file of ["forwarding/route.ts", "forwarding/test/route.ts"]) {
     const src = readCode(`apps/dashboard/app/api/v1/lines/${file}`);
-    assert.ok(src.includes('requireRole(member, "owner")') && src.includes('takeRate(ctx.userId, "lines_forwarding")'), file);
+    assert.ok(src.includes('role: "owner",') && src.includes('rate: "lines_forwarding",'), file);
   }
   assert.ok(readCode("apps/dashboard/app/api/v1/lines/forwarding/route.ts").includes('rpc("line_forwarding_set"'));
   assert.ok(readCode("apps/dashboard/app/api/v1/lines/forwarding/test/route.ts").includes('rpc("line_forwarding_test"'));
