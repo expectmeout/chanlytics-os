@@ -4047,6 +4047,7 @@ var NEVER = INVALID;
 
 // ../contracts/dist/index.js
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
+var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
 var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
 var MARKETING_OPT_IN_PATTERN = /^\s*(yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
@@ -5898,6 +5899,24 @@ function smsAsWaMessage(s, nowMs = Date.now()) {
   if (words) return { ...base, type: "text", text: { body: s.numMedia > 0 ? `${words} [with ${s.numMedia === 1 ? "a picture" : `${s.numMedia} pictures`}]` : words } };
   return { ...base, type: s.numMedia > 0 ? "image" : "unsupported" };
 }
+function carrierConsent(s) {
+  if (s.optOutType === "STOP") return { optOut: true, optIn: false };
+  if (s.optOutType === "START") return { optOut: false, optIn: true };
+  return null;
+}
+function smsKeywordConsent(body) {
+  if (!body || !SMS_OPT_OUT_PATTERN.test(body)) return null;
+  return { optOut: true, optIn: false };
+}
+function mergeConsent(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  return { optOut: a.optOut || b.optOut, optIn: a.optIn || b.optIn };
+}
+function withCarrierConsent(n, c) {
+  if (!c) return n;
+  return { ...n, optOut: n.optOut || c.optOut, optIn: n.optIn || c.optIn };
+}
 var SMS_FOOTER = "Msg&data rates may apply. Reply STOP to opt out.";
 var SMS_MAX_CHARS = 1600;
 function smsBody(reply, isFirstReply) {
@@ -6988,6 +7007,7 @@ export {
   businessEndUserRequest,
   callSummaryLine,
   campaignRequest,
+  carrierConsent,
   chooseLineProvider,
   cleanReply,
   createAgent,
@@ -7025,6 +7045,7 @@ export {
   listReviews,
   liveTurns,
   locationsRequest,
+  mergeConsent,
   needsHydration,
   newNonce,
   nextA2PStep,
@@ -7072,6 +7093,7 @@ export {
   smsBody,
   smsInboundFrom,
   smsInboundUrl,
+  smsKeywordConsent,
   smsStateFor,
   soleProprietorEndUserRequest,
   soleProprietorProfileRequest,
@@ -7108,5 +7130,6 @@ export {
   voiceNumberCreateBody,
   voiceShellDrift,
   voiceShellTools,
+  withCarrierConsent,
   withKey
 };

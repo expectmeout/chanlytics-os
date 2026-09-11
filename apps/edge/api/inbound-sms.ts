@@ -18,7 +18,7 @@
 import { text } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { resolveChannelDetailed } from "../lib/workspace/db.js";
-import { smsInboundFrom, smsAsWaMessage, smsBody, verifyTwilioSignature, SMS_HELD_REASON, SMS_HELD_DETAILS } from "../lib/workspace/channels.js";
+import { smsInboundFrom, smsAsWaMessage, smsBody, carrierConsent, smsKeywordConsent, mergeConsent, verifyTwilioSignature, SMS_HELD_REASON, SMS_HELD_DETAILS } from "../lib/workspace/channels.js";
 import { lineByNumber, lineAccount, smsSenderFor } from "../lib/sms.js";
 import { handleInbound, type InboundCarrier } from "../lib/whatsapp/inbound.js";
 import { logger } from "../lib/log.js";
@@ -72,6 +72,8 @@ export async function POST(request: Request): Promise<Response> {
     },
     body: (text, isFirstReply) => smsBody(text, isFirstReply),
     held: held ? { reason: SMS_HELD_REASON, details: SMS_HELD_DETAILS } : null,
+    // The carrier's verdict and the carriers' words, for this wire only.
+    consent: mergeConsent(carrierConsent(inbound), smsKeywordConsent(inbound.body)),
   };
   L.info("sms_inbound", { held, opt: inbound.optOutType, media: inbound.numMedia });
   try {

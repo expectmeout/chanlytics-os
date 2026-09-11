@@ -126,6 +126,22 @@ export type EventKind = (typeof EVENT_KINDS)[number];
 export const OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 
 /**
+ * The carriers' opt-out words, for a TEXTING LINE only.
+ *
+ * Twilio's default list (STOP, STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT, REVOKE,
+ * OPTOUT, per the FCC ruling) blocks the number at the carrier whatever our
+ * record says, so on SMS our record must agree with theirs: a QUIT we did not
+ * recognise left a customer opted in on our side and unreachable on the
+ * carrier's, with the next send bouncing and an owner told a delivery failed.
+ *
+ * WhatsApp has no carrier rule, and its appointment templates carry "Cancel"
+ * and "End" buttons that mean a booking, not a goodbye -- so these words are
+ * never applied to a WhatsApp message. Whole-message only: "stop by at 4?" is
+ * a booking on either channel.
+ */
+export const SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
+
+/**
  * Customer texts that mean opt back IN — the way out of an opt-out.
  *
  * Without this, enforcing opt-out silences someone permanently: they text STOP

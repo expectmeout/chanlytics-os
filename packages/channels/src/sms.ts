@@ -12,7 +12,8 @@
  * exact URL plus every POST field sorted by name with its value appended,
  * keyed with the auth token of the account the number belongs to, base64.
  */
-import type { WaRawMessage } from "./whatsapp";
+import { SMS_OPT_OUT_PATTERN } from "@chanlytics/contracts";
+import type { NormalizedInbound, WaRawMessage } from "./whatsapp";
 
 /** Twilio's inbound message, the fields the product reads. */
 export interface SmsInbound {
@@ -68,6 +69,46 @@ export function smsAsWaMessage(s: SmsInbound, nowMs = Date.now()): WaRawMessage 
   const base = { from: digits, id: s.messageSid, timestamp: String(Math.floor(nowMs / 1000)) };
   if (words) return { ...base, type: "text", text: { body: s.numMedia > 0 ? `${words} [with ${s.numMedia === 1 ? "a picture" : `${s.numMedia} pictures`}]` : words } };
   return { ...base, type: s.numMedia > 0 ? "image" : "unsupported" };
+}
+
+/**
+ * What the carrier already decided about this text, and what the carriers'
+ * own words say.
+ *
+ * Twilio recognises the standard opt-out and opt-in words itself, acts on
+ * them at the carrier, and says so in OptOutType -- but only when Advanced
+ * Opt-Out is switched on for the Messaging Service, so the words are read as
+ * well. Either source is enough: a number the carrier has blocked is
+ * unreachable whatever our record says, so the record must agree with the
+ * carrier. Neither is applied to WhatsApp, which has no carrier rule.
+ */
+export interface CarrierConsent {
+  optOut: boolean;
+  optIn: boolean;
+}
+
+export function carrierConsent(s: Pick<SmsInbound, "optOutType">): CarrierConsent | null {
+  if (s.optOutType === "STOP") return { optOut: true, optIn: false };
+  if (s.optOutType === "START") return { optOut: false, optIn: true };
+  return null;
+}
+
+/** The carriers' opt-out words, whole-message. Opt-in words stay the product's own (START, UNSTOP, RESUME). */
+export function smsKeywordConsent(body: string | null | undefined): CarrierConsent | null {
+  if (!body || !SMS_OPT_OUT_PATTERN.test(body)) return null;
+  return { optOut: true, optIn: false };
+}
+
+export function mergeConsent(a: CarrierConsent | null, b: CarrierConsent | null): CarrierConsent | null {
+  if (!a) return b;
+  if (!b) return a;
+  return { optOut: a.optOut || b.optOut, optIn: a.optIn || b.optIn };
+}
+
+/** The normalized message with the carrier's verdict added to its own. Either source is enough. */
+export function withCarrierConsent(n: NormalizedInbound, c: CarrierConsent | null): NormalizedInbound {
+  if (!c) return n;
+  return { ...n, optOut: n.optOut || c.optOut, optIn: n.optIn || c.optIn };
 }
 
 /** What the first reply to a number carries, once. Carrier guidance for A2P traffic. */

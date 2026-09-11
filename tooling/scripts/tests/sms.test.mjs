@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import {
-  smsInboundFrom, smsAsWaMessage, smsBody, SMS_FOOTER, SMS_MAX_CHARS, SMS_HELD_REASON, smsInboundUrl,
+  smsInboundFrom, smsAsWaMessage, smsBody, carrierConsent, withCarrierConsent, smsKeywordConsent, mergeConsent, SMS_FOOTER, SMS_MAX_CHARS, SMS_HELD_REASON, smsInboundUrl,
   twilioSignedString, twilioSignature, verifyTwilioSignature, sameSignature,
   normalizeInbound, runLineSaga, nextLineStep, dryProvider, twilioProvider, twilioUrls,
 } from "@chanlytics/channels";
@@ -39,6 +39,37 @@ test("Twilio's webhook becomes one shape; a picture with words is its words, a p
   const stop = normalizeInbound(smsAsWaMessage(smsInboundFrom({ ...FORM, Body: "STOP", OptOutType: "STOP" })), {});
   assert.equal(stop.optOut, true, "the consent gate sees it as it sees a WhatsApp STOP");
   assert.equal(smsInboundFrom({ ...FORM, OptOutType: "start" }).optOutType, "START");
+});
+
+test("the carrier's own verdict outranks our reading of the words", () => {
+  // Twilio acts on the standard words at the carrier and says so in
+  // OptOutType. A body our pattern does not match is still an opt-out when
+  // the carrier says it was -- the number is blocked there whatever we record.
+  const said = (body, type) => withCarrierConsent(
+    normalizeInbound(smsAsWaMessage(smsInboundFrom({ ...FORM, Body: body, ...(type ? { OptOutType: type } : {}) })), {}),
+    carrierConsent(smsInboundFrom({ ...FORM, Body: body, ...(type ? { OptOutType: type } : {}) })),
+  );
+  assert.equal(said("please stop", "STOP").optOut, true, "the carrier's STOP");
+  assert.equal(said("please stop", null).optOut, false, "the same words with no carrier verdict are a sentence");
+  assert.equal(said("start", "START").optIn, true, "the carrier's START");
+  assert.equal(said("hello", "HELP").optOut, false);
+  assert.equal(said("hello", "HELP").optIn, false);
+  assert.equal(carrierConsent({ optOutType: null }), null);
+  assert.deepEqual(carrierConsent({ optOutType: "STOP" }), { optOut: true, optIn: false });
+});
+
+test("on a texting line the carriers' words opt out, whole-message, and merge with the carrier's verdict", () => {
+  for (const w of ["CANCEL", "cancel", "Quit.", "END", "stopall", "REVOKE", "optout", "Unsubscribe", "baja"]) {
+    assert.deepEqual(smsKeywordConsent(w), { optOut: true, optIn: false }, w);
+  }
+  for (const w of ["can you cancel my 4pm?", "stop by at 4", "end of day is fine", null, ""]) {
+    assert.equal(smsKeywordConsent(w), null, String(w));
+  }
+  assert.equal(mergeConsent(null, null), null);
+  assert.deepEqual(mergeConsent({ optOut: false, optIn: true }, { optOut: true, optIn: false }), { optOut: true, optIn: true });
+  const n = normalizeInbound(smsAsWaMessage(smsInboundFrom({ ...FORM, Body: "cancel" })), {});
+  assert.equal(n.optOut, false, "the shared WhatsApp reading does not know the word");
+  assert.equal(withCarrierConsent(n, smsKeywordConsent("cancel")).optOut, true, "the texting line's reading does");
 });
 
 test("the footer rides the first reply only, never twice, never over the ceiling", () => {
