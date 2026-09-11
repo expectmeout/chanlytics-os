@@ -32,8 +32,9 @@ import type { NotifyTarget } from "../notify.js";
 import { FALLBACK_BRAIN, FALLBACK_NOTIFICATIONS } from "../tenant-fallback.js";
 import { PG_MISS, pgThread, pgIngest, pgSink, queueReply, IngestFailed } from "./persist.js";
 import { alertStaff } from "./alerts.js";
+import { pageOperator } from "../page-operator.js";
 import { whatsappSender, type Wire } from "../workspace/core.js";
-import { MAX_REPLIES_PER_DAY, PAUSE_MS, ageVerdict, threadVerdict, holdPlan, layerTwo, holdCopy } from "./steps.js";
+import { MAX_REPLIES_PER_DAY, PAUSE_MS, ageVerdict, threadVerdict, holdPlan, layerTwo, holdCopy, noModelPlan, NO_MODEL_PAGE } from "./steps.js";
 
 /** Gate 1b: read the bot's memory from Postgres instead of Blob. */
 const PG_READS = process.env.PG_READS === "on";
@@ -571,6 +572,7 @@ export async function handleInbound(
   let escalationReason = "human_token";
   let usage: { input_tokens: number; output_tokens: number } | undefined;
   let brainMeta: BrainMeta | undefined;
+  let fallback: ReturnType<typeof noModelPlan> | undefined;
   let brainMs = 0;
   if (process.env.ANTHROPIC_API_KEY) {
     try {
@@ -633,7 +635,17 @@ export async function handleInbound(
       escalationReason = "brain_error";
     }
   } else {
-    replyText = brainCfg.fallbacks.greeting;
+    // No model key: the receptionist cannot answer. The workspace's own
+    // greeting still goes, labelled a fallback, the thread is handed to a
+    // person, and the platform is paged once per window (noModelPlan says
+    // why). A canned greeting passed off as an answer would be the quiet
+    // failure this replaces.
+    fallback = noModelPlan(brainCfg.fallbacks);
+    replyText = fallback.replyText;
+    escalate = fallback.escalate;
+    escalationReason = fallback.escalationReason;
+    L.error("wa_no_model");
+    if (db) await pageOperator({ db }, NO_MODEL_PAGE.key, NO_MODEL_PAGE.subject, NO_MODEL_PAGE.body);
   }
 
   // THE VETO WINDOW.
@@ -696,7 +708,7 @@ export async function handleInbound(
       // at this one before the timer runs out, not after.
       thread.pausedUntil = Date.now() + pauseMs;
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
-      post.push(sink.escalate(escalationReason, brainMeta?.reason ? `${brainMeta.reason} — "${bodyText}"` : bodyText));
+      post.push(sink.escalate(escalationReason, fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} — "${bodyText}"` : bodyText));
       post.push(alertStaff(from, bodyText, replyText, "assistant flagged handoff (reply held for review)", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null));
     }
     await Promise.all(post);
@@ -706,7 +718,7 @@ export async function handleInbound(
     return;
   }
 
-  const sent = await send(replyText, brainMeta as unknown as Record<string, Json> | undefined);
+  const sent = await send(replyText, fallback ? (fallback.meta as Record<string, Json>) : (brainMeta as unknown as Record<string, Json> | undefined));
   const tSent = Date.now();
   if (sent.outcome === "sent") {
     thread.history.push({ role: "user", content: bodyText });
@@ -718,8 +730,8 @@ export async function handleInbound(
     if (escalate) {
       thread.pausedUntil = Date.now() + pauseMs;
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
-      post.push(sink.escalate(escalationReason, brainMeta?.reason ? `${brainMeta.reason} — "${bodyText}"` : bodyText));
-      post.push(alertStaff(from, bodyText, replyText, "assistant flagged handoff", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null));
+      post.push(sink.escalate(escalationReason, fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} — "${bodyText}"` : bodyText));
+      post.push(alertStaff(from, bodyText, replyText, fallback ? fallback.alertReason : "assistant flagged handoff", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null));
     }
     await Promise.all(post);
     await saveThread(ns, from, thread);

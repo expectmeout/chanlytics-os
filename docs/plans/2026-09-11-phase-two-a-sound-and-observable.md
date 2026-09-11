@@ -344,36 +344,95 @@ Expected: every db test passes, the three new ones included. PR body: "Adds migr
 
 ### Task 3: A missing model key is a visible degraded state
 
-Today no `ANTHROPIC_API_KEY` means every message gets the workspace's generic greeting, no escalation, no alert. AI-04 in the PRD: the generic acknowledgement may go only as a labelled fallback that counts as nothing, the thread goes to a person, and the platform is paged.
+Today no `ANTHROPIC_API_KEY` means every message gets the workspace's generic greeting, no escalation, no alert. PRD AI-04: the generic acknowledgement may go only as a labelled fallback that counts as nothing, the thread goes to a person, and the platform is paged.
 
 **Files:**
-- Modify: `apps/edge/lib/whatsapp/inbound.ts` (the `else` of the model branch, the send's meta)
+- Modify: `apps/edge/lib/whatsapp/steps.ts` (the decision, pure: `noModelPlan`, `NO_MODEL_PAGE`)
+- Modify: `apps/edge/lib/whatsapp/alerts.ts` (the owner's words for the reason `no model`)
+- Modify: `apps/edge/lib/whatsapp/inbound.ts` (the `else` of the model branch, the send's meta, the escalation's details and the alert's reason)
+- Test: `tooling/scripts/tests/no-model.test.mjs` (new, executed)
 
-- [ ] **Step 1: The change**
+- [ ] **Step 1: The failing test**
 
-Import `pageOperator` from `../page-operator.js`. Beside `let brainMeta: BrainMeta | undefined;` add `let noModel = false;`. Replace the model branch's `else`:
+```js
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { ESCALATION_REASONS } from "@chanlytics/contracts";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const { noModelPlan, NO_MODEL_PAGE } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/whatsapp/steps.ts")).href);
+
+test("no model: the workspace's own greeting goes as a labelled fallback, and the thread goes to a person", () => {
+  const plan = noModelPlan({ greeting: "Thanks for writing to Melany's. A person will be with you shortly." });
+  assert.equal(plan.replyText, "Thanks for writing to Melany's. A person will be with you shortly.");
+  assert.deepEqual(plan.meta, { ack: true, fallback: "no_model" });
+  assert.equal(plan.escalate, true);
+  assert.ok(ESCALATION_REASONS.includes(plan.escalationReason));
+  assert.match(plan.escalationDetails("is my order ready?"), /no model key/);
+  assert.equal(plan.alertReason, "no model");
+});
+
+test("the platform is paged under one stable key, and the page carries no secret", () => {
+  assert.equal(NO_MODEL_PAGE.key, "brain_unavailable");
+  assert.match(NO_MODEL_PAGE.body, /ANTHROPIC_API_KEY is not set/);
+  assert.ok(!/sk-ant-/.test(NO_MODEL_PAGE.body));
+});
+```
+
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/no-model.test.mjs` → expected: fails, `noModelPlan` is not exported.
+
+- [ ] **Step 2: The decision, pure (append to `steps.ts`)**
+
+```ts
+export const NO_MODEL_PAGE = {
+  key: "brain_unavailable",
+  subject: "The receptionist has no model key",
+  body: "ANTHROPIC_API_KEY is not set on the edge. Every reply is the workspace's generic greeting, labelled a fallback, and every thread is handed to a person until the key is back.",
+} as const;
+
+export function noModelPlan(fallbacks: { greeting: string }): {
+  replyText: string;
+  meta: { ack: true; fallback: "no_model" };
+  escalate: true;
+  escalationReason: "brain_error";
+  escalationDetails: (customerText: string) => string;
+  alertReason: "no model";
+} {
+  return {
+    replyText: fallbacks.greeting,
+    meta: { ack: true, fallback: "no_model" },
+    escalate: true,
+    escalationReason: "brain_error",
+    escalationDetails: (customerText) => `the receptionist has no model key — "${customerText}"`,
+    alertReason: "no model",
+  };
+}
+```
+
+`brain_error` is the closed set's word for "the receptionist could not answer and a holding message went out"; the owner's inbox already knows it. In `alerts.ts`, `REASON_WORDS` gains `"no model": "the receptionist has no model to answer with"`.
+
+- [ ] **Step 3: The handler applies it**
+
+In `inbound.ts`: import `pageOperator` from `../page-operator.js` and `noModelPlan, NO_MODEL_PAGE` from `./steps.js`; beside `let brainMeta: BrainMeta | undefined;` add `let fallback: ReturnType<typeof noModelPlan> | undefined;`. The model branch's `else` becomes:
 
 ```ts
   } else {
-    // No model key: the receptionist cannot answer, and a canned greeting
-    // passed off as an answer is the quiet failure. The workspace's own
-    // generic greeting still goes, marked as a fallback that spends no cap,
-    // the thread is handed to a person, and the platform is paged once per
-    // window: this is the platform's condition, not this workspace's.
-    L.error("wa_no_model", { tenant: tenantId });
-    replyText = brainCfg.fallbacks.greeting;
-    escalate = true;
-    escalationReason = "brain_error";
-    noModel = true;
-    if (db) await pageOperator({ db }, "brain_unavailable", "The receptionist has no model key", "ANTHROPIC_API_KEY is not set on the edge. Every reply is the workspace's generic greeting, marked fallback, and each thread is handed to a person until the key is back.");
+    fallback = noModelPlan(brainCfg.fallbacks);
+    replyText = fallback.replyText;
+    escalate = fallback.escalate;
+    escalationReason = fallback.escalationReason;
+    L.error("wa_no_model");
+    if (db) await pageOperator({ db }, NO_MODEL_PAGE.key, NO_MODEL_PAGE.subject, NO_MODEL_PAGE.body);
   }
 ```
 
-And the send: `const sent = await send(replyText, brainMeta as unknown as Record<string, Json> | undefined);` becomes `const sent = await send(replyText, noModel ? { ack: true, fallback: "no_model" } : (brainMeta as unknown as Record<string, Json> | undefined));`.
+The send carries the label: `send(replyText, fallback ? (fallback.meta as Record<string, Json>) : (brainMeta as unknown as Record<string, Json> | undefined))`. In the post-send handoff, the escalation's details are `fallback ? fallback.escalationDetails(bodyText) : …` and the alert's reason is `fallback ? fallback.alertReason : "assistant flagged handoff"`. The escalation pauses the thread for the workspace's pause window, so one greeting goes per thread and a person has it from then on; no usage row is written, so the fallback counts as nothing.
 
-- [ ] **Step 2: Typecheck, full suite (a pin on the moved lines is updated, never added), commit, PR, merge when green**
+- [ ] **Step 4: Run the test, typecheck, full suite; commit; PR; merge when green**
 
-Commit: `A missing model key is a degraded state a person can see, not a canned receptionist`.
+Commit: `A missing model key is a degraded state a person can see, not a canned receptionist`. No migration, no auth: merge when green.
 
 ---
 

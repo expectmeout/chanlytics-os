@@ -24,6 +24,7 @@ const REASON_WORDS: Record<string, string> = {
   budget: "the day's model budget is used up",
   wa_send_failed: "the reply failed to send",
   carriers: "texted before the carriers approved the line",
+  "no model": "the receptionist has no model to answer with",
 };
 
 export async function alertStaff(
