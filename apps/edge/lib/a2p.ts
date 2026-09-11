@@ -15,7 +15,7 @@ import {
 } from "./workspace/channels.js";
 import { formatPhoneDisplay, industryOf, businessRecordProblems, registrationPathOf, registrationPreflight, optInConfirmation } from "./workspace/contracts.js";
 import { emitEvent } from "./workspace/db.js";
-import { recordNotification } from "./notify.js";
+import { platformTo, recordNotification } from "./notify.js";
 import { lineProviderFromEnv } from "./lines.js";
 import { lineAccount, refreshLineToken } from "./sms.js";
 import { logger } from "./log.js";
@@ -30,8 +30,9 @@ export function primaryProfileSid(): string | null {
 }
 
 /** Where Twilio writes about a bundle: the platform's mailbox, never a customer's. */
+/** Twilio's contact for the filing: one address, the first of LEAD_TO when there are several. */
 export function platformEmail(): string | null {
-  return process.env.LEAD_TO || null;
+  return platformTo()[0] ?? null;
 }
 
 export function businessRecordFrom(r: RecordRow): BusinessRecord {

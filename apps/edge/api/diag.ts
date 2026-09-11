@@ -9,6 +9,7 @@ import { authorizeAdmin } from "../lib/admin-auth.js";
 import { pg } from "../lib/pg.js";
 import { brainSummary } from "../lib/budget.js";
 import type { SweepHealthRow } from "../lib/sweep-health.js";
+import { pageStates, untoldPages, type PageRow } from "../lib/page-operator.js";
 import { getAgent, getRetellLlm, voiceShellDrift, agentSettingsDrift } from "../lib/workspace/channels.js";
 import { metaAppId } from "../lib/meta-graph.js";
 
@@ -85,6 +86,28 @@ export async function GET(request: Request): Promise<Response> {
     }
   } catch (e) {
     out.sweeps = { error: String(e instanceof Error ? e.message : e).slice(0, 200) };
+  }
+
+  // The pager's memory: every platform condition that has ever fired, and
+  // whether a person heard about the last firing. `untold` is the list to act
+  // on -- a condition inside its window whose page failed or had no address.
+  // This is the one place a failed page can be seen: the callers do not act on
+  // the outcome, and the alarm channel cannot report its own failure by mail.
+  try {
+    const db = pg();
+    if (!db) {
+      out.pages = { unavailable: "no database client (PG_WRITES is not 'on')" };
+    } else {
+      const { data, error } = await db.from("operator_pages").select("key, first_at, last_at, count, alerted_at").order("last_at", { ascending: false });
+      if (error) {
+        out.pages = { error: error.message.slice(0, 200) };
+      } else {
+        const rows = (data ?? []) as PageRow[];
+        out.pages = { ok: untoldPages(rows).length === 0, untold: untoldPages(rows), conditions: pageStates(rows) };
+      }
+    }
+  } catch (e) {
+    out.pages = { error: String(e instanceof Error ? e.message : e).slice(0, 200) };
   }
 
   // Where the two tables that model a number disagree.
