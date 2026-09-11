@@ -1,28 +1,62 @@
 {
   "note": "Written by route-policy.test.mjs (UPDATE_ROUTE_POLICY=1). A change here is a change to who may do what, how often, and on which workspace: review it as one.",
   "undeclared": [
-    "ask",
-    "ask/messages/[id]/proposals/[pid]",
-    "ask/openings",
-    "ask/threads",
-    "ask/threads/[id]",
     "billing/invoices",
     "billing/resume",
     "billing/sync",
     "me",
-    "metrics",
     "platform/lines/refile",
     "platform/lines/release",
     "platform/lines/retry",
     "platform/overview",
     "platform/tenants/[id]",
-    "reports",
-    "reports/campaigns",
     "team",
     "workspaces",
     "workspaces/create"
   ],
   "routes": {
+    "POST ask/messages/[id]/proposals/[pid]": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET ask/openings": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
+    "POST ask": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "viewer",
+      "rate": "ask",
+      "spend": false
+    },
+    "GET ask/threads/[id]": {
+      "kind": "read",
+      "scope": "account",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "DELETE ask/threads/[id]": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET ask/threads": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "POST billing/checkout": {
       "kind": "write",
       "scope": "workspace",
@@ -472,6 +506,13 @@
       "rate": "whisper",
       "spend": false
     },
+    "GET metrics": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
     "GET notifications": {
       "kind": "read",
       "scope": "workspace",
@@ -533,6 +574,20 @@
       "scope": "workspace",
       "role": "operator",
       "rate": "settings",
+      "spend": false
+    },
+    "GET reports/campaigns": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
+    "GET reports": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
       "spend": false
     },
     "PUT segments/[id]": {
