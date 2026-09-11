@@ -291,7 +291,7 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
   assert.ok(cb.includes('if (member.role !== "owner") return back("error", "not_owner");'));
   assert.ok(!cb.includes("client_secret"), "the dashboard never sees the secret");
   const server = readCode("apps/dashboard/src/server/google.ts");
-  assert.ok(server.includes("return process.env.DIAG_KEY || null;"), "the state's key is the one the dashboard already shares with the edge");
+  assert.ok(server.includes("return process.env.GOOGLE_OAUTH_STATE_SECRET || process.env.DIAG_KEY || null;"), "the state's key is the one the dashboard already shares with the edge");
   assert.ok(server.includes('export const CONNECTION_COLUMNS = "google_email, account_title, location_name, location_title, connected_at, last_synced_at, sync_error";'), "never credentials_ref");
   const reply = readCode("apps/dashboard/app/api/v1/google/reviews/[id]/reply/route.ts");
   assert.ok(reply.includes('requireRole(member, "operator")') && reply.includes('takeRate(ctx.userId, "google_reply")'));

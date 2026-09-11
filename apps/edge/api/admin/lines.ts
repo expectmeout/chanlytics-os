@@ -16,6 +16,7 @@
  * tells the workspace's bell and emails the platform; a retry resumes.
  */
 import { json } from "../../lib/http.js";
+import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { emitEvent } from "../../lib/workspace/db.js";
 import { formatPhoneDisplay, whyCannotSpend, lineRetryRefusal, type BillingMode, type BillingStatus } from "../../lib/workspace/contracts.js";
@@ -71,12 +72,14 @@ async function tenantOf(db: SupabaseClient<Database>, id: string) {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
-    return json(403, { ok: false });
-  }
+  const auth = authorizeAdmin(request, "/api/admin/lines");
+  if (!auth.ok) return auth.response;
   let body: Body = {};
   try { body = JSON.parse(await request.text()); } catch { /* validated below */ }
   const op = typeof body.op === "string" ? body.op : "";
+  const ws = workspaceFor(auth, body.tenant_id);
+  if (!ws.ok) return ws.response;
+  body.tenant_id = ws.tenantId ?? undefined;
   const choice = lineProviderFromEnv();
 
   if (op === "status") {

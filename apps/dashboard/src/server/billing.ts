@@ -8,8 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import { billingAccountDto, type BillingAccountDto, type BillingPriceDto } from "@chanlytics/contracts";
 import type { EdgeAnswer } from "./lines";
-
-const EDGE_BASE = "https://chanlytics-messaging.vercel.app";
+import { edgeConfigured, edgeHeaders, edgeUrl } from "./edge";
 
 export const BILLING_COLUMNS = "mode, status, price_id, current_period_end, trial_end, cancel_at, cancel_at_period_end, card_brand, card_last4, last_payment_failed_at, last_paid_at, updated_at";
 
@@ -21,11 +20,11 @@ export async function billingFor(db: SupabaseClient<Database>, tenantId: string)
 
 /** One call to the edge's billing endpoint. Never throws: a failure is a status the caller reads. */
 export async function edgeBilling(body: Record<string, unknown>, timeoutMs = 20_000): Promise<EdgeAnswer> {
-  if (!process.env.DIAG_KEY) return { status: 503, body: { ok: false, error: "no_diag_key" } };
+  if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
   try {
-    const r = await fetch(`${EDGE_BASE}/api/admin/billing`, {
+    const r = await fetch(`${edgeUrl()}/api/admin/billing`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY },
+      headers: edgeHeaders("/api/admin/billing", { workspace: typeof body.tenant_id === "string" ? body.tenant_id : null }),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(timeoutMs),
     });

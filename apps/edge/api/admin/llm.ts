@@ -12,6 +12,7 @@
  * steer and whisper.
  */
 import { json } from "../../lib/http.js";
+import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { ASK_TOKENS_DAY } from "../../lib/workspace/contracts.js";
 import {
@@ -35,9 +36,8 @@ const BUDGET_TTL_MS = 60_000;
 const VERSION = "2023-06-01";
 
 export async function POST(request: Request): Promise<Response> {
-  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
-    return json(403, { ok: false });
-  }
+  const auth = authorizeAdmin(request, "/api/admin/llm");
+  if (!auth.ok) return auth.response;
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return json(503, { ok: false, error: "no_model_key" });
 
@@ -45,6 +45,9 @@ export async function POST(request: Request): Promise<Response> {
   if (raw.length > GATEWAY_MAX_BODY) return json(413, { ok: false, error: "too_large" });
   let body: { tenant_id?: string; user_id?: string; purpose?: string; request?: unknown } = {};
   try { body = JSON.parse(raw); } catch { /* below */ }
+  const ws = workspaceFor(auth, body.tenant_id);
+  if (!ws.ok) return ws.response;
+  body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = String(body.tenant_id || "");
   const userId = String(body.user_id || "");
   if (!UUID.test(tenantId) || !UUID.test(userId) || body.purpose !== "ask") {

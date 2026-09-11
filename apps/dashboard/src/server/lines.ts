@@ -7,8 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import type { LineDto } from "@chanlytics/contracts";
-
-const EDGE_BASE = "https://chanlytics-messaging.vercel.app";
+import { edgeConfigured, edgeHeaders, edgeUrl } from "./edge";
 
 /** The columns the page may see — the lines_member_select policy scopes the rows. */
 export const LINE_COLUMNS = "id, e164, kind, provider, area_code, voice_state, sms_state, reg_step, reg_mock, reg_sole_prop, whatsapp_state, port_state, forwarding_state, step, last_error, state_since, created_at, facts";
@@ -57,11 +56,11 @@ export interface EdgeAnswer {
 
 /** One call to the edge's lines endpoint. Never throws: a failure is a status the caller reads. */
 export async function edgeLines(body: Record<string, unknown>, timeoutMs = 60_000): Promise<EdgeAnswer> {
-  if (!process.env.DIAG_KEY) return { status: 503, body: { ok: false, error: "no_diag_key" } };
+  if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
   try {
-    const r = await fetch(`${EDGE_BASE}/api/admin/lines`, {
+    const r = await fetch(`${edgeUrl()}/api/admin/lines`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY },
+      headers: edgeHeaders("/api/admin/lines", { workspace: typeof body.tenant_id === "string" ? body.tenant_id : null }),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(timeoutMs),
     });

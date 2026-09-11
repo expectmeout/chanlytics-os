@@ -303,7 +303,7 @@ test("the migration: three tables that hang off the listing, members read, realt
 
 test("the edge: the key alone on the edge, diag-key verbs, the cron-key sweep, one check routine, a read before a row", () => {
   const admin = readCode("apps/edge/api/admin/google.ts");
-  assert.ok(admin.includes('request.headers.get("x-diag-key") !== process.env.DIAG_KEY'));
+  assert.ok(admin.includes('authorizeAdmin(request, "/api/admin/google")'));
   assert.ok(admin.includes('if (op === "status") return json(200, { ok: true, ready: googleReadiness(), profile: profilePublic() });'));
   assert.ok(admin.includes('error: "no_places_key"'));
   assert.ok(admin.indexOf("await readPlace(key, placeId)") < admin.indexOf('.from("google_listings")\n      .upsert('), "a wrong id is refused before any row exists");
@@ -338,7 +338,7 @@ test("the dashboard: owners link and search, operators read, members look; the p
   const get = readCode("apps/dashboard/app/api/v1/google/route.ts");
   assert.ok(get.includes("googleFor(ctx.supabase, member.tenantId), googleReadiness()"));
   const server = readCode("apps/dashboard/src/server/google.ts");
-  assert.ok(server.includes('"x-diag-key": process.env.DIAG_KEY') && server.includes("const READY_TTL_MS = 5 * 60_000;"));
+  assert.ok(server.includes('edgeHeaders("/api/admin/google"') && server.includes("const READY_TTL_MS = 5 * 60_000;"));
   assert.ok(!server.includes("GOOGLE_PLACES_API_KEY"), "the dashboard never holds the key");
   const setup = readCode("apps/dashboard/src/server/setup.ts");
   assert.ok(setup.includes("listingFor(supabase, tenantId),\n    googleReadiness(),") && setup.includes("ready: google.places || google.profile,"));

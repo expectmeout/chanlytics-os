@@ -13,3 +13,4 @@ export * from "./google-places";
 export * from "./google-sync";
 export * from "./google-oauth";
 export * from "./google-profile";
+export * from "./edge-token";
