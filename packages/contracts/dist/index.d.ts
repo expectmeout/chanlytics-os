@@ -1422,6 +1422,7 @@ declare const SCHEMA_SETS: {
     readonly "calls.direction": readonly ["inbound", "outbound"];
     readonly "calls.outcome": readonly ["answered", "booking_link_sent", "callback_needed", "voicemail", "no_request", "other"];
     readonly "calls.status": readonly ["registered", "ongoing", "ended", "error", "not_connected"];
+    readonly "capability_activations.capability": readonly ["voice", "whatsapp", "sms"];
     readonly "contact_identities.channel": readonly ["whatsapp", "voice", "sms", "email", "instagram"];
     readonly "contacts.consent": readonly ["unknown", "opted_in", "opted_out"];
     readonly "contacts.marketing_consent": readonly ["unknown", "opted_in", "opted_out"];
@@ -1467,38 +1468,570 @@ declare const SCHEMA_SETS: {
     readonly "tenants.status": readonly ["active", "paused", "test"];
 };
 
+/** Where an answer came from, strongest claim first. */
+type FactSource = 
+/** The platform provisioned it: a channel row, a bought number. */
+"provisioned"
+/** A third party verified it: the linked Google Business Profile. */
+ | "verified"
+/** The workspace record itself (tenants.name, tenants.timezone). */
+ | "workspace"
+/** Somebody typed it into the business form. */
+ | "typed"
+/** Nobody has said. */
+ | "absent";
+interface Fact<T> {
+    value: T | null;
+    source: FactSource;
+    /** Another source's answer for the same fact, when it differs. */
+    disputed?: {
+        value: T;
+        source: FactSource;
+    };
+}
+/** What the platform and its integrations know, independent of anything typed. */
+interface KnownFacts {
+    workspace?: {
+        name?: string | null;
+        timezone?: string | null;
+    } | null;
+    /** tenant_channels rows: what the receptionist actually answers on. */
+    channels?: ReadonlyArray<{
+        kind: string;
+        number_e164?: string | null;
+        status?: string | null;
+    }> | null;
+    /** The linked Google Business Profile, when there is one. */
+    listing?: {
+        name?: string | null;
+        address?: string | null;
+    } | null;
+}
+/** The brain fields this resolves over. A subset, so callers need not have parsed everything. */
+interface TypedFacts {
+    business_name?: string | null;
+    phone_display?: string | null;
+    booking_link?: string | null;
+    profile?: {
+        address?: string | null;
+        website?: string | null;
+        handoff_number?: string | null;
+    } | null;
+}
+interface ResolvedFacts {
+    business_name: Fact<string>;
+    /** What the receptionist tells customers to call. */
+    phone_display: Fact<string>;
+    booking_link: Fact<string>;
+    address: Fact<string>;
+    website: Fact<string>;
+    /** Where a caller who insists on a person is transferred. Human-only by nature. */
+    handoff_number: Fact<string>;
+    /** The line the receptionist ANSWERS. Provisioned or nothing — never typed. */
+    voice_line: Fact<string>;
+    /** The WhatsApp line. Provisioned or nothing. */
+    whatsapp_line: Fact<string>;
+}
+/** Two ways of writing one number. `(646) 932-5775` and `+16469325775` are the same fact. */
+declare function samePhone(a: string | null | undefined, b: string | null | undefined): boolean;
 /**
- * The carriers' vocabulary: the closed lists Twilio keeps for a business
- * registration, and the coercions that keep a value it would refuse from
- * ever reaching it.
+ * Two ways of writing one address.
  *
- * They live here, with the rest of the product's words, rather than beside
- * the provider calls: the form offers them, the endpoint checks against
- * them, and `packages/channels` sends them. One list, three readers.
- *
- * Read from Twilio's documentation on 2026-09-08. A value outside a list is
- * refused at the evaluation — after the profile, the business, the person,
- * the address and the document have all been made — so nothing guesses.
+ * Deliberately loose: Google returns "2581 Pitkin Ave, Brooklyn, NY 11208, USA"
+ * for an owner who typed the same thing without the country. Reporting that as
+ * a disagreement would train people to ignore the warning, which costs more
+ * than the warning is worth.
  */
-/** What a business does. */
-declare const BUSINESS_INDUSTRIES: readonly ["AGRICULTURE", "AUTOMOTIVE", "BANKING", "CONSTRUCTION", "CONSUMER", "EDUCATION", "ELECTRONICS", "ENERGY", "ENGINEERING", "FAST_MOVING_CONSUMER_GOODS", "FINANCIAL", "FINTECH", "FOOD_AND_BEVERAGE", "GOVERNMENT", "HEALTHCARE", "HOSPITALITY", "INSURANCE", "JEWELRY", "LEGAL", "MANUFACTURING", "MEDIA", "NOT_FOR_PROFIT", "OIL_AND_GAS", "ONLINE", "PROFESSIONAL_SERVICES", "RAW_MATERIALS", "REAL_ESTATE", "RELIGION", "RETAIL", "TECHNOLOGY", "TELECOMMUNICATIONS", "TRANSPORTATION", "TRAVEL"];
-type BusinessIndustry = (typeof BUSINESS_INDUSTRIES)[number];
-/** What a small local business is, unless it says otherwise. */
-declare const DEFAULT_INDUSTRY: BusinessIndustry;
-/** Its legal form. Told to the carriers in its name, so it is asked and never inferred. */
-declare const BUSINESS_TYPES: readonly ["Co-operative", "Corporation", "Limited Liability Corporation", "Non-profit Corporation", "Partnership"];
-type BusinessType = (typeof BUSINESS_TYPES)[number];
-declare const DEFAULT_BUSINESS_TYPE: BusinessType;
-/** Who owns it. */
-declare const COMPANY_TYPES: readonly ["government", "non-profit", "private", "public"];
-type CompanyType = (typeof COMPANY_TYPES)[number];
-declare const DEFAULT_COMPANY_TYPE: CompanyType;
-/** The value Twilio will accept, or the default — never a guess it refuses. */
-declare function industryOf(v: string | null | undefined): BusinessIndustry;
-declare function businessTypeOf(v: string | null | undefined): BusinessType;
-declare function companyTypeOf(v: string | null | undefined): CompanyType;
-/** The words for a value, where the carriers' spelling is not the owner's. */
-declare function industryWords(v: string): string;
+declare function sameAddress(a: string | null | undefined, b: string | null | undefined): boolean;
+/** Same business, allowing for punctuation and case. */
+declare function sameName(a: string | null | undefined, b: string | null | undefined): boolean;
+/**
+ * The facts as the product should understand them: one answer each, its source,
+ * and whatever disagrees with it.
+ */
+declare function resolveFacts(typed: TypedFacts | null | undefined, known?: KnownFacts | null): ResolvedFacts;
+type ConflictSeverity = "serious" | "minor";
+interface FactConflict {
+    /** Which resolved fact disagrees. */
+    fact: keyof ResolvedFacts;
+    severity: ConflictSeverity;
+    /** What is being used. */
+    used: string;
+    /** What the system knows instead. */
+    known: string;
+    knownSource: FactSource;
+    /** Said the way this product says things: what it means for a customer. */
+    sentence: string;
+    /** Where a person goes to settle it. */
+    to: string;
+}
+/**
+ * The disagreements, worst first, in the words an owner needs.
+ *
+ * Severity is about the CUSTOMER, not about the data. A published number that
+ * is not the line being answered sends real people to the wrong place; an
+ * address that differs from Google's by a country suffix does not.
+ */
+declare function factConflicts(f: ResolvedFacts): FactConflict[];
+/** The words for a source, where one is shown beside a value. */
+declare const SOURCE_WORDS: Record<FactSource, string>;
+/**
+ * Which parts of a config a save actually moved.
+ *
+ * Recorded on the change rather than the values themselves: the config holds a
+ * business's own words, its booking link and its customers' escalation rules,
+ * and the events ledger is read by more people and for longer than a settings
+ * pane is. "hours, services" answers the question anybody actually asks —
+ * what changed, and who by — without copying the contents into a second place.
+ */
+declare function changedConfigFields(before: unknown, after: unknown): string[];
+
+/**
+ * The receptionist under a Google review — the pure half.
+ *
+ * What the Autonomy row for reviews means, the prompt that writes a reply in
+ * the business's name, which unreplied reviews the auto mode may answer in
+ * one sync, how a draft is cleaned before it is shown or posted, and the
+ * words the pages say. No model, no network: the edge calls the model with
+ * the prompt built here; the tests read the same functions.
+ */
+type ReviewReplyMode = "auto" | "ask" | "never";
+/** The row's mode, from the workspace's policy rows. No row, or a mode the class cannot take, reads as ask: a draft on request, nothing posted alone. */
+declare function reviewReplyModeOf(rows: ReadonlyArray<{
+    class: string;
+    mode: string;
+}> | null | undefined): ReviewReplyMode;
+/** What the receptionist knows about the business when it writes under a review. */
+interface ReviewReplyFacts {
+    name: string;
+    /** The owner's own words for how the receptionist speaks, when given. */
+    tone: string | null;
+    /** The languages the business speaks, first one first. */
+    languages: string[];
+    /** The line customers already use, for the invitation on a poor review. */
+    phone: string | null;
+    website: string | null;
+    /** Service names, so a reply can name what they had without inventing it. */
+    services: string[];
+}
+interface ReviewToAnswer {
+    rating: number | null;
+    author: string | null;
+    text: string | null;
+    /** When it was written, ISO, when known. */
+    written_at: string | null;
+}
+/** At most this many words; Google shows a reply beside the review, not under a fold. */
+declare const REVIEW_REPLY_MAX_WORDS = 60;
+/** A cap on the cleaned draft, well above the words asked for and well under Google's 4096. */
+declare const REVIEW_REPLY_MAX_CHARS = 1000;
+/** How many unreplied reviews the auto mode answers in one sync; the rest wait for the next hour. */
+declare const REVIEW_AUTO_REPLIES_PER_SYNC = 3;
+/** The auto mode answers reviews written within this long; older ones are the owner's. */
+declare const REVIEW_AUTO_REPLY_MAX_AGE_MS: number;
+/**
+ * The prompt: the business as the system, the review as the message. The
+ * rules are the charter's — no money, no invented facts, no arguing — and
+ * the reply's length and language are fixed here, not left to taste.
+ */
+declare function reviewReplyPrompt(facts: ReviewReplyFacts, review: ReviewToAnswer): {
+    system: string;
+    user: string;
+};
+/**
+ * A draft as the model returned it, made fit to show or post: labels the
+ * model sometimes prefixes, quotation marks around the whole, and runs of
+ * whitespace gone; empty when nothing usable remains.
+ */
+declare function cleanDraft(raw: unknown): string;
+interface ReviewOnRecord {
+    id: string;
+    review_id: string;
+    origin: string;
+    published_at: string | null;
+    reply_text: string | null;
+}
+/**
+ * The reviews the auto mode may answer in one sync: from the profile, with
+ * no reply yet, written after the profile was connected — what came in
+ * while the receptionist was on duty, never the years before — and not
+ * older than two weeks. Newest first, capped; the rest wait for the next
+ * hour, which finds them still unreplied.
+ */
+declare function autoReplyCandidates<T extends ReviewOnRecord>(rows: readonly T[], connectedAt: string | null, nowMs: number, cap?: number): T[];
+/** The bell after the receptionist answered: one review by name, several by count. */
+declare function autoReplyBell(answered: ReadonlyArray<{
+    author: string | null;
+    text: string;
+}>): {
+    title: string;
+    body: string;
+} | null;
+/** What the Reports card says beside the source of its reviews, when replies can go out from here. */
+declare function reviewReplyWords(mode: ReviewReplyMode | null | undefined, canReply: boolean): string;
+
+interface ReportDayDto {
+    day: string;
+    messages_in: number;
+    conversations: number;
+    answered_ai: number;
+    answered_you: number;
+    unanswered: number;
+    out_ai: number;
+    out_you: number;
+    escalations: number;
+    calls: number;
+    call_seconds: number;
+    new_contacts: number;
+}
+/** What `report_series(tenant, days)` returns. `series` spans TWO periods —
+ *  the requested one and the one before it — newest last. */
+interface ReportDto {
+    timezone: string;
+    days: number;
+    span_days: number;
+    today: string;
+    series: ReportDayDto[];
+    reasons: Record<string, number>;
+    reply_seconds: number[];
+    sentiments: Record<string, number>;
+    voicemail: number;
+    error?: string;
+}
+declare const REPORT_RANGES: readonly {
+    days: number;
+    id: string;
+    label: string;
+}[];
+interface ReportTileVM {
+    id: string;
+    label: string;
+    value: string;
+    meta: string;
+    /** Signed change against the previous period, or null when there is no
+     *  prior data to compare with (never a fabricated 0%). */
+    delta: {
+        text: string;
+        tone: "pos" | "neg" | "";
+    } | null;
+    /** One point per day of the current period, for the sparkline. */
+    spark: number[];
+}
+interface ReportPointVM {
+    day: string;
+    /** "Aug 28" */
+    label: string;
+    /** "28" */
+    short: string;
+    in: number;
+    ai: number;
+    you: number;
+    none: number;
+    calls: number;
+    callSeconds: number;
+    escalations: number;
+    newPeople: number;
+}
+interface ReportBarVM {
+    id: string;
+    label: string;
+    value: number;
+    /** 0..1 of the largest bar in its group. */
+    share: number;
+}
+interface ReportVM {
+    days: number;
+    rangeLabel: string;
+    since: string;
+    until: string;
+    timezone: string;
+    /** Nothing came in during the period: no customer message and no call. */
+    empty: boolean;
+    tiles: ReportTileVM[];
+    answered: {
+        points: ReportPointVM[];
+        totals: {
+            in: number;
+            ai: number;
+            you: number;
+            none: number;
+        };
+        max: number;
+    };
+    reasons: ReportBarVM[];
+    replyTime: {
+        count: number;
+        median: number | null;
+        p90: number | null;
+        medianLabel: string;
+        p90Label: string;
+        buckets: ReportBarVM[];
+    };
+    calls: {
+        points: ReportPointVM[];
+        total: number;
+        minutes: number;
+        voicemail: number;
+        sentiments: ReportBarVM[];
+        max: number;
+    };
+    people: {
+        points: ReportPointVM[];
+        total: number;
+        max: number;
+    };
+    table: {
+        columns: string[];
+        rows: (string | number)[][];
+    };
+}
+/** A calendar day ("2026-09-04") as a local date, without the UTC shift that
+ *  `new Date("2026-09-04")` would apply. */
+declare function dayDate(day: string): Date;
+declare function fmtDay(day: string): string;
+/** "12s", "1m 05s", "14m", "2h 10m". */
+declare function fmtSeconds(s: number | null | undefined): string;
+declare function quantile(sorted: number[], q: number): number | null;
+/**
+ * Signed change vs the previous period. Null when the previous period has
+ * nothing to compare against: "+∞%" and "vs 0" are not information.
+ * `upIsGood` decides the tone; a change of zero has none.
+ */
+declare function deltaOf(current: number, previous: number, upIsGood: boolean, noun: string): ReportTileVM["delta"];
+/**
+ * A share against the prior period's share, in percentage points — never a
+ * percentage of a percentage, and null when either period has nothing to
+ * take a share of.
+ */
+declare function pointsDelta(current: number | null, previous: number | null, noun: string): ReportTileVM["delta"];
+declare function toReportVM(dto: ReportDto): ReportVM;
+
+/**
+ * Google — a business's listing on Google Maps, as facts.
+ *
+ * Most businesses live on Google whether or not they asked to. The listing
+ * is public: a name, an address, a rating, a count of reviews, and the five
+ * reviews Google shows first. Setup finds it from the facts the workspace
+ * already holds, the edge reads it once a day, and what changed reaches the
+ * bell, Today and Reports. The owner's own Business Profile, connected once,
+ * adds every review and the right to answer them.
+ *
+ * Two honesties shape every line: Google shows at most five reviews of the
+ * public listing, sorted by relevance, so "new" is a review not on record
+ * and written since the previous check, while the count of ratings is
+ * exact; and fewer than two days of reading cannot say what a period
+ * gained. Pure: the routes feed it rows, the tests feed it fixtures.
+ */
+
+interface GoogleListingDto {
+    place_id: string;
+    name: string;
+    address: string | null;
+    maps_uri: string | null;
+    business_status: string | null;
+    rating: number | null;
+    review_count: number | null;
+    linked_at: string;
+    /** The last successful read; null before the first. */
+    checked_at: string | null;
+    /** The words of the last failed read; null once a read succeeds again. */
+    check_error: string | null;
+}
+interface GoogleReviewDto {
+    id: string;
+    review_id: string;
+    origin: SchemaSet<"google_reviews.origin">;
+    rating: number | null;
+    author: string | null;
+    author_uri: string | null;
+    author_photo_uri: string | null;
+    body: string | null;
+    language_code: string | null;
+    published_at: string | null;
+    reply_text: string | null;
+    replied_at: string | null;
+    maps_uri: string | null;
+    first_seen_at: string;
+}
+/** The rating and the count on one local day, as the edge read them. */
+interface GoogleDayDto {
+    day: string;
+    rating: number | null;
+    review_count: number;
+}
+/** The owner's Business Profile, connected: whose account, which location, when it last synced. Never a token. */
+interface GoogleConnectionDto {
+    google_email: string | null;
+    account_title: string | null;
+    /** Null while the owner still has to choose among several locations. */
+    location_name: string | null;
+    location_title: string | null;
+    connected_at: string;
+    last_synced_at: string | null;
+    sync_error: string | null;
+}
+/** Google's consent-screen audience for our app, as the operator set it on the edge; null = nothing to say. */
+type GoogleAudience = "testing" | "unverified" | "verified";
+/** What `GET /api/v1/google` returns. */
+interface GoogleDto {
+    /** Whether this deployment can look listings up (a Places key on the edge) and connect profiles (an OAuth client on the edge), and which audience Google's consent screen has. */
+    ready: {
+        places: boolean;
+        profile: boolean;
+        audience?: GoogleAudience | null;
+    };
+    listing: GoogleListingDto | null;
+    connection: GoogleConnectionDto | null;
+    /** The newest first; at most a screenful. */
+    reviews: GoogleReviewDto[];
+    /** Oldest first. */
+    days: GoogleDayDto[];
+    /** The Autonomy row for reviews: what the receptionist does under a new one. */
+    reply_mode: ReviewReplyMode;
+    role: string;
+}
+/** What a search found: what the owner confirms with one tap. */
+interface GoogleCandidateDto {
+    place_id: string;
+    name: string;
+    address: string | null;
+    maps_uri: string | null;
+}
+/** A location of the connected account, for the owner to choose. */
+interface GoogleLocationDto {
+    account_name: string;
+    account_title: string;
+    location_name: string;
+    title: string;
+    address: string | null;
+    /** Null for a location not on Maps yet — it cannot be chosen until Google lists it. */
+    place_id: string | null;
+    maps_uri: string | null;
+}
+/** The facts Setup reads: can the listing be found here, is one linked, is the profile connected. */
+interface SetupGoogleFacts {
+    /** Either door is open: listings can be found here, or profiles connected. */
+    ready: boolean;
+    /** Listings can be found here (a Places key); absent means yes. */
+    places?: boolean;
+    listing: {
+        name: string;
+        rating: number | null;
+        review_count: number | null;
+        checked_at: string | null;
+        check_error: string | null;
+    } | null;
+    connected?: boolean;
+}
+/** Google shows this many reviews of a listing, the most relevant first. */
+declare const GOOGLE_SHOWN_REVIEWS = 5;
+/** A review first seen this recently is news on Today. */
+declare const REVIEW_NEWS_MS: number;
+/** …unless it was written long ago and merely resurfaced in the five Google shows. */
+declare const REVIEW_NEWS_MAX_AGE_MS: number;
+/** "4.8 ★"; "no rating yet" when Google has none. */
+declare function ratingWords(rating: number | null | undefined): string;
+/** "★★★★☆" for a review's stars; five hollow stars for none. */
+declare function starsOf(rating: number | null | undefined): string;
+/** "213 reviews"; "reviews not counted yet" before the first read. */
+declare function reviewsWords(count: number | null | undefined): string;
+/** One line about the listing: "Northside Movers · 4.8 ★ · 213 reviews on Google". */
+declare function listingLine(l: {
+    name: string;
+    rating: number | null;
+    review_count: number | null;
+}): string;
+/** When the listing was read, in words — the fact the owner wants when a number looks stale. */
+declare function checkedWords(l: Pick<GoogleListingDto, "checked_at" | "check_error">, nowMs: number): string;
+/** The connection in words: whose account, and when it last synced or why it could not. */
+declare function connectionWords(c: GoogleConnectionDto, nowMs: number): string;
+/** A review's words, cut for a line: the first sentence or so. */
+declare function reviewSnippet(body: string | null | undefined, max?: number): string;
+interface GoogleReviewVM {
+    id: string;
+    stars: string;
+    rating: number | null;
+    author: string;
+    /** "3d ago" or the date. */
+    when: string;
+    text: string;
+    replied: boolean;
+    replyText: string;
+    mapsUri: string | null;
+    /** First seen recently, written recently, and not part of the first read. */
+    isNew: boolean;
+    /** Read through the owner's profile: every review, and it can be answered. */
+    fromProfile: boolean;
+}
+interface GoogleGainedPointVM {
+    day: string;
+    label: string;
+    short: string;
+    gained: number;
+}
+interface GoogleVM {
+    listing: {
+        name: string;
+        address: string | null;
+        ratingLabel: string;
+        count: number | null;
+        /** "Checked 3h ago" · "Google could not be read since 2d ago — …" */
+        checked: string;
+        mapsUri: string | null;
+        /** The last read failed. */
+        trouble: boolean;
+    } | null;
+    /** The owner's profile, when connected: whose account, the location, when it synced. */
+    connection: {
+        email: string | null;
+        location: string | null;
+        words: string;
+        pending: boolean;
+        trouble: boolean;
+    } | null;
+    /** Reviews can be answered from here: the profile is connected and complete. */
+    canReply: boolean;
+    /** What the receptionist does under a new review, and the words for it beside the source; empty until replies can go out from here. */
+    reply: {
+        mode: ReviewReplyMode;
+        words: string;
+    };
+    /** Rating now · reviews on Google · gained in the period · newest review. */
+    tiles: ReportTileVM[];
+    gained: {
+        points: GoogleGainedPointVM[];
+        max: number;
+        /** Null until two days of reading exist. */
+        total: number | null;
+        /** "Sep 3" — the first day the count is known from, when it is inside the period. */
+        sinceLabel: string | null;
+    };
+    latest: GoogleReviewVM[];
+    /** "the five Google shows first" or "every review, from your Business Profile". */
+    source: string;
+    table: {
+        columns: string[];
+        rows: (string | number)[][];
+    };
+    /** Today's one line when a review is news, and where it leads. */
+    todayLine: {
+        text: string;
+        to: string;
+    } | null;
+}
+/** Whether a review is news: first seen recently, written recently, and after the first read. */
+declare function reviewIsNew(r: Pick<GoogleReviewDto, "first_seen_at" | "published_at">, linkedAt: string, nowMs: number): boolean;
+declare function toGoogleReviewVM(r: GoogleReviewDto, linkedAt: string, nowMs: number): GoogleReviewVM;
+/**
+ * What a period gained, from the day snapshots: the count on the last read
+ * day less the count on the newest day before the period (or the first day
+ * inside it, which is then named), and the same for the period before.
+ */
+declare function gainedOver(days: GoogleDayDto[], periodDays: number): {
+    current: GoogleVM["gained"];
+    previous: number | null;
+};
+declare function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs?: number): GoogleVM;
 
 declare const BILLING_MODES: readonly ["stripe", "direct"];
 type BillingMode = (typeof BILLING_MODES)[number];
@@ -1721,6 +2254,390 @@ declare function billingAccountDto(r: {
  * come out of a line whose subscription stopped.
  */
 declare function pausedVoiceFacts(businessName: string | null | undefined): string;
+
+/**
+ * Setup — one page a new owner lands on until the receptionist is answering.
+ *
+ * Every row here is read from the workspace: the config, the channels, the
+ * templates, the calendar feed, the team, the consent rows. Nothing stores a
+ * "done" flag; a row is ready because the thing it names exists. "Later" is
+ * a preference on one device that hides an optional row from Today's line,
+ * and nothing else.
+ *
+ * Four words for every state, so the page reads the same way People and
+ * Today do: Not started · Waiting on you · Waiting on carriers (or Meta, or
+ * us) · Ready. "Waiting on us" is real: a line is set up by a person at
+ * Chanlytics until lines provision themselves (plan, step 3).
+ */
+
+interface SetupDto {
+    business: {
+        name: string | null;
+        hours: boolean;
+        services: number;
+        bookingLink: boolean;
+        address: boolean;
+        /** The number the phone receptionist warm-transfers to, E.164. */
+        handoff: string | null;
+        /** The config row exists but the parser refused it. */
+        broken: boolean;
+    };
+    channels: {
+        whatsapp: {
+            present: boolean;
+            active: boolean;
+            number: string | null;
+            quality: string | null;
+            lastInboundAt: string | null;
+        };
+        voice: {
+            present: boolean;
+            active: boolean;
+            number: string | null;
+            lastInboundAt: string | null;
+        };
+    };
+    templates: {
+        approved: number;
+        pending: number;
+        startersApproved: number;
+    };
+    calendar: {
+        state: "ok" | "unavailable" | "none";
+    };
+    team: {
+        members: number;
+        invitesOpen: number;
+        alertEmails: number;
+    };
+    /**
+     * The two answers, counted separately.
+     *
+     * `yes` is the conversational one -- they answer and they hear about their own
+     * visit. `offers` is the promotional one, and it is the ONLY one that puts a
+     * person on a marketing broadcast. This row used to read `yes` and say "said
+     * yes to offers", so a workspace with seven people who had texted START was
+     * told it had seven people it could send an offer to, and the composer then
+     * refused all seven.
+     */
+    consent: {
+        yes: number;
+        offers: number;
+    };
+    /**
+     * Facts that disagree with what the platform knows (contracts/facts.ts).
+     *
+     * The checklist called Business facts "ready" on a workspace whose
+     * receptionist was publishing the number it transfers to instead of the line
+     * it answers -- because "ready" only ever meant "the fields are filled in",
+     * and nothing compared a filled-in field to anything. A checklist that says
+     * ready while a customer-facing fact is wrong is worse than no checklist.
+     */
+    conflicts?: FactConflict[];
+    /** What the owner has asked a person at Chanlytics for, and when. */
+    requests: {
+        line: string | null;
+    };
+    /** The workspace's own lines, and whether this deployment can get one. */
+    lines?: {
+        rows: LineDto[];
+        ready: boolean;
+        provider: string | null;
+        costs: {
+            local_number_month_usd: number;
+        };
+    };
+    /** The business on Google: whether it can be found here, and the listing once it is. */
+    google?: SetupGoogleFacts;
+    /** How the workspace pays, when it pays by card and this deployment can charge. */
+    billing?: SetupBillingFacts;
+    /** The owner's activations (00108), one per capability, as recorded. */
+    activations?: ActivationRecord[];
+}
+/** A line as the page may see it — states in words, never a provider id. */
+interface LineDto {
+    id: string;
+    e164: string | null;
+    kind: string;
+    provider: string;
+    area_code: number | null;
+    voice_state: SchemaSet<"lines.voice_state">;
+    sms_state: string;
+    /** Where a carrier registration stopped, when one did. */
+    reg_step?: string | null;
+    /** Filed against Twilio's free test registry rather than the carriers. */
+    reg_mock?: boolean;
+    /**
+     * The registration on this line is the sole-proprietor one: one number, one
+     * campaign, about one message a second. A fact about the FILING, so it is
+     * read from the row and never re-derived from the business record, which can
+     * change after the brand is registered.
+     */
+    reg_sole_prop?: boolean;
+    /** Both the brand and the campaign are on record. */
+    registered?: boolean;
+    whatsapp_state: string;
+    port_state: string;
+    forwarding_state: string;
+    step: string | null;
+    last_error: string | null;
+    state_since: string;
+    created_at: string;
+    /** A forwarded line's facts, in words: the carrier, the mode, where the calls go, the test window. */
+    forwarding?: {
+        carrier: string;
+        mode: string;
+        destination_e164: string | null;
+        test_from: string | null;
+        test_until: string | null;
+        verified_at: string | null;
+    } | null;
+}
+/**
+ * How long a line may be "setting up" before something has gone wrong.
+ *
+ * THE SAGA CANNOT ALWAYS FINISH INSIDE ITS OWN LAMBDA. `api/admin/lines.ts` is
+ * capped at 60 seconds (apps/edge/vercel.json) and the saga makes ten Twilio
+ * calls at a 15-second timeout each plus four Retell calls at eight — about 180
+ * seconds worst case, three times the ceiling. So a run is killed not by a crash
+ * but by a slow afternoon at the provider, and when it is killed the `catch` that
+ * would write `voice_state: 'failed'` never runs. The row stays `provisioning`.
+ *
+ * Nothing used to move it again: no sweep reads `lines` for this, `retry` demanded
+ * `failed`, `buy` refused because a line already existed, and `number_drift()`
+ * deliberately exempts a line still being set up. The owner's Setup row said
+ * "usually a minute or two" with no button, for ever. The only exit was a platform
+ * admin handing the number back.
+ *
+ * Five minutes, because the honest worst case is three and a state that is
+ * genuinely still running must never be declared dead underneath itself.
+ */
+declare const PROVISIONING_DEADLINE_MS: number;
+/**
+ * Has this line been setting up longer than a line can legitimately take?
+ *
+ * One predicate, because four places have to agree about it: the Setup row that
+ * offers the owner a Retry, the back office's action list, the route that accepts
+ * that Retry, and the sweep that resumes them unasked. A deadline that each of
+ * them spelled out for itself is a deadline they would drift apart on.
+ */
+declare function lineStuckProvisioning(l: Pick<LineDto, "voice_state" | "state_since"> | null | undefined, nowMs: number): boolean;
+/**
+ * May this line be retried, and if not, what does the person hear?
+ *
+ * `null` means go ahead. A string is the refusal, already in words.
+ *
+ * EXTRACTED, and this is the pattern rather than a one-off. The decision lived
+ * inline in a 400-line route handler, which meant the only way to test it was to
+ * read the handler's text and assert the text was still there — three
+ * `readCode` assertions pinning an `if` statement. That is the trade the refactor
+ * program calls a debt: a rule with no seam gets pinned by its source, the pin
+ * passes whether or not the rule is right, and the count of such pins only ever
+ * grows.
+ *
+ * A rule that returns a value has a seam by construction. The route maps a
+ * request to a command and a result to a response; the decision is here, and the
+ * test below calls it with rows instead of reading a file.
+ *
+ * WHY THE TWO REFUSALS DIFFER. "Not failed" is true of an answering line and of
+ * one still setting up, and it is useless to both. A line mid-saga is not a
+ * mistake anyone made — it needs a few minutes, and after those minutes the
+ * sweep takes it whether or not anybody comes back. Saying so is the difference
+ * between a person waiting usefully and a person pressing the button again.
+ */
+declare function lineRetryRefusal(l: Pick<LineDto, "voice_state" | "state_since"> | null | undefined, nowMs: number): string | null;
+/** The saga's step, in the owner's words — the row, the bell and the platform email say the same thing. */
+declare const LINE_STEP_WORDS: Record<string, string>;
+interface SetupInputs extends SetupDto {
+    /** Row ids marked Later on this device. */
+    later: string[];
+}
+type SetupState = "not_started" | "waiting_you" | "waiting_them" | "ready";
+declare const SETUP_STATE_WORDS: Record<SetupState, string>;
+/** A verb whose `to` starts with "verb:" is an action the page performs; "tel:" dials; anything else is a route. */
+interface SetupVerb {
+    label: string;
+    to: string;
+}
+interface SetupRowVM {
+    id: string;
+    icon: string;
+    title: string;
+    state: SetupState;
+    /** The state in words; "Waiting on Meta" when Meta is the one waited on. */
+    stateWords: string;
+    sentence: string;
+    details: string[];
+    verb: SetupVerb | null;
+    /** Counts toward "answering"; cannot be put off for later. */
+    required: boolean;
+    later: boolean;
+}
+interface SetupVM {
+    rows: SetupRowVM[];
+    readiness: {
+        answering: boolean;
+        sentence: string;
+    };
+    /** The first open row's verb, in dependency order. */
+    next: {
+        label: string;
+        to: string;
+        row: string;
+        title: string;
+    } | null;
+    done: number;
+    total: number;
+    /** Today's one line while something is open: "Setup · 3 of 8 · Calendar: paste the feed". */
+    line: string | null;
+    /** The numbers to try, once the receptionist answers somewhere. */
+    tryIt: {
+        voice: string | null;
+        voiceLabel: string | null;
+        whatsapp: string | null;
+        whatsappLabel: string | null;
+    } | null;
+}
+/**
+ * What this line's texting actually IS, in the owner's words.
+ *
+ * Every one of these sentences used to be the same sentence -- "Texting is not
+ * available yet" -- said whatever the line's registration had done, because
+ * nothing here read sms_state. That was honest while no line could text and a
+ * lie in both directions afterwards: a line the carriers had approved still
+ * read "not available", and a line filed against Twilio's MOCK registry -- free,
+ * routes nothing, gone in thirty days -- read exactly like one that was real.
+ *
+ * The mock case is named out loud because it is the one that looks finished
+ * from every angle: the console shows four green ticks, the brand says
+ * Approved, and not one message would ever be delivered.
+ */
+/**
+ * The one sentence a rehearsal filing gets, wherever an owner meets it: the
+ * Setup row, the Integrations texting row, and the refusal the register route
+ * answers with. Three surfaces said three different things about one state
+ * before this -- and one of them ("the carriers did not answer") was not even
+ * about the state it was describing.
+ */
+/**
+ * The ceiling a working sole-proprietor line lives under, in one clause that
+ * reads correctly after any sentence.
+ *
+ * It quotes SOLE_PROP_LIMITS rather than repeating its numbers, so what is said
+ * to a working line and what was said before the owner committed to that
+ * registration cannot drift apart.
+ */
+declare const SOLE_PROP_CEILING_SENTENCE: string;
+/** Setup's version: the good news, then the ceiling. */
+declare const SOLE_PROP_TEXTING_SENTENCE: string;
+declare const MOCK_TEXTING_SENTENCE = "Texting is filed against a test registry, so nothing is delivered \u2014 a person at Chanlytics is filing it with the carriers for real.";
+/**
+ * Takes only the three fields it reads. The back office renders the same
+ * sentence for another workspace's line, and it has the registration facts
+ * without the rest of a LineDto -- a synthetic one filled with plausible
+ * blanks would be a second answer waiting to drift from this one.
+ */
+declare function textingWords(l: Pick<LineDto, "sms_state" | "reg_mock" | "reg_sole_prop"> | null | undefined): {
+    sentence: string;
+    done: boolean;
+};
+declare function setupSteps(i: SetupInputs, nowMs?: number): SetupVM;
+/** The hash route without "#/": "#/admin/setup" → "admin/setup"; nothing → "today". */
+declare function setupRoute(hash: string): string;
+/**
+ * Whether this arrival lands on Setup: an owner, a receptionist that answers
+ * nowhere yet, a plain arrival (Today or nothing), and not already sent
+ * there this session. Everyone else gets Today.
+ */
+declare function shouldLandOnSetup(role: string | null | undefined, answering: boolean, route: string, landed: boolean): boolean;
+
+/**
+ * What a workspace's capabilities are, computed from records.
+ *
+ * PRD ON-02: a capability is available only when its records allow it;
+ * readiness and owner activation are separate; blockers carry a code a
+ * machine can act on and words a person can. Nothing here is persisted but
+ * the owner's activation (capability_activations, 00108). Evidence is what
+ * the records show -- a call answered, a message replied to -- never a claim
+ * the product makes about itself.
+ *
+ * Texting is deliberately the honest one: until the carriers approve a real
+ * registration it is not sold, and this says so rather than "not yet".
+ */
+
+declare const CAPABILITY_KINDS: readonly ["voice", "whatsapp", "sms"];
+type CapabilityKind = (typeof CAPABILITY_KINDS)[number];
+/** One row of capability_activations, as the dashboard reads it. */
+interface ActivationRecord {
+    capability: CapabilityKind;
+    activated_at: string;
+    activated_by: string | null;
+    deactivated_at: string | null;
+    note?: string | null;
+}
+interface CapabilityBlocker {
+    /** Stable, for a machine: no_line, line_provisioning, line_failed, channel_off, no_business_facts, not_connected, meta_waiting, texting_not_sold. */
+    code: string;
+    words: string;
+}
+interface CapabilityStatus {
+    kind: CapabilityKind;
+    /** The records say it can work. */
+    ready: boolean;
+    /** Why not, in dependency order; empty when ready. */
+    blockers: CapabilityBlocker[];
+    /** The last real interaction on the capability: evidence that it works, never a claim. */
+    tested: {
+        at: string;
+        what: string;
+    } | null;
+    /** The owner's act, when it stands (not deactivated). */
+    activated: {
+        at: string;
+        by: string | null;
+    } | null;
+    /** ready, tested and activated: what the product may say is live. */
+    live: boolean;
+    /** One sentence for the owner. */
+    words: string;
+}
+type CapabilityInputs = Pick<SetupDto, "channels" | "business" | "templates" | "lines"> & {
+    activations?: ActivationRecord[];
+};
+declare function capabilityStatus(kind: CapabilityKind, i: CapabilityInputs, nowMs?: number): CapabilityStatus;
+
+/**
+ * The carriers' vocabulary: the closed lists Twilio keeps for a business
+ * registration, and the coercions that keep a value it would refuse from
+ * ever reaching it.
+ *
+ * They live here, with the rest of the product's words, rather than beside
+ * the provider calls: the form offers them, the endpoint checks against
+ * them, and `packages/channels` sends them. One list, three readers.
+ *
+ * Read from Twilio's documentation on 2026-09-08. A value outside a list is
+ * refused at the evaluation — after the profile, the business, the person,
+ * the address and the document have all been made — so nothing guesses.
+ */
+/** What a business does. */
+declare const BUSINESS_INDUSTRIES: readonly ["AGRICULTURE", "AUTOMOTIVE", "BANKING", "CONSTRUCTION", "CONSUMER", "EDUCATION", "ELECTRONICS", "ENERGY", "ENGINEERING", "FAST_MOVING_CONSUMER_GOODS", "FINANCIAL", "FINTECH", "FOOD_AND_BEVERAGE", "GOVERNMENT", "HEALTHCARE", "HOSPITALITY", "INSURANCE", "JEWELRY", "LEGAL", "MANUFACTURING", "MEDIA", "NOT_FOR_PROFIT", "OIL_AND_GAS", "ONLINE", "PROFESSIONAL_SERVICES", "RAW_MATERIALS", "REAL_ESTATE", "RELIGION", "RETAIL", "TECHNOLOGY", "TELECOMMUNICATIONS", "TRANSPORTATION", "TRAVEL"];
+type BusinessIndustry = (typeof BUSINESS_INDUSTRIES)[number];
+/** What a small local business is, unless it says otherwise. */
+declare const DEFAULT_INDUSTRY: BusinessIndustry;
+/** Its legal form. Told to the carriers in its name, so it is asked and never inferred. */
+declare const BUSINESS_TYPES: readonly ["Co-operative", "Corporation", "Limited Liability Corporation", "Non-profit Corporation", "Partnership"];
+type BusinessType = (typeof BUSINESS_TYPES)[number];
+declare const DEFAULT_BUSINESS_TYPE: BusinessType;
+/** Who owns it. */
+declare const COMPANY_TYPES: readonly ["government", "non-profit", "private", "public"];
+type CompanyType = (typeof COMPANY_TYPES)[number];
+declare const DEFAULT_COMPANY_TYPE: CompanyType;
+/** The value Twilio will accept, or the default — never a guess it refuses. */
+declare function industryOf(v: string | null | undefined): BusinessIndustry;
+declare function businessTypeOf(v: string | null | undefined): BusinessType;
+declare function companyTypeOf(v: string | null | undefined): CompanyType;
+/** The words for a value, where the carriers' spelling is not the owner's. */
+declare function industryWords(v: string): string;
 
 /**
  * Read-only availability: what is open, from a calendar feed and the rules.
@@ -3132,6 +4049,7 @@ type SchemaAgreement = [
     Holds<Exactly<Of<typeof MEMBERSHIP_ROLES>, SchemaSet<"memberships.role">>>,
     Holds<Within<SchemaSet<"invitations.role">, Of<typeof MEMBERSHIP_ROLES>>>,
     Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"tenant_channels.kind">>>,
+    Holds<Exactly<Of<typeof CAPABILITY_KINDS>, SchemaSet<"capability_activations.capability">>>,
     Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"contact_identities.channel">>>,
     Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"templates.channel">>>,
     Holds<Exactly<Of<typeof CONSENT_STATES>, SchemaSet<"contacts.consent">>>,
@@ -3166,124 +4084,6 @@ type SchemaAgreement = [
     Holds<Exactly<Of<typeof BUSINESS_TYPES>, SchemaSet<"business_records.business_type">>>,
     Holds<Exactly<Of<typeof COMPANY_TYPES>, SchemaSet<"business_records.company_type">>>
 ];
-
-/** Where an answer came from, strongest claim first. */
-type FactSource = 
-/** The platform provisioned it: a channel row, a bought number. */
-"provisioned"
-/** A third party verified it: the linked Google Business Profile. */
- | "verified"
-/** The workspace record itself (tenants.name, tenants.timezone). */
- | "workspace"
-/** Somebody typed it into the business form. */
- | "typed"
-/** Nobody has said. */
- | "absent";
-interface Fact<T> {
-    value: T | null;
-    source: FactSource;
-    /** Another source's answer for the same fact, when it differs. */
-    disputed?: {
-        value: T;
-        source: FactSource;
-    };
-}
-/** What the platform and its integrations know, independent of anything typed. */
-interface KnownFacts {
-    workspace?: {
-        name?: string | null;
-        timezone?: string | null;
-    } | null;
-    /** tenant_channels rows: what the receptionist actually answers on. */
-    channels?: ReadonlyArray<{
-        kind: string;
-        number_e164?: string | null;
-        status?: string | null;
-    }> | null;
-    /** The linked Google Business Profile, when there is one. */
-    listing?: {
-        name?: string | null;
-        address?: string | null;
-    } | null;
-}
-/** The brain fields this resolves over. A subset, so callers need not have parsed everything. */
-interface TypedFacts {
-    business_name?: string | null;
-    phone_display?: string | null;
-    booking_link?: string | null;
-    profile?: {
-        address?: string | null;
-        website?: string | null;
-        handoff_number?: string | null;
-    } | null;
-}
-interface ResolvedFacts {
-    business_name: Fact<string>;
-    /** What the receptionist tells customers to call. */
-    phone_display: Fact<string>;
-    booking_link: Fact<string>;
-    address: Fact<string>;
-    website: Fact<string>;
-    /** Where a caller who insists on a person is transferred. Human-only by nature. */
-    handoff_number: Fact<string>;
-    /** The line the receptionist ANSWERS. Provisioned or nothing — never typed. */
-    voice_line: Fact<string>;
-    /** The WhatsApp line. Provisioned or nothing. */
-    whatsapp_line: Fact<string>;
-}
-/** Two ways of writing one number. `(646) 932-5775` and `+16469325775` are the same fact. */
-declare function samePhone(a: string | null | undefined, b: string | null | undefined): boolean;
-/**
- * Two ways of writing one address.
- *
- * Deliberately loose: Google returns "2581 Pitkin Ave, Brooklyn, NY 11208, USA"
- * for an owner who typed the same thing without the country. Reporting that as
- * a disagreement would train people to ignore the warning, which costs more
- * than the warning is worth.
- */
-declare function sameAddress(a: string | null | undefined, b: string | null | undefined): boolean;
-/** Same business, allowing for punctuation and case. */
-declare function sameName(a: string | null | undefined, b: string | null | undefined): boolean;
-/**
- * The facts as the product should understand them: one answer each, its source,
- * and whatever disagrees with it.
- */
-declare function resolveFacts(typed: TypedFacts | null | undefined, known?: KnownFacts | null): ResolvedFacts;
-type ConflictSeverity = "serious" | "minor";
-interface FactConflict {
-    /** Which resolved fact disagrees. */
-    fact: keyof ResolvedFacts;
-    severity: ConflictSeverity;
-    /** What is being used. */
-    used: string;
-    /** What the system knows instead. */
-    known: string;
-    knownSource: FactSource;
-    /** Said the way this product says things: what it means for a customer. */
-    sentence: string;
-    /** Where a person goes to settle it. */
-    to: string;
-}
-/**
- * The disagreements, worst first, in the words an owner needs.
- *
- * Severity is about the CUSTOMER, not about the data. A published number that
- * is not the line being answered sends real people to the wrong place; an
- * address that differs from Google's by a country suffix does not.
- */
-declare function factConflicts(f: ResolvedFacts): FactConflict[];
-/** The words for a source, where one is shown beside a value. */
-declare const SOURCE_WORDS: Record<FactSource, string>;
-/**
- * Which parts of a config a save actually moved.
- *
- * Recorded on the change rather than the values themselves: the config holds a
- * business's own words, its booking link and its customers' escalation rules,
- * and the events ledger is read by more people and for longer than a settings
- * pane is. "hours, services" answers the question anybody actually asks —
- * what changed, and who by — without copying the contents into a second place.
- */
-declare function changedConfigFields(before: unknown, after: unknown): string[];
 
 /**
  * Control plane types (PRD E1/E3/E4) — the single source every boundary
@@ -3752,9 +4552,9 @@ declare const BusinessProfileSchema: z.ZodObject<{
         price_note?: string | undefined;
     }[] | undefined;
     address?: string | undefined;
-    tone?: string | undefined;
     website?: string | undefined;
     handoff_number?: string | undefined;
+    tone?: string | undefined;
     notes?: {
         text: string;
         title: string;
@@ -3797,9 +4597,9 @@ declare const BusinessProfileSchema: z.ZodObject<{
         price_note?: string | undefined;
     }[] | undefined;
     address?: string | undefined;
-    tone?: string | undefined;
     website?: string | undefined;
     handoff_number?: string | undefined;
+    tone?: string | undefined;
     notes?: {
         text: string;
         title: string;
@@ -4030,9 +4830,9 @@ declare const BrainConfigSchema: z.ZodObject<{
             price_note?: string | undefined;
         }[] | undefined;
         address?: string | undefined;
-        tone?: string | undefined;
         website?: string | undefined;
         handoff_number?: string | undefined;
+        tone?: string | undefined;
         notes?: {
             text: string;
             title: string;
@@ -4075,9 +4875,9 @@ declare const BrainConfigSchema: z.ZodObject<{
             price_note?: string | undefined;
         }[] | undefined;
         address?: string | undefined;
-        tone?: string | undefined;
         website?: string | undefined;
         handoff_number?: string | undefined;
+        tone?: string | undefined;
         notes?: {
             text: string;
             title: string;
@@ -4146,9 +4946,9 @@ declare const BrainConfigSchema: z.ZodObject<{
             price_note?: string | undefined;
         }[] | undefined;
         address?: string | undefined;
-        tone?: string | undefined;
         website?: string | undefined;
         handoff_number?: string | undefined;
+        tone?: string | undefined;
         notes?: {
             text: string;
             title: string;
@@ -4202,9 +5002,9 @@ declare const BrainConfigSchema: z.ZodObject<{
             price_note?: string | undefined;
         }[] | undefined;
         address?: string | undefined;
-        tone?: string | undefined;
         website?: string | undefined;
         handoff_number?: string | undefined;
+        tone?: string | undefined;
         notes?: {
             text: string;
             title: string;
@@ -4513,9 +5313,9 @@ declare const TenantConfigSchema: z.ZodObject<{
                 price_note?: string | undefined;
             }[] | undefined;
             address?: string | undefined;
-            tone?: string | undefined;
             website?: string | undefined;
             handoff_number?: string | undefined;
+            tone?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
@@ -4558,9 +5358,9 @@ declare const TenantConfigSchema: z.ZodObject<{
                 price_note?: string | undefined;
             }[] | undefined;
             address?: string | undefined;
-            tone?: string | undefined;
             website?: string | undefined;
             handoff_number?: string | undefined;
+            tone?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
@@ -4629,9 +5429,9 @@ declare const TenantConfigSchema: z.ZodObject<{
                 price_note?: string | undefined;
             }[] | undefined;
             address?: string | undefined;
-            tone?: string | undefined;
             website?: string | undefined;
             handoff_number?: string | undefined;
+            tone?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
@@ -4685,9 +5485,9 @@ declare const TenantConfigSchema: z.ZodObject<{
                 price_note?: string | undefined;
             }[] | undefined;
             address?: string | undefined;
-            tone?: string | undefined;
             website?: string | undefined;
             handoff_number?: string | undefined;
+            tone?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
@@ -4770,9 +5570,9 @@ declare const TenantConfigSchema: z.ZodObject<{
                 price_note?: string | undefined;
             }[] | undefined;
             address?: string | undefined;
-            tone?: string | undefined;
             website?: string | undefined;
             handoff_number?: string | undefined;
+            tone?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
@@ -4838,9 +5638,9 @@ declare const TenantConfigSchema: z.ZodObject<{
                 price_note?: string | undefined;
             }[] | undefined;
             address?: string | undefined;
-            tone?: string | undefined;
             website?: string | undefined;
             handoff_number?: string | undefined;
+            tone?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
@@ -5091,9 +5891,9 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 price_note?: string | undefined;
             }[] | undefined;
             address?: string | undefined;
-            tone?: string | undefined;
             website?: string | undefined;
             handoff_number?: string | undefined;
+            tone?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
@@ -5136,9 +5936,9 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 price_note?: string | undefined;
             }[] | undefined;
             address?: string | undefined;
-            tone?: string | undefined;
             website?: string | undefined;
             handoff_number?: string | undefined;
+            tone?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
@@ -5207,9 +6007,9 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 price_note?: string | undefined;
             }[] | undefined;
             address?: string | undefined;
-            tone?: string | undefined;
             website?: string | undefined;
             handoff_number?: string | undefined;
+            tone?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
@@ -5263,9 +6063,9 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 price_note?: string | undefined;
             }[] | undefined;
             address?: string | undefined;
-            tone?: string | undefined;
             website?: string | undefined;
             handoff_number?: string | undefined;
+            tone?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
@@ -5348,9 +6148,9 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 price_note?: string | undefined;
             }[] | undefined;
             address?: string | undefined;
-            tone?: string | undefined;
             website?: string | undefined;
             handoff_number?: string | undefined;
+            tone?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
@@ -5416,9 +6216,9 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 price_note?: string | undefined;
             }[] | undefined;
             address?: string | undefined;
-            tone?: string | undefined;
             website?: string | undefined;
             handoff_number?: string | undefined;
+            tone?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
@@ -5484,9 +6284,9 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 price_note?: string | undefined;
             }[] | undefined;
             address?: string | undefined;
-            tone?: string | undefined;
             website?: string | undefined;
             handoff_number?: string | undefined;
+            tone?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
@@ -5552,9 +6352,9 @@ declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
                 price_note?: string | undefined;
             }[] | undefined;
             address?: string | undefined;
-            tone?: string | undefined;
             website?: string | undefined;
             handoff_number?: string | undefined;
+            tone?: string | undefined;
             notes?: {
                 text: string;
                 title: string;
@@ -6343,142 +7143,6 @@ declare function slotLabels(t: {
     variables: unknown;
 }): string[];
 
-interface ReportDayDto {
-    day: string;
-    messages_in: number;
-    conversations: number;
-    answered_ai: number;
-    answered_you: number;
-    unanswered: number;
-    out_ai: number;
-    out_you: number;
-    escalations: number;
-    calls: number;
-    call_seconds: number;
-    new_contacts: number;
-}
-/** What `report_series(tenant, days)` returns. `series` spans TWO periods —
- *  the requested one and the one before it — newest last. */
-interface ReportDto {
-    timezone: string;
-    days: number;
-    span_days: number;
-    today: string;
-    series: ReportDayDto[];
-    reasons: Record<string, number>;
-    reply_seconds: number[];
-    sentiments: Record<string, number>;
-    voicemail: number;
-    error?: string;
-}
-declare const REPORT_RANGES: readonly {
-    days: number;
-    id: string;
-    label: string;
-}[];
-interface ReportTileVM {
-    id: string;
-    label: string;
-    value: string;
-    meta: string;
-    /** Signed change against the previous period, or null when there is no
-     *  prior data to compare with (never a fabricated 0%). */
-    delta: {
-        text: string;
-        tone: "pos" | "neg" | "";
-    } | null;
-    /** One point per day of the current period, for the sparkline. */
-    spark: number[];
-}
-interface ReportPointVM {
-    day: string;
-    /** "Aug 28" */
-    label: string;
-    /** "28" */
-    short: string;
-    in: number;
-    ai: number;
-    you: number;
-    none: number;
-    calls: number;
-    callSeconds: number;
-    escalations: number;
-    newPeople: number;
-}
-interface ReportBarVM {
-    id: string;
-    label: string;
-    value: number;
-    /** 0..1 of the largest bar in its group. */
-    share: number;
-}
-interface ReportVM {
-    days: number;
-    rangeLabel: string;
-    since: string;
-    until: string;
-    timezone: string;
-    /** Nothing came in during the period: no customer message and no call. */
-    empty: boolean;
-    tiles: ReportTileVM[];
-    answered: {
-        points: ReportPointVM[];
-        totals: {
-            in: number;
-            ai: number;
-            you: number;
-            none: number;
-        };
-        max: number;
-    };
-    reasons: ReportBarVM[];
-    replyTime: {
-        count: number;
-        median: number | null;
-        p90: number | null;
-        medianLabel: string;
-        p90Label: string;
-        buckets: ReportBarVM[];
-    };
-    calls: {
-        points: ReportPointVM[];
-        total: number;
-        minutes: number;
-        voicemail: number;
-        sentiments: ReportBarVM[];
-        max: number;
-    };
-    people: {
-        points: ReportPointVM[];
-        total: number;
-        max: number;
-    };
-    table: {
-        columns: string[];
-        rows: (string | number)[][];
-    };
-}
-/** A calendar day ("2026-09-04") as a local date, without the UTC shift that
- *  `new Date("2026-09-04")` would apply. */
-declare function dayDate(day: string): Date;
-declare function fmtDay(day: string): string;
-/** "12s", "1m 05s", "14m", "2h 10m". */
-declare function fmtSeconds(s: number | null | undefined): string;
-declare function quantile(sorted: number[], q: number): number | null;
-/**
- * Signed change vs the previous period. Null when the previous period has
- * nothing to compare against: "+∞%" and "vs 0" are not information.
- * `upIsGood` decides the tone; a change of zero has none.
- */
-declare function deltaOf(current: number, previous: number, upIsGood: boolean, noun: string): ReportTileVM["delta"];
-/**
- * A share against the prior period's share, in percentage points — never a
- * percentage of a percentage, and null when either period has nothing to
- * take a share of.
- */
-declare function pointsDelta(current: number | null, previous: number | null, noun: string): ReportTileVM["delta"];
-declare function toReportVM(dto: ReportDto): ReportVM;
-
 /**
  * Reports › Campaigns — what the offers earned, as facts.
  *
@@ -6967,611 +7631,6 @@ interface LiveVM {
 declare function fmtClock(seconds: number): string;
 declare function toLiveCallVM(dto: CallDto, now?: Date): LiveCallVM;
 declare function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, now?: Date): LiveVM;
-
-/**
- * The receptionist under a Google review — the pure half.
- *
- * What the Autonomy row for reviews means, the prompt that writes a reply in
- * the business's name, which unreplied reviews the auto mode may answer in
- * one sync, how a draft is cleaned before it is shown or posted, and the
- * words the pages say. No model, no network: the edge calls the model with
- * the prompt built here; the tests read the same functions.
- */
-type ReviewReplyMode = "auto" | "ask" | "never";
-/** The row's mode, from the workspace's policy rows. No row, or a mode the class cannot take, reads as ask: a draft on request, nothing posted alone. */
-declare function reviewReplyModeOf(rows: ReadonlyArray<{
-    class: string;
-    mode: string;
-}> | null | undefined): ReviewReplyMode;
-/** What the receptionist knows about the business when it writes under a review. */
-interface ReviewReplyFacts {
-    name: string;
-    /** The owner's own words for how the receptionist speaks, when given. */
-    tone: string | null;
-    /** The languages the business speaks, first one first. */
-    languages: string[];
-    /** The line customers already use, for the invitation on a poor review. */
-    phone: string | null;
-    website: string | null;
-    /** Service names, so a reply can name what they had without inventing it. */
-    services: string[];
-}
-interface ReviewToAnswer {
-    rating: number | null;
-    author: string | null;
-    text: string | null;
-    /** When it was written, ISO, when known. */
-    written_at: string | null;
-}
-/** At most this many words; Google shows a reply beside the review, not under a fold. */
-declare const REVIEW_REPLY_MAX_WORDS = 60;
-/** A cap on the cleaned draft, well above the words asked for and well under Google's 4096. */
-declare const REVIEW_REPLY_MAX_CHARS = 1000;
-/** How many unreplied reviews the auto mode answers in one sync; the rest wait for the next hour. */
-declare const REVIEW_AUTO_REPLIES_PER_SYNC = 3;
-/** The auto mode answers reviews written within this long; older ones are the owner's. */
-declare const REVIEW_AUTO_REPLY_MAX_AGE_MS: number;
-/**
- * The prompt: the business as the system, the review as the message. The
- * rules are the charter's — no money, no invented facts, no arguing — and
- * the reply's length and language are fixed here, not left to taste.
- */
-declare function reviewReplyPrompt(facts: ReviewReplyFacts, review: ReviewToAnswer): {
-    system: string;
-    user: string;
-};
-/**
- * A draft as the model returned it, made fit to show or post: labels the
- * model sometimes prefixes, quotation marks around the whole, and runs of
- * whitespace gone; empty when nothing usable remains.
- */
-declare function cleanDraft(raw: unknown): string;
-interface ReviewOnRecord {
-    id: string;
-    review_id: string;
-    origin: string;
-    published_at: string | null;
-    reply_text: string | null;
-}
-/**
- * The reviews the auto mode may answer in one sync: from the profile, with
- * no reply yet, written after the profile was connected — what came in
- * while the receptionist was on duty, never the years before — and not
- * older than two weeks. Newest first, capped; the rest wait for the next
- * hour, which finds them still unreplied.
- */
-declare function autoReplyCandidates<T extends ReviewOnRecord>(rows: readonly T[], connectedAt: string | null, nowMs: number, cap?: number): T[];
-/** The bell after the receptionist answered: one review by name, several by count. */
-declare function autoReplyBell(answered: ReadonlyArray<{
-    author: string | null;
-    text: string;
-}>): {
-    title: string;
-    body: string;
-} | null;
-/** What the Reports card says beside the source of its reviews, when replies can go out from here. */
-declare function reviewReplyWords(mode: ReviewReplyMode | null | undefined, canReply: boolean): string;
-
-/**
- * Google — a business's listing on Google Maps, as facts.
- *
- * Most businesses live on Google whether or not they asked to. The listing
- * is public: a name, an address, a rating, a count of reviews, and the five
- * reviews Google shows first. Setup finds it from the facts the workspace
- * already holds, the edge reads it once a day, and what changed reaches the
- * bell, Today and Reports. The owner's own Business Profile, connected once,
- * adds every review and the right to answer them.
- *
- * Two honesties shape every line: Google shows at most five reviews of the
- * public listing, sorted by relevance, so "new" is a review not on record
- * and written since the previous check, while the count of ratings is
- * exact; and fewer than two days of reading cannot say what a period
- * gained. Pure: the routes feed it rows, the tests feed it fixtures.
- */
-
-interface GoogleListingDto {
-    place_id: string;
-    name: string;
-    address: string | null;
-    maps_uri: string | null;
-    business_status: string | null;
-    rating: number | null;
-    review_count: number | null;
-    linked_at: string;
-    /** The last successful read; null before the first. */
-    checked_at: string | null;
-    /** The words of the last failed read; null once a read succeeds again. */
-    check_error: string | null;
-}
-interface GoogleReviewDto {
-    id: string;
-    review_id: string;
-    origin: SchemaSet<"google_reviews.origin">;
-    rating: number | null;
-    author: string | null;
-    author_uri: string | null;
-    author_photo_uri: string | null;
-    body: string | null;
-    language_code: string | null;
-    published_at: string | null;
-    reply_text: string | null;
-    replied_at: string | null;
-    maps_uri: string | null;
-    first_seen_at: string;
-}
-/** The rating and the count on one local day, as the edge read them. */
-interface GoogleDayDto {
-    day: string;
-    rating: number | null;
-    review_count: number;
-}
-/** The owner's Business Profile, connected: whose account, which location, when it last synced. Never a token. */
-interface GoogleConnectionDto {
-    google_email: string | null;
-    account_title: string | null;
-    /** Null while the owner still has to choose among several locations. */
-    location_name: string | null;
-    location_title: string | null;
-    connected_at: string;
-    last_synced_at: string | null;
-    sync_error: string | null;
-}
-/** Google's consent-screen audience for our app, as the operator set it on the edge; null = nothing to say. */
-type GoogleAudience = "testing" | "unverified" | "verified";
-/** What `GET /api/v1/google` returns. */
-interface GoogleDto {
-    /** Whether this deployment can look listings up (a Places key on the edge) and connect profiles (an OAuth client on the edge), and which audience Google's consent screen has. */
-    ready: {
-        places: boolean;
-        profile: boolean;
-        audience?: GoogleAudience | null;
-    };
-    listing: GoogleListingDto | null;
-    connection: GoogleConnectionDto | null;
-    /** The newest first; at most a screenful. */
-    reviews: GoogleReviewDto[];
-    /** Oldest first. */
-    days: GoogleDayDto[];
-    /** The Autonomy row for reviews: what the receptionist does under a new one. */
-    reply_mode: ReviewReplyMode;
-    role: string;
-}
-/** What a search found: what the owner confirms with one tap. */
-interface GoogleCandidateDto {
-    place_id: string;
-    name: string;
-    address: string | null;
-    maps_uri: string | null;
-}
-/** A location of the connected account, for the owner to choose. */
-interface GoogleLocationDto {
-    account_name: string;
-    account_title: string;
-    location_name: string;
-    title: string;
-    address: string | null;
-    /** Null for a location not on Maps yet — it cannot be chosen until Google lists it. */
-    place_id: string | null;
-    maps_uri: string | null;
-}
-/** The facts Setup reads: can the listing be found here, is one linked, is the profile connected. */
-interface SetupGoogleFacts {
-    /** Either door is open: listings can be found here, or profiles connected. */
-    ready: boolean;
-    /** Listings can be found here (a Places key); absent means yes. */
-    places?: boolean;
-    listing: {
-        name: string;
-        rating: number | null;
-        review_count: number | null;
-        checked_at: string | null;
-        check_error: string | null;
-    } | null;
-    connected?: boolean;
-}
-/** Google shows this many reviews of a listing, the most relevant first. */
-declare const GOOGLE_SHOWN_REVIEWS = 5;
-/** A review first seen this recently is news on Today. */
-declare const REVIEW_NEWS_MS: number;
-/** …unless it was written long ago and merely resurfaced in the five Google shows. */
-declare const REVIEW_NEWS_MAX_AGE_MS: number;
-/** "4.8 ★"; "no rating yet" when Google has none. */
-declare function ratingWords(rating: number | null | undefined): string;
-/** "★★★★☆" for a review's stars; five hollow stars for none. */
-declare function starsOf(rating: number | null | undefined): string;
-/** "213 reviews"; "reviews not counted yet" before the first read. */
-declare function reviewsWords(count: number | null | undefined): string;
-/** One line about the listing: "Northside Movers · 4.8 ★ · 213 reviews on Google". */
-declare function listingLine(l: {
-    name: string;
-    rating: number | null;
-    review_count: number | null;
-}): string;
-/** When the listing was read, in words — the fact the owner wants when a number looks stale. */
-declare function checkedWords(l: Pick<GoogleListingDto, "checked_at" | "check_error">, nowMs: number): string;
-/** The connection in words: whose account, and when it last synced or why it could not. */
-declare function connectionWords(c: GoogleConnectionDto, nowMs: number): string;
-/** A review's words, cut for a line: the first sentence or so. */
-declare function reviewSnippet(body: string | null | undefined, max?: number): string;
-interface GoogleReviewVM {
-    id: string;
-    stars: string;
-    rating: number | null;
-    author: string;
-    /** "3d ago" or the date. */
-    when: string;
-    text: string;
-    replied: boolean;
-    replyText: string;
-    mapsUri: string | null;
-    /** First seen recently, written recently, and not part of the first read. */
-    isNew: boolean;
-    /** Read through the owner's profile: every review, and it can be answered. */
-    fromProfile: boolean;
-}
-interface GoogleGainedPointVM {
-    day: string;
-    label: string;
-    short: string;
-    gained: number;
-}
-interface GoogleVM {
-    listing: {
-        name: string;
-        address: string | null;
-        ratingLabel: string;
-        count: number | null;
-        /** "Checked 3h ago" · "Google could not be read since 2d ago — …" */
-        checked: string;
-        mapsUri: string | null;
-        /** The last read failed. */
-        trouble: boolean;
-    } | null;
-    /** The owner's profile, when connected: whose account, the location, when it synced. */
-    connection: {
-        email: string | null;
-        location: string | null;
-        words: string;
-        pending: boolean;
-        trouble: boolean;
-    } | null;
-    /** Reviews can be answered from here: the profile is connected and complete. */
-    canReply: boolean;
-    /** What the receptionist does under a new review, and the words for it beside the source; empty until replies can go out from here. */
-    reply: {
-        mode: ReviewReplyMode;
-        words: string;
-    };
-    /** Rating now · reviews on Google · gained in the period · newest review. */
-    tiles: ReportTileVM[];
-    gained: {
-        points: GoogleGainedPointVM[];
-        max: number;
-        /** Null until two days of reading exist. */
-        total: number | null;
-        /** "Sep 3" — the first day the count is known from, when it is inside the period. */
-        sinceLabel: string | null;
-    };
-    latest: GoogleReviewVM[];
-    /** "the five Google shows first" or "every review, from your Business Profile". */
-    source: string;
-    table: {
-        columns: string[];
-        rows: (string | number)[][];
-    };
-    /** Today's one line when a review is news, and where it leads. */
-    todayLine: {
-        text: string;
-        to: string;
-    } | null;
-}
-/** Whether a review is news: first seen recently, written recently, and after the first read. */
-declare function reviewIsNew(r: Pick<GoogleReviewDto, "first_seen_at" | "published_at">, linkedAt: string, nowMs: number): boolean;
-declare function toGoogleReviewVM(r: GoogleReviewDto, linkedAt: string, nowMs: number): GoogleReviewVM;
-/**
- * What a period gained, from the day snapshots: the count on the last read
- * day less the count on the newest day before the period (or the first day
- * inside it, which is then named), and the same for the period before.
- */
-declare function gainedOver(days: GoogleDayDto[], periodDays: number): {
-    current: GoogleVM["gained"];
-    previous: number | null;
-};
-declare function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs?: number): GoogleVM;
-
-/**
- * Setup — one page a new owner lands on until the receptionist is answering.
- *
- * Every row here is read from the workspace: the config, the channels, the
- * templates, the calendar feed, the team, the consent rows. Nothing stores a
- * "done" flag; a row is ready because the thing it names exists. "Later" is
- * a preference on one device that hides an optional row from Today's line,
- * and nothing else.
- *
- * Four words for every state, so the page reads the same way People and
- * Today do: Not started · Waiting on you · Waiting on carriers (or Meta, or
- * us) · Ready. "Waiting on us" is real: a line is set up by a person at
- * Chanlytics until lines provision themselves (plan, step 3).
- */
-
-interface SetupDto {
-    business: {
-        name: string | null;
-        hours: boolean;
-        services: number;
-        bookingLink: boolean;
-        address: boolean;
-        /** The number the phone receptionist warm-transfers to, E.164. */
-        handoff: string | null;
-        /** The config row exists but the parser refused it. */
-        broken: boolean;
-    };
-    channels: {
-        whatsapp: {
-            present: boolean;
-            active: boolean;
-            number: string | null;
-            quality: string | null;
-            lastInboundAt: string | null;
-        };
-        voice: {
-            present: boolean;
-            active: boolean;
-            number: string | null;
-            lastInboundAt: string | null;
-        };
-    };
-    templates: {
-        approved: number;
-        pending: number;
-        startersApproved: number;
-    };
-    calendar: {
-        state: "ok" | "unavailable" | "none";
-    };
-    team: {
-        members: number;
-        invitesOpen: number;
-        alertEmails: number;
-    };
-    /**
-     * The two answers, counted separately.
-     *
-     * `yes` is the conversational one -- they answer and they hear about their own
-     * visit. `offers` is the promotional one, and it is the ONLY one that puts a
-     * person on a marketing broadcast. This row used to read `yes` and say "said
-     * yes to offers", so a workspace with seven people who had texted START was
-     * told it had seven people it could send an offer to, and the composer then
-     * refused all seven.
-     */
-    consent: {
-        yes: number;
-        offers: number;
-    };
-    /**
-     * Facts that disagree with what the platform knows (contracts/facts.ts).
-     *
-     * The checklist called Business facts "ready" on a workspace whose
-     * receptionist was publishing the number it transfers to instead of the line
-     * it answers -- because "ready" only ever meant "the fields are filled in",
-     * and nothing compared a filled-in field to anything. A checklist that says
-     * ready while a customer-facing fact is wrong is worse than no checklist.
-     */
-    conflicts?: FactConflict[];
-    /** What the owner has asked a person at Chanlytics for, and when. */
-    requests: {
-        line: string | null;
-    };
-    /** The workspace's own lines, and whether this deployment can get one. */
-    lines?: {
-        rows: LineDto[];
-        ready: boolean;
-        provider: string | null;
-        costs: {
-            local_number_month_usd: number;
-        };
-    };
-    /** The business on Google: whether it can be found here, and the listing once it is. */
-    google?: SetupGoogleFacts;
-    /** How the workspace pays, when it pays by card and this deployment can charge. */
-    billing?: SetupBillingFacts;
-}
-/** A line as the page may see it — states in words, never a provider id. */
-interface LineDto {
-    id: string;
-    e164: string | null;
-    kind: string;
-    provider: string;
-    area_code: number | null;
-    voice_state: SchemaSet<"lines.voice_state">;
-    sms_state: string;
-    /** Where a carrier registration stopped, when one did. */
-    reg_step?: string | null;
-    /** Filed against Twilio's free test registry rather than the carriers. */
-    reg_mock?: boolean;
-    /**
-     * The registration on this line is the sole-proprietor one: one number, one
-     * campaign, about one message a second. A fact about the FILING, so it is
-     * read from the row and never re-derived from the business record, which can
-     * change after the brand is registered.
-     */
-    reg_sole_prop?: boolean;
-    /** Both the brand and the campaign are on record. */
-    registered?: boolean;
-    whatsapp_state: string;
-    port_state: string;
-    forwarding_state: string;
-    step: string | null;
-    last_error: string | null;
-    state_since: string;
-    created_at: string;
-    /** A forwarded line's facts, in words: the carrier, the mode, where the calls go, the test window. */
-    forwarding?: {
-        carrier: string;
-        mode: string;
-        destination_e164: string | null;
-        test_from: string | null;
-        test_until: string | null;
-        verified_at: string | null;
-    } | null;
-}
-/**
- * How long a line may be "setting up" before something has gone wrong.
- *
- * THE SAGA CANNOT ALWAYS FINISH INSIDE ITS OWN LAMBDA. `api/admin/lines.ts` is
- * capped at 60 seconds (apps/edge/vercel.json) and the saga makes ten Twilio
- * calls at a 15-second timeout each plus four Retell calls at eight — about 180
- * seconds worst case, three times the ceiling. So a run is killed not by a crash
- * but by a slow afternoon at the provider, and when it is killed the `catch` that
- * would write `voice_state: 'failed'` never runs. The row stays `provisioning`.
- *
- * Nothing used to move it again: no sweep reads `lines` for this, `retry` demanded
- * `failed`, `buy` refused because a line already existed, and `number_drift()`
- * deliberately exempts a line still being set up. The owner's Setup row said
- * "usually a minute or two" with no button, for ever. The only exit was a platform
- * admin handing the number back.
- *
- * Five minutes, because the honest worst case is three and a state that is
- * genuinely still running must never be declared dead underneath itself.
- */
-declare const PROVISIONING_DEADLINE_MS: number;
-/**
- * Has this line been setting up longer than a line can legitimately take?
- *
- * One predicate, because four places have to agree about it: the Setup row that
- * offers the owner a Retry, the back office's action list, the route that accepts
- * that Retry, and the sweep that resumes them unasked. A deadline that each of
- * them spelled out for itself is a deadline they would drift apart on.
- */
-declare function lineStuckProvisioning(l: Pick<LineDto, "voice_state" | "state_since"> | null | undefined, nowMs: number): boolean;
-/**
- * May this line be retried, and if not, what does the person hear?
- *
- * `null` means go ahead. A string is the refusal, already in words.
- *
- * EXTRACTED, and this is the pattern rather than a one-off. The decision lived
- * inline in a 400-line route handler, which meant the only way to test it was to
- * read the handler's text and assert the text was still there — three
- * `readCode` assertions pinning an `if` statement. That is the trade the refactor
- * program calls a debt: a rule with no seam gets pinned by its source, the pin
- * passes whether or not the rule is right, and the count of such pins only ever
- * grows.
- *
- * A rule that returns a value has a seam by construction. The route maps a
- * request to a command and a result to a response; the decision is here, and the
- * test below calls it with rows instead of reading a file.
- *
- * WHY THE TWO REFUSALS DIFFER. "Not failed" is true of an answering line and of
- * one still setting up, and it is useless to both. A line mid-saga is not a
- * mistake anyone made — it needs a few minutes, and after those minutes the
- * sweep takes it whether or not anybody comes back. Saying so is the difference
- * between a person waiting usefully and a person pressing the button again.
- */
-declare function lineRetryRefusal(l: Pick<LineDto, "voice_state" | "state_since"> | null | undefined, nowMs: number): string | null;
-/** The saga's step, in the owner's words — the row, the bell and the platform email say the same thing. */
-declare const LINE_STEP_WORDS: Record<string, string>;
-interface SetupInputs extends SetupDto {
-    /** Row ids marked Later on this device. */
-    later: string[];
-}
-type SetupState = "not_started" | "waiting_you" | "waiting_them" | "ready";
-declare const SETUP_STATE_WORDS: Record<SetupState, string>;
-/** A verb whose `to` starts with "verb:" is an action the page performs; "tel:" dials; anything else is a route. */
-interface SetupVerb {
-    label: string;
-    to: string;
-}
-interface SetupRowVM {
-    id: string;
-    icon: string;
-    title: string;
-    state: SetupState;
-    /** The state in words; "Waiting on Meta" when Meta is the one waited on. */
-    stateWords: string;
-    sentence: string;
-    details: string[];
-    verb: SetupVerb | null;
-    /** Counts toward "answering"; cannot be put off for later. */
-    required: boolean;
-    later: boolean;
-}
-interface SetupVM {
-    rows: SetupRowVM[];
-    readiness: {
-        answering: boolean;
-        sentence: string;
-    };
-    /** The first open row's verb, in dependency order. */
-    next: {
-        label: string;
-        to: string;
-        row: string;
-        title: string;
-    } | null;
-    done: number;
-    total: number;
-    /** Today's one line while something is open: "Setup · 3 of 8 · Calendar: paste the feed". */
-    line: string | null;
-    /** The numbers to try, once the receptionist answers somewhere. */
-    tryIt: {
-        voice: string | null;
-        voiceLabel: string | null;
-        whatsapp: string | null;
-        whatsappLabel: string | null;
-    } | null;
-}
-/**
- * What this line's texting actually IS, in the owner's words.
- *
- * Every one of these sentences used to be the same sentence -- "Texting is not
- * available yet" -- said whatever the line's registration had done, because
- * nothing here read sms_state. That was honest while no line could text and a
- * lie in both directions afterwards: a line the carriers had approved still
- * read "not available", and a line filed against Twilio's MOCK registry -- free,
- * routes nothing, gone in thirty days -- read exactly like one that was real.
- *
- * The mock case is named out loud because it is the one that looks finished
- * from every angle: the console shows four green ticks, the brand says
- * Approved, and not one message would ever be delivered.
- */
-/**
- * The one sentence a rehearsal filing gets, wherever an owner meets it: the
- * Setup row, the Integrations texting row, and the refusal the register route
- * answers with. Three surfaces said three different things about one state
- * before this -- and one of them ("the carriers did not answer") was not even
- * about the state it was describing.
- */
-/**
- * The ceiling a working sole-proprietor line lives under, in one clause that
- * reads correctly after any sentence.
- *
- * It quotes SOLE_PROP_LIMITS rather than repeating its numbers, so what is said
- * to a working line and what was said before the owner committed to that
- * registration cannot drift apart.
- */
-declare const SOLE_PROP_CEILING_SENTENCE: string;
-/** Setup's version: the good news, then the ceiling. */
-declare const SOLE_PROP_TEXTING_SENTENCE: string;
-declare const MOCK_TEXTING_SENTENCE = "Texting is filed against a test registry, so nothing is delivered \u2014 a person at Chanlytics is filing it with the carriers for real.";
-/**
- * Takes only the three fields it reads. The back office renders the same
- * sentence for another workspace's line, and it has the registration facts
- * without the rest of a LineDto -- a synthetic one filled with plausible
- * blanks would be a second answer waiting to drift from this one.
- */
-declare function textingWords(l: Pick<LineDto, "sms_state" | "reg_mock" | "reg_sole_prop"> | null | undefined): {
-    sentence: string;
-    done: boolean;
-};
-declare function setupSteps(i: SetupInputs, nowMs?: number): SetupVM;
-/** The hash route without "#/": "#/admin/setup" → "admin/setup"; nothing → "today". */
-declare function setupRoute(hash: string): string;
-/**
- * Whether this arrival lands on Setup: an owner, a receptionist that answers
- * nowhere yet, a plain arrival (Today or nothing), and not already sent
- * there this session. Everyone else gets Today.
- */
-declare function shouldLandOnSetup(role: string | null | undefined, answering: boolean, route: string, landed: boolean): boolean;
 
 type Carrier = "verizon" | "att" | "tmobile" | "other";
 type ForwardingMode = "unanswered" | "always";
@@ -8480,4 +8539,4 @@ declare function signupNext(email: string): string;
 /** The device's zone when the runtime knows one; otherwise nothing, and the database defaults it. */
 declare function deviceTimezone(resolve?: () => string | undefined): string | undefined;
 
-export { ACTOR_TYPES, ALERT_KINDS, ANALYSIS_GRACE_MS, ASK_CAPS, ASK_CITATION_KINDS, ASK_FINISH_JSON_SCHEMA, ASK_LANGUAGES, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_PAGES, ASK_PAGE_ROUTES, ASK_RETENTION_DAYS, ASK_TOKENS_DAY, ASK_TURN_BUDGET_MS, AUDIENCE_KINDS, type ActorType, AppError, type AskCitation, type AskCitationKind, type AskFinish, AskFinishSchema, type AskLanguage, type AskMessageVM, type AskProposal, type AskProposalOutcome, AskProposalOutcomeSchema, type AskReadSet, type AskRole, type AskScope, type AskSettingsChange, AskSettingsChangeSchema, type AskSuggestion, type AskSurface, type AskThreadVM, type AttentionRowVM, type Audience, type AudienceKind, BILLING_MODES, BILLING_STATUSES, BILLING_TRIAL_DAYS, BOOKING_DEFAULTS, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, BROADCAST_CHUNK, BROADCAST_GAP_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_STATES, BROADCAST_STATE_LABELS, BUSINESS_INDUSTRIES, BUSINESS_TYPES, type BillingAccountDto, type BillingBell, type BillingDto, type BillingInvoiceDto, type BillingMode, type BillingPlan, type BillingPriceDto, type BillingStatus, type BillingVM, type BookingReportDto, type BookingReportVM, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastRecipientDto, type BroadcastState, type BroadcastVM, type BusinessFieldVM, type BusinessIndustry, type BusinessPageFacts, type BusinessPageVM, type BusinessProfile, BusinessProfileSchema, type BusinessRecordDto, type BusinessType, type BusyBlock, CALL_HEARTBEAT_MS, CALL_OUTCOMES, CALL_OUTCOME_WORDS, CAMPAIGN_REPORT_RANGES, CARRIERS, CARRIER_WORDS, CHANNEL_KINDS, CHECKOUT_OUTCOME_WORDS, COMPANY_TYPES, CONFIDENCE_STEPS, CONNECTION_GROUP_WORDS, CONNECTION_KINDS, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, CONVERSATION_OPT_IN_PATTERN, CONVERSATION_PHRASE, CONVERSATION_STATES, type CalendarBandVM, type CalendarBlockVM, type CalendarClosureVM, type CalendarConfig, CalendarConfigSchema, type CalendarDayDto, type CalendarDayVM, type CalendarFeedDto, type CalendarItemDto, type CalendarLike, type CalendarPerson, type CalendarServiceDto, type CalendarServiceVM, type CalendarVM, type CalendarView, type CalendarWeekDto, type CalendarWindowVM, type CallDto, type CallOutcome, type CallVM, type CampaignDayDto, type CampaignPointVM, type CampaignReportDto, type CampaignReportVM, type CampaignSourceDto, type CampaignSourceVM, type CampaignTotals, type Carrier, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelPickable, type ChannelVM, type Closure, ClosureSchema, type CompanyType, type ConflictSeverity, type ConnectionGroup, type ConnectionInputs, type ConnectionKind, type ConnectionRow, type ConnectionState, type ConnectionTone, type ConnectionVerb, type ConnectionWho, type ConsentAsk, type ConsentBearing, type ConsentFormSection, type ConsentFormVM, type ConsentPageFacts, type ConsentPageVM, type ConsentState, type ConsentWay, type ConsentWayKind, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DEFAULT_BUSINESS_TYPE, DEFAULT_COMPANY_TYPE, DEFAULT_INDUSTRY, DEFAULT_TIMEZONE, DISCONNECTION_LABELS, DISPLAY_NAME_MAX, type DayFrameLike, type DecisionSubject, type DecisionVerb, E164, EMPTY_READ_STATE, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, EVERYONE_LABEL, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventContacts, type EventKind, type Exactly, FORWARDING_MODES, FORWARDING_TEST_WINDOW_MS, type Fact, type FactConflict, type FactSource, type FastCall, type FastContext, type FastPath, type FeaturesConfig, FeaturesConfigSchema, type FeedAttendee, type FeedCall, type FeedIndex, type FeedInput, type FeedInvite, type FeedItem, type FeedThread, type ForwardingCode, type ForwardingCodes, type ForwardingFacts, type ForwardingMode, type FreeWindowsInput, GOOGLE_SHOWN_REVIEWS, type GoogleAudience, type GoogleCandidateDto, type GoogleConnectionDto, type GoogleDayDto, type GoogleDto, type GoogleGainedPointVM, type GoogleListingDto, type GoogleLocationDto, type GoogleReviewDto, type GoogleReviewVM, type GoogleVM, GuardrailsSchema, HELD_REASONS, type Holds, type Hours, type HoursRun, HoursSchema, INTENT_LABELS, type IdentityInput, type IdentityWords, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, type JourneyListLike, type JumpEntry, type KnownFacts, LIMIT_TIERS, LINE_STEP_WORDS, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LineDto, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MARKETING_OPT_IN_PATTERN, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, MOCK_TEXTING_SENTENCE, MODE_WORDS, type MediaVM, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type Note, NoteSchema, type NotificationDto, type NotificationItem, type NotificationKind, type NotificationReadState, type NotificationRow, type NotificationsConfig, NotificationsConfigSchema, type NotificationsDto, type NumberHealth, type NumberHealthInput, OFFERS_OPT_IN_PHRASES, OFFERS_YES_SOURCES, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, type Opening, PARAM_SOURCES, PARAM_SOURCE_LABELS, PENDING_WORKSPACE_KEY, PEOPLE_LISTS, PEOPLE_LIST_GROUPS, PEOPLE_TABS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_STATE_LABELS, PLATFORM_NEW_DAYS, PLATFORM_QUIET_DAYS, PLATFORM_VERDICTS, PLAYBOOK_BREATH_MS, PLAYBOOK_CLASS_LABEL, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_NAME_MAX, PLAYBOOK_STATES, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, POLICY_CLASSES, POLICY_CLASS_MODES, POLICY_CLASS_WORDS, POLICY_MODES, PROPOSAL_GATE, PROVISIONING_DEADLINE_MS, PURPOSE_REFUSALS, type ParamFacts, type ParamSourceKind, type ParamSpec, type ParseOptions, type ParsedFeed, type PendingWorkspace, PendingWorkspaceSchema, type PeopleAggregates, type PeopleListAction, type PeopleListGroup, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonLike, type PersonMatch, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PersonVisitsDto, type PlatformLineAction, type PlatformLineActionVM, type PlatformRowVM, type PlatformTenantDto, type PlatformVerdict, type PlatformVerdictWords, type PlaybookCardLike, type PlaybookDto, type PlaybookPolicyClass, type PlaybookState, type PlaybookTrigger, type PlaybookTriggerKind, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, type PreflightFacts, type PreflightProblem, type PurposeBearing, QUIET_AFTER_MS, RECENT_MAX, RECIPIENT_STATES, REGISTRATION_COST_WORDS, REGISTRATION_PATHS, REGISTRATION_PATH_WORDS, REGISTRATION_QUESTION, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPORT_RANGES, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS, REVIEW_NEWS_MAX_AGE_MS, REVIEW_NEWS_MS, REVIEW_REPLY_MAX_CHARS, REVIEW_REPLY_MAX_WORDS, ROLES, ROLE_PERMS, ROLE_WORDS, type ReceptionistTone, type RecipientState, type RecordCheckFacts, type RegistrationPath, type RegistrationPathWords, type ReplyWhyVM, type ReportBarVM, type ReportDayDto, type ReportDto, type ReportPointVM, type ReportTileVM, type ReportVM, type ReportsLike, type ResolvedFacts, type ReviewOnRecord, type ReviewReplyFacts, type ReviewReplyMode, type ReviewToAnswer, type Role, type RunPlan, SCHEMA_SETS, SERVER_KEY_PREFIX, SERVER_NOTIFICATION_KINDS, SETUP_STATE_WORDS, SHORTCUTS, SIGNUP_NAME_MAX, SIGNUP_NAME_MIN, SIGNUP_WAITLIST, SIGNUP_WORDS, SMS_CLAUSES, SMS_OPT_OUT_PATTERN, SOLE_PROP_CEILING_SENTENCE, SOLE_PROP_LIMITS, SOLE_PROP_TEXTING_SENTENCE, SOURCE_WORDS, STARTER_LANGUAGES, STARTER_TEMPLATES, type SchemaAgreement, type SchemaSet, type SchemaSetKey, type SendPurpose, type ServerNotificationKind, type Service, type ServiceLike, ServiceSchema, type SetupBillingFacts, type SetupDto, type SetupGoogleFacts, type SetupInputs, type SetupRowVM, type SetupState, type SetupVM, type SetupVerb, type ShellStatus, type Shortcut, type SidebarPref, type SignupInput, type SignupPosture, SignupSchema, type SpanUnits, type Standing, type StandingInput, type StandingVerdict, type StarterSlot, type StarterSlotKind, type StarterTemplate, type StarterText, type SubscriptionFacts, type SuggestionInput, TEMPLATE_BODY_MAX, TEMPLATE_CATEGORIES, TEMPLATE_EXAMPLE_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_LANGUAGES, TEMPLATE_NAME_MAX, TEMPLATE_STATUSES, TEMPLATE_TITLE_MAX, TENANT_STATUSES, THEME_OPTIONS, TODAY_QUEUE_MAX, type TemplateCategoryChoice, type TemplateDraft, type TemplateDraftCheck, type TemplateDraftInput, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type Theme, type ThemePref, type TimelineKind, type TodayCallRowVM, type TodayDayFrameVM, type TodayDayItemVM, type TodayDayVM, type TodayFactVM, type TodayJourneyVM, type TodayNeedsRowVM, type TodayQueueRowVM, type TodaySentenceVM, type TodayVM, type TodayWeekVM, type Touches, type TypedFacts, type Visit, type VisitDto, type Visits, WA_WINDOW_MS, type WaWindow, type WeekTileLike, type Within, afterPersonRefused, ago, agoLabel, agoShort, agoWords, allVisitsIn, applyReadState, applySettingsChange, asPersonMode, askJump, attentionRow, autoReplyBell, autoReplyCandidates, billingAccountDto, billingDoorOpen, bookedAfterAsk, brainMetaOf, broadcastName, buildAskSuggestions, buildNotificationFeed, businessFieldsFor, businessGroupWordsFor, businessPageVM, businessRecordForPath, businessRecordLine, businessRecordProblems, businessTypeOf, callOutcomeOf, callOutcomeWords, changedConfigFields, channelFor, checkedWords, citationRoute, citationsToShow, cleanAnswer, cleanDisplayName, cleanDraft, cleanParam, cleanTimezone, clockInZone, clockLabel, closedOn, companyTypeOf, compareTemplates, composeSystemPrompt, connectionRows, connectionWords, consentFormVM, consentPageVM, consentSourceLabel, contactMeta, contactName, coversSpan, dailyLimit, dayDate, dayFromQuestion, dayInZone, dayIntervals, dayWords, dedupeFeed, defaultParamSpecs, defaultSlotKinds, defaultTemplate, deltaOf, describeNow, describeOpenings, describeSettingsChange, describeVisits, detectLanguage, deviceTimezone, draftSendsAtMs, durationLabel, eligibleFor, eligibleForPlaybook, emptyAudienceRefusal, emptyBusinessRecord, emptyReadSet, err, eventText, exampleParams, extractContacts, factConflicts, fastPath, feedSourceLabel, filterOpenings, firstNameOf, fmtClock, fmtDay, fmtSeconds, followupsToShow, formatPhoneDisplay, formatWaited, forwardingCodes, forwardingMatch, forwardingTestOpen, frameOf, frameSteer, frameWhisper, freeWindows, gainedOver, googleAudienceWords, groundCitations, guessName, guessSlotKind, handoffE164, hasProfile, hoursLines, hoursRuns, identityWords, indexFeed, industryOf, industryWords, initialsOf, isCarrier, isDayKey, isForwardingMode, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, isSidebarPref, isThemePref, isTimezone, isTypingTarget, isUngrounded, knownTimezones, lineRetryRefusal, lineStuckProvisioning, listingLine, localDate, localHour, localToUtcMs, matchPerson, matchService, mayMessageFor, mayReceive, maySpend, mediaKind, mediaVM, memberWords, messageAt, messageStatusLabel, messageText, mondayOf, moneyWords, monthLabelOf, monthSpan, navigateLabel, newReceptionistDefaults, nextRunLabel, normalizeNavigate, normalizePhone, numberHealth, offersYesRefusal, ok, optInLink, optInPurposeOf, overLimitRefusal, paramLabel, parseAskFinish, parseBrainOutput, parseIcs, parseParamSpec, parseTenantConfig, parseTenantConfigResult, partialAnswer, pausedVoiceFacts, pendingWorkspaceOf, peopleAggregates, peopleFromItems, peopleListAction, personInText, personInitials, personName, personStanding, personStateFor, placeholdersOf, placeholdersSequential, planBilling, planRun, platformActionWarning, platformLineActions, platformNumber, platformRows, platformSummary, pointsDelta, policyAskClass, policyClassOfIntent, policyRules, priceWords, purposeOfPlaybook, purposeOfTemplate, quantile, ratingWords, reachedCustomer, readAgoLabel, reasonShort, recencyCells, receptionistOn, recoverCitations, registrationPathOf, registrationPreflight, renderTemplate, replyDelayMs, replyWhy, replyWindow, resolveFacts, resolveParams, resolveSystemPrompt, resolveTheme, reviewIsNew, reviewReplyModeOf, reviewReplyPrompt, reviewReplyWords, reviewSnippet, reviewsWords, rulesLine, runDueNow, safeNavigate, sameAddress, sameName, samePhone, sameQuestion, scheduleLine, scopeFromRoute, sendFailureIsOurs, serverNotificationRows, setupRoute, setupSteps, shellStatusLine, shiftKey, shiftMonth, shortCode, shortTime, shortcutGroups, shouldLandOnSetup, signupNext, signupPosture, slotLabels, slugTemplateName, smsConsentSentence, smsStateRow, soleProprietorLimits, spanForView, spanLabel, spanUnits, standingOf, starsOf, starterByKey, starterByName, starterDraft, starterForTrigger, starterIndex, starterPreview, starterText, telHref, templateComponents, templateNameOk, templateTitle, tenantStatusFor, textingWords, threadStanding, tidyCallSummary, timezoneCity, timezoneWords, toBillingVM, toBookingReportVM, toBroadcastVM, toCalendarVM, toCallVM, toCampaignReportVM, toChannelVM, toConversationVM, toGoogleReviewVM, toGoogleVM, toInboxThreadVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, toVisitDto, todayAway, todayDay, todayDayFacts, todayJourney, todayWeek, trialOffer, trialWords, triggerOf, tzClock, usableDeviceTimezone, validateTemplateDraft, verbForRoute, violatesNoPrices, visitDateKey, visitDay, visitFactsFor, visitLine, visitStartTime, visitTime, visitsIn, visitsOf, waWindow, waitedLabel, whenLabel, whisperText, whyCannotSpend, whyNotAHandoff, whyNotAPhone, windowFor, workspaceHotkey, zoneMidnight, zoneOffsetMs };
+export { ACTOR_TYPES, ALERT_KINDS, ANALYSIS_GRACE_MS, ASK_CAPS, ASK_CITATION_KINDS, ASK_FINISH_JSON_SCHEMA, ASK_LANGUAGES, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_PAGES, ASK_PAGE_ROUTES, ASK_RETENTION_DAYS, ASK_TOKENS_DAY, ASK_TURN_BUDGET_MS, AUDIENCE_KINDS, type ActivationRecord, type ActorType, AppError, type AskCitation, type AskCitationKind, type AskFinish, AskFinishSchema, type AskLanguage, type AskMessageVM, type AskProposal, type AskProposalOutcome, AskProposalOutcomeSchema, type AskReadSet, type AskRole, type AskScope, type AskSettingsChange, AskSettingsChangeSchema, type AskSuggestion, type AskSurface, type AskThreadVM, type AttentionRowVM, type Audience, type AudienceKind, BILLING_MODES, BILLING_STATUSES, BILLING_TRIAL_DAYS, BOOKING_DEFAULTS, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, BROADCAST_CHUNK, BROADCAST_GAP_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_STATES, BROADCAST_STATE_LABELS, BUSINESS_INDUSTRIES, BUSINESS_TYPES, type BillingAccountDto, type BillingBell, type BillingDto, type BillingInvoiceDto, type BillingMode, type BillingPlan, type BillingPriceDto, type BillingStatus, type BillingVM, type BookingReportDto, type BookingReportVM, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastRecipientDto, type BroadcastState, type BroadcastVM, type BusinessFieldVM, type BusinessIndustry, type BusinessPageFacts, type BusinessPageVM, type BusinessProfile, BusinessProfileSchema, type BusinessRecordDto, type BusinessType, type BusyBlock, CALL_HEARTBEAT_MS, CALL_OUTCOMES, CALL_OUTCOME_WORDS, CAMPAIGN_REPORT_RANGES, CAPABILITY_KINDS, CARRIERS, CARRIER_WORDS, CHANNEL_KINDS, CHECKOUT_OUTCOME_WORDS, COMPANY_TYPES, CONFIDENCE_STEPS, CONNECTION_GROUP_WORDS, CONNECTION_KINDS, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, CONVERSATION_OPT_IN_PATTERN, CONVERSATION_PHRASE, CONVERSATION_STATES, type CalendarBandVM, type CalendarBlockVM, type CalendarClosureVM, type CalendarConfig, CalendarConfigSchema, type CalendarDayDto, type CalendarDayVM, type CalendarFeedDto, type CalendarItemDto, type CalendarLike, type CalendarPerson, type CalendarServiceDto, type CalendarServiceVM, type CalendarVM, type CalendarView, type CalendarWeekDto, type CalendarWindowVM, type CallDto, type CallOutcome, type CallVM, type CampaignDayDto, type CampaignPointVM, type CampaignReportDto, type CampaignReportVM, type CampaignSourceDto, type CampaignSourceVM, type CampaignTotals, type CapabilityBlocker, type CapabilityInputs, type CapabilityKind, type CapabilityStatus, type Carrier, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelPickable, type ChannelVM, type Closure, ClosureSchema, type CompanyType, type ConflictSeverity, type ConnectionGroup, type ConnectionInputs, type ConnectionKind, type ConnectionRow, type ConnectionState, type ConnectionTone, type ConnectionVerb, type ConnectionWho, type ConsentAsk, type ConsentBearing, type ConsentFormSection, type ConsentFormVM, type ConsentPageFacts, type ConsentPageVM, type ConsentState, type ConsentWay, type ConsentWayKind, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DEFAULT_BUSINESS_TYPE, DEFAULT_COMPANY_TYPE, DEFAULT_INDUSTRY, DEFAULT_TIMEZONE, DISCONNECTION_LABELS, DISPLAY_NAME_MAX, type DayFrameLike, type DecisionSubject, type DecisionVerb, E164, EMPTY_READ_STATE, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_KINDS, EVERYONE_LABEL, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventContacts, type EventKind, type Exactly, FORWARDING_MODES, FORWARDING_TEST_WINDOW_MS, type Fact, type FactConflict, type FactSource, type FastCall, type FastContext, type FastPath, type FeaturesConfig, FeaturesConfigSchema, type FeedAttendee, type FeedCall, type FeedIndex, type FeedInput, type FeedInvite, type FeedItem, type FeedThread, type ForwardingCode, type ForwardingCodes, type ForwardingFacts, type ForwardingMode, type FreeWindowsInput, GOOGLE_SHOWN_REVIEWS, type GoogleAudience, type GoogleCandidateDto, type GoogleConnectionDto, type GoogleDayDto, type GoogleDto, type GoogleGainedPointVM, type GoogleListingDto, type GoogleLocationDto, type GoogleReviewDto, type GoogleReviewVM, type GoogleVM, GuardrailsSchema, HELD_REASONS, type Holds, type Hours, type HoursRun, HoursSchema, INTENT_LABELS, type IdentityInput, type IdentityWords, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, type JourneyListLike, type JumpEntry, type KnownFacts, LIMIT_TIERS, LINE_STEP_WORDS, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LineDto, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MARKETING_OPT_IN_PATTERN, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, MOCK_TEXTING_SENTENCE, MODE_WORDS, type MediaVM, type MembershipRole, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEW_WINDOW_MS, type Note, NoteSchema, type NotificationDto, type NotificationItem, type NotificationKind, type NotificationReadState, type NotificationRow, type NotificationsConfig, NotificationsConfigSchema, type NotificationsDto, type NumberHealth, type NumberHealthInput, OFFERS_OPT_IN_PHRASES, OFFERS_YES_SOURCES, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, type Ok, type Opening, PARAM_SOURCES, PARAM_SOURCE_LABELS, PENDING_WORKSPACE_KEY, PEOPLE_LISTS, PEOPLE_LIST_GROUPS, PEOPLE_TABS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_STATE_LABELS, PLATFORM_NEW_DAYS, PLATFORM_QUIET_DAYS, PLATFORM_VERDICTS, PLAYBOOK_BREATH_MS, PLAYBOOK_CLASS_LABEL, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_NAME_MAX, PLAYBOOK_STATES, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, POLICY_CLASSES, POLICY_CLASS_MODES, POLICY_CLASS_WORDS, POLICY_MODES, PROPOSAL_GATE, PROVISIONING_DEADLINE_MS, PURPOSE_REFUSALS, type ParamFacts, type ParamSourceKind, type ParamSpec, type ParseOptions, type ParsedFeed, type PendingWorkspace, PendingWorkspaceSchema, type PeopleAggregates, type PeopleListAction, type PeopleListGroup, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonLike, type PersonMatch, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PersonVisitsDto, type PlatformLineAction, type PlatformLineActionVM, type PlatformRowVM, type PlatformTenantDto, type PlatformVerdict, type PlatformVerdictWords, type PlaybookCardLike, type PlaybookDto, type PlaybookPolicyClass, type PlaybookState, type PlaybookTrigger, type PlaybookTriggerKind, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyMode, type PolicyRow, type PreflightFacts, type PreflightProblem, type PurposeBearing, QUIET_AFTER_MS, RECENT_MAX, RECIPIENT_STATES, REGISTRATION_COST_WORDS, REGISTRATION_PATHS, REGISTRATION_PATH_WORDS, REGISTRATION_QUESTION, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPORT_RANGES, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS, REVIEW_NEWS_MAX_AGE_MS, REVIEW_NEWS_MS, REVIEW_REPLY_MAX_CHARS, REVIEW_REPLY_MAX_WORDS, ROLES, ROLE_PERMS, ROLE_WORDS, type ReceptionistTone, type RecipientState, type RecordCheckFacts, type RegistrationPath, type RegistrationPathWords, type ReplyWhyVM, type ReportBarVM, type ReportDayDto, type ReportDto, type ReportPointVM, type ReportTileVM, type ReportVM, type ReportsLike, type ResolvedFacts, type ReviewOnRecord, type ReviewReplyFacts, type ReviewReplyMode, type ReviewToAnswer, type Role, type RunPlan, SCHEMA_SETS, SERVER_KEY_PREFIX, SERVER_NOTIFICATION_KINDS, SETUP_STATE_WORDS, SHORTCUTS, SIGNUP_NAME_MAX, SIGNUP_NAME_MIN, SIGNUP_WAITLIST, SIGNUP_WORDS, SMS_CLAUSES, SMS_OPT_OUT_PATTERN, SOLE_PROP_CEILING_SENTENCE, SOLE_PROP_LIMITS, SOLE_PROP_TEXTING_SENTENCE, SOURCE_WORDS, STARTER_LANGUAGES, STARTER_TEMPLATES, type SchemaAgreement, type SchemaSet, type SchemaSetKey, type SendPurpose, type ServerNotificationKind, type Service, type ServiceLike, ServiceSchema, type SetupBillingFacts, type SetupDto, type SetupGoogleFacts, type SetupInputs, type SetupRowVM, type SetupState, type SetupVM, type SetupVerb, type ShellStatus, type Shortcut, type SidebarPref, type SignupInput, type SignupPosture, SignupSchema, type SpanUnits, type Standing, type StandingInput, type StandingVerdict, type StarterSlot, type StarterSlotKind, type StarterTemplate, type StarterText, type SubscriptionFacts, type SuggestionInput, TEMPLATE_BODY_MAX, TEMPLATE_CATEGORIES, TEMPLATE_EXAMPLE_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_LANGUAGES, TEMPLATE_NAME_MAX, TEMPLATE_STATUSES, TEMPLATE_TITLE_MAX, TENANT_STATUSES, THEME_OPTIONS, TODAY_QUEUE_MAX, type TemplateCategoryChoice, type TemplateDraft, type TemplateDraftCheck, type TemplateDraftInput, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type Theme, type ThemePref, type TimelineKind, type TodayCallRowVM, type TodayDayFrameVM, type TodayDayItemVM, type TodayDayVM, type TodayFactVM, type TodayJourneyVM, type TodayNeedsRowVM, type TodayQueueRowVM, type TodaySentenceVM, type TodayVM, type TodayWeekVM, type Touches, type TypedFacts, type Visit, type VisitDto, type Visits, WA_WINDOW_MS, type WaWindow, type WeekTileLike, type Within, afterPersonRefused, ago, agoLabel, agoShort, agoWords, allVisitsIn, applyReadState, applySettingsChange, asPersonMode, askJump, attentionRow, autoReplyBell, autoReplyCandidates, billingAccountDto, billingDoorOpen, bookedAfterAsk, brainMetaOf, broadcastName, buildAskSuggestions, buildNotificationFeed, businessFieldsFor, businessGroupWordsFor, businessPageVM, businessRecordForPath, businessRecordLine, businessRecordProblems, businessTypeOf, callOutcomeOf, callOutcomeWords, capabilityStatus, changedConfigFields, channelFor, checkedWords, citationRoute, citationsToShow, cleanAnswer, cleanDisplayName, cleanDraft, cleanParam, cleanTimezone, clockInZone, clockLabel, closedOn, companyTypeOf, compareTemplates, composeSystemPrompt, connectionRows, connectionWords, consentFormVM, consentPageVM, consentSourceLabel, contactMeta, contactName, coversSpan, dailyLimit, dayDate, dayFromQuestion, dayInZone, dayIntervals, dayWords, dedupeFeed, defaultParamSpecs, defaultSlotKinds, defaultTemplate, deltaOf, describeNow, describeOpenings, describeSettingsChange, describeVisits, detectLanguage, deviceTimezone, draftSendsAtMs, durationLabel, eligibleFor, eligibleForPlaybook, emptyAudienceRefusal, emptyBusinessRecord, emptyReadSet, err, eventText, exampleParams, extractContacts, factConflicts, fastPath, feedSourceLabel, filterOpenings, firstNameOf, fmtClock, fmtDay, fmtSeconds, followupsToShow, formatPhoneDisplay, formatWaited, forwardingCodes, forwardingMatch, forwardingTestOpen, frameOf, frameSteer, frameWhisper, freeWindows, gainedOver, googleAudienceWords, groundCitations, guessName, guessSlotKind, handoffE164, hasProfile, hoursLines, hoursRuns, identityWords, indexFeed, industryOf, industryWords, initialsOf, isCarrier, isDayKey, isForwardingMode, isHeldDraft, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, isSidebarPref, isThemePref, isTimezone, isTypingTarget, isUngrounded, knownTimezones, lineRetryRefusal, lineStuckProvisioning, listingLine, localDate, localHour, localToUtcMs, matchPerson, matchService, mayMessageFor, mayReceive, maySpend, mediaKind, mediaVM, memberWords, messageAt, messageStatusLabel, messageText, mondayOf, moneyWords, monthLabelOf, monthSpan, navigateLabel, newReceptionistDefaults, nextRunLabel, normalizeNavigate, normalizePhone, numberHealth, offersYesRefusal, ok, optInLink, optInPurposeOf, overLimitRefusal, paramLabel, parseAskFinish, parseBrainOutput, parseIcs, parseParamSpec, parseTenantConfig, parseTenantConfigResult, partialAnswer, pausedVoiceFacts, pendingWorkspaceOf, peopleAggregates, peopleFromItems, peopleListAction, personInText, personInitials, personName, personStanding, personStateFor, placeholdersOf, placeholdersSequential, planBilling, planRun, platformActionWarning, platformLineActions, platformNumber, platformRows, platformSummary, pointsDelta, policyAskClass, policyClassOfIntent, policyRules, priceWords, purposeOfPlaybook, purposeOfTemplate, quantile, ratingWords, reachedCustomer, readAgoLabel, reasonShort, recencyCells, receptionistOn, recoverCitations, registrationPathOf, registrationPreflight, renderTemplate, replyDelayMs, replyWhy, replyWindow, resolveFacts, resolveParams, resolveSystemPrompt, resolveTheme, reviewIsNew, reviewReplyModeOf, reviewReplyPrompt, reviewReplyWords, reviewSnippet, reviewsWords, rulesLine, runDueNow, safeNavigate, sameAddress, sameName, samePhone, sameQuestion, scheduleLine, scopeFromRoute, sendFailureIsOurs, serverNotificationRows, setupRoute, setupSteps, shellStatusLine, shiftKey, shiftMonth, shortCode, shortTime, shortcutGroups, shouldLandOnSetup, signupNext, signupPosture, slotLabels, slugTemplateName, smsConsentSentence, smsStateRow, soleProprietorLimits, spanForView, spanLabel, spanUnits, standingOf, starsOf, starterByKey, starterByName, starterDraft, starterForTrigger, starterIndex, starterPreview, starterText, telHref, templateComponents, templateNameOk, templateTitle, tenantStatusFor, textingWords, threadStanding, tidyCallSummary, timezoneCity, timezoneWords, toBillingVM, toBookingReportVM, toBroadcastVM, toCalendarVM, toCallVM, toCampaignReportVM, toChannelVM, toConversationVM, toGoogleReviewVM, toGoogleVM, toInboxThreadVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, toVisitDto, todayAway, todayDay, todayDayFacts, todayJourney, todayWeek, trialOffer, trialWords, triggerOf, tzClock, usableDeviceTimezone, validateTemplateDraft, verbForRoute, violatesNoPrices, visitDateKey, visitDay, visitFactsFor, visitLine, visitStartTime, visitTime, visitsIn, visitsOf, waWindow, waitedLabel, whenLabel, whisperText, whyCannotSpend, whyNotAHandoff, whyNotAPhone, windowFor, workspaceHotkey, zoneMidnight, zoneOffsetMs };

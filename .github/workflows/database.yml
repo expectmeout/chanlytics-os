@@ -29,11 +29,13 @@ jobs:
       # A migration that changed one without regenerating fails here, and the
       # compiler then names every copy the change left behind.
       - run: node tooling/scripts/gen-schema-sets.mjs --check
-      # The local stack's service key is the published demo key, not a secret.
+      # The local stack's service and anon keys are the published demo keys, not
+      # secrets. The anon key is what the RLS suites sign real sessions in with.
       - name: Point the suite at the local database
         run: |
           echo "SUPABASE_URL=http://127.0.0.1:54321" >> "$GITHUB_ENV"
           echo "SUPABASE_SERVICE_ROLE_KEY=$(supabase status -o env | sed -n 's/^SERVICE_ROLE_KEY="\(.*\)"$/\1/p')" >> "$GITHUB_ENV"
+          echo "SUPABASE_ANON_KEY=$(supabase status -o env | sed -n 's/^ANON_KEY="\(.*\)"$/\1/p')" >> "$GITHUB_ENV"
       - run: pnpm test:db
       - if: always()
         run: supabase stop --no-backup

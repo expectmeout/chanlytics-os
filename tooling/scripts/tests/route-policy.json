@@ -95,6 +95,20 @@
       "rate": "billing",
       "spend": false
     },
+    "POST capabilities/[kind]": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
+    "DELETE capabilities/[kind]": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
     "PUT contacts/[id]/consent": {
       "kind": "write",
       "scope": "row",

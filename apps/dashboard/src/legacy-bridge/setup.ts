@@ -23,6 +23,8 @@ export interface SetupApi {
   later(id: string, on: boolean): void;
   /** Ask a person at Chanlytics for something the product cannot provision yet. */
   request(what: "line"): Promise<{ ok: boolean; already: boolean; message: string }>;
+  /** The owner switches a tested capability on: a record, not a claim. Owners only; the route says so. */
+  activate(kind: string): Promise<{ ok: boolean; message: string }>;
   /** The product's own line: numbers to choose from, the one chosen, a retry. Owners only; the route says so. */
   lines: {
     search(areaCode: string): Promise<{ ok: boolean; numbers: LineChoice[]; message: string }>;
@@ -131,6 +133,11 @@ export function installSetup(win: Window = window): void {
         publish(s.dto, s.role);
         win.dispatchEvent(new CustomEvent("surface:setup"));
       }
+    },
+    async activate(kind) {
+      const r = await post<{ capability?: string }>(`/api/v1/capabilities/${encodeURIComponent(kind)}`, {});
+      if (r.ok) await refreshSurfaces([setupOverride]);
+      return { ok: r.ok, message: r.message };
     },
     lines: {
       async search(areaCode) {

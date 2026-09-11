@@ -20,6 +20,7 @@ import type {
   ESCALATION_REASONS, ESCALATION_STATES, JOB_KINDS, JOB_STATES, MEMBERSHIP_ROLES, MESSAGE_CHANNELS,
   MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, TEMPLATE_STATUSES, TENANT_STATUSES,
 } from "./enums";
+import type { CAPABILITY_KINDS } from "./capabilities";
 import type { BUSINESS_TYPES, COMPANY_TYPES } from "./a2p-enums";
 import type { BILLING_MODES, BILLING_STATUSES } from "./billing";
 import type { BROADCAST_STATES, RECIPIENT_STATES } from "./broadcasts";
@@ -50,6 +51,7 @@ export type SchemaAgreement = [
 
   // Channels and the people on them.
   Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"tenant_channels.kind">>>,
+  Holds<Exactly<Of<typeof CAPABILITY_KINDS>, SchemaSet<"capability_activations.capability">>>,
   Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"contact_identities.channel">>>,
   Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"templates.channel">>>,
   Holds<Exactly<Of<typeof CONSENT_STATES>, SchemaSet<"contacts.consent">>>,

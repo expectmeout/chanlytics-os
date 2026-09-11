@@ -604,6 +604,41 @@ type Database = {
                     }
                 ];
             };
+            capability_activations: {
+                Row: {
+                    activated_at: string;
+                    activated_by: string | null;
+                    capability: string;
+                    deactivated_at: string | null;
+                    note: string | null;
+                    tenant_id: string;
+                };
+                Insert: {
+                    activated_at?: string;
+                    activated_by?: string | null;
+                    capability: string;
+                    deactivated_at?: string | null;
+                    note?: string | null;
+                    tenant_id: string;
+                };
+                Update: {
+                    activated_at?: string;
+                    activated_by?: string | null;
+                    capability?: string;
+                    deactivated_at?: string | null;
+                    note?: string | null;
+                    tenant_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "capability_activations_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             contact_identities: {
                 Row: {
                     channel: string;
