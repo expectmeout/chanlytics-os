@@ -16,6 +16,7 @@ export type { GatewayEvent } from "./sse";
 
 /** The edge deployment, as service.ts names it for steer and whisper. */
 import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
+import { deployment } from "../deployment";
 
 export interface GatewayCall {
   tenantId: string;
@@ -53,7 +54,7 @@ export class GatewayRefused extends Error {
  * stream starts, a broken connection surfaces as an "error" event.
  */
 export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEvent> {
-  if (process.env.VERCEL_ENV !== "production") throw new GatewayRefused({ kind: "preview" });
+  if (!deployment.providersLive) throw new GatewayRefused({ kind: "preview" });
   if (!edgeConfigured()) throw new GatewayRefused({ kind: "no_key" });
   let res: Response;
   try {

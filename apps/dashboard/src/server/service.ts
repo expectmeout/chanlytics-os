@@ -1,4 +1,5 @@
 import "server-only";
+import { deployment } from "./deployment";
 
 /**
  * Service-role territory (Blueprint §8): jobs scheduling and the pre-Gate-1b
@@ -121,7 +122,7 @@ export async function mirrorBlobPause(
   // must never reach into the real Blob store — and neither may a laptop.
   // The guard used to fire only when VERCEL_ENV was SET, so plain local dev,
   // where it is unset, mirrored pauses into the live store (review F42).
-  if (process.env.VERCEL_ENV !== "production") return;
+  if (!deployment.providersLive) return;
   const r = await fetch(`${EDGE_BASE}/api/admin/pause`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
@@ -148,7 +149,7 @@ export async function whisperLiveCall(
   text: string,
   trigger: boolean,
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
-  if (process.env.VERCEL_ENV !== "production") return { ok: false, reason: "preview" };
+  if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await fetch(`${EDGE_BASE}/api/admin/whisper`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
@@ -166,7 +167,7 @@ export async function whisperLiveCall(
  * Production only, never throws: a failure here is logged, not surfaced.
  */
 export async function tellPlatformOfSetupRequest(tenantId: string, what: string, by: string | null): Promise<boolean> {
-  if (process.env.VERCEL_ENV !== "production" || !process.env.DIAG_KEY) return false;
+  if (!deployment.providersLive || !process.env.DIAG_KEY) return false;
   try {
     const r = await fetch(`${EDGE_BASE}/api/admin/setup-request`, {
       method: "POST",
@@ -191,7 +192,7 @@ export async function steerDraft(
   messageId: string,
   text: string,
 ): Promise<{ ok: true; messageId: string; text: string } | { ok: false; reason: string }> {
-  if (process.env.VERCEL_ENV !== "production") return { ok: false, reason: "preview" };
+  if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await fetch(`${EDGE_BASE}/api/admin/steer`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
@@ -528,7 +529,7 @@ export interface SignupConfig {
 
 /** What the browser needs to start Embedded Signup; honest about what is missing. */
 export async function whatsappSignupConfig(): Promise<SignupConfig> {
-  if (process.env.VERCEL_ENV !== "production") return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: "preview" };
+  if (!deployment.providersLive) return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: "preview" };
   try {
     const r = await fetch(`${EDGE_BASE}/api/admin/whatsapp/signup-config`, { headers: { "x-diag-key": process.env.DIAG_KEY! }, cache: "no-store" });
     const j = (await r.json().catch(() => null)) as (SignupConfig & { ok?: boolean }) | null;
@@ -549,7 +550,7 @@ export async function connectWhatsApp(
   userId: string,
   body: { code: string; phone_number_id: string; waba_id: string },
 ): Promise<ConnectOutcome> {
-  if (process.env.VERCEL_ENV !== "production") return { ok: false, reason: "preview" };
+  if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await fetch(`${EDGE_BASE}/api/admin/whatsapp/connect`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
@@ -570,7 +571,7 @@ export type SyncOutcome =
 
 /** Every template of the workspace's WhatsApp account, upserted; a row Meta does not return is left as it was. */
 export async function syncTemplates(tenantId: string): Promise<SyncOutcome> {
-  if (process.env.VERCEL_ENV !== "production") return { ok: false, reason: "preview" };
+  if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await fetch(`${EDGE_BASE}/api/admin/whatsapp/templates-sync`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
@@ -592,7 +593,7 @@ export async function createTemplate(
   userId: string,
   t: { name: string; language: string; category: string; components: unknown[]; body: string; examples: string[]; labels?: string[] },
 ): Promise<TemplateCreateOutcome> {
-  if (process.env.VERCEL_ENV !== "production") return { ok: false, reason: "preview" };
+  if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await fetch(`${EDGE_BASE}/api/admin/whatsapp/templates-create`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
@@ -606,7 +607,7 @@ export async function createTemplate(
 export type TemplateDeleteOutcome = { ok: true; atMeta: boolean } | { ok: false; reason: string; detail?: string };
 
 export async function deleteTemplate(tenantId: string, templateId: string): Promise<TemplateDeleteOutcome> {
-  if (process.env.VERCEL_ENV !== "production") return { ok: false, reason: "preview" };
+  if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await fetch(`${EDGE_BASE}/api/admin/whatsapp/templates-delete`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
@@ -628,7 +629,7 @@ export type RunPlaybookOutcome =
  * now unless the class is set to never, one run per local day.
  */
 export async function runPlaybookNow(tenantId: string, playbookId: string, userId: string): Promise<RunPlaybookOutcome> {
-  if (process.env.VERCEL_ENV !== "production") return { ok: false, reason: "preview" };
+  if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await fetch(`${EDGE_BASE}/api/admin/playbooks-run`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },

@@ -84,7 +84,7 @@ test("the dashboard route: owner only, the settings rate bucket, the sign-up ids
   assert.ok(r.includes("number_taken: \"That number is already connected to another workspace.\""));
   assert.ok(r.includes("pin_required:"), "the PIN wall has its own words");
   const svc = readCode("apps/dashboard/src/server/service.ts");
-  assert.ok(svc.includes('if (process.env.VERCEL_ENV !== "production") return { ok: false, reason: "preview" };'), "a preview never connects a real number");
+  assert.ok(svc.includes('if (!deployment.providersLive) return { ok: false, reason: "preview" };'), "a preview never connects a real number");
   assert.ok(svc.includes("`${EDGE_BASE}/api/admin/whatsapp/connect`") && svc.includes("`${EDGE_BASE}/api/admin/whatsapp/signup-config`"));
   const sr = readCode("apps/dashboard/app/api/v1/channels/whatsapp/signup/route.ts");
   assert.ok(sr.includes('canConnect: member.role === "owner" && cfg.ready'));

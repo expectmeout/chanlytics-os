@@ -1,4 +1,5 @@
 import "server-only";
+import { deployment } from "./deployment";
 import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient, type Database } from "@chanlytics/db";
@@ -123,7 +124,7 @@ export async function joinWaitlist(input: { email: string; name?: string; source
  * for the first one and every one after. A failure is a shrug.
  */
 export async function notifyPlatformSignup(tenantId: string, email: string): Promise<void> {
-  if (!process.env.DIAG_KEY || process.env.VERCEL_ENV !== "production") return;
+  if (!process.env.DIAG_KEY || !deployment.providersLive) return;
   try {
     await fetch(`${EDGE_BASE}/api/admin/signup-notify`, {
       method: "POST",
