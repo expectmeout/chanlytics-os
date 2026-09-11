@@ -15,7 +15,7 @@ export { featureRejected, parseFrame } from "./sse";
 export type { GatewayEvent } from "./sse";
 
 /** The edge deployment, as service.ts names it for steer and whisper. */
-const EDGE_BASE = "https://chanlytics-messaging.vercel.app";
+import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
 
 export interface GatewayCall {
   tenantId: string;
@@ -54,12 +54,12 @@ export class GatewayRefused extends Error {
  */
 export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEvent> {
   if (process.env.VERCEL_ENV !== "production") throw new GatewayRefused({ kind: "preview" });
-  if (!process.env.DIAG_KEY) throw new GatewayRefused({ kind: "no_key" });
+  if (!edgeConfigured()) throw new GatewayRefused({ kind: "no_key" });
   let res: Response;
   try {
-    res = await fetch(`${EDGE_BASE}/api/admin/llm`, {
+    res = await fetch(`${edgeUrl()}/api/admin/llm`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY },
+      headers: edgeHeaders("/api/admin/llm", { workspace: call.tenantId, user: call.userId }),
       body: JSON.stringify({ tenant_id: call.tenantId, user_id: call.userId, purpose: "ask", request: call.request }),
       signal: call.signal,
     });

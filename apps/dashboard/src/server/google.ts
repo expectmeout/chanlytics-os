@@ -11,7 +11,7 @@ import type { Database } from "@chanlytics/db";
 import type { GoogleAudience, GoogleConnectionDto, GoogleDayDto, GoogleListingDto, GoogleReviewDto } from "@chanlytics/contracts";
 import type { EdgeAnswer } from "./lines";
 
-const EDGE_BASE = "https://chanlytics-messaging.vercel.app";
+import { edgeConfigured, edgeHeaders, edgeUrl } from "./edge";
 
 export const LISTING_COLUMNS = "place_id, name, address, maps_uri, business_status, rating, review_count, linked_at, checked_at, check_error";
 export const REVIEW_COLUMNS = "id, review_id, origin, rating, author, author_uri, author_photo_uri, body, language_code, published_at, reply_text, replied_at, maps_uri, first_seen_at";
@@ -55,11 +55,11 @@ export async function googleFor(db: SupabaseClient<Database>, tenantId: string):
 
 /** One call to the edge's google endpoint. Never throws: a failure is a status the caller reads. */
 export async function edgeGoogle(body: Record<string, unknown>, timeoutMs = 20_000): Promise<EdgeAnswer> {
-  if (!process.env.DIAG_KEY) return { status: 503, body: { ok: false, error: "no_diag_key" } };
+  if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
   try {
-    const r = await fetch(`${EDGE_BASE}/api/admin/google`, {
+    const r = await fetch(`${edgeUrl()}/api/admin/google`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY },
+      headers: edgeHeaders("/api/admin/google", { workspace: typeof body.tenant_id === "string" ? body.tenant_id : null }),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -114,7 +114,8 @@ export function forgetGoogleReadiness(): void {
 
 /** The secret that signs the OAuth state: the key the dashboard already shares with the edge. */
 export function stateSecret(): string | null {
-  return process.env.DIAG_KEY || null;
+  // Its own secret once set; the shared key until then, so nothing moves before it is.
+  return process.env.GOOGLE_OAUTH_STATE_SECRET || process.env.DIAG_KEY || null;
 }
 
 /** Where the browser lands after Google: Integrations, with the outcome in a word the card reads once. */

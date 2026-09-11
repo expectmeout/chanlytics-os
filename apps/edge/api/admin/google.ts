@@ -20,6 +20,7 @@
  * ops that need them say so, and the dashboard draws nothing it cannot do.
  */
 import { json } from "../../lib/http.js";
+import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { emitEvent } from "../../lib/workspace/db.js";
 import { PLACE_ID, cleanReply } from "../../lib/workspace/channels.js";
@@ -46,12 +47,14 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const config = { maxDuration: 60 };
 
 export async function POST(request: Request): Promise<Response> {
-  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
-    return json(403, { ok: false });
-  }
+  const auth = authorizeAdmin(request, "/api/admin/google");
+  if (!auth.ok) return auth.response;
   let body: Body = {};
   try { body = JSON.parse(await request.text()); } catch { /* validated below */ }
   const op = typeof body.op === "string" ? body.op : "";
+  const ws = workspaceFor(auth, body.tenant_id);
+  if (!ws.ok) return ws.response;
+  body.tenant_id = ws.tenantId ?? undefined;
 
   if (op === "status") return json(200, { ok: true, ready: googleReadiness(), profile: profilePublic() });
 

@@ -6958,12 +6958,48 @@ var GBP_REPLY_MAX = 4096;
 function cleanReply(text) {
   return typeof text === "string" ? text.replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/\n[ \t]+/g, "\n").trim().slice(0, GBP_REPLY_MAX) : "";
 }
+
+// src/edge-token.ts
+import { createHmac, randomBytes, timingSafeEqual } from "crypto";
+var EDGE_TOKEN_TTL_MS = 6e4;
+function signEdgeToken(secret, aud, ctx = {}, nowMs = Date.now()) {
+  const claims = {
+    aud,
+    ws: ctx.workspace ?? null,
+    user: ctx.user ?? null,
+    iat: nowMs,
+    exp: nowMs + EDGE_TOKEN_TTL_MS,
+    nonce: randomBytes(8).toString("hex")
+  };
+  const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
+  return `${payload}.${createHmac("sha256", secret).update(payload).digest("base64url")}`;
+}
+function verifyEdgeToken(secret, token, aud, nowMs = Date.now()) {
+  const dot = token.indexOf(".");
+  if (dot <= 0 || dot === token.length - 1) return { ok: false, reason: "malformed" };
+  const payload = token.slice(0, dot);
+  const given = Buffer.from(token.slice(dot + 1), "base64url");
+  const expected = createHmac("sha256", secret).update(payload).digest();
+  if (given.length !== expected.length || !timingSafeEqual(given, expected)) return { ok: false, reason: "signature" };
+  let claims;
+  try {
+    claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+  } catch {
+    return { ok: false, reason: "malformed" };
+  }
+  if (!claims || typeof claims !== "object" || typeof claims.aud !== "string") return { ok: false, reason: "malformed" };
+  if (claims.aud !== aud) return { ok: false, reason: "audience" };
+  if (typeof claims.iat !== "number" || typeof claims.exp !== "number") return { ok: false, reason: "malformed" };
+  if (nowMs > claims.exp || claims.iat > nowMs + EDGE_TOKEN_TTL_MS) return { ok: false, reason: "expired" };
+  return { ok: true, claims: { ...claims, ws: claims.ws ?? null, user: claims.user ?? null } };
+}
 export {
   A2P_POLICIES,
   A2P_STEPS,
   CALLER_UNKNOWN,
   CALL_ANALYSIS_FIELDS,
   DEFAULT_FN_URL,
+  EDGE_TOKEN_TTL_MS,
   EMPTY_A2P_STATE,
   FACTS_UNAVAILABLE,
   FRESH_SLACK_MS,
@@ -7101,6 +7137,7 @@ export {
   searchPlaces,
   sendTemplate,
   sendText,
+  signEdgeToken,
   signState,
   sipPassword,
   sipUsername,
@@ -7134,6 +7171,7 @@ export {
   updateEndUserRequest,
   updateLiveCall,
   updatePhoneNumber,
+  verifyEdgeToken,
   verifyRetellSignature,
   verifyState,
   verifyTwilioSignature,

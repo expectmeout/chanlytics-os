@@ -277,7 +277,7 @@ test("the loop: read tools plus finish, tool_choice any then finish forced on th
 
 test("the gateway: the key stays on the edge, Ask's tokens have their own event kind and their own cap, the stream is forwarded and metered", () => {
   const g = readCode("apps/edge/api/admin/llm.ts");
-  assert.ok(g.includes('request.headers.get("x-diag-key") !== process.env.DIAG_KEY'));
+  assert.ok(g.includes('authorizeAdmin(request, "/api/admin/llm")'));
   assert.ok(g.includes('body.purpose !== "ask"'));
   assert.ok(g.includes("if (used >= ASK_TOKENS_DAY) {") && g.includes('error: "ask_budget"'));
   assert.ok(g.includes('body: JSON.stringify({ ...v.request, stream: true }),'));
@@ -288,7 +288,7 @@ test("the gateway: the key stays on the edge, Ask's tokens have their own event 
   assert.ok(budget.includes('.eq("kind", "usage.llm_tokens")') && !budget.includes("ask_tokens"), "the receptionist's budget never counts Ask");
   assert.equal(ASK_TOKENS_DAY, 1_500_000, "sized for a workspace's day with the snapshot in every round; 400k was spent by one day of eval runs");
   const dash = readCode("apps/dashboard/src/server/ask/gateway.ts");
-  assert.ok(dash.includes('"x-diag-key": process.env.DIAG_KEY'));
+  assert.ok(dash.includes('edgeHeaders("/api/admin/llm", { workspace: call.tenantId, user: call.userId })'));
   assert.ok(!readCode("apps/dashboard/src/server/ask/loop.ts").includes("ANTHROPIC_API_KEY"), "no model key on the dashboard");
   const vercel = readRaw("apps/edge/vercel.json");
   assert.ok(vercel.includes('"api/admin/llm.ts"'), "the gateway has the minute the turn may need");

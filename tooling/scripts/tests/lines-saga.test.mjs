@@ -284,7 +284,7 @@ test("the SIP credential meets Twilio's rule; the trunk domain and username come
 
 test("wiring: the edge endpoint, its ports, the receptionist shared with voice-provision, the migration, the manifest, the events", () => {
   const edge = readCode("apps/edge/api/admin/lines.ts");
-  assert.ok(edge.includes('request.headers.get("x-diag-key") !== process.env.DIAG_KEY'));
+  assert.ok(edge.includes('authorizeAdmin(request, "/api/admin/lines")'));
   for (const op of ['op === "status"', 'op === "search"', 'op === "buy"', 'op === "retry" || op === "release"']) assert.ok(edge.includes(op), op);
   assert.ok(edge.includes("const choice = lineProviderFromEnv();"));
   // The saga and everything it has to tell people moved to lib/provision.ts, because

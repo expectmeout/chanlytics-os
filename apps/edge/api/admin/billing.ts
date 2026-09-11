@@ -14,6 +14,7 @@
  * nothing it cannot do.
  */
 import { json } from "../../lib/http.js";
+import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { billingReadiness, checkoutFor, invoicesFor, portalFor, priceForClient, resumeFor, syncFor, trialDays } from "../../lib/billing.js";
 
@@ -30,12 +31,14 @@ export const config = { maxDuration: 30 };
 const STATUS_OF: Record<string, number> = { not_ready: 503, no_account: 404, direct: 409, already_subscribed: 409, no_customer: 409, no_subscription: 409, not_paused: 409, stripe_refused: 502 };
 
 export async function POST(request: Request): Promise<Response> {
-  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
-    return json(403, { ok: false });
-  }
+  const auth = authorizeAdmin(request, "/api/admin/billing");
+  if (!auth.ok) return auth.response;
   let body: Body = {};
   try { body = JSON.parse(await request.text()); } catch { /* validated below */ }
   const op = typeof body.op === "string" ? body.op : "";
+  const ws = workspaceFor(auth, body.tenant_id);
+  if (!ws.ok) return ws.response;
+  body.tenant_id = ws.tenantId ?? undefined;
 
   if (op === "status") {
     const ready = billingReadiness();

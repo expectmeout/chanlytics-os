@@ -790,153 +790,28 @@ Commit: `The money, team and consent routes declare their policy: scope, role, r
 
 ### Task 6: The two runtimes trust a signed per-call token, not one shared key
 
-Twenty edge doors compare `x-diag-key` with `!==`; the same key signs Google OAuth state; the edge's address is a literal in five dashboard files. This task adds the token (signed with its own secret, bound to one door, one workspace and one minute), a timing-safe key fallback while the secret is being rolled out, `EDGE_URL`, and a separate OAuth state secret. Four doors and their four callers move in this PR: lines, billing, google, llm. The rest follow in 2B, mechanically.
+Twenty edge doors compared `x-diag-key` with `!==`; the same key signed Google OAuth state; the edge's address was a literal in five dashboard files. This task adds the token (signed with its own secret, bound to one door, one workspace, one person and one minute), a constant-time key fallback while the secret is rolled out, `EDGE_URL`, and a separate OAuth state secret. Four doors and their four callers move in this PR: lines, billing, google, llm. The other sixteen follow in 2B, mechanically.
 
 **Files:**
-- Create: `packages/channels/src/edge-token.ts` (+ `export * from "./edge-token";` in `packages/channels/src/index.ts`)
-- Create: `apps/edge/lib/admin-auth.ts`, `apps/dashboard/src/server/edge.ts`
-- Modify: `apps/edge/api/admin/{lines,billing,google,llm}.ts`; `apps/dashboard/src/server/{lines,billing,google,ask/gateway}.ts`; `apps/dashboard/.env.example`, `apps/edge/.env.example`
-- Test: `tooling/scripts/tests/edge-token.test.mjs` (new, executed)
+- Create: `packages/channels/src/edge-token.ts` (`signEdgeToken`, `verifyEdgeToken`, `EDGE_TOKEN_TTL_MS`; exported from the package index)
+- Create: `apps/edge/lib/admin-auth.ts` (`authorizeAdmin(request, aud)`, `workspaceFor(auth, bodyTenant)`)
+- Create: `apps/dashboard/src/server/edge.ts` (`edgeUrl()`, `edgeConfigured()`, `edgeHeaders(aud, { workspace, user })`)
+- Modify: `apps/edge/api/admin/{lines,billing,google,llm}.ts`; `apps/dashboard/src/server/{lines,billing,google,ask/gateway}.ts`; both `.env.example` files
+- Test: `tooling/scripts/tests/edge-token.test.mjs` (new, executed; the pins on the migrated doors and clients move)
 
-- [ ] **Step 1: The token, pure (`packages/channels/src/edge-token.ts`)**
+- [ ] **Step 1: The token, pure**
 
-```ts
-/**
- * The token a dashboard call carries to an edge door.
- *
- * One shared key opened every door and never said who was calling for
- * which workspace. This is minted per call: bound to one door (aud), one
- * workspace and one user, valid for a minute, signed with a secret kept for
- * nothing else. The edge verifies it in constant time and reads the
- * workspace from the token, never from the body.
- */
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+A token is `base64url(JSON claims).base64url(HMAC-SHA256(secret, payload))`; the claims are `{ aud, ws, user, iat, exp, nonce }` with `exp = iat + 60 s`. `verifyEdgeToken(secret, token, aud, nowMs)` checks the signature first, in constant time, and only then parses: `malformed`, `signature`, `audience`, `expired` (past `exp`, or an `iat` more than one TTL in the future) are each their own refusal.
 
-export const EDGE_TOKEN_TTL_MS = 60_000;
+- [ ] **Step 2: The edge's door**
 
-export interface EdgeClaims { aud: string; ws: string | null; user: string | null; iat: number; exp: number; nonce: string }
+`authorizeAdmin(request, aud)`: when the edge holds `EDGE_CALL_SECRET` and a token is presented, the token must verify (no falling back from a bad token to the key); when the edge holds no secret, a token is ignored and the key decides, so the dashboard may be given the secret before or after the edge; with no token, the key decides, compared in constant time. `workspaceFor(auth, body.tenant_id)`: the token's workspace is believed over the body, and a body naming another workspace is refused with `workspace_mismatch`; a key-authorised caller's body still names it. The four doors call both (llm's before it reads `tenant_id`; google's only where it reads an `op`).
 
-export function signEdgeToken(secret: string, aud: string, ctx: { workspace?: string | null; user?: string | null } = {}, nowMs = Date.now()): string {
-  const claims: EdgeClaims = { aud, ws: ctx.workspace ?? null, user: ctx.user ?? null, iat: nowMs, exp: nowMs + EDGE_TOKEN_TTL_MS, nonce: randomBytes(8).toString("hex") };
-  const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
-  return `${payload}.${createHmac("sha256", secret).update(payload).digest("base64url")}`;
-}
+- [ ] **Step 3: The dashboard's side**
 
-export type EdgeTokenVerdict = { ok: true; claims: EdgeClaims } | { ok: false; reason: "malformed" | "signature" | "audience" | "expired" };
+`edgeUrl()` is `EDGE_URL` with the old literal as its default; `edgeHeaders(aud, ctx)` carries `x-edge-token` when `EDGE_CALL_SECRET` is set and `x-diag-key` while `DIAG_KEY` is; `edgeConfigured()` is either. `edgeLines`, `edgeBilling`, `edgeGoogle` pass the body's `tenant_id` as the token's workspace; `streamModel` passes the call's workspace and user. `stateSecret()` returns `GOOGLE_OAUTH_STATE_SECRET || DIAG_KEY`.
 
-export function verifyEdgeToken(secret: string, token: string, aud: string, nowMs = Date.now()): EdgeTokenVerdict {
-  const [payload, sig] = token.split(".");
-  if (!payload || !sig) return { ok: false, reason: "malformed" };
-  const expected = createHmac("sha256", secret).update(payload).digest();
-  const given = Buffer.from(sig, "base64url");
-  if (given.length !== expected.length || !timingSafeEqual(given, expected)) return { ok: false, reason: "signature" };
-  let claims: EdgeClaims;
-  try { claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as EdgeClaims; } catch { return { ok: false, reason: "malformed" }; }
-  if (claims.aud !== aud) return { ok: false, reason: "audience" };
-  if (typeof claims.exp !== "number" || nowMs > claims.exp || nowMs < claims.iat - EDGE_TOKEN_TTL_MS) return { ok: false, reason: "expired" };
-  return { ok: true, claims };
-}
-```
-
-- [ ] **Step 2: The failing test (`edge-token.test.mjs`)**
-
-```js
-import { test } from "node:test";
-import assert from "node:assert/strict";
-import { signEdgeToken, verifyEdgeToken, EDGE_TOKEN_TTL_MS } from "@chanlytics/channels";
-const S = "a-secret-kept-for-nothing-else", T0 = 1_760_000_000_000;
-test("a token opens the door it was minted for, names the workspace and the person, and nothing else", () => {
-  const t = signEdgeToken(S, "/api/admin/lines", { workspace: "ws1", user: "u1" }, T0);
-  const v = verifyEdgeToken(S, t, "/api/admin/lines", T0 + 1000);
-  assert.equal(v.ok, true); assert.equal(v.claims.ws, "ws1"); assert.equal(v.claims.user, "u1");
-  assert.deepEqual(verifyEdgeToken(S, t, "/api/admin/billing", T0 + 1000), { ok: false, reason: "audience" });
-  assert.deepEqual(verifyEdgeToken(S, t, "/api/admin/lines", T0 + EDGE_TOKEN_TTL_MS + 1), { ok: false, reason: "expired" });
-  assert.deepEqual(verifyEdgeToken("another", t, "/api/admin/lines", T0), { ok: false, reason: "signature" });
-  const [p] = t.split("."); assert.deepEqual(verifyEdgeToken(S, `${p}.AAAA`, "/api/admin/lines", T0), { ok: false, reason: "signature" });
-  assert.deepEqual(verifyEdgeToken(S, "nonsense", "/api/admin/lines", T0), { ok: false, reason: "malformed" });
-});
-```
-
-- [ ] **Step 3: The edge's door helper (`apps/edge/lib/admin-auth.ts`)**
-
-```ts
-/**
- * Who may open an admin door. A dashboard call carries a token minted for
- * this door (see packages/channels edge-token); while the secret is being
- * rolled out, the shared key still opens it, compared in constant time. A
- * token that is present must verify: there is no falling back from a bad
- * token to the key.
- */
-import crypto from "node:crypto";
-import { json } from "./http.js";
-import { verifyEdgeToken } from "./workspace/channels.js";
-
-export type AdminAuth =
-  | { ok: true; via: "token" | "key"; workspace: string | null; user: string | null }
-  | { ok: false; response: Response };
-
-export function authorizeAdmin(request: Request, aud: string): AdminAuth {
-  const token = request.headers.get("x-edge-token");
-  if (token) {
-    const secret = process.env.EDGE_CALL_SECRET;
-    if (!secret) return { ok: false, response: json(503, { ok: false, error: "no_edge_secret" }) };
-    const v = verifyEdgeToken(secret, token, aud);
-    if (!v.ok) return { ok: false, response: json(403, { ok: false, error: `token_${v.reason}` }) };
-    return { ok: true, via: "token", workspace: v.claims.ws, user: v.claims.user };
-  }
-  const key = process.env.DIAG_KEY || "";
-  const presented = request.headers.get("x-diag-key") || "";
-  const a = Buffer.from(presented);
-  const b = Buffer.from(key);
-  if (!key || !presented || a.length !== b.length || !crypto.timingSafeEqual(a, b)) return { ok: false, response: json(403, { ok: false }) };
-  return { ok: true, via: "key", workspace: null, user: null };
-}
-
-/** The workspace a door acts on: the token's when it carries one; a body's only from a key-authorised caller. A body that names another workspace than the token is refused. */
-export function workspaceFor(auth: Extract<AdminAuth, { ok: true }>, bodyTenant: unknown): { ok: true; tenantId: string | null } | { ok: false; response: Response } {
-  const fromBody = typeof bodyTenant === "string" ? bodyTenant : null;
-  if (auth.workspace && fromBody && fromBody !== auth.workspace) return { ok: false, response: json(403, { ok: false, error: "workspace_mismatch" }) };
-  return { ok: true, tenantId: auth.workspace ?? fromBody };
-}
-```
-
-In each of `admin/lines.ts`, `admin/billing.ts`, `admin/google.ts`, `admin/llm.ts` replace
-
-```ts
-  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
-    return json(403, { ok: false });
-  }
-```
-
-with `const auth = authorizeAdmin(request, "/api/admin/<door>"); if (!auth.ok) return auth.response;` (the door's own path as `aud`), importing `authorizeAdmin, workspaceFor` from `../../lib/admin-auth.js`. In `lines.ts` and `billing.ts`, right after `const op = typeof body.op === "string" ? body.op : "";` add `const ws = workspaceFor(auth, body.tenant_id); if (!ws.ok) return ws.response; body.tenant_id = ws.tenantId ?? undefined;` so every later read of `body.tenant_id` is the token's.
-
-- [ ] **Step 4: The dashboard's helper (`apps/dashboard/src/server/edge.ts`) and the four callers**
-
-```ts
-import "server-only";
-import { signEdgeToken } from "@chanlytics/channels";
-
-/** Where the edge lives: one variable, the old literal as its default so nothing moves until it is set. */
-export function edgeUrl(): string {
-  return (process.env.EDGE_URL || "https://chanlytics-messaging.vercel.app").replace(/\/$/, "");
-}
-
-/** The headers a call to an edge door carries: a token minted for that door when the secret exists, and the shared key while it still does. */
-export function edgeHeaders(aud: string, ctx: { workspace?: string | null; user?: string | null } = {}): Record<string, string> {
-  const h: Record<string, string> = { "content-type": "application/json" };
-  const secret = process.env.EDGE_CALL_SECRET;
-  if (secret) h["x-edge-token"] = signEdgeToken(secret, aud, ctx);
-  if (process.env.DIAG_KEY) h["x-diag-key"] = process.env.DIAG_KEY;
-  return h;
-}
-export const edgeConfigured = (): boolean => !!(process.env.EDGE_CALL_SECRET || process.env.DIAG_KEY);
-```
-
-`lines.ts`, `billing.ts`, `google.ts`: delete the `EDGE_BASE` constant; the guard becomes `if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };`; the fetch becomes `fetch(`${edgeUrl()}/api/admin/lines`, { method: "POST", headers: edgeHeaders("/api/admin/lines", { workspace: typeof body.tenant_id === "string" ? body.tenant_id : null }), body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs) })` (billing and google with their own paths). `ask/gateway.ts`: the same with `edgeHeaders("/api/admin/llm", { workspace: call.tenantId, user: call.userId })`, and `GatewayRefused({ kind: "no_key" })` when `!edgeConfigured()`. `google.ts`'s `stateSecret()` becomes `return process.env.GOOGLE_OAUTH_STATE_SECRET || process.env.DIAG_KEY || null;`.
-
-`.env.example` (dashboard) gains `EDGE_URL=`, `EDGE_CALL_SECRET=`, `GOOGLE_OAUTH_STATE_SECRET=`; (edge) gains `EDGE_CALL_SECRET=`. The env manifest test pins these.
-
-- [ ] **Step 5: Build channels (and every consumer), run the token test, typecheck, full suite, commit, PR, merge when green.** Behaviour is unchanged until the secrets exist. **Ruben's half:** `openssl rand -base64 32` once; add it as `EDGE_CALL_SECRET` on BOTH Vercel projects (Production only), and a second value as `GOOGLE_OAUTH_STATE_SECRET` on the dashboard. From then on the four doors are opened by tokens; a follow-up PR in 2B removes the key path.
+- [ ] **Step 4: Build channels, run the token test, typecheck, full suite, commit, PR, merge when green.** Behaviour is unchanged until the secrets exist. **Ruben's half:** `openssl rand -base64 32` once, as `EDGE_CALL_SECRET` on BOTH Vercel projects (Production), in either order; a second value as `GOOGLE_OAUTH_STATE_SECRET` on the dashboard. 2B moves the remaining doors and then removes the key path.
 
 ---
 
