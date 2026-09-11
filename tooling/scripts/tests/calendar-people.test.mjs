@@ -480,7 +480,7 @@ test("the list page: Next visit takes the receptionist's column with a calendar,
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes("action: peopleListAction(l.id, members)") && sd.includes("groups: PEOPLE_LIST_GROUPS.map("));
   assert.ok(sd.includes('(!l.needsCalendar || people.calendar?.state === "ok")'), "a calendar list is an audience only with a calendar");
-  assert.ok(readCode("apps/dashboard/app/api/v1/broadcasts/route.ts").includes("withVisits(ctx, tenantId, await listPeople(ctx, tenantId), now)"), "the enrol path counts what the page counted");
+  assert.ok(readCode("apps/dashboard/src/server/campaign-ports.ts").includes("withVisits(ctx, tenantId, await listPeople(ctx, tenantId), now)"), "the enrol path counts what the page counted");
 });
 
 test("asked means they reached out: the call they placed counts, a call the owner made does not", async () => {

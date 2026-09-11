@@ -96,11 +96,7 @@ test("a run that waits for a person is open, never sent by the job, approved thr
   assert.equal(vm.stateLabel, "Needs you");
   const h = readCode("packages/core/src/messages/broadcast.ts");
   assert.ok(h.includes('if (b.state !== "scheduled" && b.state !== "sending") return;'), "only a scheduled or sending broadcast goes out");
-  const a = readCode("apps/dashboard/app/api/v1/broadcasts/[id]/approve/route.ts");
-  assert.ok(a.includes('if (b.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);'));
-  assert.ok(a.includes('await schedule(b.tenant_id, "broadcast_send", now, { broadcast_id: id });') && a.includes('"send_broadcast", {'), "approving schedules the send and records the approver's decision");
-  const c = readCode("apps/dashboard/app/api/v1/broadcasts/[id]/cancel/route.ts");
-  assert.ok(c.includes('} else if (b.state !== "sending" && b.state !== "pending_approval") {'), "skip is the cancel of a waiting run");
+  // Approve and skip are run: core-campaigns.test.mjs.
   assert.ok(readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx").includes('data-testid="bc-approve"'));
   assert.ok(DECISION_VERBS.includes("start_playbook") && DECISION_VERBS.includes("pause_playbook") && DECISION_SUBJECTS.includes("playbook"));
 });
@@ -140,8 +136,7 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
   assert.ok(run.includes("runPlaybookNow(p.tenant_id, id, ctx.userId)") && run.includes("never: "), "run now says why nothing ran");
   const svc = readCode("apps/dashboard/src/server/service.ts");
   assert.ok(svc.includes("/api/admin/playbooks-run") && svc.includes("export async function runPlaybookNow("), "through the edge, production only");
-  const check = readCode("apps/dashboard/src/server/playbooks.ts");
-  assert.ok(check.includes('if (tpl.meta_status !== "approved") throw new AppError("conflict"') && check.includes("This message takes the booking link, and none is on file."), "checked the way a broadcast is");
+  // The check is run: core-campaigns.test.mjs.
   const queue = readCode("apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
   assert.ok(queue.includes('testid="brief-run-row"') && queue.includes('r.state === "pending_approval"'), "Today's queue shows a run that waits, from the surface it already has");
   const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");

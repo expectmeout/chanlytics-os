@@ -35,7 +35,7 @@ test("F44: the session role updates exactly the columns the verbs set, and nothi
     escalations: ["state", "resolved_by_user_id", "decision_id"],
   };
   const files = [
-    "apps/dashboard/src/server/core-ports.ts", "apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts",
+    "apps/dashboard/src/server/core-ports.ts", "apps/dashboard/src/server/campaign-ports.ts", "apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts",
     "apps/dashboard/src/server/verbs.ts",
   ];
   for (const rel of files) {

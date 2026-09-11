@@ -9227,8 +9227,174 @@ var WHEN3 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" 
 var SERVICE2 = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES2 = { ...WHEN3, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES2 = { ...SERVICE2, label: "Servicio", example: "una consulta" };
+var STOP_EN = "Reply STOP to opt out";
+var STOP_ES = "Responde STOP para darte de baja";
+var STARTER_TEMPLATES = [
+  {
+    key: "winback_offer",
+    name: "winback_offer",
+    title: "Win-back",
+    purpose: "for anyone quiet 30 days",
+    category: "marketing",
+    trigger: "quiet_30",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, it's been a while since we last saw you at {{2}}. We'd love to have you back \u2014 pick a time that suits you here: {{3}} and we'll take care of the rest.",
+        footer: STOP_EN,
+        slots: [FIRST2, BUSINESS2, LINK2]
+      },
+      es: {
+        body: "Hola {{1}}, hace tiempo que no te vemos en {{2}}. Nos encantar\xEDa volver a atenderte \u2014 elige la hora que mejor te venga aqu\xED: {{3}} y nosotros nos ocupamos del resto.",
+        footer: STOP_ES,
+        slots: [FIRST_ES2, BUSINESS_ES2, LINK_ES2]
+      }
+    }
+  },
+  {
+    key: "welcome_new",
+    name: "welcome_new",
+    title: "Welcome",
+    purpose: "for anyone new this week",
+    category: "marketing",
+    trigger: "new_week",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, welcome to {{2}}! This is our WhatsApp \u2014 message us here any time to book, move or ask about an appointment. Book whenever you're ready: {{3}} and we'll take it from there.",
+        footer: STOP_EN,
+        slots: [FIRST2, BUSINESS2, LINK2]
+      },
+      es: {
+        body: "Hola {{1}}, \xA1bienvenido/a a {{2}}! Este es nuestro WhatsApp \u2014 escr\xEDbenos aqu\xED cuando quieras para reservar, cambiar o preguntar por una cita. Reserva cuando quieras: {{3}} y nosotros nos encargamos del resto.",
+        footer: STOP_ES,
+        slots: [FIRST_ES2, BUSINESS_ES2, LINK_ES2]
+      }
+    }
+  },
+  {
+    key: "save_our_number",
+    name: "save_our_number",
+    title: "Save our number",
+    purpose: "for anyone who only ever phoned",
+    category: "marketing",
+    trigger: "phoned_only",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thanks for calling {{2}}. Save this number \u2014 on WhatsApp you can book, reschedule or ask us anything in a message, and we answer fast. Book any time: {{3}} or just write to us here.",
+        footer: STOP_EN,
+        slots: [FIRST2, BUSINESS2, LINK2]
+      },
+      es: {
+        body: "Hola {{1}}, gracias por llamar a {{2}}. Guarda este n\xFAmero \u2014 por WhatsApp puedes reservar, cambiar tu cita o preguntarnos lo que quieras, y respondemos r\xE1pido. Reserva cuando quieras: {{3}} o escr\xEDbenos aqu\xED.",
+        footer: STOP_ES,
+        slots: [FIRST_ES2, BUSINESS_ES2, LINK_ES2]
+      }
+    }
+  },
+  {
+    key: "monthly_offer",
+    name: "monthly_offer",
+    title: "This month's offer",
+    purpose: "for everyone who said yes, once a month",
+    category: "marketing",
+    trigger: "everyone_monthly",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, this month at {{2}}: {{3}} Book here: {{4}} \u2014 spaces are limited.",
+        footer: STOP_EN,
+        slots: [FIRST2, BUSINESS2, { kind: "text", label: "The offer", example: "20% off any service booked before Friday." }, LINK2]
+      },
+      es: {
+        body: "Hola {{1}}, este mes en {{2}}: {{3}} Reserva aqu\xED: {{4}} \u2014 las plazas son limitadas.",
+        footer: STOP_ES,
+        slots: [FIRST_ES2, BUSINESS_ES2, { kind: "text", label: "La oferta", example: "20% de descuento en cualquier servicio reservado antes del viernes." }, LINK_ES2]
+      }
+    }
+  },
+  {
+    key: "visit_reminder",
+    name: "visit_reminder",
+    title: "Visit reminder",
+    purpose: "for the day before an appointment",
+    category: "utility",
+    trigger: "visit_tomorrow",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, it's {{2}}. A reminder of your appointment {{3}} for {{4}}. If you need to change it, just reply here.",
+        footer: null,
+        slots: [FIRST2, BUSINESS2, WHEN3, SERVICE2]
+      },
+      es: {
+        body: "Hola {{1}}, te escribimos de {{2}}. Te recordamos tu cita {{3}} para {{4}}. Si necesitas cambiarla, responde aqu\xED.",
+        footer: null,
+        slots: [FIRST_ES2, BUSINESS_ES2, WHEN_ES2, SERVICE_ES2]
+      }
+    }
+  },
+  {
+    key: "after_visit",
+    name: "after_visit",
+    title: "After the visit",
+    purpose: "for the day after a visit",
+    category: "marketing",
+    trigger: "visited",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thank you for coming to {{2}} yesterday \u2014 we hope you love the result. When you're ready for your next visit, pick a time here: {{3}}.",
+        footer: STOP_EN,
+        slots: [FIRST2, BUSINESS2, LINK2]
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}} \u2014 esperamos que te encante el resultado. Cuando quieras tu pr\xF3xima cita, elige la hora aqu\xED: {{3}}.",
+        footer: STOP_ES,
+        slots: [FIRST_ES2, BUSINESS_ES2, LINK_ES2]
+      }
+    }
+  },
+  {
+    key: "quick_note",
+    name: "quick_note",
+    title: "A quick note",
+    purpose: "for any broadcast: news, hours, a heads-up",
+    category: "marketing",
+    trigger: null,
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, a quick note from {{2}}: {{3}} Write back here if you have any questions.",
+        footer: STOP_EN,
+        slots: [FIRST2, BUSINESS2, { kind: "text", label: "The note", example: "we're open late on Thursdays this month." }]
+      },
+      es: {
+        body: "Hola {{1}}, una nota r\xE1pida de {{2}}: {{3}} Escr\xEDbenos aqu\xED si tienes alguna pregunta.",
+        footer: STOP_ES,
+        slots: [FIRST_ES2, BUSINESS_ES2, { kind: "text", label: "La nota", example: "este mes abrimos hasta tarde los jueves." }]
+      }
+    }
+  }
+];
+function starterByName(name) {
+  return STARTER_TEMPLATES.find((s) => s.name === name) ?? null;
+}
+function starterForTrigger(trigger) {
+  if (!trigger) return null;
+  return STARTER_TEMPLATES.find((s) => s.trigger === trigger) ?? null;
+}
+var TEMPLATE_TITLE_MAX = 60;
+function templateTitle(name, title) {
+  const given = typeof title === "string" ? title.replace(/\s+/g, " ").trim() : "";
+  if (given) return given.slice(0, TEMPLATE_TITLE_MAX);
+  const s = starterByName(name);
+  if (s) return s.title;
+  const words = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  return words ? words[0].toUpperCase() + words.slice(1) : String(name ?? "");
+}
 var BROADCAST_CHUNK = 25;
 var BROADCAST_GAP_MS = 300;
+var BROADCAST_MAX_RECIPIENTS = 2e3;
+var BROADCAST_PARAM_MAX = 1024;
+var BROADCAST_SCHEDULE_MAX_DAYS = 30;
+var BROADCAST_NAME_MAX = 80;
+var AUDIENCE_KINDS = ["everyone", "list", "saved"];
+var EVERYONE_LABEL = "Everyone who said yes";
 function eligibleFor(rows, kind, id, savedIds, purpose) {
   let pool = rows;
   if (kind === "list") {
@@ -9247,6 +9413,20 @@ function renderTemplate(body, params) {
     return typeof v === "string" && v !== "" ? v : m;
   });
 }
+function cleanParam(raw) {
+  if (typeof raw !== "string") return null;
+  const v = raw.trim();
+  if (!v || v.length > BROADCAST_PARAM_MAX) return null;
+  if (/[\n\r\t]/.test(v) || /\s{4,}/.test(v)) return null;
+  return v;
+}
+function broadcastName(templateName, now = /* @__PURE__ */ new Date(), title) {
+  const day = now.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return `${templateTitle(templateName, title)} \xB7 ${day}`.slice(0, BROADCAST_NAME_MAX);
+}
+function emptyAudienceRefusal(purpose) {
+  return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and QR on this page." : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and QR on this page.";
+}
 var LIMIT_TIERS2 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -9254,6 +9434,18 @@ var LIMIT_TIERS2 = {
   TIER_10K: 1e4,
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
+};
+function overLimitRefusal(h, audience) {
+  if (h.limitPerDay === null || audience <= h.limitPerDay) return null;
+  return `This number can start up to ${h.limitPerDay.toLocaleString("en-US")} new conversations a day; this audience is ${audience.toLocaleString("en-US")}. Send to a smaller list or split it.`;
+}
+var PARAM_SOURCE_LABELS = {
+  text: "Type it",
+  first_name: "Their first name",
+  business_name: "The business name",
+  booking_link: "The booking link",
+  visit_when: "Their visit's time",
+  visit_service: "Their visit's service"
 };
 function parseParamSpec(raw) {
   if (typeof raw === "string") {
@@ -9267,6 +9459,9 @@ function parseParamSpec(raw) {
     if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service") return { kind: o.kind };
   }
   return null;
+}
+function paramLabel(spec) {
+  return spec.kind === "text" ? spec.value : PARAM_SOURCE_LABELS[spec.kind].toLowerCase();
 }
 function firstNameOf(displayName, waProfileName) {
   const raw = (displayName || waProfileName || "").trim();
@@ -9301,8 +9496,11 @@ var PLAYBOOK_TRIGGERS = [
   { id: "visit_tomorrow", label: "Visit reminder", list: null, cls: "booking", kind: "visit", hint: "The day before an appointment on the calendar" },
   { id: "visited", label: "After the visit", list: null, cls: "reengage", kind: "visit", hint: "The day after a visit, when nothing is booked next" }
 ];
+var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
+var PLAYBOOK_HOURS = { min: 9, max: 20 };
 var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS42;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
+var PLAYBOOK_NAME_MAX = 80;
 function triggerOf(id) {
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
 }
@@ -14561,14 +14759,188 @@ async function runPlaybook(ports, cmd) {
   await record({ mode, eligible: n, broadcast_id: made.id, state: plan.state });
   return { outcome: "held", broadcast_id: made.id, eligible: n, mode, state: plan.state };
 }
+
+// src/campaigns/template-values.ts
+var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+async function templateValues(ports, cmd) {
+  if (!UUID.test(cmd.templateId)) throw new AppError("validation", "Pick a template.");
+  const tpl = await ports.template(cmd.templateId);
+  if (!tpl) throw new AppError("not_found", "Template not found.", 404);
+  if (tpl.meta_status !== "approved") throw new AppError("conflict", "That template is not approved by WhatsApp, so it cannot be sent.", 409);
+  const expected = Array.isArray(tpl.variables) ? tpl.variables.length : 0;
+  const rawParams = Array.isArray(cmd.params) ? cmd.params : [];
+  if (rawParams.length !== expected) {
+    throw new AppError("validation", expected === 0 ? "This template takes no values." : `This template takes ${expected} value${expected === 1 ? "" : "s"}.`);
+  }
+  const specs = [];
+  for (const p of rawParams) {
+    const spec = parseParamSpec(p);
+    if (!spec) throw new AppError("validation", "Each value is typed text, their first name, the business name, or the booking link.");
+    if (spec.kind === "text") {
+      const v = cleanParam(spec.value);
+      if (v === null) throw new AppError("validation", "Every value is needed, without line breaks or tabs, and under 1024 characters.");
+      specs.push({ kind: "text", value: v });
+    } else {
+      specs.push(spec);
+    }
+  }
+  if (specs.some((s) => s.kind === "booking_link") && !await ports.bookingLink()) {
+    throw new AppError("conflict", "This message takes the booking link, and none is on file. Add it in Settings \u203A Workspace first.", 409);
+  }
+  return { template: tpl, specs };
+}
+
+// src/campaigns/create-broadcast.ts
+var UUID2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+async function createBroadcast(ports, cmd) {
+  const { now } = cmd;
+  const body = cmd.body;
+  const templateId = typeof body?.template_id === "string" ? body.template_id : "";
+  if (!UUID2.test(templateId)) throw new AppError("validation", "Pick a template.");
+  const kind = body?.audience?.kind;
+  if (typeof kind !== "string" || !AUDIENCE_KINDS.includes(kind)) {
+    throw new AppError("validation", "Pick who this goes to.");
+  }
+  const audienceId = typeof body?.audience?.id === "string" ? body.audience.id : null;
+  if (kind === "saved" && (!audienceId || !UUID2.test(audienceId))) throw new AppError("validation", "Pick a list.");
+  if (kind === "list" && (!audienceId || !PEOPLE_LISTS.some((l) => l.id === audienceId))) throw new AppError("validation", "Pick a list.");
+  const { template: tpl, specs } = await templateValues(ports, { templateId, params: body?.params });
+  const rows = await ports.people(now);
+  let savedIds = null;
+  let label = EVERYONE_LABEL;
+  if (kind === "saved") {
+    const seg = await ports.savedList(audienceId);
+    if (!seg) throw new AppError("not_found", "List not found.", 404);
+    savedIds = new Set(seg.memberIds);
+    label = seg.name;
+  } else if (kind === "list") {
+    label = PEOPLE_LISTS.find((l) => l.id === audienceId).label;
+  }
+  const purpose = purposeOfTemplate(tpl.category);
+  const eligible = eligibleFor(rows, kind, audienceId, savedIds, purpose);
+  if (eligible.length === 0) throw new AppError("conflict", emptyAudienceRefusal(purpose), 409);
+  if (eligible.length > BROADCAST_MAX_RECIPIENTS) throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
+  const health = await ports.number();
+  if (!health) throw new AppError("conflict", "Connect a WhatsApp number first \u2014 a broadcast goes out on one.", 409);
+  if (!health.canSend) throw new AppError("conflict", health.refusal, 409);
+  const over = overLimitRefusal(health, eligible.length);
+  if (over) throw new AppError("validation", over);
+  let when = now;
+  if (typeof body?.scheduled_for === "string" && body.scheduled_for) {
+    const t = new Date(body.scheduled_for);
+    if (Number.isNaN(t.getTime())) throw new AppError("validation", "That is not a time.");
+    if (t.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * 864e5) throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
+    when = t.getTime() > now.getTime() ? t : now;
+  }
+  const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim().slice(0, BROADCAST_NAME_MAX) : broadcastName(tpl.name, now, tpl.title);
+  const audience = { kind, id: audienceId, label };
+  const made = await assembleRun(ports, {
+    broadcast: {
+      name,
+      template_id: tpl.id,
+      template_name: tpl.name,
+      template_language: tpl.language,
+      params: specs,
+      audience,
+      state: "scheduled",
+      scheduled_for: when.toISOString(),
+      recipient_count: eligible.length,
+      created_by: cmd.userId
+    },
+    recipients: eligible.map((p) => ({ contact_id: p.id, facts: null })),
+    sendAt: when
+  });
+  if (!made.ok) {
+    if (made.failure === "schedule_failed") throw new AppError("upstream_meta", "The send could not be scheduled. Nothing was sent; try again.", 502, made.error);
+    throw new Error(made.error);
+  }
+  const decision_id = await ports.record("broadcast", made.id, "send_broadcast", {
+    name,
+    template: `${tpl.name}/${tpl.language}`,
+    category: tpl.category,
+    audience: { kind: audience.kind, id: audience.id, label: audience.label },
+    values: specs.map(paramLabel),
+    recipients: eligible.length,
+    scheduled_for: when.toISOString()
+  });
+  return { id: made.id, name, state: "scheduled", recipient_count: eligible.length, scheduled_for: when.toISOString(), decision_id };
+}
+
+// src/campaigns/approve.ts
+async function approveRun(ports, cmd) {
+  const b = cmd.row;
+  if (b.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);
+  if (!await ports.release(b.id)) throw new AppError("conflict", "This run just changed state; look again.", 409);
+  try {
+    await ports.schedule(b.id, cmd.now);
+  } catch (e) {
+    await ports.hold(b.id);
+    throw new AppError("upstream_meta", "The send could not be scheduled. The run is still waiting; try again.", 502, e instanceof Error ? e.message : void 0);
+  }
+  const decision_id = await ports.record("broadcast", b.id, "send_broadcast", {
+    name: b.name,
+    playbook_id: b.playbook_id,
+    recipients: b.recipient_count,
+    approved: true,
+    scheduled_for: cmd.now.toISOString()
+  });
+  return { id: b.id, state: "scheduled", recipient_count: b.recipient_count, decision_id };
+}
+
+// src/campaigns/cancel.ts
+async function cancelBroadcast(ports, cmd) {
+  const b = cmd.row;
+  if (b.state === "scheduled") {
+    await ports.withdraw(b.id);
+  } else if (b.state !== "sending" && b.state !== "pending_approval") {
+    const said2 = b.state === "sent" ? "already been sent" : b.state === "canceled" ? "already been canceled" : "already failed";
+    throw new AppError("conflict", `This broadcast has ${said2}.`, 409);
+  }
+  if (!await ports.cancel(b.id, b.state)) throw new AppError("conflict", "This broadcast just changed state; look again.", 409);
+  const decision_id = await ports.record("broadcast", b.id, "cancel_broadcast", { name: b.name, was: b.state });
+  return { id: b.id, state: "canceled", was: b.state, decision_id };
+}
+
+// src/campaigns/check-playbook.ts
+function int(v, fallback, min, max, what) {
+  if (v === void 0 || v === null || v === "") return fallback;
+  const n = typeof v === "number" ? v : Number(v);
+  if (!Number.isInteger(n) || n < min || n > max) throw new AppError("validation", `${what} must be a whole number from ${min} to ${max}.`);
+  return n;
+}
+async function checkPlaybook(ports, body) {
+  const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, PLAYBOOK_NAME_MAX) : "";
+  const trig = typeof body?.trigger === "string" ? triggerOf(body.trigger) : null;
+  if (!trig) throw new AppError("validation", "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, or a visit yesterday.");
+  const templateId = typeof body?.template_id === "string" ? body.template_id : "";
+  const { template: tpl, specs } = await templateValues(ports, { templateId, params: body?.params });
+  return {
+    // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title.
+    name: name || (starterForTrigger(trig.id)?.name === tpl.name ? trig.label : `${trig.label} \xB7 ${templateTitle(tpl.name, tpl.title)}`).slice(0, PLAYBOOK_NAME_MAX),
+    trigger: trig.id,
+    template_id: tpl.id,
+    template_name: tpl.name,
+    template_language: tpl.language,
+    params: specs,
+    policy_class: trig.cls,
+    run_hour: int(body?.run_hour, PLAYBOOK_DEFAULTS.runHour, PLAYBOOK_HOURS.min, PLAYBOOK_HOURS.max, "The hour"),
+    cap_per_run: int(body?.cap_per_run, PLAYBOOK_DEFAULTS.capPerRun, 1, 500, "The cap"),
+    gap_days: int(body?.gap_days, PLAYBOOK_DEFAULTS.gapDays, 7, 365, "The gap"),
+    cadence_days: int(body?.cadence_days, PLAYBOOK_DEFAULTS.cadenceDays, 1, 90, "The cadence")
+  };
+}
 export {
   IDEMPOTENCY_WINDOW_MS,
   MAX_SNOOZE_MS,
   NEEDS_UNTIL,
   SEND_GRACE_MS,
+  approveRun,
   archive,
   assembleRun,
+  cancelBroadcast,
   cancelSend,
+  checkPlaybook,
+  createBroadcast,
   deliver,
   deliverSafely,
   eraseBlobThread,
@@ -14582,6 +14954,7 @@ export {
   snooze,
   takeOver,
   templatePurpose,
+  templateValues,
   wake,
   whatsappSender
 };

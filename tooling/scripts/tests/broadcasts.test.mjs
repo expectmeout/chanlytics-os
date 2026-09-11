@@ -182,21 +182,9 @@ test("the job: its rules are run (core-broadcast.test.mjs); the adapter still re
 test("the routes: an approved template, values Meta accepts, an audience crossed with who said yes, enrolled now, scheduled, on the ledger; cancel stops what has not finished", () => {
   const r = readCode("apps/dashboard/app/api/v1/broadcasts/route.ts");
   assert.ok(r.includes('role: "operator",') && r.includes('rate: "broadcast",'));
-  assert.ok(r.includes('if (tpl.meta_status !== "approved") throw new AppError("conflict", "That template is not approved by WhatsApp, so it cannot be sent.", 409);'));
-  assert.ok(r.includes("const v = cleanParam(spec.value);"), "typed text is cleaned; a source is itself");
-  // The PURPOSE, from the template read twenty lines earlier. The route used to
-  // omit it and take the marketing default, so enrolment asked for a consent the
-  // send job would not have asked for -- and this assertion pinned the wrong call
-  // as the invariant, which is why the suite stayed green through the defect.
-  assert.ok(r.includes("const purpose = purposeOfTemplate(tpl.category);"), "the route derives the purpose it already holds");
-  assert.ok(r.includes("const eligible = eligibleFor(rows, kind as AudienceKind, audienceId, savedIds, purpose);"), "the same predicate, and the same purpose, the wire will use");
-  assert.ok(r.includes('throw new AppError("conflict", emptyAudienceRefusal(purpose), 409);'), "and the refusal names which yes was missing");
-  assert.ok(r.includes('.select("id, name, language, meta_status, category, variables, body_preview, title")'), "category is selected, or the purpose above is always marketing");
-  assert.ok(r.includes('await schedule(tenantId, "broadcast_send", when, { broadcast_id: made.id });'));
-  assert.ok(r.includes('recordDecision(ctx, tenantId, "broadcast", made.id, "send_broadcast", {'));
-  const c = readCode("apps/dashboard/app/api/v1/broadcasts/[id]/cancel/route.ts");
-  assert.ok(c.includes('await cancelKindFor(b.tenant_id, "broadcast_send", "broadcast_id", id);'));
-  assert.ok(c.includes('recordDecision(ctx, b.tenant_id, "broadcast", id, "cancel_broadcast", { name: b.name, was: b.state });'));
+  // The template, the values, the audience, the number, the assembly and the ledger are run: core-campaigns.test.mjs.
+  const a = readCode("apps/dashboard/src/server/campaign-ports.ts");
+  assert.ok(a.includes('.select("id, name, language, meta_status, category, variables, body_preview, title")'), "category is selected, or the purpose is always marketing");
   const l = readCode("apps/dashboard/src/server/broadcasts.ts");
   assert.ok(l.includes('if (status === "delivered" || status === "read") c.delivered += 1;'), "delivered comes from the receipts, never from the send");
   assert.ok(readCode("apps/dashboard/src/server/rate-limit.ts").includes('broadcast: { limit: 10, windowMs: 60_000, noun: "broadcasts" }'));
@@ -265,9 +253,7 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   const s = readCode("apps/dashboard/src/server/broadcasts.ts");
   assert.ok(s.includes("contacts(display_name, wa_profile_name, phone_e164)"), "names come with the rows");
   assert.ok(s.includes("replied: !!(r.messages?.conversation_id && replied.has(r.messages.conversation_id)),"));
-  const r = readCode("apps/dashboard/app/api/v1/broadcasts/route.ts");
-  assert.ok(r.includes("if (!health.canSend) throw new AppError(\"conflict\", health.refusal!, 409);"), "a flagged number does not broadcast");
-  assert.ok(r.includes("const over = overLimitRefusal(health, eligible.length);"), "an audience past the day's limit is split, not silently cut");
+  // The number's refusals are run: core-campaigns.test.mjs.
   assert.ok(readCode("apps/dashboard/app/api/v1/channels/route.ts").includes("quality: s(\"quality_rating\"),"));
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes("health: numberHealth({ quality: wa?.quality ?? null, event: wa?.quality_event ?? null, limit: wa?.messaging_limit ?? null }),"));

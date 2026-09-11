@@ -173,7 +173,6 @@ test("a template's title: the workspace's own words, set through its door, shown
   assert.ok(b.includes("body: { title } })") && b.includes("return templateTitle(t, row?.title ?? null);"), "a name is looked up among the workspace's rows");
   const s = readCode("apps/dashboard/src/legacy/pages/messages.jsx");
   for (const id of ["template-rename", "template-title", "template-title-save"]) assert.ok(s.includes(`data-testid="${id}"`), id);
-  assert.ok(readCode("apps/dashboard/app/api/v1/broadcasts/route.ts").includes("broadcastName(tpl.name, now, tpl.title)"), "a broadcast's default name uses the title");
-  assert.ok(readCode("apps/dashboard/src/server/playbooks.ts").includes("templateTitle(tpl.name, tpl.title)"), "a playbook's default name uses the title");
+  // The default names of a broadcast and a playbook use the title: run in core-campaigns.test.mjs.
   assert.ok(readCode("apps/dashboard/app/api/v1/templates/route.ts").includes("source, hidden_at, title"), "the composers read it");
 });

@@ -17,7 +17,7 @@ import { cancelKindFor, mirrorBlobPause, schedule } from "./service";
  * reports success while changing nothing, and everything a verb does after
  * it would then describe a change that never happened.
  */
-async function changed(q: PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>): Promise<boolean> {
+export async function changed(q: PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>): Promise<boolean> {
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return !!data && data.length > 0;
