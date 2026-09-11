@@ -32,6 +32,8 @@ export interface ApiOptions<K extends RouteKey> {
   idempotencyKey?: string;
   /** The Ask palette commits through the same routes a button does; the ledger keeps that a card was tapped. */
   via?: "ask";
+  /** An undo names the decision it reverses (its id, from the commit's receipt); the ledger links the two rows. */
+  undoOf?: string;
   timeoutMs?: number;
   /** After a 2xx: re-read the surfaces the map names (the default); a bulk verb passes false and re-reads once at its end. */
   refresh?: boolean;
@@ -98,6 +100,7 @@ export function createApi(deps: ApiDeps) {
     if (opts.body !== undefined) headers["content-type"] = "application/json";
     if (opts.idempotencyKey) headers["idempotency-key"] = opts.idempotencyKey;
     if (opts.via) headers["x-via"] = opts.via;
+    if (opts.undoOf) headers["x-undo-of"] = opts.undoOf;
     return {
       method,
       headers,

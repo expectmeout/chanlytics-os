@@ -156,13 +156,20 @@ test("the receptionist for one person: owner-only where they live, one of four m
     return true;
   });
   assert.equal(tables.policies.length, 0);
-  assert.deepEqual(await receptionist.PUT.run(send("PUT", { mode: "never" }), ctxFor(tables, { id: P2 })), { contact_id: P2, mode: "never" });
+  const silenced = await receptionist.PUT.run(send("PUT", { mode: "never" }), ctxFor(tables, { id: P2 }));
+  assert.deepEqual([silenced.contact_id, silenced.mode], [P2, "never"]);
+  assert.ok(/^[0-9a-f-]{36}$/.test(silenced.decision_id), "the ledger row rides back, so an undo can name it");
   assert.deepEqual(tables.policies.map((p) => [p.tenant_id, p.class, p.subject_type, p.subject_id, p.mode]), [[B, "reply", "contact", P2, "never"]]);
   await receptionist.PUT.run(send("PUT", { mode: "ask" }), ctxFor(tables, { id: P2 }));
   assert.deepEqual(tables.policies.map((p) => p.mode), ["ask"], "replaced, not duplicated");
-  assert.deepEqual(await receptionist.PUT.run(send("PUT", { mode: "inherit" }), ctxFor(tables, { id: P2 })), { contact_id: P2, mode: null });
+  const back = await receptionist.PUT.run(send("PUT", { mode: "inherit" }), ctxFor(tables, { id: P2 }));
+  assert.deepEqual([back.contact_id, back.mode], [P2, null]);
   assert.equal(tables.policies.length, 0, "inherit removes the person's own row");
-  assert.deepEqual(tables.decisions.map((d) => [d.verb, d.subject_id, d.payload.receptionist_mode]), [["pause_agent", P2, "never"], ["pause_agent", P2, "ask"], ["resume_agent", P2, "inherit"]]);
+  // An undo from a card: the same verb, its row linked to the one it reverses, marked as a card's.
+  await receptionist.PUT.run(send("PUT", { mode: "never" }), { ...ctxFor(tables, { id: P2 }), via: "ask", undoOf: back.decision_id });
+  assert.deepEqual(tables.decisions.map((d) => [d.verb, d.subject_id, d.payload.receptionist_mode]), [["pause_agent", P2, "never"], ["pause_agent", P2, "ask"], ["resume_agent", P2, "inherit"], ["pause_agent", P2, "never"]]);
+  assert.deepEqual(tables.decisions.map((d) => d.undo_of), [null, null, null, back.decision_id], "only the undo is linked, to the row it undid");
+  assert.deepEqual(tables.decisions.map((d) => d.payload.via), [undefined, undefined, undefined, "ask"]);
 });
 
 test("lists: one workspace's with their members' ids; a viewer may not make one; the name is refused in the helper's words and kept tidy", async () => {

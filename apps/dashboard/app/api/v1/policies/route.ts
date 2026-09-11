@@ -101,6 +101,18 @@ export const PUT = write({
     try {
       const row = await setPolicyMode(ctx.supabase, member.tenantId, cls, mode, limits);
       if (!row) throw new AppError("not_found", "Policy row not found.", 404);
+      // The change, in the ledger every other consequential act lands in: the
+      // class, the mode, which limits moved -- never their values -- who, and
+      // whether a card was tapped. Best effort, as the settings audit is: a
+      // ledger row that failed to write must not fail the change that landed.
+      await ctx.supabase.from("events").insert({
+        tenant_id: member.tenantId,
+        kind: "policy.changed",
+        category: "system",
+        subject_type: "workspace",
+        subject_id: member.tenantId,
+        data: { class: cls, mode, fields: Object.keys(limits), by: ctx.userId, ...(ctx.via ? { via: ctx.via } : {}) },
+      }).then(({ error }) => { if (error) console.error("policy_event_failed", error.message); });
       return { policy: row };
     } catch (e) {
       if (e instanceof AppError) throw e;

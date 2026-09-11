@@ -1,6 +1,7 @@
 import "server-only";
 import {
   AUDIENCE_KINDS,
+  ASK_THREAD_VERBS,
   AskSettingsChangeSchema,
   EVERYONE_LABEL,
   PEOPLE_LISTS,
@@ -55,7 +56,8 @@ const obj = (properties: Record<string, unknown>, required: string[] = []) => ({
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const str = (v: unknown, max = 500): string => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
-export const THREAD_VERBS = ["take_over", "hand_back", "snooze", "wake", "archive", "resolve"] as const;
+/** The one list, from contracts: the committer in the browser reads the same one. */
+export const THREAD_VERBS = ASK_THREAD_VERBS;
 
 export const ACT_TOOLS: ToolDef[] = [
   {

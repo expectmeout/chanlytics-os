@@ -23,9 +23,14 @@ export interface OpeningsView {
   days: Array<{ key: string; label: string; windows: string[] }>;
 }
 
-/** A call through the app's own route, marked as a card's: the ledger keeps that it was tapped, not typed. */
-export function viaAsk<K extends RouteKey>(key: K, opts: ApiOptions<K> = {} as ApiOptions<K>): Promise<ApiResult<Output<K>>> {
-  return api()(key, { ...opts, via: "ask" });
+/**
+ * A call through the app's own route, marked as a card's: the ledger keeps
+ * that it was tapped, not typed. An undo also names the decision it reverses.
+ * The client is the caller's -- the tab's own, or a test's bound to a fake
+ * fetch -- so the committer can be run rather than read.
+ */
+export function viaAsk<K extends RouteKey>(client: Api, key: K, opts: ApiOptions<K> = {} as ApiOptions<K>, undoOf?: string): Promise<ApiResult<Output<K>>> {
+  return client(key, { ...opts, via: "ask", ...(undoOf ? { undoOf } : {}) });
 }
 
 /** Read a stream of JSON lines, one event per line, across chunk boundaries. */

@@ -49,15 +49,15 @@ test("every mutating team op writes to it", () => {
   for (const verb of ["change_role", "remove_member", "revoke_invite", "invite"]) {
     assert.ok(service.includes(`"${verb}"`), `${verb} is never recorded`);
   }
-  assert.equal(service.split("noteTeamChange(").length - 1, 5, "one definition, four call sites");
+  assert.equal(service.split("noteTeamChange(").length - 1, 6, "one definition, five call sites: a new invitation is recorded too, once its email is on its way");
 });
 
 test("the audit runs on the CALLER's client, so the actor cannot be spoofed", () => {
   // decisions_acting_member_insert already admits an acting member, so this
   // needs no privilege the request does not have — and actor_user_id comes
   // from the session rather than from an argument somebody passed.
-  assert.ok(service.includes("await ctx.supabase.from(\"decisions\").insert({"));
-  assert.ok(service.includes("actor_user_id: ctx.userId"));
+  // Through the one ledger writer now (verbs.ts recordDecision), on the caller's client, with the card's mark and an undo's link riding along.
+  assert.ok(service.includes("await recordDecision(ctx, tenantId, subjectType, subjectId, verb, payload as Json);"), "the actor is the session (ask-commit.test.mjs runs the writer)");
 });
 
 test("a failed audit row never fails the change that already happened", () => {

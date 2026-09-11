@@ -285,12 +285,14 @@ interface ReplyBody {
         params?: string[];
     };
 }
+/** `decision_id` is the ledger row, for an undo to name; absent on a receipt stored before it was kept. */
 interface ReplyReceipt {
     message_id: string;
     status: string;
     cancelable_until: string;
     window_open: boolean;
     withdrawn_drafts: number;
+    decision_id?: string;
 }
 interface ReplyThread extends Pick<Thread, "id" | "tenant_id" | "phone_e164"> {
     contact_id: string | null;

@@ -36,7 +36,7 @@ export const PUT = write({
 
     // On the ledger as what it is: silencing or un-silencing the receptionist
     // for one person, with the mode in the payload.
-    await recordDecision(
+    const decisionId = await recordDecision(
       ctx,
       contact.tenant_id,
       "contact",
@@ -45,6 +45,7 @@ export const PUT = write({
       { receptionist_mode: m },
     );
 
-    return { contact_id: id, mode: m === "inherit" ? null : m };
+    // The ledger row rides back so an undo can name it.
+    return { contact_id: id, mode: m === "inherit" ? null : m, decision_id: decisionId };
   },
 });
