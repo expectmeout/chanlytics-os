@@ -106,6 +106,36 @@ export function fakeDb(tables, faults = {}, rpcs = {}) {
         return { data: out.map((r) => ({ ...r })), error: null, count: q.counted ? matched : null };
       }
 
+      // A delete removes what matches, in place, and counts it when asked:
+      // `.delete({ count: "exact" })` is how a route knows it removed nothing.
+      if (q.op === "delete") {
+        const all = rows();
+        const hit = all.filter((r) => matches(r, q.filters));
+        for (const r of hit) all.splice(all.indexOf(r), 1);
+        return { data: q.columns ? hit.map((r) => ({ ...r })) : null, error: null, count: q.counted ? hit.length : null };
+      }
+
+      // An upsert is an insert that, on the conflict columns, updates the row
+      // that is already there instead (or leaves it alone with
+      // ignoreDuplicates), as PostgREST does. Modelled for the person's
+      // receptionist mode and a list's members, whose whole point is that
+      // saying it twice makes one row.
+      if (q.op === "upsert") {
+        const made = [];
+        for (const v of q.values) {
+          const existing = rows().find((r) => q.conflict.every((c) => r[c] === v[c]));
+          if (existing) {
+            if (!q.ignoreDuplicates) Object.assign(existing, v);
+            made.push(existing);
+            continue;
+          }
+          const r = { id: crypto.randomUUID(), created_at: new Date().toISOString(), ...v };
+          rows().push(r);
+          made.push(r);
+        }
+        return { data: q.columns ? made.map((r) => ({ ...r })) : null, error: null };
+      }
+
       // The update is the interesting one. It applies to whatever matches the
       // filters AT THE MOMENT IT RUNS, which is what makes a compare-and-swap
       // testable: a second caller whose filters name a value the first one has
@@ -122,6 +152,14 @@ export function fakeDb(tables, faults = {}, rpcs = {}) {
       select(columns, opts) { q.columns = columns; q.counted = opts?.count === "exact"; return proxy; },
       update(values) { q.op = "update"; q.values = values; return proxy; },
       insert(values) { q.op = "insert"; q.values = Array.isArray(values) ? values : [values]; return proxy; },
+      delete(opts) { q.op = "delete"; q.counted = opts?.count === "exact"; return proxy; },
+      upsert(values, opts) {
+        q.op = "upsert";
+        q.values = Array.isArray(values) ? values : [values];
+        q.conflict = String(opts?.onConflict ?? "id").split(",");
+        q.ignoreDuplicates = opts?.ignoreDuplicates === true;
+        return proxy;
+      },
       eq(col, val) { q.filters.push(["eq", col, val]); return proxy; },
       gt(col, val) { q.filters.push(["gt", col, val]); return proxy; },
       gte(col, val) { q.filters.push(["gte", col, val]); return proxy; },

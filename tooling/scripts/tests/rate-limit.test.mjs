@@ -48,14 +48,14 @@ test("every route that sends, spends or aggregates counts against its bucket", (
   const routes = [
     ["team/invite/route.ts", 'rate: "invite",'],
     ["conversations/[id]/reply/route.ts", 'rate: "reply",'],
-    ["contacts/[id]/route.ts", 'takeRate(ctx.userId, "erase");'],
+    ["contacts/[id]/route.ts", 'rate: "erase",'],
     ["calls/[id]/whisper/route.ts", 'rate: "whisper",'],
     ["metrics/route.ts", 'takeRate(ctx.userId, "aggregate");'],
     ["reports/route.ts", 'takeRate(ctx.userId, "aggregate");'],
     ["settings/route.ts", 'takeRate(ctx.userId, "settings");'],
     ["policies/route.ts", 'takeRate(ctx.userId, "settings");'],
     ["workspaces/create/route.ts", 'takeRate(ctx.userId, "create_workspace");'],
-    ["contacts/[id]/receptionist/route.ts", 'takeRate(ctx.userId, "person_mode");'],
+    ["contacts/[id]/receptionist/route.ts", 'rate: "person_mode",'],
   ];
   for (const [rel, call] of routes) {
     const src = readCode(`apps/dashboard/app/api/v1/${rel}`);

@@ -31,7 +31,7 @@ test("the tables: the workspace's, members read, acting members write, a person 
 test("the routes: one workspace's lists with their ids, owner or operator to change them, the same refusals in the same words", () => {
   const list = readCode("apps/dashboard/app/api/v1/segments/route.ts");
   assert.ok(list.includes('.from("segments").select("id, name").eq("tenant_id", tenantId)'), "scoped by tenant, not by RLS alone");
-  assert.ok(list.includes('requireRole(member, "operator");') && list.includes('takeRate(ctx.userId, "lists");'));
+  assert.ok(list.includes('role: "operator",') && list.includes('rate: "lists",'));
   assert.ok(list.includes('if (error.code === "23505") throw new AppError("conflict", "A list with that name already exists.", 409);'));
   const one = readCode("apps/dashboard/app/api/v1/segments/[id]/route.ts");
   assert.ok(one.includes("const add = cleanIdList(body?.add, \"add\");") && one.includes("const remove = cleanIdList(body?.remove, \"remove\");"));

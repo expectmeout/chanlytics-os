@@ -296,7 +296,7 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
   assert.ok(sweep.includes("insert into events (tenant_id, kind, category, subject_type, subject_id, data)") && sweep.includes("'contact.added'"), "the door records where a person came from; members cannot write events themselves");
   assert.ok(readCode("apps/dashboard/app/api/v1/calendar/route.ts").includes('const canAct = member.role === "owner" || member.role === "operator";'), "a viewer's read changes nothing");
   const route = readCode("apps/dashboard/app/api/v1/contacts/route.ts");
-  assert.ok(route.includes('requireRole(member, "operator");') && route.includes('ctx.supabase.rpc("create_person"'), "the door's own route stays, for a hand");
+  assert.ok(route.includes('role: "operator",') && route.includes('ctx.supabase.rpc("create_person"'), "the door's own route stays, for a hand");
   const detail = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
   assert.ok(detail.includes('.eq("kind", "contact.added")') && detail.includes("added: added.data"), "the profile reads where they came from");
   const page = readCode("apps/dashboard/src/legacy/pages/calendar-real.jsx");
@@ -406,9 +406,9 @@ test("a name the owner gives and notes the receptionist reads: two doors, one ro
   assert.ok(mig.includes("'contact.named'") && mig.includes("'contact.noted'"), "each door records who changed what");
   assert.ok(mig.split("not public.is_acting_member(v_tenant)").length === 3, "owner or operator, both doors");
   const route = readCode("apps/dashboard/app/api/v1/contacts/[id]/details/route.ts");
-  assert.ok(route.includes('takeRate(ctx.userId, "person_edit");') && route.includes('requireRole(member, "operator");'));
+  assert.ok(route.includes('rate: "person_edit",') && route.includes('role: "operator",'));
   assert.ok(route.includes('rpc("set_person_name", { p_contact_id: id, p_name: name ?? "" })') && route.includes('rpc("set_person_notes", { p_contact_id: id, p_notes: notes ?? "" })'));
-  assert.ok(route.includes('throw new AppError("validation", "Send a name, notes, or both.");'));
+  assert.ok(route.includes('"Send a name, notes, or both."'), "the schema refuses in the same words");
   const detail = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
   assert.ok(detail.includes('sb.from("contacts").select("notes").eq("id", id).maybeSingle()') && detail.includes("notes: own.data?.notes ?? null,"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");

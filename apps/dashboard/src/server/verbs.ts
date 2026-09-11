@@ -296,3 +296,45 @@ export async function cancelPendingAiReply(
   }
   return ids.length;
 }
+
+export interface VerbErasure {
+  id: string;
+  tenant_id: string;
+  phone_e164: string | null;
+  erased_at: string | null;
+}
+
+/**
+ * The contact named by `:id` for an erasure, found whether or not they are
+ * already erased: an erasure re-drives a leg still outstanding on one that
+ * is, so it must find them. Every other contact verb wants a live person
+ * (contactScope). Read under RLS, so one the caller cannot see is a 404.
+ */
+export async function loadErasable(ctx: RouteContext, id: string): Promise<VerbErasure> {
+  const contactId = requireUuid(id, "contact");
+  const { data, error } = await ctx.supabase
+    .from("contacts")
+    .select("id, tenant_id, phone_e164, erased_at")
+    .eq("id", contactId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new AppError("not_found", "Contact not found.");
+  return data;
+}
+export const erasureScope = row((ctx, params) => loadErasable(ctx, String(params.id ?? "")));
+
+export interface VerbList {
+  id: string;
+  tenant_id: string;
+  name: string;
+}
+
+/** The saved list named by `:id`, read under RLS: one the caller cannot see is a 404, and the role is judged in the list's own workspace. */
+export async function loadList(ctx: RouteContext, id: string): Promise<VerbList> {
+  const listId = requireUuid(id, "list");
+  const { data, error } = await ctx.supabase.from("segments").select("id, tenant_id, name").eq("id", listId).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new AppError("not_found", "List not found.", 404);
+  return data;
+}
+export const listScope = row((ctx, params) => loadList(ctx, String(params.id ?? "")));

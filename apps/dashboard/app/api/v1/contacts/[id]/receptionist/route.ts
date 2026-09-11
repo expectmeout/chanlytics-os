@@ -1,12 +1,14 @@
-import { AppError } from "@chanlytics/contracts";
+import { z } from "zod";
 import { setPersonReplyMode } from "@chanlytics/db";
-import { withRoute, memberContext, requireRole } from "@/server/with-route";
-import { jsonBody, requireUuid } from "@/server/request-guards";
-import { recordDecision } from "@/server/verbs";
-import { takeRate } from "@/server/rate-limit";
+import { write } from "@/server/route";
+import { contactScope, recordDecision } from "@/server/verbs";
 
 const MODES = ["auto", "ask", "never", "inherit"] as const;
 type Mode = (typeof MODES)[number];
+
+const Body = z.object({
+  mode: z.enum(MODES, { message: "Mode must be one of: auto, ask, never, inherit." }),
+});
 
 /**
  * PUT /api/v1/contacts/:id/receptionist — { mode: auto | ask | never | inherit }
@@ -20,42 +22,29 @@ type Mode = (typeof MODES)[number];
  *
  * Owner-only: it changes what a real customer experiences. RLS is the floor
  * (00029 lets owners insert and delete person-scoped reply rows); the role
- * check here is the door, decided against the contact's OWN tenant.
+ * is the door, judged where the contact lives (contactScope).
  */
-export const PUT = withRoute(async (req, ctx) => {
-  await takeRate(ctx.userId, "person_mode");
-  const id = requireUuid(ctx.params.id, "contact");
-  const body = (await jsonBody(req)) as { mode?: unknown } | null;
-  const mode = body?.mode;
-  if (typeof mode !== "string" || !(MODES as readonly string[]).includes(mode)) {
-    throw new AppError("validation", "Mode must be one of: auto, ask, never, inherit.");
-  }
+export const PUT = write({
+  scope: contactScope,
+  role: "owner",
+  rate: "person_mode",
+  input: Body,
+  handle: async ({ ctx, row: contact, input }) => {
+    const id = contact.id;
+    const m: Mode = input.mode;
+    await setPersonReplyMode(ctx.supabase, contact.tenant_id, id, m === "inherit" ? null : m);
 
-  // RLS scopes this read, so a contact the caller cannot see is a 404 rather
-  // than a leak; the role is then decided against the contact's tenant.
-  const { data: contact, error } = await ctx.supabase
-    .from("contacts")
-    .select("id, tenant_id, erased_at")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!contact || contact.erased_at) throw new AppError("not_found", "Contact not found.", 404);
-  const member = await memberContext(ctx, contact.tenant_id);
-  requireRole(member, "owner");
+    // On the ledger as what it is: silencing or un-silencing the receptionist
+    // for one person, with the mode in the payload.
+    await recordDecision(
+      ctx,
+      contact.tenant_id,
+      "contact",
+      id,
+      m === "auto" || m === "inherit" ? "resume_agent" : "pause_agent",
+      { receptionist_mode: m },
+    );
 
-  const m = mode as Mode;
-  await setPersonReplyMode(ctx.supabase, contact.tenant_id, id, m === "inherit" ? null : m);
-
-  // On the ledger as what it is: silencing or un-silencing the receptionist
-  // for one person, with the mode in the payload.
-  await recordDecision(
-    ctx,
-    contact.tenant_id,
-    "contact",
-    id,
-    m === "auto" || m === "inherit" ? "resume_agent" : "pause_agent",
-    { receptionist_mode: m },
-  );
-
-  return { contact_id: id, mode: m === "inherit" ? null : m };
+    return { contact_id: id, mode: m === "inherit" ? null : m };
+  },
 });

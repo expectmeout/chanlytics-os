@@ -161,7 +161,7 @@ test("the cache is keyed on the ACTIVE workspace", () => {
     // "Something went wrong" — a typo in a URL reading as a server fault.
     assert.match(guards, /export function requireUuid/);
     assert.match(guards, /"not_found"/);
-    for (const what of ["conversation", "contact", "message", "call"]) assert.ok(verbsSrc.includes('requireUuid(id, "' + what + '")'), what + ": checked once at the chokepoint, its loader");
+    for (const what of ["conversation", "contact", "message", "call", "list"]) assert.ok(verbsSrc.includes('requireUuid(id, "' + what + '")'), what + ": checked once at the chokepoint, its loader");
   });
 
   test("the reply body is validated at the door", () => {
