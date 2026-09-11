@@ -23,6 +23,7 @@ import { lineByNumber, lineAccount, smsSenderFor, type SmsLine } from "../lib/sm
 import type { ProviderAccount } from "../lib/workspace/channels.js";
 import { handleInbound, type InboundCarrier } from "../lib/whatsapp/inbound.js";
 import { alertUnroutable } from "../lib/whatsapp/alerts.js";
+import { IngestFailed } from "../lib/whatsapp/persist.js";
 import { logger } from "../lib/log.js";
 
 export const config = { maxDuration: 60 };
@@ -97,6 +98,11 @@ export async function POST(request: Request): Promise<Response> {
     await handleInbound(smsAsWaMessage(inbound), {}, routed.tenantId, routed, false, false, carrier);
   } catch (e) {
     L.error("sms_inbound_failed", { error: e instanceof Error ? e.message : String(e) });
+    if (e instanceof IngestFailed) {
+      // Twilio retries nothing: the platform is told now, and the 503 leaves a trace in Twilio's own log.
+      await alertUnroutable("sms", inbound.to, 1, "the text could not be recorded");
+      return twiml(503);
+    }
   }
   return twiml(200);
 }

@@ -51,7 +51,7 @@ import { resolveChannelDetailed, recordStatusByExternalId, recordEchoAndPause, e
 import type { Json, RoutedChannel } from "../lib/workspace/db.js";
 import { loadTenantRuntime } from "../lib/tenant-runtime.js";
 import { handleInbound } from "../lib/whatsapp/inbound.js";
-import { pgSafe } from "../lib/whatsapp/persist.js";
+import { pgSafe, IngestFailed } from "../lib/whatsapp/persist.js";
 import { alertUnroutable } from "../lib/whatsapp/alerts.js";
 import { PAUSE_MS } from "../lib/whatsapp/steps.js";
 
@@ -87,6 +87,9 @@ export async function POST(request: Request): Promise<Response> {
   }
   let body: WebhookBody = {};
   try { body = JSON.parse(raw) as WebhookBody; } catch { /* ack anyway */ }
+  // Messages the database did not accept in this batch: the one thing this
+  // handler must not acknowledge.
+  let unrecorded = 0;
 
   try {
     for (const entry of body.entry || []) {
@@ -154,6 +157,7 @@ export async function POST(request: Request): Promise<Response> {
             try {
               await handleInbound(m, v, tenantId, routedChannel, isEnvDefault, routingFailed);
             } catch (e) {
+              if (e instanceof IngestFailed) unrecorded += 1;
               console.error("wa_inbound_failed", m.id, e instanceof Error ? e.message : e);
             }
           }
@@ -214,5 +218,9 @@ export async function POST(request: Request): Promise<Response> {
   } catch (e) {
     console.error("wa_webhook_error", e instanceof Error ? e.message : e);
   }
+  // A message the database did not accept is not acknowledged: Meta retries
+  // any non-200 with decreasing frequency for up to seven days, and the
+  // ingest's is_new gate makes the redelivery of the others a no-op.
+  if (unrecorded > 0) return json(503, { ok: false, unrecorded });
   return json(200, { ok: true });
 }
