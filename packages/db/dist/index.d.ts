@@ -2405,7 +2405,11 @@ type Database = {
                 Row: {
                     alerted_at: string | null;
                     backlog_ticks: number;
+                    jobname: string | null;
+                    judged_by: string;
+                    max_silence: string | null;
                     note: string | null;
+                    registered_at: string;
                     request_id: number | null;
                     requested_at: string | null;
                     sweep: string;
@@ -2413,7 +2417,11 @@ type Database = {
                 Insert: {
                     alerted_at?: string | null;
                     backlog_ticks?: number;
+                    jobname?: string | null;
+                    judged_by?: string;
+                    max_silence?: string | null;
                     note?: string | null;
+                    registered_at?: string;
                     request_id?: number | null;
                     requested_at?: string | null;
                     sweep: string;
@@ -2421,7 +2429,11 @@ type Database = {
                 Update: {
                     alerted_at?: string | null;
                     backlog_ticks?: number;
+                    jobname?: string | null;
+                    judged_by?: string;
+                    max_silence?: string | null;
                     note?: string | null;
+                    registered_at?: string;
                     request_id?: number | null;
                     requested_at?: string | null;
                     sweep?: string;

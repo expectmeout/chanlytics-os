@@ -81,9 +81,7 @@ export const SCHEMA_SETS = {
   "policies.class": ["reply", "booking", "faq", "reengage", "campaign", "money", "reviews"],
   "policies.mode": ["auto", "veto", "ask", "never"],
   "policies.subject_type": ["segment", "contact"],
-  "sweep_status.sweep": [
-    "calls", "deadman", "health", "jobs", "registration", "calendar", "google", "playbooks", "lines",
-  ],
+  "sweep_status.judged_by": ["request", "run"],
   "templates.category": ["marketing", "utility", "authentication"],
   "templates.channel": ["whatsapp", "voice", "sms", "email", "instagram"],
   "templates.meta_status": ["approved", "pending", "rejected", "paused", "disabled"],

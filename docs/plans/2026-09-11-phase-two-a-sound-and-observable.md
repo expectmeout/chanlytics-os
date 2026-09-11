@@ -438,251 +438,42 @@ Commit: `A missing model key is a degraded state a person can see, not a canned 
 
 ### Task 4: Every clock is registered, and an outside monitor can knock (migration 00107; PR opened, merge on Ruben's yes)
 
-`sweep_health()` judges eleven clocks from a VALUES list; six pg_cron jobs (the monthly partition precreate and five purges) are outside it, and the only watcher runs inside the edge it watches. The registry becomes data on `sweep_status`, the health function reads it, run-judged jobs are judged on `cron.job_run_details`, and a keyless `/api/health` answers 200 or 503 for a pinger outside our failure domain.
+`sweep_health()` judged eleven clocks from a VALUES list inside the function; six pg_cron jobs (the monthly partition precreate and five nightly purges) were outside it, and the only watcher ran inside the edge it watches. The register becomes data on `sweep_status`, the health function reads it, the jobs that never leave the database are judged on `cron.job_run_details`, and a keyless `/api/health` answers 200 or 503 for a pinger outside our failure domain.
 
 **Files:**
 - Create: `supabase/migrations/00107_every_clock_is_registered.sql`
 - Create: `apps/edge/api/health.ts`
-- Modify: `tooling/scripts/tests/jobs-outbox.db.test.mjs` (the health test's expected rows grow from 11 to 17)
-- Test: the db test above; `tooling/scripts/tests/health-route.test.mjs` (new, executed with a fake db)
+- Modify: `apps/edge/lib/sweep-health.ts` (the words for the eight newly judged clocks)
+- Modify: `tooling/scripts/tests/sweep-health.integration.test.mjs` (pins move: seventeen names, the registration trigger instead of the CHECK)
+- Modify: `packages/db/src/database.types.ts` (the `sweep_status` block, spliced from a local generation), `packages/contracts/src/schema-sets.generated.ts` (regenerated: `sweep_status.sweep` goes, `sweep_status.judged_by` arrives)
+- Test: `tooling/scripts/tests/sweep-registry.db.test.mjs` (new; local Supabase), `tooling/scripts/tests/health-route.test.mjs` (new, executed with a fake database)
 
 - [x] **Step 1: The migration**
 
-```sql
--- 00107 · Every clock is registered as data, and the health check reads the register.
---
--- sweep_health() carried its expectations as a VALUES list, so registering a
--- sweep was four hand steps and the six clocks nobody typed in (the monthly
--- partition precreate and the five nightly purges) were never watched. The
--- register is the table now: a row per clock with its cron job name, how long
--- it may go silent, and how it is judged -- by the request it enqueued
--- ('request'), by its last successful run in cron.job_run_details ('run'), or
--- by nothing but its existence ('exists', the ten-second row clocks).
+`sweep_status` gains `jobname text`, `max_silence interval`, `judged_by text not null default 'request' check (judged_by in ('request', 'run'))` and `registered_at timestamptz not null default now()`; the CHECK on the name is dropped. One upsert registers all seventeen clocks: the nine HTTP sweeps 00098 knew with the silences it gave them (`request`), the two ten-second row clocks now judged on their runs (`run`, 3 minutes), the monthly precreate (`run`, 35 days) and the five nightly purges (`run`, 26 hours).
 
-alter table public.sweep_status
-  add column if not exists jobname       text,
-  add column if not exists max_silence   interval,
-  add column if not exists judged_by     text not null default 'request' check (judged_by in ('request', 'run', 'exists')),
-  add column if not exists registered_at timestamptz not null default now();
-alter table public.sweep_status drop constraint if exists sweep_status_sweep_check;
+A `BEFORE INSERT` trigger, `sweep_status_registered`, refuses a row that carries no `jobname` when no row of that name exists; the upserts `request_sweep()`, `trigger_jobs_tick()` and `sweep_mark_alerted()` make carry no `jobname` but land on rows that exist, and pass. This replaces what the CHECK guaranteed.
 
-update public.sweep_status s
-   set jobname = v.jobname, max_silence = v.max_silence, judged_by = v.judged_by
-  from (values
-    ('deadman',      'deadman-sweep',          interval '25 minutes',          'request'),
-    ('health',       'sweep-health',           interval '70 minutes',          'request'),
-    ('calls',        'call-reconcile',         null::interval,                 'request'),
-    ('jobs',         'jobs-tick',              interval '3 minutes',           'request'),
-    ('lines',        'lines-sweep',            interval '40 minutes',          'request'),
-    ('registration', 'registration-sweep',     interval '2 hours 20 minutes',  'request'),
-    ('calendar',     'calendar-people-sweep',  interval '2 hours 20 minutes',  'request'),
-    ('google',       'google-listings-sweep',  interval '2 hours 20 minutes',  'request'),
-    ('playbooks',    'playbooks-sweep',        interval '2 hours 20 minutes',  'request')
-  ) as v(sweep, jobname, max_silence, judged_by)
- where s.sweep = v.sweep;
+`sweep_health()` keeps its return shape and reads the table: rows with no `jobname` are reported as unregistered; `run` rows are judged on their last run (a failed last run is reported with its message; never succeeded is healthy until `max_silence` has passed since `registered_at`, then reported; a last success older than `max_silence` is reported with its time and schedule); `request` rows are judged exactly as 00098 judged them. `last_request_at` is the last successful run for a `run` row.
 
-insert into public.sweep_status (sweep, jobname, max_silence, judged_by) values
-  ('pauses',             'expire-stale-pauses',        null,                 'exists'),
-  ('snoozes',            'wake-stale-snoozes',         null,                 'exists'),
-  ('partitions',         'events-partition-precreate', interval '35 days',   'run'),
-  ('purge_events',       'purge-events',               interval '26 hours',  'run'),
-  ('purge_ask',          'purge-ask',                  interval '26 hours',  'run'),
-  ('purge_notifications','purge-notifications',        interval '26 hours',  'run'),
-  ('purge_rate_hits',    'purge-rate-hits',            interval '26 hours',  'run'),
-  ('purge_cron_history', 'purge-cron-history',         interval '26 hours',  'run')
-on conflict (sweep) do update set jobname = excluded.jobname, max_silence = excluded.max_silence, judged_by = excluded.judged_by;
+- [x] **Step 2: The database test (`sweep-registry.db.test.mjs`)**
 
-create or replace function public.sweep_health()
-returns table (
-  sweep           text,
-  healthy         boolean,
-  detail          text,
-  last_request_at timestamptz,
-  status_code     integer,
-  scheduled       boolean,
-  alerted_at      timestamptz
-)
-language sql
-security definer
-set search_path = public
-as $$
-  with runs as (
-    select j.jobid,
-           max(d.end_time) filter (where d.status = 'succeeded') as last_ok,
-           (select d2.status from cron.job_run_details d2 where d2.jobid = j.jobid order by d2.start_time desc limit 1) as last_status,
-           (select left(d2.return_message, 120) from cron.job_run_details d2 where d2.jobid = j.jobid order by d2.start_time desc limit 1) as last_message
-      from cron.job j
-      left join cron.job_run_details d on d.jobid = j.jobid
-     group by j.jobid
-  ),
-  observed as (
-    select e.sweep, e.jobname, e.max_silence, e.judged_by, e.registered_at,
-           e.request_id, e.requested_at, e.note, e.alerted_at,
-           j.jobid is not null                    as job_exists,
-           coalesce(j.active, false)              as job_active,
-           j.schedule                             as job_schedule,
-           r.id is not null                       as has_response,
-           r.status_code,
-           coalesce(r.timed_out, false)           as timed_out,
-           r.error_msg,
-           left(r.content, 200)                   as content,
-           exists (select 1 from net._http_response nr where nr.id > e.request_id)
-                                                  as newer_response_seen,
-           ru.last_ok, ru.last_status, ru.last_message
-      from public.sweep_status e
-      left join lateral (
-        select jobid, active, schedule from cron.job
-         where jobname = e.jobname order by jobid limit 1
-      ) j on true
-      left join runs ru on ru.jobid = j.jobid
-      left join net._http_response r on r.id = e.request_id
-     where e.jobname is not null
-  ),
-  judged as (
-    select o.*,
-      case
-        when not o.job_exists then
-          'no cron job named ' || o.jobname || ' is scheduled'
-        when not o.job_active then
-          'the cron job ' || o.jobname || ' is disabled'
-        -- judged on its runs: the SQL-only jobs that never enqueue a request
-        when o.judged_by = 'run' and o.last_ok is null and o.registered_at > now() - o.max_silence then
-          null
-        when o.judged_by = 'run' and o.last_ok is null then
-          'the job ' || o.jobname || ' has never succeeded' || coalesce('; its last run ended ' || o.last_status || ': ' || o.last_message, '')
-        when o.judged_by = 'run' and o.last_ok < now() - o.max_silence then
-          'the job ' || o.jobname || ' last succeeded at ' || to_char(o.last_ok at time zone 'utc', 'YYYY-MM-DD HH24:MI') ||
-          ' UTC; it is scheduled ' || coalesce(o.job_schedule, '(unknown)') ||
-          coalesce(' and its last run ended ' || o.last_status || ': ' || o.last_message, '')
-        when o.judged_by in ('run', 'exists') then
-          null
-        -- judged on the request it enqueued, exactly as before
-        when o.note is not null then
-          'the trigger could not send the request: ' || o.note
-        when o.max_silence is not null and o.requested_at is null then
-          'this sweep has never enqueued a request'
-        when o.max_silence is not null and o.requested_at < now() - o.max_silence then
-          'last enqueued a request at ' ||
-          to_char(o.requested_at at time zone 'utc', 'YYYY-MM-DD HH24:MI') || ' UTC, ' ||
-          round((extract(epoch from (now() - o.requested_at)) / 60)::numeric)::text ||
-          ' minutes ago; ' || o.jobname || ' is scheduled ' || coalesce(o.job_schedule, '(unknown)')
-        when o.requested_at is null or o.requested_at < now() - interval '1 hour' then
-          null
-        when not o.has_response and o.request_id is not null
-             and o.requested_at < now() - interval '2 minutes'
-             and o.newer_response_seen then
-          'the request was enqueued at ' || to_char(o.requested_at at time zone 'utc', 'HH24:MI') ||
-          ' UTC and pg_net never recorded a response'
-        when o.timed_out then
-          'the request timed out before the edge answered'
-        when o.error_msg is not null then
-          'pg_net could not complete the request: ' || o.error_msg
-        when o.status_code is not null and (o.status_code < 200 or o.status_code > 299) then
-          'the edge answered ' || o.status_code || ': ' || coalesce(o.content, '(no body)')
-      end as detail
-      from observed o
-  )
-  select j.sweep,
-         j.detail is null,
-         j.detail,
-         coalesce(j.requested_at, j.last_ok),
-         j.status_code,
-         j.job_exists and j.job_active,
-         j.alerted_at
-    from judged j
-   order by j.sweep;
-$$;
+Against the local database: the register maps every name to its cron job and every job is scheduled and active; `sweep_health()` returns the seventeen names, every row scheduled, every run-judged row healthy on a fresh database (registered moments ago, or running every ten seconds); a bare name is refused with "not registered" while a name with a job nobody scheduled is reported unhealthy and unscheduled; `request_sweep('deadman', …)` still lands on its row; `sweep_mark_alerted` stamps and clears a run-judged row.
 
-comment on function public.sweep_health() is
-  'One row per registered clock (public.sweep_status): healthy, why not, when it last spoke, what the edge answered, whether pg_cron still has it, and when it was last alerted. Run-judged rows read cron.job_run_details; the health route mails the unhealthy ones and stamps alerted_at only after delivery.';
+- [x] **Step 3: The public door (`apps/edge/api/health.ts`)**
+
+`judgeHealth(db)` calls `sweep_health` and `jobs_backlog`: 200 with `{ ok: true, unhealthy: [], jobs_backlog: 0, checked_at }` only when every clock is healthy and nothing due is waiting; otherwise 503 with the unhealthy names (never the detail, which stays inside) and the backlog (null when unreadable, which is not zero); a health function that cannot be read is 503 with `reason: "health_unreadable"` and none of the database's words. `GET` wraps it with a ten-second per-instance cache and `cache-control: no-store`. `health-route.test.mjs` proves the five cases with a fake database.
+
+- [x] **Step 4: Prove on a local database, regenerate the value sets, splice the types, open the PR; do not merge**
+
+```bash
+node "$S" db reset            # 00107 replays from zero
+COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm test:db > "$LOG/db.log" 2>&1
+SUPABASE_CLI="$S" node tooling/scripts/gen-schema-sets.mjs
+node "$S" gen types typescript --local > "$LOG/types.ts"   # then splice only the sweep_status block
 ```
 
-`sweep_mark_alerted(p_alerted, p_healthy)` and `request_sweep(...)` are unchanged; both key on the row name, which the new rows now carry.
-
-- [x] **Step 2: The database test moves from 11 to 17 rows**
-
-In `tooling/scripts/tests/jobs-outbox.db.test.mjs`, the test "sweep_health() watches the heartbeat, and the lines sweep 00097 left out" asserts the set of names; add the six new names (`partitions`, `purge_ask`, `purge_cron_history`, `purge_events`, `purge_notifications`, `purge_rate_hits`) plus `pauses` and `snoozes` if it lists them, and assert every new row is healthy on a fresh database (grace: registered now, never run).
-
-- [x] **Step 3: The health route (`apps/edge/api/health.ts`)**
-
-```ts
-/**
- * GET /api/health — the one door an outside monitor knocks on.
- *
- * No key. It says only whether the platform's clocks are healthy and whether
- * due work is being drained, never a tenant's name or a secret: 200 when all
- * is well, 503 otherwise, so a pinger outside our failure domain can page a
- * person even when the edge, the database or pg_cron is the thing that is
- * down. Cached ten seconds per instance, so a noisy pinger cannot become a
- * load on the database.
- */
-import { pg } from "../lib/pg.js";
-import type { SweepHealthRow } from "../lib/sweep-health.js";
-
-const CACHE_MS = 10_000;
-let cached: { at: number; status: number; body: string } | null = null;
-
-export interface HealthAnswer { ok: boolean; unhealthy: string[]; jobs_backlog: number | null; checked_at: string; reason?: string }
-
-/** The judgement, separated from the transport so a test can run it against a fake database. */
-export async function judgeHealth(db: { rpc: (name: string) => Promise<{ data: unknown; error: { message: string } | null }> }): Promise<{ status: number; body: HealthAnswer }> {
-  const now = new Date().toISOString();
-  const [health, backlog] = await Promise.all([db.rpc("sweep_health"), db.rpc("jobs_backlog")]);
-  if (health.error) return { status: 503, body: { ok: false, unhealthy: [], jobs_backlog: null, checked_at: now, reason: "health_unreadable" } };
-  const rows = (health.data ?? []) as SweepHealthRow[];
-  const unhealthy = rows.filter((r) => !r.healthy).map((r) => r.sweep);
-  const due = typeof backlog.data === "number" ? backlog.data : null;
-  const ok = unhealthy.length === 0 && (due ?? 0) === 0;
-  return { status: ok ? 200 : 503, body: { ok, unhealthy, jobs_backlog: due, checked_at: now } };
-}
-
-export async function GET(): Promise<Response> {
-  const headers = { "content-type": "application/json", "cache-control": "no-store" };
-  if (cached && Date.now() - cached.at < CACHE_MS) return new Response(cached.body, { status: cached.status, headers });
-  const db = pg();
-  if (!db) return new Response(JSON.stringify({ ok: false, unhealthy: [], jobs_backlog: null, checked_at: new Date().toISOString(), reason: "no_database" }), { status: 503, headers });
-  let answer: { status: number; body: HealthAnswer };
-  try {
-    answer = await judgeHealth(db as unknown as Parameters<typeof judgeHealth>[0]);
-  } catch (e) {
-    answer = { status: 503, body: { ok: false, unhealthy: [], jobs_backlog: null, checked_at: new Date().toISOString(), reason: e instanceof Error ? e.message.slice(0, 120) : "error" } };
-  }
-  cached = { at: Date.now(), status: answer.status, body: JSON.stringify(answer.body) };
-  return new Response(cached.body, { status: answer.status, headers });
-}
-```
-
-- [x] **Step 4: The executed test (`health-route.test.mjs`)**
-
-```js
-import { test } from "node:test";
-import assert from "node:assert/strict";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { judgeHealth } = await import(pathToFileURL(path.join(ROOT, "apps/edge/api/health.ts")).href);
-const db = (rows, backlog, err = null) => ({ rpc: async (name) => name === "sweep_health" ? { data: rows, error: err } : { data: backlog, error: null } });
-const row = (sweep, healthy) => ({ sweep, healthy, detail: healthy ? null : "late", last_request_at: null, status_code: null, scheduled: true, alerted_at: null });
-
-test("all clocks healthy and nothing waiting is 200", async () => {
-  const a = await judgeHealth(db([row("jobs", true), row("purge_events", true)], 0));
-  assert.equal(a.status, 200); assert.equal(a.body.ok, true); assert.deepEqual(a.body.unhealthy, []); assert.equal(a.body.jobs_backlog, 0);
-});
-test("one unhealthy clock names itself and is 503", async () => {
-  const a = await judgeHealth(db([row("jobs", true), row("partitions", false)], 0));
-  assert.equal(a.status, 503); assert.deepEqual(a.body.unhealthy, ["partitions"]);
-});
-test("due work nobody drains is 503 even when every clock ticks", async () => {
-  const a = await judgeHealth(db([row("jobs", true)], 7));
-  assert.equal(a.status, 503); assert.equal(a.body.jobs_backlog, 7);
-});
-test("a health function that cannot be read is 503 with a reason, and no secret", async () => {
-  const a = await judgeHealth(db(null, 0, { message: "permission denied for schema cron: secret-ish" }));
-  assert.equal(a.status, 503); assert.equal(a.body.reason, "health_unreadable"); assert.ok(!JSON.stringify(a.body).includes("secret-ish"));
-});
-```
-
-- [x] **Step 5: Local database proof (00107 replays; db tests; `sweep_health()` returns 17 rows, all healthy), typecheck, full suite, PR opened; do not merge.** Ruben's half: point an external pinger (UptimeRobot, Better Stack, or the Cloudflare health check) at `https://chanlytics-messaging.vercel.app/api/health` every minute, alerting on non-200.
+PR body: "Adds migration 00107. Merge on Ruben's yes; push after deploy." **Ruben's half:** point an external pinger (UptimeRobot, Better Stack, or a Cloudflare health check) at `https://chanlytics-messaging.vercel.app/api/health` every minute, alerting on non-200. Until then the door exists and nobody knocks.
 
 ---
 

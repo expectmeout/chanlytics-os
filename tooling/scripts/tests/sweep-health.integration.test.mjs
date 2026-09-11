@@ -2,8 +2,8 @@
  * The watchdog, against the live database.
  *
  * Read-only apart from two writes that are no-ops by construction: an empty
- * sweep_mark_alerted, and an insert the CHECK constraint is expected to
- * reject. It creates no rows and mutates no sweep state.
+ * sweep_mark_alerted, and an insert the registration trigger (00107) is
+ * expected to reject. It creates no rows and mutates no sweep state.
  *
  * Skips without service-role credentials, which is what happens in CI — the
  * same bargain the other integration suites make.
@@ -26,8 +26,10 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // behind and emails the workspace, watched by nothing until then. 00086
   // finished the job: every sweep that changes state on its own is here, the
   // last two of them SQL that never leaves the database. 00098 added 'lines',
-  // which 00097 had registered with sweep_status and never here.
-  assert.deepEqual(data.map((r) => r.sweep), ["calendar", "calls", "deadman", "google", "health", "jobs", "lines", "pauses", "playbooks", "registration", "snoozes"]);
+  // which 00097 had registered with sweep_status and never here. 00107 made
+  // the register data and added the six clocks nobody had typed in: the
+  // monthly partition precreate and the five nightly purges.
+  assert.deepEqual(data.map((r) => r.sweep), ["calendar", "calls", "deadman", "google", "health", "jobs", "lines", "partitions", "pauses", "playbooks", "purge_ask", "purge_cron_history", "purge_events", "purge_notifications", "purge_rate_hits", "registration", "snoozes"]);
   for (const r of data) assert.equal(r.scheduled, true, `${r.sweep}: ${r.detail}`);
 });
 
@@ -61,13 +63,15 @@ test("the deadman trigger records what it enqueued", { skip }, async () => {
 });
 
 test("an unexpected sweep name cannot be added behind sweep_health()'s back", { skip }, async () => {
+  // Since 00107 the register is data, so the guard is a trigger, not a CHECK:
+  // a name that arrives without the cron job it is has nothing to be judged
+  // by, and is refused.
   const { error } = await db.from("sweep_status").insert({ sweep: "bogus" });
-  assert.notEqual(error, null, "an unwatched sweep name was accepted");
-  assert.match(error.message, /sweep_status_sweep_check|violates check constraint/);
+  assert.notEqual(error, null, "an unregistered sweep name was accepted");
+  assert.match(error.message, /not registered/);
   const { data } = await db.from("sweep_status").select("sweep");
-  // Nine, not eleven: 'pauses' and 'snoozes' run inside Postgres, so they
-  // never enqueue anything and never write a row here.
-  assert.deepEqual(data.map((r) => r.sweep).sort(), ["calendar", "calls", "deadman", "google", "health", "jobs", "lines", "playbooks", "registration"]);
+  // Seventeen: every clock has a row now, the ones that run inside Postgres included.
+  assert.deepEqual(data.map((r) => r.sweep).sort(), ["calendar", "calls", "deadman", "google", "health", "jobs", "lines", "partitions", "pauses", "playbooks", "purge_ask", "purge_cron_history", "purge_events", "purge_notifications", "purge_rate_hits", "registration", "snoozes"]);
   // Belt and braces, in case a future migration ever widens the set.
   await db.from("sweep_status").delete().eq("sweep", "bogus");
 });
@@ -83,6 +87,8 @@ test("every schedule the watchdog depends on is present and active", { skip }, a
     "registration-sweep", "calendar-people-sweep", "google-listings-sweep", "playbooks-sweep", "wake-stale-snoozes",
     // 00098: the ledger's heartbeat, and the lines sweep 00097 left unwatched.
     "jobs-tick", "lines-sweep",
+    // 00107: the six clocks nobody watched, registered as data and judged on their runs.
+    "events-partition-precreate", "purge-events", "purge-ask", "purge-notifications", "purge-rate-hits",
   ]) {
     assert.ok(byName.has(n), `no cron job named ${n}`);
     assert.equal(byName.get(n).active, true, `${n} is disabled`);
