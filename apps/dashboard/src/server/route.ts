@@ -90,6 +90,18 @@ export interface Policy {
   readonly strict?: true;
 }
 
+declare const shape: unique symbol;
+/**
+ * What a route takes and answers, carried on the export as a phantom type so
+ * the client can read them: `InputOf<typeof POST>` is the body (or, for a
+ * read, the query) the schema accepts; `OutputOf<typeof GET>` is what
+ * `handle` returns. Nothing exists at runtime: the symbol is never created,
+ * and the property is optional so the handler object is unchanged.
+ */
+export type Shape<I, O> = { readonly [shape]?: { input: I; output: O } };
+export type InputOf<R> = R extends Shape<infer I, unknown> ? I : never;
+export type OutputOf<R> = R extends Shape<unknown, infer O> ? O : never;
+
 export interface ReadSpec<S extends Scope, Q, O> {
   scope: S;
   /** Every member may read unless this says otherwise. */
@@ -217,7 +229,8 @@ function build<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I, O>)
     return spec.handle({ ctx, req, input, ...given } as unknown as Call<S, I>);
   };
 
-  return Object.assign(withRoute((req, ctx) => run(req, ctx)), { policy, run });
+  const handler = Object.assign(withRoute((req, ctx) => run(req, ctx)), { policy, run });
+  return handler as typeof handler & Shape<I, O>;
 }
 
 /** A GET. */
