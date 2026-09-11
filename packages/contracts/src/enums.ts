@@ -122,6 +122,9 @@ export const EVENT_KINDS = [
   "google.disconnected",
   "google.replied",
   "workspace.created",
+  /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
+  "settings.changed",
+  "policy.changed",
   "billing.updated",
   "billing.paused",
   "billing.resumed",

@@ -145,6 +145,11 @@ test("the settings write: the owner's, the workspace named, the body { config, v
   assert.equal(saved.config.brain.business_name, "Bayside Salon");
   assert.deepEqual([tables.tenant_config[0].version, tables.tenant_config[0].updated_by], [2, USER], "the row records its author");
   assert.deepEqual(tables.events.map((e) => [e.kind, e.subject_id, e.data.fields, e.data.by, e.data.version]), [["settings.changed", B, ["booking_link", "business_name", "fallbacks", "system_prompt"], USER, 2]], "the keys that changed, never their values");
+  assert.equal(tables.events[0].data.via, undefined, "a form saved: no card mark");
+  // A settings card from the Ask palette: the same route, the same event, marked.
+  const fromCard = await settings.PUT.run(send("PUT", { config: { brain: { ...brain, business_name: "Bayside Salon & Spa" } }, version: 2 }, inB), { ...ctxFor(tables), via: "ask" });
+  assert.equal(fromCard.version, 3);
+  assert.deepEqual([tables.events[1].kind, tables.events[1].data.fields, tables.events[1].data.via], ["settings.changed", ["business_name"], "ask"]);
   await refused(settings.PUT.run(send("PUT", { config: {}, version: 1 }, inB), ctxFor({ ...tables, tenant_config: [] })), "conflict", 409, "no settings record yet");
 });
 
@@ -182,6 +187,15 @@ test("the autonomy matrix: the workspace's own rows, read by every member; chang
   await refused(policies.PUT.run(send("PUT", { class: "booking", maxTokensDay: 1000 }, inB), ctxFor(tables)), "validation", 400, "The token budget only applies to the reply policy.");
   const off = await policies.PUT.run(send("PUT", { class: "reply", maxTokensDay: 0 }, inB), ctxFor(tables));
   assert.equal(off.policy.limits.max_llm_tokens_day, 0, "0 is off, and is written as such rather than dropped");
+  // Every change is on the events ledger: the class, the mode, the limit keys
+  // that moved -- never their values -- and who; a card's commit says so.
+  const fromCard = await policies.PUT.run(send("PUT", { class: "reply", mode: "veto" }, inB), { ...ctxFor(tables), via: "ask" });
+  assert.equal(fromCard.policy.mode, "veto");
+  const ev = tables.events.filter((e) => e.kind === "policy.changed");
+  assert.equal(ev.length, 6, "one row per change that landed; none for a refusal");
+  assert.deepEqual(ev.at(-1).data, { class: "reply", mode: "veto", fields: [], by: USER, via: "ask" }, "a card was tapped, and the row says so");
+  assert.deepEqual([ev.at(-2).data.fields, ev.at(-2).data.mode, ev.at(-2).data.via], [["max_llm_tokens_day"], "ask", undefined], "a dial edit names the key it moved, never the value, and no card");
+  assert.ok(ev.every((e) => e.subject_type === "workspace" && e.subject_id === B && !("limits" in e.data)));
 });
 
 test("the business record: read by every member, nothing on file is null not a blank form; written by the owner, refused in the owner's words before anything leaves for the carriers", async () => {

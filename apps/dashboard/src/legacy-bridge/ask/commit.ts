@@ -7,8 +7,21 @@
  * commit lands, the refresh map re-reads the surfaces it touched, the same
  * as when the page's own button is pressed, so this module drags none of the
  * Next-only imports behind them and can be executed in a test.
+ *
+ * Two marks ride with every call. `via: "ask"` tells the ledger a card was
+ * tapped, not a button. And an undo names the decision it reverses: the
+ * commit keeps the ledger row's id the route answered with, and the inverse
+ * call sends it as `undoOf`, which the ledger writes into `undo_of` -- so
+ * "this row undid that one" is on the record, not inferred from timestamps.
+ * Policy and settings changes live in the events ledger, which has no row
+ * ids to hand back, so their undo is a change like any other there.
+ *
+ * The client is a parameter with the tab's own as the default, so a test
+ * hands in one bound to a fake fetch and runs every branch for real.
  */
-import { applySettingsChange, type AskProposal, type AskProposalOutcome } from "@chanlytics/contracts";
+import { ASK_THREAD_VERBS, applySettingsChange, type AskProposal, type AskProposalOutcome } from "@chanlytics/contracts";
+import type { Api } from "../../client/api";
+import { apiFor } from "../api";
 import { viaAsk } from "./api";
 
 export type CommitResult = { ok: true; receipt: string; undo: Record<string, unknown> | null } | { ok: false; message: string };
@@ -17,7 +30,8 @@ interface Loaded {
   __SETTINGS?: { config?: Record<string, unknown> | null; version?: number } | null;
 }
 
-const THREAD_ROUTE = {
+/** The thread verbs with an Inbox route of their own; `resolve` closes the escalation instead. A test holds this to ASK_THREAD_VERBS. */
+export const THREAD_ROUTE = {
   take_over: "POST conversations/[id]/take-over",
   hand_back: "POST conversations/[id]/hand-back",
   snooze: "POST conversations/[id]/snooze",
@@ -26,53 +40,59 @@ const THREAD_ROUTE = {
 } as const;
 type ThreadVerb = keyof typeof THREAD_ROUTE;
 const isThreadVerb = (v: string): v is ThreadVerb => v in THREAD_ROUTE;
+const isProposable = (v: string): boolean => (ASK_THREAD_VERBS as readonly string[]).includes(v);
 const INVERSE: Record<string, string> = { take_over: "hand_back", hand_back: "take_over", snooze: "wake", wake: "snooze" };
 const RECEIPT: Record<string, string> = { hand_back: "The receptionist has it again", snooze: "Snoozed", wake: "Back in the Inbox", archive: "Archived", resolve: "Resolved" };
 
 /** A payload field as the route's string param: the proposal carries ids as JSON, the route takes them as text. */
 const s = (v: unknown): string => (v == null ? "" : String(v));
+/** A ledger row id the route answered with, or null when it answered none. */
+const decisionOf = (data: unknown): string | null => {
+  const id = (data as { decision_id?: unknown } | null)?.decision_id;
+  return typeof id === "string" && id ? id : null;
+};
 
 /** A thread verb by name; the snooze carries its `until`. */
-function threadVerb(verb: ThreadVerb, conversationId: string, until: unknown) {
+function threadVerb(client: Api, verb: ThreadVerb, conversationId: string, until: unknown, undoOf?: string) {
   return verb === "snooze"
-    ? viaAsk("POST conversations/[id]/snooze", { params: { id: conversationId }, body: { until: s(until) } })
-    : viaAsk(THREAD_ROUTE[verb], { params: { id: conversationId } });
+    ? viaAsk(client, "POST conversations/[id]/snooze", { params: { id: conversationId }, body: { until: s(until) } }, undoOf)
+    : viaAsk(client, THREAD_ROUTE[verb], { params: { id: conversationId } }, undoOf);
 }
 
-export async function commitProposal(win: Window, p: AskProposal): Promise<CommitResult> {
+export async function commitProposal(win: Window, p: AskProposal, client: Api = apiFor(win)): Promise<CommitResult> {
   const pl = p.payload;
   switch (p.kind) {
     case "reply": {
-      const r = await viaAsk("POST conversations/[id]/reply", { params: { id: s(pl.conversation_id) }, body: { text: s(pl.text) } });
+      const r = await viaAsk(client, "POST conversations/[id]/reply", { params: { id: s(pl.conversation_id) }, body: { text: s(pl.text) } });
       if (!r.ok) return r;
-      return { ok: true, receipt: `Sent to ${s(pl.who)} — cancel within 15 seconds`, undo: { message_id: r.data.message_id, cancelable_until: r.data.cancelable_until } };
+      return { ok: true, receipt: `Sent to ${s(pl.who)} — cancel within 15 seconds`, undo: { message_id: r.data.message_id, cancelable_until: r.data.cancelable_until, decision_id: decisionOf(r.data) } };
     }
     case "steer": {
-      const r = await viaAsk("POST messages/[id]/steer", { params: { id: s(pl.message_id) }, body: { text: s(pl.instruction) } });
+      const r = await viaAsk(client, "POST messages/[id]/steer", { params: { id: s(pl.message_id) }, body: { text: s(pl.instruction) } });
       if (!r.ok) return r;
       return { ok: true, receipt: "Rewritten — the new draft waits its turn", undo: null };
     }
     case "thread_verb": {
       const verb = s(pl.verb);
-      if (verb !== "resolve" && !isThreadVerb(verb)) return { ok: false, message: "This card cannot be approved from here." };
+      if (!isProposable(verb) || (verb !== "resolve" && !isThreadVerb(verb))) return { ok: false, message: "This card cannot be approved from here." };
       const r = verb === "resolve"
-        ? await viaAsk("POST escalations/[id]/resolve", { params: { id: s(pl.escalation_id) } })
-        : await threadVerb(verb as ThreadVerb, s(pl.conversation_id), pl.until);
+        ? await viaAsk(client, "POST escalations/[id]/resolve", { params: { id: s(pl.escalation_id) } })
+        : await threadVerb(client, verb as ThreadVerb, s(pl.conversation_id), pl.until);
       if (!r.ok) return r;
       const receipt = verb === "take_over" ? `You have ${s(pl.who)}'s thread` : RECEIPT[verb] ?? "Done";
-      return { ok: true, receipt, undo: INVERSE[verb] ? { verb: INVERSE[verb], conversation_id: pl.conversation_id, until: pl.until ?? null } : null };
+      return { ok: true, receipt, undo: INVERSE[verb] ? { verb: INVERSE[verb], conversation_id: pl.conversation_id, until: pl.until ?? null, decision_id: decisionOf(r.data) } : null };
     }
     case "person_mode": {
-      const r = await viaAsk("PUT contacts/[id]/receptionist", { params: { id: s(pl.contact_id) }, body: { mode: pl.mode as "auto" | "ask" | "never" | "inherit" } });
+      const r = await viaAsk(client, "PUT contacts/[id]/receptionist", { params: { id: s(pl.contact_id) }, body: { mode: pl.mode as "auto" | "ask" | "never" | "inherit" } });
       if (!r.ok) return r;
       win.dispatchEvent(new CustomEvent("surface:clients"));
-      return { ok: true, receipt: `Receptionist for ${s(pl.who)}: ${s(pl.mode)}`, undo: { contact_id: pl.contact_id, mode: pl.previous ?? "inherit" } };
+      return { ok: true, receipt: `Receptionist for ${s(pl.who)}: ${s(pl.mode)}`, undo: { contact_id: pl.contact_id, mode: pl.previous ?? "inherit", decision_id: decisionOf(r.data) } };
     }
     case "policy": {
       const body: Record<string, unknown> = { class: pl.class };
       if (pl.mode) body.mode = pl.mode;
       if (typeof pl.min_confidence === "number") body.minConfidence = pl.min_confidence;
-      const r = await viaAsk("PUT policies", { body });
+      const r = await viaAsk(client, "PUT policies", { body });
       if (!r.ok) return r;
       const prev = (pl.previous ?? {}) as { mode?: string | null; min_confidence?: number | null };
       return { ok: true, receipt: `Autonomy changed: ${p.summary}`, undo: { class: pl.class, mode: prev.mode ?? null, min_confidence: prev.min_confidence ?? null } };
@@ -82,22 +102,22 @@ export async function commitProposal(win: Window, p: AskProposal): Promise<Commi
       if (!st || !st.config || typeof st.version !== "number") return { ok: false, message: "Settings are not loaded yet — open Settings once and try again." };
       const before = st.config;
       const next = applySettingsChange(before as Parameters<typeof applySettingsChange>[0], pl.change as Parameters<typeof applySettingsChange>[1]);
-      const r = await viaAsk("PUT settings", { body: { config: next, version: st.version } });
+      const r = await viaAsk(client, "PUT settings", { body: { config: next, version: st.version } });
       if (!r.ok) return r;
       return { ok: true, receipt: p.summary, undo: { config: before } };
     }
     case "whisper": {
-      const r = await viaAsk("POST calls/[id]/whisper", { params: { id: s(pl.call_id) }, body: { text: s(pl.text), trigger: false } });
+      const r = await viaAsk(client, "POST calls/[id]/whisper", { params: { id: s(pl.call_id) }, body: { text: s(pl.text), trigger: false } });
       if (!r.ok) return r;
       return { ok: true, receipt: "Whispered — the receptionist works it into its next answer", undo: null };
     }
     case "invite": {
-      const r = await viaAsk("POST team/invite", { body: { email: s(pl.email), role: pl.role as "operator" | "viewer" } });
+      const r = await viaAsk(client, "POST team/invite", { body: { email: s(pl.email), role: pl.role as "operator" | "viewer" } });
       if (!r.ok) return r;
       return { ok: true, receipt: `Invited ${s(pl.email)} as ${s(pl.role)}`, undo: null };
     }
     case "broadcast": {
-      const r = await viaAsk("POST broadcasts", {
+      const r = await viaAsk(client, "POST broadcasts", {
         body: {
           template_id: pl.template_id,
           params: Array.isArray(pl.params) ? pl.params : [],
@@ -108,10 +128,10 @@ export async function commitProposal(win: Window, p: AskProposal): Promise<Commi
       });
       if (!r.ok) return r;
       const n = Number(r.data.recipient_count ?? pl.count ?? 0);
-      return { ok: true, receipt: `Broadcast “${r.data.name ?? s(pl.name)}” — ${n} ${n === 1 ? "person" : "people"}, ${pl.scheduled_for ? "scheduled" : "sending now"}`, undo: { broadcast_id: r.data.id } };
+      return { ok: true, receipt: `Broadcast “${r.data.name ?? s(pl.name)}” — ${n} ${n === 1 ? "person" : "people"}, ${pl.scheduled_for ? "scheduled" : "sending now"}`, undo: { broadcast_id: r.data.id, decision_id: decisionOf(r.data) } };
     }
     case "playbook": {
-      const r = await viaAsk("POST playbooks", {
+      const r = await viaAsk(client, "POST playbooks", {
         body: {
           name: pl.name ?? null,
           trigger: pl.trigger,
@@ -124,42 +144,44 @@ export async function commitProposal(win: Window, p: AskProposal): Promise<Commi
         },
       });
       if (!r.ok) return r;
-      return { ok: true, receipt: `Playbook “${r.data.name ?? s(pl.name)}” is running — its next run is on the card in Campaigns › Playbooks`, undo: { playbook_id: r.data.id } };
+      return { ok: true, receipt: `Playbook “${r.data.name ?? s(pl.name)}” is running — its next run is on the card in Campaigns › Playbooks`, undo: { playbook_id: r.data.id, decision_id: decisionOf(r.data) } };
     }
     default:
       return { ok: false, message: "This card cannot be approved from here." };
   }
 }
 
-export async function undoProposal(win: Window, p: AskProposal, outcome: AskProposalOutcome): Promise<CommitResult> {
+export async function undoProposal(win: Window, p: AskProposal, outcome: AskProposalOutcome, client: Api = apiFor(win)): Promise<CommitResult> {
   const u = (outcome.undo ?? null) as Record<string, unknown> | null;
   if (!u) return { ok: false, message: "This one has no undo." };
+  // The row this undo reverses, when the commit's route answered with one.
+  const undoOf = typeof u.decision_id === "string" && u.decision_id ? u.decision_id : undefined;
   switch (p.kind) {
     case "reply": {
-      const r = await viaAsk("POST messages/[id]/cancel-send", { params: { id: s(u.message_id) } });
+      const r = await viaAsk(client, "POST messages/[id]/cancel-send", { params: { id: s(u.message_id) } }, undoOf);
       if (!r.ok) return r;
       return { ok: true, receipt: "Canceled before it sent", undo: null };
     }
     case "thread_verb": {
       const verb = s(u.verb);
       if (!isThreadVerb(verb)) return { ok: false, message: "This one has no undo." };
-      const r = await threadVerb(verb, s(u.conversation_id), u.until);
+      const r = await threadVerb(client, verb, s(u.conversation_id), u.until, undoOf);
       if (!r.ok) return r;
       return { ok: true, receipt: "Undone", undo: null };
     }
     case "person_mode": {
-      const r = await viaAsk("PUT contacts/[id]/receptionist", { params: { id: s(u.contact_id) }, body: { mode: u.mode as "auto" | "ask" | "never" | "inherit" } });
+      const r = await viaAsk(client, "PUT contacts/[id]/receptionist", { params: { id: s(u.contact_id) }, body: { mode: u.mode as "auto" | "ask" | "never" | "inherit" } }, undoOf);
       if (!r.ok) return r;
       win.dispatchEvent(new CustomEvent("surface:clients"));
       return { ok: true, receipt: "Set back", undo: null };
     }
     case "broadcast": {
-      const r = await viaAsk("POST broadcasts/[id]/cancel", { params: { id: s(u.broadcast_id) } });
+      const r = await viaAsk(client, "POST broadcasts/[id]/cancel", { params: { id: s(u.broadcast_id) } }, undoOf);
       if (!r.ok) return r;
       return { ok: true, receipt: r.data.was === "sending" ? "Stopped — it ends after this batch" : "Canceled — nothing will send", undo: null };
     }
     case "playbook": {
-      const r = await viaAsk("DELETE playbooks/[id]", { params: { id: s(u.playbook_id) } });
+      const r = await viaAsk(client, "DELETE playbooks/[id]", { params: { id: s(u.playbook_id) } }, undoOf);
       if (!r.ok) return r;
       return { ok: true, receipt: "Deleted — nothing will run", undo: null };
     }
@@ -168,14 +190,14 @@ export async function undoProposal(win: Window, p: AskProposal, outcome: AskProp
       if (u.mode) body.mode = u.mode;
       if (typeof u.min_confidence === "number") body.minConfidence = u.min_confidence;
       if (!u.mode && typeof u.min_confidence !== "number") return { ok: false, message: "The previous setting is unknown; change it in Settings." };
-      const r = await viaAsk("PUT policies", { body });
+      const r = await viaAsk(client, "PUT policies", { body });
       if (!r.ok) return r;
       return { ok: true, receipt: "Set back", undo: null };
     }
     case "settings": {
       const st = (win as unknown as Loaded).__SETTINGS;
       if (!st || typeof st.version !== "number") return { ok: false, message: "Settings are not loaded yet." };
-      const r = await viaAsk("PUT settings", { body: { config: u.config, version: st.version } });
+      const r = await viaAsk(client, "PUT settings", { body: { config: u.config, version: st.version } });
       if (!r.ok) return r;
       return { ok: true, receipt: "Previous settings are back", undo: null };
     }

@@ -364,6 +364,14 @@ function partialString(prefix: string, key: number): string {
 
 export type AskRole = SchemaSet<"ask_messages.role">;
 
+/**
+ * The Inbox verbs the assistant may propose on a thread. One list, read by
+ * the proposer on the server and the committer in the browser, so a verb
+ * cannot be proposable in one and unknown to the other.
+ */
+export const ASK_THREAD_VERBS = ["take_over", "hand_back", "snooze", "wake", "archive", "resolve"] as const;
+export type AskThreadVerb = (typeof ASK_THREAD_VERBS)[number];
+
 /** A proposal the model made; a card the person may approve. Executed by the client through the verbs. */
 export interface AskProposal {
   id: string;

@@ -27,6 +27,13 @@ export interface RouteContext {
    * the ledger should keep is that a card, not a button, was tapped.
    */
   via?: "ask";
+  /**
+   * The decision this request undoes, when it says so (the x-undo-of header,
+   * a decision id). The ledger row the inverse verb records is linked to the
+   * row it reverses, so an undo is on the record as one rather than inferred
+   * from two rows and a clock.
+   */
+  undoOf?: string;
 }
 
 /**
@@ -96,8 +103,10 @@ export function withRoute<T>(
         return NextResponse.json(err("unauthorized", "Sign in required."), { status: 401, headers: PRIVATE });
       }
       const via = req.headers.get("x-via") === "ask" ? ("ask" as const) : undefined;
+      const undoOfHeader = req.headers.get("x-undo-of");
+      const undoOf = undoOfHeader && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(undoOfHeader) ? undoOfHeader : undefined;
       const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
-      const data = await handler(req, { supabase, userId: user.id, email: user.email, metadata, params, ...(via ? { via } : {}) });
+      const data = await handler(req, { supabase, userId: user.id, email: user.email, metadata, params, ...(via ? { via } : {}), ...(undoOf ? { undoOf } : {}) });
       console.log(JSON.stringify({ level: "info", route, user: user.id, ms: Date.now() - started }));
       // A handler that built its own Response — a file to download — passes
       // through as it is, under the same no-store rule as every other exit.

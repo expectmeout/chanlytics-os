@@ -150,7 +150,8 @@ export const PUT = write({
         category: "system",
         subject_type: "workspace",
         subject_id: member.tenantId,
-        data: { fields, by: ctx.userId, version: result.row.version },
+        // `via` says a card was tapped rather than a form saved, as the decisions ledger says it.
+        data: { fields, by: ctx.userId, version: result.row.version, ...(ctx.via ? { via: ctx.via } : {}) },
       }).then(({ error }) => { if (error) console.error("settings_event_failed", error.message); });
     }
     return { config: parseTenantConfig(result.row.config) ?? {}, version: result.row.version };

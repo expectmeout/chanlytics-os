@@ -12,6 +12,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { scheduleJob, cancelJobsFor } from "@chanlytics/jobs";
 import { AppError, type JobKind } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
+import { recordDecision } from "./verbs";
 
 let svc: SupabaseClient<Database> | null = null;
 function serviceDb(): SupabaseClient<Database> {
@@ -258,23 +259,22 @@ export interface OpenInvite {
  * report failure for something that succeeded.
  */
 async function noteTeamChange(
-  ctx: { supabase: SupabaseClient<Database>; userId: string },
+  ctx: { supabase: SupabaseClient<Database>; userId: string; via?: "ask"; undoOf?: string },
   tenantId: string,
   subjectType: "membership" | "invitation",
   subjectId: string,
   verb: "invite" | "revoke_invite" | "change_role" | "remove_member",
   payload: Record<string, unknown>,
 ): Promise<void> {
-  const { error } = await ctx.supabase.from("decisions").insert({
-    tenant_id: tenantId,
-    subject_type: subjectType,
-    subject_id: subjectId,
-    verb,
-    actor_type: "user",
-    actor_user_id: ctx.userId,
-    payload: payload as Json,
-  });
-  if (error) console.error("team_audit_failed", verb, error.message);
+  // Through the one ledger writer, so a card's mark (via) and an undo's link
+  // ride on a team change as they ride on every other decision. This used to
+  // be its own insert, and an invitation made from the Ask palette was the
+  // one card whose row said nothing about the card.
+  try {
+    await recordDecision(ctx, tenantId, subjectType, subjectId, verb, payload as Json);
+  } catch (e) {
+    console.error("team_audit_failed", verb, e instanceof Error ? e.message : String(e));
+  }
 }
 export async function teamRoster(
   db: SupabaseClient<Database>,
@@ -312,6 +312,8 @@ export async function inviteMember(
   invitedBy: string,
   email: string,
   role: "operator" | "viewer",
+  /** Where the request came from inside the app, when it says: a card, not a form. */
+  via?: "ask",
 ) {
   const db = serviceDb();
   // A person who already belongs shouldn't get a confusing signup email.
@@ -343,18 +345,20 @@ export async function inviteMember(
       .select("id")
       .single();
     if (error) throw new Error(error.message);
-    await noteTeamChange({ supabase: caller, userId: invitedBy }, tenantId, "membership", created.id, "invite", {
+    await noteTeamChange({ supabase: caller, userId: invitedBy, via }, tenantId, "membership", created.id, "invite", {
       email, role, joined_existing_account: true,
     });
     return { added: true as const };
   }
 
-  const { error: invErr } = await db
+  const { data: inv, error: invErr } = await db
     .from("invitations")
-    .insert({ tenant_id: tenantId, email, role, invited_by: invitedBy });
-  if (invErr) {
-    if (invErr.code === "23505") return { alreadyInvited: true as const };
-    throw new Error(invErr.message);
+    .insert({ tenant_id: tenantId, email, role, invited_by: invitedBy })
+    .select("id")
+    .single();
+  if (invErr || !inv) {
+    if (invErr?.code === "23505") return { alreadyInvited: true as const };
+    throw new Error(invErr?.message ?? "invitation not created");
   }
   const { error: mailErr } = await db.auth.admin.inviteUserByEmail(email);
   if (mailErr) {
@@ -362,6 +366,9 @@ export async function inviteMember(
     await db.from("invitations").delete().eq("tenant_id", tenantId).eq("email", email).is("accepted_at", null);
     throw new AppError("upstream_email", `We could not send the invitation email: ${mailErr.message}`, 502);
   }
+  // On the ledger once the email is on its way: an invitation is a decision
+  // to hand out the power to message customers, and this path recorded none.
+  await noteTeamChange({ supabase: caller, userId: invitedBy, via }, tenantId, "invitation", inv.id, "invite", { email, role });
   return { invited: true as const };
 }
 

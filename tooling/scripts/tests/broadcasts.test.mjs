@@ -306,8 +306,8 @@ test("Ask: a broadcast is read (list_audiences) and proposed (propose_broadcast)
   assert.ok(pr.includes('if (!tpl || tpl.meta_status !== "approved") return refuse('), "only an approved template");
   assert.ok(pr.includes('kind: "broadcast",') && pr.includes('needs: "operator",'));
   const c = readCode("apps/dashboard/src/legacy-bridge/ask/commit.ts");
-  assert.ok(c.includes('const r = await viaAsk("POST broadcasts", {'), "the card commits through the broadcast route, the same door the page uses");
-  assert.ok(c.includes('const r = await viaAsk("POST broadcasts/[id]/cancel", { params: { id: s(u.broadcast_id) } });'), "undo is the cancel route");
+  assert.ok(c.includes('const r = await viaAsk(client, "POST broadcasts", {'), "the card commits through the broadcast route, the same door the page uses");
+  assert.ok(c.includes('const r = await viaAsk(client, "POST broadcasts/[id]/cancel", { params: { id: s(u.broadcast_id) } }, undoOf);'), "undo is the cancel route");
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
   assert.ok(prompt.includes('"said yes":') && prompt.includes('"broadcast":') && prompt.includes('"held back":'));
   assert.ok(prompt.includes("never propose a broadcast to nobody"));

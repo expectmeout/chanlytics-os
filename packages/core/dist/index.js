@@ -14499,7 +14499,7 @@ async function replyToConversation(ports, cmd) {
   }
   const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "reply", { message_id, window_open: window.open, template: templateName });
   await ports.resolveEscalation(conv.id, decision_id);
-  const receipt = { message_id, status: "queued", cancelable_until: dueAt.toISOString(), window_open: window.open, withdrawn_drafts };
+  const receipt = { message_id, status: "queued", cancelable_until: dueAt.toISOString(), window_open: window.open, withdrawn_drafts, decision_id };
   if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt);
   return receipt;
 }
