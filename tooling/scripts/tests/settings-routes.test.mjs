@@ -148,7 +148,7 @@ test("the settings write: the owner's, the workspace named, the body { config, v
   await refused(settings.PUT.run(send("PUT", { config: {}, version: 1 }, inB), ctxFor({ ...tables, tenant_config: [] })), "conflict", 409, "no settings record yet");
 });
 
-test("the autonomy matrix: the workspace's own rows, read by every member; changed by an operator, in the words each refusal has; a delay edit keeps the mode, and limits are merged never replaced", async () => {
+test("the autonomy matrix: the workspace's own rows, read by every member; changed by an operator, in the words each refusal has; a delay edit keeps the mode, and limits are merged never replaced; the dial and the day's budget travel the same way", async () => {
   const tables = {
     memberships: both("viewer", "operator"),
     policies: [
@@ -170,6 +170,18 @@ test("the autonomy matrix: the workspace's own rows, read by every member; chang
   assert.deepEqual([changed.policy.class, changed.policy.mode, changed.policy.limits], ["reply", "ask", { max_replies_day: 50, reply_delay_ms: 30000 }], "the delay set, the day's cap kept");
   const delayOnly = await policies.PUT.run(send("PUT", { class: "reply", replyDelayMs: 45000 }, inB), ctxFor(tables));
   assert.deepEqual([delayOnly.policy.mode, delayOnly.policy.limits.reply_delay_ms], ["ask", 45000], "a delay edit carries no mode: the row keeps the one it has");
+  // The confidence dial and the day's budget, through the same door: each
+  // alone, the mode and the other limits kept, each refusal in its words.
+  const dial = await policies.PUT.run(send("PUT", { class: "reply", minConfidence: 0.75 }, inB), ctxFor(tables));
+  assert.deepEqual([dial.policy.mode, dial.policy.limits.min_confidence, dial.policy.limits.reply_delay_ms], ["ask", 0.75, 45000], "the dial set, the mode and the delay kept");
+  await refused(policies.PUT.run(send("PUT", { class: "reply", minConfidence: 2 }, inB), ctxFor(tables)), "validation", 400, "The confidence dial is a number from 0 (off) to 1.");
+  await refused(policies.PUT.run(send("PUT", { class: "booking", minConfidence: 0.5 }, inB), ctxFor(tables)), "validation", 400, "The confidence dial only applies to the reply policy.");
+  const budget = await policies.PUT.run(send("PUT", { class: "reply", maxTokensDay: 250000 }, inB), ctxFor(tables));
+  assert.deepEqual([budget.policy.mode, budget.policy.limits.max_llm_tokens_day, budget.policy.limits.min_confidence], ["ask", 250000, 0.75], "the budget set, the dial kept");
+  await refused(policies.PUT.run(send("PUT", { class: "reply", maxTokensDay: 10 }, inB), ctxFor(tables)), "validation", 400, "The token budget is a whole number from 1,000 to 5,000,000, or 0 to turn it off.");
+  await refused(policies.PUT.run(send("PUT", { class: "booking", maxTokensDay: 1000 }, inB), ctxFor(tables)), "validation", 400, "The token budget only applies to the reply policy.");
+  const off = await policies.PUT.run(send("PUT", { class: "reply", maxTokensDay: 0 }, inB), ctxFor(tables));
+  assert.equal(off.policy.limits.max_llm_tokens_day, 0, "0 is off, and is written as such rather than dropped");
 });
 
 test("the business record: read by every member, nothing on file is null not a blank form; written by the owner, refused in the owner's words before anything leaves for the carriers", async () => {

@@ -48,9 +48,10 @@ export const POLICY_CLASS_WORDS: Record<PolicyClass, { name: string; short: stri
   money: { name: "Refunds · rates · negotiation", short: "Money", note: "always goes to you" },
 };
 
-/** 'veto' exists in the enum (and the DB CHECK) but is NOT offered by any UI
- *  until the drafts/countdown engine exists — R1: no option without an
- *  enforcer. The runtime treats an unexpected mode as 'ask' (fail safe). */
+/** The four modes. 'veto' is honoured where there is something to hold: a
+ *  reply waits in the hold window as a draft, a playbook run waits thirty
+ *  minutes; POLICY_CLASS_MODES says which classes offer it. The runtime
+ *  treats an unexpected mode as 'ask' (fail safe). */
 export const POLICY_MODES = ["auto", "veto", "ask", "never"] as const;
 export type PolicyMode = (typeof POLICY_MODES)[number];
 

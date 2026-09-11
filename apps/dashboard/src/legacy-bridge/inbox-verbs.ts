@@ -282,7 +282,7 @@ export async function refreshSettings(): Promise<void> {
 declare global {
   interface Window {
     __setReportDays?: (days: number) => Promise<boolean>;
-    __setPolicy?: (cls: string, mode: string | undefined, replyDelayMs?: number) => Promise<VerbResult>;
+    __setPolicy?: (cls: string, mode: string | undefined, replyDelayMs?: number, minConfidence?: number, maxTokensDay?: number) => Promise<VerbResult>;
     __refreshSettings?: () => Promise<void>;
     __refreshLive?: () => Promise<void>;
     __inboxVerb: typeof inboxVerb;
@@ -303,19 +303,20 @@ declare global {
 }
 
 /**
- * Settings → Autonomy: `window.__setPolicy(class, mode, replyDelayMs?)`.
+ * Settings → Autonomy: `window.__setPolicy(class, mode, replyDelayMs?, minConfidence?, maxTokensDay?)`.
  *
  * PUT /api/v1/policies, operator or owner; viewers get the server's refusal.
  * On success the refresh map re-reads the settings surface through the runner
  * (so the matrix, the approval chips and the cache all agree) and the mockup's own
  * `policy:changed` event fires, which is what every reader listens for.
  */
-export async function setPolicy(cls: string, mode: string | undefined, replyDelayMs?: number, minConfidence?: number): Promise<VerbResult> {
+export async function setPolicy(cls: string, mode: string | undefined, replyDelayMs?: number, minConfidence?: number, maxTokensDay?: number): Promise<VerbResult> {
   // A delay edit sends no mode. It used to resend the one this page had
   // loaded, so changing the hold window from a stale tab could quietly flip
-  // Replies back to whatever that tab remembered.
+  // Replies back to whatever that tab remembered. The dial and the day's
+  // budget travel the same way: each alone, the mode untouched.
   const r = await api()("PUT policies", {
-    body: { class: cls, ...(mode !== undefined ? { mode } : {}), ...(replyDelayMs !== undefined ? { replyDelayMs } : {}), ...(minConfidence !== undefined ? { minConfidence } : {}) },
+    body: { class: cls, ...(mode !== undefined ? { mode } : {}), ...(replyDelayMs !== undefined ? { replyDelayMs } : {}), ...(minConfidence !== undefined ? { minConfidence } : {}), ...(maxTokensDay !== undefined ? { maxTokensDay } : {}) },
   });
   if (r.ok) {
     const saved = r.data.policy?.mode ?? mode;

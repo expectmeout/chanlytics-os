@@ -42,7 +42,9 @@ export function threadVerdict(
  * can redirect the receptionist before the customer reads it. Under 'auto'
  * a reply the model itself is not sure enough about waits in the same
  * window (the confidence dial: limits.min_confidence, 0 or absent is off);
- * sure enough sends itself.
+ * sure enough sends itself. A reply with no confidence on record sends too:
+ * the dial compares a number, and none is not a low one -- the pane says so
+ * beside the dial.
  */
 export function holdPlan(
   replyMode: string,

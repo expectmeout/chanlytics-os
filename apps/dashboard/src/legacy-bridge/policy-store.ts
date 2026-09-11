@@ -15,10 +15,12 @@ import { POLICY_CLASS_WORDS, type PolicyClass } from "@chanlytics/contracts";
  *   null       the bridge ran and the read FAILED — no modes, never the seeds
  *   object     the workspace's real rows
  *
- * Honesty rule for the rows: the runtime consults exactly one class today —
- * `reply` — and `money` is locked by a database trigger. The other four are
- * stored but not enforced, and the rows say so; only a class with an
- * enforcer is offered as a switch.
+ * Honesty rule for the rows: every class here has an enforcer — the
+ * receptionist for replies, questions and bookings (the prompt's rules and
+ * layer two), the playbooks for re-engage and offers, the review sweep for
+ * reviews, and a database trigger for money, which is locked. A class
+ * without one is not offered as a switch, and each offers only the modes
+ * its enforcer honours (`modes`).
  */
 
 export type UiMode = "Auto" | "Veto" | "Ask" | "Never";
@@ -33,8 +35,6 @@ export interface UiRowMeta {
   note: string;
   chip: string;
   locked?: boolean;
-  /** True only where the runtime actually consults the class. */
-  enforced: boolean;
   /** The modes the runtime honours for this class; absent means all four. */
   modes?: readonly UiMode[];
   /** What each mode means for THIS class, when the general hint would mislead. */
@@ -45,13 +45,13 @@ export interface UiRowMeta {
 const W = (cls: PolicyClass) => ({ label: POLICY_CLASS_WORDS[cls].name, note: POLICY_CLASS_WORDS[cls].note, chip: POLICY_CLASS_WORDS[cls].short });
 
 export const UI_ROWS: readonly UiRowMeta[] = [
-  { id: "reply", cls: "reply", ...W("reply"), enforced: true },
-  { id: "faq", cls: "faq", ...W("faq"), enforced: true, modes: ["Auto", "Ask"], hints: { Auto: "answers from your business profile — never a price", Ask: "tells them a person will get back with the details, and lands the thread in Needs you" } },
-  { id: "book", cls: "booking", ...W("booking"), enforced: true, modes: ["Auto", "Ask"], hints: { Auto: "sends your booking link when they want to book, move or cancel", Ask: "tells them a person will confirm, never sends the link, and lands the thread in Needs you" } },
-  { id: "reengage", cls: "reengage", ...W("reengage"), enforced: true },
-  { id: "campaign", cls: "campaign", ...W("campaign"), enforced: true },
-  { id: "reviews", cls: "reviews", ...W("reviews"), enforced: true, modes: ["Auto", "Ask", "Never"], hints: { Auto: "answers each new review on Google within the hour, in the business's name — never about money", Ask: "writes a draft when you open a reply on Reports; you send it", Never: "writes nothing; you reply in your own words" } },
-  { id: "money", cls: "money", ...W("money"), locked: true, enforced: true },
+  { id: "reply", cls: "reply", ...W("reply") },
+  { id: "faq", cls: "faq", ...W("faq"), modes: ["Auto", "Ask"], hints: { Auto: "answers from your business profile — never a price", Ask: "tells them a person will get back with the details, and lands the thread in Needs you" } },
+  { id: "book", cls: "booking", ...W("booking"), modes: ["Auto", "Ask"], hints: { Auto: "sends your booking link when they want to book, move or cancel", Ask: "tells them a person will confirm, never sends the link, and lands the thread in Needs you" } },
+  { id: "reengage", cls: "reengage", ...W("reengage") },
+  { id: "campaign", cls: "campaign", ...W("campaign") },
+  { id: "reviews", cls: "reviews", ...W("reviews"), modes: ["Auto", "Ask", "Never"], hints: { Auto: "answers each new review on Google within the hour, in the business's name — never about money", Ask: "writes a draft when you open a reply on Reports; you send it", Never: "writes nothing; you reply in your own words" } },
+  { id: "money", cls: "money", ...W("money"), locked: true },
 ];
 
 export interface PolicyRecordLike {
@@ -109,7 +109,7 @@ interface SeedStore {
 interface PolicyWindow {
   POLICY?: SeedStore;
   __POLICIES?: PoliciesSurface | null;
-  __setPolicy?: (cls: string, mode: string, replyDelayMs?: number, minConfidence?: number) => Promise<unknown>;
+  __setPolicy?: (cls: string, mode: string, replyDelayMs?: number, minConfidence?: number, maxTokensDay?: number) => Promise<unknown>;
 }
 
 /**
@@ -149,7 +149,7 @@ export function installPolicyStore(win: PolicyWindow = window as unknown as Poli
       if (!s) return; // the read failed; there is nothing to write against
       const r = UI_ROWS.find((x) => x.id === id);
       const mode = dbMode(m);
-      if (!r || r.locked || !r.enforced || !mode || !win.__setPolicy) return;
+      if (!r || r.locked || !mode || !win.__setPolicy) return;
       // A mode the class cannot honour is not written: the pane shows a dash there.
       if (r.modes && !r.modes.includes(LABELS[mode])) return;
       void win.__setPolicy(r.cls, mode);
