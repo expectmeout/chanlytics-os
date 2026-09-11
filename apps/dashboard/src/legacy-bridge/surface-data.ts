@@ -46,40 +46,6 @@ export interface SurfaceOverride {
 }
 
 
-/**
- * Append ?workspace= unless the caller named one explicitly.
- *
- * Exported because reads were not the only thing that needs it. The verb
- * courier fetched its URLs verbatim, so every mutation arrived with no
- * workspace named — and the server's own ambiguity guard then refuses any
- * write from an account holding more than one membership, which self-serve
- * workspace creation makes an ordinary state. The symptom is a Save button
- * that returns "say which workspace" with no control that can say it.
- */
-export function scoped(url: string): string {
-  const ws = getActiveWorkspace();
-  if (!ws || url.includes("workspace=")) return url;
-  return `${url}${url.includes("?") ? "&" : "?"}workspace=${encodeURIComponent(ws)}`;
-}
-
-/**
- * Forget every in-flight response.
- *
- * The collapser above shares a pending request for two seconds, which is right
- * for three overrides asking for the same list at boot — and wrong the instant
- * something has been WRITTEN. A verb commits and then refreshes; that refresh
- * joins a request issued BEFORE the commit and repaints the thread exactly as
- * it was, under a pill still saying "live". That is a second cause of the
- * regression the runner's own comment describes as fixed, and one that
- * threading an AbortSignal would not have closed.
- *
- * Called by the verb courier on any 2xx: after a successful write, nothing
- * already in flight can be describing the world the operator is now in.
- */
-export function invalidateInFlight(): void {
-  api().forget();
-}
-
 export async function activateOverride(o: SurfaceOverride): Promise<boolean> {
   try {
     await o.apply();
@@ -714,7 +680,7 @@ export const broadcastsOverride: SurfaceOverride = {
         phrase: OFFERS_OPT_IN_PHRASES.en,
         phraseEs: OFFERS_OPT_IN_PHRASES.es,
         link: optInLink(wa?.number_e164),
-        qrPath: optInLink(wa?.number_e164) ? scoped("/api/v1/consent/qr") : null,
+        qrPath: optInLink(wa?.number_e164) ? api().url("GET consent/qr") : null,
         // The public page the same yes lives on: what a carrier is shown when
         // they ask how this business gets permission to text.
         pageUrl: slug ? `${window.location.origin}/yes/${slug}` : null,

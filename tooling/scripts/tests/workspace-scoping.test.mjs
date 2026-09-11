@@ -22,6 +22,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { importSrc } from "./_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, "../../..");
@@ -97,12 +98,23 @@ test("ambiguity means more than one membership and nothing named", () => {
 test("the workspace is appended at the fetch chokepoint", () => {
   // Not at the call sites. Three overrides fetch five endpoints between them,
   // and a sixth added later must not have to remember this.
-  assert.match(surfaceData, /function scoped\(url: string\)/);
-  assert.ok(surfaceData.includes('read("GET '), "every read goes through the typed client, which appends the workspace (typed-client.test.mjs)");
+  assert.ok(!surfaceData.includes("fetch("), "the seam owns no fetch: the client appends the workspace at its one chokepoint (typed-client.test.mjs)");
+  assert.ok(surfaceData.includes('read("GET '), "every read goes through the typed client");
 });
 
-test("a caller that names its own workspace is not overridden", () => {
-  assert.match(surfaceData, /url\.includes\("workspace="\)/);
+test("a caller that names its own workspace is not overridden", async () => {
+  // Run, not read: the client with a fake fetch, told the tab holds one
+  // workspace, asked for another by name.
+  const { createApi } = await importSrc("apps/dashboard/src/client/api.ts");
+  const sent = [];
+  const api = createApi({
+    fetch: async (url) => { sent.push(url); return new Response(JSON.stringify({ ok: true, data: {} }), { status: 200 }); },
+    workspace: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    onSignedOut: () => {},
+    refresh: async () => {},
+  });
+  await api("GET conversations", { query: { workspace: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" } });
+  assert.equal(sent[0], "/api/v1/conversations?workspace=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
 });
 
 test("the server has the last word on which workspace is active", () => {

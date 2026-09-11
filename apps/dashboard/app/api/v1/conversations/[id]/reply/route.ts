@@ -3,6 +3,9 @@ import { AppError, purposeOfTemplate, replyWindow } from "@chanlytics/contracts"
 import type { Json } from "@chanlytics/db";
 import { z } from "zod";
 import { write } from "@/server/route";
+
+/** What a reply answers, fresh or replayed: the receipt this route stores is given back in its own shape. */
+type ReplyReceipt = { message_id: string; status: string; cancelable_until: string; window_open: boolean; withdrawn_drafts: number };
 import { assertCanSend, cancelPendingAiReply, conversationScope, recordDecision, replyChannelOf, resolveOpenEscalation, pauseMsFor, SEND_GRACE_MS } from "@/server/verbs";
 import { schedule, cancelKindFor, mirrorBlobPause } from "@/server/service";
 
@@ -106,7 +109,7 @@ export const POST = write({
       if (priorErr) throw new Error(`idempotency lookup: ${priorErr.message}`);
       const sameIntent = !prior?.request_hash || prior.request_hash === intentHash;
       if (prior?.response && sameIntent && Date.now() - new Date(prior.created_at).getTime() < IDEMPOTENCY_WINDOW_MS) {
-        return prior.response as Json;
+        return prior.response as unknown as ReplyReceipt;
       }
     }
 

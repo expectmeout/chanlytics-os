@@ -168,7 +168,7 @@ test("nothing outside the runner calls activateOverride directly", () => {
     // The collapser shares a pending request for two seconds. A verb commits
     // and then refreshes; that refresh joins a request issued BEFORE the
     // commit and repaints the thread exactly as it was, under a "live" pill.
-    assert.match(seam, /export function invalidateInFlight/);
+    assert.ok(!seam.includes("fetch("), "the seam owns no fetch either");
     // The client does this now, once, for every courier (typed-client.test.mjs
     // runs it): a courier that owns no fetch cannot forget to.
     assert.ok(!verbs.includes("fetch("), "the courier owns no fetch; the client forgets after every write");

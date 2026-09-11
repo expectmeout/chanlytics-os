@@ -10,6 +10,7 @@
  */
 import { PROPOSAL_GATE, type AskProposal, type AskProposalOutcome } from "@chanlytics/contracts";
 import { askApi, type AskApiCalls, type SendEvent } from "./ask/api";
+import { apiFor } from "./api";
 import { commitProposal, editReply, undoProposal, type CommitResult } from "./ask/commit";
 import { askPalette } from "./ask/palette";
 import { askSpeech } from "./ask/speech";
@@ -31,7 +32,7 @@ export type AskApi = ReturnType<typeof askPalette> &
 
 export function installAsk(win: Window = window, storage: Storage | null = safeStorage()): AskApi {
   const palette = askPalette(win, storage);
-  const api = askApi(win);
+  const api = askApi(apiFor(win));
   const speech = askSpeech(win);
   const send: AskApiCalls["send"] = (input, on) => {
     palette.rememberLanguage(palette.language(input.text));

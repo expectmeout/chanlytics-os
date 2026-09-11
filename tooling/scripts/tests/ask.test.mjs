@@ -400,9 +400,9 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   const route = readCode("apps/dashboard/app/api/v1/ask/messages/[id]/proposals/[pid]/route.ts");
   assert.ok(route.includes("AskProposalOutcomeSchema.safeParse(body)"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/ask/commit.ts");
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/ask/api.ts").includes('headers: { "content-type": "application/json", "x-via": "ask" },'), "a card's commit is marked in the ledger");
-  for (const path of ["/reply`", "/steer`", 'take_over: "take-over"', "/receptionist`", '"/api/v1/policies"', '"/api/v1/settings"', "/whisper`", '"/api/v1/team/invite"']) assert.ok(bridge.includes(path), path);
-  assert.ok(bridge.includes("/cancel-send`"), "a sent reply's undo is the cancel window");
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/ask/api.ts").includes('via: "ask"'), "a card's commit is marked in the ledger: the client sends x-via (typed-client.test.mjs)");
+  for (const path of ['"POST conversations/[id]/reply"', '"POST messages/[id]/steer"', 'take_over: "POST conversations/[id]/take-over"', '"PUT contacts/[id]/receptionist"', '"PUT policies"', '"PUT settings"', '"POST calls/[id]/whisper"', '"POST team/invite"']) assert.ok(bridge.includes(path), path);
+  assert.ok(bridge.includes('"POST messages/[id]/cancel-send"'), "a sent reply's undo is the cancel window");
   assert.ok(bridge.includes("applySettingsChange(before"), "a settings card applies the change to the loaded config, with its version");
   const ui = readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx");
   assert.ok(ui.includes('data-testid="ask-card"') && ui.includes('data-testid="ask-card-approve"'));

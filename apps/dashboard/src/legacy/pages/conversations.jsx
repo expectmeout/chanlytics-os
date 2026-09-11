@@ -265,10 +265,10 @@ const CvViewer = ({ c, onBack = null }) => {
           )}
           {/* A file from the route that writes it. The menu item that used to
               offer this opened an overlay that did nothing outside a demo. */}
-          {!window.__DEMO_MODE && window.__scoped && (
+          {!window.__DEMO_MODE && window.__href && (
             <a
               className="btn btn-ghost btn-sm"
-              href={window.__scoped(isCall ? `/api/v1/calls/${c.callId}/export` : `/api/v1/conversations/${c.id}/export`)}
+              href={isCall ? window.__href("GET calls/[id]/export", { id: c.callId }) : window.__href("GET conversations/[id]/export", { id: c.id })}
               download
               title="Download this transcript as a text file"
             >

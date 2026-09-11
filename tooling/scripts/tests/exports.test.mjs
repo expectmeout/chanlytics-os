@@ -176,13 +176,13 @@ test("the three routes keep their doors: rate bucket, a named workspace, owner o
 
 test("the pages link to the routes, and only where the bridge can name the workspace", () => {
   const conv = readRaw("apps/dashboard/src/legacy/pages/conversations.jsx");
-  assert.ok(conv.includes("{!window.__DEMO_MODE && window.__scoped && ("));
-  assert.ok(conv.includes("href={window.__scoped(isCall ? `/api/v1/calls/${c.callId}/export` : `/api/v1/conversations/${c.id}/export`)}"));
+  assert.ok(conv.includes("{!window.__DEMO_MODE && window.__href && ("));
+  assert.ok(conv.includes('href={isCall ? window.__href("GET calls/[id]/export", { id: c.callId }) : window.__href("GET conversations/[id]/export", { id: c.id })}'));
   const people = readRaw("apps/dashboard/src/legacy/pages/clients-a.jsx");
-  assert.ok(people.includes('href={window.__scoped("/api/v1/contacts/export")}'));
+  assert.ok(people.includes('href={window.__href("GET contacts/export")}'));
   assert.ok(people.includes('window.canDo && !window.canDo("export")'), "a non-owner sees a disabled button that says why, not a refusal");
   const bridge = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
-  assert.ok(bridge.includes("window.__scoped = scoped;"));
+  assert.ok(bridge.includes("window.__href = href;"));
   assert.ok(readCode("apps/dashboard/src/legacy/components/data-bits.jsx").includes('export: "export the customer list"'));
   // The list route and the export share one reading of who exists.
   const list = readCode("apps/dashboard/app/api/v1/contacts/route.ts");

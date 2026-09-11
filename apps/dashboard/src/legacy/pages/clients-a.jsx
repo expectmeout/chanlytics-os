@@ -1217,7 +1217,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const [savedId, setSavedId] = useState(initialSaved);
   React.useEffect(() => { setSavedId(initialSaved); }, [initialSaved]);
   const canEditLists = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
-  const canExport = !!(window.__scoped && (!window.canDo || window.canDo("export")));
+  const canExport = !!(window.__href && (!window.canDo || window.canDo("export")));
   const [toastNode, plFlash] = window.usePPToast();
   // The selection, by id. Cleared when the view changes: a bar counting people
   // that are no longer on screen is the kind of bug bulk actions are made of.
@@ -1389,10 +1389,10 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
             <div className="cl-controls-right">
               {/* Everyone as a CSV, from the route: owner only, and the button
                   says so for anyone else instead of leading to a refusal. */}
-              {window.__scoped && (
+              {window.__href && (
                 window.canDo && !window.canDo("export")
                   ? <button className="btn btn-ghost btn-sm" disabled title={window.gateTitle("export")}><Icon name="external" size={12} /> Export CSV</button>
-                  : <a className="btn btn-ghost btn-sm" href={window.__scoped("/api/v1/contacts/export")} download title="Download everyone as a CSV file"><Icon name="external" size={12} /> Export CSV</a>
+                  : <a className="btn btn-ghost btn-sm" href={window.__href("GET contacts/export")} download title="Download everyone as a CSV file"><Icon name="external" size={12} /> Export CSV</a>
               )}
               <button className="btn btn-ghost btn-sm" onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}>
                 <Icon name="sort" size={12} /> {sortLabel}

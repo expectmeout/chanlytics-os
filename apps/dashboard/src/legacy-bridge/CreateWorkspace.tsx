@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { PendingWorkspace } from "@chanlytics/contracts";
+import { api } from "./api";
 
 /**
  * The first screen of an account that belongs to nowhere — and, from the
@@ -91,28 +92,16 @@ export default function CreateWorkspace({
     }
     setBusy(true);
     setError(null);
-    try {
-      const res = await fetch("/api/v1/workspaces/create", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: trimmed, timezone }),
-      });
-      const body = (await res.json().catch(() => null)) as
-        | { ok: boolean; data?: { workspace: CreatedWorkspace }; error?: { message?: string } }
-        | null;
-      if (!body?.ok || !body.data?.workspace) {
-        // The server's message is written for a person to read — "Unknown
-        // timezone: Mars/Olympus", "This account already owns 10 workspaces" —
-        // so it is shown rather than replaced with something generic.
-        setError(body?.error?.message ?? `Could not create the workspace (${res.status}).`);
-        setBusy(false);
-        return;
-      }
-      onCreated(body.data.workspace);
-    } catch {
-      setError("Network error — the workspace was not created.");
+    const r = await api()("POST workspaces/create", { body: { name: trimmed, timezone } });
+    if (!r.ok) {
+      // The server's message is written for a person to read — "Unknown
+      // timezone: Mars/Olympus", "This account already owns 10 workspaces" —
+      // so it is shown rather than replaced with something generic.
+      setError(r.message);
       setBusy(false);
+      return;
     }
+    onCreated(r.data.workspace);
   };
 
   return (

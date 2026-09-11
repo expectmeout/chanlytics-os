@@ -645,8 +645,8 @@ In `surface-data.ts` `activateOverride` and wherever `err instanceof Unauthorize
 
 **Files:** `ask/api.ts` (`viaAsk` → `api()(key, { via: "ask", … })`, `send` → `api().raw("POST ask", …)` then the same line reader), `ask/commit.ts`, `CreateWorkspace.tsx` (`api()("POST workspaces/create", { body })`), `LegacyApp.tsx` (`/api/version` is not a v1 route; it stays a plain fetch and is named in the lint's allowance); `tooling/scripts/tests/hygiene.test.mjs`.
 
-- [ ] **Step 1: Move the last sites.**
-- [ ] **Step 2: The wall.** In `hygiene.test.mjs` (a repo-wide lint file, exempt from the source-scan ratchet):
+- [x] **Step 1: Move the last sites.**
+- [x] **Step 2: The wall.** In `hygiene.test.mjs` (a repo-wide lint file, exempt from the source-scan ratchet):
 
 ```js
 test("every bridge request goes through the typed client", () => {
@@ -667,8 +667,8 @@ test("every bridge request goes through the typed client", () => {
 });
 ```
 
-- [ ] **Step 3: Delete `scoped` from `surface-data.ts`** when its last caller goes (the client builds the URL), and `clearSurfaceCache` stays where it is.
-- [ ] **Step 4: Typecheck, suite, lint, pins, PR, merge when green.**
+- [x] **Step 3: Delete `scoped` from `surface-data.ts`** when its last caller goes (the client builds the URL), and `clearSurfaceCache` stays where it is.
+- [x] **Step 4: Typecheck, suite, lint, pins, PR, merge when green.**
 
 ---
 
