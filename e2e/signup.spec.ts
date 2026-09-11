@@ -3,9 +3,10 @@ import { test, expect } from "@playwright/test";
 /**
  * Sign-up on production: the page, the readiness answer, and the two
  * refusals that must hold before anything is created (a cross-site post,
- * a bad body). The probe that actually creates a workspace and its user
- * runs only when E2E_SIGNUP_PROBE=1 (it sends a real code email), and
- * removes both with the service role afterwards.
+ * a bad body). The probe that actually creates the user runs only when
+ * E2E_SIGNUP_PROBE=1 (it sends a real code email), proves that no
+ * workspace was made for an address nobody has proved, and removes the
+ * user with the service role afterwards.
  */
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -40,14 +41,14 @@ test.describe("sign-up", () => {
     expect(error.code).toBe("validation");
   });
 
-  test("a sign-up creates the workspace and its owner, sends the code, and lands at the code step (opt-in probe)", async ({ page, request, baseURL }) => {
+  test("a sign-up makes the user with what the form said, sends the code, and makes no workspace (opt-in probe)", async ({ page, request, baseURL }) => {
     test.skip(process.env.E2E_SIGNUP_PROBE !== "1" || !URL_ || !KEY, "set E2E_SIGNUP_PROBE=1 with the service role to run the probe");
+    const admin = { apikey: KEY!, Authorization: `Bearer ${KEY}` };
     const rest = (path: string, init: RequestInit = {}) =>
-      fetch(`${URL_}/rest/v1/${path}`, { ...init, headers: { apikey: KEY!, Authorization: `Bearer ${KEY}`, "content-type": "application/json", Prefer: "return=representation", ...(init.headers ?? {}) } });
+      fetch(`${URL_}/rest/v1/${path}`, { ...init, headers: { ...admin, "content-type": "application/json", Prefer: "return=representation", ...(init.headers ?? {}) } });
     const stamp = Date.now();
     const name = `E2E signup probe ${stamp}`;
     const email = (process.env.E2E_SIGNUP_EMAIL || "e2e-signup-{stamp}@example.com").replace("{stamp}", String(stamp));
-    let tenantId: string | null = null;
     let userId: string | null = null;
     try {
       const res = await request.post("/api/v1/signup", {
@@ -58,27 +59,23 @@ test.describe("sign-up", () => {
       const { data } = await res.json();
       expect(data.sent).toBe(true);
       expect(data.next).toContain("/login?email=");
-      // The workspace exists with an owner, provisioned like any other.
-      const tenants = (await (await rest(`tenants?select=id,slug,timezone&name=eq.${encodeURIComponent(name)}`)).json()) as Array<{ id: string; slug: string; timezone: string }>;
-      expect(tenants).toHaveLength(1);
-      tenantId = tenants[0].id;
-      expect(tenants[0].timezone).toBe("America/New_York");
-      const members = (await (await rest(`memberships?select=user_id,role&tenant_id=eq.${tenantId}`)).json()) as Array<{ user_id: string; role: string }>;
-      expect(members).toEqual([expect.objectContaining({ role: "owner" })]);
-      userId = members[0].user_id;
-      const policies = (await (await rest(`policies?select=class&tenant_id=eq.${tenantId}`)).json()) as Array<{ class: string }>;
-      expect(policies.length).toBeGreaterThanOrEqual(7);
+      // THE WORKSPACE WAITS FOR ITS OWNER: nothing in tenants for an address
+      // nobody has proved. The user exists, carrying what the form said, for
+      // the create screen to open with after the code.
+      const tenants = (await (await rest(`tenants?select=id&name=eq.${encodeURIComponent(name)}`)).json()) as Array<{ id: string }>;
+      expect(tenants).toHaveLength(0);
+      const listed = (await (await fetch(`${URL_}/auth/v1/admin/users?page=1&per_page=1000`, { headers: admin })).json()) as { users: Array<{ id: string; email?: string; user_metadata?: Record<string, unknown> }> };
+      const user = listed.users.find((u) => u.email === email);
+      expect(user).toBeTruthy();
+      userId = user!.id;
+      expect(user!.user_metadata?.pending_workspace).toEqual({ name, timezone: "America/New_York" });
       // The next screen is sign-in at the code step, for this address.
       await page.goto(data.next);
       await expect(page.getByLabel(/Enter the 6-digit code sent to/)).toBeVisible();
       await expect(page.getByText(email)).toBeVisible();
     } finally {
-      if (tenantId) {
-        await rest(`events?tenant_id=eq.${tenantId}`, { method: "DELETE" });
-        await rest(`tenants?id=eq.${tenantId}`, { method: "DELETE" });
-      }
       if (userId) {
-        await fetch(`${URL_}/auth/v1/admin/users/${userId}`, { method: "DELETE", headers: { apikey: KEY!, Authorization: `Bearer ${KEY}` } });
+        await fetch(`${URL_}/auth/v1/admin/users/${userId}`, { method: "DELETE", headers: admin });
       }
     }
   });

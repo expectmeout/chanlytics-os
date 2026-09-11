@@ -6407,10 +6407,22 @@ function signupPosture(code2) {
   if (!code2) return "open";
   return code2 === SIGNUP_WAITLIST ? "waitlist" : "invite";
 }
+var PENDING_WORKSPACE_KEY = "pending_workspace";
+var PendingWorkspaceSchema = z4.object({
+  name: z4.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+  // A clock Postgres would refuse is dropped here, so the owner's first Create
+  // never fails over a zone a stranger's device reported.
+  timezone: z4.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+});
+function pendingWorkspaceOf(metadata) {
+  if (!metadata || typeof metadata !== "object") return null;
+  const r = PendingWorkspaceSchema.safeParse(metadata[PENDING_WORKSPACE_KEY]);
+  return r.success ? r.data : null;
+}
 var SIGNUP_WORDS = {
   title: "Create your workspace",
   lead: "Your business gets its own workspace: the receptionist, the inbox, the numbers. You become its owner.",
-  sent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it on the next screen to open your workspace.`,
+  sent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it on the next screen to make your workspace.`,
   codeRequired: "Sign-up is by invitation right now. Enter the invite code you were given.",
   /*
    * WHEN THE CODE DID NOT GO OUT, and it is our fault rather than theirs.
@@ -6422,15 +6434,16 @@ var SIGNUP_WORDS = {
    * But it was answering for a second case it does not fit. The auth mailer has a
    * declared budget of two an hour and no SMTP configured, so the third person to
    * sign up in an hour got the same "a code is on its way" and was sent to /login
-   * to wait for something that would never arrive. Their workspace, membership and
-   * billing row all exist by then: they own a workspace they cannot enter, and
-   * nothing in the product tells them why.
+   * to wait for something that would never arrive, with nothing in the product
+   * telling them why.
    *
    * A send WE could not make says nothing about whether the address is known, so
    * saying so leaks nothing -- and it is the difference between waiting usefully
-   * and waiting for ever.
+   * and waiting for ever. Nothing is lost because nothing was made: the name they
+   * typed waits on their account for the sign-in that makes the workspace.
    */
-  notSent: "Your workspace is made, but we could not send the sign-in code just now. Wait a few minutes and ask for it again from the sign-in page \u2014 nothing is lost.",
+  notSentTitle: "We could not send your code",
+  notSent: "We could not send the sign-in code just now. Wait a few minutes and ask for it again from the sign-in page \u2014 nothing is lost.",
   /* ---------------------------------------------------------- the waitlist
    * Said the way a person would say it: what is true, when they will hear,
    * and no apology. "We are onboarding businesses in small groups" is the
@@ -7573,6 +7586,7 @@ export {
   OPT_OUT_REFUSAL,
   PARAM_SOURCES,
   PARAM_SOURCE_LABELS,
+  PENDING_WORKSPACE_KEY,
   PEOPLE_LISTS,
   PEOPLE_LIST_GROUPS,
   PEOPLE_TABS,
@@ -7597,6 +7611,7 @@ export {
   PROPOSAL_GATE,
   PROVISIONING_DEADLINE_MS,
   PURPOSE_REFUSALS,
+  PendingWorkspaceSchema,
   PolicyLimitsSchema,
   QUIET_AFTER_MS,
   RECENT_MAX,
@@ -7820,6 +7835,7 @@ export {
   parseTenantConfigResult,
   partialAnswer,
   pausedVoiceFacts,
+  pendingWorkspaceOf,
   peopleAggregates,
   peopleFromItems,
   peopleListAction,

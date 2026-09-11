@@ -4623,6 +4623,21 @@ var SignupSchema = external_exports.object({
   /** The invite code, when sign-up is by invitation. */
   code: external_exports.string().trim().max(80).optional()
 }).strict();
+var PendingWorkspaceSchema = external_exports.object({
+  name: external_exports.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+  // A clock Postgres would refuse is dropped here, so the owner's first Create
+  // never fails over a zone a stranger's device reported.
+  timezone: external_exports.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+});
+function isTimezone(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: raw });
+    return true;
+  } catch {
+    return false;
+  }
+}
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 
@@ -9165,6 +9180,21 @@ var SignupSchema2 = external_exports2.object({
   /** The invite code, when sign-up is by invitation. */
   code: external_exports2.string().trim().max(80).optional()
 }).strict();
+var PendingWorkspaceSchema2 = external_exports2.object({
+  name: external_exports2.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
+  // A clock Postgres would refuse is dropped here, so the owner's first Create
+  // never fails over a zone a stranger's device reported.
+  timezone: external_exports2.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
+});
+function isTimezone2(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: raw });
+    return true;
+  } catch {
+    return false;
+  }
+}
 var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
 var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
 var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
@@ -13759,6 +13789,21 @@ var SignupSchema22 = external_exports22.object({
   /** The invite code, when sign-up is by invitation. */
   code: external_exports22.string().trim().max(80).optional()
 }).strict();
+var PendingWorkspaceSchema22 = external_exports22.object({
+  name: external_exports22.string().trim().min(SIGNUP_NAME_MIN22).max(SIGNUP_NAME_MAX22),
+  // A clock Postgres would refuse is dropped here, so the owner's first Create
+  // never fails over a zone a stranger's device reported.
+  timezone: external_exports22.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone22(v) ? v : null)
+});
+function isTimezone22(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: raw });
+    return true;
+  } catch {
+    return false;
+  }
+}
 var CONSENT_PHRASE22 = OFFERS_OPT_IN_PHRASES22.en;
 var CONSENT_PHRASE_ES22 = OFFERS_OPT_IN_PHRASES22.es;
 var __defProp3 = Object.defineProperty;
@@ -18293,6 +18338,21 @@ var SignupSchema3 = external_exports3.object({
   /** The invite code, when sign-up is by invitation. */
   code: external_exports3.string().trim().max(80).optional()
 }).strict();
+var PendingWorkspaceSchema3 = external_exports3.object({
+  name: external_exports3.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
+  // A clock Postgres would refuse is dropped here, so the owner's first Create
+  // never fails over a zone a stranger's device reported.
+  timezone: external_exports3.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
+});
+function isTimezone3(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: raw });
+    return true;
+  } catch {
+    return false;
+  }
+}
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
 var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
 async function recordOutbound(db, p) {
@@ -22991,6 +23051,21 @@ var SignupSchema4 = external_exports4.object({
   /** The invite code, when sign-up is by invitation. */
   code: external_exports4.string().trim().max(80).optional()
 }).strict();
+var PendingWorkspaceSchema4 = external_exports4.object({
+  name: external_exports4.string().trim().min(SIGNUP_NAME_MIN4).max(SIGNUP_NAME_MAX4),
+  // A clock Postgres would refuse is dropped here, so the owner's first Create
+  // never fails over a zone a stranger's device reported.
+  timezone: external_exports4.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone4(v) ? v : null)
+});
+function isTimezone4(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: raw });
+    return true;
+  } catch {
+    return false;
+  }
+}
 var CONSENT_PHRASE4 = OFFERS_OPT_IN_PHRASES4.en;
 var CONSENT_PHRASE_ES4 = OFFERS_OPT_IN_PHRASES4.es;
 async function getOrCreateContact(db, tenantId, phoneE164) {

@@ -10,7 +10,7 @@
  * sign-out, and flags stale deployments (version heartbeat).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { resolveTheme, isThemePref, isSidebarPref, type ThemePref, type SidebarPref } from "@chanlytics/contracts";
+import { resolveTheme, isThemePref, isSidebarPref, type PendingWorkspace, type ThemePref, type SidebarPref } from "@chanlytics/contracts";
 import "./seed-globals"; // must evaluate before the manifest
 import "./manifest";
 // legacy.css is NOT imported here: it lives in app/(os)/layout.tsx so the
@@ -293,9 +293,13 @@ export default function LegacyApp() {
    */
   if (isSurfaceReady("workspace") && allWorkspaces.length === 0) {
     const me = (window as unknown as { __ME?: { email?: string | null } }).__ME;
+    // What sign-up kept: the name and clock they typed before the code, so
+    // the first workspace is one press rather than the same form twice.
+    const pending = (window as unknown as { __PENDING_WORKSPACE?: PendingWorkspace | null }).__PENDING_WORKSPACE ?? null;
     return (
       <CreateWorkspace
         email={me?.email ?? null}
+        initial={pending}
         onCreated={(w) => {
           // switchWorkspace persists the choice and re-runs every surface, so
           // the new workspace is the one the app opens on — which is where the

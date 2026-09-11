@@ -13,7 +13,7 @@ import { POLICY_CLASS_WORDS } from "@chanlytics/contracts";
 
 import { clearSurfaceCache } from "./surface-cache";
 import { DEFAULT_REFRESH_TABLES, type RealtimeChange } from "./surface-realtime";
-import type { NotificationsDto, ResolvedFacts, FactConflict } from "@chanlytics/contracts";
+import type { NotificationsDto, PendingWorkspace, ResolvedFacts, FactConflict } from "@chanlytics/contracts";
 import type { PoliciesSurface, PolicyRecordLike } from "./policy-store";
 
 export interface SurfaceOverride {
@@ -188,7 +188,7 @@ export interface Me {
 
 export const workspaceOverride: SurfaceOverride & { current: () => Workspace | null } = {
   key: "workspace",
-  globals: ["__WORKSPACES", "__ME", "__ACTIVE_WORKSPACE"],
+  globals: ["__WORKSPACES", "__ME", "__ACTIVE_WORKSPACE", "__PENDING_WORKSPACE"],
   // The workspace actually being VIEWED, as resolved by the server — not
   // `[0]`, which was whichever tenant happened to sort first and could differ
   // from the one the data below it came from.
@@ -201,13 +201,17 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
       workspaces: Workspace[];
       activeWorkspaceId?: string;
       user?: Me;
+      /** What sign-up kept for a person with no workspace yet; the create screen opens with it. */
+      pending?: PendingWorkspace | null;
     }>("/api/v1/workspaces");
     const w = window as unknown as {
       __WORKSPACES?: Workspace[];
       __ME?: Me;
       __ACTIVE_WORKSPACE?: string;
+      __PENDING_WORKSPACE?: PendingWorkspace | null;
     };
     w.__WORKSPACES = data.workspaces;
+    w.__PENDING_WORKSPACE = data.pending ?? null;
     // The server had the last word on which workspace this is — it validated
     // membership and may have overridden a stale stored preference. Record what
     // it decided, so every later request agrees with the data already rendered.

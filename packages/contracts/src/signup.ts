@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isTimezone } from "./workspace";
 
 /**
  * Sign-up, the pure half: what the form may send, the sentences the page
@@ -44,11 +45,44 @@ export function signupPosture(code: string | undefined | null): SignupPosture {
   return code === SIGNUP_WAITLIST ? "waitlist" : "invite";
 }
 
+/**
+ * WHAT THE FORM SAID, KEPT UNTIL ITS OWNER PROVES THE INBOX.
+ *
+ * Sign-up used to make the workspace on the spot, for an address nobody had
+ * proved. A stranger typing someone else's email got that person a workspace
+ * named by the stranger, owned by an account they never asked for, provisioned
+ * and counted against a cap they never spent -- and when the address's real
+ * owner signed up, they were told nothing, sent a code, and signed in to the
+ * stranger's choice of name.
+ *
+ * So the form's two answers ride on the auth user, under this key, and the
+ * workspace is made by the person who enters the code, through the same door
+ * a second workspace uses. This is a prefilled form, not a permission: the
+ * screen shows the name and clock, the owner may change both, and nothing is
+ * read from it once a workspace exists.
+ */
+export const PENDING_WORKSPACE_KEY = "pending_workspace";
+
+export const PendingWorkspaceSchema = z.object({
+  name: z.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+  // A clock Postgres would refuse is dropped here, so the owner's first Create
+  // never fails over a zone a stranger's device reported.
+  timezone: z.string().trim().min(1).max(64).nullish().transform((v) => (v && isTimezone(v) ? v : null)),
+});
+export type PendingWorkspace = z.infer<typeof PendingWorkspaceSchema>;
+
+/** The pending workspace on a user's metadata, or null when there is none worth showing. Never throws: metadata is whatever Supabase holds. */
+export function pendingWorkspaceOf(metadata: unknown): PendingWorkspace | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const r = PendingWorkspaceSchema.safeParse((metadata as Record<string, unknown>)[PENDING_WORKSPACE_KEY]);
+  return r.success ? r.data : null;
+}
+
 /** What the page says, in one place. The sentence after a submit is the same whether or not the address was known. */
 export const SIGNUP_WORDS = {
   title: "Create your workspace",
   lead: "Your business gets its own workspace: the receptionist, the inbox, the numbers. You become its owner.",
-  sent: (email: string) => `If ${email} can receive email, a 6-digit code is on its way. Enter it on the next screen to open your workspace.`,
+  sent: (email: string) => `If ${email} can receive email, a 6-digit code is on its way. Enter it on the next screen to make your workspace.`,
   codeRequired: "Sign-up is by invitation right now. Enter the invite code you were given.",
   /*
    * WHEN THE CODE DID NOT GO OUT, and it is our fault rather than theirs.
@@ -60,15 +94,16 @@ export const SIGNUP_WORDS = {
    * But it was answering for a second case it does not fit. The auth mailer has a
    * declared budget of two an hour and no SMTP configured, so the third person to
    * sign up in an hour got the same "a code is on its way" and was sent to /login
-   * to wait for something that would never arrive. Their workspace, membership and
-   * billing row all exist by then: they own a workspace they cannot enter, and
-   * nothing in the product tells them why.
+   * to wait for something that would never arrive, with nothing in the product
+   * telling them why.
    *
    * A send WE could not make says nothing about whether the address is known, so
    * saying so leaks nothing -- and it is the difference between waiting usefully
-   * and waiting for ever.
+   * and waiting for ever. Nothing is lost because nothing was made: the name they
+   * typed waits on their account for the sign-in that makes the workspace.
    */
-  notSent: "Your workspace is made, but we could not send the sign-in code just now. Wait a few minutes and ask for it again from the sign-in page — nothing is lost.",
+  notSentTitle: "We could not send your code",
+  notSent: "We could not send the sign-in code just now. Wait a few minutes and ask for it again from the sign-in page — nothing is lost.",
   /* ---------------------------------------------------------- the waitlist
    * Said the way a person would say it: what is true, when they will hear,
    * and no apology. "We are onboarding businesses in small groups" is the

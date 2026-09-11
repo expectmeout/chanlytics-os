@@ -1,12 +1,12 @@
 /**
- * Sign-up: the schema and the words executed; the wiring pinned — the two
- * public paths, the guards on the one public route, the service-role
- * boundary, the migration's grants, the platform notice, the way back to
- * sign-in at the code step.
+ * Sign-up: the schema, the words and the pending workspace executed; the
+ * wiring pinned — the two public paths, the guards on the one public route,
+ * the service-role boundary that makes no workspace, the migration's grants,
+ * the one place workspaces are made, the way back to sign-in at the code step.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SignupSchema, SIGNUP_WORDS, signupNext, deviceTimezone, sendFailureIsOurs, EVENT_KINDS } from "@chanlytics/contracts";
+import { SignupSchema, SIGNUP_WORDS, signupNext, deviceTimezone, sendFailureIsOurs, pendingWorkspaceOf, PENDING_WORKSPACE_KEY, EVENT_KINDS } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 test("the form's shape: a name, a lower-cased address, an optional zone and code, nothing else", () => {
@@ -24,7 +24,7 @@ test("the form's shape: a name, a lower-cased address, an optional zone and code
 });
 
 test("the words and the way back: one neutral sentence, sign-in at the code step for the address", () => {
-  assert.equal(SIGNUP_WORDS.sent("o@example.com"), "If o@example.com can receive email, a 6-digit code is on its way. Enter it on the next screen to open your workspace.");
+  assert.equal(SIGNUP_WORDS.sent("o@example.com"), "If o@example.com can receive email, a 6-digit code is on its way. Enter it on the next screen to make your workspace.");
   assert.equal(signupNext(" Owner@Example.com "), "/login?email=owner%40example.com&sent=1");
   assert.equal(deviceTimezone(() => "America/New_York"), "America/New_York");
   assert.equal(deviceTimezone(() => { throw new Error("no Intl"); }), undefined);
@@ -32,7 +32,25 @@ test("the words and the way back: one neutral sentence, sign-in at the code step
   assert.ok(EVENT_KINDS.includes("workspace.created"));
 });
 
-test("the wiring: two public paths, the guards on the route, the service role in one server module, the migration's grants", () => {
+test("what the form said waits on the user, and is a prefilled form rather than a permission", () => {
+  // THE WORKSPACE WAITS FOR ITS OWNER. Sign-up used to make it on the spot
+  // for an address nobody had proved: a stranger typing someone else's email
+  // got that person a workspace named by the stranger, owned by an account
+  // they never asked for, and the real owner signed in later to the
+  // stranger's choice of name. The form's two answers now ride on the auth
+  // user under one key, and the create screen opens with them.
+  assert.equal(PENDING_WORKSPACE_KEY, "pending_workspace");
+  assert.deepEqual(pendingWorkspaceOf({ pending_workspace: { name: "  Luna Studio ", timezone: "America/New_York" } }), { name: "Luna Studio", timezone: "America/New_York" });
+  assert.deepEqual(pendingWorkspaceOf({ pending_workspace: { name: "Luna" } }), { name: "Luna", timezone: null }, "no zone is null, and the screen falls back to the device's");
+  assert.deepEqual(pendingWorkspaceOf({ pending_workspace: { name: "Luna", timezone: null, extra: 1 } }), { name: "Luna", timezone: null }, "a field this build does not know is dropped, not fatal");
+  // Whatever Supabase holds: a user made by /login has no such key, an old
+  // or hand-edited value has the wrong shape, and none of it may throw.
+  for (const meta of [undefined, null, "x", 42, {}, { pending_workspace: null }, { pending_workspace: "Luna" }, { pending_workspace: { name: "L" } }, { pending_workspace: { name: "x".repeat(121) } }, { pending_workspace: { name: "Luna", timezone: "" } }]) {
+    assert.equal(pendingWorkspaceOf(meta), null, JSON.stringify(meta));
+  }
+});
+
+test("the wiring: two public paths, the guards on the route, a service role that makes no workspace, the one place workspaces are made", () => {
   const middleware = readCode("apps/dashboard/middleware.ts");
   assert.ok(middleware.includes('"/signup"') && middleware.includes('"/api/v1/signup"'), "public by a deliberate edit to PUBLIC_PATHS");
   const route = readCode("apps/dashboard/app/api/v1/signup/route.ts");
@@ -43,19 +61,21 @@ test("the wiring: two public paths, the guards on the route, the service role in
   assert.ok(!route.includes("@chanlytics/db") && !route.includes("SUPABASE_SERVICE_ROLE_KEY"), "the route holds no key");
   const server = readCode("apps/dashboard/src/server/signup.ts");
   assert.ok(server.includes('import "server-only";'));
-  assert.ok(server.includes("db.auth.admin.createUser({ email: input.email, email_confirm: true })"), "the user is made confirmed; the code is the proof of the inbox");
-  assert.ok(server.includes('db.rpc("create_workspace_for"') && server.includes("await db.auth.admin.deleteUser(userId).catch(() => {});"), "a user without a workspace is undone");
+  assert.ok(server.includes("email_confirm: true,") && server.includes("user_metadata: { [PENDING_WORKSPACE_KEY]: { name: input.name, timezone: input.timezone ?? null } },"), "the user is made confirmed, carrying what the form said; the code is the proof of the inbox");
+  assert.ok(!server.includes("create_workspace") && !server.includes("deleteUser") && !server.includes("emitEvent"), "REGRESSION: a workspace, or anything to undo, for an address nobody has proved");
   assert.ok(server.includes("options: { shouldCreateUser: false }"), "the code goes out the way /login sends it");
-  assert.ok(server.includes('"workspace.created", "signup", "tenant"'));
-  const rate = readCode("apps/dashboard/src/server/rate-limit.ts");
-  assert.ok(rate.includes("signup_ip: {") && rate.includes("signup_email: {"));
-  assert.ok(readRaw("apps/dashboard/.env.example").includes("SIGNUP_CODE="));
+  assert.ok(!route.includes("notifyPlatformSignup"), "the public route has no workspace to tell anyone about");
+  // Every workspace starts in one place, the first one included, and that
+  // place tells the mailbox and hands the create screen what sign-up kept.
+  const create = readCode("apps/dashboard/app/api/v1/workspaces/create/route.ts");
+  assert.ok(create.includes('await notifyPlatformSignup(data.id, ctx.email ?? "");'), "the mailbox hears about a workspace where workspaces are made");
+  const list = readCode("apps/dashboard/app/api/v1/workspaces/route.ts");
+  assert.ok(list.includes("pending: pendingWorkspaceOf(ctx.metadata)"), "nowhere yet comes with what sign-up kept");
   const sql = readRaw("supabase/migrations/00072_signup.sql");
   assert.ok(sql.includes("revoke execute on function public.create_workspace_for(uuid, text, text) from public, anon, authenticated;"), "service role alone may name an owner");
   assert.ok(sql.includes("from public.create_workspace_for(auth.uid(), p_name, p_timezone) w"), "the signed-in wrapper delegates");
-  assert.ok(sql.includes("if v_owned >= 10 then") && sql.includes("pg_timezone_names z where z.name = v_tz"), "the cap and the zone check moved with the body");
-  const notice = readCode("apps/edge/api/admin/signup-notify.ts");
-  assert.ok(notice.includes('request.headers.get("x-diag-key") !== process.env.DIAG_KEY') && notice.includes('error: "no_platform_mailbox"'));
+  const record = readRaw("supabase/migrations/00104_a_workspace_is_recorded_where_it_is_made.sql");
+  assert.ok(record.includes("after insert on public.tenants") && record.includes("'workspace.created'") && record.includes("jsonb_build_object('by', auth.uid()"), "every workspace is recorded where it is made, naming the session when there was one");
   const login = readCode("apps/dashboard/app/login/page.tsx");
   assert.ok(login.includes('q.get("sent") === "1"') && login.includes('href="/signup"'), "sign-in opens at the code step after sign-up, and points at sign-up");
   const page = readCode("apps/dashboard/app/signup/page.tsx");
@@ -101,11 +121,13 @@ test("a send WE could not make is admitted; one about an ADDRESS is not", () => 
     assert.equal(sendFailureIsOurs(e), false, JSON.stringify(e));
   }
 
-  // The sentence the person reads says three things: the workspace exists, the
-  // code did not go out, and nothing is lost. It must NOT hint at the address.
-  assert.match(SIGNUP_WORDS.notSent, /workspace is made/);
+  // The sentence the person reads says two things: the code did not go out,
+  // and nothing is lost -- true because nothing was made; the name they typed
+  // waits on their account. It must NOT hint at the address, and must not
+  // claim a workspace that does not exist yet.
   assert.match(SIGNUP_WORDS.notSent, /could not send/);
   assert.match(SIGNUP_WORDS.notSent, /nothing is lost/);
+  assert.doesNotMatch(SIGNUP_WORDS.notSent, /workspace is made/, "REGRESSION: a workspace claimed before its owner has signed in");
   assert.doesNotMatch(SIGNUP_WORDS.notSent, /registered|exists|unknown|not found/i,
     "REGRESSION: a refusal that says whether we know the address");
 
@@ -113,3 +135,10 @@ test("a send WE could not make is admitted; one about an ADDRESS is not", () => 
   assert.match(SIGNUP_WORDS.sent("o@example.com"), /^If o@example\.com can receive email/);
 });
 
+test("what sign-up kept is a prefill, and a clock Postgres would refuse is dropped rather than failing the first Create", () => {
+  assert.deepEqual(pendingWorkspaceOf({ pending_workspace: { name: "Glow Studio", timezone: "America/New_York" } }), { name: "Glow Studio", timezone: "America/New_York" });
+  assert.deepEqual(pendingWorkspaceOf({ pending_workspace: { name: "Glow Studio", timezone: "Mars/Olympus" } }), { name: "Glow Studio", timezone: null });
+  assert.equal(pendingWorkspaceOf({ pending_workspace: { name: "G" } }), null, "a name below the minimum is not worth showing");
+  assert.equal(pendingWorkspaceOf(null), null);
+  assert.equal(SIGNUP_WORDS.notSentTitle, "We could not send your code", "the page's heading when the code did not go out says so, not that a workspace exists");
+});

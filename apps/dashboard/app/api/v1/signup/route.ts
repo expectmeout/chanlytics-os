@@ -3,7 +3,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { AppError, SIGNUP_WORDS, SignupSchema, err, ok, signupNext, signupPosture } from "@chanlytics/contracts";
 import { isSameOrigin } from "@/server/request-guards";
 import { takeRate } from "@/server/rate-limit";
-import { joinWaitlist, notifyPlatformSignup, signUp } from "@/server/signup";
+import { joinWaitlist, signUp } from "@/server/signup";
 
 /**
  * /api/v1/signup — the one door a stranger may use.
@@ -17,6 +17,10 @@ import { joinWaitlist, notifyPlatformSignup, signUp } from "@/server/signup";
  *
  *   GET  → { open, code_required }         what the page should ask for
  *   POST → { sent, next }                  the code is on its way; go here
+ *
+ * It makes no workspace. What the form said waits on the auth user, and the
+ * person who enters the code makes the workspace through
+ * /api/v1/workspaces/create, signed in, like every workspace after the first.
  */
 const PRIVATE = { "cache-control": "private, no-store" } as const;
 
@@ -77,15 +81,13 @@ export async function POST(req: Request): Promise<Response> {
     const required = posture === "invite" ? process.env.SIGNUP_CODE : null;
     if (required && !codeMatches(input.code, required)) throw new AppError("forbidden", SIGNUP_WORDS.codeWrong);
     const out = await signUp(input);
-    if (out.created && out.tenantId) await notifyPlatformSignup(out.tenantId, input.email);
-    console.log(JSON.stringify({ level: "info", event: "signup", created: out.created, code_unsent: out.codeUnsent, tenant: out.tenantId, ms: Date.now() - started }));
+    console.log(JSON.stringify({ level: "info", event: "signup", created: out.created, code_unsent: out.codeUnsent, ms: Date.now() - started }));
     // THE CODE IS THE ONLY WAY IN, so a send WE could not make is worth saying.
     // The usual answer stays deliberately opaque -- whether an address is already
     // registered is not a stranger's to learn from this form -- but "we are over
     // our mail budget" is about us, discloses nothing about any address, and is
-    // the difference between waiting usefully and waiting for ever with a
-    // workspace you own and cannot enter. `next` is null because /login has
-    // nothing to show them yet.
+    // the difference between waiting usefully and waiting for ever. `next` is
+    // null because /login has nothing to show them yet.
     if (out.codeUnsent) {
       return NextResponse.json(ok({ sent: false, next: null, message: SIGNUP_WORDS.notSent }), { headers: PRIVATE });
     }
@@ -93,6 +95,6 @@ export async function POST(req: Request): Promise<Response> {
   } catch (e) {
     if (e instanceof AppError) return NextResponse.json(err(e.code, e.message), { status: e.status, headers: PRIVATE });
     console.error("signup_failed", JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
-    return NextResponse.json(err("internal", "Could not create the workspace just now. Try again in a moment."), { status: 500, headers: PRIVATE });
+    return NextResponse.json(err("internal", "Could not start your sign-up just now. Try again in a moment."), { status: 500, headers: PRIVATE });
   }
 }
