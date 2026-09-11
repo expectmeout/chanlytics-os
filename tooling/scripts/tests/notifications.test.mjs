@@ -116,6 +116,53 @@ test("the bridge: reads the globals, keeps state per workspace and device, alert
   assert.equal(api.feed().length, 4);
 });
 
+test("two devices agree after Mark all read: the seen moment is the server's, the marks are keyed by the workspace's id, and a mark for a row that left the feed goes", async () => {
+  const mod = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/legacy-bridge/notifications.ts")).href);
+  const WS = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const device = (over = {}) => {
+    const store = new Map();
+    const storage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) };
+    const win = {
+      addEventListener: () => {}, document: { visibilityState: "visible" }, focus: () => {}, location: { hash: "" },
+      INBOX_DATA: { THREADS: [thread({ needsYou: true, escalatedAtMs: NOW - 60_000 })] },
+      __LIVE: { now: [], recent: [] }, __TEAM_INVITES: [], __ACTIVE_WORKSPACE: WS,
+      __NOTIFICATIONS: { dto: { notifications: [], seen_at: null } },
+      ...over,
+    };
+    return { win, store, storage, api: mod.installNotifications(win, storage) };
+  };
+  // Device A: one row unread; Mark all read keeps its own copy and tells the server.
+  const a = device();
+  assert.equal(a.api.unread(), 1);
+  a.api.seenAll();
+  assert.equal(a.api.unread(), 0);
+  assert.ok(a.store.has(`chanlytics:notifs:${WS}`), "keyed by the workspace's id, not its slug");
+  assert.ok(!a.store.has("chanlytics:notifs:default"));
+  // Device B has nothing stored, but the server's seen moment is after the row: nothing unread.
+  const b = device({ __NOTIFICATIONS: { dto: { notifications: [], seen_at: new Date(NOW).toISOString() } } });
+  assert.equal(b.api.unread(), 0, "the badge is the same number on the second device");
+  // A row newer than that moment is unread on B, until B marks it.
+  b.win.INBOX_DATA.THREADS.push(thread({ id: "t7", who: "Ana", needsYou: true, escalatedAtMs: NOW + 60_000 }));
+  assert.equal(b.api.unread(), 1);
+  b.api.read("needs:t7");
+  assert.equal(b.api.unread(), 0);
+  // The thread is answered and leaves the feed: its mark goes with the next write. A call's mark stays while the calls are not loaded to say otherwise.
+  b.store.set(`chanlytics:notifs:${WS}`, JSON.stringify({ ...JSON.parse(b.store.get(`chanlytics:notifs:${WS}`)), dismissed: ["call:k9"] }));
+  b.win.__LIVE = undefined;
+  b.win.INBOX_DATA.THREADS = b.win.INBOX_DATA.THREADS.filter((t) => t.id !== "t7");
+  b.api.read("needs:t1");
+  const saved = JSON.parse(b.store.get(`chanlytics:notifs:${WS}`));
+  assert.deepEqual(saved.read, ["needs:t1"], "the mark for the row that left is gone");
+  assert.deepEqual(saved.dismissed, ["call:k9"], "kept: the calls are not loaded, so nothing can say the row is gone");
+  b.win.__LIVE = { now: [], recent: [] };
+  b.api.dismiss("needs:t1");
+  assert.deepEqual(JSON.parse(b.store.get(`chanlytics:notifs:${WS}`)).dismissed, ["needs:t1"], "loaded and absent: the call's mark goes");
+  // A device whose own copy is later than the server's (the mark just went out) uses its own.
+  const c = device({ __NOTIFICATIONS: { dto: { notifications: [], seen_at: new Date(NOW - 3_600_000).toISOString() } } });
+  c.api.seenAll();
+  assert.equal(c.api.unread(), 0, "not the stale server moment while the re-read is in flight");
+});
+
 test("the top bar shows the real feed outside a demo, with the device-alert switch", () => {
   const tb = readRaw("apps/dashboard/src/legacy/components/topbar.jsx");
   assert.ok(tb.includes("const real = !window.__DEMO_MODE && window.__notifs ? window.__notifs : null;"));
