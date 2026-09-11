@@ -17,7 +17,10 @@ import { isRetryableAuthError } from "@/server/auth-errors";
 // keeps the same-origin check, its own rate buckets and an optional invite
 // code, and creates the user with the service role (the project stays
 // invite-only at the auth level).
-const PUBLIC_PATHS = new Set(["/login", "/auth/signout", "/api/version", "/manifest.webmanifest", "/signup", "/api/v1/signup", "/privacy", "/terms", "/data-deletion"]);
+// /auth/callback is where a provider sends the browser back with a code:
+// nobody has a session at that moment, which is the point. Exact path; the
+// route exchanges the code and redirects, on this site only.
+const PUBLIC_PATHS = new Set(["/login", "/auth/signout", "/auth/callback", "/api/version", "/manifest.webmanifest", "/signup", "/api/v1/signup", "/privacy", "/terms", "/data-deletion"]);
 
 /**
  * The public PREFIXES. Both carry a workspace's slug, so neither can be an exact

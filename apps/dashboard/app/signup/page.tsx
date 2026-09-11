@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { SIGNUP_WORDS, deviceTimezone } from "@chanlytics/contracts";
+import GoogleSignIn from "@/auth/GoogleSignIn";
 
 /**
  * Sign-up: a business name and a work email, and the workspace exists with
@@ -103,6 +104,10 @@ export default function SignupPage() {
     <main className="auth-card" data-testid="signup" data-posture={posture ?? "unknown"}>
       <h1>{waiting ? SIGNUP_WORDS.waitlistTitle : SIGNUP_WORDS.title}</h1>
       <p>{waiting ? SIGNUP_WORDS.waitlistLead : SIGNUP_WORDS.lead}</p>
+      {/* Google makes the account and the create screen names the workspace --
+          and asks the invite code there, when sign-up is by invitation. Not on
+          the waitlist: a list takes details, not accounts. */}
+      {posture !== null && !waiting && <GoogleSignIn next="/" hint={SIGNUP_WORDS.googleNext} />}
       <form onSubmit={submit}>
         <label htmlFor="name">Business name</label>
         <input id="name" type="text" autoComplete="organization" required minLength={2} maxLength={120} ref={fieldRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="Luna Studio" />

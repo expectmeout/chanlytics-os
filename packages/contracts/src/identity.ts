@@ -73,3 +73,19 @@ export function cleanDisplayName(raw: unknown): { ok: true; name: string } | { o
   if (name.length > DISPLAY_NAME_MAX) return { ok: false, reason: `A name is at most ${DISPLAY_NAME_MAX} characters.` };
   return { ok: true, name };
 }
+
+/**
+ * The name a sign-in provider gave -- Google's `full_name`, then `name` -- for
+ * an account that has not given one itself. Still the rule above: a name is
+ * what a person gave, and they gave this one to Google; never anything made
+ * from an email. Trimmed to what `profiles.display_name` holds.
+ */
+export function providerNameOf(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const m = metadata as Record<string, unknown>;
+  for (const key of ["full_name", "name"]) {
+    const v = m[key];
+    if (typeof v === "string" && v.trim()) return v.trim().replace(/\s+/g, " ").slice(0, 80);
+  }
+  return null;
+}

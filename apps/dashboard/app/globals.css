@@ -56,6 +56,13 @@ body {
 .auth-card a:hover { opacity: 0.85; }
 .auth-legal { margin-top: 14px; font-size: 0.78rem; }
 .auth-legal a { color: var(--auth-muted); }
+/* Sign in with Google: Google's button is white with the G, whatever the card's own accent. */
+.auth-card .auth-google { display: flex; align-items: center; justify-content: center; gap: 10px; background: #fff; color: #1f1f1f; border: 1px solid #dadce0; margin-bottom: 6px; }
+.auth-card .auth-google:hover:not(:disabled) { background: #f7f8f8; }
+.auth-card .auth-google svg { width: 18px; height: 18px; flex: none; }
+.auth-card .auth-google-hint { margin-top: 0; margin-bottom: 10px; }
+.auth-or { display: flex; align-items: center; gap: 10px; color: var(--auth-muted); font-size: 0.78rem; margin: 14px 0; }
+.auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--auth-line); }
 
 /* The two public pages every platform review links to. Same tokens as the
    auth card, a reading width instead of a form's. */

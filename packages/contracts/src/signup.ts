@@ -119,6 +119,13 @@ export const SIGNUP_WORDS = {
   haveOne: "Already have a workspace?",
   newHere: "New to Chanlytics?",
   clock: (tz: string) => `Your clock: ${tz}, read from this device. Change it later in Settings › Workspace.`,
+  /* ------------------------------------------------------------ google
+   * The provider's own words for its button, and ours for what follows it. */
+  google: "Continue with Google",
+  or: "or, with your work email",
+  googleNext: "You'll name your workspace on the next screen.",
+  googleFailed: "Google sign-in didn't complete. Try again, or use your email.",
+  firstWorkspaceCode: "Sign-up is by invitation right now. Enter the invite code you were given to make your first workspace.",
 } as const;
 
 /**
@@ -155,4 +162,33 @@ export function deviceTimezone(resolve: () => string | undefined = () => Intl.Da
   } catch {
     return undefined;
   }
+}
+
+/**
+ * The door to a FIRST workspace, for an account that arrived through a
+ * provider rather than the sign-up form.
+ *
+ * Sign in with Google makes the auth user before anything of ours runs, so the
+ * posture cannot be asked at /api/v1/signup the way the email form asks it.
+ * It is asked where every first workspace is made instead -- the create route
+ * -- and only of an account with no membership yet. Somebody already inside
+ * was let in by an invitation or by their first workspace, and makes the next
+ * one without a code.
+ */
+export type FirstWorkspaceDoor = { open: true } | { open: false; code: "forbidden"; message: string };
+
+export function firstWorkspaceDoor(o: { posture: SignupPosture; memberships: number; codeMatches: boolean }): FirstWorkspaceDoor {
+  if (o.memberships > 0) return { open: true };
+  if (o.posture === "waitlist") return { open: false, code: "forbidden", message: SIGNUP_WORDS.waitlistLead };
+  if (o.posture === "invite" && !o.codeMatches) return { open: false, code: "forbidden", message: SIGNUP_WORDS.codeWrong };
+  return { open: true };
+}
+
+/**
+ * Where Google sends the browser back: our callback, which exchanges the code
+ * for the session cookie and lands where the page asked. Built here so the
+ * page and its test agree on the shape, and so `next` is always encoded.
+ */
+export function googleCallbackUrl(origin: string, next: string): string {
+  return `${origin}/auth/callback?next=${encodeURIComponent(next || "/")}`;
 }

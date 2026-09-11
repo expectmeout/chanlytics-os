@@ -1,4 +1,5 @@
 import "server-only";
+import { timingSafeEqual } from "node:crypto";
 import { deployment } from "./deployment";
 import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -49,6 +50,18 @@ export interface SignupOutcome {
    * about: that stays opaque.
    */
   codeUnsent: boolean;
+}
+
+/**
+ * The invite code, compared in constant time. One copy, for the two doors that
+ * ask it: the sign-up form, and the first workspace of an account that arrived
+ * through a provider (Sign in with Google makes the user before any of ours
+ * runs, so its door is the create route).
+ */
+export function inviteCodeMatches(given: string | undefined | null): boolean {
+  const a = Buffer.from(given ?? "");
+  const b = Buffer.from(process.env.SIGNUP_CODE ?? "");
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 /** Supabase's own word for an address it already has. */

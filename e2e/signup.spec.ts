@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { googleProviderOn } from "./providers";
 
 /**
  * Sign-up on production: the page, the readiness answer, and the two
@@ -21,6 +22,12 @@ test.describe("sign-up", () => {
     await expect(page.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
     // The clock line reads the device, never asks.
     await expect(page.getByText(/^Your clock: /)).toBeVisible();
+    // Google is a door too -- when the project's provider is on, and never on
+    // the waitlist, which takes details and no accounts.
+    const { data } = await (await page.request.get("/api/v1/signup")).json();
+    const google = await googleProviderOn();
+    if (data.posture !== "waitlist" && google === true) await expect(page.getByTestId("google-sign-in")).toBeVisible();
+    if (data.posture === "waitlist" || google === false) await expect(page.getByTestId("google-sign-in")).toHaveCount(0);
   });
 
   test("readiness says the posture, whether a code is required, and never anything else", async ({ request }) => {

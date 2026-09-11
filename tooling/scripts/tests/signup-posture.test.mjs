@@ -31,7 +31,7 @@ test("one environment variable, three postures", () => {
 
 test("the waitlist branch creates nothing, and returns before it could", () => {
   const route = readCode("apps/dashboard/app/api/v1/signup/route.ts");
-  const branch = route.slice(route.indexOf('if (posture === "waitlist")'), route.indexOf("const required ="));
+  const branch = route.slice(route.indexOf('if (posture === "waitlist")'), route.indexOf('if (posture === "invite" && !inviteCodeMatches(input.code))'));
   assert.ok(branch.includes("await joinWaitlist("), "it writes the queue row");
   assert.ok(!branch.includes("signUp("), "and never the workspace");
   assert.ok(branch.includes("return NextResponse.json"), "and returns before the sign-up path can run");

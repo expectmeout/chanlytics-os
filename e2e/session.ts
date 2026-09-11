@@ -10,11 +10,11 @@ import { createChunks } from "@supabase/ssr/dist/main/utils/chunker.js";
  * The first version minted a magic link and navigated to it, and could never
  * have worked: following the link lands on Supabase's `/auth/v1/verify`, which
  * redirects back carrying the tokens in the URL **fragment** — the implicit
- * flow. This app holds its session in cookies (`@supabase/ssr`), has no
- * `/auth/callback` route to exchange anything, and its middleware bounces any
- * unauthenticated request to `/login` before a fragment could ever be read. So
- * the specs skipped for a missing key, and would have failed on the first run
- * that had one.
+ * flow. This app holds its session in cookies (`@supabase/ssr`); its
+ * `/auth/callback` exchanges a PKCE *code* (Sign in with Google), not a
+ * fragment, and its middleware bounces any unauthenticated request to `/login`
+ * before a fragment could ever be read. So the specs skipped for a missing key,
+ * and would have failed on the first run that had one.
  *
  * What works is to do the exchange where the tokens can actually be captured —
  * in Node, over the API — and then hand the browser the cookie the app reads.

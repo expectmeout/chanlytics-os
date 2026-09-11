@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { PendingWorkspace } from "@chanlytics/contracts";
+import { SIGNUP_WORDS, type PendingWorkspace, type SignupPosture } from "@chanlytics/contracts";
 import { api } from "./api";
 
 /**
@@ -63,10 +63,17 @@ export default function CreateWorkspace({
   initial,
   onCreated,
   onCancel,
+  posture = "open",
 }: {
   email: string | null;
   /** What sign-up kept for this person, when it did: the form opens with it. */
   initial?: PendingWorkspace | null;
+  /**
+   * The door a FIRST workspace meets: the sign-up posture, from the workspace
+   * read that opened this screen. An account that arrived through Google never
+   * saw the sign-up form, so the invite code is asked here, or the list shown.
+   */
+  posture?: SignupPosture;
   onCreated: (w: CreatedWorkspace) => void;
   /** Present when there is somewhere to go back to: this is another workspace, not the first. */
   onCancel?: () => void;
@@ -79,6 +86,11 @@ export default function CreateWorkspace({
   const [zones] = useState(() => (initial?.timezone && !ZONES.includes(initial.timezone) ? [initial.timezone, ...ZONES] : ZONES));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // THE DOOR, for a first workspace: the invite code when sign-up is by
+  // invitation, the list when it is a waitlist. Another workspace for somebody
+  // already inside has no door.
+  const door: SignupPosture = another ? "open" : posture;
+  const [code, setCode] = useState("");
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,7 +104,7 @@ export default function CreateWorkspace({
     }
     setBusy(true);
     setError(null);
-    const r = await api()("POST workspaces/create", { body: { name: trimmed, timezone } });
+    const r = await api()("POST workspaces/create", { body: { name: trimmed, timezone, ...(door === "invite" ? { code: code.trim() } : {}) } });
     if (!r.ok) {
       // The server's message is written for a person to read — "Unknown
       // timezone: Mars/Olympus", "This account already owns 10 workspaces" —
@@ -103,6 +115,23 @@ export default function CreateWorkspace({
     }
     onCreated(r.data.workspace);
   };
+
+  // The list, not the form: a waitlist takes details and makes nothing, and a
+  // first workspace behind one is refused by the route anyway. The public
+  // sign-up page already holds the list's form, so this sends them there.
+  if (door === "waitlist") {
+    return (
+      <div className="cw-screen" data-testid="create-workspace-waitlist">
+        <div className="cw-card">
+          <h1 className="cw-title">{SIGNUP_WORDS.waitlistTitle}</h1>
+          <p className="cw-lede">{SIGNUP_WORDS.waitlistLead}</p>
+          <button className="cw-submit" type="button" onClick={() => window.location.assign("/signup")} data-testid="create-workspace-join">
+            {SIGNUP_WORDS.waitlistCta}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="cw-screen" data-testid="create-workspace">
@@ -143,6 +172,22 @@ export default function CreateWorkspace({
               "are you open right now?" against. */}
           <span className="cw-hint">Your opening hours are read in this timezone.</span>
         </label>
+
+        {door === "invite" && (
+          <label className="cw-field">
+            <span className="cw-label">Invite code</span>
+            <input
+              className="cw-input"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="From your Chanlytics contact"
+              autoComplete="off"
+              maxLength={80}
+              aria-label="Invite code"
+            />
+            <span className="cw-hint">{SIGNUP_WORDS.firstWorkspaceCode}</span>
+          </label>
+        )}
 
         {error && <div className="cw-error" role="alert">{error}</div>}
 
