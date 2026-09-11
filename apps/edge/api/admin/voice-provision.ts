@@ -22,6 +22,7 @@
  * Diagnostic-key only.
  */
 import { json } from "../../lib/http.js";
+import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { edgeFnUrl } from "../../lib/lines.js";
 import { pg } from "../../lib/pg.js";
 import { recordNotification } from "../../lib/notify.js";
@@ -70,9 +71,8 @@ function requestOf(body: Body): VoiceProvisionRequest {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
-    return json(403, { ok: false });
-  }
+  const auth = authorizeAdmin(request, "/api/admin/voice-provision");
+  if (!auth.ok) return auth.response;
   const apiKey = process.env.RETELL_API_KEY;
   const fnSecret = process.env.RETELL_FN_SECRET;
   if (!apiKey || !fnSecret) return json(503, { ok: false, error: !apiKey ? "no_provider_key" : "no_fn_secret" });
@@ -82,6 +82,9 @@ export async function POST(request: Request): Promise<Response> {
   let body: Body = {};
   try { body = JSON.parse(await request.text()); } catch { /* validated below */ }
   const apply = body.apply === true;
+  const ws = workspaceFor(auth, body.tenant_id);
+  if (!ws.ok) return ws.response;
+  body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) {
     return json(400, { ok: false, error: "tenant_id (a workspace id) is required" });

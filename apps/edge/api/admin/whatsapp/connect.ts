@@ -16,6 +16,7 @@
  * Diagnostic-key only: the dashboard is the sole caller, as for steer.
  */
 import { json } from "../../../lib/http.js";
+import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { emitEvent } from "../../../lib/workspace/db.js";
 import type { Json } from "../../../lib/workspace/db.js";
@@ -25,15 +26,17 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ID = /^\d{6,32}$/;
 
 export async function POST(request: Request): Promise<Response> {
-  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
-    return json(403, { ok: false });
-  }
+  const auth = authorizeAdmin(request, "/api/admin/whatsapp/connect");
+  if (!auth.ok) return auth.response;
   const appId = metaAppId();
   const appSecret = process.env.META_APP_SECRET;
   if (!appId || !appSecret) return json(503, { ok: false, error: "no_app_credentials" });
 
   let body: { tenant_id?: string; user_id?: string; code?: string; phone_number_id?: string; waba_id?: string } = {};
   try { body = JSON.parse(await request.text()); } catch { /* below */ }
+  const ws = workspaceFor(auth, body.tenant_id);
+  if (!ws.ok) return ws.response;
+  body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = String(body.tenant_id || "");
   const userId = String(body.user_id || "");
   const code = String(body.code || "").trim();

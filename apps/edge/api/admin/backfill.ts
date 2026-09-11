@@ -14,6 +14,7 @@
  */
 import { list } from "@vercel/blob";
 import { json } from "../../lib/http.js";
+import { authorizeAdmin } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 
 export const config = { maxDuration: 60 };
@@ -42,9 +43,8 @@ async function readBlobThread(pathname: string): Promise<BlobThread | null> {
 
 export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
-  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
-    return json(403, { ok: false });
-  }
+  const auth = authorizeAdmin(request, "/api/admin/backfill");
+  if (!auth.ok) return auth.response;
   const apply = url.searchParams.get("mode") === "apply";
   const tenantSlug = url.searchParams.get("tenant") || "melanys-beauty-salon"; // trade-word: the one workspace this admin backfill was written for; pass ?tenant= for any other
   const db = pg();

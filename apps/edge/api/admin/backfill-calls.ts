@@ -9,6 +9,7 @@
  * Driver enforces the prod-script bar (dry-run default, JSONL snapshot, --apply).
  */
 import { json } from "../../lib/http.js";
+import { authorizeAdmin } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import {
   listCalls,
@@ -29,9 +30,8 @@ const REC_EXT: Record<string, string> = {
 };
 
 export async function GET(request: Request): Promise<Response> {
-  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
-    return json(403, { ok: false });
-  }
+  const auth = authorizeAdmin(request, "/api/admin/backfill-calls");
+  if (!auth.ok) return auth.response;
   const url = new URL(request.url);
   const apply = url.searchParams.get("mode") === "apply";
   const tenantSlug = url.searchParams.get("tenant") || "melanys-beauty-salon"; // trade-word: the one workspace this admin backfill was written for; pass ?tenant= for any other

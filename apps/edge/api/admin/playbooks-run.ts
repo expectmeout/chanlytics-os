@@ -9,16 +9,19 @@
  * local day, so a playbook that already ran today says so.
  */
 import { json } from "../../lib/http.js";
+import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { loadTenantRunContext, runPlaybook, type PlaybookRow } from "../../lib/playbooks.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(request: Request): Promise<Response> {
-  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
-    return json(403, { ok: false });
-  }
+  const auth = authorizeAdmin(request, "/api/admin/playbooks-run");
+  if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => null)) as { tenant_id?: unknown; playbook_id?: unknown; user_id?: unknown } | null;
+  const ws = workspaceFor(auth, body?.tenant_id);
+  if (!ws.ok) return ws.response;
+  if (body) body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body?.tenant_id === "string" ? body.tenant_id : "";
   const playbookId = typeof body?.playbook_id === "string" ? body.playbook_id : "";
   const userId = typeof body?.user_id === "string" ? body.user_id : "";

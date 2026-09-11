@@ -14,6 +14,7 @@
  * text, history? }] } where history is prior turns [{ role, content }].
  */
 import { json } from "../../lib/http.js";
+import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { loadTenantRuntime } from "../../lib/tenant-runtime.js";
 import { resolveSystemPrompt, describeNow } from "../../lib/workspace/contracts.js";
@@ -27,13 +28,15 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 interface EvalCase { id: string; text: string; history?: Array<{ role: "user" | "assistant"; content: string }> }
 
 export async function POST(request: Request): Promise<Response> {
-  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
-    return json(403, { ok: false });
-  }
+  const auth = authorizeAdmin(request, "/api/admin/eval");
+  if (!auth.ok) return auth.response;
   if (!process.env.ANTHROPIC_API_KEY) return json(503, { ok: false, error: "no_model_key" });
 
   let body: { tenant_id?: string; cases?: EvalCase[] } = {};
   try { body = JSON.parse(await request.text()); } catch { /* below */ }
+  const ws = workspaceFor(auth, body.tenant_id);
+  if (!ws.ok) return ws.response;
+  body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = String(body.tenant_id || "");
   const cases = Array.isArray(body.cases) ? body.cases : [];
   if (!UUID.test(tenantId) || !cases.length || cases.length > MAX_CASES) {

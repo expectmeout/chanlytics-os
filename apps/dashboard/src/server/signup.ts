@@ -28,7 +28,7 @@ import { PENDING_WORKSPACE_KEY, sendFailureIsOurs, type SignupInput } from "@cha
  * its owner does.
  */
 
-const EDGE_BASE = "https://chanlytics-messaging.vercel.app";
+import { edgeConfigured, edgeHeaders, edgeUrl } from "./edge";
 
 let svc: SupabaseClient<Database> | null = null;
 function serviceDb(): SupabaseClient<Database> {
@@ -124,11 +124,11 @@ export async function joinWaitlist(input: { email: string; name?: string; source
  * for the first one and every one after. A failure is a shrug.
  */
 export async function notifyPlatformSignup(tenantId: string, email: string): Promise<void> {
-  if (!process.env.DIAG_KEY || !deployment.providersLive) return;
+  if (!edgeConfigured() || !deployment.providersLive) return;
   try {
-    await fetch(`${EDGE_BASE}/api/admin/signup-notify`, {
+    await fetch(`${edgeUrl()}/api/admin/signup-notify`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY },
+      headers: edgeHeaders("/api/admin/signup-notify", { workspace: tenantId }),
       body: JSON.stringify({ tenant_id: tenantId, email }),
       signal: AbortSignal.timeout(4_000),
     });

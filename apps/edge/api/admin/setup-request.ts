@@ -12,6 +12,7 @@
  * Diagnostic-key only.
  */
 import { json } from "../../lib/http.js";
+import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { notify } from "../../lib/notify.js";
 
@@ -32,15 +33,17 @@ const WHAT: Record<string, { subject: string; how: string }> = {
 };
 
 export async function POST(request: Request): Promise<Response> {
-  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
-    return json(403, { ok: false });
-  }
+  const auth = authorizeAdmin(request, "/api/admin/setup-request");
+  if (!auth.ok) return auth.response;
   if (!process.env.LEAD_TO || !process.env.LEAD_FROM) return json(503, { ok: false, error: "no_platform_mailbox" });
   const db = pg();
   if (!db) return json(503, { ok: false, error: "no_database" });
 
   let body: Body = {};
   try { body = JSON.parse(await request.text()); } catch { /* validated below */ }
+  const ws = workspaceFor(auth, body.tenant_id);
+  if (!ws.ok) return ws.response;
+  body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
   const what = typeof body.what === "string" ? body.what : "";
   if (!/^[0-9a-f-]{36}$/i.test(tenantId) || !WHAT[what]) return json(400, { ok: false, error: "tenant_id and a known `what` are required" });

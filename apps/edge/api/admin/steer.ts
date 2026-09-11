@@ -18,6 +18,7 @@
  * door has been checked there. Body: { message_id, text }.
  */
 import { json } from "../../lib/http.js";
+import { authorizeAdmin } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { loadTenantRuntime } from "../../lib/tenant-runtime.js";
 import { readThreadState, readLeadContext, describeLead } from "../../lib/workspace/db.js";
@@ -36,9 +37,8 @@ const log = {
 };
 
 export async function POST(request: Request): Promise<Response> {
-  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
-    return json(403, { ok: false });
-  }
+  const auth = authorizeAdmin(request, "/api/admin/steer");
+  if (!auth.ok) return auth.response;
   if (!process.env.ANTHROPIC_API_KEY) return json(503, { ok: false, error: "no_model_key" });
 
   let body: { message_id?: string; text?: string } = {};
@@ -59,6 +59,8 @@ export async function POST(request: Request): Promise<Response> {
     .maybeSingle();
   if (mErr) return json(500, { ok: false, error: "message_read_failed" });
   if (!m) return json(404, { ok: false, error: "not_found" });
+  // A token minted for one workspace opens only that workspace's drafts.
+  if (auth.workspace && m.tenant_id !== auth.workspace) return json(403, { ok: false, error: "workspace_mismatch" });
   if (m.sender !== "ai" || m.status !== "queued") return json(409, { ok: false, error: "not_a_held_draft" });
 
   const { data: conv } = await db

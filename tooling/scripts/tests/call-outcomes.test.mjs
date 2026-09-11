@@ -138,7 +138,7 @@ test("the agent reader carries the analysis schema, so the diagnostic's drift is
 
 test("the converge endpoint: the edge's key, a dry run by default, a draft for a published version, publish only when asked, the LLM never touched", () => {
   const src = readCode("apps/edge/api/admin/voice-converge.ts");
-  assert.ok(src.includes('request.headers.get("x-diag-key") !== process.env.DIAG_KEY'), "diagnostic-key only");
+  assert.ok(src.includes('authorizeAdmin(request, "/api/admin/voice-converge")'), "diagnostic-key only");
   assert.ok(src.includes("const apply = body.apply === true;") && src.includes("const publish = body.publish === true;"), "nothing moves unless asked, in two steps");
   assert.ok(src.includes("planAgentSettings(before as unknown as LiveAgentSettings)"), "the same plan the script and the diagnostic use");
   assert.ok(src.includes("if (before.is_published === true && working !== null) {") && src.includes("createAgentVersion(cfg, agentId, working)"), "a published version cannot change: a draft first");

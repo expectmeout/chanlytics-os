@@ -45,7 +45,7 @@ test("the adapter speaks update-live-call exactly, and returns the status instea
 
 test("the edge takes the words behind the diag key and logs their length, never them", () => {
   const edge = readCode("apps/edge/api/admin/whisper.ts");
-  assert.ok(edge.includes('request.headers.get("x-diag-key") !== process.env.DIAG_KEY'));
+  assert.ok(edge.includes('authorizeAdmin(request, "/api/admin/whisper")'));
   assert.ok(edge.includes("updateLiveCall("));
   assert.ok(edge.includes("chars: text.length"));
   assert.ok(!/console\.log\([^)]*\btext\b[^)]*\)/.test(edge.replace("chars: text.length", "")), "the operator's words stay out of the log");
@@ -65,7 +65,7 @@ test("the route proves visibility, then the role door, then the provider — and
   const service = readCode("apps/dashboard/src/server/service.ts");
   const fn = service.slice(service.indexOf("export async function whisperLiveCall"));
   assert.ok(fn.includes('!deployment.providersLive'), "a preview must not speak into a real customer's call");
-  assert.ok(fn.includes('"x-diag-key": process.env.DIAG_KEY!'));
+  assert.ok(fn.includes('edgeHeaders("/api/admin/whisper")'));
 });
 
 test("the page offers it only on a live call, behind the gate the server enforces", () => {

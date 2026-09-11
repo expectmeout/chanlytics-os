@@ -17,6 +17,7 @@
  * secret stripped, as the backup. Diagnostic-key only.
  */
 import { json } from "../../lib/http.js";
+import { authorizeAdmin } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import {
   getAgentRaw,
@@ -40,9 +41,8 @@ function forRecord(a: Record<string, unknown>): Record<string, unknown> {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
-    return json(403, { ok: false });
-  }
+  const auth = authorizeAdmin(request, "/api/admin/voice-converge");
+  if (!auth.ok) return auth.response;
   const apiKey = process.env.RETELL_API_KEY;
   if (!apiKey) return json(503, { ok: false, error: "no_provider_key" });
   let body: Body = {};

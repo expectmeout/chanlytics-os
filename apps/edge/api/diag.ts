@@ -5,6 +5,7 @@
 import { getThread, saveThread, storeBackend, threadNamespace } from "../lib/store.js";
 import { createHash } from "node:crypto";
 import { json } from "../lib/http.js";
+import { authorizeAdmin } from "../lib/admin-auth.js";
 import { pg } from "../lib/pg.js";
 import { brainSummary } from "../lib/budget.js";
 import type { SweepHealthRow } from "../lib/sweep-health.js";
@@ -17,10 +18,8 @@ export async function GET(request: Request): Promise<Response> {
   // Header only. The WhatsApp verify token used to open this door from the
   // query string — a value Meta also carries in its own verification URL,
   // and one that lands in access logs.
-  const headerOk = !!process.env.DIAG_KEY && request.headers.get("x-diag-key") === process.env.DIAG_KEY;
-  if (!headerOk) {
-    return json(403, { ok: false });
-  }
+  const auth = authorizeAdmin(request, "/api/diag");
+  if (!auth.ok) return auth.response;
 
   const out: Record<string, unknown> = {
     store: storeBackend(),
