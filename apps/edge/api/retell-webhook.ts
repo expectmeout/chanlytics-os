@@ -116,12 +116,22 @@ export async function POST(request: Request): Promise<Response> {
   // fails over the other with the RIGHT key. Both are tried; which one
   // verified is recorded, so the key question settles itself on the next
   // delivery instead of on a guess.
+  //
+  // THE KEY. Retell signs with the API key that carries the webhook badge in
+  // its dashboard, and only that one: "Only the API key that has a webhook
+  // badge next to it can be used to verify the webhook." The key the edge
+  // CALLS Retell with need not be that key, and in production it was not:
+  // 127 deliveries on 2026-09-05 verified in neither form while the ?key=
+  // opened every one (events, kind webhook.auth). RETELL_WEBHOOK_KEY holds
+  // the badged key for verification alone; empty, the API key is tried, as
+  // before, so nothing moves until it is set.
   const signature = request.headers.get("x-retell-signature");
-  const sigRaw = verifyRetellSignature(raw, signature, process.env.RETELL_API_KEY);
+  const webhookKey = process.env.RETELL_WEBHOOK_KEY || process.env.RETELL_API_KEY;
+  const sigRaw = verifyRetellSignature(raw, signature, webhookKey);
   let restringified: string | null = null;
   try { restringified = JSON.stringify(JSON.parse(raw)); } catch { /* not JSON: nothing to re-serialise */ }
   const sigRestringified = !sigRaw && restringified !== null && restringified !== raw
-    ? verifyRetellSignature(restringified, signature, process.env.RETELL_API_KEY)
+    ? verifyRetellSignature(restringified, signature, webhookKey)
     : sigRaw;
   const sigOk = sigRaw || sigRestringified;
   // The `?key=` in the URL is a secret that rides in Retell's dashboard and
