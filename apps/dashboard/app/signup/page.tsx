@@ -59,7 +59,7 @@ export default function SignupPage() {
       // no screen to enter one on. Say so here rather than navigating somewhere
       // that would ask for one.
       if (j.data?.waitlisted) { setJoined(true); return; }
-      // THE CODE DID NOT GO OUT, and the workspace exists anyway. Navigating to
+      // THE CODE DID NOT GO OUT, and nothing was made yet. Navigating to
       // /login?sent=1 would put a person in front of a box asking for six digits
       // that are not coming — the same reason a waitlist submission stops here
       // rather than going somewhere that asks for one. The fallback destination
@@ -78,7 +78,7 @@ export default function SignupPage() {
   if (unsent) {
     return (
       <main className="auth-card" data-testid="signup-unsent">
-        <h1>Your workspace is ready</h1>
+        <h1>{SIGNUP_WORDS.notSentTitle}</h1>
         <p>{unsent}</p>
         <div className="hint">
           <a href={`/login?email=${encodeURIComponent(email.trim())}`}>Go to sign-in</a> and ask for the code there.

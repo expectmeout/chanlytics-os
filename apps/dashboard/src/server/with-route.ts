@@ -16,6 +16,12 @@ export interface RouteContext {
   userId: string;
   email: string | undefined;
   /**
+   * The auth user's own metadata, as Supabase holds it. What sign-up kept for
+   * a person who has not made a workspace yet lives here (the pending
+   * workspace, contracts/signup.ts); nothing in it is a permission.
+   */
+  metadata: Record<string, unknown>;
+  /**
    * Where the request came from inside the app, when it says. The Ask
    * palette commits through the same routes a button does; the one thing
    * the ledger should keep is that a card, not a button, was tapped.
@@ -90,7 +96,8 @@ export function withRoute<T>(
         return NextResponse.json(err("unauthorized", "Sign in required."), { status: 401, headers: PRIVATE });
       }
       const via = req.headers.get("x-via") === "ask" ? ("ask" as const) : undefined;
-      const data = await handler(req, { supabase, userId: user.id, email: user.email, params, ...(via ? { via } : {}) });
+      const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+      const data = await handler(req, { supabase, userId: user.id, email: user.email, metadata, params, ...(via ? { via } : {}) });
       console.log(JSON.stringify({ level: "info", route, user: user.id, ms: Date.now() - started }));
       // A handler that built its own Response — a file to download — passes
       // through as it is, under the same no-store rule as every other exit.

@@ -1,5 +1,5 @@
 import { withRoute, memberContext, requireRole } from "@/server/with-route";
-import { AppError, cleanTimezone } from "@chanlytics/contracts";
+import { AppError, cleanTimezone, pendingWorkspaceOf } from "@chanlytics/contracts";
 import { acceptOpenInvites } from "@/server/service";
 import { isPlatformAdmin } from "@/server/platform";
 import { isSameOrigin } from "@/server/request-guards";
@@ -72,9 +72,12 @@ export const GET = withRoute(async (_req, ctx) => {
   // answering "where am I".
   // Someone with no workspace at all — an invite revoked before first sign-in —
   // must see an empty state, not a 404. This endpoint answers "where am I", and
-  // "nowhere yet" is a real answer.
+  // "nowhere yet" is a real answer. It comes with what sign-up kept: the name
+  // and clock this person typed before they had proved the inbox, so the
+  // create screen opens with them rather than asking twice. Sign-up makes no
+  // workspace; this is where every first workspace begins.
   if (!data?.length) {
-    return { workspaces: [], activeWorkspaceId: null, user: { id: userId, email: email ?? null, role: null, display_name: displayName, platform_admin: platformAdmin } };
+    return { workspaces: [], activeWorkspaceId: null, pending: pendingWorkspaceOf(ctx.metadata), user: { id: userId, email: email ?? null, role: null, display_name: displayName, platform_admin: platformAdmin } };
   }
 
   const preferred = new URL(_req.url).searchParams.get("workspace");

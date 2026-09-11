@@ -4584,6 +4584,21 @@ var SignupSchema = external_exports.object({
   /** The invite code, when sign-up is by invitation. */
   code: external_exports.string().trim().max(80).optional()
 }).strict();
+var PendingWorkspaceSchema = external_exports.object({
+  name: external_exports.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+  // A clock Postgres would refuse is dropped here, so the owner's first Create
+  // never fails over a zone a stranger's device reported.
+  timezone: external_exports.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+});
+function isTimezone(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: raw });
+    return true;
+  } catch {
+    return false;
+  }
+}
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var BUSINESS_INDUSTRIES = [

@@ -2,6 +2,7 @@ import { withRoute } from "@/server/with-route";
 import { AppError } from "@chanlytics/contracts";
 import { z } from "zod";
 import { takeRate } from "@/server/rate-limit";
+import { notifyPlatformSignup } from "@/server/signup";
 
 /**
  * POST /api/v1/workspaces/create — bring a new workspace into existence.
@@ -18,6 +19,11 @@ import { takeRate } from "@/server/rate-limit";
  * through create_workspace (00021), a security-definer function that is the
  * single audited place this privilege exists. Service-role never enters the
  * request path.
+ *
+ * Every workspace starts here, the first one included: sign-up keeps what its
+ * form said on the auth user and makes nothing, and the person who enters the
+ * code lands on the create screen with those answers filled in. A workspace
+ * exists only for a person who has proved the inbox that owns it.
  */
 
 const Body = z
@@ -54,6 +60,11 @@ export const POST = withRoute(async (req, ctx) => {
     if (mapped) throw new AppError(mapped.code, error.message, mapped.status);
     throw new Error(error.message);
   }
+
+  // The platform mailbox hears about a new workspace from the one place
+  // workspaces are made. Bounded and best-effort: the workspace exists whether
+  // or not the notice gets through.
+  await notifyPlatformSignup(data.id, ctx.email ?? "");
 
   // Returned in the same shape /api/v1/workspaces lists, so the client can put
   // it straight into its workspace list without a second round trip.

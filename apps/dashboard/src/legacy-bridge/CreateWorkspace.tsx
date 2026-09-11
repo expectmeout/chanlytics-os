@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { PendingWorkspace } from "@chanlytics/contracts";
 
 /**
  * The first screen of an account that belongs to nowhere — and, from the
@@ -15,6 +16,12 @@ import { useState } from "react";
  *
  * Rendered INSTEAD of the app, not inside it: with no workspace there is no
  * nav to put this in, and for another workspace the page changes anyway.
+ *
+ * The first workspace begins here too. Sign-up makes none: it keeps the name
+ * and clock the person typed on their account, and this screen opens with
+ * them filled in once they have entered the code. One press, and the
+ * workspace is theirs -- made by a session that has proved the inbox, through
+ * the same door as every workspace after it.
  */
 
 export interface CreatedWorkspace {
@@ -52,17 +59,23 @@ const ZONES = (() => {
 
 export default function CreateWorkspace({
   email,
+  initial,
   onCreated,
   onCancel,
 }: {
   email: string | null;
+  /** What sign-up kept for this person, when it did: the form opens with it. */
+  initial?: PendingWorkspace | null;
   onCreated: (w: CreatedWorkspace) => void;
   /** Present when there is somewhere to go back to: this is another workspace, not the first. */
   onCancel?: () => void;
 }) {
   const another = !!onCancel;
-  const [name, setName] = useState("");
-  const [timezone, setTimezone] = useState(browserZone());
+  const [name, setName] = useState(initial?.name ?? "");
+  const [timezone, setTimezone] = useState(initial?.timezone || browserZone());
+  // A zone sign-up kept that the short list does not carry is still the one
+  // they chose, so it heads the list rather than vanishing into it.
+  const [zones] = useState(() => (initial?.timezone && !ZONES.includes(initial.timezone) ? [initial.timezone, ...ZONES] : ZONES));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -133,7 +146,7 @@ export default function CreateWorkspace({
             onChange={(e) => setTimezone(e.target.value)}
             aria-label="Timezone"
           >
-            {ZONES.map((z) => (
+            {zones.map((z) => (
               <option key={z} value={z}>{z.replace(/_/g, " ")}</option>
             ))}
           </select>

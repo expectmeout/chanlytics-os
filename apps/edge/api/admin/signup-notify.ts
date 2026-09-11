@@ -1,12 +1,12 @@
 /**
- * POST /api/admin/signup-notify — a stranger made a workspace, and the
+ * POST /api/admin/signup-notify — somebody made a workspace, and the
  * platform mailbox hears about it.
  *
- * The sign-up itself is the dashboard's (service role, the auth user and
- * the workspace in one go); the one thing it cannot do is send the email.
- * A failure here is a shrug: the workspace exists and its owner is on the
- * way in. What travels is the workspace's name, slug and id and the
- * owner's address; no customer content exists yet. Diagnostic-key only.
+ * The workspace is the dashboard's, made by its signed-in owner through
+ * create_workspace; the one thing the dashboard cannot do is send the
+ * email. A failure here is a shrug: the workspace exists and its owner is
+ * in it. What travels is the workspace's name, slug and id and the owner's
+ * address; no customer content exists yet. Diagnostic-key only.
  */
 import { json } from "../../lib/http.js";
 import { pg } from "../../lib/pg.js";
