@@ -22,8 +22,12 @@
  * it gets a REDACTED platform notice instead, so the operator learns a tenant
  * needs configuring without the customer's words travelling to a stranger.
  */
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "./workspace/db.js";
 import type { NotificationsConfig } from "./workspace/contracts.js";
 import { pg } from "./pg.js";
+
+type Db = SupabaseClient<Database>;
 
 const RESEND = "https://api.resend.com/emails";
 const TIMEOUT_MS = 10_000;
@@ -57,8 +61,22 @@ export interface NotifyMessage {
 export function platformFrom(): string | null {
   return process.env.LEAD_FROM || null;
 }
-export function platformTo(): string | null {
-  return process.env.LEAD_TO || null;
+/**
+ * The platform's mailboxes: LEAD_TO, one address or several separated by
+ * commas, so a second person can be paged without a second variable. Empty
+ * when unset. A filing that wants ONE address (Twilio's contact) takes the
+ * first.
+ */
+export function platformTo(): string[] {
+  return (process.env.LEAD_TO || "").split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+/** What the transport and the row store can be replaced with, by a test. The real ones are the default. */
+export interface NotifyPorts {
+  /** The database the row is kept in; null keeps no row. Unset means the edge's own client. */
+  db?: Db | null;
+  /** The mail transport; Resend through post() unless a test hands in its own. */
+  send?: typeof post;
 }
 
 export async function post(from: string, to: string[], subject: string, text: string): Promise<boolean> {
@@ -105,18 +123,18 @@ export type Addressing =
 
 export function chooseAddressing(
   target: NotifyTarget,
-  platform: { to: string | null; from: string | null },
+  platform: { to: string[]; from: string | null },
 ): Addressing {
   const configured = target.notifications;
   if (configured?.escalation_emails?.length) {
     const from = configured.from || platform.from;
     if (from) return { kind: "tenant", to: configured.escalation_emails, from };
   }
-  if (!platform.to || !platform.from) return { kind: "none" };
+  if (!platform.to.length || !platform.from) return { kind: "none" };
   // The env pair is only THIS tenant's own mailbox for the tenant that predates
   // the control plane. For anyone else it belongs to a different business.
-  if (target.isEnvDefault) return { kind: "platform", to: [platform.to], from: platform.from };
-  return { kind: "redacted", to: [platform.to], from: platform.from };
+  if (target.isEnvDefault) return { kind: "platform", to: platform.to, from: platform.from };
+  return { kind: "redacted", to: platform.to, from: platform.from };
 }
 
 /**
@@ -131,13 +149,18 @@ const KEPT_KINDS = new Set(["handoff", "deadman", "call", "number", "sweep", "jo
  * an email goes out — a workspace with no recipients configured still owns
  * its own alerts (members read; the row is theirs under RLS). Never throws:
  * losing the row must not lose the email.
+ *
+ * A PLATFORM notice (no tenant: a broken sweep, a new sign-up, a workspace
+ * that cannot be addressed) has no workspace and so no bell. It goes by mail
+ * only; when that mail fails, the log says so and the pager's memory
+ * (operator_pages, read on /api/diag) holds the conditions nobody was told.
  */
 export async function recordNotification(
   tenantId: string | null,
   n: { kind?: string; title: string; body: string; route?: string | null; about?: { type: string; id: string } | null },
+  db: Db | null = pg(),
 ): Promise<void> {
   if (!tenantId) return;
-  const db = pg();
   if (!db) return;
   const kind = n.kind && KEPT_KINDS.has(n.kind) ? n.kind : "alert";
   try {
@@ -151,20 +174,21 @@ export async function recordNotification(
   }
 }
 
-export async function notify(target: NotifyTarget, msg: NotifyMessage): Promise<boolean> {
+export async function notify(target: NotifyTarget, msg: NotifyMessage, ports: NotifyPorts = {}): Promise<boolean> {
+  const send = ports.send ?? post;
   // The row first: it is the workspace's own record, addressed or not.
-  await recordNotification(target.tenantId, { kind: msg.kind, title: msg.subject, body: msg.body, route: msg.route, about: msg.about });
+  await recordNotification(target.tenantId, { kind: msg.kind, title: msg.subject, body: msg.body, route: msg.route, about: msg.about }, ports.db === undefined ? pg() : ports.db);
   const addressing = chooseAddressing(target, { to: platformTo(), from: platformFrom() });
 
   switch (addressing.kind) {
     case "tenant":
     case "platform":
-      return post(addressing.from, addressing.to, msg.subject, msg.body);
+      return send(addressing.from, addressing.to, msg.subject, msg.body);
 
     case "redacted": {
       console.error("notify_tenant_unaddressable", JSON.stringify({ tenant: target.tenantId, subject: redactNumbers(msg.subject) }));
       if (!msg.redactedBody) return false;
-      return post(
+      return send(
         addressing.from,
         addressing.to,
         "A workspace needs notification settings",

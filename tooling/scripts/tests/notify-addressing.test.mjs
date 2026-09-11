@@ -20,7 +20,7 @@ const { chooseAddressing } = await import(
   pathToFileURL(path.join(here, "../../../apps/edge/lib/notify.ts")).href
 );
 
-const PLATFORM = { to: "platform@example.com", from: "Platform <noreply@example.com>" };
+const PLATFORM = { to: ["platform@example.com", "second@example.com"], from: "Platform <noreply@example.com>" };
 const TENANT_MAILBOX = { escalation_emails: ["owner@salon.example"], from: "Salon <hi@salon.example>" };
 
 test("a tenant with its own recipients gets the full detail, at its own address", () => {
@@ -36,14 +36,14 @@ test("a tenant with its own recipients gets the full detail, at its own address"
 test("the env-default tenant may use the env pair — it IS its owner", () => {
   const a = chooseAddressing({ tenantId: "t1", notifications: null, isEnvDefault: true }, PLATFORM);
   assert.equal(a.kind, "platform", "the tenant that predates the control plane keeps full alerts");
-  assert.deepEqual(a.to, [PLATFORM.to]);
+  assert.deepEqual(a.to, PLATFORM.to, "every platform address, not the first");
 });
 
 test("ANOTHER tenant with no recipients is REDACTED, never sent to the env pair", () => {
   // The disclosure this whole module exists to prevent.
   const a = chooseAddressing({ tenantId: "t2", notifications: null, isEnvDefault: false }, PLATFORM);
   assert.equal(a.kind, "redacted", "a second tenant's customer content went to tenant #1's owner");
-  assert.deepEqual(a.to, [PLATFORM.to], "the operator is still told a workspace needs configuring");
+  assert.deepEqual(a.to, PLATFORM.to, "the operator is still told a workspace needs configuring");
 });
 
 test("a tenant with an EMPTY recipient list is treated as unconfigured", () => {
@@ -56,7 +56,7 @@ test("a tenant with an EMPTY recipient list is treated as unconfigured", () => {
 
 test("no platform pair configured means nowhere to send, not a guess", () => {
   assert.equal(
-    chooseAddressing({ tenantId: "t2", notifications: null, isEnvDefault: true }, { to: null, from: null }).kind,
+    chooseAddressing({ tenantId: "t2", notifications: null, isEnvDefault: true }, { to: [], from: null }).kind,
     "none",
   );
   // ...but a tenant's OWN address still works without a platform pair, as long
@@ -64,7 +64,7 @@ test("no platform pair configured means nowhere to send, not a guess", () => {
   assert.equal(
     chooseAddressing(
       { tenantId: "t1", notifications: TENANT_MAILBOX, isEnvDefault: false },
-      { to: null, from: null },
+      { to: [], from: null },
     ).kind,
     "tenant",
   );

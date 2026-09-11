@@ -205,6 +205,26 @@ test("a pause that has run out hands the thread back, unless the customer's requ
   assert.equal(rows[running].state, "needs_human");
 });
 
+test("jobs_backlog() counts due work nobody has claimed for two minutes, and a claim takes it off the count", { skip }, async () => {
+  // What the health sweep pages on and the public health door reports: run
+  // against the function, which until now only the pager's memory test
+  // described. Relative to whatever the ledger already holds, since the
+  // count is platform-wide by design.
+  const before = await db.rpc("jobs_backlog");
+  assert.equal(before.error, null, before.error?.message);
+  const base = before.data;
+  await insertJob({ due_at: ago(180) });
+  await insertJob({ due_at: ago(30) });
+  const { data: waiting, error } = await db.rpc("jobs_backlog");
+  assert.equal(error, null, error?.message);
+  assert.equal(waiting, base + 1, "a job due thirty seconds ago is the heartbeat's next tick, not a backlog");
+  const { data: patient } = await db.rpc("jobs_backlog", { p_wait: "10 seconds" });
+  assert.equal(patient, base + 2, "the grace is the caller's to set");
+  await claim(50);
+  const { data: drained } = await db.rpc("jobs_backlog");
+  assert.equal(drained, base, "claimed is not waiting");
+});
+
 test("the three clocks run every ten seconds, and the sweep that re-published is gone", { skip }, async () => {
   const { data, error } = await db.rpc("sweep_schedules");
   assert.equal(error, null, error?.message);

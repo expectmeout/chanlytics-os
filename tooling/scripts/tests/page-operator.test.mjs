@@ -13,7 +13,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { pageOperator, PAGE_WINDOW_MS } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/page-operator.ts")).href);
+const { pageOperator, pageStates, untoldPages, PAGE_WINDOW_MS } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/page-operator.ts")).href);
 
 /** A memory of pages: the three calls pageOperator makes, and nothing else. */
 function fakePages(initial = {}) {
@@ -77,6 +77,49 @@ test("a page that did not send earns no quiet: the stamp stays unset and the nex
   const ok = transport();
   assert.equal(await pageOperator({ db, send: ok.send, now: () => T0 + 2000 }, "jobs_backlog", "12 due jobs waiting", "…"), "sent");
   assert.equal(ok.sent.length, 1);
+});
+
+test("every platform address is paged: LEAD_TO with two addresses reaches both", async () => {
+  const saved = process.env.LEAD_TO;
+  process.env.LEAD_TO = "ops@example.test, second@example.test";
+  try {
+    const db = fakePages();
+    const t = transport();
+    assert.equal(await pageOperator({ db, send: t.send, now: () => T0 }, "jobs_backlog", "12 due jobs waiting", "…"), "sent");
+    assert.deepEqual(t.sent[0].to, ["ops@example.test", "second@example.test"]);
+  } finally {
+    process.env.LEAD_TO = saved;
+  }
+});
+
+test("the memory, judged: a firing that paged is told; one suppressed inside the window is told; a failed one is not, and only the recent untold ones are the operator's to act on", () => {
+  const iso = (ms) => new Date(ms).toISOString();
+  const H = 3600_000;
+  const rows = [
+    { key: "paged", first_at: iso(T0 - H), last_at: iso(T0 - H), count: 1, alerted_at: iso(T0 - H) },
+    { key: "suppressed", first_at: iso(T0 - 5 * H), last_at: iso(T0 - 60_000), count: 4, alerted_at: iso(T0 - 5 * H) },
+    { key: "failed", first_at: iso(T0 - 120_000), last_at: iso(T0 - 120_000), count: 1, alerted_at: null },
+    { key: "stale_failed", first_at: iso(T0 - 48 * H), last_at: iso(T0 - 48 * H), count: 1, alerted_at: null },
+    { key: "refired_after_window", first_at: iso(T0 - 20 * H), last_at: iso(T0 - 30_000), count: 2, alerted_at: iso(T0 - 20 * H) },
+  ];
+  const s = Object.fromEntries(pageStates(rows, T0).map((r) => [r.key, r]));
+  assert.equal(s.paged.told, true);
+  assert.equal(s.suppressed.told, true, "a firing inside the window after a delivered page was suppressed by design, not lost");
+  assert.equal(s.failed.told, false);
+  assert.equal(s.failed.recent, true);
+  assert.equal(s.stale_failed.told, false);
+  assert.equal(s.stale_failed.recent, false, "two days old is history, not a condition");
+  assert.equal(s.refired_after_window.told, false, "the window had passed, so the last firing was owed a page that did not go");
+  assert.deepEqual(untoldPages(rows, T0), ["failed", "refired_after_window"]);
+});
+
+test("what the pager writes is what pageStates reads: a failed page shows as untold, a delivered one as told", async () => {
+  const db = fakePages();
+  await pageOperator({ db, send: transport(false).send, now: () => T0 }, "jobs_backlog", "12 due jobs waiting", "…");
+  await pageOperator({ db, send: transport().send, now: () => T0 }, "jobs_mass_failure", "50 jobs failed", "…");
+  const rows = [...db.rows].map(([key, r]) => ({ key, first_at: r.last_at, ...r }));
+  assert.deepEqual(untoldPages(rows, T0 + 1000), ["jobs_backlog"]);
+  assert.deepEqual(pageStates(rows, T0 + 1000).map((r) => [r.key, r.told]), [["jobs_backlog", false], ["jobs_mass_failure", true]]);
 });
 
 test("with no platform address the page is unaddressed, said in the log, and nothing is stamped", async () => {
