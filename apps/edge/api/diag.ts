@@ -79,6 +79,9 @@ export async function GET(request: Request): Promise<Response> {
       } else {
         const rows = (data ?? []) as unknown as SweepHealthRow[];
         out.sweeps = { ok: rows.every((r) => r.healthy), detail: rows };
+        // Due work nobody has claimed: the honest measure of whether the heartbeat drains.
+        const { data: backlog } = await db.rpc("jobs_backlog");
+        out.jobs_backlog = typeof backlog === "number" ? backlog : null;
       }
     }
   } catch (e) {

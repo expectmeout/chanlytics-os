@@ -20,6 +20,12 @@ export interface JobContext {
   wire: Wire;
   alert: (subject: string, body: string) => Promise<void>;
   /**
+   * The platform's own pager, for a condition that is the platform's: a
+   * provider refusing sends with 401 or 403 is credentials, not content.
+   * Optional so a test context need not supply one.
+   */
+  page?: (key: string, subject: string, body: string) => Promise<unknown>;
+  /**
    * Delete one customer's stored Blob thread.
    *
    * INJECTED, not imported. The store is apps/edge/lib/store.ts because the
@@ -123,6 +129,11 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   );
 
   if (out.outcome === "failed") {
+    // A 401 or 403 from the provider is the platform's problem, not this
+    // thread's: the credentials are wrong for every send on this wire.
+    if (out.reason === "provider" && (out.status === 401 || out.status === 403)) {
+      await ctx.page?.(`provider_auth:${channel}`, `${channel} rejected a send with ${out.status}`, `Tenant ${job.tenant_id}, message ${p.message_id}. Credentials, not content.`);
+    }
     // The wire could not carry it: the thread is flagged for a person and
     // the owner told. A refusal needs neither -- the row says why.
     await upsertEscalation(ctx.db, job.tenant_id, p.conversation_id, "send_failed",

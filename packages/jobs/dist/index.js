@@ -23139,6 +23139,9 @@ async function outboundSend(ctx, job) {
     }
   );
   if (out.outcome === "failed") {
+    if (out.reason === "provider" && (out.status === 401 || out.status === 403)) {
+      await ctx.page?.(`provider_auth:${channel}`, `${channel} rejected a send with ${out.status}`, `Tenant ${job.tenant_id}, message ${p.message_id}. Credentials, not content.`);
+    }
     await upsertEscalation(
       ctx.db,
       job.tenant_id,
