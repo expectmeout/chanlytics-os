@@ -75,7 +75,7 @@ export function createApi(deps: ApiDeps) {
   const now = deps.now ?? (() => Date.now());
   const inFlight = new Map<string, { p: Promise<unknown>; at: number }>();
 
-  function urlFor<K extends RouteKey>(key: K, opts: ApiOptions<K>): string {
+  function urlFor<K extends RouteKey>(key: K, opts: ApiOptions<K> = {} as ApiOptions<K>): string {
     const params = (opts.params ?? {}) as Record<string, string>;
     const url = ROUTES[key].path.replace(/\[(\w+)\]/g, (_m, name: string) => encodeURIComponent(params[name] ?? ""));
     const qs = new URLSearchParams();

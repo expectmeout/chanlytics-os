@@ -18,7 +18,7 @@ import {
   toGoogleVM, gainedOver, reviewIsNew, ratingWords, starsOf, listingLine, checkedWords, reviewSnippet,
   setupSteps, serverNotificationRows, verbForRoute, EVENT_KINDS, SERVER_NOTIFICATION_KINDS, GOOGLE_SHOWN_REVIEWS,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "./_source.mjs";
+import { readCode, readRaw, importSrc } from "./_source.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const KEY = "AIza-test-key-not-real";
@@ -325,7 +325,7 @@ test("the edge: the key alone on the edge, diag-key verbs, the cron-key sweep, o
   assert.ok(readRaw("apps/edge/.env.example").includes("GOOGLE_PLACES_API_KEY="));
 });
 
-test("the dashboard: owners link and search, operators read, members look; the pages read one surface", () => {
+test("the dashboard: owners link and search, operators read, members look; the pages read one surface", async () => {
   const search = readCode("apps/dashboard/app/api/v1/google/search/route.ts");
   assert.ok(search.includes('role: "owner",') && search.includes('rate: "google_search",'));
   assert.ok(search.includes("cfg?.brain?.business_name") && search.includes("cfg?.brain?.profile?.address"), "the facts on record are the default query");
@@ -344,7 +344,7 @@ test("the dashboard: owners link and search, operators read, members look; the p
   assert.ok(setup.includes("listingFor(supabase, tenantId),\n    googleReadiness(),") && setup.includes("ready: google.places || google.profile,"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");
   assert.ok(bridge.includes('key: "google",') && bridge.includes('refreshOnTables: ["google_listings", "google_reviews", "google_connections"],'));
-  assert.ok(bridge.includes("refreshSurfaces([googleOverride, setupOverride])"), "a link repaints Setup too");
+  assert.deepEqual((await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).AFTER["POST google/link"]().map((o) => o.key), ["google", "setup"], "a link repaints Setup too");
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("setupOverride, googleOverride, billingOverride]") && readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installGoogle();"));
   const rt = readCode("packages/db/src/realtime.ts");
   assert.ok(rt.includes('{ table: "google_listings", event: "*" }') && rt.includes('{ table: "google_reviews", event: "INSERT" }'));

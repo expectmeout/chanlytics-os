@@ -3,18 +3,17 @@
  * last read them (/api/v1/google → window.__GOOGLE, repainted as the tables
  * change), the view model the Reports section and Today's line derive from
  * it (contracts/google.ts), and the verbs — find, link, unlink, refresh,
- * connect, locations, choose, disconnect, reply, draft — each of which
- * refreshes this surface and Setup's, since the Setup row reads the same
- * facts; a draft touches nothing and refreshes nothing.
+ * connect, locations, choose, disconnect, reply, draft — each through the
+ * typed client. After a write lands the refresh map re-reads this surface
+ * and Setup's, since the Setup row reads the same facts; a draft touches
+ * nothing and refreshes nothing.
  */
 import {
   toGoogleVM, ratingWords, starsOf, listingLine, checkedWords, connectionWords, reviewSnippet,
   type GoogleDto, type GoogleVM, type GoogleCandidateDto, type GoogleLocationDto,
 } from "@chanlytics/contracts";
-import { scoped, type SurfaceOverride } from "./surface-data";
-import { read } from "./api";
-import { refreshSurfaces } from "./surface-runner";
-import { setupOverride } from "./setup";
+import type { SurfaceOverride } from "./surface-data";
+import { api, read } from "./api";
 
 export interface GoogleSurface {
   dto: GoogleDto;
@@ -77,18 +76,6 @@ export const googleOverride: SurfaceOverride = {
   },
 };
 
-/** One request to a v1 route: the envelope's data, or its error in a sentence. Never throws. */
-async function send<T>(path: string, method: "GET" | "POST" | "DELETE", body?: unknown): Promise<{ ok: boolean; data: T | null; message: string }> {
-  try {
-    const res = await fetch(scoped(path), { method, headers: body === undefined ? {} : { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
-    const parsed = (await res.json().catch(() => null)) as { data?: T; error?: { message?: string } } | null;
-    if (res.ok) return { ok: true, data: parsed?.data ?? null, message: "" };
-    return { ok: false, data: null, message: parsed?.error?.message ?? `HTTP ${res.status}` };
-  } catch (e) {
-    return { ok: false, data: null, message: e instanceof Error ? e.message : String(e) };
-  }
-}
-
 /** The words the card says for what came back from Google. */
 export const CONNECT_OUTCOME_WORDS: Record<string, string> = {
   connected: "Your Business Profile is connected — every review is on Reports now, and replies go through it.",
@@ -116,49 +103,47 @@ export function installGoogle(win: Window = window): void {
   win.__google = {
     vm: (dto, periodDays, nowMs) => toGoogleVM(dto, periodDays, nowMs),
     async find(query) {
-      const r = await send<{ query: string; from_facts: boolean; candidates: GoogleCandidateDto[] }>("/api/v1/google/search", "POST", query ? { query } : {});
-      return { ok: r.ok, candidates: r.data?.candidates ?? [], query: r.data?.query ?? query ?? "", fromFacts: r.data?.from_facts === true, message: r.message };
+      const r = await api()("POST google/search", { body: query ? { query } : {} });
+      if (!r.ok) return { ok: false, candidates: [], query: query ?? "", fromFacts: false, message: r.message };
+      return { ok: true, candidates: r.data.candidates, query: r.data.query, fromFacts: r.data.from_facts === true, message: "" };
     },
     async link(placeId) {
-      const r = await send<{ read?: { ok?: boolean } | null }>("/api/v1/google/link", "POST", { place_id: placeId });
-      if (r.ok) await refreshSurfaces([googleOverride, setupOverride]);
-      return { ok: r.ok, read: r.data?.read?.ok === true, message: r.message };
+      const r = await api()("POST google/link", { body: { place_id: placeId } });
+      return { ok: r.ok, read: r.ok && r.data.read?.ok === true, message: r.ok ? "" : r.message };
     },
     async unlink() {
-      const r = await send<{ removed: boolean }>("/api/v1/google/link", "DELETE");
-      if (r.ok) await refreshSurfaces([googleOverride, setupOverride]);
-      return { ok: r.ok, message: r.message };
+      const r = await api()("DELETE google/link");
+      return { ok: r.ok, message: r.ok ? "" : r.message };
     },
     async refresh() {
-      const r = await send<{ fresh?: number; counted?: number }>("/api/v1/google/refresh", "POST", {});
-      await refreshSurfaces([googleOverride, setupOverride]);
-      return { ok: r.ok, fresh: r.data?.fresh ?? 0, counted: r.data?.counted ?? 0, message: r.message };
+      const r = await api()("POST google/refresh", { body: {} });
+      if (!r.ok) return { ok: false, fresh: 0, counted: 0, message: r.message };
+      return { ok: true, fresh: r.data.fresh, counted: r.data.counted, message: "" };
     },
     connect() {
-      win.location.assign(scoped("/api/v1/google/connect"));
+      win.location.assign(api().url("GET google/connect"));
     },
     async locations() {
-      const r = await send<{ locations: GoogleLocationDto[] }>("/api/v1/google/locations", "GET");
-      return { ok: r.ok, locations: r.data?.locations ?? [], message: r.message };
+      const r = await api()("GET google/locations");
+      if (!r.ok) return { ok: false, locations: [], message: r.message };
+      return { ok: true, locations: r.data.locations, message: "" };
     },
     async choose(accountName, locationName) {
-      const r = await send<{ read?: { ok?: boolean } | null }>("/api/v1/google/locations", "POST", { account_name: accountName, location_name: locationName });
-      if (r.ok) await refreshSurfaces([googleOverride, setupOverride]);
-      return { ok: r.ok, read: r.data?.read?.ok === true, message: r.message };
+      const r = await api()("POST google/locations", { body: { account_name: accountName, location_name: locationName } });
+      return { ok: r.ok, read: r.ok && r.data.read?.ok === true, message: r.ok ? "" : r.message };
     },
     async disconnect() {
-      const r = await send<{ removed: boolean }>("/api/v1/google/connection", "DELETE");
-      if (r.ok) await refreshSurfaces([googleOverride, setupOverride]);
-      return { ok: r.ok, message: r.message };
+      const r = await api()("DELETE google/connection");
+      return { ok: r.ok, message: r.ok ? "" : r.message };
     },
     async reply(id, comment) {
-      const r = await send<{ reply_text: string }>(`/api/v1/google/reviews/${encodeURIComponent(id)}/reply`, "POST", { comment });
-      if (r.ok) await refreshSurfaces([googleOverride]);
-      return { ok: r.ok, message: r.message };
+      const r = await api()("POST google/reviews/[id]/reply", { params: { id }, body: { comment } });
+      return { ok: r.ok, message: r.ok ? "" : r.message };
     },
     async draft(id) {
-      const r = await send<{ text: string }>(`/api/v1/google/reviews/${encodeURIComponent(id)}/draft`, "POST", {});
-      return { ok: r.ok && typeof r.data?.text === "string", text: r.data?.text ?? "", message: r.message };
+      const r = await api()("POST google/reviews/[id]/draft", { params: { id }, body: {} });
+      if (!r.ok) return { ok: false, text: "", message: r.message };
+      return { ok: typeof r.data.text === "string", text: r.data.text ?? "", message: "" };
     },
     outcome() {
       try {

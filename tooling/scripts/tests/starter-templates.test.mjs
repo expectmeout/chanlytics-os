@@ -11,7 +11,7 @@ import {
   PLAYBOOK_TRIGGERS, STARTER_LANGUAGES, STARTER_TEMPLATES,
   compareTemplates, defaultParamSpecs, defaultSlotKinds, defaultTemplate, guessSlotKind, slotLabels, starterByKey, starterByName, starterDraft, starterForTrigger, starterIndex, starterPreview, templateTitle, validateTemplateDraft,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "./_source.mjs";
+import { readCode, readRaw, importSrc } from "./_source.mjs";
 
 test("seven starters, each in English and Spanish, each passing the hand-written check with no warnings", () => {
   assert.deepEqual(STARTER_TEMPLATES.map((s) => s.key), ["winback_offer", "welcome_new", "save_our_number", "monthly_offer", "visit_reminder", "after_visit", "quick_note"]);
@@ -72,7 +72,7 @@ test("a slot's source: a starter's own, or a guess from the label and the exampl
   assert.deepEqual(defaultParamSpecs({ name: "quick_note", variables: [1, 2, 3] }), [{ kind: "first_name" }, { kind: "business_name" }, { kind: "text", value: "" }]);
 });
 
-test("the door: idempotent, one language at a time, synced in when the number's account already holds it, Meta's own words when it refuses", () => {
+test("the door: idempotent, one language at a time, synced in when the number's account already holds it, Meta's own words when it refuses", async () => {
   const r = readCode("apps/dashboard/app/api/v1/templates/starter/route.ts");
   assert.ok(r.includes('role: "operator",') && r.includes('rate: "settings",'));
   assert.ok(r.includes('results.push({ ...base, status: "exists", meta_status: have.meta_status });'), "already on file is left alone");
@@ -81,9 +81,9 @@ test("the door: idempotent, one language at a time, synced in when the number's 
   assert.ok(r.includes('results.push({ ...base, status: "submitted", meta_status: r.metaStatus });'));
   assert.ok(r.includes("Pick at least one starter template, in English or Spanish."));
   const b = readCode("apps/dashboard/src/legacy-bridge/templates.ts");
-  assert.ok(b.includes('addStarters: (body: StarterBody) => call<StarterData>("/api/v1/templates/starter", "POST", body, true)'), "the verb refreshes every surface that shows templates");
+  assert.ok(b.includes('addStarters: (body: StarterBody) => api()("POST templates/starter", { body })'), "the verb goes through the client; the map refreshes every surface that shows templates");
   assert.ok(b.includes("window.__starters = {") && b.includes("title: titleOf") && b.includes("slotKinds: defaultSlotKinds"), "the library reaches the pages");
-  assert.ok(b.includes("__refreshPlaybooks"), "the playbook composer learns of a newly added starter");
+  assert.ok((await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).HOOKS["POST templates/starter"].includes("__refreshPlaybooks"), "the playbook composer learns of a newly added starter");
 });
 
 test("the pages: titles not names, the starter set in Settings, one click on Broadcasts, the trigger's starter picked for a playbook, the message as the customer sees it", () => {
@@ -152,7 +152,7 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   const s = readCode("apps/dashboard/src/legacy/pages/messages.jsx");
   assert.ok(s.includes('data-testid="template-hide"') && s.includes('data-testid="templates-hidden"'));
   const b = readCode("apps/dashboard/src/legacy-bridge/templates.ts");
-  assert.ok(b.includes('"PUT", { hidden: true }, true)') && b.includes('"PUT", { hidden: false }, true)'));
+  assert.ok(b.includes("body: { hidden: true } })") && b.includes("body: { hidden: false } })"));
   const queue = readCode("apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
   assert.ok(queue.includes('testid="brief-run-soon"') && queue.includes("Date.parse(r.scheduled_for) > Date.now()"), "a run under the veto window is on Today's queue with a Stop");
   const top = readCode("apps/dashboard/src/legacy/components/topbar.jsx");
@@ -170,7 +170,7 @@ test("a template's title: the workspace's own words, set through its door, shown
   assert.ok(one.includes('ctx.supabase.rpc("set_template_title", { p_template_id: id, p_title: title || "" })'), "empty is no title — the door clears it");
   assert.ok(one.includes('"Say what changes: whether it is hidden, or its title."'));
   const b = readCode("apps/dashboard/src/legacy-bridge/templates.ts");
-  assert.ok(b.includes('"PUT", { title }, true)') && b.includes("return templateTitle(t, row?.title ?? null);"), "a name is looked up among the workspace's rows");
+  assert.ok(b.includes("body: { title } })") && b.includes("return templateTitle(t, row?.title ?? null);"), "a name is looked up among the workspace's rows");
   const s = readCode("apps/dashboard/src/legacy/pages/messages.jsx");
   for (const id of ["template-rename", "template-title", "template-title-save"]) assert.ok(s.includes(`data-testid="${id}"`), id);
   assert.ok(readCode("apps/dashboard/app/api/v1/broadcasts/route.ts").includes("broadcastName(tpl.name, now, tpl.title)"), "a broadcast's default name uses the title");

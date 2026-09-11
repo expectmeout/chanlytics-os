@@ -17,7 +17,7 @@ import {
   PLATFORM_VERDICTS, PLATFORM_QUIET_DAYS,
   type PlatformTenantDto, type SetupDto, type PlatformLineAction,
 } from "@chanlytics/contracts";
-import { scoped } from "./surface-data";
+import { api } from "./api";
 
 export interface PlatformEventVM {
   kind: string;
@@ -65,42 +65,26 @@ declare global {
   }
 }
 
-async function get<T>(path: string, body?: unknown): Promise<{ ok: boolean; data: T | null; message: string }> {
-  try {
-    const res = await fetch(scoped(path), body === undefined ? undefined : {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const j = (await res.json().catch(() => null)) as { ok?: boolean; data?: T; error?: { message?: string } } | null;
-    if (!j || j.ok !== true) return { ok: false, data: null, message: j?.error?.message ?? "That did not load. Try again in a moment." };
-    return { ok: true, data: (j.data ?? null) as T | null, message: "" };
-  } catch {
-    return { ok: false, data: null, message: "The connection dropped. Try again in a moment." };
-  }
-}
-
 export function installPlatform(win: Window = window): void {
   win.__platform = {
     async list() {
-      const r = await get<{ tenants: PlatformTenantDto[] }>("/api/v1/platform/overview");
-      return { ok: r.ok, tenants: r.data?.tenants ?? [], message: r.message };
+      const r = await api()("GET platform/overview");
+      if (!r.ok) return { ok: false, tenants: [], message: r.message };
+      return { ok: true, tenants: r.data.tenants, message: "" };
     },
     async one(tenantId) {
-      const r = await get<PlatformTenantDetail>(`/api/v1/platform/tenants/${encodeURIComponent(tenantId)}`);
-      return { ok: r.ok, detail: r.data, message: r.message };
+      const r = await api()("GET platform/tenants/[id]", { params: { id: tenantId } });
+      if (!r.ok) return { ok: false, detail: null, message: r.message };
+      return { ok: true, detail: r.data, message: "" };
     },
     async act(action, tenantId, lineId) {
-      const r = await get<{ ok: boolean; status: number; result: Record<string, unknown> | null }>(
-        `/api/v1/platform/lines/${action}`,
-        { tenant_id: tenantId, line_id: lineId },
-      );
+      const r = await api()(`POST platform/lines/${action}`, { body: { tenant_id: tenantId, line_id: lineId } });
       if (!r.ok) return { ok: false, message: r.message };
       // The edge's own words when it refused. `already_registered`,
       // `the line is answering, not failed` -- these are facts about the line,
       // and support needs the actual one rather than "that did not work".
-      const res = r.data?.result ?? null;
-      if (r.data?.ok !== true) {
+      const res = r.data.result ?? null;
+      if (r.data.ok !== true) {
         // THE PRE-FLIGHT'S SENTENCES FIRST, when the refusal has them. A refile
         // stopped because the workspace's name does not match its record is not an
         // `record_incomplete` -- it is one sentence naming the mismatch and one
@@ -111,7 +95,7 @@ export function installPlatform(win: Window = window): void {
           ? (res.problems as unknown[]).filter((x): x is string => typeof x === "string" && !!x.trim())
           : [];
         if (problems.length) return { ok: false, message: problems.join(" ") };
-        const why = res && typeof res.error === "string" ? res.error : `HTTP ${r.data?.status ?? "?"}`;
+        const why = res && typeof res.error === "string" ? res.error : `HTTP ${r.data.status ?? "?"}`;
         const hint = res && typeof res.hint === "string" ? ` — ${res.hint}` : "";
         return { ok: false, message: `${why}${hint}` };
       }

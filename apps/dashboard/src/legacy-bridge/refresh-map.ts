@@ -105,7 +105,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
 };
 
 /** Window hooks a few pages still register; they go when those pages read the surfaces directly. */
-const HOOKS: Partial<Record<RouteKey, string[]>> = {
+export const HOOKS: Partial<Record<RouteKey, string[]>> = {
   "POST templates": ["__refreshBroadcasts", "__refreshPlaybooks"],
   "PUT templates/[id]": ["__refreshBroadcasts", "__refreshPlaybooks"],
   "DELETE templates/[id]": ["__refreshBroadcasts", "__refreshPlaybooks"],

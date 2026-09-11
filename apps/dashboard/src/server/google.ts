@@ -124,3 +124,10 @@ export function afterGoogle(origin: string, outcome: string, why?: string): stri
   if (why) q.set("why", why);
   return `${origin}/?${q.toString()}#/admin/integrations`;
 }
+
+/** The edge's word on the listing read that follows a link or a choice: what it found, or why it could not look. */
+export type ReadOutcome = { ok: true; fresh: number; counted: number } | { ok: false; error: string };
+
+export function readOutcome(v: unknown): ReadOutcome | null {
+  return v && typeof v === "object" ? (v as ReadOutcome) : null;
+}

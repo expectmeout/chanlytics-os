@@ -3,15 +3,16 @@
  * (/api/v1/billing → window.__BILLING_ACCOUNT, repainted as the webhook
  * writes), the view model the pane and the Setup row derive from it
  * (contracts/billing.ts), and the verbs — checkout and portal leave the app
- * for Stripe's pages; resume and sync apply at once and refresh this
- * surface and Setup's, since the Setup row reads the same facts.
+ * for Stripe's pages; resume and sync apply at once, and after they land
+ * the refresh map re-reads this surface and Setup's, since the Setup row
+ * reads the same facts.
  */
 import {
   toBillingVM, dayWords, moneyWords, trialWords, priceWords, CHECKOUT_OUTCOME_WORDS,
   type BillingDto, type BillingVM, type BillingInvoiceDto,
 } from "@chanlytics/contracts";
-import { scoped, type SurfaceOverride } from "./surface-data";
-import { read } from "./api";
+import type { SurfaceOverride } from "./surface-data";
+import { api, read } from "./api";
 import { refreshSurfaces } from "./surface-runner";
 import { setupOverride } from "./setup";
 
@@ -54,44 +55,33 @@ export const billingOverride: SurfaceOverride = {
   },
 };
 
-/** One request to a v1 route: the envelope's data, or its error in a sentence. Never throws. */
-async function send<T>(path: string, method: "GET" | "POST", body?: unknown): Promise<{ ok: boolean; data: T | null; message: string }> {
-  try {
-    const res = await fetch(scoped(path), { method, headers: body === undefined ? {} : { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
-    const parsed = (await res.json().catch(() => null)) as { data?: T; error?: { message?: string } } | null;
-    if (res.ok) return { ok: true, data: parsed?.data ?? null, message: "" };
-    return { ok: false, data: null, message: parsed?.error?.message ?? `HTTP ${res.status}` };
-  } catch (e) {
-    return { ok: false, data: null, message: e instanceof Error ? e.message : String(e) };
-  }
-}
-
 export function installBilling(win: Window = window): void {
   win.__billing = {
     vm: (dto, nowMs) => toBillingVM(dto, nowMs),
     async checkout() {
-      const r = await send<{ url: string }>("/api/v1/billing/checkout", "POST", {});
-      if (r.ok && r.data?.url) win.location.assign(r.data.url);
-      return { ok: r.ok && !!r.data?.url, message: r.message };
+      const r = await api()("POST billing/checkout", { body: {} });
+      if (!r.ok) return { ok: false, message: r.message };
+      if (r.data.url) win.location.assign(r.data.url);
+      return { ok: !!r.data.url, message: "" };
     },
     async portal() {
-      const r = await send<{ url: string }>("/api/v1/billing/portal", "POST", {});
-      if (r.ok && r.data?.url) win.location.assign(r.data.url);
-      return { ok: r.ok && !!r.data?.url, message: r.message };
+      const r = await api()("POST billing/portal", { body: {} });
+      if (!r.ok) return { ok: false, message: r.message };
+      if (r.data.url) win.location.assign(r.data.url);
+      return { ok: !!r.data.url, message: "" };
     },
     async invoices() {
-      const r = await send<{ invoices: BillingInvoiceDto[] }>("/api/v1/billing/invoices", "GET");
-      return { ok: r.ok, invoices: r.data?.invoices ?? [], message: r.message };
+      const r = await api()("GET billing/invoices");
+      if (!r.ok) return { ok: false, invoices: [], message: r.message };
+      return { ok: true, invoices: r.data.invoices, message: "" };
     },
     async resume() {
-      const r = await send<{ status: string }>("/api/v1/billing/resume", "POST", {});
-      await refreshSurfaces([billingOverride, setupOverride]);
-      return { ok: r.ok, message: r.message };
+      const r = await api()("POST billing/resume", { body: {} });
+      return { ok: r.ok, message: r.ok ? "" : r.message };
     },
     async sync() {
-      const r = await send<{ status: string }>("/api/v1/billing/sync", "POST", {});
-      await refreshSurfaces([billingOverride, setupOverride]);
-      return { ok: r.ok, message: r.message };
+      const r = await api()("POST billing/sync", { body: {} });
+      return { ok: r.ok, message: r.ok ? "" : r.message };
     },
     outcome() {
       try {

@@ -303,7 +303,7 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
   const rate = readCode("apps/dashboard/src/server/rate-limit.ts");
   assert.ok(rate.includes("google_reply: {"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");
-  assert.ok(bridge.includes('win.location.assign(scoped("/api/v1/google/connect"));') && bridge.includes("outcomeWords: CONNECT_OUTCOME_WORDS"));
+  assert.ok(bridge.includes('win.location.assign(api().url("GET google/connect"));') && bridge.includes("outcomeWords: CONNECT_OUTCOME_WORDS"));
   const card = readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx");
   for (const t of ["google-choose", "google-place-choose", "google-disconnect-yes", "google-note"]) assert.ok(card.includes(`data-testid="${t}"`), t);
   for (const v of ["google-connect", "google-disconnect"]) assert.ok(card.includes(`"verb:${v}": "${v}"`), `${v} keeps its name as a row verb`);
