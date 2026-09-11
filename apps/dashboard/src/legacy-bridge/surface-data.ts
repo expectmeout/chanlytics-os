@@ -1,4 +1,5 @@
 import { POLICY_CLASS_WORDS } from "@chanlytics/contracts";
+import type { PromptPreviewDto } from "../server/prompt-preview";
 /**
  * The SurfaceData seam (Blueprint v3.0, Slice 0 exit criterion).
  *
@@ -447,7 +448,7 @@ export const settingsOverride: SurfaceOverride = {
       read("GET templates", { query: { all: "1" } }).catch((e: unknown) => e as Error),
     ]);
     const w = window as unknown as {
-      __SETTINGS?: { config: WorkspaceSettings | null; version: number; role: string; broken: { issues: string[] } | null };
+      __SETTINGS?: { config: WorkspaceSettings | null; version: number; role: string; broken: { issues: string[] } | null; prompt: PromptPreviewDto | null };
       __FACTS?: { facts: ResolvedFacts; conflicts: FactConflict[] } | null;
       __TEAM?: unknown[] | null;
       __TEAM_INVITES?: unknown[] | null;
@@ -458,9 +459,11 @@ export const settingsOverride: SurfaceOverride = {
     // `broken` is its own state, not an empty config: the pane closes its
     // forms on it, because a save from a form that read {} would replace the
     // broken row with the form's few fields.
+    // The prompt rides with the config: composed on the server from inputs the
+    // browser cannot see, null when there is no receptionist to compose for.
     w.__SETTINGS = cfg.configBroken
-      ? { config: null, version: cfg.version, role: cfg.role, broken: { issues: cfg.issues ?? [] } }
-      : { config: cfg.config ?? {}, version: cfg.version, role: cfg.role, broken: null };
+      ? { config: null, version: cfg.version, role: cfg.role, broken: { issues: cfg.issues ?? [] }, prompt: null }
+      : { config: cfg.config ?? {}, version: cfg.version, role: cfg.role, broken: null, prompt: cfg.prompt ?? null };
     // Resolved on the server, where the channel rows and the listing are. Null
     // on a broken config for the same reason the forms close: there is nothing
     // trustworthy to resolve against.

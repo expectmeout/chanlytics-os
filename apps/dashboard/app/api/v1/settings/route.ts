@@ -3,6 +3,7 @@ import type { RouteContext } from "@/server/with-route";
 import { AppError, parseTenantConfig, parseTenantConfigResult, TenantConfigWriteSchema, resolveFacts, factConflicts, changedConfigFields, type KnownFacts } from "@chanlytics/contracts";
 import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
 import type { Json } from "@chanlytics/db";
+import { promptPreview } from "@/server/prompt-preview";
 
 function maskFeedUrl(u: string): string {
   return u.length <= 30 ? "…" : `${u.slice(0, 24)}…${u.slice(-6)}`;
@@ -54,6 +55,11 @@ export const GET = read({
         : { ...cfg, calendar: { ical_url: maskFeedUrl(cfg.calendar.ical_url) } };
       const known = await knownFacts(ctx, member.tenantId);
       const facts = resolveFacts(cfg.brain ?? null, known);
+      // What the receptionist is told, composed here with the inputs the browser
+      // cannot see (the Autonomy rows, these facts, the closures, the calendar's
+      // openings), so the pane's card is the prompt and not a rendering of it.
+      // The feed address is read here and stays here.
+      const prompt = await promptPreview(ctx, member.tenantId, { brain: cfg.brain ?? null, calendarUrl: cfg.calendar?.ical_url ?? null }, known);
       return {
         config: visible,
         version: row.version,
@@ -66,6 +72,7 @@ export const GET = read({
         // loud rather than sitting in a document nobody compares.
         facts,
         conflicts: factConflicts(facts),
+        prompt,
       };
     }
     // `as const` on both: the two answers are told apart by this one flag, and the client narrows on it.

@@ -17,7 +17,8 @@ import {
 import { refreshSurfaces } from "./surface-runner";
 import { api } from "./api";
 import type { ApiResult, Params, RouteKey } from "../client/api";
-import { MAX_INTERVALS_PER_DAY, describeNow, hoursRuns, newReceptionistDefaults, resolveSystemPrompt } from "@chanlytics/contracts";
+import { MAX_INTERVALS_PER_DAY, hoursRuns, newReceptionistDefaults } from "@chanlytics/contracts";
+import type { PromptPreviewDto } from "../server/prompt-preview";
 
 interface RealThread {
   conversationId: string;
@@ -217,31 +218,23 @@ export async function refreshInbox(): Promise<void> {
  * customers were texting, and that took a production incident to notice
  * instead of a glance.
  *
+ * The browser used to run the composer itself, and drifted the other way: it
+ * could not see the Autonomy rows, the platform's own facts, the closures or
+ * the calendar's openings, so the card showed a prompt missing its rules under
+ * the words "word for word". The settings read composes it now
+ * (server/prompt-preview.ts) with every input the edge has; this only reads
+ * what it composed. Null when there is no receptionist to compose for.
+ *
  * `now` is separate because the edge sends it separately — an uncached block,
  * rebuilt every message, so the cached business profile above it survives.
  */
 export function composedPrompt(
   channel: "whatsapp" | "voice" = "whatsapp",
 ): { text: string; now: string; tz: string | null } | null {
-  const w = window as unknown as {
-    __SETTINGS?: { config?: { brain?: unknown } };
-    __WORKSPACES?: Array<{ id: string; timezone?: string | null }>;
-    __ACTIVE_WORKSPACE?: string;
-  };
-  const brain = w.__SETTINGS?.config?.brain;
-  if (!brain) return null;
-  const ws = w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE) ?? null;
-  const tz = ws?.timezone ?? null;
-  try {
-    return {
-      text: resolveSystemPrompt(brain as Parameters<typeof resolveSystemPrompt>[0], channel, tz),
-      now: describeNow(tz),
-      tz,
-    };
-  } catch {
-    // A config the composer refuses is a real answer, and the pane says so.
-    return null;
-  }
+  const w = window as unknown as { __SETTINGS?: { prompt?: PromptPreviewDto | null } };
+  const prompt = w.__SETTINGS?.prompt;
+  if (!prompt) return null;
+  return { text: prompt[channel], now: prompt.now, tz: prompt.tz };
 }
 
 /**

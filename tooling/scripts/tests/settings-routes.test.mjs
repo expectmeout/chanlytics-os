@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
+import { resolveSystemPrompt } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -96,6 +97,33 @@ test("the settings read: the workspace the tab named, with its version and the r
   assert.deepEqual([out.config, out.version, out.configBroken], [null, 7, true]);
   assert.ok(Array.isArray(out.issues) && out.issues.length > 0);
   await refused(settings.GET.run(get(inA), ctxFor({ ...tables, tenant_config: [] })), "not_found", 404);
+});
+
+test("the settings read composes what the receptionist is told, with the inputs the browser could not see -- the autonomy rows, the platform's facts -- and the clock beside it; nothing when no receptionist is configured", async () => {
+  const BRAIN = { business_name: "Harbor Moving", booking_link: "https://book.example/harbor", system_prompt: "Answer as the front desk of Harbor Moving: brief, warm, and never a price.", fallbacks: { greeting: "g", error: "e", non_text: "n" }, profile: { hours: { mon: { open: "09:00", close: "17:00" } } } };
+  const tables = {
+    memberships: both("viewer", "owner"),
+    tenant_config: [{ tenant_id: A, config: { brain: BRAIN }, version: 2, updated_at: "2026-09-01T00:00:00Z" }],
+    tenants: [{ id: A, name: "Harbor", timezone: "America/New_York" }],
+    tenant_channels: [{ tenant_id: A, kind: "voice", number_e164: "+19295550100", status: "active" }],
+    google_listings: [{ tenant_id: A, name: "Harbor Moving", address: "1 Pier St, Brooklyn, NY 11201" }],
+    policies: [policy(A, "booking", "ask"), policy(A, "faq", "auto")],
+  };
+  const out = await settings.GET.run(get(inA), ctxFor(tables));
+  const p = out.prompt;
+  assert.ok(p, "a configured receptionist has a prompt to show");
+  assert.equal(p.tz, "America/New_York");
+  assert.ok(p.whatsapp.includes("Booking: when someone wants to book, reschedule or cancel, do not send the booking link."), "the autonomy row reached the composer");
+  assert.ok(p.voice.includes("do not offer the booking link"), "the phone's text is the phone's");
+  // The facts the platform holds -- here the provisioned line, which the composer states as the number to call -- reach it.
+  const known = { workspace: { name: "Harbor", timezone: "America/New_York" }, channels: tables.tenant_channels.map(({ kind, number_e164, status }) => ({ kind, number_e164, status })), listing: { name: "Harbor Moving", address: "1 Pier St, Brooklyn, NY 11201" } };
+  const pol = { booking: { mode: "ask" }, faq: { mode: "auto" } };
+  assert.equal(p.whatsapp, resolveSystemPrompt(BRAIN, "whatsapp", "America/New_York", new Date(), pol, known), "the edge's call with the edge's arguments");
+  assert.notEqual(p.whatsapp, resolveSystemPrompt(BRAIN, "whatsapp", "America/New_York", new Date(), pol, { workspace: known.workspace, channels: [], listing: null }), "the platform's own facts changed the prompt, so they reached the composer");
+  assert.match(p.now, /^Right now it is .* \(America\/New_York\)\./, "the clock, in the zone, beside it");
+  // No receptionist, no prompt: a blank card would claim the receptionist is told nothing.
+  const none = await settings.GET.run(get(inA), ctxFor({ ...tables, tenant_config: [{ tenant_id: A, config: {}, version: 1, updated_at: "2026-09-01T00:00:00Z" }] }));
+  assert.equal(none.prompt, null);
 });
 
 test("the settings write: the owner's, the workspace named, the body { config, version }, the write schema's refusals named by field, a stale version a conflict, the change on the ledger as fields never values", async () => {
