@@ -54,7 +54,7 @@ test("every route that sends, spends or aggregates counts against its bucket", (
     ["reports/route.ts", 'rate: "aggregate",'],
     ["settings/route.ts", 'rate: "settings",'],
     ["policies/route.ts", 'rate: "settings",'],
-    ["workspaces/create/route.ts", 'takeRate(ctx.userId, "create_workspace");'],
+    ["workspaces/create/route.ts", 'rate: "create_workspace",'],
     ["contacts/[id]/receptionist/route.ts", 'rate: "person_mode",'],
   ];
   for (const [rel, call] of routes) {

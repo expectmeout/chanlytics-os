@@ -216,12 +216,25 @@ export function fakeDb(tables, faults = {}, rpcs = {}) {
       // read `undefined` and take its own error branch -- which is a test that
       // exercises the failure path while claiming to exercise the happy one.
       // A handler that throws is the test saying "the database refused", so it
-      // becomes an error envelope rather than a rejected promise.
-      try {
-        return Promise.resolve({ data: fn(args), error: null });
-      } catch (e) {
-        return Promise.resolve({ data: null, error: { message: e instanceof Error ? e.message : String(e) } });
-      }
+      // becomes an error envelope rather than a rejected promise -- carrying the
+      // `code` the test put on the error, since a route maps the function's own
+      // codes (22023, 54000) to the wire.
+      const run = () => {
+        try {
+          return { data: fn(args), error: null };
+        } catch (e) {
+          const code = e && typeof e === "object" && "code" in e ? String(e.code) : undefined;
+          return { data: null, error: { message: e instanceof Error ? e.message : String(e), ...(code ? { code } : {}) } };
+        }
+      };
+      // `.single()` / `.maybeSingle()` on an rpc ask for one row of a
+      // set-returning function; the double answers the same envelope either way.
+      const call = {
+        then(resolve, reject) { return Promise.resolve().then(run).then(resolve, reject); },
+        single() { return call; },
+        maybeSingle() { return call; },
+      };
+      return call;
     },
     /** Every query that reached the double, in order. */
     seen,
