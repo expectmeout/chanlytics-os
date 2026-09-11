@@ -31,9 +31,9 @@ test("hold to talk: the browser's recogniser, sent on release, hidden where it d
 
 test("the signature is verified over the raw body and over the re-serialised body, and the row says which", () => {
   const hook = readCode("apps/edge/api/retell-webhook.ts");
-  assert.ok(hook.includes("const sigRaw = verifyRetellSignature(raw, signature, process.env.RETELL_API_KEY);"));
+  assert.ok(hook.includes("const sigRaw = verifyRetellSignature(raw, signature, webhookKey);"));
   assert.ok(hook.includes("restringified = JSON.stringify(JSON.parse(raw));"));
-  assert.ok(hook.includes("verifyRetellSignature(restringified, signature, process.env.RETELL_API_KEY)"));
+  assert.ok(hook.includes("verifyRetellSignature(restringified, signature, webhookKey)"));
   assert.ok(hook.includes("const sigOk = sigRaw || sigRestringified;"));
   assert.ok(hook.includes("sig_raw: forms.raw, sig_restringified: forms.restringified"), "the evidence rides in the auth row");
   assert.ok(hook.includes("if (!sigOk && !keyOk) {"), "the key still opens the door until a delivery verifies");
