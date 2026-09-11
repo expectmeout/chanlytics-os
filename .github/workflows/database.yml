@@ -4,10 +4,38 @@ name: Database
 # live in SQL proved against it. ci.yml runs the unit suite against fakes, which
 # cannot see a CHECK, a trigger or a SKIP LOCKED; this can. It is also the only
 # place the migrations are applied to anything but production before they are.
+#
+# It runs when the database could have changed. The replay depends on the
+# migrations, the seed and the config under supabase/, on the SQL suites, and
+# on the generated sets the --check compares with the database; the suites
+# reach Postgres through supabase-js alone, never through apps/ or a package
+# dist. Branch protection requires Secret scan and Typecheck only, so a pull
+# request that leaves the database alone is not held for a check that did not
+# run. Two workflows on every push spent the included minutes by 11 September.
 on:
   pull_request:
+    paths:
+      - "supabase/**"
+      - "tooling/scripts/tests/*.db.test.mjs"
+      - "tooling/scripts/gen-schema-sets.mjs"
+      - "packages/contracts/src/schema-sets.generated.ts"
+      - ".github/workflows/database.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
   push:
     branches: [main]
+    paths:
+      - "supabase/**"
+      - "tooling/scripts/tests/*.db.test.mjs"
+      - "tooling/scripts/gen-schema-sets.mjs"
+      - "packages/contracts/src/schema-sets.generated.ts"
+      - ".github/workflows/database.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+
+concurrency:
+  group: database-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   replay:

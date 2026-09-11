@@ -5,6 +5,14 @@ on:
   push:
     branches: [main]
 
+# One run per pull request at a time: a push that supersedes a commit cancels
+# the run that commit started, so minutes are spent only on what can merge.
+# The included Actions minutes ran out on 11 September with two workflows on
+# every push; this, and the paths in database.yml, are what makes them last.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   gitleaks:
     name: Secret scan
