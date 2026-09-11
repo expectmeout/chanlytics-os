@@ -107,6 +107,50 @@ export async function loadContact(ctx: RouteContext, id: string): Promise<VerbCo
 /** The contact named by `:id`, as the row a consent route acts on. */
 export const contactScope = row((ctx, params) => loadContact(ctx, String(params.id ?? "")));
 
+export interface VerbMessage {
+  id: string;
+  tenant_id: string;
+  conversation_id: string;
+  sender: string;
+  status: string;
+}
+
+/** The message a verb acts on (a held draft to rewrite), read under RLS: one the caller cannot see is a 404. */
+export async function loadMessage(ctx: RouteContext, id: string): Promise<VerbMessage> {
+  const messageId = requireUuid(id, "message");
+  const { data, error } = await ctx.supabase
+    .from("messages")
+    .select("id, tenant_id, conversation_id, sender, status")
+    .eq("id", messageId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new AppError("not_found", "Message not found.", 404);
+  return data;
+}
+export const messageScope = row((ctx, params) => loadMessage(ctx, String(params.id ?? "")));
+
+export interface VerbCall {
+  id: string;
+  tenant_id: string;
+  retell_call_id: string;
+  status: string;
+  recording: unknown;
+}
+
+/** The call a verb acts on (a whisper into it, its recording), read under RLS: one the caller cannot see is a 404. */
+export async function loadCall(ctx: RouteContext, id: string): Promise<VerbCall> {
+  const callId = requireUuid(id, "call");
+  const { data, error } = await ctx.supabase
+    .from("calls")
+    .select("id, tenant_id, retell_call_id, status, recording")
+    .eq("id", callId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new AppError("not_found", "Call not found.", 404);
+  return data;
+}
+export const callScope = row((ctx, params) => loadCall(ctx, String(params.id ?? "")));
+
 /**
  * The channel a reply goes out on: where the customer last wrote. A
  * conversation is one per person and its messages carry the channel. The reply

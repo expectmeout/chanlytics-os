@@ -60,8 +60,8 @@ test("the steer endpoint: the door, the draft's state, new before old, the price
 
 test("the dashboard route keeps its doors and records the decision only after the rewrite happened", () => {
   const r = readCode("apps/dashboard/app/api/v1/messages/[id]/steer/route.ts");
-  assert.ok(r.includes('takeRate(ctx.userId, "whisper");'));
-  assert.ok(r.includes("await requireOperator(ctx, m.tenant_id);"));
+  assert.ok(r.includes('rate: "whisper",'));
+  assert.ok(r.includes('role: "operator",'));
   assert.ok(r.includes('if (m.sender !== "ai" || m.status !== "queued") {'));
   const steered = r.indexOf("const r = await steerDraft(id, text);");
   const recorded = r.indexOf('recordDecision(ctx, m.tenant_id, "message", m.id, "edit", { steer: text, new_message_id: r.messageId })');

@@ -47,9 +47,9 @@ test("the ceilings are ones a person never reaches and a script reaches at once"
 test("every route that sends, spends or aggregates counts against its bucket", () => {
   const routes = [
     ["team/invite/route.ts", 'rate: "invite",'],
-    ["conversations/[id]/reply/route.ts", 'takeRate(ctx.userId, "reply");'],
+    ["conversations/[id]/reply/route.ts", 'rate: "reply",'],
     ["contacts/[id]/route.ts", 'takeRate(ctx.userId, "erase");'],
-    ["calls/[id]/whisper/route.ts", 'takeRate(ctx.userId, "whisper");'],
+    ["calls/[id]/whisper/route.ts", 'rate: "whisper",'],
     ["metrics/route.ts", 'takeRate(ctx.userId, "aggregate");'],
     ["reports/route.ts", 'takeRate(ctx.userId, "aggregate");'],
     ["settings/route.ts", 'takeRate(ctx.userId, "settings");'],
@@ -69,7 +69,7 @@ test("every route that sends, spends or aggregates counts against its bucket", (
   const invite = readCode("apps/dashboard/app/api/v1/team/invite/route.ts");
   assert.ok(invite.includes('role: "owner",') && invite.includes('rate: "invite",'));
   const reply = readCode("apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts");
-  assert.ok(reply.indexOf("await requireOperator(ctx, conv.tenant_id)") < reply.indexOf('takeRate(ctx.userId, "reply")'));
+  assert.ok(reply.includes('role: "operator",') && reply.includes('rate: "reply",'));
 });
 
 test("F42: only the production dashboard reaches the live store or a live call — an unset VERCEL_ENV is not production", () => {
