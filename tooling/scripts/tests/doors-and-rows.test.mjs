@@ -52,9 +52,17 @@ test("ids are validated by the one guard, never by a private regex", () => {
     "escalations/[id]/resolve", "messages/[id]/cancel-send", "team/[id]",
     "conversations/[id]", "calls/[id]/recording", "contacts/[id]", "calls",
   ];
+  // A route that declares a row scope never sees the id: its loader in verbs.ts
+  // (the one chokepoint for that row) calls the guard. Every other route calls
+  // it itself.
+  const verbs = readCode("apps/dashboard/src/server/verbs.ts");
   for (const p of validated) {
     const src = route(p);
-    assert.match(src, /requireUuid\(/, `${p} must use requireUuid`);
+    const scoped = /scope: (\w+)Scope,/.exec(src);
+    const guarded = scoped
+      ? verbs.includes(`export const ${scoped[1]}Scope = row(`) && /requireUuid\(/.test(verbs)
+      : /requireUuid\(/.test(src);
+    assert.ok(guarded, `${p} must use requireUuid`);
     assert.ok(!/const UUID = \//.test(src), `${p} must not carry its own UUID regex`);
   }
 });

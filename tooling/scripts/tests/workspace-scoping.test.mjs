@@ -169,7 +169,7 @@ test("the cache is keyed on the ACTIVE workspace", () => {
     // over-length reply was stored, reported queued, and failed 15 seconds
     // later as an escalation plus an alert email.
     assert.match(replySrc, /4096/);
-    assert.match(replySrc, /safeParse/);
+    assert.match(replySrc, /input: ReplyBody/);
     assert.match(replySrc, /\.strict\(\)/);
   });
 

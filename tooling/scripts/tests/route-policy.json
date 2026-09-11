@@ -15,17 +15,11 @@
     "business-record",
     "calendar",
     "calendar/preview",
-    "calls",
-    "calls/[id]/recording",
-    "calls/[id]/whisper",
     "channels/whatsapp/connect",
     "contacts",
     "contacts/[id]",
     "contacts/[id]/details",
     "contacts/[id]/receptionist",
-    "conversations/[id]",
-    "conversations/[id]/reply",
-    "escalations",
     "google/callback",
     "google/connect",
     "google/connection",
@@ -40,7 +34,6 @@
     "lines/retry",
     "lines/search",
     "me",
-    "messages/[id]/steer",
     "metrics",
     "platform/lines/refile",
     "platform/lines/release",
@@ -100,6 +93,27 @@
       "scope": "workspace",
       "role": null,
       "rate": "export",
+      "spend": false
+    },
+    "GET calls/[id]/recording": {
+      "kind": "read",
+      "scope": "row",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST calls/[id]/whisper": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "whisper",
+      "spend": false
+    },
+    "GET calls": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
       "spend": false
     },
     "POST capabilities/[kind]": {
@@ -180,6 +194,20 @@
       "rate": "thread_state",
       "spend": false
     },
+    "POST conversations/[id]/reply": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "reply",
+      "spend": false
+    },
+    "GET conversations/[id]": {
+      "kind": "read",
+      "scope": "row",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "POST conversations/[id]/snooze": {
       "kind": "write",
       "scope": "row",
@@ -213,6 +241,13 @@
       "scope": "row",
       "role": "operator",
       "rate": "thread_state",
+      "spend": false
+    },
+    "GET escalations": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
       "spend": false
     },
     "GET google": {
@@ -255,6 +290,13 @@
       "scope": "workspace",
       "role": null,
       "rate": null,
+      "spend": false
+    },
+    "POST messages/[id]/steer": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "whisper",
       "spend": false
     },
     "GET notifications": {

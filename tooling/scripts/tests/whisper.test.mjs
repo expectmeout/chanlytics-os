@@ -54,8 +54,8 @@ test("the edge takes the words behind the diag key and logs their length, never 
 
 test("the route proves visibility, then the role door, then the provider — and records the decision last", () => {
   const route = readCode("apps/dashboard/app/api/v1/calls/[id]/whisper/route.ts");
-  const rls = route.indexOf('.from("calls")');
-  const door = route.indexOf("await requireOperator(ctx, call.tenant_id)");
+  const rls = route.indexOf("scope: callScope,");
+  const door = route.indexOf('role: "operator",');
   const ongoing = route.indexOf('call.status !== "ongoing"');
   const provider = route.indexOf("await whisperLiveCall(call.retell_call_id, text, trigger)");
   const ledger = route.indexOf('recordDecision(ctx, call.tenant_id, "call", call.id, "whisper"');
