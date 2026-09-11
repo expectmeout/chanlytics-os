@@ -52,8 +52,8 @@ test("every route that sends, spends or aggregates counts against its bucket", (
     ["calls/[id]/whisper/route.ts", 'rate: "whisper",'],
     ["metrics/route.ts", 'takeRate(ctx.userId, "aggregate");'],
     ["reports/route.ts", 'takeRate(ctx.userId, "aggregate");'],
-    ["settings/route.ts", 'takeRate(ctx.userId, "settings");'],
-    ["policies/route.ts", 'takeRate(ctx.userId, "settings");'],
+    ["settings/route.ts", 'rate: "settings",'],
+    ["policies/route.ts", 'rate: "settings",'],
     ["workspaces/create/route.ts", 'takeRate(ctx.userId, "create_workspace");'],
     ["contacts/[id]/receptionist/route.ts", 'rate: "person_mode",'],
   ];

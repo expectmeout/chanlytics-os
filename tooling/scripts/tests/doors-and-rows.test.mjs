@@ -94,7 +94,7 @@ test("the doors agree with the code above them", () => {
   // legend all said so; the RLS was the laggard.
   assert.ok(sql.includes("create policy policies_acting_member_update on public.policies"));
   assert.ok(sql.includes("subject_type is null"), "person-scoped rows stay owner-only");
-  assert.match(readCode("apps/dashboard/app/api/v1/policies/route.ts"), /requireRole\(member, "operator"\)/);
+  assert.match(readCode("apps/dashboard/app/api/v1/policies/route.ts"), /role: "operator",/);
   // Idempotency keys: acting members only.
   assert.ok(sql.includes("drop policy if exists idempotency_member_all"));
   assert.ok(sql.includes("create policy idempotency_acting_member_all"));

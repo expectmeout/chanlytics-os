@@ -76,8 +76,8 @@ test("the graph helpers: E.164 out of Meta's display form, a six-digit PIN, the 
 
 test("the dashboard route: owner only, the settings rate bucket, the sign-up ids validated, the ledger keeps the connection in the owner's words", () => {
   const r = readCode("apps/dashboard/app/api/v1/channels/whatsapp/connect/route.ts");
-  assert.ok(r.includes('requireRole(member, "owner");'));
-  assert.ok(r.includes('takeRate(ctx.userId, "settings");'));
+  assert.ok(r.includes('role: "owner",'));
+  assert.ok(r.includes('rate: "settings",'));
   assert.ok(r.includes("if (!ID.test(phoneNumberId) || !ID.test(wabaId))"));
   assert.ok(r.includes('recordDecision(ctx, member.tenantId, "channel", r.channelId, "connect_channel", {'));
   assert.ok(r.includes('"upstream_meta"'), "Meta is the upstream that failed, not the model");
