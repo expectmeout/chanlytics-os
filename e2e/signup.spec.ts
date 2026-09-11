@@ -23,13 +23,16 @@ test.describe("sign-up", () => {
     await expect(page.getByText(/^Your clock: /)).toBeVisible();
   });
 
-  test("readiness says whether a code is required, and never anything else", async ({ request }) => {
+  test("readiness says the posture, whether a code is required, and never anything else", async ({ request }) => {
     const res = await request.get("/api/v1/signup");
     expect(res.status()).toBe(200);
     const { data } = await res.json();
-    expect(data.open).toBe(true);
-    expect(typeof data.code_required).toBe("boolean");
-    expect(Object.keys(data).sort()).toEqual(["code_required", "open"]);
+    // The posture is the deployment's (SIGNUP_CODE): open, invite-only, or a
+    // waitlist; the two booleans the page renders from are derived from it.
+    expect(["open", "invite", "waitlist"]).toContain(data.posture);
+    expect(data.open).toBe(data.posture !== "waitlist");
+    expect(data.code_required).toBe(data.posture === "invite");
+    expect(Object.keys(data).sort()).toEqual(["code_required", "open", "posture"]);
   });
 
   test("a post from another site is refused, and a bad body is refused, before anything exists", async ({ request, baseURL }) => {

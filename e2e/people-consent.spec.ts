@@ -48,7 +48,7 @@ test.describe("Consent for one person", () => {
 
     // A yes is not recorded until the page knows how it was given.
     await segs.nth(0).click();
-    const how = page.getByTestId("consent-how");
+    const how = page.getByTestId("consent-control-how");
     await expect(how).toBeVisible();
     expect(seen.length).toBe(0);
     await how.getByRole("button", { name: "In person" }).click();
