@@ -819,6 +819,15 @@ export const POST = write({
 
 ---
 
+## Status, 2026-09-11
+
+| PR | What | Merged |
+|---|---|---|
+| 1 | The seven thread verbs, the adapter `core-ports.ts`, the wall in hygiene, the dashboard on `@chanlytics/core` | #376 |
+| 2 | The reply, `replyPorts`, `SEND_GRACE_MS` in core | #377 |
+
+Departures from the plan: the fakes in both tests log every port from one answers map, so an overridden port is logged too; `changed()` in the adapter is the one place zero rows is judged, and `doors-and-rows` pins the ports through it rather than each route; the reply adapter turns a failed claim into `false`, so the verb answers 409 ("nothing was sent") and a database error never reads as success; `packages/jobs` bundles core, so its committed dist is rebuilt whenever core changes. The receptionist's own verbs on the edge are the next home for these ports, and the expired-hold rule waits for Ruben.
+
 ## Definition of done
 
 - Eight verbs in `packages/core/src/conversations/`, each with every branch a case in a test that runs it.
