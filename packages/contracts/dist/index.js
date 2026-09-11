@@ -5919,12 +5919,13 @@ function billingDoorOpen(b) {
 }
 function maySpend(mode, status) {
   if (mode !== "stripe") return true;
-  return status === "trialing" || status === "active" || status === "past_due";
+  return status === "trialing" || status === "active";
 }
 function whyCannotSpend(mode, status) {
   if (maySpend(mode, status)) return null;
   if (status === "none") return "Add a card before buying a number \u2014 nothing is charged until your trial ends.";
   if (status === "incomplete") return "Your card is not confirmed yet. Finish checkout in Billing, then try again.";
+  if (status === "past_due") return "Your last payment did not go through. Update the card in Billing, then try again.";
   if (status === "paused" || status === "canceled" || status === "incomplete_expired") {
     return "This workspace is not subscribed. Start it again from Billing before buying a number.";
   }

@@ -126,7 +126,12 @@ export function billingDoorOpen<T extends { mode: BillingMode; ready: boolean }>
 
 export function maySpend(mode: BillingMode, status: BillingStatus): boolean {
   if (mode !== "stripe") return true;
-  return status === "trialing" || status === "active" || status === "past_due";
+  // past_due is ABSENT here while receptionistOn admits it: the last charge
+  // failed and Stripe is retrying. The receptionist keeps answering the
+  // conversations the workspace already has, and nothing new is bought on our
+  // account until the card is fixed. The audit named this the one status
+  // where the strict predicate was not strict.
+  return status === "trialing" || status === "active";
 }
 
 /**
@@ -139,6 +144,7 @@ export function whyCannotSpend(mode: BillingMode, status: BillingStatus): string
   if (maySpend(mode, status)) return null;
   if (status === "none") return "Add a card before buying a number — nothing is charged until your trial ends.";
   if (status === "incomplete") return "Your card is not confirmed yet. Finish checkout in Billing, then try again.";
+  if (status === "past_due") return "Your last payment did not go through. Update the card in Billing, then try again.";
   if (status === "paused" || status === "canceled" || status === "incomplete_expired") {
     return "This workspace is not subscribed. Start it again from Billing before buying a number.";
   }
