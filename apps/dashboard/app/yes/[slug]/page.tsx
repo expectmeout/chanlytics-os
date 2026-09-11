@@ -101,7 +101,7 @@ export default async function ConsentPage({ params }: { params: Promise<{ slug: 
       <p className="yes-foot">
         Messages are answered by a receptionist operated by Chanlytics (RJ Capital LLC, 193 Jamaica Ave, Brooklyn, NY 11207,{" "}
         <a href="tel:+19175746416">+1 (917) 574-6416</a>) on behalf of {facts.businessName}.{" "}
-        <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a>
+        <a href={vm.links.privacy} data-testid="yes-privacy">Privacy</a> · <a href={vm.links.terms} data-testid="yes-policy-terms">Terms</a>
       </p>
     </main>
   );

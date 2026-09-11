@@ -98,14 +98,22 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
         affecting the other.
       </p>
 
+      {/*
+        What the program keeps and what for, which is the half of a privacy
+        policy 30908 asks for beside the non-sharing clause above; then the
+        program's own terms, and who operates the sending.
+      */}
       <h2>Your data</h2>
+      {vm.yourData.map((s) => (
+        <p key={s} data-testid="bp-your-data">{s}</p>
+      ))}
       <p>
-        Messages to {vm.title} are answered by a receptionist operated by Chanlytics (RJ Capital LLC,
-        193 Jamaica Ave, Brooklyn, NY 11207, <a href="tel:+19175746416">+1 (917) 574-6416</a>) on their behalf.
-        What is held, why, and how to have it removed is in the{" "}
-        <a href="/privacy">Chanlytics privacy policy</a>; the terms of the service are in the{" "}
-        <a href="/terms">Chanlytics terms</a>. Questions about {vm.title}&rsquo;s own handling of your data go to
-        them at the address above.
+        The full terms of {vm.title}&rsquo;s text messages are at{" "}
+        <a href={vm.termsUrl} data-testid="bp-terms">{vm.termsUrl}</a>. Messages to {vm.title} are answered by a receptionist
+        operated by Chanlytics (RJ Capital LLC, 193 Jamaica Ave, Brooklyn, NY 11207, <a href="tel:+19175746416">+1 (917) 574-6416</a>) on
+        their behalf; what Chanlytics holds as their processor, and how to have it removed, is in the{" "}
+        <a href="/privacy">Chanlytics privacy policy</a>. Questions about {vm.title}&rsquo;s own handling of your data go to them at
+        the address above.
       </p>
     </main>
   );

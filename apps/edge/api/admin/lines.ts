@@ -22,7 +22,7 @@ import { emitEvent } from "../../lib/workspace/db.js";
 import { formatPhoneDisplay, whyCannotSpend, lineRetryRefusal, type BillingMode, type BillingStatus } from "../../lib/workspace/contracts.js";
 import { isAreaCode, isE164, LINE_COSTS } from "../../lib/workspace/channels.js";
 import { lineProviderFromEnv, lineForClient, rowToLine } from "../../lib/lines.js";
-import { registerLine, syncRegistration, unfileMockRegistration, resubmitRejectedCampaign, campaignFactsFor } from "../../lib/a2p.js";
+import { registerLine, syncRegistration, unfileMockRegistration, resubmitRejectedCampaign, replaceRejectedCampaign, campaignFactsFor } from "../../lib/a2p.js";
 import { scheduleJob } from "../../lib/workspace/jobs.js";
 import { claimLineForResume, retryRequestedBy } from "../../lib/line-resume.js";
 import {
@@ -55,6 +55,10 @@ interface Body {
   mock?: boolean;
   /** Replace a rehearsal filing with a real one. Refused on a real filing. */
   refile?: boolean;
+
+  /** With `refile`: delete a REFUSED campaign and file a new one (a second vetting fee). */
+
+  replace?: boolean;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -331,6 +335,10 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const refile = body.refile === true;
+    // A NEW campaign for a refused one, asked for by name: the one remedy for a
+    // refusal an edit cannot reach (the opt-in message and its keywords), and a
+    // second vetting fee, so never implied by `refile` alone.
+    const replace = body.replace === true;
     const rec = await db.from("business_records").select("*").eq("tenant_id", tenantId).maybeSingle();
     if (rec.error) return json(503, { ok: false, error: rec.error.message });
     if (!rec.data) {
@@ -377,7 +385,7 @@ export async function POST(request: Request): Promise<Response> {
         return json(409, {
           ok: false,
           error: "campaign_rejected",
-          hint: "the carriers sent this campaign back; correct what they named, then send refile: true to resubmit it (an edit, so no second vetting fee)",
+          hint: "the carriers sent this campaign back; correct what they named, then send refile: true to resubmit it (an edit, so no second vetting fee) -- or refile: true with replace: true to delete it and file a new one, when what they named cannot be edited (a second vetting fee)",
           reason: row.data.last_error,
           brand_sid: row.data.brand_sid, campaign_sid: row.data.campaign_sid,
         });
@@ -390,7 +398,7 @@ export async function POST(request: Request): Promise<Response> {
           brand_sid: row.data.brand_sid, campaign_sid: row.data.campaign_sid,
         });
       }
-      if (rejected) {
+      if (rejected && !replace) {
         // CORRECTED IN PLACE, not replaced. Twilio assesses the campaign
         // vetting fee once per campaign, at its first vetting decision, so an
         // edit of the same QE resource costs nothing while a replacement is a
@@ -422,11 +430,15 @@ export async function POST(request: Request): Promise<Response> {
         const after = await db.from("lines").select("*").eq("id", lineId).single();
         return json(200, { ok: true, resubmitted: true, smsState: again.row.sms_state, line: after.data ? lineForClient(after.data) : null });
       }
-      // The rehearsal comes off only for a real filing that would pass: the check
-      // runs inside, before anything at the carrier is touched.
-      const off = await unfileMockRegistration(db, row.data, filingCheck);
+      // What comes off before the new filing: the refused campaign, for a
+      // replacement support asked for by name; or the rehearsal, for a real
+      // filing. Either only for a filing that would pass -- the check runs
+      // inside, before anything at the carrier is touched.
+      const off = rejected
+        ? await replaceRejectedCampaign(db, row.data, filingCheck)
+        : await unfileMockRegistration(db, row.data, filingCheck);
       if (off.problems?.length) return json(409, { ok: false, error: off.error ?? "record_incomplete", problems: off.problems });
-      if (!off.ok || !off.row) return json(503, { ok: false, error: off.error ?? "unfile_failed" });
+      if (!off.ok || !off.row) return json(503, { ok: false, error: off.error ?? (rejected ? "replace_failed" : "unfile_failed") });
       row.data = off.row;
     }
     // A mock registration is Twilio's free test registry; the real one costs

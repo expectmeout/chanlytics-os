@@ -76,7 +76,7 @@ export default async function ConsentFormPage({ params }: { params: Promise<{ sl
 
       <p className="yes-foot">
         Texts are sent for {facts.businessName} by a receptionist operated by Chanlytics (RJ Capital LLC). Privacy:{" "}
-        <a href="/privacy">{origin}/privacy</a> · Terms: <a href="/terms">{origin}/terms</a>
+        <a href={vm.links.privacy}>{origin}{vm.links.privacy}</a> · Terms: <a href={vm.links.terms}>{origin}{vm.links.terms}</a>
       </p>
       <p className="yes-foot yes-paper-noprint">
         Print this page to use it as a form, or <a href={`/yes/${slug}`}>say yes by text instead</a>.

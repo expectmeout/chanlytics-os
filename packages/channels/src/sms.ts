@@ -111,8 +111,12 @@ export function withCarrierConsent(n: NormalizedInbound, c: CarrierConsent | nul
   return { ...n, optOut: n.optOut || c.optOut, optIn: n.optIn || c.optIn };
 }
 
-/** What the first reply to a number carries, once. Carrier guidance for A2P traffic. */
-export const SMS_FOOTER = "Msg&data rates may apply. Reply STOP to opt out.";
+/**
+ * What the first reply to a number carries, once. Carrier guidance for A2P
+ * traffic: the rates disclosure, how to stop, and how to get help -- the third
+ * was missing while every sample the campaign files promised it.
+ */
+export const SMS_FOOTER = "Msg & data rates may apply. Reply STOP to opt out, HELP for help.";
 /** Twilio's ceiling for one message body. */
 export const SMS_MAX_CHARS = 1600;
 

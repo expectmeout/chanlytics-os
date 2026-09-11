@@ -179,6 +179,10 @@ const EDGE_OP: Record<PlatformLineAction, (tenantId: string, lineId: string) => 
   // flag that lets it replace a rehearsal or resend a rejected campaign -- the
   // two things an owner may not do and support must.
   refile: (tenant_id, line_id) => ({ op: "register", tenant_id, line_id, refile: true }),
+  // `replace` is the same door once more, with the flag that deletes a refused
+  // campaign and files a new one -- a second vetting fee, so never implied by
+  // refile and never reachable from an owner's own registration.
+  replace: (tenant_id, line_id) => ({ op: "register", tenant_id, line_id, refile: true, replace: true }),
   release: (tenant_id, line_id) => ({ op: "release", tenant_id, line_id }),
 };
 

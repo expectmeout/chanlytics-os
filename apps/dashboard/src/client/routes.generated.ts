@@ -92,6 +92,7 @@ export const ROUTES = {
   "POST messages/[id]/steer": { method: "POST", path: "/api/v1/messages/[id]/steer" },
   "POST platform/lines/refile": { method: "POST", path: "/api/v1/platform/lines/refile" },
   "POST platform/lines/release": { method: "POST", path: "/api/v1/platform/lines/release" },
+  "POST platform/lines/replace": { method: "POST", path: "/api/v1/platform/lines/replace" },
   "POST platform/lines/retry": { method: "POST", path: "/api/v1/platform/lines/retry" },
   "POST playbooks": { method: "POST", path: "/api/v1/playbooks" },
   "POST playbooks/[id]/run": { method: "POST", path: "/api/v1/playbooks/[id]/run" },
@@ -209,6 +210,7 @@ export type Routes = {
   "POST messages/[id]/steer": typeof import("../../app/api/v1/messages/[id]/steer/route").POST;
   "POST platform/lines/refile": typeof import("../../app/api/v1/platform/lines/refile/route").POST;
   "POST platform/lines/release": typeof import("../../app/api/v1/platform/lines/release/route").POST;
+  "POST platform/lines/replace": typeof import("../../app/api/v1/platform/lines/replace/route").POST;
   "POST platform/lines/retry": typeof import("../../app/api/v1/platform/lines/retry/route").POST;
   "POST playbooks": typeof import("../../app/api/v1/playbooks/route").POST;
   "POST playbooks/[id]/run": typeof import("../../app/api/v1/playbooks/[id]/run/route").POST;

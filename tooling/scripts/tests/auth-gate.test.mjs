@@ -112,13 +112,18 @@ test("two public PREFIXES, and only a workspace's own two pages live under them"
   // and signed by hand, it takes no input -- and it is the only thing that joined.
   for (const [dir, what, beneath] of [
     ["yes", "the opt-in page and its paper form", ["form", "page.tsx"]],
-    ["b", "the workspace's own page", ["page.tsx"]],
+    ["b", "the workspace's own page and its texting terms", ["page.tsx", "terms"]],
   ]) {
     const at = path.join(ROOT, "apps/dashboard/app", dir);
     assert.deepEqual(fs.readdirSync(at), ["[slug]"], `nothing but ${what} may live under its public prefix`);
     assert.deepEqual(fs.readdirSync(path.join(at, "[slug]")).sort(), beneath, `and ${what} are pages, not routes that take input`);
   }
   assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/yes/[slug]/form")), ["page.tsx"], "the paper form is a page, not a route that takes input");
+  // `/b/<slug>/terms` joined when the campaign's terms URL became the business's
+  // own: the reviewers' guide lists eight things a program's terms must carry,
+  // and Chanlytics' /terms -- a software agreement for workspace owners --
+  // carries none of them. A page like its neighbour: read by slug, no input.
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/b/[slug]/terms")), ["page.tsx"], "the terms are a page, not a route that takes input");
 });
 
 test("only these ten paths are reachable without a session", () => {

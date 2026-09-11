@@ -6938,6 +6938,7 @@ function platformNumber(e164) {
 }
 var NUMBER_MONTHLY = "$1.15 a month";
 var REAL_FILING = "about $19.50 once";
+var CAMPAIGN_VETTING = "about $15 once";
 function platformLineActions(l, nowMs = Date.now()) {
   const out = [];
   if (l.voice_state === "failed" || lineStuckProvisioning(l, nowMs)) {
@@ -6963,6 +6964,13 @@ function platformLineActions(l, nowMs = Date.now()) {
       sentence: "Resubmits the campaign to the carriers, free \u2014 the vetting fee is charged once per campaign. It refuses, with the reason, if the record or the workspace's name still would not pass review.",
       cost: null,
       permanent: false
+    });
+    out.push({
+      action: "replace",
+      label: "File a new campaign",
+      sentence: "Deletes the refused campaign and files a new one from today's facts, under the same approved brand: the remedy when what the carriers named cannot be edited (the opt-in confirmation and its keywords never can be). It refuses, with the reason, if the record or the workspace's name still would not pass review.",
+      cost: `${CAMPAIGN_VETTING}, charged to Chanlytics.`,
+      permanent: true
     });
   } else if (l.reg_mock === true) {
     out.push({
@@ -6990,6 +6998,15 @@ function platformActionWarning(a) {
 }
 
 // src/consent-page.ts
+function policyLinks(f) {
+  const slug = (f.slug ?? "").trim();
+  if (slug && f.businessPage) return { privacy: `/b/${slug}`, terms: `/b/${slug}/terms` };
+  return { privacy: "/privacy", terms: "/terms" };
+}
+function optInConfirmation(businessName, purpose) {
+  const name = businessName.trim() || "This business";
+  return purpose === "marketing" ? `${name}: you're signed up for offers and news. A few messages a month. Msg & data rates may apply. Reply HELP for help, STOP to cancel.` : `${name}: you'll get texts about your appointments. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to cancel.`;
+}
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var CONVERSATION_PHRASE = "START";
@@ -7065,6 +7082,7 @@ function consentPageVM(f) {
     asks,
     qrLink: optInLink(f.whatsappE164, CONSENT_PHRASE),
     terms: bothTerms(name),
+    links: policyLinks(f),
     empty
   };
 }
@@ -7080,6 +7098,7 @@ function consentFormVM(f) {
       { purpose: "marketing", ...words.marketing, box: `Yes, text me offers and news from ${name}.`, sign: "Signature for this box" }
     ],
     terms: bothTerms(name),
+    links: policyLinks(f),
     office: `For ${name}: record each signed box on the customer's profile, under its own answer, as \u201CSign-up form\u201D, and keep this sheet. Recorded on __________ by __________`
   };
 }
@@ -7091,6 +7110,12 @@ var SMS_CLAUSES = [
   "Reply STOP to stop and HELP for help.",
   "No mobile information will be shared with third parties or affiliates for marketing or promotional purposes; all other categories of sharing exclude text-messaging originator opt-in data and consent, which will not be shared with any third parties."
 ];
+function dataSentences(businessName) {
+  return [
+    `For text messages, ${businessName} keeps your mobile number, the messages you and it exchange, and each answer you give to the two questions on its sign-up page, with the date and the way it was given.`,
+    "They are used only to answer you, to send the messages you agreed to, and to honour a STOP. They are not sold, and they are not shared with third parties or affiliates for marketing or promotional purposes."
+  ];
+}
 function smsConsentSentence(businessName) {
   return `${businessName}'s customers receive text messages only when they have contacted ${businessName} first, or when they have separately agreed to receive them \u2014 messages about their own appointments and promotional messages are asked for separately, and either can be declined without affecting the other.`;
 }
@@ -7125,7 +7150,35 @@ function businessPageVM(f) {
     smsLead: smsConsentSentence(known || "This business"),
     smsClauses: SMS_CLAUSES,
     optInUrl: f.optInUrl,
+    yourData: dataSentences(known || "This business"),
+    termsUrl: f.termsUrl,
     websiteUrl: f.websiteUrl && f.websiteUrl.trim() ? f.websiteUrl.trim() : null,
+    empty
+  };
+}
+function textingTermsVM(f) {
+  const legal = f.legalName.trim();
+  const trade = (f.tradeName ?? "").trim();
+  const known = trade || legal || "This business";
+  const empty = !legal || !f.street.trim() || !f.city.trim();
+  const phone = formatPhoneDisplay(f.publicPhoneE164);
+  const email = f.contactEmail.trim();
+  const support = [phone ? `call ${phone}` : null, email ? `email ${email}` : null].filter(Boolean).join(" or ");
+  const entity = trade && trade !== legal ? `${legal}, trading as ${trade}` : legal;
+  return {
+    title: `Text messaging terms: ${known}`,
+    lead: `These terms cover the text messages ${known} sends. ${known} is ${entity}${addressLine(f) ? `, ${addressLine(f)}` : ""}.`,
+    items: [
+      { label: "The program", text: `${known} texts customers who asked for it: replies to what they write, confirmations and reminders about their own appointments, and, only with a separate opt-in, occasional offers and news.` },
+      { label: "How you join", text: `By texting START (appointment messages) or YES OFFERS (offers and news) to ${known}'s number from your own phone, or by ticking and signing the matching box on its sign-up form. Each is a separate choice, and neither is a condition of any purchase.` },
+      { label: "Message frequency", text: "Message frequency varies for appointment messages. Offers and news are a few messages a month." },
+      { label: "Cost", text: "Message and data rates may apply." },
+      { label: "Help", text: `Reply HELP for help${support ? `, or ${support}` : ""}.` },
+      { label: "Stop", text: `Reply STOP at any time to stop. ${known} confirms once and sends nothing more, of either kind.` },
+      { label: "Carriers", text: "Wireless carriers are not liable for delayed or undelivered messages." },
+      { label: "Your information", text: SMS_CLAUSES[3] }
+    ],
+    privacyUrl: f.privacyUrl,
     empty
   };
 }
@@ -7803,6 +7856,7 @@ export {
   contactName,
   coversSpan,
   dailyLimit,
+  dataSentences,
   dayDate,
   dayFromQuestion,
   dayInZone,
@@ -7908,6 +7962,7 @@ export {
   numberHealth,
   offersYesRefusal,
   ok,
+  optInConfirmation,
   optInLink,
   optInPurposeOf,
   overLimitRefusal,
@@ -7941,6 +7996,7 @@ export {
   pointsDelta,
   policyAskClass,
   policyClassOfIntent,
+  policyLinks,
   policyRules,
   priceWords,
   providerNameOf,
@@ -8014,6 +8070,7 @@ export {
   templateNameOk,
   templateTitle,
   tenantStatusFor,
+  textingTermsVM,
   textingWords,
   threadStanding,
   tidyCallSummary,
