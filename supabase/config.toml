@@ -207,7 +207,11 @@ password_requirements = ""
 
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
-email_sent = 2
+# 100, since the hosted project sends through Resend's SMTP (11 September 2026;
+# the block below). The built-in mailer's 2 an hour was the whole funnel's
+# ceiling: the third person to sign up in an hour waited for a code that never
+# came, which is what the "we could not send your code" screen exists for.
+email_sent = 100
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
 # Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
@@ -256,15 +260,18 @@ otp_length = 6
 # email delivery.
 otp_expiry = 600
 
-# Use a production-ready SMTP server
+# The hosted project's mailer: Resend's SMTP, configured in the dashboard
+# (Authentication › Emails › SMTP Settings) on 11 September 2026, from the
+# chanlytics.com domain verified in Resend. Kept commented here so a local
+# `supabase start` needs no Resend key; the values are the ones in production.
 # [auth.email.smtp]
 # enabled = true
-# host = "smtp.sendgrid.net"
-# port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# host = "smtp.resend.com"
+# port = 465
+# user = "resend"
+# pass = "env(RESEND_API_KEY)"
+# admin_email = "noreply@chanlytics.com"
+# sender_name = "Chanlytics OS"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
