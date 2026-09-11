@@ -6591,6 +6591,29 @@ function firstWorkspaceDoor(o) {
 function googleCallbackUrl(origin, next) {
   return `${origin}/auth/callback?next=${encodeURIComponent(next || "/")}`;
 }
+var SIGNIN_RESEND_COOLDOWN_S = 60;
+function resendLeft(sentAtMs, nowMs, seconds = SIGNIN_RESEND_COOLDOWN_S) {
+  if (sentAtMs == null) return 0;
+  return Math.max(0, Math.ceil((sentAtMs + seconds * 1e3 - nowMs) / 1e3));
+}
+function requestCodeWords(e) {
+  const message = e?.message ?? "";
+  const wait = /after (\d+) seconds/.exec(message);
+  if (wait) return `Please wait ${wait[1]}s before requesting another code.`;
+  if (sendFailureIsOurs(e)) return SIGNUP_WORDS.notSent;
+  if (/security purposes|rate limit|too many/i.test(message)) return "Too many requests just now \u2014 wait a minute and try again.";
+  if (/signup|otp_disabled|not allowed|not found|invalid/i.test(message)) return null;
+  return message || null;
+}
+function verifyCodeWords(message) {
+  if (/expired|invalid/i.test(message) && /token|otp|code/i.test(message)) {
+    return "That code didn't match or has expired \u2014 request a new one.";
+  }
+  if (/security purposes|rate limit|too many/i.test(message)) {
+    return "Too many attempts \u2014 wait a minute before trying again.";
+  }
+  return message;
+}
 
 // src/workspace.ts
 var DEFAULT_TIMEZONE = "America/New_York";
@@ -7799,6 +7822,7 @@ export {
   SERVER_NOTIFICATION_KINDS,
   SETUP_STATE_WORDS,
   SHORTCUTS,
+  SIGNIN_RESEND_COOLDOWN_S,
   SIGNUP_NAME_MAX,
   SIGNUP_NAME_MIN,
   SIGNUP_WAITLIST,
@@ -8044,6 +8068,8 @@ export {
   replyDelayMs,
   replyWhy,
   replyWindow,
+  requestCodeWords,
+  resendLeft,
   resolveFacts,
   resolveParams,
   resolveSystemPrompt,
@@ -8134,6 +8160,7 @@ export {
   usableDeviceTimezone,
   validateTemplateDraft,
   verbForRoute,
+  verifyCodeWords,
   violatesNoPrices,
   visitDateKey,
   visitDay,

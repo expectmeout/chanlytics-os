@@ -1,57 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { SIGNUP_WORDS } from "@chanlytics/contracts";
+import { SIGNIN_RESEND_COOLDOWN_S, SIGNUP_WORDS, requestCodeWords, resendLeft, verifyCodeWords } from "@chanlytics/contracts";
 import { createClient } from "@/lib/supabase/client";
 import { clearSurfaceCache } from "@/legacy-bridge/surface-cache";
 import GoogleSignIn from "@/auth/GoogleSignIn";
 
-const RESEND_COOLDOWN_S = 60;
-
-/**
- * Errors on the CODE-REQUEST step, translated for humans without confirming
- * whether an account exists.
- *
- * Supabase answers an unknown address with 422 "Signups not allowed for otp"
- * and a known one with 200, and this used to render that difference as "This
- * email isn't on a Chanlytics workspace yet" — a public oracle for exactly who
- * has an account. On an invite-only product the account list IS the customer
- * and staff list, and anyone could enumerate it one address at a time.
- *
- * So a request either reports a real, actionable problem (rate limiting) or it
- * reports nothing at all: the caller is told a code was sent either way, and
- * only someone who can read that inbox learns anything. Returning null means
- * "say the neutral thing".
- *
- * NOTE: this closes the oracle on OUR surface, not at its source — the anon key
- * is public by design, so the Supabase endpoint still answers differently. The
- * complete fix is a CAPTCHA on the auth endpoints (Supabase supports hCaptcha
- * and Turnstile), which needs a provider account and is flagged rather than
- * silently half-done.
- */
-function requestCodeError(message: string): string | null {
-  const wait = /after (\d+) seconds/.exec(message);
-  if (/security purposes|rate limit|too many/i.test(message)) {
-    return wait
-      ? `Please wait ${wait[1]}s before requesting another code.`
-      : "Too many requests just now — wait a minute and try again.";
-  }
-  // Anything that distinguishes "no such account" from "code sent" is
-  // deliberately swallowed. A genuine outage still surfaces below.
-  if (/signup|otp_disabled|not allowed|not found|invalid/i.test(message)) return null;
-  return message;
-}
-
-/** Errors on the VERIFY step, where the account is already implied. */
-function verifyError(message: string): string {
-  if (/expired|invalid/i.test(message) && /token|otp|code/i.test(message)) {
-    return "That code didn't match or has expired — request a new one.";
-  }
-  if (/security purposes|rate limit|too many/i.test(message)) {
-    return "Too many attempts — wait a minute before trying again.";
-  }
-  return message;
-}
+// The words for each failure and the resend wait live in contracts
+// (requestCodeWords, verifyCodeWords, resendLeft), where they are executed;
+// the page only shows them.
 
 /**
  * Email OTP-code sign-in (no magic-link redirect allowlist to manage).
@@ -66,6 +23,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
   const cooldownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sentAt = useRef<number | null>(null);
   const fieldRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => () => { if (cooldownTimer.current) clearInterval(cooldownTimer.current); }, []);
@@ -77,13 +35,15 @@ export default function LoginPage() {
   useEffect(() => { fieldRef.current?.focus(); }, [stage]);
 
   const startCooldown = useCallback(() => {
-    setCooldown(RESEND_COOLDOWN_S);
+    sentAt.current = Date.now();
+    setCooldown(SIGNIN_RESEND_COOLDOWN_S);
     if (cooldownTimer.current) clearInterval(cooldownTimer.current);
+    // The wait is counted from when the code went, not from ticks: a tab that
+    // slept counts what really passed.
     cooldownTimer.current = setInterval(() => {
-      setCooldown((s) => {
-        if (s <= 1 && cooldownTimer.current) clearInterval(cooldownTimer.current);
-        return Math.max(0, s - 1);
-      });
+      const left = resendLeft(sentAt.current, Date.now());
+      setCooldown(left);
+      if (left <= 0 && cooldownTimer.current) clearInterval(cooldownTimer.current);
     }, 1000);
   }, []);
 
@@ -118,7 +78,7 @@ export default function LoginPage() {
     });
     setBusy(false);
 
-    const shown = error ? requestCodeError(error.message) : null;
+    const shown = error ? requestCodeWords(error) : null;
     if (shown) {
       setError(shown);
       return;
@@ -141,7 +101,7 @@ export default function LoginPage() {
       type: "email",
     });
     setBusy(false);
-    if (error) setError(verifyError(error.message));
+    if (error) setError(verifyCodeWords(error.message));
     else {
       // Whoever signs in next must not inherit the previous account's cached
       // conversations. Sign-out already clears this; sign-in is the other half

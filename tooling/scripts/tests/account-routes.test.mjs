@@ -121,8 +121,18 @@ test("a new workspace: the body judged by its schema, the function's own words r
   assert.equal(made.length, 0, "nothing reached the function");
   await refused(create.POST.run(send("POST", { name: "Harbor Two", timezone: "Mars/Olympus" }), ctxFor(tables, {}, rpcs)), "validation", 400, "Unknown timezone: Mars/Olympus");
   await refused(create.POST.run(send("POST", { name: "One too many" }), ctxFor(tables, {}, rpcs)), "conflict", 409, "at most three workspaces");
-  const out = await create.POST.run(send("POST", { name: "Harbor Two", timezone: "America/Chicago" }), ctxFor(tables, {}, rpcs));
+  const c1 = ctxFor(tables, {}, rpcs);
+  const cleared = [];
+  c1.supabase.auth = { updateUser: async (x) => { cleared.push(x); return { data: {}, error: null }; } };
+  c1.metadata = { pending_workspace: { name: "Harbor Two", timezone: "America/Chicago" } };
+  const out = await create.POST.run(send("POST", { name: "Harbor Two", timezone: "America/Chicago" }), c1);
   assert.deepEqual(out, { workspace: { id: C, slug: "harbor-two", name: "Harbor Two", status: "active", timezone: "America/Chicago" } });
+  assert.deepEqual(cleared, [{ data: { pending_workspace: null } }], "the name typed at sign-up is cleared once the workspace exists");
+  setRateStore(memoryStore()); // the second creation is the same person again: the ceiling above is not what this proves
+  const c2 = ctxFor(tables, {}, rpcs);
+  c2.supabase.auth = { updateUser: async () => { throw new Error("must not be called"); } };
+  c2.metadata = {};
+  await create.POST.run(send("POST", { name: "Harbor Two", timezone: "America/Chicago" }), c2);
   assert.deepEqual(made.at(-1), { p_name: "Harbor Two", p_timezone: "America/Chicago" });
 });
 
