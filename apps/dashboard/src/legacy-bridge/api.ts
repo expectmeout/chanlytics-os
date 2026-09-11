@@ -20,6 +20,24 @@ export async function read<K extends RouteKey>(key: K, opts?: ApiOptions<K>) {
   return unwrap(await api()(key, opts));
 }
 
+/**
+ * The client for a window: the tab's own for the real one; for a stand-in
+ * (a test's), a fresh one bound to its fetch, so the code under test makes
+ * the request it would make in the browser and the test reads it.
+ */
+export function apiFor(win: Window): Api {
+  if (typeof window !== "undefined" && win === window) return api();
+  return createApi({
+    fetch: (url, init) => win.fetch(url, init),
+    workspace: getActiveWorkspace,
+    onSignedOut: () => {
+      clearSurfaceCache();
+      win.location.assign("/login");
+    },
+    refresh: (key) => import("./refresh-map").then((m) => m.refreshAfter(key)),
+  });
+}
+
 export function api(): Api {
   instance ??= createApi({
     fetch: (url, init) => window.fetch(url, init),

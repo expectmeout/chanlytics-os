@@ -85,8 +85,8 @@ test("the media route: member of the named workspace, stored only, a redirect th
 test("the thread draws the attachment, in both viewers, from one component", () => {
   const bits = readRaw("apps/dashboard/src/legacy/components/data-bits.jsx");
   assert.ok(bits.includes("window.TlMedia = TlMedia;"));
-  assert.ok(bits.includes("if (!media || !window.__scoped) return null;"), "nothing without the bridge");
-  assert.ok(bits.includes('window.__scoped(`/api/v1/messages/${media.messageId}/media`)'));
+  assert.ok(bits.includes("if (!media || !window.__href) return null;"), "nothing without the bridge");
+  assert.ok(bits.includes('window.__href("GET messages/[id]/media", { id: media.messageId })'));
   assert.ok(bits.includes('<audio className="tl-media tl-media-audio" controls preload="none" src={src} />'), "a voice note can be played");
   assert.ok(bits.includes("Attachment couldn't be saved."), "a failed fetch says so instead of a broken image");
   assert.ok(readRaw("apps/dashboard/src/legacy/pages/inbox-thread.jsx").includes("{entry.media && <TlMedia media={entry.media} />}"));

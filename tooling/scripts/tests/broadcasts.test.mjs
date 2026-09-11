@@ -309,7 +309,7 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
   assert.ok(readCode("packages/contracts/src/config.ts").includes('If a message is only the words YES OFFERS or SI OFERTAS'), "the receptionist thanks them and asks nothing else");
   const q = readCode("apps/dashboard/app/api/v1/consent/qr/route.ts");
   assert.ok(q.includes("const link = optInLink(ch?.number_e164);") && q.includes('"content-type": "image/svg+xml; charset=utf-8"'), "the code encodes one link and nothing a caller chooses");
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes('qrPath: optInLink(wa?.number_e164) ? scoped("/api/v1/consent/qr") : null,'));
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes('qrPath: optInLink(wa?.number_e164) ? api().url("GET consent/qr") : null,'));
   const p = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
   assert.ok(p.includes('data-testid="bc-optin"') && p.includes('data-testid="bc-optin-copy"') && p.includes('download="say-yes-to-offers.svg"'));
 });
@@ -336,8 +336,8 @@ test("Ask: a broadcast is read (list_audiences) and proposed (propose_broadcast)
   assert.ok(pr.includes('if (!tpl || tpl.meta_status !== "approved") return refuse('), "only an approved template");
   assert.ok(pr.includes('kind: "broadcast",') && pr.includes('needs: "operator",'));
   const c = readCode("apps/dashboard/src/legacy-bridge/ask/commit.ts");
-  assert.ok(c.includes('const r = await viaAsk(win, "/api/v1/broadcasts", {'), "the card commits through the broadcast route, the same door the page uses");
-  assert.ok(c.includes("const r = await viaAsk(win, `/api/v1/broadcasts/${u.broadcast_id}/cancel`);"), "undo is the cancel route");
+  assert.ok(c.includes('const r = await viaAsk("POST broadcasts", {'), "the card commits through the broadcast route, the same door the page uses");
+  assert.ok(c.includes('const r = await viaAsk("POST broadcasts/[id]/cancel", { params: { id: s(u.broadcast_id) } });'), "undo is the cancel route");
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
   assert.ok(prompt.includes('"said yes":') && prompt.includes('"broadcast":') && prompt.includes('"held back":'));
   assert.ok(prompt.includes("never propose a broadcast to nobody"));

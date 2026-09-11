@@ -8,7 +8,6 @@ import {
   conversationsOverride,
   inboxOverride,
   liveOverride,
-  scoped,
   settingsOverride,
   todayOverride,
   type SurfaceOverride,
@@ -17,7 +16,7 @@ import {
 } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 import { api } from "./api";
-import type { ApiResult } from "../client/api";
+import type { ApiResult, Params, RouteKey } from "../client/api";
 import { MAX_INTERVALS_PER_DAY, describeNow, hoursRuns, newReceptionistDefaults, resolveSystemPrompt } from "@chanlytics/contracts";
 
 interface RealThread {
@@ -295,7 +294,7 @@ declare global {
     __refreshSettings?: () => Promise<void>;
     __refreshLive?: () => Promise<void>;
     __inboxVerb: typeof inboxVerb;
-    __scoped: typeof scoped;
+    __href: typeof href;
     __steerDraft: typeof steerDraft;
     __teamInvite: typeof teamInvite;
     __teamSetRole: typeof teamSetRole;
@@ -352,11 +351,14 @@ export async function setReportRange(days: number): Promise<boolean> {
   return true;
 }
 
+/** A link the browser follows rather than a request it makes: a download, a photo. */
+const href = <K extends RouteKey>(key: K, params?: Params<K>) => api().url(key, { params });
+
 export function installInboxVerbs(): void {
   window.__inboxVerb = inboxVerb;
   // A download is a plain link to a route, and the route needs the workspace
   // named like every other request; the page builds the href with this.
-  window.__scoped = scoped;
+  window.__href = href;
   window.__setReportDays = setReportRange;
   window.__setPolicy = setPolicy;
   window.__refreshSettings = refreshSettings;

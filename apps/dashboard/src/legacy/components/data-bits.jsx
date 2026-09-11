@@ -199,9 +199,9 @@ Object.assign(window, { canDo, gateTitle, gate });
 // at it. Without the bridge there is no route, and a seeded thread never
 // carries `media`, so the standalone mockup renders nothing here.
 const TlMedia = ({ media }) => {
-  if (!media || !window.__scoped) return null;
+  if (!media || !window.__href) return null;
   if (!media.available) return <div className="tl-media tl-media-missing">Attachment couldn't be saved.</div>;
-  const src = window.__scoped(`/api/v1/messages/${media.messageId}/media`);
+  const src = window.__href("GET messages/[id]/media", { id: media.messageId });
   if (media.kind === "image") {
     return (
       <a className="tl-media" href={src} target="_blank" rel="noopener noreferrer" title="Open the photo">

@@ -173,7 +173,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   assert.ok(pr.includes("ask the person what to say there, then propose again with params"), "a typed slot is a question, never invented words");
   assert.ok(pr.includes('kind: "playbook",') && pr.includes('undo: "Delete it — nothing will run",'));
   const c = readCode("apps/dashboard/src/legacy-bridge/ask/commit.ts");
-  assert.ok(c.includes('case "playbook": {') && c.includes('viaAsk(win, "/api/v1/playbooks", {') && c.includes('viaAsk(win, `/api/v1/playbooks/${u.playbook_id}`, undefined, "DELETE")'));
+  assert.ok(c.includes('case "playbook": {') && c.includes('viaAsk("POST playbooks", {') && c.includes('viaAsk("DELETE playbooks/[id]", { params: { id: s(u.playbook_id) } })'));
   const turn = readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx");
   assert.ok(turn.includes("playbook: t.kPlaybook") && turn.includes('playbook: "bolt"') && turn.includes('p.kind === "playbook" ? "outbound"'));
   assert.ok(readCode("apps/dashboard/src/server/ask/prompt.ts").includes('"playbook": "A standing rule'));

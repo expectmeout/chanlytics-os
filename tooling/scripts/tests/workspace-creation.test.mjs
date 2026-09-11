@@ -138,6 +138,6 @@ test("the form defaults the timezone to the browser's, and says what it decides"
 });
 
 test("the server's refusal is shown, not swallowed or replaced", () => {
-  assert.ok(form.includes("body?.error?.message ??"), "the server's own words first");
+  assert.ok(form.includes("setError(r.message)"), "the server's own words, through the client");
   assert.ok(form.includes("setBusy(false)"), "and the form becomes usable again");
 });

@@ -1,13 +1,14 @@
 /**
  * The Ask routes, from the browser: threads, one thread, a deletion, the
  * openings fast path, a card's outcome, and the turn itself as a stream of
- * JSON lines. Every call goes through the same-origin, workspace-scoped
- * fetch the surfaces use; nothing here knows what the palette does with it.
+ * JSON lines. Every call goes through the typed client, which names the
+ * workspace, reads the envelope and signs the tab out on a 401; a card's
+ * commit is marked `via: "ask"`, which the client sends as the x-via header
+ * the ledger reads. Nothing here knows what the palette does with it.
  */
 import type { AskMessageVM, AskProposalOutcome, AskScope, AskSurface, AskThreadVM } from "@chanlytics/contracts";
-import { invalidateInFlight, scoped } from "../surface-data";
-import { read } from "../api";
-import { clearSurfaceCache } from "../surface-cache";
+import { api } from "../api";
+import { unwrap, type Api, type ApiOptions, type ApiResult, type Output, type RouteKey } from "../../client/api";
 
 export type SendEvent =
   | { t: "thread"; id: string; title: string }
@@ -22,28 +23,9 @@ export interface OpeningsView {
   days: Array<{ key: string; label: string; windows: string[] }>;
 }
 
-export type CallResult = { ok: true; data: Record<string, unknown> } | { ok: false; message: string };
-
-/** A same-origin call through the app's own route, marked as a card's when it commits one. */
-export async function viaAsk(win: Window, url: string, body?: unknown, method: "POST" | "PUT" | "DELETE" = "POST"): Promise<CallResult> {
-  try {
-    const res = await win.fetch(scoped(url), {
-      method,
-      headers: { "content-type": "application/json", "x-via": "ask" },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-    });
-    if (res.status === 401) {
-      clearSurfaceCache();
-      win.location.assign("/login");
-      return { ok: false, message: "Signed out." };
-    }
-    const j = (await res.json().catch(() => null)) as { ok: boolean; data?: Record<string, unknown>; error?: { message?: string } } | null;
-    if (!j || !j.ok) return { ok: false, message: j?.error?.message ?? `Request failed (${res.status}).` };
-    invalidateInFlight();
-    return { ok: true, data: j.data ?? {} };
-  } catch {
-    return { ok: false, message: "Network error — nothing was changed." };
-  }
+/** A call through the app's own route, marked as a card's: the ledger keeps that it was tapped, not typed. */
+export function viaAsk<K extends RouteKey>(key: K, opts: ApiOptions<K> = {} as ApiOptions<K>): Promise<ApiResult<Output<K>>> {
+  return api()(key, { ...opts, via: "ask" });
 }
 
 /** Read a stream of JSON lines, one event per line, across chunk boundaries. */
@@ -62,55 +44,45 @@ export async function readLines(body: ReadableStream<Uint8Array>, on: (line: str
   if (carry.trim()) on(carry);
 }
 
-export function askApi(win: Window) {
+/** The stream lasts as long as the turn: the server's own ceiling ends it, not the client's write timeout. */
+const TURN_MS = 300_000;
+
+/** The Ask calls, on the client for their window: the tab's own, or a test's stand-in (`apiFor`). */
+export function askApi(client: Api = api()) {
   return {
     threads: async (): Promise<AskThreadVM[]> => {
       try {
-        return (await read("GET ask/threads")).threads;
+        return unwrap(await client("GET ask/threads")).threads;
       } catch {
         return [];
       }
     },
     thread: async (id: string): Promise<{ thread: AskThreadVM; messages: AskMessageVM[] } | null> => {
       try {
-        return await read("GET ask/threads/[id]", { params: { id } });
+        return unwrap(await client("GET ask/threads/[id]", { params: { id } }));
       } catch {
         return null;
       }
     },
-    deleteThread: async (id: string): Promise<boolean> => {
-      try {
-        const res = await win.fetch(scoped(`/api/v1/ask/threads/${encodeURIComponent(id)}`), { method: "DELETE" });
-        return res.ok;
-      } catch {
-        return false;
-      }
-    },
+    deleteThread: async (id: string): Promise<boolean> => (await client("DELETE ask/threads/[id]", { params: { id } })).ok,
     openings: async (day: string | null, service: string | null): Promise<OpeningsView> => {
-      return (await read("GET ask/openings", { query: { day: day ?? undefined, service: service ?? undefined } })).openings;
+      return unwrap(await client("GET ask/openings", { query: { day: day ?? undefined, service: service ?? undefined } })).openings;
     },
     outcome: async (messageId: string, proposalId: string, o: AskProposalOutcome): Promise<boolean> => {
       if (!/^[0-9a-f-]{36}$/.test(messageId)) return false;
-      const r = await viaAsk(win, `/api/v1/ask/messages/${messageId}/proposals/${encodeURIComponent(proposalId)}`, o);
+      const r = await client("POST ask/messages/[id]/proposals/[pid]", { params: { id: messageId, pid: proposalId }, body: o, via: "ask" });
       return r.ok;
     },
     send: async (input: { text: string; threadId: string | null; scope: AskScope | null; surface: AskSurface }, on: (ev: SendEvent) => void): Promise<void> => {
       let res: Response;
       try {
-        res = await win.fetch(scoped("/api/v1/ask"), {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ text: input.text, thread_id: input.threadId, scope: input.scope, surface: input.surface }),
-        });
+        res = await client.raw("POST ask", { body: { text: input.text, thread_id: input.threadId, scope: input.scope, surface: input.surface }, timeoutMs: TURN_MS });
       } catch {
         on({ t: "error", text: "Network error — nothing was asked." });
         return;
       }
-      if (res.status === 401) {
-        clearSurfaceCache();
-        win.location.assign("/login");
-        return;
-      }
+      // The client has already signed the tab out on its way back.
+      if (res.status === 401) return;
       if (!res.ok || !res.body) {
         const j = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
         on({ t: "error", text: j?.error?.message ?? `Ask failed (${res.status}).` });

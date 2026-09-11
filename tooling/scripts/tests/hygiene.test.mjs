@@ -15,7 +15,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { toLiveCallVM, toCallVM } from "@chanlytics/contracts";
-import { readCode, readRaw } from "./_source.mjs";
+import { readCode, readRaw, stripComments } from "./_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { stripWordTimings } = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/dto.ts")).href);
@@ -112,4 +112,24 @@ test("every route pg_cron calls stands behind the one door", () => {
     assert.ok(src.includes("await authorizeCron(request, db, L)"), `${r} stands behind authorizeCron`);
     assert.ok(!src.includes("timingSafeEqual") && !src.includes('rpc("get_cron_sweep_key")'), `${r} keeps no door of its own`);
   }
+});
+
+test("every bridge request goes through the typed client", () => {
+  // Eleven couriers each owned a fetch, the envelope, the 401 and the workspace;
+  // src/client/api.ts owns them once. A new fetch in the bridge is a courier
+  // re-implementing them, and this says so. The one allowance is the version
+  // check on boot, which is not a /api/v1 route.
+  const dir = path.join(here, "../../../apps/dashboard/src/legacy-bridge");
+  const offenders = [];
+  (function walk(d) {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (/\.tsx?$/.test(e.name) && !(d === dir && e.name === "api.ts")) {
+        const src = stripComments(fs.readFileSync(p, "utf8")).replace('fetch("/api/version"', "");
+        if (/\bfetch\(/.test(src)) offenders.push(path.relative(dir, p).split(path.sep).join("/"));
+      }
+    }
+  })(dir);
+  assert.deepEqual(offenders, [], "a request outside api() re-implements the envelope, the sign-out and the refresh");
 });
