@@ -623,8 +623,15 @@ test("the back office is read on demand, not published to every browser", () => 
   assert.ok(!bridge.includes("SurfaceOverride"), "not a surface");
   assert.ok(bridge.includes("rows: platformRows") && bridge.includes("steps: setupSteps"), "the judgement and the customer's rows both come from contracts");
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installPlatform();"));
+  // Classified as a real PANE of Settings -- without that line the shell's
+  // honesty gate fell through to the page's "demo" and a platform admin who
+  // clicked Back office got the Not-in-this-release card -- but never as a
+  // SURFACE of its own: it waits on the settings data every pane waits on, and
+  // nothing fetches the back office at boot.
   const registry = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
-  assert.ok(!registry.includes("platform"), "and it is not in the surface registry");
+  assert.ok(registry.includes('"admin/platform": "real"'), "the pane is reachable");
+  assert.ok(registry.includes('"admin/platform": "settings"'), "and it waits on the settings surface");
+  assert.ok(!/:\s*"platform"/.test(registry), "no surface of its own, so no browser fetches it at boot");
 });
 
 /* -------------------------------------------------------------------------- *
