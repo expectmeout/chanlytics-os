@@ -10,12 +10,12 @@
  * that would open nothing.
  */
 import { json } from "../../../lib/http.js";
+import { authorizeAdmin } from "../../../lib/admin-auth.js";
 import { GRAPH_VERSION, metaAppId } from "../../../lib/meta-graph.js";
 
 export async function GET(request: Request): Promise<Response> {
-  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
-    return json(403, { ok: false });
-  }
+  const auth = authorizeAdmin(request, "/api/admin/whatsapp/signup-config");
+  if (!auth.ok) return auth.response;
   const appId = metaAppId();
   const configId = process.env.META_ES_CONFIG_ID || null;
   const secret = !!process.env.META_APP_SECRET;

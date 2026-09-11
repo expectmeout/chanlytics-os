@@ -93,7 +93,7 @@ test("the routes: what Meta refuses is refused first; a duplicate name is a conf
   assert.ok(svc.includes("The footer must say how to opt out"), "a marketing draft carries the opt-out line");
   assert.ok(svc.includes("const check = validateTemplateDraft({ name: d.data.name"), "the draft passes the same check a submission does");
   assert.ok(svc.includes("do not use a booking_link slot"), "no slot the workspace cannot fill");
-  assert.ok(readCode("apps/dashboard/src/server/service.ts").includes("`${EDGE_BASE}/api/admin/whatsapp/templates-create`") && readCode("apps/dashboard/src/server/service.ts").includes("`${EDGE_BASE}/api/admin/whatsapp/templates-delete`"));
+  assert.ok(readCode("apps/dashboard/src/server/service.ts").includes("`${edgeUrl()}/api/admin/whatsapp/templates-create`") && readCode("apps/dashboard/src/server/service.ts").includes("`${edgeUrl()}/api/admin/whatsapp/templates-delete`"));
 });
 
 test("the job fills the slots per person and holds anyone a slot cannot be filled for; the send route takes specs and refuses a booking-link slot with no link on file", () => {

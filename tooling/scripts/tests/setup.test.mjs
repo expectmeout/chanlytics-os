@@ -230,11 +230,11 @@ test("a first ask reaches the platform mailbox through the edge; a repeat does n
   assert.ok(route.includes("const told = already ? false : await tellPlatformOfSetupRequest(member.tenantId, what, ctx.email ?? null);"));
   assert.ok(route.includes("return { request: data, told };"));
   const service = readCode("apps/dashboard/src/server/service.ts");
-  assert.ok(service.includes('if (!deployment.providersLive || !process.env.DIAG_KEY) return false;'), "production only");
-  assert.ok(service.includes("${EDGE_BASE}/api/admin/setup-request"));
+  assert.ok(service.includes('if (!deployment.providersLive || !edgeConfigured()) return false;'), "production only");
+  assert.ok(service.includes("${edgeUrl()}/api/admin/setup-request"));
   assert.ok(service.includes('console.error("setup_request_tell_failed"'), "logged, not thrown");
   const edge = readCode("apps/edge/api/admin/setup-request.ts");
-  assert.ok(edge.includes('request.headers.get("x-diag-key") !== process.env.DIAG_KEY'));
+  assert.ok(edge.includes('authorizeAdmin(request, "/api/admin/setup-request")'));
   assert.ok(edge.includes("{ tenantId: null, notifications: null, isEnvDefault: true }"), "addressed to the platform's own mailbox");
   assert.ok(edge.includes("voice-provision"), "the email says how to set the line up");
   assert.ok(!/contacts|messages|conversations/.test(edge), "no customer content anywhere near this");

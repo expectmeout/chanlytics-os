@@ -8,6 +8,7 @@
  * the stale one. Sends that named it fail from now on, which is the point.
  */
 import { json } from "../../../lib/http.js";
+import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { waCredentialsForTenant } from "../../../lib/tenant-runtime.js";
 import { deleteTemplate } from "../../../lib/meta-templates.js";
@@ -15,10 +16,12 @@ import { deleteTemplate } from "../../../lib/meta-templates.js";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(request: Request): Promise<Response> {
-  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
-    return json(403, { ok: false });
-  }
+  const auth = authorizeAdmin(request, "/api/admin/whatsapp/templates-delete");
+  if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => null)) as { tenant_id?: unknown; template_id?: unknown } | null;
+  const ws = workspaceFor(auth, body?.tenant_id);
+  if (!ws.ok) return ws.response;
+  if (body) body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body?.tenant_id === "string" ? body.tenant_id : "";
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
   if (!UUID.test(tenantId) || !UUID.test(templateId)) return json(400, { ok: false, error: "bad_request" });

@@ -9,6 +9,7 @@
  * address; no customer content exists yet. Diagnostic-key only.
  */
 import { json } from "../../lib/http.js";
+import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { notify } from "../../lib/notify.js";
 
@@ -18,14 +19,16 @@ interface Body {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
-    return json(403, { ok: false });
-  }
+  const auth = authorizeAdmin(request, "/api/admin/signup-notify");
+  if (!auth.ok) return auth.response;
   if (!process.env.LEAD_TO || !process.env.LEAD_FROM) return json(503, { ok: false, error: "no_platform_mailbox" });
   const db = pg();
   if (!db) return json(503, { ok: false, error: "no_database" });
   let body: Body = {};
   try { body = JSON.parse(await request.text()); } catch { /* validated below */ }
+  const ws = workspaceFor(auth, body.tenant_id);
+  if (!ws.ok) return ws.response;
+  body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim().slice(0, 254) : "";
   if (!/^[0-9a-f-]{36}$/i.test(tenantId) || !email) return json(400, { ok: false, error: "tenant_id and email are required" });

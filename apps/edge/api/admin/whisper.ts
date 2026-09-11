@@ -13,6 +13,7 @@
  * where the provider is spoken to. Body: { call_id, text, trigger }.
  */
 import { json } from "../../lib/http.js";
+import { authorizeAdmin } from "../../lib/admin-auth.js";
 import { updateLiveCall } from "../../lib/workspace/channels.js";
 import { frameWhisper } from "../../lib/workspace/contracts.js";
 
@@ -20,9 +21,8 @@ import { frameWhisper } from "../../lib/workspace/contracts.js";
 const MAX_CHARS = 500;
 
 export async function POST(request: Request): Promise<Response> {
-  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
-    return json(403, { ok: false });
-  }
+  const auth = authorizeAdmin(request, "/api/admin/whisper");
+  if (!auth.ok) return auth.response;
   if (!process.env.RETELL_API_KEY) return json(503, { ok: false, error: "no_provider_key" });
 
   let body: { call_id?: string; text?: string; trigger?: boolean } = {};

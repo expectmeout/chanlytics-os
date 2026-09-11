@@ -106,7 +106,7 @@ export async function rescheduleBlobErase(
   return await schedule(tenantId, "blob_thread_erase", new Date(), prior.payload as Json);
 }
 
-const EDGE_BASE = "https://chanlytics-messaging.vercel.app";
+import { edgeConfigured, edgeHeaders, edgeUrl } from "./edge";
 
 /**
  * Pre-Gate-1b bridge: the live bot reads pause state from Blob until the read
@@ -123,9 +123,9 @@ export async function mirrorBlobPause(
   // The guard used to fire only when VERCEL_ENV was SET, so plain local dev,
   // where it is unset, mirrored pauses into the live store (review F42).
   if (!deployment.providersLive) return;
-  const r = await fetch(`${EDGE_BASE}/api/admin/pause`, {
+  const r = await fetch(`${edgeUrl()}/api/admin/pause`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
+    headers: edgeHeaders("/api/admin/pause", { workspace: tenantId }),
     // The tenant is REQUIRED. Without it the edge keyed the pause on the phone
     // number alone, so taking over a conversation paused that customer's
     // receptionist at every business that has them as a customer.
@@ -150,9 +150,9 @@ export async function whisperLiveCall(
   trigger: boolean,
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const r = await fetch(`${EDGE_BASE}/api/admin/whisper`, {
+  const r = await fetch(`${edgeUrl()}/api/admin/whisper`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
+    headers: edgeHeaders("/api/admin/whisper"),
     body: JSON.stringify({ call_id: retellCallId, text, trigger }),
   });
   if (r.ok) return { ok: true };
@@ -167,11 +167,11 @@ export async function whisperLiveCall(
  * Production only, never throws: a failure here is logged, not surfaced.
  */
 export async function tellPlatformOfSetupRequest(tenantId: string, what: string, by: string | null): Promise<boolean> {
-  if (!deployment.providersLive || !process.env.DIAG_KEY) return false;
+  if (!deployment.providersLive || !edgeConfigured()) return false;
   try {
-    const r = await fetch(`${EDGE_BASE}/api/admin/setup-request`, {
+    const r = await fetch(`${edgeUrl()}/api/admin/setup-request`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY },
+      headers: edgeHeaders("/api/admin/setup-request", { workspace: tenantId }),
       body: JSON.stringify({ tenant_id: tenantId, what, by }),
       signal: AbortSignal.timeout(8000),
     });
@@ -193,9 +193,9 @@ export async function steerDraft(
   text: string,
 ): Promise<{ ok: true; messageId: string; text: string } | { ok: false; reason: string }> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const r = await fetch(`${EDGE_BASE}/api/admin/steer`, {
+  const r = await fetch(`${edgeUrl()}/api/admin/steer`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
+    headers: edgeHeaders("/api/admin/steer"),
     body: JSON.stringify({ message_id: messageId, text }),
   });
   const j = (await r.json().catch(() => ({}))) as { ok?: boolean; message_id?: string; text?: string; error?: string };
@@ -531,7 +531,7 @@ export interface SignupConfig {
 export async function whatsappSignupConfig(): Promise<SignupConfig> {
   if (!deployment.providersLive) return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: "preview" };
   try {
-    const r = await fetch(`${EDGE_BASE}/api/admin/whatsapp/signup-config`, { headers: { "x-diag-key": process.env.DIAG_KEY! }, cache: "no-store" });
+    const r = await fetch(`${edgeUrl()}/api/admin/whatsapp/signup-config`, { headers: edgeHeaders("/api/admin/whatsapp/signup-config"), cache: "no-store" });
     const j = (await r.json().catch(() => null)) as (SignupConfig & { ok?: boolean }) | null;
     if (!r.ok || !j?.ok) return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: `edge ${r.status}` };
     return { app_id: j.app_id, config_id: j.config_id, graph_version: j.graph_version, ready: j.ready, reason: j.reason };
@@ -551,9 +551,9 @@ export async function connectWhatsApp(
   body: { code: string; phone_number_id: string; waba_id: string },
 ): Promise<ConnectOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const r = await fetch(`${EDGE_BASE}/api/admin/whatsapp/connect`, {
+  const r = await fetch(`${edgeUrl()}/api/admin/whatsapp/connect`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
+    headers: edgeHeaders("/api/admin/whatsapp/connect", { workspace: tenantId, user: userId }),
     body: JSON.stringify({ tenant_id: tenantId, user_id: userId, ...body }),
   });
   const j = (await r.json().catch(() => ({}))) as { ok?: boolean; channel_id?: string; number_e164?: string | null; verified_name?: string | null; quality_rating?: string | null; registration?: string; error?: string; detail?: string };
@@ -572,9 +572,9 @@ export type SyncOutcome =
 /** Every template of the workspace's WhatsApp account, upserted; a row Meta does not return is left as it was. */
 export async function syncTemplates(tenantId: string): Promise<SyncOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const r = await fetch(`${EDGE_BASE}/api/admin/whatsapp/templates-sync`, {
+  const r = await fetch(`${edgeUrl()}/api/admin/whatsapp/templates-sync`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
+    headers: edgeHeaders("/api/admin/whatsapp/templates-sync", { workspace: tenantId }),
     body: JSON.stringify({ tenant_id: tenantId }),
   });
   const j = (await r.json().catch(() => ({}))) as { ok?: boolean; seen?: number; approved?: number; marketing?: number; synced_at?: string; error?: string; detail?: string };
@@ -594,9 +594,9 @@ export async function createTemplate(
   t: { name: string; language: string; category: string; components: unknown[]; body: string; examples: string[]; labels?: string[] },
 ): Promise<TemplateCreateOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const r = await fetch(`${EDGE_BASE}/api/admin/whatsapp/templates-create`, {
+  const r = await fetch(`${edgeUrl()}/api/admin/whatsapp/templates-create`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
+    headers: edgeHeaders("/api/admin/whatsapp/templates-create", { workspace: tenantId, user: userId }),
     body: JSON.stringify({ tenant_id: tenantId, user_id: userId, ...t }),
   });
   const j = (await r.json().catch(() => ({}))) as { ok?: boolean; id?: string; meta_status?: string; error?: string; detail?: string };
@@ -608,9 +608,9 @@ export type TemplateDeleteOutcome = { ok: true; atMeta: boolean } | { ok: false;
 
 export async function deleteTemplate(tenantId: string, templateId: string): Promise<TemplateDeleteOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const r = await fetch(`${EDGE_BASE}/api/admin/whatsapp/templates-delete`, {
+  const r = await fetch(`${edgeUrl()}/api/admin/whatsapp/templates-delete`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
+    headers: edgeHeaders("/api/admin/whatsapp/templates-delete", { workspace: tenantId }),
     body: JSON.stringify({ tenant_id: tenantId, template_id: templateId }),
   });
   const j = (await r.json().catch(() => ({}))) as { ok?: boolean; at_meta?: boolean; error?: string; detail?: string };
@@ -630,9 +630,9 @@ export type RunPlaybookOutcome =
  */
 export async function runPlaybookNow(tenantId: string, playbookId: string, userId: string): Promise<RunPlaybookOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const r = await fetch(`${EDGE_BASE}/api/admin/playbooks-run`, {
+  const r = await fetch(`${edgeUrl()}/api/admin/playbooks-run`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-diag-key": process.env.DIAG_KEY! },
+    headers: edgeHeaders("/api/admin/playbooks-run", { workspace: tenantId, user: userId }),
     body: JSON.stringify({ tenant_id: tenantId, playbook_id: playbookId, user_id: userId }),
   });
   const j = (await r.json().catch(() => ({}))) as { ok?: boolean; outcome?: string; eligible?: number; broadcast_id?: string; skipped?: string; error?: string; detail?: string };

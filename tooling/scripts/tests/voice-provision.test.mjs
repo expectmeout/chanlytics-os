@@ -149,7 +149,7 @@ test("the request is checked before anything is planned", () => {
 test("the edge endpoint: key-gated, dry run by default, secrets never echoed, budgeted, row last, then the bell and the event", () => {
   const src = readCode("apps/edge/api/admin/voice-provision.ts");
   const agent = readCode("apps/edge/lib/voice-agent.ts");
-  assert.ok(src.includes('request.headers.get("x-diag-key") !== process.env.DIAG_KEY'));
+  assert.ok(src.includes('authorizeAdmin(request, "/api/admin/voice-provision")'));
   assert.ok(src.includes("const apply = body.apply === true;"));
   assert.ok(src.indexOf("if (!apply || plan.nothing) return json(200, out);") < src.indexOf("createVoiceAgent(cfg,"), "the dry run answers before any provider write");
   // The receptionist is made once, in the lib both line paths share.

@@ -44,7 +44,7 @@ test("one writer for a held draft, used by the handler and the steer", () => {
 
 test("the steer endpoint: the door, the draft's state, new before old, the price rule, the rollback", () => {
   const s = readCode("apps/edge/api/admin/steer.ts");
-  assert.ok(s.includes('request.headers.get("x-diag-key") !== process.env.DIAG_KEY'));
+  assert.ok(s.includes('authorizeAdmin(request, "/api/admin/steer")'));
   assert.ok(s.includes('if (m.sender !== "ai" || m.status !== "queued") return json(409, { ok: false, error: "not_a_held_draft" });'));
   assert.ok(s.includes("readThreadState(db, m.tenant_id, m.conversation_id, null)"), "the same memory the reply was written from");
   assert.ok(s.includes("frameSteer(text),"), "the instruction rides as the brain's steer block");
@@ -68,7 +68,7 @@ test("the dashboard route keeps its doors and records the decision only after th
   assert.ok(steered > 0 && recorded > steered);
   assert.ok(r.includes('"The rewrite would have quoted a price, so the original draft stays."'));
   const svc = readCode("apps/dashboard/src/server/service.ts");
-  assert.ok(svc.includes("`${EDGE_BASE}/api/admin/steer`"));
+  assert.ok(svc.includes("`${edgeUrl()}/api/admin/steer`"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
   assert.ok(bridge.includes("window.__steerDraft = steerDraft;"));
   assert.ok(bridge.includes("/steer`, { text });"));

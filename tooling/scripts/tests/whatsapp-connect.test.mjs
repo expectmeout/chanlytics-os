@@ -32,7 +32,7 @@ test("the migration: one definer door writes a credential, service role only, na
 
 test("the edge connect endpoint: diagnostic key, the four Graph calls in order, the token into Vault, a failed credential write disables the row", () => {
   const c = readCode("apps/edge/api/admin/whatsapp/connect.ts");
-  assert.ok(c.includes('request.headers.get("x-diag-key") !== process.env.DIAG_KEY'));
+  assert.ok(c.includes('authorizeAdmin(request, "/api/admin/whatsapp/connect")'));
   assert.ok(c.includes('if (!appId || !appSecret) return json(503, { ok: false, error: "no_app_credentials" });'));
   const order = ["exchangeCode(appId, appSecret, code)", "phoneNumber(token, phoneNumberId)", "subscribeWaba(token, wabaId)", "registerNumber(token, phoneNumberId, pin)", 'db.rpc("put_channel_credentials"'];
   let last = -1;
@@ -85,7 +85,7 @@ test("the dashboard route: owner only, the settings rate bucket, the sign-up ids
   assert.ok(r.includes("pin_required:"), "the PIN wall has its own words");
   const svc = readCode("apps/dashboard/src/server/service.ts");
   assert.ok(svc.includes('if (!deployment.providersLive) return { ok: false, reason: "preview" };'), "a preview never connects a real number");
-  assert.ok(svc.includes("`${EDGE_BASE}/api/admin/whatsapp/connect`") && svc.includes("`${EDGE_BASE}/api/admin/whatsapp/signup-config`"));
+  assert.ok(svc.includes("`${edgeUrl()}/api/admin/whatsapp/connect`") && svc.includes("`${edgeUrl()}/api/admin/whatsapp/signup-config`"));
   const sr = readCode("apps/dashboard/app/api/v1/channels/whatsapp/signup/route.ts");
   assert.ok(sr.includes('canConnect: member.role === "owner" && cfg.ready'));
 });

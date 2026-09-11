@@ -11,11 +11,11 @@
  */
 import { getThread, saveThread, storeBackend, threadNamespace } from "../../lib/store.js";
 import { json } from "../../lib/http.js";
+import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 
 export async function POST(request: Request): Promise<Response> {
-  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
-    return json(403, { ok: false });
-  }
+  const auth = authorizeAdmin(request, "/api/admin/pause");
+  if (!auth.ok) return auth.response;
   let body: { phone_digits?: string; paused_until_ms?: number; tenant_id?: string } = {};
   try { body = JSON.parse(await request.text()); } catch { /* below */ }
   const phone = String(body.phone_digits || "").replace(/[^\d]/g, "");
@@ -25,6 +25,9 @@ export async function POST(request: Request): Promise<Response> {
   if (storeBackend() === "off") return json(200, { ok: true, store: "off" });
   // The dashboard sends the tenant whose conversation this is. Without it we
   // would pause a phone number across every business that has that customer.
+  const ws = workspaceFor(auth, body.tenant_id);
+  if (!ws.ok) return ws.response;
+  body.tenant_id = ws.tenantId ?? undefined;
   const ns = threadNamespace(body.tenant_id ?? null);
   const t = await getThread(ns, phone);
   t.pausedUntil = body.paused_until_ms;

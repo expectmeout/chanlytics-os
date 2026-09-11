@@ -10,6 +10,7 @@
  * no, so the person can fix the message rather than guess.
  */
 import { json } from "../../../lib/http.js";
+import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { waCredentialsForTenant } from "../../../lib/tenant-runtime.js";
 import { createTemplate, mapCategory, mapStatus, type MetaTemplateComponent } from "../../../lib/meta-templates.js";
@@ -19,13 +20,15 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NAME = /^[a-z0-9_]{1,512}$/;
 
 export async function POST(request: Request): Promise<Response> {
-  if (!process.env.DIAG_KEY || request.headers.get("x-diag-key") !== process.env.DIAG_KEY) {
-    return json(403, { ok: false });
-  }
+  const auth = authorizeAdmin(request, "/api/admin/whatsapp/templates-create");
+  if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => null)) as {
     tenant_id?: unknown; user_id?: unknown; name?: unknown; language?: unknown; category?: unknown;
     components?: unknown; body?: unknown; examples?: unknown;
   } | null;
+  const ws = workspaceFor(auth, body?.tenant_id);
+  if (!ws.ok) return ws.response;
+  if (body) body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body?.tenant_id === "string" ? body.tenant_id : "";
   const userId = typeof body?.user_id === "string" && UUID.test(body.user_id) ? body.user_id : null;
   const name = typeof body?.name === "string" ? body.name : "";
