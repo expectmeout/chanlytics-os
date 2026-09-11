@@ -16,10 +16,6 @@
     "calendar",
     "calendar/preview",
     "channels/whatsapp/connect",
-    "contacts",
-    "contacts/[id]",
-    "contacts/[id]/details",
-    "contacts/[id]/receptionist",
     "google/callback",
     "google/connect",
     "google/connection",
@@ -46,8 +42,6 @@
     "policies",
     "reports",
     "reports/campaigns",
-    "segments",
-    "segments/[id]",
     "settings",
     "setup/request",
     "team",
@@ -158,11 +152,39 @@
       "rate": "consent",
       "spend": false
     },
+    "PUT contacts/[id]/details": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_edit",
+      "spend": false
+    },
     "PUT contacts/[id]/marketing-consent": {
       "kind": "write",
       "scope": "row",
       "role": "operator",
       "rate": "consent",
+      "spend": false
+    },
+    "PUT contacts/[id]/receptionist": {
+      "kind": "write",
+      "scope": "row",
+      "role": "owner",
+      "rate": "person_mode",
+      "spend": false
+    },
+    "GET contacts/[id]": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "DELETE contacts/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "owner",
+      "rate": "erase",
       "spend": false
     },
     "GET contacts/export": {
@@ -172,6 +194,20 @@
       "rate": "export",
       "spend": false,
       "strict": true
+    },
+    "GET contacts": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST contacts": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "person_create",
+      "spend": false
     },
     "POST conversations/[id]/archive": {
       "kind": "write",
@@ -311,6 +347,34 @@
       "scope": "workspace",
       "role": "viewer",
       "rate": "notify_mark",
+      "spend": false
+    },
+    "PUT segments/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "lists",
+      "spend": false
+    },
+    "DELETE segments/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "lists",
+      "spend": false
+    },
+    "GET segments": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST segments": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "lists",
       "spend": false
     },
     "GET setup": {
