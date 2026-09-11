@@ -107,7 +107,7 @@ test("the broadcasts list is the workspace the tab named, newest first, with wha
     broadcasts: [bc(B1, A, { created_at: "2026-09-09T00:00:00Z" }), bc(B2, A, { created_at: "2026-09-10T00:00:00Z", state: "sent" }), bc(B3, B)],
     broadcast_recipients: [{ broadcast_id: B2, tenant_id: A, contact_id: "k1", state: "sent", reason: null, sent_at: "2026-09-10T01:00:00Z", messages: { conversation_id: null, status: "delivered" } }],
   };
-  const out = await broadcasts.GET.run(get(), ctxFor(tables));
+  const out = await broadcasts.GET.run(get(inA), ctxFor(tables));
   assert.deepEqual(out.broadcasts.map((b) => b.id), [B2, B1], "newest first, this workspace only");
   assert.equal(out.broadcasts[0].counts.sent, 1);
   assert.equal(out.broadcasts[0].counts.delivered, 1, "delivered comes from the receipts");
@@ -168,7 +168,8 @@ test("templates: the composers see the approved and unhidden, Settings sees ever
   };
   assert.deepEqual((await templates.GET.run(get(inB), ctxFor(tables))).templates.map((t) => t.name), ["visit_reminder"]);
   assert.deepEqual((await templates.GET.run(get(`${inB}&all=1`), ctxFor(tables))).templates.map((t) => t.name), ["hello_world", "offer", "visit_reminder"], "Settings, by name");
-  assert.deepEqual((await templates.GET.run(get(), ctxFor(tables))).templates.map((t) => t.name), ["elsewhere"], "the oldest membership is the default");
+  await refused(templates.GET.run(get(), ctxFor(tables)), "choose_workspace", 400, "say which one first");
+  assert.deepEqual((await templates.GET.run(get(inA), ctxFor(tables))).templates.map((t) => t.name), ["elsewhere"], "the workspace the tab named");
   await refused(templates.POST.run(send("POST", { name: "x" }, inA), ctxFor(tables)), "forbidden", 403);
   await refused(templates.POST.run(send("POST", {}, inB), ctxFor(tables)), "validation", 400);
   const written = { name: "visit_reminder", language: "en_US", category: "utility", body: "See you at {{1}} tomorrow.", examples: ["3pm"] };
@@ -234,7 +235,7 @@ test("playbooks: the workspace's with their runs' numbers and the business's clo
   const bayside = await playbooks.GET.run(get(inB), ctxFor(tables));
   assert.deepEqual(bayside.playbooks.map((p) => [p.id, p.totals.runs]), [[K2, 1]]);
   assert.equal(bayside.timezone, "America/Chicago");
-  const harbor = await playbooks.GET.run(get(), ctxFor(tables));
+  const harbor = await playbooks.GET.run(get(inA), ctxFor(tables));
   assert.deepEqual(harbor.playbooks.map((p) => p.id), [K1]);
   await refused(playbooks.POST.run(send("POST", { trigger: "quiet_30", template_id: T1, params: [] }), ctxFor(tables)), "choose_workspace", 400);
   await refused(playbooks.POST.run(send("POST", { trigger: "quiet_30", template_id: T1, params: [] }, inA), ctxFor(tables)), "forbidden", 403);

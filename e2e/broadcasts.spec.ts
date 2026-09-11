@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { apiGet } from "./workspace";
 
 /**
  * Campaigns › Broadcasts on a real workspace.
@@ -26,8 +27,8 @@ test.describe("Broadcasts on a real workspace", () => {
     await expect(real).toBeVisible();
 
     const [bc, tpl] = await Promise.all([
-      page.request.get("/api/v1/broadcasts"),
-      page.request.get("/api/v1/templates"),
+      apiGet(page, "/api/v1/broadcasts"),
+      apiGet(page, "/api/v1/templates"),
     ]);
     expect(bc.status()).toBe(200);
     expect(tpl.status()).toBe(200);
@@ -65,7 +66,7 @@ test.describe("Broadcasts on a real workspace", () => {
     if (/WhatsApp \+/.test(numberLine)) {
       await expect(real.getByTestId("bc-optin")).toBeVisible();
       await expect(real.getByTestId("bc-optin")).toContainText("YES OFFERS");
-      const qr = await page.request.get("/api/v1/consent/qr");
+      const qr = await apiGet(page, "/api/v1/consent/qr");
       expect(qr.status()).toBe(200);
       expect(qr.headers()["content-type"]).toContain("image/svg+xml");
       expect((await qr.text()).startsWith("<svg")).toBe(true);

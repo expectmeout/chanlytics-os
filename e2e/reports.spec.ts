@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { apiGet } from "./workspace";
 
 /**
  * Reports, on a real workspace.
@@ -86,7 +87,7 @@ test.describe("Reports on a real workspace", () => {
       await expect(card).toContainText(/booked|Nobody asked|needs the calendar|could not be read/);
     } else {
       // An empty period hides the section; the route still carries the line.
-      const res = await page.request.get("/api/v1/reports?days=30");
+      const res = await apiGet(page, "/api/v1/reports?days=30");
       expect((await res.json()).data).toHaveProperty("booking");
     }
   });

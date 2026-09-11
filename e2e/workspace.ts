@@ -35,3 +35,8 @@ export function scoped(url: string, workspaceId: string): string {
   if (url.includes("workspace=")) return url;
   return `${url}${url.includes("?") ? "&" : "?"}workspace=${encodeURIComponent(workspaceId)}`;
 }
+
+/** A read the way the app makes it, naming the workspace; options pass through. */
+export async function apiGet(page: Page, url: string, options?: Parameters<Page["request"]["get"]>[1]) {
+  return page.request.get(scoped(url, await activeWorkspace(page)), options);
+}

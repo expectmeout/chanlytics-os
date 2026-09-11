@@ -85,17 +85,17 @@ test("the settings read: the workspace the tab named, with its version and the r
     tenants: [{ id: A, name: "Harbor", timezone: "America/New_York" }],
     tenant_channels: [], google_listings: [],
   };
-  const harbor = await settings.GET.run(get(), ctxFor(tables));
+  const harbor = await settings.GET.run(get(inA), ctxFor(tables));
   assert.deepEqual([harbor.version, harbor.role, harbor.configBroken], [3, "viewer", false]);
   assert.ok(harbor.config.calendar.ical_url.includes("…") && !harbor.config.calendar.ical_url.includes("abcdef123456"), "a viewer learns that a feed is set, not its address");
   assert.ok(harbor.facts && harbor.conflicts, "the resolved facts and their disagreements ride along");
   const bayside = await settings.GET.run(get(inB), ctxFor(tables));
   assert.deepEqual([bayside.version, bayside.role, bayside.config.calendar.ical_url], [1, "owner", feed]);
   const broken = { ...tables, tenant_config: [{ tenant_id: A, config: "nonsense", version: 7, updated_at: "2026-09-01T00:00:00Z" }] };
-  const out = await settings.GET.run(get(), ctxFor(broken));
+  const out = await settings.GET.run(get(inA), ctxFor(broken));
   assert.deepEqual([out.config, out.version, out.configBroken], [null, 7, true]);
   assert.ok(Array.isArray(out.issues) && out.issues.length > 0);
-  await refused(settings.GET.run(get(), ctxFor({ ...tables, tenant_config: [] })), "not_found", 404);
+  await refused(settings.GET.run(get(inA), ctxFor({ ...tables, tenant_config: [] })), "not_found", 404);
 });
 
 test("the settings write: the owner's, the workspace named, the body { config, version }, the write schema's refusals named by field, a stale version a conflict, the change on the ledger as fields never values", async () => {
@@ -129,7 +129,7 @@ test("the autonomy matrix: the workspace's own rows, read by every member; chang
       policy(B, "reply", "auto", { max_replies_day: 50, reply_delay_ms: 15000 }), policy(B, "booking", "auto"),
     ],
   };
-  const harbor = await policies.GET.run(get(), ctxFor(tables));
+  const harbor = await policies.GET.run(get(inA), ctxFor(tables));
   assert.deepEqual(harbor.policies.map((p) => p.class), ["money", "reply"], "the workspace's rows, by class; a person's own row is not the matrix");
   assert.equal(harbor.role, "viewer");
   await refused(policies.PUT.run(send("PUT", { class: "reply", mode: "ask" }, inA), ctxFor(tables)), "forbidden", 403);
@@ -146,7 +146,7 @@ test("the autonomy matrix: the workspace's own rows, read by every member; chang
 
 test("the business record: read by every member, nothing on file is null not a blank form; written by the owner, refused in the owner's words before anything leaves for the carriers", async () => {
   const tables = { memberships: both("operator", "owner"), business_records: [] };
-  assert.deepEqual(await record.GET.run(get(), ctxFor(tables)), { record: null, path: null, problems: {} });
+  assert.deepEqual(await record.GET.run(get(inA), ctxFor(tables)), { record: null, path: null, problems: {} });
   const onFile = { ...tables, business_records: [{ tenant_id: B, created_at: "2026-09-01T00:00:00Z", legal_name: "Bayside LLC", tax_id: "12-3456789" }] };
   const out = await record.GET.run(get(inB), ctxFor(onFile));
   assert.equal(out.record.legal_name, "Bayside LLC");
@@ -161,7 +161,7 @@ test("the business record: read by every member, nothing on file is null not a b
 
 test("the calendar: a read of the workspace's week, counted with the aggregates; a preview is refused for a blank or a private address before anything is fetched", async () => {
   const tables = { memberships: both("viewer", "operator"), tenants: [], tenant_config: [] };
-  const week = await calendar.GET.run(get("?days=3"), ctxFor(tables));
+  const week = await calendar.GET.run(get(`?days=3&workspace=${A}&workspace=${A}`), ctxFor(tables));
   assert.ok(week.calendar && typeof week.calendar === "object", "the week as the receptionist reads it, even with no feed");
   await refused(preview.POST.run(send("POST", { url: "https://calendar.example.com/x.ics" }, inA), ctxFor(tables)), "forbidden", 403);
   await refused(preview.POST.run(send("POST", {}, inB), ctxFor(tables)), "validation", 400, "Paste the calendar's iCal address first.");

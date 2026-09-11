@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
-import { activeWorkspace, scoped } from "./workspace";
+import { activeWorkspace, scoped, apiGet } from "./workspace";
 
 /**
  * Ask on a real workspace: the palette opens from ⌘K and the button, shows
@@ -80,10 +80,10 @@ test.describe("Ask on a real workspace", () => {
       expect(final.message.ungrounded).toBe(false);
     }
     // The thread is the person's own and reads back.
-    const list = await page.request.get("/api/v1/ask/threads");
+    const list = await apiGet(page, "/api/v1/ask/threads");
     const { data } = await list.json();
     expect(data.threads.some((t: { id: string }) => t.id === lines[0].id)).toBe(true);
-    const one = await page.request.get(`/api/v1/ask/threads/${lines[0].id}`);
+    const one = await apiGet(page, `/api/v1/ask/threads/${lines[0].id}`);
     const { data: d1 } = await one.json();
     expect(d1.messages.map((m: { role: string }) => m.role)).toEqual(["user", "assistant"]);
     const del = await page.request.delete(scoped(`/api/v1/ask/threads/${lines[0].id}`, ws), fromTheApp);
@@ -114,7 +114,7 @@ test.describe("Ask on a real workspace", () => {
         ...fromTheApp,
       });
       expect(out.status()).toBe(200);
-      const back = await page.request.get(`/api/v1/ask/threads/${lines[0].id}`);
+      const back = await apiGet(page, `/api/v1/ask/threads/${lines[0].id}`);
       const { data } = await back.json();
       const stored = data.messages[1].proposals.find((p: { id: string }) => p.id === invite.id);
       expect(stored.outcome.state).toBe("dismissed");
@@ -161,7 +161,7 @@ test.describe("Ask on a real workspace", () => {
     await input.press("Enter");
     await expect(page.getByTestId("ask-turn").first()).toBeVisible({ timeout: 120_000 });
     await expect(page.locator(".ask-cursor")).toHaveCount(0, { timeout: 120_000 });
-    const list = await page.request.get("/api/v1/ask/threads");
+    const list = await apiGet(page, "/api/v1/ask/threads");
     const { data } = await list.json();
     const twins = data.threads.filter((t: { title: string }) => t.title.includes(nonce));
     expect(twins.length, "one thread for one question").toBe(1);

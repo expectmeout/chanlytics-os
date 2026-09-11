@@ -37,6 +37,7 @@ const USER = "u1";
 const membership = (tenant_id, role, slug, created_at) => ({ user_id: USER, tenant_id, role, tenants: { slug }, created_at });
 /** A member of two workspaces: harbor (the older membership, so the default) and bayside. */
 const both = (harbor, bayside) => [membership(A, harbor, "harbor", "2026-01-01T00:00:00Z"), membership(B, bayside, "bayside", "2026-02-01T00:00:00Z")];
+const inA = `?workspace=${A}`;
 const ctxFor = (tables, params = {}, rpcs = {}) => ({ supabase: fakeDb(tables, {}, rpcs), userId: USER, email: "ada@example.com", params });
 const get = (q = "") => new Request(`http://localhost/api/v1/x${q}`);
 const send = (method, body, q = "") => new Request(`http://localhost/api/v1/x${q}`, { method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
@@ -68,7 +69,7 @@ test("the ten declare their policy: the reads open to every member, the changes 
 test("the people list is the workspace the tab named: each person with their reply mode, and the calendar's state when none is connected", async () => {
   const tables = { memberships: both("viewer", "viewer"), policies: [pol(A, null, null, "auto"), pol(A, "contact", P2, "never")], tenants: [], tenant_config: [] };
   const rpcs = { people_list: (a) => (a.p_tenant_id === A ? [personRow(P1), personRow(P2)] : [personRow(P3)]) };
-  const out = await contacts.GET.run(get(), ctxFor(tables, {}, rpcs));
+  const out = await contacts.GET.run(get(inA), ctxFor(tables, {}, rpcs));
   assert.deepEqual(out.people.map((p) => [p.id, p.effective_reply_mode, p.visits]), [[P1, "auto", null], [P2, "never", null]]);
   assert.equal(out.calendar.state, "none");
   const bayside = await contacts.GET.run(get(`?workspace=${B}`), ctxFor(tables, {}, rpcs));
@@ -100,7 +101,7 @@ test("one person in full: the row with both reply modes, the notes, where they c
     tenants: [],
   };
   const rpcs = { people_list: (a) => (a.p_tenant_id === A && a.p_contact_id === P1 ? [personRow(P1)] : []) };
-  const { person: p } = await person.GET.run(get(), ctxFor(tables, { id: P1 }, rpcs));
+  const { person: p } = await person.GET.run(get(inA), ctxFor(tables, { id: P1 }, rpcs));
   assert.equal(p.row.id, P1);
   assert.equal(p.row.effective_reply_mode, "ask");
   assert.equal(p.receptionist_mode, "ask");
@@ -112,7 +113,7 @@ test("one person in full: the row with both reply modes, the notes, where they c
   assert.deepEqual(p.conversations, []);
   assert.equal(p.visits, undefined, "no calendar connected");
   await refused(person.GET.run(get(`?workspace=${B}`), ctxFor(tables, { id: P1 }, rpcs)), "not_found", 404, "the workspace named on the request is the door");
-  await refused(person.GET.run(get(), ctxFor(tables, { id: "not-a-uuid" }, rpcs)), "not_found", 404);
+  await refused(person.GET.run(get(inA), ctxFor(tables, { id: "not-a-uuid" }, rpcs)), "not_found", 404);
 });
 
 test("erasing a person is the owner's, judged where the person lives, and a refusal touches nothing", async () => {
@@ -170,7 +171,7 @@ test("lists: one workspace's with their members' ids; a viewer may not make one;
     segments: [{ id: S1, tenant_id: A, name: "Regulars" }, { id: S2, tenant_id: B, name: "VIP" }],
     segment_members: [{ segment_id: S1, contact_id: P1, tenant_id: A }, { segment_id: S2, contact_id: P2, tenant_id: B }],
   };
-  assert.deepEqual(await lists.GET.run(get(), ctxFor(tables)), { lists: [{ id: S1, name: "Regulars", ids: [P1] }] });
+  assert.deepEqual(await lists.GET.run(get(inA), ctxFor(tables)), { lists: [{ id: S1, name: "Regulars", ids: [P1] }] });
   assert.deepEqual(await lists.GET.run(get(`?workspace=${B}`), ctxFor(tables)), { lists: [{ id: S2, name: "VIP", ids: [P2] }] });
   await refused(lists.POST.run(send("POST", { name: "Colour club" }, `?workspace=${A}`), ctxFor(tables)), "forbidden", 403);
   await refused(lists.POST.run(send("POST", { name: "   " }, `?workspace=${B}`), ctxFor(tables)), "validation", 400);

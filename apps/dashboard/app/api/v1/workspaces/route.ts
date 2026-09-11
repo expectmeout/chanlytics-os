@@ -90,8 +90,8 @@ export const GET = read({
     }
 
     const preferred = new URL(_req.url).searchParams.get("workspace");
-    const active = await memberContext(ctx, preferred).catch(() =>
-      preferred ? memberContext(ctx, null) : Promise.reject(new Error("no workspace")),
+    const active = await memberContext(ctx, preferred, { defaultAllowed: true }).catch(() =>
+      preferred ? memberContext(ctx, null, { defaultAllowed: true }) : Promise.reject(new Error("no workspace")),
     );
     return {
       workspaces: data,

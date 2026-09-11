@@ -42,6 +42,7 @@ const both = (harbor, bayside) => [membership(A, harbor, "harbor", "2026-01-01T0
 const ctxFor = (tables, params = {}, rpcs = {}) => ({ supabase: fakeDb(tables, {}, rpcs), userId: USER, email: "ada@example.com", params });
 const get = (q = "") => new Request(`http://localhost/api/v1/x${q}`);
 const send = (method, body, q = "") => new Request(`http://localhost/api/v1/x${q}`, { method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+const inA = `?workspace=${A}`;
 const inB = `?workspace=${B}`;
 async function refused(p, code, status, words) {
   await assert.rejects(p, (e) => {
@@ -106,14 +107,14 @@ test("the openings and the threads answer the workspace the tab named; one threa
     ask_threads: [threadRow(T1, A, { last_at: "2026-09-09T00:00:00Z" }), threadRow(T2, A, { last_at: "2026-09-10T00:00:00Z", title: "Newer" }), threadRow(T3, B)],
     ask_messages: [turn(M1, T1, A, "user", { text: "Who booked this week?" })],
   };
-  const open = await openings.GET.run(get("?day=saturday"), ctxFor(tables));
+  const open = await openings.GET.run(get(`?day=saturday&workspace=${A}&workspace=${A}`), ctxFor(tables));
   assert.ok(open.openings && typeof open.openings === "object", "answered even with no calendar connected");
-  assert.deepEqual((await threads.GET.run(get(), ctxFor(tables))).threads.map((t) => t.id), [T2, T1], "newest first, this workspace only");
+  assert.deepEqual((await threads.GET.run(get(inA), ctxFor(tables))).threads.map((t) => t.id), [T2, T1], "newest first, this workspace only");
   assert.deepEqual((await threads.GET.run(get(inB), ctxFor(tables))).threads.map((t) => t.id), [T3]);
-  const one = await thread.GET.run(get(), ctxFor(tables, { id: T1 }));
+  const one = await thread.GET.run(get(inA), ctxFor(tables, { id: T1 }));
   assert.equal(one.thread.id, T1);
   assert.equal(one.messages.length, 1);
-  await refused(thread.GET.run(get(), ctxFor(tables, { id: "dddddddd-dddd-4ddd-8ddd-ddddddddddd9" })), "not_found", 404, "not yours or is already gone");
+  await refused(thread.GET.run(get(inA), ctxFor(tables, { id: "dddddddd-dddd-4ddd-8ddd-ddddddddddd9" })), "not_found", 404, "not yours or is already gone");
   assert.deepEqual(await thread.DELETE.run(send("DELETE"), ctxFor(tables, { id: T1 })), { deleted: T1 });
   assert.ok(!tables.ask_threads.some((t) => t.id === T1));
   await refused(thread.DELETE.run(send("DELETE"), ctxFor(tables, { id: T1 })), "not_found", 404, "not yours or is already gone");
@@ -123,10 +124,10 @@ test("the metrics behind Today: the workspace the tab named, the days clamped to
   const asked = [];
   const rpcs = { metrics_summary: (a) => { asked.push(a); return a.p_tenant_id === A ? { conversations: 3 } : { error: "not a member" }; } };
   const tables = { memberships: both("viewer", "viewer") };
-  const out = await metrics.GET.run(get(), ctxFor(tables, {}, rpcs));
+  const out = await metrics.GET.run(get(inA), ctxFor(tables, {}, rpcs));
   assert.deepEqual(out, { metrics: { conversations: 3 }, workspaceId: A });
-  await metrics.GET.run(get("?days=400"), ctxFor(tables, {}, rpcs));
-  await metrics.GET.run(get("?days=0"), ctxFor(tables, {}, rpcs));
+  await metrics.GET.run(get(`?days=400&workspace=${A}&workspace=${A}`), ctxFor(tables, {}, rpcs));
+  await metrics.GET.run(get(`?days=0&workspace=${A}&workspace=${A}`), ctxFor(tables, {}, rpcs));
   assert.deepEqual(asked.map((a) => a.p_days), [1, 90, 1], "one day by default, ninety at most, never less than one");
   await refused(metrics.GET.run(get(inB), ctxFor(tables, {}, rpcs)), "not_found", 404, "Workspace metrics unavailable.");
 });
@@ -138,13 +139,13 @@ test("the reports: the three presets and no other, the series from the function 
     people_list: () => [],
   };
   const tables = { memberships: both("viewer", "viewer"), tenants: [], tenant_config: [], policies: [] };
-  await refused(reports.GET.run(get("?days=10"), ctxFor(tables, {}, rpcs)), "validation", 400, "days must be 7, 30 or 90.");
-  const week = await reports.GET.run(get("?days=7"), ctxFor(tables, {}, rpcs));
+  await refused(reports.GET.run(get(`?days=10&workspace=${A}&workspace=${A}`), ctxFor(tables, {}, rpcs)), "validation", 400, "days must be 7, 30 or 90.");
+  const week = await reports.GET.run(get(`?days=7&workspace=${A}&workspace=${A}`), ctxFor(tables, {}, rpcs));
   assert.deepEqual(week.report, { days: 7, tenant: A });
   assert.ok("booking" in week, "the conversion line rides along, or null when the calendar cannot be read");
-  const month = await reports.GET.run(get(), ctxFor(tables, {}, rpcs));
+  const month = await reports.GET.run(get(inA), ctxFor(tables, {}, rpcs));
   assert.equal(month.report.days, 30, "thirty by default");
-  await refused(campaigns.GET.run(get("?days=45"), ctxFor(tables, {}, rpcs)), "validation", 400, "days must be 7, 30 or 90.");
-  assert.deepEqual(await campaigns.GET.run(get("?days=90"), ctxFor(tables, {}, rpcs)), { report: { days: 90 } });
+  await refused(campaigns.GET.run(get(`?days=45&workspace=${A}&workspace=${A}`), ctxFor(tables, {}, rpcs)), "validation", 400, "days must be 7, 30 or 90.");
+  assert.deepEqual(await campaigns.GET.run(get(`?days=90&workspace=${A}&workspace=${A}`), ctxFor(tables, {}, rpcs)), { report: { days: 90 } });
   await refused(campaigns.GET.run(get(inB), ctxFor(tables, {}, rpcs)), "not_found", 404, "No workspace found for this report.");
 });

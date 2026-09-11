@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { apiGet } from "./workspace";
 
 /**
  * Campaigns › Messages, on a real workspace: one card per message showing
@@ -24,7 +25,7 @@ test.describe("Messages on a real workspace", () => {
     await expect(strip).toContainText("Playbooks");
     await expect(strip.locator(".stabs-tab.active")).toHaveText("Messages");
 
-    const res = await page.request.get("/api/v1/templates?all=1");
+    const res = await apiGet(page, "/api/v1/templates?all=1");
     expect(res.status()).toBe(200);
     const { data } = await res.json();
     const wa = data.templates.filter((t: { channel: string; name: string }) => t.channel === "whatsapp" && t.name !== "hello_world");

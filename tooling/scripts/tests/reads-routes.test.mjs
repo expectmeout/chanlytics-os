@@ -34,24 +34,22 @@ async function refused(p, code, status) {
   await assert.rejects(p, (e) => { assert.equal(e.code, code, e.message); if (status) assert.equal(e.status, status); return true; });
 }
 
-test("the fourteen declare a read of the workspace, and the one that hands over everyone is strict and owner-only", async () => {
+test("the fourteen declare a read of the workspace, and the one that hands over everyone is owner-only", async () => {
   for (const rel of ["billing", "broadcasts/[id]", "calls/[id]/export", "channels", "channels/whatsapp/signup", "consent/qr", "contacts/export", "conversations", "conversations/[id]/export", "google", "lines", "messages/[id]/media", "setup", "notifications"]) {
     const mod = await import(at(`apps/dashboard/app/api/v1/${rel}/route.ts`));
     assert.equal(mod.GET.policy.kind, "read", rel);
     assert.equal(mod.GET.policy.scope, "workspace", rel);
   }
   const people = await import(at("apps/dashboard/app/api/v1/contacts/export/route.ts"));
-  assert.deepEqual(people.GET.policy, { kind: "read", scope: "workspace", role: "owner", rate: "export", spend: false, strict: true });
+  assert.deepEqual(people.GET.policy, { kind: "read", scope: "workspace", role: "owner", rate: "export", spend: false });
   assert.deepEqual(notifications.PUT.policy, { kind: "write", scope: "workspace", role: "viewer", rate: "notify_mark", spend: false });
 });
 
-test("a strict read refuses an account in two workspaces that named neither, as a write does", async () => {
-  const GET = read({ scope: workspace, strict: true, handle: async ({ member }) => member.tenantId });
-  const loose = read({ scope: workspace, handle: async ({ member }) => member.tenantId });
+test("a read refuses an account in two workspaces that named neither, as a write does", async () => {
+  const GET = read({ scope: workspace, handle: async ({ member }) => member.tenantId });
   const tables = { memberships: both("owner", "owner") };
   await refused(GET.run(get(), ctxFor(tables)), "choose_workspace", 400);
   assert.equal(await GET.run(get(`?workspace=${B}`), ctxFor(tables)), B, "named, it proceeds");
-  assert.equal(await loose.run(get(), ctxFor(tables)), A, "an ordinary read keeps the oldest membership");
 });
 
 test("the Inbox read answers the workspace the tab named, and a stranger is a 404", async () => {

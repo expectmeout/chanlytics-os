@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { apiGet } from "./workspace";
 
 /**
  * Settings → Integrations, on a real workspace.
@@ -21,7 +22,7 @@ test.describe("Settings → Integrations on a real workspace", () => {
   });
 
   test("the signup route says whether a number can be connected, and why not", async ({ page }) => {
-    const res = await page.request.get("/api/v1/channels/whatsapp/signup");
+    const res = await apiGet(page, "/api/v1/channels/whatsapp/signup");
     expect(res.status()).toBe(200);
     const { data } = await res.json();
     expect(typeof data.ready).toBe("boolean");

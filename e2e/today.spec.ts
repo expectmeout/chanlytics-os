@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { apiGet } from "./workspace";
 
 /**
  * Today on a real workspace: the hero says what is happening, and everything
@@ -42,7 +43,7 @@ test.describe("Today on a real workspace", () => {
     const day = page.getByTestId("today-day");
     await day.waitFor({ state: "attached", timeout: 15_000 }).catch(() => {});
     if ((await day.count()) === 0) {
-      const res = await page.request.get("/api/v1/calendar");
+      const res = await apiGet(page, "/api/v1/calendar");
       const cal = ((await res.json()).data?.calendar as { feed?: { state?: string } } | undefined)?.feed;
       expect(cal?.state, "no day module, so the feed must not be readable").not.toBe("ok");
       return;

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
-import { activeWorkspace, scoped } from "./workspace";
+import { activeWorkspace, scoped, apiGet } from "./workspace";
 
 /**
  * Billing on a real workspace: the route answers honestly about what this
@@ -16,7 +16,7 @@ test.describe("Billing on a real workspace", () => {
   });
 
   test("the route says whether this deployment can charge, the row's mode and status, and no id Stripe could act on", async ({ page }) => {
-    const res = await page.request.get("/api/v1/billing");
+    const res = await apiGet(page, "/api/v1/billing");
     expect(res.status()).toBe(200);
     const { data } = await res.json();
     expect(typeof data.billing.ready).toBe("boolean");
@@ -28,7 +28,7 @@ test.describe("Billing on a real workspace", () => {
   });
 
   test("Settings › Billing says the arrangement, and offers Stripe only where it can", async ({ page }) => {
-    const { data } = await (await page.request.get("/api/v1/billing")).json();
+    const { data } = await (await apiGet(page, "/api/v1/billing")).json();
     await page.goto("/#/admin/billing");
     await page.waitForLoadState("networkidle");
     const pane = page.getByTestId("billing-real");
@@ -50,7 +50,7 @@ test.describe("Billing on a real workspace", () => {
   });
 
   test("Checkout is refused for a direct arrangement, and says so", async ({ page, baseURL }) => {
-    const { data } = await (await page.request.get("/api/v1/billing")).json();
+    const { data } = await (await apiGet(page, "/api/v1/billing")).json();
     test.skip(data.billing.account.mode !== "direct", "the live workspace pays by card; the refusal is for direct arrangements");
     // Named, as the client names it. Unscoped, this POST was refused with a
     // 400 by the ambiguity guard and the spec read it as a billing failure.
@@ -69,7 +69,7 @@ test.describe("Billing on a real workspace", () => {
   });
 
   test("Setup shows no billing row for a direct arrangement", async ({ page }) => {
-    const { data } = await (await page.request.get("/api/v1/billing")).json();
+    const { data } = await (await apiGet(page, "/api/v1/billing")).json();
     test.skip(data.billing.account.mode !== "direct", "a card-paying workspace has the row");
     await page.goto("/#/admin/setup");
     await page.waitForLoadState("networkidle");

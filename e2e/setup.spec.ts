@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { apiGet } from "./workspace";
 
 /**
  * Setup on a real workspace: one page whose every row is a fact the
@@ -14,7 +15,7 @@ test.describe("Setup on a real workspace", () => {
 
   test("the rows, each with a state in words, a sentence and at most one verb; Setup is the first Workspace tab, after Profile", async ({ page }) => {
     // Nine rows, and a tenth for the Google listing where the platform can look one up.
-    const google = (await (await page.request.get("/api/v1/google")).json()).data as { google: { ready: { places: boolean } } };
+    const google = (await (await apiGet(page, "/api/v1/google")).json()).data as { google: { ready: { places: boolean } } };
     await page.goto("/#/admin/setup");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("setup-readiness")).toBeVisible();

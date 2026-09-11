@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
-import { activeWorkspace, scoped } from "./workspace";
+import { activeWorkspace, scoped, apiGet } from "./workspace";
 
 /**
  * Calendar on a real workspace.
@@ -32,7 +32,7 @@ test.describe("Calendar on a real workspace", () => {
     for (const s of INVENTED) expect(text, `invented: "${s}"`).not.toContain(s);
     expect(text).not.toMatch(/\$\d/);
 
-    const res = await page.request.get("/api/v1/calendar");
+    const res = await apiGet(page, "/api/v1/calendar");
     expect(res.status()).toBe(200);
     const cal = (await res.json()).data.calendar as { feed: { present: boolean; state: string }; days: Array<{ items: unknown[]; windows: unknown[] }> };
     expect(JSON.stringify(cal)).not.toContain("ical_url");
@@ -101,7 +101,7 @@ test.describe("Calendar on a real workspace", () => {
 
   test("adding a person from an appointment is get-or-create: an existing number returns them, a bad one is refused, nothing is duplicated", async ({ page }) => {
     const ws = await activeWorkspace(page);
-    const before = (await (await page.request.get("/api/v1/contacts")).json()).data.people as Array<{ id: string; phone_e164: string | null }>;
+    const before = (await (await apiGet(page, "/api/v1/contacts")).json()).data.people as Array<{ id: string; phone_e164: string | null }>;
     const bad = await page.request.post(scoped("/api/v1/contacts", ws), { data: { phone: "not a number", source: "calendar" }, ...fromTheApp });
     expect(bad.status()).toBe(400);
     expect(((await bad.json()).error?.message ?? "") as string).toContain("phone");
@@ -114,7 +114,7 @@ test.describe("Calendar on a real workspace", () => {
       // real workspace's data to.
       expect(again.status(), `re-adding a stored number answered ${again.status()}: ${JSON.stringify(body.error ?? {})}`).toBe(200);
       expect(body.data).toEqual({ contact_id: known.id, existed: true });
-      const after = (await (await page.request.get("/api/v1/contacts")).json()).data.people as unknown[];
+      const after = (await (await apiGet(page, "/api/v1/contacts")).json()).data.people as unknown[];
       expect(after.length, "an existing number adds nobody").toBe(before.length);
     }
   });

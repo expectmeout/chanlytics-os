@@ -266,8 +266,7 @@
       "scope": "workspace",
       "role": "owner",
       "rate": "export",
-      "spend": false,
-      "strict": true
+      "spend": false
     },
     "GET contacts": {
       "kind": "read",

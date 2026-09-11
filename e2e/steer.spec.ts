@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
-import { activeWorkspace, scoped } from "./workspace";
+import { activeWorkspace, scoped, apiGet } from "./workspace";
 
 /**
  * The text whisper's route, on a real workspace: wired, keeping its doors,
@@ -40,11 +40,11 @@ test.describe("Rewriting a held draft on a real workspace", () => {
 
   test("a reply that already went out cannot be rewritten, and the route says so", async ({ page }) => {
     const ws = await activeWorkspace(page);
-    const list = await page.request.get("/api/v1/conversations");
+    const list = await apiGet(page, "/api/v1/conversations");
     const { data } = await list.json();
     const first = data.conversations?.[0];
     test.skip(!first, "no conversations in this workspace");
-    const thread = await page.request.get(`/api/v1/conversations/${first.id}`);
+    const thread = await apiGet(page, `/api/v1/conversations/${first.id}`);
     const { data: t } = await thread.json();
     const sent = (t.messages ?? []).find((m: { sender: string; status?: string }) => m.sender === "ai" && m.status !== "queued");
     test.skip(!sent, "no sent reply to probe");
@@ -61,11 +61,11 @@ test.describe("Rewriting a held draft on a real workspace", () => {
     expect(stranger.status()).toBe(404);
     // On a reply of this workspace, the words are judged before the draft is,
     // so a blank instruction is a validation refusal whatever the reply's state.
-    const list = await page.request.get("/api/v1/conversations");
+    const list = await apiGet(page, "/api/v1/conversations");
     const { data } = await list.json();
     const first = data.conversations?.[0];
     test.skip(!first, "no conversations in this workspace");
-    const thread = await page.request.get(`/api/v1/conversations/${first.id}`);
+    const thread = await apiGet(page, `/api/v1/conversations/${first.id}`);
     const { data: t } = await thread.json();
     const reply = (t.messages ?? []).find((m: { sender: string }) => m.sender === "ai");
     test.skip(!reply, "no reply to probe");
