@@ -132,11 +132,12 @@ Executed as nine PRs, one per domain, each with its `<domain>-routes.test.mjs` r
 | 6 | Google | #363 | 9 (the callback on the account: the signed state is the credential) |
 | 7 | Ask, metrics, reports | #364 | 8 (a person's own threads and cards on the account) |
 | 8 | The back office, and billing's three | #365 | 8 (the platform scope's door is `backOffice()`) |
-| 9 | The account | this PR | 2 |
+| 9 | The account | #366 | 2 |
+| 10 | The two held routes, on Ruben's go | this PR | 2 |
 
 Departures from the table above, each toward what the code enforced: `escalations`, `ask/messages/[id]/proposals/[pid]` and `ask/threads/[id]` were never row-scoped (RLS is their door, so they are on the account or the workspace as the code read them); `ask` names the viewer role as its floor and must be told the workspace; `billing/invoices`, `billing/resume` and `billing/sync` were missing from the table and went with the back office.
 
-**Held for Ruben's yes, still undeclared:** `workspaces/create` (sign-up) and `team` (the roster). Until they move, `route-policy.json`'s undeclared list holds those two and the ratchet stays a ratchet, not yet the wall the section below describes.
+**The two held routes** (`workspaces/create`, sign-up; `team`, the roster) moved in PR 10 on Ruben's go. `route-policy.json`'s undeclared list is empty, and the ratchet is now the wall the section below describes: a new bare `withRoute` export fails `route-policy.test.mjs`.
 
 Two rules the series taught, now in the tests themselves: `shared-limits.test.mjs` counts a declared `rate: "…",` as a call site, so the floor holds as routes migrate; and `doors-and-rows.test.mjs` treats a row scope as validated by its loader, whose `requireUuid` `workspace-scoping.test.mjs` holds, one per loader.
 

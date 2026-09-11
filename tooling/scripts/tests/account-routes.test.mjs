@@ -17,6 +17,8 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 const me = await import(at("apps/dashboard/app/api/v1/me/route.ts"));
 const workspaces = await import(at("apps/dashboard/app/api/v1/workspaces/route.ts"));
+const create = await import(at("apps/dashboard/app/api/v1/workspaces/create/route.ts"));
+const team = await import(at("apps/dashboard/app/api/v1/team/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -94,4 +96,45 @@ test("the zone: the owner's, the workspace named, checked against Intl, and a ch
   assert.deepEqual(changed, { workspace: { id: B, slug: "bayside", name: "Bayside", status: "active", timezone: "America/Chicago" } });
   assert.equal(tables.tenants.find((t) => t.id === B).timezone, "America/Chicago");
   await refused(workspaces.PATCH.run(send("PATCH", { timezone: "America/Chicago" }, inB), ctxFor({ ...tables, tenants: [] })), "forbidden", 403, "could not be changed");
+});
+
+test("the two that were held: a new workspace is a write of the account with no workspace to judge a role in, counted; the roster is a read of the workspace every member may make", () => {
+  assert.deepEqual(create.POST.policy, { kind: "write", scope: "account", role: null, rate: "create_workspace", spend: false });
+  assert.deepEqual(team.GET.policy, { kind: "read", scope: "workspace", role: null, rate: null, spend: false });
+});
+
+test("a new workspace: the body judged by its schema, the function's own words reaching the owner, and the workspace answered in the shape the list uses", async () => {
+  const made = [];
+  const rpcs = {
+    create_workspace: (a) => {
+      made.push(a);
+      if (a.p_timezone === "Mars/Olympus") throw Object.assign(new Error("Unknown timezone: Mars/Olympus"), { code: "22023" });
+      if (a.p_name === "One too many") throw Object.assign(new Error("An account may hold at most three workspaces."), { code: "54000" });
+      return { id: C, slug: "harbor-two", name: a.p_name, status: "active", timezone: a.p_timezone ?? "America/New_York" };
+    },
+  };
+  const tables = { memberships: both("viewer", "owner") };
+  await refused(create.POST.run(send("POST", { name: "A" }), ctxFor(tables, {}, rpcs)), "validation", 400, "A workspace needs a name of at least 2 characters.");
+  await refused(create.POST.run(send("POST", { name: "Harbor Two", extra: 1 }), ctxFor(tables, {}, rpcs)), "validation", 400);
+  assert.equal(made.length, 0, "nothing reached the function");
+  await refused(create.POST.run(send("POST", { name: "Harbor Two", timezone: "Mars/Olympus" }), ctxFor(tables, {}, rpcs)), "validation", 400, "Unknown timezone: Mars/Olympus");
+  await refused(create.POST.run(send("POST", { name: "One too many" }), ctxFor(tables, {}, rpcs)), "conflict", 409, "at most three workspaces");
+  const out = await create.POST.run(send("POST", { name: "Harbor Two", timezone: "America/Chicago" }), ctxFor(tables, {}, rpcs));
+  assert.deepEqual(out, { workspace: { id: C, slug: "harbor-two", name: "Harbor Two", status: "active", timezone: "America/Chicago" } });
+  assert.deepEqual(made.at(-1), { p_name: "Harbor Two", p_timezone: "America/Chicago" });
+});
+
+test("the roster: the workspace the tab named, assembled after the caller proves membership, with the open invitations beside the members", async () => {
+  const rpcs = { team_roster: (a) => (a.p_tenant_id === A ? [{ membership_id: "m1", member_user_id: USER, email: "ada@example.com", display_name: "Ada", role: "viewer" }] : []) };
+  const tables = {
+    memberships: both("viewer", "owner"),
+    invitations: [
+      { id: "i1", tenant_id: A, email: "bo@example.com", role: "operator", created_at: "2026-09-01T00:00:00Z", expires_at: "2026-09-08T00:00:00Z", accepted_at: null, revoked_at: null },
+      { id: "i2", tenant_id: A, email: "cy@example.com", role: "viewer", created_at: "2026-09-02T00:00:00Z", expires_at: "2026-09-09T00:00:00Z", accepted_at: "2026-09-03T00:00:00Z", revoked_at: null },
+      { id: "i3", tenant_id: B, email: "di@example.com", role: "viewer", created_at: "2026-09-02T00:00:00Z", expires_at: "2026-09-09T00:00:00Z", accepted_at: null, revoked_at: null },
+    ],
+  };
+  const out = await team.GET.run(get(), ctxFor(tables, {}, rpcs));
+  assert.equal(out.members.length, 1, "the members the function names");
+  assert.deepEqual(out.invites.map((i) => i.email), ["bo@example.com"], "open invitations only, this workspace's");
 });

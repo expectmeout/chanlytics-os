@@ -1,17 +1,17 @@
-import { withRoute } from "@/server/with-route";
+import { write, account } from "@/server/route";
 import { AppError } from "@chanlytics/contracts";
 import { z } from "zod";
-import { takeRate } from "@/server/rate-limit";
 import { notifyPlatformSignup } from "@/server/signup";
 
 /**
  * POST /api/v1/workspaces/create — bring a new workspace into existence.
  *
  * NOTE THE ABSENT ROLE CHECK, which is deliberate. Every other mutating route
- * calls requireRole against a workspace the caller already belongs to. There is
+ * names a role against a workspace the caller already belongs to. There is
  * no such workspace here: this is the one write that creates the thing roles
- * are scoped to. The authorisation that matters is the session itself, and the
- * function reads the caller from auth.uid() rather than trusting anything sent.
+ * are scoped to, so it is declared on the account, with no role to name. The
+ * authorisation that matters is the session itself, and the function reads
+ * the caller from auth.uid() rather than trusting anything sent.
  *
  * Neither `tenants` nor `memberships` has an INSERT policy — on purpose, since
  * one on tenants would let any signed-in user mint rows, and one on memberships
@@ -24,6 +24,9 @@ import { notifyPlatformSignup } from "@/server/signup";
  * form said on the auth user and makes nothing, and the person who enters the
  * code lands on the create screen with those answers filled in. A workspace
  * exists only for a person who has proved the inbox that owns it.
+ *
+ * The body stays the route's own to read: the first issue's message is what
+ * the create screen shows, without a field name in front of it.
  */
 
 const Body = z
@@ -41,32 +44,36 @@ const RAISED: Record<string, { code: "validation" | "forbidden" | "conflict"; st
   "28000": { code: "forbidden", status: 403 },  // no auth.uid() behind the session
 };
 
-export const POST = withRoute(async (req, ctx) => {
-  await takeRate(ctx.userId, "create_workspace");
-  const parsed = Body.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) {
-    throw new AppError("validation", parsed.error.issues[0]?.message ?? "Give the workspace a name.");
-  }
+export const POST = write({
+  scope: account,
+  role: null,
+  rate: "create_workspace",
+  handle: async ({ ctx, req }) => {
+    const parsed = Body.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) {
+      throw new AppError("validation", parsed.error.issues[0]?.message ?? "Give the workspace a name.");
+    }
 
-  const { data, error } = await ctx.supabase
-    .rpc("create_workspace", { p_name: parsed.data.name, p_timezone: parsed.data.timezone ?? undefined })
-    .single();
+    const { data, error } = await ctx.supabase
+      .rpc("create_workspace", { p_name: parsed.data.name, p_timezone: parsed.data.timezone ?? undefined })
+      .single();
 
-  if (error) {
-    // The messages on these codes are written for an owner to read — the
-    // function raises "Unknown timezone: Mars/Olympus", not a constraint name —
-    // so they are passed through rather than replaced with something vaguer.
-    const mapped = RAISED[error.code ?? ""];
-    if (mapped) throw new AppError(mapped.code, error.message, mapped.status);
-    throw new Error(error.message);
-  }
+    if (error) {
+      // The messages on these codes are written for an owner to read — the
+      // function raises "Unknown timezone: Mars/Olympus", not a constraint name —
+      // so they are passed through rather than replaced with something vaguer.
+      const mapped = RAISED[error.code ?? ""];
+      if (mapped) throw new AppError(mapped.code, error.message, mapped.status);
+      throw new Error(error.message);
+    }
 
-  // The platform mailbox hears about a new workspace from the one place
-  // workspaces are made. Bounded and best-effort: the workspace exists whether
-  // or not the notice gets through.
-  await notifyPlatformSignup(data.id, ctx.email ?? "");
+    // The platform mailbox hears about a new workspace from the one place
+    // workspaces are made. Bounded and best-effort: the workspace exists whether
+    // or not the notice gets through.
+    await notifyPlatformSignup(data.id, ctx.email ?? "");
 
-  // Returned in the same shape /api/v1/workspaces lists, so the client can put
-  // it straight into its workspace list without a second round trip.
-  return { workspace: data };
+    // Returned in the same shape /api/v1/workspaces lists, so the client can put
+    // it straight into its workspace list without a second round trip.
+    return { workspace: data };
+  },
 });

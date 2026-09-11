@@ -1,9 +1,6 @@
 {
   "note": "Written by route-policy.test.mjs (UPDATE_ROUTE_POLICY=1). A change here is a change to who may do what, how often, and on which workspace: review it as one.",
-  "undeclared": [
-    "team",
-    "workspaces/create"
-  ],
+  "undeclared": [],
   "routes": {
     "POST ask/messages/[id]/proposals/[pid]": {
       "kind": "write",
@@ -720,6 +717,13 @@
       "rate": "invite",
       "spend": false
     },
+    "GET team": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "PUT templates/[id]": {
       "kind": "write",
       "scope": "row",
@@ -767,6 +771,13 @@
       "scope": "workspace",
       "role": "operator",
       "rate": "settings",
+      "spend": false
+    },
+    "POST workspaces/create": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "create_workspace",
       "spend": false
     },
     "GET workspaces": {
