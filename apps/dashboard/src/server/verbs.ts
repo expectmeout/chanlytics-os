@@ -177,29 +177,41 @@ export function assertCanSend(conv: VerbConversation): void {
   if (isOptedOutContact(conv)) throw new AppError("conflict", OPT_OUT_REFUSAL);
 }
 
+/**
+ * One row on the ledger: who did what to which subject, marked `via: "ask"`
+ * in the payload when a card was tapped, and linked through `undo_of` to the
+ * decision it reverses when the request said so. Takes the narrow context so
+ * the team service, which builds its own, can write through the same door.
+ */
 export async function recordDecision(
-  ctx: RouteContext,
+  ctx: Pick<RouteContext, "supabase" | "userId" | "via" | "undoOf">,
   tenantId: string,
   subjectType: DecisionSubject,
   subjectId: string,
   verb: DecisionVerb,
   payload: Json = {},
 ): Promise<string> {
-  const { data, error } = await ctx.supabase
-    .from("decisions")
-    .insert({
-      tenant_id: tenantId,
-      subject_type: subjectType,
-      subject_id: subjectId,
-      verb,
-      actor_type: "user",
-      actor_user_id: ctx.userId,
-      payload: ctx.via && payload && typeof payload === "object" && !Array.isArray(payload) ? { ...(payload as Record<string, Json>), via: ctx.via } : payload,
-    })
-    .select("id")
-    .single();
-  if (error) throw new Error(`decision: ${error.message}`);
-  return data.id;
+  const row = {
+    tenant_id: tenantId,
+    subject_type: subjectType,
+    subject_id: subjectId,
+    verb,
+    actor_type: "user" as const,
+    actor_user_id: ctx.userId,
+    payload: ctx.via && payload && typeof payload === "object" && !Array.isArray(payload) ? { ...(payload as Record<string, Json>), via: ctx.via } : payload,
+  };
+  const insert = (undoOf: string | null) => ctx.supabase.from("decisions").insert({ ...row, undo_of: undoOf }).select("id").single();
+  let attempt = await insert(ctx.undoOf ?? null);
+  if (attempt.error && ctx.undoOf && attempt.error.code === "23503") {
+    // The undo names a decision this database does not have: a card kept from
+    // a stale tab, or a header nobody should have sent. The verb has happened,
+    // so the row is kept without the link, and the log says which link was
+    // refused rather than the verb failing after the fact.
+    console.error("decision_undo_of_unknown", JSON.stringify({ undo_of: ctx.undoOf, verb, subject: subjectType }));
+    attempt = await insert(null);
+  }
+  if (attempt.error || !attempt.data) throw new Error(`decision: ${attempt.error?.message ?? "no row"}`);
+  return attempt.data.id;
 }
 
 /** reply and hand-back auto-resolve; take-over claims but keeps open (§4). */

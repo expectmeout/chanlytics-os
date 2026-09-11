@@ -20,5 +20,5 @@ export const POST = write({
   role: "owner",
   rate: "invite",
   input: Body,
-  handle: async ({ ctx, member, input }) => await inviteMember(ctx.supabase, member.tenantId, ctx.userId, input.email, input.role),
+  handle: async ({ ctx, member, input }) => await inviteMember(ctx.supabase, member.tenantId, ctx.userId, input.email, input.role, ctx.via),
 });

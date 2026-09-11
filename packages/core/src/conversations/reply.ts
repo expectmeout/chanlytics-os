@@ -19,7 +19,8 @@ export interface ReplyBody {
   text?: string;
   template?: { name: string; language: string; params?: string[] };
 }
-export interface ReplyReceipt { message_id: string; status: string; cancelable_until: string; window_open: boolean; withdrawn_drafts: number }
+/** `decision_id` is the ledger row, for an undo to name; absent on a receipt stored before it was kept. */
+export interface ReplyReceipt { message_id: string; status: string; cancelable_until: string; window_open: boolean; withdrawn_drafts: number; decision_id?: string }
 export interface ReplyThread extends Pick<Thread, "id" | "tenant_id" | "phone_e164"> {
   contact_id: string | null;
   last_wa_inbound_at: string | null;
@@ -165,7 +166,7 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
   const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "reply", { message_id, window_open: window.open, template: templateName });
   await ports.resolveEscalation(conv.id, decision_id);
 
-  const receipt: ReplyReceipt = { message_id, status: "queued", cancelable_until: dueAt.toISOString(), window_open: window.open, withdrawn_drafts };
+  const receipt: ReplyReceipt = { message_id, status: "queued", cancelable_until: dueAt.toISOString(), window_open: window.open, withdrawn_drafts, decision_id };
   if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt);
   return receipt;
 }

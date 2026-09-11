@@ -247,7 +247,7 @@ test("a config change records who and what, and neither is the values", async ()
 
   const route = readCode("apps/dashboard/app/api/v1/settings/route.ts");
   assert.ok(route.includes('kind: "settings.changed"'), "the change lands in the ledger every other consequential act does");
-  assert.ok(route.includes("data: { fields, by: ctx.userId, version: result.row.version },"), "fields and author, never the values");
+  assert.ok(route.includes("data: { fields, by: ctx.userId, version: result.row.version, ...(ctx.via ? { via: ctx.via } : {}) },"), "fields and author, never the values; a card's mark when a card was tapped");
   assert.ok(!/data: \{[^}]*config/.test(route), "REGRESSION: an audit row must not copy the business's own words into a second place");
   assert.ok(route.includes("putTenantConfig(ctx.supabase, member.tenantId, parsed.data as Json, body.version, ctx.userId)"), "and the row itself records its author");
 

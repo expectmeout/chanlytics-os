@@ -194,6 +194,9 @@ var EVENT_KINDS = [
   "google.disconnected",
   "google.replied",
   "workspace.created",
+  /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
+  "settings.changed",
+  "policy.changed",
   "billing.updated",
   "billing.paused",
   "billing.resumed"
@@ -4290,6 +4293,7 @@ function partialString(prefix, key) {
   }
   return out;
 }
+var ASK_THREAD_VERBS = ["take_over", "hand_back", "snooze", "wake", "archive", "resolve"];
 var PROPOSAL_GATE = {
   reply: "approve",
   steer: "approve",
@@ -7623,6 +7627,7 @@ export {
   ASK_PAGES,
   ASK_PAGE_ROUTES,
   ASK_RETENTION_DAYS,
+  ASK_THREAD_VERBS,
   ASK_TOKENS_DAY,
   ASK_TURN_BUDGET_MS,
   AUDIENCE_KINDS,

@@ -61,7 +61,7 @@ test("inside the window: the words go as they are; the thread is paused and clai
   assert.deepEqual(log[4][3], { message_id: "m1", conversation_id: "c1", to_phone: "+15550000001", body: "On our way." });
   assert.deepEqual(log[5], ["record", "t1", "conversation", "c1", "reply", { message_id: "m1", window_open: true, template: null }]);
   assert.deepEqual(log[6], ["resolveEscalation", "c1", "d1"]);
-  assert.deepEqual(r, { message_id: "m1", status: "queued", cancelable_until: iso(NOW + SEND_GRACE_MS), window_open: true, withdrawn_drafts: 1 });
+  assert.deepEqual(r, { message_id: "m1", status: "queued", cancelable_until: iso(NOW + SEND_GRACE_MS), window_open: true, withdrawn_drafts: 1, decision_id: "d1" });
 });
 
 test("inside the window, empty text is refused; on the texting line a text over 1600 characters is refused; both before anything is touched", async () => {
@@ -128,7 +128,7 @@ test("a replay: the same key and intent inside the window returns the stored rec
   assert.equal((await replyToConversation(old.ports, cmd({ idempotencyKey: "k1" }))).message_id, "m1", "an old receipt does not answer");
   const other = fakes({ priorReceipt: { response: stored, created_at: iso(NOW - 5_000), request_hash: "h(other)" } });
   assert.equal((await replyToConversation(other.ports, cmd({ idempotencyKey: "k1" }))).message_id, "m1", "a different intent under the same key goes through");
-  assert.deepEqual(other.log.at(-1), ["storeReceipt", "t1", key, intent, { message_id: "m1", status: "queued", cancelable_until: iso(NOW + SEND_GRACE_MS), window_open: true, withdrawn_drafts: 1 }]);
+  assert.deepEqual(other.log.at(-1), ["storeReceipt", "t1", key, intent, { message_id: "m1", status: "queued", cancelable_until: iso(NOW + SEND_GRACE_MS), window_open: true, withdrawn_drafts: 1, decision_id: "d1" }]);
   const noKey = fakes();
   await replyToConversation(noKey.ports, cmd());
   assert.ok(!noKey.ops().includes("storeReceipt"), "no key, nothing stored");
