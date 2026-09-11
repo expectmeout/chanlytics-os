@@ -121,9 +121,9 @@ test("the summary counts messages and calls separately", () => {
   });
 
   test("the snooze route leaves the escalation open", () => {
-    const src = readCode("apps/dashboard/app/api/v1/conversations/[id]/snooze/route.ts");
+    const src = readCode("packages/core/src/conversations/snooze.ts");
     assert.ok(
-      !src.includes("resolveOpenEscalation"),
+      !src.includes("resolveEscalation"),
       "snoozing must not resolve the request the operator is postponing",
     );
   });
@@ -138,8 +138,8 @@ test("the summary counts messages and calls separately", () => {
     assert.ok(body.includes('realVerb(t, "wake"'), "wake must call the wake verb");
     assert.ok(!body.includes('"hand-back"'), "waking must not hand the thread back");
 
-    const route = readCode("apps/dashboard/app/api/v1/conversations/[id]/wake/route.ts");
-    assert.ok(!route.includes("resolveOpenEscalation"), "the wake route must not resolve either");
-    assert.ok(route.includes('.select("id")'), "and must count the rows it changed");
+    const route = readCode("packages/core/src/conversations/wake.ts");
+    assert.ok(!route.includes("resolveEscalation"), "the wake verb must not resolve either");
+    assert.ok(route.includes("if (!(await ports.wake(conv.id)))"), "and refuses when no row changed (run in core-thread-verbs.test.mjs)");
   });
 }

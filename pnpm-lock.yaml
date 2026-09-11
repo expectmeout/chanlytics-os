@@ -39,6 +39,9 @@ importers:
       '@chanlytics/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@chanlytics/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@chanlytics/db':
         specifier: workspace:*
         version: link:../../packages/db

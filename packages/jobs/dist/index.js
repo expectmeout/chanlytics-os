@@ -18509,6 +18509,7 @@ async function templatePurpose(db, tenantId, template) {
   if (error) throw new Error(`deliver: cannot read template ${template.name}: ${error.message}`);
   return purposeOfTemplate2(data?.category);
 }
+var MAX_SNOOZE_MS = 30 * 24 * 3600 * 1e3;
 
 // ../db/dist/index.js
 var __defProp4 = Object.defineProperty;
