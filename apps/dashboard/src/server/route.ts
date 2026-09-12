@@ -203,7 +203,9 @@ function build<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I, O>)
       if (!member) throw new Error(`a ${spec.scope.kind}-scoped route cannot spend a workspace's money`);
       await requireSpend(ctx, member);
     }
-    if (spec.rate) await takeRate(ctx.userId, spec.rate);
+    // A route that spends takes its count strictly: the shared count, or a
+    // refusal -- never a per-instance count a burst across instances walks past.
+    if (spec.rate) await takeRate(ctx.userId, spec.rate, undefined, spec.spend === true);
     const input =
       kind === "write"
         ? spec.input ? parse(spec.input, await bodyOf(req)) : undefined
