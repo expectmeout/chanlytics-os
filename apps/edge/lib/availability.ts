@@ -13,12 +13,11 @@
  * the receptionist says nothing about open times (the link still works),
  * and the failure is logged where the diagnostic can find it.
  */
-import { parseIcs, freeWindows, describeOpenings, describeVisits, feedUrlOk, visitsOf, type FeedItem, type Opening, type ParsedFeed } from "./workspace/contracts.js";
+import { parseIcs, freeWindows, describeOpenings, describeVisits, feedUrlOk, feedBodyProblem, seasonHorizon, visitsOf, type FeedItem, type Opening, type ParsedFeed } from "./workspace/contracts.js";
 import type { TenantRuntime } from "./tenant-runtime.js";
 
 const CACHE_MS = 5 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 6000;
-const MAX_BYTES = 2 * 1024 * 1024;
 
 interface Cached { text: string | null; at: number; parsed: ParsedFeed | null }
 const feeds = new Map<string, Cached>();
@@ -42,8 +41,14 @@ async function fetchFeed(tenantId: string, url: string): Promise<string | null> 
       console.error("availability_feed_http", JSON.stringify({ tenant: tenantId, status: r.status }));
     } else {
       const body = await r.text();
-      if (body.length > MAX_BYTES) console.error("availability_feed_too_large", JSON.stringify({ tenant: tenantId, bytes: body.length }));
-      else if (!/BEGIN:VCALENDAR/i.test(body)) console.error("availability_feed_not_ical", JSON.stringify({ tenant: tenantId, head: body.slice(0, 40) }));
+      // One ceiling, one judgement, shared with the dashboard's loader: this
+      // inlined 2 * 1024 * 1024 while the dashboard refused at FEED_MAX_BYTES,
+      // so a feed between the two was read by one reader and refused by the
+      // other, and the receptionist and the board would then disagree about a
+      // business's own week with nothing on any page to say why.
+      const problem = feedBodyProblem(body);
+      if (problem === "too_large") console.error("availability_feed_too_large", JSON.stringify({ tenant: tenantId, bytes: body.length }));
+      else if (problem === "not_ical") console.error("availability_feed_not_ical", JSON.stringify({ tenant: tenantId, head: body.slice(0, 40) }));
       else text = body;
     }
   } catch (e) {
@@ -53,11 +58,6 @@ async function fetchFeed(tenantId: string, url: string): Promise<string | null> 
   // second wait to every message for as long as it stays broken.
   feeds.set(tenantId, { text, at: Date.now(), parsed: null });
   return text;
-}
-
-/** Ninety days back for a last visit; ninety ahead, or the offering window if longer, for a next one and the people a sweep adds. */
-function horizonFor(daysAhead: number, now: Date): { from: number; to: number } {
-  return { from: now.getTime() - 90 * 86_400_000, to: now.getTime() + Math.max(daysAhead + 1, 90) * 86_400_000 };
 }
 
 /**
@@ -70,7 +70,7 @@ async function parsedFeedOf(tenantId: string, url: string, tz: string, daysAhead
   if (text === null || !tz) return null;
   const hit = feeds.get(tenantId);
   if (hit?.parsed && hit.text === text) return hit.parsed;
-  const parsed = parseIcs(text, tz, { horizon: horizonFor(daysAhead, now) });
+  const parsed = parseIcs(text, tz, { horizon: seasonHorizon(now, daysAhead) });
   if (hit && hit.text === text) hit.parsed = parsed;
   return parsed;
 }

@@ -18,7 +18,7 @@ import { agoWords } from "./time";
  */
 import { DAYS, hoursRuns, type Closure, type Hours } from "./config";
 import { waWindow } from "./policy";
-import { BOOKING_DEFAULTS, clockInZone, closedOn, dayInZone, dayIntervals, type BookingRulesLike } from "./availability";
+import { BOOKING_DEFAULTS, clockInZone, closedOn, dayInZone, dayIntervals, localToUtcMs, type BookingRulesLike } from "./availability";
 import type { FeedFailure } from "./feed-url";
 import { formatPhoneDisplay } from "./phone";
 
@@ -489,19 +489,20 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
 }
 
 /** Midnight of a day key in `tz`, as an instant. */
+/**
+ * Midnight of a day key, in the business's zone.
+ *
+ * ONE CLOCK, NOT TWO. This was a hand-written two-pass guess over a private
+ * `zoneOffsetOf`, which computed the same offset `zoneOffsetMs` in
+ * availability.ts already computed, by a different route — and the two passes
+ * were `localToUtcMs` spelled out again, in a file that already imported from
+ * that module. Daylight saving is the one piece of arithmetic in this product
+ * it is least affordable to have two of: a second copy does not fail, it
+ * disagrees, twice a year, about which hour a day starts.
+ */
 export function zoneMidnight(tz: string, key: string): number {
   const { y, m, d } = keyParts(key);
-  const guess = Date.UTC(y, m - 1, d);
-  const off1 = zoneOffsetOf(tz, guess);
-  const first = guess - off1;
-  const off2 = zoneOffsetOf(tz, first);
-  return guess - off2;
-}
-
-function zoneOffsetOf(tz: string, atMs: number): number {
-  const c = clockInZone(tz, atMs);
-  const day = dayInZone(tz, atMs);
-  return Date.UTC(day.y, day.m - 1, day.d, c.hh, c.mm, c.ss) - Math.floor(atMs / 1000) * 1000;
+  return localToUtcMs(tz, y, m, d, 0, 0);
 }
 
 /* ------------------------------------------------- the window and the views */

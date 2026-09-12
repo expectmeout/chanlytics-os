@@ -1192,6 +1192,21 @@ function feedProblemWords(reason, status) {
       return null;
   }
 }
+function feedBodyProblem(text) {
+  if (text.length > FEED_MAX_BYTES) return "too_large";
+  if (!/BEGIN:VCALENDAR/i.test(text)) return "not_ical";
+  return null;
+}
+var DAY_MS2 = 864e5;
+function offeringHorizon(now, daysAhead) {
+  return { from: now.getTime() - DAY_MS2, to: now.getTime() + (daysAhead + 1) * DAY_MS2 };
+}
+function seasonHorizon(now, daysAhead = 0) {
+  return { from: now.getTime() - DAY_MS2 * 90, to: now.getTime() + Math.max(daysAhead + 1, 90) * DAY_MS2 };
+}
+function previewHorizon(now) {
+  return { from: now.getTime() - DAY_MS2, to: now.getTime() + 30 * DAY_MS2 };
+}
 
 // src/availability.ts
 function zoneParts(tz, at2) {
@@ -2682,16 +2697,7 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
 }
 function zoneMidnight(tz, key) {
   const { y, m, d } = keyParts(key);
-  const guess = Date.UTC(y, m - 1, d);
-  const off1 = zoneOffsetOf(tz, guess);
-  const first = guess - off1;
-  const off2 = zoneOffsetOf(tz, first);
-  return guess - off2;
-}
-function zoneOffsetOf(tz, atMs) {
-  const c = clockInZone(tz, atMs);
-  const day = dayInZone(tz, atMs);
-  return Date.UTC(day.y, day.m - 1, day.d, c.hh, c.mm, c.ss) - Math.floor(atMs / 1e3) * 1e3;
+  return localToUtcMs(tz, y, m, d, 0, 0);
 }
 function spanForView(view, anchor) {
   if (view === "month") return monthSpan(anchor);
@@ -3073,11 +3079,11 @@ var PEOPLE_TABS = [
   { id: "quiet", label: "Quiet" },
   { id: "active", label: "Active" }
 ];
-var DAY_MS2 = 864e5;
-var WEEK_MS2 = 7 * DAY_MS2;
-var MONTH_MS = 30 * DAY_MS2;
-var NEW_WINDOW_MS = 7 * DAY_MS2;
-var QUIET_AFTER_MS = 30 * DAY_MS2;
+var DAY_MS3 = 864e5;
+var WEEK_MS2 = 7 * DAY_MS3;
+var MONTH_MS = 30 * DAY_MS3;
+var NEW_WINDOW_MS = 7 * DAY_MS3;
+var QUIET_AFTER_MS = 30 * DAY_MS3;
 var REASON_SHORT = {
   human_token: "asked for a person",
   non_text: "sent something the receptionist can't read",
@@ -3116,7 +3122,7 @@ function dayLabel(ms2, nowMs) {
   const now = new Date(nowMs);
   const key = d.toDateString();
   if (key === now.toDateString()) return `Today \xB7 ${DATE_FMT2.format(d)}`;
-  if (key === new Date(nowMs - DAY_MS2).toDateString()) return `Yesterday \xB7 ${DATE_FMT2.format(d)}`;
+  if (key === new Date(nowMs - DAY_MS3).toDateString()) return `Yesterday \xB7 ${DATE_FMT2.format(d)}`;
   return fmtDate(ms2, nowMs);
 }
 function mmss3(ms2) {
@@ -3294,8 +3300,8 @@ function toPersonRowVM(r, now = /* @__PURE__ */ new Date()) {
     askedNotBooked,
     nextVisitMs,
     lastVisitMs,
-    nextVisitDays: nextVisitMs !== null ? Math.max(0, Math.ceil((nextVisitMs - nowMs) / DAY_MS2)) : null,
-    lastVisitDays: lastVisitMs !== null ? Math.max(0, Math.floor((nowMs - lastVisitMs) / DAY_MS2)) : null,
+    nextVisitDays: nextVisitMs !== null ? Math.max(0, Math.ceil((nextVisitMs - nowMs) / DAY_MS3)) : null,
+    lastVisitDays: lastVisitMs !== null ? Math.max(0, Math.floor((nowMs - lastVisitMs) / DAY_MS3)) : null,
     nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
     lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
     calendarTz: v?.timezone ?? null
@@ -3400,7 +3406,7 @@ var RECENCY_BUCKETS = [
 function recencyCells(rows, nowMs) {
   const cells = RECENCY_BUCKETS.map((b) => ({ label: b.label, count: 0 }));
   for (const v of rows) {
-    const days = v.lastContact.ts === null ? Infinity : (nowMs - v.lastContact.ts) / DAY_MS2;
+    const days = v.lastContact.ts === null ? Infinity : (nowMs - v.lastContact.ts) / DAY_MS3;
     let i = RECENCY_BUCKETS.findIndex((b) => days < b.max);
     if (i === -1) i = cells.length - 1;
     cells[i].count++;
@@ -3413,7 +3419,7 @@ function oneLine(text, max) {
 }
 function clock(ms2, nowMs) {
   const time = new Date(ms2).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  return nowMs - ms2 < DAY_MS2 ? time : `${fmtDate(ms2, nowMs)} ${time}`;
+  return nowMs - ms2 < DAY_MS3 ? time : `${fmtDate(ms2, nowMs)} ${time}`;
 }
 function attentionRow(p, nowMs) {
   const lc = p.lastContact;
@@ -4190,7 +4196,7 @@ function todayAway(rows, max = 5) {
 }
 
 // src/notifications.ts
-var DAY_MS3 = 24 * 3600 * 1e3;
+var DAY_MS4 = 24 * 3600 * 1e3;
 function buildNotificationFeed(input) {
   const { now } = input;
   const items = [];
@@ -4227,7 +4233,7 @@ function buildNotificationFeed(input) {
   }
   for (const c of input.calls ?? []) {
     if (!c.missed || c.live || typeof c.startedAtMs !== "number") continue;
-    if (now - c.startedAtMs > DAY_MS3) continue;
+    if (now - c.startedAtMs > DAY_MS4) continue;
     items.push({
       key: `call:${c.callId}`,
       kind: "missed_call",
@@ -5389,7 +5395,7 @@ function exampleParams(specs, businessName) {
 }
 
 // src/playbooks.ts
-var DAY_MS4 = 864e5;
+var DAY_MS5 = 864e5;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
   { id: "new_week", label: "Welcome", list: "new_week", cls: "campaign", kind: "list", hint: "First contact in the last 7 days" },
@@ -5401,7 +5407,7 @@ var PLAYBOOK_TRIGGERS = [
 var PLAYBOOK_STATES = ["running", "paused"];
 var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS4;
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var PLAYBOOK_NAME_MAX = 80;
 function triggerOf(id) {
@@ -5414,14 +5420,14 @@ function eligibleForPlaybook(rows, p, touches, nowMs) {
   if (t.kind === "visit") {
     const pool2 = eligibleFor(rows, "everyone", null, null, purpose).filter((r) => {
       if (!r.calendarTz) return false;
-      if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS4));
-      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS4)) && !r.booked;
+      if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS5));
+      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS5)) && !r.booked;
     });
     pool2.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
     return pool2.slice(0, Math.max(1, p.cap_per_run));
   }
   const pool = t.list ? eligibleFor(rows, "list", t.list, null, purpose) : eligibleFor(rows, "everyone", null, null, purpose);
-  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS4;
+  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS5;
   const picked = pool.filter((r) => {
     const mine = touches.byThis.get(r.id);
     if (mine !== void 0 && nowMs - mine < gapMs) return false;
@@ -5818,8 +5824,8 @@ function channelFor(rows, kind) {
   const pool = on.length > 0 ? on : mine;
   return [...pool].sort((a, b) => Date.parse(a.created_at ?? "") - Date.parse(b.created_at ?? ""))[0] ?? pool[0];
 }
-var DAY_MS5 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS5;
+var DAY_MS6 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS6;
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 function ago2(ms2, nowMs) {
   return agoWords(ms2, nowMs, { dateAfterMs: QUIET_AFTER_MS2, date: (at2) => DATE_FMT4.format(new Date(at2)) });
@@ -8521,6 +8527,7 @@ export {
   extractContacts,
   factConflicts,
   fastPath,
+  feedBodyProblem,
   feedProblemWords,
   feedSourceLabel,
   feedUrlOk,
@@ -8605,6 +8612,7 @@ export {
   normalizeNavigate,
   normalizePhone,
   numberHealth,
+  offeringHorizon,
   offersYesRefusal,
   ok,
   optInConfirmation,
@@ -8645,6 +8653,7 @@ export {
   policyClassOfIntent,
   policyLinks,
   policyRules,
+  previewHorizon,
   priceWords,
   providerNameOf,
   purposeOfPlaybook,
@@ -8685,6 +8694,7 @@ export {
   sameQuestion,
   scheduleLine,
   scopeFromRoute,
+  seasonHorizon,
   sendFailureIsOurs,
   serverNotificationRows,
   setupRoute,

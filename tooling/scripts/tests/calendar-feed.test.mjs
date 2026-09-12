@@ -17,7 +17,19 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
-import { feedProblemWords, feedUrlOk, localToUtcMs, TenantConfigWriteSchema, toCalendarVM } from "@chanlytics/contracts";
+import {
+  feedBodyProblem,
+  FEED_MAX_BYTES,
+  feedProblemWords,
+  feedUrlOk,
+  localToUtcMs,
+  offeringHorizon,
+  previewHorizon,
+  seasonHorizon,
+  TenantConfigWriteSchema,
+  toCalendarVM,
+  zoneMidnight,
+} from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -36,6 +48,56 @@ const ny = (y, m, d, hh, mm = 0) => localToUtcMs(TZ, y, m, d, hh, mm);
 const vevent = (lines) => ["BEGIN:VEVENT", ...lines, "END:VEVENT"];
 const ics = (...events) => ["BEGIN:VCALENDAR", ...events.flat(), "END:VCALENDAR"].join("\r\n");
 const ONE = ics(vevent(["UID:a1", "SUMMARY:Ana Ruiz · Balayage", "DESCRIPTION:Ana Ruiz +1 (917) 555-0100", "DTSTART;TZID=America/New_York:20260908T140000", "DTEND;TZID=America/New_York:20260908T153000"]));
+
+const DAY = 86_400_000;
+
+test("three windows, named, and every call site's old arithmetic lands on the same instants", () => {
+  const t = NOW.getTime();
+  // What the receptionist may offer: yesterday, for a visit already under way,
+  // through the last day it is allowed to book into.
+  assert.deepEqual(offeringHorizon(NOW, 14), { from: t - DAY, to: t + 15 * DAY });
+  // A season either side. The board read plus-or-minus ninety days, which is
+  // exactly this rule with no offering window.
+  assert.deepEqual(seasonHorizon(NOW), { from: t - 90 * DAY, to: t + 90 * DAY });
+  // The edge's own horizonFor and the prompt preview's inline copy were this,
+  // byte for byte, in two runtimes, with nothing saying they were meant to be.
+  assert.deepEqual(seasonHorizon(NOW, 14), { from: t - 90 * DAY, to: t + 90 * DAY });
+  assert.deepEqual(
+    seasonHorizon(NOW, 200),
+    { from: t - 90 * DAY, to: t + 201 * DAY },
+    "a workspace booking further out than a season widens the window, or the board and the receptionist disagree about a day it can offer",
+  );
+  // A month, to prove an address works: the preview answers "is this the right
+  // link", and a season of a busy salon is slower and no more convincing.
+  assert.deepEqual(previewHorizon(NOW), { from: t - DAY, to: t + 30 * DAY });
+});
+
+test("both readers judge a fetched body the same way, against one ceiling", () => {
+  assert.equal(feedBodyProblem("BEGIN:VCALENDAR\r\nEND:VCALENDAR"), null);
+  assert.equal(feedBodyProblem("<html>not a calendar</html>"), "not_ical");
+  // THE CEILINGS DISAGREED. The dashboard refused at FEED_MAX_BYTES while the
+  // edge inlined 2 * 1024 * 1024, so a feed between 2,000,000 and 2,097,152
+  // bytes was read by one reader and refused by the other — the receptionist
+  // and the board differing about a business's own week, with nothing on any
+  // page to say why.
+  assert.equal(FEED_MAX_BYTES, 2_000_000);
+  assert.equal(feedBodyProblem("BEGIN:VCALENDAR" + "x".repeat(2_050_000)), "too_large", "and both refuse it now");
+  assert.equal(feedBodyProblem("BEGIN:VCALENDAR" + "x".repeat(FEED_MAX_BYTES)), "too_large");
+});
+
+test("midnight is one clock, across both daylight-saving edges", () => {
+  // Daylight saving is the arithmetic this product can least afford two of: a
+  // second copy does not fail, it disagrees, twice a year, about which hour a
+  // day starts. zoneMidnight was a hand-written two-pass guess over a private
+  // offset function that recomputed what availability.ts already exported.
+  for (const key of ["2026-03-08", "2026-11-01", "2026-09-08", "2026-01-01"]) {
+    const [y, m, d] = key.split("-").map(Number);
+    assert.equal(zoneMidnight(TZ, key), localToUtcMs(TZ, y, m, d, 0, 0), key);
+  }
+  // And the instants themselves, so the rewrite cannot quietly shift a day.
+  assert.equal(zoneMidnight(TZ, "2026-03-08"), Date.UTC(2026, 2, 8, 5, 0), "the day the clocks go forward still starts at 05:00Z");
+  assert.equal(zoneMidnight(TZ, "2026-11-01"), Date.UTC(2026, 10, 1, 4, 0), "the day they go back still starts at 04:00Z");
+});
 
 /** A scripted network: a URL answers what the test says, and every call is counted. */
 const realFetch = globalThis.fetch;

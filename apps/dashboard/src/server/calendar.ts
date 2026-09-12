@@ -18,6 +18,8 @@ import {
   parseIcs,
   parseTenantConfig,
   peopleFromItems,
+  previewHorizon,
+  seasonHorizon,
   shiftKey,
   toVisitDto,
   zoneMidnight,
@@ -85,7 +87,7 @@ async function parsedFeedFor(tenantId: string, url: string, tz: string, now: Dat
   if (!feed.text) return { parsed: null, at: null, reason: feed.reason, status: feed.status };
   const hit = parsedFeeds.get(tenantId);
   if (hit && hit.text === feed.text && hit.tz === tz) return { parsed: hit.parsed, at: feed.at, reason: feed.reason, status: feed.status };
-  const parsed = parseIcs(feed.text, tz, { horizon: { from: now.getTime() - 90 * 86_400_000, to: now.getTime() + 90 * 86_400_000 } });
+  const parsed = parseIcs(feed.text, tz, { horizon: seasonHorizon(now) });
   parsedFeeds.set(tenantId, { text: feed.text, tz, parsed });
   return { parsed, at: feed.at, reason: feed.reason, status: feed.status };
 }
@@ -289,7 +291,7 @@ export async function previewFeed(url: string, tz: string, now = new Date()): Pr
   }
   if (text.length > FEED_MAX_BYTES) throw new AppError("validation", feedProblemWords("too_large") ?? "That feed is too large to read.");
   if (!/BEGIN:VCALENDAR/i.test(text)) throw new AppError("validation", feedProblemWords("not_ical") ?? "That address is not an iCal feed.");
-  const parsed = parseIcs(text, tz, { horizon: { from: now.getTime() - 86_400_000, to: now.getTime() + 30 * 86_400_000 } });
+  const parsed = parseIcs(text, tz, { horizon: previewHorizon(now) });
   const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   const next = parsed.items
     .filter((it) => it.end >= now.getTime())
