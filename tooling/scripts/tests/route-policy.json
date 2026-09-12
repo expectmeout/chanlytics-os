@@ -261,11 +261,25 @@
       "rate": "erase",
       "spend": false
     },
+    "PUT contacts/consent": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "consent",
+      "spend": false
+    },
     "GET contacts/export": {
       "kind": "read",
       "scope": "workspace",
       "role": "owner",
       "rate": "export",
+      "spend": false
+    },
+    "PUT contacts/marketing-consent": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "consent",
       "spend": false
     },
     "GET contacts": {

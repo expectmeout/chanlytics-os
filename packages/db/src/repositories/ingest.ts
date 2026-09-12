@@ -84,6 +84,8 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
       p_consent: "opted_in",
       p_source: "customer_message",
       p_note: null,
+      // The proof (00110): where it came from, which message, what they wrote.
+      p_evidence: { channel: p.channel, message_external_id: p.messageExternalId, words: (p.body ?? "").slice(0, 80) || null },
     } as never);
     if (mErr) {
       console.error(JSON.stringify({

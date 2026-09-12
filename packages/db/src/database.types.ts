@@ -3060,6 +3060,7 @@ export type Database = {
         Args: {
           p_consent: string
           p_contact_id: string
+          p_evidence?: Json
           p_note?: string
           p_source: string
           p_tenant_id: string
