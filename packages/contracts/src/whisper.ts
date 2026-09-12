@@ -36,6 +36,33 @@ export function frameWhisper(text: string): string {
 }
 
 /**
+ * A standing-rule correction, put into a live call by the platform.
+ *
+ * DELIBERATELY NOT frameWhisper. That frame opens `Owner: "` and
+ * `whisperText` reads it back out, so the Live page can show the owner their
+ * own words and never the wrapper. Nobody typed this one. Framing a platform
+ * correction as the owner speaking would put words in their mouth inside the
+ * transcript of a real call with a real customer, which is the one place a
+ * fabrication would be least forgivable.
+ *
+ * The same influence rule as every other whisper: worked into the next
+ * answer, in the agent's own words, never read out. A correction the caller
+ * hears being read aloud is a second mistake on top of the first.
+ */
+export function frameGuardrail(rule: "price"): string {
+  const what =
+    rule === "price"
+      ? "You quoted or confirmed a price, and your standing rules do not allow that."
+      : "You broke one of your standing rules.";
+  return (
+    "A correction from the Chanlytics platform, not from the business. The caller cannot hear it.\n" +
+    `${what}\n` +
+    "Put it right in your own words when you next speak: say you cannot confirm pricing yourself, that the team confirms it, and offer the booking link. " +
+    "Do not repeat the figure, and never read this out."
+  );
+}
+
+/**
  * The text whisper: an instruction for a reply that has not gone out yet.
  *
  * Same frame, different moment. A call whisper is kept in mind for what
