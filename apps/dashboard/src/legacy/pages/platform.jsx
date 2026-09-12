@@ -169,6 +169,7 @@ const PanePlatform = () => {
   const P = React.useMemo(() => window.__platform, []);
   const [toastNode, flash] = window.usePPToast();
   const [tenants, setTenants] = React.useState(null);
+  const [health, setHealth] = React.useState(null);
   const [problem, setProblem] = React.useState(null);
   const [find, setFind] = React.useState("");
   const [openId, setOpenId] = React.useState(null);
@@ -180,9 +181,10 @@ const PanePlatform = () => {
     setBusy(true);
     const r = await P.list();
     setBusy(false);
-    if (!r.ok) { setProblem(r.message); setTenants([]); return; }
+    if (!r.ok) { setProblem(r.message); setTenants([]); setHealth(null); return; }
     setProblem(null);
     setTenants(r.tenants);
+    setHealth(r.health);
   }, [P]);
 
   React.useEffect(() => { load(); }, [load]);
@@ -206,6 +208,33 @@ const PanePlatform = () => {
 
   return (
     <>
+      {/* The machinery under every workspace. The database has answered this
+          for months and nothing in the product showed it: the clocks and the
+          job backlog were read by the health sweep and by the keyless /api/health,
+          both of which speak to a monitor outside the product. It belongs
+          HERE and not on an owner's page — both counts are platform-wide, so a
+          salon owner told "forty jobs are late" has been shown something that
+          is not about them and that they cannot act on. */}
+      {health && (
+        <section className="fl-card set-card" data-testid="platform-health">
+          <div className="fl-card-head">
+            <span className="fl-card-title">The platform</span>
+            <span className="fl-card-sub" data-testid="platform-health-words">{P.healthWords(health)}</span>
+          </div>
+          {health.unhealthy.length > 0 && (
+            <div className="cl-attn-list" data-testid="platform-health-clocks">
+              {health.unhealthy.map((u) => (
+                <div className="set-row" key={u.sweep}>
+                  <div className="set-row-info">
+                    <span className="set-row-label">{u.sweep}</span>
+                    <span className="set-row-hint">{u.detail || "This clock is not running."}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
       <section className="fl-card set-card" data-testid="platform-overview">
         <div className="fl-card-head">
           <span className="fl-card-title">Every workspace</span>

@@ -29,7 +29,50 @@ import {
   platformRows, platformSummary, platformNumber, textingWords,
   PLATFORM_VERDICTS, PLATFORM_QUIET_DAYS, PLATFORM_NEW_DAYS, setupSteps,
   platformLineActions, platformActionWarning, EVENT_KINDS,
+  platformHealthOf, platformHealthWords,
 } from "@chanlytics/contracts";
+
+const clock = (sweep, healthy, detail = null) => ({ sweep, healthy, detail, last_request_at: null, status_code: null, scheduled: true, alerted_at: null });
+
+test("the platform's own health: every clock running AND nothing waiting, or it is not healthy", () => {
+  const now = new Date("2026-09-12T12:00:00.000Z");
+  const all = [clock("calendar", true), clock("lines", true)];
+
+  const well = platformHealthOf(all, 0, now);
+  assert.equal(well.ok, true);
+  assert.deepEqual(well.unhealthy, []);
+  assert.equal(well.checkedAt, now.toISOString());
+  assert.equal(platformHealthWords(well), "Every clock is running and nothing is waiting.");
+
+  // A clock that stopped, with the reason the function gave.
+  const stopped = platformHealthOf([clock("calendar", false, "no successful run in 3 hours"), clock("lines", true)], 0, now);
+  assert.equal(stopped.ok, false);
+  assert.deepEqual(stopped.unhealthy, [{ sweep: "calendar", detail: "no successful run in 3 hours" }]);
+  assert.match(platformHealthWords(stopped), /1 clock not running/);
+
+  // Work piling up while every clock says it is fine is still not healthy:
+  // the heartbeat running and the heartbeat DRAINING are different facts.
+  const piling = platformHealthOf(all, 40, now);
+  assert.equal(piling.ok, false);
+  assert.equal(platformHealthWords(piling), "40 jobs late");
+  assert.equal(platformHealthWords(platformHealthOf(all, 1, now)), "1 job late");
+
+  // Both at once reads as both.
+  assert.match(platformHealthWords(platformHealthOf([clock("calendar", false)], 5, now)), /1 clock not running · 5 jobs late/);
+});
+
+test("a backlog that could not be READ is never mistaken for a backlog of zero", () => {
+  const now = new Date("2026-09-12T12:00:00.000Z");
+  // The two answers a health check must never confuse. Null keeps the verdict
+  // false, and the words say the read failed rather than claiming all clear.
+  const unknown = platformHealthOf([clock("calendar", true)], null, now);
+  assert.equal(unknown.ok, false);
+  assert.equal(unknown.backlog, null);
+  assert.equal(platformHealthWords(unknown), "The platform's health could not be read just now.");
+  // And no rows at all is not "healthy": it is the same unknown.
+  assert.equal(platformHealthOf(null, null, now).ok, false);
+  assert.equal(platformHealthOf([], 0, now).ok, true, "but no rows with a real zero backlog is genuinely quiet");
+});
 import { readCode, readRaw } from "./_source.mjs";
 import { fakeDb } from "./_fake-db.mjs";
 import { setupDtoFor } from "../../../apps/dashboard/src/server/setup.ts";

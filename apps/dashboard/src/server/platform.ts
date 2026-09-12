@@ -27,7 +27,7 @@ import "server-only";
 import { createServiceClient } from "@chanlytics/db";
 import type { Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AppError, type PlatformTenantDto } from "@chanlytics/contracts";
+import { AppError, platformHealthOf, type PlatformHealth, type PlatformTenantDto, type SweepHealthRow } from "@chanlytics/contracts";
 import type { RouteContext } from "./with-route";
 
 let svc: SupabaseClient<Database> | null = null;
@@ -103,6 +103,30 @@ export async function platformOverview(office: BackOffice): Promise<PlatformTena
   // the page.
   const rows: PlatformTenantDto[] = data ?? [];
   return rows;
+}
+
+/**
+ * Whether the machinery under every workspace is running.
+ *
+ * Read on `office.db`, the service-role client, because both functions are
+ * granted to that role alone — `revoke ... from authenticated` in 00105 and
+ * 00107, deliberately: they count across every workspace, and no session
+ * should be able to ask. Reaching them needs no new grant and no migration,
+ * only the door that is already in front of this file.
+ *
+ * NEITHER READ IS FATAL. The back office exists to be opened when something
+ * is wrong, and a page that 500s because the health read failed is useless at
+ * exactly that moment. A backlog that could not be read stays null, which the
+ * judgement treats as "not healthy" rather than "all clear".
+ */
+export async function platformHealth(office: BackOffice, now = new Date()): Promise<PlatformHealth> {
+  const [health, backlog] = await Promise.all([
+    office.db.rpc("sweep_health").then((r) => r, () => ({ data: null, error: { message: "unreadable" } })),
+    office.db.rpc("jobs_backlog").then((r) => r, () => ({ data: null, error: { message: "unreadable" } })),
+  ]);
+  const rows = (!health.error && Array.isArray(health.data) ? health.data : []) as SweepHealthRow[];
+  const due = !backlog.error && typeof backlog.data === "number" ? backlog.data : null;
+  return platformHealthOf(rows, due, now);
 }
 
 /** One workspace's identity, for the detail view's heading. */
