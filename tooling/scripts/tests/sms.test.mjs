@@ -173,9 +173,11 @@ test("the pilot allowlist gates the deployment's own number, never a tenant that
 test("the wiring: proven before trusted, held before spoken, the channel on every row, a second wire", () => {
   assert.ok(ESCALATION_REASONS.includes(SMS_HELD_REASON));
   const hook = readCode("apps/edge/api/inbound-sms.ts");
-  assert.ok(hook.indexOf("verifyTwilioSignature(acct.token, request.url, form, request.headers.get(\"x-twilio-signature\"))") < hook.indexOf('resolveChannelDetailed(db, "sms", inbound.to)'), "the signature before the routing");
-  assert.ok(hook.includes('if (line.provider !== "dry") {'), "only the dry provider signs nothing");
-  assert.ok(hook.includes('const held = line.sms_state !== "active";') && hook.includes("held: held ? { reason: SMS_HELD_REASON, details: SMS_HELD_DETAILS } : null,"));
+  // The signature before the routing, only the dry provider exempt, the hold
+  // and its words, the unroutable statuses: all four moved into
+  // planSmsIngress and are now EXECUTED (sms-ingress.test.mjs) rather than
+  // read as text here. Scans deleted rather than re-pointed: a behaviour a
+  // test runs does not also need a test that reads it.
   assert.ok(hook.includes("handleInbound(smsAsWaMessage(inbound), {}, routed.tenantId, routed, false, false, carrier)"));
   assert.ok(hook.includes('text(status, EMPTY_TWIML, { "content-type": "text/xml" })'), "Twilio hears an empty TwiML, never words from here");
   const road = readRaw("apps/edge/lib/whatsapp/inbound.ts");

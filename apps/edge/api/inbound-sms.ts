@@ -11,17 +11,22 @@
  * footer, and a line the carriers have not approved yet holds every text
  * for a person instead of answering.
  *
+ * THIS FILE IS THE WIRE, NOT THE JUDGEMENT. What to do with the text is
+ * decided by planSmsIngress (lib/sms-ingress.ts), which runs over a database
+ * in memory in a test; what is left here is reading the form, logging, the
+ * alert's own suppression, and the shape Twilio wants back. The same split
+ * the health route and the OAuth callback already use.
+ *
  * Twilio wants TwiML or an empty 200 back; an empty <Response/> means "no
  * reply from here" — the reply, when there is one, goes out through the
  * Messaging Service like every other text.
  */
 import { text } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
-import { resolveChannelDetailed } from "../lib/workspace/db.js";
-import { smsInboundFrom, smsAsWaMessage, smsBody, carrierConsent, smsKeywordConsent, mergeConsent, verifyTwilioSignature, SMS_HELD_REASON, SMS_HELD_DETAILS } from "../lib/workspace/channels.js";
-import { lineByNumber, lineAccount, smsSenderFor, type SmsLine } from "../lib/sms.js";
-import type { ProviderAccount } from "../lib/workspace/channels.js";
-import { handleInbound, type InboundCarrier } from "../lib/whatsapp/inbound.js";
+import { smsInboundFrom, smsAsWaMessage } from "../lib/workspace/channels.js";
+import { smsSenderFor } from "../lib/sms.js";
+import { planSmsIngress, carrierFor, smsAfterThrow } from "../lib/sms-ingress.js";
+import { handleInbound } from "../lib/whatsapp/inbound.js";
 import { alertUnroutable } from "../lib/whatsapp/alerts.js";
 import { IngestFailed } from "../lib/whatsapp/persist.js";
 import { logger } from "../lib/log.js";
@@ -44,67 +49,34 @@ export async function POST(request: Request): Promise<Response> {
   const db = pg();
   if (!db) return twiml(503);
 
-  // The line and its account are read before anything is trusted, and a read
-  // that fails is said out loud. Twilio does not retry an inbound text, so a
-  // throw here was a customer's words gone behind a 500 nobody looked at.
-  let line: SmsLine | null;
-  let acct: ProviderAccount | null;
-  try {
-    line = await lineByNumber(db, inbound.to);
-    acct = line ? await lineAccount(db, line) : null;
-  } catch (e) {
-    L.error("sms_line_unreadable", { error: e instanceof Error ? e.message : String(e) });
-    await alertUnroutable("sms", inbound.to, 1, "the line or its token could not be read");
-    return twiml(503);
-  }
-  if (!line) {
-    L.warn("sms_unknown_line");
-    await alertUnroutable("sms", inbound.to, 1, "no line row carries this number");
-    return twiml(404);
-  }
-  if (!acct) {
-    L.error("sms_line_without_account");
-    await alertUnroutable("sms", inbound.to, 1, "the line has no subaccount or no token in the vault");
-    return twiml(503);
-  }
-  // The dry provider signs nothing, and never exists in production.
-  if (line.provider !== "dry") {
-    const ok = await verifyTwilioSignature(acct.token, request.url, form, request.headers.get("x-twilio-signature"));
-    if (!ok) {
-      L.warn("sms_bad_signature");
-      return twiml(403);
-    }
+  const verdict = await planSmsIngress({
+    inbound,
+    form,
+    url: request.url,
+    signature: request.headers.get("x-twilio-signature"),
+    db,
+  });
+  if (verdict.kind === "refuse") {
+    if (verdict.level === "error") L.error(verdict.log);
+    else L.warn(verdict.log);
+    // Suppressed per number for fifteen minutes inside alertUnroutable, which
+    // is why the decision above returns the sentence rather than sending it.
+    if (verdict.alert) await alertUnroutable("sms", inbound.to, 1, verdict.alert);
+    return twiml(verdict.status);
   }
 
-  const { channel: routed, lookupFailed } = await resolveChannelDetailed(db, "sms", inbound.to);
-  if (!routed) {
-    L.error(lookupFailed ? "sms_routing_lookup_failed" : "sms_unroutable");
-    await alertUnroutable("sms", inbound.to, 1, lookupFailed ? "the sms channel row could not be read" : "the sms channel row is missing or not active");
-    return twiml(lookupFailed ? 503 : 200);
-  }
-  const held = line.sms_state !== "active";
-  const sender = held ? null : smsSenderFor(line, acct);
-  const carrier: InboundCarrier = {
-    channel: "sms",
-    send: async (to, body) => {
-      if (!sender) return { ok: false, wamid: null, status: 503 };
-      return sender.send(to.startsWith("+") ? to : `+${to}`, body);
-    },
-    body: (text, isFirstReply) => smsBody(text, isFirstReply),
-    held: held ? { reason: SMS_HELD_REASON, details: SMS_HELD_DETAILS } : null,
-    // The carrier's verdict and the carriers' words, for this wire only.
-    consent: mergeConsent(carrierConsent(inbound), smsKeywordConsent(inbound.body)),
-  };
+  const { line, acct, routed, held } = verdict;
+  const carrier = carrierFor(inbound, held, held ? null : smsSenderFor(line, acct));
   L.info("sms_inbound", { held, opt: inbound.optOutType, media: inbound.numMedia });
   try {
     await handleInbound(smsAsWaMessage(inbound), {}, routed.tenantId, routed, false, false, carrier);
   } catch (e) {
     L.error("sms_inbound_failed", { error: e instanceof Error ? e.message : String(e) });
-    if (e instanceof IngestFailed) {
-      // Twilio retries nothing: the platform is told now, and the 503 leaves a trace in Twilio's own log.
-      await alertUnroutable("sms", inbound.to, 1, "the text could not be recorded");
-      return twiml(503);
-    }
+    // Twilio retries nothing on its own: a text the database did not accept is
+    // refused so the provider redelivers, and the platform is told now.
+    const after = smsAfterThrow(e instanceof IngestFailed);
+    if (after.alert) await alertUnroutable("sms", inbound.to, 1, after.alert);
+    return twiml(after.status);
   }
   return twiml(200);
 }
