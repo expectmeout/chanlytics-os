@@ -727,6 +727,8 @@ export interface PlaybookTotalsVM {
   lastRun: { id: string; state: string; run_for: string | null; recipient_count: number } | null;
   /** A run waiting for a person: the broadcast to approve or skip. */
   waiting: { id: string; recipient_count: number; name: string } | null;
+  /** The most recent runs, newest first; the totals above are over every run. */
+  history: { id: string; run_for: string | null; state: string; scheduled_for: string; recipient_count: number; sent: number; held: number; delivered: number; replied: number }[];
 }
 
 export interface PlaybookCardVM extends PlaybookDto {
@@ -738,9 +740,11 @@ export interface PlaybookCardVM extends PlaybookDto {
   schedule: string;
   /** "today 10:00", "tomorrow 10:00" or "paused", by the business's clock. */
   next: string;
-  /** How many are on the trigger's list with a recorded yes right now —
-   *  before the gap and the week's breath, which only the run applies. */
+  /** How many are on the trigger's list with a recorded yes right now and
+   *  clear of the week's breath -- before the gap, which only the run applies. */
   candidates: number;
+  /** How many more said yes but heard from a broadcast of any kind this week, and wait. */
+  held: number;
 }
 
 export interface PlaybookTriggerOption {
@@ -752,6 +756,7 @@ export interface PlaybookTriggerOption {
   /** list, cadence or visit — a visit trigger needs the calendar and has no gap. */
   kind: string;
   candidates: number;
+  held: number;
 }
 
 export interface PlaybooksSurface {
@@ -794,9 +799,15 @@ export const playbooksOverride: SurfaceOverride = {
     ]);
     const now = new Date();
     const rows = people.people.map((r) => toPersonRowVM(r, now));
+    // The week's breath, as the sweep applies it: who any broadcast reached
+    // this week (the route reads the recipient rows). The count the page shows
+    // is who a run would pick NOW; the rest are said to be waiting.
     const untouched = { byThis: new Map<string, number>(), byAny: new Map<string, number>() };
-    const pool = (trigger: string) =>
-      eligibleForPlaybook(rows, { trigger: trigger as PlaybookDto["trigger"], cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, untouched, now.getTime()).length;
+    const breath = { byThis: new Map<string, number>(), byAny: new Map<string, number>(Object.entries(pb.touched ?? {}).map(([id, at]) => [id, Date.parse(at)])) };
+    const poolWith = (trigger: string, touches: typeof untouched) =>
+      eligibleForPlaybook(rows, { trigger: trigger as PlaybookDto["trigger"], cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, touches, now.getTime()).length;
+    const pool = (trigger: string) => poolWith(trigger, breath);
+    const held = (trigger: string) => Math.max(0, poolWith(trigger, untouched) - poolWith(trigger, breath));
     const wa = ch instanceof Error ? null : (ch.channels ?? []).find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
     const brain = cfg instanceof Error ? null : cfg.config?.brain ?? null;
     if (tpl instanceof Error) console.error("playbooks_templates_fetch_failed", tpl.message);
@@ -813,11 +824,12 @@ export const playbooksOverride: SurfaceOverride = {
           schedule: scheduleLine(p),
           next: nextRunLabel(p, tz, now),
           candidates: pool(p.trigger),
+          held: held(p.trigger),
         };
       }),
       timezone: tz,
       calendar: people.calendar?.state ?? "none",
-      triggers: PLAYBOOK_TRIGGERS.map((t) => ({ id: t.id, label: t.label, hint: t.hint, cls: t.cls, list: t.list, kind: t.kind, candidates: pool(t.id) })),
+      triggers: PLAYBOOK_TRIGGERS.map((t) => ({ id: t.id, label: t.label, hint: t.hint, cls: t.cls, list: t.list, kind: t.kind, candidates: pool(t.id), held: held(t.id) })),
       templates: tpl instanceof Error
         ? []
         : (tpl.templates ?? [])

@@ -66,6 +66,12 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     }
     if (!c || c.erased_at) { await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "erased" }); continue; }
     if (!c.phone_e164) { await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "no_phone" }); continue; }
+    // A run that died between the wire and its own bookkeeping left this
+    // person a message row and a queued recipient row. Resumed (jobs/settle
+    // reschedules the rest), the batch reads the row rather than sending twice:
+    // they got it, and the recipient row now says so.
+    const prior = await ports.alreadySent(b.id, c.id);
+    if (prior) { await ports.mark(b.id, r.contact_id, { state: "sent", message_id: prior }); continue; }
     // The thread this send belongs to. Which yes this message needs, the
     // pause, and the workspace's status are the door's to re-read at the
     // wire, below — the one place a stale answer cannot be taken back.

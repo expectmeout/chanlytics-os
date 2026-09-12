@@ -484,6 +484,12 @@ interface BroadcastBatchPorts {
     target(phoneE164: string): Promise<{
         conversationId: string;
     } | null>;
+    /**
+     * The message this broadcast already sent this person, if a run died between
+     * the wire and its own bookkeeping: its id, or null. A resumed batch reads it
+     * rather than sending twice.
+     */
+    alreadySent(id: string, contactId: string): Promise<string | null>;
     mark(id: string, contactId: string, patch: RecipientMark): Promise<void>;
     deliver: Door;
     /** How many are still queued; throws when it cannot be counted. */
@@ -743,6 +749,8 @@ interface BroadcastRef {
     playbook_id: string | null;
 }
 interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts {
+    /** The business's clock, for the hours a send may go out in. */
+    timezone(): Promise<string>;
     /** Everyone, with their visits as of now, the way the People page counts them. */
     people(now: Date): Promise<PersonRowVM[]>;
     /** A list kept by hand: its name and who is on it; null when there is no such list here. */
@@ -760,6 +768,8 @@ interface CreateBroadcastCommand {
     now: Date;
 }
 interface ApproveRunPorts {
+    /** The business's clock, for the hours a send may go out in. */
+    timezone(): Promise<string>;
     /** pending_approval → scheduled, only while pending. True iff a row changed. */
     release(broadcastId: string): Promise<boolean>;
     /** Back to waiting, when the job could not be made. */
@@ -824,6 +834,8 @@ interface BroadcastReceipt {
     state: "scheduled";
     recipient_count: number;
     scheduled_for: string;
+    /** The time asked for (or "now") when it fell outside the hours a send may go out in, and was moved. */
+    moved_from: string | null;
     decision_id: string;
 }
 /**
@@ -845,6 +857,8 @@ interface ApproveReceipt {
     id: string;
     state: "scheduled";
     recipient_count: number | null;
+    scheduled_for: string;
+    moved_from: string | null;
     decision_id: string;
 }
 /**

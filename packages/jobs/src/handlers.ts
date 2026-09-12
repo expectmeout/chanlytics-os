@@ -179,6 +179,20 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
         return data;
       },
       target: (phoneE164) => resolveOutboundTarget(db, { tenantId: job.tenant_id, phoneE164, create: false }),
+      // The message a dying run left this person: written by deliver after the
+      // wire accepted it, with this broadcast's id in its meta.
+      alreadySent: async (id, contactId) => {
+        const { data } = await db
+          .from("messages")
+          .select("id")
+          .eq("tenant_id", job.tenant_id)
+          .eq("contact_id", contactId)
+          .filter("meta->>broadcast_id", "eq", id)
+          .in("status", ["sent", "delivered", "read"])
+          .limit(1)
+          .maybeSingle();
+        return data?.id ?? null;
+      },
       mark: async (id, contactId, patch) => {
         await db.from("broadcast_recipients").update({ ...patch, sent_at: patch.state === "sent" ? new Date().toISOString() : null }).eq("broadcast_id", id).eq("contact_id", contactId);
       },

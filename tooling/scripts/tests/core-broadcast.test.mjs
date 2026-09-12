@@ -24,7 +24,7 @@ function fakes(over = {}) {
   const answers = {
     broadcast: broadcast(), workspacePaused: false, template: approved, facts: { businessName: "Melany's", bookingLink: "https://book.example/m" },
     batch: [{ contact_id: "k1", facts: null }, { contact_id: "k2", facts: null }], contact: (id) => contacts[id] ?? null,
-    target: (phone) => ({ conversationId: `c-${phone.slice(-2)}` }), remaining: 0, state: "sending", tally: { sent: 2, held: 0 }, now: () => NOW,
+    target: (phone) => ({ conversationId: `c-${phone.slice(-2)}` }), alreadySent: null, remaining: 0, state: "sending", tally: { sent: 2, held: 0 }, now: () => NOW,
     fail: undefined, startSending: undefined, mark: undefined, deliver: (d) => ({ outcome: "sent", messageId: `m-${d.contactId}`, externalId: "wamid" }),
     scheduleNext: undefined, finish: undefined, alert: undefined, sleep: undefined,
     ...over,
@@ -142,4 +142,19 @@ test("people still queued: the next batch is scheduled, unless a cancel landed m
   assert.equal(log.at(-1)[1], "Broadcast “Spring offer” sent");
   assert.match(log.at(-1)[2], /^1 person got it; 1 held back \(no recorded yes, asked to stop, no number, or a person had the thread\)\. Replies land in the Inbox\.$/);
   assert.equal(BROADCAST_CHUNK, 25);
+});
+
+test("a resumed batch reads the message a dying run left rather than sending it again", async () => {
+  // A run that died between the wire and its bookkeeping left k1 a message row
+  // (deliver writes it after the provider accepts) and a queued recipient row.
+  // The fresh run jobs/settle schedules finds the row: k1 is marked sent with
+  // that message, nothing goes to them twice, and k2 -- who has no row -- is
+  // sent as normal.
+  const f = fakes({ alreadySent: (id, contactId) => (id === "b1" && contactId === "k1" ? "m-earlier" : null) });
+  await sendBroadcastBatch(f.ports, cmd());
+  const sends = f.log.filter((l) => l[0] === "deliver").map((l) => l[1].contactId);
+  assert.deepEqual(sends, ["k2"], "k1 is not sent again");
+  assert.deepEqual(f.marks(), [["k1", "sent", null], ["k2", "sent", null]]);
+  assert.deepEqual(f.log.find((l) => l[0] === "mark" && l[2] === "k1")[3], { state: "sent", message_id: "m-earlier" }, "the row it already had");
+  assert.deepEqual(f.ops().filter((o) => o === "finish"), ["finish"], "and the run completes");
 });

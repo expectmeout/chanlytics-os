@@ -5226,6 +5226,15 @@ function localDate(tz, now) {
 function localHour(tz, now) {
   return parts(tz, now).hour;
 }
+function nextOpenMoment(tz, when) {
+  const { date, hour } = parts(tz, when);
+  if (hour >= PLAYBOOK_HOURS.min && hour <= PLAYBOOK_HOURS.max) return { at: when, moved: false };
+  const day = hour < PLAYBOOK_HOURS.min ? date : shiftKey(date, 1);
+  let at2 = zoneMidnight(tz, day) + PLAYBOOK_HOURS.min * 36e5;
+  const landed = parts(tz, new Date(at2)).hour;
+  if (landed !== PLAYBOOK_HOURS.min) at2 += (PLAYBOOK_HOURS.min - landed) * 36e5;
+  return { at: new Date(at2), moved: true };
+}
 function runDueNow(p, tz, now) {
   if (p.state !== "running") return false;
   const { date, hour } = parts(tz, now);
@@ -8063,6 +8072,7 @@ export {
   monthSpan,
   navigateLabel,
   newReceptionistDefaults,
+  nextOpenMoment,
   nextRunLabel,
   normalizeNavigate,
   normalizePhone,

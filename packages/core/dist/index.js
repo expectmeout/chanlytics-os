@@ -8808,6 +8808,38 @@ var RECORDING_RETENTION_DAYS2 = RETENTION_DAYS2.call_recordings;
 var RECORDING_PURGED_WORDS2 = `Recording removed after ${RECORDING_RETENTION_DAYS2} days; the transcript is kept`;
 var TIME_FMT3 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DATE_FMT7 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+function zoneParts(tz, at2) {
+  const parts2 = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hourCycle: "h23",
+    weekday: "short",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  }).formatToParts(at2);
+  const get = (t) => parts2.find((p) => p.type === t)?.value ?? "";
+  return {
+    y: Number(get("year")),
+    m: Number(get("month")),
+    d: Number(get("day")),
+    hh: Number(get("hour")) % 24,
+    mm: Number(get("minute")),
+    ss: Number(get("second")),
+    weekday: get("weekday").toLowerCase().slice(0, 3)
+  };
+}
+function clockInZone(tz, atMs) {
+  const p = zoneParts(tz, new Date(atMs));
+  return { hh: p.hh, mm: p.mm, ss: p.ss };
+}
+function dayInZone(tz, atMs) {
+  const p = zoneParts(tz, new Date(atMs));
+  const pad = (n) => String(n).padStart(2, "0");
+  return { key: `${p.y}-${pad(p.m)}-${pad(p.d)}`, weekday: p.weekday, y: p.y, m: p.m, d: p.d };
+}
 var POLICY_CLASS_WORDS2 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
@@ -9091,7 +9123,29 @@ var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c, n) => checkClosure2(c, n, ctx));
 });
+function keyParts(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  return { y, m: m ?? 1, d: d ?? 1 };
+}
+function shiftKey(key, n) {
+  const { y, m, d } = keyParts(key);
+  const at2 = new Date(Date.UTC(y, m - 1, d + n));
+  return `${at2.getUTCFullYear()}-${String(at2.getUTCMonth() + 1).padStart(2, "0")}-${String(at2.getUTCDate()).padStart(2, "0")}`;
+}
 var SHORT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+function zoneMidnight(tz, key) {
+  const { y, m, d } = keyParts(key);
+  const guess = Date.UTC(y, m - 1, d);
+  const off1 = zoneOffsetOf(tz, guess);
+  const first = guess - off1;
+  const off2 = zoneOffsetOf(tz, first);
+  return guess - off2;
+}
+function zoneOffsetOf(tz, atMs) {
+  const c = clockInZone(tz, atMs);
+  const day = dayInZone(tz, atMs);
+  return Date.UTC(day.y, day.m - 1, day.d, c.hh, c.mm, c.ss) - Math.floor(atMs / 1e3) * 1e3;
+}
 var LIVE_STALE_MS2 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS2 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;
@@ -9565,6 +9619,15 @@ function parts(tz, now) {
 }
 function localDate(tz, now) {
   return parts(tz, now).date;
+}
+function nextOpenMoment(tz, when) {
+  const { date, hour } = parts(tz, when);
+  if (hour >= PLAYBOOK_HOURS.min && hour <= PLAYBOOK_HOURS.max) return { at: when, moved: false };
+  const day = hour < PLAYBOOK_HOURS.min ? date : shiftKey(date, 1);
+  let at2 = zoneMidnight(tz, day) + PLAYBOOK_HOURS.min * 36e5;
+  const landed = parts(tz, new Date(at2)).hour;
+  if (landed !== PLAYBOOK_HOURS.min) at2 += (PLAYBOOK_HOURS.min - landed) * 36e5;
+  return { at: new Date(at2), moved: true };
 }
 var PLAYBOOK_CLASS_LABEL2 = {
   reengage: POLICY_CLASS_WORDS2.reengage.short,
@@ -14622,6 +14685,11 @@ async function sendBroadcastBatch(ports, cmd) {
       await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "no_phone" });
       continue;
     }
+    const prior = await ports.alreadySent(b.id, c.id);
+    if (prior) {
+      await ports.mark(b.id, r.contact_id, { state: "sent", message_id: prior });
+      continue;
+    }
     const target = await ports.target(c.phone_e164);
     if (!target) {
       await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "no_phone" });
@@ -14851,6 +14919,9 @@ async function createBroadcast(ports, cmd) {
     if (t.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * 864e5) throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
     when = t.getTime() > now.getTime() ? t : now;
   }
+  const open = nextOpenMoment(await ports.timezone(), when);
+  const movedFrom = open.moved ? when.toISOString() : null;
+  when = open.at;
   const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim().slice(0, BROADCAST_NAME_MAX) : broadcastName(tpl.name, now, tpl.title);
   const audience = { kind, id: audienceId, label };
   const made = await assembleRun(ports, {
@@ -14880,9 +14951,10 @@ async function createBroadcast(ports, cmd) {
     audience: { kind: audience.kind, id: audience.id, label: audience.label },
     values: specs.map(paramLabel),
     recipients: eligible.length,
-    scheduled_for: when.toISOString()
+    scheduled_for: when.toISOString(),
+    ...movedFrom ? { moved_from: movedFrom } : {}
   });
-  return { id: made.id, name, state: "scheduled", recipient_count: eligible.length, scheduled_for: when.toISOString(), decision_id };
+  return { id: made.id, name, state: "scheduled", recipient_count: eligible.length, scheduled_for: when.toISOString(), moved_from: movedFrom, decision_id };
 }
 
 // src/campaigns/approve.ts
@@ -14890,8 +14962,10 @@ async function approveRun(ports, cmd) {
   const b = cmd.row;
   if (b.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);
   if (!await ports.release(b.id)) throw new AppError("conflict", "This run just changed state; look again.", 409);
+  const open = nextOpenMoment(await ports.timezone(), cmd.now);
+  const at = open.at;
   try {
-    await ports.schedule(b.id, cmd.now);
+    await ports.schedule(b.id, at);
   } catch (e) {
     await ports.hold(b.id);
     throw new AppError("upstream_meta", "The send could not be scheduled. The run is still waiting; try again.", 502, e instanceof Error ? e.message : void 0);
@@ -14901,9 +14975,10 @@ async function approveRun(ports, cmd) {
     playbook_id: b.playbook_id,
     recipients: b.recipient_count,
     approved: true,
-    scheduled_for: cmd.now.toISOString()
+    scheduled_for: at.toISOString(),
+    ...open.moved ? { moved_from: cmd.now.toISOString() } : {}
   });
-  return { id: b.id, state: "scheduled", recipient_count: b.recipient_count, decision_id };
+  return { id: b.id, state: "scheduled", recipient_count: b.recipient_count, scheduled_for: at.toISOString(), moved_from: open.moved ? cmd.now.toISOString() : null, decision_id };
 }
 
 // src/campaigns/cancel.ts

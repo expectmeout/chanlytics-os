@@ -302,6 +302,10 @@ export interface BroadcastRecipientDto {
   conversation_id: string | null;
   /** Their thread heard from them after the broadcast reached them. */
   replied: boolean;
+  /** When WhatsApp's receipts said so (00111 stamps each status as it arrives), and when the first reply came. */
+  delivered_at: string | null;
+  read_at: string | null;
+  replied_at: string | null;
 }
 
 export interface BroadcastDetailDto {
