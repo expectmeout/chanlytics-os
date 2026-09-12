@@ -81,9 +81,11 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
   // silently cancel itself when the job re-checks.
   if (isOptedOutContact(conv)) throw new AppError("conflict", OPT_OUT_REFUSAL);
 
-  const channel = await ports.replyChannel(conv);
-  const window = replyWindow(channel, conv.last_wa_inbound_at);
+  // The clock is the port's, for the window too: the wall clock closed a
+  // window the test had frozen open, a day after the test was written.
   const now = ports.now();
+  const channel = await ports.replyChannel(conv);
+  const window = replyWindow(channel, conv.last_wa_inbound_at, new Date(now));
 
   // Idempotency: a replayed POST returns the original receipt, never a double
   // text. The key is scoped to the CALLER and checked against the INTENT: the
