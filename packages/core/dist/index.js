@@ -15119,9 +15119,9 @@ async function replyToConversation(ports, cmd) {
   const { conv, body } = cmd;
   if (!conv.phone_e164) throw new AppError("conflict", "Conversation has no phone identity.");
   if (isOptedOutContact(conv)) throw new AppError("conflict", OPT_OUT_REFUSAL);
-  const channel = await ports.replyChannel(conv);
-  const window = replyWindow(channel, conv.last_wa_inbound_at);
   const now = ports.now();
+  const channel = await ports.replyChannel(conv);
+  const window = replyWindow(channel, conv.last_wa_inbound_at, new Date(now));
   const idemKey = cmd.idempotencyKey ? `${cmd.userId}:${cmd.idempotencyKey}` : null;
   const intentHash = ports.hash(JSON.stringify(body));
   if (idemKey) {

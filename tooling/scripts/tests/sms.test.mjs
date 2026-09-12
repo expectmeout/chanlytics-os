@@ -204,7 +204,7 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   // in verbs, replyWindow in contracts), and reply-window.test.mjs runs both.
   // What is left to pin here is the wiring: the route sends on the channel it
   // read, under that channel's window.
-  assert.ok(reply.includes("const channel = await ports.replyChannel(conv);") && reply.includes("channel,\n    sent_by: cmd.userId,") && reply.includes("const window = replyWindow(channel, conv.last_wa_inbound_at);"), "a person replies where the customer last wrote, with no window on a text (core-reply.test.mjs runs the texting line)");
+  assert.ok(reply.includes("const channel = await ports.replyChannel(conv);") && reply.includes("channel,\n    sent_by: cmd.userId,") && reply.includes("const window = replyWindow(channel, conv.last_wa_inbound_at, new Date(now));"), "a person replies where the customer last wrote, with no window on a text (core-reply.test.mjs runs the texting line)");
   const sql = readRaw("supabase/migrations/00074_texting.sql");
   assert.ok(sql.includes("'messaging'") && sql.includes("'carriers'"));
   assert.ok(readRaw("apps/edge/vercel.json").includes('"api/inbound-sms.ts"'));
