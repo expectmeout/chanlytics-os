@@ -84,3 +84,52 @@ export function shortcutGroups(list: readonly Shortcut[] = SHORTCUTS): Array<{ g
   }
   return out;
 }
+
+/* ---------------------------------------------------------------------------
+ * The toast: one tone vocabulary for everything the shell flashes.
+ *
+ * A toast's words are the page's; whether they are good news, a note, a
+ * warning or a failure is a tone, and the tone decides the icon, its colour,
+ * how long it stays and whether a screen reader is interrupted for it. Every
+ * toast used to wear a green check, failures included -- an owner could not
+ * tell "saved" from "not saved" without reading it. Decided here so the pages
+ * agree and a test can run it; the hook in data-bits.jsx only draws it.
+ * ------------------------------------------------------------------------- */
+export type ToastTone = "ok" | "info" | "warn" | "danger";
+export const TOAST_TONES: readonly ToastTone[] = ["ok", "info", "warn", "danger"];
+
+/** How long a toast stays, by tone: long enough to read, and a failure longer than a confirmation. */
+export const TOAST_MS: Readonly<Record<ToastTone, number>> = { ok: 6000, info: 6000, warn: 8000, danger: 10000 };
+
+/**
+ * A toast with an Undo lives as long as the undo does. Fifteen seconds is the
+ * reply's cancel window (SEND_GRACE_MS in core, the one real window the
+ * product has); an Undo that outlived its window would lie, and one that died
+ * before it would waste it. A caller that knows its exact window passes `ms`.
+ */
+export const TOAST_UNDO_MS = 15_000;
+
+/** The least a toast may stay: a window that is nearly over is still read. */
+export const TOAST_MIN_MS = 2_000;
+
+export const TOAST_ICONS: Readonly<Record<ToastTone, string>> = { ok: "check", info: "info", warn: "alert", danger: "error" };
+
+export interface ToastShape {
+  tone: ToastTone;
+  icon: string;
+  /** A failure interrupts a screen reader; everything else waits its turn. */
+  role: "status" | "alert";
+  ms: number;
+}
+
+export function toastShape(p: { tone?: unknown; icon?: unknown; undo?: unknown; ms?: unknown }): ToastShape {
+  const tone: ToastTone = (TOAST_TONES as readonly unknown[]).includes(p.tone) ? (p.tone as ToastTone) : "ok";
+  const asked = typeof p.ms === "number" && Number.isFinite(p.ms) && p.ms > 0 ? p.ms : null;
+  const ms = Math.max(TOAST_MIN_MS, Math.round(asked ?? (p.undo ? Math.max(TOAST_UNDO_MS, TOAST_MS[tone]) : TOAST_MS[tone])));
+  return {
+    tone,
+    icon: typeof p.icon === "string" && p.icon ? p.icon : TOAST_ICONS[tone],
+    role: tone === "danger" ? "alert" : "status",
+    ms,
+  };
+}

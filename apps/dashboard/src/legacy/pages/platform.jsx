@@ -49,7 +49,7 @@ const PlatformLine = ({ line, tenantId, onDone, flash }) => {
     const r = await P.act(a.action, tenantId, line.id);
     setBusy(false);
     setArm(null);
-    flash({ msg: <>{r.message}</> });
+    flash({ tone: "danger", msg: <>{r.message}</> });
     if (r.ok) onDone();
   };
 

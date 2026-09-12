@@ -239,7 +239,7 @@ const YourName = ({ flash, ...rest }) => {
     setBusy(true);
     const r = await window.__me.setName(name);
     setBusy(false);
-    flash({ msg: r.ok ? (r.name ? <>You&rsquo;re <b>{r.name}</b> to your team now.</> : <>Name cleared — your email stands in.</>) : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? (r.name ? <>You&rsquo;re <b>{r.name}</b> to your team now.</> : <>Name cleared — your email stands in.</>) : <>{r.message}</> });
   };
   return (
     <div className="set-you" data-testid="set-you">
@@ -368,7 +368,7 @@ function useFieldSave(flash) {
     }).then((r) => {
       if (r.ok) return;
       setBusy(false);
-      flash({ msg: <>{r.message}</> });
+      flash({ tone: "danger", msg: <>{r.message}</> });
     });
   };
   return [busy, save];
@@ -514,7 +514,7 @@ const TimezoneRow = ({ flash }) => {
     const r = await window.__workspace.setTimezone(pick);
     setBusy(false);
     if (r.ok) setEditing(false);
-    flash({ msg: r.ok ? <>Your day is measured in <b>{W.city ? W.city(r.tz) : r.tz}</b> now.</> : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Your day is measured in <b>{W.city ? W.city(r.tz) : r.tz}</b> now.</> : <>{r.message}</> });
   };
   return (
     <div className="cl-prof-attr" data-testid="set-timezone">
@@ -710,7 +710,7 @@ const TeamSection = ({ flash }) => {
     setTeamBusy(true);
     const r = await window.__teamInvite(mail, inviteRole);
     setTeamBusy(false);
-    if (!r.ok) { flash({ msg: <>{r.message}</> }); return; }
+    if (!r.ok) { flash({ tone: "danger", msg: <>{r.message}</> }); return; }
     setEmail(""); setInviting(false);
     // The server distinguishes these; saying "invite sent" for an account that
     // was simply added would promise an email nobody receives.
@@ -741,7 +741,7 @@ const TeamSection = ({ flash }) => {
     setTeamBusy(true);
     const r = await window.__teamSetRole(m.id, role);
     setTeamBusy(false);
-    flash({ msg: r.ok ? <><b>{m.name}</b> is now {ST_ROLE_META[role].label}</> : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{m.name}</b> is now {ST_ROLE_META[role].label}</> : <>{r.message}</> });
   };
 
   const remove = async (m) => {
@@ -1289,7 +1289,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     }).then((r) => {
       if (r.ok) return;
       setSaving(false);
-      flash({ msg: <>{r.message}</> });
+      flash({ tone: "danger", msg: <>{r.message}</> });
     });
   };
 
@@ -2166,7 +2166,7 @@ const PaneAutonomyReal = ({ flash }) => {
     setBusy(r.cls);
     const res = await window.__setPolicy(r.cls, mode, replyDelayMs, minConfidence, maxTokensDay);
     setBusy(null);
-    if (!res.ok) { flash({ msg: <><b>Not changed</b> — {res.message}</> }); return; }
+    if (!res.ok) { flash({ tone: "danger", msg: <><b>Not changed</b> — {res.message}</> }); return; }
     flash({
       msg: replyDelayMs !== undefined
         ? <><b>Hold window</b> → {(AUT_DELAYS.find((d) => d[1] === replyDelayMs) || [`${replyDelayMs / 1000}s`])[0]} — from the next reply</>
@@ -2466,7 +2466,7 @@ const PaneNotificationsReal = ({ flash }) => {
     const next = { ...cfg, notifications: { ...notif, escalation_emails: nextEmails } };
     setBusy(true);
     window.__saveSettings(next, settings.version, () => { setBusy(false); flash({ msg }); })
-      .then((r) => { if (r.ok) return; setBusy(false); flash({ msg: <>{r.message}</> }); });
+      .then((r) => { if (r.ok) return; setBusy(false); flash({ tone: "danger", msg: <>{r.message}</> }); });
   };
   const add = () => {
     const v = email.trim().toLowerCase();

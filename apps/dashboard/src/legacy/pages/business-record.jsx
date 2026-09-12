@@ -67,14 +67,14 @@ const BusinessRecordForm = ({ line, flash }) => {
     setBusy(true);
     const r = await API.save(record, path);
     setBusy(false);
-    flash({ msg: <>{r.message}</> });
+    flash({ tone: "danger", msg: <>{r.message}</> });
   };
   const file = async () => {
     setBusy(true);
     const r = await API.register(line.id);
     setBusy(false);
     setArm(false);
-    flash({ msg: <>{r.message}</> });
+    flash({ tone: "danger", msg: <>{r.message}</> });
   };
 
   const head = (

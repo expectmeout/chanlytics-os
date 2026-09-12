@@ -52,6 +52,8 @@ const Icon = ({ name, size = 16, className = "", style = {} }) => {
     case "play":     return <svg {...props}><path d="M5 3.5L12 8l-7 4.5v-9z" fill="currentColor"/></svg>;
     case "pause":    return <svg {...props}><rect x="4.5" y="3" width="2.5" height="10" fill="currentColor"/><rect x="9" y="3" width="2.5" height="10" fill="currentColor"/></svg>;
     case "alert":    return <svg {...props}><path d="M8 2L1.5 13h13L8 2z"/><path d="M8 6.5v3M8 11.5v.5"/></svg>;
+    case "info":     return <svg {...props}><circle cx="8" cy="8" r="5.5"/><path d="M8 7.5v3.5M8 5.25v.5"/></svg>;
+    case "error":    return <svg {...props}><circle cx="8" cy="8" r="5.5"/><path d="M6 6l4 4M10 6l-4 4"/></svg>;
     case "headphones": return <svg {...props}><path d="M2 9v3a1 1 0 001 1h1.5v-5H3a1 1 0 00-1 1zM14 9v3a1 1 0 01-1 1h-1.5v-5H13a1 1 0 011 1z"/><path d="M2 9a6 6 0 0112 0"/></svg>;
     case "eye":      return <svg {...props}><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>;
     case "flag":     return <svg {...props}><path d="M3 14V2.5h8l-1.5 3 1.5 3H3"/></svg>;

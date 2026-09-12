@@ -604,7 +604,7 @@ const SteerBox = ({ messageId }) => {
       setText("");
       flash({ msg: <>Rewritten — the new draft waits its turn like the first one</> });
     } else {
-      flash({ msg: <>Not rewritten — {r.message}</> });
+      flash({ tone: "danger", msg: <>Not rewritten — {r.message}</> });
     }
   };
   return (

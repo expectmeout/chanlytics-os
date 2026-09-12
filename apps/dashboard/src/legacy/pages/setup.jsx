@@ -34,7 +34,7 @@ const LineChooser = ({ S, flash, onDone, onKeep }) => {
     setChosen(null);
     const r = await window.__setup.lines.search(area);
     setBusy(false);
-    if (!r.ok) { flash({ msg: <>{r.message}</> }); return; }
+    if (!r.ok) { flash({ tone: "danger", msg: <>{r.message}</> }); return; }
     setNumbers(r.numbers || []);
     if (!(r.numbers || []).length) flash({ msg: <>Nothing free in {area} right now — try a nearby area code.</> });
   };
@@ -44,7 +44,7 @@ const LineChooser = ({ S, flash, onDone, onKeep }) => {
     setBusy(true);
     const r = await window.__setup.lines.buy(chosen.e164, area);
     setBusy(false);
-    if (!r.ok && r.message) { flash({ msg: <>{r.message}</> }); return; }
+    if (!r.ok && r.message) { flash({ tone: "danger", msg: <>{r.message}</> }); return; }
     flash({ msg: r.ok
       ? (r.queued
         ? <>{chosen.friendly} is yours — setting it up now, usually a minute or two. This page updates by itself.</>
@@ -148,14 +148,14 @@ const ForwardingCard = ({ S, flash, onDone }) => {
     setBusy(true);
     const r = await window.__setup.forwarding.set({ number, carrier, mode, test_from: testFrom });
     setBusy(false);
-    flash({ msg: r.ok ? <>Saved. Dial the code on the phone with {number}, then test it.</> : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Saved. Dial the code on the phone with {number}, then test it.</> : <>{r.message}</> });
   };
   const test = async () => {
     if (!owner) { flash({ msg: <>Only an owner can test forwarding.</> }); return; }
     setBusy(true);
     const r = await window.__setup.forwarding.test(fw.id);
     setBusy(false);
-    flash({ msg: r.ok ? <>The window is open for 30 minutes — call {W.display(fw.e164)} from another phone.</> : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>The window is open for 30 minutes — call {W.display(fw.e164)} from another phone.</> : <>{r.message}</> });
   };
   const codes = fw && f && (f.destination_e164 || dest) ? W.codes(f.carrier, f.mode, f.destination_e164 || dest) : null;
   const testing = !!(f && W.testOpen(f));
@@ -238,7 +238,7 @@ const ListingFinder = ({ flash, onDone }) => {
     setBusy(true);
     const r = await window.__google.link(c.place_id);
     setBusy(false);
-    flash({ msg: r.ok ? <><b>{c.name}</b> is your listing on Google{r.read ? " — read just now" : " — Google will be read within the hour"}.</> : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{c.name}</b> is your listing on Google{r.read ? " — read just now" : " — Google will be read within the hour"}.</> : <>{r.message}</> });
     if (r.ok) onDone();
   };
   let lead;
@@ -318,13 +318,13 @@ const PaneSetup = () => {
       if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can start or manage the subscription.</> }); return; }
       if (!window.__billing) return;
       const r = verb.to === "verb:billing-checkout" ? await window.__billing.checkout() : await window.__billing.portal();
-      if (!r.ok) flash({ msg: <>{r.message}</> });
+      if (!r.ok) flash({ tone: "danger", msg: <>{r.message}</> });
       return;
     }
     if (verb.to.startsWith("verb:forwarding-test:")) {
       if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can test forwarding.</> }); return; }
       const r = await window.__setup.forwarding.test(verb.to.slice("verb:forwarding-test:".length));
-      flash({ msg: r.ok ? <>The window is open for 30 minutes — call the number you keep from another phone.</> : <>{r.message}</> });
+      flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>The window is open for 30 minutes — call the number you keep from another phone.</> : <>{r.message}</> });
       setForwarding(true);
       return;
     }
@@ -332,19 +332,19 @@ const PaneSetup = () => {
       if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can retry a line.</> }); return; }
       flash({ msg: <>Retrying — usually a minute or two.</> });
       const r = await window.__setup.lines.retry(verb.to.slice("verb:retry-line:".length));
-      flash({ msg: r.ok ? (r.queued ? <>Setting up again — this page updates by itself.</> : <>Your line answers now.</>) : <>{r.message || "It stopped again — a person at Chanlytics has it."}</> });
+      flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? (r.queued ? <>Setting up again — this page updates by itself.</> : <>Your line answers now.</>) : <>{r.message || "It stopped again — a person at Chanlytics has it."}</> });
       return;
     }
     if (verb.to.startsWith("verb:activate:")) {
       if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can activate a capability.</> }); return; }
       const r = await window.__setup.activate(verb.to.slice("verb:activate:".length));
-      flash({ msg: r.ok ? <>Activated — it is yours to use, and Setup says so.</> : <>{r.message}</> });
+      flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Activated — it is yours to use, and Setup says so.</> : <>{r.message}</> });
       return;
     }
     if (verb.to.startsWith("verb:deactivate:")) {
       if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can switch a capability off.</> }); return; }
       const r = await window.__setup.deactivate(verb.to.slice("verb:deactivate:".length));
-      flash({ msg: r.ok ? <>Switched off — the record stays, and you can activate it again whenever you like.</> : <>{r.message}</> });
+      flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Switched off — the record stays, and you can activate it again whenever you like.</> : <>{r.message}</> });
       return;
     }
     if (verb.to.startsWith("tel:")) { window.location.href = verb.to; return; }

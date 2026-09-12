@@ -1097,7 +1097,7 @@ const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash })
     setBusy(true);
     const r = await fn();
     setBusy(false);
-    if (!r.ok) { flash({ msg: <>{r.message || "That did not go through."}</> }); return; }
+    if (!r.ok) { flash({ tone: "danger", msg: <>{r.message || "That did not go through."}</> }); return; }
     flash({ msg: done(r) });
   };
   const addTo = (list) => run(() => window.__lists.add(list.id, ids), () => <>{ids.length} added to <b>{list.name}</b></>);
@@ -1106,7 +1106,7 @@ const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash })
     if (!n || busy || !window.__lists) return;
     setBusy(true);
     const c = await window.__lists.create(n);
-    if (!c.ok) { setBusy(false); flash({ msg: <>{c.message || "Could not make the list."}</> }); return; }
+    if (!c.ok) { setBusy(false); flash({ tone: "danger", msg: <>{c.message || "Could not make the list."}</> }); return; }
     const made = ((window.__PEOPLE && window.__PEOPLE.saved) || []).find((s) => s.name === n);
     const a = made ? await window.__lists.add(made.id, ids) : { ok: false, message: "The list was made but not found again." };
     setBusy(false); setNaming(false); setName("");
@@ -1144,7 +1144,7 @@ const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash })
     setBusy(true);
     const r = await window.__setPersonReceptionistMany([...sel], m.id);
     setBusy(false);
-    flash({ msg: r.ok ? <>Receptionist: <b>{m.label}</b> for {r.done} {r.done === 1 ? "person" : "people"}</> : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Receptionist: <b>{m.label}</b> for {r.done} {r.done === 1 ? "person" : "people"}</> : <>{r.message}</> });
     if (r.ok) onClear();
   };
   const addNote = async () => {
@@ -1153,7 +1153,7 @@ const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash })
     setBusy(true);
     const r = await window.__appendPersonNotesMany([...sel], line);
     setBusy(false);
-    flash({ msg: r.ok ? <>Noted on {r.done} {r.done === 1 ? "person" : "people"}: <b>{line}</b></> : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Noted on {r.done} {r.done === 1 ? "person" : "people"}: <b>{line}</b></> : <>{r.message}</> });
     if (r.ok) { setNoting(false); setNote(""); onClear(); }
   };
   const sources = (window.__consentSources || []).filter((s) => s.id !== "customer_message");
@@ -1235,7 +1235,7 @@ const SaveShownAsList = ({ ids, suggested, flash }) => {
     if (!n || busy || !window.__lists) return;
     setBusy(true);
     const c = await window.__lists.create(n);
-    if (!c.ok) { setBusy(false); flash({ msg: <>{c.message || "Could not make the list."}</> }); return; }
+    if (!c.ok) { setBusy(false); flash({ tone: "danger", msg: <>{c.message || "Could not make the list."}</> }); return; }
     const made = ((window.__PEOPLE && window.__PEOPLE.saved) || []).find((s) => s.name === n);
     const a = made ? await window.__lists.add(made.id, ids) : { ok: false, message: "The list was made but not found again." };
     setBusy(false); setOpen(false); setName("");

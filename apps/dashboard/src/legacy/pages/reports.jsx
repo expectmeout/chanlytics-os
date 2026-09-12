@@ -648,7 +648,7 @@ const ReviewReply = ({ r, mode }) => {
     setBusy(true);
     const res = await window.__google.reply(r.id, text);
     setBusy(false);
-    flash({ msg: res.ok ? <>Your reply is on Google, under the review.</> : <>{res.message}</> });
+    flash({ tone: res.ok ? "ok" : "danger", msg: res.ok ? <>Your reply is on Google, under the review.</> : <>{res.message}</> });
     if (res.ok) setOpen(false);
   };
   return (

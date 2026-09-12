@@ -195,7 +195,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
       name: name.trim() || null,
     });
     setBusy(false);
-    if (!r.ok) { flash({ msg: <>{r.message}</> }); return; }
+    if (!r.ok) { flash({ tone: "danger", msg: <>{r.message}</> }); return; }
     setName("");
     setWhen("");
     const n = r.data.recipient_count;
@@ -210,17 +210,17 @@ const BroadcastsReal = ({ initialSegment = null }) => {
     setAddingStarters(true);
     const r = await window.__templates.addStarters({ languages: ["en_US"] });
     setAddingStarters(false);
-    flash({ msg: r.ok ? <>{window.starterWords ? window.starterWords(r.data) : "Added"}</> : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>{window.starterWords ? window.starterWords(r.data) : "Added"}</> : <>{r.message}</> });
   };
   const cancel = async (row) => {
     if (!window.__broadcasts) return;
     const r = await window.__broadcasts.cancel(row.id);
-    flash({ msg: r.ok ? <><b>{row.name}</b> {r.data.was === "sending" ? "stops after this batch" : r.data.was === "pending_approval" ? "skipped — nothing will send" : "canceled — nothing will send"}</> : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{row.name}</b> {r.data.was === "sending" ? "stops after this batch" : r.data.was === "pending_approval" ? "skipped — nothing will send" : "canceled — nothing will send"}</> : <>{r.message}</> });
   };
   const approve = async (row) => {
     if (!window.__broadcasts) return;
     const r = await window.__broadcasts.approve(row.id);
-    flash({ msg: r.ok ? <><b>{row.name}</b> approved — {r.data.recipient_count} {r.data.recipient_count === 1 ? "person" : "people"}, sending now</> : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{row.name}</b> approved — {r.data.recipient_count} {r.data.recipient_count === 1 ? "person" : "people"}, sending now</> : <>{r.message}</> });
   };
 
   return (
