@@ -663,7 +663,6 @@ const PL_TAB_SUB = {
   quiet: "Nothing heard in 30 days",
   active: "Answered and current",
 };
-const PL_PILL = { needs_you: "b-needs-you", waiting_on_you: "b-drifting", new: "b-new", quiet: "b-steady", active: "b-champion", opted_out: "b-steady" };
 const PL_LIST_TIP = {
   needs_you: "An open escalation, or a thread waiting for a person",
   waiting_on_you: "You took over and they wrote last",
@@ -729,9 +728,9 @@ const usePeople = () => {
   return window.__PEOPLE;
 };
 
-const PeopleStatePill = ({ state, label }) => (
-  <span className={`cl-row-bucket-pill ${PL_PILL[state] || "b-steady"}`}>{label}</span>
-);
+// The person's state as the one pill draws it (contracts/tone.ts): the
+// mockup's four-colour class family is the seed's alone now.
+const PeopleStatePill = ({ state, label }) => <StatePill kind="person" value={state} label={label} />;
 
 const PeopleChannels = ({ channels }) => (
   <span className="cl-row-channels">
@@ -861,9 +860,12 @@ const PeopleRail = ({ lists, groups = PL_DEFAULT_GROUPS, active, onPick, saved =
   </aside>
 );
 
-// The tab's own colour on the cells that hold people: red where you are
-// needed, amber where you owe an answer, blue for the rest — the mockup's.
-const PL_TAB_TONE = { needs_you: "var(--accent)", waiting_on_you: "var(--warn)", new: "var(--info)", quiet: "var(--info)", active: "var(--info)" };
+// The strip's cells take the state's own tone from contracts, so the tab and
+// the pill on the row below it are one colour for one state.
+const plTabTone = (state) => {
+  const tone = window.__chrome && window.__chrome.state ? window.__chrome.state("person", state).tone : "plain";
+  return tone === "plain" ? "var(--ink-dim)" : `var(--${tone})`;
+};
 
 // One row of the strip: the name, where and when, one sentence, one state
 // line, one button (contracts/people.ts attentionRow). The row opens the
@@ -912,7 +914,7 @@ const PeopleTriage = ({ rows, recency, attention, attentionTab, setAttentionTab,
               </div>
               <div className="cl-triage-tab-strip" data-tip="Days since last contact — most recent on the left">
                 {cells.map((c) => (
-                  <span key={c.label} className={`cl-triage-cell ${c.count ? "on" : ""}`} style={c.count ? { background: PL_TAB_TONE[t] } : undefined} />
+                  <span key={c.label} className={`cl-triage-cell ${c.count ? "on" : ""}`} style={c.count ? { background: plTabTone(t) } : undefined} />
                 ))}
               </div>
             </button>

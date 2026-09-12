@@ -8,15 +8,18 @@ const { useState: useCvState, useMemo: useCvMemo, useEffect: useCvEffect } = Rea
 const CV_ICON = { phone: "phone", sms: "chat", whatsapp: "chat", instagram: "instagram", mail: "mail" };
 const CV_LABEL = { phone: "Phone", sms: "SMS", whatsapp: "WhatsApp", instagram: "Instagram", mail: "Email" };
 
+// The row's outcome as the one pill draws it. The words a page knows better
+// stay here (which channel answered, what you chose); the tones are the map's,
+// so "Needs you" is amber here as it is in the Inbox and on a playbook.
 const OutcomePill = ({ outcome, decidedAction, channel }) => {
-  if (decidedAction) return <span className="pill pill-ok"><Icon name="check" size={9} />Handled · you chose {decidedAction}</span>;
-  if (outcome === "live") return <span className="pill pill-accent"><span className="live-dot" style={{ width: 5, height: 5 }} />Live</span>;
-  if (outcome === "missed") return <span className="pill">Never connected</span>;
-  if (outcome === "booked") return <span className="pill pill-ok">Booked</span>;
-  if (outcome === "escalated") return <span className="pill pill-warn">Needs you</span>;
-  if (outcome === "handled") return <span className="pill">{channel === "phone" ? "Receptionist handled it" : "Receptionist replied"}</span>;
+  if (decidedAction) return <StatePill kind="thread" value="decided" label={<><Icon name="check" size={9} />Handled · you chose {decidedAction}</>} />;
+  if (outcome === "live") return <StatePill kind="call" value="live" />;
+  if (outcome === "missed") return <StatePill kind="call" value="missed" />;
+  if (outcome === "booked") return <StatePill kind="thread" value="booked" />;
+  if (outcome === "escalated") return <StatePill kind="thread" value="escalated" />;
+  if (outcome === "handled") return <StatePill kind="thread" value="handled" label={channel === "phone" ? "Receptionist handled it" : "Receptionist replied"} />;
   // The customer had the last word — it is your turn, not theirs; this read "Customer's turn" for a year.
-  return <span className="pill">Customer wrote last</span>;
+  return <StatePill kind="thread" value="open" />;
 };
 
 // Session-decision overlay — approval convos reflect IX_STORE state

@@ -20,6 +20,7 @@
  * a call disagreeing about what the product says — so there is one rendering,
  * and this file adds only the cross-workspace judgement that nobody else needs.
  */
+import type { Tone } from "./tone";
 import { agoWords } from "./time";
 import { textingWords, lineStuckProvisioning, type LineDto } from "./setup";
 import { receptionistOn, maySpend, whyCannotSpend, type BillingMode, type BillingStatus } from "./billing";
@@ -75,7 +76,8 @@ export type PlatformVerdict =
 
 export interface PlatformVerdictWords {
   label: string;
-  tone: "ok" | "warn" | "danger" | "accent" | "muted";
+  /** One of the product's six tones (tone.ts): waiting on an owner is "in progress", not "live". */
+  tone: Tone;
   /** Higher sorts first: the page is worked from the top down. */
   rank: number;
 }
@@ -85,12 +87,12 @@ export const PLATFORM_VERDICTS: Record<PlatformVerdict, PlatformVerdictWords> = 
   billing:       { label: "Billing",       tone: "danger", rank: 90 },
   rehearsal:     { label: "Rehearsal",     tone: "warn",   rank: 80 },
   stalled:       { label: "Stalled",       tone: "warn",   rank: 70 },
-  waiting_owner: { label: "Waiting on them", tone: "accent", rank: 60 },
+  waiting_owner: { label: "Waiting on them", tone: "info",   rank: 60 },
   quiet:         { label: "Quiet",         tone: "warn",   rank: 40 },
-  new:           { label: "New",           tone: "accent", rank: 20 },
+  new:           { label: "New",           tone: "info",   rank: 20 },
   live:          { label: "Live",          tone: "ok",     rank: 10 },
-  paused:        { label: "Paused",        tone: "muted",  rank: 5 },
-  test:          { label: "Test",          tone: "muted",  rank: 0 },
+  paused:        { label: "Paused",        tone: "plain",  rank: 5 },
+  test:          { label: "Test",          tone: "plain",  rank: 0 },
 };
 
 export interface PlatformRowVM {

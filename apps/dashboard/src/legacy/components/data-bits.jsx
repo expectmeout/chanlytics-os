@@ -311,7 +311,32 @@ const PolicyChip = ({ cls, className = "" }) => {
     </button>
   );
 };
-Object.assign(window, { PolicyChip });
+// ---- StatePill — the one pill for a state ---------------------------------
+// The tone comes from contracts (tone.ts, through the chrome bridge), the
+// words from the label maps contracts keeps unless the page has better ones,
+// and a live dot rides the accent, which means "right now" and nothing else.
+// Ten components drew this before, each with its own colours: "Needs you" was
+// the accent in the Inbox, amber in Conversations and the accent on a
+// playbook. Without the bridge (the standalone mockup) it is a plain pill.
+// Usage: <StatePill kind="thread" value={t.state} /> · label= overrides the words.
+const StatePill = ({ kind, value, label = null, className = "", title = null, tip = null, testid = null }) => {
+  const said = window.__chrome && window.__chrome.state ? window.__chrome.state(kind, value) : { tone: "plain", label: String(value ?? "") };
+  const tone = said.tone;
+  return (
+    <span
+      className={`pill${tone === "plain" ? "" : ` pill-${tone}`}${className ? ` ${className}` : ""}`}
+      data-state={value}
+      data-tone={tone}
+      title={title || undefined}
+      data-tip={tip || undefined}
+      data-testid={testid || undefined}
+    >
+      {tone === "accent" && <span className="live-dot" style={{ width: 5, height: 5 }} />}
+      {label ?? said.label}
+    </span>
+  );
+};
+Object.assign(window, { PolicyChip, StatePill });
 
 // ---- Tip — one styled tooltip for every [data-tip] element (hover + keyboard focus) ----
 (() => {

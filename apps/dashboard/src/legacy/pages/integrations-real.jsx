@@ -10,7 +10,6 @@
 // Split out of settings.jsx, which had grown to hold the settings shell,
 // this pane, Google's card and the business form at once.
 
-const CONNECTION_PILL = { ok: "pill-ok", warn: "pill-warn", accent: "pill-accent", muted: "" };
 const VERB_TESTID = { "verb:google-check": "google-check", "verb:google-connect": "google-connect", "verb:google-disconnect": "google-disconnect", "verb:whatsapp-connect": "connect-whatsapp-btn", messages: "channel-messages" };
 const mayPress = (verb) => !!verb && !!window.canDo && (verb.who === "owner" ? window.canDo("team") : window.canDo("approve"));
 
@@ -80,7 +79,7 @@ const ConnectionRow = ({ r, run, busy, arm, setArm, confirm }) => {
           <span className="set-row-hint">Disconnect Google? The public listing stays; replies and the full history do not. <button className="cl-bucket-link" disabled={busy} onClick={() => confirm("disconnect")} data-testid="google-disconnect-yes">Yes, disconnect</button> <button className="cl-bucket-link" onClick={() => setArm(null)}>No</button></span>
         )}
       </span>
-      <span className={`pill ${CONNECTION_PILL[r.tone] || ""}`}>{r.tone === "ok" && <span className="dot" />}{r.stateWords}</span>
+      <StatePill kind="tone" value={r.tone} label={<>{r.tone === "ok" && <span className="dot" />}{r.stateWords}</>} />
       {r.kind === "google_listing" && owner && !armed && (r.state === "connected" || r.state === "attention") && (
         <button className="cl-bucket-link" onClick={() => setArm({ kind: r.kind, what: "remove" })} disabled={busy} data-testid="google-remove">Remove</button>
       )}

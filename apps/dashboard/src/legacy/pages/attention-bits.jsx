@@ -7,6 +7,17 @@
 //
 // Verbs are the caller's: `cta.onClick` and `also.onClick` do the work; the row
 // itself opens whatever `onOpen` says. Nothing here reads a surface.
+//
+// The lead line's colour is the row's tone: one of contracts' six (tone.ts),
+// or the receptionist's standing on a thread (people.ts: escalated, queued,
+// snoozed, paused, silent, answering) said in them. Without the bridge, the
+// name as given.
+const attnTone = (tone) => {
+  const say = window.__chrome && window.__chrome.state;
+  if (!say) return tone;
+  const own = say("tone", tone).tone;
+  return own === "plain" ? say("standing", tone).tone : own;
+};
 const AttnRow = ({
   initials,
   glyph = null,
@@ -23,7 +34,7 @@ const AttnRow = ({
   ctaTestid = "attention-cta",
 }) => (
   <div
-    className={`cl-attn-row tone-${tone}`}
+    className={`cl-attn-row tone-${attnTone(tone)}`}
     role="button"
     tabIndex={0}
     onClick={onOpen}

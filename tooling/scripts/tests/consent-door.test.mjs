@@ -310,7 +310,7 @@ async function renderLoadedProfile(extra = {}) {
     __ACTIVE_WORKSPACE: "t-1",
     __verbalOptInScript: verbalOptInScript,
   });
-  for (const g of ["Icon", "ChannelGlyph", "ClientTag", "StatCell", "StatStrip", "MoreMenu", "TempBar"]) globalThis[g] ??= g;
+  for (const g of ["Icon", "ChannelGlyph", "ClientTag", "StatePill", "StatCell", "StatStrip", "MoreMenu", "TempBar"]) globalThis[g] ??= g;
   globalThis.React.useCallback ??= (fn) => fn;
   const Profile = globalThis.window.ClientProfile({ id: "p-maria" }).type;
   assert.equal(typeof Profile, "function", "a real workspace renders the real profile");

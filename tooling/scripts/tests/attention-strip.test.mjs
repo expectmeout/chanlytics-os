@@ -95,7 +95,7 @@ test("the wiring: the door carries the summary, the surface carries the rows, th
   const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
   assert.ok(page.includes('<PeopleTriage rows={rows} recency={people.recency} attention={people.attention}'), "the real page hands the rows to the strip");
   assert.ok(!page.includes("remembered.showTriage") && !page.includes("Updated {fetched}"), "no header, no toggle, no clock on the real page: the strip is the hero, as drawn");
-  for (const s of ['data-testid="attention-strip"', 'className="cl-attn-list" key={active}', 'className="cl-attn-foot"', "PL_TAB_TONE[t]", "<window.AttnRow", "Nobody here right now."]) assert.ok(page.includes(s), s);
+  for (const s of ['data-testid="attention-strip"', 'className="cl-attn-list" key={active}', 'className="cl-attn-foot"', "plTabTone(t)", "<window.AttnRow", "Nobody here right now."]) assert.ok(page.includes(s), s);
   assert.ok(!page.includes("nothing written to quote"), "the confession is gone");
   const css = readRaw("apps/dashboard/src/legacy/styles/clients.css");
   assert.ok(css.includes(".cl-attn-list { min-height: calc(3 * var(--attn-row));") && css.includes(".cl-attn-empty { min-height: calc(3 * var(--attn-row));"), "three rows or nothing take the same room");

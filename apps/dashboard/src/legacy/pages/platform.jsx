@@ -22,10 +22,10 @@ const PLATFORM_GLYPH = {
   waiting_owner: "user", quiet: "wave", new: "sparkle", live: "check",
   paused: "pause", test: "bolt",
 };
-// The two tones the attention row already styles, plus the one this page adds.
-const PLATFORM_TONE = { danger: "danger", warn: "escalated", accent: "queued", ok: "", muted: "" };
 
 const when = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—");
+// A Setup row's tone is its state's own (contracts/tone.ts), as the owner's page draws it.
+const setupTone = (state) => (window.__chrome && window.__chrome.state ? window.__chrome.state("setup", state).tone : "plain");
 
 /** One workspace, opened: the Setup its owner sees, its lines, and what has happened. */
 /**
@@ -124,7 +124,7 @@ const PlatformDetail = ({ detail, onClose, onChanged, flash }) => {
             name={r.title}
             sentence={r.sentence}
             status={[r.stateWords, ...r.details]}
-            tone={r.state === "waiting_you" ? "escalated" : r.state === "waiting_them" ? "queued" : ""}
+            tone={setupTone(r.state)}
             testid={`platform-setup-${r.id}`}
           />
         ))}
@@ -270,7 +270,7 @@ const PanePlatform = () => {
                 meta={`${r.slug} · ${r.members} in it · ${r.age}`}
                 sentence={r.sentence}
                 status={[v.label, r.facts.paying, r.facts.answering, `texting ${r.facts.texting}`, `heard ${r.facts.heard}`]}
-                tone={PLATFORM_TONE[v.tone] || ""}
+                tone={v.tone}
                 cta={{ label: openId === r.tenantId ? "Close" : "Open", kind: "ghost", onClick: () => setOpenId(openId === r.tenantId ? null : r.tenantId) }}
                 onOpen={() => setOpenId(openId === r.tenantId ? null : r.tenantId)}
                 testid={`platform-row-${r.slug}`}

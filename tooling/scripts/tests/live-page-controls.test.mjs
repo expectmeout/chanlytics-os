@@ -42,6 +42,7 @@ let cells = [];
 let seq = 0;
 const fresh = () => { cells = []; };
 globalThis.Icon = "Icon";
+globalThis.StatePill = "StatePill";
 globalThis.StatStrip = "StatStrip";
 globalThis.StatCell = "StatCell";
 globalThis.React = {

@@ -11,14 +11,9 @@
 // window.__templates and the surface is re-fetched, so the cards are the
 // server's.
 
-const TPL_STATUS = {
-  approved: { label: "Approved", tone: "ok" },
-  pending: { label: "In review", tone: "review" },
-  rejected: { label: "Rejected", tone: "warn" },
-  paused: { label: "Paused", tone: "warn" },
-  disabled: { label: "Disabled", tone: "warn" },
-};
-const tplStatus = (t) => TPL_STATUS[t.meta_status] || { label: t.meta_status, tone: "review" };
+// A template's state at Meta, in the product's tones and words (contracts/tone.ts):
+// a rejection is a failure, a review is in progress, a pause is a warning.
+const tplStatus = (t) => (window.__chrome && window.__chrome.state ? window.__chrome.state("template", t.meta_status) : { label: t.meta_status, tone: "plain" });
 const tplAgo = (iso) => {
   if (!iso) return null;
   const diff = Math.max(0, Date.now() - new Date(iso).getTime());

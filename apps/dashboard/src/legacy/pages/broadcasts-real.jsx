@@ -393,7 +393,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
                 {row.state === "sending" ? ` · ${row.counts.sent + row.counts.skipped + row.counts.failed} of ${row.recipient_count} done` : ""}
               </span>
             </div>
-            <span className={"pill " + (row.state === "sending" ? "pill-info" : row.state === "pending_approval" ? "pill-warn" : "")}>{row.stateLabel}</span>
+            <StatePill kind="broadcast" value={row.state} label={row.stateLabel} />
             {canSend && row.state === "pending_approval" && <button className="btn btn-primary btn-sm" onClick={() => approve(row)} data-testid="bc-approve">Approve</button>}
             {canSend && <button className="btn btn-sm" onClick={() => cancel(row)}>{row.state === "sending" ? "Stop" : row.state === "pending_approval" ? "Skip" : "Cancel"}</button>}
           </div>

@@ -843,7 +843,7 @@ test("the list is the contract's judgement, in the row grammar the rest of the a
   // The verdict leads the status line and colours the row.
   assert.equal(rows[0].props.status[0], "Broken");
   assert.equal(rows[0].props.tone, "danger");
-  assert.equal(rows[1].props.tone, "");
+  assert.equal(rows[1].props.tone, "ok", "the verdict speaks the six tones now; a live workspace is ok, not blank");
   // The four facts are all on the row, so the answer is on the page rather than
   // one click away.
   assert.match(rows[1].props.status.join(" · "), /active · phone \+ WhatsApp · texting On · heard 1d ago/);

@@ -1651,10 +1651,14 @@
 .cl-attn-sentence.quoted { font-style: italic; color: var(--ink); }
 .cl-attn-status { font-size: 10.5px; color: var(--ink-dim); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-attn-status .lead { color: var(--ink-muted); }
-.cl-attn-row.tone-escalated .cl-attn-status .lead { color: var(--warn); }
-.cl-attn-row.tone-queued .cl-attn-status .lead { color: var(--info); }
-/* The back office needs a third: a workspace whose line failed or whose card
-   stopped working is not the same kind of amber as one waiting on a person. */
+/* The lead takes the row's tone, one of contracts' six (tone.ts): amber where a
+   person is needed, blue for in progress, green for healthy, the accent for right
+   now, and red for the back office's workspace whose line failed or whose card
+   stopped working -- not the same kind of amber as one waiting on a person. */
+.cl-attn-row.tone-warn .cl-attn-status .lead { color: var(--warn); }
+.cl-attn-row.tone-info .cl-attn-status .lead { color: var(--info); }
+.cl-attn-row.tone-ok .cl-attn-status .lead { color: var(--ok); }
+.cl-attn-row.tone-accent .cl-attn-status .lead { color: var(--accent); }
 .cl-attn-row.tone-danger .cl-attn-status .lead { color: var(--danger); }
 .cl-attn-cta {
   align-self: center;
@@ -1684,4 +1688,3 @@
 /* The row's verbs: the one button, and where a state asks a second thing of
    you, a quiet second (attention-bits.jsx draws them for People and Today). */
 .cl-attn-acts { display: inline-flex; align-items: center; gap: 6px; }
-.cl-attn-row.tone-warn .cl-attn-status .lead { color: var(--warn); }

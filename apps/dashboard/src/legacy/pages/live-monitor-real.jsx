@@ -31,11 +31,11 @@ const useLiveSurface = () => {
   return window.__LIVE;
 };
 
+// The call's state as the one pill draws it: live is the accent, the rest are
+// plain, and the words are the label map's.
 const LrPill = ({ c }) => {
-  if (c.live) return <span className="pill pill-accent"><span className="live-dot" style={{ width: 5, height: 5 }} />Live</span>;
-  if (c.missed) return <span className="pill">Never connected</span>;
-  if (c.stale) return <span className="pill" title="Marked live by the phone provider, but silent past the heartbeat. Checked within five minutes.">No word from the provider</span>;
-  return <span className="pill">Ended</span>;
+  const value = c.live ? "live" : c.missed ? "missed" : c.stale ? "stale" : "ended";
+  return <StatePill kind="call" value={value} title={c.stale ? "Marked live by the phone provider, but silent past the heartbeat. Checked within five minutes." : null} />;
 };
 
 const LrRow = ({ c, active, elapsed, onSelect }) => (

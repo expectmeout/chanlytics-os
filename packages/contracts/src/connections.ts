@@ -10,6 +10,7 @@
  * this says what is joined. Both derive from the same facts and cannot
  * disagree. Pure: the page feeds it window globals, the tests fixtures.
  */
+import type { Tone } from "./tone";
 import { numberHealth } from "./broadcasts";
 import { channelFor, type ChannelVM } from "./channels";
 import type { GoogleListingDto, GoogleConnectionDto, GoogleAudience } from "./google";
@@ -26,7 +27,8 @@ export const CONNECTION_KINDS: readonly ConnectionKind[] = ["whatsapp", "phone",
 export type ConnectionGroup = "connected" | "available" | "later";
 /** Where this workspace stands with it. `attention` is joined but not working. */
 export type ConnectionState = "connected" | "attention" | "off" | "waiting_you" | "waiting_them" | "none" | "later";
-export type ConnectionTone = "ok" | "warn" | "accent" | "muted";
+/** One of the product's six tones (tone.ts): a channel that waits on someone is "in progress", not "live". */
+export type ConnectionTone = Tone;
 /** Who may press the verb: an owner (team-level), or anyone who may approve (operators and owners). */
 export type ConnectionWho = "owner" | "operator";
 
@@ -71,7 +73,7 @@ export interface ConnectionInputs {
 }
 
 const TONE: Record<ConnectionState, ConnectionTone> = {
-  connected: "ok", attention: "warn", off: "warn", waiting_you: "accent", waiting_them: "accent", none: "muted", later: "muted",
+  connected: "ok", attention: "warn", off: "warn", waiting_you: "info", waiting_them: "info", none: "plain", later: "plain",
 };
 
 const GROUP: Record<ConnectionState, ConnectionGroup> = {
