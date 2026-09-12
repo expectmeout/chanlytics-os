@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SignupSchema, SIGNUP_WORDS, addressAlreadyKnown, deviceTimezone, sendFailureIsOurs, pendingWorkspaceOf, PENDING_WORKSPACE_KEY, EVENT_KINDS } from "@chanlytics/contracts";
+import { SignupSchema, SIGNUP_WORDS, addressAlreadyKnown, deviceTimezone, emailNotConfirmed, sendFailureIsOurs, pendingWorkspaceOf, PENDING_WORKSPACE_KEY, EVENT_KINDS } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 test("the form's shape: a name, a lower-cased address, an optional zone and code, nothing else", () => {
@@ -108,6 +108,10 @@ test("the wiring: two public paths, the guards on the route, a service role that
   assert.ok(login.includes('href="/signup"') && login.includes("signInWithPassword({ email: email.trim(), password })"), "a password door, pointing at sign-up");
   assert.ok(login.includes("shouldCreateUser: false"), "REGRESSION: the code door must never mint an account");
   assert.ok(login.includes('href={`/reset-password'), "and a way out for somebody who has forgotten it");
+  // And a way out of the state confirmation created: password right, address
+  // never proved. Without this the person is told the pair does not match and
+  // goes off to reset a password that works.
+  assert.ok(login.includes("if (emailNotConfirmed(error)) {") && login.includes('await supabase.auth.resend({ type: "signup", email: email.trim() });'), "an unconfirmed account is sent a fresh confirmation rather than the neutral refusal");
   const page = readCode("apps/dashboard/app/signup/page.tsx");
   // The server says which of the three doors this is; the field belongs to
   // exactly one of them.
@@ -163,6 +167,27 @@ test("a send WE could not make is admitted; one about an ADDRESS is not", () => 
 
   // And the opaque sentence is untouched: it still speaks conditionally.
   assert.match(SIGNUP_WORDS.sent("o@example.com"), /^If o@example\.com can receive email/);
+});
+
+test("an unconfirmed address is the one refusal safe to explain, and it is not confused with the others", () => {
+  // Requiring confirmation created this state, so requiring it obliges us to
+  // offer a way out. Only a caller who supplied the CORRECT password for an
+  // existing account sees this answer, so it discloses nothing.
+  for (const stuck of [{ code: "email_not_confirmed" }, { message: "Email not confirmed" }]) {
+    assert.equal(emailNotConfirmed(stuck), true, JSON.stringify(stuck));
+  }
+  for (const not of [null, undefined, {}, { code: "invalid_credentials" }, { code: "email_exists" }, { message: "Invalid login credentials" }]) {
+    assert.equal(emailNotConfirmed(not), false, JSON.stringify(not));
+  }
+  // Three judgements over the same error object, none claiming another's cases.
+  assert.equal(addressAlreadyKnown({ code: "email_not_confirmed" }), false);
+  assert.equal(sendFailureIsOurs({ code: "email_not_confirmed" }), false);
+  // The words say the password was NOT the problem: without that, the obvious
+  // next move is resetting a password that works perfectly well.
+  const said = SIGNUP_WORDS.confirmFromSignIn("o@example.com");
+  assert.match(said, /password is right/i);
+  assert.match(said, /never confirmed/i);
+  assert.match(said, /o@example\.com/);
 });
 
 test("an address we already have is recognised, and is a different judgement from a send we could not make", () => {

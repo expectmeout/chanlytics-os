@@ -577,7 +577,7 @@ const PaneProfile = ({ flash }) => {
       </section>
       <section className="fl-card set-card">
         <div className="fl-card-head"><span className="fl-card-title">This device</span></div>
-        <SetRow label="Sign out" hint="Ends this session on this browser only">
+        <SetRow label="Sign out" hint="Ends your session everywhere, on every device — what someone who has lost a laptop expects">
           <button className="btn btn-sm" onClick={signOut} data-testid="set-profile-signout">
             <Icon name="logout" size={12} /> Sign out
           </button>
