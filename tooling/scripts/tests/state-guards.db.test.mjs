@@ -1,8 +1,10 @@
 /**
- * The edges a state machine keeps (00106), proved on a real Postgres: a sent
- * broadcast cannot be scheduled again, an escalation resolves once, an
- * answering line is not re-provisioned by a late retry. Every move a writer
- * in the repo actually makes still passes, and so does a same-state update.
+ * The edges a state machine keeps (00106, 00116), proved on a real Postgres:
+ * a sent broadcast cannot be scheduled again, an escalation resolves once, an
+ * answering line is not re-provisioned by a late retry, a marked recipient is
+ * not queued again, and a line's texting state never returns to none or
+ * enters a path that is not built. Every move a writer in the repo actually
+ * makes still passes, and so does a same-state update.
  *
  * Runs the way jobs-outbox.db.test.mjs does: against the database
  * `supabase start` builds on this machine, never production.
@@ -23,6 +25,7 @@ let db;
 let tenantId;
 let templateId;
 let conversationId;
+let phones = 100;
 
 before(async () => {
   if (skip) return;
@@ -116,4 +119,68 @@ test("a line's voice moves forward; an answering line is not re-provisioned, and
   await step("provisioning", false, "a late retry must not re-provision an answering line");
   await step("none", false, "a line is released, not reset");
   await step("failed", true, "an answering line may still fail");
+});
+
+async function contact() {
+  phones += 1;
+  const { data, error } = await db.from("contacts").insert({ tenant_id: tenantId, phone_e164: `+1555${String(phones).padStart(7, "0")}` }).select("id").single();
+  assert.equal(error, null, error?.message);
+  return data.id;
+}
+
+test("a recipient is marked once: queued -> sent, skipped or failed, then final; a resumed batch may say the same again", { skip }, async () => {
+  const broadcastId = await broadcast("sending");
+  const recipient = async (state) => {
+    const contactId = await contact();
+    const { error } = await db.from("broadcast_recipients").insert({ tenant_id: tenantId, broadcast_id: broadcastId, contact_id: contactId, state });
+    assert.equal(error, null, error?.message);
+    return contactId;
+  };
+  // Keyed the way the handler keys it: the broadcast and the contact, no state filter.
+  const mark = (contactId, patch) => db.from("broadcast_recipients").update(patch).eq("broadcast_id", broadcastId).eq("contact_id", contactId).select("state");
+  for (const to of ["sent", "skipped", "failed"]) {
+    const r = await mark(await recipient("queued"), { state: to, reason: to === "sent" ? null : to });
+    assert.equal(r.error, null, `queued -> ${to} is the handler's move: ${r.error?.message}`);
+  }
+  for (const [from, to] of [["sent", "queued"], ["skipped", "queued"], ["failed", "queued"], ["sent", "failed"], ["skipped", "sent"], ["failed", "sent"]]) {
+    const r = await mark(await recipient(from), { state: to });
+    assert.match(r.error?.message ?? "", /terminal/, `${from} -> ${to} must be refused`);
+  }
+  const again = await mark(await recipient("sent"), { state: "sent", reason: "a resumed batch, marking what it already marked" });
+  assert.equal(again.error, null, `a same-state update is not a move: ${again.error?.message}`);
+});
+
+test("a line's texting state moves as the hourly sync and the refile doors move it, never back to none, never into a path that is not built", { skip }, async () => {
+  const line = async (sms_state) => {
+    phones += 1;
+    const { data, error } = await db.from("lines").insert({ tenant_id: tenantId, e164: `+1555${String(phones).padStart(7, "0")}`, kind: "chanlytics", provider: "dry", sms_state }).select("id").single();
+    assert.equal(error, null, error?.message);
+    return data.id;
+  };
+  const move = (id, sms_state) => db.from("lines").update({ sms_state }).eq("id", id).select("id");
+  // Every edge a writer takes (a2p.ts registerLine, syncRegistration, the two
+  // refile doors, lines.ts register): forward, and back again when Twilio's
+  // answer changes.
+  const allowed = [
+    ["none", "needs_record"], ["none", "registering"], ["needs_record", "registering"], ["registering", "needs_record"],
+    ["registering", "failed"], ["registering", "approved"], ["registering", "active"], ["registering", "rejected"],
+    ["approved", "registering"], ["approved", "active"], ["approved", "rejected"], ["approved", "failed"],
+    ["active", "approved"], ["active", "rejected"], ["active", "failed"],
+    ["rejected", "registering"], ["rejected", "approved"], ["rejected", "active"],
+    ["failed", "registering"], ["failed", "needs_record"],
+  ];
+  for (const [from, to] of allowed) {
+    const r = await move(await line(from), to);
+    assert.equal(r.error, null, `${from} -> ${to} is a move a writer makes: ${r.error?.message}`);
+  }
+  for (const from of ["needs_record", "registering", "approved", "active", "rejected", "failed"]) {
+    const r = await move(await line(from), "none");
+    assert.match(r.error?.message ?? "", /refused/, `${from} -> none must be refused: a line is released, not reset`);
+  }
+  for (const to of ["otp_waiting", "hosting"]) {
+    const r = await move(await line("registering"), to);
+    assert.match(r.error?.message ?? "", /not built/, `registering -> ${to} must be refused until it is built`);
+  }
+  const same = await move(await line("active"), "active");
+  assert.equal(same.error, null, `a same-state update is not a move: ${same.error?.message}`);
 });
