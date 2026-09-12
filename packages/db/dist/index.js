@@ -5237,8 +5237,16 @@ var WATCHED = [
   // the listing linked, read, or removed: Setup and Reports repaint
   { table: "google_reviews", event: "INSERT" },
   // a review seen for the first time
-  { table: "billing_accounts", event: "*" }
+  { table: "billing_accounts", event: "*" },
   // Stripe's answer, applied by the webhook: Billing and Setup repaint
+  { table: "tenant_channels", event: "*" },
+  // a channel connected, switched off, or written by a line's saga: Setup and Connections repaint (00117)
+  { table: "capability_activations", event: "*" },
+  // the owner's act, in another tab: Setup repaints (00108)
+  { table: "business_records", event: "*" },
+  // the record the carriers read, saved on Connections: Setup repaints (00075)
+  { table: "google_connections", event: "*" }
+  // the profile connected, synced or failing by the hourly sweep: Connections repaints (00070)
 ];
 function subscribeMessagesInserts(client, onInsert, opts = {}) {
   const topic = `db-changes:${opts.topic ?? "bridge"}`;

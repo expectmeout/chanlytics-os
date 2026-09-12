@@ -12,6 +12,7 @@ import {
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "./surface-data";
 import { api, read } from "./api";
+import { refreshSurfaces } from "./surface-runner";
 import { getActiveWorkspace } from "./workspace";
 
 export interface SetupSurface {
@@ -28,6 +29,10 @@ export interface SetupApi {
   request(what: "line"): Promise<{ ok: boolean; already: boolean; message: string }>;
   /** The owner switches a tested capability on: a record, not a claim. Owners only; the route says so. */
   activate(kind: string): Promise<{ ok: boolean; message: string }>;
+  /** And off again: the row stays, the history does. Owners only. */
+  deactivate(kind: string): Promise<{ ok: boolean; message: string }>;
+  /** Read the workspace again: the failed card's retry. */
+  refresh(): Promise<void>;
   /** The product's own line: numbers to choose from, the one chosen, a retry. Owners only; the route says so. */
   lines: {
     search(areaCode: string): Promise<{ ok: boolean; numbers: LineChoice[]; message: string }>;
@@ -62,7 +67,8 @@ export interface LineChoice {
 
 declare global {
   interface Window {
-    __SETUP?: SetupSurface;
+    /** Undefined until read; null when the read failed, so the page shows a retry rather than "Reading…" for ever. */
+    __SETUP?: SetupSurface | null;
     __setup?: SetupApi;
     __forwarding?: ForwardingWords;
   }
@@ -96,11 +102,21 @@ export const setupOverride: SurfaceOverride = {
   key: "setup",
   globals: ["__SETUP"],
   events: ["surface:setup"],
-  // A line's saga records every step on its row, and the bell a step raises.
-  refreshOnTables: ["lines", "notifications"],
+  // Every row this page derives from: a line's saga steps and the bell a step
+  // raises; a channel connected or switched off; the owner's activations; the
+  // business record the carriers read; Stripe's answer; the Google profile.
+  // Each is published by the database (00057, 00066, 00108, 00075, 00073,
+  // 00070, 00117), so a change in another tab, or by a webhook, repaints here.
+  refreshOnTables: ["lines", "notifications", "tenant_channels", "capability_activations", "business_records", "billing_accounts", "google_connections"],
   apply: async () => {
-    const d = await read("GET setup");
-    publish(d.setup, d.role);
+    try {
+      const d = await read("GET setup");
+      publish(d.setup, d.role);
+    } catch (e) {
+      // Null, not undefined: the page draws a card with a retry instead of "Reading your workspace…" for ever.
+      window.__SETUP = null;
+      throw e;
+    }
   },
 };
 
@@ -128,6 +144,14 @@ export function installSetup(win: Window = window): void {
     async activate(kind) {
       const r = await api()("POST capabilities/[kind]", { params: { kind }, body: {} });
       return { ok: r.ok, message: r.ok ? "" : r.message };
+    },
+    async deactivate(kind) {
+      const r = await api()("DELETE capabilities/[kind]", { params: { kind } });
+      return { ok: r.ok, message: r.ok ? "" : r.message };
+    },
+    async refresh() {
+      api().forget();
+      await refreshSurfaces([setupOverride]);
     },
     lines: {
       async search(areaCode) {

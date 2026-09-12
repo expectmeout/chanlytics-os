@@ -223,6 +223,8 @@ export interface SetupRowVM {
   sentence: string;
   details: string[];
   verb: SetupVerb | null;
+  /** The quieter second act on a row: switching an activated capability off again. */
+  undo?: SetupVerb | null;
   /** Counts toward "answering"; cannot be put off for later. */
   required: boolean;
   later: boolean;
@@ -316,6 +318,11 @@ export function textingWords(l: Pick<LineDto, "sms_state" | "reg_mock" | "reg_so
     case "needs_record": return { sentence: "Texting needs something on your business record put right — Connections says what.", done: false };
     case "rejected": return { sentence: "The carriers refused the texting registration.", done: false };
     case "failed": return { sentence: "The texting registration stopped; a person at Chanlytics has it.", done: false };
+    // The one state where the owner must act inside a day: the carriers texted
+    // their own mobile. Connections says it in full; Setup used to say "not
+    // available yet", which reads as nothing to do.
+    case "otp_waiting": return { sentence: "The carriers texted your mobile — reply to that message from the handset itself and texting switches on; the code lasts a day.", done: false };
+    case "hosting": return { sentence: "Texting is with the carriers.", done: false };
     default: return { sentence: "Texting is not available yet.", done: false };
   }
 }
@@ -467,7 +474,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
     if (!i.business.name || !i.business.hours) {
       row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "waiting_you", required: !answering, sentence: `Picking up on ${voiceNum}, but it has no facts to answer with yet.`, details: ["Callers are told someone will confirm and are offered to leave a message", "Fill in your name, hours and services and it answers properly from the next call"], verb: { label: "Add your facts", to: "admin/workspace" } });
     } else {
-      row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "ready", required: !answering, sentence: `Answering on ${voiceNum}.`, details: [handoffNum ? `Transfers to ${handoffNum} when a caller insists on a person` : "No hand-off number yet — callers who insist on a person are told someone will call back", last, activationWords(cap, nowMs)], verb: cap.tested && !cap.live ? { label: "Activate", to: "verb:activate:voice" } : voice.number ? { label: "Call it", to: `tel:${voice.number}` } : null });
+      row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "ready", required: !answering, sentence: `Answering on ${voiceNum}.`, details: [handoffNum ? `Transfers to ${handoffNum} when a caller insists on a person` : "No hand-off number yet — callers who insist on a person are told someone will call back", last, activationWords(cap, nowMs)], verb: cap.tested && !cap.live ? { label: "Activate", to: "verb:activate:voice" } : voice.number ? { label: "Call it", to: `tel:${voice.number}` } : null, undo: cap.live ? { label: "Switch off", to: "verb:deactivate:voice" } : null });
     }
   } else if (voice.present) {
     row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "waiting_you", required: !answering, sentence: "Switched off with the line.", details: [], verb: null });
@@ -510,7 +517,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
       wa.lastInboundAt ? `Last message ${agoWords(Date.parse(wa.lastInboundAt), nowMs)}` : "",
     ].filter(Boolean);
     if (!metaWaits) details.push(activationWords(cap, nowMs));
-    row({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: metaWaits ? "waiting_them" : "ready", stateWords: metaWaits ? "Waiting on Meta" : undefined, required: !answering, sentence: metaWaits ? `Connected on ${waNum} — your first messages are with Meta for approval.` : `Connected on ${waNum}.`, details, verb: cap.tested && !cap.live && !metaWaits ? { label: "Activate", to: "verb:activate:whatsapp" } : t.startersApproved < 5 && !metaWaits ? { label: "Add the starters", to: "outbound" } : { label: "Open the Inbox", to: "inbox" } });
+    row({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: metaWaits ? "waiting_them" : "ready", stateWords: metaWaits ? "Waiting on Meta" : undefined, required: !answering, sentence: metaWaits ? `Connected on ${waNum} — your first messages are with Meta for approval.` : `Connected on ${waNum}.`, details, verb: cap.tested && !cap.live && !metaWaits ? { label: "Activate", to: "verb:activate:whatsapp" } : t.startersApproved < 5 && !metaWaits ? { label: "Add the starters", to: "outbound" } : { label: "Open the Inbox", to: "inbox" }, undo: cap.live && !metaWaits ? { label: "Switch off", to: "verb:deactivate:whatsapp" } : null });
   } else if (wa.present) {
     row({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: "waiting_you", required: !answering, sentence: `${waNum ?? "Your number"} is connected but switched off.`, details: [], verb: { label: "Open Connections", to: "admin/integrations" } });
   } else {
@@ -536,7 +543,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
       required: false,
       sentence: people ? `${who} · ${alerts}.` : `Only you so far · ${alerts}.`,
       details: people ? [] : ["Invite someone who answers when you can't"],
-      verb: !t.alertEmails ? { label: "Set alerts", to: "admin/notifications" } : !people ? { label: "Invite", to: "admin/workspace" } : { label: "Open Team", to: "admin/workspace" },
+      verb: !t.alertEmails ? { label: "Set alerts", to: "admin/notifications" } : !people ? { label: "Invite", to: "admin/team" } : { label: "Open Team", to: "admin/team" },
     });
   }
 

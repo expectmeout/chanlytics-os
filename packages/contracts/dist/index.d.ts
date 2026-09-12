@@ -2537,6 +2537,8 @@ interface SetupRowVM {
     sentence: string;
     details: string[];
     verb: SetupVerb | null;
+    /** The quieter second act on a row: switching an activated capability off again. */
+    undo?: SetupVerb | null;
     /** Counts toward "answering"; cannot be put off for later. */
     required: boolean;
     later: boolean;
@@ -6923,9 +6925,9 @@ declare const AskProposalOutcomeSchema: z.ZodObject<{
     undo?: Record<string, unknown> | null | undefined;
 }, {
     state: "failed" | "done" | "dismissed" | "undone";
+    undo?: Record<string, unknown> | null | undefined;
     receipt?: unknown;
     atMs?: unknown;
-    undo?: Record<string, unknown> | null | undefined;
 }>;
 interface AskMessageVM {
     id: string;

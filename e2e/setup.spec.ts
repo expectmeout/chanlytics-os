@@ -32,8 +32,13 @@ test.describe("Setup on a real workspace", () => {
       expect((await row.locator(".cl-attn-status").innerText()).trim().length).toBeGreaterThan(0);
       expect(await row.getByTestId("setup-verb").count()).toBeLessThanOrEqual(1);
     }
-    // Nothing invented: no prices on a page that reads facts.
-    expect(await page.getByTestId("setup").innerText()).not.toMatch(/\$\d/);
+    // Nothing invented: no prices on a page that reads facts -- except the
+    // line row, which names the carrier's real monthly cost before an owner
+    // buys a number, and the chooser that opens under it.
+    for (const row of await rows.all()) {
+      if ((await row.getAttribute("data-testid")) === "setup-row-line") continue;
+      expect(await row.innerText()).not.toMatch(/\$\d/);
+    }
   });
 
   test("later is a preference on this device: an optional open row fades and leaves the count, and comes back", async ({ page }) => {
