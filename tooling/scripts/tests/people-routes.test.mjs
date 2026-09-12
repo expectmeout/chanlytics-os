@@ -18,6 +18,10 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 const contacts = await import(at("apps/dashboard/app/api/v1/contacts/route.ts"));
+const receptionistMany = await import(at("apps/dashboard/app/api/v1/contacts/receptionist/route.ts"));
+const notesMany = await import(at("apps/dashboard/app/api/v1/contacts/notes/route.ts"));
+const views = await import(at("apps/dashboard/app/api/v1/views/route.ts"));
+const viewSet = await import(at("apps/dashboard/app/api/v1/views/[page]/route.ts"));
 const person = await import(at("apps/dashboard/app/api/v1/contacts/[id]/route.ts"));
 const details = await import(at("apps/dashboard/app/api/v1/contacts/[id]/details/route.ts"));
 const receptionist = await import(at("apps/dashboard/app/api/v1/contacts/[id]/receptionist/route.ts"));
@@ -72,6 +76,7 @@ test("the people list is the workspace the tab named: each person with their rep
   const out = await contacts.GET.run(get(inA), ctxFor(tables, {}, rpcs));
   assert.deepEqual(out.people.map((p) => [p.id, p.effective_reply_mode, p.visits]), [[P1, "auto", null], [P2, "never", null]]);
   assert.equal(out.calendar.state, "none");
+  assert.deepEqual(out.page, { q: null, offset: 0, limit: 1000, total: 0, has_more: false }, "the page: counted where the rows are (none in this fixture's contacts table)");
   const bayside = await contacts.GET.run(get(`?workspace=${B}`), ctxFor(tables, {}, rpcs));
   assert.deepEqual(bayside.people.map((p) => p.id), [P3]);
 });
@@ -216,4 +221,87 @@ test("one list: an operator where it lives; rename, add and remove in one reques
   assert.deepEqual(await list.DELETE.run(send("DELETE"), ctxFor(tables, { id: S2 })), { deleted: true, id: S2 });
   assert.ok(!tables.segments.some((s) => s.id === S2));
   await refused(list.DELETE.run(send("DELETE"), ctxFor(tables, { id: S2 })), "not_found", 404, "gone");
+});
+
+/* ----------------------------------------------------------------------------
+ * THE PEOPLE PAGE AT SCALE (slice D of the data program). The list pages and
+ * counts; the search reaches the door only past the defaults; the batch doors
+ * for the receptionist and a note; the view a member keeps per workspace.
+ * ------------------------------------------------------------------------- */
+const liveContact = (id, tenant_id, over = {}) => ({ id, tenant_id, phone_e164: "+15550000001", display_name: "Ada", wa_profile_name: null, erased_at: null, merged_into_contact_id: null, notes: null, ...over });
+
+test("the list pages under one order and counts everyone: the door is named a query, an offset or a limit only when they leave their defaults", async () => {
+  const asked = [];
+  const rpcs = { people_list: (a) => { asked.push(a); return a.p_query ? [personRow(P2, { display_name: "Bo" })] : [personRow(P1), personRow(P2)]; } };
+  const tables = {
+    memberships: both("viewer", "viewer"), policies: [], tenants: [], tenant_config: [],
+    contacts: [
+      liveContact(P1, A), liveContact(P2, A, { display_name: "Bo", phone_e164: "+15550000002" }),
+      liveContact(P3, A, { erased_at: "2026-08-01T00:00:00Z" }), // erased: not counted
+      liveContact("44444444-4444-4444-8444-444444444444", A, { merged_into_contact_id: P1 }), // merged: not counted
+      liveContact("55555555-5555-4555-8555-555555555555", B), // another workspace
+    ],
+  };
+  const first = await contacts.GET.run(get(inA), ctxFor(tables, {}, rpcs));
+  assert.deepEqual(first.page, { q: null, offset: 0, limit: 1000, total: 2, has_more: false });
+  assert.deepEqual(asked.at(-1), { p_tenant_id: A }, "the first page names only the tenant: a database without 00112 answers as before");
+  const next = await contacts.GET.run(get(`${inA}&offset=1000`), ctxFor(tables, {}, rpcs));
+  assert.deepEqual(asked.at(-1), { p_tenant_id: A, p_offset: 1000 });
+  assert.equal(next.page.offset, 1000);
+  assert.equal(next.page.has_more, false);
+  const found = await contacts.GET.run(get(`${inA}&q=%20bo%20`), ctxFor(tables, {}, rpcs));
+  assert.deepEqual(asked.at(-1), { p_tenant_id: A, p_query: "bo" }, "trimmed, and the door does the matching");
+  assert.deepEqual(found.people.map((p) => p.id), [P2]);
+  assert.deepEqual(found.page, { q: "bo", offset: 0, limit: 1000, total: 1, has_more: false }, "counted with the same three matches");
+  const digits = await contacts.GET.run(get(`${inA}&q=0002`), ctxFor(tables, {}, rpcs));
+  assert.equal(digits.page.total, 1, "three digits of a number count");
+  const punct = await contacts.GET.run(get(`${inA}&q=a,b(c)`), ctxFor(tables, {}, rpcs));
+  assert.equal(punct.page.total, 0, "the filter grammar's own characters never reach it");
+  await refused(contacts.GET.run(get(`${inA}&offset=-1`), ctxFor(tables, {}, rpcs)), "validation", 400);
+});
+
+test("the receptionist's mode for many: owners, ours and not erased, the same policy row and ledger verb per person", async () => {
+  assert.deepEqual(receptionistMany.PUT.policy, { kind: "write", scope: "workspace", role: "owner", rate: "person_mode", spend: false });
+  const tables = { memberships: both("owner", "viewer"), contacts: [liveContact(P1, A), liveContact(P2, A, { erased_at: "2026-08-01T00:00:00Z" }), liveContact(P3, B)], policies: [pol(A, "contact", P1, "auto")], decisions: [] };
+  const out = await receptionistMany.PUT.run(send("PUT", { ids: [P1, P2, P3, P1], mode: "never" }, inA), ctxFor(tables));
+  assert.deepEqual(out, { done: 1, failed: [], skipped: [P2, P3] });
+  assert.deepEqual(tables.policies.map((p) => [p.subject_id, p.mode]), [[P1, "never"]], "the one row per person, replaced in place");
+  assert.deepEqual(tables.decisions.map((d) => [d.subject_id, d.verb, d.payload.receptionist_mode, d.payload.batch]), [[P1, "pause_agent", "never", 3]]);
+  const back = await receptionistMany.PUT.run(send("PUT", { ids: [P1], mode: "inherit" }, inA), ctxFor(tables));
+  assert.deepEqual(back, { done: 1, failed: [], skipped: [] });
+  assert.deepEqual(tables.policies, [], "inherit removes the row: they follow the workspace again");
+  assert.equal(tables.decisions.at(-1).verb, "resume_agent");
+  await refused(receptionistMany.PUT.run(send("PUT", { ids: [P1], mode: "never" }, `?workspace=${B}`), ctxFor(tables)), "forbidden", 403, "a viewer there");
+  await refused(receptionistMany.PUT.run(send("PUT", { ids: [P1], mode: "loud" }, inA), ctxFor(tables)), "validation", 400);
+});
+
+test("a note line for many: appended under what is there, through the single door; full notes are reported by name, not truncated", async () => {
+  assert.deepEqual(notesMany.PUT.policy, { kind: "write", scope: "workspace", role: "operator", rate: "person_edit", spend: false });
+  const written = [];
+  const rpcs = { set_person_notes: (a) => { written.push(a); return { notes: a.p_notes }; } };
+  const tables = {
+    memberships: both("operator", "viewer"),
+    contacts: [liveContact(P1, A, { notes: "Sees Sofia" }), liveContact(P2, A, { notes: null }), liveContact(P3, A, { notes: "x".repeat(590) })],
+  };
+  const out = await notesMany.PUT.run(send("PUT", { ids: [P1, P2, P3], append: "  class of 12 Sep  " }, inA), ctxFor(tables, {}, rpcs));
+  assert.deepEqual(out, { done: 2, failed: [{ id: P3, message: "Their notes are full (600 characters)." }], skipped: [] });
+  assert.deepEqual(written.map((w) => [w.p_contact_id, w.p_notes]), [[P1, "Sees Sofia\nclass of 12 Sep"], [P2, "class of 12 Sep"]]);
+  await refused(notesMany.PUT.run(send("PUT", { ids: [P1], append: "   " }, inA), ctxFor(tables, {}, rpcs)), "validation", 400);
+});
+
+test("a view is the workspace's: read from the member's own row, written through the door that judges the membership, a page name kept short", async () => {
+  assert.deepEqual(views.GET.policy, { kind: "read", scope: "workspace", role: null, rate: null, spend: false });
+  assert.deepEqual(viewSet.PUT.policy, { kind: "write", scope: "workspace", role: "viewer", rate: "view_set", spend: false }, "any member: it is their own view");
+  const tables = { memberships: [ { ...membership(A, "viewer", "harbor", "2026-01-01T00:00:00Z"), views: { people: { sortBy: "name", sortDir: "asc", attentionTab: "quiet" } } }, membership(B, "owner", "bayside", "2026-02-01T00:00:00Z") ] };
+  const mine = await views.GET.run(get(inA), ctxFor(tables));
+  assert.deepEqual(mine, { views: { people: { sortBy: "name", sortDir: "asc", attentionTab: "quiet" } } });
+  assert.deepEqual(await views.GET.run(get(`?workspace=${B}`), ctxFor(tables)), { views: {} }, "per workspace: the other holds nothing yet");
+  const door = [];
+  const rpcs = { member_view_set: (a) => { door.push(a); return { people: a.p_view, broadcasts: { tab: "history" } }; } };
+  const saved = await viewSet.PUT.run(send("PUT", { view: { sortBy: "last", sortDir: "desc" } }, `?workspace=${B}`), ctxFor(tables, { page: "people" }, rpcs));
+  assert.deepEqual(door, [{ p_tenant_id: B, p_page: "people", p_view: { sortBy: "last", sortDir: "desc" } }], "the workspace the tab named, never one from the body");
+  assert.deepEqual(saved, { views: { people: { sortBy: "last", sortDir: "desc" }, broadcasts: { tab: "history" } } }, "the whole set comes back");
+  await refused(viewSet.PUT.run(send("PUT", { view: { a: 1 } }, inA), ctxFor(tables, { page: "People Page" }, rpcs)), "validation", 400);
+  await refused(viewSet.PUT.run(send("PUT", { view: { big: "x".repeat(3000) } }, inA), ctxFor(tables, { page: "people" }, rpcs)), "validation", 400);
+  await refused(viewSet.PUT.run(send("PUT", { view: "not an object" }, inA), ctxFor(tables, { page: "people" }, rpcs)), "validation", 400);
 });

@@ -57,6 +57,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "PUT contacts/[id]/marketing-consent": people,
   "PUT contacts/consent": people,
   "PUT contacts/marketing-consent": people,
+  "PUT contacts/receptionist": people,
+  "PUT contacts/notes": people,
   "PUT contacts/[id]/details": people,
   "POST contacts": people,
   "POST segments": people,

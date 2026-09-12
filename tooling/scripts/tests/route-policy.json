@@ -282,6 +282,20 @@
       "rate": "consent",
       "spend": false
     },
+    "PUT contacts/notes": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "person_edit",
+      "spend": false
+    },
+    "PUT contacts/receptionist": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "person_mode",
+      "spend": false
+    },
     "GET contacts": {
       "kind": "read",
       "scope": "workspace",
@@ -798,6 +812,20 @@
       "scope": "workspace",
       "role": "operator",
       "rate": "settings",
+      "spend": false
+    },
+    "PUT views/[page]": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "viewer",
+      "rate": "view_set",
+      "spend": false
+    },
+    "GET views": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
       "spend": false
     },
     "POST workspaces/create": {

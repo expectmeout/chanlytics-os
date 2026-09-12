@@ -191,7 +191,7 @@ test("the pages link to the routes, and only where the bridge can name the works
   assert.ok(readCode("apps/dashboard/src/legacy/components/data-bits.jsx").includes('export: "export the customer list"'));
   // The list route and the export share one reading of who exists.
   const list = readCode("apps/dashboard/app/api/v1/contacts/route.ts");
-  assert.ok(list.includes("return withVisits(ctx, tenantId, await listPeople(ctx, tenantId));"), "the same rows the export reads, with their appointments");
+  assert.ok(list.includes("listPeople(ctx, tenantId, { q, offset, limit: PEOPLE_PAGE })") && list.includes("const out = await withVisits(ctx, tenantId, rows);"), "the same reading of who exists as the export, with their appointments, a page at a time");
 });
 
 /* ----------------------------------------------------------------------------

@@ -57,10 +57,16 @@ function matches(row, filters) {
     // because a rotating sweep's whole correctness is "never-done first, then
     // the oldest" -- and that is a filter, not a shape a source scan can see.
     : op === "or" ? val.split(",").some((clause) => {
-        const [c, o, v] = clause.split(".");
+        // The value may hold dots (a phone, a name): the column and the
+        // operator are the first two segments, the rest is the value.
+        const [c, o, ...rest] = clause.split(".");
+        const v = rest.join(".");
         if (o === "is") return v === "null" ? cell(row, c) == null : String(cell(row, c)) === v;
         if (o === "lt") return cell(row, c) != null && cell(row, c) < v;
         if (o === "eq") return String(cell(row, c)) === v;
+        // PostgREST's ilike, with * as the wildcard: modelled for the People
+        // page's count of who matches a search.
+        if (o === "ilike") return String(cell(row, c) ?? "").toLowerCase().includes(v.replace(/\*/g, "").toLowerCase());
         throw new Error(`fakeDb: or() clause ${clause} is not modelled`);
       })
     : (() => { throw new Error(`fakeDb: no filter called ${op}()`); })());

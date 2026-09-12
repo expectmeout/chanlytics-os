@@ -1940,6 +1940,7 @@ type Database = {
                     role: string;
                     tenant_id: string;
                     user_id: string;
+                    views: Json;
                 };
                 Insert: {
                     created_at?: string;
@@ -3005,9 +3006,20 @@ type Database = {
                     tenant_id: string;
                 }[];
             };
+            member_view_set: {
+                Args: {
+                    p_page: string;
+                    p_tenant_id: string;
+                    p_view: Json;
+                };
+                Returns: Json;
+            };
             people_list: {
                 Args: {
                     p_contact_id?: string;
+                    p_limit?: number;
+                    p_offset?: number;
+                    p_query?: string;
                     p_tenant_id: string;
                 };
                 Returns: {

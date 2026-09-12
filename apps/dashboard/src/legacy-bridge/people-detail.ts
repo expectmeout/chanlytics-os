@@ -110,16 +110,52 @@ const MANY_ROUTE: Record<SendPurpose, ManyRoute> = {
   marketing: "PUT contacts/marketing-consent",
 };
 
-async function recordMany(ids: string[], body: ConsentBody, purpose: SendPurpose): Promise<ManyResult> {
-  const take = [...new Set(ids)].slice(0, 50);
-  const r = await api()(MANY_ROUTE[purpose], { body: { ids: take, ...body } });
-  if (!r.ok) return { ok: false, done: 0, failed: take.length, message: r.message };
+/** A batch door's answer, in the bar's words. Not ours, or gone: not done, and said so -- it is not an error to have selected a row that changed underneath you. */
+function manyResult(r: ApiResult<unknown>, asked: number, verb = "recorded"): ManyResult {
+  if (!r.ok) return { ok: false, done: 0, failed: asked, message: r.message };
   const d = r.data as { done: number; failed: { id: string; message: string }[]; skipped: string[] };
-  // Not ours, or gone: not recorded, and said so -- it is not an error to have
-  // selected a row that changed underneath you.
   const failed = d.failed.length + d.skipped.length;
   const why = d.failed[0]?.message ?? (d.skipped.length ? "no longer in this workspace" : undefined);
-  return { ok: failed === 0, done: d.done, failed, message: failed ? `${failed} could not be recorded${why ? ` — ${why}` : ""}` : undefined };
+  return { ok: failed === 0, done: d.done, failed, message: failed ? `${failed} could not be ${verb}${why ? ` — ${why}` : ""}` : undefined };
+}
+
+async function recordMany(ids: string[], body: ConsentBody, purpose: SendPurpose): Promise<ManyResult> {
+  const take = [...new Set(ids)].slice(0, 50);
+  return manyResult(await api()(MANY_ROUTE[purpose], { body: { ids: take, ...body } }), take.length);
+}
+
+export type ReceptionistMany = "auto" | "ask" | "never" | "inherit";
+
+/** The receptionist's mode for a selection: `window.__setPersonReceptionistMany(ids, mode)`. Owners; one request. */
+export async function setPersonReceptionistMany(ids: string[], mode: ReceptionistMany): Promise<ManyResult> {
+  const take = [...new Set(ids)].slice(0, 50);
+  return manyResult(await api()("PUT contacts/receptionist", { body: { ids: take, mode } }), take.length, "changed");
+}
+
+/** One note line under a selection's notes: `window.__appendPersonNotesMany(ids, line)`. Operator or owner; one request. */
+export async function appendPersonNotesMany(ids: string[], line: string): Promise<ManyResult> {
+  const take = [...new Set(ids)].slice(0, 50);
+  return manyResult(await api()("PUT contacts/notes", { body: { ids: take, append: line } }), take.length, "noted");
+}
+
+/**
+ * A person added by hand: a number and, if known, a name, through the door
+ * the calendar sweep uses (POST /contacts: get-or-create, consent unknown).
+ * `window.__addPerson({ phone, name })` answers with the id and whether they
+ * were already here; the People surface re-reads after it.
+ */
+export async function addPerson(body: { phone: string; name?: string }): Promise<ApiResult<{ contact_id: string; existed: boolean }>> {
+  return api()("POST contacts", { body });
+}
+
+/**
+ * A page remembering its view in this workspace: `window.__saveView("people",
+ * { sortBy, sortDir, attentionTab })`. The member's own row, per workspace,
+ * so a phone and a laptop show the page the same way. No surface re-read: the
+ * view is the caller's own state already.
+ */
+export async function saveView(page: string, view: Record<string, unknown>): Promise<ApiResult<{ views: Record<string, unknown> }>> {
+  return api()("PUT views/[page]", { params: { page }, body: { view }, refresh: false });
 }
 
 export async function setPersonConsentMany(ids: string[], body: ConsentBody): Promise<ManyResult> {
@@ -145,6 +181,10 @@ declare global {
     __offersYesSources?: readonly { id: string; label: string }[];
     /** What staff ask in person or on the phone -- the sentence the campaign files as its spoken opt-in. */
     __verbalOptInScript?: (businessName: string) => string;
+    __setPersonReceptionistMany?: (ids: string[], mode: ReceptionistMany) => Promise<ManyResult>;
+    __appendPersonNotesMany?: (ids: string[], line: string) => Promise<ManyResult>;
+    __addPerson?: (body: { phone: string; name?: string }) => Promise<ApiResult<{ contact_id: string; existed: boolean }>>;
+    __saveView?: (page: string, view: Record<string, unknown>) => Promise<ApiResult<{ views: Record<string, unknown> }>>;
     __deletePerson?: (id: string) => Promise<DeleteResult>;
     __setPersonDetails?: (id: string, body: DetailsBody) => Promise<DeleteResult>;
     __setPersonReceptionist?: (id: string, mode: "auto" | "ask" | "never" | "inherit") => Promise<DeleteResult>;
@@ -182,4 +222,8 @@ export function installPeopleCourier(): void {
   // The words, not a copy of them: the filing quotes this sentence as the way a
   // yes is asked for in person or on the phone, so the desk sees the same one.
   window.__verbalOptInScript = verbalOptInScript;
+  window.__setPersonReceptionistMany = setPersonReceptionistMany;
+  window.__appendPersonNotesMany = appendPersonNotesMany;
+  window.__addPerson = addPerson;
+  window.__saveView = saveView;
 }
