@@ -1,7 +1,6 @@
 import { CONSENT_SOURCES, mayReceive, offersYesRefusal, toPersonVM, verbalOptInScript, type PersonVM, type SendPurpose } from "@chanlytics/contracts";
 import { api } from "./api";
 import { ApiError, type ApiResult } from "../client/api";
-import { refreshAfter } from "./refresh-map";
 
 /**
  * The profile courier: `window.__personDetail(id)`.
@@ -97,25 +96,30 @@ export async function setPersonMarketingConsent(id: string, body: ConsentBody): 
 
 /**
  * The same answer for many at once — a yes given at the desk by a whole
- * class, say: `window.__setPersonConsentMany(ids, body)`. One request per
- * person (the door is per person and the ledger says who), fifty at most
- * in one go, one refresh at the end.
+ * class, say: `window.__setPersonConsentMany(ids, body)`. ONE request, fifty
+ * at most, through the batch door (server/consent.ts), which walks the same
+ * per-person door each would go through alone and records a decision per
+ * person. It used to be one request per person -- fifty round trips and
+ * fifty takes of the consent bucket for one act at the desk.
  */
 export interface ManyResult { ok: boolean; done: number; failed: number; message?: string }
 
+type ManyRoute = "PUT contacts/consent" | "PUT contacts/marketing-consent";
+const MANY_ROUTE: Record<SendPurpose, ManyRoute> = {
+  conversational: "PUT contacts/consent",
+  marketing: "PUT contacts/marketing-consent",
+};
+
 async function recordMany(ids: string[], body: ConsentBody, purpose: SendPurpose): Promise<ManyResult> {
   const take = [...new Set(ids)].slice(0, 50);
-  let done = 0;
-  let failed = 0;
-  let message: string | undefined;
-  for (const id of take) {
-    // Each request holds the map; the surface is re-read once, below.
-    const r = await api()(CONSENT_ROUTE[purpose], { params: { id }, body, refresh: false });
-    if (r.ok) done += 1;
-    else { failed += 1; message = message ?? r.message; }
-  }
-  await refreshAfter(CONSENT_ROUTE[purpose]);
-  return { ok: failed === 0, done, failed, message: failed ? `${failed} could not be recorded${message ? ` — ${message}` : ""}` : undefined };
+  const r = await api()(MANY_ROUTE[purpose], { body: { ids: take, ...body } });
+  if (!r.ok) return { ok: false, done: 0, failed: take.length, message: r.message };
+  const d = r.data as { done: number; failed: { id: string; message: string }[]; skipped: string[] };
+  // Not ours, or gone: not recorded, and said so -- it is not an error to have
+  // selected a row that changed underneath you.
+  const failed = d.failed.length + d.skipped.length;
+  const why = d.failed[0]?.message ?? (d.skipped.length ? "no longer in this workspace" : undefined);
+  return { ok: failed === 0, done: d.done, failed, message: failed ? `${failed} could not be recorded${why ? ` — ${why}` : ""}` : undefined };
 }
 
 export async function setPersonConsentMany(ids: string[], body: ConsentBody): Promise<ManyResult> {

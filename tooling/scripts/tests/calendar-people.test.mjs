@@ -504,7 +504,11 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
   const bridge = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");
   assert.ok(bridge.includes("export async function setPersonConsentMany(ids: string[], body: ConsentBody): Promise<ManyResult>") && bridge.includes("const take = [...new Set(ids)].slice(0, 50);"));
   assert.ok(bridge.includes("window.__setPersonConsentMany = setPersonConsentMany;"));
-  assert.ok(bridge.includes("return api()(CONSENT_ROUTE[purpose], { params: { id }, body });") && bridge.includes("await api()(CONSENT_ROUTE[purpose], { params: { id }, body, refresh: false });") && bridge.includes("await refreshAfter(CONSENT_ROUTE[purpose]);"), "the single refreshes through the map; the many hold it and refresh once at the end");
+  // The many used to be one request per person, held back from refreshing, with
+  // one refresh at the end. They are ONE request now, through the batch door,
+  // which the refresh map treats like any other write (slice B of the data
+  // program); consent-history.test.mjs runs that door.
+  assert.ok(bridge.includes("return api()(CONSENT_ROUTE[purpose], { params: { id }, body });") && bridge.includes("await api()(MANY_ROUTE[purpose], { body: { ids: take, ...body } });") && !bridge.includes("refresh: false"), "the single and the many both refresh through the map; the many are one request");
   const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
   for (const id of ["select-all", "row-select", "bulk-bar", "bulk-list-name", "bulk-export", "bulk-clear", "save-shown", "save-shown-name"]) assert.ok(page.includes(`data-testid="${id}"`), id);
   // WHICH yes, and how it was given. The bulk action was titled for offers and

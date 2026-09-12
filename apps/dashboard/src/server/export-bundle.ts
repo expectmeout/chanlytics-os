@@ -17,7 +17,8 @@
  * one statement, which share a timestamp, and the export is the one place a
  * skipped row is worse than a slow page.
  */
-import type { CallDto, MessageDto, PersonRowDto } from "@chanlytics/contracts";
+import type { CallDto, ConsentChange, MessageDto, PersonRowDto } from "@chanlytics/contracts";
+export { consentChangeOf } from "@chanlytics/contracts";
 
 export const BUNDLE_FORMAT = "chanlytics-workspace-export";
 export const BUNDLE_VERSION = 1;
@@ -31,39 +32,6 @@ export interface BundleConversation {
   created_at: string;
   last_message_at: string | null;
   last_inbound_at: string | null;
-}
-
-/** One change to one of the two answers, as the ledger recorded it. */
-export interface ConsentChange {
-  id: string;
-  contact_id: string | null;
-  at: string;
-  /** Which question: messages about their visit, or offers. */
-  purpose: "conversational" | "marketing";
-  consent: string | null;
-  previous: string | null;
-  /** How it was given: in person, on the phone, a signed form, their own message; "operator" is the reset. */
-  source: string | null;
-  /** The member who recorded it (their user id), or null when the customer's own message did. */
-  by: string | null;
-  note: string | null;
-}
-
-/** An events row of kind contact.consent_changed, as the two doors write it (00043, 00095). */
-export function consentChangeOf(e: { id: string; subject_id: string | null; created_at: string; data: unknown }): ConsentChange {
-  const d = (e.data ?? {}) as Record<string, unknown>;
-  const str = (k: string): string | null => (typeof d[k] === "string" && (d[k] as string) !== "" ? (d[k] as string) : null);
-  return {
-    id: e.id,
-    contact_id: e.subject_id,
-    at: e.created_at,
-    purpose: d.purpose === "marketing" ? "marketing" : "conversational",
-    consent: str("consent"),
-    previous: str("previous"),
-    source: str("source"),
-    by: str("by"),
-    note: str("note"),
-  };
 }
 
 export interface BundleReaders {

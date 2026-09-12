@@ -678,6 +678,7 @@ const PersonTimeline = ({ items, initials }) => {
           : e.kind === "call" ? <Icon name="phone" size={12} />
           : e.kind === "visit" ? <Icon name="calendar" size={12} />
           : e.kind === "escalation" ? <Icon name="alert" size={11} />
+          : e.kind === "consent" ? <Icon name="shield" size={11} />
           : <Icon name="dot" size={10} />;
         return (
           <React.Fragment key={e.id}>

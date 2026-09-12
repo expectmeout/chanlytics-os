@@ -14,7 +14,7 @@ import { standingOf, type StandingVerdict } from "./standing";
  * evidence-based first contact, recency.
  */
 import { formatPhoneDisplay } from "./phone";
-import { mayMessageFor, type SendPurpose } from "./consent";
+import { mayMessageFor, type ConsentChange, type SendPurpose } from "./consent";
 import { waWindow } from "./policy";
 import { tidyCallSummary } from "./call-words";
 import { visitDateKey, visitDay, visitLine, visitTime, type PersonVisitsDto } from "./calendar-people";
@@ -134,6 +134,8 @@ export interface PersonDetailDto {
   notes?: string | null;
   /** The workspace's booking link, for the profile's one-step send. */
   booking_link?: string | null;
+  /** Every change to either answer, newest first: the ledger rows (contact.consent_changed), as evidence. */
+  consent_history?: ConsentChange[];
 }
 
 /** What an owner may set for one person: answer, ask first, or stay out. */
@@ -879,7 +881,31 @@ export function attentionRow(p: PersonRowVM, nowMs: number): AttentionRowVM {
 
 /* -------------------------------- profile -------------------------------- */
 
-export type TimelineKind = "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision" | "visit";
+export type TimelineKind = "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision" | "visit" | "consent";
+
+/**
+ * A consent change, in the words the timeline uses: what was answered, and
+ * how we know. An answer the customer texted quotes them; one taken at the
+ * desk names the way and the recorder's note. The words here are the only
+ * ones the page has, so an owner reads "how do we know" without a database.
+ */
+export function consentChangeWords(c: ConsentChange): { who: string; text: string; sub?: string } {
+  const offers = c.purpose === "marketing";
+  const text =
+    c.consent === "opted_in" ? (offers ? "Said yes to offers and news" : "Said yes to messages about their visit")
+    : c.consent === "opted_out" ? (offers ? "Said no to offers" : "Said stop — nothing goes out to them")
+    : offers ? "Offers: back to not asked" : "Back to not asked";
+  let sub: string | undefined;
+  if (c.source === "customer_message") {
+    const where = c.channel === "sms" ? "by text" : c.channel === "whatsapp" ? "on WhatsApp" : "in their own message";
+    sub = `In their own words ${where}${c.words ? `: “${c.words}”` : ""}`;
+  } else if (c.source === CONSENT_RESET_SOURCE || !c.source) {
+    sub = "Reset by staff";
+  } else {
+    sub = `${consentSourceLabel(c.source) ?? c.source}, recorded by staff${c.note ? ` · ${c.note}` : ""}`;
+  }
+  return { who: offers ? "Offers" : "Consent", text, sub };
+}
 
 export interface PersonTimelineItemVM {
   id: string;
@@ -1033,6 +1059,16 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
     const t = ts(dec.created_at);
     if (t === null) continue;
     items.push({ id: `d-${dec.id}`, ts: t, ...stamp(t), kind: "decision", who: label.who, text: label.text });
+  }
+
+  // Every change to either answer, from the ledger: the evidence, on the
+  // same line as what was said. The decisions ledger has no label for these
+  // (DECISION_LABELS), so nothing is said twice.
+  for (const c of d.consent_history ?? []) {
+    const t = ts(c.at);
+    if (t === null) continue;
+    const w = consentChangeWords(c);
+    items.push({ id: `c-${c.id}`, ts: t, ...stamp(t), kind: "consent", who: w.who, text: w.text, ...(w.sub ? { sub: w.sub } : {}) });
   }
 
   // Their visits, from the calendar: what happened in the chair belongs on

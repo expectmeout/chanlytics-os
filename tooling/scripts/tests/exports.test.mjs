@@ -247,9 +247,9 @@ test("the bundle is one JSON document: every section, every page, in order, neve
 
 test("a consent change is read the way the two doors write it: which question, how, by whom", () => {
   const row = { id: "e1", subject_id: "p1", created_at: "2026-08-01T10:01:00Z", data: { consent: "opted_in", source: "in_person", previous: "unknown", by: "u1", note: "asked at the desk", purpose: "marketing" } };
-  assert.deepEqual(B.consentChangeOf(row), { id: "e1", contact_id: "p1", at: "2026-08-01T10:01:00Z", purpose: "marketing", consent: "opted_in", previous: "unknown", source: "in_person", by: "u1", note: "asked at the desk" });
+  assert.deepEqual(B.consentChangeOf(row), { id: "e1", contact_id: "p1", at: "2026-08-01T10:01:00Z", purpose: "marketing", consent: "opted_in", previous: "unknown", source: "in_person", by: "u1", note: "asked at the desk", channel: null, message_external_id: null, words: null });
   assert.equal(B.consentChangeOf({ ...row, data: { consent: "opted_out", source: "customer_message" } }).purpose, "conversational", "the visit door writes no purpose (00043); the offers door writes 'marketing' (00095)");
-  assert.deepEqual(B.consentChangeOf({ ...row, data: null }), { id: "e1", contact_id: "p1", at: "2026-08-01T10:01:00Z", purpose: "conversational", consent: null, previous: null, source: null, by: null, note: null });
+  assert.deepEqual(B.consentChangeOf({ ...row, data: null }), { id: "e1", contact_id: "p1", at: "2026-08-01T10:01:00Z", purpose: "conversational", consent: null, previous: null, source: null, by: null, note: null, channel: null, message_external_id: null, words: null });
 });
 
 test("GET /export: owners only, the workspace named, one JSON file that parses and carries every section", async () => {
