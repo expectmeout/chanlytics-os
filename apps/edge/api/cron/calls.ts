@@ -27,7 +27,7 @@ import { pg } from "../../lib/pg.js";
 import { logger, errField } from "../../lib/log.js";
 import { getCall, normalizeCall, callSummaryLine, type NormalizedCall } from "../../lib/workspace/channels.js";
 import { ingestCall, recordCallNote, linkCallMessage } from "../../lib/workspace/db.js";
-import { copyRecording, RECORDING_MAX_ATTEMPTS, SWEEP_COPY_TIMEOUT_MS } from "../../lib/call-recording.js";
+import { copyRecording, purgeExpiredRecordings, RECORDING_MAX_ATTEMPTS, SWEEP_COPY_TIMEOUT_MS } from "../../lib/call-recording.js";
 
 /** Only look at rows that have had time to settle — a call that started
  *  seconds ago is not evidence of anything, and asking about it wastes a
@@ -51,6 +51,11 @@ const MAX_PER_TICK = 25;
  *  so the two together stay inside this function's own budget. */
 const MAX_RECORDINGS_PER_TICK = 2;
 
+/** Recordings removed per tick once past their retention: one storage call
+ *  and one row update each. Every five minutes, so a backlog of any size
+ *  drains within a day. */
+const MAX_PURGE_PER_TICK = 50;
+
 export const config = { maxDuration: 60 };
 
 export async function POST(request: Request): Promise<Response> {
@@ -63,6 +68,19 @@ export async function POST(request: Request): Promise<Response> {
 
   const denied = await authorizeCron(request, db, L);
   if (denied) return denied;
+
+  // ---- recordings past their retention are removed, on the schedule the privacy page states ----
+  // Before the provider check: this leg needs the bucket, not Retell, and a
+  // deployment without the key must still keep the promise the page makes.
+  const purge = await purgeExpiredRecordings(db, {
+    now: new Date(),
+    remove: async (paths) => {
+      const { data, error } = await db.storage.from("media").remove(paths);
+      return { removed: (data ?? []).map((o) => o.name), error: error?.message ?? null };
+    },
+  }, MAX_PURGE_PER_TICK);
+  if (purge.error) L.error("calls_sweep_purge_failed", { error: purge.error, candidates: purge.candidates });
+  else if (purge.candidates) L.info("calls_sweep_purged", { purged: purge.purged });
 
   const apiKey = process.env.RETELL_API_KEY;
   if (!apiKey) {
@@ -194,7 +212,7 @@ export async function POST(request: Request): Promise<Response> {
 
   L.info("calls_sweep_done", {
     candidates: stale?.length ?? 0, closed, still_live: stillLive, unknown,
-    recordings: JSON.stringify(recordings), notes: JSON.stringify(notes),
+    recordings: JSON.stringify(recordings), notes: JSON.stringify(notes), purge: JSON.stringify(purge),
   });
-  return json(200, { ok: true, candidates: stale?.length ?? 0, closed, stillLive, unknown, recordings, notes });
+  return json(200, { ok: true, candidates: stale?.length ?? 0, closed, stillLive, unknown, recordings, notes, purge });
 }

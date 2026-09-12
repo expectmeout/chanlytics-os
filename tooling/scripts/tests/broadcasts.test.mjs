@@ -14,7 +14,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   BROADCAST_CHUNK, DECISION_SUBJECTS, DECISION_VERBS, EVERYONE_LABEL, PEOPLE_LISTS,
-  broadcastName, cleanParam, eligibleFor, emptyAudienceRefusal, mayReceive, renderTemplate, toBroadcastVM, whenLabel,
+  broadcastName, cleanParam, eligibleFor, emptyAudienceRefusal, mayReceive, renderTemplate, toBroadcastVM, whenLabel, OFFERS_BY_WHATSAPP_NOTE,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
@@ -315,4 +315,13 @@ test("Ask: a broadcast is read (list_audiences) and proposed (propose_broadcast)
   assert.ok(readCode("apps/dashboard/src/legacy/pages/ask-text.jsx").includes('kBroadcast: "broadcast"'));
   const s = buildAskSuggestions({ lang: "en", surface: "other", scope: null, canAct: true, heldDrafts: 0, needsYou: 0 });
   assert.ok(s.some((x) => x.kind === "act" && x.label === "Send an offer to a list"), "the Act group offers it where broadcasts live");
+});
+
+test("the page says once why a customer who only ever texted is not in an offer's count", () => {
+  // The wire refuses per customer (sms_carries_no_promotions); the page states
+  // the rule beside the count, in the same words the carriers were told.
+  assert.match(OFFERS_BY_WHATSAPP_NOTE, /^Offers and news go by WhatsApp only\./);
+  assert.match(OFFERS_BY_WHATSAPP_NOTE, /registered with the carriers for replies and appointment messages/);
+  assert.match(OFFERS_BY_WHATSAPP_NOTE, /nothing promotional is sent by text/);
+  assert.match(OFFERS_BY_WHATSAPP_NOTE, /once they say yes on WhatsApp/);
 });

@@ -97,6 +97,15 @@ export const PURPOSE_REFUSALS: Record<string, string> = {
 };
 
 /**
+ * Said once on the Broadcasts page, where an owner picks an offer to send.
+ * The refusal above is per customer, at the wire; this is the rule, for the
+ * page, so a customer who only ever texted being absent from an offer's count
+ * reads as the rule it is and not as a bug.
+ */
+export const OFFERS_BY_WHATSAPP_NOTE =
+  "Offers and news go by WhatsApp only. The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text; someone who has only ever texted you hears about offers once they say yes on WhatsApp.";
+
+/**
  * What kind of message a WhatsApp template is, from the category META assigned
  * it — which is the authority, not what the workspace asked for, and which Meta
  * can change on a live template.

@@ -4115,6 +4115,12 @@ var BrainOutputSchema = external_exports.object({
 });
 var WA_WINDOW_MS = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
+var RETENTION_DAYS = {
+  /** Call audio in the private media bucket. The transcript and the summary stay with the call. */
+  call_recordings: 90
+};
+var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
+var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
 var TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var POLICY_CLASS_WORDS = {
@@ -8684,6 +8690,12 @@ var BrainOutputSchema2 = external_exports2.object({
 var WA_WINDOW_MS2 = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS2 = 10 * 60 * 1e3;
 var CALL_OUTCOMES = ["answered", "booking_link_sent", "callback_needed", "voicemail", "no_request", "other"];
+var RETENTION_DAYS2 = {
+  /** Call audio in the private media bucket. The transcript and the summary stay with the call. */
+  call_recordings: 90
+};
+var RECORDING_RETENTION_DAYS2 = RETENTION_DAYS2.call_recordings;
+var RECORDING_PURGED_WORDS2 = `Recording removed after ${RECORDING_RETENTION_DAYS2} days; the transcript is kept`;
 var TIME_FMT3 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DATE_FMT7 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var POLICY_CLASS_WORDS2 = {
@@ -13293,6 +13305,12 @@ var BrainOutputSchema22 = external_exports22.object({
 });
 var WA_WINDOW_MS22 = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS22 = 10 * 60 * 1e3;
+var RETENTION_DAYS22 = {
+  /** Call audio in the private media bucket. The transcript and the summary stay with the call. */
+  call_recordings: 90
+};
+var RECORDING_RETENTION_DAYS22 = RETENTION_DAYS22.call_recordings;
+var RECORDING_PURGED_WORDS22 = `Recording removed after ${RECORDING_RETENTION_DAYS22} days; the transcript is kept`;
 var TIME_FMT32 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DATE_FMT72 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var POLICY_CLASS_WORDS22 = {
@@ -17887,6 +17905,12 @@ var BrainOutputSchema3 = external_exports3.object({
 });
 var WA_WINDOW_MS3 = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS3 = 10 * 60 * 1e3;
+var RETENTION_DAYS3 = {
+  /** Call audio in the private media bucket. The transcript and the summary stay with the call. */
+  call_recordings: 90
+};
+var RECORDING_RETENTION_DAYS3 = RETENTION_DAYS3.call_recordings;
+var RECORDING_PURGED_WORDS3 = `Recording removed after ${RECORDING_RETENTION_DAYS3} days; the transcript is kept`;
 var TIME_FMT4 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DATE_FMT8 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var POLICY_CLASS_WORDS3 = {
@@ -22752,6 +22776,12 @@ var BrainOutputSchema4 = external_exports4.object({
 });
 var WA_WINDOW_MS4 = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS4 = 10 * 60 * 1e3;
+var RETENTION_DAYS4 = {
+  /** Call audio in the private media bucket. The transcript and the summary stay with the call. */
+  call_recordings: 90
+};
+var RECORDING_RETENTION_DAYS4 = RETENTION_DAYS4.call_recordings;
+var RECORDING_PURGED_WORDS4 = `Recording removed after ${RECORDING_RETENTION_DAYS4} days; the transcript is kept`;
 var TIME_FMT5 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DATE_FMT9 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var POLICY_CLASS_WORDS4 = {

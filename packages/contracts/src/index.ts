@@ -38,6 +38,7 @@ export * from "./google";
 export * from "./connections";
 export * from "./platform";
 export * from "./consent-page";
+export * from "./retention";
 export * from "./business-page";
 export * from "./a2p-enums";
 export * from "./registration-path";

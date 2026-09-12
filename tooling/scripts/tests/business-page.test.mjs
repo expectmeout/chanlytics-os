@@ -175,7 +175,7 @@ test("the wiring: public, indexed, reads by slug, writes nothing", () => {
 
 test("Chanlytics' own policy and a workspace's page cannot drift", () => {
   const privacy = readRaw("apps/dashboard/app/privacy/page.tsx");
-  assert.ok(privacy.includes('import { SMS_CLAUSES } from "@chanlytics/contracts";'));
+  assert.ok(privacy.includes('import { RECORDING_RETENTION_DAYS, SMS_CLAUSES } from "@chanlytics/contracts";'), "the clauses, and the retention it prints, from contracts");
   assert.ok(privacy.includes('{SMS_CLAUSES.join(" ")}'), "the policy renders them rather than repeating them");
   // The sentence that is NOT shared is the one that names who is sending: the
   // policy speaks about businesses in general, a workspace's page names one.

@@ -14,6 +14,11 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { ROLE_PERMS, frameWhisper } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
+import { fakeDb } from "./_fake-db.mjs";
+
+// Modules that build a service client on first use read these; nothing here dials it.
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const X = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/export.ts")).href);
@@ -187,4 +192,154 @@ test("the pages link to the routes, and only where the bridge can name the works
   // The list route and the export share one reading of who exists.
   const list = readCode("apps/dashboard/app/api/v1/contacts/route.ts");
   assert.ok(list.includes("return withVisits(ctx, tenantId, await listPeople(ctx, tenantId));"), "the same rows the export reads, with their appointments");
+});
+
+/* ----------------------------------------------------------------------------
+ * THE WHOLE WORKSPACE. The privacy page has said "an owner can export a
+ * workspace's data" since it was written; three partial routes were the whole
+ * of it. The bundle is composed here over readers in memory, and the route is
+ * run over a database in memory: what is proved is every section, every page,
+ * the door (owners, the workspace named, the export bucket) and that the file
+ * parses.
+ * ------------------------------------------------------------------------- */
+const B = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/export-bundle.ts")).href);
+
+test("the bundle is one JSON document: every section, every page, in order, never held whole", async () => {
+  const asked = [];
+  const convs = [
+    { id: "c1", contact_id: "p1", state: "open", created_at: "2026-08-01T10:00:00Z", last_message_at: "2026-08-01T10:05:00Z", last_inbound_at: null },
+    { id: "c2", contact_id: "p2", state: "archived", created_at: "2026-08-02T10:00:00Z", last_message_at: null, last_inbound_at: null },
+    { id: "c3", contact_id: "p3", state: "open", created_at: "2026-08-03T10:00:00Z", last_message_at: null, last_inbound_at: null },
+  ];
+  const msgs = { c1: [msg({ id: "m1" }), msg({ id: "m2" }), msg({ id: "m3" })], c2: [], c3: [msg({ id: "m4" })] };
+  const readers = {
+    people: async () => [{ id: "p1", display_name: "Dani", phone_e164: "+19175550100", consent: "opted_in", dnc: false }],
+    conversations: async (o, l) => { asked.push(["conversations", o, l]); return convs.slice(o, o + l); },
+    messages: async (id, o, l) => { asked.push(["messages", id, o, l]); return (msgs[id] ?? []).slice(o, o + l); },
+    calls: async (o, l) => { asked.push(["calls", o, l]); return [{ id: "k1", direction: "inbound", started_at: "2026-08-01T09:00:00Z" }].slice(o, o + l); },
+    consentHistory: async (o, l) => { asked.push(["consent", o, l]); return [{ id: "e1", contact_id: "p1", at: "2026-08-01T10:01:00Z", purpose: "conversational", consent: "opted_in", previous: "unknown", source: "customer_message", by: null, note: null }].slice(o, o + l); },
+  };
+  const chunks = [];
+  for await (const c of B.workspaceBundle(readers, { workspaceId: "t1", business: "Melany's Beauty Salon", tz: TZ, exportedAt: new Date("2026-09-12T03:00:00Z"), page: 2 })) chunks.push(c);
+  assert.ok(chunks.length > 8, "written a piece at a time, not as one string");
+  const doc = JSON.parse(chunks.join(""));
+  assert.equal(doc.format, B.BUNDLE_FORMAT);
+  assert.equal(doc.version, 1);
+  assert.deepEqual(doc.workspace, { id: "t1", name: "Melany's Beauty Salon", timezone: TZ, exported_at: "2026-09-12T03:00:00.000Z" });
+  assert.deepEqual(Object.keys(doc), ["format", "version", "workspace", "people", "conversations", "calls", "consent_history"]);
+  assert.deepEqual(doc.people.map((p) => p.id), ["p1"]);
+  assert.deepEqual(doc.conversations.map((c) => [c.id, c.messages.map((m) => m.id)]), [["c1", ["m1", "m2", "m3"]], ["c2", []], ["c3", ["m4"]]], "every conversation with every message, across page boundaries");
+  assert.deepEqual(doc.calls.map((k) => k.id), ["k1"]);
+  assert.deepEqual(doc.consent_history, [{ id: "e1", contact_id: "p1", at: "2026-08-01T10:01:00Z", purpose: "conversational", consent: "opted_in", previous: "unknown", source: "customer_message", by: null, note: null }]);
+  // Paged, and paged to the end: a full page is followed by another read, a
+  // short one ends the section.
+  assert.deepEqual(asked.filter((a) => a[0] === "conversations"), [["conversations", 0, 2], ["conversations", 2, 2]]);
+  assert.deepEqual(asked.filter((a) => a[0] === "messages" && a[1] === "c1"), [["messages", "c1", 0, 2], ["messages", "c1", 2, 2]]);
+  assert.deepEqual(asked.filter((a) => a[0] === "messages" && a[1] === "c2"), [["messages", "c2", 0, 2]]);
+  assert.ok(chunks.join("").endsWith("}\n"), "ends like a file");
+  // Nothing at all is still a document.
+  const empty = { people: async () => [], conversations: async () => [], messages: async () => [], calls: async () => [], consentHistory: async () => [] };
+  let text = "";
+  for await (const c of B.workspaceBundle(empty, { workspaceId: "t1", business: "New", tz: TZ, exportedAt: new Date("2026-09-12T03:00:00Z") })) text += c;
+  assert.deepEqual(JSON.parse(text).people, []);
+  assert.deepEqual(JSON.parse(text).consent_history, []);
+});
+
+test("a consent change is read the way the two doors write it: which question, how, by whom", () => {
+  const row = { id: "e1", subject_id: "p1", created_at: "2026-08-01T10:01:00Z", data: { consent: "opted_in", source: "in_person", previous: "unknown", by: "u1", note: "asked at the desk", purpose: "marketing" } };
+  assert.deepEqual(B.consentChangeOf(row), { id: "e1", contact_id: "p1", at: "2026-08-01T10:01:00Z", purpose: "marketing", consent: "opted_in", previous: "unknown", source: "in_person", by: "u1", note: "asked at the desk" });
+  assert.equal(B.consentChangeOf({ ...row, data: { consent: "opted_out", source: "customer_message" } }).purpose, "conversational", "the visit door writes no purpose (00043); the offers door writes 'marketing' (00095)");
+  assert.deepEqual(B.consentChangeOf({ ...row, data: null }), { id: "e1", contact_id: "p1", at: "2026-08-01T10:01:00Z", purpose: "conversational", consent: null, previous: null, source: null, by: null, note: null });
+});
+
+test("GET /export: owners only, the workspace named, one JSON file that parses and carries every section", async () => {
+  const { setRateStore, memoryStore } = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/rate-limit.ts")).href);
+  setRateStore(memoryStore());
+  const route = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/app/api/v1/export/route.ts")).href);
+  assert.deepEqual(route.GET.policy, { kind: "read", scope: "workspace", role: "owner", rate: "export", spend: false }, "the whole customer record: owners, in the workspace the tab named, ten a minute like the CSV");
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const tables = (role) => ({
+    memberships: [{ user_id: "u1", tenant_id: T, role, tenants: { slug: "melanys" }, created_at: "2026-01-01T00:00:00Z" }],
+    tenants: [{ id: T, slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: TZ }],
+    policies: [],
+    conversations: [
+      { id: "c2", tenant_id: T, contact_id: "p2", state: "open", created_at: "2026-08-02T10:00:00Z", last_message_at: null, last_inbound_at: null },
+      { id: "c1", tenant_id: T, contact_id: "p1", state: "open", created_at: "2026-08-01T10:00:00Z", last_message_at: "2026-08-01T10:00:00Z", last_inbound_at: "2026-08-01T10:00:00Z" },
+    ],
+    messages: [
+      { id: "m2", conversation_id: "c1", direction: "outbound", sender: "ai", type: "text", body: "Hola Dani", media: null, meta: null, status: "sent", created_at: "2026-08-01T10:00:30Z", channel_ts: null },
+      { id: "m1", conversation_id: "c1", direction: "inbound", sender: "customer", type: "text", body: "hola", media: null, meta: null, status: "sent", created_at: "2026-08-01T10:00:00Z", channel_ts: null },
+    ],
+    calls: [{
+      id: "k1", tenant_id: T, retell_call_id: "r1", direction: "inbound", call_type: "phone_call", status: "ended", from_e164: "+19175550100", from_raw: null, to_e164: "+19296566623",
+      started_at: "2026-08-01T09:00:00Z", ended_at: "2026-08-01T09:02:00Z", updated_at: "2026-08-01T09:02:00Z", created_at: "2026-08-01T09:00:00Z", duration_ms: 120000, disconnection_reason: null,
+      sentiment: null, call_successful: true, in_voicemail: false, summary: "Asked about balayage.", wanted: null, outcome: null, follow_up: null, caller_name: null,
+      transcript_object: [{ role: "agent", content: "Hi", words: [{ start: 0 }] }],
+      recording: { fetch_state: "stored", storage_path: `${T}/calls/k1.wav`, mime: "audio/wav", bytes: 10 },
+      conversation_id: "c1", contact_id: "p1", message_id: null, contacts: { display_name: "Dani", wa_profile_name: null, phone_e164: "+19175550100" },
+    }],
+    events: [
+      { id: "e1", tenant_id: T, kind: "contact.consent_changed", subject_id: "p1", created_at: "2026-08-01T10:01:00Z", data: { consent: "opted_in", source: "customer_message", previous: null } },
+      { id: "e2", tenant_id: T, kind: "message.sent", subject_id: "m1", created_at: "2026-08-01T10:02:00Z", data: {} },
+    ],
+  });
+  const rpcs = { people_list: () => [{ id: "p1", display_name: "Dani", wa_profile_name: null, phone_e164: "+19175550100", consent: "opted_in", consent_source: "customer_message", dnc: false }] };
+  const req = new Request(`http://localhost/api/v1/export?workspace=${T}`);
+  const ctx = (role) => ({ supabase: fakeDb(tables(role), {}, rpcs), userId: "u1", email: "ada@example.com", params: {} });
+  const res = await route.GET.run(req, ctx("owner"));
+  assert.ok(res instanceof Response, "a file, not a JSON envelope");
+  assert.match(res.headers.get("content-disposition") ?? "", /^attachment; filename="workspace-Melany-s-Beauty-Salon-2026\d{4}\.json"/);
+  assert.equal(res.headers.get("cache-control"), "private, no-store");
+  assert.match(res.headers.get("content-type") ?? "", /^application\/json/);
+  const doc = JSON.parse(await res.text());
+  assert.equal(doc.workspace.name, "Melany's Beauty Salon");
+  assert.equal(doc.workspace.timezone, TZ);
+  assert.deepEqual(doc.people.map((p) => p.id), ["p1"]);
+  assert.deepEqual(doc.conversations.map((c) => c.id), ["c1", "c2"], "oldest first, whatever order the table holds them in");
+  assert.deepEqual(doc.conversations[0].messages.map((m) => m.body), ["hola", "Hola Dani"], "and the messages in the order they happened");
+  assert.equal(doc.calls[0].summary, "Asked about balayage.");
+  assert.equal(doc.calls[0].recording.fetch_state, "stored");
+  assert.equal("storage_path" in doc.calls[0].recording, false, "the bucket path never leaves the server");
+  assert.deepEqual(doc.consent_history.map((e) => [e.id, e.consent, e.source]), [["e1", "opted_in", "customer_message"]], "consent changes only, not every event");
+  // An operator holds the same rows and is refused before one is read.
+  await assert.rejects(route.GET.run(req, ctx("operator")), (e) => e.status === 403);
+  // A tab that named no workspace is refused the way every read is (plan 3.4).
+  const two = { ...tables("owner") };
+  two.memberships = [...two.memberships, { user_id: "u1", tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", role: "owner", tenants: { slug: "other" }, created_at: "2026-02-01T00:00:00Z" }];
+  await assert.rejects(route.GET.run(new Request("http://localhost/api/v1/export"), { supabase: fakeDb(two, {}, rpcs), userId: "u1", email: "ada@example.com", params: {} }), (e) => e.code === "choose_workspace");
+});
+
+test("Settings offers the door the privacy page promises: one link, owners only, and deletion as a request", async () => {
+  // The card is rendered, not read: a legacy page's body runs only in a browser,
+  // and a component that throws at render takes the whole Settings page with it.
+  const HOOKS = {
+    useState: (init) => [typeof init === "function" ? init() : init, () => {}],
+    useEffect: () => {}, useMemo: (fn) => fn(), useRef: (v) => ({ current: v }), useCallback: (fn) => fn,
+  };
+  globalThis.React = {
+    Fragment: "Fragment",
+    createElement: (type, p, ...kids) => ({ type, props: { ...(p || {}), children: kids.flat(Infinity) } }),
+    useState: (i) => HOOKS.useState(i), useEffect: (f) => HOOKS.useEffect(f), useMemo: (f) => HOOKS.useMemo(f), useRef: (v) => HOOKS.useRef(v), useCallback: (f) => HOOKS.useCallback(f),
+  };
+  globalThis.window = { __ME: { role: "owner" }, __href: (key) => `/api/v1/${key.split(" ")[1]}?workspace=t1`, canDo: (perm) => perm === "export", addEventListener: () => {}, removeEventListener: () => {} };
+  globalThis.Icon = "Icon";
+  await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
+  const Card = globalThis.window.WorkspaceData;
+  assert.equal(typeof Card, "function", "published, or nothing below tests anything");
+  const walk = (n, f) => { if (!n || typeof n !== "object") return; f(n); for (const k of n.props?.children ?? []) walk(k, f); };
+  const render = (tree) => { const out = []; walk(tree, (n) => { if (typeof n.type === "function") { const inner = n.type(n.props); walk(inner, (m) => out.push(m)); } else out.push(n); }); return out; };
+  const nodes = render(Card({}));
+  const link = nodes.find((n) => n.props?.["data-testid"] === "set-export-all");
+  assert.ok(link, "the download link");
+  assert.equal(link.props.href, "/api/v1/export?workspace=t1", "the whole-workspace route, in the tab's workspace");
+  assert.equal(link.props.download, true);
+  const text = JSON.stringify(nodes.map((n) => n.props?.children ?? []));
+  assert.ok(text.includes("hi@chanlytics.com"), "deletion is a request, answered by a person");
+  assert.ok(text.includes("removed within 30 days"), "in the privacy page's own words");
+  assert.ok(text.includes("Call audio is not included"), "and the file says what it does not carry");
+  // Not an owner: the link is not offered, and the words say why.
+  globalThis.window.canDo = () => false;
+  const denied = render(Card({}));
+  assert.equal(denied.find((n) => n.props?.["data-testid"] === "set-export-all"), undefined);
+  assert.ok(JSON.stringify(denied.map((n) => n.props?.children ?? [])).includes("Only an owner can download"));
 });

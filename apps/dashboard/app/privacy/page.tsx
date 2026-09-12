@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { SMS_CLAUSES } from "@chanlytics/contracts";
+import { RECORDING_RETENTION_DAYS, SMS_CLAUSES } from "@chanlytics/contracts";
 
 /**
  * The privacy policy: public, static, reads nothing. Google's consent
@@ -86,7 +86,7 @@ export default function PrivacyPage() {
       <p>A business&rsquo;s customers receive texts only when they contacted the business first, or when they separately agreed to receive them. Messages about a customer&rsquo;s own appointments and promotional messages are asked for separately, and either can be declined without affecting the other. {SMS_CLAUSES.join(" ")}</p>
 
       <h2>How long we keep it</h2>
-      <p>Account and conversation data stays while the workspace exists. Call recordings are kept for 90 days. An owner can export a workspace's data and can ask us to delete the workspace, after which its data is removed within 30 days, except what the law requires us to keep.</p>
+      <p>Account and conversation data stays while the workspace exists. Call recordings are kept for {RECORDING_RETENTION_DAYS} days and then removed; transcripts stay with the conversation. An owner can download everything a workspace holds from Settings › Business, and can ask us to delete the workspace, after which its data is removed within 30 days, except what the law requires us to keep.</p>
 
       <h2>Your rights</h2>
       <p>You can ask what we hold about you, ask for it to be corrected or deleted, and object to how it is used, by writing to <a href="mailto:hi@chanlytics.com">hi@chanlytics.com</a>. <a href="/data-deletion">Deleting your data</a> says exactly how deletion works for an owner and for a business’s customer. If you are a customer of a business that uses Chanlytics, the business is the controller of your data; we will pass your request to it and help it answer.</p>

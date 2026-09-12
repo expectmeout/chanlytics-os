@@ -232,7 +232,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
               <span className="bc-excl-hint" data-testid="bc-no-template">
                 {starterPending > 0
                   ? `Your starter templates are in review at WhatsApp (${starterPending}) — they appear here once approved, usually within minutes.`
-                  : "No approved template yet — add the starter set, write one here, or sync one from WhatsApp Manager in Settings › Connections."}
+                  : "No approved template yet — add the starter set, write one here, or write one in WhatsApp Manager and sync it under Campaigns › Messages."}
               </span>
             )}
             {templates.length === 0 && canSend && starterPending === 0 && window.__templates && window.__templates.addStarters && (
@@ -297,6 +297,10 @@ const BroadcastsReal = ({ initialSegment = null }) => {
           </div>
         )}
         {number && number.present && !number.health.canSend && <div className="bc-excl-hint" data-testid="bc-number-refusal">{number.health.refusal}</div>}
+        {/* Said once, here, where an offer is picked: why a customer who only ever
+            texted is not in an offer's count. The wire refuses per customer
+            (sms_carries_no_promotions); the page states the rule. */}
+        {purpose === "marketing" && data.offersNote && <div className="bc-excl-hint" data-testid="bc-offers-note">{data.offersNote}</div>}
         {overLimit && active && number && (
           <div className="bc-excl-hint" data-testid="bc-over-limit">This number can start up to {number.health.limitPerDay.toLocaleString()} new conversations a day; “{active.label}” is {activeCount.toLocaleString()}. Send to a smaller list or split it.</div>
         )}

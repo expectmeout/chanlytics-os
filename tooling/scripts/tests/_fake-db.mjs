@@ -17,26 +17,40 @@
 
 import crypto from "node:crypto";
 
+/**
+ * A column, or a JSON path the way PostgREST spells one: `recording->>fetch_state`
+ * reads the key inside the object. Modelled for the recordings purge, whose
+ * candidates are "stored" rows -- a state that lives inside a jsonb column.
+ */
+function cell(row, col) {
+  if (typeof col === "string" && col.includes("->>")) {
+    const [base, key] = col.split("->>");
+    const v = row[base];
+    return v && typeof v === "object" ? v[key] : undefined;
+  }
+  return row[col];
+}
+
 /** Rows a filter selects. `eq` is strict, `is` is the NULL test, `lt` is whatever `<` does — ISO timestamps sort as text. */
 function matches(row, filters) {
   return filters.every(([op, col, val]) =>
-    op === "eq" ? row[col] === val
-    : op === "lt" ? row[col] != null && row[col] < val
+    op === "eq" ? cell(row, col) === val
+    : op === "lt" ? cell(row, col) != null && cell(row, col) < val
     // PostgREST's `.is(col, null)`: the only way to ask for NULL, and what
     // every "not erased", "not accepted", "not revoked" read in this codebase
     // is written with. `eq` would not do -- SQL NULL is not equal to anything.
-    : op === "is" ? (val === null ? row[col] == null : row[col] === val)
-    : op === "gt" ? row[col] != null && row[col] > val
-    : op === "gte" ? row[col] != null && row[col] >= val
-    : op === "neq" ? row[col] !== val
-    : op === "in" ? val.includes(row[col])
+    : op === "is" ? (val === null ? cell(row, col) == null : cell(row, col) === val)
+    : op === "gt" ? cell(row, col) != null && cell(row, col) > val
+    : op === "gte" ? cell(row, col) != null && cell(row, col) >= val
+    : op === "neq" ? cell(row, col) !== val
+    : op === "in" ? val.includes(cell(row, col))
     // PostgREST's `.not(col, "is", null)`: "has one". Modelled for Setup's count of
     // who a broadcast can reach, which requires a number to send to -- the same rule
     // `mayReceive` applies to a list, spelled in SQL because that one is a count.
     : op === "not" ? (() => {
         const [o, v] = val;
-        if (o === "is") return v === null ? row[col] != null : row[col] !== v;
-        if (o === "eq") return row[col] !== v;
+        if (o === "is") return v === null ? cell(row, col) != null : cell(row, col) !== v;
+        if (o === "eq") return cell(row, col) !== v;
         throw new Error(`fakeDb: not(${col}, ${o}) is not modelled`);
       })()
     // PostgREST's `.or("a.is.null,a.lt.x")`: any ONE of the clauses. Modelled
@@ -44,9 +58,9 @@ function matches(row, filters) {
     // the oldest" -- and that is a filter, not a shape a source scan can see.
     : op === "or" ? val.split(",").some((clause) => {
         const [c, o, v] = clause.split(".");
-        if (o === "is") return v === "null" ? row[c] == null : String(row[c]) === v;
-        if (o === "lt") return row[c] != null && row[c] < v;
-        if (o === "eq") return String(row[c]) === v;
+        if (o === "is") return v === "null" ? cell(row, c) == null : String(cell(row, c)) === v;
+        if (o === "lt") return cell(row, c) != null && cell(row, c) < v;
+        if (o === "eq") return String(cell(row, c)) === v;
         throw new Error(`fakeDb: or() clause ${clause} is not modelled`);
       })
     : (() => { throw new Error(`fakeDb: no filter called ${op}()`); })());
@@ -62,7 +76,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}) {
   const seen = [];
 
   const from = (table) => {
-    const q = { table, op: "select", values: null, filters: [], columns: null, limit: null, order: null };
+    const q = { table, op: "select", values: null, filters: [], columns: null, limit: null, order: null, orders: [], range: null };
     const rows = () => (tables[table] ??= []);
 
     const run = () => {
@@ -85,22 +99,28 @@ export function fakeDb(tables, faults = {}, rpcs = {}) {
 
       if (q.op === "select") {
         let out = rows().filter((r) => matches(r, q.filters));
-        if (q.order) {
+        if (q.orders.length) {
           // Sentinels of the SAME TYPE as the values, because the columns this
           // orders on hold ISO timestamps: comparing -Infinity against a string
           // coerces to NaN, every comparison is false, and nulls silently do
           // not sort at all -- which looks exactly like a rotation that works.
-          const rank = (v) => (v == null ? (q.nullsFirst ? "" : "￿") : String(v));
+          // Several orders apply in turn, as PostgREST's do: the second breaks
+          // the first's ties, which is what makes offset paging stable.
+          const rank = (v, o) => (v == null ? (o.nullsFirst ? "" : "￿") : String(v));
           out = [...out].sort((a, b) => {
-            const x = rank(a[q.order]), y = rank(b[q.order]);
-            const d = x < y ? -1 : x > y ? 1 : 0;
-            return q.desc ? -d : d;
+            for (const o of q.orders) {
+              const x = rank(a[o.col], o), y = rank(b[o.col], o);
+              const d = x < y ? -1 : x > y ? 1 : 0;
+              if (d) return o.desc ? -d : d;
+            }
+            return 0;
           });
         }
         // `{ count: "exact" }` counts the MATCHES, before the limit -- which is
         // how a sweep knows what it could not reach this tick.
         const matched = out.length;
         if (q.limit != null) out = out.slice(0, q.limit);
+        if (q.range) out = out.slice(q.range[0], q.range[1] + 1);
         // Deliberately a copy: the sweep must not be able to mutate the ledger
         // by holding on to a row it read.
         return { data: out.map((r) => ({ ...r })), error: null, count: q.counted ? matched : null };
@@ -173,8 +193,21 @@ export function fakeDb(tables, faults = {}, rpcs = {}) {
       not(col, operator, val) { q.filters.push(["not", col, [operator, val]]); return proxy; },
       // nullsFirst matters: a workspace that has never been swept must go
       // ahead of one swept an hour ago, or a new tenant waits behind the queue.
-      order(col, opts) { q.order = col; q.nullsFirst = opts?.nullsFirst === true; q.desc = opts?.ascending === false; return proxy; },
+      order(col, opts) {
+        const o = { col, nullsFirst: opts?.nullsFirst === true, desc: opts?.ascending === false };
+        q.orders.push(o);
+        // The first order stays on q.order / q.desc / q.nullsFirst for whoever reads `seen`.
+        if (q.orders.length === 1) { q.order = col; q.nullsFirst = o.nullsFirst; q.desc = o.desc; }
+        return proxy;
+      },
       limit(n) { q.limit = n; return proxy; },
+      // PostgREST's `.range(from, to)`, inclusive: offset paging under a fixed
+      // order, which is how the workspace export walks a table without a
+      // keyset on created_at skipping rows that share a timestamp.
+      range(from, to) { q.range = [from, to]; return proxy; },
+      // `.filter(col, op, val)`: the same comparisons, spelled the way a JSON
+      // path has to be (`recording->>fetch_state`).
+      filter(col, operator, val) { q.filters.push([operator, col, val]); return proxy; },
       // One row, PostgREST's two ways of asking. `single()` treating "no rows"
       // as an ERROR is the whole point of using it: a write that changed
       // nothing must not come back as a success the caller writes on top of.

@@ -1727,6 +1727,41 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     </section>
   );
 };
+/**
+ * The owner's own copy of everything, and the one thing this page cannot do.
+ *
+ * The privacy page has said "an owner can export a workspace's data" since it
+ * was written, and no page offered it: three partial exports (everyone as a
+ * CSV on People, one thread, one call) were the whole of it. This is the door
+ * the sentence promised -- one file: people, conversations with their
+ * messages, calls with their transcripts, and every consent change with who
+ * recorded it. Owners only, like the CSV. Deletion is deliberately not a
+ * button: it is a request answered by a person, as the same page says.
+ */
+const WorkspaceData = () => {
+  const can = !!(window.__href && (!window.canDo || window.canDo("export")));
+  return (
+    <section className="fl-card set-card" data-testid="set-data">
+      <SetSectionHead title="Your data" hint="Everything this workspace holds, in one file you keep" />
+      <div className="cl-prof-attr-list">
+        <div className="cl-prof-attr">
+          <span className="cl-prof-attr-key">Download everything</span>
+          <span className="cl-prof-attr-val" style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {can
+              ? <a className="btn btn-ghost btn-sm" href={window.__href("GET export")} download data-testid="set-export-all" title="People, conversations, calls and consent history as one JSON file"><Icon name="external" size={12} /> Download (JSON)</a>
+              : <span className="set-team-mail">Only an owner can download the workspace's data.</span>}
+            <span className="set-team-mail">People, conversations with their messages, calls with their transcripts, and every consent change with who recorded it. Call audio is not included: it is removed on the schedule the privacy policy states, and the transcript is here.</span>
+          </span>
+        </div>
+        <div className="cl-prof-attr">
+          <span className="cl-prof-attr-key">Delete this workspace</span>
+          <span className="cl-prof-attr-val set-team-mail">Write to <a href="mailto:hi@chanlytics.com">hi@chanlytics.com</a> from the owner's address. Its data is removed within 30 days, as the <a href="/privacy" target="_blank" rel="noreferrer">privacy policy</a> says.</span>
+        </div>
+      </div>
+    </section>
+  );
+};
+
 const PaneWorkspace = ({ flash }) => {
   const [editing, setEditing] = useSetState(false);
   const settings = window.__SETTINGS || null;
@@ -1889,6 +1924,7 @@ const PaneWorkspace = ({ flash }) => {
       )}
     </section>
     {real && <PromptPreview />}
+    {real && <WorkspaceData />}
   </>
   );
 };
@@ -2722,3 +2758,4 @@ window.SettingsPage = SettingsPage;
 window.SET_TABS = SET_TABS;
 window.SET_TABS_PLATFORM = SET_TABS_PLATFORM; // the shell names the crumb; the rail above decides who sees it
 window.SetToggle = SetToggle; // consumed by calendar.jsx + reports.jsx (module-scope port fix)
+window.WorkspaceData = WorkspaceData; // rendered on its own by exports.test (the door the privacy page promises)

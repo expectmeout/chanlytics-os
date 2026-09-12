@@ -144,6 +144,7 @@ import { formatPhoneDisplay } from "./phone";
 import { isOptedOutContact } from "./consent";
 import { replyWindow, isLiveCall } from "./policy";
 import { callOutcomeWords, tidyCallSummary } from "./call-words";
+import { RECORDING_PURGED_WORDS } from "./retention";
 
 const AGENT = { glyph: "W", name: "WhatsApp Receptionist" };
 const CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the (?:salon|business) line\.\s*)?(Summary:\s*)?/; // trade-word: the older notes said "salon"; the newer say "business"
@@ -830,7 +831,7 @@ export interface CallVM {
   snippet: string;
   summary: { headline: string; bullets: string[] };
   transcript: Array<{ t: string; speaker: "agent" | "client" | "whisper"; text: string }>;
-  recordingState: "ready" | "pending" | "failed" | "none";
+  recordingState: "ready" | "pending" | "failed" | "purged" | "none";
   recordingUrl?: string;
   threadId?: string;
 }
@@ -880,15 +881,20 @@ export function toCallVM(dto: CallDto, now = new Date()): CallVM {
   if (outcomeWords) bullets.push(outcomeWords);
   if (dto.follow_up?.trim()) bullets.push(`To do: ${dto.follow_up.trim()}`);
   if (dto.caller_name?.trim()) bullets.push(`Gave their name as ${dto.caller_name.trim()}`);
+  // "purged": the audio was removed on the schedule the privacy page states
+  // (retention.ts); the row keeps the transcript. Said so, rather than left to
+  // read as "still processing" for ever.
   const recState: CallVM["recordingState"] =
     dto.recording?.fetch_state === "stored" ? "ready" :
     dto.recording?.fetch_state === "failed" ? "failed" :
+    dto.recording?.fetch_state === "purged" ? "purged" :
     dto.recording ? "pending" : "none";
   if (!missed) {
     bullets.push(
       recState === "ready" ? "Recording saved" :
       recState === "pending" ? "Recording still processing" :
       recState === "failed" ? "Recording couldn't be saved from the voice provider" :
+      recState === "purged" ? RECORDING_PURGED_WORDS :
       "No recording for this call",
     );
   }

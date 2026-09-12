@@ -205,16 +205,40 @@ export function dateTag(now: Date, tz: string): string {
   return stamp(now.toISOString(), tz).slice(0, 10).replace(/-/g, "");
 }
 
-/** A download. Private and never cached, like every other /v1 exit. */
-export function attachment(filename: string, body: string, mime: string): Response {
+/** The headers of a download. Private and never cached, like every other /v1 exit. */
+function downloadHeaders(filename: string, mime: string): Record<string, string> {
   const ascii = filename.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
-  return new Response(body, {
-    status: 200,
-    headers: {
-      "content-type": `${mime}; charset=utf-8`,
-      "content-disposition": `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
-      "cache-control": "private, no-store",
-      "x-content-type-options": "nosniff",
+  return {
+    "content-type": `${mime}; charset=utf-8`,
+    "content-disposition": `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+    "cache-control": "private, no-store",
+    "x-content-type-options": "nosniff",
+  };
+}
+
+/** A download. */
+export function attachment(filename: string, body: string, mime: string): Response {
+  return new Response(body, { status: 200, headers: downloadHeaders(filename, mime) });
+}
+
+/**
+ * A download produced as it is read. The whole-workspace bundle is written a
+ * section at a time by an async generator, so a workspace of any size goes
+ * out without being held in memory whole -- and a reader that gives up
+ * stops the generator rather than leaving it paging to nobody.
+ */
+export function attachmentStream(filename: string, chunks: AsyncIterable<string>, mime: string): Response {
+  const enc = new TextEncoder();
+  const it = chunks[Symbol.asyncIterator]();
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { value, done } = await it.next();
+      if (done) controller.close();
+      else controller.enqueue(enc.encode(value));
+    },
+    async cancel() {
+      await it.return?.(undefined);
     },
   });
+  return new Response(body, { status: 200, headers: downloadHeaders(filename, mime) });
 }
