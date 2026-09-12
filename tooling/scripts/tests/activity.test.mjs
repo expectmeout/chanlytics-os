@@ -29,6 +29,9 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
   assert.equal(activityWords("export", { what: "people", rows: 312 }), "Exported data · everyone as a CSV · 312 rows");
   assert.equal(activityWords("export", { what: "conversation", messages: 40 }), "Exported data · a conversation");
   assert.equal(activityWords("pause_agent", { receptionist_mode: "never", batch: 12 }), "Paused the receptionist · never · one of 12");
+  assert.equal(activityWords("end_call", {}), "Ended a call");
+  assert.equal(activityWords("take_over", { how: "transfer", line: "+13055550199" }), "Took over a call · passed to the business's line", "the Inbox's verb on a call, and never the number");
+  assert.equal(activityWords("take_over", { paused_until: "2026-09-14T15:00:00Z" }), "Took over a thread");
   assert.equal(activityWords("resume_agent", { receptionist_mode: "inherit" }), "Resumed the receptionist · follows the workspace");
   assert.equal(activityWords("send_broadcast", { name: "Spring offer", recipients: 40, approved: true }), "Sent a broadcast · Spring offer · 40 people · approved by hand");
   assert.equal(activityWords("broadcast.sent", { sent: 38, held: 2 }), "A broadcast finished · 38 got it · 2 held");

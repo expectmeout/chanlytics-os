@@ -4192,7 +4192,9 @@ var DECISION_VERBS = [
    * that carry everyone; the thread's or the call's own row for the others.
    * The one verb an auditor asks about that the ledger did not keep.
    */
-  "export"
+  "export",
+  /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
+  "end_call"
 ];
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
@@ -9120,7 +9122,9 @@ var DECISION_VERBS2 = [
    * that carry everyone; the thread's or the call's own row for the others.
    * The one verb an auditor asks about that the ledger did not keep.
    */
-  "export"
+  "export",
+  /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
+  "end_call"
 ];
 function isOptedOutContact(c) {
   return c.consent === "opted_out" || c.dnc === true;
@@ -14361,7 +14365,9 @@ var DECISION_VERBS3 = [
    * that carry everyone; the thread's or the call's own row for the others.
    * The one verb an auditor asks about that the ledger did not keep.
    */
-  "export"
+  "export",
+  /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
+  "end_call"
 ];
 var DAY_MS7 = 864e5;
 var WEEK_MS5 = 7 * DAY_MS7;

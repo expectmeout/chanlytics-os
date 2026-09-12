@@ -1,8 +1,9 @@
 /**
- * The whisper: the one control the phone provider offers over a hosted
- * agent's live call — a sentence only the receptionist hears, worked into its
- * next answer. The mockup promised Listen, Take Over and End Call; none exist
- * for hosted agents, so this is the single real control the Live page grew.
+ * The whisper: a sentence only the receptionist hears, worked into its next
+ * answer — the first real control the Live page grew over a hosted agent's
+ * call. The mockup promised Listen, Take Over and End Call; the provider's
+ * API offers an end and a hand-over (call-controls.test.mjs) and keeps the
+ * audio and the microphone to its own dashboard.
  *
  * These pin: the ledger knows the verb and the subject (and the database
  * agrees); the adapter speaks the provider's exact contract; the edge takes

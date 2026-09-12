@@ -181,6 +181,16 @@ export async function whisperCall(callId: string, text: string, trigger = false)
   return api()("POST calls/[id]/whisper", { params: { id: callId }, body: { text, trigger } });
 }
 
+/** End the call in progress: the caller is cut off, and the ledger says who did it. */
+export async function endCall(callId: string): Promise<VerbResult> {
+  return api()("POST calls/[id]/end", { params: { id: callId } });
+}
+
+/** Pass the call in progress to the business's own line: the receptionist transfers it, the way it does when a caller asks for a person. */
+export async function handOverCall(callId: string): Promise<VerbResult> {
+  return api()("POST calls/[id]/hand-over", { params: { id: callId } });
+}
+
 /** The text whisper: one line, and the held draft is written again with it in mind. */
 export async function steerDraft(messageId: string, text: string): Promise<VerbResult> {
   return api()("POST messages/[id]/steer", { params: { id: messageId }, body: { text } });
@@ -294,6 +304,8 @@ declare global {
     __teamRemove: typeof teamRemove;
     __cancelSend: typeof cancelSend;
     __whisperCall: typeof whisperCall;
+    __endCall: typeof endCall;
+    __handOverCall: typeof handOverCall;
     __refreshInbox: typeof refreshInbox;
     __saveSettings: typeof saveSettings;
     __composedPrompt: typeof composedPrompt;
@@ -367,6 +379,8 @@ export function installInboxVerbs(): void {
   window.__cancelSend = cancelSend;
   window.__steerDraft = steerDraft;
   window.__whisperCall = whisperCall;
+  window.__endCall = endCall;
+  window.__handOverCall = handOverCall;
   window.__refreshInbox = refreshInbox;
   window.__saveSettings = saveSettings;
   window.__composedPrompt = composedPrompt;

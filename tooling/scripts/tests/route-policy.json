@@ -156,11 +156,25 @@
       "rate": "aggregate",
       "spend": false
     },
+    "POST calls/[id]/end": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "call_control",
+      "spend": false
+    },
     "GET calls/[id]/export": {
       "kind": "read",
       "scope": "workspace",
       "role": null,
       "rate": "export",
+      "spend": false
+    },
+    "POST calls/[id]/hand-over": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "call_control",
       "spend": false
     },
     "GET calls/[id]/recording": {

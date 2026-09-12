@@ -55,6 +55,8 @@ export const RATE = {
   erase: { limit: 5, windowMs: 3_600_000, noun: "erasures" },
   /** A sentence into a live call. */
   whisper: { limit: 20, windowMs: 60_000, noun: "whispers" },
+  /** Ending a call, or passing it to the business. */
+  call_control: { limit: 20, windowMs: 60_000, noun: "call controls" },
   /**
    * metrics_summary, report_series, the campaign series and the calendar
    * feed: the plpgsql aggregates and the one outside read. One load of Today

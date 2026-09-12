@@ -162,6 +162,41 @@ export async function whisperLiveCall(
 }
 
 /**
+ * End a live call: the edge speaks to the provider's stop-call. The same
+ * production guard as the whisper -- a preview must never end a real
+ * customer's call -- and a reason instead of a throw, so the route answers
+ * in a sentence.
+ */
+export async function stopLiveCall(retellCallId: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+  if (!deployment.providersLive) return { ok: false, reason: "preview" };
+  const r = await fetch(`${edgeUrl()}/api/admin/stop-call`, {
+    method: "POST",
+    headers: edgeHeaders("/api/admin/stop-call"),
+    body: JSON.stringify({ call_id: retellCallId }),
+  });
+  if (r.ok) return { ok: true };
+  const j = (await r.json().catch(() => ({}))) as { error?: string; status?: number };
+  return { ok: false, reason: j.error ? `${j.error}${j.status ? ` ${j.status}` : ""}` : `edge ${r.status}` };
+}
+
+/**
+ * Pass a live call to the business's own line: the edge tells the
+ * receptionist the owner is picking up and overrides the line its transfer
+ * tool dials. Same guard, same shape of answer.
+ */
+export async function handOverLiveCall(retellCallId: string, line: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+  if (!deployment.providersLive) return { ok: false, reason: "preview" };
+  const r = await fetch(`${edgeUrl()}/api/admin/hand-over`, {
+    method: "POST",
+    headers: edgeHeaders("/api/admin/hand-over"),
+    body: JSON.stringify({ call_id: retellCallId, line }),
+  });
+  if (r.ok) return { ok: true };
+  const j = (await r.json().catch(() => ({}))) as { error?: string; status?: number };
+  return { ok: false, reason: j.error ? `${j.error}${j.status ? ` ${j.status}` : ""}` : `edge ${r.status}` };
+}
+
+/**
  * Tell the platform mailbox that a workspace asked a person at Chanlytics
  * for something (a line, until lines provision themselves). The database
  * has already recorded the ask; this is the email Postgres cannot send.

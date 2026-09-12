@@ -848,6 +848,12 @@ export const DISCONNECTION_LABELS: Record<string, string> = {
   concurrency_limit_reached: "Line was busy — all agents in use",
   user_declined: "Customer declined the call",
   marked_as_spam: "Flagged as spam by the carrier",
+  // The endings the Live page's own controls produce, and the provider's
+  // newer names for a transfer.
+  manual_stopped: "Ended from the dashboard",
+  call_take_over: "A person took over the call",
+  transfer_bridged: "Transferred to a person",
+  transfer_cancelled: "Transfer did not go through",
 };
 
 export interface CallVM {

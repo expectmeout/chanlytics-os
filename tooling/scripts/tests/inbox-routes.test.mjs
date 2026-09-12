@@ -25,6 +25,8 @@ const steer = await import(at("apps/dashboard/app/api/v1/messages/[id]/steer/rou
 const calls = await import(at("apps/dashboard/app/api/v1/calls/route.ts"));
 const recording = await import(at("apps/dashboard/app/api/v1/calls/[id]/recording/route.ts"));
 const whisper = await import(at("apps/dashboard/app/api/v1/calls/[id]/whisper/route.ts"));
+const end = await import(at("apps/dashboard/app/api/v1/calls/[id]/end/route.ts"));
+const handOver = await import(at("apps/dashboard/app/api/v1/calls/[id]/hand-over/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -78,6 +80,8 @@ test("the seven declare their policy: the reads open to every member, the verbs 
   assert.deepEqual(reply.POST.policy, { kind: "write", scope: "row", role: "operator", rate: "reply", spend: false });
   assert.deepEqual(steer.POST.policy, { kind: "write", scope: "row", role: "operator", rate: "whisper", spend: false });
   assert.deepEqual(whisper.POST.policy, { kind: "write", scope: "row", role: "operator", rate: "whisper", spend: false });
+  assert.deepEqual(end.POST.policy, { kind: "write", scope: "row", role: "operator", rate: "call_control", spend: false });
+  assert.deepEqual(handOver.POST.policy, { kind: "write", scope: "row", role: "operator", rate: "call_control", spend: false });
 });
 
 test("the escalations read answers the workspace the tab named: its open ones unless a state is asked for", async () => {
@@ -190,4 +194,38 @@ test("a whisper: the call is the row, only into a call in progress, never from a
   await refused(recording.GET.run(get(), ctxFor(tables, { id: L2 })), "not_found", 404, "no recording yet");
   await refused(recording.GET.run(get(), ctxFor(tables, { id: L3 })), "not_found", 404, "fetched but not stored");
   await refused(recording.GET.run(get(), ctxFor(tables, { id: "not-a-uuid" })), "not_found", 404);
+});
+
+test("ending a call and passing it to the business: the call is the row, only a call in progress, a workspace with no line is told the fix, never from a preview, and nothing is recorded for a control that did not happen", async () => {
+  const live = (id, tenant_id, over = {}) => call(id, tenant_id, { status: "ongoing", ...over });
+  const withLine = {
+    tenant_id: B,
+    config: {
+      brain: {
+        business_name: "Bayside", booking_link: "https://book.example/bayside",
+        system_prompt: "Answer as the front desk of Bayside: brief and warm, and never guess a price.",
+        fallbacks: { greeting: "g", error: "e", non_text: "n" },
+        profile: { handoff_number: "+13055550199" },
+      },
+    },
+  };
+  const tables = { memberships: both("viewer", "operator"), calls: [live(L1, A), live(L2, B), call(L3, B)], tenant_config: [withLine] };
+  await refused(end.POST.run(post({}), ctxFor(tables, { id: L1 })), "forbidden", 403, "a viewer ends nothing");
+  await refused(end.POST.run(post({}), ctxFor(tables, { id: L3 })), "conflict", 409, "nobody on the line to end");
+  const endPreview = ctxFor(tables, { id: L2 });
+  await refused(end.POST.run(post({}), endPreview), "upstream_retell", 502, "this machine is not the production dashboard");
+  assert.equal(writes(endPreview), 0, "no decision for an end that did not happen");
+
+  await refused(handOver.POST.run(post({}), ctxFor(tables, { id: L1 })), "forbidden", 403);
+  await refused(handOver.POST.run(post({}), ctxFor(tables, { id: L3 })), "conflict", 409, "nobody on the line to pass");
+  const noLine = ctxFor({ ...tables, tenant_config: [] }, { id: L2 });
+  await assert.rejects(handOver.POST.run(post({}), noLine), (e) => {
+    assert.equal(e.code, "conflict");
+    assert.match(e.message, /no line to pass calls to/, "the fix is in the sentence");
+    return true;
+  });
+  assert.equal(writes(noLine), 0, "and the provider was never asked");
+  const handPreview = ctxFor(tables, { id: L2 });
+  await refused(handOver.POST.run(post({}), handPreview), "upstream_retell", 502, "this machine is not the production dashboard");
+  assert.equal(writes(handPreview), 0, "no decision for a hand-over that did not happen");
 });
