@@ -4584,15 +4584,15 @@ var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" })
 var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
-var DAY_MS2 = 864e5;
-var WEEK_MS2 = 7 * DAY_MS2;
-var MONTH_MS = 30 * DAY_MS2;
-var NEW_WINDOW_MS = 7 * DAY_MS2;
-var QUIET_AFTER_MS = 30 * DAY_MS2;
+var DAY_MS3 = 864e5;
+var WEEK_MS2 = 7 * DAY_MS3;
+var MONTH_MS = 30 * DAY_MS3;
+var NEW_WINDOW_MS = 7 * DAY_MS3;
+var QUIET_AFTER_MS = 30 * DAY_MS3;
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_YEAR_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
 var TIME_FMT2 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DAY_MS3 = 24 * 3600 * 1e3;
+var DAY_MS4 = 24 * 3600 * 1e3;
 var ASK_CAPS = {
   threads: 20,
   messages: 30,
@@ -4695,8 +4695,8 @@ var LIMIT_TIERS = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS4 = 864e5;
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS4;
+var DAY_MS5 = 864e5;
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
@@ -4705,8 +4705,8 @@ var PLAYBOOK_CLASS_LABEL = {
 };
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DAY_MS5 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS5;
+var DAY_MS6 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS6;
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
@@ -9135,8 +9135,8 @@ function purposeOfTemplate(category) {
 function purposeOfPlaybook(policyClass) {
   return policyClass === "booking" ? "conversational" : "marketing";
 }
-var DAY_MS6 = 864e5;
-var WEEK_MS4 = 7 * DAY_MS6;
+var DAY_MS2 = 864e5;
+var WEEK_MS4 = 7 * DAY_MS2;
 var BRAIN_INTENTS2 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
 var BRAIN_LANGUAGES2 = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA2 = {
@@ -9265,14 +9265,15 @@ function zoneParts(tz, at2) {
     weekday: get("weekday").toLowerCase().slice(0, 3)
   };
 }
-function clockInZone(tz, atMs) {
+function zoneOffsetMs(tz, atMs) {
   const p = zoneParts(tz, new Date(atMs));
-  return { hh: p.hh, mm: p.mm, ss: p.ss };
+  return Date.UTC(p.y, p.m - 1, p.d, p.hh, p.mm, p.ss) - Math.floor(atMs / 1e3) * 1e3;
 }
-function dayInZone(tz, atMs) {
-  const p = zoneParts(tz, new Date(atMs));
-  const pad = (n) => String(n).padStart(2, "0");
-  return { key: `${p.y}-${pad(p.m)}-${pad(p.d)}`, weekday: p.weekday, y: p.y, m: p.m, d: p.d };
+function localToUtcMs(tz, y, m, d, hh, mm) {
+  const guess = Date.UTC(y, m - 1, d, hh, mm);
+  const first = guess - zoneOffsetMs(tz, guess);
+  const second = guess - zoneOffsetMs(tz, first);
+  return second;
 }
 var POLICY_CLASS_WORDS2 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
@@ -9572,16 +9573,7 @@ function shiftKey(key, n) {
 var SHORT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 function zoneMidnight(tz, key) {
   const { y, m, d } = keyParts(key);
-  const guess = Date.UTC(y, m - 1, d);
-  const off1 = zoneOffsetOf(tz, guess);
-  const first = guess - off1;
-  const off2 = zoneOffsetOf(tz, first);
-  return guess - off2;
-}
-function zoneOffsetOf(tz, atMs) {
-  const c = clockInZone(tz, atMs);
-  const day = dayInZone(tz, atMs);
-  return Date.UTC(day.y, day.m - 1, day.d, c.hh, c.mm, c.ss) - Math.floor(atMs / 1e3) * 1e3;
+  return localToUtcMs(tz, y, m, d, 0, 0);
 }
 var LIVE_STALE_MS2 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS2 = 30 * 60 * 1e3;
@@ -9591,11 +9583,11 @@ function visitStartTime(v, tz) {
   if (v.allDay || v.all_day) return "all day";
   return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(ms(v.start)));
 }
-var DAY_MS22 = 864e5;
-var WEEK_MS22 = 7 * DAY_MS22;
-var MONTH_MS2 = 30 * DAY_MS22;
-var NEW_WINDOW_MS2 = 7 * DAY_MS22;
-var QUIET_AFTER_MS3 = 30 * DAY_MS22;
+var DAY_MS32 = 864e5;
+var WEEK_MS22 = 7 * DAY_MS32;
+var MONTH_MS2 = 30 * DAY_MS32;
+var NEW_WINDOW_MS2 = 7 * DAY_MS32;
+var QUIET_AFTER_MS3 = 30 * DAY_MS32;
 var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_YEAR_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
 var TIME_FMT22 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
@@ -9635,7 +9627,7 @@ var PEOPLE_LISTS = [
   { id: "offers_ok", label: "Can receive offers", group: "reach", test: (v) => mayReceive(v, "marketing") },
   { id: "opted_out", label: "Opted out", group: "reach", test: (v) => v.consent.state === "opted_out" }
 ];
-var DAY_MS32 = 24 * 3600 * 1e3;
+var DAY_MS42 = 24 * 3600 * 1e3;
 var ASK_CAPS2 = {
   threads: 20,
   messages: 30,
@@ -9990,7 +9982,7 @@ function resolveParams(specs, f) {
     }
   });
 }
-var DAY_MS42 = 864e5;
+var DAY_MS52 = 864e5;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
   { id: "new_week", label: "Welcome", list: "new_week", cls: "campaign", kind: "list", hint: "First contact in the last 7 days" },
@@ -10001,7 +9993,7 @@ var PLAYBOOK_TRIGGERS = [
 ];
 var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
-var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS42;
+var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS52;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
 var PLAYBOOK_NAME_MAX = 80;
 function triggerOf(id) {
@@ -10014,14 +10006,14 @@ function eligibleForPlaybook(rows, p, touches, nowMs) {
   if (t.kind === "visit") {
     const pool2 = eligibleFor(rows, "everyone", null, null, purpose).filter((r) => {
       if (!r.calendarTz) return false;
-      if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS42));
-      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS42)) && !r.booked;
+      if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS52));
+      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS52)) && !r.booked;
     });
     pool2.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
     return pool2.slice(0, Math.max(1, p.cap_per_run));
   }
   const pool = t.list ? eligibleFor(rows, "list", t.list, null, purpose) : eligibleFor(rows, "everyone", null, null, purpose);
-  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS42;
+  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS52;
   const picked = pool.filter((r) => {
     const mine = touches.byThis.get(r.id);
     if (mine !== void 0 && nowMs - mine < gapMs) return false;
@@ -10081,8 +10073,8 @@ function visitFactsFor(trigger, visit, tz) {
 }
 var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DAY_MS52 = 864e5;
-var QUIET_AFTER_MS22 = 7 * DAY_MS52;
+var DAY_MS62 = 864e5;
+var QUIET_AFTER_MS22 = 7 * DAY_MS62;
 var DATE_FMT42 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS2 = 14 * 864e5;
@@ -14755,15 +14747,15 @@ var SHORT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }
 var LIVE_STALE_MS3 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS3 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS3 = 10 * 60 * 1e3;
-var DAY_MS23 = 864e5;
-var WEEK_MS23 = 7 * DAY_MS23;
-var MONTH_MS3 = 30 * DAY_MS23;
-var NEW_WINDOW_MS3 = 7 * DAY_MS23;
-var QUIET_AFTER_MS4 = 30 * DAY_MS23;
+var DAY_MS33 = 864e5;
+var WEEK_MS23 = 7 * DAY_MS33;
+var MONTH_MS3 = 30 * DAY_MS33;
+var NEW_WINDOW_MS3 = 7 * DAY_MS33;
+var QUIET_AFTER_MS4 = 30 * DAY_MS33;
 var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_YEAR_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
 var TIME_FMT23 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DAY_MS33 = 24 * 3600 * 1e3;
+var DAY_MS43 = 24 * 3600 * 1e3;
 var ASK_CAPS3 = {
   threads: 20,
   messages: 30,
@@ -14866,8 +14858,8 @@ var LIMIT_TIERS3 = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS43 = 864e5;
-var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS43;
+var DAY_MS53 = 864e5;
+var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS53;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL3 = {
   reengage: POLICY_CLASS_WORDS3.reengage.short,
@@ -14876,8 +14868,8 @@ var PLAYBOOK_CLASS_LABEL3 = {
 };
 var DATE_FMT33 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DAY_MS53 = 864e5;
-var QUIET_AFTER_MS23 = 7 * DAY_MS53;
+var DAY_MS63 = 864e5;
+var QUIET_AFTER_MS23 = 7 * DAY_MS63;
 var DATE_FMT43 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS3 = 14 * 864e5;
@@ -15007,7 +14999,7 @@ async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, d
 }
 var POS_TTL_MS = 5 * 60 * 1e3;
 var NEG_TTL_MS = 60 * 1e3;
-var DAY_MS62 = 24 * 3600 * 1e3;
+var DAY_MS22 = 24 * 3600 * 1e3;
 
 // src/deliver.ts
 function whatsappSender(cfg) {

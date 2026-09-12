@@ -4621,15 +4621,15 @@ var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" })
 var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
-var DAY_MS2 = 864e5;
-var WEEK_MS2 = 7 * DAY_MS2;
-var MONTH_MS = 30 * DAY_MS2;
-var NEW_WINDOW_MS = 7 * DAY_MS2;
-var QUIET_AFTER_MS = 30 * DAY_MS2;
+var DAY_MS3 = 864e5;
+var WEEK_MS2 = 7 * DAY_MS3;
+var MONTH_MS = 30 * DAY_MS3;
+var NEW_WINDOW_MS = 7 * DAY_MS3;
+var QUIET_AFTER_MS = 30 * DAY_MS3;
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_YEAR_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
 var TIME_FMT2 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DAY_MS3 = 24 * 3600 * 1e3;
+var DAY_MS4 = 24 * 3600 * 1e3;
 var ASK_CAPS = {
   threads: 20,
   messages: 30,
@@ -4732,8 +4732,8 @@ var LIMIT_TIERS = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS4 = 864e5;
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS4;
+var DAY_MS5 = 864e5;
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
@@ -4742,8 +4742,8 @@ var PLAYBOOK_CLASS_LABEL = {
 };
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DAY_MS5 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS5;
+var DAY_MS6 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS6;
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
@@ -9032,8 +9032,8 @@ var DECISION_VERBS2 = [
    */
   "export"
 ];
-var DAY_MS6 = 864e5;
-var WEEK_MS4 = 7 * DAY_MS6;
+var DAY_MS2 = 864e5;
+var WEEK_MS4 = 7 * DAY_MS2;
 var BRAIN_INTENTS2 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
 var BRAIN_LANGUAGES2 = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA2 = {
@@ -9422,15 +9422,15 @@ var SHORT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }
 var LIVE_STALE_MS2 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS2 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;
-var DAY_MS22 = 864e5;
-var WEEK_MS22 = 7 * DAY_MS22;
-var MONTH_MS2 = 30 * DAY_MS22;
-var NEW_WINDOW_MS2 = 7 * DAY_MS22;
-var QUIET_AFTER_MS3 = 30 * DAY_MS22;
+var DAY_MS32 = 864e5;
+var WEEK_MS22 = 7 * DAY_MS32;
+var MONTH_MS2 = 30 * DAY_MS32;
+var NEW_WINDOW_MS2 = 7 * DAY_MS32;
+var QUIET_AFTER_MS3 = 30 * DAY_MS32;
 var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_YEAR_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
 var TIME_FMT22 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DAY_MS32 = 24 * 3600 * 1e3;
+var DAY_MS42 = 24 * 3600 * 1e3;
 var ASK_CAPS2 = {
   threads: 20,
   messages: 30,
@@ -9533,8 +9533,8 @@ var LIMIT_TIERS2 = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS42 = 864e5;
-var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS42;
+var DAY_MS52 = 864e5;
+var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS52;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL2 = {
   reengage: POLICY_CLASS_WORDS2.reengage.short,
@@ -9543,8 +9543,8 @@ var PLAYBOOK_CLASS_LABEL2 = {
 };
 var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DAY_MS52 = 864e5;
-var QUIET_AFTER_MS22 = 7 * DAY_MS52;
+var DAY_MS62 = 864e5;
+var QUIET_AFTER_MS22 = 7 * DAY_MS62;
 var DATE_FMT42 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS2 = 14 * 864e5;
@@ -13886,8 +13886,8 @@ function mayMessageFor(c, purpose, opts = {}) {
 function purposeOfTemplate(category) {
   return category === "utility" || category === "authentication" ? "conversational" : "marketing";
 }
-var DAY_MS62 = 864e5;
-var WEEK_MS42 = 7 * DAY_MS62;
+var DAY_MS22 = 864e5;
+var WEEK_MS42 = 7 * DAY_MS22;
 var BRAIN_INTENTS22 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
 var BRAIN_LANGUAGES22 = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA22 = {
@@ -14275,15 +14275,15 @@ var SHORT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" 
 var LIVE_STALE_MS22 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS22 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS22 = 10 * 60 * 1e3;
-var DAY_MS222 = 864e5;
-var WEEK_MS222 = 7 * DAY_MS222;
-var MONTH_MS22 = 30 * DAY_MS222;
-var NEW_WINDOW_MS22 = 7 * DAY_MS222;
-var QUIET_AFTER_MS32 = 30 * DAY_MS222;
+var DAY_MS322 = 864e5;
+var WEEK_MS222 = 7 * DAY_MS322;
+var MONTH_MS22 = 30 * DAY_MS322;
+var NEW_WINDOW_MS22 = 7 * DAY_MS322;
+var QUIET_AFTER_MS32 = 30 * DAY_MS322;
 var DATE_FMT222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_YEAR_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
 var TIME_FMT222 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DAY_MS322 = 24 * 3600 * 1e3;
+var DAY_MS422 = 24 * 3600 * 1e3;
 var ASK_CAPS22 = {
   threads: 20,
   messages: 30,
@@ -14431,8 +14431,8 @@ function resolveParams(specs, f) {
     }
   });
 }
-var DAY_MS422 = 864e5;
-var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS422;
+var DAY_MS522 = 864e5;
+var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS522;
 var PLAYBOOK_VETO_DELAY_MS22 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL22 = {
   reengage: POLICY_CLASS_WORDS22.reengage.short,
@@ -14441,8 +14441,8 @@ var PLAYBOOK_CLASS_LABEL22 = {
 };
 var DATE_FMT322 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DAY_MS522 = 864e5;
-var QUIET_AFTER_MS222 = 7 * DAY_MS522;
+var DAY_MS622 = 864e5;
+var QUIET_AFTER_MS222 = 7 * DAY_MS622;
 var DATE_FMT422 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS22 = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS22 = 14 * 864e5;
@@ -19113,15 +19113,15 @@ var SHORT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }
 var LIVE_STALE_MS3 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS3 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS3 = 10 * 60 * 1e3;
-var DAY_MS23 = 864e5;
-var WEEK_MS23 = 7 * DAY_MS23;
-var MONTH_MS3 = 30 * DAY_MS23;
-var NEW_WINDOW_MS3 = 7 * DAY_MS23;
-var QUIET_AFTER_MS4 = 30 * DAY_MS23;
+var DAY_MS33 = 864e5;
+var WEEK_MS23 = 7 * DAY_MS33;
+var MONTH_MS3 = 30 * DAY_MS33;
+var NEW_WINDOW_MS3 = 7 * DAY_MS33;
+var QUIET_AFTER_MS4 = 30 * DAY_MS33;
 var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_YEAR_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
 var TIME_FMT23 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DAY_MS33 = 24 * 3600 * 1e3;
+var DAY_MS43 = 24 * 3600 * 1e3;
 var ASK_CAPS3 = {
   threads: 20,
   messages: 30,
@@ -19224,8 +19224,8 @@ var LIMIT_TIERS3 = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS43 = 864e5;
-var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS43;
+var DAY_MS53 = 864e5;
+var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS53;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL3 = {
   reengage: POLICY_CLASS_WORDS3.reengage.short,
@@ -19234,8 +19234,8 @@ var PLAYBOOK_CLASS_LABEL3 = {
 };
 var DATE_FMT33 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DAY_MS53 = 864e5;
-var QUIET_AFTER_MS23 = 7 * DAY_MS53;
+var DAY_MS63 = 864e5;
+var QUIET_AFTER_MS23 = 7 * DAY_MS63;
 var DATE_FMT43 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS3 = 14 * 864e5;
@@ -19365,7 +19365,7 @@ async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, d
 }
 var POS_TTL_MS = 5 * 60 * 1e3;
 var NEG_TTL_MS = 60 * 1e3;
-var DAY_MS622 = 24 * 3600 * 1e3;
+var DAY_MS222 = 24 * 3600 * 1e3;
 async function wireFacts(db, d) {
   const { data, error } = await db.from("conversations").select("paused_until, contacts (consent, dnc, marketing_consent, erased_at), tenants (status)").eq("id", d.conversationId).eq("tenant_id", d.tenantId).maybeSingle();
   if (error) throw new Error(`deliver: cannot read the wire for conversation ${d.conversationId}: ${error.message}`);
@@ -24227,15 +24227,15 @@ var SHORT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }
 var LIVE_STALE_MS4 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS4 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS4 = 10 * 60 * 1e3;
-var DAY_MS24 = 864e5;
-var WEEK_MS24 = 7 * DAY_MS24;
-var MONTH_MS4 = 30 * DAY_MS24;
-var NEW_WINDOW_MS4 = 7 * DAY_MS24;
-var QUIET_AFTER_MS5 = 30 * DAY_MS24;
+var DAY_MS34 = 864e5;
+var WEEK_MS24 = 7 * DAY_MS34;
+var MONTH_MS4 = 30 * DAY_MS34;
+var NEW_WINDOW_MS4 = 7 * DAY_MS34;
+var QUIET_AFTER_MS5 = 30 * DAY_MS34;
 var DATE_FMT24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DATE_YEAR_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
 var TIME_FMT24 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DAY_MS34 = 24 * 3600 * 1e3;
+var DAY_MS44 = 24 * 3600 * 1e3;
 var ASK_CAPS4 = {
   threads: 20,
   messages: 30,
@@ -24338,8 +24338,8 @@ var LIMIT_TIERS4 = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS44 = 864e5;
-var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS44;
+var DAY_MS54 = 864e5;
+var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS54;
 var PLAYBOOK_VETO_DELAY_MS4 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL4 = {
   reengage: POLICY_CLASS_WORDS4.reengage.short,
@@ -24348,8 +24348,8 @@ var PLAYBOOK_CLASS_LABEL4 = {
 };
 var DATE_FMT34 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DAY_MS54 = 864e5;
-var QUIET_AFTER_MS24 = 7 * DAY_MS54;
+var DAY_MS64 = 864e5;
+var QUIET_AFTER_MS24 = 7 * DAY_MS64;
 var DATE_FMT44 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS4 = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS4 = 14 * 864e5;
@@ -24480,7 +24480,7 @@ async function resolveOutboundTarget(db, p) {
 }
 var POS_TTL_MS2 = 5 * 60 * 1e3;
 var NEG_TTL_MS2 = 60 * 1e3;
-var DAY_MS63 = 24 * 3600 * 1e3;
+var DAY_MS23 = 24 * 3600 * 1e3;
 
 // src/handlers.ts
 async function outboundSend(ctx, job) {

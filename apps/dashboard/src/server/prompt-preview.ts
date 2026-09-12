@@ -5,6 +5,7 @@ import {
   freeWindows,
   parseIcs,
   resolveSystemPrompt,
+  seasonHorizon,
   type BrainConfig,
   type KnownFacts,
 } from "@chanlytics/contracts";
@@ -78,9 +79,10 @@ export async function openingsBlock(
     if (!feed.text) return null;
     const rules = profile.booking_rules ?? null;
     const daysAhead = rules?.max_days_ahead ?? 14;
-    const parsed = parseIcs(feed.text, cfg.tz, {
-      horizon: { from: now.getTime() - 90 * 86_400_000, to: now.getTime() + Math.max(daysAhead + 1, 90) * 86_400_000 },
-    });
+    // The rule the edge reads the same feed with, by name rather than by a
+    // copy of its arithmetic: this expression and the edge's were identical
+    // byte for byte, and nothing said they were meant to be.
+    const parsed = parseIcs(feed.text, cfg.tz, { horizon: seasonHorizon(now, daysAhead) });
     const openings = freeWindows({ hours: profile.hours, closures: profile.closures, tz: cfg.tz, busy: parsed.busy, rules, now });
     return describeOpenings(openings, cfg.tz, { daysAhead });
   } catch (e) {

@@ -1,11 +1,12 @@
 import "server-only";
 import {
   describeOpenings,
-  FEED_MAX_BYTES,
+  feedBodyProblem,
   feedUrlOk,
   filterOpenings,
   freeWindows,
   matchService,
+  offeringHorizon,
   parseIcs,
   parseTenantConfig,
   type FeedFailure,
@@ -74,8 +75,10 @@ export async function loadFeed(tenantId: string, url: string): Promise<FeedRead>
     }
     if (!res.ok) throw new FeedRefused("http", res.status);
     const text = await res.text();
-    if (text.length > FEED_MAX_BYTES) throw new FeedRefused("too_large");
-    if (!/BEGIN:VCALENDAR/i.test(text)) throw new FeedRefused("not_ical");
+    // The same judgement the edge makes of the same body: two readers that
+    // disagreed about a ceiling would disagree about a business's own week.
+    const problem = feedBodyProblem(text);
+    if (problem) throw new FeedRefused(problem);
     const fresh: FeedEntry = { text, at: now, checkedAt: now, reason: null, status: null };
     feeds.set(tenantId, fresh);
     return asRead(fresh);
@@ -132,7 +135,7 @@ export async function openingsFor(
   try {
     const rules = profile.booking_rules ?? null;
     daysAhead = rules?.max_days_ahead ?? 14;
-    const feed = parseIcs(text, timezone, { horizon: { from: now.getTime() - 86_400_000, to: now.getTime() + (daysAhead + 1) * 86_400_000 } });
+    const feed = parseIcs(text, timezone, { horizon: offeringHorizon(now, daysAhead) });
     openings = freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy: feed.busy, rules, now });
   } catch (e) {
     console.error("ask_openings_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));

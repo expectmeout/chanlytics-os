@@ -43,3 +43,70 @@ export function feedProblemWords(reason: FeedFailure | null | undefined, status?
     default: return null;
   }
 }
+
+/**
+ * The two things that make a body we did fetch unusable.
+ *
+ * One judgement, because there were two: the dashboard refused a feed over
+ * FEED_MAX_BYTES while the edge inlined `2 * 1024 * 1024`, so a feed between
+ * 2,000,000 and 2,097,152 bytes was read by one reader and refused by the
+ * other — and the receptionist and the board would then disagree about a
+ * business's own week with nothing on any page to say why.
+ */
+export function feedBodyProblem(text: string): FeedFailure | null {
+  if (text.length > FEED_MAX_BYTES) return "too_large";
+  if (!/BEGIN:VCALENDAR/i.test(text)) return "not_ical";
+  return null;
+}
+
+/* ------------------------------------------------ how much of it to read */
+
+/** A window of time a read of the feed has to cover. */
+export interface FeedHorizon {
+  from: number;
+  to: number;
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * THREE WINDOWS, NAMED.
+ *
+ * Five call sites parsed the same feed with four hand-written expressions
+ * between them, and two of those were byte-identical: the edge's own
+ * `horizonFor` and the prompt preview's inline copy. Nothing said which
+ * differences were deliberate, so the only way to know whether the board and
+ * the receptionist were meant to see the same season was to read four files
+ * and compare arithmetic.
+ *
+ * They are three rules, and they differ for reasons worth writing down.
+ * Behaviour is unchanged at every site: the board's old ±90 days is exactly
+ * `seasonHorizon(now)`, and the preview's is exactly `seasonHorizon(now,
+ * daysAhead)`.
+ */
+
+/**
+ * Only what the receptionist may offer: yesterday, for a visit already under
+ * way, through the last day it is allowed to book into.
+ */
+export function offeringHorizon(now: Date, daysAhead: number): FeedHorizon {
+  return { from: now.getTime() - DAY_MS, to: now.getTime() + (daysAhead + 1) * DAY_MS };
+}
+
+/**
+ * A season either side: ninety days back for "when were they last in", and
+ * ninety forward — or the offering window when a workspace books further out
+ * than that, so the two never disagree about a day the receptionist can offer.
+ */
+export function seasonHorizon(now: Date, daysAhead = 0): FeedHorizon {
+  return { from: now.getTime() - DAY_MS * 90, to: now.getTime() + Math.max(daysAhead + 1, 90) * DAY_MS };
+}
+
+/**
+ * A month, to prove an address works. The preview exists to answer "is this
+ * the right link", and a season of a busy salon is slower to fetch and no
+ * more convincing than four weeks of it.
+ */
+export function previewHorizon(now: Date): FeedHorizon {
+  return { from: now.getTime() - DAY_MS, to: now.getTime() + 30 * DAY_MS };
+}
