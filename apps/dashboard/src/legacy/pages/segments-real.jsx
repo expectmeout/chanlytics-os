@@ -1,4 +1,4 @@
-/* global React, Icon */
+/* global React, Icon, Confirm */
 // People › Lists, real: the lists kept by hand and the six that keep
 // themselves current, with the people on each. Same facts as the People
 // page (window.__PEOPLE, fed by the People surface); nothing here scores,
@@ -196,14 +196,10 @@ const ListsReal = ({ initialId = null }) => {
                   <button className="btn btn-sm" onClick={() => setRenaming(label)}>Rename</button>
                 )}
                 {kind === "saved" && canEdit && !arm && (
-                  <button className="btn btn-sm" onClick={() => setArm(true)} data-testid="lists-delete">Delete list…</button>
+                  <button className="btn btn-sm danger" onClick={() => setArm(true)} data-testid="lists-delete">Delete list…</button>
                 )}
                 {arm && (
-                  <span className="cl-section-sub">
-                    Delete “{label}”? The people stay.{" "}
-                    <button className="cl-bucket-link" disabled={busy} onClick={remove}>Yes, delete</button>{" "}
-                    <button className="cl-bucket-link" disabled={busy} onClick={() => setArm(false)}>No</button>
-                  </span>
+                  <Confirm question={`Delete “${label}”?`} detail="The people stay." yes="Yes, delete" danger busy={busy} onYes={remove} onNo={() => setArm(false)} testid="lists-delete" />
                 )}
               </div>
             </div>

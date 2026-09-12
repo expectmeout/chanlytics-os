@@ -111,6 +111,7 @@
   --warn-soft: oklch(0.74 0.14 75 / 0.14);
   --danger: oklch(0.6 0.2 27);
   --danger-soft: oklch(0.6 0.2 27 / 0.12);
+  --danger-fg: oklch(0.99 0 0);
   --info: oklch(0.6 0.12 235);
   --info-soft: oklch(0.6 0.12 235 / 0.12);
 }

@@ -336,7 +336,62 @@ const StatePill = ({ kind, value, label = null, className = "", title = null, ti
     </span>
   );
 };
-Object.assign(window, { PolicyChip, StatePill });
+// ---- Confirm — the one way an act is confirmed -----------------------------
+// Armed inline, where the control that armed it was: the question names the
+// thing, the detail says what happens, the Yes names the verb and is a real
+// button (red when the act destroys or cannot be undone), the No is quiet.
+// Five idioms did this before -- a hand-rolled Yes/No sentence in four
+// wordings, a button that changed its own label on the first click, a typed
+// name, commit-then-Undo, and nothing at all on the most destructive act on
+// Settings (the audit's D13). One shape now; pure, so any harness can draw it.
+//
+//   <Confirm question="Disconnect Google?" detail="The public listing stays; replies and the history do not."
+//            yes="Yes, disconnect" danger busy={busy} onYes={...} onNo={...} testid="google-disconnect" />
+//
+// `typed` with `value`/`onType` gates the Yes on a typed match -- for erasure
+// only; `ready` overrides the match when the page knows better (a phone
+// number for a name). `block` draws a panel under the row instead of a line
+// beside it. The Yes takes focus as the question appears; Escape is No.
+// Testids from `testid`: `${testid}-confirm` on the group, -yes, -no, -typed.
+const Confirm = ({ question, detail = null, yes = "Yes", no = "No", onYes, onNo, busy = false, busyLabel = "Working…", danger = false, typed = null, value = "", onType = null, ready = null, error = null, block = false, className = "", testid = null }) => {
+  const ok = ready != null ? !!ready : typed == null || String(value).trim() === String(typed);
+  const id = (part) => (testid ? `${testid}-${part}` : undefined);
+  const onKey = (e) => { if (e.key === "Escape" && !busy && onNo) { e.stopPropagation(); onNo(); } };
+  return (
+    <span
+      className={`confirm${block ? " confirm-block" : ""}${danger ? " confirm-danger" : ""}${className ? ` ${className}` : ""}`}
+      role="group"
+      aria-label={typeof question === "string" ? question : undefined}
+      data-testid={id("confirm")}
+      onKeyDown={onKey}
+    >
+      <span className="confirm-words">
+        <span className="confirm-q">{question}</span>
+        {detail && <span className="confirm-detail">{detail}</span>}
+      </span>
+      {typed != null && (
+        <input
+          className="confirm-typed"
+          value={value}
+          onChange={(e) => onType && onType(e.target.value)}
+          placeholder={String(typed)}
+          aria-label={`Type ${typed} to confirm`}
+          autoFocus
+          disabled={busy}
+          data-testid={id("typed")}
+        />
+      )}
+      {error && <span className="confirm-error" role="alert">{error}</span>}
+      <span className="confirm-acts">
+        <button type="button" className={`btn btn-sm${danger ? " btn-danger" : ""}`} disabled={busy || !ok} onClick={onYes} autoFocus={typed == null} data-testid={id("yes")}>
+          {busy ? busyLabel : yes}
+        </button>
+        <button type="button" className="cl-bucket-link" disabled={busy} onClick={onNo} data-testid={id("no")}>{no}</button>
+      </span>
+    </span>
+  );
+};
+Object.assign(window, { PolicyChip, StatePill, Confirm });
 
 // ---- Tip — one styled tooltip for every [data-tip] element (hover + keyboard focus) ----
 (() => {

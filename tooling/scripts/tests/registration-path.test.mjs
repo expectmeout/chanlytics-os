@@ -234,7 +234,16 @@ globalThis.window = {
   __ME: { email: "ada@example.com" },
   __WORKSPACES: [{ slug: "harbor" }],
   canDo: () => true,
+  // The shell (data-bits, for the Confirm) registers listeners on the window it is given.
+  addEventListener() {},
+  removeEventListener() {},
 };
+// Filing is confirmed through the shared Confirm (data-bits.jsx): pure, so the
+// walker below expands it and finds the Yes inside.
+globalThis.document ??= { body: {}, addEventListener() {}, createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }) };
+globalThis.ReactDOM ??= { createPortal: (node) => node };
+await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+globalThis.Confirm = globalThis.window.Confirm;
 await import("../../../apps/dashboard/src/legacy/pages/business-record.jsx");
 const Page = globalThis.window.BusinessRecordForm;
 
@@ -273,6 +282,8 @@ function mount(props) {
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
   fn(n);
+  // Nested components here are pure (the Confirm), so expanding them is safe.
+  if (typeof n.type === "function") walk(n.type(n.props), fn);
   for (const k of n.props?.children ?? []) walk(k, fn);
 };
 const byId = (root, id) => { let hit = null; walk(root, (n) => { if (!hit && n.props?.["data-testid"] === id) hit = n; }); return hit; };
@@ -411,7 +422,7 @@ test("the price asked at the button is the price of the registration being filed
     const page = mount({ line: { id: LINE, sms_state: "none" }, flash: () => {} });
     await page.flush();
     await page.act(byId(page.tree, "biz-file"));
-    assert.ok(textOf(byId(page.tree, "biz-arm")).includes(REGISTRATION_COST_WORDS[path]), path);
+    assert.ok(textOf(byId(page.tree, "biz-file-confirm")).includes(REGISTRATION_COST_WORDS[path]), path);
     assert.ok(byId(page.tree, "biz-file-yes"), "and it is asked once, plainly");
   }
 });

@@ -1,4 +1,4 @@
-/* global React, Icon */
+/* global React, Icon, Confirm */
 // Chanlytics — Settings › Integrations, one row per connection.
 //
 // Every connection is the same row (contracts/connections.ts) computed from
@@ -73,10 +73,10 @@ const ConnectionRow = ({ r, run, busy, arm, setArm, confirm }) => {
         <span className="set-team-name">{r.title}{r.detail ? <span className="dim"> · {r.detail}</span> : null}</span>
         <span className="set-team-mail">{r.sentence}</span>
         {armed === "remove" && (
-          <span className="set-row-hint">Remove the listing and what was read from it? <button className="cl-bucket-link" disabled={busy} onClick={() => confirm("remove")} data-testid="google-remove-yes">Yes, remove</button> <button className="cl-bucket-link" onClick={() => setArm(null)}>No</button></span>
+          <Confirm question="Remove the listing?" detail="What was read from it goes with it." yes="Yes, remove" danger busy={busy} onYes={() => confirm("remove")} onNo={() => setArm(null)} testid="google-remove" />
         )}
         {armed === "disconnect" && (
-          <span className="set-row-hint">Disconnect Google? The public listing stays; replies and the full history do not. <button className="cl-bucket-link" disabled={busy} onClick={() => confirm("disconnect")} data-testid="google-disconnect-yes">Yes, disconnect</button> <button className="cl-bucket-link" onClick={() => setArm(null)}>No</button></span>
+          <Confirm question="Disconnect Google?" detail="The public listing stays; replies and the full history do not." yes="Yes, disconnect" danger busy={busy} onYes={() => confirm("disconnect")} onNo={() => setArm(null)} testid="google-disconnect" />
         )}
       </span>
       <StatePill kind="tone" value={r.tone} label={<>{r.tone === "ok" && <span className="dot" />}{r.stateWords}</>} />

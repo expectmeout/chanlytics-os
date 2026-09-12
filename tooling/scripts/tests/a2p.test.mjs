@@ -437,7 +437,7 @@ test("the owner's form: every field the carriers ask, checked in the owner's wor
   assert.ok(reg.includes('role: "owner",') && reg.includes('rate: "lines_register",') && reg.includes("spend: true,"), "filing costs money, so it is an owner's, it is rate-limited, and it declares the spend");
   assert.ok(!/mock:\s*(true|body)/.test(reg), "the free test registry is never reachable from the dashboard: an owner's filing is always the real one");
   const page = readCode("apps/dashboard/src/legacy/pages/business-record.jsx");
-  assert.ok(page.includes('data-testid="business-record"') && page.includes('data-testid="biz-file-yes"'), "and filing asks once, plainly, with the price in the question");
+  assert.ok(page.includes('data-testid="business-record"') && page.includes('testid="biz-file"'), "and filing asks once, plainly, with the price in the question");
   assert.ok(page.includes("window.BusinessRecordForm = BusinessRecordForm;"), "the form is its own file, opened by the row that needs it");
   assert.ok(page.includes("{API.costWords[path]}"), "the price is the contract's, per registration -- the two do not cost the same");
 });

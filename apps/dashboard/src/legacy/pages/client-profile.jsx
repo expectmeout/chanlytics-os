@@ -1,4 +1,4 @@
-/* global React, Icon, CLIENTS, ChannelGlyph, TempBar, ClientTag, MoreMenu */
+/* global React, Icon, CLIENTS, ChannelGlyph, TempBar, ClientTag, MoreMenu, Confirm */
 // Chanlytics — Client profile page.
 // The last approval surface wired into the decide engine: Aisha's queue
 // approves through IX_STORE (toast + undo), overlays live decisions, and
@@ -800,7 +800,8 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   const [st, setSt] = useStateP({ loading: true, vm: null, missing: false, error: null });
   const [toastNode, ppFlash] = window.usePPToast();
   // "Delete this person" is a typed-name confirmation, not a click: it erases
-  // messages, media and recordings and cannot be undone.
+  // messages, media and recordings and cannot be undone. The one Confirm
+  // draws it; the typed text and the match stay here, with the record.
   const [del, setDel] = useStateP({ open: false, typed: "", busy: false, error: null });
   const [rm, setRm] = useStateP({ busy: false, error: null });
   const load = React.useCallback(() => {
@@ -1118,31 +1119,27 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
           <div className="cl-prof-rail-section">
             <div className="cl-prof-rail-label">Danger</div>
             {!del.open ? (
-              <button className="btn btn-sm" style={{ color: "var(--danger)" }} onClick={() => setDel({ open: true, typed: "", busy: false, error: null })}>
+              <button className="btn btn-sm danger" onClick={() => setDel({ open: true, typed: "", busy: false, error: null })} data-testid="delete-person">
                 Delete this person…
               </button>
             ) : (
-              <div data-testid="delete-confirm">
-                <div className="cl-prof-aut-hint" style={{ marginBottom: 8 }}>
-                  Removes their messages, media and recordings from Chanlytics and stops any reply still queued. This cannot be undone. Type <b>{p.name}</b> to confirm.
-                </div>
-                <div className="cl-search-wrap" style={{ marginBottom: 8 }}>
-                  <input
-                    value={del.typed}
-                    onChange={(e) => setDel((d) => ({ ...d, typed: e.target.value }))}
-                    placeholder={p.name}
-                    aria-label="Type the name to confirm"
-                    autoFocus
-                  />
-                </div>
-                {del.error && <div className="cl-prof-aut-hint" style={{ color: "var(--danger)", marginBottom: 8 }}>{del.error}</div>}
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button className="btn btn-sm" style={{ color: "var(--danger)", borderColor: "var(--danger)" }} disabled={del.busy || !typedMatches} onClick={confirmDelete}>
-                    {del.busy ? "Deleting…" : "Delete"}
-                  </button>
-                  <button className="btn btn-ghost btn-sm" disabled={del.busy} onClick={closeDelete}>Cancel</button>
-                </div>
-              </div>
+              <Confirm
+                block
+                danger
+                typed={p.name}
+                value={del.typed}
+                onType={(v) => setDel((d) => ({ ...d, typed: v }))}
+                ready={typedMatches}
+                question="Delete this person?"
+                detail={<>Removes their messages, media and recordings from Chanlytics and stops any reply still queued. This cannot be undone. Type <b>{p.name}</b> to confirm.</>}
+                yes="Delete this person"
+                busyLabel="Deleting…"
+                busy={del.busy}
+                error={del.error}
+                onYes={confirmDelete}
+                onNo={closeDelete}
+                testid="delete"
+              />
             )}
           </div>
         )}

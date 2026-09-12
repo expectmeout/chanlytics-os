@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell */
+/* global React, Icon, StatStrip, StatCell, Confirm */
 // Chanlytics — Live, on a real workspace.
 //
 // The mockup's console (live-monitor.jsx) promised Live Listen, Take Over and
@@ -324,11 +324,7 @@ const LrControls = ({ c }) => {
         <Icon name="phone" size={12} /> {busy === "hand" ? "Passing…" : "Pass the call to me"}
       </button>
       {arm ? (
-        <span className="set-row-hint">
-          End the call? The caller is cut off.{" "}
-          <button className="cl-bucket-link" onClick={end} data-testid="live-end-yes">Yes, end it</button>{" "}
-          <button className="cl-bucket-link" onClick={() => setArm(false)}>No</button>
-        </span>
+        <Confirm question="End the call?" detail="The caller is cut off." yes="Yes, end it" busyLabel="Ending…" danger busy={busy === "end"} onYes={end} onNo={() => setArm(false)} testid="live-end" />
       ) : (
         <button className="btn btn-ghost btn-sm" onClick={() => setArm(true)} disabled={!!busy} data-testid="live-end" {...window.gate("approve")}>
           {busy === "end" ? "Ending…" : "End the call"}

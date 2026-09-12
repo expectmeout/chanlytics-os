@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell, PolicyChip */
+/* global React, Icon, StatStrip, StatCell, PolicyChip, Confirm */
 // Campaigns › Playbooks, real: a standing rule that sends one approved
 // template to newly eligible people who said yes, under the workspace's
 // autonomy mode. Same chrome as the seeded Outbound page (outbound.jsx);
@@ -268,7 +268,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
   const approve = () => act(() => V.approveRun(waiting.id), (d) => <><b>{p.name}</b> approved — {pbPeople(d.recipient_count || waiting.recipient_count)}, sending now</>);
   const skip = () => act(() => V.skipRun(waiting.id), () => <><b>{p.name}</b> — this run skipped, nothing sent</>);
   const remove = () => {
-    if (!sure) { setSure(true); return; }
+    setSure(false);
     act(() => V.remove(p.id), () => <><b>{p.name}</b> deleted — its runs stay in Broadcasts with their numbers</>);
   };
 
@@ -350,10 +350,11 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
           </button>
         )}
         {canAct && <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => onEdit(p)} data-testid="pb-edit">Edit</button>}
-        {canAct && (
-          <button className={"btn btn-ghost btn-sm" + (sure ? " danger" : "")} disabled={busy} onClick={remove} onBlur={() => setSure(false)} data-testid="pb-delete">
-            {sure ? "Delete for good?" : "Delete"}
-          </button>
+        {canAct && !sure && (
+          <button className="btn btn-ghost btn-sm danger" disabled={busy} onClick={() => setSure(true)} data-testid="pb-delete">Delete</button>
+        )}
+        {canAct && sure && (
+          <Confirm question={`Delete ${p.name}?`} detail="Its runs stay in Broadcasts with their numbers." yes="Yes, delete" danger busy={busy} onYes={remove} onNo={() => setSure(false)} testid="pb-delete" />
         )}
         <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav("broadcasts")}>Its runs in Broadcasts <Icon name="arrow-right" size={10} /></button>
       </div>
@@ -444,6 +445,7 @@ const PlaybooksReal = () => {
   );
 };
 
+window.PlaybookCard = PlaybookCard; // drawn on its own by confirm.test.mjs (the delete that was two clicks on one button)
 window.OutboundPage = (props) => {
   const Seed = window.OutboundSeed;
   if (window.__PLAYBOOKS) return <PlaybooksReal {...props} />;
