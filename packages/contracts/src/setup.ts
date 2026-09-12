@@ -39,7 +39,7 @@ export interface SetupDto {
     voice: { present: boolean; active: boolean; number: string | null; lastInboundAt: string | null };
   };
   templates: { approved: number; pending: number; startersApproved: number };
-  calendar: { state: "ok" | "unavailable" | "none" };
+  calendar: { state: "ok" | "unavailable" | "none"; problem?: string | null };
   team: { members: number; invitesOpen: number; alertEmails: number };
   /**
    * The two answers, counted separately.
@@ -521,7 +521,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
   row(i.calendar.state === "ok"
     ? { id: "calendar", icon: "calendar", title: "Calendar", state: "ready", required: false, sentence: "Readable — the receptionist offers times from it.", details: [], verb: { label: "Open Calendar", to: "calendar" } }
     : i.calendar.state === "unavailable"
-      ? { id: "calendar", icon: "calendar", title: "Calendar", state: "waiting_you", required: false, sentence: "Your calendar could not be read. Check the address in Workspace.", details: [], verb: { label: "Check the feed", to: "admin/workspace" } }
+      ? { id: "calendar", icon: "calendar", title: "Calendar", state: "waiting_you", required: false, sentence: `Your calendar could not be read. ${i.calendar.problem ? `${i.calendar.problem} ` : ""}Check the address in Workspace.`, details: [], verb: { label: "Check the feed", to: "admin/workspace" } }
       : { id: "calendar", icon: "calendar", title: "Calendar", state: "not_started", required: false, sentence: "Paste your calendar's iCal address so the receptionist knows what is taken.", details: [], verb: { label: "Paste the feed", to: "admin/workspace" } });
 
   // 7. Team and alerts — someone else who answers, and where alerts go.

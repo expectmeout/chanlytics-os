@@ -13,7 +13,7 @@
  * the receptionist says nothing about open times (the link still works),
  * and the failure is logged where the diagnostic can find it.
  */
-import { parseIcs, freeWindows, describeOpenings, describeVisits, visitsOf, type FeedItem, type Opening, type ParsedFeed } from "./workspace/contracts.js";
+import { parseIcs, freeWindows, describeOpenings, describeVisits, feedUrlOk, visitsOf, type FeedItem, type Opening, type ParsedFeed } from "./workspace/contracts.js";
 import type { TenantRuntime } from "./tenant-runtime.js";
 
 const CACHE_MS = 5 * 60 * 1000;
@@ -33,7 +33,11 @@ async function fetchFeed(tenantId: string, url: string): Promise<string | null> 
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.text;
   let text: string | null = null;
   try {
-    const r = await fetch(httpsUrl(url), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), headers: { accept: "text/calendar, text/plain;q=0.5, */*;q=0.1" } });
+    // The same address rule the dashboard's preview and save keep: never a
+    // private address, however it reached the config.
+    const safe = feedUrlOk(url);
+    if (!safe) throw new Error("address refused: not a public https/webcal address");
+    const r = await fetch(httpsUrl(safe), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), headers: { accept: "text/calendar, text/plain;q=0.5, */*;q=0.1" } });
     if (!r.ok) {
       console.error("availability_feed_http", JSON.stringify({ tenant: tenantId, status: r.status }));
     } else {

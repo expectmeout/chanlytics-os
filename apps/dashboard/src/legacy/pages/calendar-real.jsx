@@ -379,9 +379,16 @@ const CalendarReal = () => {
               Until then the receptionist sends the booking link but never names an open time, and this board shows only your hours and closures.
             </span>
           ) : (
-            <span><b>Your calendar could not be read right now.</b> The address is saved; the last good read is what the receptionist is using. Check the address in Settings › Workspace if this keeps happening.</span>
+            <span><b>Your calendar could not be read.</b> {vm.feed.problem || "The address is saved; check it in Settings › Workspace if this keeps happening."}{vm.feed.problem ? " Until it reads, the receptionist sends the booking link but never names an open time." : ""}</span>
           )}
           <button className="btn btn-primary btn-sm" onClick={() => window.CHANLY.nav(window.CHANLY.R.admin("workspace"))}>{vm.feed.state === "none" ? "Connect" : "Check the address"}</button>
+        </div>
+      )}
+      {vm.feed.state === "ok" && vm.feed.stale && (
+        <div className="cal-feed-card" data-testid="cal-feed-stale">
+          <Icon name="calendar" size={14} />
+          <span><b>Showing the last good read.</b> {vm.feed.problem || "The calendar could not be refreshed."} The receptionist is using this read too; it tries again every few minutes.</span>
+          <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav(window.CHANLY.R.admin("workspace"))}>Check the address</button>
         </div>
       )}
 

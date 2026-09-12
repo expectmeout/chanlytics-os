@@ -18,6 +18,7 @@ import { agoWords } from "./time";
  */
 import { DAYS, hoursRuns, type Closure, type Hours } from "./config";
 import { BOOKING_DEFAULTS, clockInZone, closedOn, dayInZone, dayIntervals, type BookingRulesLike } from "./availability";
+import type { FeedFailure } from "./feed-url";
 import { formatPhoneDisplay } from "./phone";
 
 export interface CalendarItemDto {
@@ -55,6 +56,16 @@ export interface CalendarFeedDto {
   events: number;
   recurring_expanded: number;
   skipped_recurring: number;
+  /** Why the last read failed, when it did; with "ok" and a reason the read shown is the last good one (stale). */
+  reason?: FeedFailure | null;
+  /** The HTTP status when the calendar answered with one. */
+  status?: number | null;
+  /** The reason as a sentence the owner can act on (feedProblemWords). */
+  problem?: string | null;
+  /** The last fetch failed and what is shown is the previous read. */
+  stale?: boolean;
+  /** Items left out of the span because a day held more than the board draws. */
+  dropped?: number;
 }
 
 export interface CalendarServiceDto {
@@ -250,7 +261,7 @@ export interface CalendarVM {
   today: string;
   /** Where the now line sits, hours from midnight, when today is in the span. */
   now: number | null;
-  feed: { present: boolean; state: "ok" | "unavailable" | "none"; line: string; events: number; source: string };
+  feed: { present: boolean; state: "ok" | "unavailable" | "none"; line: string; events: number; source: string; problem: string | null; stale: boolean };
   stats: { events: number; windows: number; next: string };
   rules: string;
   hoursLines: string[];
@@ -379,8 +390,9 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
     }
   }
   const ago = readAgoLabel(dto.feed.read_at, now);
+  const stale = dto.feed.state === "ok" && !!dto.feed.stale;
   const feedLine = dto.feed.state === "ok"
-    ? `From ${dto.feed.source ?? "your calendar"} · read ${ago ?? "just now"} · ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}${dto.feed.skipped_recurring ? ` · ${dto.feed.skipped_recurring} repeating rule${dto.feed.skipped_recurring === 1 ? "" : "s"} read once` : ""}`
+    ? `From ${dto.feed.source ?? "your calendar"} · read ${ago ?? "just now"}${stale ? " · could not be refreshed" : ""} · ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}${dto.feed.skipped_recurring ? ` · ${dto.feed.skipped_recurring} repeating rule${dto.feed.skipped_recurring === 1 ? "" : "s"} read once` : ""}${dto.feed.dropped ? ` · ${dto.feed.dropped} more not shown` : ""}`
     : dto.feed.state === "unavailable"
       ? `Your calendar could not be read${ago ? ` · last read ${ago}` : ""}`
       : "No calendar connected";
@@ -413,7 +425,7 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
     days,
     today: todayKey,
     now: nowIn,
-    feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events, source: dto.feed.source ?? "your calendar" },
+    feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events, source: dto.feed.source ?? "your calendar", problem: dto.feed.problem ?? null, stale },
     stats: { events, windows: windowCount, next },
     rules: rulesLine(dto.rules),
     hoursLines: hoursLines(dto.hours),

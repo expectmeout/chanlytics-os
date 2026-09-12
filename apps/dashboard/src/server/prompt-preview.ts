@@ -75,7 +75,7 @@ export async function openingsBlock(
   if (!cfg.url || !profile || !cfg.tz) return null;
   try {
     const feed = await loadFeed(tenantId, cfg.url);
-    if (!feed) return null;
+    if (!feed.text) return null;
     const rules = profile.booking_rules ?? null;
     const daysAhead = rules?.max_days_ahead ?? 14;
     const parsed = parseIcs(feed.text, cfg.tz, {

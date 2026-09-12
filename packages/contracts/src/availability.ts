@@ -290,9 +290,36 @@ function durationMs(v: string): number | null {
   return sign * ((Number(m[2] ?? 0) * 86400 + Number(m[3] ?? 0) * 3600 + Number(m[4] ?? 0) * 60 + Number(m[5] ?? 0)) * 1000);
 }
 
+/** One VEVENT as the text gives it, before it is read. */
+interface RawEvent {
+  props: Record<string, { params: Record<string, string>; value: string }>;
+  exdates: Array<{ params: Record<string, string>; value: string }>;
+  rdates: Array<{ params: Record<string, string>; value: string }>;
+  attendees: FeedAttendee[];
+}
+
+/** The instants an EXDATE or RDATE line names; a PERIOD value (start/end) is left alone. */
+function instantsOf(lines: Array<{ params: Record<string, string>; value: string }>, fallbackTz: string): number[] {
+  const out: number[] = [];
+  for (const e of lines) {
+    for (const v of e.value.split(",")) {
+      if (v.includes("/")) continue;
+      const ms = toMs(v, e.params, fallbackTz);
+      if (ms !== null) out.push(ms);
+    }
+  }
+  return out;
+}
+
 /**
  * The taken time in a feed. Cancelled events and events marked transparent
- * (free) are not taken. Recurring events are counted, not expanded.
+ * (free) are not taken. A recurring event is expanded when its rule is one a
+ * salon's calendar carries (parseRule); a rule that cannot be read keeps its
+ * first occurrence and is counted as skipped. RDATE adds dates to a series
+ * (or makes one of a single event); a VEVENT with RECURRENCE-ID replaces one
+ * occurrence of the series with the same UID -- the moved instance is drawn
+ * where it moved to, and a cancelled override removes its instance -- which
+ * is what Google writes when one appointment in a weekly series is moved.
  */
 export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = {}): ParsedFeed {
   const horizon = opts.horizon ?? { from: Date.now() - 86400000, to: Date.now() + 90 * 86400000 };
@@ -301,63 +328,97 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
   let events = 0;
   let recurringExpanded = 0;
   let skippedRecurring = 0;
-  let cur: Record<string, { params: Record<string, string>; value: string }> | null = null;
-  const exdatesOf: Array<{ params: Record<string, string>; value: string }> = [];
-  const attendees: FeedAttendee[] = [];
+
+  // First pass: every VEVENT as the text gives it.
+  const raws: RawEvent[] = [];
+  let cur: RawEvent | null = null;
   for (const line of unfold(text)) {
-    if (line === "BEGIN:VEVENT") { cur = {}; exdatesOf.length = 0; attendees.length = 0; continue; }
-    if (line === "END:VEVENT") {
-      if (cur) {
-        events++;
-        const status = cur.STATUS?.value.toUpperCase();
-        const transp = cur.TRANSP?.value.toUpperCase();
-        if (status !== "CANCELLED" && transp !== "TRANSPARENT" && cur.DTSTART) {
-          const start = toMs(cur.DTSTART.value, cur.DTSTART.params, fallbackTz);
-          let end: number | null = null;
-          if (cur.DTEND) end = toMs(cur.DTEND.value, cur.DTEND.params, fallbackTz);
-          else if (cur.DURATION && start !== null) { const d = durationMs(cur.DURATION.value); end = d === null ? null : start + d; }
-          else if (start !== null) {
-            // No end: an all-day event takes the day; a timed one takes nothing we can name.
-            end = cur.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(cur.DTSTART.value.trim()) ? start + 86400000 : start;
-          }
-          if (start !== null && end !== null && end > start) {
-            const title = unescapeText(cur.SUMMARY?.value ?? "");
-            const description = unescapeText(cur.DESCRIPTION?.value ?? "") || null;
-            const location = unescapeText(cur.LOCATION?.value ?? "") || null;
-            const guests = attendees.slice();
-            const allDay = cur.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(cur.DTSTART.value.trim());
-            const uid = cur.UID?.value.trim() || null;
-            const rule = cur.RRULE ? parseRule(cur.RRULE.value, fallbackTz) : null;
-            const local = cur.RRULE ? localPartsOf(cur.DTSTART.value, cur.DTSTART.params, fallbackTz) : null;
-            if (cur.RRULE && rule && local) {
-              const ex = new Set<number>();
-              for (const e of exdatesOf) for (const v of e.value.split(",")) { const ms = toMs(v, e.params, fallbackTz); if (ms !== null) ex.add(ms); }
-              const occ = occurrences(local, end - start, rule, ex, horizon);
-              busy.push(...occ);
-              for (const o of occ) items.push({ ...o, title, allDay, uid, description, location, attendees: guests });
-              recurringExpanded++;
-            } else {
-              // Understood as a single event; a rule we cannot read keeps its first occurrence.
-              if (cur.RRULE || cur.RDATE) skippedRecurring++;
-              busy.push({ start, end });
-              items.push({ start, end, title, allDay, uid, description, location, attendees: guests });
-            }
-          }
-        }
-      }
-      cur = null;
-      continue;
-    }
+    if (line === "BEGIN:VEVENT") { cur = { props: {}, exdates: [], rdates: [], attendees: [] }; continue; }
+    if (line === "END:VEVENT") { if (cur) raws.push(cur); cur = null; continue; }
     if (!cur) continue;
     const s = splitLine(line);
     if (!s) continue;
-    if (s.name === "EXDATE") { exdatesOf.push({ params: s.params, value: s.value }); continue; }
+    if (s.name === "EXDATE") { cur.exdates.push({ params: s.params, value: s.value }); continue; }
+    if (s.name === "RDATE") { cur.rdates.push({ params: s.params, value: s.value }); continue; }
     if (s.name === "ATTENDEE") {
       const v = s.value.trim();
-      attendees.push({ name: s.params.CN?.trim() || null, email: /^mailto:/i.test(v) ? v.slice(7).toLowerCase() : null });
+      cur.attendees.push({ name: s.params.CN?.trim() || null, email: /^mailto:/i.test(v) ? v.slice(7).toLowerCase() : null });
       continue;
     }
-    cur[s.name] = { params: s.params, value: s.value };
+    cur.props[s.name] = { params: s.params, value: s.value };
+  }
+
+  // The occurrences an override replaces, by the series' UID: cancelled or
+  // moved, the series no longer has that instance.
+  const overridden = new Map<string, Set<number>>();
+  for (const r of raws) {
+    const rid = r.props["RECURRENCE-ID"];
+    const uid = r.props.UID?.value.trim();
+    if (!rid || !uid) continue;
+    const ms = toMs(rid.value, rid.params, fallbackTz);
+    if (ms === null) continue;
+    let set = overridden.get(uid);
+    if (!set) { set = new Set(); overridden.set(uid, set); }
+    set.add(ms);
+  }
+
+  for (const r of raws) {
+    events++;
+    const p = r.props;
+    const status = p.STATUS?.value.toUpperCase();
+    const transp = p.TRANSP?.value.toUpperCase();
+    if (status === "CANCELLED" || transp === "TRANSPARENT" || !p.DTSTART) continue;
+    const start = toMs(p.DTSTART.value, p.DTSTART.params, fallbackTz);
+    let end: number | null = null;
+    if (p.DTEND) end = toMs(p.DTEND.value, p.DTEND.params, fallbackTz);
+    else if (p.DURATION && start !== null) { const d = durationMs(p.DURATION.value); end = d === null ? null : start + d; }
+    else if (start !== null) {
+      // No end: an all-day event takes the day; a timed one takes nothing we can name.
+      end = p.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(p.DTSTART.value.trim()) ? start + 86400000 : start;
+    }
+    if (start === null || end === null || end <= start) continue;
+    const title = unescapeText(p.SUMMARY?.value ?? "");
+    const description = unescapeText(p.DESCRIPTION?.value ?? "") || null;
+    const location = unescapeText(p.LOCATION?.value ?? "") || null;
+    const guests = r.attendees.slice();
+    const allDay = p.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(p.DTSTART.value.trim());
+    const uid = p.UID?.value.trim() || null;
+    const isOverride = !!p["RECURRENCE-ID"];
+    const rule = p.RRULE && !isOverride ? parseRule(p.RRULE.value, fallbackTz) : null;
+    const local = p.RRULE && !isOverride ? localPartsOf(p.DTSTART.value, p.DTSTART.params, fallbackTz) : null;
+    const dur = end - start;
+    const push = (o: BusyBlock) => { busy.push(o); items.push({ ...o, title, allDay, uid, description, location, attendees: guests }); };
+
+    if (p.RRULE && !isOverride && rule && local) {
+      const ex = new Set<number>(instantsOf(r.exdates, fallbackTz));
+      for (const ms of uid ? overridden.get(uid) ?? [] : []) ex.add(ms);
+      const seen = new Set<number>();
+      const occ = occurrences(local, dur, rule, ex, horizon);
+      for (const o of occ) { if (!seen.has(o.start)) { seen.add(o.start); push(o); } }
+      // RDATE: dates the rule does not produce, added to the series.
+      for (const ms of instantsOf(r.rdates, fallbackTz)) {
+        if (ex.has(ms) || seen.has(ms) || ms > horizon.to || ms + dur < horizon.from) continue;
+        seen.add(ms);
+        push({ start: ms, end: ms + dur });
+      }
+      recurringExpanded++;
+    } else if (!p.RRULE && r.rdates.length && !isOverride) {
+      // A list of dates with no rule: the event and its extra dates are a series.
+      const ex = new Set<number>(instantsOf(r.exdates, fallbackTz));
+      const seen = new Set<number>([start]);
+      push({ start, end });
+      for (const ms of instantsOf(r.rdates, fallbackTz)) {
+        if (ex.has(ms) || seen.has(ms) || ms > horizon.to || ms + dur < horizon.from) continue;
+        seen.add(ms);
+        push({ start: ms, end: ms + dur });
+      }
+      recurringExpanded++;
+    } else {
+      // A single event, an override standing where it moved to, or a rule we
+      // cannot read keeping its first occurrence.
+      if (p.RRULE && !isOverride) skippedRecurring++;
+      push({ start, end });
+    }
   }
   busy.sort((a, b) => a.start - b.start);
   items.sort((a, b) => a.start - b.start);
