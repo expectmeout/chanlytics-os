@@ -1,11 +1,20 @@
-import { AppError, AUDIENCE_KINDS, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_SCHEDULE_MAX_DAYS, EVERYONE_LABEL, PEOPLE_LISTS, broadcastName, eligibleFor, emptyAudienceRefusal, overLimitRefusal, paramLabel, purposeOfTemplate, type Audience, type AudienceKind } from "@chanlytics/contracts";
+import { AppError, AUDIENCE_KINDS, nextOpenMoment, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_SCHEDULE_MAX_DAYS, EVERYONE_LABEL, PEOPLE_LISTS, broadcastName, eligibleFor, emptyAudienceRefusal, overLimitRefusal, paramLabel, purposeOfTemplate, type Audience, type AudienceKind } from "@chanlytics/contracts";
 import { assembleRun } from "./assemble";
 import { templateValues } from "./template-values";
 import type { CreateBroadcastCommand, CreateBroadcastPorts } from "./ports";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export interface BroadcastReceipt { id: string; name: string; state: "scheduled"; recipient_count: number; scheduled_for: string; decision_id: string }
+export interface BroadcastReceipt {
+  id: string;
+  name: string;
+  state: "scheduled";
+  recipient_count: number;
+  scheduled_for: string;
+  /** The time asked for (or "now") when it fell outside the hours a send may go out in, and was moved. */
+  moved_from: string | null;
+  decision_id: string;
+}
 
 /**
  * A person's broadcast: one approved template to the people who said yes.
@@ -77,6 +86,12 @@ export async function createBroadcast(ports: CreateBroadcastPorts, cmd: CreateBr
     if (t.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * 86_400_000) throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
     when = t.getTime() > now.getTime() ? t : now;
   }
+  // 4b. Never at 3 AM. The same window the playbooks keep, by the business's
+  // own clock: a time outside it -- asked for, or "now" at eleven at night --
+  // moves to nine the next morning, and the receipt says so.
+  const open = nextOpenMoment(await ports.timezone(), when);
+  const movedFrom = open.moved ? when.toISOString() : null;
+  when = open.at;
   const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim().slice(0, BROADCAST_NAME_MAX) : broadcastName(tpl.name, now, tpl.title);
   const audience: Audience = { kind: kind as AudienceKind, id: audienceId, label };
 
@@ -96,6 +111,7 @@ export async function createBroadcast(ports: CreateBroadcastPorts, cmd: CreateBr
   const decision_id = await ports.record("broadcast", made.id, "send_broadcast", {
     name, template: `${tpl.name}/${tpl.language}`, category: tpl.category, audience: { kind: audience.kind, id: audience.id, label: audience.label },
     values: specs.map(paramLabel), recipients: eligible.length, scheduled_for: when.toISOString(),
+    ...(movedFrom ? { moved_from: movedFrom } : {}),
   });
-  return { id: made.id, name, state: "scheduled", recipient_count: eligible.length, scheduled_for: when.toISOString(), decision_id };
+  return { id: made.id, name, state: "scheduled", recipient_count: eligible.length, scheduled_for: when.toISOString(), moved_from: movedFrom, decision_id };
 }

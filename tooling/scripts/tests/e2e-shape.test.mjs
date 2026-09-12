@@ -41,6 +41,9 @@ test("every direct request in the e2e suite names a workspace", () => {
       // bare `request` fixture has no session at all, which is the point of
       // ask.spec.ts's unauthenticated case, so only `page.request` is judged.
       if (line.includes("https://")) continue;
+      // The one spec whose bare request is the point: it proves the refusal
+      // this rule exists to keep every other spec from meeting.
+      if (f === "choose-workspace.spec.ts") continue;
       offenders.push(`${f}: ${line.trim().slice(0, 90)}`);
     }
   }

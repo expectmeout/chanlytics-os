@@ -98,18 +98,39 @@ test("certain changes the words, never the condition", async () => {
   assert.deepEqual(messages[0].error, { reason: "never_delivered", note: "the job that would have sent this never ran" });
 });
 
-test("a broadcast mid-send is marked failed, and only in its own workspace", async () => {
+test("a broadcast mid-send is handed to a fresh run, with what it reached and what is left; only in its own workspace; failed only when no run can be written", async () => {
+  // It used to be marked failed with the rest still queued for ever. The rest
+  // go to a fresh run; the batch reads the message a dying run left rather
+  // than sending twice (core-broadcast.test.mjs), which is what makes this safe.
   const broadcasts = [
     { id: "b1", tenant_id: TENANT, state: "sending", finished_at: null },
     { id: "b2", tenant_id: "22222222-2222-2222-2222-222222222222", state: "sending", finished_at: null },
+    { id: "b3", tenant_id: TENANT, state: "sent", finished_at: "2026-09-12T00:00:00Z" },
   ];
-  const db = fakeDb({ broadcasts });
+  const broadcast_recipients = [
+    { broadcast_id: "b1", contact_id: "k1", state: "sent" }, { broadcast_id: "b1", contact_id: "k2", state: "sent" },
+    { broadcast_id: "b1", contact_id: "k3", state: "queued" }, { broadcast_id: "b1", contact_id: "k4", state: "queued" }, { broadcast_id: "b1", contact_id: "k5", state: "skipped" },
+  ];
+  const jobs = [];
+  const db = fakeDb({ broadcasts, broadcast_recipients, jobs });
   const run = (id) => ({ id: "j", kind: "broadcast_send", tenant_id: TENANT, payload: { broadcast_id: id } });
-  assert.deepEqual(await settleJob(db, run("b1"), false), [{ what: "broadcast", changed: true }]);
-  assert.equal(broadcasts[0].state, "failed");
-  assert.ok(broadcasts[0].finished_at);
+  assert.deepEqual(await settleJob(db, run("b1"), false), [{ what: "broadcast", changed: true, resumed: true, reached: 2, remaining: 2 }]);
+  assert.equal(broadcasts[0].state, "sending", "still sending: the fresh run carries it");
+  assert.equal(jobs.length, 1);
+  assert.equal(jobs[0].kind, "broadcast_send");
+  assert.equal(jobs[0].tenant_id, TENANT);
+  assert.deepEqual(jobs[0].payload, { broadcast_id: "b1" });
   assert.deepEqual(await settleJob(db, run("b2"), false), [{ what: "broadcast", changed: false }]);
   assert.equal(broadcasts[1].state, "sending", "another workspace's broadcast is not this job's to settle");
+  assert.deepEqual(await settleJob(db, run("b3"), false), [{ what: "broadcast", changed: false }], "one that finished on its own is left as it finished");
+  assert.equal(jobs.length, 1, "no run for either");
+  // A ledger that refuses the fresh row: the honest failure, with both reasons.
+  const refused = fakeDb({ broadcasts: [{ id: "b1", tenant_id: TENANT, state: "sending", finished_at: null }], broadcast_recipients, jobs: [] }, { "jobs.insert": { message: "jobs_guard says no" } });
+  const out = await settleJob(refused, run("b1"), false);
+  assert.equal(out[0].changed, true);
+  assert.equal(out[0].resumed, undefined);
+  assert.match(out[0].error, /jobs_guard says no/);
+  assert.equal(out[0].reached, 2);
 });
 
 test("a settlement that cannot be written, or has nothing to point at, says so", async () => {
@@ -128,6 +149,8 @@ test("a settlement that cannot be written, or has nothing to point at, says so",
 test("the owner reads what the writes returned, not what they meant to do", () => {
   assert.match(saySettled([{ what: "message", changed: true }]), /marked failed, so it is no longer shown as on its way/);
   assert.match(saySettled([{ what: "broadcast", changed: true }]), /people it had already reached still got it/);
+  assert.equal(saySettled([{ what: "broadcast", changed: true, resumed: true, reached: 12, remaining: 30 }]), "The broadcast carries on in a fresh run: 12 reached so far, 30 still to go. Nobody is sent it twice.");
+  assert.match(saySettled([{ what: "broadcast", changed: true, reached: 12, remaining: 30 }]), /the 12 it had already reached still got it, and 30 did not/);
   assert.match(saySettled([{ what: "message", changed: false, error: "permission denied" }]), /could not be updated \(permission denied\)/);
   assert.equal(saySettled([{ what: "message", changed: false }]), null, "a row that moved on by itself is nothing to report");
   assert.equal(saySettled([]), null);

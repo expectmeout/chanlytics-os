@@ -125,6 +125,8 @@ export interface TemplateValuesPorts {
 export interface BroadcastRef { id: string; tenant_id: string; state: string; name: string; recipient_count: number | null; playbook_id: string | null }
 
 export interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts {
+  /** The business's clock, for the hours a send may go out in. */
+  timezone(): Promise<string>;
   /** Everyone, with their visits as of now, the way the People page counts them. */
   people(now: Date): Promise<PersonRowVM[]>;
   /** A list kept by hand: its name and who is on it; null when there is no such list here. */
@@ -136,6 +138,8 @@ export interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts
 export interface CreateBroadcastCommand { userId: string; body: unknown; now: Date }
 
 export interface ApproveRunPorts {
+  /** The business's clock, for the hours a send may go out in. */
+  timezone(): Promise<string>;
   /** pending_approval → scheduled, only while pending. True iff a row changed. */
   release(broadcastId: string): Promise<boolean>;
   /** Back to waiting, when the job could not be made. */

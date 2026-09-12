@@ -9,7 +9,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CONSENT_RESET_SOURCE, CONSENT_SOURCES, DECISION_VERBS, PEOPLE_LISTS, consentSourceLabel, OFFERS_YES_SOURCES, offersYesRefusal } from "@chanlytics/contracts";
+import { CONSENT_RESET_SOURCE, CONSENT_SOURCES, DECISION_VERBS, PEOPLE_LISTS, consentSourceLabel, OFFERS_YES_SOURCES, offersYesRefusal, verbalOptInScript } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 test("the door: owner or operator, the three columns together, the ingest's own event, nothing for anon", () => {
@@ -98,7 +98,7 @@ test("the route: operator or owner, a yes or a no needs its source, the reset ne
 
 test("the page: TWO asks, each asking how before it writes, a STOP is not undone by the desk", () => {
   const b = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");
-  assert.ok(b.includes("window.__setPersonConsent = setPersonConsent;") && b.includes("window.__consentSources = CONSENT_SOURCES;"));
+  assert.ok(b.includes("window.__setPersonConsent = setPersonConsent;") && b.includes("window.__consentSources = CONSENT_SOURCES;") && b.includes("window.__verbalOptInScript = verbalOptInScript;"));
   assert.ok(b.includes("window.__setPersonMarketingConsent = setPersonMarketingConsent;"));
   // One transport, the path chosen by purpose, so neither answer can be posted to
   // the other's door by a typo in a page.
@@ -286,7 +286,7 @@ test("THE DEFECT: each ask writes the column it is labelled for", async () => {
  * person's view model from the real mapper, the load effect run, then drawn again.
  * The harness above renders one control; nothing rendered the page that holds it.
  */
-async function renderLoadedProfile() {
+async function renderLoadedProfile(extra = {}) {
   const { toPersonVM, CONSENT_SOURCES } = await import("@chanlytics/contracts");
   const row = {
     id: "p-maria", display_name: "Maria Lopez", wa_profile_name: null, phone_e164: "+13055550134",
@@ -297,13 +297,18 @@ async function renderLoadedProfile() {
     last_message_at: null, last_message_direction: null, last_message_sender: null, last_inbound_text: null, last_inbound_at: null, last_call_at: null, last_inbound_call_at: null, call_count: 0, call_seconds: 0,
     first_contact_at: null, earliest_row_at: null, has_backfill: false, has_chat: false, queued_reply_at: null,
   };
-  const vm = toPersonVM({ row, identities: [], conversations: [], calls: [], escalations: [], decisions: [], receptionist_mode: null, workspace_reply_mode: "auto" }, new Date("2026-09-10T12:00:00.000Z"));
+  const vm = toPersonVM({ row, identities: [], conversations: [], calls: [], escalations: [], decisions: [], receptionist_mode: null, workspace_reply_mode: "auto", ...extra }, new Date("2026-09-10T12:00:00.000Z"));
   // What the shell provides around a page: the real-workspace flag, who is signed in,
   // the sources, the loader, the toast, and the few components other files define.
   Object.assign(globalThis.window, {
     __PEOPLE: {}, __ME: { role: "operator" }, __consentSources: CONSENT_SOURCES,
     __personDetail: async () => vm, addEventListener: () => {}, removeEventListener: () => {},
     usePPToast: () => [null, () => {}],
+    // The shell's workspace list and the bridge's script, so the visit ask can
+    // show the desk what to say -- the sentence the campaign files as method (3).
+    __WORKSPACES: [{ id: "t-1", slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: "America/New_York" }],
+    __ACTIVE_WORKSPACE: "t-1",
+    __verbalOptInScript: verbalOptInScript,
   });
   for (const g of ["Icon", "ChannelGlyph", "ClientTag", "StatCell", "StatStrip", "MoreMenu", "TempBar"]) globalThis[g] ??= g;
   globalThis.React.useCallback ??= (fn) => fn;
@@ -373,6 +378,13 @@ test("on the loaded profile, the offers ask offers only written ways to say yes;
   const all = CONSENT_SOURCES.map((s) => s.id);
   assert.deepEqual(talk.sources.map((s) => s.id), all, "a yes to messages about a visit may be given any way");
   assert.equal(talk.yesSources, undefined);
+  // And when the yes is spoken, the desk is shown what to ask: the sentence the
+  // campaign files as its spoken opt-in, in this workspace's name (30896).
+  assert.ok(talk.yesHow.includes(verbalOptInScript("Melany's Beauty Salon")), "the script, verbatim, with the workspace's name");
+  assert.match(talk.yesHow, /^How did they tell you\? In person or on the phone, ask in these words: /);
+  const spoken = mount({ ...talk, onRecord: async () => ({ ok: true }) });
+  await spoken.click(byLabel(spoken.tree, "Yes"));
+  assert.match(textOf(byId(spoken.tree, "consent-control-how")), /Would you like Melany's Beauty Salon to text you/, "on the rendered ask, not only in its props");
   assert.deepEqual(offers.sources.map((s) => s.id), all, "a NO to offers may be given any way, and is honoured");
   assert.deepEqual(offers.yesSources.map((s) => s.id), ["form", "customer_message"], "a YES to offers, only in writing");
 
@@ -385,4 +397,29 @@ test("on the loaded profile, the offers ask offers only written ways to say yes;
   const no = mount({ ...offers, onRecord: async () => ({ ok: true }) });
   await no.click(byLabel(no.tree, "No"));
   assert.deepEqual(buttons(byId(no.tree, "consent-marketing-how")).map(textOf).filter((t) => t !== "Cancel"), ["In person", "On the phone", "Sign-up form", "Their own message"]);
+});
+
+test("on the loaded profile, a consent change is on the timeline with how we know", async () => {
+  // The ledger rows existed and the route never read them; the owner could not
+  // see when a person said yes, to what, or how. Rendered, not read: the timeline
+  // is drawn by the page, and a kind the page did not know would have fallen
+  // through its marks.
+  const tree = await renderLoadedProfile({
+    consent_history: [
+      { id: "ev-1", contact_id: "p-maria", at: "2026-09-01T14:00:00Z", purpose: "conversational", consent: "opted_in", previous: "unknown", source: "customer_message", by: null, note: null, channel: "sms", message_external_id: "SM1", words: "START" },
+      { id: "ev-2", contact_id: "p-maria", at: "2026-09-02T14:00:00Z", purpose: "marketing", consent: "opted_in", previous: "unknown", source: "form", by: "u-1", note: "signed at the desk", channel: null, message_external_id: null, words: null },
+    ],
+  });
+  // The timeline is its own component (PersonTimeline), so it is expanded here
+  // the way the page would expand it, and read from there.
+  const found = [];
+  walk(tree, (n) => { if (typeof n.type === "function" && n.type.name === "PersonTimeline") found.push(n); });
+  assert.equal(found.length, 1, "the timeline is drawn once");
+  const texts = [];
+  walk(found[0].type(found[0].props), (n) => { for (const k of n.props?.children ?? []) if (typeof k === "string") texts.push(k); });
+  const all = texts.join(" | ");
+  assert.ok(all.includes("Said yes to messages about their visit"), all.slice(0, 400));
+  assert.ok(all.includes("In their own words by text: “START”"), "the evidence, quoted");
+  assert.ok(all.includes("Said yes to offers and news"));
+  assert.ok(all.includes("Sign-up form, recorded by staff · signed at the desk"), "the way, and the recorder's note");
 });

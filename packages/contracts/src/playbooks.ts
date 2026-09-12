@@ -15,6 +15,7 @@ import { purposeOfPlaybook } from "./consent";
 import type { PersonRowVM } from "./people";
 import type { ParamSpec } from "./templates";
 import { visitStartTime, type VisitDto } from "./calendar-people";
+import { shiftKey, zoneMidnight } from "./calendar";
 
 const DAY_MS = 86_400_000;
 
@@ -162,6 +163,28 @@ export function localDate(tz: string, now: Date): string {
 
 export function localHour(tz: string, now: Date): number {
   return parts(tz, now).hour;
+}
+
+/**
+ * The next moment a message may go out, by the business's clock: `when`
+ * itself when it falls inside PLAYBOOK_HOURS (nine to the twenty-hundred
+ * hour), nine that morning when it is earlier, nine the next morning when it
+ * is later. The same window the playbooks keep, applied to a broadcast and to
+ * a run somebody approves at night: a send asked for at 3 AM lands at nine,
+ * and the receipt says it moved. Zone-aware through zoneMidnight, so the
+ * night a clock changes still yields nine o'clock.
+ */
+export function nextOpenMoment(tz: string, when: Date): { at: Date; moved: boolean } {
+  const { date, hour } = parts(tz, when);
+  if (hour >= PLAYBOOK_HOURS.min && hour <= PLAYBOOK_HOURS.max) return { at: when, moved: false };
+  const day = hour < PLAYBOOK_HOURS.min ? date : shiftKey(date, 1);
+  // Nine hours past midnight is not nine o'clock on the day the clocks change:
+  // the offset at nine is what counts, so the guess is read back and corrected
+  // by however far its hour landed from nine.
+  let at = zoneMidnight(tz, day) + PLAYBOOK_HOURS.min * 3_600_000;
+  const landed = parts(tz, new Date(at)).hour;
+  if (landed !== PLAYBOOK_HOURS.min) at += (PLAYBOOK_HOURS.min - landed) * 3_600_000;
+  return { at: new Date(at), moved: true };
 }
 
 /**

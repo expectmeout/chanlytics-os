@@ -300,9 +300,11 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
   const detail = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
   assert.ok(detail.includes('.eq("kind", "contact.added")') && detail.includes("added: added.data"), "the profile reads where they came from");
   const page = readCode("apps/dashboard/src/legacy/pages/calendar-real.jsx");
-  assert.ok(!page.includes("cal-panel-add") && !page.includes("__addPerson"), "no button: added on its own, deleted from the profile if unwanted");
+  assert.ok(!page.includes("cal-panel-add") && !page.includes("__addPerson"), "no button on the CALENDAR: added on its own, deleted from the profile if unwanted");
   assert.ok(page.includes('"Not in People yet — added within the hour"'));
-  assert.ok(!readCode("apps/dashboard/src/legacy-bridge/people-detail.ts").includes("addPerson"), "no bridge verb either");
+  // The hand's door has its screen on People now (slice D of the data program):
+  // the same route, a number and a name, opening the person it made or found.
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/people-detail.ts").includes('return api()("POST contacts", { body });'), "the bridge verb, through the same door");
   const edgeAv = readCode("apps/edge/lib/availability.ts");
   assert.ok(edgeAv.includes("export async function feedItemsFor(tenantId: string, url: string, tz: string, now = new Date(), daysAhead = 14)"), "the sweep reads the feed through the same cache");
 });
@@ -383,7 +385,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
   assert.ok(svc.includes("const parsedFeeds = new Map<string, { text: string; tz: string; parsed: ParsedFeed }>();") && svc.includes("export async function peopleVisits(") && svc.includes("const index = indexFeed(feed.parsed.items);"), "one parse, indexed once, for everyone");
   assert.ok(svc.includes("export async function bookingReport(") && svc.includes("bookedAfterAsk("));
-  assert.ok(readCode("apps/dashboard/app/api/v1/contacts/route.ts").includes("return withVisits(ctx, tenantId, await listPeople(ctx, tenantId));"), "the list carries visits and the calendar's state");
+  assert.ok(readCode("apps/dashboard/app/api/v1/contacts/route.ts").includes("const out = await withVisits(ctx, tenantId, rows);"), "the list carries visits and the calendar's state, a page at a time");
   const rep = readCode("apps/dashboard/app/api/v1/reports/route.ts");
   assert.ok(rep.includes(".then((rows) => bookingReport(ctx, tenantId, rows, days))") && rep.includes("return { report, booking };"), "never fatal to the report");
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
@@ -474,7 +476,7 @@ test("the list page: Next visit takes the receptionist's column with a calendar,
   assert.ok(page.includes('data-testid="state-filter"') && !page.includes('{["all", ...PL_TABS].map((t) => ('), "one state switcher: the strip, echoed as a chip");
   assert.ok(page.includes('data-testid="list-action"') && page.includes("window.CHANLY.nav(activeList.action.to)"));
   assert.ok(page.includes('window.history.replaceState(null, "", next)') && page.includes("`seg:${listId}` : savedId ? `list:${savedId}` : tab !== \"all\" ? `state:${tab}`"), "linkable");
-  assert.ok(page.includes('const PL_VIEW_KEY = "chanlytics-people-view";') && page.includes("plSaveView({ attentionTab, sortBy, sortDir })"), "remembered");
+  assert.ok(page.includes('const PL_VIEW_KEY = "chanlytics-people-view";') && page.includes("plSaveView(view);") && page.includes('window.__saveView("people", view)'), "remembered: on this device, and on the member's row in the workspace");
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(shell.includes('/^(seg|list|state):/.test(param)') && shell.includes("initialSaved={savedId} initialState={stateId}"));
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
@@ -504,7 +506,11 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
   const bridge = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");
   assert.ok(bridge.includes("export async function setPersonConsentMany(ids: string[], body: ConsentBody): Promise<ManyResult>") && bridge.includes("const take = [...new Set(ids)].slice(0, 50);"));
   assert.ok(bridge.includes("window.__setPersonConsentMany = setPersonConsentMany;"));
-  assert.ok(bridge.includes("return api()(CONSENT_ROUTE[purpose], { params: { id }, body });") && bridge.includes("await api()(CONSENT_ROUTE[purpose], { params: { id }, body, refresh: false });") && bridge.includes("await refreshAfter(CONSENT_ROUTE[purpose]);"), "the single refreshes through the map; the many hold it and refresh once at the end");
+  // The many used to be one request per person, held back from refreshing, with
+  // one refresh at the end. They are ONE request now, through the batch door,
+  // which the refresh map treats like any other write (slice B of the data
+  // program); consent-history.test.mjs runs that door.
+  assert.ok(bridge.includes("return api()(CONSENT_ROUTE[purpose], { params: { id }, body });") && bridge.includes("api()(MANY_ROUTE[purpose], { body: { ids: take, ...body } })") && !bridge.slice(bridge.indexOf("async function recordMany"), bridge.indexOf("export type ReceptionistMany")).includes("refresh: false"), "the single and the many both refresh through the map; the many are one request (a view save, which changes no surface, is the one write that holds the map back)");
   const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
   for (const id of ["select-all", "row-select", "bulk-bar", "bulk-list-name", "bulk-export", "bulk-clear", "save-shown", "save-shown-name"]) assert.ok(page.includes(`data-testid="${id}"`), id);
   // WHICH yes, and how it was given. The bulk action was titled for offers and

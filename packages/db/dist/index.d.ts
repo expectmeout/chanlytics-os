@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { PurposeBearing, SchemaSet } from '@chanlytics/contracts';
+import { PurposeBearing, EventKind, SchemaSet } from '@chanlytics/contracts';
 
 type Json = string | number | boolean | null | {
     [key: string]: Json | undefined;
@@ -1940,6 +1940,7 @@ type Database = {
                     role: string;
                     tenant_id: string;
                     user_id: string;
+                    views: Json;
                 };
                 Insert: {
                     created_at?: string;
@@ -3005,9 +3006,20 @@ type Database = {
                     tenant_id: string;
                 }[];
             };
+            member_view_set: {
+                Args: {
+                    p_page: string;
+                    p_tenant_id: string;
+                    p_view: Json;
+                };
+                Returns: Json;
+            };
             people_list: {
                 Args: {
                     p_contact_id?: string;
+                    p_limit?: number;
+                    p_offset?: number;
+                    p_query?: string;
                     p_tenant_id: string;
                 };
                 Returns: {
@@ -3222,6 +3234,7 @@ type Database = {
                 Args: {
                     p_consent: string;
                     p_contact_id: string;
+                    p_evidence?: Json;
                     p_note?: string;
                     p_source: string;
                     p_tenant_id: string;
@@ -3537,7 +3550,7 @@ declare function recordEchoAndPause(db: Db$3, p: {
  * way to tell a write that happened from one that was silently skipped.
  */
 declare function pauseConversation(db: Db$3, tenantId: string, conversationId: string, pausedUntilIso: string): Promise<boolean>;
-declare function emitEvent(db: Db$3, tenantId: string, kind: string, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
+declare function emitEvent(db: Db$3, tenantId: string, kind: EventKind, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
 
 /** Webhook → tenant routing over tenant_channels(kind, external_id). */
 
@@ -3751,6 +3764,8 @@ interface TenantConfigRow {
     config: unknown;
     version: number;
     updated_at: string;
+    /** Who last wrote it; null for rows written before 00085 kept track, and for the platform's own writes. */
+    updated_by?: string | null;
 }
 declare function getTenantConfig(db: Db, tenantId: string): Promise<TenantConfigRow | null>;
 type PutTenantConfigResult = {

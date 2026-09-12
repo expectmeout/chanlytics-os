@@ -42,6 +42,7 @@
  *      BLOB_SHADOW ('off' retires Blob; Postgres is the only memory).
  */
 import crypto from "node:crypto";
+import { phoneTail } from "../lib/workspace/contracts.js";
 import { WABA_FIELDS, handleWabaChange, notificationsFor } from "../lib/waba-events.js";
 import { getThread, saveThread, storeBackend, threadNamespace } from "../lib/store.js";
 import { json, text } from "../lib/http.js";
@@ -148,7 +149,9 @@ export async function POST(request: Request): Promise<Response> {
           await alertUnroutable("whatsapp", phoneNumberId, v.messages.length);
         } else if (field === "messages" && v.messages) {
           for (const m of v.messages) {
-            console.log("wa_inbound", JSON.stringify({ from: m.from, type: m.type, id: m.id, text: m.text?.body ?? null }));
+            // A tail and a type, never the number or the words: the row under RLS
+            // holds those, and a log is read by whoever reads logs.
+            console.log("wa_inbound", JSON.stringify({ from_tail: phoneTail(m.from), type: m.type, id: m.id }));
             // Per MESSAGE, not per batch. Any throw used to unwind to the one
             // outer catch below, which returns 200 — so a single failure meant
             // Meta never retried AND every remaining message in the batch was
@@ -163,7 +166,7 @@ export async function POST(request: Request): Promise<Response> {
           }
         } else if (field === "messages" && v.statuses) {
           await Promise.all((v.statuses ?? []).map(async (s) => {
-            console.log("wa_status", JSON.stringify({ id: s.id, status: s.status, to: s.recipient_id, errors: s.errors }));
+            console.log("wa_status", JSON.stringify({ id: s.id, status: s.status, to_tail: phoneTail(s.recipient_id), errors: s.errors }));
             if (db && tenantId && s.id && s.status && ["sent", "delivered", "read", "failed"].includes(s.status)) {
               await pgSafe("status", () =>
                 recordStatusByExternalId(db, tenantId!, s.id!, s.status as "sent" | "delivered" | "read" | "failed",
@@ -194,7 +197,7 @@ export async function POST(request: Request): Promise<Response> {
                   // still records it, which under PG_READS=on is the source of
                   // truth — but this must not pass silently. Retired, there is
                   // no mirror to land: the Postgres row is the memory.
-                  if (!(await saveThread(echoNs, to, t))) console.error("echo_pause_not_persisted", to);
+                  if (!(await saveThread(echoNs, to, t))) console.error("echo_pause_not_persisted", phoneTail(to));
                 }
                 if (db && tenantId) {
                   await pgSafe("echo", () =>
@@ -204,7 +207,7 @@ export async function POST(request: Request): Promise<Response> {
                       pausedUntilIso: new Date(Date.now() + echoPauseMs).toISOString(),
                     }));
                 }
-                console.log("wa_paused_by_echo", to);
+                console.log("wa_paused_by_echo", phoneTail(to));
               }
             }
           } catch (e) { console.error("echo_handling_error", e instanceof Error ? e.message : e); }

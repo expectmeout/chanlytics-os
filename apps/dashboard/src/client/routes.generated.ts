@@ -11,6 +11,7 @@ export const ROUTES = {
   "DELETE segments/[id]": { method: "DELETE", path: "/api/v1/segments/[id]" },
   "DELETE team/[id]": { method: "DELETE", path: "/api/v1/team/[id]" },
   "DELETE templates/[id]": { method: "DELETE", path: "/api/v1/templates/[id]" },
+  "GET activity": { method: "GET", path: "/api/v1/activity" },
   "GET ask/openings": { method: "GET", path: "/api/v1/ask/openings" },
   "GET ask/threads": { method: "GET", path: "/api/v1/ask/threads" },
   "GET ask/threads/[id]": { method: "GET", path: "/api/v1/ask/threads/[id]" },
@@ -33,6 +34,7 @@ export const ROUTES = {
   "GET conversations/[id]": { method: "GET", path: "/api/v1/conversations/[id]" },
   "GET conversations/[id]/export": { method: "GET", path: "/api/v1/conversations/[id]/export" },
   "GET escalations": { method: "GET", path: "/api/v1/escalations" },
+  "GET export": { method: "GET", path: "/api/v1/export" },
   "GET google": { method: "GET", path: "/api/v1/google" },
   "GET google/callback": { method: "GET", path: "/api/v1/google/callback" },
   "GET google/connect": { method: "GET", path: "/api/v1/google/connect" },
@@ -52,6 +54,7 @@ export const ROUTES = {
   "GET setup": { method: "GET", path: "/api/v1/setup" },
   "GET team": { method: "GET", path: "/api/v1/team" },
   "GET templates": { method: "GET", path: "/api/v1/templates" },
+  "GET views": { method: "GET", path: "/api/v1/views" },
   "GET workspaces": { method: "GET", path: "/api/v1/workspaces" },
   "PATCH team/[id]": { method: "PATCH", path: "/api/v1/team/[id]" },
   "PATCH workspaces": { method: "PATCH", path: "/api/v1/workspaces" },
@@ -109,6 +112,10 @@ export const ROUTES = {
   "PUT contacts/[id]/details": { method: "PUT", path: "/api/v1/contacts/[id]/details" },
   "PUT contacts/[id]/marketing-consent": { method: "PUT", path: "/api/v1/contacts/[id]/marketing-consent" },
   "PUT contacts/[id]/receptionist": { method: "PUT", path: "/api/v1/contacts/[id]/receptionist" },
+  "PUT contacts/consent": { method: "PUT", path: "/api/v1/contacts/consent" },
+  "PUT contacts/marketing-consent": { method: "PUT", path: "/api/v1/contacts/marketing-consent" },
+  "PUT contacts/notes": { method: "PUT", path: "/api/v1/contacts/notes" },
+  "PUT contacts/receptionist": { method: "PUT", path: "/api/v1/contacts/receptionist" },
   "PUT me": { method: "PUT", path: "/api/v1/me" },
   "PUT notifications": { method: "PUT", path: "/api/v1/notifications" },
   "PUT playbooks/[id]": { method: "PUT", path: "/api/v1/playbooks/[id]" },
@@ -116,6 +123,7 @@ export const ROUTES = {
   "PUT segments/[id]": { method: "PUT", path: "/api/v1/segments/[id]" },
   "PUT settings": { method: "PUT", path: "/api/v1/settings" },
   "PUT templates/[id]": { method: "PUT", path: "/api/v1/templates/[id]" },
+  "PUT views/[page]": { method: "PUT", path: "/api/v1/views/[page]" },
 } as const;
 
 /** The handler each key names, as a type: what it takes and answers rides on it (route.ts, Shape). */
@@ -129,6 +137,7 @@ export type Routes = {
   "DELETE segments/[id]": typeof import("../../app/api/v1/segments/[id]/route").DELETE;
   "DELETE team/[id]": typeof import("../../app/api/v1/team/[id]/route").DELETE;
   "DELETE templates/[id]": typeof import("../../app/api/v1/templates/[id]/route").DELETE;
+  "GET activity": typeof import("../../app/api/v1/activity/route").GET;
   "GET ask/openings": typeof import("../../app/api/v1/ask/openings/route").GET;
   "GET ask/threads": typeof import("../../app/api/v1/ask/threads/route").GET;
   "GET ask/threads/[id]": typeof import("../../app/api/v1/ask/threads/[id]/route").GET;
@@ -151,6 +160,7 @@ export type Routes = {
   "GET conversations/[id]": typeof import("../../app/api/v1/conversations/[id]/route").GET;
   "GET conversations/[id]/export": typeof import("../../app/api/v1/conversations/[id]/export/route").GET;
   "GET escalations": typeof import("../../app/api/v1/escalations/route").GET;
+  "GET export": typeof import("../../app/api/v1/export/route").GET;
   "GET google": typeof import("../../app/api/v1/google/route").GET;
   "GET google/callback": typeof import("../../app/api/v1/google/callback/route").GET;
   "GET google/connect": typeof import("../../app/api/v1/google/connect/route").GET;
@@ -170,6 +180,7 @@ export type Routes = {
   "GET setup": typeof import("../../app/api/v1/setup/route").GET;
   "GET team": typeof import("../../app/api/v1/team/route").GET;
   "GET templates": typeof import("../../app/api/v1/templates/route").GET;
+  "GET views": typeof import("../../app/api/v1/views/route").GET;
   "GET workspaces": typeof import("../../app/api/v1/workspaces/route").GET;
   "PATCH team/[id]": typeof import("../../app/api/v1/team/[id]/route").PATCH;
   "PATCH workspaces": typeof import("../../app/api/v1/workspaces/route").PATCH;
@@ -227,6 +238,10 @@ export type Routes = {
   "PUT contacts/[id]/details": typeof import("../../app/api/v1/contacts/[id]/details/route").PUT;
   "PUT contacts/[id]/marketing-consent": typeof import("../../app/api/v1/contacts/[id]/marketing-consent/route").PUT;
   "PUT contacts/[id]/receptionist": typeof import("../../app/api/v1/contacts/[id]/receptionist/route").PUT;
+  "PUT contacts/consent": typeof import("../../app/api/v1/contacts/consent/route").PUT;
+  "PUT contacts/marketing-consent": typeof import("../../app/api/v1/contacts/marketing-consent/route").PUT;
+  "PUT contacts/notes": typeof import("../../app/api/v1/contacts/notes/route").PUT;
+  "PUT contacts/receptionist": typeof import("../../app/api/v1/contacts/receptionist/route").PUT;
   "PUT me": typeof import("../../app/api/v1/me/route").PUT;
   "PUT notifications": typeof import("../../app/api/v1/notifications/route").PUT;
   "PUT playbooks/[id]": typeof import("../../app/api/v1/playbooks/[id]/route").PUT;
@@ -234,4 +249,5 @@ export type Routes = {
   "PUT segments/[id]": typeof import("../../app/api/v1/segments/[id]/route").PUT;
   "PUT settings": typeof import("../../app/api/v1/settings/route").PUT;
   "PUT templates/[id]": typeof import("../../app/api/v1/templates/[id]/route").PUT;
+  "PUT views/[page]": typeof import("../../app/api/v1/views/[page]/route").PUT;
 };

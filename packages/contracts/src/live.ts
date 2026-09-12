@@ -74,7 +74,7 @@ export interface LiveCallVM {
   sentiment: string | null;
   /** Why the call ended, in the owner's words. */
   endedHow: string | null;
-  recordingState: "ready" | "pending" | "failed" | "none";
+  recordingState: "ready" | "pending" | "failed" | "purged" | "none";
   transcript: LiveTurnVM[];
 }
 
@@ -166,6 +166,7 @@ export function toLiveCallVM(dto: CallDto, now = new Date()): LiveCallVM {
   const recordingState: LiveCallVM["recordingState"] =
     dto.recording?.fetch_state === "stored" ? "ready" :
     dto.recording?.fetch_state === "failed" ? "failed" :
+    dto.recording?.fetch_state === "purged" ? "purged" :
     dto.recording ? "pending" : "none";
 
   return {

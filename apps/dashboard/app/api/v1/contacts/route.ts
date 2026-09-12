@@ -1,7 +1,13 @@
+import { z } from "zod";
 import { AppError, normalizePhone, whyNotAPhone } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/route";
-import { listPeople } from "@/server/people";
+import { PEOPLE_PAGE, countPeople, listPeople } from "@/server/people";
 import { withVisits } from "@/server/calendar";
+
+const Query = z.object({
+  q: z.string().max(80).optional(),
+  offset: z.coerce.number().int().min(0).max(1_000_000).optional(),
+});
 
 /**
  * GET /api/v1/contacts — everyone who has written to or phoned this workspace.
@@ -11,16 +17,26 @@ import { withVisits } from "@/server/calendar";
  * own RLS. The state a person is in is NOT decided here: the view model
  * derives it from these facts, so the rule lives in one tested place.
  *
- * Pilot scale: one call, capped at 1000 rows in the function. Search and
- * paging arrive with volume.
+ * A page at a time: `?q=` matches a name, a WhatsApp name or three digits
+ * of the number; `?offset=` reads the next thousand under the same order.
+ * `page` says how many there are in all and whether more follow, so the
+ * page can stop at nothing and keep its counts right (00112).
  */
 export const GET = read({
   scope: workspace,
-  handle: async ({ ctx, member }) => {
+  query: Query,
+  handle: async ({ ctx, member, input }) => {
     const tenantId = member.tenantId;
+    const q = input?.q?.trim() || null;
+    const offset = input?.offset ?? 0;
+    const [rows, total] = await Promise.all([
+      listPeople(ctx, tenantId, { q, offset, limit: PEOPLE_PAGE }),
+      countPeople(ctx, tenantId, q),
+    ]);
     // Each person with their appointments from the owner's calendar, when one
     // is connected: Booked is a fact here, not a stage. Never fatal to the list.
-    return withVisits(ctx, tenantId, await listPeople(ctx, tenantId));
+    const out = await withVisits(ctx, tenantId, rows);
+    return { ...out, page: { q, offset, limit: PEOPLE_PAGE, total, has_more: offset + rows.length < total } };
   },
 });
 

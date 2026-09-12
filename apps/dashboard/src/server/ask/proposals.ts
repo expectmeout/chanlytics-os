@@ -451,7 +451,7 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
       .order("language")
       .limit(1)
       .maybeSingle();
-    if (!starter) return refuse(`the “${s?.title ?? trig.label}” starter is not approved on this workspace yet; say so and suggest adding the starter set in Settings › Message templates, or name an approved template from list_audiences`);
+    if (!starter) return refuse(`the “${s?.title ?? trig.label}” starter is not approved on this workspace yet; say so and suggest adding the starter set under Campaigns › Messages, or name an approved template from list_audiences`);
     templateId = starter.id;
   }
   const { data: tpl } = await t.ctx.supabase

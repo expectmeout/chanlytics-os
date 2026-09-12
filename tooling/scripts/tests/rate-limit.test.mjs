@@ -15,7 +15,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { readCode } from "./_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const { takeRate, resetRates, RATE } = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/rate-limit.ts")).href);
+const { takeRate, resetRates, RATE, memoryStore, postgresStore, memoryByConfiguration, setRateStore } = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/rate-limit.ts")).href);
 
 test("the limit is per person per bucket, refuses with 429 and a retry hint, and forgets after the window", async () => {
   resetRates();
@@ -34,6 +34,79 @@ test("the limit is per person per bucket, refuses with 429 and a retry hint, and
   // After the window the same person may whisper again.
   await assert.doesNotReject(() => takeRate("u1", "whisper", t0 + RATE.whisper.windowMs + 1));
   resetRates();
+});
+
+/** console.error, kept instead of printed. */
+function capture() {
+  const lines = [];
+  const real = console.error;
+  console.error = (...a) => lines.push(a.map(String).join(" "));
+  return { lines, restore: () => { console.error = real; } };
+}
+
+test("the shared store: the function's verdict is the verdict; a store that does not answer falls back to this instance and says so once a minute; a strict take refuses instead", async () => {
+  const calls = [];
+  let answer = () => ({ data: { allowed: true }, error: null });
+  const db = { rpc: async (name, args) => { calls.push([name, args]); return answer(); } };
+  const store = postgresStore(db, memoryStore());
+  const rule = RATE.whisper;
+  assert.deepEqual(await store.take("whisper", "u1", rule, 1_000), { allowed: true });
+  assert.deepEqual(calls[0], ["take_rate", { p_bucket: "whisper", p_actor: "u1", p_limit: rule.limit, p_window_ms: rule.windowMs }], "one door, the actor as text");
+  answer = () => ({ data: { allowed: false, retry_after_s: 7.2 }, error: null });
+  assert.deepEqual(await store.take("whisper", "u1", rule, 1_000), { allowed: false, retryAfterS: 8 }, "the function's own retry hint, whole seconds up");
+  const log = capture();
+  try {
+    answer = () => ({ data: null, error: { message: "connection refused" } });
+    assert.deepEqual(await store.take("whisper", "u1", rule, 2_000), { allowed: true }, "counted by this instance instead");
+    assert.deepEqual(await store.take("whisper", "u1", rule, 3_000), { allowed: true });
+    assert.equal(log.lines.filter((l) => l.startsWith("rate_store_failed")).length, 1, "said once a minute, not once a request");
+    assert.match(log.lines[0], /connection refused/);
+    assert.deepEqual(await store.take("whisper", "u1", rule, 70_000), { allowed: true });
+    assert.equal(log.lines.filter((l) => l.startsWith("rate_store_failed")).length, 2, "and again after a minute");
+    answer = () => ({ data: {}, error: null });
+    assert.deepEqual(await store.take("whisper", "u1", rule, 71_000), { allowed: true }, "a verdict without a verdict is a failure, not an allow");
+    // Strict: money is not spent on a count this instance alone would hold.
+    answer = () => ({ data: null, error: { message: "connection refused" } });
+    await assert.rejects(store.take("lines_buy", "u1", RATE.lines_buy, 200_000, true), (e) => e.status === 503 && /shared count could not be read/.test(e.message));
+    answer = () => ({ data: { allowed: true }, error: null });
+    assert.deepEqual(await store.take("lines_buy", "u1", RATE.lines_buy, 200_001, true), { allowed: true }, "strict and answered: counted");
+  } finally {
+    log.restore();
+  }
+});
+
+test("memory by configuration: no database keys means per-instance ceilings, said once when the store is chosen, louder in production; a strict take refuses", async () => {
+  const log = capture();
+  try {
+    const store = memoryByConfiguration(memoryStore(), false);
+    assert.deepEqual(await store.take("whisper", "u1", RATE.whisper, 1_000), { allowed: true });
+    assert.deepEqual(await store.take("whisper", "u1", RATE.whisper, 1_001), { allowed: true });
+    const said = log.lines.filter((l) => l.startsWith("rate_store_memory_by_configuration"));
+    assert.equal(said.length, 1, "once");
+    assert.match(said[0], /"production":false/);
+    assert.match(said[0], /on a laptop/);
+    await assert.rejects(store.take("lines_buy", "u1", RATE.lines_buy, 1_002, true), (e) => e.status === 503 && /no shared store/.test(e.message), "a deployment that cannot count across instances does not spend");
+    const prod = memoryByConfiguration(memoryStore(), true);
+    await prod.take("whisper", "u1", RATE.whisper, 1_000);
+    const loud = log.lines.filter((l) => l.startsWith("rate_store_memory_by_configuration")).at(-1);
+    assert.match(loud, /"production":true/);
+    assert.match(loud, /is missing/, "in production it is a misconfiguration, and the line names the keys");
+  } finally {
+    log.restore();
+  }
+});
+
+test("takeRate, strict: the store's refusal is the route's 503; the chosen store is asked again from the env when reset", async () => {
+  const failing = postgresStore({ rpc: async () => ({ data: null, error: { message: "timeout" } }) }, memoryStore());
+  const log = capture();
+  try {
+    setRateStore(failing);
+    await assert.doesNotReject(() => takeRate("u1", "lines_buy", 5_000), "a plain take falls back and proceeds");
+    await assert.rejects(takeRate("u1", "lines_buy", 5_001, true), (e) => e.code === "internal" && e.status === 503);
+  } finally {
+    setRateStore(null);
+    log.restore();
+  }
 });
 
 test("the ceilings are ones a person never reaches and a script reaches at once", () => {

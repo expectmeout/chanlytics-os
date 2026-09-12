@@ -80,6 +80,33 @@ test("the channels read maps the rows the workspace has, with Meta's quality fro
   assert.deepEqual(out.channels.map((c) => [c.id, c.kind, c.quality, c.messaging_limit]), [["ch1", "whatsapp", "GREEN", "TIER_1K"]]);
 });
 
+test("reading notifications: the workspace's rows of the last thirty days, newest first, each with this person's marks, and when they last opened the bell", async () => {
+  const day = 86_400_000;
+  const at = (daysAgo) => new Date(Date.now() - daysAgo * day).toISOString();
+  const N1 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
+  const N2 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc2";
+  const N3 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc3";
+  const N4 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc4";
+  const tables = {
+    memberships: both("viewer", "viewer"),
+    notifications: [
+      { id: N1, tenant_id: A, kind: "handoff", title: "Rosa asked for a person", body: "She wrote: can I talk to someone?\nSecond line", route: "inbox/th-x", subject_type: "conversation", subject_id: "x", created_at: at(1) },
+      { id: N2, tenant_id: A, kind: "billing", title: "Your trial ends in three days", body: "…", route: "admin/billing", subject_type: null, subject_id: null, created_at: at(3) },
+      { id: N3, tenant_id: A, kind: "alert", title: "Old", body: "…", route: null, subject_type: null, subject_id: null, created_at: at(40) },
+      { id: N4, tenant_id: B, kind: "alert", title: "Elsewhere", body: "…", route: null, subject_type: null, subject_id: null, created_at: at(1) },
+    ],
+    notification_marks: [{ notification_id: N2, user_id: USER, read_at: at(2), dismissed_at: null }, { notification_id: N1, user_id: "someone-else", read_at: at(0), dismissed_at: at(0) }],
+    notification_reads: [{ tenant_id: A, user_id: USER, seen_at: "2026-09-10T12:00:00Z" }],
+  };
+  const out = await notifications.GET.run(get(`?workspace=${A}`), ctxFor(tables));
+  assert.deepEqual(out.notifications.map((n) => [n.id, n.kind, n.read, n.dismissed]), [[N1, "handoff", false, false], [N2, "billing", true, false]], "this workspace's rows of the month, newest first, with MY marks: another person's mark on N1 is not mine");
+  assert.equal(out.seen_at, "2026-09-10T12:00:00Z");
+  assert.deepEqual([out.notifications[0].title, out.notifications[0].route, out.notifications[0].subject_type], ["Rosa asked for a person", "inbox/th-x", "conversation"]);
+  const fresh = await notifications.GET.run(get(`?workspace=${B}`), ctxFor(tables));
+  assert.deepEqual([fresh.notifications.map((n) => n.id), fresh.seen_at], [[N4], null], "never opened the bell here: no seen moment");
+  await refused(notifications.GET.run(get(""), ctxFor(tables)), "choose_workspace", 400);
+});
+
 test("marking notifications: every member may, the workspace must be named, and the marks are this person's", async () => {
   const calls = [];
   const rpcs = {

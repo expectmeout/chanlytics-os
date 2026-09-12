@@ -41,7 +41,10 @@ export async function loadTenantRunContext(db: Db, tenantId: string, now: Date):
     db.rpc("people_list", { p_tenant_id: tenantId }),
     listPolicies(db, tenantId).catch(() => []),
     db.from("tenant_channels").select("config").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").limit(1).maybeSingle(),
-    db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at").eq("tenant_id", tenantId).not("playbook_id", "is", null),
+    // Every broadcast, not only the playbooks' runs: a message sent by hand is
+    // a touch too, and the week's breath is one message per person across all
+    // of them. byThis (the gap) still keys on the playbook that sent it.
+    db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at").eq("tenant_id", tenantId),
     db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
   ]);
   if (pErr) return { error: pErr.message };
@@ -54,7 +57,8 @@ export async function loadTenantRunContext(db: Db, tenantId: string, now: Date):
   // A touch is a message sent, or one on its way: a run scheduled, waiting
   // for a person or sending counts from the moment it is due, so two
   // playbooks due the same hour never both pick the same person. A run that
-  // was canceled or failed touched nobody.
+  // was canceled or failed touched nobody. A broadcast the owner sent by hand
+  // counts for the breath (byAny) and for no playbook's gap.
   const runs = (pastRuns ?? []).filter((b) => b.state !== "canceled" && b.state !== "failed");
   const runIds = runs.map((b) => b.id);
   const ofRun = new Map(runs.map((b) => [b.id, b]));

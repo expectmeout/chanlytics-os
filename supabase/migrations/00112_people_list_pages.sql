@@ -1,0 +1,199 @@
+-- people_list takes a query, a limit and an offset.
+--
+-- The People page read one call, capped at a thousand rows in the function,
+-- and searched, sorted and counted in the browser over what it held: right
+-- up to a thousand people, and silently wrong past it -- the thousand-and-
+-- first person did not exist on the page, and no count said so. The door now
+-- pages by offset under the same order, and matches a query the way the
+-- page's own box does (name, WhatsApp name, three digits of the number).
+--
+-- A call that names only the tenant answers exactly as before: the first
+-- thousand, in the same order. The body is 00096's; the where clause and the
+-- limit are the change. Dropped and recreated because a default cannot be
+-- added to a signature in place; the guard and the grants are restated.
+
+drop function if exists public.people_list(uuid, uuid);
+
+create function public.people_list(p_tenant_id uuid, p_contact_id uuid default null, p_query text default null, p_limit integer default 1000, p_offset integer default 0)
+returns table (
+  id                      uuid,
+  display_name            text,
+  wa_profile_name         text,
+  phone_e164              text,
+  consent                 text,
+  consent_source          text,
+  consent_updated_at      timestamptz,
+  dnc                     boolean,
+  marketing_consent            text,
+  marketing_consent_source     text,
+  marketing_consent_updated_at timestamptz,
+  channels                text[],
+  conversation_count      integer,
+  escalation_count        integer,
+  needs_human             boolean,
+  open_escalation_reason  text,
+  open_escalation_since   timestamptz,
+  latest_conversation_id  uuid,
+  latest_state            text,
+  latest_paused_until     timestamptz,
+  latest_assignee_user_id uuid,
+  latest_snooze_until     timestamptz,
+  latest_wa_inbound_at    timestamptz,
+  last_message_at         timestamptz,
+  last_message_direction  text,
+  last_message_sender     text,
+  last_inbound_text       text,
+  last_inbound_at         timestamptz,
+  last_call_at            timestamptz,
+  last_inbound_call_at    timestamptz,
+  last_inbound_call_summary text,
+  call_count              integer,
+  call_seconds            integer,
+  first_contact_at        timestamptz,
+  earliest_row_at         timestamptz,
+  has_backfill            boolean,
+  has_chat                boolean,
+  queued_reply_at         timestamptz
+)
+language sql
+stable
+set search_path = public
+as $$
+  with ev as (
+    select m.contact_id, m.direction, m.sender, m.type, m.body, m.status, m.created_at,
+           case when coalesce(m.meta->>'backfill', 'false') = 'true'
+                then m.channel_ts
+                else coalesce(m.channel_ts, m.created_at) end as at,
+           coalesce(m.meta->>'backfill', 'false') = 'true' as backfill,
+           -- Something the customer actually saw or said. A reply still in its
+           -- cancel window, a canceled or failed send, an internal note and a
+           -- call's own summary row are not "the last word" in the thread.
+           m.type in ('text', 'template', 'media')
+             and m.status not in ('queued', 'canceled', 'failed') as spoken
+      from messages m
+     where m.tenant_id = p_tenant_id
+       and m.contact_id is not null
+       and (p_contact_id is null or m.contact_id = p_contact_id)
+  )
+  select
+    c.id, c.display_name, c.wa_profile_name, c.phone_e164,
+    c.consent, c.consent_source, c.consent_updated_at, c.dnc,
+    c.marketing_consent, c.marketing_consent_source, c.marketing_consent_updated_at,
+    coalesce(ids.channels, '{}'::text[]),
+    coalesce(cvs.n, 0),
+    coalesce(esc.n, 0),
+    coalesce(cvs.needs_human, false),
+    oe.reason,
+    oe.created_at,
+    lc.id, lc.state, lc.paused_until, lc.assignee_user_id, lc.snooze_until, lc.last_wa_inbound_at,
+    lm.at, lm.direction, lm.sender,
+    li.body, li.at,
+    lk.last_at,
+    lk.last_inbound_at,
+    lks.summary,
+    coalesce(lk.n, 0),
+    coalesce(lk.seconds, 0),
+    least(ma.first_at, lk.first_at),
+    least(ma.first_row_at, lk.first_row_at),
+    coalesce(ma.has_backfill, false),
+    coalesce(ma.has_chat, false),
+    ma.queued_at
+  from contacts c
+  left join lateral (
+    select array_agg(distinct ci.channel order by ci.channel) as channels
+      from contact_identities ci where ci.contact_id = c.id
+  ) ids on true
+  left join lateral (
+    select count(*)::int as n, bool_or(cv.state = 'needs_human') as needs_human
+      from conversations cv where cv.contact_id = c.id
+  ) cvs on true
+  left join lateral (
+    select count(*)::int as n
+      from escalations e join conversations cv on cv.id = e.conversation_id
+     where cv.contact_id = c.id
+  ) esc on true
+  left join lateral (
+    select e.reason, e.created_at
+      from escalations e join conversations cv on cv.id = e.conversation_id
+     where cv.contact_id = c.id and e.state = 'open'
+     order by e.created_at desc
+     limit 1
+  ) oe on true
+  left join lateral (
+    select cv.id, cv.state, cv.paused_until, cv.assignee_user_id, cv.snooze_until, cv.last_wa_inbound_at
+      from conversations cv
+     where cv.contact_id = c.id
+     order by cv.last_message_at desc nulls last, cv.created_at desc
+     limit 1
+  ) lc on true
+  left join lateral (
+    select e.at, e.direction, e.sender
+      from ev e
+     where e.contact_id = c.id and e.at is not null and e.spoken
+     order by e.at desc
+     limit 1
+  ) lm on true
+  left join lateral (
+    select e.at, e.body
+      from ev e
+     where e.contact_id = c.id and e.at is not null
+       and e.direction = 'inbound' and e.spoken and e.body is not null
+     order by e.at desc
+     limit 1
+  ) li on true
+  left join lateral (
+    select min(e.at) filter (where e.spoken) as first_at,
+           min(e.created_at) as first_row_at,
+           bool_or(e.backfill) as has_backfill,
+           bool_or(e.type in ('text', 'template', 'media')) as has_chat,
+           max(e.created_at) filter (where e.direction = 'outbound' and e.status = 'queued') as queued_at
+      from ev e where e.contact_id = c.id
+  ) ma on true
+  left join lateral (
+    select count(*)::int as n,
+           (coalesce(sum(k.duration_ms), 0) / 1000)::int as seconds,
+           max(k.started_at) as last_at,
+           -- The one that means they reached out.
+           max(k.started_at) filter (where k.direction = 'inbound') as last_inbound_at,
+           min(k.started_at) as first_at,
+           min(k.created_at) as first_row_at
+      from calls k where k.contact_id = c.id
+       and k.status <> 'not_connected'
+  ) lk on true
+  left join lateral (
+    -- What the call they placed was about: what the caller wanted, in the
+    -- analysis's plain words, else the provider's summary. The attention
+    -- strip reads it where a caller has written nothing.
+    select coalesce(k.wanted, k.summary) as summary
+      from calls k
+     where k.contact_id = c.id
+       and k.direction = 'inbound'
+       and k.status <> 'not_connected'
+       and coalesce(k.wanted, k.summary) is not null
+     order by k.started_at desc
+     limit 1
+  ) lks on true
+  where c.tenant_id = p_tenant_id
+    and c.erased_at is null
+    and c.merged_into_contact_id is null
+    and (p_contact_id is null or c.id = p_contact_id)
+    -- The search: a name, their name on WhatsApp, or three digits of the
+    -- number, the way the page's own box matches. Nothing else is indexed
+    -- here; the page still narrows by state and list over what it holds.
+    and (
+      nullif(trim(p_query), '') is null
+      or c.display_name ilike '%' || trim(p_query) || '%'
+      or c.wa_profile_name ilike '%' || trim(p_query) || '%'
+      or (length(regexp_replace(p_query, '\D', '', 'g')) >= 3
+          and regexp_replace(coalesce(c.phone_e164, ''), '\D', '', 'g') like '%' || regexp_replace(p_query, '\D', '', 'g') || '%')
+    )
+  order by greatest(lm.at, lk.last_at) desc nulls last, c.created_at desc
+  limit least(greatest(coalesce(p_limit, 1000), 1), 1000)
+  offset greatest(coalesce(p_offset, 0), 0)
+$$;
+
+revoke execute on function public.people_list(uuid, uuid, text, integer, integer) from public, anon;
+grant execute on function public.people_list(uuid, uuid, text, integer, integer) to authenticated, service_role;
+
+comment on function public.people_list(uuid, uuid, text, integer, integer) is
+  'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). p_query matches a name, a WhatsApp name or three digits of the number; p_limit (at most 1000) and p_offset page under one order, latest contact first.';

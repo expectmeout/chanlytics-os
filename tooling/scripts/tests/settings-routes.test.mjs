@@ -22,6 +22,7 @@ const policies = await import(at("apps/dashboard/app/api/v1/policies/route.ts"))
 const record = await import(at("apps/dashboard/app/api/v1/business-record/route.ts"));
 const calendar = await import(at("apps/dashboard/app/api/v1/calendar/route.ts"));
 const preview = await import(at("apps/dashboard/app/api/v1/calendar/preview/route.ts"));
+const { feedUrlOk } = await import(at("apps/dashboard/src/server/calendar.ts"));
 const setupRequest = await import(at("apps/dashboard/app/api/v1/setup/request/route.ts"));
 const search = await import(at("apps/dashboard/app/api/v1/lines/search/route.ts"));
 const retry = await import(at("apps/dashboard/app/api/v1/lines/retry/route.ts"));
@@ -88,6 +89,9 @@ test("the settings read: the workspace the tab named, with its version and the r
   };
   const harbor = await settings.GET.run(get(inA), ctxFor(tables));
   assert.deepEqual([harbor.version, harbor.role, harbor.configBroken], [3, "viewer", false]);
+  assert.deepEqual([harbor.updatedBy, harbor.updatedAt], [null, "2026-09-01T00:00:00Z"], "a row written before the author was kept says so with null");
+  const authored = await settings.GET.run(get(inB), ctxFor({ ...tables, tenant_config: [{ tenant_id: B, config: {}, version: 1, updated_at: "2026-09-02T00:00:00Z", updated_by: "u7" }] }));
+  assert.deepEqual([authored.updatedBy, authored.updatedAt], ["u7", "2026-09-02T00:00:00Z"], "who last changed it rides with the config");
   assert.ok(harbor.config.calendar.ical_url.includes("…") && !harbor.config.calendar.ical_url.includes("abcdef123456"), "a viewer learns that a feed is set, not its address");
   assert.ok(harbor.facts && harbor.conflicts, "the resolved facts and their disagreements ride along");
   const bayside = await settings.GET.run(get(inB), ctxFor(tables));
@@ -220,6 +224,16 @@ test("the calendar: a read of the workspace's week, counted with the aggregates;
   await refused(preview.POST.run(send("POST", { url: "https://calendar.example.com/x.ics" }, inA), ctxFor(tables)), "forbidden", 403);
   await refused(preview.POST.run(send("POST", {}, inB), ctxFor(tables)), "validation", 400, "Paste the calendar's iCal address first.");
   await refused(preview.POST.run(send("POST", { url: "http://127.0.0.1/cal.ics" }, inB), ctxFor(tables)), "validation", 400, "full https:// or webcal:// address on the internet");
+  // The guard itself, on every shape it decides: the feed address is fetched
+  // by our server, so an address inside our network is the one thing it must
+  // never be handed.
+  assert.equal(feedUrlOk("webcal://calendar.google.com/calendar/ical/x/basic.ics"), "https://calendar.google.com/calendar/ical/x/basic.ics", "webcal is https in a hat");
+  assert.equal(feedUrlOk("  https://cal.example.com/feed.ics  "), "https://cal.example.com/feed.ics");
+  assert.equal(feedUrlOk("http://cal.example.com/feed.ics"), "http://cal.example.com/feed.ics", "plain http on the internet is allowed: some providers still serve it");
+  for (const bad of ["", "not a url", "ftp://cal.example.com/f.ics", "file:///etc/passwd", "https://localhost/x.ics", "https://127.0.0.1/x.ics", "https://10.0.0.5/x.ics", "https://192.168.1.9/x.ics", "https://172.16.0.1/x.ics", "https://172.31.255.1/x.ics", "https://169.254.169.254/latest/meta-data", "https://0.0.0.0/x", "https://[::1]/x.ics", "https://db.internal/x.ics", "https://printer.local/x.ics"]) {
+    assert.equal(feedUrlOk(bad), null, `refused: ${JSON.stringify(bad)}`);
+  }
+  assert.equal(feedUrlOk("https://172.32.0.1/x.ics"), "https://172.32.0.1/x.ics", "172.32 is outside the private block");
 });
 
 test("a setup request: an operator's, one thing it can ask for, recorded through the door, and the platform told only on this machine's terms", async () => {

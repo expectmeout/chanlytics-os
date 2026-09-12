@@ -15,6 +15,13 @@ import { createClient } from "@supabase/supabase-js";
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const skip = !URL_ || !KEY ? "no service-role credentials in env" : false;
+// Two of these ask whether production is answering right now. The database
+// workflow replays the migrations on this machine, where seed.sql removes
+// edge_base_url on purpose (so a local sweep never posts to production) and
+// the deadman trigger has nowhere to send; those two answer only live.
+const liveOnly = !skip && /^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
+  ? "a replayed database has no edge to answer (seed.sql removes edge_base_url on purpose)"
+  : false;
 const db = skip ? null : createClient(URL_, KEY, { auth: { persistSession: false } });
 
 test("sweep_health() names every watched sweep and every schedule exists", { skip }, async () => {
@@ -33,7 +40,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   for (const r of data) assert.equal(r.scheduled, true, `${r.sweep}: ${r.detail}`);
 });
 
-test("every sweep is currently answering the edge", { skip }, async () => {
+test("every sweep is currently answering the edge", { skip: skip || liveOnly }, async () => {
   // Deliberately its own test: a red here means production is unwell right
   // now, not that the migration is wrong. The failure message IS the detail
   // string, which names the cause without further digging.
@@ -42,7 +49,7 @@ test("every sweep is currently answering the edge", { skip }, async () => {
   for (const r of data) assert.equal(r.healthy, true, `${r.sweep}: ${r.detail}`);
 });
 
-test("the deadman trigger records what it enqueued", { skip }, async () => {
+test("the deadman trigger records what it enqueued", { skip: skip || liveOnly }, async () => {
   // Without this the rewritten trigger could silently stop recording, and
   // sweep_health() would report "has never enqueued a request" forever — a
   // watchdog that cries wolf every six hours.

@@ -44,6 +44,7 @@ import { installBilling, billingOverride } from "./billing";
 import { installConnections } from "./connections";
 import { installBusinessRecord } from "./business-record";
 import { installPlatform } from "./platform";
+import { installActivity } from "./activity";
 import { installIdentity } from "./identity";
 import { installShell, publishShellStatus } from "./shell";
 import CreateWorkspace from "./CreateWorkspace";
@@ -73,6 +74,7 @@ installBilling();
 installConnections();
 installBusinessRecord();
 installPlatform();
+installActivity();
 installIdentity();
 installShell();
 // The installable shell's service worker (public/sw.js). It caches nothing

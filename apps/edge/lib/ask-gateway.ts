@@ -14,7 +14,7 @@ import { ASK_MODEL } from "./workspace/contracts.js";
 import type { Database, Json } from "./workspace/db.js";
 import { emitEvent } from "./workspace/db.js";
 
-export const ASK_USAGE_KIND = "usage.ask_tokens";
+export const ASK_USAGE_KIND = "usage.ask_tokens" as const;
 const DAY_MS = 24 * 3600 * 1000;
 const ROW_CAP = 2000;
 

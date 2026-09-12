@@ -1,0 +1,98 @@
+/* global React, Icon */
+// Chanlytics — Settings › Activity: what happened in the workspace, and who did it.
+//
+// Both ledgers -- the decisions people (and the receptionist, and the system)
+// made, and the events that happened -- have existed since the first slice and
+// were readable by an owner only inside one person's timeline. This is the
+// page: newest first, in the words the route gives (contracts activityWords),
+// filtered by a person, a kind and a day. It decides nothing and shows nothing
+// of a payload beyond the sentence; the evidence families are hidden unless
+// asked for by name.
+
+const ACT_WHEN = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—");
+
+const ActivityRow = ({ r, actors }) => {
+  const who = r.actor_user_id ? (actors[r.actor_user_id] || "A member") : r.actor_type === "ai" ? "Receptionist" : r.source === "event" ? "" : "System";
+  const to =
+    r.subject_type === "contact" && r.subject_id ? `clients/${r.subject_id}`
+    : r.subject_type === "conversation" && r.subject_id ? `inbox/th-${r.subject_id}`
+    : r.subject_type === "call" && r.subject_id ? `conversations/cv-${r.subject_id}`
+    : null;
+  return (
+    <div className="cl-prof-attr act-row" data-testid="act-row">
+      <span className="cl-prof-attr-key tabular">{ACT_WHEN(r.at)}</span>
+      <span className="cl-prof-attr-val">
+        {who && <b>{who} · </b>}{r.text}
+        {to && <> <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(to)}>Open</button></>}
+      </span>
+    </div>
+  );
+};
+
+const PaneActivity = () => {
+  const A = window.__activity;
+  const isOwner = !!(window.__ME && window.__ME.role === "owner");
+  const [kind, setKind] = React.useState("");
+  const [day, setDay] = React.useState("");
+  const [person, setPerson] = React.useState(null); // { id, name }
+  const [personQ, setPersonQ] = React.useState("");
+  const [matches, setMatches] = React.useState([]);
+  const [st, setSt] = React.useState({ loading: true, rows: [], actors: {}, kinds: [], hasMore: false, error: null });
+
+  const load = React.useCallback(async (offset = 0, append = false) => {
+    if (!A) return;
+    setSt((c) => ({ ...c, loading: true, error: null }));
+    const r = await A.list({ kind: kind || undefined, day: day || undefined, person: person ? person.id : undefined, offset: offset || undefined });
+    if (!r.ok) { setSt((c) => ({ ...c, loading: false, error: r.message || "Could not be read right now." })); return; }
+    setSt((c) => ({ loading: false, error: null, rows: append ? [...c.rows, ...r.data.rows] : r.data.rows, actors: { ...c.actors, ...r.data.actors }, kinds: r.data.kinds, hasMore: r.data.page.has_more }));
+  }, [A, kind, day, person]);
+  React.useEffect(() => { if (isOwner) load(0, false); }, [load, isOwner]);
+  React.useEffect(() => {
+    if (!A || !personQ.trim()) { setMatches([]); return undefined; }
+    let on = true;
+    const t = setTimeout(() => { A.people(personQ.trim()).then((m) => { if (on) setMatches(m); }); }, 250);
+    return () => { on = false; clearTimeout(t); };
+  }, [A, personQ]);
+
+  if (!isOwner) {
+    return (
+      <section className="fl-card set-card" data-testid="set-activity">
+        <span className="cl-prof-aut-hint">Only an owner can read the activity log: it is the whole record of the workspace, including what every member did.</span>
+      </section>
+    );
+  }
+  return (
+    <section className="fl-card set-card" data-testid="set-activity">
+      <div className="ct-sec-head">
+        <span className="ct-sec-title">Activity</span>
+        <span className="ct-sec-meta">What happened, and who did it · newest first</span>
+      </div>
+      <div className="bc-row" style={{ flexWrap: "wrap", gap: 8 }}>
+        <input list="act-kinds" placeholder="Any kind" value={kind} onChange={(e) => setKind(e.target.value.trim())} data-testid="act-kind" style={{ maxWidth: 220 }} />
+        <datalist id="act-kinds">{st.kinds.map((k) => <option key={k} value={k} />)}</datalist>
+        <input type="date" value={day} onChange={(e) => setDay(e.target.value)} data-testid="act-day" />
+        {person
+          ? <span className="cl-seg-filter" data-testid="act-person"><Icon name="user" size={10} />{person.name}<button className="cl-seg-filter-x" title="Everyone" onClick={() => setPerson(null)}><Icon name="x" size={9} /></button></span>
+          : (
+            <span style={{ position: "relative" }}>
+              <input placeholder="A person, by name or number" value={personQ} onChange={(e) => setPersonQ(e.target.value)} data-testid="act-person-q" style={{ maxWidth: 240 }} />
+              {matches.length > 0 && (
+                <div className="cl-prof-autonomy" style={{ flexWrap: "wrap" }}>
+                  {matches.map((m) => <button key={m.id} className="cl-prof-aut-seg" onClick={() => { setPerson(m); setPersonQ(""); setMatches([]); }}>{m.name}</button>)}
+                </div>
+              )}
+            </span>
+          )}
+      </div>
+      {st.error && <div className="cl-prof-aut-hint" style={{ color: "var(--danger)" }}>{st.error}</div>}
+      <div className="cl-prof-attr-list" data-testid="act-rows">
+        {st.rows.map((r) => <ActivityRow key={r.id} r={r} actors={st.actors} />)}
+        {!st.loading && st.rows.length === 0 && !st.error && <span className="cl-prof-aut-hint">Nothing here for that.</span>}
+      </div>
+      {st.hasMore && <button className="btn btn-ghost btn-sm" disabled={st.loading} onClick={() => load(st.rows.length, true)} data-testid="act-more">{st.loading ? "Loading…" : "Show more"}</button>}
+      <div className="cl-prof-aut-hint">Model usage, webhook receipts and unplaced messages are kept but not listed here; name a kind to see them.</div>
+    </section>
+  );
+};
+
+window.PaneActivity = PaneActivity;

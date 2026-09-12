@@ -150,7 +150,9 @@ export async function middleware(request: NextRequest) {
     url.search = "";
     return noStore(NextResponse.redirect(url));
   }
-  if (user && path === "/login") {
+  // A signed-in person has no business on either door: /signup would send a
+  // code to a second address and strand it, since the session stays theirs.
+  if (user && (path === "/login" || path === "/signup")) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     url.search = "";

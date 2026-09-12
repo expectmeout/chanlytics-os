@@ -5,8 +5,16 @@ import { deleteThread, readThread } from "@/server/ask/store";
 
 /**
  * One of the caller's own Ask threads. The thread is the person's, not the
- * workspace's: RLS is the door, so both are declared on the account — no
- * workspace resolved, no role judged, exactly as they always were.
+ * workspace's: RLS is the door (ask_threads and ask_messages are the
+ * person's own rows), so both are declared on the account — no workspace
+ * resolved, no role judged, exactly as they always were.
+ *
+ * The one exception to "every read names its workspace", said out loud: a
+ * thread of theirs in another workspace the person belongs to is still
+ * theirs to read and delete here, whatever the tab names. What it shows is
+ * that workspace's rows as the person already may see them, and the list
+ * (GET ask/threads) is workspace-scoped, so a thread from elsewhere is only
+ * reached by an id the person carried over. Nothing crosses to anyone else.
  */
 
 /** GET /api/v1/ask/threads/:id — one of the caller's own threads with its turns. */

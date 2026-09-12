@@ -117,7 +117,7 @@ test("the converted message-path lines carry the tenant", () => {
   const src = fs.readFileSync(path.join(EDGE, "lib/whatsapp/inbound.ts"), "utf8");
   assert.match(
     src,
-    /const L = logger\(\{ tenant_id: tenantId, wamid: m\.id, from, type: m\.type \}\)/,
+    /const L = logger\(\{ tenant_id: tenantId, wamid: m\.id, from_tail: phoneTail\(from\), type: m\.type \}\)/,
     "handleInbound must bind the tenant into its logger",
   );
   for (const call of ["L.info(\"wa_replied\"", "L.info(\"wa_skip_opt_out\"", "L.error(\"wa_state_unavailable\""]) {

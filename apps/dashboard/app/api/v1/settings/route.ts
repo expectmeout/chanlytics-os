@@ -73,6 +73,9 @@ export const GET = read({
         facts,
         conflicts: factConflicts(facts),
         prompt,
+        // Who last changed it and when (00085): the Business card says so.
+        updatedBy: row.updated_by ?? null,
+        updatedAt: row.updated_at ?? null,
       };
     }
     // `as const` on both: the two answers are told apart by this one flag, and the client narrows on it.

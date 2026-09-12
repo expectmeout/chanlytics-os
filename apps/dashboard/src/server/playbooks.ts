@@ -2,7 +2,7 @@ import "server-only";
 import { parseParamSpec, type PlaybookDto, type PlaybookPolicyClass, type PlaybookTrigger } from "@chanlytics/contracts";
 import { checkPlaybook, type PlaybookInput } from "@chanlytics/core";
 import type { RouteContext } from "@/server/with-route";
-import { listBroadcasts } from "@/server/broadcasts";
+import { listRuns } from "@/server/broadcasts";
 import { templateValuePorts } from "@/server/campaign-ports";
 
 /**
@@ -16,6 +16,22 @@ import { templateValuePorts } from "@/server/campaign-ports";
  */
 const COLUMNS = "id, name, trigger, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at";
 
+/** One run on a card's history: the day it ran for, and what it earned. */
+export interface RunSummary {
+  id: string;
+  run_for: string | null;
+  state: string;
+  scheduled_for: string;
+  recipient_count: number;
+  sent: number;
+  held: number;
+  delivered: number;
+  replied: number;
+}
+
+/** How many runs a card lists; the totals are over every run. */
+export const HISTORY_ON_CARD = 10;
+
 export interface PlaybookTotals {
   runs: number;
   sent: number;
@@ -24,6 +40,48 @@ export interface PlaybookTotals {
   held: number;
   lastRun: { id: string; state: string; run_for: string | null; recipient_count: number } | null;
   waiting: { id: string; recipient_count: number; name: string } | null;
+  /** The most recent runs, newest first, from the same rows the totals are summed over. */
+  history: RunSummary[];
+}
+
+/** How far back a touch counts for the week's breath: PLAYBOOK_BREATH_MS, as the sweep applies it. */
+const BREATH_MS = 7 * 86_400_000;
+
+/**
+ * Who a broadcast of any kind reached, or is about to, within the week: the
+ * touches the sweep applies as the breath, so the Playbooks page can say how
+ * many of a trigger's people wait for it rather than counting them as due.
+ * contact id → the ISO time of the touch.
+ */
+export async function recentTouches(ctx: RouteContext, tenantId: string, now: Date): Promise<Record<string, string>> {
+  const since = new Date(now.getTime() - BREATH_MS).toISOString();
+  const { data: runs, error } = await ctx.supabase
+    .from("broadcasts")
+    .select("id, scheduled_for, created_at, state")
+    .eq("tenant_id", tenantId)
+    .in("state", ["scheduled", "pending_approval", "sending", "sent"])
+    .gte("created_at", since);
+  if (error) throw new Error(error.message);
+  if (!runs || runs.length === 0) return {};
+  const ids = runs.map((r) => r.id);
+  const ofRun = new Map(runs.map((r) => [r.id, r]));
+  const touched: Record<string, string> = {};
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data: people, error: pErr } = await ctx.supabase
+      .from("broadcast_recipients")
+      .select("broadcast_id, contact_id, state, sent_at")
+      .eq("tenant_id", tenantId)
+      .in("broadcast_id", ids.slice(i, i + 200))
+      .in("state", ["sent", "queued"]);
+    if (pErr) throw new Error(pErr.message);
+    for (const r of people ?? []) {
+      const run = ofRun.get(r.broadcast_id);
+      if (!run) continue;
+      const at = r.sent_at ?? run.scheduled_for ?? run.created_at;
+      if (at >= since && (!touched[r.contact_id] || at > touched[r.contact_id])) touched[r.contact_id] = at;
+    }
+  }
+  return touched;
 }
 
 export type PlaybookListRow = PlaybookDto & { totals: PlaybookTotals };
@@ -31,18 +89,24 @@ export type PlaybookListRow = PlaybookDto & { totals: PlaybookTotals };
 export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promise<PlaybookListRow[]> {
   const [{ data: rows, error }, runs] = await Promise.all([
     ctx.supabase.from("playbooks").select(COLUMNS).eq("tenant_id", tenantId).order("created_at", { ascending: false }),
-    listBroadcasts(ctx, tenantId),
+    listRuns(ctx, tenantId),
   ]);
   if (error) throw new Error(error.message);
   const totals = new Map<string, PlaybookTotals>();
   for (const b of runs) {
     if (!b.playbook_id) continue;
-    const t = totals.get(b.playbook_id) ?? { runs: 0, sent: 0, delivered: 0, replied: 0, held: 0, lastRun: null, waiting: null };
+    const t = totals.get(b.playbook_id) ?? { runs: 0, sent: 0, delivered: 0, replied: 0, held: 0, lastRun: null, waiting: null, history: [] };
     t.runs += 1;
     t.sent += b.counts.sent;
     t.delivered += b.counts.delivered;
     t.replied += b.counts.replied;
     t.held += b.counts.skipped + b.counts.failed;
+    if (t.history.length < HISTORY_ON_CARD) {
+      t.history.push({
+        id: b.id, run_for: b.run_for, state: b.state, scheduled_for: b.scheduled_for, recipient_count: b.recipient_count,
+        sent: b.counts.sent, held: b.counts.skipped + b.counts.failed, delivered: b.counts.delivered, replied: b.counts.replied,
+      });
+    }
     if (!t.lastRun) t.lastRun = { id: b.id, state: b.state, run_for: b.run_for, recipient_count: b.recipient_count };
     if (b.state === "pending_approval" && !t.waiting) t.waiting = { id: b.id, recipient_count: b.recipient_count, name: b.name };
     totals.set(b.playbook_id, t);
@@ -53,7 +117,7 @@ export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promis
     policy_class: r.policy_class as PlaybookPolicyClass,
     state: r.state as PlaybookDto["state"],
     params: Array.isArray(r.params) ? (r.params as unknown[]).map((p) => parseParamSpec(p) ?? { kind: "text" as const, value: String(p) }) : [],
-    totals: totals.get(r.id) ?? { runs: 0, sent: 0, delivered: 0, replied: 0, held: 0, lastRun: null, waiting: null },
+    totals: totals.get(r.id) ?? { runs: 0, sent: 0, delivered: 0, replied: 0, held: 0, lastRun: null, waiting: null, history: [] },
   }));
 }
 

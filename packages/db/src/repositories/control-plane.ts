@@ -13,12 +13,14 @@ export interface TenantConfigRow {
   config: unknown;
   version: number;
   updated_at: string;
+  /** Who last wrote it; null for rows written before 00085 kept track, and for the platform's own writes. */
+  updated_by?: string | null;
 }
 
 export async function getTenantConfig(db: Db, tenantId: string): Promise<TenantConfigRow | null> {
   const { data, error } = await db
     .from("tenant_config")
-    .select("tenant_id, config, version, updated_at")
+    .select("tenant_id, config, version, updated_at, updated_by")
     .eq("tenant_id", tenantId)
     .maybeSingle();
   if (error) throw new Error(`getTenantConfig: ${error.message}`);

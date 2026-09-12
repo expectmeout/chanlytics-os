@@ -141,14 +141,14 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
       </div>
       {trig && (
         <div className="cl-prof-aut-hint" data-testid="pb-trigger-hint">
-          {trig.hint} · {pbPeople(trig.candidates)} {trig.kind === "visit" ? "with a recorded yes on that day right now" : "on that list said yes right now"} · runs under “{pbRowLabel(trig.cls)}” in Settings › Autonomy{trig.kind === "visit" ? " · one message per visit" : ""}{trig.kind === "visit" && data.calendar !== "ok" ? " · needs the calendar connected in Settings › Workspace" : ""}
+          {trig.hint} · {pbPeople(trig.candidates)} {trig.kind === "visit" ? "with a recorded yes on that day right now" : "on that list said yes right now"}{trig.kind !== "visit" && trig.held > 0 ? ` · ${trig.held} more heard from you this week and wait` : ""} · runs under “{pbRowLabel(trig.cls)}” in Settings › Autonomy{trig.kind === "visit" ? " · one message per visit" : ""}{trig.kind === "visit" && data.calendar !== "ok" ? " · needs the calendar connected in Settings › Workspace" : ""}
         </div>
       )}
       <div className="bc-row">
         <span className="bc-row-label">Send</span>
         <div className="bc-chips" style={{ flexWrap: "wrap" }}>
           {templates.length === 0 && (
-            <span className="bc-excl-hint" data-testid="pb-no-template">No approved template yet — write one on Broadcasts, or in WhatsApp Manager and sync it in Settings › Connections.</span>
+            <span className="bc-excl-hint" data-testid="pb-no-template">No approved template yet — write one on Broadcasts, or in WhatsApp Manager and sync it under Campaigns › Messages.</span>
           )}
           {templates.map((t) => (
             <button key={t.id} className={"bc-chip" + (t.id === tplId ? " active" : "")} onClick={() => { setPicked(true); setTplId(t.id); }} title={t.body_preview || ""} data-testid="pb-template">
@@ -162,7 +162,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
           {starterRow
             ? <>Written for this moment: <b>{starter.title}</b>{tplId === starterRow.id ? " — picked for you; change it above if you like" : " — it's above if you'd rather use it"}</>
             : starterAny
-              ? <><b>{starter.title}</b> is {starterAny.meta_status === "pending" ? "in review at WhatsApp — it appears here once approved, usually within minutes" : `${starterAny.meta_status} at WhatsApp — see Settings › Connections`}</>
+              ? <><b>{starter.title}</b> is {starterAny.meta_status === "pending" ? "in review at WhatsApp — it appears here once approved, usually within minutes" : `${starterAny.meta_status} at WhatsApp — see Campaigns › Messages`}</>
               : <>
                   The <b>{starter.title}</b> starter is written for this moment.{" "}
                   {canEdit && window.__templates && window.__templates.addStarters
@@ -312,6 +312,22 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
           <span className="fl-head-dot" />
           <span className="ob-stat" data-tip="Threads that heard from the customer after a run"><strong className="tabular">{p.totals.replied}</strong> replied</span>
           {p.totals.held > 0 && <><span className="fl-head-dot" /><span className="ob-stat"><strong className="tabular">{p.totals.held}</strong> held back</span></>}
+        </div>
+      )}
+      {/* The runs themselves, newest first, from the same rows the totals are
+          summed over -- every run, not the recent fifty broadcasts of any kind. */}
+      {p.totals.history && p.totals.history.length > 0 && (
+        <div className="ob-history" data-testid="pb-history">
+          {p.totals.history.map((h) => (
+            <div key={h.id} className="cl-prof-aut-hint ob-history-row">
+              <span className="tabular">{h.run_for || (h.scheduled_for ? h.scheduled_for.slice(0, 10) : "")}</span>
+              {" · "}{h.state === "sent" ? <>{h.sent} sent{h.held > 0 ? `, ${h.held} held` : ""}{h.replied > 0 ? `, ${h.replied} replied` : ""}</>
+                : h.state === "pending_approval" ? `waiting for you · ${h.recipient_count} people`
+                : h.state === "sending" ? `sending · ${h.sent} so far`
+                : h.state === "scheduled" ? `scheduled · ${h.recipient_count} people`
+                : h.state}
+            </div>
+          ))}
         </div>
       )}
 

@@ -111,7 +111,7 @@ const AskCard = ({ p, messageId, t, onNav }) => {
   };
   const KIND = { reply: t.kReply, steer: t.kSteer, thread_verb: t.kInbox, person_mode: t.kPerson, policy: t.kAutonomy, settings: t.kSettings, whisper: t.kWhisper, invite: t.kTeam, broadcast: t.kBroadcast, playbook: t.kPlaybook };
   const ICON = { reply: "chat", steer: "chat", whisper: "phone", invite: "users", policy: "shield", settings: "settings", person_mode: "settings", thread_verb: "inbox", broadcast: "wave", playbook: "bolt" };
-  const openRoute = p.kind === "settings" ? "admin/memory" : p.kind === "policy" ? "admin/autonomy" : p.kind === "person_mode" ? `clients/${pl.contact_id}` : p.kind === "broadcast" ? "broadcasts" : p.kind === "playbook" ? "outbound" : `inbox/th-${pl.conversation_id}`;
+  const openRoute = p.kind === "settings" ? "admin/workspace" : p.kind === "policy" ? "admin/autonomy" : p.kind === "person_mode" ? `clients/${pl.contact_id}` : p.kind === "broadcast" ? "broadcasts" : p.kind === "playbook" ? "outbound" : `inbox/th-${pl.conversation_id}`;
   return (
     <div className={`ask-card ${state}`} data-testid="ask-card" data-kind={p.kind}>
       <div className="ask-card-head"><Icon name={ICON[p.kind] || "inbox"} size={12} />{p.title}<span className="ask-card-kind">{KIND[p.kind] || p.kind}</span></div>

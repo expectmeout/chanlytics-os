@@ -101,6 +101,8 @@ const SET_TABS = [
   { id: "integrations",  label: "Connections",   icon: "external", group: "Workspace" },
   { id: "notifications", label: "Notifications", icon: "bell",     group: "Workspace" },
   { id: "billing",       label: "Billing",       icon: "money",    group: "Workspace" },
+  // Both ledgers, readable by the owner: who did what, and what happened.
+  { id: "activity",      label: "Activity",      icon: "clock",    group: "Workspace" },
 ];
 /** Routes that still answer but no longer earn a place in the rail. */
 const SET_TABS_UNLISTED = [{ id: "memory", label: "AI memory", icon: "sparkle" }];
@@ -649,6 +651,9 @@ const TeamSection = ({ flash }) => {
           displayName: "",
           role: i.role,
           status: "invited",
+          // When the invitation stops working: the card says so, instead of
+          // "pending" for ever over a door that has closed.
+          expiresAt: i.expires_at || null,
           isMe: false,
         })),
       ]
@@ -819,12 +824,13 @@ const TeamSection = ({ flash }) => {
         // wearing this badge on a real owner's settings page.
         const isMe = m.isMe !== undefined ? m.isMe : m.id === S.meId;
         const pending = m.status === "invited";
+        const invite = pending && window.__inviteState ? window.__inviteState(m.expiresAt) : { expired: false, words: "invite pending" };
         return (
-          <div key={m.id} className={`set-team-row ${pending ? "pending" : ""}`}>
+          <div key={m.id} className={`set-team-row ${pending ? "pending" : ""} ${invite.expired ? "expired" : ""}`}>
             <span className="avatar" style={pending ? { background: "var(--ink-faint)" } : m.role === "owner" ? undefined : { background: "var(--ink-muted)" }}>{m.displayName !== undefined ? window.__identity.initials(m.displayName, m.email) : stInitials(m.name)}</span>
             <span className="set-team-body">
               <span className="set-team-name">{m.name}{isMe && <span className="set-team-you">You</span>}</span>
-              <span className="set-team-mail">{[m.sub !== undefined ? m.sub : m.email, pending ? "invite pending" : ""].filter(Boolean).join(" · ")}</span>
+              <span className="set-team-mail">{[m.sub !== undefined ? m.sub : m.email, pending ? invite.words : ""].filter(Boolean).join(" · ")}</span>
             </span>
             <RolePill role={m.role} />
             {canManage && !isMe ? (
@@ -911,6 +917,9 @@ const hoursSummary = (hours) => {
 // Published by the bridge; the literal is the standalone mockup fallback and
 // a test pins it to MAX_INTERVALS_PER_DAY.
 const MAX_SHIFTS = ((window.__configLimits || {}).maxIntervalsPerDay) || 4;
+// The same cap the write schema enforces (contracts MAX_CLOSURES), so the form
+// stops at the number the save would refuse, instead of refusing at Save.
+const MAX_CLOSURE_ROWS = ((window.__configLimits || {}).maxClosures) || 60;
 
 const SET_DAYS = [["mon","Monday"],["tue","Tuesday"],["wed","Wednesday"],["thu","Thursday"],["fri","Friday"],["sat","Saturday"],["sun","Sunday"]];
 
@@ -1521,9 +1530,10 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
             ><Icon name="x" size={12} /></button>
           </div>
         ))}
-        <button type="button" className="btn btn-sm" onClick={() => setClosures((l) => [...l, { date: "", note: "" }])}>
+        <button type="button" className="btn btn-sm" disabled={closures.length >= MAX_CLOSURE_ROWS} title={closures.length >= MAX_CLOSURE_ROWS ? `At most ${MAX_CLOSURE_ROWS} closures` : undefined} onClick={() => setClosures((l) => (l.length >= MAX_CLOSURE_ROWS ? l : [...l, { date: "", note: "" }]))}>
           <Icon name="plus" size={12} /> Add a closed day
         </button>
+        {closures.length >= MAX_CLOSURE_ROWS && <div className="set-sec-note">That is the most closures the receptionist keeps ({MAX_CLOSURE_ROWS}). Dates that have passed can go.</div>}
         {/* The one case this cannot express, said plainly rather than left for
             an owner to discover by picking the only option and turning away an
             afternoon of bookings. */}
@@ -1719,6 +1729,41 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     </section>
   );
 };
+/**
+ * The owner's own copy of everything, and the one thing this page cannot do.
+ *
+ * The privacy page has said "an owner can export a workspace's data" since it
+ * was written, and no page offered it: three partial exports (everyone as a
+ * CSV on People, one thread, one call) were the whole of it. This is the door
+ * the sentence promised -- one file: people, conversations with their
+ * messages, calls with their transcripts, and every consent change with who
+ * recorded it. Owners only, like the CSV. Deletion is deliberately not a
+ * button: it is a request answered by a person, as the same page says.
+ */
+const WorkspaceData = () => {
+  const can = !!(window.__href && (!window.canDo || window.canDo("export")));
+  return (
+    <section className="fl-card set-card" data-testid="set-data">
+      <SetSectionHead title="Your data" hint="Everything this workspace holds, in one file you keep" />
+      <div className="cl-prof-attr-list">
+        <div className="cl-prof-attr">
+          <span className="cl-prof-attr-key">Download everything</span>
+          <span className="cl-prof-attr-val" style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {can
+              ? <a className="btn btn-ghost btn-sm" href={window.__href("GET export")} download data-testid="set-export-all" title="People, conversations, calls and consent history as one JSON file"><Icon name="external" size={12} /> Download (JSON)</a>
+              : <span className="set-team-mail">Only an owner can download the workspace's data.</span>}
+            <span className="set-team-mail">People, conversations with their messages, calls with their transcripts, and every consent change with who recorded it. Call audio is not included: it is removed on the schedule the privacy policy states, and the transcript is here.</span>
+          </span>
+        </div>
+        <div className="cl-prof-attr">
+          <span className="cl-prof-attr-key">Delete this workspace</span>
+          <span className="cl-prof-attr-val set-team-mail">Write to <a href="mailto:hi@chanlytics.com">hi@chanlytics.com</a> from the owner's address. Its data is removed within 30 days, as the <a href="/privacy" target="_blank" rel="noreferrer">privacy policy</a> says.</span>
+        </div>
+      </div>
+    </section>
+  );
+};
+
 const PaneWorkspace = ({ flash }) => {
   const [editing, setEditing] = useSetState(false);
   const settings = window.__SETTINGS || null;
@@ -1784,6 +1829,9 @@ const PaneWorkspace = ({ flash }) => {
     <FactConflicts />
     <section className="fl-card set-card">
       <div className="fl-card-head"><span className="fl-card-title">Business</span>
+        {/* Who last changed it and when, from the row itself (00085): the one
+            audit question a workspace with three people eventually asks. */}
+        {real && window.__lastChanged && window.__lastChanged() ? <span className="fl-card-sub">{window.__lastChanged()}</span> : null}
         {/* On real data this opens the form. The mockup's compose flow asked
             an assistant to update details it had no way to write. */}
         {real
@@ -1878,6 +1926,7 @@ const PaneWorkspace = ({ flash }) => {
       )}
     </section>
     {real && <PromptPreview />}
+    {real && <WorkspaceData />}
   </>
   );
 };
@@ -2700,6 +2749,7 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
         {active.id === "notifications" && (window.__SETTINGS === undefined ? <PaneNotifications /> : <PaneNotificationsReal flash={flash} />)}
         {active.id === "billing" && (window.__SETTINGS === undefined ? <PaneBilling flash={flash} /> : <window.PaneBillingReal flash={flash} />)}
         {active.id === "platform" && window.PanePlatform && <window.PanePlatform />}
+        {active.id === "activity" && window.PaneActivity && <window.PaneActivity />}
       </div>
 
       {toastNode}
@@ -2711,3 +2761,4 @@ window.SettingsPage = SettingsPage;
 window.SET_TABS = SET_TABS;
 window.SET_TABS_PLATFORM = SET_TABS_PLATFORM; // the shell names the crumb; the rail above decides who sees it
 window.SetToggle = SetToggle; // consumed by calendar.jsx + reports.jsx (module-scope port fix)
+window.WorkspaceData = WorkspaceData; // rendered on its own by exports.test (the door the privacy page promises)

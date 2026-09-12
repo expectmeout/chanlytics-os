@@ -35,6 +35,7 @@
  * person decides. Detect and expose; never guess.
  */
 import { normalizePhone, formatPhoneDisplay } from "./phone";
+import { agoWords } from "./time";
 
 /** Where an answer came from, strongest claim first. */
 export type FactSource =
@@ -304,15 +305,30 @@ export const SOURCE_WORDS: Record<FactSource, string> = {
  */
 export function changedConfigFields(before: unknown, after: unknown): string[] {
   const top = (v: unknown): Record<string, unknown> => {
-    const brain = (v as { brain?: Record<string, unknown> } | null)?.brain ?? {};
+    const cfg = (v ?? {}) as { brain?: Record<string, unknown>; calendar?: unknown; notifications?: unknown; features?: unknown };
+    const brain = cfg.brain ?? {};
     const { profile, ...rest } = brain as Record<string, unknown> & { profile?: Record<string, unknown> };
     // The profile is where most edits land, so its keys are named individually
     // — "profile" changed is true of nearly every save and tells nobody
-    // anything.
-    return { ...rest, ...(profile ?? {}) };
+    // anything. The other sections are one key each: swapping the calendar
+    // feed or the alert addresses is a change worth a trace, and until these
+    // were here it left none.
+    return { ...rest, ...(profile ?? {}), calendar: cfg.calendar ?? null, notifications: cfg.notifications ?? null, features: cfg.features ?? null };
   };
   const a = top(before);
   const b = top(after);
   const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
   return keys.filter((k) => JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null));
+}
+
+/**
+ * "Last changed by Ada, two days ago" for the Business card, from the row's
+ * own author and stamp (migration 00085). A row written before the author
+ * was kept says so rather than inventing one; no stamp at all says nothing.
+ */
+export function lastChangedWords(updatedAt: string | null | undefined, byName: string | null, nowMs: number): string {
+  const at = updatedAt ? Date.parse(updatedAt) : NaN;
+  if (Number.isNaN(at)) return "";
+  const when = agoWords(at, nowMs);
+  return byName ? `Last changed by ${byName}, ${when}` : `Last changed ${when}, before we kept track of who`;
 }

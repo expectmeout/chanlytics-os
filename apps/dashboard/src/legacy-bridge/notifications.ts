@@ -2,11 +2,21 @@
  * The bell, wired to what the browser already holds.
  *
  * Reads the Inbox threads, the Live calls and the open invitations the
- * surfaces have fetched, builds the feed (contracts/notifications.ts), keeps
- * this device's read state in localStorage, and — when the owner asked for
- * it — raises a system notification for something new that needs them while
- * the app is in the background. Nothing here talks to a server; the feed is
- * exactly as fresh as the surfaces around it, and it refreshes when they do.
+ * surfaces have fetched, builds the feed (contracts/notifications.ts), shows
+ * it beside the rows the workspace keeps (the notifications surface), and —
+ * when the owner asked for it — raises a system notification for something
+ * new that needs them while the app is in the background.
+ *
+ * What lives where, so two devices agree:
+ *   - the kept rows' read and dismissed marks are the server's;
+ *   - the "seen everything" moment is the server's too: Mark all read writes
+ *     it there, every device reads it back, and this device keeps its own
+ *     copy only so the badge does not wait for the re-read;
+ *   - read and dismissed marks on DERIVED rows (a thread that needs you, a
+ *     held draft, a missed call, an open invitation — rows nothing stores)
+ *     stay on this device, keyed by the workspace's id, and go when their
+ *     row has left the feed;
+ *   - the device-alert switch is this device's, by definition.
  *
  * Published to the mockup's top bar as window.__notifs.
  */
@@ -43,6 +53,8 @@ interface Globals {
   __TEAM_INVITES?: FeedInvite[] | null;
   /** The kept rows, from the notifications surface. */
   __NOTIFICATIONS?: { dto: NotificationsDto } | null;
+  /** The workspace's id, as the server decided it. The marks are keyed by it: the slug is an address, and addresses change. */
+  __ACTIVE_WORKSPACE?: string;
 }
 
 /** The row the popover draws: the mockup's own shape. */
@@ -69,8 +81,8 @@ export function readState(storage: StorageLike | null, workspaceId: string | nul
     const j = JSON.parse(raw) as Partial<NotificationReadState>;
     return {
       seenAt: typeof j.seenAt === "number" ? j.seenAt : 0,
-      read: Array.isArray(j.read) ? j.read.filter((k): k is string => typeof k === "string").slice(-500) : [],
-      dismissed: Array.isArray(j.dismissed) ? j.dismissed.filter((k): k is string => typeof k === "string").slice(-500) : [],
+      read: Array.isArray(j.read) ? j.read.filter((k): k is string => typeof k === "string") : [],
+      dismissed: Array.isArray(j.dismissed) ? j.dismissed.filter((k): k is string => typeof k === "string") : [],
       alerts: j.alerts === true,
     };
   } catch {
@@ -135,15 +147,38 @@ export function installNotifications(
 ): BellApi {
   const listeners = new Set<() => void>();
   const emit = () => listeners.forEach((cb) => cb());
-  const ws = () => getActiveWorkspace();
+  // The workspace's id when the server has said which; the address's slug
+  // only before it has. A store keyed by the slug was orphaned by a rename.
+  const ws = () => win.__ACTIVE_WORKSPACE ?? getActiveWorkspace();
   const state = () => readState(storage, ws());
+  /**
+   * The "seen everything" moment as the server has it, or this device's own
+   * copy when that is later: Mark all read just went out and the re-read has
+   * not landed. Two devices read the same server value, so after Mark all
+   * read on one the badge is the same number on both.
+   */
+  const seenAt = () => Math.max(state().seenAt, Date.parse(win.__NOTIFICATIONS?.dto?.seen_at ?? "") || 0);
+  const deviceState = (): NotificationReadState => ({ ...state(), seenAt: seenAt() });
+  /**
+   * Marks for rows that have left the feed go, once the source that would
+   * hold the row is loaded to say so: a thread answered, a call read, an
+   * invitation accepted. The store used to grow for ever and be cut at five
+   * hundred on read, oldest first, which is a mark lost at random.
+   */
+  const prune = (s: NotificationReadState): NotificationReadState => {
+    const live = new Set(feedFromGlobals(win, Date.now()).map((i) => i.key));
+    const loaded = { threads: Array.isArray(win.INBOX_DATA?.THREADS), calls: !!win.__LIVE, invites: Array.isArray(win.__TEAM_INVITES) };
+    const keep = (k: string) => live.has(k) || !(k.startsWith("call:") ? loaded.calls : k.startsWith("invite:") ? loaded.invites : loaded.threads);
+    return { ...s, read: s.read.filter(keep), dismissed: s.dismissed.filter(keep) };
+  };
   const save = (patch: Partial<NotificationReadState>) => {
-    writeState(storage, ws(), { ...state(), ...patch });
+    writeState(storage, ws(), prune({ ...state(), ...patch }));
     emit();
   };
-  // What the surfaces derive (read state on this device) beside what the
-  // workspace keeps (read state on the server), newest first.
-  const rows = () => dedupeFeed([...applyReadState(feedFromGlobals(win, Date.now()), state()), ...serverNotificationRows(win.__NOTIFICATIONS?.dto)]).sort((a, b) => b.at - a.at);
+  // What the surfaces derive (read marks on this device, the seen moment
+  // the server's) beside what the workspace keeps (marks on the server),
+  // newest first.
+  const rows = () => dedupeFeed([...applyReadState(feedFromGlobals(win, Date.now()), deviceState()), ...serverNotificationRows(win.__NOTIFICATIONS?.dto)]).sort((a, b) => b.at - a.at);
   const isKept = (key: string) => key.startsWith(SERVER_KEY_PREFIX);
   // A kept row's marks go to the server, and the refresh map re-reads the
   // surface after one lands, so every device agrees; a failure here loses a

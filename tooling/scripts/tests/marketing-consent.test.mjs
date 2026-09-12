@@ -39,7 +39,7 @@ import {
   PEOPLE_LISTS, peopleListAction,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
-import { optInConfirmation } from "@chanlytics/contracts";
+import { optInConfirmation, verbalOptInScript } from "@chanlytics/contracts";
 import { campaignFactsFor } from "../../../apps/edge/lib/a2p.ts";
 
 test("which question a customer's message answers", () => {
@@ -193,38 +193,66 @@ test("the message flow filed with the carriers describes one program, every way 
   // informational opt-in. So the campaign is what the texting line carries:
   // replies and appointment messages, and nothing promotional. Offers go by
   // WhatsApp, where the page and the door send them.
-  const { messageFlow: flow, description: desc } = campaignFactsFor(FILED);
+  //
+  // FIFTH REFUSAL (30896 · MESSAGE_FLOW, 12 Sep 2026): the flow claimed a
+  // confirmation text on every yes (only START gets one) and consent by writing
+  // first (no disclosure, no action), and described a spoken yes with no script.
+  // Now every method is numbered and described the way the reviewers verify one,
+  // and the words it quotes are the product's own.
+  const { messageFlow: flow, description: desc, optInMessage } = campaignFactsFor(FILED);
 
   // Error 30917 wants, for EACH method: where it happens, what is disclosed there,
-  // and what action confirms it. Two places, the page and the paper, one program.
+  // and what action confirms it. Three ways in, one program, and all of them here.
   assert.match(flow, /for one program/);
   assert.match(flow, /No promotional messages are sent under this campaign/);
-  assert.ok(flow.includes(`WEB PAGE (${FILED.optInUrl})`), "the page, at the URL a reviewer opens");
-  assert.ok(flow.includes(`PAPER FORM (${FILED.optInUrl}/form)`), "and the paper form, at one too: a reviewer can only accept a form they can see");
+  assert.ok(flow.includes(`(1) KEYWORD START on the sign-up page (${FILED.optInUrl})`), "the page, at the URL a reviewer opens");
+  assert.ok(flow.includes(`(2) PAPER FORM (${FILED.optInUrl}/form)`), "and the paper form, at one too: a reviewer can only accept a form they can see");
+  assert.match(flow, /\(3\) IN PERSON OR ON THE PHONE: staff ask "/, "the spoken way, named as a method");
+  // A keyword method quotes its auto-reply (30917: "auto-reply confirmation
+  // message including brand name and opt-out instructions") -- the same words
+  // the campaign files as its opt-in message and the receptionist sends.
+  assert.ok(flow.includes(`receives the auto-reply "${optInMessage}"`), "the auto-reply, verbatim, from the filed opt-in message");
+  assert.equal(optInMessage, optInConfirmation(FILED.businessName, "conversational"));
+  // A spoken yes is described by its exact script (30896), the one the desk is
+  // shown; and it is never a yes to offers.
+  assert.ok(flow.includes(`staff ask "${verbalOptInScript(FILED.businessName)}"`), "the script, verbatim, from contracts");
+  assert.match(flow, /record a yes on the profile as "In person" or "On the phone" with the date and who heard it; a spoken yes is never used for promotions/);
+  // The first-message case is said for what the product does: a reply in that
+  // conversation, never enrolment (mayMessageFor: a proactive send needs a yes).
+  assert.match(flow, /A first text from a customer is answered in that conversation only and is not an opt-in; appointment messages go only to customers opted in by \(1\), \(2\) or \(3\)/);
+  assert.doesNotMatch(flow, /Every yes is confirmed|is consent to be answered|which staff record with the date/, "REGRESSION: claims the product does not keep -- only START is confirmed by a text, and a first message is answered, not enrolled");
   assert.ok(flow.includes("START"), "the keyword the product honours");
   assert.doesNotMatch(flow, /YES OFFERS|offers and news|promotional offers/, "REGRESSION: a marketing consent described in an informational campaign's flow");
-  assert.match(flow, /the page shows the number/, "a keyword opt-in needs where the number is seen (the reviewers' guide)");
-  assert.match(flow, /Privacy policy and terms links are on the page/, "30549, 30550: the links beside the call to action");
+  assert.match(flow, /It shows the number; the customer opts in by texting START to it from their own phone/, "a keyword opt-in needs where the number is seen and what the customer does (the reviewers' guide)");
+  assert.match(flow, /privacy policy and terms are linked on the page/, "30549, 30550: the links beside the call to action");
   // Linked in the flow itself: 30909 wants the privacy policy and the terms in
   // the message flow, and 30908 says the policy must be "directly referenced" there.
   assert.ok(flow.includes(`Privacy policy: ${FILED.hostedUrl}.`), "the business's own privacy page");
   assert.ok(flow.includes(`Terms: ${FILED.hostedUrl}/terms.`), "and its own terms, not Chanlytics' software agreement");
-  // A spoken yes is fine for appointment messages (the guide allows verbal
-  // consent for transactional programs) and is recorded with its date.
-  assert.match(flow, /in person or on the phone, which staff record with the date/);
-  assert.match(flow, /Every yes is confirmed by a text/);
-  // The disclosures the carriers require, verbatim, at the call to action.
-  assert.equal((flow.match(/message and data rates may apply/gi) ?? []).length, 1);
+  // The disclosures the carriers require, verbatim, at each call to action: the
+  // page's statement and the spoken script (the auto-reply says "Msg & data").
+  assert.equal((flow.match(/message and data rates may apply/gi) ?? []).length, 2);
   assert.ok(!/standard rates/i.test(flow), "\"standard\" implies premium-rate messaging and is refused");
   assert.match(flow, /reply HELP for help and STOP to stop/);
   // Twilio takes 40 to 2048 characters, and a long name on the longest slug a
   // workspace can mint has to fit, or the filing is refused before anyone reads it.
+  // The name four times and four URLs: with both quotes in, that workspace does
+  // not fit, so the auto-reply -- filed beside the flow as the campaign's own
+  // opt-in message -- is referred to instead, and the script stays verbatim.
+  const longName = "Northside Family Dental & Orthodontics of Brooklyn Heights";
   const long = campaignFactsFor({
     ...FILED,
-    businessName: "Northside Family Dental & Orthodontics of Brooklyn Heights",
+    businessName: longName,
     optInUrl: `https://app.chanlytics.com/yes/${"a".repeat(63)}`,
+    hostedUrl: `https://app.chanlytics.com/b/${"a".repeat(63)}`,
   });
   assert.ok(long.messageFlow.length <= 2048, `${long.messageFlow.length} characters`);
+  assert.ok(long.messageFlow.includes("receives the filed opt-in message as the auto-reply"), "referred to, not quoted, when quoting would not fit");
+  assert.ok(!long.messageFlow.includes(`auto-reply "`), "and not quoted as well");
+  assert.ok(long.messageFlow.includes(`staff ask "${verbalOptInScript(longName)}"`), "the script is quoted whatever the length: nothing else in the filing carries it");
+  for (const must of ["(1) KEYWORD START on the sign-up page (", "(2) PAPER FORM (", "(3) IN PERSON OR ON THE PHONE", "Privacy policy: https://", "Terms: https://"]) {
+    assert.ok(long.messageFlow.includes(must), `every method and both links survive the short form: ${must}`);
+  }
   assert.ok(flow.length >= 40);
 
   // The description: who sends, to whom and why -- what 30886 said was unclear,

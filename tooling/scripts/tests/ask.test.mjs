@@ -284,7 +284,7 @@ test("the gateway: the key stays on the edge, Ask's tokens have their own event 
   assert.ok(g.includes('body: JSON.stringify({ ...v.request, stream: true }),'));
   assert.ok(g.includes("const stream = teeUsage(upstream.body, async (usage, stopReason) => {"));
   const lib = readCode("apps/edge/lib/ask-gateway.ts");
-  assert.ok(lib.includes('export const ASK_USAGE_KIND = "usage.ask_tokens";'));
+  assert.ok(lib.includes('export const ASK_USAGE_KIND = "usage.ask_tokens" as const;'));
   const budget = readCode("apps/edge/lib/budget.ts");
   assert.ok(budget.includes('.eq("kind", "usage.llm_tokens")') && !budget.includes("ask_tokens"), "the receptionist's budget never counts Ask");
   assert.equal(ASK_TOKENS_DAY, 1_500_000, "sized for a workspace's day with the snapshot in every round; 400k was spent by one day of eval runs");

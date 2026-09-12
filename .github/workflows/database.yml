@@ -7,16 +7,22 @@ name: Database
 #
 # It runs when the database could have changed. The replay depends on the
 # migrations, the seed and the config under supabase/, on the SQL suites, and
-# on the generated sets the --check compares with the database; the suites
-# reach Postgres through supabase-js alone, never through apps/ or a package
-# dist. Branch protection requires Secret scan and Typecheck only, so a pull
-# request that leaves the database alone is not held for a check that did not
-# run. Two workflows on every push spent the included minutes by 11 September.
+# on the generated sets the --check compares with the database. The *.db
+# suites reach Postgres through supabase-js alone; the *.integration suites
+# (eleven of them, written against a live database and skipped everywhere
+# else for a year) also call the db package's repositories -- ingestCall,
+# resolveOutboundTarget, readThreadState -- through its committed dist, which
+# is why packages/db/src is a trigger too. Branch protection requires Secret
+# scan and Typecheck only, so a pull request that leaves the database alone
+# is not held for a check that did not run. Two workflows on every push spent
+# the included minutes by 11 September.
 on:
   pull_request:
     paths:
       - "supabase/**"
       - "tooling/scripts/tests/*.db.test.mjs"
+      - "tooling/scripts/tests/*.integration.test.mjs"
+      - "packages/db/src/**"
       - "tooling/scripts/gen-schema-sets.mjs"
       - "packages/contracts/src/schema-sets.generated.ts"
       - ".github/workflows/database.yml"
@@ -27,6 +33,8 @@ on:
     paths:
       - "supabase/**"
       - "tooling/scripts/tests/*.db.test.mjs"
+      - "tooling/scripts/tests/*.integration.test.mjs"
+      - "packages/db/src/**"
       - "tooling/scripts/gen-schema-sets.mjs"
       - "packages/contracts/src/schema-sets.generated.ts"
       - ".github/workflows/database.yml"

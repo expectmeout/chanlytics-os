@@ -399,10 +399,31 @@ function hhmm(s: string): [number, number] | null {
   return m ? [Number(m[1]), Number(m[2])] : null;
 }
 
+/**
+ * When a day is open, as one list of [open, close] spans.
+ *
+ * open/close and intervals are UNIONED, merged where they touch or overlap,
+ * and a span that runs backwards is dropped. This is the ONE reader: the
+ * prompt (config.ts), the free windows a caller is offered and the calendar
+ * board all read a day through it. It used to have two readers -- the prompt
+ * unioned the two, this one let intervals win -- so a row holding both could
+ * be described two ways, and "are you open at nine?" had two answers.
+ */
 export function dayIntervals(h: Hours | undefined): Array<[string, string]> {
-  if (!h) return [];
-  if (h.intervals?.length) return h.intervals.filter((i) => i.open && i.close).map((i) => [i.open, i.close] as [string, string]);
-  return h.open && h.close ? [[h.open, h.close]] : [];
+  const raw: Array<[string, string]> = [];
+  if (h?.open && h?.close) raw.push([h.open, h.close]);
+  for (const iv of h?.intervals ?? []) if (iv?.open && iv?.close) raw.push([iv.open, iv.close]);
+  const usable = raw.filter(([o, c]) => c > o).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  const merged: Array<[string, string]> = [];
+  for (const [o, c] of usable) {
+    const last = merged[merged.length - 1];
+    if (last && o <= last[1]) {
+      if (c > last[1]) last[1] = c;
+    } else {
+      merged.push([o, c]);
+    }
+  }
+  return merged;
 }
 
 export function closedOn(closures: Closure[] | undefined, key: string): boolean {

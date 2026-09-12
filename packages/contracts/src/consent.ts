@@ -97,6 +97,63 @@ export const PURPOSE_REFUSALS: Record<string, string> = {
 };
 
 /**
+ * Said once on the Broadcasts page, where an owner picks an offer to send.
+ * The refusal above is per customer, at the wire; this is the rule, for the
+ * page, so a customer who only ever texted being absent from an offer's count
+ * reads as the rule it is and not as a bug.
+ */
+export const OFFERS_BY_WHATSAPP_NOTE =
+  "Offers and news go by WhatsApp only. The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text; someone who has only ever texted you hears about offers once they say yes on WhatsApp.";
+
+/**
+ * One change to one of the two answers, as the ledger recorded it.
+ *
+ * The events row is the proof: which question, what was said, how, by whom,
+ * and -- for an answer the customer texted -- the channel, the provider's own
+ * id of the message and the customer's words (00110). "When did she say yes,
+ * to what, and how do we know" is answered from these and nothing else; the
+ * profile's timeline and the workspace export both read this shape.
+ */
+export interface ConsentChange {
+  id: string;
+  contact_id: string | null;
+  at: string;
+  /** Which question: messages about their visit, or offers. */
+  purpose: "conversational" | "marketing";
+  consent: string | null;
+  previous: string | null;
+  /** How it was given: in person, on the phone, a signed form, their own message; "operator" is the reset. */
+  source: string | null;
+  /** The member who recorded it (their user id), or null when the customer's own message did. */
+  by: string | null;
+  note: string | null;
+  /** For an answer the customer texted: where it came from, which message, and what they wrote. */
+  channel: string | null;
+  message_external_id: string | null;
+  words: string | null;
+}
+
+/** An events row of kind contact.consent_changed, as the doors write it (00043, 00013, 00095, 00110). */
+export function consentChangeOf(e: { id: string; subject_id: string | null; created_at: string; data: unknown }): ConsentChange {
+  const d = (e.data ?? {}) as Record<string, unknown>;
+  const str = (k: string): string | null => (typeof d[k] === "string" && (d[k] as string) !== "" ? (d[k] as string) : null);
+  return {
+    id: e.id,
+    contact_id: e.subject_id,
+    at: e.created_at,
+    purpose: d.purpose === "marketing" ? "marketing" : "conversational",
+    consent: str("consent"),
+    previous: str("previous"),
+    source: str("source"),
+    by: str("by"),
+    note: str("note"),
+    channel: str("channel"),
+    message_external_id: str("message_external_id"),
+    words: str("words"),
+  };
+}
+
+/**
  * What kind of message a WhatsApp template is, from the category META assigned
  * it — which is the authority, not what the workspace asked for, and which Meta
  * can change on a live template.

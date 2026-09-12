@@ -22,7 +22,7 @@ export default function TermsPage() {
       <h2>Your account</h2>
       <ul>
         <li>You must be able to act for the business you sign up. You are responsible for who you invite and for what they do in the workspace.</li>
-        <li>Sign-in is by a code sent to your email; keep that inbox secure.</li>
+        <li>Sign-in is with your Google account or by a code sent to your email; keep that inbox and that account secure.</li>
         <li>The facts you give the receptionist — hours, prices, services, policies — are yours to keep true. The receptionist answers with them as they are.</li>
       </ul>
 

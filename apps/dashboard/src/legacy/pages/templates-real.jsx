@@ -2,7 +2,7 @@
 // A template written here: drafted with the assistant in the business's
 // voice, checked against WhatsApp's rules before it leaves, submitted to
 // Meta for review, and tracked to approval by the webhook. Rendered on the
-// Broadcasts page and in Settings › Message templates; one component,
+// Broadcasts page and on Campaigns › Messages; one component,
 // published as window.TemplateComposer. Nothing here sends a message.
 
 const TC_LANGS = [

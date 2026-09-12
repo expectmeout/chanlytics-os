@@ -72,19 +72,34 @@ export type JobKind = (typeof JOB_KINDS)[number];
 export const JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"] as const;
 export type JobState = (typeof JOB_STATES)[number];
 
-/** Dot-namespaced event kinds emitted so far (grows per slice). */
+/**
+ * Meta's account-level webhook fields (WABA). Each arrives as an event of kind
+ * `channel.<field>`, so this list is also the one computed family of event
+ * kinds; the edge's WABA_FIELDS is a Set of it.
+ */
+export const WABA_FIELDS = [
+  "phone_number_quality_update", "account_update", "message_template_status_update",
+  "account_review_update", "message_template_quality_update", "template_category_update",
+] as const;
+export type WabaEventKind = `channel.${(typeof WABA_FIELDS)[number]}`;
+
+/**
+ * Every event kind the product writes, and nothing it does not.
+ *
+ * Held to the emitters by tooling/scripts/tests/event-kinds.test.mjs, a
+ * repo-wide lint: a kind here that nothing emits is a dead declaration, a
+ * kind emitted that is not here is a row nobody can name. Both were true for
+ * months (three dead, fourteen undeclared) before the lint existed.
+ */
 export const EVENT_KINDS = [
   "message.received",
   "message.sent",
-  "message.status",
-  "escalation.opened",
   "contact.consent_changed",
   "usage.llm_tokens",
   "usage.wa_conversation",
   "ingest.allowlist_skip",
   /** The sender cannot receive a reply — a short code. Recorded, never answered. */
   "ingest.unreachable_sender",
-  "ingest.pg_failed",
   "message.send_failed",
   "message.send_blocked",
   "message.send_raced_cancel",
@@ -128,8 +143,32 @@ export const EVENT_KINDS = [
   "billing.updated",
   "billing.paused",
   "billing.resumed",
+  /** A call: the row (00007) and the seconds it cost. */
+  "call.recorded",
+  "usage.voice_seconds",
+  /** The assistant's model usage, per turn (ask-gateway). */
+  "usage.ask_tokens",
+  /** Retell's webhook: every delivery and every refused signature, kept thirty days (00038). */
+  "webhook.auth",
+  "webhook.delivery",
+  /** A person who came from the calendar or a hand, not from a message (00053). */
+  "contact.added",
+  /** A person renamed or annotated at the desk (00054). */
+  "contact.named",
+  "contact.noted",
+  /** An inbound the router could not place on any workspace. */
+  "ingest.unroutable",
+  /** A reply skipped because its veto window had already been spent. */
+  "policy.veto_window_skipped",
+  /** The sweep woke a snooze whose time had passed (00082). */
+  "conversation.snooze_expired",
+  /** A broadcast finished, with its tally; a playbook made a run. */
+  "broadcast.sent",
+  "playbook.run",
+  /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
+  "channel.connected",
 ] as const;
-export type EventKind = (typeof EVENT_KINDS)[number];
+export type EventKind = (typeof EVENT_KINDS)[number] | WabaEventKind;
 
 /** Customer texts that mean opt-out (webhook consent handling, §4). */
 export const OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
@@ -300,12 +339,21 @@ export const DECISION_VERBS = [
    * Replaces the previous answer; Google keeps one per review.
    */
   "reply_review",
+  /**
+   * A copy of the workspace's data left the building: everyone as a CSV, a
+   * thread, a call, or the whole workspace. Subject "workspace" for the two
+   * that carry everyone; the thread's or the call's own row for the others.
+   * The one verb an auditor asks about that the ledger did not keep.
+   */
+  "export",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 
 export const DECISION_SUBJECTS = [
   "conversation", "escalation", "draft", "lead", "message", "agent",
   "membership", "invitation", "contact", "call", "channel", "broadcast", "playbook", "review",
+  /** The workspace itself: an export of everyone, or of everything. Its id is the tenant's. */
+  "workspace",
 ] as const;
 export type DecisionSubject = (typeof DECISION_SUBJECTS)[number];
 

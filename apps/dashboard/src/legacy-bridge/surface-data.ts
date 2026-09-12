@@ -1,4 +1,4 @@
-import { POLICY_CLASS_WORDS } from "@chanlytics/contracts";
+import { POLICY_CLASS_WORDS, type PersonRowDto } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/prompt-preview";
 /**
  * The SurfaceData seam (Blueprint v3.0, Slice 0 exit criterion).
@@ -187,7 +187,7 @@ import {
   type BookingReportVM,
   type CalendarVM,
 } from "@chanlytics/contracts";
-import { EVERYONE_LABEL, HELD_REASONS, OFFERS_OPT_IN_PHRASES, eligibleFor, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, purposeOfTemplate, type AudienceKind, type BroadcastVM, type NumberHealth, type SendPurpose } from "@chanlytics/contracts";
+import { EVERYONE_LABEL, HELD_REASONS, OFFERS_BY_WHATSAPP_NOTE, OFFERS_OPT_IN_PHRASES, eligibleFor, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, purposeOfTemplate, type AudienceKind, type BroadcastVM, type NumberHealth, type SendPurpose } from "@chanlytics/contracts";
 import { PLAYBOOK_TRIGGERS, eligibleForPlaybook, nextRunLabel, scheduleLine, triggerOf, type PlaybookDto } from "@chanlytics/contracts";
 
 /**
@@ -448,7 +448,7 @@ export const settingsOverride: SurfaceOverride = {
       read("GET templates", { query: { all: "1" } }).catch((e: unknown) => e as Error),
     ]);
     const w = window as unknown as {
-      __SETTINGS?: { config: WorkspaceSettings | null; version: number; role: string; broken: { issues: string[] } | null; prompt: PromptPreviewDto | null };
+      __SETTINGS?: { config: WorkspaceSettings | null; version: number; role: string; broken: { issues: string[] } | null; prompt: PromptPreviewDto | null; updatedBy: string | null; updatedAt: string | null };
       __FACTS?: { facts: ResolvedFacts; conflicts: FactConflict[] } | null;
       __TEAM?: unknown[] | null;
       __TEAM_INVITES?: unknown[] | null;
@@ -462,8 +462,8 @@ export const settingsOverride: SurfaceOverride = {
     // The prompt rides with the config: composed on the server from inputs the
     // browser cannot see, null when there is no receptionist to compose for.
     w.__SETTINGS = cfg.configBroken
-      ? { config: null, version: cfg.version, role: cfg.role, broken: { issues: cfg.issues ?? [] }, prompt: null }
-      : { config: cfg.config ?? {}, version: cfg.version, role: cfg.role, broken: null, prompt: cfg.prompt ?? null };
+      ? { config: null, version: cfg.version, role: cfg.role, broken: { issues: cfg.issues ?? [] }, prompt: null, updatedBy: null, updatedAt: null }
+      : { config: cfg.config ?? {}, version: cfg.version, role: cfg.role, broken: null, prompt: cfg.prompt ?? null, updatedBy: cfg.updatedBy ?? null, updatedAt: cfg.updatedAt ?? null };
     // Resolved on the server, where the channel rows and the listing are. Null
     // on a broken config for the same reason the forms close: there is nothing
     // trustworthy to resolve against.
@@ -530,7 +530,76 @@ export interface PeopleSurface {
   calendar: { state: "ok" | "unavailable" | "none"; source: string };
   /** The booking link on file, so a row can offer to text it. */
   bookingLink: string | null;
+  /** The page the rows came from: how many there are in all, and whether more follow (00112). */
+  page: { q: string | null; offset: number; limit: number; total: number; has_more: boolean } | null;
+  /** What this member's pages remember in this workspace (memberships.views). */
+  views: Record<string, unknown>;
   fetchedAt: number;
+}
+
+/** What the People surface holds between reads: the rows loaded so far, and the rest it derives from. */
+let peopleLoaded: {
+  people: PersonRowDto[];
+  page: PeopleSurface["page"];
+  saved: { id: string; name: string; ids: string[] }[];
+  calendar: PeopleSurface["calendar"];
+  bookingLink: string | null;
+  views: Record<string, unknown>;
+} | null = null;
+
+/** The surface from what is loaded: every list, count and cell derived the same way, whether after the first read or a later page. */
+function publishPeople(): void {
+  if (!peopleLoaded) return;
+  const now = new Date();
+  const rows = peopleLoaded.people.map((r) => toPersonRowVM(r, now));
+  const rowIds = new Set(rows.map((r) => r.id));
+  const calendar = peopleLoaded.calendar;
+  (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE = {
+    rows,
+    // The outcome lists only when there is a calendar to read them from.
+    lists: PEOPLE_LISTS.filter((l) => !l.needsCalendar || calendar.state === "ok").map((l) => {
+      const members = rows.filter(l.test);
+      return { id: l.id, label: l.label, group: l.group, count: members.length, ids: members.map((r) => r.id), action: peopleListAction(l.id, members) };
+    }),
+    groups: PEOPLE_LIST_GROUPS.map((g) => ({ id: g.id, label: g.label })),
+    calendar,
+    bookingLink: peopleLoaded.bookingLink,
+    saved: peopleLoaded.saved.map((l) => {
+      const ids = l.ids.filter((id) => rowIds.has(id));
+      return { id: l.id, name: l.name, count: ids.length, ids };
+    }),
+    // The total is the server's: past the first page the rows here are not everyone.
+    aggregates: { ...peopleAggregates(rows, now.getTime()), total: peopleLoaded.page?.total ?? rows.length },
+    recency: Object.fromEntries(
+      PEOPLE_TABS.filter((t) => t.id !== "all").map((t) => [t.id, recencyCells(rows.filter((r) => r.state === t.id), now.getTime())]),
+    ),
+    attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, now.getTime())])),
+    page: peopleLoaded.page,
+    views: peopleLoaded.views,
+    fetchedAt: now.getTime(),
+  };
+}
+
+/**
+ * The next thousand, appended under the same order, and the surface told:
+ * `window.__peopleMore()`. The page shows the button only while the server
+ * says more follow.
+ */
+async function peopleMore(): Promise<void> {
+  if (!peopleLoaded?.page?.has_more) return;
+  const next = await read("GET contacts", { query: { offset: peopleLoaded.people.length } });
+  const seen = new Set(peopleLoaded.people.map((p) => p.id));
+  peopleLoaded.people = [...peopleLoaded.people, ...next.people.filter((p) => !seen.has(p.id))];
+  peopleLoaded.page = next.page;
+  publishPeople();
+  window.dispatchEvent(new CustomEvent("surface:clients"));
+}
+
+/** Everyone who matches, from the server, when the page does not hold everyone: `window.__peopleSearch(q)`. */
+async function peopleSearch(q: string): Promise<PersonRowVM[]> {
+  const r = await read("GET contacts", { query: { q } });
+  const now = new Date();
+  return r.people.map((p) => toPersonRowVM(p, now));
 }
 
 /**
@@ -551,35 +620,24 @@ export const peopleOverride: SurfaceOverride = {
   events: ["surface:clients"],
   refreshOnMessageInserts: true,
   apply: async () => {
-    const [data, savedData] = await Promise.all([
+    const [data, savedData, viewsData] = await Promise.all([
       read("GET contacts"),
       read("GET segments"),
+      // A member's own views; a route that is not there yet reads as none.
+      read("GET views").catch(() => ({ views: {} as Record<string, unknown> })),
     ]);
-    const now = new Date();
-    const rows = data.people.map((r) => toPersonRowVM(r, now));
-    const rowIds = new Set(rows.map((r) => r.id));
-    const calendar = data.calendar ?? { state: "none" as const, source: "your calendar" };
-    (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE = {
-      rows,
-      // The outcome lists only when there is a calendar to read them from.
-      lists: PEOPLE_LISTS.filter((l) => !l.needsCalendar || calendar.state === "ok").map((l) => {
-        const members = rows.filter(l.test);
-        return { id: l.id, label: l.label, group: l.group, count: members.length, ids: members.map((r) => r.id), action: peopleListAction(l.id, members) };
-      }),
-      groups: PEOPLE_LIST_GROUPS.map((g) => ({ id: g.id, label: g.label })),
-      calendar,
+    peopleLoaded = {
+      people: data.people,
+      page: data.page ?? null,
+      saved: savedData.lists,
+      calendar: data.calendar ?? { state: "none" as const, source: "your calendar" },
       bookingLink: data.booking_link ?? null,
-      saved: savedData.lists.map((l) => {
-        const ids = l.ids.filter((id) => rowIds.has(id));
-        return { id: l.id, name: l.name, count: ids.length, ids };
-      }),
-      aggregates: peopleAggregates(rows, now.getTime()),
-      recency: Object.fromEntries(
-        PEOPLE_TABS.filter((t) => t.id !== "all").map((t) => [t.id, recencyCells(rows.filter((r) => r.state === t.id), now.getTime())]),
-      ),
-      attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, now.getTime())])),
-      fetchedAt: now.getTime(),
+      views: viewsData.views ?? {},
     };
+    const w = window as unknown as { __peopleMore?: () => Promise<void>; __peopleSearch?: (q: string) => Promise<PersonRowVM[]> };
+    w.__peopleMore = peopleMore;
+    w.__peopleSearch = peopleSearch;
+    publishPeople();
   },
 };
 
@@ -631,6 +689,8 @@ export interface BroadcastsSurface {
   /** The business's own words for the slots that name it, and whether a booking link is on file. */
   businessName: string;
   bookingLink: boolean;
+  /** Why offers go by WhatsApp only, said once on the page (contracts OFFERS_BY_WHATSAPP_NOTE). */
+  offersNote: string;
   fetchedAt: number;
 }
 
@@ -699,6 +759,7 @@ export const broadcastsOverride: SurfaceOverride = {
       heldReasons: HELD_REASONS,
       businessName: brain?.business_name || "the business",
       bookingLink: !!brain?.booking_link,
+      offersNote: OFFERS_BY_WHATSAPP_NOTE,
       optIn: {
         phrase: OFFERS_OPT_IN_PHRASES.en,
         phraseEs: OFFERS_OPT_IN_PHRASES.es,
@@ -724,6 +785,8 @@ export interface PlaybookTotalsVM {
   lastRun: { id: string; state: string; run_for: string | null; recipient_count: number } | null;
   /** A run waiting for a person: the broadcast to approve or skip. */
   waiting: { id: string; recipient_count: number; name: string } | null;
+  /** The most recent runs, newest first; the totals above are over every run. */
+  history: { id: string; run_for: string | null; state: string; scheduled_for: string; recipient_count: number; sent: number; held: number; delivered: number; replied: number }[];
 }
 
 export interface PlaybookCardVM extends PlaybookDto {
@@ -735,9 +798,11 @@ export interface PlaybookCardVM extends PlaybookDto {
   schedule: string;
   /** "today 10:00", "tomorrow 10:00" or "paused", by the business's clock. */
   next: string;
-  /** How many are on the trigger's list with a recorded yes right now —
-   *  before the gap and the week's breath, which only the run applies. */
+  /** How many are on the trigger's list with a recorded yes right now and
+   *  clear of the week's breath -- before the gap, which only the run applies. */
   candidates: number;
+  /** How many more said yes but heard from a broadcast of any kind this week, and wait. */
+  held: number;
 }
 
 export interface PlaybookTriggerOption {
@@ -749,6 +814,7 @@ export interface PlaybookTriggerOption {
   /** list, cadence or visit — a visit trigger needs the calendar and has no gap. */
   kind: string;
   candidates: number;
+  held: number;
 }
 
 export interface PlaybooksSurface {
@@ -791,9 +857,15 @@ export const playbooksOverride: SurfaceOverride = {
     ]);
     const now = new Date();
     const rows = people.people.map((r) => toPersonRowVM(r, now));
+    // The week's breath, as the sweep applies it: who any broadcast reached
+    // this week (the route reads the recipient rows). The count the page shows
+    // is who a run would pick NOW; the rest are said to be waiting.
     const untouched = { byThis: new Map<string, number>(), byAny: new Map<string, number>() };
-    const pool = (trigger: string) =>
-      eligibleForPlaybook(rows, { trigger: trigger as PlaybookDto["trigger"], cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, untouched, now.getTime()).length;
+    const breath = { byThis: new Map<string, number>(), byAny: new Map<string, number>(Object.entries(pb.touched ?? {}).map(([id, at]) => [id, Date.parse(at)])) };
+    const poolWith = (trigger: string, touches: typeof untouched) =>
+      eligibleForPlaybook(rows, { trigger: trigger as PlaybookDto["trigger"], cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, touches, now.getTime()).length;
+    const pool = (trigger: string) => poolWith(trigger, breath);
+    const held = (trigger: string) => Math.max(0, poolWith(trigger, untouched) - poolWith(trigger, breath));
     const wa = ch instanceof Error ? null : (ch.channels ?? []).find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
     const brain = cfg instanceof Error ? null : cfg.config?.brain ?? null;
     if (tpl instanceof Error) console.error("playbooks_templates_fetch_failed", tpl.message);
@@ -810,11 +882,12 @@ export const playbooksOverride: SurfaceOverride = {
           schedule: scheduleLine(p),
           next: nextRunLabel(p, tz, now),
           candidates: pool(p.trigger),
+          held: held(p.trigger),
         };
       }),
       timezone: tz,
       calendar: people.calendar?.state ?? "none",
-      triggers: PLAYBOOK_TRIGGERS.map((t) => ({ id: t.id, label: t.label, hint: t.hint, cls: t.cls, list: t.list, kind: t.kind, candidates: pool(t.id) })),
+      triggers: PLAYBOOK_TRIGGERS.map((t) => ({ id: t.id, label: t.label, hint: t.hint, cls: t.cls, list: t.list, kind: t.kind, candidates: pool(t.id), held: held(t.id) })),
       templates: tpl instanceof Error
         ? []
         : (tpl.templates ?? [])

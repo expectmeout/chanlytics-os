@@ -25,6 +25,7 @@ import { handleInbound, type InboundCarrier } from "../lib/whatsapp/inbound.js";
 import { alertUnroutable } from "../lib/whatsapp/alerts.js";
 import { IngestFailed } from "../lib/whatsapp/persist.js";
 import { logger } from "../lib/log.js";
+import { phoneTail } from "../lib/workspace/contracts.js";
 
 export const config = { maxDuration: 60 };
 
@@ -37,7 +38,8 @@ export async function POST(request: Request): Promise<Response> {
   for (const [k, v] of new URLSearchParams(raw)) form[k] = v;
   const inbound = smsInboundFrom(form);
   if (!inbound) return twiml(400);
-  const L = logger({ sid: inbound.messageSid, from: inbound.from, to: inbound.to });
+  // Tails, never numbers: enough to follow one text through the log, not enough to dial.
+  const L = logger({ sid: inbound.messageSid, from_tail: phoneTail(inbound.from), to_tail: phoneTail(inbound.to) });
 
   const db = pg();
   if (!db) return twiml(503);

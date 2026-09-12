@@ -1,7 +1,6 @@
-import { CONSENT_SOURCES, mayReceive, offersYesRefusal, toPersonVM, type PersonVM, type SendPurpose } from "@chanlytics/contracts";
+import { CONSENT_SOURCES, mayReceive, offersYesRefusal, toPersonVM, verbalOptInScript, type PersonVM, type SendPurpose } from "@chanlytics/contracts";
 import { api } from "./api";
 import { ApiError, type ApiResult } from "../client/api";
-import { refreshAfter } from "./refresh-map";
 
 /**
  * The profile courier: `window.__personDetail(id)`.
@@ -97,25 +96,66 @@ export async function setPersonMarketingConsent(id: string, body: ConsentBody): 
 
 /**
  * The same answer for many at once — a yes given at the desk by a whole
- * class, say: `window.__setPersonConsentMany(ids, body)`. One request per
- * person (the door is per person and the ledger says who), fifty at most
- * in one go, one refresh at the end.
+ * class, say: `window.__setPersonConsentMany(ids, body)`. ONE request, fifty
+ * at most, through the batch door (server/consent.ts), which walks the same
+ * per-person door each would go through alone and records a decision per
+ * person. It used to be one request per person -- fifty round trips and
+ * fifty takes of the consent bucket for one act at the desk.
  */
 export interface ManyResult { ok: boolean; done: number; failed: number; message?: string }
 
+type ManyRoute = "PUT contacts/consent" | "PUT contacts/marketing-consent";
+const MANY_ROUTE: Record<SendPurpose, ManyRoute> = {
+  conversational: "PUT contacts/consent",
+  marketing: "PUT contacts/marketing-consent",
+};
+
+/** A batch door's answer, in the bar's words. Not ours, or gone: not done, and said so -- it is not an error to have selected a row that changed underneath you. */
+function manyResult(r: ApiResult<unknown>, asked: number, verb = "recorded"): ManyResult {
+  if (!r.ok) return { ok: false, done: 0, failed: asked, message: r.message };
+  const d = r.data as { done: number; failed: { id: string; message: string }[]; skipped: string[] };
+  const failed = d.failed.length + d.skipped.length;
+  const why = d.failed[0]?.message ?? (d.skipped.length ? "no longer in this workspace" : undefined);
+  return { ok: failed === 0, done: d.done, failed, message: failed ? `${failed} could not be ${verb}${why ? ` — ${why}` : ""}` : undefined };
+}
+
 async function recordMany(ids: string[], body: ConsentBody, purpose: SendPurpose): Promise<ManyResult> {
   const take = [...new Set(ids)].slice(0, 50);
-  let done = 0;
-  let failed = 0;
-  let message: string | undefined;
-  for (const id of take) {
-    // Each request holds the map; the surface is re-read once, below.
-    const r = await api()(CONSENT_ROUTE[purpose], { params: { id }, body, refresh: false });
-    if (r.ok) done += 1;
-    else { failed += 1; message = message ?? r.message; }
-  }
-  await refreshAfter(CONSENT_ROUTE[purpose]);
-  return { ok: failed === 0, done, failed, message: failed ? `${failed} could not be recorded${message ? ` — ${message}` : ""}` : undefined };
+  return manyResult(await api()(MANY_ROUTE[purpose], { body: { ids: take, ...body } }), take.length);
+}
+
+export type ReceptionistMany = "auto" | "ask" | "never" | "inherit";
+
+/** The receptionist's mode for a selection: `window.__setPersonReceptionistMany(ids, mode)`. Owners; one request. */
+export async function setPersonReceptionistMany(ids: string[], mode: ReceptionistMany): Promise<ManyResult> {
+  const take = [...new Set(ids)].slice(0, 50);
+  return manyResult(await api()("PUT contacts/receptionist", { body: { ids: take, mode } }), take.length, "changed");
+}
+
+/** One note line under a selection's notes: `window.__appendPersonNotesMany(ids, line)`. Operator or owner; one request. */
+export async function appendPersonNotesMany(ids: string[], line: string): Promise<ManyResult> {
+  const take = [...new Set(ids)].slice(0, 50);
+  return manyResult(await api()("PUT contacts/notes", { body: { ids: take, append: line } }), take.length, "noted");
+}
+
+/**
+ * A person added by hand: a number and, if known, a name, through the door
+ * the calendar sweep uses (POST /contacts: get-or-create, consent unknown).
+ * `window.__addPerson({ phone, name })` answers with the id and whether they
+ * were already here; the People surface re-reads after it.
+ */
+export async function addPerson(body: { phone: string; name?: string }): Promise<ApiResult<{ contact_id: string; existed: boolean }>> {
+  return api()("POST contacts", { body });
+}
+
+/**
+ * A page remembering its view in this workspace: `window.__saveView("people",
+ * { sortBy, sortDir, attentionTab })`. The member's own row, per workspace,
+ * so a phone and a laptop show the page the same way. No surface re-read: the
+ * view is the caller's own state already.
+ */
+export async function saveView(page: string, view: Record<string, unknown>): Promise<ApiResult<{ views: Record<string, unknown> }>> {
+  return api()("PUT views/[page]", { params: { page }, body: { view }, refresh: false });
 }
 
 export async function setPersonConsentMany(ids: string[], body: ConsentBody): Promise<ManyResult> {
@@ -139,6 +179,12 @@ declare global {
     __mayReceive?: typeof mayReceive;
     /** The ways a yes to OFFERS may be recorded: in writing only (00100). A no keeps every source. */
     __offersYesSources?: readonly { id: string; label: string }[];
+    /** What staff ask in person or on the phone -- the sentence the campaign files as its spoken opt-in. */
+    __verbalOptInScript?: (businessName: string) => string;
+    __setPersonReceptionistMany?: (ids: string[], mode: ReceptionistMany) => Promise<ManyResult>;
+    __appendPersonNotesMany?: (ids: string[], line: string) => Promise<ManyResult>;
+    __addPerson?: (body: { phone: string; name?: string }) => Promise<ApiResult<{ contact_id: string; existed: boolean }>>;
+    __saveView?: (page: string, view: Record<string, unknown>) => Promise<ApiResult<{ views: Record<string, unknown> }>>;
     __deletePerson?: (id: string) => Promise<DeleteResult>;
     __setPersonDetails?: (id: string, body: DetailsBody) => Promise<DeleteResult>;
     __setPersonReceptionist?: (id: string, mode: "auto" | "ask" | "never" | "inherit") => Promise<DeleteResult>;
@@ -173,4 +219,11 @@ export function installPeopleCourier(): void {
   window.__mayReceive = mayReceive;
   // The rule, applied once, so the profile and the bulk menu offer the same ways.
   window.__offersYesSources = CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null);
+  // The words, not a copy of them: the filing quotes this sentence as the way a
+  // yes is asked for in person or on the phone, so the desk sees the same one.
+  window.__verbalOptInScript = verbalOptInScript;
+  window.__setPersonReceptionistMany = setPersonReceptionistMany;
+  window.__appendPersonNotesMany = appendPersonNotesMany;
+  window.__addPerson = addPerson;
+  window.__saveView = saveView;
 }

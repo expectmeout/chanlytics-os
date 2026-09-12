@@ -1,4 +1,4 @@
-import { AppError } from "@chanlytics/contracts";
+import { AppError, consentChangeOf } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { read, write, workspace } from "@/server/route";
 import { erasureScope, recordDecision } from "@/server/verbs";
@@ -190,7 +190,7 @@ export const GET = read({
     if (!row) throw new AppError("not_found", "This person is not in your workspace.", 404);
 
     const sb = ctx.supabase;
-    const [idents, convs, calls, personPol, wsPol, added, own, cfgRow] = await Promise.all([
+    const [idents, convs, calls, personPol, wsPol, added, own, cfgRow, history] = await Promise.all([
       sb.from("contact_identities").select("channel, external_id, created_at").eq("contact_id", id).order("created_at"),
       sb.from("conversations").select(CONVERSATION_COLUMNS).eq("tenant_id", tenantId).eq("contact_id", id)
         .order("last_message_at", { ascending: false, nullsFirst: false }),
@@ -209,7 +209,12 @@ export const GET = read({
       sb.from("contacts").select("notes").eq("id", id).maybeSingle(),
       // The booking link, so the profile can text it in one step.
       sb.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+      // Every change to either answer: the ledger rows the doors write, which
+      // the timeline shows as evidence. Newest first, two hundred at most.
+      sb.from("events").select("id, subject_id, created_at, data").eq("tenant_id", tenantId).eq("kind", "contact.consent_changed")
+        .eq("subject_type", "contact").eq("subject_id", id).order("created_at", { ascending: false }).limit(200),
     ]);
+    if (history.error) throw new Error(history.error.message);
     if (own.error) throw new Error(own.error.message);
     const bookingLink = ((cfgRow.data?.config as { brain?: { booking_link?: unknown } } | null)?.brain?.booking_link);
     if (idents.error) throw new Error(idents.error.message);
@@ -260,6 +265,7 @@ export const GET = read({
       visits: visits ?? undefined,
       notes: own.data?.notes ?? null,
       booking_link: typeof bookingLink === "string" && bookingLink.trim() ? bookingLink.trim() : null,
+      consent_history: (history.data ?? []).map(consentChangeOf),
       added: added.data
         ? { at: added.data.created_at, source: String((added.data.data as { source?: unknown } | null)?.source ?? "manual"), title: typeof (added.data.data as { title?: unknown } | null)?.title === "string" ? String((added.data.data as { title: string }).title) : null }
         : undefined,

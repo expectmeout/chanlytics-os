@@ -16,7 +16,7 @@
  * context rather than guessing. A caller treated as new is a small loss; a
  * caller read someone else's conversation is not recoverable.
  */
-import { normalizePhone, resolveSystemPrompt, describeNow, pausedVoiceFacts } from "../lib/workspace/contracts.js";
+import { normalizePhone, resolveSystemPrompt, describeNow, pausedVoiceFacts, phoneTail } from "../lib/workspace/contracts.js";
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { resolveChannel, readLeadContext, describeLead } from "../lib/workspace/db.js";
@@ -72,7 +72,7 @@ export async function POST(request: Request): Promise<Response> {
 
   // The last four digits identify a caller across a log search without
   // writing their number into every line.
-  const L = logger({ from_tail: from.slice(-4), agent_id: agentId });
+  const L = logger({ from_tail: phoneTail(from), agent_id: agentId });
   let context = "";
   let facts = "";
   let businessName: string | null = null;

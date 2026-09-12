@@ -1944,6 +1944,7 @@ export type Database = {
           role: string
           tenant_id: string
           user_id: string
+          views: Json
         }
         Insert: {
           created_at?: string
@@ -2906,8 +2907,12 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      member_view_set: {
+        Args: { p_page: string; p_tenant_id: string; p_view: Json }
+        Returns: Json
+      }
       people_list: {
-        Args: { p_contact_id?: string; p_tenant_id: string }
+        Args: { p_contact_id?: string; p_limit?: number; p_offset?: number; p_query?: string; p_tenant_id: string }
         Returns: {
           call_count: number
           call_seconds: number
@@ -3060,6 +3065,7 @@ export type Database = {
         Args: {
           p_consent: string
           p_contact_id: string
+          p_evidence?: Json
           p_note?: string
           p_source: string
           p_tenant_id: string

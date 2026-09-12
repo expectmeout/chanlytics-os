@@ -16,6 +16,14 @@
  *
  * Refusals are the envelope's own `rate_limited` (429) with a retry hint, so
  * the client shows a sentence, never a raw status.
+ *
+ * Two things are said out loud rather than left to a log nobody reads. A
+ * deployment with no database keys counts per instance, for ever: it says so
+ * once when the store is chosen, and louder in production, where it is a
+ * misconfiguration. And a route that SPENDS money takes its count strictly:
+ * when the shared count cannot be read, it refuses (503) instead of falling
+ * back to a per-instance count that a burst across instances walks past --
+ * a ceiling on spend that cannot be held is not a ceiling.
  */
 import { AppError } from "@chanlytics/contracts";
 import { createServiceClient, type Database } from "@chanlytics/db";
@@ -120,6 +128,8 @@ export const RATE = {
   billing: { limit: 20, windowMs: 3_600_000, noun: "billing requests" },
   /** A whole thread, a whole call, or everyone, as a file. */
   export: { limit: 10, windowMs: 60_000, noun: "exports" },
+  /** A page remembering its view: a sort, a tab. One small write per click at most. */
+  view_set: { limit: 60, windowMs: 60_000, noun: "view changes" },
   /** A question to the workspace assistant: a model turn, tools and all. */
   ask: { limit: 20, windowMs: 60_000, noun: "questions" },
 } as const satisfies Record<string, RateRule>;
@@ -128,9 +138,18 @@ export type RateBucket = keyof typeof RATE;
 
 export type RateVerdict = { allowed: true } | { allowed: false; retryAfterS: number };
 
-/** Where the count lives. `take` counts the hit or says when to try again. */
+/**
+ * Where the count lives. `take` counts the hit or says when to try again.
+ * `strict` means the count must be the shared one: a store that cannot give
+ * it refuses (503) rather than answering from this instance alone.
+ */
 export interface RateStore {
-  take(bucket: RateBucket, actor: string, rule: RateRule, now: number): Promise<RateVerdict>;
+  take(bucket: RateBucket, actor: string, rule: RateRule, now: number, strict?: boolean): Promise<RateVerdict>;
+}
+
+/** The refusal when a strict count cannot be given: the verb is not run on a ceiling nobody can hold. */
+export function uncountable(why: string): AppError {
+  return new AppError("internal", `The shared count could not be read just now (${why}) — try again in a moment.`, 503);
 }
 
 /** Past this many live keys the map is swept; a long-lived instance must not grow forever. */
@@ -174,7 +193,7 @@ export function memoryStore(): RateStore & { reset(): void } {
 export function postgresStore(db: Pick<SupabaseClient<Database>, "rpc">, fallback: RateStore): RateStore {
   let warnedAt = Number.NEGATIVE_INFINITY;
   return {
-    async take(bucket, actor, rule, now) {
+    async take(bucket, actor, rule, now, strict = false) {
       try {
         const { data, error } = await db.rpc("take_rate", {
           p_bucket: bucket, p_actor: actor, p_limit: rule.limit, p_window_ms: rule.windowMs,
@@ -185,10 +204,13 @@ export function postgresStore(db: Pick<SupabaseClient<Database>, "rpc">, fallbac
         if (v.allowed === false) return { allowed: false, retryAfterS: Math.max(1, Math.ceil(Number(v.retry_after_s ?? 1))) };
         throw new Error("take_rate answered without a verdict");
       } catch (e) {
+        const why = e instanceof Error ? e.message : String(e);
         if (now - warnedAt > 60_000) {
           warnedAt = now;
-          console.error("rate_store_failed", JSON.stringify({ bucket, error: e instanceof Error ? e.message : String(e) }));
+          console.error("rate_store_failed", JSON.stringify({ bucket, error: why }));
         }
+        // Money is not spent on a count this instance alone would hold.
+        if (strict) throw uncountable("the shared store did not answer");
         return fallback.take(bucket, actor, rule, now);
       }
     },
@@ -198,12 +220,33 @@ export function postgresStore(db: Pick<SupabaseClient<Database>, "rpc">, fallbac
 const memory = memoryStore();
 let store: RateStore | null = null;
 
-/** Postgres when the server has its keys, else this instance's memory. Chosen once. */
+/**
+ * This instance's memory, chosen BY CONFIGURATION: no database keys. Says so
+ * once, in the same family as the store failure, and louder in production,
+ * where a limiter that never shares its count is a misconfiguration. A
+ * strict take refuses: a deployment that cannot count across instances does
+ * not spend on a ceiling it cannot hold.
+ */
+export function memoryByConfiguration(fallback: RateStore, production = process.env.VERCEL_ENV === "production"): RateStore {
+  let said = false;
+  return {
+    async take(bucket, actor, rule, now, strict = false) {
+      if (!said) {
+        said = true;
+        console.error("rate_store_memory_by_configuration", JSON.stringify({ production, bucket, note: production ? "NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing: every ceiling is per instance" : "no database keys: ceilings are per instance, which is the whole limiter on a laptop" }));
+      }
+      if (strict) throw uncountable("this deployment has no shared store");
+      return fallback.take(bucket, actor, rule, now);
+    },
+  };
+}
+
+/** Postgres when the server has its keys, else this instance's memory, said once. Chosen once. */
 function activeStore(): RateStore {
   if (store) return store;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  store = url && serviceRoleKey ? postgresStore(createServiceClient({ url, serviceRoleKey }), memory) : memory;
+  store = url && serviceRoleKey ? postgresStore(createServiceClient({ url, serviceRoleKey }), memory) : memoryByConfiguration(memory);
   return store;
 }
 
@@ -217,11 +260,13 @@ function human(seconds: number): string {
  * Count this request against the bucket, or refuse it.
  *
  * `actor` is the signed-in user id — the limit follows the person, not the
- * workspace, so a busy team is not throttled by one of its members.
+ * workspace, so a busy team is not throttled by one of its members. `strict`
+ * is for a route that spends: the shared count or a refusal, never this
+ * instance's own.
  */
-export async function takeRate(actor: string, bucket: RateBucket, now: number = Date.now()): Promise<void> {
+export async function takeRate(actor: string, bucket: RateBucket, now: number = Date.now(), strict = false): Promise<void> {
   const rule: RateRule = RATE[bucket];
-  const verdict = await activeStore().take(bucket, actor, rule, now);
+  const verdict = await activeStore().take(bucket, actor, rule, now, strict);
   if (!verdict.allowed) {
     throw new AppError(
       "rate_limited",

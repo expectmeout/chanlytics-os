@@ -10,6 +10,7 @@ import type { Database, Json } from "./workspace/db.js";
 import type { LineSecrets, ProviderAccount } from "./workspace/channels.js";
 import { lineProviderFromEnv } from "./lines.js";
 import { logger } from "./log.js";
+import { phoneTail } from "./workspace/contracts.js";
 
 type Db = SupabaseClient<Database>;
 export type SmsLine = Pick<Database["public"]["Tables"]["lines"]["Row"], "id" | "tenant_id" | "e164" | "provider" | "subaccount_sid" | "messaging_service_sid" | "sms_state" | "voice_state">;
@@ -101,8 +102,8 @@ export function smsSenderFor(line: SmsLine, acct: ProviderAccount): SmsSender | 
   return {
     async send(to, body) {
       const r = await choice.provider.sendSms(acct, { serviceSid, to, body });
-      if (r.ok) L.info("sms_sent", { to, sid: r.sid });
-      else L.error("sms_send_failed", { to, status: r.status, code: r.code });
+      if (r.ok) L.info("sms_sent", { to_tail: phoneTail(to), sid: r.sid });
+      else L.error("sms_send_failed", { to_tail: phoneTail(to), status: r.status, code: r.code });
       return { ok: r.ok, wamid: r.sid, status: r.status, errorBody: r.ok ? undefined : `Twilio ${r.code ?? r.status}` };
     },
   };

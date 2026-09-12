@@ -134,6 +134,7 @@ const LrTranscript = ({ c }) => {
 const lrRecordingLine = (c) =>
   c.recordingState === "ready" ? "Recording saved"
     : c.recordingState === "pending" ? "Recording still processing"
+      : c.recordingState === "purged" ? "Recording removed on schedule"
       : c.recordingState === "failed" ? "Recording couldn't be saved"
         : c.summaryState === "pending" ? "Recording on its way"
           : "No recording";

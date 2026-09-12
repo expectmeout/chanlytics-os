@@ -223,7 +223,7 @@ test("the login form does not reveal which emails have accounts", () => {
   // the error path too, so "no such account" and "code sent" look identical.
   assert.match(
     login,
-    /requestCodeError\(/,
+    /requestCodeWords\(error\)/,
     "the request step must route errors through the non-revealing translator",
   );
   assert.match(
