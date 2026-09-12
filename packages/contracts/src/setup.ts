@@ -13,6 +13,7 @@
  * Chanlytics until lines provision themselves (plan, step 3).
  */
 import type { SchemaSet } from "./schema-sets";
+import { lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "./line-failure";
 import { formatPhoneDisplay } from "./phone";
 import type { FactConflict } from "./facts";
 import { agoWords, spanLabel } from "./time";
@@ -170,11 +171,22 @@ export function lineStuckProvisioning(
  * sweep takes it whether or not anybody comes back. Saying so is the difference
  * between a person waiting usefully and a person pressing the button again.
  */
+/**
+ * A failure at the vault that keeps the line's credentials, by the saga's own
+ * words (edge/lib/lines.ts: "reading the line's credentials", "keeping the
+ * line's credentials"; lines-saga.ts: "missing from the vault"). It looks like
+ * a carrier failure on the row and is nothing like one: a retry runs into the
+ * same wall until a person restores the credentials, so the row, the bell and
+ * the refusal say that instead of offering a button that cannot help.
+ */
+export { lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "./line-failure";
+
 export function lineRetryRefusal(
-  l: Pick<LineDto, "voice_state" | "state_since"> | null | undefined,
+  l: Pick<LineDto, "voice_state" | "state_since"> & Partial<Pick<LineDto, "last_error">> | null | undefined,
   nowMs: number,
 ): string | null {
   if (!l) return "no such line";
+  if (l.voice_state === "failed" && lineCredentialFailure(l.last_error)) return "the line's credentials could not be kept — a retry cannot help until a person at Chanlytics restores them, and we have been told";
   if (l.voice_state === "failed") return null;
   if (lineStuckProvisioning(l, nowMs)) return null;
   return l.voice_state === "provisioning"
@@ -430,6 +442,9 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
     row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Setting up ${lineNum} stopped while ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}, ${agoWords(Date.parse(ownLine.state_since), nowMs)}.`, details: ["It is retried automatically, usually within a quarter of an hour, and Chanlytics is told when it is", "Retry from here — it picks up where it stopped and buys nothing twice"], verb: { label: "Retry", to: `verb:retry-line:${ownLine.id}` } });
   } else if (ownLine && ownLine.voice_state === "provisioning") {
     row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Setting up ${lineNum} — ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}, since ${agoWords(Date.parse(ownLine.state_since), nowMs)}.`, details: ["Usually a minute or two; this page updates by itself"], verb: null });
+  } else if (ownLine && ownLine.voice_state === "failed" && lineCredentialFailure(ownLine.last_error)) {
+    // Not a carrier failure and not the owner's to retry: the wall is ours.
+    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Setting up ${lineNum} stopped at ${LINE_CREDENTIALS_SENTENCE}. A person at Chanlytics has it.`, details: ["A retry cannot help until the credentials are restored; we have been told and will finish it with you"], verb: null });
   } else if (ownLine && ownLine.voice_state === "failed") {
     row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Setting up ${lineNum} stopped while ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}. A person at Chanlytics has it.`, details: ["Retry from here; we have been told"], verb: { label: "Retry", to: `verb:retry-line:${ownLine.id}` } });
   } else if (ownLine && ownLine.voice_state === "answering") {

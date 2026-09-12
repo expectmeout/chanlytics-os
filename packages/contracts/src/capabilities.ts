@@ -12,6 +12,7 @@
  * registration it is not sold, and this says so rather than "not yet".
  */
 import type { SetupDto } from "./setup";
+import { lineCredentialFailure } from "./line-failure";
 import { agoWords } from "./time";
 
 export const CAPABILITY_KINDS = ["voice", "whatsapp", "sms"] as const;
@@ -74,6 +75,8 @@ export function capabilityStatus(kind: CapabilityKind, i: CapabilityInputs, nowM
       blockers.push({ code: "channel_off", words: "Your line is switched off." });
     } else if (own && own.voice_state === "provisioning") {
       blockers.push({ code: "line_provisioning", words: "Your line is being set up; it answers the moment it is." });
+    } else if (own && own.voice_state === "failed" && lineCredentialFailure(own.last_error)) {
+      blockers.push({ code: "line_failed", words: "Setting up your line stopped at the vault that keeps its credentials; a person at Chanlytics has it, and a retry cannot help until they restore them." });
     } else if (own && own.voice_state === "failed") {
       blockers.push({ code: "line_failed", words: "Setting up your line stopped; a person at Chanlytics has it, and Retry is on the row." });
     } else {

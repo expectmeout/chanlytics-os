@@ -16,7 +16,7 @@
  */
 import { notify, recordNotification } from "./notify.js";
 import { emitEvent } from "./workspace/db.js";
-import { formatPhoneDisplay } from "./workspace/contracts.js";
+import { formatPhoneDisplay, lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "./workspace/contracts.js";
 import { runLineSaga, type LineRow } from "./workspace/channels.js";
 import { linePorts, LINE_STEP_WORDS, type LineProviderChoice } from "./lines.js";
 import type { ResumedBy } from "./line-resume.js";
@@ -41,10 +41,14 @@ export async function reportLineFailed(
 ): Promise<void> {
   const shown = formatPhoneDisplay(line.e164) ?? line.e164 ?? "your number";
   const at = LINE_STEP_WORDS[step] ?? step;
+  // A failure at the vault is ours, not the carrier's: the bell does not offer a retry that cannot help.
+  const credentials = lineCredentialFailure(error);
   await recordNotification(tenant.id, {
     kind: "alert",
     title: "Your phone line hit a snag — a person at Chanlytics has it",
-    body: `Setting up ${shown} stopped while ${at}. You can retry from Setup; we have been told and will finish it with you if the retry does not.`,
+    body: credentials
+      ? `Setting up ${shown} stopped at ${LINE_CREDENTIALS_SENTENCE}. A retry cannot help until we restore them; we have been told and will finish it with you.`
+      : `Setting up ${shown} stopped while ${at}. You can retry from Setup; we have been told and will finish it with you if the retry does not.`,
     route: "admin/setup",
     about: { type: "line", id: line.id },
   });

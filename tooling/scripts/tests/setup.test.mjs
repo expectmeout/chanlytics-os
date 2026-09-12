@@ -491,3 +491,16 @@ test("a save in Workspace and a WhatsApp connect repaint Setup too", async () =>
   assert.deepEqual(AFTER["PUT settings"]().map((o) => o.key), ["settings", "today", "calendar", "setup"]);
   assert.deepEqual(AFTER["POST channels/whatsapp/connect"]().map((o) => o.key), ["settings", "setup"]);
 });
+
+test("a line stopped at the vault reads as ours on the row, offers no Retry, and says so on the capability", () => {
+  const stopped = (last_error) => empty({
+    channels: { ...empty().channels, voice: { present: false, active: false, number: null, quality: null, lastInboundAt: null } },
+    lines: { rows: [{ id: "l1", e164: "+13055550101", kind: "chanlytics", provider: "twilio", area_code: 305, voice_state: "failed", sms_state: "none", reg_mock: false, whatsapp_state: "none", port_state: "none", forwarding_state: "none", step: "trunk", last_error, state_since: "2026-09-07T14:00:00Z", created_at: "2026-09-07T13:00:00Z" }], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } },
+  });
+  const ours = setupSteps(stopped("keeping the line's credentials: permission denied for schema vault"), NOW);
+  assert.equal(row(ours, "line").sentence, "Setting up +1 (305) 555-0101 stopped at the vault that keeps the line's credentials. A person at Chanlytics has it.");
+  assert.equal(row(ours, "line").verb, null, "no Retry that cannot help");
+  assert.deepEqual(row(ours, "line").details, ["A retry cannot help until the credentials are restored; we have been told and will finish it with you"]);
+  const theirs = setupSteps(stopped("Twilio 21422: number not available"), NOW);
+  assert.deepEqual(row(theirs, "line").verb, { label: "Retry", to: "verb:retry-line:l1" }, "a carrier failure keeps its Retry");
+});

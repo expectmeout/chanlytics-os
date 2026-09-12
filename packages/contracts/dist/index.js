@@ -4883,6 +4883,12 @@ function followupsToShow(followups, citations, nav) {
   return followups.filter((f) => !FOLLOWUP_ECHO.some(([words, route]) => words.test(f) && places.some((p) => route.test(p)))).slice(0, ASK_CAPS.followups);
 }
 
+// src/line-failure.ts
+function lineCredentialFailure(lastError) {
+  return !!lastError && /the line's credentials|missing from the vault/i.test(lastError);
+}
+var LINE_CREDENTIALS_SENTENCE = "the vault that keeps the line's credentials";
+
 // src/template-library.ts
 var STARTER_LANGUAGES = [
   { id: "en_US", label: "English" },
@@ -6404,6 +6410,8 @@ function capabilityStatus(kind, i, nowMs = Date.now()) {
       blockers.push({ code: "channel_off", words: "Your line is switched off." });
     } else if (own && own.voice_state === "provisioning") {
       blockers.push({ code: "line_provisioning", words: "Your line is being set up; it answers the moment it is." });
+    } else if (own && own.voice_state === "failed" && lineCredentialFailure(own.last_error)) {
+      blockers.push({ code: "line_failed", words: "Setting up your line stopped at the vault that keeps its credentials; a person at Chanlytics has it, and a retry cannot help until they restore them." });
     } else if (own && own.voice_state === "failed") {
       blockers.push({ code: "line_failed", words: "Setting up your line stopped; a person at Chanlytics has it, and Retry is on the row." });
     } else {
@@ -6443,6 +6451,7 @@ function lineStuckProvisioning(l, nowMs) {
 }
 function lineRetryRefusal(l, nowMs) {
   if (!l) return "no such line";
+  if (l.voice_state === "failed" && lineCredentialFailure(l.last_error)) return "the line's credentials could not be kept \u2014 a retry cannot help until a person at Chanlytics restores them, and we have been told";
   if (l.voice_state === "failed") return null;
   if (lineStuckProvisioning(l, nowMs)) return null;
   return l.voice_state === "provisioning" ? "the line is still setting up \u2014 give it a few minutes, and it is retried automatically after that" : `the line is ${l.voice_state}, not failed`;
@@ -6572,6 +6581,8 @@ function setupSteps(i, nowMs = Date.now()) {
     row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Setting up ${lineNum} stopped while ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}, ${agoWords(Date.parse(ownLine.state_since), nowMs)}.`, details: ["It is retried automatically, usually within a quarter of an hour, and Chanlytics is told when it is", "Retry from here \u2014 it picks up where it stopped and buys nothing twice"], verb: { label: "Retry", to: `verb:retry-line:${ownLine.id}` } });
   } else if (ownLine && ownLine.voice_state === "provisioning") {
     row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Setting up ${lineNum} \u2014 ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}, since ${agoWords(Date.parse(ownLine.state_since), nowMs)}.`, details: ["Usually a minute or two; this page updates by itself"], verb: null });
+  } else if (ownLine && ownLine.voice_state === "failed" && lineCredentialFailure(ownLine.last_error)) {
+    row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Setting up ${lineNum} stopped at ${LINE_CREDENTIALS_SENTENCE}. A person at Chanlytics has it.`, details: ["A retry cannot help until the credentials are restored; we have been told and will finish it with you"], verb: null });
   } else if (ownLine && ownLine.voice_state === "failed") {
     row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Setting up ${lineNum} stopped while ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}. A person at Chanlytics has it.`, details: ["Retry from here; we have been told"], verb: { label: "Retry", to: `verb:retry-line:${ownLine.id}` } });
   } else if (ownLine && ownLine.voice_state === "answering") {
@@ -8196,6 +8207,7 @@ export {
   JOB_KINDS,
   JOB_STATES,
   LIMIT_TIERS,
+  LINE_CREDENTIALS_SENTENCE,
   LINE_STEP_WORDS,
   LIVE_OVERLONG_MS,
   LIVE_STALE_MS,
@@ -8447,6 +8459,7 @@ export {
   isUngrounded,
   knownTimezones,
   lastChangedWords,
+  lineCredentialFailure,
   lineRetryRefusal,
   lineStuckProvisioning,
   listingLine,

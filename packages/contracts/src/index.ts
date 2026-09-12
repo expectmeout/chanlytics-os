@@ -15,6 +15,7 @@ export * from "./notifications";
 export * from "./ask";
 export * from "./availability";
 export * from "./feed-url";
+export * from "./line-failure";
 export * from "./people";
 export * from "./broadcasts";
 export * from "./templates";
