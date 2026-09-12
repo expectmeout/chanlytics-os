@@ -5,6 +5,7 @@
  * by construction (anti-junk rule R1).
  */
 import type { SchemaSet } from "./schema-sets";
+import { feedProblemWords, feedUrlOk } from "./feed-url";
 import { dayIntervals as spansOfDay } from "./availability";
 import { resolveFacts, type KnownFacts } from "./facts";
 import { z } from "zod";
@@ -610,6 +611,10 @@ function checkClosure(c: Closure, n: number, ctx: z.RefinementCtx): void {
  * stricter.
  */
 export const TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
+  // The feed's address: only the public internet, the rule every fetch of it keeps (feed-url.ts).
+  if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["calendar", "ical_url"], message: feedProblemWords("address") ?? "Not an address the receptionist may read." });
+  }
   const p = cfg.brain?.profile;
   if (!p) return;
   for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay(h, day, ctx);

@@ -189,7 +189,7 @@ export async function setupDtoFor(
       pending: pending.length,
       startersApproved: approved.filter((t) => starterByName(t.name) !== null).length,
     },
-    calendar: { state: calendar?.feed.state ?? "none" },
+    calendar: { state: calendar?.feed.state ?? "none", problem: calendar?.feed.problem ?? null },
     team: {
       // Either shape answers the same two questions; the member path already
       // has the roster in hand, the back office never asks for it.

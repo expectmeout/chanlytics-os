@@ -136,3 +136,36 @@ test("the shell carries the tool beside the booking link, the edge guards it, an
   const created = voiceLlmCreateBody({ fnSecret: "sealed" }).general_tools.find((t) => t.name === "check_availability");
   assert.ok(created && created.url === "https://chanlytics-messaging.vercel.app/api/retell-availability", "provisioning creates it too");
 });
+
+test("RECURRENCE-ID: one instance of a weekly series moved to another time is drawn once, where it moved to; a cancelled override removes its instance", () => {
+  const series = ["SUMMARY:Standing block", "DTSTART;TZID=America/New_York:20260908T140000", "DTEND;TZID=America/New_York:20260908T150000", "RRULE:FREQ=WEEKLY;COUNT=4"];
+  const moved = ["BEGIN:VEVENT", "UID:x", "SUMMARY:Standing block (moved)", "RECURRENCE-ID;TZID=America/New_York:20260915T140000", "DTSTART;TZID=America/New_York:20260916T100000", "DTEND;TZID=America/New_York:20260916T110000", "END:VEVENT"];
+  const cancelled = ["BEGIN:VEVENT", "UID:x", "SUMMARY:Standing block", "RECURRENCE-ID;TZID=America/New_York:20260922T140000", "STATUS:CANCELLED", "DTSTART;TZID=America/New_York:20260922T140000", "DTEND;TZID=America/New_York:20260922T150000", "END:VEVENT"];
+  const text = ["BEGIN:VCALENDAR", "BEGIN:VEVENT", "UID:x", ...series, "END:VEVENT", ...moved, ...cancelled, "END:VCALENDAR"].join("\r\n");
+  const feed = parseIcs(text, TZ, { horizon: HORIZON });
+  const starts = feed.busy.map((b) => b.start).sort((a, b) => a - b);
+  assert.deepEqual(starts, [ny(2026, 9, 8, 14), ny(2026, 9, 16, 10), ny(2026, 9, 29, 14)], "the 8th as the rule says, the 15th where it moved to (the 16th at 10), the 22nd gone, the 29th as the rule says");
+  assert.equal(feed.items.find((i) => i.start === ny(2026, 9, 16, 10)).title, "Standing block (moved)", "the override's own words");
+  assert.equal(feed.busy.filter((b) => b.start === ny(2026, 9, 15, 14)).length, 0, "not drawn twice");
+  assert.equal(feed.events, 3, "three VEVENTs read");
+  assert.equal(feed.recurringExpanded, 1);
+  assert.equal(feed.skippedRecurring, 0);
+});
+
+test("RDATE: extra dates join a series, or make one of a single event, and are never counted as a rule that could not be read", () => {
+  const withRule = parseIcs(ics([
+    "SUMMARY:Class", "DTSTART;TZID=America/New_York:20260908T180000", "DTEND;TZID=America/New_York:20260908T190000",
+    "RRULE:FREQ=WEEKLY;COUNT=2", "RDATE;TZID=America/New_York:20260911T180000,20260912T180000",
+  ]), TZ, { horizon: HORIZON });
+  assert.deepEqual(withRule.busy.map((b) => b.start).sort((a, b) => a - b), [ny(2026, 9, 8, 18), ny(2026, 9, 11, 18), ny(2026, 9, 12, 18), ny(2026, 9, 15, 18)]);
+  assert.deepEqual([withRule.recurringExpanded, withRule.skippedRecurring], [1, 0]);
+  const alone = parseIcs(ics([
+    "SUMMARY:Pop-up", "DTSTART;TZID=America/New_York:20260910T120000", "DTEND;TZID=America/New_York:20260910T130000",
+    "RDATE;TZID=America/New_York:20260917T120000", "EXDATE;TZID=America/New_York:20260917T120000", "RDATE;TZID=America/New_York:20260924T120000",
+  ]), TZ, { horizon: HORIZON });
+  assert.deepEqual(alone.busy.map((b) => b.start), [ny(2026, 9, 10, 12), ny(2026, 9, 24, 12)], "the event, its extra date, and the one an EXDATE took back");
+  assert.equal(alone.busy.every((b) => b.end - b.start === 3_600_000), true, "each occurrence takes the event's own length");
+  assert.deepEqual([alone.recurringExpanded, alone.skippedRecurring], [1, 0]);
+  const unread = parseIcs(ics(["SUMMARY:Odd", "DTSTART;TZID=America/New_York:20260910T120000", "DTEND;TZID=America/New_York:20260910T130000", "RRULE:FREQ=WEEKLY;BYSETPOS=2", "RDATE;TZID=America/New_York:20260924T120000"]), TZ, { horizon: HORIZON });
+  assert.deepEqual([unread.busy.length, unread.skippedRecurring], [1, 1], "a rule that cannot be read keeps its first occurrence and is counted, RDATE or not");
+});

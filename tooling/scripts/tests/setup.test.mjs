@@ -212,6 +212,9 @@ test("team and alerts: the verb goes to whichever half is missing; calendar: unr
   const feed = setupSteps(empty({ calendar: { state: "unavailable" } }), NOW);
   assert.equal(row(feed, "calendar").state, "waiting_you");
   assert.deepEqual(row(feed, "calendar").verb, { label: "Check the feed", to: "admin/workspace" });
+  assert.equal(row(feed, "calendar").sentence, "Your calendar could not be read. Check the address in Workspace.");
+  const why = setupSteps(empty({ calendar: { state: "unavailable", problem: "The calendar answered 404. It is usually the private iCal link, not the calendar's web page." } }), NOW);
+  assert.equal(row(why, "calendar").sentence, "Your calendar could not be read. The calendar answered 404. It is usually the private iCal link, not the calendar's web page. Check the address in Workspace.", "the row says why, in the words the board and the preview use");
 });
 
 test("a channel row without a number never reads a null aloud", () => {

@@ -1131,6 +1131,39 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
   };
 }
 
+// src/feed-url.ts
+var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
+function feedUrlOk(raw) {
+  if (!raw) return null;
+  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  if (PRIVATE_HOST.test(u.hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(u.hostname)) return null;
+  return u.toString();
+}
+var FEED_MAX_BYTES = 2e6;
+function feedProblemWords(reason, status) {
+  switch (reason) {
+    case "address":
+      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
+    case "unreachable":
+      return "The calendar could not be reached. Check the address and try again.";
+    case "http":
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal link, not the calendar's web page.`;
+    case "too_large":
+      return "That feed is too large to read (over 2 MB).";
+    case "not_ical":
+      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
+    default:
+      return null;
+  }
+}
+
 // src/availability.ts
 function zoneParts(tz, at2) {
   const parts2 = new Intl.DateTimeFormat("en-US", {
@@ -1333,6 +1366,17 @@ function durationMs(v) {
   const sign = m[1] === "-" ? -1 : 1;
   return sign * ((Number(m[2] ?? 0) * 86400 + Number(m[3] ?? 0) * 3600 + Number(m[4] ?? 0) * 60 + Number(m[5] ?? 0)) * 1e3);
 }
+function instantsOf(lines, fallbackTz) {
+  const out = [];
+  for (const e of lines) {
+    for (const v of e.value.split(",")) {
+      if (v.includes("/")) continue;
+      const ms2 = toMs(v, e.params, fallbackTz);
+      if (ms2 !== null) out.push(ms2);
+    }
+  }
+  return out;
+}
 function parseIcs(text, fallbackTz, opts = {}) {
   const horizon = opts.horizon ?? { from: Date.now() - 864e5, to: Date.now() + 90 * 864e5 };
   const busy = [];
@@ -1340,58 +1384,15 @@ function parseIcs(text, fallbackTz, opts = {}) {
   let events = 0;
   let recurringExpanded = 0;
   let skippedRecurring = 0;
+  const raws = [];
   let cur = null;
-  const exdatesOf = [];
-  const attendees = [];
   for (const line of unfold(text)) {
     if (line === "BEGIN:VEVENT") {
-      cur = {};
-      exdatesOf.length = 0;
-      attendees.length = 0;
+      cur = { props: {}, exdates: [], rdates: [], attendees: [] };
       continue;
     }
     if (line === "END:VEVENT") {
-      if (cur) {
-        events++;
-        const status = cur.STATUS?.value.toUpperCase();
-        const transp = cur.TRANSP?.value.toUpperCase();
-        if (status !== "CANCELLED" && transp !== "TRANSPARENT" && cur.DTSTART) {
-          const start = toMs(cur.DTSTART.value, cur.DTSTART.params, fallbackTz);
-          let end = null;
-          if (cur.DTEND) end = toMs(cur.DTEND.value, cur.DTEND.params, fallbackTz);
-          else if (cur.DURATION && start !== null) {
-            const d = durationMs(cur.DURATION.value);
-            end = d === null ? null : start + d;
-          } else if (start !== null) {
-            end = cur.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(cur.DTSTART.value.trim()) ? start + 864e5 : start;
-          }
-          if (start !== null && end !== null && end > start) {
-            const title = unescapeText(cur.SUMMARY?.value ?? "");
-            const description = unescapeText(cur.DESCRIPTION?.value ?? "") || null;
-            const location = unescapeText(cur.LOCATION?.value ?? "") || null;
-            const guests = attendees.slice();
-            const allDay = cur.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(cur.DTSTART.value.trim());
-            const uid = cur.UID?.value.trim() || null;
-            const rule = cur.RRULE ? parseRule(cur.RRULE.value, fallbackTz) : null;
-            const local = cur.RRULE ? localPartsOf(cur.DTSTART.value, cur.DTSTART.params, fallbackTz) : null;
-            if (cur.RRULE && rule && local) {
-              const ex = /* @__PURE__ */ new Set();
-              for (const e of exdatesOf) for (const v of e.value.split(",")) {
-                const ms2 = toMs(v, e.params, fallbackTz);
-                if (ms2 !== null) ex.add(ms2);
-              }
-              const occ = occurrences(local, end - start, rule, ex, horizon);
-              busy.push(...occ);
-              for (const o of occ) items.push({ ...o, title, allDay, uid, description, location, attendees: guests });
-              recurringExpanded++;
-            } else {
-              if (cur.RRULE || cur.RDATE) skippedRecurring++;
-              busy.push({ start, end });
-              items.push({ start, end, title, allDay, uid, description, location, attendees: guests });
-            }
-          }
-        }
-      }
+      if (cur) raws.push(cur);
       cur = null;
       continue;
     }
@@ -1399,15 +1400,95 @@ function parseIcs(text, fallbackTz, opts = {}) {
     const s = splitLine(line);
     if (!s) continue;
     if (s.name === "EXDATE") {
-      exdatesOf.push({ params: s.params, value: s.value });
+      cur.exdates.push({ params: s.params, value: s.value });
+      continue;
+    }
+    if (s.name === "RDATE") {
+      cur.rdates.push({ params: s.params, value: s.value });
       continue;
     }
     if (s.name === "ATTENDEE") {
       const v = s.value.trim();
-      attendees.push({ name: s.params.CN?.trim() || null, email: /^mailto:/i.test(v) ? v.slice(7).toLowerCase() : null });
+      cur.attendees.push({ name: s.params.CN?.trim() || null, email: /^mailto:/i.test(v) ? v.slice(7).toLowerCase() : null });
       continue;
     }
-    cur[s.name] = { params: s.params, value: s.value };
+    cur.props[s.name] = { params: s.params, value: s.value };
+  }
+  const overridden = /* @__PURE__ */ new Map();
+  for (const r of raws) {
+    const rid = r.props["RECURRENCE-ID"];
+    const uid = r.props.UID?.value.trim();
+    if (!rid || !uid) continue;
+    const ms2 = toMs(rid.value, rid.params, fallbackTz);
+    if (ms2 === null) continue;
+    let set = overridden.get(uid);
+    if (!set) {
+      set = /* @__PURE__ */ new Set();
+      overridden.set(uid, set);
+    }
+    set.add(ms2);
+  }
+  for (const r of raws) {
+    events++;
+    const p = r.props;
+    const status = p.STATUS?.value.toUpperCase();
+    const transp = p.TRANSP?.value.toUpperCase();
+    if (status === "CANCELLED" || transp === "TRANSPARENT" || !p.DTSTART) continue;
+    const start = toMs(p.DTSTART.value, p.DTSTART.params, fallbackTz);
+    let end = null;
+    if (p.DTEND) end = toMs(p.DTEND.value, p.DTEND.params, fallbackTz);
+    else if (p.DURATION && start !== null) {
+      const d = durationMs(p.DURATION.value);
+      end = d === null ? null : start + d;
+    } else if (start !== null) {
+      end = p.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(p.DTSTART.value.trim()) ? start + 864e5 : start;
+    }
+    if (start === null || end === null || end <= start) continue;
+    const title = unescapeText(p.SUMMARY?.value ?? "");
+    const description = unescapeText(p.DESCRIPTION?.value ?? "") || null;
+    const location = unescapeText(p.LOCATION?.value ?? "") || null;
+    const guests = r.attendees.slice();
+    const allDay = p.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(p.DTSTART.value.trim());
+    const uid = p.UID?.value.trim() || null;
+    const isOverride = !!p["RECURRENCE-ID"];
+    const rule = p.RRULE && !isOverride ? parseRule(p.RRULE.value, fallbackTz) : null;
+    const local = p.RRULE && !isOverride ? localPartsOf(p.DTSTART.value, p.DTSTART.params, fallbackTz) : null;
+    const dur = end - start;
+    const push = (o) => {
+      busy.push(o);
+      items.push({ ...o, title, allDay, uid, description, location, attendees: guests });
+    };
+    if (p.RRULE && !isOverride && rule && local) {
+      const ex = new Set(instantsOf(r.exdates, fallbackTz));
+      for (const ms2 of uid ? overridden.get(uid) ?? [] : []) ex.add(ms2);
+      const seen = /* @__PURE__ */ new Set();
+      const occ = occurrences(local, dur, rule, ex, horizon);
+      for (const o of occ) {
+        if (!seen.has(o.start)) {
+          seen.add(o.start);
+          push(o);
+        }
+      }
+      for (const ms2 of instantsOf(r.rdates, fallbackTz)) {
+        if (ex.has(ms2) || seen.has(ms2) || ms2 > horizon.to || ms2 + dur < horizon.from) continue;
+        seen.add(ms2);
+        push({ start: ms2, end: ms2 + dur });
+      }
+      recurringExpanded++;
+    } else if (!p.RRULE && r.rdates.length && !isOverride) {
+      const ex = new Set(instantsOf(r.exdates, fallbackTz));
+      const seen = /* @__PURE__ */ new Set([start]);
+      push({ start, end });
+      for (const ms2 of instantsOf(r.rdates, fallbackTz)) {
+        if (ex.has(ms2) || seen.has(ms2) || ms2 > horizon.to || ms2 + dur < horizon.from) continue;
+        seen.add(ms2);
+        push({ start: ms2, end: ms2 + dur });
+      }
+      recurringExpanded++;
+    } else {
+      if (p.RRULE && !isOverride) skippedRecurring++;
+      push({ start, end });
+    }
   }
   busy.sort((a, b) => a.start - b.start);
   items.sort((a, b) => a.start - b.start);
@@ -2011,6 +2092,9 @@ function checkClosure(c, n, ctx) {
   }
 }
 var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
+  if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
+    ctx.addIssue({ code: z2.ZodIssueCode.custom, path: ["calendar", "ical_url"], message: feedProblemWords("address") ?? "Not an address the receptionist may read." });
+  }
   const p = cfg.brain?.profile;
   if (!p) return;
   for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay(h, day, ctx);
@@ -2486,7 +2570,8 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
     }
   }
   const ago3 = readAgoLabel(dto.feed.read_at, now);
-  const feedLine = dto.feed.state === "ok" ? `From ${dto.feed.source ?? "your calendar"} \xB7 read ${ago3 ?? "just now"} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}${dto.feed.skipped_recurring ? ` \xB7 ${dto.feed.skipped_recurring} repeating rule${dto.feed.skipped_recurring === 1 ? "" : "s"} read once` : ""}` : dto.feed.state === "unavailable" ? `Your calendar could not be read${ago3 ? ` \xB7 last read ${ago3}` : ""}` : "No calendar connected";
+  const stale = dto.feed.state === "ok" && !!dto.feed.stale;
+  const feedLine = dto.feed.state === "ok" ? `From ${dto.feed.source ?? "your calendar"} \xB7 read ${ago3 ?? "just now"}${stale ? " \xB7 could not be refreshed" : ""} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}${dto.feed.skipped_recurring ? ` \xB7 ${dto.feed.skipped_recurring} repeating rule${dto.feed.skipped_recurring === 1 ? "" : "s"} read once` : ""}${dto.feed.dropped ? ` \xB7 ${dto.feed.dropped} more not shown` : ""}` : dto.feed.state === "unavailable" ? `Your calendar could not be read${ago3 ? ` \xB7 last read ${ago3}` : ""}` : "No calendar connected";
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
   const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
   const sameMonth = dto.from.slice(0, 7) === last.slice(0, 7);
@@ -2511,7 +2596,7 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
     days,
     today: todayKey,
     now: nowIn,
-    feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events, source: dto.feed.source ?? "your calendar" },
+    feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events, source: dto.feed.source ?? "your calendar", problem: dto.feed.problem ?? null, stale },
     stats: { events, windows: windowCount, next },
     rules: rulesLine(dto.rules),
     hoursLines: hoursLines2(dto.hours),
@@ -6493,7 +6578,7 @@ function setupSteps(i, nowMs = Date.now()) {
   } else {
     row2({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: "waiting_you", required: !answering, sentence: "Connect the WhatsApp number customers write to.", details: ["A new number, or the WhatsApp Business app you already use"], verb: { label: "Connect", to: "admin/integrations" } });
   }
-  row2(i.calendar.state === "ok" ? { id: "calendar", icon: "calendar", title: "Calendar", state: "ready", required: false, sentence: "Readable \u2014 the receptionist offers times from it.", details: [], verb: { label: "Open Calendar", to: "calendar" } } : i.calendar.state === "unavailable" ? { id: "calendar", icon: "calendar", title: "Calendar", state: "waiting_you", required: false, sentence: "Your calendar could not be read. Check the address in Workspace.", details: [], verb: { label: "Check the feed", to: "admin/workspace" } } : { id: "calendar", icon: "calendar", title: "Calendar", state: "not_started", required: false, sentence: "Paste your calendar's iCal address so the receptionist knows what is taken.", details: [], verb: { label: "Paste the feed", to: "admin/workspace" } });
+  row2(i.calendar.state === "ok" ? { id: "calendar", icon: "calendar", title: "Calendar", state: "ready", required: false, sentence: "Readable \u2014 the receptionist offers times from it.", details: [], verb: { label: "Open Calendar", to: "calendar" } } : i.calendar.state === "unavailable" ? { id: "calendar", icon: "calendar", title: "Calendar", state: "waiting_you", required: false, sentence: `Your calendar could not be read. ${i.calendar.problem ? `${i.calendar.problem} ` : ""}Check the address in Workspace.`, details: [], verb: { label: "Check the feed", to: "admin/workspace" } } : { id: "calendar", icon: "calendar", title: "Calendar", state: "not_started", required: false, sentence: "Paste your calendar's iCal address so the receptionist knows what is taken.", details: [], verb: { label: "Paste the feed", to: "admin/workspace" } });
   {
     const t = i.team;
     const people = t.members > 1 || t.invitesOpen > 0;
@@ -8042,6 +8127,7 @@ export {
   EVENT_EVIDENCE_KINDS,
   EVENT_KINDS,
   EVERYONE_LABEL,
+  FEED_MAX_BYTES,
   FORWARDING_MODES,
   FORWARDING_TEST_WINDOW_MS,
   FeaturesConfigSchema,
@@ -8253,7 +8339,9 @@ export {
   extractContacts,
   factConflicts,
   fastPath,
+  feedProblemWords,
   feedSourceLabel,
+  feedUrlOk,
   filterOpenings,
   firstNameOf,
   firstWorkspaceDoor,

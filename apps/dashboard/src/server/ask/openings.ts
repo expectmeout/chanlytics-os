@@ -1,11 +1,14 @@
 import "server-only";
 import {
   describeOpenings,
+  FEED_MAX_BYTES,
+  feedUrlOk,
   filterOpenings,
   freeWindows,
   matchService,
   parseIcs,
   parseTenantConfig,
+  type FeedFailure,
   type Opening,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
@@ -20,30 +23,79 @@ import { tenantFacts } from "../tenant";
  */
 
 const FEED_TTL_MS = 5 * 60 * 1000;
-const FEED_MAX_BYTES = 2_000_000;
-const feeds = new Map<string, { at: number; text: string }>();
+/** A failed read is remembered for a minute: one broken feed must not cost eight seconds on every page that reads it. */
+const FEED_FAIL_TTL_MS = 60 * 1000;
 
-/** The feed's text and when it was read: fresh within the cache, else the last good read. */
-export async function loadFeed(tenantId: string, url: string): Promise<{ text: string; at: number } | null> {
+interface FeedEntry {
+  /** The last good text and when it was read; null when there has never been one. */
+  text: string | null;
+  at: number | null;
+  /** When the feed was last tried, good or not. */
+  checkedAt: number;
+  /** Why the last try failed, or null. */
+  reason: FeedFailure | null;
+  status: number | null;
+}
+const feeds = new Map<string, FeedEntry>();
+
+/** What a read of the feed gave: the text (fresh, or the last good one when the latest try failed) and, when it failed, why. */
+export interface FeedRead {
+  text: string | null;
+  at: number | null;
+  reason: FeedFailure | null;
+  status: number | null;
+}
+
+class FeedRefused extends Error {
+  constructor(readonly reason: FeedFailure, readonly status: number | null = null) { super(reason); }
+}
+
+const asRead = (e: FeedEntry): FeedRead => ({ text: e.text, at: e.at, reason: e.reason, status: e.status });
+
+/**
+ * The feed's text and when it was read: fresh within the cache, else the
+ * last good read — and, when the latest try failed, why, so the board and
+ * Setup can say so instead of "could not be read". The address is held to
+ * the same rule the preview applies (feedUrlOk): a private address saved
+ * before the rule reached the write path is refused here, never fetched.
+ */
+export async function loadFeed(tenantId: string, url: string): Promise<FeedRead> {
   const hit = feeds.get(tenantId);
-  if (hit && Date.now() - hit.at < FEED_TTL_MS) return hit;
+  if (hit && Date.now() - hit.checkedAt < (hit.reason ? FEED_FAIL_TTL_MS : FEED_TTL_MS)) return asRead(hit);
+  const now = Date.now();
   try {
-    const res = await fetch(url.replace(/^webcal:\/\//i, "https://"), { signal: AbortSignal.timeout(8_000), headers: { accept: "text/calendar, */*" } });
-    if (!res.ok) throw new Error(`feed ${res.status}`);
+    const safe = feedUrlOk(url);
+    if (!safe) throw new FeedRefused("address");
+    let res: Response;
+    try {
+      res = await fetch(safe, { signal: AbortSignal.timeout(8_000), headers: { accept: "text/calendar, */*" } });
+    } catch {
+      throw new FeedRefused("unreachable");
+    }
+    if (!res.ok) throw new FeedRefused("http", res.status);
     const text = await res.text();
-    if (text.length > FEED_MAX_BYTES) throw new Error("feed too large");
-    const fresh = { at: Date.now(), text };
+    if (text.length > FEED_MAX_BYTES) throw new FeedRefused("too_large");
+    if (!/BEGIN:VCALENDAR/i.test(text)) throw new FeedRefused("not_ical");
+    const fresh: FeedEntry = { text, at: now, checkedAt: now, reason: null, status: null };
     feeds.set(tenantId, fresh);
-    return fresh;
+    return asRead(fresh);
   } catch (e) {
-    console.error("ask_feed_fetch_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
-    return hit ?? null;
+    const reason: FeedFailure = e instanceof FeedRefused ? e.reason : "unreachable";
+    const status = e instanceof FeedRefused ? e.status : null;
+    console.error("ask_feed_fetch_failed", JSON.stringify({ tenant: tenantId, reason, status }));
+    const failed: FeedEntry = { text: hit?.text ?? null, at: hit?.at ?? null, checkedAt: now, reason, status };
+    feeds.set(tenantId, failed);
+    return asRead(failed);
   }
 }
 
+/** Tests: forget every cached feed. */
+export function forgetFeeds(): void {
+  feeds.clear();
+}
+
 async function fetchFeed(tenantId: string, url: string): Promise<string | null> {
-  const got = await loadFeed(tenantId, url);
-  return got ? got.text : null;
+  return (await loadFeed(tenantId, url)).text;
 }
 
 export interface OpeningsResult {
