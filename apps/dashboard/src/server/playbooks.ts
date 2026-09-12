@@ -1,9 +1,11 @@
 import "server-only";
-import { parseParamSpec, type PlaybookDto, type PlaybookPolicyClass, type PlaybookTrigger } from "@chanlytics/contracts";
+import { eligibleForPlaybook, parseParamSpec, PLAYBOOK_TRIGGERS, toPersonRowVM, type PersonRowDto, type PlaybookDto, type PlaybookPolicyClass, type PlaybookTrigger } from "@chanlytics/contracts";
 import { checkPlaybook, type PlaybookInput } from "@chanlytics/core";
 import type { RouteContext } from "@/server/with-route";
 import { listRuns } from "@/server/broadcasts";
+import { peopleVisits } from "@/server/calendar";
 import { templateValuePorts } from "@/server/campaign-ports";
+import { listPeople, PEOPLE_PAGE } from "@/server/people";
 
 /**
  * Playbooks, read and checked.
@@ -82,6 +84,62 @@ export async function recentTouches(ctx: RouteContext, tenantId: string, now: Da
     }
   }
   return touched;
+}
+
+/** Everyone in People, a page at a time: the pool a run picks from is never one page of it. */
+export async function everyone(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<PersonRowDto[]> {
+  const all: PersonRowDto[] = [];
+  for (let offset = 0; ; offset += PEOPLE_PAGE) {
+    const page = await listPeople(ctx, tenantId, { offset, limit: PEOPLE_PAGE });
+    all.push(...page);
+    if (page.length < PEOPLE_PAGE) break;
+  }
+  return all;
+}
+
+/** A cap no workspace reaches: the pool is counted, not capped. */
+export const PLAYBOOK_POOL = 100_000;
+
+export interface TriggerPool {
+  /** Who a run would pick now. */
+  candidates: number;
+  /** Who waits only for the week's breath: eligible, but reached by some broadcast within the week. */
+  held: number;
+}
+
+/**
+ * The chips' numbers per trigger, computed here over everyone with their
+ * visits by the runner's own predicate, so the number on the chip is the
+ * number a run starts from. Until 12 Sep 2026 the browser counted them over
+ * the one page of People it had loaded, which slice D of the data program had
+ * made a page of a thousand.
+ */
+export async function triggerPools(ctx: RouteContext, tenantId: string, touched: Record<string, string>, now: Date): Promise<{ pools: Record<string, TriggerPool>; calendar: "ok" | "unavailable" | "none" }> {
+  // The pools are a reading, never the page: a People read that fails leaves
+  // the chips at zero and the playbooks themselves untouched.
+  let rows: PersonRowDto[];
+  try {
+    rows = await everyone(ctx, tenantId);
+  } catch (e) {
+    console.error("playbook_pools_people_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
+    return { pools: {}, calendar: "none" };
+  }
+  const pv = await peopleVisits(ctx, tenantId, rows, now).catch((e: unknown) => {
+    console.error("playbook_pools_visits_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
+    return null;
+  });
+  const calendar = pv?.calendar.state ?? "none";
+  const vms = rows.map((r) => toPersonRowVM({ ...r, visits: pv && pv.calendar.state === "ok" ? (pv.visits.get(r.id) ?? null) : null }, now));
+  const untouched = { byThis: new Map<string, number>(), byAny: new Map<string, number>() };
+  const breath = { byThis: new Map<string, number>(), byAny: new Map(Object.entries(touched).map(([id, at]) => [id, Date.parse(at)])) };
+  const count = (trigger: string, touches: typeof untouched) =>
+    eligibleForPlaybook(vms, { trigger: trigger as PlaybookDto["trigger"], cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, touches, now.getTime()).length;
+  const pools: Record<string, TriggerPool> = {};
+  for (const t of PLAYBOOK_TRIGGERS) {
+    const candidates = count(t.id, breath);
+    pools[t.id] = { candidates, held: Math.max(0, count(t.id, untouched) - candidates) };
+  }
+  return { pools, calendar };
 }
 
 export type PlaybookListRow = PlaybookDto & { totals: PlaybookTotals };

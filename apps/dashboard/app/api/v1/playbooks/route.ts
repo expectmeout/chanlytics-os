@@ -3,15 +3,16 @@ import { read, write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { recordDecision } from "@/server/verbs";
 import { tenantFacts } from "@/server/tenant";
-import { checkPlaybookInput, listPlaybooks, recentTouches } from "@/server/playbooks";
+import { checkPlaybookInput, listPlaybooks, recentTouches, triggerPools } from "@/server/playbooks";
 
 /**
  * Playbooks: a standing rule that sends one approved template to newly
  * eligible people who said yes, under the workspace's autonomy mode.
  *
  * GET  /api/v1/playbooks — the workspace's playbooks with what their runs
- *      earned, the business's clock (the hours are its), and who any
- *      broadcast reached this week (the breath the page shows).
+ *      earned, the business's clock (the hours are its), who any broadcast
+ *      reached this week (the breath the page shows), and each trigger's
+ *      pool over everyone, counted the way a run counts it.
  * POST /api/v1/playbooks — { name?, trigger, template_id, params, run_hour?,
  *      cap_per_run?, gap_days?, cadence_days? }. Owner or operator. Checked
  *      the way the send route checks a broadcast (checkPlaybookInput, in its
@@ -24,7 +25,8 @@ export const GET = read({
     const tenantId = member.tenantId;
     const now = new Date();
     const [playbooks, facts, touched] = await Promise.all([listPlaybooks(ctx, tenantId), tenantFacts(ctx.supabase, tenantId), recentTouches(ctx, tenantId, now)]);
-    return { playbooks, timezone: facts.timezone, touched };
+    const { pools, calendar } = await triggerPools(ctx, tenantId, touched, now);
+    return { playbooks, timezone: facts.timezone, touched, pools, calendar };
   },
 });
 

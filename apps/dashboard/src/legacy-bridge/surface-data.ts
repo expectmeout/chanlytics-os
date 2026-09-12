@@ -188,7 +188,7 @@ import {
   type CalendarVM,
 } from "@chanlytics/contracts";
 import { EVERYONE_LABEL, HELD_REASONS, OFFERS_BY_WHATSAPP_NOTE, OFFERS_OPT_IN_PHRASES, eligibleFor, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, purposeOfTemplate, type AudienceKind, type BroadcastVM, type NumberHealth, type SendPurpose } from "@chanlytics/contracts";
-import { PLAYBOOK_TRIGGERS, eligibleForPlaybook, nextRunLabel, scheduleLine, triggerOf, type PlaybookDto } from "@chanlytics/contracts";
+import { PLAYBOOK_TRIGGERS, nextRunLabel, scheduleLine, triggerOf, type PlaybookDto } from "@chanlytics/contracts";
 
 /**
  * Slice 2: the Inbox flips to the real escalations queue. Open escalations +
@@ -834,13 +834,13 @@ export interface PlaybooksSurface {
 }
 
 /** Count the whole pool, not one run's cap. */
-const PLAYBOOK_POOL = 100_000;
 
 /**
- * Playbooks: the rows with what their runs earned, the four triggers with
- * the count of people on each list who said yes — computed here by the same
- * contracts predicate the runner uses, so the number on the chip is the
- * number a run starts from — and the approved templates a playbook may send.
+ * Playbooks: the rows with what their runs earned, the triggers with the
+ * count of people a run would pick now and how many wait for the week's
+ * breath -- counted on the server over everyone, by the runner's own
+ * predicate, so the number on the chip is the number a run starts from --
+ * and the approved templates a playbook may send.
  */
 export const playbooksOverride: SurfaceOverride = {
   key: "playbooks",
@@ -848,24 +848,17 @@ export const playbooksOverride: SurfaceOverride = {
   events: ["surface:playbooks"],
   refreshOnMessageInserts: true,
   apply: async () => {
-    const [pb, people, tpl, ch, cfg] = await Promise.all([
+    const [pb, tpl, ch, cfg] = await Promise.all([
       read("GET playbooks"),
-      read("GET contacts"),
       read("GET templates").catch((e: unknown) => e as Error),
       read("GET channels").catch((e: unknown) => e as Error),
       read("GET settings").catch((e: unknown) => e as Error),
     ]);
     const now = new Date();
-    const rows = people.people.map((r) => toPersonRowVM(r, now));
-    // The week's breath, as the sweep applies it: who any broadcast reached
-    // this week (the route reads the recipient rows). The count the page shows
-    // is who a run would pick NOW; the rest are said to be waiting.
-    const untouched = { byThis: new Map<string, number>(), byAny: new Map<string, number>() };
-    const breath = { byThis: new Map<string, number>(), byAny: new Map<string, number>(Object.entries(pb.touched ?? {}).map(([id, at]) => [id, Date.parse(at)])) };
-    const poolWith = (trigger: string, touches: typeof untouched) =>
-      eligibleForPlaybook(rows, { trigger: trigger as PlaybookDto["trigger"], cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, touches, now.getTime()).length;
-    const pool = (trigger: string) => poolWith(trigger, breath);
-    const held = (trigger: string) => Math.max(0, poolWith(trigger, untouched) - poolWith(trigger, breath));
+    // The pools are the route's: who a run would pick NOW, and who waits for
+    // the week's breath, over everyone in People with their visits.
+    const pool = (trigger: string) => pb.pools?.[trigger]?.candidates ?? 0;
+    const held = (trigger: string) => pb.pools?.[trigger]?.held ?? 0;
     const wa = ch instanceof Error ? null : (ch.channels ?? []).find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
     const brain = cfg instanceof Error ? null : cfg.config?.brain ?? null;
     if (tpl instanceof Error) console.error("playbooks_templates_fetch_failed", tpl.message);
@@ -886,7 +879,7 @@ export const playbooksOverride: SurfaceOverride = {
         };
       }),
       timezone: tz,
-      calendar: people.calendar?.state ?? "none",
+      calendar: pb.calendar ?? "none",
       triggers: PLAYBOOK_TRIGGERS.map((t) => ({ id: t.id, label: t.label, hint: t.hint, cls: t.cls, list: t.list, kind: t.kind, candidates: pool(t.id), held: held(t.id) })),
       templates: tpl instanceof Error
         ? []

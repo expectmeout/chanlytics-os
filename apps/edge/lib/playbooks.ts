@@ -29,6 +29,24 @@ type Db = SupabaseClient<Database>;
 export type { PlaybookRow, RunOutcome };
 
 /** The run's context, with the client and the tenant the ports close over. */
+/**
+ * Everyone in People, a page at a time: people_list answers at most a
+ * thousand rows, and the pool a run picks from is never one page of it. The
+ * page arguments are named only past the first page, so a database that has
+ * not been given 00112 yet answers the first page as it always has.
+ */
+export async function allPeople(db: Db, tenantId: string): Promise<{ data: PersonRowDto[] | null; error: { message: string } | null }> {
+  const all: PersonRowDto[] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await db.rpc("people_list", offset ? { p_tenant_id: tenantId, p_offset: offset, p_limit: 1000 } : { p_tenant_id: tenantId });
+    if (error) return { data: null, error };
+    const page = (data ?? []) as unknown as PersonRowDto[];
+    all.push(...page);
+    if (page.length < 1000) break;
+  }
+  return { data: all, error: null };
+}
+
 export interface TenantRunContext extends RunContext {
   db: Db;
   tenantId: string;
@@ -38,7 +56,7 @@ export interface TenantRunContext extends RunContext {
 export async function loadTenantRunContext(db: Db, tenantId: string, now: Date): Promise<TenantRunContext | { error: string }> {
   const [{ data: tenant }, { data: people, error: pErr }, policies, { data: ch }, { data: pastRuns }, { data: cfgRow }] = await Promise.all([
     db.from("tenants").select("timezone, status").eq("id", tenantId).maybeSingle(),
-    db.rpc("people_list", { p_tenant_id: tenantId }),
+    allPeople(db, tenantId),
     listPolicies(db, tenantId).catch(() => []),
     db.from("tenant_channels").select("config").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").limit(1).maybeSingle(),
     // Every broadcast, not only the playbooks' runs: a message sent by hand is
