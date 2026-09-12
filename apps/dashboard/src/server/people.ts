@@ -11,8 +11,30 @@ import type { RouteContext } from "./with-route";
  * `people_list` under the caller's own RLS. Shared by the People list and the
  * CSV export so the two never disagree about who exists.
  */
-export async function listPeople(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<PersonRowDto[]> {
-  const { data, error } = await ctx.supabase.rpc("people_list", { p_tenant_id: tenantId });
+/** Rows per page: what people_list answers at most, and what the page loads at a time. */
+export const PEOPLE_PAGE = 1000;
+
+export interface PeoplePage {
+  /** A name, their WhatsApp name, or three digits of the number. */
+  q?: string | null;
+  offset?: number;
+  limit?: number;
+}
+
+export async function listPeople(ctx: Pick<RouteContext, "supabase">, tenantId: string, page: PeoplePage = {}): Promise<PersonRowDto[]> {
+  const q = page.q?.trim() || null;
+  const offset = page.offset ?? 0;
+  const limit = page.limit ?? PEOPLE_PAGE;
+  // The page arguments are named only when they leave their defaults: a
+  // database that has not been given 00112 yet answers the first page as it
+  // always has, and refuses nothing.
+  const args = {
+    p_tenant_id: tenantId,
+    ...(q ? { p_query: q } : {}),
+    ...(offset > 0 ? { p_offset: offset } : {}),
+    ...(limit !== PEOPLE_PAGE ? { p_limit: limit } : {}),
+  };
+  const { data, error } = await ctx.supabase.rpc("people_list", args);
   if (error) throw new Error(error.message);
   const { data: pols, error: polErr } = await ctx.supabase
     .from("policies")
@@ -26,4 +48,29 @@ export async function listPeople(ctx: Pick<RouteContext, "supabase">, tenantId: 
     ...r,
     effective_reply_mode: personMode.get(r.id) ?? workspaceMode,
   }));
+}
+
+/**
+ * How many live people there are, or match a query: the page's "N of M", and
+ * whether there is a next page. Counted where the rows are (never erased,
+ * never merged), with the same three matches the search uses. The query is
+ * kept to the characters a name or a number holds, so a comma cannot reach
+ * the filter grammar.
+ */
+export async function countPeople(ctx: Pick<RouteContext, "supabase">, tenantId: string, q: string | null): Promise<number> {
+  let query = ctx.supabase
+    .from("contacts")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .is("erased_at", null)
+    .is("merged_into_contact_id", null);
+  const needle = (q ?? "").trim().replace(/[,()"'\\%*]/g, "");
+  if (needle) {
+    const digits = needle.replace(/\D/g, "");
+    const clauses = [`display_name.ilike.*${needle}*`, `wa_profile_name.ilike.*${needle}*`, ...(digits.length >= 3 ? [`phone_e164.ilike.*${digits}*`] : [])];
+    query = query.or(clauses.join(","));
+  }
+  const { count, error } = await query;
+  if (error) throw new Error(error.message);
+  return count ?? 0;
 }

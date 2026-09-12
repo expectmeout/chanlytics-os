@@ -128,6 +128,8 @@ export const RATE = {
   billing: { limit: 20, windowMs: 3_600_000, noun: "billing requests" },
   /** A whole thread, a whole call, or everyone, as a file. */
   export: { limit: 10, windowMs: 60_000, noun: "exports" },
+  /** A page remembering its view: a sort, a tab. One small write per click at most. */
+  view_set: { limit: 60, windowMs: 60_000, noun: "view changes" },
   /** A question to the workspace assistant: a model turn, tools and all. */
   ask: { limit: 20, windowMs: 60_000, noun: "questions" },
 } as const satisfies Record<string, RateRule>;

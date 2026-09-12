@@ -53,6 +53,7 @@ export const ROUTES = {
   "GET setup": { method: "GET", path: "/api/v1/setup" },
   "GET team": { method: "GET", path: "/api/v1/team" },
   "GET templates": { method: "GET", path: "/api/v1/templates" },
+  "GET views": { method: "GET", path: "/api/v1/views" },
   "GET workspaces": { method: "GET", path: "/api/v1/workspaces" },
   "PATCH team/[id]": { method: "PATCH", path: "/api/v1/team/[id]" },
   "PATCH workspaces": { method: "PATCH", path: "/api/v1/workspaces" },
@@ -112,6 +113,8 @@ export const ROUTES = {
   "PUT contacts/[id]/receptionist": { method: "PUT", path: "/api/v1/contacts/[id]/receptionist" },
   "PUT contacts/consent": { method: "PUT", path: "/api/v1/contacts/consent" },
   "PUT contacts/marketing-consent": { method: "PUT", path: "/api/v1/contacts/marketing-consent" },
+  "PUT contacts/notes": { method: "PUT", path: "/api/v1/contacts/notes" },
+  "PUT contacts/receptionist": { method: "PUT", path: "/api/v1/contacts/receptionist" },
   "PUT me": { method: "PUT", path: "/api/v1/me" },
   "PUT notifications": { method: "PUT", path: "/api/v1/notifications" },
   "PUT playbooks/[id]": { method: "PUT", path: "/api/v1/playbooks/[id]" },
@@ -119,6 +122,7 @@ export const ROUTES = {
   "PUT segments/[id]": { method: "PUT", path: "/api/v1/segments/[id]" },
   "PUT settings": { method: "PUT", path: "/api/v1/settings" },
   "PUT templates/[id]": { method: "PUT", path: "/api/v1/templates/[id]" },
+  "PUT views/[page]": { method: "PUT", path: "/api/v1/views/[page]" },
 } as const;
 
 /** The handler each key names, as a type: what it takes and answers rides on it (route.ts, Shape). */
@@ -174,6 +178,7 @@ export type Routes = {
   "GET setup": typeof import("../../app/api/v1/setup/route").GET;
   "GET team": typeof import("../../app/api/v1/team/route").GET;
   "GET templates": typeof import("../../app/api/v1/templates/route").GET;
+  "GET views": typeof import("../../app/api/v1/views/route").GET;
   "GET workspaces": typeof import("../../app/api/v1/workspaces/route").GET;
   "PATCH team/[id]": typeof import("../../app/api/v1/team/[id]/route").PATCH;
   "PATCH workspaces": typeof import("../../app/api/v1/workspaces/route").PATCH;
@@ -233,6 +238,8 @@ export type Routes = {
   "PUT contacts/[id]/receptionist": typeof import("../../app/api/v1/contacts/[id]/receptionist/route").PUT;
   "PUT contacts/consent": typeof import("../../app/api/v1/contacts/consent/route").PUT;
   "PUT contacts/marketing-consent": typeof import("../../app/api/v1/contacts/marketing-consent/route").PUT;
+  "PUT contacts/notes": typeof import("../../app/api/v1/contacts/notes/route").PUT;
+  "PUT contacts/receptionist": typeof import("../../app/api/v1/contacts/receptionist/route").PUT;
   "PUT me": typeof import("../../app/api/v1/me/route").PUT;
   "PUT notifications": typeof import("../../app/api/v1/notifications/route").PUT;
   "PUT playbooks/[id]": typeof import("../../app/api/v1/playbooks/[id]/route").PUT;
@@ -240,4 +247,5 @@ export type Routes = {
   "PUT segments/[id]": typeof import("../../app/api/v1/segments/[id]/route").PUT;
   "PUT settings": typeof import("../../app/api/v1/settings/route").PUT;
   "PUT templates/[id]": typeof import("../../app/api/v1/templates/[id]/route").PUT;
+  "PUT views/[page]": typeof import("../../app/api/v1/views/[page]/route").PUT;
 };

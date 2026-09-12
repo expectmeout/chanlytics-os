@@ -953,6 +953,13 @@ const plCols = (withCalendar) => [
   { key: "actions", label: "", sortable: false },
 ];
 const PL_SORT_KEYS = ["last", "name", "state", "visits", "offers"];
+// The receptionist's four modes for a selection, in the words the profile uses for one person.
+const PL_MODES = [
+  { id: "auto", label: "Answer them", icon: "sparkle" },
+  { id: "ask", label: "Ask me first", icon: "eye" },
+  { id: "never", label: "Stay out", icon: "pause" },
+  { id: "inherit", label: "Follow the workspace", icon: "refresh" },
+];
 
 const plIsNumber = (name) => /^[+\d(]/.test(name || "");
 const plWhen = (iso) => { if (!iso) return undefined; const d = new Date(iso); return Number.isNaN(d.getTime()) ? undefined : d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" }); };
@@ -1130,6 +1137,25 @@ const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash })
     );
   };
   const exportCsv = () => { plDownload(`people-${new Date().toISOString().slice(0, 10)}.csv`, plCsv(picked)); flash({ msg: <>{picked.length} exported as a CSV</> }); };
+  const isOwner = !!(window.__ME && window.__ME.role === "owner");
+  const [noting, setNoting] = React.useState(false);
+  const [note, setNote] = React.useState("");
+  const receptionist = async (m) => {
+    setBusy(true);
+    const r = await window.__setPersonReceptionistMany([...sel], m.id);
+    setBusy(false);
+    flash({ msg: r.ok ? <>Receptionist: <b>{m.label}</b> for {r.done} {r.done === 1 ? "person" : "people"}</> : <>{r.message}</> });
+    if (r.ok) onClear();
+  };
+  const addNote = async () => {
+    const line = note.trim();
+    if (!line || busy) return;
+    setBusy(true);
+    const r = await window.__appendPersonNotesMany([...sel], line);
+    setBusy(false);
+    flash({ msg: r.ok ? <>Noted on {r.done} {r.done === 1 ? "person" : "people"}: <b>{line}</b></> : <>{r.message}</> });
+    if (r.ok) { setNoting(false); setNote(""); onClear(); }
+  };
   const sources = (window.__consentSources || []).filter((s) => s.id !== "customer_message");
   // A yes to offers is written (00100), so the only way a desk records one for a
   // whole selection is the form they signed.
@@ -1171,6 +1197,27 @@ const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash })
           ]}
         />
       )}
+      {canEdit && isOwner && window.__setPersonReceptionistMany && (
+        <MoreMenu
+          btnClass="btn btn-sm"
+          label="Receptionist"
+          title="What the receptionist does for these people"
+          gated={busy ? "One moment — the last change is still saving" : null}
+          items={[
+            { header: "For these people…" },
+            ...PL_MODES.map((m) => ({ label: m.label, icon: m.icon, onClick: () => receptionist(m) })),
+          ]}
+        />
+      )}
+      {canEdit && window.__appendPersonNotesMany && !noting && (
+        <button className="btn btn-sm" disabled={busy} onClick={() => setNoting(true)} data-testid="bulk-note"><Icon name="edit" size={12} /> Add a note</button>
+      )}
+      {canEdit && noting && (
+        <span className="cl-bulk-naming">
+          <input autoFocus value={note} placeholder="One line, under their notes" maxLength={200} disabled={busy} data-testid="bulk-note-line" onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addNote(); if (e.key === "Escape") { setNoting(false); setNote(""); } }} />
+          <button className="btn btn-sm btn-primary" disabled={busy || !note.trim()} onClick={addNote}>Add</button>
+        </span>
+      )}
       {canExport && <button className="btn btn-sm" disabled={busy} onClick={exportCsv} data-testid="bulk-export"><Icon name="external" size={12} /> Export CSV</button>}
       {!canEdit && <span className="cl-prof-aut-hint">Only an owner or operator can add to lists or record a yes.</span>}
       <button className="btn btn-ghost btn-sm" onClick={onClear} data-testid="bulk-clear"><Icon name="x" size={11} /> Clear</button>
@@ -1204,6 +1251,41 @@ const SaveShownAsList = ({ ids, suggested, flash }) => {
   );
 };
 
+// Somebody the business meets before they ever write or call: a number and,
+// if known, a name, through the door the calendar sweep already uses. The
+// route existed for a year with no screen calling it. An existing number opens
+// that person rather than making a second one.
+const AddPersonButton = ({ onAdded, flash }) => {
+  const [open, setOpen] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [phone, setPhone] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState(null);
+  const close = () => { setOpen(false); setName(""); setPhone(""); setError(null); };
+  const submit = async () => {
+    if (busy || !phone.trim() || !window.__addPerson) return;
+    setBusy(true); setError(null);
+    const r = await window.__addPerson({ phone: phone.trim(), ...(name.trim() ? { name: name.trim() } : {}) });
+    setBusy(false);
+    if (!r.ok) { setError(r.message || "Could not add them."); return; }
+    flash({ msg: r.data.existed ? <><b>{name.trim() || phone.trim()}</b> was already here — opened</> : <><b>{name.trim() || phone.trim()}</b> added</> });
+    close();
+    onAdded(r.data.contact_id);
+  };
+  if (!open) {
+    return <button className="btn btn-ghost btn-sm" onClick={() => setOpen(true)} data-testid="add-person"><Icon name="plus" size={12} /> Add a person</button>;
+  }
+  return (
+    <span className="cl-bulk-naming" data-testid="add-person-form">
+      <input autoFocus value={name} placeholder="Name (optional)" maxLength={80} disabled={busy} data-testid="add-person-name" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") close(); }} />
+      <input value={phone} placeholder="Mobile number" maxLength={24} disabled={busy} data-testid="add-person-phone" onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") close(); }} />
+      <button className="btn btn-sm btn-primary" disabled={busy || !phone.trim()} onClick={submit} data-testid="add-person-save">Add</button>
+      <button className="btn btn-ghost btn-sm" disabled={busy} onClick={close}>Cancel</button>
+      {error && <span className="cl-rail-hint" style={{ color: "var(--danger)" }}>{error}</span>}
+    </span>
+  );
+};
+
 const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSaved = null, initialState = null }) => {
   const people = usePeople();
   const rows = people.rows;
@@ -1223,13 +1305,25 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // that are no longer on screen is the kind of bug bulk actions are made of.
   const [sel, setSel] = useState(() => new Set());
   const toggleSel = (id) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const remembered = React.useMemo(plLoadView, []);
+  // The view the workspace remembers for this member (memberships.views, read
+  // with the surface) wins over what this device remembers; the device copy
+  // stays as the fallback for a route that is not there yet.
+  const remembered = React.useMemo(() => ({ ...plLoadView(), ...((people.views && people.views.people) || {}) }), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [tab, setTab] = useState(initialState && PL_TABS.includes(initialState) ? initialState : "all");
   React.useEffect(() => { if (initialState && PL_TABS.includes(initialState)) setTab(initialState); }, [initialState]);
   const [attentionTab, setAttentionTab] = useState(PL_TABS.includes(remembered.attentionTab) ? remembered.attentionTab : "needs_you");
   const [sortBy, setSortBy] = useState(PL_SORT_KEYS.includes(remembered.sortBy) ? remembered.sortBy : "last");
   const [sortDir, setSortDir] = useState(remembered.sortDir === "asc" ? "asc" : "desc");
-  React.useEffect(() => { plSaveView({ attentionTab, sortBy, sortDir }); }, [attentionTab, sortBy, sortDir]);
+  const savedView = React.useRef(JSON.stringify({ attentionTab: remembered.attentionTab, sortBy: remembered.sortBy, sortDir: remembered.sortDir }));
+  React.useEffect(() => {
+    const view = { attentionTab, sortBy, sortDir };
+    plSaveView(view);
+    // The workspace's copy, once per change and never for the view it already holds.
+    const key = JSON.stringify(view);
+    if (key === savedView.current || !window.__saveView) return;
+    savedView.current = key;
+    window.__saveView("people", view).then((r) => { if (!r.ok) console.error("people_view_not_saved", r.message); });
+  }, [attentionTab, sortBy, sortDir]);
   // The view in the address, so a list or a state can be sent to someone —
   // the assistant and Today link here. Replaced, never pushed: Back leaves People.
   React.useEffect(() => {
@@ -1241,6 +1335,23 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     if (window.location.hash !== next) window.history.replaceState(null, "", next);
   }, [listId, savedId, tab]);
   const [q, setQ] = useState("");
+  // When the page does not hold everyone (a workspace past a thousand people),
+  // the box asks the server, which matches the same three things; what it
+  // answers stands in for the loaded rows while the box is not empty.
+  const hasMore = !!(people.page && people.page.has_more);
+  const [found, setFound] = useState(null);
+  React.useEffect(() => {
+    if (!hasMore || !q.trim() || !window.__peopleSearch) { setFound(null); return undefined; }
+    let on = true;
+    const t = setTimeout(() => { window.__peopleSearch(q).then((r) => { if (on) setFound(r); }).catch(() => { if (on) setFound(null); }); }, 250);
+    return () => { on = false; clearTimeout(t); };
+  }, [q, hasMore]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMore = async () => {
+    if (!window.__peopleMore || loadingMore) return;
+    setLoadingMore(true);
+    try { await window.__peopleMore(); } finally { setLoadingMore(false); }
+  };
   const searchRef = React.useRef(null);
   const scrollRef = React.useRef(null);
   const tableRef = React.useRef(null);
@@ -1262,7 +1373,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   };
 
   const shown = useMemo(() => {
-    let list = rows;
+    let list = found ?? rows;
     if (tab !== "all") list = list.filter((p) => p.state === tab);
     if (listId) {
       const l = lists.find((x) => x.id === listId);
@@ -1303,7 +1414,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
       if (av > bv) return sortDir === "asc" ? 1 : -1;
       return 0;
     });
-  }, [rows, lists, saved, tab, listId, savedId, q, sortBy, sortDir]);
+  }, [rows, found, lists, saved, tab, listId, savedId, q, sortBy, sortDir]);
 
   const sortLabels = {
     last: ["Latest contact first", "Oldest contact first"],
@@ -1387,6 +1498,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
               <span className="kbd">/</span>
             </div>
             <div className="cl-controls-right">
+              {canEditLists && window.__addPerson && <AddPersonButton onAdded={onOpenProfile} flash={plFlash} />}
               {/* Everyone as a CSV, from the route: owner only, and the button
                   says so for anyone else instead of leading to a refusal. */}
               {window.__href && (
@@ -1469,6 +1581,13 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
             filtered={filtered}
             onClearFilters={() => { setQ(""); setTab("all"); setListId(null); setSavedId(null); }}
           />
+          {hasMore && (
+            <div className="cl-section-sub" style={{ padding: "8px 0 16px" }} data-testid="people-more">
+              {rows.length.toLocaleString()} of {people.page.total.toLocaleString()} loaded{q.trim() ? " · the search asks the server for the rest" : ""}
+              {" "}
+              <button className="btn btn-ghost btn-sm" disabled={loadingMore} onClick={loadMore} data-testid="people-more-btn">{loadingMore ? "Loading…" : "Show more"}</button>
+            </div>
+          )}
         </div>
         {sel.size > 0 && <PeopleBulkBar sel={sel} rows={rows} saved={saved} canEdit={canEditLists} canExport={canExport} onClear={() => setSel(new Set())} flash={plFlash} />}
         {toastNode}

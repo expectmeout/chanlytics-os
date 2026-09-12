@@ -1,4 +1,4 @@
-import { POLICY_CLASS_WORDS } from "@chanlytics/contracts";
+import { POLICY_CLASS_WORDS, type PersonRowDto } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/prompt-preview";
 /**
  * The SurfaceData seam (Blueprint v3.0, Slice 0 exit criterion).
@@ -530,7 +530,76 @@ export interface PeopleSurface {
   calendar: { state: "ok" | "unavailable" | "none"; source: string };
   /** The booking link on file, so a row can offer to text it. */
   bookingLink: string | null;
+  /** The page the rows came from: how many there are in all, and whether more follow (00112). */
+  page: { q: string | null; offset: number; limit: number; total: number; has_more: boolean } | null;
+  /** What this member's pages remember in this workspace (memberships.views). */
+  views: Record<string, unknown>;
   fetchedAt: number;
+}
+
+/** What the People surface holds between reads: the rows loaded so far, and the rest it derives from. */
+let peopleLoaded: {
+  people: PersonRowDto[];
+  page: PeopleSurface["page"];
+  saved: { id: string; name: string; ids: string[] }[];
+  calendar: PeopleSurface["calendar"];
+  bookingLink: string | null;
+  views: Record<string, unknown>;
+} | null = null;
+
+/** The surface from what is loaded: every list, count and cell derived the same way, whether after the first read or a later page. */
+function publishPeople(): void {
+  if (!peopleLoaded) return;
+  const now = new Date();
+  const rows = peopleLoaded.people.map((r) => toPersonRowVM(r, now));
+  const rowIds = new Set(rows.map((r) => r.id));
+  const calendar = peopleLoaded.calendar;
+  (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE = {
+    rows,
+    // The outcome lists only when there is a calendar to read them from.
+    lists: PEOPLE_LISTS.filter((l) => !l.needsCalendar || calendar.state === "ok").map((l) => {
+      const members = rows.filter(l.test);
+      return { id: l.id, label: l.label, group: l.group, count: members.length, ids: members.map((r) => r.id), action: peopleListAction(l.id, members) };
+    }),
+    groups: PEOPLE_LIST_GROUPS.map((g) => ({ id: g.id, label: g.label })),
+    calendar,
+    bookingLink: peopleLoaded.bookingLink,
+    saved: peopleLoaded.saved.map((l) => {
+      const ids = l.ids.filter((id) => rowIds.has(id));
+      return { id: l.id, name: l.name, count: ids.length, ids };
+    }),
+    // The total is the server's: past the first page the rows here are not everyone.
+    aggregates: { ...peopleAggregates(rows, now.getTime()), total: peopleLoaded.page?.total ?? rows.length },
+    recency: Object.fromEntries(
+      PEOPLE_TABS.filter((t) => t.id !== "all").map((t) => [t.id, recencyCells(rows.filter((r) => r.state === t.id), now.getTime())]),
+    ),
+    attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, now.getTime())])),
+    page: peopleLoaded.page,
+    views: peopleLoaded.views,
+    fetchedAt: now.getTime(),
+  };
+}
+
+/**
+ * The next thousand, appended under the same order, and the surface told:
+ * `window.__peopleMore()`. The page shows the button only while the server
+ * says more follow.
+ */
+async function peopleMore(): Promise<void> {
+  if (!peopleLoaded?.page?.has_more) return;
+  const next = await read("GET contacts", { query: { offset: peopleLoaded.people.length } });
+  const seen = new Set(peopleLoaded.people.map((p) => p.id));
+  peopleLoaded.people = [...peopleLoaded.people, ...next.people.filter((p) => !seen.has(p.id))];
+  peopleLoaded.page = next.page;
+  publishPeople();
+  window.dispatchEvent(new CustomEvent("surface:clients"));
+}
+
+/** Everyone who matches, from the server, when the page does not hold everyone: `window.__peopleSearch(q)`. */
+async function peopleSearch(q: string): Promise<PersonRowVM[]> {
+  const r = await read("GET contacts", { query: { q } });
+  const now = new Date();
+  return r.people.map((p) => toPersonRowVM(p, now));
 }
 
 /**
@@ -551,35 +620,24 @@ export const peopleOverride: SurfaceOverride = {
   events: ["surface:clients"],
   refreshOnMessageInserts: true,
   apply: async () => {
-    const [data, savedData] = await Promise.all([
+    const [data, savedData, viewsData] = await Promise.all([
       read("GET contacts"),
       read("GET segments"),
+      // A member's own views; a route that is not there yet reads as none.
+      read("GET views").catch(() => ({ views: {} as Record<string, unknown> })),
     ]);
-    const now = new Date();
-    const rows = data.people.map((r) => toPersonRowVM(r, now));
-    const rowIds = new Set(rows.map((r) => r.id));
-    const calendar = data.calendar ?? { state: "none" as const, source: "your calendar" };
-    (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE = {
-      rows,
-      // The outcome lists only when there is a calendar to read them from.
-      lists: PEOPLE_LISTS.filter((l) => !l.needsCalendar || calendar.state === "ok").map((l) => {
-        const members = rows.filter(l.test);
-        return { id: l.id, label: l.label, group: l.group, count: members.length, ids: members.map((r) => r.id), action: peopleListAction(l.id, members) };
-      }),
-      groups: PEOPLE_LIST_GROUPS.map((g) => ({ id: g.id, label: g.label })),
-      calendar,
+    peopleLoaded = {
+      people: data.people,
+      page: data.page ?? null,
+      saved: savedData.lists,
+      calendar: data.calendar ?? { state: "none" as const, source: "your calendar" },
       bookingLink: data.booking_link ?? null,
-      saved: savedData.lists.map((l) => {
-        const ids = l.ids.filter((id) => rowIds.has(id));
-        return { id: l.id, name: l.name, count: ids.length, ids };
-      }),
-      aggregates: peopleAggregates(rows, now.getTime()),
-      recency: Object.fromEntries(
-        PEOPLE_TABS.filter((t) => t.id !== "all").map((t) => [t.id, recencyCells(rows.filter((r) => r.state === t.id), now.getTime())]),
-      ),
-      attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, now.getTime())])),
-      fetchedAt: now.getTime(),
+      views: viewsData.views ?? {},
     };
+    const w = window as unknown as { __peopleMore?: () => Promise<void>; __peopleSearch?: (q: string) => Promise<PersonRowVM[]> };
+    w.__peopleMore = peopleMore;
+    w.__peopleSearch = peopleSearch;
+    publishPeople();
   },
 };
 
