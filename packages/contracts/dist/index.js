@@ -2465,7 +2465,7 @@ function spanLabel2(t1, t2) {
   const sameHalf = a.slice(-2) === b.slice(-2);
   return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
 }
-function toBlock(item, tz, dayStartMs, dayEndMs) {
+function toBlock(item, tz, dayStartMs, dayEndMs, now) {
   const s = Math.max(Date.parse(item.start), dayStartMs);
   const e = Math.min(Date.parse(item.end), dayEndMs);
   const t = s === dayStartMs ? 0 : hoursOf(tz, s);
@@ -2476,14 +2476,47 @@ function toBlock(item, tz, dayStartMs, dayEndMs) {
     dur: Math.max(15, Math.round((tEnd - t) * 60)),
     title: item.title || "Busy",
     time: spanLabel2(t, tEnd),
-    person: item.person ? { id: item.person.id, name: item.person.name, via: item.person.via ?? null } : null,
+    person: item.person ? {
+      id: item.person.id,
+      name: item.person.name,
+      via: item.person.via ?? null,
+      threadId: item.person.thread ? `th-${item.person.thread}` : null,
+      replyOpen: item.person.thread ? waWindow(item.person.wa_inbound_at ?? null, now).open : false
+    } : null,
     description: item.description ?? null,
     location: item.location ?? null,
     contacts: { phones: (item.contacts?.phones ?? []).map((p) => formatPhoneDisplay(p) ?? p), e164: item.contacts?.phones ?? [], emails: item.contacts?.emails ?? [] },
     guess: item.guess ?? null,
     start: item.start,
-    end: item.end
+    end: item.end,
+    lane: 0,
+    lanes: 1
   };
+}
+function assignLanes(timed) {
+  let cluster = [];
+  let clusterEnd = -1;
+  let laneEnds = [];
+  const close = () => {
+    for (const b of cluster) b.lanes = laneEnds.length;
+  };
+  for (const b of timed) {
+    const end = b.t + b.dur / 60;
+    if (b.t >= clusterEnd - 1e-9 && cluster.length) {
+      close();
+      cluster = [];
+      laneEnds = [];
+    }
+    let lane = laneEnds.findIndex((e) => e <= b.t + 1e-9);
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(end);
+    } else laneEnds[lane] = end;
+    b.lane = lane;
+    cluster.push(b);
+    clusterEnd = Math.max(clusterEnd, end);
+  }
+  close();
 }
 function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   const tz = dto.timezone;
@@ -2505,6 +2538,18 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   }
   start = Math.max(0, start - 1);
   end = Math.min(24, end + 1);
+  for (const d of dto.days) {
+    const ds = zoneMidnight(tz, d.key);
+    const de = zoneMidnight(tz, shiftKey(d.key, 1));
+    for (const item of d.items) {
+      const s = Date.parse(item.start);
+      const e = Date.parse(item.end);
+      if (item.all_day || !(e > ds && s < de) || s <= ds && e >= de) continue;
+      const b = toBlock(item, tz, ds, de, now);
+      start = Math.min(start, Math.max(0, Math.floor(b.t)));
+      end = Math.max(end, Math.min(24, Math.ceil(b.t + b.dur / 60)));
+    }
+  }
   const days = dto.days.map((d) => {
     const { y, m, d: dd } = keyParts(d.key);
     const weekday = DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()].toLowerCase();
@@ -2532,11 +2577,12 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
       const s = Date.parse(item.start);
       const e = Date.parse(item.end);
       if (!(e > zoneDayStart && s < zoneDayEnd)) continue;
-      const block = toBlock(item, tz, zoneDayStart, zoneDayEnd);
+      const block = toBlock(item, tz, zoneDayStart, zoneDayEnd, now);
       if (item.all_day || s <= zoneDayStart && e >= zoneDayEnd) allDay.push({ ...block, t: 0, dur: 24 * 60, time: "All day" });
       else timed.push(block);
     }
-    timed.sort((a, b) => a.t - b.t);
+    timed.sort((a, b) => a.t - b.t || b.dur - a.dur);
+    assignLanes(timed);
     const windows = d.windows.map((w) => {
       const t = hoursOf(tz, Date.parse(w.start));
       const tEnd = hoursOf(tz, Date.parse(w.end));
@@ -2738,6 +2784,9 @@ function toLiveVM(calls, channels, now = /* @__PURE__ */ new Date()) {
 }
 
 // src/calendar-people.ts
+function threadOf(p) {
+  return p.thread ? { thread: p.thread, wa_inbound_at: p.waInboundAt ?? null } : {};
+}
 var EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 var PHONE_RE = /\+?\(?\d{1,4}\)?(?:[\s.-]?\(?\d{2,4}\)?){2,5}/g;
 var ISO_DATE_RE = /^\d{4}[-./]\d{2}[-./]\d{2}/;
@@ -2790,11 +2839,11 @@ function matchPerson(item, people) {
     for (const p2 of people) if (p2.phone) byPhone.set(p2.phone, p2);
     for (const ph of c.phones) {
       const p2 = byPhone.get(ph);
-      if (p2) return { id: p2.id, name: labelOf(p2), via: "phone" };
+      if (p2) return { id: p2.id, name: labelOf(p2), via: "phone", ...threadOf(p2) };
     }
   }
   const p = personInText([item.title, ...c.names, item.description ?? ""].join("\n"), people);
-  return p ? { id: p.id, name: labelOf(p), via: "name" } : null;
+  return p ? { id: p.id, name: labelOf(p), via: "name", ...threadOf(p) } : null;
 }
 function indexFeed(items) {
   const byPhone = /* @__PURE__ */ new Map();

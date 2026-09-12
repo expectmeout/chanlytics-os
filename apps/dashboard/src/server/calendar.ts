@@ -113,9 +113,15 @@ export function spanFor(from: string | null, days: number, tz: string, now: Date
   return { from: start, days: Math.min(MAX_DAYS, Math.max(1, Math.round(days) || 7)) };
 }
 
-/** People as the matcher wants them: a human-given name (never a phone made words) and the E.164. */
-export function personLike(p: Pick<PersonRowDto, "id" | "display_name" | "wa_profile_name" | "phone_e164">): PersonLike {
-  return { id: p.id, name: p.display_name || p.wa_profile_name || "", phone: p.phone_e164 };
+/** People as the matcher wants them: a human-given name (never a phone made words), the E.164, and the thread a link is texted into when they have one. */
+export function personLike(p: Pick<PersonRowDto, "id" | "display_name" | "wa_profile_name" | "phone_e164"> & Partial<Pick<PersonRowDto, "has_chat" | "latest_conversation_id" | "latest_wa_inbound_at">>): PersonLike {
+  return {
+    id: p.id,
+    name: p.display_name || p.wa_profile_name || "",
+    phone: p.phone_e164,
+    thread: p.has_chat && p.latest_conversation_id ? p.latest_conversation_id : null,
+    waInboundAt: p.latest_wa_inbound_at ?? null,
+  };
 }
 
 export function itemsToDays(items: FeedItem[], from: string, days: number, tz: string, people: PersonLike[], services: string[] = []): { days: Array<Pick<CalendarDayDto, "key" | "items">>; dropped: number } {

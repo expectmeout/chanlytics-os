@@ -163,7 +163,10 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
   for (const id of ["cal-month", "cal-month-cell", "cal-agenda", "cal-agenda-day", "cal-jump", "cal-service", "cal-rules", "cal-consult-note"]) assert.ok(page.includes(`data-testid="${id}"`), id);
   assert.ok(page.includes('data-testid={`cal-view-${id}`}') && page.includes('["month", "Month"], ["agenda", "Agenda"]'), "four views, one tab each");
   assert.ok(page.includes("const fit = (w) => !service || !service.duration || w.dur >= service.duration;"), "the same rule the assistant applies for a service");
-  assert.ok(page.includes('if (view === "month") setAnchorKey(crShiftMonth(anchor, n));') && page.includes('else if (view === "agenda") setAnchorKey(crShift(anchor, 14 * n));'), "a month moves by a month, the agenda by two weeks");
+  assert.ok(page.includes('if (view === "month") setAnchorKey(cal.shiftMonth(anchor, n));') && page.includes('else if (view === "agenda") setAnchorKey(cal.shiftKey(anchor, 14 * n));'), "a month moves by a month, the agenda by two weeks, by contracts' arithmetic through the bridge");
+  assert.ok(!/const cr(Shift|MonthLabel|ShiftMonth|Hour) = /.test(page), "the page keeps no copy of the date arithmetic");
+  for (const id of ["cal-panel-copy-link", "cal-panel-text-link", "cal-copy-link"]) assert.ok(page.includes(`data-testid="${id}"`), id);
+  assert.ok(page.includes('value={anchor}') && page.includes("CR_REFRESH_MS"), "the date picker follows the anchor; the board reads itself again while open");
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
   assert.ok(svc.includes("const MAX_DAYS = 63;") && svc.includes("consult_first: (profile?.booking_rules?.consult_first ?? []).some("), "the services as Settings keeps them");
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
@@ -209,10 +212,35 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
   assert.ok(!page.includes("const [busy, setBusy]"), "no click is ever dropped for being early");
   const bridge = readCode("apps/dashboard/src/legacy-bridge/calendar.ts");
   assert.ok(bridge.includes("export async function ensure(view: CalendarView, anchor: string)") && bridge.includes("if (coversSpan(have, need.from, need.days)) return true;"));
-  assert.ok(bridge.includes("spanFor: spanForView, windowFor, covers: coversSpan, frameOf"), "the arithmetic reaches the page");
+  assert.ok(bridge.includes("spanFor: spanForView, windowFor, covers: coversSpan, frameOf, shiftKey, shiftMonth, monthLabel: monthLabelOf, clockLabel"), "the arithmetic reaches the page, all of it");
+  assert.ok(bridge.includes("export async function refresh(): Promise<void>"), "and a refresh the board can call");
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes("const w = from ? { from, days } : windowFor(localDayKey());"), "the first read is the window around today");
   assert.ok(readCode("apps/dashboard/src/server/calendar.ts").includes("const MAX_DAYS = 63;"));
   const css = readCode("apps/dashboard/src/legacy/styles/calendar.css");
   assert.ok(css.includes("@keyframes cal-in") && css.includes("prefers-reduced-motion"), "a quiet arrival, none for those who asked for none");
+});
+
+test("the board drawn right: overlapping blocks take lanes, a block outside the hours widens the grid, and a person's thread rides with the block", () => {
+  const now = new Date("2026-09-08T16:00:00.000Z");
+  const d = dto();
+  const tue = d.days[1];
+  tue.items.length = 0;
+  tue.items.push(
+    { id: "o1", start: "2026-09-08T18:00:00.000Z", end: "2026-09-08T19:00:00.000Z", title: "A", all_day: false, person: { id: "p1", name: "Ana", thread: "c-1", wa_inbound_at: "2026-09-08T15:00:00.000Z" } },
+    { id: "o2", start: "2026-09-08T18:30:00.000Z", end: "2026-09-08T19:30:00.000Z", title: "B", all_day: false, person: { id: "p2", name: "Bo", thread: "c-2", wa_inbound_at: "2026-09-01T15:00:00.000Z" } },
+    { id: "o3", start: "2026-09-08T18:45:00.000Z", end: "2026-09-08T19:15:00.000Z", title: "C", all_day: false, person: { id: "p3", name: "Cy" } },
+    { id: "o4", start: "2026-09-08T20:00:00.000Z", end: "2026-09-08T21:00:00.000Z", title: "D", all_day: false, person: null },
+    { id: "o5", start: "2026-09-09T00:00:00.000Z", end: "2026-09-09T01:00:00.000Z", title: "Late", all_day: false, person: null },
+  );
+  const vm = toCalendarVM(d, now);
+  const blocks = vm.days[1].blocks;
+  assert.deepEqual(blocks.map((b) => [b.title, b.lane, b.lanes]), [["A", 0, 3], ["B", 1, 3], ["C", 2, 3], ["D", 0, 1], ["Late", 0, 1]], "three that overlap share three lanes; the ones alone keep the column");
+  assert.deepEqual(blocks[0].person, { id: "p1", name: "Ana", via: null, threadId: "th-c-1", replyOpen: true }, "a thread and an open reply window");
+  assert.deepEqual(blocks[1].person, { id: "p2", name: "Bo", via: null, threadId: "th-c-2", replyOpen: false }, "a thread whose window closed a week ago");
+  assert.deepEqual(blocks[2].person, { id: "p3", name: "Cy", via: null, threadId: null, replyOpen: false }, "in People, no thread yet");
+  assert.equal(vm.hours.end, 21, "the 8 PM block is drawn: the grid ends at nine, not at the hour after closing");
+  assert.equal(vm.hours.start, 8);
+  const plain = toCalendarVM(dto(), now);
+  assert.deepEqual([plain.hours.start, plain.hours.end], [8, 20], "the hours' own air when nothing falls outside them");
 });

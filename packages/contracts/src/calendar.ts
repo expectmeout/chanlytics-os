@@ -17,6 +17,7 @@ import { agoWords } from "./time";
  * Pure; tests feed fixtures.
  */
 import { DAYS, hoursRuns, type Closure, type Hours } from "./config";
+import { waWindow } from "./policy";
 import { BOOKING_DEFAULTS, clockInZone, closedOn, dayInZone, dayIntervals, type BookingRulesLike } from "./availability";
 import type { FeedFailure } from "./feed-url";
 import { formatPhoneDisplay } from "./phone";
@@ -28,8 +29,8 @@ export interface CalendarItemDto {
   end: string;
   title: string;
   all_day: boolean;
-  /** The person in People this appointment is for — by a phone in the event, else a whole name in its words. */
-  person: { id: string; name: string; via?: "phone" | "name" } | null;
+  /** The person in People this appointment is for — by a phone in the event, else a whole name in its words; their thread and last WhatsApp message when they have one. */
+  person: { id: string; name: string; via?: "phone" | "name"; thread?: string | null; wa_inbound_at?: string | null } | null;
   /** The event's own words, plain text. */
   description?: string | null;
   location?: string | null;
@@ -192,7 +193,8 @@ export interface CalendarBlockVM {
   title: string;
   /** "2 – 3:30 PM" */
   time: string;
-  person: { id: string; name: string; via: "phone" | "name" | null } | null;
+  /** Who it is for; `threadId` is the Inbox thread a booking link is texted into ("th-…"), `replyOpen` whether a plain text still reaches them. */
+  person: { id: string; name: string; via: "phone" | "name" | null; threadId: string | null; replyOpen: boolean } | null;
   description: string | null;
   location: string | null;
   /** Display-formatted phones (and the same in E.164, for the add), and the emails the event carried. */
@@ -201,6 +203,9 @@ export interface CalendarBlockVM {
   guess: string | null;
   start: string;
   end: string;
+  /** Blocks that overlap in time sit side by side: this block's lane, and how many lanes its cluster needs. */
+  lane: number;
+  lanes: number;
 }
 
 export interface CalendarBandVM {
@@ -282,7 +287,7 @@ function spanLabel(t1: number, t2: number): string {
   return `${sameHalf ? a.slice(0, -3) : a} – ${b}`;
 }
 
-function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs: number): CalendarBlockVM {
+function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs: number, now: Date): CalendarBlockVM {
   const s = Math.max(Date.parse(item.start), dayStartMs);
   const e = Math.min(Date.parse(item.end), dayEndMs);
   const t = s === dayStartMs ? 0 : hoursOf(tz, s);
@@ -293,14 +298,47 @@ function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs
     dur: Math.max(15, Math.round((tEnd - t) * 60)),
     title: item.title || "Busy",
     time: spanLabel(t, tEnd),
-    person: item.person ? { id: item.person.id, name: item.person.name, via: item.person.via ?? null } : null,
+    person: item.person
+      ? {
+          id: item.person.id,
+          name: item.person.name,
+          via: item.person.via ?? null,
+          threadId: item.person.thread ? `th-${item.person.thread}` : null,
+          replyOpen: item.person.thread ? waWindow(item.person.wa_inbound_at ?? null, now).open : false,
+        }
+      : null,
     description: item.description ?? null,
     location: item.location ?? null,
     contacts: { phones: (item.contacts?.phones ?? []).map((p) => formatPhoneDisplay(p) ?? p), e164: item.contacts?.phones ?? [], emails: item.contacts?.emails ?? [] },
     guess: item.guess ?? null,
     start: item.start,
     end: item.end,
+    lane: 0,
+    lanes: 1,
   };
+}
+
+/**
+ * Lanes: blocks that overlap in time sit side by side, never on top of each
+ * other. Sorted by start, each block takes the first lane whose last block
+ * has ended; a run of transitively overlapping blocks is one cluster, and
+ * every block in it is as wide as the cluster's lane count allows.
+ */
+function assignLanes(timed: CalendarBlockVM[]): void {
+  let cluster: CalendarBlockVM[] = [];
+  let clusterEnd = -1;
+  let laneEnds: number[] = [];
+  const close = () => { for (const b of cluster) b.lanes = laneEnds.length; };
+  for (const b of timed) {
+    const end = b.t + b.dur / 60;
+    if (b.t >= clusterEnd - 1e-9 && cluster.length) { close(); cluster = []; laneEnds = []; }
+    let lane = laneEnds.findIndex((e) => e <= b.t + 1e-9);
+    if (lane === -1) { lane = laneEnds.length; laneEnds.push(end); } else laneEnds[lane] = end;
+    b.lane = lane;
+    cluster.push(b);
+    clusterEnd = Math.max(clusterEnd, end);
+  }
+  close();
 }
 
 /**
@@ -326,6 +364,20 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
   if (start >= end) { start = 8; end = 20; }
   start = Math.max(0, start - 1);
   end = Math.min(24, end + 1);
+  // A block outside the business's hours widens the grid rather than falling
+  // off it: an 8 PM appointment when the shop closes at 6 is still drawn.
+  for (const d of dto.days) {
+    const ds = zoneMidnight(tz, d.key);
+    const de = zoneMidnight(tz, shiftKey(d.key, 1));
+    for (const item of d.items) {
+      const s = Date.parse(item.start);
+      const e = Date.parse(item.end);
+      if (item.all_day || !(e > ds && s < de) || (s <= ds && e >= de)) continue;
+      const b = toBlock(item, tz, ds, de, now);
+      start = Math.min(start, Math.max(0, Math.floor(b.t)));
+      end = Math.max(end, Math.min(24, Math.ceil(b.t + b.dur / 60)));
+    }
+  }
 
   const days: CalendarDayVM[] = dto.days.map((d) => {
     const { y, m, d: dd } = keyParts(d.key);
@@ -354,11 +406,12 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
       const s = Date.parse(item.start);
       const e = Date.parse(item.end);
       if (!(e > zoneDayStart && s < zoneDayEnd)) continue;
-      const block = toBlock(item, tz, zoneDayStart, zoneDayEnd);
+      const block = toBlock(item, tz, zoneDayStart, zoneDayEnd, now);
       if (item.all_day || (s <= zoneDayStart && e >= zoneDayEnd)) allDay.push({ ...block, t: 0, dur: 24 * 60, time: "All day" });
       else timed.push(block);
     }
-    timed.sort((a, b) => a.t - b.t);
+    timed.sort((a, b) => a.t - b.t || b.dur - a.dur);
+    assignLanes(timed);
     const windows: CalendarWindowVM[] = d.windows.map((w) => {
       const t = hoursOf(tz, Date.parse(w.start));
       const tEnd = hoursOf(tz, Date.parse(w.end));

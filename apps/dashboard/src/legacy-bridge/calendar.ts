@@ -12,7 +12,7 @@
  * The preview is a read of a feed the workspace has not saved yet; it
  * changes nothing.
  */
-import { coversSpan, frameOf, spanForView, windowFor, type CalendarView } from "@chanlytics/contracts";
+import { clockLabel, coversSpan, frameOf, monthLabelOf, shiftKey, shiftMonth, spanForView, windowFor, type CalendarView } from "@chanlytics/contracts";
 import { api } from "./api";
 import { calendarOverride, getCalendarSpan, setCalendarSpan } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
@@ -45,7 +45,13 @@ export async function previewFeed(url: string) {
   return api()("POST calendar/preview", { body: { url } });
 }
 
-export const calendar = { goTo, ensure, previewFeed, spanFor: spanForView, windowFor, covers: coversSpan, frameOf };
+/** Read the loaded window again: the board keeps itself current while it is open, so the now line, the next opening and the windows follow the clock. */
+export async function refresh(): Promise<void> {
+  api().forget();
+  await refreshSurfaces([calendarOverride]);
+}
+
+export const calendar = { goTo, ensure, previewFeed, refresh, spanFor: spanForView, windowFor, covers: coversSpan, frameOf, shiftKey, shiftMonth, monthLabel: monthLabelOf, clockLabel };
 
 declare global {
   interface Window {
