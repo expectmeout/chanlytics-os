@@ -2756,6 +2756,16 @@ declare const BOOKING_DEFAULTS: {
     max_days_ahead: number;
     slot_min: number;
 };
+/**
+ * When a day is open, as one list of [open, close] spans.
+ *
+ * open/close and intervals are UNIONED, merged where they touch or overlap,
+ * and a span that runs backwards is dropped. This is the ONE reader: the
+ * prompt (config.ts), the free windows a caller is offered and the calendar
+ * board all read a day through it. It used to have two readers -- the prompt
+ * unioned the two, this one let intervals win -- so a row holding both could
+ * be described two ways, and "are you open at nine?" had two answers.
+ */
 declare function dayIntervals(h: Hours | undefined): Array<[string, string]>;
 declare function closedOn(closures: Closure[] | undefined, key: string): boolean;
 /**
