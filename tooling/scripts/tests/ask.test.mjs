@@ -40,6 +40,7 @@ import {
   partialAnswer,
   safeNavigate,
   scopeFromRoute,
+  ASK_MODEL,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
@@ -262,7 +263,7 @@ test("the loop: read tools plus finish, tool_choice any then finish forced on th
   assert.ok(l.includes('cache_control: { type: "ephemeral" }'), "the stable block is cached");
   assert.ok(readCode("apps/dashboard/src/server/ask/round.ts").includes("partialAnswer(b.json)"), "the answer streams out of the finish call, in the round module");
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
-  for (const name of ["get_today", "list_threads", "get_thread", "search_people", "get_person", "list_calls", "get_call", "get_report", "get_settings", "get_openings", "list_audiences"]) {
+  for (const name of ["get_today", "list_threads", "get_thread", "search_people", "get_person", "list_calls", "get_call", "get_report", "get_settings", "get_openings", "list_audiences", "list_playbooks", "get_calendar"]) {
     assert.ok(tools.includes(`name: "${name}"`), name);
   }
   assert.ok(tools.includes("strict: true,"), "finish is strict");
@@ -317,7 +318,7 @@ test("the gateway's usage tee reads the counts out of a passing stream and repor
   const bad = mod.validateGatewayRequest({ model: "claude-9", messages: [{}] });
   assert.equal(bad.ok, false);
   const ok = mod.validateGatewayRequest({ max_tokens: 99999, messages: [{ role: "user", content: "hi" }], tools: [] });
-  assert.ok(ok.ok && ok.request.max_tokens === 2000 && ok.request.model === "claude-opus-5");
+  assert.ok(ok.ok && ok.request.max_tokens === 2000 && ok.request.model === ASK_MODEL, "a request that names no model gets the one the loop sends, never a second name");
 });
 
 test("the dashboard's stream parser: blocks, deltas, the stop reason, and pings ignored", async () => {
@@ -379,7 +380,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   assert.ok(ok.success);
   assert.equal(AskProposalOutcomeSchema.safeParse({ state: "sent" }).success, false, "only the four states");
   const pr = readCode("apps/dashboard/src/server/ask/proposals.ts");
-  for (const name of ["draft_reply", "propose_steer", "propose_thread_verb", "propose_person_mode", "propose_policy", "propose_settings", "propose_whisper", "propose_invite", "propose_broadcast"]) assert.ok(pr.includes(`name: "${name}"`), name);
+  for (const name of ["draft_reply", "propose_steer", "propose_thread_verb", "propose_person_mode", "propose_policy", "propose_settings", "propose_whisper", "propose_invite", "propose_broadcast", "propose_playbook"]) assert.ok(pr.includes(`name: "${name}"`), name);
   assert.ok(pr.includes("Nothing has happened yet. This is a card the person can approve, edit or dismiss."), "the model is told nothing happened");
   assert.ok(!/\.insert\(|\.update\(|\.delete\(|\.rpc\(/.test(pr), "a proposal reads; it never writes");
   assert.ok(pr.includes("money stays owner-only by charter"), "the locked row is refused before it becomes a card");
@@ -388,7 +389,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   assert.ok(pr.includes("that call is not in progress"));
   const loop = readCode("apps/dashboard/src/server/ask/loop.ts");
   assert.ok(loop.includes('const baseTools = [...READ_TOOLS, ...(input.role === "viewer" ? [] : ACT_TOOLS), FINISH_TOOL];'), "a viewer is never offered an act tool");
-  assert.ok(loop.includes("const p = await buildProposal(tc, b.name, parseInput(b.json));"), "an act tool becomes a proposal, never an action");
+  assert.ok(loop.includes("const p = await ports.propose(tc, b.name, parseInput(b.json));"), "an act tool becomes a proposal, never an action");
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
   assert.ok(prompt.includes("You never act.") && prompt.includes("never say it was sent, changed or done"));
   const store = readCode("apps/dashboard/src/server/ask/store.ts");
@@ -513,7 +514,7 @@ test("context first: the day rides into every turn, its rows can be cited, loade
   assert.ok(snap.includes('? { name: "get_call", input: { call_id: scope.id } }'), "the scoped row rides along in full");
   assert.ok(snap.includes("Answer from this when it is enough."));
   const loop = readCode("apps/dashboard/src/server/ask/loop.ts");
-  assert.ok(loop.includes("snapshotFor(tc, input.timezone, input.scope).catch("), "the day rides in first, kept twenty seconds for a follow-up");
+  assert.ok(loop.includes("ports.snapshot(tc, input.timezone, input.scope).catch("), "the day rides in first, kept twenty seconds for a follow-up");
   assert.ok(loop.includes('console.error("ask_snapshot_failed"'), "a failed snapshot costs the snapshot, never the turn");
   assert.ok(loop.includes("output_config: { effort: EFFORT }") && loop.includes('const EFFORT: "low" | "medium" = "low";'));
   assert.ok(loop.includes("...(snapshot ? [{ type: \"text\", text: snapshot, cache_control: { type: \"ephemeral\" } }] : []),"), "the snapshot is the second cache breakpoint: a turn's later rounds and a quick follow-up read it from the cache");
@@ -594,7 +595,7 @@ test("what an answer shows is decided once: the Open button never repeats as a c
   assert.ok(bridge.includes("...palette,") && bridge.includes("...api,") && bridge.includes("...speech,"), "composed, not re-implemented");
   assert.ok(!bridge.includes("fetch("), "the composer holds no fetch of its own");
   const loop = readCode("apps/dashboard/src/server/ask/loop.ts");
-  assert.ok(loop.includes("await runRound(") && !loop.includes("for await (const ev of"), "the loop delegates the stream to round.ts");
+  assert.ok(loop.includes("await ports.round(") && !loop.includes("for await (const ev of"), "the loop delegates the stream to round.ts, through the ports a test can replace");
   assert.ok(loop.includes("export function foldHistory("), "the history fold is a named rule, not a loop in the middle of a function");
 });
 
@@ -610,7 +611,7 @@ test("REGRESSION: the assistant's tools fit under the edge gateway's cap — one
 
 test("the speed pass: a fast model for a short answer, the day's rows never re-read, the autonomy modes in the prompt, the budget read once a minute", () => {
   const l = readCode("apps/dashboard/src/server/ask/loop.ts");
-  assert.ok(l.includes('export const ASK_MODEL = "claude-sonnet-5";'), "the eval set chose it: same grounding, the answer written faster");
+  assert.ok(l.includes('export { ASK_MODEL } from "@chanlytics/contracts";') && ASK_MODEL === "claude-sonnet-5", "the eval set chose it: same grounding, the answer written faster; one name, in contracts, for the loop and the gateway");
   const route = readCode("apps/dashboard/app/api/v1/ask/route.ts");
   assert.ok(route.includes("model: ASK_MODEL,") && !route.includes('model: "claude-opus-5"'), "the saved turn names the model that ran");
   assert.ok(route.includes("listPolicies(ctx.supabase, tenantId).catch(() => [])") && route.includes("cfg.data?.config ?? null, policies)"));
@@ -631,7 +632,7 @@ test("the speed pass, two: no definitions tool, a proposal ends the turn, the sn
   const l = readCode("apps/dashboard/src/server/ask/loop.ts");
   assert.ok(l.includes("export function proposalsAnswer(") && l.includes("const answer = prose || proposalsAnswer(proposals.slice(before), es);"), "the cards are the answer");
   assert.ok(l.includes("outcomes.every(({ out }) => !out.isError) && proposals.length > before"), "a refused proposal keeps the round");
-  assert.ok(l.includes("snapshotFor(tc, input.timezone, input.scope).catch(") && l.includes("followups: f.followups.slice(0, 2)") && l.includes("citations: kept.slice(0, 4)"));
+  assert.ok(l.includes("ports.snapshot(tc, input.timezone, input.scope).catch(") && l.includes("followups: f.followups.slice(0, 2)") && l.includes("citations: kept.slice(0, 4)"));
   const snap = readCode("apps/dashboard/src/server/ask/snapshot.ts");
   assert.ok(snap.includes("export const SNAPSHOT_TTL_MS = 20_000;") && snap.includes("t.read[kind].add(id)"), "a kept snapshot's rows re-enter the read set");
   assert.ok(snap.includes("`${t.tenantId}|${t.ctx.userId}|"), "kept per person, not per workspace");
@@ -659,7 +660,7 @@ test("prefetch: the reads a question names plainly run beside the snapshot and r
   assert.equal(mod.prefetchBlock([]), "");
   assert.ok(mod.prefetchBlock([{ run: { name: "get_report", input: { days: 7 } }, result: "{}" }]).startsWith("Read for this question before you were asked"));
   const l = readCode("apps/dashboard/src/server/ask/loop.ts");
-  assert.ok(l.includes("const plan = prefetchPlan(input.text);") && l.includes("snapshotFor(tc, input.timezone, input.scope).catch(") && l.includes("Promise.all(plan.map(async (run) => {"), "the reads run beside the snapshot");
+  assert.ok(l.includes("const plan = prefetchPlan(input.text);") && l.includes("ports.snapshot(tc, input.timezone, input.scope).catch(") && l.includes("Promise.all(plan.map(async (run) => {"), "the reads run beside the snapshot");
   assert.ok(l.includes("toolsUsed.push(p.run.name);"), "a prefetched read is a read the turn made");
   assert.ok(l.indexOf("text: snapshot, cache_control") < l.indexOf("text: turnSystem({"), "the clock comes after the cached blocks, so the snapshot's cache survives the minute");
   const p = readCode("apps/dashboard/src/server/ask/proposals.ts");

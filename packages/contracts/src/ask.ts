@@ -18,6 +18,16 @@ import type { NotificationItem } from "./notifications";
 /** One question, in characters. Longer than this is a document, not a question. */
 export const ASK_MAX_CHARS = 1000;
 /** Tool rounds per turn: reads, then the answer. The last round is forced to finish. */
+/**
+ * The model for a turn: choosing a tool and writing sixty words. On the eval
+ * set (2026-09-07, 28 cases, all passing either way) Opus 5 answered in a
+ * 7.2 s median with a one-round turn at 4.7–8 s; the answer's length, not
+ * its difficulty, was the cost. Sonnet 5 writes it faster at the same
+ * grounding. One name: the loop sends it, and the edge gateway defaults to
+ * it when a request names none, so the two cannot drift apart. The eval set
+ * decides if this stays.
+ */
+export const ASK_MODEL = "claude-sonnet-5";
 export const ASK_MAX_ROUNDS = 4;
 /** End to end, under the route's sixty-second ceiling. */
 export const ASK_TURN_BUDGET_MS = 45_000;

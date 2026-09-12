@@ -1,6 +1,7 @@
 import "server-only";
 import {
   ASK_MAX_ROUNDS,
+  ASK_MODEL,
   ASK_TURN_BUDGET_MS,
   citationRoute,
   groundCitations,
@@ -22,6 +23,8 @@ import { snapshotFor } from "./snapshot";
 import { prefetchBlock, prefetchPlan } from "./prefetch";
 import { parseInput, runRound, type RoundBlock } from "./round";
 
+export { ASK_MODEL } from "@chanlytics/contracts";
+
 /**
  * One turn of the assistant.
  *
@@ -34,14 +37,6 @@ import { parseInput, runRound, type RoundBlock } from "./round";
  * answer or a stated failure.
  */
 
-/**
- * The model for the turn: choosing a tool and writing sixty words. On the
- * eval set (2026-09-07, 28 cases, all passing either way) Opus 5 answered in
- * a 7.2 s median with a one-round turn at 4.7–8 s; the answer's length, not
- * its difficulty, was the cost. Sonnet 5 writes it faster at the same
- * grounding. The eval set decides if this stays.
- */
-export const ASK_MODEL = "claude-sonnet-5";
 const MAX_TOKENS = 1200;
 const MAX_HISTORY = 12;
 const HISTORY_CHARS = 1200;
@@ -95,6 +90,29 @@ export interface TurnResult {
 
 type Msg = { role: "user" | "assistant"; content: unknown };
 
+/**
+ * Everything the turn reaches outside itself, as one object: the model
+ * round, the day's snapshot, a read tool, a proposal. The real modules are
+ * the default, so the runtime changes nothing; a test hands in a scripted
+ * round and the loop's control flow runs for real against it -- the move
+ * whatsapp/ports.ts made for the receptionist's handler. `setAskPorts` is
+ * for a test that reaches the loop through the route, which cannot pass a
+ * parameter; the runtime never calls it.
+ */
+export interface AskPorts {
+  round: typeof runRound;
+  snapshot: typeof snapshotFor;
+  tool: typeof runTool;
+  propose: typeof buildProposal;
+}
+let overrides: Partial<AskPorts> | null = null;
+export function setAskPorts(p: Partial<AskPorts> | null): void {
+  overrides = p;
+}
+export function askPorts(): AskPorts {
+  return { round: runRound, snapshot: snapshotFor, tool: runTool, propose: buildProposal, ...(overrides ?? {}) };
+}
+
 function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
   switch (r.kind) {
     case "preview": return es ? "Ask solo responde en el panel de producción." : "Ask only answers on the production dashboard.";
@@ -135,11 +153,11 @@ export function foldHistory(history: TurnInput["history"], text: string): Msg[] 
   return messages;
 }
 
-export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
+export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts()): Promise<TurnResult> {
   const t0 = Date.now();
   const now = input.now ?? new Date();
   const es = input.language === "es";
-  const tc: ToolContext = newToolContext(input.ctx, input.tenantId, input.role, now);
+  const tc: ToolContext = newToolContext(input.ctx, input.tenantId, input.role, input.timezone, now);
   const toolsUsed: string[] = [];
   const proposals: AskProposal[] = [];
   let reads = 0;
@@ -151,13 +169,13 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
   const tSnap = Date.now();
   const plan = prefetchPlan(input.text);
   const [snapshot, preOuts] = await Promise.all([
-    snapshotFor(tc, input.timezone, input.scope).catch((e) => {
+    ports.snapshot(tc, input.timezone, input.scope).catch((e) => {
       console.error("ask_snapshot_failed", JSON.stringify({ error: e instanceof Error ? e.message : String(e), tenant: input.tenantId }));
       return "";
     }),
     Promise.all(plan.map(async (run) => {
       try {
-        return { run, out: await runTool(tc, run) };
+        return { run, out: await ports.tool(tc, run) };
       } catch (e) {
         console.error("ask_prefetch_failed", JSON.stringify({ tool: run.name, error: e instanceof Error ? e.message : String(e), tenant: input.tenantId }));
         return { run, out: { result: "", isError: true } };
@@ -200,14 +218,14 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
   const propose = async (b: RoundBlock) => {
     toolsUsed.push(b.name);
     input.emit({ t: "trace", text: proposalLabel(b.name) });
-    const p = await buildProposal(tc, b.name, parseInput(b.json));
+    const p = await ports.propose(tc, b.name, parseInput(b.json));
     if (p.proposal) proposals.push(p.proposal);
     return { result: p.result, isError: p.isError };
   };
 
   const read = async (b: RoundBlock) => {
     toolsUsed.push(b.name);
-    const out = await runTool(tc, { name: b.name, input: parseInput(b.json) });
+    const out = await ports.tool(tc, { name: b.name, input: parseInput(b.json) });
     if (!out.isError) reads++;
     return { result: out.result, isError: out.isError };
   };
@@ -222,7 +240,7 @@ export async function runAskTurn(input: TurnInput): Promise<TurnResult> {
       let stopReason: string | null;
       let streamError: string | null;
       try {
-        ({ blocks, stopReason, streamError } = await runRound(
+        ({ blocks, stopReason, streamError } = await ports.round(
           { tenantId: input.tenantId, userId: input.ctx.userId, request, signal: controller.signal },
           (delta) => input.emit({ t: "delta", text: delta }),
         ));

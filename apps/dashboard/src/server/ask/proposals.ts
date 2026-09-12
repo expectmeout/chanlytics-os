@@ -14,6 +14,7 @@ import {
   exampleParams,
   parseParamSpec,
   renderTemplate,
+  shiftKey,
   toPersonRowVM,
   type AudienceKind,
   type ParamSpec,
@@ -34,6 +35,7 @@ import {
   slotLabels,
   starterForTrigger,
   triggerOf,
+  zoneMidnight,
 } from "@chanlytics/contracts";
 import { listPolicies } from "@chanlytics/db";
 import type { ToolContext, ToolDef } from "./tools";
@@ -148,6 +150,8 @@ export interface ProposalOutcome {
 }
 
 const refuse = (why: string): ProposalOutcome => ({ proposal: null, result: JSON.stringify({ error: why }), isError: true });
+/** The calendar day an instant falls on in a zone, as YYYY-MM-DD. */
+const dayKeyIn = (tz: string, at: Date): string => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(at);
 const propose = (p: Omit<AskProposal, "id">): ProposalOutcome => {
   const proposal: AskProposal = { id: nextId(), ...p };
   return {
@@ -233,7 +237,10 @@ async function proposeThreadVerb(t: ToolContext, input: Record<string, unknown>)
   let until: string | null = null;
   if (verb === "snooze") {
     const raw = str(input.until, 40);
-    const d = raw ? new Date(raw) : (() => { const x = new Date(t.now); x.setDate(x.getDate() + 1); x.setHours(10, 0, 0, 0); return x; })();
+    // "Tomorrow at ten" is ten in the business's zone. This used setHours on
+    // the server's clock, which on Vercel is UTC: six in the morning in New
+    // York, and a test that passed on a laptop in that zone and failed in CI.
+    const d = raw ? new Date(raw) : new Date(zoneMidnight(t.timezone, shiftKey(dayKeyIn(t.timezone, t.now), 1)) + 10 * 3600_000);
     if (Number.isNaN(d.getTime()) || d.getTime() <= t.now.getTime()) return refuse("until must be a future ISO time");
     until = d.toISOString();
   }

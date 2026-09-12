@@ -19,6 +19,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 const ask = await import(at("apps/dashboard/app/api/v1/ask/route.ts"));
+const { setAskPorts } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
 const proposals = await import(at("apps/dashboard/app/api/v1/ask/messages/[id]/proposals/[pid]/route.ts"));
 const openings = await import(at("apps/dashboard/app/api/v1/ask/openings/route.ts"));
 const threads = await import(at("apps/dashboard/app/api/v1/ask/threads/route.ts"));
@@ -82,6 +83,43 @@ test("a question: the workspace must be named, something must be asked and not t
   await refused(ask.POST.run(send("POST", { text: "And then?", thread_id: T1 }, inB), elsewhere), "not_found", 404, "That thread is not yours.");
   assert.equal(writes(elsewhere), 0, "no turn is saved for a question that was refused");
   assert.deepEqual([tables.ask_threads.length, tables.ask_messages.length], [1, 0]);
+});
+
+test("a question answered: the thread is made before the model is asked, the person's words and the answer are its two turns, the thread is titled by what the answer did, and the stream says thread, then final", async () => {
+  // The turn through the route, with the model scripted: one round, a finish.
+  // Everything else -- the thread, the two messages, the retitle, the stream --
+  // is the route's own and runs for real against the database in memory.
+  const tables = {
+    memberships: both("viewer", "operator"),
+    tenants: [{ id: A, name: "Harbor", timezone: "America/New_York" }],
+    tenant_config: [{ tenant_id: A, config: {}, version: 1 }],
+    policies: [], ask_threads: [], ask_messages: [],
+  };
+  const finish = { type: "tool_use", id: "f1", name: "finish", text: "", json: JSON.stringify({ answer: "Nobody has booked this week yet.", citations: [], followups: ["Who called this week?"], navigate: null, language: "en" }) };
+  setAskPorts({ round: async () => ({ blocks: [finish], stopReason: "tool_use", streamError: null }), snapshot: async () => "" });
+  try {
+    const res = await ask.POST.run(send("POST", { text: "Who booked this week?", surface: "today" }, inA), ctxFor(tables));
+    assert.ok(res instanceof Response, "a stream, not an envelope");
+    assert.equal(res.headers.get("content-type"), "application/x-ndjson; charset=utf-8");
+    const lines = (await res.text()).trim().split("\n").map((l) => JSON.parse(l));
+    assert.deepEqual(lines.map((l) => l.t), ["thread", "final"]);
+    assert.equal(tables.ask_threads.length, 1, "the thread exists before the model was asked");
+    const thread = tables.ask_threads[0];
+    assert.deepEqual([lines[0].id, thread.tenant_id, thread.user_id], [thread.id, A, USER]);
+    assert.deepEqual(tables.ask_messages.map((m) => [m.thread_id, m.role, m.content.text]), [[thread.id, "user", "Who booked this week?"], [thread.id, "assistant", "Nobody has booked this week yet."]], "the person's words, then the answer");
+    assert.deepEqual([lines[1].message.text, lines[1].message.followups, lines[1].message.failed, lines[1].message.rounds], ["Nobody has booked this week yet.", ["Who called this week?"], false, 1]);
+    assert.equal(lines[1].message.id, tables.ask_messages[1].id, "the final line carries the saved turn");
+    assert.notEqual(thread.title, "Who booked this week?".slice(0, 0), "titled");
+    assert.ok(typeof thread.title === "string" && thread.title.length > 0 && thread.last_at, "retitled by what the answer did, and touched");
+    assert.equal(tables.ask_messages[1].content.model, "claude-sonnet-5", "the one model name");
+    // A follow-up on the same thread: the history rides in, nothing is re-created.
+    const again = await ask.POST.run(send("POST", { text: "And last week?", thread_id: thread.id }, inA), ctxFor(tables));
+    await again.text();
+    assert.equal(tables.ask_threads.length, 1);
+    assert.equal(tables.ask_messages.length, 4);
+  } finally {
+    setAskPorts(null);
+  }
 });
 
 test("a card's outcome is the person's own turn: which card, an outcome in its shape, a turn that is theirs, and a card approved once cannot be approved again", async () => {
