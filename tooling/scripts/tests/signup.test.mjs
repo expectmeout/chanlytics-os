@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SignupSchema, SIGNUP_WORDS, signupNext, deviceTimezone, sendFailureIsOurs, pendingWorkspaceOf, PENDING_WORKSPACE_KEY, EVENT_KINDS } from "@chanlytics/contracts";
+import { SignupSchema, SIGNUP_WORDS, deviceTimezone, sendFailureIsOurs, pendingWorkspaceOf, PENDING_WORKSPACE_KEY, EVENT_KINDS } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 test("the form's shape: a name, a lower-cased address, an optional zone and code, nothing else", () => {
@@ -23,9 +23,16 @@ test("the form's shape: a name, a lower-cased address, an optional zone and code
   ]) assert.equal(SignupSchema.safeParse(bad).success, false, JSON.stringify(bad));
 });
 
-test("the words and the way back: one neutral sentence, sign-in at the code step for the address", () => {
-  assert.equal(SIGNUP_WORDS.sent("o@example.com"), "If o@example.com can receive email, a 6-digit code is on its way. Enter it on the next screen to make your workspace.");
-  assert.equal(signupNext(" Owner@Example.com "), "/login?email=owner%40example.com&sent=1");
+test("the words and the way on: one neutral sentence, and the code step on this page rather than sign-in's", () => {
+  assert.equal(SIGNUP_WORDS.sent("o@example.com"), "If o@example.com can receive email, a 6-digit code is on its way. Enter it below to finish.");
+  // `signupNext` lived here and sent people to /login at the code step. That
+  // was right when the code WAS the credential; now somebody who has just
+  // chosen a password and is shown a screen headed "sign in" has been told
+  // their password did not work. It did — the ADDRESS is what is unproved, and
+  // the sign-up page says so in its own words.
+  assert.equal(SIGNUP_WORDS.confirmTitle, "Confirm your email");
+  assert.match(SIGNUP_WORDS.confirmLead("o@example.com"), /^Enter the 6-digit code we sent to o@example\.com\./);
+  assert.match(SIGNUP_WORDS.confirmLead("o@example.com"), /10 minutes/, "how long they have, where they are typing it");
   assert.equal(deviceTimezone(() => "America/New_York"), "America/New_York");
   assert.equal(deviceTimezone(() => { throw new Error("no Intl"); }), undefined);
   assert.equal(deviceTimezone(() => "x".repeat(65)), undefined);
@@ -61,9 +68,22 @@ test("the wiring: two public paths, the guards on the route, a service role that
   assert.ok(!route.includes("@chanlytics/db") && !route.includes("SUPABASE_SERVICE_ROLE_KEY"), "the route holds no key");
   const server = readCode("apps/dashboard/src/server/signup.ts");
   assert.ok(server.includes('import "server-only";'));
-  assert.ok(server.includes("email_confirm: true,") && server.includes("user_metadata: { [PENDING_WORKSPACE_KEY]: { name: input.name, timezone: input.timezone ?? null } },"), "the user is made confirmed, carrying what the form said; the code is the proof of the inbox");
+  // THE SERVICE ROLE HAS LEFT THIS PATH. It used to create the user with the
+  // admin API and mark the address confirmed with no proof at all, because
+  // confirmation was off and nothing else would send one. With confirmation on,
+  // the ordinary sign-up call does the whole job on the PUBLIC key: no session
+  // for an unproved address, an obfuscated answer for an address we already
+  // have, and the code sent as part of it.
+  assert.ok(!server.includes("admin.createUser") && !server.includes("email_confirm"), "REGRESSION: an address marked proved by the thing that has not proved it");
+  assert.ok(server.includes("await anon.auth.signUp({"), "the ordinary sign-up call, on the public key");
+  assert.ok(server.includes("options: { data: { [PENDING_WORKSPACE_KEY]: { name: input.name, timezone: input.timezone ?? null } } },"), "what the form said rides on the user, for the create screen to open with");
   assert.ok(!server.includes("create_workspace") && !server.includes("deleteUser") && !server.includes("emitEvent"), "REGRESSION: a workspace, or anything to undo, for an address nobody has proved");
-  assert.ok(server.includes("options: { shouldCreateUser: false }"), "the code goes out the way /login sends it");
+  assert.ok(server.includes("identities?.length ?? 0) > 0"), "an address we already have comes back obfuscated: the empty identities array is the tell, and it is read for the LOG alone");
+  // Read from the `route` already in hand rather than a second read of the
+  // same file: the ratchet counts source reads per test file, and it is right
+  // to — a file that reads more source is a file pinning more text.
+  assert.ok(route.includes("if (!isUsablePassword(input.password))"), "the credential is insisted on by the creating path, not by the schema the waitlist also passes through");
+  assert.ok(route.indexOf('if (posture === "waitlist")') < route.indexOf("isUsablePassword(input.password)"), "and the queue, which makes no account, is never asked for one");
   assert.ok(!route.includes("notifyPlatformSignup"), "the public route has no workspace to tell anyone about");
   // Every workspace starts in one place, the first one included, and that
   // place tells the mailbox and hands the create screen what sign-up kept.
@@ -77,7 +97,12 @@ test("the wiring: two public paths, the guards on the route, a service role that
   const record = readRaw("supabase/migrations/00104_a_workspace_is_recorded_where_it_is_made.sql");
   assert.ok(record.includes("after insert on public.tenants") && record.includes("'workspace.created'") && record.includes("jsonb_build_object('by', auth.uid()"), "every workspace is recorded where it is made, naming the session when there was one");
   const login = readCode("apps/dashboard/app/login/page.tsx");
-  assert.ok(login.includes('q.get("sent") === "1"') && login.includes('href="/signup"'), "sign-in opens at the code step after sign-up, and points at sign-up");
+  // Sign-in no longer opens at a code step handed to it by sign-up; it carries
+  // the address across so nobody types it twice, keeps the code door for every
+  // account that has no password, and still points at sign-up.
+  assert.ok(login.includes('href="/signup"') && login.includes("signInWithPassword({ email: email.trim(), password })"), "a password door, pointing at sign-up");
+  assert.ok(login.includes("shouldCreateUser: false"), "REGRESSION: the code door must never mint an account");
+  assert.ok(login.includes('href={`/reset-password'), "and a way out for somebody who has forgotten it");
   const page = readCode("apps/dashboard/app/signup/page.tsx");
   // The server says which of the three doors this is; the field belongs to
   // exactly one of them.

@@ -18,6 +18,10 @@ test.describe("sign-up", () => {
     await expect(page.getByTestId("signup")).toBeVisible();
     await expect(page.getByLabel("Business name")).toBeVisible();
     await expect(page.getByLabel("Work email")).toBeVisible();
+    // The credential, on every posture but the waitlist — which takes details
+    // and creates no account to hold one.
+    const posture = (await (await page.request.get("/api/v1/signup")).json()).data.posture as string;
+    if (posture !== "waitlist") await expect(page.getByLabel("Choose a password")).toBeVisible();
     await expect(page.getByRole("button", { name: "Create workspace" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
     // The clock line reads the device, never asks.
@@ -63,12 +67,13 @@ test.describe("sign-up", () => {
     try {
       const res = await request.post("/api/v1/signup", {
         headers: { origin: baseURL!, "content-type": "application/json" },
-        data: { name, email, timezone: "America/New_York", ...(process.env.E2E_SIGNUP_CODE ? { code: process.env.E2E_SIGNUP_CODE } : {}) },
+        data: { name, email, password: `e2e-probe-${stamp}-Aa1!`, timezone: "America/New_York", ...(process.env.E2E_SIGNUP_CODE ? { code: process.env.E2E_SIGNUP_CODE } : {}) },
       });
       expect(res.status()).toBe(200);
       const { data } = await res.json();
       expect(data.sent).toBe(true);
-      expect(data.next).toContain("/login?email=");
+      // Nowhere to send them: the code step is on the sign-up page itself now.
+      expect(data.next).toBeNull();
       // THE WORKSPACE WAITS FOR ITS OWNER: nothing in tenants for an address
       // nobody has proved. The user exists, carrying what the form said, for
       // the create screen to open with after the code.

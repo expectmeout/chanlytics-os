@@ -4784,6 +4784,20 @@ var SIGNUP_NAME_MAX = 120;
 var SignupSchema = external_exports.object({
   name: external_exports.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
   email: external_exports.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+  /**
+   * The credential, and the reason it is OPTIONAL here rather than required.
+   *
+   * The waitlist posture takes details and creates nothing -- no account, so
+   * no password -- and its form shows no such field. A schema that demanded
+   * one would refuse the queue, which is the posture a launch actually runs
+   * in. So the shape admits it and the CREATING path insists on it: the
+   * route calls `passwordProblem` the moment it knows the posture is not the
+   * list, and that one function is also what the page checks with, so the
+   * browser's rule and the server's rule cannot drift.
+   *
+   * The cap here is a body-size guard, not the rule; the rule is bytes.
+   */
+  password: external_exports.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
   timezone: external_exports.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
@@ -4859,6 +4873,30 @@ function companyTypeOf(v) {
   const s = String(v ?? "").trim().toLowerCase();
   return COMPANY_TYPES.includes(s) ? s : DEFAULT_COMPANY_TYPE;
 }
+var PASSWORD_MIN = 12;
+var PASSWORD_WORDS = {
+  label: "Password",
+  chooseLabel: "Choose a password",
+  newLabel: "New password",
+  hint: `At least ${PASSWORD_MIN} characters. A long phrase beats a short puzzle.`,
+  wrong: "That email and password don't match an account.",
+  wrongNudge: "If you started with Google, use Continue with Google.",
+  codeInstead: "Email me a code instead",
+  passwordInstead: "Use your password instead",
+  forgot: "Forgot your password?",
+  /* ------------------------------------------------------------ the reset */
+  resetTitle: "Reset your password",
+  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
+  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
+  resetSubmit: "Set my password",
+  resetDone: "Your password is set \u2014 signing you in.",
+  /**
+   * A recovery code that did not verify. The address is already implied here
+   * (they typed it on the previous step), so this may say what is wrong.
+   */
+  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
+  backToSignIn: "Back to sign-in"
+};
 
 // src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";

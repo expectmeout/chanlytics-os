@@ -37,8 +37,12 @@ test("the waitlist branch creates nothing, and returns before it could", () => {
   assert.ok(branch.includes("return NextResponse.json"), "and returns before the sign-up path can run");
   // Somebody on the list is not a customer. Half a customer would be a
   // workspace nobody owns and a trial nobody started.
+  // Matched on the CALL rather than the whole statement: what this test is
+  // about is that the queue returns before anything creates an account, and
+  // pinning the arguments too made it fail the day the credential was handed
+  // over explicitly — a green-to-red that said nothing about the invariant.
   assert.ok(
-    route.indexOf('if (posture === "waitlist")') < route.indexOf("const out = await signUp(input);"),
+    route.indexOf('if (posture === "waitlist")') < route.indexOf("await signUp("),
     "the branch is ahead of every creating call",
   );
   // The limiter runs FIRST, deliberately: this is the posture a launch runs in,

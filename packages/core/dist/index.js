@@ -4738,6 +4738,20 @@ var SIGNUP_NAME_MAX = 120;
 var SignupSchema = external_exports.object({
   name: external_exports.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
   email: external_exports.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+  /**
+   * The credential, and the reason it is OPTIONAL here rather than required.
+   *
+   * The waitlist posture takes details and creates nothing -- no account, so
+   * no password -- and its form shows no such field. A schema that demanded
+   * one would refuse the queue, which is the posture a launch actually runs
+   * in. So the shape admits it and the CREATING path insists on it: the
+   * route calls `passwordProblem` the moment it knows the posture is not the
+   * list, and that one function is also what the page checks with, so the
+   * browser's rule and the server's rule cannot drift.
+   *
+   * The cap here is a body-size guard, not the rule; the rule is bytes.
+   */
+  password: external_exports.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
   timezone: external_exports.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
@@ -4761,6 +4775,30 @@ function isTimezone(raw) {
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
+var PASSWORD_MIN = 12;
+var PASSWORD_WORDS = {
+  label: "Password",
+  chooseLabel: "Choose a password",
+  newLabel: "New password",
+  hint: `At least ${PASSWORD_MIN} characters. A long phrase beats a short puzzle.`,
+  wrong: "That email and password don't match an account.",
+  wrongNudge: "If you started with Google, use Continue with Google.",
+  codeInstead: "Email me a code instead",
+  passwordInstead: "Use your password instead",
+  forgot: "Forgot your password?",
+  /* ------------------------------------------------------------ the reset */
+  resetTitle: "Reset your password",
+  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
+  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
+  resetSubmit: "Set my password",
+  resetDone: "Your password is set \u2014 signing you in.",
+  /**
+   * A recovery code that did not verify. The address is already implied here
+   * (they typed it on the previous step), so this may say what is wrong.
+   */
+  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
+  backToSignIn: "Back to sign-in"
+};
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -10076,6 +10114,20 @@ var SIGNUP_NAME_MAX2 = 120;
 var SignupSchema2 = external_exports2.object({
   name: external_exports2.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
   email: external_exports2.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+  /**
+   * The credential, and the reason it is OPTIONAL here rather than required.
+   *
+   * The waitlist posture takes details and creates nothing -- no account, so
+   * no password -- and its form shows no such field. A schema that demanded
+   * one would refuse the queue, which is the posture a launch actually runs
+   * in. So the shape admits it and the CREATING path insists on it: the
+   * route calls `passwordProblem` the moment it knows the posture is not the
+   * list, and that one function is also what the page checks with, so the
+   * browser's rule and the server's rule cannot drift.
+   *
+   * The cap here is a body-size guard, not the rule; the rule is bytes.
+   */
+  password: external_exports2.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
   timezone: external_exports2.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
@@ -10099,6 +10151,30 @@ function isTimezone2(raw) {
 var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
 var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
 var ACTIVITY_KINDS2 = [...DECISION_VERBS2, ...EVENT_KINDS2];
+var PASSWORD_MIN2 = 12;
+var PASSWORD_WORDS2 = {
+  label: "Password",
+  chooseLabel: "Choose a password",
+  newLabel: "New password",
+  hint: `At least ${PASSWORD_MIN2} characters. A long phrase beats a short puzzle.`,
+  wrong: "That email and password don't match an account.",
+  wrongNudge: "If you started with Google, use Continue with Google.",
+  codeInstead: "Email me a code instead",
+  passwordInstead: "Use your password instead",
+  forgot: "Forgot your password?",
+  /* ------------------------------------------------------------ the reset */
+  resetTitle: "Reset your password",
+  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
+  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
+  resetSubmit: "Set my password",
+  resetDone: "Your password is set \u2014 signing you in.",
+  /**
+   * A recovery code that did not verify. The address is already implied here
+   * (they typed it on the previous step), so this may say what is wrong.
+   */
+  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
+  backToSignIn: "Back to sign-in"
+};
 
 // ../db/dist/index.js
 var __defProp3 = Object.defineProperty;
@@ -14833,6 +14909,20 @@ var SIGNUP_NAME_MAX3 = 120;
 var SignupSchema3 = external_exports3.object({
   name: external_exports3.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
   email: external_exports3.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+  /**
+   * The credential, and the reason it is OPTIONAL here rather than required.
+   *
+   * The waitlist posture takes details and creates nothing -- no account, so
+   * no password -- and its form shows no such field. A schema that demanded
+   * one would refuse the queue, which is the posture a launch actually runs
+   * in. So the shape admits it and the CREATING path insists on it: the
+   * route calls `passwordProblem` the moment it knows the posture is not the
+   * list, and that one function is also what the page checks with, so the
+   * browser's rule and the server's rule cannot drift.
+   *
+   * The cap here is a body-size guard, not the rule; the rule is bytes.
+   */
+  password: external_exports3.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
   timezone: external_exports3.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
@@ -14856,6 +14946,30 @@ function isTimezone3(raw) {
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
 var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
 var ACTIVITY_KINDS3 = [...DECISION_VERBS3, ...EVENT_KINDS3];
+var PASSWORD_MIN3 = 12;
+var PASSWORD_WORDS3 = {
+  label: "Password",
+  chooseLabel: "Choose a password",
+  newLabel: "New password",
+  hint: `At least ${PASSWORD_MIN3} characters. A long phrase beats a short puzzle.`,
+  wrong: "That email and password don't match an account.",
+  wrongNudge: "If you started with Google, use Continue with Google.",
+  codeInstead: "Email me a code instead",
+  passwordInstead: "Use your password instead",
+  forgot: "Forgot your password?",
+  /* ------------------------------------------------------------ the reset */
+  resetTitle: "Reset your password",
+  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
+  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
+  resetSubmit: "Set my password",
+  resetDone: "Your password is set \u2014 signing you in.",
+  /**
+   * A recovery code that did not verify. The address is already implied here
+   * (they typed it on the previous step), so this may say what is wrong.
+   */
+  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
+  backToSignIn: "Back to sign-in"
+};
 async function recordOutbound(db, p) {
   const { data, error } = await db.from("messages").insert({
     tenant_id: p.tenantId,

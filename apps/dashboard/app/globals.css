@@ -63,6 +63,28 @@ body {
 .auth-card .auth-google-hint { margin-top: 0; margin-bottom: 10px; }
 .auth-or { display: flex; align-items: center; gap: 10px; color: var(--auth-muted); font-size: 0.78rem; margin: 14px 0; }
 .auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--auth-line); }
+/* A button that is a link: the second door on a credential screen ("email me a
+   code instead", "resend"). These were inline style objects repeated on every
+   such control; one class instead, so they cannot drift apart. */
+.auth-card .auth-linkbtn {
+  width: auto;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--auth-teal);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.auth-card .auth-linkbtn:disabled { opacity: 0.6; cursor: default; text-decoration: none; }
+.auth-card .auth-linkbtn-spaced { margin-left: 8px; }
+/* The two ways off the password form, side by side under it. Wraps rather than
+   squeezing: "Forgot your password?" is not a place to clip a word. */
+.auth-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 12px; font-size: 0.8rem; }
+/* A note belonging to the field above it, so it sits inside the field's own
+   bottom margin rather than opening a gap of its own. */
+.auth-card .auth-field-hint { color: var(--auth-muted); font-size: 0.75rem; margin: -8px 0 14px; }
 
 /* The two public pages every platform review links to. Same tokens as the
    auth card, a reading width instead of a form's. */

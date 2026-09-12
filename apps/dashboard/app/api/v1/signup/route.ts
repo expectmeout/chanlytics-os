@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
-import { AppError, SIGNUP_WORDS, SignupSchema, err, ok, signupNext, signupPosture } from "@chanlytics/contracts";
+import { AppError, SIGNUP_WORDS, SignupSchema, err, isUsablePassword, ok, passwordProblem, signupPosture } from "@chanlytics/contracts";
 import { isSameOrigin } from "@/server/request-guards";
 import { takeRate } from "@/server/rate-limit";
 import { inviteCodeMatches, joinWaitlist, signUp } from "@/server/signup";
@@ -72,8 +72,22 @@ export async function POST(req: Request): Promise<Response> {
       return NextResponse.json(ok({ sent: true, waitlisted: true, next: null }), { headers: PRIVATE });
     }
 
+    // THE CREDENTIAL, insisted on HERE rather than in the schema. The waitlist
+    // branch above takes details and creates no account, so it needs no
+    // password and its form shows no such field; a schema that demanded one
+    // would refuse the queue, which is the posture a launch actually runs in.
+    // One function owns the rule and the page checks with the same one, so the
+    // browser's answer and the server's answer cannot drift.
+    // Asked as the NARROWING half, so what reaches `signUp` is a string the
+    // type system has been told about rather than one this file asserts.
+    if (!isUsablePassword(input.password)) {
+      throw new AppError("validation", passwordProblem(input.password) ?? "Choose a password.");
+    }
     if (posture === "invite" && !inviteCodeMatches(input.code)) throw new AppError("forbidden", SIGNUP_WORDS.codeWrong);
-    const out = await signUp(input);
+    // Narrowing a PROPERTY does not re-type the object that holds it, so the
+    // proved password is handed over explicitly rather than passing `input`
+    // and asserting. No cast, and the compiler keeps the guarantee.
+    const out = await signUp({ ...input, password: input.password });
     console.log(JSON.stringify({ level: "info", event: "signup", created: out.created, code_unsent: out.codeUnsent, ms: Date.now() - started }));
     // THE CODE IS THE ONLY WAY IN, so a send WE could not make is worth saying.
     // The usual answer stays deliberately opaque -- whether an address is already
@@ -84,7 +98,11 @@ export async function POST(req: Request): Promise<Response> {
     if (out.codeUnsent) {
       return NextResponse.json(ok({ sent: false, next: null, message: SIGNUP_WORDS.notSent }), { headers: PRIVATE });
     }
-    return NextResponse.json(ok({ sent: true, next: signupNext(input.email) }), { headers: PRIVATE });
+    // `next` is null because there is nowhere to send them: the code step is
+    // on the sign-up page itself now. It stays in the shape because a client
+    // deployed before this reads it, and null is the value that shape already
+    // uses for "this page says what happens next" (the waitlist, the unsent).
+    return NextResponse.json(ok({ sent: true, next: null }), { headers: PRIVATE });
   } catch (e) {
     if (e instanceof AppError) return NextResponse.json(err(e.code, e.message), { status: e.status, headers: PRIVATE });
     console.error("signup_failed", JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
