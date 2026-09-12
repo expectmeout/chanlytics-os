@@ -360,7 +360,7 @@ test("the carriers' verdicts become the words the row uses", () => {
   // ACTIVE, not "approved": the inbound path only answers on active, and
   // nothing moved a line from one to the other, so every text stayed held.
   assert.equal(smsStateFor({ brandStatus: "APPROVED", campaignStatus: "VERIFIED" }), "active");
-  assert.ok(readCode("apps/edge/api/inbound-sms.ts").includes('const held = line.sms_state !== "active";'), "which is the state the inbound path reads");
+  assert.ok(readCode("apps/edge/lib/sms-ingress.ts").includes('held: line.sms_state !== "active"'), "which is the state the inbound path reads");
   assert.equal(smsStateFor({ brandStatus: "FAILED", campaignStatus: null }), "rejected");
   assert.equal(smsStateFor({ brandStatus: "APPROVED", campaignStatus: "FAILED" }), "rejected");
   assert.equal(smsStateFor({ brandStatus: "SUSPENDED" }), "failed");
