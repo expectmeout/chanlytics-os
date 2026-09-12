@@ -305,11 +305,19 @@ otp_expiry = 600
 enable_signup = false
 # If enabled, users need to confirm their phone number before signing in.
 #
-# TRUE even though the phone provider above is FALSE and stays false. Nobody
-# signs in by phone here; this flag is the other half of hiding whether an
-# address is already registered (see [auth.email] enable_confirmations). The
-# documented rule names it "even when phone provider is disabled".
-enable_confirmations = true
+# FALSE, deliberately, and here is the trade. Supabase hides whether an address
+# is already registered only when email AND phone confirmations are both on --
+# the documented rule says so "even when phone provider is disabled". But the
+# dashboard puts that flag inside the Phone provider form, which will not save
+# without Twilio credentials and whose own toggle reads "this will enable phone
+# based login for your application". Adding a whole sign-in channel nobody uses,
+# to hold one flag, is a worse bargain than keeping the invariant ourselves.
+#
+# So we keep it: `addressAlreadyKnown` in contracts, applied in
+# src/server/signup.ts, answers an address we already have exactly as it answers
+# a new one. The oracle stays closed on OUR surface either way; turning this on
+# later would also close it at the platform's, which is the only thing gained.
+enable_confirmations = false
 # Template for sending OTP to users
 template = "Your code is {{ .Code }}"
 # Controls the minimum amount of time that must pass before sending another sms otp.

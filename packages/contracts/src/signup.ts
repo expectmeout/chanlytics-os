@@ -171,6 +171,30 @@ export function sendFailureIsOurs(e: { code?: string; status?: number; message?:
   return /rate limit|too many requests|email provider|smtp/i.test(e.message ?? "");
 }
 
+/**
+ * Is this the platform saying the address is already registered?
+ *
+ * THE PROJECT DOES NOT HIDE THIS BY ITSELF, and it is not going to. Supabase
+ * returns an obfuscated user for a known address only when email AND phone
+ * confirmations are both on, and the phone flag lives behind a phone provider
+ * this product will never switch on: the dashboard will not save that form
+ * without SMS credentials, and its own toggle says it enables phone-based
+ * login. Adding a whole sign-in channel nobody uses, to hold one flag, is a
+ * worse bargain than keeping the invariant ourselves.
+ *
+ * So the neutrality is OURS. The caller answers an address we already have
+ * exactly as it answers a new one, and nothing downstream learns which it was.
+ * Without this, an ordinary second sign-up becomes a 500 -- a dead end for the
+ * person, and a 500-versus-200 oracle for everybody else.
+ *
+ * Matched on the code first: the code is the stable half and the wording is not.
+ */
+export function addressAlreadyKnown(e: { code?: string; message?: string } | null | undefined): boolean {
+  if (!e) return false;
+  if (e.code === "email_exists" || e.code === "user_already_exists") return true;
+  return /already (been )?registered|already exists/i.test(e.message ?? "");
+}
+
 /* `signupNext` lived here: the sign-up page sent the person to /login at the
  * code step. The code step is on the sign-up page itself now, so the route
  * answers `next: null` and there is nowhere to compute. Removed rather than

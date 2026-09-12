@@ -6867,6 +6867,11 @@ function sendFailureIsOurs(e) {
   if (e.status === 429) return true;
   return /rate limit|too many requests|email provider|smtp/i.test(e.message ?? "");
 }
+function addressAlreadyKnown(e) {
+  if (!e) return false;
+  if (e.code === "email_exists" || e.code === "user_already_exists") return true;
+  return /already (been )?registered|already exists/i.test(e.message ?? "");
+}
 function deviceTimezone(resolve = () => Intl.DateTimeFormat().resolvedOptions().timeZone) {
   try {
     const tz = resolve();
@@ -8386,6 +8391,7 @@ export {
   WABA_FIELDS,
   WA_WINDOW_MS,
   activityWords,
+  addressAlreadyKnown,
   afterPersonRefused,
   ago,
   agoLabel,

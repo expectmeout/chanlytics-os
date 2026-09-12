@@ -305,12 +305,13 @@ test("an address is CONFIRMED, in both of the two places that decide it", () => 
   // someone else's address is signed in as them, and the real owner can never
   // sign up because the address is taken.
   assert.equal(toml("auth.email", "enable_confirmations"), "true");
-  // And phone confirmation, even though the phone provider is off and stays
-  // off. Supabase only returns the obfuscated answer for an address it already
-  // has when BOTH are on; with either off it answers "User already registered",
-  // which is an account-enumeration oracle on a public form.
-  assert.equal(toml("auth.sms", "enable_confirmations"), "true");
-  assert.equal(toml("auth.sms", "enable_signup"), "false", "nobody signs up by phone: this is the enumeration flag, not a door");
+  // Phone confirmation is the OTHER half of hiding whether an address is known,
+  // and it is deliberately not used: the dashboard only offers it behind a
+  // phone provider that demands SMS credentials and switches on phone sign-in.
+  // The invariant is kept in code instead (addressAlreadyKnown), which is
+  // pinned by signup.test. Nothing here asserts that flag in either direction —
+  // turning it on later is pure hardening and must not fail this suite.
+  assert.equal(toml("auth.sms", "enable_signup"), "false", "nobody signs up by phone");
 });
 
 test("a password has a floor, and the floor is length rather than punctuation", () => {

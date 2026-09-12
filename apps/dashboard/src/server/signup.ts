@@ -4,7 +4,7 @@ import { deployment } from "./deployment";
 import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient, type Database } from "@chanlytics/db";
-import { PENDING_WORKSPACE_KEY, sendFailureIsOurs, type SignupInput } from "@chanlytics/contracts";
+import { PENDING_WORKSPACE_KEY, addressAlreadyKnown, sendFailureIsOurs, type SignupInput } from "@chanlytics/contracts";
 
 /**
  * Sign-up, the half that knows who exists.
@@ -99,6 +99,14 @@ export async function signUp(input: SignupInput & { password: string }): Promise
     options: { data: { [PENDING_WORKSPACE_KEY]: { name: input.name, timezone: input.timezone ?? null } } },
   });
   if (error) {
+    // AN ADDRESS WE ALREADY HAVE, answered exactly as a new one is: nothing
+    // created, nothing sent, and the same sentence back. The platform will
+    // obfuscate this itself only if phone confirmations are on, which means
+    // switching on a phone provider nobody signs in with -- so the neutrality
+    // is kept here instead, where it does not depend on a console toggle.
+    // Without this branch an ordinary second sign-up is a 500, which is both a
+    // dead end for the person and an oracle for everyone else.
+    if (addressAlreadyKnown(error)) return { created: false, userId: null, codeUnsent: false };
     if (!sendFailureIsOurs(error as { code?: string; status?: number; message?: string })) {
       throw new Error(`signUp: ${error.message}`);
     }

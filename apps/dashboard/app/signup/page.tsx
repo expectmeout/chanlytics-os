@@ -158,6 +158,11 @@ export default function SignupPage() {
           }}
           onBack={() => { setStage("form"); setError(null); }}
         />
+        {/* The cost of answering a known address exactly as a new one: somebody
+            who already had an account is standing at a code screen waiting for
+            a code nobody sent. This is the way out, and it gives nothing away —
+            it is shown to everyone who reaches this step. */}
+        <div className="hint">{SIGNUP_WORDS.haveOne} <a href="/login">Sign in</a></div>
         <div className="hint auth-legal"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></div>
       </main>
     );

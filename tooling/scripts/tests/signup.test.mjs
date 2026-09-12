@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SignupSchema, SIGNUP_WORDS, deviceTimezone, sendFailureIsOurs, pendingWorkspaceOf, PENDING_WORKSPACE_KEY, EVENT_KINDS } from "@chanlytics/contracts";
+import { SignupSchema, SIGNUP_WORDS, addressAlreadyKnown, deviceTimezone, sendFailureIsOurs, pendingWorkspaceOf, PENDING_WORKSPACE_KEY, EVENT_KINDS } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 test("the form's shape: a name, a lower-cased address, an optional zone and code, nothing else", () => {
@@ -78,7 +78,12 @@ test("the wiring: two public paths, the guards on the route, a service role that
   assert.ok(server.includes("await anon.auth.signUp({"), "the ordinary sign-up call, on the public key");
   assert.ok(server.includes("options: { data: { [PENDING_WORKSPACE_KEY]: { name: input.name, timezone: input.timezone ?? null } } },"), "what the form said rides on the user, for the create screen to open with");
   assert.ok(!server.includes("create_workspace") && !server.includes("deleteUser") && !server.includes("emitEvent"), "REGRESSION: a workspace, or anything to undo, for an address nobody has proved");
-  assert.ok(server.includes("identities?.length ?? 0) > 0"), "an address we already have comes back obfuscated: the empty identities array is the tell, and it is read for the LOG alone");
+  assert.ok(server.includes("identities?.length ?? 0) > 0"), "when the platform DOES obfuscate, the empty identities array is the tell, and it is read for the LOG alone");
+  // And when it does not — which is this project's state, because the flag that
+  // would is locked behind a phone provider nobody signs in with — the answer
+  // is kept neutral here rather than by a console toggle.
+  assert.ok(server.includes("if (addressAlreadyKnown(error)) return { created: false, userId: null, codeUnsent: false };"), "an address we already have is answered exactly as a new one is: nothing made, nothing sent, same sentence");
+  assert.ok(server.indexOf("addressAlreadyKnown(error)") < server.indexOf("throw new Error(`signUp:"), "REGRESSION: an ordinary second sign-up becoming a 500, which is a dead end AND an oracle");
   // Read from the `route` already in hand rather than a second read of the
   // same file: the ratchet counts source reads per test file, and it is right
   // to — a file that reads more source is a file pinning more text.
@@ -158,6 +163,33 @@ test("a send WE could not make is admitted; one about an ADDRESS is not", () => 
 
   // And the opaque sentence is untouched: it still speaks conditionally.
   assert.match(SIGNUP_WORDS.sent("o@example.com"), /^If o@example\.com can receive email/);
+});
+
+test("an address we already have is recognised, and is a different judgement from a send we could not make", () => {
+  // The two answers Supabase gives that this route must tell apart. One is
+  // about an ADDRESS and is swallowed; the other is about US and is admitted.
+  // Confusing them either leaks who has an account or strands somebody waiting
+  // for a code that is never coming.
+  for (const known of [
+    { code: "email_exists" },
+    { code: "user_already_exists" },
+    { message: "User already registered" },
+    { message: "A user with this email address has already been registered" },
+  ]) assert.equal(addressAlreadyKnown(known), true, JSON.stringify(known));
+
+  for (const not of [
+    null,
+    undefined,
+    {},
+    { code: "over_email_send_rate_limit" },
+    { code: "email_provider_disabled" },
+    { message: "Signups not allowed for otp" },
+    { message: "something nobody has seen before" },
+  ]) assert.equal(addressAlreadyKnown(not), false, JSON.stringify(not));
+
+  // Disjoint, in both directions: neither judgement may claim the other's cases.
+  assert.equal(sendFailureIsOurs({ code: "email_exists" }), false);
+  assert.equal(addressAlreadyKnown({ code: "over_email_send_rate_limit" }), false);
 });
 
 test("what sign-up kept is a prefill, and a clock Postgres would refuse is dropped rather than failing the first Create", () => {
